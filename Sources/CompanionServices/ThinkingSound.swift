@@ -63,11 +63,18 @@ public final class ThinkingSound: ThinkingSounding, @unchecked Sendable {
         let steps = 12
         Task.detached {
             for step in 1 ... steps {
-                try? await Task.sleep(
-                    nanoseconds: UInt64(seconds / Double(steps) * 1e9))
+                do {
+                    try await Task.sleep(
+                        nanoseconds: UInt64(seconds / Double(steps) * 1e9))
+                } catch {
+                    // Cancelled mid-ramp: land on the target and finish the
+                    // teardown instead of leaving the engine half-faded.
+                    break
+                }
                 let fraction = Float(step) / Float(steps)
                 engine.mainMixerNode.outputVolume = start + (target - start) * fraction
             }
+            engine.mainMixerNode.outputVolume = target
             completion?()
         }
     }
