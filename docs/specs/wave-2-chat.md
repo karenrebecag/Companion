@@ -1,7 +1,7 @@
 # Wave 2 — Chat vertical
 
-**Estado: APROBADO / EN CURSO** — Karen 2026-08-20 ("vamos con el
-siguiente wave"). Kickoff planner + architect contra Wave 1 cerrado.
+**Estado: CERRADO** — 2026-08-20. Karen: "vamos con el siguiente wave".
+Gates verdes (1046 tests).
 
 ## Objetivo
 

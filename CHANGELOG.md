@@ -5,6 +5,28 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.2.0-wave2] — 2026-08-20
+
+### Added
+- Chat usable: onboarding con API key de OpenAI (Keychain, ping
+  `GET /models`), hilo con streaming, historial de las ultimas 30
+  conversaciones en Application Support.
+- Fallback OpenAI → Groq → Ollama (Groq si hay key; Ollama si el probe
+  lo ve). Un fallo a media frase no concatena proveedores.
+
+### Fixed
+- Hardening del review de cierre (tdd-guide, rojo primero): redirects
+  cross-host o https→http rechazados (RedirectPolicy); http permitido solo
+  hacia localhost (EndpointPolicy); logs sin errores del sistema ni rutas, y
+  las fallas de prune ya no son silenciosas.
+
+### Changed
+- `swift run companion` abre ventana. Todavia sin voz.
+- Harness de tests migrado a Swift Testing (`swift test`, 22 suites @Test);
+  expect/expectEq quedan como shims sobre #expect con sourceLocation, y el
+  bombeo de los tests del ViewModel es async (la main queue no es reentrante
+  bajo swift test). Muere el runner ejecutable.
+
 ## [0.1.0-wave1] — 2026-08-20
 
 ### Added

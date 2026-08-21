@@ -22,4 +22,5 @@ scripts/gates.sh     # full compliance suite
 - `docs/PROGRAM.md` — rebuild program (waves)
 - `docs/REFERENCE.md` — behavior ledger from the reference prototype
 
-Status: Wave 1 (pure core, 640 tests). Not yet usable — chat lands in Wave 2.
+Status: Wave 2. `swift run companion` — paste an OpenAI API key and chat.
+Voice is Wave 3.

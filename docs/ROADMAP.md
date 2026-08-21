@@ -6,14 +6,14 @@
 |---|---|---|---|
 | 0 | Scaffold | CERRADA (2026-08-20) | Paquete compila, gates verdes |
 | 1 | Core de dominio | CERRADA (2026-08-20) | Logica pura 100% testeada |
-| 2 | Chat vertical | APROBADO / EN CURSO | **App usable solo con una API key** |
+| 2 | Chat vertical | CERRADA (2026-08-20) | **App usable solo con una API key** |
 | 3 | Voz | Spec BORRADOR | **Conversacion por voz con barge-in** |
 | 4 | Delegacion | Spec BORRADOR | **Especialista integrado sin instalar nada** |
 | 5 | Producto | Spec BORRADOR | **Distribuible open source** |
 
 ## Foco actual
 
-Wave 2 EN CURSO (lote Core: puertos ChatProvider / SecretStore).
+Wave 3: kickoff del spec (`docs/specs/wave-3-voice.md`).
 
 ## Deuda consciente (con trigger)
 

@@ -36,6 +36,12 @@ cambiar de modo no pierde contexto.
 - Cadena: Realtime WS -> pipeline clasico (mic + STT + chat + TTS). WebRTC
   queda explicitamente FUERA de esta wave (post-v1 en el roadmap).
 
+## Deuda heredada de Wave 2 (resolver aqui)
+
+- `DeltaSink` (`ChatSSEAttempt.swift`) sincroniza con NSLock y `@unchecked
+  Sendable`; esta wave toca el streaming de todos modos: convertirlo en
+  `actor` (hallazgo MEDIUM del code review de Wave 2).
+
 ## Tests
 
 - Reducer ya cubierto en Wave 1; aqui: VoiceSession con transporte fake
