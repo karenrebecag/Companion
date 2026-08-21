@@ -26,8 +26,6 @@ public enum ChatIdle {
 public struct ThreadView: View {
     @Bindable var model: ChatViewModel
     var mode: InteractionMode
-    @State private var idlePhrase = ChatIdle.phrases.randomElement() ?? ""
-
     public init(
         chat: ChatViewModel,
         mode: InteractionMode = .voice
@@ -62,22 +60,35 @@ public struct ThreadView: View {
         model.messages.isEmpty && model.streaming.isEmpty && !model.busy
     }
 
+    /// The rest state: the mascot greets and a phrase invites (prototype's
+    /// idle hero). GeometryReader READS the space instead of asking for it —
+    /// a hard size becomes a minimum height and stretches the window.
     private var idleHero: some View {
-        VStack(spacing: Space.x3) {
-            Text(idlePhrase)
-                .font(.uiTitle)
-                .foregroundStyle(Semantic.foreground)
-                .shimmering(active: true)
-            Text(ChatIdle.caption(mode))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .transition(.opacity)
+        GeometryReader { geo in
+            // What remains after reserving room for the two text lines.
+            let side = min(69 * Space.x1, max(0, geo.size.height - 24 * Space.x1))
+            VStack(spacing: Space.x3) {
+                MascotView(excited: !model.draft.isEmpty)
+                    .frame(width: side * mascotAspect, height: side)
+                VStack(spacing: Space.x1) {
+                    TypewriterView(phrases: ChatIdle.phrases)
+                        .font(.uiTitle)
+                        .foregroundStyle(Semantic.foreground)
+                    Text(ChatIdle.caption(mode))
+                        .font(.uiCaption)
+                        .foregroundStyle(Semantic.mutedForeground)
+                        .transition(.opacity)
+                }
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
         }
-        .multilineTextAlignment(.center)
-        .fixedSize(horizontal: false, vertical: true)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .padding(.horizontal, Space.x4)
     }
+
+    /// Artboard 475x453; el ancho sale del alto disponible.
+    private var mascotAspect: CGFloat { 475.0 / 453.0 }
 
     private var invertedThread: some View {
         ScrollViewReader { proxy in

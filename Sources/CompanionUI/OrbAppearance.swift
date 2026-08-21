@@ -115,6 +115,18 @@ public enum OrbAppearance {
         }
     }
 
+    /// The prototype's color world: pink/cyan/lavender. Accent-monochrome
+    /// (accent + white) flattened the orb into a single-hue blob — the blob,
+    /// glow and particles all read as one shape. Three distinct hues is what
+    /// makes the layers visible against each other.
+    public static var voiceInk: [Color] {
+        [
+            Color(nsColor: NSColor.fromHex("F383BB")),
+            Color(nsColor: NSColor.fromHex("43D5DC")),
+            Color(nsColor: NSColor.fromHex("A6ACFF")),
+        ]
+    }
+
     public static func configuration(
         for state: TurnState,
         accent: Color,
@@ -124,13 +136,14 @@ public enum OrbAppearance {
         let particles = particleCount(for: state, reduceMotion: reduceMotion) > 0
         let ink: [Color]
         if state == .error {
+            // La paleta del mundo cede: un fallo tiene que leerse como fallo.
             ink = [
                 Color(nsColor: NSColor.fromHex("E8A317")),
                 Color(nsColor: NSColor.fromHex("8A5A2B")),
                 Color(nsColor: NSColor.fromHex("E8A317")),
             ]
         } else {
-            ink = [accent, accent.opacity(0.82), Color.white.opacity(0.92)]
+            ink = voiceInk
         }
         return OrbConfiguration(
             backgroundColors: ink,
