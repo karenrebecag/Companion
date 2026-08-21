@@ -1,7 +1,8 @@
 # Wave 4 — Delegacion
 
-**Estado: BORRADOR REFINADO** — kickoff hecho (planner + architect, 2026-08-21).
-Pendiente: decisiones de Karen marcadas con **[DECIDIR]** y su aprobacion.
+**Estado: APROBADO / EN CURSO** — 2026-08-21. Karen dio luz verde y fijo el
+alcance de archivos apuntando a su carpeta de proyectos; el resto se decide
+con las recomendaciones de este spec (abajo, "Decisiones tomadas").
 
 ## Objetivo
 
@@ -68,18 +69,30 @@ es responsabilidad de `JobQueue`, no del puerto.
 4. **Auto-deny a los 120 s** con una sola fuente de verdad (actor
    `Approvals`): el temporizador corre aunque se cierre el dialogo.
 
-## [DECIDIR] Decisiones de producto pendientes
+## Decisiones tomadas
 
-- **D1 — Alcance de archivos.** ¿El especialista trabaja sobre una carpeta
-  de trabajo que Karen elige (potente, es el punto del producto) o sobre un
-  sandbox por trabajo (seguro, pero inutil para "arregla este proyecto")?
-  Recomendacion: carpeta elegida por Karen, declarada en Config, mas
-  approvals para toda escritura fuera de lectura.
-- **D2 — Aprobar por voz.** El prototipo permitia decir "si". Recomendacion:
-  FUERA de esta wave — un falso positivo del reconocimiento ejecuta algo
-  real. Solo dialogo; la voz anuncia y pide ir a la ventana.
-- **D3 — Alcance de `run_shell`.** ¿Entra en 4a o se difiere? Recomendacion:
-  entra, pero detras de approvals y con la carpeta de trabajo como cwd.
+- **D1 — Alcance de archivos: carpeta de trabajo elegida por la usuaria.**
+  Es el punto del producto ("arregla este proyecto"), no un sandbox de
+  juguete. Vive en `Config.workdir`; NUNCA se lee del entorno ni se
+  hardcodea una ruta personal (el repo es publico). Sin carpeta configurada,
+  el especialista puede leer y buscar, pero no escribir ni ejecutar.
+  Toda ruta fuera de la carpeta de trabajo se rechaza antes de tocar disco.
+- **D2 — Aprobar SOLO por dialogo en esta wave.** El prototipo permitia
+  decir "si"; con lo aprendido en Wave 3 sobre reconocimiento de voz, un
+  falso positivo ejecutaria algo real. La voz anuncia que hay un permiso
+  pendiente y pide ir a la ventana. Reevaluar despues de v1.
+- **D3 — `run_shell` entra en 4a**, detras de approvals y con la carpeta de
+  trabajo como directorio de ejecucion.
+
+## Requisito heredado del tramo 1 (obligatorio en el tramo 2)
+
+`PathValidator` (Core) valida de forma LEXICA: resuelve `..` y exige que la
+ruta caiga dentro de la carpeta de trabajo. Eso no basta: un symlink dentro
+de la carpeta que apunte fuera pasaria la validacion. Como Core es puro y no
+puede consultar el disco, la segunda barrera vive en Services, al ejecutar
+la tool: resolver la ruta real (`resolvingSymlinksInPath`) y volver a exigir
+que siga dentro de la carpeta. Doble barrera, con test que cree un symlink
+en un directorio temporal y confirme el rechazo.
 
 ## Tareas (4a), en orden
 

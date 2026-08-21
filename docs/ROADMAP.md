@@ -8,13 +8,13 @@
 | 1 | Core de dominio | CERRADA (2026-08-20) | Logica pura 100% testeada |
 | 2 | Chat vertical | CERRADA (2026-08-20) | **App usable solo con una API key** |
 | 3 | Voz | APROBADO / EN CURSO | **Conversacion por voz con barge-in** |
-| 4 | Delegacion | Spec BORRADOR | **Especialista integrado sin instalar nada** |
+| 4 | Delegacion | Spec APROBADO (4a en curso) | **Especialista integrado sin instalar nada** |
 | 5 | Producto | Spec BORRADOR | **Distribuible open source** |
 
 ## Foco actual
 
-Wave 4 (delegacion): kickoff en curso. El spec se refina contra lo que las
-waves 1-3 produjeron y necesita aprobacion de Karen antes de escribir codigo.
+Wave 4a: NativeExecutor — el especialista integrado que funciona solo con la
+API key. Los adapters de CLI (Claude Code, Hermes) son la tanda 4b.
 
 ## Deuda consciente (con trigger)
 
