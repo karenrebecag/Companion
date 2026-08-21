@@ -330,7 +330,7 @@ private func messageType(_ json: String) -> String? {
     return obj["type"] as? String
 }
 
-private func hasMessage(_ sent: [String], type: String) -> Bool {
+func hasMessage(_ sent: [String], type: String) -> Bool {
     sent.contains { messageType($0) == type }
 }
 

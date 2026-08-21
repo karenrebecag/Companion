@@ -5,6 +5,26 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.8.1] — 2026-08-21
+
+### Fixed
+- La delegacion por voz funciona end-to-end (Wave 7). El cable con
+  `claude -p` estaba roto de seis maneras: ruta hardcodeada equivocada,
+  deteccion via `which` sin PATH de shell, flag `-m` inexistente, sin
+  `--verbose` ni `--permission-prompt-tool stdio` ni rol del ejecutor, y un
+  readLine que entregaba bloques del pipe como si fueran lineas NDJSON.
+- La voz se entera del resultado: el cierre del encargo se anuncia como
+  system item cuando la sesion vuelve a escuchar — antes seguia prometiendo
+  "voy en camino" sobre un encargo muerto.
+- Errores en humano: "Job failed: processLaunchFailed" jamas vuelve a
+  pintarse en el hilo; presupuesto/cancelacion/launch tienen su frase.
+- Los eventos del encargo por voz (pasos, pensamientos, aprobaciones) llegan
+  al hilo y a la hoja de permisos por el mismo seam que los de chat; antes
+  se drenaban y tiraban, y las aprobaciones morian en el auto-deny de 120 s.
+- El proceso del especialista persiste entre encargos y se termina al
+  cancelar; hermes recibe el prompt como argumento (-q) en vez de un stdin
+  que esperaba para siempre; los adjuntos del turno viajan en el prompt.
+
 ## [0.8.0] — 2026-08-21
 
 ### Added

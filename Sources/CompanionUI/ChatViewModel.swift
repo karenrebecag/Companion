@@ -267,12 +267,26 @@ public final class ChatViewModel: ConversationPresenting {
         }
     }
 
-    /// Test seam: drives the same path the job stream drives, so the wiring
-    /// under test is the real one.
-    public func receiveJobEventForTesting(_ event: JobEvent) {
-        if case .approvalRequested(let request) = event {
+    /// One seam for every job event, chat-born or voice-born: steps and
+    /// thoughts paint the timeline, an approval lands where the sheet looks.
+    public func receiveJobEvent(_ event: JobEvent) {
+        switch event {
+        case .stepStarted(let tool, let summary):
+            messages.append(ChatMessage(
+                isStatus: true, text: ChatCopy.step(tool, summary)))
+        case .stepFinished(let tool, let ok):
+            messages.append(ChatMessage(
+                isStatus: true, text: ChatCopy.stepDone(tool, ok: ok)))
+        case .approvalRequested(let request):
+            // Surface it: a request that only prints text ends in the
+            // auto-deny with the user none the wiser.
             pendingApproval = request
+            messages.append(ChatMessage(
+                isStatus: true, text: ChatCopy.approvalPending))
+        case .thought(let text):
+            messages.append(ChatMessage(isStatus: true, text: text))
         }
+        persist()
     }
 
     public func answerApproval(_ approved: Bool) {
@@ -299,26 +313,7 @@ public final class ChatViewModel: ConversationPresenting {
             // Submit to runner
             let (stream, sink) = AsyncStream<JobEvent>.makeStream()
             _ = Task {
-                for await event in stream {
-                    // Process events as needed
-                    switch event {
-                    case .stepStarted(let tool, let summary):
-                        messages.append(ChatMessage(
-                            isStatus: true, text: ChatCopy.step(tool, summary)))
-                    case .stepFinished(let tool, let ok):
-                        messages.append(ChatMessage(
-                            isStatus: true, text: ChatCopy.stepDone(tool, ok: ok)))
-                    case .approvalRequested(let request):
-                        // Surface it: a request that only prints text ends in
-                        // the auto-deny with the user none the wiser.
-                        pendingApproval = request
-                        messages.append(ChatMessage(
-                            isStatus: true, text: ChatCopy.approvalPending))
-                    case .thought(let text):
-                        messages.append(ChatMessage(isStatus: true, text: text))
-                    }
-                    persist()
-                }
+                for await event in stream { receiveJobEvent(event) }
             }
 
             do {
@@ -326,8 +321,9 @@ public final class ChatViewModel: ConversationPresenting {
                 sink.finish()
                 if result.isError {
                     messages.append(ChatMessage(
-                        role: .assistant,
-                        text: "Encargo falló: \(result.output)"))
+                        isStatus: true,
+                        text: Escalation.jobFailedStatus(
+                            handoff.goal, detail: result.output)))
                     toast(ChatCopy.jobFailed, level: .error)
                 } else {
                     messages.append(ChatMessage(

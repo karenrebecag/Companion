@@ -140,6 +140,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             playback: DataSpeechPlayback(),
             fallback: AVSpeechFallback(),
             voice: config.voice.voice)
+        // Voice-born jobs paint through the same seam as chat-born ones:
+        // steps, thoughts and approvals land in the thread and the sheet.
+        let onJobEvent: @Sendable (JobEvent) -> Void = { event in
+            Task { @MainActor in model.receiveJobEvent(event) }
+        }
         let session = VoiceSession(
             transport: RealtimeWSTransport(),
             mic: mic,
@@ -150,7 +155,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             secrets: secrets,
             thread: model,
             configProvider: configProvider,
-            jobs: jobRunner)
+            jobs: jobRunner,
+            onJobEvent: onJobEvent)
         let ambience = AmbienceObserver(
             sound: ThinkingSound(),
             isEnabled: { ThinkingSoundPref.enabled })

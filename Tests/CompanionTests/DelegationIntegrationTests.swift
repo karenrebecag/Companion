@@ -65,6 +65,10 @@ func delegationFailureIsReported() throws {
     }
 
     expect(result.isError, "delegación: fallo del ejecutor reportado")
+    expect(!result.output.contains("Job failed"),
+           "delegación: nada de errores internos hacia la usuaria")
+    expect(!result.output.isEmpty && !result.output.contains("Error"),
+           "delegación: el fallo se cuenta en humano")
 }
 
 
@@ -122,6 +126,16 @@ private struct SlowExecutor: Executor {
     testApprovalReachesTheUser()
     await testAnsweringApprovalResolvesIt()
     testVoiceDelegatesInsteadOfRefusing()
+    testStepsPaintInTheThread()
+}
+
+/// Voice-delegated jobs feed the same seam: their steps must land in the
+/// thread as status lines, not vanish into a drained stream.
+@MainActor func testStepsPaintInTheThread() {
+    let vm = wiredViewModel(RecordingSubmitter())
+    vm.receiveJobEvent(.stepStarted(tool: "write_file", summary: "prueba1.md"))
+    expect(vm.messages.contains { $0.isStatus && $0.text.contains("prueba1.md") },
+           "pasos: el encargo por voz pinta su linea de tiempo")
 }
 
 @MainActor private func wiredViewModel(_ submitter: RecordingSubmitter) -> ChatViewModel {
@@ -142,7 +156,7 @@ private struct SlowExecutor: Executor {
     let request = ApprovalRequest(
         requestId: "r1", toolName: "run_shell",
         summary: "", inputJSON: "{\"command\":\"ls\"}")
-    vm.receiveJobEventForTesting(JobEvent.approvalRequested(request))
+    vm.receiveJobEvent(JobEvent.approvalRequested(request))
     expectEq(vm.pendingApproval?.requestId, "r1",
              "permiso: llega al estado que la hoja observa")
 }
@@ -153,7 +167,7 @@ private struct SlowExecutor: Executor {
     let request = ApprovalRequest(
         requestId: "r2", toolName: "write_file",
         summary: "", inputJSON: "{\"path\":\"a.txt\"}")
-    vm.receiveJobEventForTesting(JobEvent.approvalRequested(request))
+    vm.receiveJobEvent(JobEvent.approvalRequested(request))
     vm.answerApproval(true)
     expect(vm.pendingApproval == nil, "permiso: la hoja se cierra al responder")
     await pumpUntil("permiso: la respuesta llega al especialista") {

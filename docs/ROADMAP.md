@@ -11,13 +11,16 @@
 | 4 | Delegacion | CERRADA (4a y 4b) | **Especialista integrado sin instalar nada** |
 | 5 | Producto | CERRADA (5a-5e) | **Distribuible open source** |
 | 6 | Paridad y craft | 6a CERRADA; 6c CERRADA; 6b EN CURSO | **Iguala o supera al prototipo en uso diario** |
+| 7 | Delegacion de verdad | CERRADA (7a y 7b, 2026-08-21) | **"Crea un archivo" por voz termina en archivo real** |
 
 ## Foco actual
 
-Las seis waves estan cerradas. Queda la prueba manual integral de Karen con
-la app abierta — incluido el veredicto visual del design system, que es el
-criterio de done de 6b — y despues lo que ella decida: notarizar (requiere
-cuenta de Apple) o las ideas post-v1.
+Las siete waves estan cerradas. La prueba manual de Karen destapo que la
+delegacion por voz nunca habia funcionado end-to-end (Wave 7 la reparo:
+cable del CLI, circuito de vuelta a la voz, errores en humano). Queda
+repetir esa prueba — "crea un archivo prueba1.md en mi escritorio" — mas el
+veredicto visual del design system (criterio de done de 6b), y despues lo
+que ella decida: notarizar (requiere cuenta de Apple) o las ideas post-v1.
 
 
 ## Brecha con el prototipo (medida 2026-08-21)

@@ -166,6 +166,26 @@ Descubiertas en prueba manual de Wave 3; ningun test las vio.
   sobrevive a los rebuilds). Cuando la usuaria pega la key en el onboarding
   esto no ocurre: la app es duena del item.
 
+- **Una app GUI no hereda el PATH del shell.** `which claude` en subproceso
+  dice "no instalado" con claude instalado, y cualquier ruta hardcodeada
+  apunta a donde no es (`~/.local/bin` es donde instala el instalador
+  oficial). La unica verdad es el sistema de archivos: `CLIBinaryLocator`.
+- **`-m` no es un flag de `claude`; es `--model` con alias corto** (opus/
+  sonnet/haiku). El prototipo lo hacia bien (`Model.swift:147`); el rebuild
+  lo invento y el proceso moria en argparse.
+- **Un pipe entrega bloques, no lineas.** `readData(ofLength:)` parte o pega
+  el NDJSON; sin buffer de lineas el parser recibe basura silenciosa.
+  `LineBuffer` en Core + regresion con lineas de 20 KB.
+- **`hermes chat -Q` toma el prompt como argumento `-q`**, no por stdin
+  (`Hermes.swift:308-313`); mandarlo por stdin lo deja esperando el EOF.
+- **JSONSerialization escapa `/` como `\/`.** Un assert `contains("/ruta")`
+  sobre JSON serializado falla aunque la ruta viaje bien.
+- **Helpers @MainActor + runAsync se abrazan.** El `runAsync` del TestKit
+  bloquea el main thread con un semaforo; un helper @MainActor llamado
+  dentro de su closure detached espera un actor que no va a soltarse:
+  timeout de 5 s disfrazado de CancellationError. Los helpers que se usen
+  dentro de runAsync van nonisolated.
+
 ## El patron de bug que se repite en este repo
 
 Cuatro veces en Wave 3 aparecio lo mismo: **la logica correcta y testeada,

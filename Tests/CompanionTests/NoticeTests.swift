@@ -70,13 +70,13 @@ import Testing
         jobSubmitter: submitter,
         notices: notices)
     vm.onAppear()
-    vm.receiveJobEventForTesting(.approvalRequested(ApprovalRequest(
+    vm.receiveJobEvent(.approvalRequested(ApprovalRequest(
         requestId: "r1", toolName: "run_shell", summary: "ls", inputJSON: "{}")))
     vm.answerApproval(true)
     expectEq(notices.queue.visible.last?.text, ChatCopy.approvalAnswer(true),
              "toast: permiso resuelto avisa")
     expectEq(sound.played.last, .confirm, "toast: permiso concedido confirma")
-    vm.receiveJobEventForTesting(.approvalRequested(ApprovalRequest(
+    vm.receiveJobEvent(.approvalRequested(ApprovalRequest(
         requestId: "r2", toolName: "run_shell", summary: "ls", inputJSON: "{}")))
     vm.answerApproval(false)
     expectEq(notices.queue.visible.last?.level, .error,

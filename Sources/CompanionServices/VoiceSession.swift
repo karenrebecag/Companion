@@ -33,6 +33,10 @@ public actor VoiceSession: VoiceControlling {
     /// Sampled once per session open; swapping outputs mid-session keeps the
     /// conservative value until the next turn.
     private var echoFreeOutput = false
+    private let onJobEvent: (@Sendable (JobEvent) -> Void)?
+    /// Job outcomes waiting for a listening gap; the voice must never be
+    /// talked over by its own announcement.
+    private var pendingAnnouncements: [String] = []
     private var lastMic = 0.0
     private var lastAgent = 0.0
     private var reconnectAttempted = false
@@ -48,6 +52,7 @@ public actor VoiceSession: VoiceControlling {
         thread: any ConversationPresenting,
         configProvider: any ConfigProviding,
         jobs: (any JobSubmitter)? = nil,
+        onJobEvent: (@Sendable (JobEvent) -> Void)? = nil,
         reachability: any ReachabilityProbing = NetworkReachability(),
         // Injectable: a unit test must not depend on which output device the
         // machine happens to have plugged in (found out the hard way when the
@@ -67,6 +72,7 @@ public actor VoiceSession: VoiceControlling {
         self.secrets = secrets
         self.configProvider = configProvider
         self.jobs = jobs
+        self.onJobEvent = onJobEvent
         self.reachability = reachability
         self.echoFreeProbe = echoFreeProbe
             ?? { AudioDevicePin.outputIsEchoFree() }
@@ -75,12 +81,6 @@ public actor VoiceSession: VoiceControlling {
         self.readyTimeout = readyTimeout
         self.realtime = RealtimeRuntime(
             transport: transport, player: player, thread: thread)
-        if let jobs {
-            let presenter = thread
-            realtime.onDelegate = { handoff in
-                Task { await VoiceJobBridge.run(handoff, jobs: jobs, thread: presenter) }
-            }
-        }
         self.classic = ClassicRuntime(
             transcriber: transcriber, synthesizer: synthesizer,
             chat: chat, thread: thread)
@@ -90,6 +90,41 @@ public actor VoiceSession: VoiceControlling {
         self.levelBox = levelBox
         self.snapshots = snapBox.stream
         self.levels = levelBox.stream
+        // At the end of init on purpose: the closure captures self (for the
+        // announce path), which is only legal once every property is set.
+        if let jobs {
+            let presenter = thread
+            realtime.onDelegate = { [weak self] handoff in
+                Task {
+                    await VoiceJobBridge.run(
+                        handoff, jobs: jobs, thread: presenter,
+                        onEvent: onJobEvent,
+                        announce: { [weak self] text in
+                            await self?.jobAnnounce(text)
+                        })
+                }
+            }
+        }
+    }
+
+    /// Outcome of a delegated job, spoken by the model. Queued while the
+    /// agent talks or thinks; flushed on every return to listening. With no
+    /// live realtime session it is dropped — the thread already shows it.
+    func jobAnnounce(_ text: String) async {
+        let snap = machine.snapshot
+        guard snap.pipeline == .realtime,
+              snap.state != .idle, snap.state != .error else { return }
+        pendingAnnouncements.append(text)
+        await flushAnnouncements()
+    }
+
+    private func flushAnnouncements() async {
+        guard machine.snapshot.pipeline == .realtime,
+              machine.snapshot.state == .listening,
+              !pendingAnnouncements.isEmpty else { return }
+        let text = pendingAnnouncements.removeFirst()
+        await realtime.send(RealtimeCodec.systemItem(text))
+        await realtime.send(RealtimeCodec.responseCreate())
     }
 
     public func setSpeed(_ speed: Double) async {
@@ -127,6 +162,7 @@ public actor VoiceSession: VoiceControlling {
         }
         snapBox.yield(machine.snapshot)
         await perform(effects)
+        await flushAnnouncements()
     }
 
     private func perform(_ effects: [TurnEffect]) async {
@@ -263,6 +299,7 @@ public actor VoiceSession: VoiceControlling {
     }
 
     private func closeRealtime() async {
+        pendingAnnouncements.removeAll()
         micSilenceTask?.cancel()
         micSilenceTask = nil
         eventTask?.cancel()

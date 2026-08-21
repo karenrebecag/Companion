@@ -40,7 +40,23 @@ public struct JobRunner: Sendable, JobSubmitter {
         do {
             return try await queue.submit(job, to: executor, events: events)
         } catch {
-            return JobResult(output: "Job failed: \(error)", isError: true)
+            // El error interno va al log; a la usuaria le llega el porqué en
+            // humano ("Job failed: processLaunchFailed" en el hilo fue real).
+            Log.app("jobs: encargo falló (\(error))")
+            return JobResult(output: Self.failureText(for: error), isError: true)
+        }
+    }
+
+    static func failureText(for error: Error) -> String {
+        switch error {
+        case JobQueue.QueueError.budgetExhausted:
+            return "El encargo tardó más de la cuenta y se detuvo."
+        case JobQueue.QueueError.cancelled, is CancellationError:
+            return "Encargo cancelado."
+        case ExecutorError.processLaunchFailed:
+            return "No pude arrancar el especialista en esta Mac."
+        default:
+            return "El encargo no se pudo completar."
         }
     }
 

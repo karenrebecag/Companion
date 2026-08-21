@@ -94,4 +94,25 @@ public enum Escalation: Sendable {
     public static func voiceTurnPrompt(_ text: String, firstTurn: Bool) -> String {
         firstTurn ? voicePreamble + text : text
     }
+
+    // MARK: - Cierre del encargo hacia la voz
+
+    /// System items para el modelo de voz: sin ellos queda ciego al resultado
+    /// y sigue prometiendo "voy en camino" sobre un encargo ya muerto.
+    public static func jobDoneAnnouncement(_ goal: String) -> String {
+        "Encargo terminado: «\(goal)». El resultado ya está en pantalla; "
+            + "cuéntalo en una frase."
+    }
+
+    public static func jobFailedAnnouncement(_ goal: String) -> String {
+        "El encargo «\(goal)» falló o se quedó sin tiempo. Díselo al usuario "
+            + "y ofrece reintentarlo."
+    }
+
+    /// Para pantalla: el fallo en humano, jamás el error interno.
+    public static func jobFailedStatus(_ goal: String, detail: String) -> String {
+        let base = "El encargo «\(goal)» no se pudo completar."
+        let extra = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        return extra.isEmpty ? base : base + " " + extra
+    }
 }
