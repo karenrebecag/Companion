@@ -21,10 +21,18 @@ let package = Package(
 
         // SwiftUI + tokens de diseño. MainActor por default: el compilador
         // garantiza que nada muta estado observable fuera del main thread.
+        // Rive ships as a prebuilt xcframework: the mascot has a state
+        // machine and pointer listeners the app does not have to reimplement.
+        // dSYMs stripped — 15 MB in, 40 MB of debug symbols left out.
+        .binaryTarget(
+            name: "RiveRuntime",
+            path: "vendor/RiveRuntime.xcframework"
+        ),
+
         .target(
             name: "CompanionUI",
-            dependencies: ["CompanionCore"],
-            resources: [.copy("Fonts")],
+            dependencies: ["CompanionCore", "RiveRuntime"],
+            resources: [.copy("Fonts"), .copy("Mascot")],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
 

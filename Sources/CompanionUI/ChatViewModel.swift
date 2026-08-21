@@ -7,17 +7,20 @@ public struct ChatMessage: Identifiable, Equatable {
     public var role: TurnRole?
     public var isStatus: Bool
     public var text: String
+    public var attachments: [AttachmentRef]
 
     public init(
         id: UUID = UUID(),
         role: TurnRole? = nil,
         isStatus: Bool = false,
-        text: String
+        text: String,
+        attachments: [AttachmentRef] = []
     ) {
         self.id = id
         self.role = role
         self.isStatus = isStatus
         self.text = text
+        self.attachments = attachments
     }
 }
 
@@ -29,6 +32,14 @@ public final class ChatViewModel: ConversationPresenting {
     public private(set) var streaming = ""
     public private(set) var busy = false
     public private(set) var queued: [String] = []
+    public internal(set) var pendingAttachments: [AttachmentRef] = []
+    public var dropTargeted = false
+    public private(set) var busySince: Date?
+
+    public var folderLabel: String? {
+        guard let path = config.workdir, !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path).lastPathComponent
+    }
     public private(set) var recents: [ConversationMeta] = []
     public private(set) var errorText: String?
     /// Non-nil while the specialist waits for a decision; the sheet binds here.
@@ -115,8 +126,10 @@ public final class ChatViewModel: ConversationPresenting {
         inFlight?.cancel()
         inFlight = nil
         queued = []
+        pendingAttachments = []
         streaming = ""
         busy = false
+        busySince = nil
         needsOnboarding = true
         onboardingKey = ""
         errorText = nil
@@ -125,7 +138,7 @@ public final class ChatViewModel: ConversationPresenting {
     public func send() {
         guard !needsOnboarding else { return }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty || !pendingAttachments.isEmpty else { return }
         draft = ""
         errorText = nil
         if busy {
@@ -139,12 +152,14 @@ public final class ChatViewModel: ConversationPresenting {
         inFlight?.cancel()
         inFlight = nil
         queued = []
+        pendingAttachments = []
         errorText = nil
         persist()
         conversationId = UUID().uuidString
         messages = []
         streaming = ""
         busy = false
+        busySince = nil
         draft = ""
     }
 
@@ -160,6 +175,8 @@ public final class ChatViewModel: ConversationPresenting {
             restore(record)
             streaming = ""
             busy = false
+            busySince = nil
+            pendingAttachments = []
             recents = try store.list()
         } catch {
             errorText = ChatCopy.error(error)
@@ -194,9 +211,12 @@ public final class ChatViewModel: ConversationPresenting {
     }
 
     private func startTurn(_ text: String) {
-        messages.append(ChatMessage(role: .user, text: text))
+        let staged = pendingAttachments
+        pendingAttachments = []
+        messages.append(ChatMessage(role: .user, text: text, attachments: staged))
         persist()
         busy = true
+        busySince = Date()
         streaming = ""
         let history = windowedTurns()
         let id = conversationId
@@ -229,17 +249,20 @@ public final class ChatViewModel: ConversationPresenting {
             await commit(preface: preface, handoff: handoff)
             persist()
             busy = false
+            busySince = nil
             drain()
         } catch is CancellationError {
             guard isCurrent(id) else { return }
             streaming = ""
             busy = false
+            busySince = nil
         } catch {
             guard isCurrent(id) else { return }
             streaming = ""
             errorText = ChatCopy.error(error)
             persist()
             busy = false
+            busySince = nil
             drain()
         }
     }
@@ -350,7 +373,9 @@ public final class ChatViewModel: ConversationPresenting {
         let turns: [Turn] = messages.compactMap { message in
             if message.isStatus { return nil }
             guard let role = message.role else { return nil }
-            return Turn(role: role, content: message.text)
+            return Turn(
+                role: role, content: message.text,
+                attachments: message.attachments)
         }
         let window = max(0, config.chat.historyWindow)
         guard window > 0, turns.count > window else { return turns }

@@ -39,10 +39,10 @@ public struct ApprovalSheet: View {
                 .foregroundStyle(Semantic.mutedForeground)
 
             HStack(spacing: Space.x3) {
-                Button("No permitir") { answer(false) }
+                AppButton("No permitir", kind: .secondary) { answer(false) }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Permitir") { answer(true) }
+                AppButton("Permitir", kind: .primary) { answer(true) }
                     .keyboardShortcut(.defaultAction)
             }
         }

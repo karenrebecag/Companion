@@ -66,16 +66,16 @@ public struct MarkdownView: View {
                 if let locations = CompanionBlocks.locations(body) {
                     MapCard(block: locations)
                 } else {
-                    codeBlock(body)
+                    codeBlock(body, language: language)
                 }
             } else if language == CompanionBlocks.galleryLanguage {
                 if let gallery = CompanionBlocks.gallery(body) {
                     GalleryCard(block: gallery)
                 } else {
-                    codeBlock(body)
+                    codeBlock(body, language: language)
                 }
             } else {
-                codeBlock(body)
+                codeBlock(body, language: language)
             }
         case .table(let headers, let rows):
             Text(tableText(headers: headers, rows: rows))
@@ -99,16 +99,15 @@ public struct MarkdownView: View {
         return body.isEmpty ? head : head + "\n" + body
     }
 
-    private func codeBlock(_ body: String) -> some View {
-        Text(body)
-            .font(.system(.body, design: .monospaced))
-            .foregroundStyle(Semantic.foreground)
+    private func codeBlock(_ body: String, language: String) -> some View {
+        Text(SyntaxHighlighter.attributed(body, language: language))
+            .font(Font.uiCode)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Space.x2)
             .background(Semantic.surface)
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: Radius.md)
                     .stroke(Semantic.border, lineWidth: Stroke.hairline)
             )
     }

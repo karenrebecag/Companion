@@ -1,20 +1,51 @@
 import CompanionCore
 import SwiftUI
 
+public enum ChatIdle {
+    public static let phrases = [
+        "Lista cuando tú lo estés",
+        "¿En qué andamos hoy?",
+        "Cuéntame qué sigue",
+        "Tu Mac y yo, a tus órdenes",
+        "Dime y lo hacemos",
+        "Empecemos cuando quieras",
+    ]
+
+    public static let bubbleRadius: CGFloat = Radius.xl
+
+    public static func caption(_ mode: InteractionMode) -> String {
+        switch mode {
+        case .voice:
+            "Toca el orb de abajo para empezar a hablar"
+        case .text:
+            "Escribe abajo y presiona Enter"
+        }
+    }
+}
+
 public struct ThreadView: View {
     @Bindable var model: ChatViewModel
-    @Bindable var voice: VoiceViewModel
+    var mode: InteractionMode
+    @State private var idlePhrase = ChatIdle.phrases.randomElement() ?? ""
 
-    public init(chat: ChatViewModel, voice: VoiceViewModel) {
+    public init(
+        chat: ChatViewModel,
+        mode: InteractionMode = .voice
+    ) {
         self.model = chat
-        self.voice = voice
+        self.mode = mode
     }
 
     public var body: some View {
         VStack(spacing: Space.none) {
-            chrome
-            hairline
-            thread
+            Group {
+                if isIdle {
+                    idleHero
+                } else {
+                    invertedThread
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             if let error = model.errorText {
                 Text(error)
                     .font(Font.uiCaption)
@@ -23,89 +54,76 @@ public struct ThreadView: View {
                     .padding(.vertical, Space.x2)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            composer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var chrome: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            HStack(spacing: Space.x2) {
-                Button("Nueva conversación") {
-                    voice.hangUp()
-                    model.newConversation()
-                }
-                    .font(Font.uiCaption)
-                    .foregroundStyle(Semantic.foreground)
-                Button("Cambiar clave") {
-                    voice.hangUp()
-                    model.changeKey()
-                }
-                    .font(Font.uiCaption)
-                    .foregroundStyle(Semantic.foreground)
-                Spacer()
-            }
-            VoiceControlsView(voice: voice)
-            if let status = voice.statusText {
-                Text(status)
-                    .font(Font.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
-            }
-            if !model.recents.isEmpty {
-                recentsList
-            }
+    private var isIdle: Bool {
+        model.messages.isEmpty && model.streaming.isEmpty && !model.busy
+    }
+
+    private var idleHero: some View {
+        VStack(spacing: Space.x3) {
+            Text(idlePhrase)
+                .font(.uiTitle)
+                .foregroundStyle(Semantic.foreground)
+                .shimmering(active: true)
+            Text(ChatIdle.caption(mode))
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+                .transition(.opacity)
         }
+        .multilineTextAlignment(.center)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .padding(.horizontal, Space.x4)
-        .padding(.vertical, Space.x3)
     }
 
-    private var recentsList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Space.x1) {
-                ForEach(model.recents) { meta in
-                    Button {
-                        voice.hangUp()
-                        model.openConversation(meta.id)
-                    } label: {
-                        Text(meta.title)
-                            .font(Font.uiCaption)
-                            .foregroundStyle(Semantic.foreground)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .frame(maxHeight: Space.x6 * 3)
-    }
-
-    private var thread: some View {
+    private var invertedThread: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: Space.x3) {
-                    ForEach(model.messages) { message in
-                        messageRow(message)
+                LazyVStack(spacing: Space.stack) {
+                    if model.busy, model.streaming.isEmpty {
+                        skeleton
+                            .upsideDown()
                     }
                     if !model.streaming.isEmpty {
-                        assistantRow(model.streaming)
-                    }
-                    if model.busy {
-                        ProgressView()
-                            .controlSize(.small)
+                        assistantRow(
+                            model.streaming.trimmingCharacters(
+                                in: .whitespacesAndNewlines) + " ▍")
+                            .upsideDown()
+                            .id("streaming")
                     }
                     queuedRows
-                    Color.clear.frame(height: 1).id("thread-end")
+                    ForEach(model.messages.reversed()) { message in
+                        messageRow(message)
+                            .upsideDown()
+                            .id(message.id)
+                    }
                 }
-                .padding(Space.x4)
             }
+            .scrollIndicators(.hidden)
+            .padding(.horizontal, Space.x4)
+            .upsideDown()
             .onChange(of: model.messages.count) { _, _ in
-                proxy.scrollTo("thread-end", anchor: .bottom)
+                proxy.scrollTo(model.messages.last?.id)
             }
             .onChange(of: model.streaming) { _, _ in
-                proxy.scrollTo("thread-end", anchor: .bottom)
+                proxy.scrollTo("streaming")
             }
         }
+    }
+
+    private var skeleton: some View {
+        VStack(alignment: .leading, spacing: Space.x1 + Space.x1 / 2) {
+            Capsule().fill(Semantic.hover)
+                .frame(width: Space.x1 * 52, height: Space.x2)
+            Capsule().fill(Semantic.hover)
+                .frame(width: Space.x1 * 38, height: Space.x2)
+        }
+        .shimmering(active: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Space.x3)
     }
 
     @ViewBuilder
@@ -119,76 +137,77 @@ public struct ThreadView: View {
                         .lineLimit(1)
                 }
             }
+            .upsideDown()
         }
-    }
-
-    private var composer: some View {
-        HStack(spacing: Space.x2) {
-            TextField("Escríbele a Companion", text: $model.draft)
-                .textFieldStyle(.plain)
-                .font(Font.uiBody)
-                .foregroundStyle(Semantic.foreground)
-                .padding(Space.x2)
-                .background(Semantic.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Semantic.border, lineWidth: Stroke.hairline)
-                )
-                .onSubmit(sendText)
-                .disabled(voice.isActive)
-            Button("Enviar", action: sendText)
-                .font(Font.uiBody)
-                .foregroundStyle(Semantic.foreground)
-                .disabled(draftIsEmpty || voice.isActive)
-        }
-        .padding(Space.x4)
-    }
-
-    private func sendText() {
-        voice.hangUp()
-        model.send()
-    }
-
-    private var draftIsEmpty: Bool {
-        model.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     @ViewBuilder
     private func messageRow(_ message: ChatMessage) -> some View {
         if message.isStatus {
             Text(message.text)
-                .font(Font.uiCaption)
+                .font(.uiMono)
                 .foregroundStyle(Semantic.mutedForeground)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, Space.x1)
         } else if message.role == .user {
-            HStack(alignment: .top, spacing: Space.none) {
-                Spacer(minLength: Space.x6)
-                Text(message.text)
-                    .font(Font.uiBody)
-                    .foregroundStyle(Semantic.foreground)
-                    .textSelection(.enabled)
-                    .padding(Space.x3)
-                    .background(Semantic.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Semantic.border, lineWidth: Stroke.hairline)
-                    )
-            }
+            userTurn(message)
         } else {
             assistantRow(message.text)
+        }
+    }
+
+    private func userTurn(_ message: ChatMessage) -> some View {
+        VStack(alignment: .trailing, spacing: Space.x1 + Space.x1 / 2) {
+            if !message.attachments.isEmpty {
+                HStack {
+                    Spacer(minLength: Space.x4)
+                    MessageAttachments(attachments: message.attachments)
+                }
+            }
+            let text = message.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty {
+                userBubble(text)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    private func userBubble(_ text: String) -> some View {
+        HStack {
+            Spacer(minLength: Space.x4)
+            Text(text)
+                .font(.uiBody)
+                .lineSpacing(TypeScale.bodyLead)
+                .padding(.horizontal, Space.x4)
+                .padding(.vertical, Space.x3)
+                .foregroundStyle(Semantic.accentForeground)
+                .background(
+                    RoundedRectangle(cornerRadius: ChatIdle.bubbleRadius)
+                        .fill(Semantic.accent)
+                )
+                .textSelection(.enabled)
         }
     }
 
     private func assistantRow(_ text: String) -> some View {
         HStack(alignment: .top, spacing: Space.none) {
             MarkdownView(text: text)
-            Spacer(minLength: Space.x6)
+                .padding(.vertical, Space.x3)
+            Spacer(minLength: Space.x4)
         }
     }
+}
 
-    private var hairline: some View {
-        Rectangle()
-            .fill(Semantic.border)
-            .frame(height: 1)
+private struct UpsideDown: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .rotationEffect(.radians(.pi))
+            .scaleEffect(x: -1, y: 1, anchor: .center)
+    }
+}
+
+private extension View {
+    func upsideDown() -> some View {
+        modifier(UpsideDown())
     }
 }

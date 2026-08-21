@@ -5,7 +5,12 @@ Companion ships with **Inter** (SIL Open Font License 1.1) in
 in this repository; they load from disk if present, otherwise Inter then
 the system font.
 
-## Design references (no code copied)
+The orb's layered look (wavy blob, rotating glow, particles, soft shadow)
+follows **Orb** by Siddhant Mehta ([metasidd/Orb](https://github.com/metasidd/Orb)),
+MIT License (copyright 2024 Siddhant Mehta; same terms as the project
+LICENSE). Particles use SpriteKit like the upstream port. No Rive (ADR 003).
+
+## Design references (no other code copied)
 
 - **hermes-agent** (Nous Research, MIT) — tool schemas and agent-loop
   semantics informed the native executor's tool set. No code was taken; the

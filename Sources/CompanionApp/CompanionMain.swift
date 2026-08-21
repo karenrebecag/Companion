@@ -185,19 +185,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 840),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            contentRect: NSRect(origin: .zero, size: WindowChrome.designSize),
+            styleMask: WindowChrome.styleMask,
             backing: .buffered,
             defer: false)
-        window.minSize = NSSize(width: 440, height: 660)
-        window.maxSize = NSSize(width: 680, height: 1020)
         window.title = "Companion"
-        window.contentView = NSHostingView(
+        WindowChrome.configure(window)
+        let hosting = NSHostingView(
             rootView: CompanionRootView(
                 chat: model, voice: voice,
                 voicePreview: preview, executors: choice,
                 onAECRearm: { UserDefaultsAECVeto().isVetoed = false },
                 updates: updates))
+        WindowChrome.install(hosting, in: window)
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

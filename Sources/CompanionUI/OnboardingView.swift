@@ -10,6 +10,12 @@ public struct OnboardingView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: Space.x6) {
+            // The mascot greets on first run: the app's face before it has
+            // anything to say.
+            MascotView(excited: model.onboardingBusy)
+                .frame(maxWidth: .infinity)
+                .frame(height: 180)
+
             VStack(alignment: .leading, spacing: Space.x3) {
                 Text("Companion")
                     .font(.uiHeading)
@@ -21,24 +27,13 @@ public struct OnboardingView: View {
             }
 
             VStack(alignment: .leading, spacing: Space.x2) {
-                Text("Clave de OpenAI")
-                    .font(.uiLabel)
-                    .foregroundStyle(Semantic.foreground)
-
-                SecureField("sk-proj-...", text: $model.onboardingKey)
-                    .textFieldStyle(.plain)
-                    .font(.uiBody)
-                    .foregroundStyle(Semantic.foreground)
-                    .padding(.horizontal, Space.x3)
-                    .padding(.vertical, Space.x2)
-                    .background(Semantic.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.md)
-                            .stroke(keyBorderColor, lineWidth: Stroke.hairline)
-                    )
-                    .onSubmit {
-                        Task { await model.submitOnboarding() }
-                    }
+                AppField(
+                    title: "Clave de OpenAI",
+                    placeholder: "sk-proj-...",
+                    text: $model.onboardingKey,
+                    error: model.onboardingBusy ? nil : model.errorText,
+                    secure: true,
+                    onSubmit: { Task { await model.submitOnboarding() } })
 
                 HStack(spacing: Space.x2) {
                     Text("Obtener clave")
@@ -57,27 +52,15 @@ public struct OnboardingView: View {
                         .font(.uiCaption)
                         .foregroundStyle(Semantic.mutedForeground)
                 }
-            } else if let error = model.errorText {
-                Text(error)
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.destructive)
-                    .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack(spacing: Space.x3) {
-                Button(action: { Task { await model.submitOnboarding() } }) {
-                    Text("Continuar")
-                        .font(.uiAction)
-                        .foregroundStyle(Semantic.accentForeground)
-                        .padding(.horizontal, Space.x4)
-                        .padding(.vertical, Space.x2)
-                        .background(Semantic.accent)
-                        .cornerRadius(Radius.md)
+                AppButton(
+                    "Continuar",
+                    enabled: !cannotContinue
+                ) {
+                    Task { await model.submitOnboarding() }
                 }
-                .buttonStyle(.plain)
-                .disabled(cannotContinue)
-                .opacity(cannotContinue ? 0.5 : 1)
-
                 Spacer()
             }
 
@@ -91,12 +74,5 @@ public struct OnboardingView: View {
         model.onboardingBusy
             || model.onboardingKey.trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty
-    }
-
-    private var keyBorderColor: Color {
-        if model.onboardingBusy {
-            return Semantic.border
-        }
-        return model.errorText != nil ? Semantic.destructive : Semantic.border
     }
 }

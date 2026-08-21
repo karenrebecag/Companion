@@ -22,11 +22,21 @@ rm -rf "$APP"
 mkdir -p "$BIN" "$APP/Contents/Resources"
 cp "$BUILT" "$BIN/Companion"
 
+# SPM does not know the framework will live in the bundle: without this rpath
+# dyld looks everywhere except Contents/Frameworks and the app dies at launch.
+install_name_tool -add_rpath "@executable_path/../Frameworks" \
+    "$BIN/Companion" 2>/dev/null || true
+
 BINPATH="$(swift build -c "$CONFIG" --show-bin-path)"
 for bundle in "$BINPATH"/*.bundle; do
     [ -e "$bundle" ] || continue
     cp -R "$bundle" "$APP/Contents/Resources/"
 done
+# Rive resolves fileName against the main bundle, not the SPM module bundle.
+if [ -d "$ROOT/Sources/CompanionUI/Mascot" ]; then
+    cp "$ROOT/Sources/CompanionUI/Mascot/"*.riv "$APP/Contents/Resources/" 2>/dev/null || true
+fi
+
 if [ -d "$ROOT/Sources/CompanionUI/Fonts" ]; then
     mkdir -p "$APP/Contents/Resources/Fonts"
     cp "$ROOT/Sources/CompanionUI/Fonts/"*.otf "$APP/Contents/Resources/Fonts/" 2>/dev/null || true
@@ -60,12 +70,24 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# Rive ships as a framework: it must travel inside the bundle and be signed
+# with the same identity, or the app will not launch.
+RIVE_FW="$ROOT/vendor/RiveRuntime.xcframework/macos-arm64_x86_64/RiveRuntime.framework"
+if [ -d "$RIVE_FW" ]; then
+    mkdir -p "$APP/Contents/Frameworks"
+    cp -R "$RIVE_FW" "$APP/Contents/Frameworks/"
+fi
+
 # A stable identity keeps TCC grants across rebuilds; ad-hoc makes macOS treat
 # every build as a new app and silently drop the microphone grant, which shows
 # up as "mic input format is 0 Hz". Create it with scripts/make-signing-cert.sh.
 SIGN="-"
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "Companion Dev"; then
     SIGN="Companion Dev"
+fi
+if [ -d "$APP/Contents/Frameworks/RiveRuntime.framework" ]; then
+    codesign --force --sign "$SIGN" \
+        "$APP/Contents/Frameworks/RiveRuntime.framework" >/dev/null 2>&1 || true
 fi
 if ! codesign --force --sign "$SIGN" "$APP" 2>/tmp/companion-codesign.err; then
     echo "codesign falló con '$SIGN':" >&2

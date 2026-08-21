@@ -14,7 +14,8 @@
 
 ## Foco actual
 
-Wave 6b en curso, pieza 1 (fundaciones). W5 piezas 2-5 despues.
+Port fiel del prototipo, spec por spec: `docs/specs/ds/README.md`.
+W5-5 congelado. Primera pieza para aprobar: DS-01 ventana.
 
 
 ## Brecha con el prototipo (medida 2026-08-21)

@@ -10,6 +10,8 @@ public struct CompanionRootView: View {
     private let executors: ExecutorChoice?
     @State private var showSettings = false
     @State private var keyboardMonitor: KeyboardMonitor?
+    @State private var dropdowns = DropdownHost()
+    @State private var mode: InteractionMode = .voice
 
     public init(
         chat: ChatViewModel,
@@ -30,63 +32,106 @@ public struct CompanionRootView: View {
     private let onAECRearm: (() -> Void)?
     private let updates: UpdateState?
 
-    private func tapOrb() {
-        let action = VoiceTapAction.forState(voice.snapshot.state)
-        switch action {
-        case .start:
-            voice.start()
-        case .interrupt:
-            voice.advance()
-        case .hangUp:
-            voice.hangUp()
-        }
-    }
-
     public var body: some View {
         Group {
             if chat.needsOnboarding {
                 OnboardingView(model: chat)
             } else {
-                ZStack {
-                    ThreadView(chat: chat, voice: voice)
-
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Button(action: { showSettings = true }) {
-                                Image(systemName: "gear")
-                                    .font(.uiBody)
-                                    .foregroundStyle(Semantic.mutedForeground)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(Space.x4)
+                VStack(alignment: .leading, spacing: Space.x2) {
+                    HeaderView(
+                        chat: chat,
+                        voice: voice,
+                        executors: executors,
+                        mode: $mode,
+                        onSettings: {
+                            withAnimation(.springSheet) { showSettings = true }
                         }
-                        Spacer()
-                        // Orb: clickable indicator and control for voice state
-                        HStack {
-                            Spacer()
-                            Button(action: tapOrb) {
-                                Orb(
-                                    state: voice.snapshot.state,
-                                    levels: voice.levels,
-                                    accentColor: Semantic.accent
-                                )
-                                .frame(width: 80, height: 80)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(Space.x4)
+                    )
+                    .zIndex(2)
+                    ThreadView(chat: chat, mode: mode)
+                        .zIndex(0)
+                    StatusLine(chat: chat, voice: voice)
+                        .zIndex(2)
+                    if !chat.pendingAttachments.isEmpty {
+                        AttachmentStrip(chat: chat)
+                            .transition(.modeSwap)
+                            .zIndex(2)
+                    }
+                    Group {
+                        if mode == .text {
+                            ChatInputView(chat: chat, voice: voice)
+                                .padding(.horizontal, Space.x4)
+                                .padding(.bottom, Space.x3)
+                                .transition(.modeSwap)
+                        } else {
+                            ControlBar(voice: voice, mode: mode)
+                                .padding(.bottom, Space.x3)
+                                .transition(.modeSwap)
                         }
                     }
+                    .animation(.springSheet, value: mode)
+                    .zIndex(2)
                 }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Semantic.background)
+        .background {
+            Semantic.background.ignoresSafeArea()
+                .overlay { HalftoneOverlay() }
+        }
         .overlay(alignment: .topTrailing) {
             if !chat.needsOnboarding {
                 ToastStack(center: chat.notices)
                     .padding(.top, Space.x6 * 2)
                     .padding(.trailing, Space.x4)
+            }
+        }
+        .environment(dropdowns)
+        .overlay {
+            if dropdowns.menu == .choice {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Semantic.scrim)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
+            }
+        }
+        .overlay {
+            if dropdowns.blocksRoot {
+                Color.black.opacity(0.001)
+                    .onTapGesture {
+                        withAnimation(.springSheet) { dropdowns.dismiss() }
+                    }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if !chat.needsOnboarding, dropdowns.menu == .choice {
+                ChoiceDropdown(executors: executors, host: dropdowns)
+                    .padding(.leading, Space.x4)
+                    .padding(.top, Space.x1 * 25)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if !chat.needsOnboarding, dropdowns.menu == .history {
+                HistoryDropdown(chat: chat, voice: voice, host: dropdowns)
+                    .padding(.trailing, Space.x1 * 18)
+                    .padding(.top, Space.x1 * 25)
+            }
+        }
+        .dropdownPortal(host: dropdowns)
+        .animation(.springSheet, value: dropdowns.menu)
+        .onExitCommand {
+            if chat.pendingApproval != nil {
+                chat.answerApproval(false)
+            } else if showSettings, dropdowns.session.isOpen {
+                withAnimation(.springSheet) { dropdowns.dismiss() }
+            } else if showSettings {
+                withAnimation(.springSheet) { showSettings = false }
+            } else if dropdowns.session.isOpen {
+                withAnimation(.springSheet) { dropdowns.dismiss() }
+            } else if voice.isActive {
+                voice.hangUp()
             }
         }
         .onAppear {
@@ -108,52 +153,99 @@ public struct CompanionRootView: View {
                 case .hangUp:
                     voice.hangUp()
                 case .settings:
-                    showSettings = true
+                    withAnimation(.springSheet) { showSettings = true }
                 case .newConversation:
                     voice.hangUp()
                     chat.newConversation()
                 case .attach:
                     pickAttachments()
                 case .history:
-                    break
+                    withAnimation(.springSheet) { dropdowns.toggle(.history) }
                 }
             }
             monitor.start()
             keyboardMonitor = monitor
         }
-        // Settings sheet
-        .sheet(isPresented: $showSettings) {
-            SettingsView(
-                preview: voicePreview,
-                executors: executors,
-                onLiveSpeedChange: { voice.setSpeed($0) },
-                onAECRearm: onAECRearm,
-                echoFreeOutput: voice.echoFreeOutput,
-                updates: updates)
+        .overlay {
+            if showSettings {
+                ZStack {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .overlay(Semantic.scrim)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            dropdowns.dismiss()
+                            withAnimation(.springSheet) { showSettings = false }
+                        }
+                    GeometryReader { geo in
+                        let w = min(
+                            SettingsOverlayMetrics.maxSide,
+                            max(300, geo.size.width - Space.x6))
+                        let h = min(
+                            SettingsOverlayMetrics.maxSide,
+                            max(320, geo.size.height - Space.x6))
+                        SettingsView(
+                            preview: voicePreview,
+                            executors: executors,
+                            onLiveSpeedChange: { voice.setSpeed($0) },
+                            onAECRearm: onAECRearm,
+                            echoFreeOutput: voice.echoFreeOutput,
+                            updates: updates,
+                            onClose: {
+                                withAnimation(.springSheet) { showSettings = false }
+                            })
+                        .environment(dropdowns)
+                        .frame(width: w, height: h)
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                    }
+                }
+                .transition(.opacity)
+            }
         }
+        .animation(.springSheet, value: showSettings)
         .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenSettings)
         ) { _ in
-            showSettings = true
+            withAnimation(.springSheet) { showSettings = true }
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionAttach)
         ) { _ in
             pickAttachments()
         }
-        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
-            dropFiles(providers)
+        .dropDestination(for: URL.self) { urls, _ in
+            for url in urls { adoptFile(url) }
             return true
-        }
-        // Approval sheet
-        .sheet(item: Binding(
-            get: { chat.pendingApproval.map(ApprovalItem.init) },
-            set: { if $0 == nil { chat.answerApproval(false) } }
-        )) { item in
-            ApprovalSheet(request: item.request) { approved in
-                chat.answerApproval(approved)
+        } isTargeted: { over in
+            withAnimation(.easeOut(duration: MotionTime.fast)) {
+                chat.dropTargeted = over
             }
         }
+        .overlay {
+            if chat.dropTargeted { DropVeil() }
+        }
+        .animation(.springSheet, value: chat.pendingAttachments)
+        .overlay {
+            if let request = chat.pendingApproval {
+                ZStack {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .overlay(Semantic.scrim)
+                        .ignoresSafeArea()
+                    ApprovalSheet(request: request) { approved in
+                        chat.answerApproval(approved)
+                    }
+                    .background(Semantic.surfaceOverlay)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.xl)
+                            .stroke(Semantic.border, lineWidth: Stroke.hairline))
+                    .elevation(.sheet)
+                }
+                .transition(.opacity)
+            }
+        }
+        .animation(.springSheet, value: chat.pendingApproval != nil)
     }
 
     private func pickAttachments() {
@@ -167,30 +259,10 @@ public struct CompanionRootView: View {
         }
     }
 
-    private func dropFiles(_ providers: [NSItemProvider]) {
-        for provider in providers {
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url else { return }
-                Task { @MainActor in
-                    adoptFile(url)
-                }
-            }
-        }
-    }
-
     private func adoptFile(_ url: URL) {
         guard let ref = chat.attach(url) else { return }
         if voice.isActive {
             voice.push(ref)
         }
     }
-}
-
-
-/// Identifiable wrapper: SwiftUI sheets key on identity, ApprovalRequest is
-/// a plain value from Core.
-private struct ApprovalItem: Identifiable {
-    let request: ApprovalRequest
-    var id: String { request.requestId }
-    init(_ request: ApprovalRequest) { self.request = request }
 }

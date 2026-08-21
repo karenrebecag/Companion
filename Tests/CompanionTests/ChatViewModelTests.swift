@@ -26,6 +26,7 @@ import Testing
     await testShowStreamAndFinishStream()
     await testHistoryTurnsWindowsAndSkipsStatus()
     await testConversationPresentingEmptyAndUnicode()
+    await testPendingAttachmentsStageThenRideTheTurn()
 }
 
 @MainActor func testTokensRamp() async {
@@ -412,6 +413,25 @@ import Testing
     }
 }
 
+@MainActor func testPendingAttachmentsStageThenRideTheTurn() async {
+    let store = MemoryAttachments()
+    let vm = ChatViewModel(
+        chat: FakeChatProvider(replies: [.success([.text("ok")])]),
+        secrets: TestSecretStore([.openAI: "sk-test"]),
+        store: MemoryConversationStore(),
+        config: .default,
+        attachments: store)
+    vm.onAppear()
+    let url = URL(fileURLWithPath: "/tmp/foto.png")
+    expect(vm.attach(url) != nil, "attach: entra a la tira")
+    expectEq(vm.pendingAttachments.count, 1, "attach: pendiente")
+    vm.draft = "mira"
+    vm.send()
+    expect(vm.pendingAttachments.isEmpty, "send: la tira se vacía")
+    expectEq(vm.messages.first?.attachments.count, 1, "send: viajan con el turno")
+    await settle()
+}
+
 @MainActor func primed(
     chat: FakeChatProvider,
     store: MemoryConversationStore = MemoryConversationStore()
@@ -443,6 +463,23 @@ import Testing
 
 @MainActor func awaitMain(_ body: @escaping @MainActor () async -> Void) async {
     await body()
+}
+
+final class MemoryAttachments: AttachmentStoring, @unchecked Sendable {
+    func adopt(_ source: URL, conversationId: String) throws -> AttachmentRef {
+        AttachmentRef(
+            name: source.lastPathComponent, path: source.path,
+            kind: AttachmentPolicy.kind(forExtension: source.pathExtension),
+            byteCount: 4)
+    }
+
+    func adopt(imageData: Data, name: String, conversationId: String) throws -> AttachmentRef {
+        AttachmentRef(name: name, path: "/tmp/\(name)", kind: .image, byteCount: imageData.count)
+    }
+
+    func restore(path: String) -> AttachmentRef? { nil }
+    func discard(_ ref: AttachmentRef) {}
+    func payload(for ref: AttachmentRef) -> AttachmentPayload? { nil }
 }
 
 final class FakeChatProvider: ChatProvider, @unchecked Sendable {

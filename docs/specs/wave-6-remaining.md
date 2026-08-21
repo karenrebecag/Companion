@@ -160,18 +160,8 @@ Referencias: docs/specs/wave-6b-design-system.md (contrato completo, con las
 decisiones de kickoff y assets ya tomadas: fuentes solo-local salvo Inter
 con su OFL; Rive NO — orb SwiftUI portando el vendor del prototipo).
 
-Ejecutar por piezas EN ESTE ORDEN, un agente por pieza, con reporte y
-verificacion entre cada una:
-1. Fundaciones: tipografia empaquetada (Inter + carga local de las
-   propietarias con fallback), elevacion/radios/strokes tokenizados, estados
-   de color con contraste AA testeado, gate de spacing.
-2. Componentes: Dropdown propio (reemplaza SettingsItem), botones y campos
-   con estados, Shimmer, Halftone, iconografia.
-3. Sintaxis: portar `../companion/Sources/Syntax.swift` a Core + paleta en
-   UI, con los tests del prototipo como caracterizacion.
-4. Orb rico: portar el enfoque de `../companion/Sources/vendor/` (MIT,
-   atribuir en NOTICE.md) sobre la base actual de OrbAppearance.
-5. Motion coreografiado + `docs/design-system.md` viva.
+Pieza 1 CERRADA (`9fc56fd`). Piezas 2-5: prompts autocontenidos en
+`docs/specs/wave-6b-remaining.md`. En serie, un agente por pieza.
 
 Criterio de done de W5: el veredicto VISUAL de Karen. Los agentes entregan;
 ella juzga con la app abierta.

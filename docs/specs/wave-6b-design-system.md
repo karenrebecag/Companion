@@ -1,7 +1,8 @@
 # Wave 6b — Design systems engineering
 
-**Estado: EN CURSO** — pieza 1 (fundaciones) despachada 2026-08-21.
-Ejecucion por piezas: ver "Ordenes W5-1 a W5-5" al final. — 2026-08-21. 6a y 6c cerradas. Pieza 1: fundaciones.
+**Estado: EN CURSO, reencauzado.** W5-1..4 entregaron tokens, dropdown de
+Ajustes, syntax y un orb Canvas que **no** es paridad. W5-5 congelado.
+Port fiel por componente: `docs/specs/ds/README.md`.
 
 ## Principio rector (decision de producto, 2026-08-21)
 
@@ -21,37 +22,30 @@ documentacion viva. **El veredicto visual de Karen ES el criterio de done.**
 
 - El tokenizador de `Syntax.swift` del prototipo **no tiene tests**. Se
   porta el diseno; los tests se escriben nuevos (no hay caracterizacion).
-- La rampa tipografica YA lee `AppTypeface.stored`. Lo que falta: no existe
-  `Assets/` en el rebuild, `Fonts.register()` no lo llama nadie, `bundle.sh`
-  no copia fuentes. Hoy `Font.custom("Hypodermic-Regular")` cae al sistema.
-- Elevacion ya tokenizada a medias (`elevationChip/Panel/Sheet`). La deuda
-  real: **dos sistemas de tokens** — shim `Tokens.*` (ThreadView, Markdown,
-  cards) contra `Semantic/Space/Radius` (Settings). El ledger lo prohibe.
-  `Tokens.swift` termina en un doc-comment colgante.
-- El orb del prototipo es de Siddhant Mehta (`metasidd/Orb`, MIT). NOTICE.md
-  hoy dice "no third-party code": atribuir y matizar.
-- Blur del dropdown: **nativo** (`.blur` + scale). No vendorar Pow. Mantiene
-  cero dependencias.
-- **Assets (Karen 2026-08-21):** Inter se empaqueta con su texto OFL (SIL).
-  Gadey, Hypodermic y TBJ Interval son All Rights Reserved — solo local; el
-  repo publico degrada Inter → sistema. WAVs: sintesis, no se copian.
-- `staggered(_:step:)` ya existe en `Motion.swift` y respeta reduce-motion:
-  usarlo, no reinventarlo.
+  **Abierto (W5-3).**
+- Tipografia: **resuelto en W5-1.** `Fonts.register()` al arrancar; Inter
+  empaquetada con OFL; propietarias solo si estan en disco.
+- Dos sistemas de tokens: **resuelto en W5-1.** Shim `Tokens.*` borrado;
+  gate de spacing activo. Queda `RoundedRectangle(cornerRadius: 8)` en
+  `MarkdownView.codeBlock` (el gate no caza el label; W5-3 al tocar el fence).
+- NOTICE.md y el orb: **abierto (W5-4).** Inter OFL ya esta; falta
+  metasidd/Orb MIT.
+- Blur del dropdown: **nativo** (`.blur` + scale). No vendorar Pow.
+- `staggered(_:step:)` ya existe y respeta reduce-motion; **nadie lo llama
+  todavia (W5-5).**
+- Dropdown propio sustituido por `Menu` en 5a: **abierto (W5-2).** Es
+  reversion, no mejora.
 
 ## Alcance
 
-Secuencia: 6b-1 (tokens, tres slices) bloquea el resto. 6b-3/4/5/6 en
-paralelo tras 6b-1. 6b-2 (Dropdown) bloquea 6c-2. 6b-7 bloqueado por assets.
-6b-8 al final. `SettingsView.swift` lo tocan varias slices: serializar.
+W5-1 hecha. W5-2 → W5-3 → W5-4 → W5-5 en ese orden, una pieza por agente.
+Detalle ejecutable en `docs/specs/wave-6b-remaining.md`. El contrato de
+API de cada pieza sigue abajo.
 
-### 1. Fundaciones (Tokens) — 6b-1a/b/c
+### 1. Fundaciones (Tokens) — CERRADO (W5-1)
 
-| Pieza | Contenido |
-|---|---|
-| Elevacion | Escala `rest/hover/panel/sheet/popover` + radios y strokes nombrados. Test: escala monotona |
-| Migracion | ThreadView, MarkdownView, cards, ApprovalSheet → `Semantic/Space/Radius` |
-| Un solo sistema | Borrar shim `Tokens.*` y el `enum Tokens` vacio; limpiar doc-comment colgante |
-| Gate | Literales de `padding/spacing/cornerRadius` en CompanionUI fallan el build; valvula `// token-exempt:` |
+Entregado: escala `Elevation`, migracion a `Semantic/Space/Radius`, shim
+`Tokens.*` borrado, gate de spacing.
 
 ```swift
 public enum Elevation: Sendable, CaseIterable, Comparable {
@@ -64,7 +58,7 @@ public enum Elevation: Sendable, CaseIterable, Comparable {
 | Componente | Contenido |
 |---|---|
 | `Dropdown` propio | Panel anclado con motion nativo, hover, check del activo. Reemplaza `Menu` en SettingsItem. Revierte la simplificacion de 5a |
-| Botones | Primaria/secundaria/destructiva/ghost con 4 estados + focus ring |
+| Botones | Primaria/secundaria/destructiva/ghost con 5 `ControlState` + focus ring |
 | Campos | TextField estilizado con estados y mensaje de error (fuera `.roundedBorder`) |
 | `Shimmer` / `Halftone` / iconografia | Craft del prototipo, SwiftUI puro |
 
@@ -74,8 +68,8 @@ public enum ControlState: Sendable, CaseIterable {
 }
 ```
 
-Contraste AA: calcular ratios sobre los `Swatch` (hex) puros, no sobre
-`NSColor` dinamico resuelto — mas estable bajo `swift test`.
+Contraste AA: **resuelto en W5-1** sobre hex de `Swatch`. W5-2 usa esos
+roles para `ControlState`; no reabre la formula.
 
 ### 3. Resaltado de sintaxis
 
@@ -117,14 +111,11 @@ popover; microinteracciones. Todo respeta reduce-motion.
 `docs/design-system.md`: fundaciones, componentes con estados y donde se
 usan. Regla en CONTRIBUTING: un componente nuevo entra con su seccion.
 
-### 7. Tipografia empaquetada
+### 7. Tipografia empaquetada — CERRADO (W5-1)
 
-Inter (OFL) entra al bundle con su licencia. Las propietarias se cargan si
-estan en disco; si no, Inter → sistema. `Fonts.register()` al arrancar.
-Verificar nombres PostScript. WAVs no se copian (sintesis, 6a-5b).
-
-Tocar `bundle.sh`, `gates.sh` o anadir binarios a `Assets/` requiere OK
-explicito.
+Inter (OFL) en el bundle. Propietarias solo local. `Fonts.register()` al
+arrancar. WAVs no se copian. No reabrir `bundle.sh` ni meter binarios de
+fuentes propietarias.
 
 ## Tests
 
@@ -145,108 +136,22 @@ verde; `docs/design-system.md` al dia; veredicto visual de Karen.
 - Craft sin fin: alcance = paridad con el prototipo + los estados que le
   faltaban. Nada extra salvo lo listado.
 - Gate de spacing: acotar a `padding/spacing/cornerRadius`.
-- Fuentes: 6b-7 no arranca sin respuesta de Karen.
+- Fuentes: W5-1 cerrado. Propietarias siguen fuera del repo.
 
 ## Desviaciones respecto al borrador original
 
 1. Tests de Syntax se escriben, no se portan.
-2. Item de tipografia reescrito: el problema es registro/bundle, no la rampa.
+2. Item de tipografia reescrito: el problema era registro/bundle, no la rampa.
 3. Deuda de tokens = dos sistemas conviviendo, no falta de elevacion.
 4. Dropdown blur nativo, no Pow.
 5. Tokenizador en Core, paleta en UI.
-6. NOTICE atribuye el orb.
+6. NOTICE atribuye el orb (W5-4) e Inter OFL (W5-1).
+7. 6c-2 ya no espera al Dropdown: 6c cerro antes. El Dropdown sigue
+   siendo reversion de 5a, no bloqueo de voz.
 
 ---
 
-# Ordenes W5-1 a W5-5 (ejecutables por agentes)
+# Ordenes ejecutables
 
-Cada orden = un prompt. Se dan EN ORDEN: todas tocan `Sources/CompanionUI/`
-y pisarse seria peor que ir en serie. Entre orden y orden: verificar los
-greps del reporte, gates verdes, commit scoped, push.
-
-## Estado medido antes de empezar (2026-08-21)
-
-| Aspecto | Hoy | Objetivo |
-|---|---|---|
-| Controles del sistema sin estilo | 12 | 0 en Ajustes y onboarding |
-| Dropdown propio | no existe (5a lo simplifico) | de vuelta, con motion |
-| Resaltado de sintaxis | no existe | portado, dos temas |
-| Tipografias | ni carpeta Assets | Inter empaquetada + locales |
-| Elevacion | 1 sombra suelta | escala tokenizada claro/oscuro |
-| Orb | 161 lineas planas | cuatro capas del prototipo |
-| Paddings magicos | 0 | 0, con gate que lo garantice |
-
-## Deuda de criterio que estas ordenes revierten
-
-En el kickoff de 5a se acepto cambiar el selector propio del prototipo por
-`Menu` del sistema "para avanzar". Fue exactamente la simplificacion con
-perdida visual que el principio rector prohibe. W5-2 la revierte; queda
-anotado para que no se repita el patron de cambiar craft por velocidad.
-
-## W5-1 — Fundaciones (EN CURSO)
-
-Tipografia empaquetada y registrada al arrancar (Inter con su OFL; las
-propietarias solo si estan instaladas, con degradacion), elevacion/radios/
-strokes tokenizados con variante oscura, estados derivados de los roles,
-contraste AA verificado por test que FALLA bajo 4.5:1, y gate de spacing.
-
-## W5-2 — Componentes con craft
-
-Referencias: prototipo `Sources/{Dropdown,Shimmer,Halftone,Icons}.swift`.
-
-- **Dropdown propio**: panel anclado con motion de entrada/salida, hover
-  states, check en el activo, cierre por click fuera y por Escape,
-  navegacion con flechas. Reemplaza `SettingsItem` en TODOS sus usos
-  (apariencia, voz, ejecutor).
-- **Botones**: jerarquia primaria / secundaria / destructiva / ghost, con
-  los cuatro estados de W5-1 y focus ring visible (accesibilidad por
-  teclado).
-- **Campos de texto**: estilo propio con estados y error integrado; hoy
-  onboarding y ajustes usan `.roundedBorder` del sistema.
-- **Toggles y sliders**: envoltura propia consistente con lo anterior (o
-  restyle del nativo si se ve igual de bien — criterio: que no desentonen).
-- **Shimmer**: brillo sobre el texto de estado mientras piensa.
-- **Halftone**: la textura de identidad donde aporte (onboarding, fondo de
-  tarjeta), sutil, sin robar protagonismo.
-- **Iconografia**: SF Symbols con pesos y escalas tokenizados.
-
-Tests: lo puro (estado -> variante, decision de cierre del dropdown,
-navegacion por teclado). Las vistas no se instancian.
-
-## W5-3 — Resaltado de sintaxis
-
-Portar `../companion/Sources/Syntax.swift`: tokenizador propio por familia de
-lenguaje (Swift, Python, JS, JSON, shell, markdown), SIN dependencias, a
-**Core** (puro y testeable). La paleta y el `AttributedString` quedan en UI,
-con colores desde los roles semanticos y ambos temas. Los tests del
-prototipo (`testSyntax*` si existen) se portan como caracterizacion; si no,
-escribir casos por familia: keywords, strings con escapes, comentarios de
-linea y bloque, numeros, y texto sin lenguaje conocido (degrada a plano).
-Cablear en `MarkdownView` donde hoy el bloque de codigo va gris.
-
-## W5-4 — Orb rico
-
-Portar el enfoque de `../companion/Sources/vendor/` (MIT, atribuir en
-NOTICE.md; es SwiftUI puro — el ADR 003 se mantiene, nada de Rive):
-capas de blob ondulante, glow rotatorio, particulas y sombra realista,
-moduladas por el estado y los niveles que `OrbAppearance` ya decide. Anadir
-microrespuesta al press con el spring del sistema de motion. Mantener el
-respeto a reduce-motion y ampliar `OrbAppearanceTests` con las capas nuevas.
-Cuidar el coste: el orb no puede costar frames en una ventana con el hilo
-corriendo.
-
-## W5-5 — Motion coreografiado + documentacion viva
-
-- Stagger en la aparicion de mensajes y tarjetas; transicion de la hoja de
-  ajustes y de los popovers; microinteracciones de boton (press/release).
-  Todo con las duraciones de `Motion.swift`, respetando reduce-motion.
-- `docs/design-system.md`: fundaciones (color, tipografia, espaciado,
-  elevacion, motion) y catalogo de componentes con sus estados y donde se
-  usan. Regla en CONTRIBUTING: componente nuevo entra con su seccion.
-
-## Cierre de W5
-
-Gates verdes + CHANGELOG + spec 6b CERRADA + ROADMAP. Y entonces la unica
-prueba que importa aqui: **Karen abre la app y da su veredicto visual**. Si
-algo no esta al nivel, se anota y se itera — el criterio es su ojo, no los
-tests.
+Viven en `docs/specs/wave-6b-remaining.md` (W5-2 a W5-5). No duplicar aqui:
+este archivo es el contrato; aquel es el prompt.

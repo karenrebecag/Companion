@@ -1,5 +1,6 @@
 import CompanionCore
 import Foundation
+import SwiftUI
 
 // Pure functions that map voice state and audio levels to orb visual properties.
 // All logic here is testable without instantiating views.
@@ -87,5 +88,59 @@ public enum OrbAppearance {
         case .idle, .connecting, .speaking, .error:
             return false
         }
+    }
+
+    /// Opacity of the rotating glow overlay. Active turns read brighter.
+    nonisolated public static func glowOpacity(for state: TurnState) -> Double {
+        switch state {
+        case .idle: 0.35
+        case .connecting: 0.45
+        case .listening: 0.75
+        case .thinking: 0.65
+        case .speaking: 0.85
+        case .error: 0.25
+        }
+    }
+
+    /// SpriteKit birth count. Idle/connecting/error have none, matching VoiceState.orb.
+    nonisolated public static func particleCount(
+        for state: TurnState, reduceMotion: Bool
+    ) -> Int {
+        if reduceMotion { return 0 }
+        switch state {
+        case .idle, .connecting, .error: return 0
+        case .listening: return 14
+        case .thinking: return 16
+        case .speaking: return 12
+        }
+    }
+
+    public static func configuration(
+        for state: TurnState,
+        accent: Color,
+        reduceMotion: Bool
+    ) -> OrbConfiguration {
+        let speed = effectiveAnimationSpeed(for: state, reduceMotion: reduceMotion)
+        let particles = particleCount(for: state, reduceMotion: reduceMotion) > 0
+        let ink: [Color]
+        if state == .error {
+            ink = [
+                Color(nsColor: NSColor.fromHex("E8A317")),
+                Color(nsColor: NSColor.fromHex("8A5A2B")),
+                Color(nsColor: NSColor.fromHex("E8A317")),
+            ]
+        } else {
+            ink = [accent, accent.opacity(0.82), Color.white.opacity(0.92)]
+        }
+        return OrbConfiguration(
+            backgroundColors: ink,
+            coreGlowIntensity: coreGlowIntensity(for: state),
+            showParticles: particles,
+            speed: speed)
+    }
+
+    /// Press shrinks the orb; spring lives on the button style, not here.
+    nonisolated public static func pressScale(_ pressed: Bool) -> Double {
+        pressed ? 0.92 : 1
     }
 }

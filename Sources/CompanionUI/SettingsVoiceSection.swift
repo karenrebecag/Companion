@@ -55,13 +55,10 @@ struct SettingsVoiceSection: View {
             }
             criterionDetail
 
-            VStack(alignment: .leading, spacing: Space.x2) {
-                Text("Tono")
-                    .font(.uiLabel)
-                    .foregroundStyle(Semantic.foreground)
-                TextField("p. ej. cálida y directa", text: toneBinding)
-                    .textFieldStyle(.roundedBorder)
-            }
+            AppField(
+                title: "Tono",
+                placeholder: "p. ej. cálida y directa",
+                text: toneBinding)
 
             Toggle(isOn: Binding(
                 get: { ThinkingSoundPref.enabled },
@@ -72,6 +69,7 @@ struct SettingsVoiceSection: View {
                     .foregroundStyle(Semantic.foreground)
             }
             .toggleStyle(.switch)
+            .tint(Semantic.accent)
 
             Toggle(isOn: aecBinding) {
                 VStack(alignment: .leading, spacing: Space.x1) {
@@ -86,6 +84,7 @@ struct SettingsVoiceSection: View {
                 }
             }
             .toggleStyle(.switch)
+            .tint(Semantic.accent)
             .disabled(echoFreeOutput)
         }
         .padding(.vertical, Space.x4)
@@ -149,6 +148,7 @@ struct SettingsVoiceSection: View {
             Slider(
                 value: Binding(get: { value }, set: onChange),
                 in: range)
+            .tint(Semantic.accent)
         }
     }
 

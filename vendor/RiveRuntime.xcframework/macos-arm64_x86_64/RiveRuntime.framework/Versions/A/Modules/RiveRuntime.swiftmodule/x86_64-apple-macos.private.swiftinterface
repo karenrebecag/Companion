@@ -1,0 +1,918 @@
+// swift-interface-format-version: 1.0
+// swift-compiler-version: Apple Swift version 6.3.2 effective-5.10 (swiftlang-6.3.2.1.108 clang-2100.1.1.101)
+// swift-module-flags: -target x86_64-apple-macos13.1 -enable-objc-interop -enable-library-evolution -swift-version 5 -O -enable-experimental-feature DebugDescriptionMacro -enable-bare-slash-regex -module-name RiveRuntime
+// swift-module-flags-ignorable: -no-verify-emitted-module-interface -formal-cxx-interoperability-mode=off -interface-compiler-version 6.3.2
+import AppKit
+import Combine
+import Foundation
+import Metal
+import MetalKit
+import OSLog
+@_exported import RiveRuntime
+import Swift
+import SwiftUI
+import _Concurrency
+import _StringProcessing
+import _SwiftConcurrencyShims
+import os
+extension RiveRuntime.RiveFile {
+  convenience public init(name fileName: Swift.String, extension ext: Swift.String = ".riv", in bundle: Foundation.Bundle = .main, loadCdn: Swift.Bool = true, customLoader: RiveRuntime.LoadAsset? = nil) throws
+  public static func getBytes(fileName: Swift.String, extension ext: Swift.String = ".riv", in bundle: Foundation.Bundle = .main) -> [Swift.UInt8]
+  public static func getData(fileName: Swift.String, extension ext: Swift.String = ".riv", in bundle: Foundation.Bundle = .main) -> Foundation.Data
+}
+@objc @_Concurrency.MainActor @preconcurrency open class RiveView : RiveRuntime.RiveRendererView {
+  public enum OffscreenBehavior {
+    case playAndDraw
+    case playAndNoDraw
+    public static func == (a: RiveRuntime.RiveView.OffscreenBehavior, b: RiveRuntime.RiveView.OffscreenBehavior) -> Swift.Bool
+    public func hash(into hasher: inout Swift.Hasher)
+    public var hashValue: Swift.Int {
+      get
+    }
+  }
+  public enum DrawOptimization {
+    case alwaysDraw
+    case drawOnChanged
+    public static func == (a: RiveRuntime.RiveView.DrawOptimization, b: RiveRuntime.RiveView.DrawOptimization) -> Swift.Bool
+    public func hash(into hasher: inout Swift.Hasher)
+    public var hashValue: Swift.Int {
+      get
+    }
+  }
+  @_Concurrency.MainActor @preconcurrency public var offscreenBehavior: RiveRuntime.RiveView.OffscreenBehavior
+  @_Concurrency.MainActor @preconcurrency public var drawOptimization: RiveRuntime.RiveView.DrawOptimization
+  @objc @_Concurrency.MainActor @preconcurrency weak public var playerDelegate: (any RiveRuntime.RivePlayerDelegate)?
+  @_Concurrency.MainActor @preconcurrency weak public var stateMachineDelegate: (any RiveRuntime.RiveStateMachineDelegate)?
+  @_Concurrency.MainActor @preconcurrency public var showFPS: Swift.Bool {
+    get
+    set
+  }
+  @_Concurrency.MainActor @preconcurrency public static var showFPSCounters: Swift.Bool
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open var bounds: CoreFoundation.CGRect {
+    @objc get
+    @objc set
+  }
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open var frame: CoreFoundation.CGRect {
+    @objc get
+    @objc set
+  }
+  @_Concurrency.MainActor @preconcurrency @objc dynamic public init()
+  @_Concurrency.MainActor @preconcurrency convenience public init(model: RiveRuntime.RiveModel, autoPlay: Swift.Bool = true)
+  @_Concurrency.MainActor @preconcurrency @objc required dynamic public init(coder aDecoder: Foundation.NSCoder)
+  @objc deinit
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func viewDidMoveToWindow()
+  @objc @_Concurrency.MainActor @preconcurrency open func setModel(_ model: RiveRuntime.RiveModel, autoPlay: Swift.Bool = true) throws
+  @objc(setPreferredFPS:) @_Concurrency.MainActor @preconcurrency open func setPreferredFramesPerSecond(preferredFramesPerSecond: Swift.Int)
+  @available(iOS 15, macOS 14, tvOS 15, visionOS 1, *)
+  @_Concurrency.MainActor @preconcurrency open func setPreferredFrameRateRange(preferredFrameRateRange: QuartzCore.CAFrameRateRange)
+  @objc @_Concurrency.MainActor @preconcurrency open func advance(delta: Swift.Double)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func drawRive(_ rect: CoreFoundation.CGRect, size: CoreFoundation.CGSize)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func draw(_ rect: CoreFoundation.CGRect)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func drawableSizeDidChange(_ drawableSize: CoreFoundation.CGSize)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func layout()
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func mouseDown(with event: AppKit.NSEvent)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func mouseMoved(with event: AppKit.NSEvent)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func mouseDragged(with event: AppKit.NSEvent)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func mouseUp(with event: AppKit.NSEvent)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func mouseExited(with event: AppKit.NSEvent)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic open func updateTrackingAreas()
+}
+@objc public enum RiveTouchEvent : Swift.Int {
+  case began
+  case moved
+  case ended
+  case cancelled
+  case exited
+  public init?(rawValue: Swift.Int)
+  public typealias RawValue = Swift.Int
+  public var rawValue: Swift.Int {
+    get
+  }
+}
+@objc public protocol RiveStateMachineDelegate {
+  @objc optional func touchBegan(onArtboard artboard: RiveRuntime.RiveArtboard?, atLocation location: CoreFoundation.CGPoint)
+  @objc optional func touchMoved(onArtboard artboard: RiveRuntime.RiveArtboard?, atLocation location: CoreFoundation.CGPoint)
+  @objc optional func touchEnded(onArtboard artboard: RiveRuntime.RiveArtboard?, atLocation location: CoreFoundation.CGPoint)
+  @objc optional func touchCancelled(onArtboard artboard: RiveRuntime.RiveArtboard?, atLocation location: CoreFoundation.CGPoint)
+  @objc optional func touchExited(onArtboard artboard: RiveRuntime.RiveArtboard?, atLocation location: CoreFoundation.CGPoint)
+  @objc optional func stateMachine(_ stateMachine: RiveRuntime.RiveStateMachineInstance, receivedInput input: RiveRuntime.StateMachineInput)
+  @objc optional func stateMachine(_ stateMachine: RiveRuntime.RiveStateMachineInstance, didChangeState stateName: Swift.String)
+  @objc optional func stateMachine(_ stateMachine: RiveRuntime.RiveStateMachineInstance, didReceiveHitResult hitResult: RiveRuntime.RiveHitResult, from event: RiveRuntime.RiveTouchEvent)
+  @objc optional func onRiveEventReceived(onRiveEvent riveEvent: RiveRuntime.RiveEvent)
+}
+@objc public protocol RivePlayerDelegate {
+  @objc func player(playedWithModel riveModel: RiveRuntime.RiveModel?)
+  @objc func player(pausedWithModel riveModel: RiveRuntime.RiveModel?)
+  @objc func player(loopedWithModel riveModel: RiveRuntime.RiveModel?, type: Swift.Int)
+  @objc func player(stoppedWithModel riveModel: RiveRuntime.RiveModel?)
+  @objc func player(didAdvanceby seconds: Swift.Double, riveModel: RiveRuntime.RiveModel?)
+}
+@objc public enum RiveFallbackFontDescriptorDesign : Swift.Int {
+  case `default` = 0
+  case rounded = 1
+  case monospaced = 2
+  case serif = 3
+  public init?(rawValue: Swift.Int)
+  public typealias RawValue = Swift.Int
+  public var rawValue: Swift.Int {
+    get
+  }
+}
+@objc public enum RiveFallbackFontDescriptorWeight : Swift.Int {
+  case ultraLight = 0
+  case thin = 1
+  case light = 2
+  case regular = 3
+  case medium = 4
+  case semibold = 5
+  case bold = 6
+  case heavy = 7
+  case black = 8
+  public init?(rawValue: Swift.Int)
+  public typealias RawValue = Swift.Int
+  public var rawValue: Swift.Int {
+    get
+  }
+}
+@objc public enum RiveFallbackFontDescriptorWidth : Swift.Int {
+  case compressed = 0
+  case condensed = 1
+  case standard = 2
+  case expanded = 3
+  public var defaultFloatValue: CoreFoundation.CGFloat {
+    get
+  }
+  public init?(rawValue: Swift.Int)
+  public typealias RawValue = Swift.Int
+  public var rawValue: Swift.Int {
+    get
+  }
+}
+@objc public class RiveFallbackFontDescriptor : ObjectiveC.NSObject {
+  @objc final public let allowsSuggestedFonts: Swift.Bool
+  @objc final public let languageHint: RiveRuntime.RiveFallbackFontDescriptor.LanguageHint?
+  @objc public init(design: RiveRuntime.RiveFallbackFontDescriptorDesign = .default, weight: RiveRuntime.RiveFallbackFontDescriptorWeight = .regular, width: RiveRuntime.RiveFallbackFontDescriptorWidth = .standard, allowsSuggestedFonts: Swift.Bool = true, languageHint: RiveRuntime.RiveFallbackFontDescriptor.LanguageHint? = nil)
+  @objc deinit
+}
+@objc public class RiveLogLevel : ObjectiveC.NSObject, Swift.OptionSet {
+  public var rawValue: Swift.Int
+  required public init(rawValue: Swift.Int)
+  @objc public static let debug: RiveRuntime.RiveLogLevel
+  @objc public static let info: RiveRuntime.RiveLogLevel
+  @objc public static let `default`: RiveRuntime.RiveLogLevel
+  @objc public static let error: RiveRuntime.RiveLogLevel
+  @objc public static let fault: RiveRuntime.RiveLogLevel
+  @objc public static let none: RiveRuntime.RiveLogLevel
+  @objc public static let all: RiveRuntime.RiveLogLevel
+  @objc override dynamic public func isEqual(_ object: Any?) -> Swift.Bool
+  @objc override dynamic public var hash: Swift.Int {
+    @objc get
+  }
+  public typealias ArrayLiteralElement = RiveRuntime.RiveLogLevel
+  public typealias Element = RiveRuntime.RiveLogLevel
+  public typealias RawValue = Swift.Int
+  @objc deinit
+}
+@objc public class RiveLogCategory : ObjectiveC.NSObject, Swift.OptionSet {
+  public var rawValue: Swift.Int
+  required public init(rawValue: Swift.Int)
+  @objc public static let stateMachine: RiveRuntime.RiveLogCategory
+  @objc public static let artboard: RiveRuntime.RiveLogCategory
+  @objc public static let viewModel: RiveRuntime.RiveLogCategory
+  @objc public static let model: RiveRuntime.RiveLogCategory
+  @objc public static let file: RiveRuntime.RiveLogCategory
+  @objc public static let view: RiveRuntime.RiveLogCategory
+  @objc public static let dataBinding: RiveRuntime.RiveLogCategory
+  @objc public static let none: RiveRuntime.RiveLogCategory
+  @objc public static let all: RiveRuntime.RiveLogCategory
+  @objc override dynamic public func isEqual(_ object: Any?) -> Swift.Bool
+  @objc override dynamic public var hash: Swift.Int {
+    @objc get
+  }
+  public typealias ArrayLiteralElement = RiveRuntime.RiveLogCategory
+  public typealias Element = RiveRuntime.RiveLogCategory
+  public typealias RawValue = Swift.Int
+  @objc deinit
+}
+@_inheritsConvenienceInitializers @objc final public class RiveLogger : ObjectiveC.NSObject {
+  @objc public static var isEnabled: Swift.Bool
+  @objc public static var isVerbose: Swift.Bool
+  @objc public static var levels: RiveRuntime.RiveLogLevel
+  @objc public static var categories: RiveRuntime.RiveLogCategory
+  @objc override dynamic public init()
+  @objc deinit
+}
+@objc public protocol RiveFallbackFontProvider {
+  typealias LanguageHint = () -> Swift.String
+  @objc var fallbackFont: RiveRuntime.RiveNativeFont { get }
+  @objc var allowsSuggestedFonts: Swift.Bool { get }
+  @objc var languageHint: Self.LanguageHint? { get }
+}
+@_hasMissingDesignatedInitializers final public class Artboard : Swift.Equatable {
+  @objc deinit
+  public static func == (lhs: RiveRuntime.Artboard, rhs: RiveRuntime.Artboard) -> Swift.Bool
+  @_Concurrency.MainActor final public func getStateMachineNames() async throws -> [Swift.String]
+  @_Concurrency.MainActor final public func createStateMachine(_ name: Swift.String? = nil) async throws -> RiveRuntime.StateMachine
+  @_Concurrency.MainActor final public func setVolume(_ volume: Swift.Float)
+  @_Concurrency.MainActor final public func volume() async throws -> Swift.Float
+}
+public enum ArtboardError : Foundation.LocalizedError {
+  case invalidArtboard(Swift.String)
+  case invalidStateMachine(Swift.String)
+  case cancelled
+  public var errorDescription: Swift.String? {
+    get
+  }
+}
+@_hasMissingDesignatedInitializers final public class Audio : Swift.Equatable {
+  @objc deinit
+  public static func == (lhs: RiveRuntime.Audio, rhs: RiveRuntime.Audio) -> Swift.Bool
+}
+public enum AudioError : Foundation.LocalizedError {
+  case failedDecoding(Swift.String)
+  case cancelled
+  public var errorDescription: Swift.String? {
+    get
+  }
+}
+public struct Color : Swift.Sendable, Swift.Equatable {
+  public let alpha: Swift.UInt8
+  public let red: Swift.UInt8
+  public let green: Swift.UInt8
+  public let blue: Swift.UInt8
+  public init(_ color: Swift.UInt32)
+  public init(red: Swift.UInt8, green: Swift.UInt8, blue: Swift.UInt8, alpha: Swift.UInt8 = 255)
+  public var argbValue: Swift.UInt32 {
+    get
+  }
+  public static func == (a: RiveRuntime.Color, b: RiveRuntime.Color) -> Swift.Bool
+}
+public enum DataBind : Swift.Equatable {
+  case auto
+  case instance(RiveRuntime.ViewModelInstance)
+  case none
+  public static func == (a: RiveRuntime.DataBind, b: RiveRuntime.DataBind) -> Swift.Bool
+}
+public struct ViewModelEnum : Swift.Sendable, Swift.Equatable {
+  public let name: Swift.String
+  public let values: [Swift.String]
+  public static func == (a: RiveRuntime.ViewModelEnum, b: RiveRuntime.ViewModelEnum) -> Swift.Bool
+}
+public enum ViewModelSource {
+  case artboardDefault(RiveRuntime.Artboard)
+  case name(Swift.String)
+}
+public enum ViewModelInstanceSource {
+  case blank(from: RiveRuntime.ViewModelSource)
+  case viewModelDefault(from: RiveRuntime.ViewModelSource)
+  case name(Swift.String, from: RiveRuntime.ViewModelSource)
+}
+@_hasMissingDesignatedInitializers final public class ViewModelInstance : Swift.Equatable {
+  @objc deinit
+  public static func == (lhs: RiveRuntime.ViewModelInstance, rhs: RiveRuntime.ViewModelInstance) -> Swift.Bool
+  @_Concurrency.MainActor final public func dirtyStream() -> _Concurrency.AsyncStream<Swift.Void>
+  @_Concurrency.MainActor final public func viewModelName() async throws -> Swift.String
+  @_Concurrency.MainActor final public func name() async throws -> Swift.String
+  @_Concurrency.MainActor final public func value(of property: RiveRuntime.StringProperty) async throws -> RiveRuntime.StringProperty.Value
+  @_Concurrency.MainActor final public func valueStream(of property: RiveRuntime.StringProperty) -> _Concurrency.AsyncThrowingStream<RiveRuntime.StringProperty.Value, any Swift.Error>
+  @_Concurrency.MainActor final public func setValue(of property: RiveRuntime.StringProperty, to value: RiveRuntime.StringProperty.Value)
+  @_Concurrency.MainActor final public func value(of property: RiveRuntime.NumberProperty) async throws -> RiveRuntime.NumberProperty.Value
+  @_Concurrency.MainActor final public func valueStream(of property: RiveRuntime.NumberProperty) -> _Concurrency.AsyncThrowingStream<RiveRuntime.NumberProperty.Value, any Swift.Error>
+  @_Concurrency.MainActor final public func setValue(of property: RiveRuntime.NumberProperty, to value: RiveRuntime.NumberProperty.Value)
+  @_Concurrency.MainActor final public func value(of property: RiveRuntime.BoolProperty) async throws -> RiveRuntime.BoolProperty.Value
+  @_Concurrency.MainActor final public func valueStream(of property: RiveRuntime.BoolProperty) -> _Concurrency.AsyncThrowingStream<RiveRuntime.BoolProperty.Value, any Swift.Error>
+  @_Concurrency.MainActor final public func setValue(of property: RiveRuntime.BoolProperty, to value: RiveRuntime.BoolProperty.Value)
+  @_Concurrency.MainActor final public func value(of property: RiveRuntime.ColorProperty) async throws -> RiveRuntime.ColorProperty.Value
+  @_Concurrency.MainActor final public func valueStream(of property: RiveRuntime.ColorProperty) -> _Concurrency.AsyncThrowingStream<RiveRuntime.ColorProperty.Value, any Swift.Error>
+  @_Concurrency.MainActor final public func setValue(of property: RiveRuntime.ColorProperty, to value: RiveRuntime.ColorProperty.Value)
+  @_Concurrency.MainActor final public func value(of property: RiveRuntime.EnumProperty) async throws -> RiveRuntime.EnumProperty.Value
+  @_Concurrency.MainActor final public func valueStream(of property: RiveRuntime.EnumProperty) -> _Concurrency.AsyncThrowingStream<RiveRuntime.EnumProperty.Value, any Swift.Error>
+  @_Concurrency.MainActor final public func setValue(of property: RiveRuntime.EnumProperty, to value: RiveRuntime.EnumProperty.Value)
+  @_Concurrency.MainActor final public func fire(trigger property: RiveRuntime.TriggerProperty)
+  @_Concurrency.MainActor final public func stream(of property: RiveRuntime.TriggerProperty) -> _Concurrency.AsyncThrowingStream<Swift.Void, any Swift.Error>
+  @_Concurrency.MainActor final public func setValue(of property: RiveRuntime.ImageProperty, to image: RiveRuntime.Image?)
+  @_Concurrency.MainActor final public func setValue(of property: RiveRuntime.ArtboardProperty, to artboard: RiveRuntime.Artboard?)
+  @_Concurrency.MainActor final public func value(of property: RiveRuntime.ViewModelInstanceProperty) -> RiveRuntime.ViewModelInstance
+  @_Concurrency.MainActor final public func setValue(of property: RiveRuntime.ViewModelInstanceProperty, to instance: RiveRuntime.ViewModelInstance)
+  @_Concurrency.MainActor final public func size(of property: RiveRuntime.ListProperty) async throws -> Swift.Int
+  @_Concurrency.MainActor final public func appendInstance(_ instance: RiveRuntime.ViewModelInstance, to list: RiveRuntime.ListProperty)
+  @_Concurrency.MainActor final public func insertInstance(_ instance: RiveRuntime.ViewModelInstance, to list: RiveRuntime.ListProperty, at index: Swift.Int32)
+  @_Concurrency.MainActor final public func removeInstance(at index: Swift.Int32, from list: RiveRuntime.ListProperty)
+  @_Concurrency.MainActor final public func removeInstance(_ instance: RiveRuntime.ViewModelInstance, from list: RiveRuntime.ListProperty)
+  @_Concurrency.MainActor final public func swapInstance(atIndex: Swift.Int32, withIndex: Swift.Int32, in list: RiveRuntime.ListProperty)
+  @_Concurrency.MainActor final public func value(of property: RiveRuntime.ListProperty, at index: Swift.Int32) -> RiveRuntime.ViewModelInstance
+}
+public protocol PropertyValue {
+}
+public protocol Property {
+  var path: Swift.String { get }
+}
+public protocol ValueProperty : RiveRuntime.Property {
+  associatedtype Value : RiveRuntime.PropertyValue
+}
+public struct StringProperty : RiveRuntime.ValueProperty {
+  public typealias Value = Swift.String
+  public let path: Swift.String
+  public init(path: Swift.String)
+}
+public struct NumberProperty : RiveRuntime.ValueProperty {
+  public typealias Value = Swift.Float
+  public let path: Swift.String
+  public init(path: Swift.String)
+}
+public struct BoolProperty : RiveRuntime.ValueProperty {
+  public typealias Value = Swift.Bool
+  public let path: Swift.String
+  public init(path: Swift.String)
+}
+public struct ColorProperty : RiveRuntime.ValueProperty {
+  public typealias Value = RiveRuntime.Color
+  public let path: Swift.String
+  public init(path: Swift.String)
+}
+public struct EnumProperty : RiveRuntime.ValueProperty {
+  public typealias Value = Swift.String
+  public let path: Swift.String
+  public init(path: Swift.String)
+}
+public struct TriggerProperty : RiveRuntime.Property {
+  public let path: Swift.String
+  public init(path: Swift.String)
+}
+public struct ImageProperty : RiveRuntime.Property {
+  public let path: Swift.String
+  public init(path: Swift.String)
+}
+public struct ArtboardProperty : RiveRuntime.Property {
+  public let path: Swift.String
+  public init(path: Swift.String)
+}
+public struct ViewModelInstanceProperty : RiveRuntime.Property {
+  public let path: Swift.String
+  public init(path: Swift.String)
+}
+public struct ListProperty : RiveRuntime.Property {
+  public let path: Swift.String
+  public init(path: Swift.String)
+}
+extension Swift.String : RiveRuntime.PropertyValue {
+}
+extension Swift.Float : RiveRuntime.PropertyValue {
+}
+extension Swift.Bool : RiveRuntime.PropertyValue {
+}
+extension RiveRuntime.Color : RiveRuntime.PropertyValue {
+}
+public enum ViewModelInstanceError : Foundation.LocalizedError {
+  case missingData
+  case valueMismatch(Swift.String, Swift.String)
+  case error(any Swift.Error)
+  case message(Swift.String)
+  case cancelled
+  public var errorDescription: Swift.String? {
+    get
+  }
+}
+public struct ViewModelProperty : Swift.Sendable, Swift.Equatable {
+  public let type: RiveRuntime.ViewModelProperty.DataType
+  public let name: Swift.String
+  public let metaData: Swift.String
+  public init(type: RiveRuntime.ViewModelProperty.DataType, name: Swift.String, metaData: Swift.String)
+  public static func == (a: RiveRuntime.ViewModelProperty, b: RiveRuntime.ViewModelProperty) -> Swift.Bool
+}
+extension RiveRuntime.ViewModelProperty {
+  public enum DataType : Swift.Sendable, Swift.Equatable {
+    case none
+    case string
+    case number
+    case boolean
+    case color
+    case list
+    case `enum`
+    case trigger
+    case viewModel
+    case integer
+    case symbolListIndex
+    case assetImage
+    case assetFont
+    case assetBlob
+    case artboard
+    case input
+    case any
+    public static func == (a: RiveRuntime.ViewModelProperty.DataType, b: RiveRuntime.ViewModelProperty.DataType) -> Swift.Bool
+    public func hash(into hasher: inout Swift.Hasher)
+    public var hashValue: Swift.Int {
+      get
+    }
+  }
+}
+public enum ViewModelPropertyError : Foundation.LocalizedError, Swift.Equatable {
+  case missingType
+  case missingName
+  case invalidType(Swift.Int)
+  public var errorDescription: Swift.String? {
+    get
+  }
+  public static func == (a: RiveRuntime.ViewModelPropertyError, b: RiveRuntime.ViewModelPropertyError) -> Swift.Bool
+}
+@_hasMissingDesignatedInitializers final public class File : Swift.Equatable {
+  @_Concurrency.MainActor convenience public init(source: RiveRuntime.Source, worker: RiveRuntime.Worker) async throws
+  @objc deinit
+  public static func == (lhs: RiveRuntime.File, rhs: RiveRuntime.File) -> Swift.Bool
+  @_Concurrency.MainActor final public func getArtboardNames() async throws -> [Swift.String]
+  @_Concurrency.MainActor final public func createArtboard(_ name: Swift.String? = nil) async throws -> RiveRuntime.Artboard
+  @_Concurrency.MainActor final public func createViewModelInstance(_ source: RiveRuntime.ViewModelInstanceSource) async throws -> RiveRuntime.ViewModelInstance
+  @_Concurrency.MainActor final public func getViewModelNames() async throws -> [Swift.String]
+  @_Concurrency.MainActor final public func getInstanceNames(of viewModel: Swift.String) async throws -> [Swift.String]
+  @_Concurrency.MainActor final public func getProperties(of viewModel: Swift.String) async throws -> [RiveRuntime.ViewModelProperty]
+  @_Concurrency.MainActor final public func getViewModelEnums() async throws -> [RiveRuntime.ViewModelEnum]
+  @_Concurrency.MainActor final public func getDefaultViewModelInfo(for artboard: RiveRuntime.Artboard) async throws -> (viewModelName: Swift.String, instanceName: Swift.String)
+}
+public enum FileError : Foundation.LocalizedError {
+  case missingFile(Swift.String)
+  case invalidData(Swift.String)
+  case missingData(Swift.String)
+  case invalidFile(Swift.String)
+  case invalidArtboard(Swift.String)
+  case invalidViewModel(Swift.String)
+  case invalidViewModelInstance(Swift.String)
+  case cancelled
+  public var errorDescription: Swift.String? {
+    get
+  }
+}
+public enum Source : Swift.Sendable {
+  case local(Swift.String, Foundation.Bundle?)
+  case url(Foundation.URL)
+  case data(Foundation.Data)
+}
+@_hasMissingDesignatedInitializers final public class Font : Swift.Equatable {
+  @objc deinit
+  public static func == (lhs: RiveRuntime.Font, rhs: RiveRuntime.Font) -> Swift.Bool
+}
+public enum FontError : Foundation.LocalizedError {
+  case failedDecoding(Swift.String)
+  case cancelled
+  public var errorDescription: Swift.String? {
+    get
+  }
+}
+@_hasMissingDesignatedInitializers final public class Image : Swift.Equatable {
+  @objc deinit
+  public static func == (lhs: RiveRuntime.Image, rhs: RiveRuntime.Image) -> Swift.Bool
+}
+public enum ImageError : Foundation.LocalizedError {
+  case failedDecoding(Swift.String)
+  case cancelled
+  public var errorDescription: Swift.String? {
+    get
+  }
+}
+@_hasMissingDesignatedInitializers final public class StateMachine : Swift.Equatable {
+  @objc deinit
+  public static func == (lhs: RiveRuntime.StateMachine, rhs: RiveRuntime.StateMachine) -> Swift.Bool
+  @_Concurrency.MainActor final public func advance(by time: Foundation.TimeInterval)
+  @_Concurrency.MainActor final public func settledStream() -> _Concurrency.AsyncStream<Swift.Void>
+  @_Concurrency.MainActor final public func enableSemantics()
+  @_Concurrency.MainActor final public func semanticsDiffStream() -> _Concurrency.AsyncStream<RiveRuntime.SemanticsDiff>
+  @_Concurrency.MainActor final public func fireSemanticAction(nodeID: Swift.UInt32, actionType: RiveRuntime.SemanticActionType)
+  @_Concurrency.MainActor final public func requestSemanticFocus(nodeID: Swift.UInt32)
+  @_Concurrency.MainActor final public func clearSemanticFocus()
+  @_Concurrency.MainActor final public func drainSemanticsDiff(fit: RiveRuntime.RiveConfigurationFit, alignment: RiveRuntime.RiveConfigurationAlignment, scaleFactor: Swift.Float, viewBounds: CoreFoundation.CGSize)
+  @_Concurrency.MainActor final public func bindViewModelInstance(_ viewModelInstance: RiveRuntime.ViewModelInstance)
+}
+public enum StateMachineError : Foundation.LocalizedError {
+  case error(Swift.String)
+  case cancelled
+  public var errorDescription: Swift.String? {
+    get
+  }
+}
+public enum RiveLog : Swift.Sendable {
+  nonisolated public static var none: any RiveRuntime.RiveLog.Logger {
+    get
+  }
+  nonisolated public static func system(levels: RiveRuntime.RiveLog.Level = .default) -> any RiveRuntime.RiveLog.Logger
+  nonisolated public static var logger: any RiveRuntime.RiveLog.Logger {
+    get
+    set
+  }
+  nonisolated public static func notice(tag: RiveRuntime.RiveLog.Tag, _ message: @autoclosure @escaping () -> Swift.String)
+  nonisolated public static func debug(tag: RiveRuntime.RiveLog.Tag, _ message: @autoclosure @escaping () -> Swift.String)
+  nonisolated public static func trace(tag: RiveRuntime.RiveLog.Tag, _ message: @autoclosure @escaping () -> Swift.String)
+  nonisolated public static func info(tag: RiveRuntime.RiveLog.Tag, _ message: @autoclosure @escaping () -> Swift.String)
+  nonisolated public static func error(tag: RiveRuntime.RiveLog.Tag, error: (any Swift.Error)? = nil, _ message: @autoclosure @escaping () -> Swift.String)
+  nonisolated public static func warning(tag: RiveRuntime.RiveLog.Tag, _ message: @autoclosure @escaping () -> Swift.String)
+  nonisolated public static func fault(tag: RiveRuntime.RiveLog.Tag, _ message: @autoclosure @escaping () -> Swift.String)
+  nonisolated public static func critical(tag: RiveRuntime.RiveLog.Tag, _ message: @autoclosure @escaping () -> Swift.String)
+}
+extension RiveRuntime.RiveLog {
+  public struct Level : Swift.OptionSet, Swift.Sendable {
+    public let rawValue: Swift.UInt16
+    public init(rawValue: Swift.UInt16)
+    public static let notice: RiveRuntime.RiveLog.Level
+    public static let debug: RiveRuntime.RiveLog.Level
+    public static let trace: RiveRuntime.RiveLog.Level
+    public static let info: RiveRuntime.RiveLog.Level
+    public static let error: RiveRuntime.RiveLog.Level
+    public static let warning: RiveRuntime.RiveLog.Level
+    public static let fault: RiveRuntime.RiveLog.Level
+    public static let critical: RiveRuntime.RiveLog.Level
+    public static let `default`: RiveRuntime.RiveLog.Level
+    public static let all: RiveRuntime.RiveLog.Level
+    public typealias ArrayLiteralElement = RiveRuntime.RiveLog.Level
+    public typealias Element = RiveRuntime.RiveLog.Level
+    public typealias RawValue = Swift.UInt16
+  }
+}
+extension RiveRuntime.RiveLog {
+  public enum Tag : Swift.Sendable, Swift.Hashable {
+    case rive
+    case worker
+    case file
+    case artboard
+    case stateMachine
+    case viewModelInstance
+    case image
+    case font
+    case audio
+    case view
+    case custom(Swift.String)
+    public static func == (a: RiveRuntime.RiveLog.Tag, b: RiveRuntime.RiveLog.Tag) -> Swift.Bool
+    public func hash(into hasher: inout Swift.Hasher)
+    public var hashValue: Swift.Int {
+      get
+    }
+  }
+}
+extension RiveRuntime.RiveLog {
+  nonisolated public protocol Logger : Swift.Sendable {
+    nonisolated func notice(tag: RiveRuntime.RiveLog.Tag, _ message: @escaping () -> Swift.String)
+    nonisolated func debug(tag: RiveRuntime.RiveLog.Tag, _ message: @escaping () -> Swift.String)
+    nonisolated func trace(tag: RiveRuntime.RiveLog.Tag, _ message: @escaping () -> Swift.String)
+    nonisolated func info(tag: RiveRuntime.RiveLog.Tag, _ message: @escaping () -> Swift.String)
+    nonisolated func error(tag: RiveRuntime.RiveLog.Tag, error _: (any Swift.Error)?, _ message: @escaping () -> Swift.String)
+    nonisolated func warning(tag: RiveRuntime.RiveLog.Tag, _ message: @escaping () -> Swift.String)
+    nonisolated func fault(tag: RiveRuntime.RiveLog.Tag, _ message: @escaping () -> Swift.String)
+    nonisolated func critical(tag: RiveRuntime.RiveLog.Tag, _ message: @escaping () -> Swift.String)
+  }
+}
+public enum Fit : Swift.Equatable {
+  case fill(alignment: RiveRuntime.Alignment)
+  case contain(alignment: RiveRuntime.Alignment)
+  case cover(alignment: RiveRuntime.Alignment)
+  case fitWidth(alignment: RiveRuntime.Alignment)
+  case fitHeight(alignment: RiveRuntime.Alignment)
+  case none(alignment: RiveRuntime.Alignment)
+  case scaleDown(alignment: RiveRuntime.Alignment)
+  case layout(scaleFactor: RiveRuntime.ScaleFactor)
+  public static func == (a: RiveRuntime.Fit, b: RiveRuntime.Fit) -> Swift.Bool
+}
+public enum Alignment : Swift.Equatable, Swift.CaseIterable {
+  case topLeft
+  case topCenter
+  case topRight
+  case centerLeft
+  case center
+  case centerRight
+  case bottomLeft
+  case bottomCenter
+  case bottomRight
+  public static func == (a: RiveRuntime.Alignment, b: RiveRuntime.Alignment) -> Swift.Bool
+  public typealias AllCases = [RiveRuntime.Alignment]
+  nonisolated public static var allCases: [RiveRuntime.Alignment] {
+    get
+  }
+  public func hash(into hasher: inout Swift.Hasher)
+  public var hashValue: Swift.Int {
+    get
+  }
+}
+public enum ScaleFactor : Swift.Equatable {
+  case automatic
+  case explicit(Swift.Float)
+  public static func == (a: RiveRuntime.ScaleFactor, b: RiveRuntime.ScaleFactor) -> Swift.Bool
+}
+public enum FrameRate : Swift.Equatable {
+  case `default`
+  case fps(Swift.Int)
+  case range(minimum: Swift.Float, maximum: Swift.Float, preferred: Swift.Float?)
+  public static func == (a: RiveRuntime.FrameRate, b: RiveRuntime.FrameRate) -> Swift.Bool
+}
+@_Concurrency.MainActor final public class Rive : Foundation.ObservableObject, Swift.Equatable {
+  @_Concurrency.MainActor final public let file: RiveRuntime.File
+  @_Concurrency.MainActor final public let artboard: RiveRuntime.Artboard
+  @_Concurrency.MainActor final public let stateMachine: RiveRuntime.StateMachine
+  @_Concurrency.MainActor final public let viewModelInstance: RiveRuntime.ViewModelInstance?
+  @_Concurrency.MainActor final public var backgroundColor: RiveRuntime.Color {
+    get
+    set
+  }
+  @_Concurrency.MainActor final public var fit: RiveRuntime.Fit {
+    get
+    set
+  }
+  @_Concurrency.MainActor public init(file: RiveRuntime.File, artboard: RiveRuntime.Artboard? = nil, stateMachine: RiveRuntime.StateMachine? = nil, dataBind: RiveRuntime.DataBind = .auto, fit: RiveRuntime.Fit = .contain(alignment: .center), backgroundColor: RiveRuntime.Color = Color(red: 0, green: 0, blue: 0, alpha: 0)) async throws
+  nonisolated public static func == (lhs: RiveRuntime.Rive, rhs: RiveRuntime.Rive) -> Swift.Bool
+  public typealias ObjectWillChangePublisher = Combine.ObservableObjectPublisher
+  @objc deinit
+}
+extension RiveRuntime.RiveUIRenderer {
+  @_Concurrency.MainActor convenience public init(worker: RiveRuntime.Worker)
+  @_Concurrency.MainActor convenience public init(rive: RiveRuntime.Rive)
+}
+extension RiveRuntime.RiveUIRendererConfiguration {
+  @_Concurrency.MainActor public init(rive: RiveRuntime.Rive, drawableSize: CoreFoundation.CGSize, nativeScale: CoreFoundation.CGFloat? = nil, displayScale: CoreFoundation.CGFloat = 1)
+}
+public typealias NativeView = AppKit.NSView
+public typealias NativeViewRepresentable = SwiftUI.NSViewRepresentable
+public protocol RiveUIViewDelegate : AnyObject {
+  func view(_ view: RiveRuntime.RiveUIView, didReceiveError: RiveRuntime.RiveUIViewError)
+}
+@objc @_Concurrency.MainActor @preconcurrency public class RiveUIView : RiveRuntime.NativeView, MetalKit.MTKViewDelegate {
+  public enum Constants {
+    public enum Defaults {
+      public static let isPaused: Swift.Bool
+      public static let frameRate: RiveRuntime.FrameRate
+    }
+  }
+  @_Concurrency.MainActor @preconcurrency public var rive: RiveRuntime.Rive? {
+    get
+    set
+  }
+  @_Concurrency.MainActor public var isPaused: Swift.Bool {
+    get
+    set
+  }
+  @_Concurrency.MainActor public var frameRate: RiveRuntime.FrameRate {
+    get
+    set
+  }
+  @_Concurrency.MainActor @preconcurrency weak public var delegate: (any RiveRuntime.RiveUIViewDelegate)?
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic public var isOpaque: Swift.Bool {
+    @objc get
+    @objc set
+  }
+  @_Concurrency.MainActor convenience public init(rive: @escaping @_Concurrency.MainActor () async throws -> RiveRuntime.Rive, delegate: (any RiveRuntime.RiveUIViewDelegate)? = nil, isPaused: Swift.Bool = Constants.Defaults.isPaused)
+  @_Concurrency.MainActor public init(rive: RiveRuntime.Rive?, delegate: (any RiveRuntime.RiveUIViewDelegate)? = nil, isPaused: Swift.Bool = Constants.Defaults.isPaused)
+  @_Concurrency.MainActor @preconcurrency @objc required dynamic public init?(coder: Foundation.NSCoder)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic public func viewDidMoveToWindow()
+  @_Concurrency.MainActor @preconcurrency @objc public func mtkView(_ view: MetalKit.MTKView, drawableSizeWillChange size: CoreFoundation.CGSize)
+  @_Concurrency.MainActor @preconcurrency @objc public func draw(in view: MetalKit.MTKView)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic public func mouseDown(with event: AppKit.NSEvent)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic public func mouseUp(with event: AppKit.NSEvent)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic public func mouseMoved(with event: AppKit.NSEvent)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic public func mouseDragged(with event: AppKit.NSEvent)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic public func mouseExited(with event: AppKit.NSEvent)
+  @_Concurrency.MainActor @preconcurrency @objc override dynamic public func updateTrackingAreas()
+  @objc deinit
+}
+public enum RiveUIViewError : Foundation.LocalizedError {
+  case renderer(Swift.String)
+  case noDrawable
+  case noDevice
+  case noRenderer
+  case failedToLoad(any Swift.Error)
+  public var errorDescription: Swift.String? {
+    get
+  }
+}
+@_Concurrency.MainActor @preconcurrency public struct RiveUIViewRepresentable : RiveRuntime.NativeViewRepresentable, Swift.Equatable {
+  @_Concurrency.MainActor @preconcurrency public init(rive: RiveRuntime.Rive?, delegate: (any RiveRuntime.RiveUIViewDelegate)? = nil)
+  @_Concurrency.MainActor @preconcurrency public func makeNSView(context: RiveRuntime.RiveUIViewRepresentable.Context) -> RiveRuntime.RiveUIView
+  @_Concurrency.MainActor @preconcurrency public func updateNSView(_ nsView: RiveRuntime.RiveUIView, context: RiveRuntime.RiveUIViewRepresentable.Context)
+  @_Concurrency.MainActor @preconcurrency public func frameRate(_ frameRate: RiveRuntime.FrameRate) -> RiveRuntime.RiveUIViewRepresentable
+  @_Concurrency.MainActor @preconcurrency public func paused(_ isPaused: Swift.Bool) -> RiveRuntime.RiveUIViewRepresentable
+  nonisolated public static func == (lhs: RiveRuntime.RiveUIViewRepresentable, rhs: RiveRuntime.RiveUIViewRepresentable) -> Swift.Bool
+  public typealias Body = Swift.Never
+  public typealias Coordinator = Swift.Void
+  public typealias NSViewType = RiveRuntime.RiveUIView
+}
+@_Concurrency.MainActor @preconcurrency public struct AsyncRiveUIViewRepresentable : RiveRuntime.NativeViewRepresentable, Swift.Equatable {
+  @_Concurrency.MainActor @preconcurrency public init(rive: @escaping @_Concurrency.MainActor () async throws -> RiveRuntime.Rive, delegate: (any RiveRuntime.RiveUIViewDelegate)? = nil)
+  @_Concurrency.MainActor @preconcurrency public func makeNSView(context: RiveRuntime.AsyncRiveUIViewRepresentable.Context) -> RiveRuntime.RiveUIView
+  @_Concurrency.MainActor @preconcurrency public func updateNSView(_ nsView: RiveRuntime.RiveUIView, context: RiveRuntime.AsyncRiveUIViewRepresentable.Context)
+  @_Concurrency.MainActor @preconcurrency public func frameRate(_ frameRate: RiveRuntime.FrameRate) -> RiveRuntime.AsyncRiveUIViewRepresentable
+  @_Concurrency.MainActor @preconcurrency public func paused(_ isPaused: Swift.Bool) -> RiveRuntime.AsyncRiveUIViewRepresentable
+  nonisolated public static func == (lhs: RiveRuntime.AsyncRiveUIViewRepresentable, rhs: RiveRuntime.AsyncRiveUIViewRepresentable) -> Swift.Bool
+  public typealias Body = Swift.Never
+  public typealias Coordinator = Swift.Void
+  public typealias NSViewType = RiveRuntime.RiveUIView
+}
+@_hasMissingDesignatedInitializers final public class Worker {
+  @_Concurrency.MainActor convenience public init() async throws
+  @_Concurrency.MainActor convenience public init(device: any Metal.MTLDevice)
+  @objc deinit
+  @_Concurrency.MainActor final public func decodeImage(from data: Foundation.Data) async throws -> RiveRuntime.Image
+  @_Concurrency.MainActor final public func addGlobalImageAsset(_ image: RiveRuntime.Image, name: Swift.String)
+  @_Concurrency.MainActor final public func removeGlobalImageAsset(name: Swift.String)
+  @_Concurrency.MainActor final public func decodeFont(from data: Foundation.Data) async throws -> RiveRuntime.Font
+  @_Concurrency.MainActor final public func addGlobalFontAsset(_ font: RiveRuntime.Font, name: Swift.String)
+  @_Concurrency.MainActor final public func removeGlobalFontAsset(_ name: Swift.String)
+  @_Concurrency.MainActor final public func decodeAudio(from data: Foundation.Data) async throws -> RiveRuntime.Audio
+  @_Concurrency.MainActor final public func addGlobalAudioAsset(_ audio: RiveRuntime.Audio, name: Swift.String)
+  @_Concurrency.MainActor final public func removeGlobalAudioAsset(name: Swift.String)
+}
+public enum WorkerError : Foundation.LocalizedError {
+  case missingDevice
+  public var errorDescription: Swift.String? {
+    get
+  }
+  public static func == (a: RiveRuntime.WorkerError, b: RiveRuntime.WorkerError) -> Swift.Bool
+  public func hash(into hasher: inout Swift.Hasher)
+  public var hashValue: Swift.Int {
+    get
+  }
+}
+extension RiveRuntime.RiveStateMachineInstance {
+  @objc dynamic public var inputs: [RiveRuntime.StateMachineInput] {
+    @objc get
+  }
+}
+@objc public enum StateMachineInputType : Swift.IntegerLiteralType {
+  case trigger, number, boolean
+  public init?(rawValue: Swift.IntegerLiteralType)
+  public typealias RawValue = Swift.IntegerLiteralType
+  public var rawValue: Swift.IntegerLiteralType {
+    get
+  }
+}
+@_hasMissingDesignatedInitializers @objc public class StateMachineInput : ObjectiveC.NSObject {
+  final public let name: Swift.String
+  final public let type: RiveRuntime.StateMachineInputType
+  @objc deinit
+}
+@objc open class RiveViewModel : ObjectiveC.NSObject, Combine.ObservableObject, RiveRuntime.RiveFileDelegate, RiveRuntime.RiveStateMachineDelegate, RiveRuntime.RivePlayerDelegate {
+  @objc public static let layoutScaleFactorAutomatic: Swift.Double
+  open var riveView: RiveRuntime.RiveView? {
+    get
+  }
+  @objc public init(_ model: RiveRuntime.RiveModel, stateMachineName: Swift.String?, fit: RiveRuntime.RiveFit = .contain, alignment: RiveRuntime.RiveAlignment = .center, autoPlay: Swift.Bool = true, artboardName: Swift.String? = nil)
+  @objc public init(_ model: RiveRuntime.RiveModel, animationName: Swift.String? = nil, fit: RiveRuntime.RiveFit = .contain, alignment: RiveRuntime.RiveAlignment = .center, autoPlay: Swift.Bool = true, artboardName: Swift.String? = nil)
+  @objc public init(fileName: Swift.String, extension: Swift.String = ".riv", in bundle: Foundation.Bundle = .main, stateMachineName: Swift.String?, fit: RiveRuntime.RiveFit = .contain, alignment: RiveRuntime.RiveAlignment = .center, autoPlay: Swift.Bool = true, artboardName: Swift.String? = nil, loadCdn: Swift.Bool = true, customLoader: RiveRuntime.LoadAsset? = nil)
+  public init(fileName: Swift.String, extension: Swift.String = ".riv", in bundle: Foundation.Bundle = .main, animationName: Swift.String? = nil, fit: RiveRuntime.RiveFit = .contain, alignment: RiveRuntime.RiveAlignment = .center, autoPlay: Swift.Bool = true, artboardName: Swift.String? = nil, preferredFramesPerSecond: Swift.Int? = nil, loadCdn: Swift.Bool = true, customLoader: RiveRuntime.LoadAsset? = nil)
+  @objc public init(webURL: Swift.String, stateMachineName: Swift.String?, fit: RiveRuntime.RiveFit = .contain, alignment: RiveRuntime.RiveAlignment = .center, autoPlay: Swift.Bool = true, loadCdn: Swift.Bool = true, artboardName: Swift.String? = nil)
+  @objc public init(webURL: Swift.String, animationName: Swift.String? = nil, fit: RiveRuntime.RiveFit = .contain, alignment: RiveRuntime.RiveAlignment = .center, autoPlay: Swift.Bool = true, loadCdn: Swift.Bool = true, artboardName: Swift.String? = nil)
+  @objc open var riveModel: RiveRuntime.RiveModel? {
+    @objc get
+  }
+  @objc open var isPlaying: Swift.Bool {
+    @objc get
+  }
+  @objc open var autoPlay: Swift.Bool
+  @objc open var fit: RiveRuntime.RiveFit {
+    @objc get
+    @objc set
+  }
+  @objc open var alignment: RiveRuntime.RiveAlignment {
+    @objc get
+    @objc set
+  }
+  @objc open var layoutScaleFactor: Swift.Double {
+    @objc get
+    @objc set
+  }
+  @objc open var forwardsListenerEvents: Swift.Bool {
+    @objc get
+    @objc set
+  }
+  @available(macOS 14, *)
+  @objc(setPreferredFramesPerSecond:) public func setPreferredFramesPerSecond(preferredFramesPerSecond: Swift.Int)
+  @available(macOS 14, *)
+  public func setPreferredFrameRateRange(preferredFrameRateRange: QuartzCore.CAFrameRateRange)
+  @objc open func play(animationName: Swift.String? = nil, loop: RiveRuntime.RiveLoop = .autoLoop, direction: RiveRuntime.RiveDirection = .autoDirection)
+  @objc open func pause()
+  @objc open func stop()
+  @objc open func reset()
+  @objc open func configureModel(artboardName: Swift.String? = nil, stateMachineName: Swift.String? = nil, animationName: Swift.String? = nil) throws
+  @objc open func resetToDefaultModel()
+  @objc open func triggerInput(_ inputName: Swift.String)
+  @objc(setBooleanInput::) open func setInput(_ inputName: Swift.String, value: Swift.Bool)
+  @objc open func boolInput(named name: Swift.String) -> RiveRuntime.RiveSMIBool?
+  @objc(setFloatInput::) open func setInput(_ inputName: Swift.String, value: Swift.Float)
+  @objc(setDoubleInput::) open func setInput(_ inputName: Swift.String, value: Swift.Double)
+  @objc open func numberInput(named name: Swift.String) -> RiveRuntime.RiveSMINumber?
+  @objc open func triggerInput(_ inputName: Swift.String, path: Swift.String)
+  @objc(setBooleanInput:value:atPath:) open func setInput(_ inputName: Swift.String, value: Swift.Bool, path: Swift.String)
+  @objc(setFloatInput:value:atPath:) open func setInput(_ inputName: Swift.String, value: Swift.Float, path: Swift.String)
+  @objc(setDoubleInput:value:atPath:) open func setInput(_ inputName: Swift.String, value: Swift.Double, path: Swift.String)
+  @objc open func getTextRunValue(_ textRunName: Swift.String) -> Swift.String?
+  @objc open func getTextRunValue(_ textRunName: Swift.String, path: Swift.String) -> Swift.String?
+  @objc open func setTextRunValue(_ textRunName: Swift.String, textValue: Swift.String) throws
+  @objc open func setTextRunValue(_ textRunName: Swift.String, path: Swift.String, textValue: Swift.String) throws
+  @objc open func artboardNames() -> [Swift.String]
+  @objc open func createRiveView() -> RiveRuntime.RiveView
+  @objc(setRiveView:) open func setRiveView(view: RiveRuntime.RiveView)
+  @objc open func update(view: RiveRuntime.RiveView)
+  @objc open func deregisterView()
+  open func view() -> SwiftUICore.AnyView
+  @objc open func setView(_ view: RiveRuntime.RiveView)
+  @objc open func riveFileDidLoad(_ riveFile: RiveRuntime.RiveFile) throws
+  @objc open func riveFileDidError(_ error: any Swift.Error)
+  @objc open func player(playedWithModel riveModel: RiveRuntime.RiveModel?)
+  @objc open func player(pausedWithModel riveModel: RiveRuntime.RiveModel?)
+  @objc open func player(loopedWithModel riveModel: RiveRuntime.RiveModel?, type: Swift.Int)
+  @objc open func player(stoppedWithModel riveModel: RiveRuntime.RiveModel?)
+  @objc open func player(didAdvanceby seconds: Swift.Double, riveModel: RiveRuntime.RiveModel?)
+  public typealias ObjectWillChangePublisher = Combine.ObservableObjectPublisher
+  @objc deinit
+}
+@_Concurrency.MainActor @preconcurrency public struct RiveViewRepresentable : SwiftUI.NSViewRepresentable {
+  @_Concurrency.MainActor @preconcurrency public init(viewModel: RiveRuntime.RiveViewModel)
+  @_Concurrency.MainActor @preconcurrency public func makeNSView(context: RiveRuntime.RiveViewRepresentable.Context) -> RiveRuntime.RiveView
+  @_Concurrency.MainActor @preconcurrency public func updateNSView(_ view: RiveRuntime.RiveView, context: SwiftUI.NSViewRepresentableContext<RiveRuntime.RiveViewRepresentable>)
+  @_Concurrency.MainActor @preconcurrency public static func dismantleNSView(_ view: RiveRuntime.RiveView, coordinator: RiveRuntime.RiveViewRepresentable.Coordinator)
+  @_Concurrency.MainActor @preconcurrency public func makeCoordinator() -> RiveRuntime.RiveViewRepresentable.Coordinator
+  @objc @_hasMissingDesignatedInitializers public class Coordinator : ObjectiveC.NSObject {
+    public var viewModel: RiveRuntime.RiveViewModel
+    @objc deinit
+  }
+  public typealias Body = Swift.Never
+  public typealias NSViewType = RiveRuntime.RiveView
+}
+public typealias RiveNativeFont = AppKit.NSFont
+extension RiveRuntime.RiveFallbackFontDescriptor : RiveRuntime.RiveFallbackFontProvider {
+  @objc dynamic public var fallbackFont: RiveRuntime.RiveNativeFont {
+    @objc get
+  }
+}
+@objc extension AppKit.NSFont : RiveRuntime.RiveFallbackFontProvider {
+  @objc dynamic public var fallbackFont: RiveRuntime.RiveNativeFont {
+    @objc get
+  }
+  @objc dynamic public var allowsSuggestedFonts: Swift.Bool {
+    @objc get
+  }
+  @objc dynamic public var languageHint: AppKit.NSFont.LanguageHint? {
+    @objc get
+  }
+}
+@objc open class RiveModel : ObjectiveC.NSObject, Foundation.ObservableObject {
+  public typealias AutoBindCallback = (RiveRuntime.RiveDataBindingViewModel.Instance) -> Swift.Void
+  public var stateMachine: RiveRuntime.RiveStateMachineInstance? {
+    get
+  }
+  public var animation: RiveRuntime.RiveLinearAnimationInstance? {
+    get
+  }
+  public var artboard: RiveRuntime.RiveArtboard! {
+    get
+  }
+  public var riveFile: RiveRuntime.RiveFile {
+    get
+  }
+  @objc public init(riveFile: RiveRuntime.RiveFile)
+  @objc public init(fileName: Swift.String, extension: Swift.String = ".riv", in bundle: Foundation.Bundle = .main, loadCdn: Swift.Bool = true, customLoader: RiveRuntime.LoadAsset? = nil) throws
+  @objc public init(webURL: Swift.String, delegate: any RiveRuntime.RiveFileDelegate, loadCdn: Swift.Bool)
+  @objc open var volume: Swift.Float {
+    @objc get
+    @objc set
+  }
+  @objc open func setArtboard(_ name: Swift.String) throws
+  open func setArtboard(_ index: Swift.Int? = nil) throws
+  @objc open func setStateMachine(_ name: Swift.String) throws
+  open func setStateMachine(_ index: Swift.Int? = nil) throws
+  @objc open func setAnimation(_ name: Swift.String) throws
+  open func setAnimation(_ index: Swift.Int? = nil) throws
+  @objc open func enableAutoBind(_ callback: @escaping RiveRuntime.RiveModel.AutoBindCallback)
+  @objc open func disableAutoBind()
+  @objc override dynamic public var description: Swift.String {
+    @objc get
+  }
+  public typealias ObjectWillChangePublisher = Combine.ObservableObjectPublisher
+  @objc deinit
+}
+extension RiveRuntime.RiveRenderImage {
+  public enum Format {
+    case jpeg(compressionQuality: CoreFoundation.CGFloat)
+    case png
+  }
+  convenience public init?(image: AppKit.NSImage, format: RiveRuntime.RiveRenderImage.Format)
+}
+extension RiveRuntime.RiveView.OffscreenBehavior : Swift.Equatable {}
+extension RiveRuntime.RiveView.OffscreenBehavior : Swift.Hashable {}
+extension RiveRuntime.RiveView.DrawOptimization : Swift.Equatable {}
+extension RiveRuntime.RiveView.DrawOptimization : Swift.Hashable {}
+extension RiveRuntime.RiveTouchEvent : Swift.Equatable {}
+extension RiveRuntime.RiveTouchEvent : Swift.Hashable {}
+extension RiveRuntime.RiveTouchEvent : Swift.RawRepresentable {}
+extension RiveRuntime.RiveFallbackFontDescriptorDesign : Swift.Equatable {}
+extension RiveRuntime.RiveFallbackFontDescriptorDesign : Swift.Hashable {}
+extension RiveRuntime.RiveFallbackFontDescriptorDesign : Swift.RawRepresentable {}
+extension RiveRuntime.RiveFallbackFontDescriptorWeight : Swift.Equatable {}
+extension RiveRuntime.RiveFallbackFontDescriptorWeight : Swift.Hashable {}
+extension RiveRuntime.RiveFallbackFontDescriptorWeight : Swift.RawRepresentable {}
+extension RiveRuntime.RiveFallbackFontDescriptorWidth : Swift.Equatable {}
+extension RiveRuntime.RiveFallbackFontDescriptorWidth : Swift.Hashable {}
+extension RiveRuntime.RiveFallbackFontDescriptorWidth : Swift.RawRepresentable {}
+extension RiveRuntime.ViewModelProperty.DataType : Swift.Hashable {}
+extension RiveRuntime.Alignment : Swift.Hashable {}
+extension RiveRuntime.Rive : Swift.Sendable {}
+extension RiveRuntime.RiveUIViewRepresentable : Swift.Sendable {}
+extension RiveRuntime.AsyncRiveUIViewRepresentable : Swift.Sendable {}
+extension RiveRuntime.WorkerError : Swift.Equatable {}
+extension RiveRuntime.WorkerError : Swift.Hashable {}
+extension RiveRuntime.StateMachineInputType : Swift.Equatable {}
+extension RiveRuntime.StateMachineInputType : Swift.Hashable {}
+extension RiveRuntime.StateMachineInputType : Swift.RawRepresentable {}
+extension RiveRuntime.RiveViewRepresentable : Swift.Sendable {}

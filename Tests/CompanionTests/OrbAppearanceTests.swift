@@ -127,3 +127,73 @@ func shellAnimationDisabledInReducedMotionAndIdle() {
     #expect(!OrbAppearance.shouldAnimateShell(for: .listening, reduceMotion: true),
             Comment(rawValue: "Listening: no shell animation with reduced motion"))
 }
+
+@Test
+func orbGlowOpacityByState() {
+    expect(OrbAppearance.glowOpacity(for: .listening)
+           > OrbAppearance.glowOpacity(for: .idle),
+           "listening glow brighter than idle")
+    expect(OrbAppearance.glowOpacity(for: .speaking)
+           > OrbAppearance.glowOpacity(for: .error),
+           "speaking glow brighter than error")
+    expect(OrbAppearance.glowOpacity(for: .idle) > 0, "idle still has a glow")
+    expect(OrbAppearance.glowOpacity(for: .idle) <= 1, "glow stays in 0...1")
+}
+
+@Test
+func orbParticleCountRespectsReduceMotion() {
+    expect(OrbAppearance.particleCount(for: .thinking, reduceMotion: false) > 0,
+           "thinking: particles on")
+    expectEq(
+        OrbAppearance.particleCount(for: .thinking, reduceMotion: true),
+        0,
+        "reduce-motion: no particles")
+    expect(
+        OrbAppearance.particleCount(for: .listening, reduceMotion: false)
+            > OrbAppearance.particleCount(for: .idle, reduceMotion: false),
+        "listening has more particles than idle")
+}
+
+@Test
+func orbPressScaleShrinksWhenPressed() {
+    expectEq(OrbAppearance.pressScale(false), 1, "rest: identity scale")
+    expect(OrbAppearance.pressScale(true) < 1, "press: shrinks")
+    expect(OrbAppearance.pressScale(true) > 0.8, "press: not crushed")
+}
+
+@Test @MainActor func orbConfigurationMatchesVoiceStateOrb() {
+    let accent = Semantic.accent
+    let idle = OrbAppearance.configuration(
+        for: .idle, accent: accent, reduceMotion: false)
+    expect(!idle.showParticles, "idle: sin particulas")
+    expectEq(idle.speed, 26, "idle: speed 26")
+    expectEq(idle.coreGlowIntensity, 0.7, "idle: glow 0.7")
+
+    let listen = OrbAppearance.configuration(
+        for: .listening, accent: accent, reduceMotion: false)
+    expect(listen.showParticles, "listening: particulas")
+    expectEq(listen.speed, 78, "listening: speed 78")
+
+    let think = OrbAppearance.configuration(
+        for: .thinking, accent: accent, reduceMotion: false)
+    expect(think.showParticles, "thinking: particulas")
+    expectEq(think.speed, 145, "thinking: speed 145")
+
+    let speak = OrbAppearance.configuration(
+        for: .speaking, accent: accent, reduceMotion: false)
+    expect(speak.showParticles, "speaking: particulas")
+
+    let connecting = OrbAppearance.configuration(
+        for: .connecting, accent: accent, reduceMotion: false)
+    expect(!connecting.showParticles, "connecting: sin particulas")
+
+    let error = OrbAppearance.configuration(
+        for: .error, accent: accent, reduceMotion: false)
+    expect(!error.showParticles, "error: sin particulas")
+    expectEq(error.speed, 14, "error: speed 14")
+
+    let reduced = OrbAppearance.configuration(
+        for: .listening, accent: accent, reduceMotion: true)
+    expectEq(reduced.speed, 0, "reduce-motion: speed 0")
+    expect(!reduced.showParticles, "reduce-motion: particulas off")
+}
