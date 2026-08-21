@@ -1,3 +1,5 @@
+import AppKit
+import CoreText
 import SwiftUI
 
 // User-selectable pieces of the design system (accent, typeface). Split from
@@ -139,6 +141,7 @@ public enum Semantic {
 
 // Space
 public enum Space {
+    public static let none: CGFloat = 0
     public static let x1: CGFloat = 4
     public static let x2: CGFloat = 8
     public static let x3: CGFloat = 12
@@ -199,17 +202,56 @@ public enum Stroke {
     public static let medium: CGFloat = 2
 }
 
-// Elevation shadows
+// Elevation shadows. Rank is the comparable axis; radius must not shrink.
+public enum Elevation: Int, Sendable, CaseIterable, Comparable {
+    case rest, hover, panel, sheet, popover
+
+    public static func < (lhs: Elevation, rhs: Elevation) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+
+    public var shadowRadius: CGFloat {
+        switch self {
+        case .rest: 0
+        case .hover: 3
+        case .panel: 24
+        case .sheet: 32
+        case .popover: 40
+        }
+    }
+
+    public var shadowY: CGFloat {
+        switch self {
+        case .rest: 0
+        case .hover: 1
+        case .panel: 10
+        case .sheet: 14
+        case .popover: 18
+        }
+    }
+
+    public var shadowOpacity: Double {
+        switch self {
+        case .rest: 0
+        case .hover: 0.15
+        case .panel: 0.22
+        case .sheet: 0.3
+        case .popover: 0.34
+        }
+    }
+}
+
 extension View {
-    public func elevationChip() -> some View {
-        shadow(color: .black.opacity(0.15), radius: 3, y: 1)
+    public func elevation(_ level: Elevation) -> some View {
+        shadow(
+            color: .black.opacity(level.shadowOpacity),
+            radius: level.shadowRadius,
+            y: level.shadowY)
     }
-    public func elevationPanel() -> some View {
-        shadow(color: .black.opacity(0.22), radius: 24, y: 10)
-    }
-    public func elevationSheet() -> some View {
-        shadow(color: .black.opacity(0.3), radius: 32, y: 14)
-    }
+
+    public func elevationChip() -> some View { elevation(.hover) }
+    public func elevationPanel() -> some View { elevation(.panel) }
+    public func elevationSheet() -> some View { elevation(.sheet) }
 }
 
 // Type families
@@ -217,6 +259,37 @@ public enum TypeFamily {
     public static let sans = "Hypodermic"
     public static let logo = "Gadey"
     public static let mono = "TBJ Interval"
+}
+
+/// Resolves a requested face against what is actually registered.
+/// Proprietary fonts stay local; missing ones fall to Inter, then the system.
+public enum FontFallback: Sendable {
+    public static func postScriptName(
+        _ wanted: AppTypeface, registered: Set<String>
+    ) -> String? {
+        switch wanted {
+        case .serif:
+            return nil
+        case .inter:
+            return registered.contains("Inter-Regular") ? "Inter-Regular" : nil
+        case .hypodermic:
+            if registered.contains("Hypodermic-Regular") {
+                return "Hypodermic-Regular"
+            }
+            return postScriptName(.inter, registered: registered)
+        }
+    }
+
+    public static func logoName(registered: Set<String>) -> String? {
+        if registered.contains("Gadey") { return "Gadey" }
+        return postScriptName(.inter, registered: registered)
+    }
+
+    public static func monoName(bold: Bool, registered: Set<String>) -> String? {
+        let wanted = bold ? "TBJInterval-Bold" : "TBJInterval-Regular"
+        if registered.contains(wanted) { return wanted }
+        return postScriptName(.inter, registered: registered)
+    }
 }
 
 // Typeface selection
@@ -281,18 +354,54 @@ public enum TypeScale {
     }
 }
 
-// Font registry
+// Font registry. Bundle holds Inter (OFL). Proprietary faces load from
+// Application Support if the user dropped them; otherwise Inter then system.
 public enum Fonts {
+    private static let knownNames = [
+        "Inter-Regular", "Hypodermic-Regular", "Gadey",
+        "TBJInterval-Regular", "TBJInterval-Bold",
+    ]
+    private static var registered: Set<String> = []
+
     public static func register() {
-        guard let dir = Bundle.main.resourceURL?.appendingPathComponent("Fonts"),
-              let files = try? FileManager.default.contentsOfDirectory(
+        var dirs: [URL] = []
+        if let bundled = Bundle.module.resourceURL?
+            .appendingPathComponent("Fonts")
+        {
+            dirs.append(bundled)
+        }
+        if let main = Bundle.main.resourceURL?
+            .appendingPathComponent("Fonts")
+        {
+            dirs.append(main)
+        }
+        let support = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Companion/Fonts")
+        dirs.append(support)
+        dirs.append(FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Fonts"))
+        for dir in dirs { registerDirectory(dir) }
+        refreshRegistered()
+    }
+
+    private static func registerDirectory(_ dir: URL) {
+        let files: [URL]
+        do {
+            files = try FileManager.default.contentsOfDirectory(
                 at: dir, includingPropertiesForKeys: nil)
-        else { return }
+        } catch {
+            return
+        }
         for url in files {
             let ext = url.pathExtension.lowercased()
             guard ext == "otf" || ext == "ttf" else { continue }
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
         }
+    }
+
+    private static func refreshRegistered() {
+        registered = Set(knownNames.filter { NSFont(name: $0, size: 12) != nil })
     }
 
     public static func sans(_ size: CGFloat) -> Font {
@@ -301,20 +410,30 @@ public enum Fonts {
 
     public static func sample(_ face: AppTypeface, size: CGFloat) -> Font {
         let s = TypeScale.apply(size)
-        switch face {
-        case .inter: return Font.custom("Inter-Regular", size: s)
-        case .hypodermic: return Font.custom("Hypodermic-Regular", size: s)
-        case .serif: return Font.system(size: s, design: .serif)
+        if let name = FontFallback.postScriptName(face, registered: registered) {
+            return Font.custom(name, size: s)
         }
+        if face == .serif {
+            return Font.system(size: s, design: .serif)
+        }
+        return Font.system(size: s)
     }
 
     public static func logo(_ size: CGFloat) -> Font {
-        .custom("Gadey", size: TypeScale.apply(size))
+        let s = TypeScale.apply(size)
+        if let name = FontFallback.logoName(registered: registered) {
+            return Font.custom(name, size: s)
+        }
+        return Font.system(size: s, weight: .medium)
     }
 
     public static func mono(_ size: CGFloat, bold: Bool = false) -> Font {
-        .custom(bold ? "TBJInterval-Bold" : "TBJInterval-Regular",
-                size: TypeScale.apply(size))
+        let s = TypeScale.apply(size)
+        if let name = FontFallback.monoName(bold: bold, registered: registered) {
+            return Font.custom(name, size: s)
+        }
+        return Font.system(size: s, design: .monospaced)
+            .weight(bold ? .bold : .regular)
     }
 }
 
@@ -362,36 +481,4 @@ extension View {
     public func tracking(_ em: CGFloat, at size: CGFloat) -> some View {
         tracking(em * TypeScale.apply(size))
     }
-}
-
-// Color mappings for backwards compatibility with existing code
-public extension Tokens {
-    enum Color {
-        public static let bg = Semantic.background
-        public static let surface = Semantic.surface
-        public static let fg = Semantic.foreground
-        public static let muted = Semantic.mutedForeground
-        public static let border = Semantic.border
-        public static let accent = Semantic.accent
-        public static let destructive = Semantic.destructive
-    }
-
-    enum Space {
-        public static let s4: CGFloat = 4
-        public static let s8: CGFloat = 8
-        public static let s12: CGFloat = 12
-        public static let s16: CGFloat = 16
-        public static let s24: CGFloat = 24
-    }
-
-    enum Typography {
-        public static let title = Font.uiTitle
-        public static let body = Font.uiBody
-        public static let caption = Font.uiCaption
-    }
-}
-
-// Backwards-compatible Tokens enum for existing code
-public enum Tokens {
-    // Already defined above via extension
 }

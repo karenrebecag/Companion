@@ -24,6 +24,7 @@ let package = Package(
         .target(
             name: "CompanionUI",
             dependencies: ["CompanionCore"],
+            resources: [.copy("Fonts")],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
 

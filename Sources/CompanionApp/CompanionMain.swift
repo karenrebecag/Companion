@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Log.configure(
             fileURL: home
                 .appendingPathComponent("Library/Logs/CompanionNext.log"))
+        Fonts.register()
 
         let support = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]

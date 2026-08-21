@@ -22,6 +22,19 @@ rm -rf "$APP"
 mkdir -p "$BIN" "$APP/Contents/Resources"
 cp "$BUILT" "$BIN/Companion"
 
+BINPATH="$(swift build -c "$CONFIG" --show-bin-path)"
+for bundle in "$BINPATH"/*.bundle; do
+    [ -e "$bundle" ] || continue
+    cp -R "$bundle" "$APP/Contents/Resources/"
+done
+if [ -d "$ROOT/Sources/CompanionUI/Fonts" ]; then
+    mkdir -p "$APP/Contents/Resources/Fonts"
+    cp "$ROOT/Sources/CompanionUI/Fonts/"*.otf "$APP/Contents/Resources/Fonts/" 2>/dev/null || true
+    cp "$ROOT/Sources/CompanionUI/Fonts/"*.ttf "$APP/Contents/Resources/Fonts/" 2>/dev/null || true
+    [ -f "$ROOT/Sources/CompanionUI/Fonts/OFL.txt" ] \
+        && cp "$ROOT/Sources/CompanionUI/Fonts/OFL.txt" "$APP/Contents/Resources/Fonts/"
+fi
+
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

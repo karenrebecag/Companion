@@ -85,7 +85,7 @@ public struct CompanionRootView: View {
         .overlay(alignment: .topTrailing) {
             if !chat.needsOnboarding {
                 ToastStack(center: chat.notices)
-                    .padding(.top, 48)
+                    .padding(.top, Space.x6 * 2)
                     .padding(.trailing, Space.x4)
             }
         }

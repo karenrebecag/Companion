@@ -11,16 +11,16 @@ public struct ThreadView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: Space.none) {
             chrome
             hairline
             thread
             if let error = model.errorText {
                 Text(error)
-                    .font(Tokens.Typography.caption)
-                    .foregroundStyle(Tokens.Color.destructive)
-                    .padding(.horizontal, Tokens.Space.s16)
-                    .padding(.vertical, Tokens.Space.s8)
+                    .font(Font.uiCaption)
+                    .foregroundStyle(Semantic.destructive)
+                    .padding(.horizontal, Space.x4)
+                    .padding(.vertical, Space.x2)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             composer
@@ -29,47 +29,47 @@ public struct ThreadView: View {
     }
 
     private var chrome: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
-            HStack(spacing: Tokens.Space.s8) {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            HStack(spacing: Space.x2) {
                 Button("Nueva conversación") {
                     voice.hangUp()
                     model.newConversation()
                 }
-                    .font(Tokens.Typography.caption)
-                    .foregroundStyle(Tokens.Color.fg)
+                    .font(Font.uiCaption)
+                    .foregroundStyle(Semantic.foreground)
                 Button("Cambiar clave") {
                     voice.hangUp()
                     model.changeKey()
                 }
-                    .font(Tokens.Typography.caption)
-                    .foregroundStyle(Tokens.Color.fg)
+                    .font(Font.uiCaption)
+                    .foregroundStyle(Semantic.foreground)
                 Spacer()
             }
             VoiceControlsView(voice: voice)
             if let status = voice.statusText {
                 Text(status)
-                    .font(Tokens.Typography.caption)
-                    .foregroundStyle(Tokens.Color.muted)
+                    .font(Font.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
             }
             if !model.recents.isEmpty {
                 recentsList
             }
         }
-        .padding(.horizontal, Tokens.Space.s16)
-        .padding(.vertical, Tokens.Space.s12)
+        .padding(.horizontal, Space.x4)
+        .padding(.vertical, Space.x3)
     }
 
     private var recentsList: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: Tokens.Space.s4) {
+            VStack(alignment: .leading, spacing: Space.x1) {
                 ForEach(model.recents) { meta in
                     Button {
                         voice.hangUp()
                         model.openConversation(meta.id)
                     } label: {
                         Text(meta.title)
-                            .font(Tokens.Typography.caption)
-                            .foregroundStyle(Tokens.Color.fg)
+                            .font(Font.uiCaption)
+                            .foregroundStyle(Semantic.foreground)
                             .lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -77,13 +77,13 @@ public struct ThreadView: View {
                 }
             }
         }
-        .frame(maxHeight: Tokens.Space.s24 * 3)
+        .frame(maxHeight: Space.x6 * 3)
     }
 
     private var thread: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: Tokens.Space.s12) {
+                LazyVStack(alignment: .leading, spacing: Space.x3) {
                     ForEach(model.messages) { message in
                         messageRow(message)
                     }
@@ -97,7 +97,7 @@ public struct ThreadView: View {
                     queuedRows
                     Color.clear.frame(height: 1).id("thread-end")
                 }
-                .padding(Tokens.Space.s16)
+                .padding(Space.x4)
             }
             .onChange(of: model.messages.count) { _, _ in
                 proxy.scrollTo("thread-end", anchor: .bottom)
@@ -111,11 +111,11 @@ public struct ThreadView: View {
     @ViewBuilder
     private var queuedRows: some View {
         if !model.queued.isEmpty {
-            VStack(alignment: .leading, spacing: Tokens.Space.s4) {
+            VStack(alignment: .leading, spacing: Space.x1) {
                 ForEach(Array(model.queued.enumerated()), id: \.offset) { _, text in
                     Text("En cola: \(text)")
-                        .font(Tokens.Typography.caption)
-                        .foregroundStyle(Tokens.Color.muted)
+                        .font(Font.uiCaption)
+                        .foregroundStyle(Semantic.mutedForeground)
                         .lineLimit(1)
                 }
             }
@@ -123,25 +123,25 @@ public struct ThreadView: View {
     }
 
     private var composer: some View {
-        HStack(spacing: Tokens.Space.s8) {
+        HStack(spacing: Space.x2) {
             TextField("Escríbele a Companion", text: $model.draft)
                 .textFieldStyle(.plain)
-                .font(Tokens.Typography.body)
-                .foregroundStyle(Tokens.Color.fg)
-                .padding(Tokens.Space.s8)
-                .background(Tokens.Color.surface)
+                .font(Font.uiBody)
+                .foregroundStyle(Semantic.foreground)
+                .padding(Space.x2)
+                .background(Semantic.surface)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Tokens.Color.border, lineWidth: 1)
+                        .stroke(Semantic.border, lineWidth: Stroke.hairline)
                 )
                 .onSubmit(sendText)
                 .disabled(voice.isActive)
             Button("Enviar", action: sendText)
-                .font(Tokens.Typography.body)
-                .foregroundStyle(Tokens.Color.fg)
+                .font(Font.uiBody)
+                .foregroundStyle(Semantic.foreground)
                 .disabled(draftIsEmpty || voice.isActive)
         }
-        .padding(Tokens.Space.s16)
+        .padding(Space.x4)
     }
 
     private func sendText() {
@@ -157,21 +157,21 @@ public struct ThreadView: View {
     private func messageRow(_ message: ChatMessage) -> some View {
         if message.isStatus {
             Text(message.text)
-                .font(Tokens.Typography.caption)
-                .foregroundStyle(Tokens.Color.muted)
+                .font(Font.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else if message.role == .user {
-            HStack(alignment: .top, spacing: 0) {
-                Spacer(minLength: Tokens.Space.s24)
+            HStack(alignment: .top, spacing: Space.none) {
+                Spacer(minLength: Space.x6)
                 Text(message.text)
-                    .font(Tokens.Typography.body)
-                    .foregroundStyle(Tokens.Color.fg)
+                    .font(Font.uiBody)
+                    .foregroundStyle(Semantic.foreground)
                     .textSelection(.enabled)
-                    .padding(Tokens.Space.s12)
-                    .background(Tokens.Color.surface)
+                    .padding(Space.x3)
+                    .background(Semantic.surface)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(Tokens.Color.border, lineWidth: 1)
+                            .stroke(Semantic.border, lineWidth: Stroke.hairline)
                     )
             }
         } else {
@@ -180,15 +180,15 @@ public struct ThreadView: View {
     }
 
     private func assistantRow(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 0) {
+        HStack(alignment: .top, spacing: Space.none) {
             MarkdownView(text: text)
-            Spacer(minLength: Tokens.Space.s24)
+            Spacer(minLength: Space.x6)
         }
     }
 
     private var hairline: some View {
         Rectangle()
-            .fill(Tokens.Color.border)
+            .fill(Semantic.border)
             .frame(height: 1)
     }
 }

@@ -1,6 +1,7 @@
 import CompanionCore
 import CompanionUI
 import Foundation
+import SwiftUI
 import Testing
 
 @Test @MainActor func chatViewModelTests() async {
@@ -29,14 +30,12 @@ import Testing
 
 @MainActor func testTokensRamp() async {
     expectEq(
-        [Tokens.Space.s4, Tokens.Space.s8, Tokens.Space.s12,
-         Tokens.Space.s16, Tokens.Space.s24],
+        [Space.x1, Space.x2, Space.x3, Space.x4, Space.x6],
         [CGFloat(4), 8, 12, 16, 24],
         "tokens: space 4/8/12/16/24")
-    _ = (Tokens.Color.bg, Tokens.Color.surface, Tokens.Color.fg,
-         Tokens.Color.muted, Tokens.Color.border, Tokens.Color.accent,
-         Tokens.Color.destructive, Tokens.Typography.title,
-         Tokens.Typography.body, Tokens.Typography.caption)
+    _ = (Semantic.background, Semantic.surface, Semantic.foreground,
+         Semantic.mutedForeground, Semantic.border, Semantic.accent,
+         Semantic.destructive, Font.uiTitle, Font.uiBody, Font.uiCaption)
     expect(true, "tokens: rampa semántica sin Palette")
 }
 

@@ -10,12 +10,11 @@
 | 3 | Voz | APROBADO / EN CURSO | **Conversacion por voz con barge-in** |
 | 4 | Delegacion | CERRADA (4a y 4b) | **Especialista integrado sin instalar nada** |
 | 5 | Producto | CERRADA (5a-5e) | **Distribuible open source** |
-| 6 | Paridad y craft | 6a EN CURSO (W4); 6c CERRADA; 6b bloqueada | **Iguala o supera al prototipo en uso diario** |
+| 6 | Paridad y craft | 6a CERRADA; 6c CERRADA; 6b EN CURSO | **Iguala o supera al prototipo en uso diario** |
 
 ## Foco actual
 
-Wave 6c cerrada. 6a espera actualizaciones (W4). 6b (design system) arranca
-cuando W2 y W4 cierren.
+Wave 6b en curso, pieza 1 (fundaciones). W5 piezas 2-5 despues.
 
 
 ## Brecha con el prototipo (medida 2026-08-21)

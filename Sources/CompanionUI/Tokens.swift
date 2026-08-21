@@ -48,6 +48,3 @@ public enum Accent {
     public static let orange = Swatch("FF9F0A")
     public static let purple = Swatch("BF5AF2")
 }
-
-/// Color de énfasis elegible desde Ajustes.
-/// `standard` queda como rawValue para no invalidar lo ya persistido.

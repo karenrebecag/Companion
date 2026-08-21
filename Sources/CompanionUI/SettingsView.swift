@@ -32,7 +32,7 @@ public struct SettingsView: View {
     private let updates: UpdateState?
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Space.none) {
             // Header
             HStack {
                 Text("Ajustes")
@@ -274,7 +274,7 @@ struct SettingsItem<T: Hashable>: View {
 
 private extension View {
     func borderBottom() -> some View {
-        VStack(spacing: 0) {
+        VStack(spacing: Space.none) {
             self
             Divider()
                 .foregroundStyle(Semantic.border)

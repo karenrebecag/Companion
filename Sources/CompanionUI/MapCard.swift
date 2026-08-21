@@ -13,7 +13,7 @@ struct MapCard: View {
         VStack(alignment: .leading, spacing: Space.x3) {
             // Title
             Text(block.title ?? "Ubicaciones")
-                .font(Tokens.Typography.body)
+                .font(Font.uiBody)
                 .foregroundStyle(Semantic.foreground)
 
             // Map
@@ -39,7 +39,7 @@ struct MapCard: View {
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(Semantic.border, lineWidth: 1)
+                    .stroke(Semantic.border, lineWidth: Stroke.hairline)
             )
 
             // Location list
@@ -52,10 +52,10 @@ struct MapCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Space.x4)
         .background(Semantic.surface)
-        .cornerRadius(8)
+        .cornerRadius(Radius.md)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Semantic.border, lineWidth: 1)
+                .stroke(Semantic.border, lineWidth: Stroke.hairline)
         )
     }
 
@@ -69,17 +69,17 @@ struct MapCard: View {
 
                 VStack(alignment: .leading, spacing: Space.x1) {
                     Text(loc.name)
-                        .font(Tokens.Typography.body)
+                        .font(Font.uiBody)
                         .foregroundStyle(Semantic.foreground)
                     if let address = loc.address, !address.isEmpty {
                         Text(address)
-                            .font(Tokens.Typography.caption)
+                            .font(Font.uiCaption)
                             .foregroundStyle(Semantic.mutedForeground)
                     }
                     if let url = loc.url, let parsed = URL(string: url) {
                         Link(destination: parsed) {
                             Text("Abrir")
-                                .font(Tokens.Typography.caption)
+                                .font(Font.uiCaption)
                                 .foregroundStyle(Semantic.accent)
                         }
                     }

@@ -9,27 +9,27 @@ public struct VoiceControlsView: View {
     }
 
     public var body: some View {
-        HStack(spacing: Tokens.Space.s8) {
+        HStack(spacing: Space.x2) {
             Button(tapLabel, action: tapMic)
-                .font(Tokens.Typography.body)
-                .foregroundStyle(Tokens.Color.fg)
+                .font(Font.uiBody)
+                .foregroundStyle(Semantic.foreground)
             // On speakers the user cannot talk over the agent, so the escape
             // hatch must be visible. On headphones the flow stays clean: just
             // speak.
             if voice.snapshot.state == .speaking,
                voice.interruptCapability == .tapOnly {
                 Button("Interrumpir") { voice.advance() }
-                    .font(Tokens.Typography.body)
-                    .foregroundStyle(Tokens.Color.accent)
+                    .font(Font.uiBody)
+                    .foregroundStyle(Semantic.accent)
                     .keyboardShortcut(.escape, modifiers: [])
             }
             Button(voice.snapshot.muted ? "Unmute" : "Mute", action: voice.toggleMute)
-                .font(Tokens.Typography.caption)
-                .foregroundStyle(Tokens.Color.fg)
+                .font(Font.uiCaption)
+                .foregroundStyle(Semantic.foreground)
                 .disabled(!voice.isActive)
             Text(phaseLabel)
-                .font(Tokens.Typography.caption)
-                .foregroundStyle(Tokens.Color.muted)
+                .font(Font.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
             level(voice.levels.mic)
             level(voice.levels.agent)
         }
@@ -64,7 +64,7 @@ public struct VoiceControlsView: View {
 
     private func level(_ value: Double) -> some View {
         RoundedRectangle(cornerRadius: 2)
-            .fill(Tokens.Color.accent)
+            .fill(Semantic.accent)
             .frame(width: 6, height: 8 + CGFloat(min(max(value, 0), 1)) * 16)
     }
 }

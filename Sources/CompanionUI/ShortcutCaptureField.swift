@@ -13,30 +13,30 @@ struct ShortcutCaptureField: View {
             Button(action: toggleCapture) {
                 HStack {
                     Text(isCapturing ? "Escuchando..." : displayText)
-                        .font(Tokens.Typography.caption)
+                        .font(Font.uiCaption)
                         .foregroundStyle(
                             isCapturing ? Semantic.accent : Semantic.foreground
                         )
                     Spacer()
                     Image(systemName: isCapturing ? "stop.circle.fill" : "keyboard")
-                        .font(Tokens.Typography.caption)
+                        .font(Font.uiCaption)
                         .foregroundStyle(
                             isCapturing ? Semantic.accent : Semantic.mutedForeground
                         )
                 }
                 .padding(Space.x2)
                 .background(Semantic.surface)
-                .cornerRadius(4)
+                .cornerRadius(Radius.sm)
                 .overlay(
                     RoundedRectangle(cornerRadius: 4)
-                        .stroke(Semantic.border, lineWidth: 1)
+                        .stroke(Semantic.border, lineWidth: Stroke.hairline)
                 )
             }
             .buttonStyle(.plain)
 
             if isCapturing {
                 Text("Presiona Esc para cancelar")
-                    .font(Tokens.Typography.caption)
+                    .font(Font.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
             }
         }

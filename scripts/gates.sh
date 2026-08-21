@@ -92,6 +92,19 @@ check_imports CompanionServices "SwiftUI" \
 check_imports CompanionUI       "AVFoundation|WebKit" \
     "UI no importa AVFoundation/WebKit"
 
+# Literales de padding/spacing/cornerRadius: un solo sistema de tokens.
+# Valvula: // token-exempt:  (WHY en el mismo comentario)
+spacing_hits=$(grep -rnE \
+    '\.padding\([0-9]|\.padding\(\.(horizontal|vertical|top|bottom|leading|trailing|all), *[0-9]|spacing: *[0-9]|cornerRadius\([0-9]' \
+    "$SRC/CompanionUI" --include='*.swift' 2>/dev/null \
+    | grep -v 'token-exempt:' || true)
+if [ -n "$spacing_hits" ]; then
+    fail "CompanionUI: padding/spacing/cornerRadius literal (usar Space/Radius):"
+    echo "$spacing_hits"
+else
+    pass "CompanionUI sin literales de padding/spacing/cornerRadius"
+fi
+
 # -------------------------------------------------------------- Gate 4: tests
 section "Gate 4 — tests"
 out=$(cd "$ROOT" && swift test 2>&1)

@@ -1,7 +1,9 @@
 # Notices
 
-Companion ships with **no third-party code**: it clones and builds with the
-Swift toolchain alone. This file records the work that informed the design.
+Companion ships with **Inter** (SIL Open Font License 1.1) in
+`Sources/CompanionUI/Fonts/`. Gadey, Hypodermic and TBJ Interval are not
+in this repository; they load from disk if present, otherwise Inter then
+the system font.
 
 ## Design references (no code copied)
 

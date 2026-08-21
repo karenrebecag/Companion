@@ -1,7 +1,6 @@
 # Wave 6b — Design systems engineering
 
-**Estado: BORRADOR** — kickoff 2026-08-21 (planner + architect). Pendiente de
-aprobacion de Karen. Depende de 6a cerrada.
+**Estado: EN CURSO** — 2026-08-21. 6a y 6c cerradas. Pieza 1: fundaciones.
 
 ## Principio rector (decision de producto, 2026-08-21)
 

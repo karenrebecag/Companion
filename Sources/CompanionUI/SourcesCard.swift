@@ -10,9 +10,9 @@ struct SourcesCard: View {
     @State private var filesExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: Space.none) {
             Text("Fuentes")
-                .font(Tokens.Typography.caption)
+                .font(Font.uiCaption)
                 .foregroundStyle(Semantic.foreground)
                 .textCase(.uppercase)
                 .padding(.top, Space.x3)
@@ -49,10 +49,10 @@ struct SourcesCard: View {
         }
         .padding(Space.x4)
         .background(Semantic.surface)
-        .cornerRadius(8)
+        .cornerRadius(Radius.md)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Semantic.border, lineWidth: 1)
+                .stroke(Semantic.border, lineWidth: Stroke.hairline)
         )
     }
 
@@ -74,13 +74,13 @@ struct SourcesCard: View {
                     .frame(width: 16, alignment: .center)
 
                 Text(title)
-                    .font(Tokens.Typography.caption)
+                    .font(Font.uiCaption)
                     .foregroundStyle(Semantic.foreground)
 
                 Spacer()
 
                 Text("\(count)")
-                    .font(Tokens.Typography.caption)
+                    .font(Font.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
 
                 Image(systemName: "chevron.down")
@@ -112,19 +112,19 @@ struct SourcesCard: View {
         } label: {
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text(link.title)
-                    .font(Tokens.Typography.caption)
+                    .font(Font.uiCaption)
                     .foregroundStyle(Semantic.foreground)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
                 Text(URL(string: link.url)?.host ?? link.url)
-                    .font(Tokens.Typography.caption)
+                    .font(Font.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
                     .lineLimit(1)
 
                 if let detail = link.detail, !detail.isEmpty {
                     Text(detail)
-                        .font(Tokens.Typography.caption)
+                        .font(Font.uiCaption)
                         .foregroundStyle(Semantic.mutedForeground)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -156,13 +156,13 @@ struct SourcesCard: View {
         } label: {
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text(name)
-                    .font(Tokens.Typography.caption)
+                    .font(Font.uiCaption)
                     .foregroundStyle(Semantic.foreground)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
                 Text(ext.isEmpty ? "Archivo" : "Archivo \(ext)")
-                    .font(Tokens.Typography.caption)
+                    .font(Font.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

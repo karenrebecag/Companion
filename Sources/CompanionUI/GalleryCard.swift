@@ -10,7 +10,7 @@ struct GalleryCard: View {
             // Title
             if let title = block.title, !title.isEmpty {
                 Text(title)
-                    .font(Tokens.Typography.body)
+                    .font(Font.uiBody)
                     .foregroundStyle(Semantic.foreground)
             }
 
@@ -26,10 +26,10 @@ struct GalleryCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(Space.x4)
         .background(Semantic.surface)
-        .cornerRadius(8)
+        .cornerRadius(Radius.md)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Semantic.border, lineWidth: 1)
+                .stroke(Semantic.border, lineWidth: Stroke.hairline)
         )
     }
 
@@ -43,14 +43,14 @@ struct GalleryCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 4))
                     .overlay(
                         RoundedRectangle(cornerRadius: 4)
-                            .stroke(Semantic.border, lineWidth: 1)
+                            .stroke(Semantic.border, lineWidth: Stroke.hairline)
                     )
             }
             .buttonStyle(.plain)
 
             if let caption = item.caption, !caption.isEmpty {
                 Text(caption)
-                    .font(Tokens.Typography.caption)
+                    .font(Font.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
                     .lineLimit(2)
                     .frame(width: 120, alignment: .leading)

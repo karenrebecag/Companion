@@ -13,32 +13,32 @@ public struct ApprovalSheet: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: Tokens.Space.s16) {
+        VStack(alignment: .leading, spacing: Space.x4) {
             Text("¿Permitir que el especialista haga esto?")
-                .font(Tokens.Typography.title)
-                .foregroundStyle(Tokens.Color.fg)
+                .font(Font.uiTitle)
+                .foregroundStyle(Semantic.foreground)
 
-            VStack(alignment: .leading, spacing: Tokens.Space.s4) {
+            VStack(alignment: .leading, spacing: Space.x1) {
                 Text(request.toolName)
-                    .font(Tokens.Typography.caption)
-                    .foregroundStyle(Tokens.Color.muted)
+                    .font(Font.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
                 Text(ChatCopy.approvalDetail(
                     tool: request.toolName, inputJSON: request.inputJSON))
-                    .font(Tokens.Typography.body)
-                    .foregroundStyle(Tokens.Color.fg)
+                    .font(Font.uiBody)
+                    .foregroundStyle(Semantic.foreground)
                     .textSelection(.enabled)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(Tokens.Space.s12)
+            .padding(Space.x3)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Tokens.Color.surface)
+            .background(Semantic.surface)
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
             Text("Si no respondes, se deniega solo.")
-                .font(Tokens.Typography.caption)
-                .foregroundStyle(Tokens.Color.muted)
+                .font(Font.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
 
-            HStack(spacing: Tokens.Space.s12) {
+            HStack(spacing: Space.x3) {
                 Button("No permitir") { answer(false) }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
@@ -46,8 +46,8 @@ public struct ApprovalSheet: View {
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(Tokens.Space.s24)
+        .padding(Space.x6)
         .frame(width: 420)
-        .background(Tokens.Color.bg)
+        .background(Semantic.background)
     }
 }

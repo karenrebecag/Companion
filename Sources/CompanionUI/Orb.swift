@@ -138,7 +138,7 @@ private struct OrbCanvas: View {
 }
 
 #Preview {
-    VStack(spacing: 20) {
+    VStack(spacing: Space.x5) {
         Text("Idle")
         Orb(state: .idle, levels: VoiceLevels(mic: 0, agent: 0), accentColor: Semantic.accent)
             .frame(width: 100, height: 100)

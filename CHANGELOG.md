@@ -5,6 +5,10 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+### Added
+- Inter viaja con la app (OFL). Las otras fuentes, si las tienes en esta
+  Mac, se usan; si no, Inter o la del sistema.
+
 ## [0.7.0] — 2026-08-21
 
 ### Added

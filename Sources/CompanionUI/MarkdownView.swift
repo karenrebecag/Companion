@@ -12,7 +12,7 @@ public struct MarkdownView: View {
         // Sources leave the prose and become links: extractSources returns the
         // remaining parts precisely so the section is not rendered twice.
         let split = MarkdownSplitter.extractSources(MarkdownSplitter.split(text))
-        VStack(alignment: .leading, spacing: Tokens.Space.s8) {
+        VStack(alignment: .leading, spacing: Space.x2) {
             ForEach(split.rest, id: \.id) { part in
                 block(part.kind)
             }
@@ -28,38 +28,38 @@ public struct MarkdownView: View {
         switch kind {
         case .prose(let text):
             Text(text)
-                .font(Tokens.Typography.body)
-                .foregroundStyle(Tokens.Color.fg)
+                .font(Font.uiBody)
+                .foregroundStyle(Semantic.foreground)
                 .textSelection(.enabled)
         case .heading(let level, let text):
             Text(text)
-                .font(level <= 2 ? Tokens.Typography.title : Tokens.Typography.body)
-                .foregroundStyle(Tokens.Color.fg)
+                .font(level <= 2 ? Font.uiTitle : Font.uiBody)
+                .foregroundStyle(Semantic.foreground)
                 .textSelection(.enabled)
         case .list(let ordered, let items):
-            VStack(alignment: .leading, spacing: Tokens.Space.s4) {
+            VStack(alignment: .leading, spacing: Space.x1) {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                     Text(listLine(ordered: ordered, index: index, item: item))
-                        .font(Tokens.Typography.body)
-                        .foregroundStyle(Tokens.Color.fg)
+                        .font(Font.uiBody)
+                        .foregroundStyle(Semantic.foreground)
                         .textSelection(.enabled)
                 }
             }
         case .quote(let text):
-            HStack(alignment: .top, spacing: Tokens.Space.s8) {
+            HStack(alignment: .top, spacing: Space.x2) {
                 Rectangle()
-                    .fill(Tokens.Color.border)
+                    .fill(Semantic.border)
                     .frame(width: 2)
                 Text(text)
-                    .font(Tokens.Typography.body)
-                    .foregroundStyle(Tokens.Color.muted)
+                    .font(Font.uiBody)
+                    .foregroundStyle(Semantic.mutedForeground)
                     .textSelection(.enabled)
             }
         case .rule:
             Rectangle()
-                .fill(Tokens.Color.border)
+                .fill(Semantic.border)
                 .frame(height: 1)
-                .padding(.vertical, Tokens.Space.s8)
+                .padding(.vertical, Space.x2)
         case .code(let language, let body):
             // Companion card blocks: try to render as rich cards, degrade to code on JSON error.
             if language == CompanionBlocks.locationsLanguage {
@@ -80,7 +80,7 @@ public struct MarkdownView: View {
         case .table(let headers, let rows):
             Text(tableText(headers: headers, rows: rows))
                 .font(.system(.body, design: .monospaced))
-                .foregroundStyle(Tokens.Color.fg)
+                .foregroundStyle(Semantic.foreground)
                 .textSelection(.enabled)
         }
     }
@@ -102,14 +102,14 @@ public struct MarkdownView: View {
     private func codeBlock(_ body: String) -> some View {
         Text(body)
             .font(.system(.body, design: .monospaced))
-            .foregroundStyle(Tokens.Color.fg)
+            .foregroundStyle(Semantic.foreground)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Tokens.Space.s8)
-            .background(Tokens.Color.surface)
+            .padding(Space.x2)
+            .background(Semantic.surface)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
-                    .stroke(Tokens.Color.border, lineWidth: 1)
+                    .stroke(Semantic.border, lineWidth: Stroke.hairline)
             )
     }
 }
