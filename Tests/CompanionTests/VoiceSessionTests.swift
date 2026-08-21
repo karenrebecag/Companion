@@ -12,6 +12,7 @@ import Testing
     await testNoKeyClassicListen()
     await testOpenTimeoutFallsBackClassic()
     await testOfflineStaysInErrorWithoutFallback()
+    await testEchoFreeOutputForwardsWhileSpeaking()
     await testSilentMicFailsLoud()
     await testLiveMicSurvivesSilenceWatchdog()
     await testHangUpClosesTransport()
@@ -168,6 +169,22 @@ import Testing
     expect(h.mic.stopped, "hangup: para el mic")
 }
 
+/// Headphones/bluetooth output: no room echo, so frames DO travel while the
+/// agent speaks and voice barge-in works without AEC (Wave 3 feature).
+@MainActor func testEchoFreeOutputForwardsWhileSpeaking() async {
+    let h = makeVoiceHarness(echoFreeOutput: true)
+    await h.session.start()
+    await pumpUntil("echo-free: listening") { h.watch.latest.state == .listening }
+    h.mic.yield(MicFrame(pcm16le24k: Data([0x10, 0x00]), rms: 0.4))
+    await pumpUntil("echo-free: frame viaja") { appendCount(h.transport.sent) == 1 }
+    h.transport.yield(.audioDelta(Data([0x03, 0x00])))
+    await pumpUntil("echo-free: speaking") { h.watch.latest.state == .speaking }
+    h.mic.yield(MicFrame(pcm16le24k: Data([0x11, 0x00]), rms: 0.5))
+    await pumpUntil("echo-free: sigue mandando en speaking") {
+        appendCount(h.transport.sent) == 2
+    }
+}
+
 @MainActor func testEchoGuardHoldsFrames() async {
     let h = makeVoiceHarness()
     h.clock.now = 1_000
@@ -255,7 +272,8 @@ func makeVoiceHarness(
     readyTimeout: TimeInterval = 1,
     aec: Bool = false,
     online: Bool = true,
-    micSilenceTimeout: TimeInterval = 10
+    micSilenceTimeout: TimeInterval = 10,
+    echoFreeOutput: Bool = false
 ) -> VoiceHarness {
     let transport = ScriptedVoiceTransport()
     transport.autoEvents = autoEvents
@@ -281,6 +299,7 @@ func makeVoiceHarness(
         thread: thread,
         config: Config(ownerFirstName: "Karen"),
         reachability: ScriptedReachability(online),
+        echoFreeProbe: { echoFreeOutput },
         micSilenceTimeout: micSilenceTimeout,
         now: { clock.now },
         readyTimeout: readyTimeout)

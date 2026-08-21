@@ -26,6 +26,7 @@ public actor VoiceSession: VoiceControlling {
     private var playerLevelTask: Task<Void, Never>?
     private var speechTask: Task<Void, Never>?
     private let jobs: (any JobSubmitter)?
+    private let echoFreeProbe: @Sendable () -> Bool
     private let reachability: any ReachabilityProbing
     private let micSilenceTimeout: TimeInterval
     private var micSilenceTask: Task<Void, Never>?
@@ -48,6 +49,10 @@ public actor VoiceSession: VoiceControlling {
         config: Config,
         jobs: (any JobSubmitter)? = nil,
         reachability: any ReachabilityProbing = NetworkReachability(),
+        // Injectable: a unit test must not depend on which output device the
+        // machine happens to have plugged in (found out the hard way when the
+        // echo-guard suite turned red just by wearing AirPods).
+        echoFreeProbe: (@Sendable () -> Bool)? = nil,
         micSilenceTimeout: TimeInterval = 2.5,
         now: @escaping @Sendable () -> TimeInterval = {
             Date().timeIntervalSince1970
@@ -63,6 +68,8 @@ public actor VoiceSession: VoiceControlling {
         self.config = config
         self.jobs = jobs
         self.reachability = reachability
+        self.echoFreeProbe = echoFreeProbe
+            ?? { AudioDevicePin.outputIsEchoFree() }
         self.micSilenceTimeout = micSilenceTimeout
         self.now = now
         self.readyTimeout = readyTimeout
@@ -155,7 +162,7 @@ public actor VoiceSession: VoiceControlling {
     private func openRealtimeSession() async {
         realtime.reset()
         reconnectAttempted = false
-        echoFreeOutput = AudioDevicePin.outputIsEchoFree()
+        echoFreeOutput = echoFreeProbe()
         if echoFreeOutput { Log.app("audio: echo-free output detected") }
         guard let key = openAIKey() else {
             await failRealtimeStart()
