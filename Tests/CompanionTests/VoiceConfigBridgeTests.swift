@@ -229,3 +229,34 @@ private func hasVoiceInSessionUpdate(_ sent: [String], expectedVoice: VoiceID? =
     expectEq(h.transport.sent.count, before,
              "hot-speed: sin sesión no hay a dónde mandarlo")
 }
+
+// MARK: - La voz sabe que tiene especialista (bug de produccion, captura de Karen)
+
+@Test @MainActor func voiceDelegationTests() async {
+    await testSessionDeclaresDelegateWhenAvailable()
+    await testSessionOmitsDelegateWithoutExecutor()
+}
+
+@MainActor func testSessionDeclaresDelegateWhenAvailable() async {
+    let h = makeVoiceHarness(jobs: RecordingSubmitter())
+    await h.session.start()
+    await pumpUntil("delegación: sesión lista") {
+        h.transport.sent.contains { $0.contains("session.update") }
+    }
+    let update = h.transport.sent.first { $0.contains("session.update") } ?? ""
+    expect(update.contains("\"delegate\""),
+           "voz: declara la herramienta delegate (sin ella el modelo dice 'no puedo')")
+    expect(update.contains("especialista"),
+           "voz: las instrucciones le dicen que el especialista existe")
+}
+
+@MainActor func testSessionOmitsDelegateWithoutExecutor() async {
+    let h = makeVoiceHarness()
+    await h.session.start()
+    await pumpUntil("sin ejecutor: sesión lista") {
+        h.transport.sent.contains { $0.contains("session.update") }
+    }
+    let update = h.transport.sent.first { $0.contains("session.update") } ?? ""
+    expect(!update.contains("\"delegate\""),
+           "voz: sin ejecutor no promete lo que no puede cumplir")
+}

@@ -22,6 +22,7 @@ final class RealtimeRuntime: @unchecked Sendable {
     var didBecomeReady = false
     private var pendingUpdate: String?
     private var voiceSent = false
+    private var backchannel = BackchannelGate()
     private var transportDown = false
 
     init(
@@ -42,11 +43,18 @@ final class RealtimeRuntime: @unchecked Sendable {
         transportDown = false
     }
 
-    func prepareSessionUpdate(config: Config, history: [Turn]) {
+    func prepareSessionUpdate(
+        config: Config, history: [Turn], canDelegate: Bool = false
+    ) {
         let voice: VoiceID? = voiceSent ? nil : config.voice.voice
+        // Without the tool declared AND the prompt saying the specialist
+        // exists, the model answers "I cannot create files" — it never learns
+        // it can hand work over. Wave 3 shipped tools: [] on purpose; Wave 4
+        // wired the call but never turned the tool back on.
         pendingUpdate = RealtimeCodec.sessionUpdate(
-            instructions: Self.instructions(config: config, history: history),
-            tools: [],
+            instructions: Self.instructions(
+                config: config, history: history, canDelegate: canDelegate),
+            tools: canDelegate ? [ToolSpec.delegate] : [],
             voice: voice,
             speed: config.voice.speed,
             turnDetection: config.voice.turnDetection)
@@ -105,8 +113,14 @@ final class RealtimeRuntime: @unchecked Sendable {
         echoGuarded: Bool
     ) -> Bool {
         if frame.pcm16le24k.isEmpty || !micEnabled || muted { return false }
-        if aec { return true }
-        return state != .speaking && !echoGuarded
+        guard state == .speaking else {
+            backchannel.reset()
+            return !echoGuarded
+        }
+        // Talking over is only possible with AEC or echo-free output; even
+        // then, a short "ajá" must not cut the agent off.
+        guard aec else { return false }
+        return backchannel.allowsWhileSpeaking(rms: frame.rms)
     }
 
     func handle(
@@ -177,9 +191,11 @@ final class RealtimeRuntime: @unchecked Sendable {
         }
     }
 
-    static func instructions(config: Config, history: [Turn]) -> String {
+    static func instructions(
+        config: Config, history: [Turn], canDelegate: Bool = false
+    ) -> String {
         var text = ChatPrompt.system(
-            ownerFirstName: config.ownerFirstName, delegateEnabled: false)
+            ownerFirstName: config.ownerFirstName, delegateEnabled: canDelegate)
         let tone = config.voice.tone.trimmingCharacters(
             in: .whitespacesAndNewlines)
         if !tone.isEmpty {

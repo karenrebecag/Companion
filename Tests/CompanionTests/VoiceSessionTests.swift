@@ -179,9 +179,20 @@ import Testing
     await pumpUntil("echo-free: frame viaja") { appendCount(h.transport.sent) == 1 }
     h.transport.yield(.audioDelta(Data([0x03, 0x00])))
     await pumpUntil("echo-free: speaking") { h.watch.latest.state == .speaking }
+
+    // A single loud frame is a backchannel ("ajá") and must NOT reach the
+    // server: it would make its VAD cut the agent off mid-sentence.
     h.mic.yield(MicFrame(pcm16le24k: Data([0x11, 0x00]), rms: 0.5))
-    await pumpUntil("echo-free: sigue mandando en speaking") {
-        appendCount(h.transport.sent) == 2
+    await settle(0.05)
+    expectEq(appendCount(h.transport.sent), 1,
+             "echo-free: un asentimiento corto no interrumpe")
+
+    // Sustained speech does get through, and then nothing is clipped.
+    for _ in 0 ..< BackchannelGate.defaultRequiredFrames {
+        h.mic.yield(MicFrame(pcm16le24k: Data([0x11, 0x00]), rms: 0.5))
+    }
+    await pumpUntil("echo-free: hablar sostenido sí interrumpe") {
+        appendCount(h.transport.sent) > 1
     }
 }
 
@@ -273,7 +284,8 @@ func makeVoiceHarness(
     aec: Bool = false,
     online: Bool = true,
     micSilenceTimeout: TimeInterval = 10,
-    echoFreeOutput: Bool = false
+    echoFreeOutput: Bool = false,
+    jobs: (any JobSubmitter)? = nil
 ) -> VoiceHarness {
     let transport = ScriptedVoiceTransport()
     transport.autoEvents = autoEvents
@@ -299,6 +311,7 @@ func makeVoiceHarness(
         secrets: secrets,
         thread: thread,
         configProvider: provider,
+        jobs: jobs,
         reachability: ScriptedReachability(online),
         echoFreeProbe: { echoFreeOutput },
         micSilenceTimeout: micSilenceTimeout,

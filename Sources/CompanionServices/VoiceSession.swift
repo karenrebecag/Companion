@@ -203,7 +203,8 @@ public actor VoiceSession: VoiceControlling {
         // to apply without session reconstruction.
         let config = configProvider.current
         realtime.prepareSessionUpdate(
-            config: config, history: await classic.thread.historyTurns())
+            config: config, history: await classic.thread.historyTurns(),
+            canDelegate: jobs != nil)
         do {
             try await transport.open(key: key, url: url)
         } catch {
