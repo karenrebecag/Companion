@@ -157,7 +157,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.contentView = NSHostingView(
             rootView: CompanionRootView(
                 chat: model, voice: voice,
-                voicePreview: preview, executors: choice))
+                voicePreview: preview, executors: choice,
+                onAECRearm: { UserDefaultsAECVeto().isVetoed = false }))
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

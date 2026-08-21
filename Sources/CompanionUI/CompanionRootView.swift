@@ -13,13 +13,17 @@ public struct CompanionRootView: View {
         chat: ChatViewModel,
         voice: VoiceViewModel,
         voicePreview: VoicePreview? = nil,
-        executors: ExecutorChoice? = nil
+        executors: ExecutorChoice? = nil,
+        onAECRearm: (() -> Void)? = nil
     ) {
         self.chat = chat
         self.voice = voice
         self.voicePreview = voicePreview
         self.executors = executors
+        self.onAECRearm = onAECRearm
     }
+
+    private let onAECRearm: (() -> Void)?
 
     private func tapOrb() {
         let action = VoiceTapAction.forState(voice.snapshot.state)
@@ -105,7 +109,11 @@ public struct CompanionRootView: View {
         }
         // Settings sheet
         .sheet(isPresented: $showSettings) {
-            SettingsView(preview: voicePreview, executors: executors)
+            SettingsView(
+                preview: voicePreview,
+                executors: executors,
+                onLiveSpeedChange: { voice.setSpeed($0) },
+                onAECRearm: onAECRearm)
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenSettings)

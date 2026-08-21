@@ -36,6 +36,10 @@ public final class VoiceViewModel {
         Task { await voice.hangUp() }
     }
 
+    public func setSpeed(_ speed: Double) {
+        Task { await voice.setSpeed(speed) }
+    }
+
     public func toggleMute() {
         Task { await voice.toggleMute() }
     }

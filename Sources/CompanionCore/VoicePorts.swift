@@ -78,6 +78,8 @@ public struct VoiceLevels: Sendable, Equatable {
 }
 
 public protocol VoiceControlling: Sendable {
+    /// Applies mid-session; the server accepts speed changes but not voice.
+    func setSpeed(_ speed: Double) async
     func start() async
     func advance() async
     func hangUp() async

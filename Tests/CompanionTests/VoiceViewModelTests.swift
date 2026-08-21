@@ -212,6 +212,9 @@ import Testing
 }
 
 final class RecordingVoice: VoiceControlling, @unchecked Sendable {
+    private(set) var speeds: [Double] = []
+    func setSpeed(_ speed: Double) async { speeds.append(speed) }
+
     var started = 0, advanced = 0, hungUp = 0, muteToggles = 0
     var muted = false
     private let snapBox = StreamBox<TurnSnapshot>()

@@ -368,6 +368,9 @@ final class FakeSpeech: SpeechSynthesizer, @unchecked Sendable {
 }
 
 final class FakeVoice: VoiceControlling, @unchecked Sendable {
+    private(set) var speeds: [Double] = []
+    func setSpeed(_ speed: Double) async { speeds.append(speed) }
+
     var started = false, advanced = false, hungUp = false, muted = false
     private let snapBox = StreamBox<TurnSnapshot>()
     private let levelBox = StreamBox<VoiceLevels>()

@@ -92,6 +92,15 @@ public actor VoiceSession: VoiceControlling {
         self.levels = levelBox.stream
     }
 
+    public func setSpeed(_ speed: Double) async {
+        // Only a live realtime session has anywhere to send this; otherwise the
+        // next session picks the persisted value up through the provider.
+        guard machine.snapshot.pipeline == .realtime,
+              machine.snapshot.state != .idle, machine.snapshot.state != .error
+        else { return }
+        await realtime.send(RealtimeCodec.speedUpdate(speed))
+    }
+
     public func start() async {
         await apply(.startVoice(preferRealtime: openAIKey() != nil))
     }

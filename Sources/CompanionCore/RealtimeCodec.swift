@@ -124,6 +124,19 @@ public enum RealtimeCodec: Sendable {
 
     /// Seed is truncated plain text; an image cannot survive there. It has
     /// to enter as its own conversation item. Wired in 6c-3.
+    /// Speed is the one output knob the server accepts mid-session (the voice
+    /// is locked after the first audio frame): a minimal update touches only it.
+    public static func speedUpdate(_ speed: Double) -> String {
+        let payload: [String: Any] = [
+            "type": "session.update",
+            "session": [
+                "type": "realtime",
+                "audio": ["output": ["speed": speed]],
+            ],
+        ]
+        return encodeJSON(payload)
+    }
+
     public static func imageItem(dataURL: String, caption: String) -> String {
         encodeJSON([
             "type": "conversation.item.create",

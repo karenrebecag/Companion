@@ -199,3 +199,33 @@ private func hasVoiceInSessionUpdate(_ sent: [String], expectedVoice: VoiceID? =
     }
     return voice != nil
 }
+
+// MARK: - Velocidad en caliente (6c, contrato del ledger)
+
+@Test @MainActor func hotSpeedTests() async {
+    await testHotSpeedTravelsMidSession()
+    await testHotSpeedIgnoredWhenIdle()
+}
+
+@MainActor func testHotSpeedTravelsMidSession() async {
+    let h = makeVoiceHarness()
+    await h.session.start()
+    await pumpUntil("hot-speed: listening") { h.watch.latest.state == .listening }
+    let before = h.transport.sent.count
+    await h.session.setSpeed(1.3)
+    await pumpUntil("hot-speed: viaja un update") { h.transport.sent.count > before }
+    let last = h.transport.sent.last ?? ""
+    expect(last.contains("\"speed\":1.3"), "hot-speed: lleva la velocidad nueva")
+    expect(last.contains("session.update"), "hot-speed: es un session.update")
+    expect(!last.contains("\"voice\""), "hot-speed: JAMÁS toca la voz (ledger)")
+    expect(!last.contains("turn_detection"), "hot-speed: no arrastra otros campos")
+}
+
+@MainActor func testHotSpeedIgnoredWhenIdle() async {
+    let h = makeVoiceHarness()
+    let before = h.transport.sent.count
+    await h.session.setSpeed(0.8)
+    await settle(0.05)
+    expectEq(h.transport.sent.count, before,
+             "hot-speed: sin sesión no hay a dónde mandarlo")
+}

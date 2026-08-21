@@ -11,11 +11,18 @@ public struct SettingsView: View {
 
     public init(
         preview: VoicePreview? = nil,
-        executors: ExecutorChoice? = nil
+        executors: ExecutorChoice? = nil,
+        onLiveSpeedChange: ((Double) -> Void)? = nil,
+        onAECRearm: (() -> Void)? = nil
     ) {
         self.preview = preview
         self.executors = executors
+        self.onLiveSpeedChange = onLiveSpeedChange
+        self.onAECRearm = onAECRearm
     }
+
+    private let onLiveSpeedChange: ((Double) -> Void)?
+    private let onAECRearm: (() -> Void)?
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -85,36 +92,11 @@ public struct SettingsView: View {
                     Divider()
                         .foregroundStyle(Semantic.border)
 
-                    // Voz
-                    VStack(alignment: .leading, spacing: Space.x3) {
-                        Text("VOZ")
-                            .typeEyebrow()
-                        SettingsItem(
-                            title: "Voz",
-                            value: voice.displayName,
-                            options: VoiceID.allCases.map { ($0, $0.displayName) }
-                        ) { picked in
-                            voice = picked
-                            VoiceProfile.stored = picked
-                        }
-                        if let preview {
-                            Button {
-                                preview.play(voice)
-                            } label: {
-                                Text(preview.playing == voice
-                                     ? "Sonando…" : "Escuchar muestra")
-                                    .font(.uiLabel)
-                            }
-                            .disabled(preview.playing != nil)
-                            if let error = preview.errorText {
-                                Text(error)
-                                    .font(.uiCaption)
-                                    .foregroundStyle(Semantic.destructive)
-                            }
-                        }
-                    }
-                    .padding(.vertical, Space.x4)
-                    .padding(.horizontal, Space.x4)
+                    // Voz — seccion completa en su propio archivo
+                    SettingsVoiceSection(
+                        preview: preview,
+                        onLiveSpeedChange: onLiveSpeedChange,
+                        onAECRearm: onAECRearm)
 
                     if let executors, executors.isMeaningful {
                         Divider()
@@ -210,8 +192,9 @@ public struct SettingsView: View {
 // MARK: - Settings Item with Picker
 
 // Options arrive as a parameter, so requiring CaseIterable only shut out
-// runtime-built lists like the detected executors.
-private struct SettingsItem<T: Hashable>: View {
+// runtime-built lists like the detected executors. Internal, not private:
+// SettingsVoiceSection lives in its own file and reuses it.
+struct SettingsItem<T: Hashable>: View {
     let title: String
     let value: String
     let options: [(T, String)]
