@@ -122,6 +122,22 @@ public enum RealtimeCodec: Sendable {
         ])
     }
 
+    /// Seed is truncated plain text; an image cannot survive there. It has
+    /// to enter as its own conversation item. Wired in 6c-3.
+    public static func imageItem(dataURL: String, caption: String) -> String {
+        encodeJSON([
+            "type": "conversation.item.create",
+            "item": [
+                "type": "message",
+                "role": "user",
+                "content": [
+                    ["type": "input_text", "text": caption],
+                    ["type": "input_image", "image_url": dataURL],
+                ],
+            ],
+        ])
+    }
+
     public static func approvalToolJSON() -> String {
         ToolSpec.resolveApproval.encodeRealtime()
     }

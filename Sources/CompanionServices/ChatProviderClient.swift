@@ -8,6 +8,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
     private let settings: ChatSettings
     private let ownerFirstName: String
     private let catalog: [ProviderDescriptor]
+    private let resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
 
     public init(
         secrets: any SecretStore,
@@ -15,7 +16,8 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         transport: any ChatTransport,
         settings: ChatSettings = .default,
         ownerFirstName: String = "",
-        catalog: [ProviderDescriptor] = ProviderDescriptor.catalog
+        catalog: [ProviderDescriptor] = ProviderDescriptor.catalog,
+        resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil
     ) {
         self.secrets = secrets
         self.probe = probe
@@ -23,6 +25,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         self.settings = settings
         self.ownerFirstName = ownerFirstName
         self.catalog = catalog
+        self.resolveAttachment = resolveAttachment
     }
 
     public func stream(_ history: [Turn], tools: [ToolSpec])
@@ -89,6 +92,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
                     settings: settings,
                     ownerFirstName: ownerFirstName,
                     transport: transport,
+                    resolveAttachment: resolveAttachment,
                     yield: { continuation.yield($0) })
                 switch outcome {
                 case .cancelled:

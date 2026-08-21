@@ -21,11 +21,13 @@ enum ChatSSEAttempt {
         settings: ChatSettings,
         ownerFirstName: String,
         transport: any ChatTransport,
+        resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil,
         yield: @escaping @Sendable (ChatDelta) -> Void
     ) async -> ChatAttemptOutcome {
         guard let request = makeRequest(
             provider: provider, key: key, history: history, tools: tools,
-            settings: settings, ownerFirstName: ownerFirstName)
+            settings: settings, ownerFirstName: ownerFirstName,
+            resolveAttachment: resolveAttachment)
         else { return .failed(.unreachable) }
 
         let sink = DeltaSink(yield: yield)
@@ -64,7 +66,8 @@ enum ChatSSEAttempt {
         history: [Turn],
         tools: [ToolSpec],
         settings: ChatSettings,
-        ownerFirstName: String
+        ownerFirstName: String,
+        resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil
     ) -> URLRequest? {
         guard let url = provider.endpoint else { return nil }
         // Validate endpoint URL against security policy (HTTPS always ok, HTTP only for localhost).
@@ -78,7 +81,8 @@ enum ChatSSEAttempt {
         }
         guard let body = makeBody(
             provider: provider, history: history, tools: tools,
-            settings: settings, ownerFirstName: ownerFirstName)
+            settings: settings, ownerFirstName: ownerFirstName,
+            resolveAttachment: resolveAttachment)
         else { return nil }
         request.httpBody = body
         return request
@@ -99,7 +103,8 @@ private func makeBody(
     history: [Turn],
     tools: [ToolSpec],
     settings: ChatSettings,
-    ownerFirstName: String
+    ownerFirstName: String,
+    resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
 ) -> Data? {
     let delegateEnabled = tools.contains { $0.name == "delegate" }
     var messages: [[String: Any]] = [[
@@ -111,7 +116,7 @@ private func makeBody(
     for turn in history.suffix(window) {
         var message: [String: Any] = [
             "role": turn.role.rawValue,
-            "content": Turn.numbered(turn.content, turn.attachments),
+            "content": messageContent(turn, resolve: resolveAttachment),
         ]
         // The tool-calling round trip only validates if the assistant's
         // request and the tool's answer both carry the call id.
@@ -205,6 +210,40 @@ private func read(
 
 private func sleepSeconds(_ seconds: TimeInterval) async throws {
     try await Task.sleep(for: .seconds(max(seconds, 0)))
+}
+
+/// Groq/Ollama reject multimodal parts. Parts only appear when a resolved
+/// image is actually going to travel; everything else stays a String.
+private func messageContent(
+    _ turn: Turn,
+    resolve: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
+) -> Any {
+    let numbered = Turn.numbered(turn.content, turn.attachments)
+    guard let resolve else { return numbered }
+    var imageURLs: [String] = []
+    var inline: [String] = []
+    for ref in turn.attachments {
+        switch resolve(ref) {
+        case .imageDataURL(let url):
+            imageURLs.append(url)
+        case .text(let body):
+            inline.append("Contenido de \(ref.name):\n\(body)")
+        case .path, .none:
+            break
+        }
+    }
+    if imageURLs.isEmpty {
+        if inline.isEmpty { return numbered }
+        return numbered + "\n" + inline.joined(separator: "\n")
+    }
+    var parts: [[String: Any]] = [["type": "text", "text": numbered]]
+    for block in inline {
+        parts.append(["type": "text", "text": block])
+    }
+    for url in imageURLs {
+        parts.append(["type": "image_url", "image_url": ["url": url]])
+    }
+    return parts
 }
 
 /// Cancelling the sleeper on ping restarts inactivity from the last SSE line.
