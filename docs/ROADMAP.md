@@ -10,15 +10,15 @@
 | 3 | Voz | APROBADO / EN CURSO | **Conversacion por voz con barge-in** |
 | 4 | Delegacion | CERRADA (4a y 4b) | **Especialista integrado sin instalar nada** |
 | 5 | Producto | CERRADA (5a-5e) | **Distribuible open source** |
-| 6 | Paridad y craft | Specs BORRADOR | **Iguala o supera al prototipo en uso diario** |
+| 6 | Paridad y craft | Specs BORRADOR (kickoff 2026-08-21) | **Iguala o supera al prototipo en uso diario** |
 
 ## Foco actual
 
-Wave 6 especificada en tres tandas (6a escritorio, 6b design system, 6c voz),
-pendiente de aprobacion de Karen. Cubre toda la brecha medida contra el
-prototipo. Principio nuevo de producto: la UI se trabaja con disciplina de
-design systems engineering y la simplificacion solo vale donde no haya
-perdida visual.
+Wave 6 en kickoff: 6a → 6b → 6c, specs refinados contra lo que waves 1-5
+realmente produjeron, pendiente de aprobacion de Karen. Arranque propuesto:
+6a (menu, adjuntos, avisos, updates). 6b no empieza sin 6a cerrada; 6c
+necesita 6b-2 (Dropdown) y construye por primera vez el camino
+Ajustes → Config → codec.
 
 
 ## Brecha con el prototipo (medida 2026-08-21)
