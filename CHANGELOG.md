@@ -5,6 +5,23 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-21
+
+### Added
+- La mascota del prototipo saluda al arrancar, con su animacion y sus
+  reacciones al click.
+- Cinco tipografias elegibles de verdad (antes el control existia pero no
+  cambiaba nada).
+- Los bloques de codigo salen resaltados, en tema claro y oscuro.
+- El orb pasa a tener capas: blob, halo, particulas y sombra, siguiendo la
+  voz y el estado de la conversacion.
+- Controles propios en toda la app: menus desplegables, botones, campos y
+  toggles con sus estados, en vez de los del sistema.
+
+### Changed
+- El contraste de cada par de colores se verifica contra WCAG AA en ambos
+  temas: un cambio que lo rompa falla la suite.
+
 ### Added
 - Inter viaja con la app (OFL). Las otras fuentes, si las tienes en esta
   Mac, se usan; si no, Inter o la del sistema.

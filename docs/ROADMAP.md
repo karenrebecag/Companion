@@ -14,8 +14,10 @@
 
 ## Foco actual
 
-Port fiel del prototipo, spec por spec: `docs/specs/ds/README.md`.
-W5-5 congelado. Primera pieza para aprobar: DS-01 ventana.
+Las seis waves estan cerradas. Queda la prueba manual integral de Karen con
+la app abierta — incluido el veredicto visual del design system, que es el
+criterio de done de 6b — y despues lo que ella decida: notarizar (requiere
+cuenta de Apple) o las ideas post-v1.
 
 
 ## Brecha con el prototipo (medida 2026-08-21)

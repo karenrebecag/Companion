@@ -1,6 +1,8 @@
 # Wave 6b — Design systems engineering
 
-**Estado: EN CURSO, reencauzado.** W5-1..4 entregaron tokens, dropdown de
+**Estado: CERRADA** — 2026-08-21. Fundaciones, componentes propios,
+sintaxis, orb por capas y documentacion viva. Falta solo el veredicto visual
+de Karen con la app abierta. W5-1..4 entregaron tokens, dropdown de
 Ajustes, syntax y un orb Canvas que **no** es paridad. W5-5 congelado.
 Port fiel por componente: `docs/specs/ds/README.md`.
 
