@@ -9,17 +9,27 @@ public enum AttachmentKind: Sendable, Equatable {
 }
 
 public struct AttachmentRef: Sendable, Equatable {
+    public var id: UUID
     public var name: String
     public var path: String
     public var kind: AttachmentKind
+    public var byteCount: Int
 
     /// Path, not URL: the model (or an executor) opens the file itself.
     public var promptLine: String { "\(name) → \(path)" }
 
-    public init(name: String, path: String, kind: AttachmentKind) {
+    public init(
+        name: String,
+        path: String,
+        kind: AttachmentKind,
+        byteCount: Int = 0,
+        id: UUID = UUID()
+    ) {
+        self.id = id
         self.name = name
         self.path = path
         self.kind = kind
+        self.byteCount = byteCount
     }
 }
 
