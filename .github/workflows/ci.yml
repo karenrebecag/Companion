@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gates:
+    # The compliance suite is the contract: build, static checks, layer rules
+    # and tests. Same script contributors run locally, no CI-only pipeline.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app
+      - name: Show toolchain
+        run: swift --version
+      - name: Run gates
+        run: scripts/gates.sh
