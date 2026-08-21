@@ -94,3 +94,16 @@ public extension VoiceID {
     /// Capitalised for display; the raw values are the API's own names.
     var displayName: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
 }
+
+public enum InterfaceSound {
+    nonisolated private static let key = "companion.interfaceSounds"
+
+    /// Default on: missing key means the user never turned them off.
+    nonisolated public static var enabled: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: key) == nil { return true }
+            return UserDefaults.standard.bool(forKey: key)
+        }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}

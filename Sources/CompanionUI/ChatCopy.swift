@@ -66,6 +66,9 @@ public enum ChatCopy {
         approved ? "Permiso concedido." : "Permiso denegado."
     }
 
+    public static let jobDone = "Encargo listo"
+    public static let jobFailed = "Encargo falló"
+
     /// Readable summary of a tool request: raw JSON is not a decision aid.
     public static func approvalDetail(
         tool: String, inputJSON: String

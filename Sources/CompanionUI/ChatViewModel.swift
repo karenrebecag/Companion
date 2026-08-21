@@ -42,6 +42,7 @@ public final class ChatViewModel: ConversationPresenting {
     private let store: any ConversationStoring
     private let config: Config
     private let jobSubmitter: (any JobSubmitter)?
+    public let notices: NoticeCenter
     private var conversationId = UUID().uuidString
     private var inFlight: Task<Void, Never>?
 
@@ -50,13 +51,19 @@ public final class ChatViewModel: ConversationPresenting {
         secrets: any SecretStore,
         store: any ConversationStoring,
         config: Config,
-        jobSubmitter: (any JobSubmitter)? = nil
+        jobSubmitter: (any JobSubmitter)? = nil,
+        notices: NoticeCenter = NoticeCenter()
     ) {
         self.chat = chat
         self.secrets = secrets
         self.store = store
         self.config = config
         self.jobSubmitter = jobSubmitter
+        self.notices = notices
+    }
+
+    public func toast(_ text: String, level: NoticeLevel = .info) {
+        notices.toast(text, level: level)
     }
 
     public func onAppear() {
@@ -247,6 +254,8 @@ public final class ChatViewModel: ConversationPresenting {
         pendingApproval = nil
         messages.append(ChatMessage(
             isStatus: true, text: ChatCopy.approvalAnswer(approved)))
+        toast(ChatCopy.approvalAnswer(approved),
+              level: approved ? .info : .error)
         Task { await submitter.resolveApproval(
             requestId: request.requestId, approved: approved) }
     }
@@ -293,16 +302,19 @@ public final class ChatViewModel: ConversationPresenting {
                     messages.append(ChatMessage(
                         role: .assistant,
                         text: "Encargo falló: \(result.output)"))
+                    toast(ChatCopy.jobFailed, level: .error)
                 } else {
                     messages.append(ChatMessage(
                         role: .assistant,
                         text: result.output))
+                    toast(ChatCopy.jobDone)
                 }
             } catch {
                 sink.finish()
                 messages.append(ChatMessage(
                     role: .assistant,
                     text: "Error en el encargo: \(error.localizedDescription)"))
+                toast(ChatCopy.jobFailed, level: .error)
             }
             return
         }

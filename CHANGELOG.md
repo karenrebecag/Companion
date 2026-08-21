@@ -5,6 +5,11 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+### Added
+- Avisos breves arriba a la derecha cuando se resuelve un permiso o termina
+  un encargo, con un tono corto si los sonidos de interfaz están activos
+  (se apagan en Ajustes).
+
 ## [0.6.0] — 2026-08-21
 
 ### Added

@@ -99,9 +99,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             queue: jobQueue,
             approvals: approvals)
 
+        let sound = SynthesizedUISound(
+            isEnabled: { InterfaceSound.enabled })
         let model = ChatViewModel(
             chat: chat, secrets: secrets, store: store, config: config,
-            jobSubmitter: jobRunner)
+            jobSubmitter: jobRunner,
+            notices: NoticeCenter(sound: sound))
         self.model = model
 
         let caches = FileManager.default.urls(

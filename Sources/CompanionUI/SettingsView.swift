@@ -8,6 +8,7 @@ public struct SettingsView: View {
     @State private var ownerName = UserProfile.ownerName
     @State private var voice = VoiceProfile.stored
     @State private var shortcuts = ShortcutSet.load()
+    @State private var interfaceSounds = InterfaceSound.enabled
 
     public init(
         preview: VoicePreview? = nil,
@@ -139,6 +140,13 @@ public struct SettingsView: View {
                                 .font(.uiCaption)
                                 .foregroundStyle(Semantic.mutedForeground)
                         }
+
+                        Toggle("Sonidos de interfaz", isOn: $interfaceSounds)
+                            .font(.uiLabel)
+                            .foregroundStyle(Semantic.foreground)
+                            .onChange(of: interfaceSounds) { _, on in
+                                InterfaceSound.enabled = on
+                            }
                     }
                     .padding(.vertical, Space.x4)
                     .padding(.horizontal, Space.x4)

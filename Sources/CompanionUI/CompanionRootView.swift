@@ -77,6 +77,13 @@ public struct CompanionRootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Semantic.background)
+        .overlay(alignment: .topTrailing) {
+            if !chat.needsOnboarding {
+                ToastStack(center: chat.notices)
+                    .padding(.top, 48)
+                    .padding(.trailing, Space.x4)
+            }
+        }
         .onAppear {
             chat.onAppear()
             voice.onAppear()
