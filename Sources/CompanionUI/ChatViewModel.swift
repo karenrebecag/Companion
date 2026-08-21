@@ -23,7 +23,7 @@ public struct ChatMessage: Identifiable, Equatable {
 
 @Observable
 @MainActor
-public final class ChatViewModel {
+public final class ChatViewModel: ConversationPresenting {
     public private(set) var needsOnboarding = true
     public private(set) var messages: [ChatMessage] = []
     public private(set) var streaming = ""
@@ -151,12 +151,39 @@ public final class ChatViewModel {
         }
     }
 
+    public func historyTurns() async -> [Turn] {
+        windowedTurns()
+    }
+
+    public func appendUser(_ text: String) async {
+        messages.append(ChatMessage(role: .user, text: text))
+        persist()
+    }
+
+    public func appendAssistant(_ text: String) async {
+        messages.append(ChatMessage(role: .assistant, text: text))
+        persist()
+    }
+
+    public func appendStatus(_ text: String) async {
+        messages.append(ChatMessage(isStatus: true, text: text))
+        persist()
+    }
+
+    public func showStream(_ text: String) async {
+        streaming = text
+    }
+
+    public func finishStream() async {
+        streaming = ""
+    }
+
     private func startTurn(_ text: String) {
         messages.append(ChatMessage(role: .user, text: text))
         persist()
         busy = true
         streaming = ""
-        let history = historyTurns()
+        let history = windowedTurns()
         let id = conversationId
         inFlight = Task { [weak self] in
             await self?.consume(history: history, conversationId: id)
@@ -222,7 +249,7 @@ public final class ChatViewModel {
         conversationId == id && !Task.isCancelled
     }
 
-    private func historyTurns() -> [Turn] {
+    private func windowedTurns() -> [Turn] {
         let turns: [Turn] = messages.compactMap { message in
             if message.isStatus { return nil }
             guard let role = message.role else { return nil }

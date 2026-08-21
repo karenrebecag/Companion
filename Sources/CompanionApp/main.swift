@@ -20,6 +20,7 @@ enum CompanionMain {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     private var model: ChatViewModel?
+    private var voice: VoiceViewModel?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -32,7 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .appendingPathComponent("Companion/conversations")
         do {
             try FileManager.default.createDirectory(
-                at: support, withIntermediateDirectories: true)
+                at: support, withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700])
         } catch {
             // Log without error details to avoid exposing system paths/permissions.
             Log.app("could not create conversations dir")
@@ -55,6 +57,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             chat: chat, secrets: secrets, store: store, config: config)
         self.model = model
 
+        let caches = FileManager.default.urls(
+            for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Companion/tts")
+        do {
+            try FileManager.default.createDirectory(
+                at: caches, withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700])
+        } catch {
+            Log.app("could not create tts cache dir")
+        }
+
+        // Player joins the mic engine only while Voice Processing is live, so
+        // AEC hears the agent; weak keeps the player from owning the mic.
+        let mic = MicCapture(echoCancellation: config.voice.echoCancellation)
+        let player = RealtimePlayer(
+            sharedWith: mic, volume: config.voice.volume)
+        let synthesizer = SpeechSynthesis(
+            cache: PhraseCache(directory: caches),
+            fetcher: OpenAITTSClient(secrets: secrets, transport: transport),
+            playback: DataSpeechPlayback(),
+            fallback: AVSpeechFallback(),
+            voice: config.voice.voice)
+        let session = VoiceSession(
+            transport: RealtimeWSTransport(),
+            mic: mic,
+            player: player,
+            transcriber: SystemTranscriber(),
+            synthesizer: synthesizer,
+            chat: chat,
+            secrets: secrets,
+            thread: model,
+            config: config)
+        let voice = VoiceViewModel(voice: session, thread: model)
+        self.voice = voice
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 840),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -64,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.maxSize = NSSize(width: 680, height: 1020)
         window.title = "Companion"
         window.contentView = NSHostingView(
-            rootView: CompanionRootView(model: model))
+            rootView: CompanionRootView(chat: model, voice: voice))
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

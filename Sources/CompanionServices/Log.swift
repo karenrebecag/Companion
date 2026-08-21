@@ -21,6 +21,8 @@ public enum Log: Sendable {
 
     public static func chat(_ message: String) { write(tag: "chat", message: message) }
 
+    public static func audio(_ message: String) { write(tag: "audio", message: message) }
+
     private static func write(tag: String, message: String) {
         sink.lock.lock()
         defer { sink.lock.unlock() }
@@ -30,7 +32,8 @@ public enum Log: Sendable {
         let parent = url.deletingLastPathComponent()
         do {
             try FileManager.default.createDirectory(
-                at: parent, withIntermediateDirectories: true)
+                at: parent, withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700])
         } catch {
             sink.failed = true
             return

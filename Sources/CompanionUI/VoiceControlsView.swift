@@ -1,0 +1,52 @@
+import CompanionCore
+import SwiftUI
+
+public struct VoiceControlsView: View {
+    @Bindable var voice: VoiceViewModel
+
+    public init(voice: VoiceViewModel) {
+        self.voice = voice
+    }
+
+    public var body: some View {
+        HStack(spacing: Tokens.Space.s8) {
+            Button(voice.isActive ? "Colgar" : "Hablar", action: tapMic)
+                .font(Tokens.Typography.body)
+                .foregroundStyle(Tokens.Color.fg)
+            Button(voice.snapshot.muted ? "Unmute" : "Mute", action: voice.toggleMute)
+                .font(Tokens.Typography.caption)
+                .foregroundStyle(Tokens.Color.fg)
+                .disabled(!voice.isActive)
+            Text(phaseLabel)
+                .font(Tokens.Typography.caption)
+                .foregroundStyle(Tokens.Color.muted)
+            level(voice.levels.mic)
+            level(voice.levels.agent)
+        }
+    }
+
+    private func tapMic() {
+        if voice.isActive {
+            voice.hangUp()
+        } else {
+            voice.start()
+        }
+    }
+
+    private var phaseLabel: String {
+        switch voice.snapshot.state {
+        case .idle: "Listo"
+        case .connecting: "Conectando"
+        case .listening: "Escuchando"
+        case .thinking: "Pensando"
+        case .speaking: "Hablando"
+        case .error: "Error"
+        }
+    }
+
+    private func level(_ value: Double) -> some View {
+        RoundedRectangle(cornerRadius: 2)
+            .fill(Tokens.Color.accent)
+            .frame(width: 6, height: 8 + CGFloat(min(max(value, 0), 1)) * 16)
+    }
+}

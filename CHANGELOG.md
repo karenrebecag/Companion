@@ -5,6 +5,28 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.3.0-wave3] — 2026-08-20
+
+### Added
+- Voz en tiempo real sobre OpenAI Realtime (WebSocket) con barge-in, mute que
+  cierra turno como exige el servidor, y echo guard de 350 ms; si el
+  WebSocket no abre en 6 s cae al pipeline clasico (mic + transcripcion del
+  sistema + chat + TTS) sin perder el hilo.
+- TTS con voz de OpenAI, cache en disco de frases cortas y voz del sistema
+  como respaldo offline. Cero Python (ADR 001).
+- Watchdog de Voice Processing: si el engine arranca y el tap nunca entrega
+  audio, veta AEC y reintenta una vez — la cicatriz mas cara del prototipo.
+- `scripts/bundle.sh`: empaqueta el .app con las usage descriptions que macOS
+  exige para pedir microfono y reconocimiento de voz.
+
+### Fixed
+- Delegates de AVFoundation reescritos para Swift 6 (aislamiento) y con
+  reanudacion idempotente: parar y terminar ya no pueden reanudar dos veces
+  la misma continuacion.
+- Los caminos de voz (WebSocket y TTS) ahora pasan por las policies de
+  endpoint de Wave 2, que se habian saltado.
+- Directorios de cache, logs y conversaciones se crean con permisos 0700.
+
 ## [0.2.0-wave2] — 2026-08-20
 
 ### Added

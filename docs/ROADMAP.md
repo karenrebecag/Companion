@@ -7,17 +7,20 @@
 | 0 | Scaffold | CERRADA (2026-08-20) | Paquete compila, gates verdes |
 | 1 | Core de dominio | CERRADA (2026-08-20) | Logica pura 100% testeada |
 | 2 | Chat vertical | CERRADA (2026-08-20) | **App usable solo con una API key** |
-| 3 | Voz | Spec BORRADOR | **Conversacion por voz con barge-in** |
+| 3 | Voz | APROBADO / EN CURSO | **Conversacion por voz con barge-in** |
 | 4 | Delegacion | Spec BORRADOR | **Especialista integrado sin instalar nada** |
 | 5 | Producto | Spec BORRADOR | **Distribuible open source** |
 
 ## Foco actual
 
-Wave 3: kickoff del spec (`docs/specs/wave-3-voice.md`).
+Wave 4 (delegacion): pendiente kickoff y aprobacion del spec. Antes, prueba
+manual de voz por Karen (bundle + hablar + matar la red a mitad de turno).
 
 ## Deuda consciente (con trigger)
 
-- Harness de tests propio -> migrar a Swift Testing cuando se instale Xcode.
+- Firma ad-hoc: los permisos TCC de microfono se re-piden en cada rebuild.
+  Identidad estable "Companion Dev" -> Wave 5.
+
 - Notarizacion requiere Xcode (notarytool) -> resolver antes de cerrar Wave 5.
 
 ## Despues de v1 (ideas, sin compromiso)

@@ -28,6 +28,12 @@ framework-level rules SPM can't express.
   fully usable with nothing but an OpenAI API key.
 - **The composition root wires it** — `CompanionApp` is the only place that
   names concrete adapters.
+- **Adapters that must know each other expose a wiring init** — when two
+  adapters share a framework object the app layer should never hold (the
+  audio player joining the mic's `AVAudioEngine`), Services offers an init
+  taking the concrete peer, e.g. `RealtimePlayer(sharedWith: MicCapture)`.
+  Depending on the concrete type is deliberate: it keeps non-Sendable
+  framework types inside Services instead of leaking into the root.
 
 ## State: reducer, not scattered mutation
 

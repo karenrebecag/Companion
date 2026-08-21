@@ -2,22 +2,27 @@ import CompanionCore
 import SwiftUI
 
 public struct CompanionRootView: View {
-    var model: ChatViewModel
+    var chat: ChatViewModel
+    var voice: VoiceViewModel
 
-    public init(model: ChatViewModel) {
-        self.model = model
+    public init(chat: ChatViewModel, voice: VoiceViewModel) {
+        self.chat = chat
+        self.voice = voice
     }
 
     public var body: some View {
         Group {
-            if model.needsOnboarding {
-                OnboardingView(model: model)
+            if chat.needsOnboarding {
+                OnboardingView(model: chat)
             } else {
-                ThreadView(model: model)
+                ThreadView(chat: chat, voice: voice)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Tokens.Color.bg)
-        .onAppear { model.onAppear() }
+        .onAppear {
+            chat.onAppear()
+            voice.onAppear()
+        }
     }
 }

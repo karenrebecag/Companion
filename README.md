@@ -11,10 +11,17 @@ are optional capabilities detected at runtime.
 ## Build
 
 ```bash
-swift build          # Command Line Tools are enough — no Xcode project
-swift run CompanionTests   # tests (see docs/ARCHITECTURE.md, Testing)
+swift build
+swift test           # Swift Testing
 scripts/gates.sh     # full compliance suite
+
+scripts/bundle.sh    # .app bundle — required for voice
+open build/Companion.app
 ```
+
+Voice needs the bundle: macOS only prompts for microphone and speech access
+when the binary carries the matching usage descriptions in an Info.plist.
+Signing is ad-hoc for now, so those grants reset on each rebuild (Wave 5).
 
 ## Documents
 
@@ -22,5 +29,5 @@ scripts/gates.sh     # full compliance suite
 - `docs/PROGRAM.md` — rebuild program (waves)
 - `docs/REFERENCE.md` — behavior ledger from the reference prototype
 
-Status: Wave 2. `swift run companion` — paste an OpenAI API key and chat.
-Voice is Wave 3.
+Status: Wave 3. Paste an OpenAI API key, then talk or type — one thread,
+either way. Delegation to specialists is Wave 4.

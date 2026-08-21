@@ -21,6 +21,10 @@ import Testing
     await testAlwaysSendsDelegateTool()
     await testChangeKeyCancelsAndDropsQueue()
     await testStatusLinesStayOutOfHistory()
+    await testThreadAppendsPersistWithoutStreaming()
+    await testShowStreamAndFinishStream()
+    await testHistoryTurnsWindowsAndSkipsStatus()
+    await testConversationPresentingEmptyAndUnicode()
 }
 
 @MainActor func testTokensRamp() async {
@@ -301,6 +305,112 @@ import Testing
     let second = chat.histories.last ?? []
     expect(!second.contains { $0.content.contains("especialista") },
            "status: la nota no viaja al modelo")
+}
+
+@MainActor func testThreadAppendsPersistWithoutStreaming() async {
+    let chat = FakeChatProvider(replies: [.success([.text("NO")])])
+    let store = MemoryConversationStore()
+    let vm = primed(chat: chat, store: store)
+    let port: any ConversationPresenting = vm
+    await port.appendUser("hola")
+    await port.appendAssistant("qué tal")
+    await port.appendStatus("pensando")
+    expectEq(vm.messages.map(\.text), ["hola", "qué tal", "pensando"],
+             "thread: los tres entran al hilo")
+    expectEq(vm.messages.map(\.role), [.user, .assistant, nil], "thread: roles")
+    expectEq(vm.messages.map(\.isStatus), [false, false, true], "thread: status")
+    expect(!vm.busy, "thread: append no ocupa el chat")
+    expectEq(vm.streaming, "", "thread: sin streaming")
+    expectEq(chat.histories.count, 0, "thread: no dispara al proveedor")
+    do {
+        let recents = try store.list()
+        expectEq(recents.count, 1, "thread: persiste")
+        expectEq(recents.first?.title, "hola", "thread: título = primer user")
+        let loaded = try store.load(recents[0].id)
+        expectEq(loaded?.messages.map(\.role), ["user", "assistant", "status"],
+                 "thread: roundtrip roles")
+        expectEq(loaded?.messages.map(\.text), ["hola", "qué tal", "pensando"],
+                 "thread: roundtrip textos")
+    } catch {
+        expect(false, "thread: persist no debía tirar \(error)")
+    }
+}
+
+@MainActor func testShowStreamAndFinishStream() async {
+    let store = MemoryConversationStore()
+    let vm = primed(chat: FakeChatProvider(), store: store)
+    let port: any ConversationPresenting = vm
+    await port.showStream("Ho")
+    expectEq(vm.streaming, "Ho", "stream: pisa")
+    await port.showStream("")
+    expectEq(vm.streaming, "", "stream: vacío es un valor")
+    await port.showStream("ñoño — café 👋")
+    expectEq(vm.streaming, "ñoño — café 👋", "stream: unicode")
+    expectEq(vm.messages.count, 0, "stream: no comete")
+    await port.appendAssistant("ñoño — café 👋")
+    await port.finishStream()
+    expectEq(vm.streaming, "", "stream: finish limpia")
+    expectEq(vm.messages.map(\.text), ["ñoño — café 👋"], "stream: assistant ya iba")
+    expectEq(vm.messages.last?.role, .assistant, "stream: rol assistant")
+    do {
+        let loaded = try store.load(store.list()[0].id)
+        expectEq(loaded?.messages.map(\.text), ["ñoño — café 👋"],
+                 "stream: persiste el assistant, no el parcial")
+    } catch {
+        expect(false, "stream: persist no debía tirar \(error)")
+    }
+    await port.finishStream()
+    expectEq(vm.streaming, "", "stream: finish vacío es no-op")
+    expectEq(vm.messages.count, 1, "stream: no duplica")
+}
+
+@MainActor func testHistoryTurnsWindowsAndSkipsStatus() async {
+    let chat = FakeChatProvider()
+    let store = MemoryConversationStore()
+    let vm = ChatViewModel(
+        chat: chat, secrets: TestSecretStore([.openAI: "sk-test"]),
+        store: store, config: Config(chat: ChatSettings(historyWindow: 2)))
+    vm.onAppear()
+    let port: any ConversationPresenting = vm
+    await port.appendUser("uno")
+    await port.appendAssistant("a")
+    await port.appendStatus("nota")
+    await port.appendUser("dos")
+    await port.appendAssistant("b")
+    await port.appendUser("tres")
+    let turns = await port.historyTurns()
+    expectEq(turns.map(\.role), [.assistant, .user], "hist: ventana 2, sin status")
+    expectEq(turns.map(\.content), ["b", "tres"], "hist: los dos últimos de chat")
+    expectEq(vm.messages.count, 6, "hist: el hilo guarda todo")
+    expect(!turns.contains { $0.content == "nota" }, "hist: status fuera")
+}
+
+@MainActor func testConversationPresentingEmptyAndUnicode() async {
+    let store = MemoryConversationStore()
+    let vm = primed(chat: FakeChatProvider(), store: store)
+    let port: any ConversationPresenting = vm
+    expectEq(await port.historyTurns(), [], "present: vacío")
+    await port.appendUser("")
+    await port.appendUser("ñoño — café 👋'; DROP")
+    await port.appendAssistant("")
+    await port.appendStatus("")
+    let turns = await port.historyTurns()
+    expectEq(turns.map(\.role), [.user, .user, .assistant], "present: roles")
+    expectEq(turns.map(\.content), ["", "ñoño — café 👋'; DROP", ""],
+             "present: vacío y unicode viajan")
+    expectEq(vm.messages.map(\.isStatus), [false, false, false, true],
+             "present: status vacío queda en el hilo")
+    let long = String(repeating: "a", count: 10_000)
+    await port.appendAssistant(long)
+    let after = await port.historyTurns()
+    expectEq(after.last?.content.count, 10_000, "present: 10k chars")
+    do {
+        let loaded = try store.load(store.list()[0].id)
+        expectEq(loaded?.messages.count, 5, "present: persiste los cinco")
+        expectEq(loaded?.messages.last?.text.count, 10_000, "present: 10k persistido")
+    } catch {
+        expect(false, "present: persist no debía tirar \(error)")
+    }
 }
 
 @MainActor func primed(

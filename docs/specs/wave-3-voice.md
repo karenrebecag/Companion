@@ -1,61 +1,95 @@
 # Wave 3 — Voz
 
-**Estado: BORRADOR** — se refina en kickoff. LEER el ledger completo de
-audio/AEC y Realtime antes de tocar nada: es la wave con mas cicatrices.
+**Estado: CERRADO** — 2026-08-20. Falta solo la prueba manual de Karen
+(definicion de done: hablar de punta a punta + caida a clasico).
+Kickoff planner + architect. Ledger de audio/AEC es contrato.
 
 ## Objetivo
 
-Conversacion por voz en tiempo real sobre OpenAI Realtime (WebSocket), con
-barge-in, mute correcto y fallbacks nativos. El mismo hilo que el texto:
-cambiar de modo no pierde contexto.
+Voz en tiempo real sobre OpenAI Realtime (WebSocket, 6 s), barge-in,
+mute correcto, fallback clasico nativo. Mismo hilo que el texto.
+WebRTC fuera.
 
-## Alcance
+## Desviaciones vs BORRADOR
 
-### CompanionServices
-| Archivo | Contenido | Ledger |
-|---|---|---|
-| `MicCapture.swift` | AVAudioEngine + Voice Processing (AEC). Watchdog 1.5 s si no llegan buffers -> apagar VP y reintentar UNA vez (con limite, a diferencia del original). | Audio/AEC |
-| `RealtimePlayer.swift` | Player PCM 24 kHz; engine compartido con el mic cuando hay AEC (`ownsEngine`). Conteo de buffers con aislamiento de actor, no NSLock parcial. | Audio/AEC |
-| `RealtimeWSTransport.swift` | Puerto `VoiceTransport` sobre URLSessionWebSocketTask, async/await, timeout de apertura 6 s. Usa `RealtimeCodec` de Wave 1. | Realtime |
-| `VoiceSession.swift` | `actor` que corre el reducer `TurnMachine` (Wave 1) ejecutando efectos: es el reemplazo del AppDelegate-orquestador del original. Cancelacion estructurada, no contador `generation`. | Anti-patrones |
-| `SpeechSynthesis.swift` | TTS clasico: OpenAI `gpt-4o-mini-tts` primario, `AVSpeechSynthesizer` fallback offline (ADR 001). Cache de frases <=80 chars. | TTS |
-| `SystemTranscriber.swift` | SFSpeechRecognizer on-device (unico STT local; cero Python). | ADR 001 |
-| `Endpointer` (Wave 1) | Se usa solo en el pipeline clasico; en Realtime manda el VAD del server. | Endpointing |
+1. `RealtimeCodec.appendAudio` no existia: se anade.
+2. `VoiceSession` se parte: session + RealtimeRuntime + ClassicRuntime
+   (tope 400).
+3. `MicCapturing` y `PCMPlaying` son puertos Core (sesion testeable sin
+   AVFoundation). El engine compartido es `AudioEngineHub` en Services.
+4. `ConversationPresenting` en Core: ChatViewModel dueño del hilo;
+   VoiceViewModel no duplica messages.
+5. Realtime `tools: []` esta wave. Un `functionCall` se contesta con
+   negativa; Executor es Wave 4.
+6. Chat escrito no se lee en voz. Composer se cuelga mientras hay turno
+   de voz; hang-up y luego se escribe.
+7. Clasico: solo SFSpeech (sin Python). Sin permiso → no hay clasico.
+8. AEC default **off** (`VoiceSettings.echoCancellation`). Sin AEC no se
+   mandan frames en `.speaking` ni durante echo-guard 350 ms.
+9. Watchdog VP 1.5 s, reintento UNA vez, veto in-process (no UserDefaults).
+10. `DeltaSink` (Wave 2) pasa a `actor`.
 
-### CompanionUI
-- `VoiceControlsView.swift`: mic, estado del turno, nivel, mute. Visual
-  minimo (el orb bonito es Wave 5).
-- `VoiceViewModel.swift`: `@Observable`, refleja `TurnState`.
+## Contratos no negociables (ledger)
 
-## Contratos criticos (del ledger, no negociables)
+- Mute + `speechOpen` → commit + `response.create`. Mute quieto no
+  commitea. Unmute → clearAudio.
+- Echo 350 ms. Voz no cambia tras el primer audio; speed si.
+- Reconexion = sesion nueva, seed 6×200. Sin imagenes.
+- Cadena: WS 6 s → clasico (mic + STT + ChatProvider + TTS).
 
-- Mute manda commit + response.create; no basta callar.
-- Echo guard ~350 ms tras audio del agente.
-- La voz no cambia tras el primer audio; la velocidad si.
-- Reconexion = sesion nueva sembrada con 6 turnos / 200 chars.
-- Cadena: Realtime WS -> pipeline clasico (mic + STT + chat + TTS). WebRTC
-  queda explicitamente FUERA de esta wave (post-v1 en el roadmap).
+## Puertos Core (resumen)
 
-## Deuda heredada de Wave 2 (resolver aqui)
+`VoiceTransport`, `MicCapturing`, `PCMPlaying`, `Transcriber`,
+`SpeechSynthesizer`, `VoiceControlling`, `ConversationPresenting`.
+`appendAudio(Data) -> String`.
 
-- `DeltaSink` (`ChatSSEAttempt.swift`) sincroniza con NSLock y `@unchecked
-  Sendable`; esta wave toca el streaming de todos modos: convertirlo en
-  `actor` (hallazgo MEDIUM del code review de Wave 2).
+`VoiceSession` actor interpreta `TurnEffect`. Reloj inyectable.
+
+## UI
+
+`VoiceViewModel` + `VoiceControlsView` (mic, fase, mute, nivel). Sin orb.
+ChatViewModel gana metodos publicos del hilo.
 
 ## Tests
 
-- Reducer ya cubierto en Wave 1; aqui: VoiceSession con transporte fake
-  (guion de eventos Realtime -> secuencia esperada de efectos), incluido
-  barge-in, mute y caida del WS a mitad de turno.
-- SpeechSynthesis: cache, orden de frases, cancelacion.
+Fakes, cero `AVAudioEngine.start`, cero WS vivo. VoiceSession: barge-in,
+mute, timeout 6 s → clasico, drop a mitad de conversacion. TTS: cache
+<=80, orden, cancel.
+
+## Construccion
+
+1A ports+appendAudio || 1B DeltaSink actor.
+2 paralelo: Speech | WS | PCM/mic/player | Voice VM.
+3 VoiceSession. 4 vistas. 5 App.
 
 ## Definicion de done
 
-Conversar por voz de punta a punta con barge-in; matar la red a mitad de
-turno degrada al pipeline clasico con aviso claro. Gates verdes.
+Hablar de punta a punta con barge-in; matar la red a mitad de turno
+cae a clasico con aviso. Gates verdes.
 
 ## Riesgos
 
-- AEC es la zona mas fragil del original: presupuestar iteracion manual con
-  Karen probando en su hardware. Los tests no cubren CoreAudio real.
-- TCC (permiso de mic) exige firma estable entre builds.
+AEC y TCC no los cubren los tests. Firma estable es Wave 5.
+
+## Hallazgos del review de cierre (resueltos 2026-08-20)
+
+code-reviewer: contratos del ledger verificados uno por uno con su test.
+Hallazgo alto real: el watchdog de VP (desviacion 9) no existia — solo habia
+reintento ante fallos detectables al arrancar; el caso del ledger (engine
+arranca y el tap nunca dispara) quedaba sin recuperacion. Implementado con
+regla pura `MicWatchdog.decide` + delay inyectable.
+
+security-reviewer: dos hallazgos resultaron falsos al verificarlos (el deinit
+del mic SI limpia; el hash del cache es de 64 bits, no 32). Aplicados:
+permisos 0700 en cache/logs/conversaciones y validacion de endpoint en los
+caminos de voz (WS y TTS), que se habian saltado las policies de Wave 2.
+Rechazados con criterio: regex de formato de API key (el onboarding ya valida
+con ping real y los prefijos de OpenAI cambian), borrado de la key en memoria
+(impracticable con String en Swift; el Keychain ya protege en reposo),
+FNV-1a → SHA256 (64 bits, colision despreciable) y rate limiting de TTS
+(costo/UX, no seguridad).
+
+Anadido fuera del spec: `scripts/bundle.sh` — sin Info.plist con usage
+descriptions macOS no muestra el prompt de microfono, asi que la voz no se
+podia probar desde `swift run`. Gate nuevo vigila que esas claves no se
+pierdan.

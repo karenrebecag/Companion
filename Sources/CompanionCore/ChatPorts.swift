@@ -86,3 +86,12 @@ public struct ConversationMessage: Sendable, Equatable {
         self.attachmentPaths = attachmentPaths
     }
 }
+
+public protocol ConversationPresenting: Sendable {
+    func historyTurns() async -> [Turn]
+    func appendUser(_ text: String) async
+    func appendAssistant(_ text: String) async
+    func appendStatus(_ text: String) async
+    func showStream(_ text: String) async
+    func finishStream() async
+}

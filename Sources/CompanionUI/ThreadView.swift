@@ -3,9 +3,11 @@ import SwiftUI
 
 public struct ThreadView: View {
     @Bindable var model: ChatViewModel
+    @Bindable var voice: VoiceViewModel
 
-    public init(model: ChatViewModel) {
-        self.model = model
+    public init(chat: ChatViewModel, voice: VoiceViewModel) {
+        self.model = chat
+        self.voice = voice
     }
 
     public var body: some View {
@@ -29,13 +31,25 @@ public struct ThreadView: View {
     private var chrome: some View {
         VStack(alignment: .leading, spacing: Tokens.Space.s8) {
             HStack(spacing: Tokens.Space.s8) {
-                Button("Nueva conversación", action: model.newConversation)
+                Button("Nueva conversación") {
+                    voice.hangUp()
+                    model.newConversation()
+                }
                     .font(Tokens.Typography.caption)
                     .foregroundStyle(Tokens.Color.fg)
-                Button("Cambiar clave", action: model.changeKey)
+                Button("Cambiar clave") {
+                    voice.hangUp()
+                    model.changeKey()
+                }
                     .font(Tokens.Typography.caption)
                     .foregroundStyle(Tokens.Color.fg)
                 Spacer()
+            }
+            VoiceControlsView(voice: voice)
+            if let status = voice.statusText {
+                Text(status)
+                    .font(Tokens.Typography.caption)
+                    .foregroundStyle(Tokens.Color.muted)
             }
             if !model.recents.isEmpty {
                 recentsList
@@ -50,6 +64,7 @@ public struct ThreadView: View {
             VStack(alignment: .leading, spacing: Tokens.Space.s4) {
                 ForEach(model.recents) { meta in
                     Button {
+                        voice.hangUp()
                         model.openConversation(meta.id)
                     } label: {
                         Text(meta.title)
@@ -119,13 +134,19 @@ public struct ThreadView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Tokens.Color.border, lineWidth: 1)
                 )
-                .onSubmit { model.send() }
-            Button("Enviar", action: model.send)
+                .onSubmit(sendText)
+                .disabled(voice.isActive)
+            Button("Enviar", action: sendText)
                 .font(Tokens.Typography.body)
                 .foregroundStyle(Tokens.Color.fg)
-                .disabled(draftIsEmpty)
+                .disabled(draftIsEmpty || voice.isActive)
         }
         .padding(Tokens.Space.s16)
+    }
+
+    private func sendText() {
+        voice.hangUp()
+        model.send()
     }
 
     private var draftIsEmpty: Bool {

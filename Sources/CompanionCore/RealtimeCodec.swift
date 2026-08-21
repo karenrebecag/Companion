@@ -127,6 +127,13 @@ public enum RealtimeCodec: Sendable {
         return jsonBool(obj["approved"])
     }
 
+    public static func appendAudio(_ pcm16le24k: Data) -> String {
+        encodeJSON([
+            "type": "input_audio_buffer.append",
+            "audio": pcm16le24k.base64EncodedString(),
+        ])
+    }
+
     public static func commitAudio() -> String {
         encodeJSON(["type": "input_audio_buffer.commit"])
     }

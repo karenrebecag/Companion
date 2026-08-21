@@ -9,6 +9,7 @@ import Testing
     testRealtimeSystemItem()
     testApprovalTool()
     testRealtimeControlFrames()
+    testRealtimeAppendAudio()
 }
 
 @MainActor func testRealtimeParse() {
@@ -314,6 +315,35 @@ import Testing
     expectEq(rt["name"] as? String ?? "", "delegate", "realtime tool: name arriba")
     expect(rt["function"] == nil, "realtime tool: sin nido function")
     expectEq(rt["type"] as? String ?? "", "function", "realtime tool: type")
+}
+
+@MainActor func testRealtimeAppendAudio() {
+    let pcm = Data("hola".utf8)
+    let frame = json(RealtimeCodec.appendAudio(pcm))
+    expectEq(frame["type"] as? String ?? "", "input_audio_buffer.append",
+             "append: type")
+    expectEq(frame["audio"] as? String ?? "", pcm.base64EncodedString(),
+             "append: audio es base64 de hola")
+    expectEq(Set(frame.keys), Set(["type", "audio"]),
+             "append: solo type y audio")
+
+    let empty = json(RealtimeCodec.appendAudio(Data()))
+    expectEq(empty["type"] as? String ?? "", "input_audio_buffer.append",
+             "append: vacío aún es append")
+    expectEq(empty["audio"] as? String ?? "missing", "",
+             "append: data vacía viaja como audio vacío")
+
+    let binary = Data([0x00, 0xFF, 0x7F, 0x80])
+    expectEq(
+        json(RealtimeCodec.appendAudio(binary))["audio"] as? String ?? "",
+        binary.base64EncodedString(),
+        "append: bytes binarios se base64-ean")
+
+    let large = Data(repeating: 0xAB, count: 10_000)
+    expectEq(
+        json(RealtimeCodec.appendAudio(large))["audio"] as? String ?? "",
+        large.base64EncodedString(),
+        "append: 10k bytes caben")
 }
 
 private func json(_ s: String) -> [String: Any] {

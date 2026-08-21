@@ -50,11 +50,11 @@ enum ChatSSEAttempt {
             cap.cancel()
             work.cancel()
             if Task.isCancelled { return .cancelled }
-            return sink.finish(error: .timeout)
+            return await sink.finish(error: .timeout)
         } catch {
             cap.cancel()
             work.cancel()
-            return sink.finish(error: .unreachable)
+            return await sink.finish(error: .unreachable)
         }
     }
 
@@ -151,14 +151,14 @@ private func read(
         let (status, lines) = try await transport.lines(for: request)
         await clock.ping()
         guard status == 200 else {
-            return sink.finish(error: ChatSSEAttempt.mapStatus(status))
+            return await sink.finish(error: ChatSSEAttempt.mapStatus(status))
         }
         for try await line in lines {
             try Task.checkCancellation()
             await clock.ping()
-            sink.feed(line)
+            await sink.feed(line)
         }
-        return sink.finish(error: nil)
+        return await sink.finish(error: nil)
     }
     let watchdog = Task {
         do {
@@ -182,9 +182,9 @@ private func read(
         watchdog.cancel()
         if error is CancellationError {
             if Task.isCancelled { throw CancellationError() }
-            return sink.finish(error: .timeout)
+            return await sink.finish(error: .timeout)
         }
-        return sink.finish(error: .unreachable)
+        return await sink.finish(error: .unreachable)
     }
 }
 
@@ -221,8 +221,7 @@ private actor PingClock {
     }
 }
 
-private final class DeltaSink: @unchecked Sendable {
-    private let lock = NSLock()
+private actor DeltaSink {
     private var spokePartial = false
     private var tool = ToolCallBuilder()
     private var full = ""
@@ -236,7 +235,6 @@ private final class DeltaSink: @unchecked Sendable {
     }
 
     func feed(_ line: String) {
-        lock.lock()
         tool.feed(fromSSE: line)
         var cuts: [String] = []
         if let piece = SSECodec.delta(fromSSE: line) {
@@ -248,17 +246,11 @@ private final class DeltaSink: @unchecked Sendable {
                 cuts.append(cut.sentence)
             }
         }
-        lock.unlock()
         for cut in cuts { yield(.text(cut)) }
     }
 
     func finish(error: ChatError?) -> ChatAttemptOutcome {
-        lock.lock()
-        if finished {
-            let cached = outcome
-            lock.unlock()
-            return cached
-        }
+        if finished { return outcome }
         let started = tool.started
         let name = tool.name
         let arguments = tool.arguments
@@ -277,7 +269,6 @@ private final class DeltaSink: @unchecked Sendable {
         }
         finished = true
         let commit = outcome
-        lock.unlock()
         switch commit {
         case .handoff(let handoff):
             if !rest.isEmpty { yield(.text(rest)) }
