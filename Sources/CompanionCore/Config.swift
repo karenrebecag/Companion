@@ -108,7 +108,7 @@ public struct VoiceSettings: Sendable, Equatable {
         volume: Double = 1.0,
         turnDetection: TurnDetection = .serverVAD(silenceMs: 700),
         tone: String = "",
-        echoCancellation: Bool = false
+        echoCancellation: Bool = true
     ) {
         self.voice = voice
         self.speed = Self.clamp(speed, Self.speedRange)

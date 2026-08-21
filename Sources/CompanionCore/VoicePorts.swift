@@ -85,3 +85,10 @@ public protocol VoiceControlling: Sendable {
     var snapshots: AsyncStream<TurnSnapshot> { get }
     var levels: AsyncStream<VoiceLevels> { get }
 }
+
+/// Whether this Mac has a route to the internet. Lets the session tell "the
+/// realtime server did not answer" (classic can still work) apart from "there
+/// is no network" (nothing remote will work).
+public protocol ReachabilityProbing: Sendable {
+    var isOnline: Bool { get async }
+}

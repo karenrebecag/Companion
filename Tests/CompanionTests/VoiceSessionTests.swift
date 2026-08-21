@@ -11,6 +11,7 @@ import Testing
     await testSpeakingSpeechStartedCancels()
     await testNoKeyClassicListen()
     await testOpenTimeoutFallsBackClassic()
+    await testOfflineStaysInErrorWithoutFallback()
     await testHangUpClosesTransport()
     await testEchoGuardHoldsFrames()
     await testFunctionCallRefusal()
@@ -109,6 +110,7 @@ import Testing
 }
 
 @MainActor func testOpenTimeoutFallsBackClassic() async {
+    // Online: the realtime server did not answer, but classic still works.
     let h = makeVoiceHarness(autoEvents: [], readyTimeout: 0.05)
     await h.session.start()
     await pumpUntil("timeout: fallback classic") {
@@ -117,6 +119,20 @@ import Testing
     expectEq(h.transcriber.locale, "es-MX", "timeout: arma el transcriber")
     expect(h.transcriber.started, "timeout: transcriber.start")
     expect(!h.thread.status.isEmpty, "timeout: avisa la caída")
+}
+
+@MainActor func testOfflineStaysInErrorWithoutFallback() async {
+    let h = makeVoiceHarness(autoEvents: [], readyTimeout: 0.05, online: false)
+    await h.session.start()
+    await pumpUntil("offline: estado de error") {
+        h.watch.latest.state == .error
+    }
+    expectEq(h.watch.latest.failure, .networkUnavailable,
+             "offline: la razón es la falta de red")
+    expect(!h.transcriber.started,
+           "offline: no arma el clásico, que también necesita red")
+    expect(h.watch.latest.pipeline != .classic,
+           "offline: no cambia de pipeline")
 }
 
 @MainActor func testHangUpClosesTransport() async {
@@ -204,12 +220,19 @@ private struct VoiceHarness {
     let watch: SnapWatch
 }
 
+private struct ScriptedReachability: ReachabilityProbing {
+    let online: Bool
+    init(_ online: Bool) { self.online = online }
+    var isOnline: Bool { get async { online } }
+}
+
 @MainActor
 private func makeVoiceHarness(
     key: String? = "sk-test",
     autoEvents: [RealtimeEvent] = [.sessionCreated, .sessionUpdated],
     readyTimeout: TimeInterval = 1,
-    aec: Bool = false
+    aec: Bool = false,
+    online: Bool = true
 ) -> VoiceHarness {
     let transport = ScriptedVoiceTransport()
     transport.autoEvents = autoEvents
@@ -234,6 +257,7 @@ private func makeVoiceHarness(
         secrets: secrets,
         thread: thread,
         config: Config(ownerFirstName: "Karen"),
+        reachability: ScriptedReachability(online),
         now: { clock.now },
         readyTimeout: readyTimeout)
     let watch = SnapWatch(session.snapshots)

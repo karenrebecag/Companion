@@ -25,6 +25,7 @@ public actor VoiceSession: VoiceControlling {
     private var drainTask: Task<Void, Never>?
     private var playerLevelTask: Task<Void, Never>?
     private var speechTask: Task<Void, Never>?
+    private let reachability: any ReachabilityProbing
     private var lastMic = 0.0
     private var lastAgent = 0.0
 
@@ -38,6 +39,7 @@ public actor VoiceSession: VoiceControlling {
         secrets: any SecretStore,
         thread: any ConversationPresenting,
         config: Config,
+        reachability: any ReachabilityProbing = NetworkReachability(),
         now: @escaping @Sendable () -> TimeInterval = {
             Date().timeIntervalSince1970
         },
@@ -50,6 +52,7 @@ public actor VoiceSession: VoiceControlling {
         self.synthesizer = synthesizer
         self.secrets = secrets
         self.config = config
+        self.reachability = reachability
         self.now = now
         self.readyTimeout = readyTimeout
         self.realtime = RealtimeRuntime(
@@ -166,12 +169,21 @@ public actor VoiceSession: VoiceControlling {
         await realtime.flushPendingUpdate()
         if await waitForReady() { return }
         if machine.snapshot.state == .connecting {
-            await failRealtimeStart()
+            // Handshake never completed: unreachable from the user's side.
+            await failRealtimeStart(VoiceTransportError.timeout)
         }
     }
 
     private func failRealtimeStart(_ error: Error? = nil) async {
-        await apply(.voiceStartFailed(VoiceFailureMapping.failure(for: error)))
+        // Offline is not the same as "the realtime server did not answer":
+        // classic still works in the second case, but with no network it would
+        // trade a readable error for a mic listening in silence.
+        let online = await reachability.isOnline
+        let failure = online
+            ? VoiceFailureMapping.failure(for: error)
+            : .networkUnavailable
+        await apply(.voiceStartFailed(failure))
+        guard online else { return }
         if machine.snapshot.state == .error {
             await apply(.startVoice(preferRealtime: false))
         }

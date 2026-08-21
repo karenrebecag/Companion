@@ -84,8 +84,9 @@ import Testing
     expectEq(c.voice.speed, 1.0, "config: speed 1.0")
     expectEq(c.voice.volume, 1.0, "config: volume 1.0")
     expectEq(c.voice.tone, "", "config: tone vacío")
-    expectEq(c.voice.echoCancellation, false,
-             "config: AEC apagada por default")
+    expectEq(c.voice.echoCancellation, true,
+             "config: AEC encendida por default — sin ella el servidor no oye "
+             + "a la usuaria mientras el agente habla, y no hay barge-in")
     if case .serverVAD(let ms) = c.voice.turnDetection {
         expectEq(ms, 700, "config: server VAD 700 ms")
     } else {

@@ -24,8 +24,10 @@ WebRTC fuera.
 6. Chat escrito no se lee en voz. Composer se cuelga mientras hay turno
    de voz; hang-up y luego se escribe.
 7. Clasico: solo SFSpeech (sin Python). Sin permiso → no hay clasico.
-8. AEC default **off** (`VoiceSettings.echoCancellation`). Sin AEC no se
-   mandan frames en `.speaking` ni durante echo-guard 350 ms.
+8. ~~AEC default off~~ **REVOCADA en prueba manual (2026-08-21)**: sin AEC
+   no se mandan frames en `.speaking`, luego el servidor no puede oir la
+   interrupcion y el barge-in por voz no existe. Default ahora **on**; el
+   watchdog de VP cubre el riesgo. Sigue sin mandarse durante el echo-guard.
 9. Watchdog VP 1.5 s, reintento UNA vez, veto in-process (no UserDefaults).
 10. `DeltaSink` (Wave 2) pasa a `actor`.
 

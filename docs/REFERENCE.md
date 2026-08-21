@@ -118,6 +118,16 @@ Descubiertas en prueba manual de Wave 3; ningun test las vio.
   `com.karen.companion`, LaunchServices abria la app vieja al pedir la nueva.
   El rebuild usa `com.karen.companion.next` y su propio archivo de log.
 
+- **"Sin red" y "el servidor no contesta" no son el mismo fallo.** Caer al
+  pipeline clasico es correcto cuando el WS no responde pero hay internet;
+  sin internet solo cambia un error legible por un microfono escuchando en
+  silencio (el clasico tambien necesita chat y TTS remotos). La sesion
+  consulta `ReachabilityProbing` (NWPathMonitor) antes de decidir.
+- **Sin AEC no hay barge-in por voz.** Con Voice Processing apagado no se
+  mandan frames en `.speaking`, asi que el VAD del servidor nunca oye a la
+  usuaria interrumpir. Por eso el default cambio a AEC on (desviacion 8 del
+  spec de Wave 3 queda revocada); el watchdog cubre el riesgo de VPIO.
+
 ## El patron de bug que se repite en este repo
 
 Cuatro veces en Wave 3 aparecio lo mismo: **la logica correcta y testeada,
