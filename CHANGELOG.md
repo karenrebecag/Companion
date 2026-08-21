@@ -9,6 +9,8 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 - Avisos breves arriba a la derecha cuando se resuelve un permiso o termina
   un encargo, con un tono corto si los sonidos de interfaz están activos
   (se apagan en Ajustes).
+- En una sesión de voz activa, adjuntar una imagen (menú o arrastre) se la
+  enseña al agente y espera a que preguntes; no se reenvía si se reconecta.
 
 ## [0.6.0] — 2026-08-21
 

@@ -78,6 +78,8 @@ public extension Notification.Name {
         "companion.shortcutsDidChange")
     static let companionOpenSettings = Notification.Name(
         "companion.openSettings")
+    static let companionAttach = Notification.Name(
+        "companion.attach")
 }
 
 public enum MenuPlan {

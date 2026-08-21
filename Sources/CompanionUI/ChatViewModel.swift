@@ -43,7 +43,8 @@ public final class ChatViewModel: ConversationPresenting {
     private let config: Config
     private let jobSubmitter: (any JobSubmitter)?
     public let notices: NoticeCenter
-    private var conversationId = UUID().uuidString
+    let attachments: (any AttachmentStoring)?
+    var conversationId = UUID().uuidString
     private var inFlight: Task<Void, Never>?
 
     public init(
@@ -52,7 +53,8 @@ public final class ChatViewModel: ConversationPresenting {
         store: any ConversationStoring,
         config: Config,
         jobSubmitter: (any JobSubmitter)? = nil,
-        notices: NoticeCenter = NoticeCenter()
+        notices: NoticeCenter = NoticeCenter(),
+        attachments: (any AttachmentStoring)? = nil
     ) {
         self.chat = chat
         self.secrets = secrets
@@ -60,6 +62,7 @@ public final class ChatViewModel: ConversationPresenting {
         self.config = config
         self.jobSubmitter = jobSubmitter
         self.notices = notices
+        self.attachments = attachments
     }
 
     public func toast(_ text: String, level: NoticeLevel = .info) {

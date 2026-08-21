@@ -11,6 +11,7 @@ import Testing
     testCenterTickExpires()
     testApprovalToasts()
     await testJobResultToasts()
+    await testAttachToasts()
 }
 
 @MainActor func testQueueExpiresAfterLifetime() {
@@ -121,6 +122,37 @@ import Testing
              "toast: encargo fallido avisa")
     expectEq(failNotices.queue.visible.last?.level, .error,
              "toast: encargo fallido es error")
+}
+
+@MainActor func testAttachToasts() async {
+    let notices = NoticeCenter(sound: RecordingSound(), now: { 1 })
+    let files = RecordingAttachments()
+    let vm = ChatViewModel(
+        chat: FakeChatProvider(),
+        secrets: TestSecretStore([.openAI: "sk-test"]),
+        store: MemoryConversationStore(),
+        config: .default,
+        notices: notices,
+        attachments: files)
+    vm.onAppear()
+    let ref = vm.attach(URL(fileURLWithPath: "/tmp/foto.png"))
+    expectEq(ref?.name, "foto.png", "attach: devuelve el ref")
+    expectEq(notices.queue.visible.last?.text, ChatCopy.attached("foto.png"),
+             "attach: toast al adoptar")
+}
+
+final class RecordingAttachments: AttachmentStoring, @unchecked Sendable {
+    func adopt(_ source: URL, conversationId: String) throws -> AttachmentRef {
+        AttachmentRef(
+            name: source.lastPathComponent, path: source.path,
+            kind: AttachmentPolicy.kind(forExtension: source.pathExtension))
+    }
+    func adopt(imageData: Data, name: String, conversationId: String) throws -> AttachmentRef {
+        AttachmentRef(name: name, path: "/tmp/\(name)", kind: .image)
+    }
+    func restore(path: String) -> AttachmentRef? { nil }
+    func discard(_ ref: AttachmentRef) {}
+    func payload(for ref: AttachmentRef) -> AttachmentPayload? { nil }
 }
 
 final class FailingSubmitter: JobSubmitter, @unchecked Sendable {

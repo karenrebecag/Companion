@@ -101,10 +101,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let sound = SynthesizedUISound(
             isEnabled: { InterfaceSound.enabled })
+        let attachRoot = FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Companion/attachments")
+        do {
+            try FileManager.default.createDirectory(
+                at: attachRoot, withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700])
+        } catch {
+            Log.app("could not create attachments dir")
+        }
+        let attachmentStore = AttachmentStore(root: attachRoot)
         let model = ChatViewModel(
             chat: chat, secrets: secrets, store: store, config: config,
             jobSubmitter: jobRunner,
-            notices: NoticeCenter(sound: sound))
+            notices: NoticeCenter(sound: sound),
+            attachments: attachmentStore)
         self.model = model
 
         let caches = FileManager.default.urls(
@@ -177,7 +189,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NotificationCenter.default.post(
                     name: .companionOpenSettings, object: nil)
             },
-            attach: {},
+            attach: {
+                NotificationCenter.default.post(
+                    name: .companionAttach, object: nil)
+            },
             newConversation: {
                 voice.hangUp()
                 model.newConversation()

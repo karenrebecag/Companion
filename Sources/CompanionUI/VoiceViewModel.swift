@@ -61,6 +61,10 @@ public final class VoiceViewModel {
         Task { await voice.toggleMute() }
     }
 
+    public func push(_ attachment: AttachmentRef) {
+        Task { await voice.push(attachment: attachment) }
+    }
+
     public func onAppear() {
         guard tasks.snapshots == nil else { return }
         if let outputRoute {

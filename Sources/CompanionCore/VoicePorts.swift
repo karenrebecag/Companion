@@ -84,6 +84,7 @@ public protocol VoiceControlling: Sendable {
     func advance() async
     func hangUp() async
     func toggleMute() async
+    func push(attachment: AttachmentRef) async
     var snapshots: AsyncStream<TurnSnapshot> { get }
     var levels: AsyncStream<VoiceLevels> { get }
 }

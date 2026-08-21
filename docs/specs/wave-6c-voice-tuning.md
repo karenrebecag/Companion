@@ -1,7 +1,7 @@
 # Wave 6c — Voz configurable y presencia sonora
 
-**Estado: BORRADOR** — kickoff 2026-08-21 (planner + architect). Pendiente de
-aprobacion de Karen. Depende de 6a y de 6b-2 (Dropdown).
+**Estado: CERRADO** — 2026-08-21. Ajustes de voz en sesion, velocidad en
+caliente, AEC rearmable, sonido al pensar, imagen a sesion viva.
 
 ## Objetivo
 

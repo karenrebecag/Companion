@@ -226,6 +226,8 @@ final class RecordingVoice: VoiceControlling, @unchecked Sendable {
     func advance() async { advanced += 1 }
     func hangUp() async { hungUp += 1 }
     func toggleMute() async { muteToggles += 1; muted.toggle() }
+    func push(attachment: AttachmentRef) async { pushed.append(attachment) }
+    var pushed: [AttachmentRef] = []
     func yieldSnapshot(_ snapshot: TurnSnapshot) { snapBox.yield(snapshot) }
     func yieldLevels(_ value: VoiceLevels) { levelBox.yield(value) }
     func finish() { snapBox.finish(); levelBox.finish() }

@@ -1,5 +1,7 @@
+import AppKit
 import CompanionCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct CompanionRootView: View {
     var chat: ChatViewModel
@@ -107,7 +109,9 @@ public struct CompanionRootView: View {
                 case .newConversation:
                     voice.hangUp()
                     chat.newConversation()
-                case .attach, .history:
+                case .attach:
+                    pickAttachments()
+                case .history:
                     break
                 }
             }
@@ -128,6 +132,15 @@ public struct CompanionRootView: View {
         ) { _ in
             showSettings = true
         }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .companionAttach)
+        ) { _ in
+            pickAttachments()
+        }
+        .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+            dropFiles(providers)
+            return true
+        }
         // Approval sheet
         .sheet(item: Binding(
             get: { chat.pendingApproval.map(ApprovalItem.init) },
@@ -136,6 +149,35 @@ public struct CompanionRootView: View {
             ApprovalSheet(request: item.request) { approved in
                 chat.answerApproval(approved)
             }
+        }
+    }
+
+    private func pickAttachments() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.item]
+        panel.begin { response in
+            guard response == .OK else { return }
+            for url in panel.urls { adoptFile(url) }
+        }
+    }
+
+    private func dropFiles(_ providers: [NSItemProvider]) {
+        for provider in providers {
+            _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                guard let url else { return }
+                Task { @MainActor in
+                    adoptFile(url)
+                }
+            }
+        }
+    }
+
+    private func adoptFile(_ url: URL) {
+        guard let ref = chat.attach(url) else { return }
+        if voice.isActive {
+            voice.push(ref)
         }
     }
 }

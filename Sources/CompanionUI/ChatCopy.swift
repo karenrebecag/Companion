@@ -69,6 +69,21 @@ public enum ChatCopy {
     public static let jobDone = "Encargo listo"
     public static let jobFailed = "Encargo falló"
 
+    public static func attached(_ name: String) -> String {
+        "Adjuntado: \(name)"
+    }
+
+    public static func attachFailed(_ error: AttachmentError) -> String {
+        switch error {
+        case .tooLarge:
+            return "El archivo es demasiado grande (máximo 20 MB)."
+        case .unreadable:
+            return "No pude leer ese archivo."
+        case .io:
+            return "No pude guardar el adjunto."
+        }
+    }
+
     /// Readable summary of a tool request: raw JSON is not a decision aid.
     public static func approvalDetail(
         tool: String, inputJSON: String

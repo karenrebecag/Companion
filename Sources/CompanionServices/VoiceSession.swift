@@ -5,7 +5,7 @@ public actor VoiceSession: VoiceControlling {
     public nonisolated let snapshots: AsyncStream<TurnSnapshot>
     public nonisolated let levels: AsyncStream<VoiceLevels>
 
-    private var machine = TurnMachine()
+    var machine = TurnMachine()
     private let transport: any VoiceTransport
     private let mic: any MicCapturing
     private let player: any PCMPlaying
@@ -15,7 +15,7 @@ public actor VoiceSession: VoiceControlling {
     private let configProvider: any ConfigProviding
     private let now: @Sendable () -> TimeInterval
     private let readyTimeout: TimeInterval
-    private let realtime: RealtimeRuntime
+    let realtime: RealtimeRuntime
     private let classic: ClassicRuntime
     private let snapBox: AudioStreamBox<TurnSnapshot>
     private let levelBox: AudioStreamBox<VoiceLevels>
