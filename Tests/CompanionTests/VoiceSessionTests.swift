@@ -209,7 +209,7 @@ import Testing
     expect(!h.watch.latest.awaitingExecutor, "fn: no dispara delegateCallStarted")
 }
 
-private struct VoiceHarness {
+struct VoiceHarness {
     let session: VoiceSession
     let transport: ScriptedVoiceTransport
     let mic: ScriptedMic
@@ -227,7 +227,7 @@ private struct ScriptedReachability: ReachabilityProbing {
 }
 
 @MainActor
-private func makeVoiceHarness(
+func makeVoiceHarness(
     key: String? = "sk-test",
     autoEvents: [RealtimeEvent] = [.sessionCreated, .sessionUpdated],
     readyTimeout: TimeInterval = 1,
@@ -327,10 +327,12 @@ final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable {
     var key: String?, url: URL?, sent: [String] = [], closed = false
     var openError: VoiceTransportError?
     var autoEvents: [RealtimeEvent] = []
+    var openCount = 0
     private let box = StreamBox<RealtimeEvent>()
 
     func open(key: String, url: URL) async throws {
         if let openError { throw openError }
+        openCount += 1
         (self.key, self.url) = (key, url)
         for event in autoEvents { box.yield(event) }
     }
@@ -339,6 +341,18 @@ final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable {
     func events() -> AsyncStream<RealtimeEvent> { box.stream }
     func close() async { closed = true }
     func yield(_ event: RealtimeEvent) { box.yield(event) }
+
+    /// Simulate transport pump receiving an error and failing.
+    func simulateReceiveFailure() async {
+        await Task.yield()
+        box.finish()
+    }
+
+    /// Simulate stream ending without explicit close (abrupt termination).
+    func simulateStreamEnd() async {
+        await Task.yield()
+        box.finish()
+    }
 }
 
 final class ScriptedMic: MicCapturing, @unchecked Sendable {

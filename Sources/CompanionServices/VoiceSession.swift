@@ -28,6 +28,7 @@ public actor VoiceSession: VoiceControlling {
     private let reachability: any ReachabilityProbing
     private var lastMic = 0.0
     private var lastAgent = 0.0
+    private var reconnectAttempted = false
 
     public init(
         transport: any VoiceTransport,
@@ -85,7 +86,13 @@ public actor VoiceSession: VoiceControlling {
     }
 
     private func apply(_ event: TurnEvent) async {
+        let before = machine.snapshot.state
         let effects = machine.handle(event, at: now())
+        // Voice failures are invisible without a trace of the turn: the log is
+        // the only witness of what the server and the audio graph did.
+        if machine.snapshot.state != before {
+            Log.app("voice: \(before) -> \(machine.snapshot.state)")
+        }
         snapBox.yield(machine.snapshot)
         await perform(effects)
     }
@@ -131,6 +138,7 @@ public actor VoiceSession: VoiceControlling {
 
     private func openRealtimeSession() async {
         realtime.reset()
+        reconnectAttempted = false
         guard let key = openAIKey() else {
             await failRealtimeStart()
             return
@@ -240,6 +248,42 @@ public actor VoiceSession: VoiceControlling {
             let follow = await realtime.handle(
                 event, state: machine.snapshot.state)
             for next in follow { await apply(next) }
+        }
+        // Stream ended unexpectedly while session was active.
+        // FIX 2: Detect when stream ends without explicit close.
+        // FIX 3: Attempt reconnect once if network available.
+        // Only handle stream end if still in active realtime states (not already failed/idle).
+        let state = machine.snapshot.state
+        if state == .listening || state == .speaking {
+            let online = await reachability.isOnline
+            if online && !reconnectAttempted {
+                reconnectAttempted = true
+                Log.app("voice: reconnect attempt after stream ended")
+                await reconnectRealtimeSession()
+            } else {
+                await apply(.turnFailed(.sessionDropped))
+            }
+        }
+    }
+
+    private func reconnectRealtimeSession() async {
+        guard let key = openAIKey() else {
+            await apply(.turnFailed(.sessionDropped))
+            return
+        }
+        guard let url = RealtimeCodec.url() else {
+            await apply(.turnFailed(.sessionDropped))
+            return
+        }
+        do {
+            try await transport.open(key: key, url: url)
+            // Reconnection succeeded: reset flag and resume pumps.
+            reconnectAttempted = false
+            startPumps()
+        } catch {
+            // Reconnection failed: degrade to error state.
+            Log.app("voice: reconnect failed")
+            await apply(.turnFailed(.sessionDropped))
         }
     }
 

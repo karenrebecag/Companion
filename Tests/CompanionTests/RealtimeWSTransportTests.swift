@@ -79,10 +79,10 @@ import Testing
         await transport.close()
         expectEq(got, [
             .sessionCreated, .sessionUpdated, .speechStarted,
-            .ignored, .ignored, .ignored, .ignored,
+            .unknown("rate_limits.updated"), .ignored, .ignored, .ignored,
             .audioDelta(pcm),
             .functionCall(name: "delegate", arguments: "{}", callId: "c1"),
-        ], "pump: RealtimeCodec.parse de cada frame")
+        ], "pump: RealtimeCodec.parse de cada frame (FIX5: unknown preserva tipo)")
     }
 }
 

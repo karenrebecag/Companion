@@ -15,8 +15,8 @@ import Testing
 @MainActor func testRealtimeParse() {
     expect(RealtimeCodec.parse("basura sin json") == .ignored,
            "parse: basura se ignora")
-    expect(RealtimeCodec.parse(#"{"type":"rate_limits.updated"}"#) == .ignored,
-           "parse: evento desconocido se ignora")
+    expect(RealtimeCodec.parse(#"{"type":"rate_limits.updated"}"#) == .unknown("rate_limits.updated"),
+           "parse: evento desconocido preserva tipo para observabilidad")
     expect(RealtimeCodec.parse(#"{"type":"input_audio_buffer.speech_started"}"#) == .speechStarted,
            "parse: speech_started")
     expect(RealtimeCodec.parse(#"{"type":"input_audio_buffer.speech_stopped"}"#) == .speechStopped,

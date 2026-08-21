@@ -16,6 +16,7 @@ public actor RealtimeWSTransport: VoiceTransport {
     nonisolated private let pipe = EventPipe()
     private var socket: (any RealtimeSocketing)?
     private var pump: Task<Void, Never>?
+    private var closingExplicitly = false
 
     public init(connector: any RealtimeConnecting = URLSessionRealtimeConnector()) {
         self.connector = connector
@@ -38,6 +39,7 @@ public actor RealtimeWSTransport: VoiceTransport {
             }
         }
 
+        closingExplicitly = false
         await teardown(finishStream: false)
         if pipe.isFinished { pipe.reset() }
         let connected: any RealtimeSocketing
@@ -96,11 +98,17 @@ public actor RealtimeWSTransport: VoiceTransport {
         pump = nil
         let old = socket
         socket = nil
+        // FIX 1: Emit server error event before finishing stream so session can detect failure.
+        // But only if this was an unexpected failure, not an explicit close().
+        if !closingExplicitly {
+            pipe.yield(.serverError("connection lost"))
+        }
         pipe.finish()
         await old?.close()
     }
 
     private func teardown(finishStream: Bool) async {
+        closingExplicitly = true
         pump?.cancel()
         let oldPump = pump
         pump = nil

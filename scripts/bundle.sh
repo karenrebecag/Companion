@@ -42,13 +42,22 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# A stable identity keeps TCC grants across rebuilds; ad-hoc re-prompts every
-# time. Create one with Keychain Access > Certificate Assistant (Wave 5).
+# A stable identity keeps TCC grants across rebuilds; ad-hoc makes macOS treat
+# every build as a new app and silently drop the microphone grant, which shows
+# up as "mic input format is 0 Hz". Create it with scripts/make-signing-cert.sh.
 SIGN="-"
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "Companion Dev"; then
     SIGN="Companion Dev"
 fi
-codesign --force --sign "$SIGN" "$APP" >/dev/null 2>&1 || true
+if ! codesign --force --sign "$SIGN" "$APP" 2>/tmp/companion-codesign.err; then
+    echo "codesign falló con '$SIGN':" >&2
+    cat /tmp/companion-codesign.err >&2
+    exit 1
+fi
+if [ "$SIGN" = "-" ]; then
+    echo "aviso: firma ad-hoc — los permisos de micrófono se pierden en cada" >&2
+    echo "       rebuild. Corre scripts/make-signing-cert.sh una vez." >&2
+fi
 
 echo "built $APP (signed: $SIGN)"
-echo "run: open $APP    logs: ~/Library/Logs/Companion.log"
+echo "run: open $APP    logs: ~/Library/Logs/CompanionNext.log"

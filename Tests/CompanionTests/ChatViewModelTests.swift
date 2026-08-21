@@ -442,29 +442,6 @@ import Testing
     }
 }
 
-// Async on purpose: under swift test the body already runs inside a main-queue
-// job, so RunLoop pumping cannot drain further main-actor tasks (non-reentrant).
-@MainActor func pumpUntil(
-    _ label: String, timeout: TimeInterval = 2,
-    sourceLocation: SourceLocation = #_sourceLocation, _ pred: () -> Bool
-) async {
-    let deadline = Date().addingTimeInterval(timeout)
-    while !pred(), Date() < deadline {
-        await Task.yield()
-        try? await Task.sleep(nanoseconds: 2_000_000)
-    }
-    expect(pred(), label, sourceLocation: sourceLocation)
-}
-
-/// Give stray (e.g. cancelled) main-actor tasks a moment to run.
-@MainActor func settle(_ seconds: TimeInterval = 0.05) async {
-    let deadline = Date().addingTimeInterval(seconds)
-    while Date() < deadline {
-        await Task.yield()
-        try? await Task.sleep(nanoseconds: 2_000_000)
-    }
-}
-
 @MainActor func awaitMain(_ body: @escaping @MainActor () async -> Void) async {
     await body()
 }

@@ -15,6 +15,7 @@ final class RealtimeRuntime: @unchecked Sendable {
     var didBecomeReady = false
     private var pendingUpdate: String?
     private var voiceSent = false
+    private var transportDown = false
 
     init(
         transport: any VoiceTransport,
@@ -31,6 +32,7 @@ final class RealtimeRuntime: @unchecked Sendable {
         didBecomeReady = false
         pendingUpdate = nil
         voiceSent = false
+        transportDown = false
     }
 
     func prepareSessionUpdate(config: Config, history: [Turn]) {
@@ -51,10 +53,15 @@ final class RealtimeRuntime: @unchecked Sendable {
     }
 
     func send(_ json: String) async {
+        // One dead socket used to produce a log line per audio frame — ten per
+        // second of pure noise. Once the transport is down, stop pushing until
+        // a new session resets this.
+        guard !transportDown else { return }
         do {
             try await transport.send(json)
         } catch {
-            Log.app("voice: realtime send failed")
+            transportDown = true
+            Log.app("voice: realtime send failed (\(error)); pausing sends")
         }
     }
 
@@ -99,6 +106,7 @@ final class RealtimeRuntime: @unchecked Sendable {
         _ event: RealtimeEvent,
         state: TurnState
     ) async -> [TurnEvent] {
+        Log.app("voice: server \(event.traceName)")
         switch event {
         case .sessionCreated:
             await flushPendingUpdate()
@@ -142,7 +150,9 @@ final class RealtimeRuntime: @unchecked Sendable {
             }
             return []
         case .ignored:
-            Log.app("voice: ignored realtime event")
+            return []
+        case .unknown:
+            // FIX 5: Unknown events are logged with type name via traceName, not generic "ignored".
             return []
         }
     }

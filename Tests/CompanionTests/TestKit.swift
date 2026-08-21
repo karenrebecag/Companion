@@ -45,3 +45,23 @@ final class AsyncBox<T: Sendable>: @unchecked Sendable {
     case .failure(let error): throw error
     }
 }
+
+@MainActor func pumpUntil(
+    _ label: String, timeout: TimeInterval = 2,
+    sourceLocation: SourceLocation = #_sourceLocation, _ pred: () -> Bool
+) async {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !pred(), Date() < deadline {
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 2_000_000)
+    }
+    expect(pred(), label, sourceLocation: sourceLocation)
+}
+
+@MainActor func settle(_ seconds: TimeInterval = 0.05) async {
+    let deadline = Date().addingTimeInterval(seconds)
+    while Date() < deadline {
+        await Task.yield()
+        try? await Task.sleep(nanoseconds: 2_000_000)
+    }
+}

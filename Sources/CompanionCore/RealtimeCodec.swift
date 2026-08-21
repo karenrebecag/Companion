@@ -8,8 +8,12 @@ public enum RealtimeEvent: Sendable, Equatable {
     case assistantTranscriptDone(String)
     case audioDelta(Data)
     case functionCall(name: String, arguments: String, callId: String)
-    case responseDone, serverError(String), ignored
+    case responseDone, serverError(String)
     case agentAudioStarted, agentAudioStopped
+    // FIX 5: Preserve unknown event type names for observability, not just generic .ignored.
+    case unknown(String)
+    // Deprecated: kept for backward compatibility during migration.
+    case ignored
 }
 
 public enum RealtimeCodec: Sendable {
@@ -58,7 +62,8 @@ public enum RealtimeCodec: Sendable {
             let err = obj["error"] as? [String: Any]
             return .serverError(err?["message"] as? String ?? "error del servidor")
         default:
-            return .ignored
+            // FIX 5: Preserve unknown type name for observability.
+            return .unknown(type)
         }
     }
 
@@ -168,5 +173,28 @@ private func turnDetectionJSON(_ detection: TurnDetection) -> [String: Any] {
         return ["type": "server_vad", "silence_duration_ms": ms]
     case .semanticVAD(let eagerness):
         return ["type": "semantic_vad", "eagerness": eagerness.rawValue]
+    }
+}
+
+extension RealtimeEvent {
+    /// Short label for the turn trace; never includes transcripts or audio.
+    public var traceName: String {
+        switch self {
+        case .sessionCreated: "session.created"
+        case .sessionUpdated: "session.updated"
+        case .speechStarted: "speech.started"
+        case .speechStopped: "speech.stopped"
+        case .userTranscript: "user.transcript"
+        case .assistantTranscriptDelta: "assistant.delta"
+        case .assistantTranscriptDone: "assistant.done"
+        case .audioDelta(let data): "audio.delta \(data.count)B"
+        case .agentAudioStarted: "audio.started"
+        case .agentAudioStopped: "audio.stopped"
+        case .responseDone: "response.done"
+        case .functionCall: "function.call"
+        case .serverError(let message): "server.error \(message)"
+        case .ignored: "ignored"
+        case .unknown(let typeName): "unknown(\(typeName))"
+        }
     }
 }

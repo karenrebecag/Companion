@@ -21,7 +21,10 @@ open build/Companion.app
 
 Voice needs the bundle: macOS only prompts for microphone and speech access
 when the binary carries the matching usage descriptions in an Info.plist.
-Signing is ad-hoc for now, so those grants reset on each rebuild (Wave 5).
+
+Run `scripts/make-signing-cert.sh` once. Without a stable signing identity
+every rebuild is a different app to macOS, so it silently drops the
+microphone grant and the mic starts reporting 0 Hz.
 
 ## Documents
 
