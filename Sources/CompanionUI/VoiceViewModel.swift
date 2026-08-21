@@ -26,12 +26,18 @@ public final class VoiceViewModel {
     public init(
         voice: any VoiceControlling,
         thread: any ConversationPresenting,
-        outputRoute: (any OutputRouteObserving)? = nil
+        outputRoute: (any OutputRouteObserving)? = nil,
+        onSnapshot: (@Sendable (TurnSnapshot) -> Void)? = nil
     ) {
         self.voice = voice
         self.thread = thread
         self.outputRoute = outputRoute
+        self.onSnapshot = onSnapshot
     }
+
+    /// External observers (ambience) tap here: the snapshot stream has one
+    /// consumer and must not be iterated twice.
+    private let onSnapshot: (@Sendable (TurnSnapshot) -> Void)?
 
     private let outputRoute: (any OutputRouteObserving)?
 
@@ -87,6 +93,7 @@ public final class VoiceViewModel {
     }
 
     private func apply(_ snap: TurnSnapshot) async {
+        onSnapshot?(snap)
         let previous = snapshot
         snapshot = snap
 

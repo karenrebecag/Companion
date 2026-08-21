@@ -140,9 +140,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             thread: model,
             configProvider: configProvider,
             jobs: jobRunner)
+        let ambience = AmbienceObserver(
+            sound: ThinkingSound(),
+            isEnabled: { ThinkingSoundPref.enabled })
         let voice = VoiceViewModel(
             voice: session, thread: model,
-            outputRoute: AudioOutputWatcher())
+            outputRoute: AudioOutputWatcher(),
+            onSnapshot: { ambience.observe($0.state) })
         self.voice = voice
 
         // Preview uses the chat audio endpoint, never the realtime session.

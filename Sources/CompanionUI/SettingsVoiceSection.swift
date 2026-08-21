@@ -63,6 +63,16 @@ struct SettingsVoiceSection: View {
                     .textFieldStyle(.roundedBorder)
             }
 
+            Toggle(isOn: Binding(
+                get: { ThinkingSoundPref.enabled },
+                set: { ThinkingSoundPref.enabled = $0 })
+            ) {
+                Text("Sonido al pensar")
+                    .font(.uiLabel)
+                    .foregroundStyle(Semantic.foreground)
+            }
+            .toggleStyle(.switch)
+
             Toggle(isOn: aecBinding) {
                 VStack(alignment: .leading, spacing: Space.x1) {
                     Text("Cancelación de eco")

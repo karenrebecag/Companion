@@ -107,3 +107,13 @@ public enum InterfaceSound {
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
 }
+
+/// Whether the thinking phase carries its background chord.
+public enum ThinkingSoundPref {
+    nonisolated private static let key = "companion.thinkingSound"
+
+    nonisolated public static var enabled: Bool {
+        get { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}
