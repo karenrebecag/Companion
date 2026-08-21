@@ -1,6 +1,7 @@
 # Wave 6b — Design systems engineering
 
-**Estado: EN CURSO** — 2026-08-21. 6a y 6c cerradas. Pieza 1: fundaciones.
+**Estado: EN CURSO** — pieza 1 (fundaciones) despachada 2026-08-21.
+Ejecucion por piezas: ver "Ordenes W5-1 a W5-5" al final. — 2026-08-21. 6a y 6c cerradas. Pieza 1: fundaciones.
 
 ## Principio rector (decision de producto, 2026-08-21)
 
@@ -154,3 +155,98 @@ verde; `docs/design-system.md` al dia; veredicto visual de Karen.
 4. Dropdown blur nativo, no Pow.
 5. Tokenizador en Core, paleta en UI.
 6. NOTICE atribuye el orb.
+
+---
+
+# Ordenes W5-1 a W5-5 (ejecutables por agentes)
+
+Cada orden = un prompt. Se dan EN ORDEN: todas tocan `Sources/CompanionUI/`
+y pisarse seria peor que ir en serie. Entre orden y orden: verificar los
+greps del reporte, gates verdes, commit scoped, push.
+
+## Estado medido antes de empezar (2026-08-21)
+
+| Aspecto | Hoy | Objetivo |
+|---|---|---|
+| Controles del sistema sin estilo | 12 | 0 en Ajustes y onboarding |
+| Dropdown propio | no existe (5a lo simplifico) | de vuelta, con motion |
+| Resaltado de sintaxis | no existe | portado, dos temas |
+| Tipografias | ni carpeta Assets | Inter empaquetada + locales |
+| Elevacion | 1 sombra suelta | escala tokenizada claro/oscuro |
+| Orb | 161 lineas planas | cuatro capas del prototipo |
+| Paddings magicos | 0 | 0, con gate que lo garantice |
+
+## Deuda de criterio que estas ordenes revierten
+
+En el kickoff de 5a se acepto cambiar el selector propio del prototipo por
+`Menu` del sistema "para avanzar". Fue exactamente la simplificacion con
+perdida visual que el principio rector prohibe. W5-2 la revierte; queda
+anotado para que no se repita el patron de cambiar craft por velocidad.
+
+## W5-1 — Fundaciones (EN CURSO)
+
+Tipografia empaquetada y registrada al arrancar (Inter con su OFL; las
+propietarias solo si estan instaladas, con degradacion), elevacion/radios/
+strokes tokenizados con variante oscura, estados derivados de los roles,
+contraste AA verificado por test que FALLA bajo 4.5:1, y gate de spacing.
+
+## W5-2 — Componentes con craft
+
+Referencias: prototipo `Sources/{Dropdown,Shimmer,Halftone,Icons}.swift`.
+
+- **Dropdown propio**: panel anclado con motion de entrada/salida, hover
+  states, check en el activo, cierre por click fuera y por Escape,
+  navegacion con flechas. Reemplaza `SettingsItem` en TODOS sus usos
+  (apariencia, voz, ejecutor).
+- **Botones**: jerarquia primaria / secundaria / destructiva / ghost, con
+  los cuatro estados de W5-1 y focus ring visible (accesibilidad por
+  teclado).
+- **Campos de texto**: estilo propio con estados y error integrado; hoy
+  onboarding y ajustes usan `.roundedBorder` del sistema.
+- **Toggles y sliders**: envoltura propia consistente con lo anterior (o
+  restyle del nativo si se ve igual de bien — criterio: que no desentonen).
+- **Shimmer**: brillo sobre el texto de estado mientras piensa.
+- **Halftone**: la textura de identidad donde aporte (onboarding, fondo de
+  tarjeta), sutil, sin robar protagonismo.
+- **Iconografia**: SF Symbols con pesos y escalas tokenizados.
+
+Tests: lo puro (estado -> variante, decision de cierre del dropdown,
+navegacion por teclado). Las vistas no se instancian.
+
+## W5-3 — Resaltado de sintaxis
+
+Portar `../companion/Sources/Syntax.swift`: tokenizador propio por familia de
+lenguaje (Swift, Python, JS, JSON, shell, markdown), SIN dependencias, a
+**Core** (puro y testeable). La paleta y el `AttributedString` quedan en UI,
+con colores desde los roles semanticos y ambos temas. Los tests del
+prototipo (`testSyntax*` si existen) se portan como caracterizacion; si no,
+escribir casos por familia: keywords, strings con escapes, comentarios de
+linea y bloque, numeros, y texto sin lenguaje conocido (degrada a plano).
+Cablear en `MarkdownView` donde hoy el bloque de codigo va gris.
+
+## W5-4 — Orb rico
+
+Portar el enfoque de `../companion/Sources/vendor/` (MIT, atribuir en
+NOTICE.md; es SwiftUI puro — el ADR 003 se mantiene, nada de Rive):
+capas de blob ondulante, glow rotatorio, particulas y sombra realista,
+moduladas por el estado y los niveles que `OrbAppearance` ya decide. Anadir
+microrespuesta al press con el spring del sistema de motion. Mantener el
+respeto a reduce-motion y ampliar `OrbAppearanceTests` con las capas nuevas.
+Cuidar el coste: el orb no puede costar frames en una ventana con el hilo
+corriendo.
+
+## W5-5 — Motion coreografiado + documentacion viva
+
+- Stagger en la aparicion de mensajes y tarjetas; transicion de la hoja de
+  ajustes y de los popovers; microinteracciones de boton (press/release).
+  Todo con las duraciones de `Motion.swift`, respetando reduce-motion.
+- `docs/design-system.md`: fundaciones (color, tipografia, espaciado,
+  elevacion, motion) y catalogo de componentes con sus estados y donde se
+  usan. Regla en CONTRIBUTING: componente nuevo entra con su seccion.
+
+## Cierre de W5
+
+Gates verdes + CHANGELOG + spec 6b CERRADA + ROADMAP. Y entonces la unica
+prueba que importa aqui: **Karen abre la app y da su veredicto visual**. Si
+algo no esta al nivel, se anota y se itera — el criterio es su ojo, no los
+tests.
