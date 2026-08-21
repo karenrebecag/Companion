@@ -42,6 +42,13 @@ comportamiento.
   notarizacion, updates (Sparkle), docs publicos en ingles, guia de
   contribucion. **Hito: distribuible open source.**
 
+- **Wave 6 — Paridad y craft** (specs 6a/6b/6c): cierra la brecha medida
+  contra el prototipo. 6a: menu de aplicacion, adjuntos, avisos y
+  actualizaciones (ADR 002). 6b: design systems engineering — la UI es
+  central; la simplificacion solo vale donde no haya perdida visual. 6c: voz
+  configurable (criterio de turno, velocidad, AEC re-armable) y presencia
+  sonora. **Hito: el rebuild iguala o supera al prototipo en uso diario.**
+
 ## Reglas transversales
 
 - Todo opcional degrada: sin Claude Code la app esta completa; sin red, la
