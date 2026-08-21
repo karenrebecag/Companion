@@ -7,6 +7,34 @@ import Testing
     testShortcutCoding()
     testShortcutConflictDetection()
     testDefaultShortcuts()
+    testResolveShortcutMatch()
+    testResolveShortcutNoMatch()
+    testResolveShortcutTextFieldFocused()
+}
+
+@MainActor func testResolveShortcutMatch() {
+    let set = ShortcutSet(shortcuts: [
+        Shortcut(action: .toggleVoice, keyCode: 49, modifiers: KeyModifiers(command: true, option: true))
+    ])
+    let action = ShortcutResolver.resolve(keyCode: 49, modifiers: KeyModifiers(command: true, option: true), in: set)
+    expectEq(action, .toggleVoice, "resolves matching shortcut")
+}
+
+@MainActor func testResolveShortcutNoMatch() {
+    let set = ShortcutSet(shortcuts: [
+        Shortcut(action: .toggleVoice, keyCode: 49, modifiers: KeyModifiers(command: true, option: true))
+    ])
+    let action = ShortcutResolver.resolve(keyCode: 50, modifiers: KeyModifiers(command: true), in: set)
+    expect(action == nil, "returns nil for non-matching keyCode")
+}
+
+@MainActor func testResolveShortcutTextFieldFocused() {
+    let set = ShortcutSet(shortcuts: [
+        Shortcut(action: .toggleVoice, keyCode: 49, modifiers: KeyModifiers(command: true, option: true))
+    ])
+    // When a text field is focused, shortcuts should not resolve
+    let action = ShortcutResolver.resolve(keyCode: 49, modifiers: KeyModifiers(command: true, option: true), in: set, textFieldFocused: true)
+    expect(action == nil, "returns nil when text field is focused")
 }
 
 @MainActor func testShortcutCoding() {

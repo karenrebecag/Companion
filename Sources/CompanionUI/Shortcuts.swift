@@ -153,6 +153,29 @@ public struct ShortcutSet: Codable {
     }
 }
 
+// MARK: - Shortcut resolution (pure logic)
+
+public enum ShortcutResolver {
+    /// Resolve a keyboard event to a shortcut action.
+    /// Returns nil if no match is found or if a text field is focused.
+    public static func resolve(
+        keyCode: UInt16,
+        modifiers: KeyModifiers,
+        in set: ShortcutSet,
+        textFieldFocused: Bool = false
+    ) -> ShortcutAction? {
+        // Text fields win: do not fire shortcuts when typing.
+        guard !textFieldFocused else { return nil }
+
+        for shortcut in set.shortcuts {
+            if shortcut.keyCode == keyCode && shortcut.modifiers == modifiers {
+                return shortcut.action
+            }
+        }
+        return nil
+    }
+}
+
 // MARK: - Display constants for key code names
 
 private let keyCodeNames: [UInt16: String] = [

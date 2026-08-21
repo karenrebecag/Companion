@@ -6,6 +6,7 @@ public struct CompanionRootView: View {
     var voice: VoiceViewModel
     private let voicePreview: VoicePreview?
     @State private var showSettings = false
+    @State private var keyboardMonitor: KeyboardMonitor?
 
     public init(
         chat: ChatViewModel,
@@ -46,6 +47,25 @@ public struct CompanionRootView: View {
         .onAppear {
             chat.onAppear()
             voice.onAppear()
+
+            // Install keyboard monitor for shortcuts.
+            let shortcuts = ShortcutSet.load()
+            let monitor = KeyboardMonitor(shortcuts: shortcuts) { @MainActor action in
+                switch action {
+                case .toggleVoice:
+                    if voice.isActive {
+                        voice.hangUp()
+                    } else {
+                        voice.start()
+                    }
+                case .toggleMute:
+                    voice.toggleMute()
+                case .hangUp:
+                    voice.hangUp()
+                }
+            }
+            monitor.start()
+            keyboardMonitor = monitor
         }
         // Settings sheet
         .sheet(isPresented: $showSettings) {

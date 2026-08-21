@@ -14,6 +14,15 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 - Onboarding que explica que necesita y por que, con enlace a donde se
   obtiene la clave y errores que dicen que hacer.
 
+- Tarjetas en el hilo: mapas, galerias de imagenes y fuentes con sus enlaces;
+  si el contenido viene mal formado se muestra como bloque de codigo en vez
+  de romper la conversacion.
+- Atajos de teclado reasignables, con la regla de que escribir gana: si estas
+  en un campo de texto, la tecla escribe en vez de disparar el atajo.
+- Distribucion: script de release que firma y notariza (o avisa que la build
+  va sin firmar), y CI que corre las mismas comprobaciones en cada PR.
+- Licencia MIT, NOTICE y guia de contribucion.
+
 ### Changed
 - Las animaciones usan duraciones nombradas y respetan la preferencia de
   reducir movimiento del sistema.

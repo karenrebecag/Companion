@@ -6,6 +6,7 @@ public struct SettingsView: View {
     private let preview: VoicePreview?
     @State private var ownerName = UserProfile.ownerName
     @State private var voice = VoiceProfile.stored
+    @State private var shortcuts = ShortcutSet.load()
 
     public init(preview: VoicePreview? = nil) {
         self.preview = preview
@@ -129,6 +130,31 @@ public struct SettingsView: View {
                     }
                     .padding(.vertical, Space.x4)
                     .padding(.horizontal, Space.x4)
+
+                    Divider()
+                        .foregroundStyle(Semantic.border)
+
+                    // Atajos de teclado
+                    VStack(alignment: .leading, spacing: Space.x3) {
+                        Text("ATAJOS")
+                            .typeEyebrow()
+
+                        if !shortcuts.shortcuts.isEmpty {
+                            VStack(alignment: .leading, spacing: Space.x2) {
+                                ForEach(Array(shortcuts.shortcuts.enumerated()), id: \.offset) { _, shortcut in
+                                    shortcutRow(shortcut)
+                                }
+                            }
+                        }
+
+                        if !shortcuts.hasConflicts().isEmpty {
+                            Text("Hay conflictos entre atajos")
+                                .font(.uiCaption)
+                                .foregroundStyle(Semantic.destructive)
+                        }
+                    }
+                    .padding(.vertical, Space.x4)
+                    .padding(.horizontal, Space.x4)
                 }
             }
         }
@@ -138,6 +164,20 @@ public struct SettingsView: View {
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "desconocida"
+    }
+
+    private func shortcutRow(_ shortcut: Shortcut) -> some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            HStack {
+                Text(shortcut.action.label)
+                    .font(.uiLabel)
+                    .foregroundStyle(Semantic.foreground)
+                Spacer()
+                Text(shortcut.displayKey())
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+            }
+        }
     }
 }
 

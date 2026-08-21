@@ -9,12 +9,12 @@
 | 2 | Chat vertical | CERRADA (2026-08-20) | **App usable solo con una API key** |
 | 3 | Voz | APROBADO / EN CURSO | **Conversacion por voz con barge-in** |
 | 4 | Delegacion | 4a CERRADA (2026-08-21) | **Especialista integrado sin instalar nada** |
-| 5 | Producto | Spec BORRADOR | **Distribuible open source** |
+| 5 | Producto | 5a/5b/5d/5e CERRADAS | **Distribuible open source** |
 
 ## Foco actual
 
-Wave 5a: tokens con tema oscuro, motion, onboarding pulido y ajustes con
-preview de voz. La tanda 4b (adapters de CLI) queda para despues de v1.
+Pendiente: 5c (orb en SwiftUI), la tanda 4b (adapters de Claude Code y
+Hermes) y la prueba manual de Karen sobre delegacion y tarjetas.
 
 ## Deuda consciente (con trigger)
 

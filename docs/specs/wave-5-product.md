@@ -1,6 +1,6 @@
 # Wave 5 — Producto
 
-**Estado: 5a CERRADA** — 2026-08-21. Tokens con tema oscuro, motion,
+**Estado: 5a, 5b, 5d y 5e CERRADAS** (falta 5c, el orb) — 2026-08-21. Tokens con tema oscuro, motion,
 onboarding pulido, ajustes (perfil, apariencia, voz con preview) y atajos.
 Las decisiones **[DECIDIR]** siguen abiertas: no bloquean 5a.
 
@@ -99,3 +99,24 @@ Correcciones sobre lo entregado por el agente:
 Pendiente para 5b+: cablear los atajos a eventos reales de teclado (hoy el
 modelo existe y esta probado, pero nada lo escucha), tarjetas ricas, orb,
 distribucion y docs publicos.
+
+## Cierre de 5b, 5d y 5e (2026-08-21)
+
+- **5b — tarjetas**: mapa, galeria y fuentes se renderizan desde el hilo; un
+  bloque con JSON invalido degrada a bloque de codigo. Las fuentes salen de
+  la prosa y se muestran como enlaces, sin duplicar la seccion.
+- **Atajos** (deuda de 5a): monitor de teclado instalado desde la ventana,
+  cableado al ViewModel de voz, y con la regla de que escribir en un campo de
+  texto gana sobre el atajo. Seccion de atajos en Ajustes.
+- **5d — distribucion**: CI que corre las mismas gates, script de release que
+  firma y notariza cuando hay credenciales y degrada avisando cuando no,
+  entitlements minimos, y docs/DISTRIBUTION.md.
+- **5e — open source**: licencia MIT, NOTICE (el proyecto no lleva codigo de
+  terceros) y CONTRIBUTING que exige demostrar el cableado y leer el ledger
+  antes de tocar audio.
+
+Correccion sobre lo entregado: `SourcesCard` quedaba construida pero sin que
+nadie la instanciara (decimo caso del patron del repo); cableada al render de
+mensajes.
+
+Pendiente: 5c (orb en SwiftUI, ADR 003) y la prueba manual de Karen.
