@@ -43,7 +43,9 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
     public init(
         echoCancellation: Bool = false,
         access: @escaping @Sendable () async -> Bool = {
-            await AVCaptureDevice.requestAccess(for: .audio)
+            let ok = await AVCaptureDevice.requestAccess(for: .audio)
+            Log.app("audio: mic permission \(ok ? "granted" : "DENIED")")
+            return ok
         },
         watchdogDelay: TimeInterval = 1.5,
         sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { interval in
@@ -64,7 +66,32 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
     public func requestAccess() async -> Bool { await access() }
 
     public func start() async throws {
-        try startOnce(allowRetry: true)
+        do {
+            try startOnce()
+        } catch VoiceTransportError.unreachable where voiceProcessing {
+            try await retryWithoutVP()
+        }
+    }
+
+    /// Ported from the prototype's Mic.retryWithoutVP, its most expensive
+    /// scar: VPIO tears its aggregate device down ASYNCHRONOUSLY, the HAL
+    /// reports 0 Hz meanwhile, and an engine that saw 0 Hz keeps it forever.
+    /// Probe with a fresh engine each time, up to ~2 s, before giving up.
+    private func retryWithoutVP() async throws {
+        Log.app("audio: retrying without echo cancellation")
+        vetoVoiceProcessing = true
+        voiceProcessing = false
+        muteMixer = nil
+        engine = nil
+        var waited = 0
+        while waited < 20 {
+            let probe = AVAudioEngine()
+            if probe.inputNode.inputFormat(forBus: 0).sampleRate > 0 { break }
+            waited += 1
+            try await sleep(0.1)
+        }
+        Log.app("audio: HAL back after \(waited * 100) ms")
+        try startOnce()
     }
 
     public func stop() async { halt() }
@@ -77,23 +104,16 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
         engine = nil
     }
 
-    private func startOnce(allowRetry: Bool) throws {
+    private func startOnce() throws {
         didReceive = false
         prepareEngine()
         guard let engine else { throw VoiceTransportError.unreachable }
         let input = engine.inputNode
         let format = input.inputFormat(forBus: 0)
+        Log.app("audio: mic start vp=\(voiceProcessing) "
+                + "format=\(Int(format.sampleRate))Hz ch=\(format.channelCount)")
         guard format.sampleRate > 0 else {
-            if allowRetry && voiceProcessing {
-                vetoVoiceProcessing = true
-                halt()
-                voiceProcessing = false
-                muteMixer = nil
-                self.engine = nil
-                try startOnce(allowRetry: false)
-                return
-            }
-            Log.app("audio: mic input format is 0 Hz")
+            Log.app("audio: mic input format is 0 Hz — graph unusable")
             throw VoiceTransportError.unreachable
         }
 
@@ -116,15 +136,7 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
             try engine.start()
         } catch {
             halt()
-            if allowRetry && voiceProcessing {
-                vetoVoiceProcessing = true
-                voiceProcessing = false
-                muteMixer = nil
-                self.engine = nil
-                try startOnce(allowRetry: false)
-                return
-            }
-            Log.app("audio: mic engine start failed")
+            Log.app("audio: mic engine start failed: \(error)")
             throw VoiceTransportError.unreachable
         }
         running = true
@@ -155,15 +167,20 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
 
         watchdogRetryCount += 1
         Log.app("audio: watchdog triggered, disabling Voice Processing and retrying")
-        await disableVoiceProcessing()
+        halt()
         do {
-            try startOnce(allowRetry: false)
+            // Same path as a failed start: vetoing VPIO tears the aggregate
+            // device down asynchronously, so the retry must wait for the HAL.
+            try await retryWithoutVP()
         } catch {
             Log.app("audio: watchdog retry failed")
         }
     }
 
     private func handleTap(_ buffer: AVAudioPCMBuffer) {
+        if !didReceive {
+            Log.app("audio: first mic buffer (\(buffer.frameLength) frames)")
+        }
         didReceive = true
         guard running else { return }
         guard let pcm = encoderBox.encode(buffer) else { return }

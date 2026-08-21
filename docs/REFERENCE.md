@@ -11,6 +11,21 @@ repo original.
   Watchdog de 1.5 s: si no llego ni un buffer, apagar Voice Processing y
   reintentar una vez (`RealtimeWiring.swift:306-318`). Sin backoff en el
   original; el rebuild debe limitar reintentos.
+- **El reintento sin VPIO debe ESPERAR al HAL** (`Hermes.swift
+  retryWithoutVP`, la parte que este ledger omitio y costo tres iteraciones
+  en Wave 3): VPIO desarma su dispositivo agregado de forma ASINCRONA; el
+  HAL reporta 0 Hz mientras tanto, y un engine que vio 0 Hz se queda con el
+  para siempre. Sondear con un engine FRESCO por intento, hasta ~2 s, antes
+  de rendirse. Reintentar de inmediato = fallo garantizado.
+- VPIO no arranca con cualquier entrada (multicanal/agregada:
+  kAUInitialize -10875) y el fallo deja el engine zombi. El original ademas
+  PERSISTIA el veto entre corridas (`VoiceSettings.aecVetoed`): reintentar
+  VPIO en cada arranque "solo envenena el HAL". El rebuild usa veto
+  in-process; si el 0 Hz reaparece entre lanzamientos, portar la
+  persistencia.
+- Dos instancias con VPIO compiten por el dispositivo: el prototipo se
+  instala como item de login (`install.sh`) y revive al iniciar sesion —
+  cerrar el viejo antes de probar el nuevo.
 - Echo guard: ~350 ms tras audio del agente donde una "interrupcion" se trata
   como eco, no como barge-in (`RealtimeVoice.swift`, `echoGuardUntil`).
 - Con AEC del engine compartido, el player de Realtime se cuelga del engine
