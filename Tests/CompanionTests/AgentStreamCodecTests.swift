@@ -1,7 +1,8 @@
 import CompanionCore
 import Foundation
+import Testing
 
-@MainActor func agentStreamCodecTests() {
+@Test @MainActor func agentStreamCodecTests() {
     testClaudeStreamTurn()
     testClaudeStreamParse()
     testControlRequestParse()

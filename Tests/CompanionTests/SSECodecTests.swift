@@ -1,7 +1,8 @@
 import CompanionCore
 import Foundation
+import Testing
 
-@MainActor func sseCodecTests() {
+@Test @MainActor func sseCodecTests() {
     testTalkDelta()
     testToolCallStreaming()
     testSSEHandoffDelegates()

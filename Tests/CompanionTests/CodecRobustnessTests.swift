@@ -1,7 +1,8 @@
 import CompanionCore
 import Foundation
+import Testing
 
-@MainActor func codecRobustnessTests() {
+@Test @MainActor func codecRobustnessTests() {
     testDeeplyNestedJSON()
     testLargePayloads()
     testUnexpectedTypes()

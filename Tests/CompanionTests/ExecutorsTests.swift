@@ -1,6 +1,7 @@
 import CompanionCore
+import Testing
 
-@MainActor func executorsTests() {
+@Test @MainActor func executorsTests() {
     testExecutorCatalogNativeAlways()
     testExecutorCatalogDetectsOptional()
     testExecutorCatalogSkipsDuplicateDetected()

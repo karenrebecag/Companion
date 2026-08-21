@@ -1,7 +1,8 @@
 import CompanionCore
 import Foundation
+import Testing
 
-@MainActor func markdownTests() {
+@Test @MainActor func markdownTests() {
     testMarkdownBlocks(); testMarkdownTables(); testCompanionBlocks()
     testLocatorPayload(); testReportCut(); testPlainText(); testSources()
     testTurnNumbering()

@@ -1,5 +1,6 @@
 import Foundation
 import CompanionCore
+import Testing
 
 private func drive(_ ep: inout Endpointer, rms: Double,
                    from t0: TimeInterval, to t1: TimeInterval,
@@ -14,7 +15,7 @@ private func drive(_ ep: inout Endpointer, rms: Double,
     return last
 }
 
-@MainActor func endpointingTests() {
+@Test @MainActor func endpointingTests() {
     testEndpointerHablaYSilencioCierra()
     testEndpointerBlipNoCierra()
     testEndpointerRuidoAmbienteCalibra()

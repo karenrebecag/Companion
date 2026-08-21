@@ -84,11 +84,12 @@ check_imports CompanionUI       "AVFoundation|WebKit" \
 
 # -------------------------------------------------------------- Gate 4: tests
 section "Gate 4 — tests"
-out=$(cd "$ROOT" && swift run -q CompanionTests 2>&1)
-if [ $? -eq 0 ]; then
-    pass "tests verdes — $(echo "$out" | tail -1)"
+out=$(cd "$ROOT" && swift test 2>&1)
+rc=$?
+if [ $rc -eq 0 ]; then
+    pass "swift test verde — $(echo "$out" | grep -oE 'with [0-9]+ tests? in [0-9]+ suites?' | tail -1)"
 else
-    fail "tests fallaron:"
+    fail "swift test fallo:"
     echo "$out" | tail -20
 fi
 

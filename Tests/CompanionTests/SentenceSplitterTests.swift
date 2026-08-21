@@ -1,7 +1,8 @@
 import Foundation
 import CompanionCore
+import Testing
 
-@MainActor func sentenceSplitterTests() {
+@Test @MainActor func sentenceSplitterTests() {
     testTakeSentenceStreaming()
     testTakeSentenceNewline()
     testTakeSentenceBoundaries()

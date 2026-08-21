@@ -34,10 +34,7 @@ let package = Package(
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
 
-        // HACK: harness propio como ejecutable. Los Command Line Tools no
-        // incluyen Swift Testing ni XCTest; con Xcode instalado, migrar a
-        // .testTarget + import Testing (la API de TestKit es espejo a proposito).
-        .executableTarget(
+        .testTarget(
             name: "CompanionTests",
             dependencies: ["CompanionCore", "CompanionServices", "CompanionUI"],
             path: "Tests/CompanionTests"

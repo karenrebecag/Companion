@@ -1,6 +1,7 @@
 import CompanionCore
+import Testing
 
-@MainActor func escalationTests() {
+@Test @MainActor func escalationTests() {
     testExecutorPrompt()
     testJobPrompt()
     testPromptPreambulo()

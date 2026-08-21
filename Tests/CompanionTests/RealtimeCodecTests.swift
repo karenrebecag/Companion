@@ -1,7 +1,8 @@
 import CompanionCore
 import Foundation
+import Testing
 
-@MainActor func realtimeCodecTests() {
+@Test @MainActor func realtimeCodecTests() {
     testRealtimeParse()
     testRealtimeSessionUpdate()
     testRealtimeSeed()

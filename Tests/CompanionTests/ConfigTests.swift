@@ -1,6 +1,7 @@
 import CompanionCore
+import Testing
 
-@MainActor func configTests() {
+@Test @MainActor func configTests() {
     testTalkRoute()
     testProviderDefaults()
     testConfigDefaults()

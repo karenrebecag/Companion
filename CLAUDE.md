@@ -27,7 +27,7 @@ referencia `../companion` (solo lectura: se consulta, jamas se edita).
    reproduce, luego el fix. Nunca fix directo.
 4. **Gates verdes antes de cerrar cualquier tarea**: `scripts/gates.sh`
    (build, estatico — secretos/prints/try?/tamanos —, arquitectura por
-   imports, tests via `swift run CompanionTests`).
+   imports, tests via `swift test`).
 5. **Cierre de wave** = changelog + roadmap + spec CERRADO + resumen + stop.
    La siguiente wave no arranca sin OK de Karen.
 
@@ -45,8 +45,8 @@ referencia `../companion` (solo lectura: se consulta, jamas se edita).
 
 ## Entorno de esta Mac
 
-Swift 6.3 con Command Line Tools, SIN Xcode: no hay Swift Testing ni XCTest
-(por eso el harness propio) ni notarytool. Triggers de upgrade en ROADMAP.
+Swift 6.3 con Xcode instalado (xcode-select apunta a Xcode.app): Swift
+Testing y notarytool disponibles. Los tests corren con `swift test`.
 
 ## Idiomas
 
