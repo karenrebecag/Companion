@@ -5,6 +5,19 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.5.0-wave5a] — 2026-08-21
+
+### Added
+- Tema oscuro y color de acento elegible en toda la app.
+- Ajustes: como quieres que te llame, apariencia y voz, con muestra para
+  escuchar cada voz antes de elegirla. Todo sobrevive al reinicio.
+- Onboarding que explica que necesita y por que, con enlace a donde se
+  obtiene la clave y errores que dicen que hacer.
+
+### Changed
+- Las animaciones usan duraciones nombradas y respetan la preferencia de
+  reducir movimiento del sistema.
+
 ## [0.4.0-wave4a] — 2026-08-21
 
 ### Added

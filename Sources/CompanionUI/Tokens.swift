@@ -1,29 +1,53 @@
+import AppKit
 import SwiftUI
 
-/// One semantic ramp. Accent is the brand lime, not an asset catalog color.
-public enum Tokens {
-    public enum Color {
-        public static let bg = SwiftUI.Color(red: 250 / 255, green: 250 / 255, blue: 250 / 255)
-        public static let surface = SwiftUI.Color(red: 1, green: 1, blue: 1)
-        public static let fg = SwiftUI.Color(red: 10 / 255, green: 10 / 255, blue: 10 / 255)
-        public static let muted = SwiftUI.Color(red: 82 / 255, green: 82 / 255, blue: 82 / 255)
-        public static let border = SwiftUI.Color(red: 229 / 255, green: 229 / 255, blue: 229 / 255)
-        public static let accent = SwiftUI.Color(red: 201 / 255, green: 254 / 255, blue: 110 / 255)
-        public static let destructive = SwiftUI.Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255)
-    }
+// MARK: - Extension to NSColor for hex parsing
 
-    public enum Space {
-        public static let s4: CGFloat = 4
-        public static let s8: CGFloat = 8
-        public static let s12: CGFloat = 12
-        public static let s16: CGFloat = 16
-        public static let s24: CGFloat = 24
-    }
-
-    /// Nested `Type` collides with the metatype `Tokens.Type`.
-    public enum Typography {
-        public static let title = Font.system(.title)
-        public static let body = Font.system(.body)
-        public static let caption = Font.system(.caption)
+extension NSColor {
+    static func fromHex(_ hex: String) -> NSColor {
+        var s = hex.trimmingCharacters(in: .whitespaces)
+        if s.hasPrefix("#") { s = String(s.dropFirst()) }
+        let v = UInt64(s, radix: 16) ?? 0
+        return NSColor(calibratedRed: CGFloat((v >> 16) & 0xFF) / 255,
+                       green: CGFloat((v >> 8) & 0xFF) / 255,
+                       blue: CGFloat(v & 0xFF) / 255,
+                       alpha: 1)
     }
 }
+
+// MARK: - Rampa neutral completa con tema oscuro
+/// Cada paso tiene un uso específico: página, superficies, texto, bordes.
+public enum Neutral {
+    public static let n50  = Swatch("FAFAFA")
+    public static let n100 = Swatch("F5F5F5")
+    public static let n150 = Swatch("EFEFEF")
+    public static let n200 = Swatch("E5E5E5")
+    public static let n300 = Swatch("D4D4D4")
+    public static let n400 = Swatch("A3A3A3")
+    public static let n500 = Swatch("737373")
+    public static let n600 = Swatch("525252")
+    public static let n700 = Swatch("404040")
+    public static let n770 = Swatch("2E2E2E")
+    public static let n800 = Swatch("262626")
+    public static let n850 = Swatch("1A1A1A")
+    public static let n870 = Swatch("191919")
+    public static let n900 = Swatch("171717")
+    public static let n950 = Swatch("0A0A0A")
+    public static let white = Swatch("FFFFFF")
+    public static let black = Swatch("000000")
+}
+
+/// Acentos nombrados siguiendo tintes de sistema (Reminders).
+/// El lima es la marca de Companion, no un verde de Apple.
+public enum Accent {
+    public static let lime   = Swatch("C9FE6E")
+    public static let blue   = Swatch("0A84FF")
+    public static let green  = Swatch("30D158")
+    public static let yellow = Swatch("FFD60A")
+    public static let pink   = Swatch("FF375F")
+    public static let orange = Swatch("FF9F0A")
+    public static let purple = Swatch("BF5AF2")
+}
+
+/// Color de énfasis elegible desde Ajustes.
+/// `standard` queda como rawValue para no invalidar lo ya persistido.

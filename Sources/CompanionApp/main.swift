@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     private var model: ChatViewModel?
     private var voice: VoiceViewModel?
+    private var voicePreview: VoicePreview?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -110,6 +111,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let voice = VoiceViewModel(voice: session, thread: model)
         self.voice = voice
 
+        // Preview uses the chat audio endpoint, never the realtime session.
+        let preview = VoicePreview(sampler: TTSVoiceSampler(
+            fetcher: OpenAITTSClient(secrets: secrets, transport: transport),
+            playback: DataSpeechPlayback()))
+        self.voicePreview = preview
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 840),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -119,7 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.maxSize = NSSize(width: 680, height: 1020)
         window.title = "Companion"
         window.contentView = NSHostingView(
-            rootView: CompanionRootView(chat: model, voice: voice))
+            rootView: CompanionRootView(
+                chat: model, voice: voice, voicePreview: preview))
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

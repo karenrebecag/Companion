@@ -1,7 +1,8 @@
 # Wave 5 — Producto
 
-**Estado: BORRADOR REFINADO** — kickoff hecho (planner, 2026-08-21).
-Pendiente aprobacion de Karen y las decisiones marcadas **[DECIDIR]**.
+**Estado: 5a CERRADA** — 2026-08-21. Tokens con tema oscuro, motion,
+onboarding pulido, ajustes (perfil, apariencia, voz con preview) y atajos.
+Las decisiones **[DECIDIR]** siguen abiertas: no bloquean 5a.
 
 ## Objetivo
 
@@ -78,3 +79,23 @@ La prueba manual es parte de la definicion de done, como en Wave 3.
   grafo del microfono (docs/REFERENCE.md, seccion audio).
 - **Alcance**: 5b y 5c son pulido; si el tiempo aprieta, 5a + 5d + 5e ya
   entregan un producto distribuible.
+
+## Cierre de 5a (2026-08-21)
+
+Entregado: rampa de color con tema oscuro y acento elegible, motion con
+duraciones nombradas, onboarding con errores accionables y enlace a la clave,
+hoja de ajustes con perfil / apariencia / voz, preview de voz por el endpoint
+de audio del chat (nunca Realtime, para no rozar el grafo del microfono) y
+modelo de atajos con deteccion de conflictos.
+
+Correcciones sobre lo entregado por el agente:
+- El preview de voz venia sin implementar con el argumento de que faltaban
+  metodos en el ViewModel; en realidad el cliente de audio y el reproductor
+  ya existian desde Wave 3. Implementado con su puerto en Core y probado con
+  un muestreador falso.
+- Los ajustes no tenian perfil ni voz, solo apariencia.
+- Tokens.swift quedo en 445 lineas: partido en rampa y elecciones.
+
+Pendiente para 5b+: cablear los atajos a eventos reales de teclado (hoy el
+modelo existe y esta probado, pero nada lo escucha), tarjetas ricas, orb,
+distribucion y docs publicos.

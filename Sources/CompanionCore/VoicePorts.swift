@@ -92,3 +92,11 @@ public protocol VoiceControlling: Sendable {
 public protocol ReachabilityProbing: Sendable {
     var isOnline: Bool { get async }
 }
+
+
+/// Plays a short sample so settings can preview a voice. Deliberately separate
+/// from VoiceTransport: a preview must never touch a live realtime session or
+/// the microphone graph (see docs/REFERENCE.md, audio section).
+public protocol VoiceSampling: Sendable {
+    func play(_ text: String, voice: VoiceID) async throws
+}

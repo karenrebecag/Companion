@@ -4,10 +4,17 @@ import SwiftUI
 public struct CompanionRootView: View {
     var chat: ChatViewModel
     var voice: VoiceViewModel
+    private let voicePreview: VoicePreview?
+    @State private var showSettings = false
 
-    public init(chat: ChatViewModel, voice: VoiceViewModel) {
+    public init(
+        chat: ChatViewModel,
+        voice: VoiceViewModel,
+        voicePreview: VoicePreview? = nil
+    ) {
         self.chat = chat
         self.voice = voice
+        self.voicePreview = voicePreview
     }
 
     public var body: some View {
@@ -15,17 +22,36 @@ public struct CompanionRootView: View {
             if chat.needsOnboarding {
                 OnboardingView(model: chat)
             } else {
-                ThreadView(chat: chat, voice: voice)
+                ZStack {
+                    ThreadView(chat: chat, voice: voice)
+
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Button(action: { showSettings = true }) {
+                                Image(systemName: "gear")
+                                    .font(.uiBody)
+                                    .foregroundStyle(Semantic.mutedForeground)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(Space.x4)
+                        }
+                        Spacer()
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Tokens.Color.bg)
+        .background(Semantic.background)
         .onAppear {
             chat.onAppear()
             voice.onAppear()
         }
-        // Presented from the real flow: the sheet is the only way to answer,
-        // so a request that never reaches it dies in the auto-deny.
+        // Settings sheet
+        .sheet(isPresented: $showSettings) {
+            SettingsView(preview: voicePreview)
+        }
+        // Approval sheet
         .sheet(item: Binding(
             get: { chat.pendingApproval.map(ApprovalItem.init) },
             set: { if $0 == nil { chat.answerApproval(false) } }

@@ -27,4 +27,7 @@ public enum VoiceCopy {
             return "No hay conexión a internet. Verifica tu red."
         }
     }
+
+    public static let previewFailed =
+        "No se pudo reproducir la muestra. Revisa tu conexión."
 }
