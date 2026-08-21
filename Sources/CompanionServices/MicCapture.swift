@@ -206,6 +206,17 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
         guard want, let engine else { return }
         do {
             try engine.inputNode.setVoiceProcessingEnabled(true)
+            // Pin BOTH VPIO buses to the built-in pair before the unit
+            // initializes: letting it aggregate the system defaults fails
+            // with -10875 when a virtual device (Teams) sits in the chain.
+            if let unit = engine.inputNode.audioUnit,
+               let pair = AudioDevicePin.builtInPair() {
+                let pinned = AudioDevicePin.pin(
+                    unit, input: pair.input, output: pair.output)
+                Log.app("audio: vpio device pin \(pinned ? "ok" : "FAILED")")
+            } else {
+                Log.app("audio: vpio device pin unavailable")
+            }
             tameVoiceProcessing(engine)
             voiceProcessing = true
         } catch {

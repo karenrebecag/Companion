@@ -95,3 +95,26 @@ Anadido fuera del spec: `scripts/bundle.sh` — sin Info.plist con usage
 descriptions macOS no muestra el prompt de microfono, asi que la voz no se
 podia probar desde `swift run`. Gate nuevo vigila que esas claves no se
 pierdan.
+
+## Segunda ronda de prueba manual (2026-08-21, cerrada)
+
+Hallazgos en el hardware de Karen, todos con fix committeado:
+
+1. Sesion zombi: el WS moria y el stream de eventos terminaba SIN error;
+   la sesion quedaba en listening mandando audio al vacio. Ahora: error
+   observable + reconexion unica sembrada + envio que se calla al primer
+   fallo.
+2. VPIO no inicializa en esta maquina (kAUInitialize -10875, dispositivo
+   virtual de Teams en la cadena) y el intento envenenaba el engine simple.
+   Ahora: veto PERSISTENTE (revoca la desviacion 9), espera de HAL con
+   engines frescos, watchdog de silencio a nivel de sesion, y pin de ambos
+   buses del VPIO al par integrado (tecnica documentada por Apple) antes de
+   inicializar.
+3. Salida sin eco (audifonos/bluetooth) habilita frames en .speaking sin
+   AEC: barge-in por voz sin depender de VPIO.
+4. Firma ad-hoc invalidaba TCC en cada rebuild: bundle.sh exige identidad
+   estable y falla ruidoso si codesign falla.
+
+Deuda declarada (post-v1, trigger PROBADO en esta maquina): transporte
+WebRTC con AEC3 por software, el camino primario del prototipo — es la
+solucion de fondo para AEC en Macs donde VPIO no levanta.

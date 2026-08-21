@@ -25,7 +25,9 @@ manual de voz por Karen (bundle + hablar + matar la red a mitad de turno).
 
 ## Despues de v1 (ideas, sin compromiso)
 
-- Transporte WebRTC (AEC3 sin CoreAudio) si el WS + Voice Processing no basta.
+- Transporte WebRTC (AEC3 por software) — **trigger probado 2026-08-21**: en
+  la Mac de Karen VPIO no inicializa (-10875); era el camino primario del
+  prototipo por esta exacta razon. Primera candidata post-v1.
 - SpeechAnalyzer (macOS 26) como STT local de proxima generacion.
 - Servidores MCP como fuente de tools extra del NativeExecutor.
 - Localizacion (la UI nace en espanol; en para contribuir).

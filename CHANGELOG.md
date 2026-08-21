@@ -5,6 +5,30 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.3.1-wave3] — 2026-08-21
+
+### Fixed
+- La caida del WebSocket ya no deja una sesion zombi: error observable,
+  reconexion unica con historial sembrado, y el envio se detiene al primer
+  fallo en vez de insistir en silencio.
+- El microfono sobrevive a Macs donde el AEC de Apple no inicializa
+  (kAUInitialize -10875 con dispositivos virtuales en la cadena): veto
+  persistente, espera del HAL con engines frescos al reintentar, y watchdog
+  de silencio que falla visible en vez de escuchar la nada.
+- El tap interrumpe en vez de colgar; los fallos llegan a pantalla con su
+  razon (incluida "sin conexion", distinguida de "el servidor no contesta"
+  con NWPathMonitor); AVAudioEngine ya no aborta el proceso al arrancar.
+
+### Added
+- Pin de los buses del VPIO al par de dispositivos integrados (tecnica
+  documentada por Apple) para esquivar agregados rotos.
+- Con salida sin eco (audifonos/bluetooth) se envian frames mientras el
+  agente habla: barge-in por voz sin AEC.
+- Trazas del turno de voz (transiciones, eventos del servidor, permiso,
+  formato del mic, primer buffer): esta ronda fue indiagnosticable sin ellas.
+- Firma estable obligatoria en bundle.sh (los permisos TCC sobreviven) e
+  identidad/log propios para convivir con el prototipo instalado.
+
 ## [0.3.0-wave3] — 2026-08-20
 
 ### Added

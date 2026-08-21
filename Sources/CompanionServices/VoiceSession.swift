@@ -28,6 +28,9 @@ public actor VoiceSession: VoiceControlling {
     private let reachability: any ReachabilityProbing
     private let micSilenceTimeout: TimeInterval
     private var micSilenceTask: Task<Void, Never>?
+    /// Sampled once per session open; swapping outputs mid-session keeps the
+    /// conservative value until the next turn.
+    private var echoFreeOutput = false
     private var lastMic = 0.0
     private var lastAgent = 0.0
     private var reconnectAttempted = false
@@ -143,6 +146,8 @@ public actor VoiceSession: VoiceControlling {
     private func openRealtimeSession() async {
         realtime.reset()
         reconnectAttempted = false
+        echoFreeOutput = AudioDevicePin.outputIsEchoFree()
+        if echoFreeOutput { Log.app("audio: echo-free output detected") }
         guard let key = openAIKey() else {
             await failRealtimeStart()
             return
@@ -329,7 +334,10 @@ public actor VoiceSession: VoiceControlling {
             case .classic:
                 await transcriber.append(frame)
             case .realtime:
-                let aec = await mic.hasEchoCancellation
+                // Echo-free output (headphones/bluetooth) is as good as AEC:
+                // there is no room echo to cancel, so the server may hear the
+                // user over the agent and voice barge-in works without VPIO.
+                let aec = await mic.hasEchoCancellation || echoFreeOutput
                 let snap = machine.snapshot
                 guard realtime.shouldForward(
                     frame,
