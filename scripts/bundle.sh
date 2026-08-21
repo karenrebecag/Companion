@@ -99,5 +99,13 @@ if [ "$SIGN" = "-" ]; then
     echo "       rebuild. Corre scripts/make-signing-cert.sh una vez." >&2
 fi
 
-echo "built $APP (signed: $SIGN)"
-echo "run: open $APP    logs: ~/Library/Logs/CompanionNext.log"
+# Install to /Applications: testing always opens THE app, never a stray
+# build. Same path + same bundle id + same identity = TCC grants survive.
+INSTALL="/Applications/Companion.app"
+if rm -rf "$INSTALL" 2>/dev/null && ditto "$APP" "$INSTALL" 2>/dev/null; then
+    echo "built and installed $INSTALL (signed: $SIGN)"
+    echo "run: open $INSTALL    logs: ~/Library/Logs/CompanionNext.log"
+else
+    echo "built $APP (signed: $SIGN) — no pude instalar en /Applications"
+    echo "run: open $APP    logs: ~/Library/Logs/CompanionNext.log"
+fi
