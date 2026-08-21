@@ -67,3 +67,51 @@ smell de scope: para poder infinito ya existen los adapters opcionales.
   auto-deny con timeout (ver ledger).
 - `Brain` deja de ser {fast, hermes, claude} hardcodeado: es una lista de
   ejecutores descubiertos + el nativo.
+
+## ADR 002 — Actualizaciones sin Sparkle
+
+**Fecha:** 2026-08-21 · **Estado:** aceptada
+
+### Contexto
+
+Wave 5 pide actualizaciones. El estandar de facto en macOS es Sparkle, que
+seria la PRIMERA dependencia externa del proyecto.
+
+### Decision
+
+No usar Sparkle. Publicar releases en GitHub y comprobar la version contra la
+API publica de releases (~80 lineas, testeables, sin dependencias).
+
+### Por que
+
+Hoy el repo se clona y compila sin descargar nada de terceros: no hay cadena
+de suministro que auditar ni versiones que mantener al dia. Para una app que
+maneja las llaves de la usuaria y ejecuta comandos en su disco, esa propiedad
+vale mas que la comodidad de las actualizaciones automaticas en segundo plano.
+
+### Consecuencias
+
+La actualizacion no es silenciosa: la app avisa y abre la pagina de la
+release. Si algun dia el proyecto crece hasta necesitar actualizacion
+delta o firmada por EdDSA, se revisa este ADR.
+
+## ADR 003 — El orb en SwiftUI, no en Rive
+
+**Fecha:** 2026-08-21 · **Estado:** aceptada
+
+### Contexto
+
+El prototipo animaba su mascota con Rive: un runtime binario vendoreado que
+pesa entre 8 y 15 MB.
+
+### Decision
+
+Dibujar el orb en SwiftUI puro, portando el enfoque del `WavyBlobView` del
+prototipo.
+
+### Por que
+
+Mismo argumento que el ADR 002 mas el tamano: el DMG de una app que hace voz
+y delegacion no deberia estar dominado por el peso de una animacion. Si en
+algun momento el diseno exige animaciones que SwiftUI no puede dar, se
+reabre.

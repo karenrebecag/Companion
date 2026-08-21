@@ -32,5 +32,19 @@ microphone grant and the mic starts reporting 0 Hz.
 - `docs/PROGRAM.md` — rebuild program (waves)
 - `docs/REFERENCE.md` — behavior ledger from the reference prototype
 
-Status: Wave 3. Paste an OpenAI API key, then talk or type — one thread,
-either way. Delegation to specialists is Wave 4.
+## What works today
+
+- **Voice and text share one thread.** Realtime voice with barge-in (tap
+  anytime; by voice when output is echo-free, such as headphones).
+- **Delegation.** The chat model can hand heavy work to a built-in specialist
+  that reads and writes files, runs commands and searches the web — inside the
+  folder you choose, and asking permission before anything destructive.
+- **Your keys stay yours.** Stored in the Keychain, never in the repo or a
+  dotfile.
+
+## Contributing
+
+See `CONTRIBUTING.md`, and read `docs/REFERENCE.md` before touching audio:
+it holds the behaviour that only shows up on real hardware.
+
+Licensed under MIT.
