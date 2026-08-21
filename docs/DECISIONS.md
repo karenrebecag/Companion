@@ -145,3 +145,25 @@ UNICA dependencia binaria del proyecto y ampliarla exige otro ADR.
   del modulo donde SPM guarda los recursos: el `.riv` se copia a
   `Contents/Resources`.
 - El framework se firma con la misma identidad que la app, antes que ella.
+
+
+## ADR 004 — Deteccion de capacidades ajenas: leer, jamas acoplar
+
+**Contexto.** El prototipo ofrecia 12 modelos, pero las filas de Copilot y
+Grok cableaban en el menu los perfiles OAuth personales de UNA Mac — la
+espaguetizacion que motivo el rebuild. La regla "cero paths a ~/.hermes"
+nacio de ahi. Al restaurar el selector de modelos hizo falta distinguir dos
+cosas que esa regla mezclaba.
+
+**Decision.** Se prohibe el acoplamiento de CONFIGURACION (el producto
+requiere/escribe/asume dotfiles); se permite la DETECCION de solo lectura
+de capacidades de un CLI opcional ya detectado, bajo tres condiciones:
+vive en un unico adapter (`HermesProviderScan`), es read-only, y el
+producto se comporta identico cuando el archivo no existe. Es la misma
+familia que sondear `~/.local/bin` buscando el binario.
+
+**Consecuencia.** El catalogo de especialistas se arma en runtime: tiers de
+claude por alias documentado del CLI (Sonnet por defecto, como el
+claudeWorker del prototipo), y una fila por proveedor que hermes ya tenga
+en su cache de modelos. En una Mac sin CLIs el catalogo queda vacio y solo
+existe el ejecutor nativo (ADR 001 intacto).
