@@ -99,3 +99,32 @@ repo original.
 - Paths hardcodeados a `~/.hermes/*` — en el rebuild todo pasa por Config.
 - Dos sistemas de color (Palette vs Tokens) y dos de timing (Motion vs
   MotionTime): aqui hay UNO de cada uno.
+
+## Cicatrices propias del rebuild (no venian del prototipo)
+
+Descubiertas en prueba manual de Wave 3; ningun test las vio.
+
+- **AVAudioEngine vacio mata el proceso.** `prepare()`/`start()` sobre un
+  engine recien creado, antes de conectar nodos, hace que AVFoundation arme
+  su grafo de I/O por defecto y toque el microfono que el engine del mic ya
+  tiene abierto: lanza una NSException que Swift NO puede capturar y el
+  proceso aborta. Reglas: conectar el grafo ANTES de arrancar, y nunca
+  `prepare()` — `start()` reporta el fallo como error de Swift, del que si se
+  puede degradar (`RealtimePlayer.start`).
+- **Un bundle sin usage descriptions no puede pedir microfono.** `swift run`
+  produce un binario suelto; macOS jamas muestra el prompt. Ver
+  `scripts/bundle.sh` y el gate que lo vigila.
+- **Bundle id compartido con el prototipo.** Con el mismo
+  `com.karen.companion`, LaunchServices abria la app vieja al pedir la nueva.
+  El rebuild usa `com.karen.companion.next` y su propio archivo de log.
+
+## El patron de bug que se repite en este repo
+
+Cuatro veces en Wave 3 aparecio lo mismo: **la logica correcta y testeada,
+sin cablear al camino real.** El watchdog de VP existia y nadie lo llamaba;
+`disableVoiceProcessing()` idem; el barge-in del reducer estaba probado pero
+la vista llamaba `hangUp()`; `VoiceCopy.failure(...)` estaba escrito y nadie
+lo mostraba; `.networkUnavailable` se agrego al enum sin que ningun camino lo
+emitiera. Los tests verdes NO prueban que el cableado exista. Al revisar una
+wave, buscar cada capacidad nueva con grep y confirmar que alguien la invoca
+desde el flujo real.

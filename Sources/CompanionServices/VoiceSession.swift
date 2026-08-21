@@ -159,7 +159,7 @@ public actor VoiceSession: VoiceControlling {
         do {
             try await transport.open(key: key, url: url)
         } catch {
-            await failRealtimeStart()
+            await failRealtimeStart(error)
             return
         }
         startPumps()
@@ -170,8 +170,8 @@ public actor VoiceSession: VoiceControlling {
         }
     }
 
-    private func failRealtimeStart() async {
-        await apply(.voiceStartFailed(.sessionDropped))
+    private func failRealtimeStart(_ error: Error? = nil) async {
+        await apply(.voiceStartFailed(VoiceFailureMapping.failure(for: error)))
         if machine.snapshot.state == .error {
             await apply(.startVoice(preferRealtime: false))
         }

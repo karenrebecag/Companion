@@ -22,9 +22,12 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Companion</string>
-    <key>CFBundleDisplayName</key><string>Companion</string>
-    <key>CFBundleIdentifier</key><string>com.karen.companion</string>
+    <key>CFBundleName</key><string>Companion Next</string>
+    <key>CFBundleDisplayName</key><string>Companion Next</string>
+    <!-- Distinct from the prototype's com.karen.companion: sharing the id
+         makes LaunchServices open whichever app it resolved first. Settle the
+         final id when the prototype is retired (Wave 5). -->
+    <key>CFBundleIdentifier</key><string>com.karen.companion.next</string>
     <key>CFBundleExecutable</key><string>Companion</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.3.0</string>

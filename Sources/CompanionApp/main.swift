@@ -24,9 +24,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let home = FileManager.default.homeDirectoryForCurrentUser
+        // Own log file: the prototype still writes Companion.log, and mixing
+        // both makes voice debugging unreadable. Rename when it is retired.
         Log.configure(
             fileURL: home
-                .appendingPathComponent("Library/Logs/Companion.log"))
+                .appendingPathComponent("Library/Logs/CompanionNext.log"))
 
         let support = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]

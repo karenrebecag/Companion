@@ -23,6 +23,8 @@ public enum VoiceCopy {
             return "No hay un proveedor de voz disponible."
         case .sessionDropped:
             return "La sesión de voz se cayó."
+        case .networkUnavailable:
+            return "No hay conexión a internet. Verifica tu red."
         }
     }
 }

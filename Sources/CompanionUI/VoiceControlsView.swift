@@ -10,7 +10,7 @@ public struct VoiceControlsView: View {
 
     public var body: some View {
         HStack(spacing: Tokens.Space.s8) {
-            Button(voice.isActive ? "Colgar" : "Hablar", action: tapMic)
+            Button(tapLabel, action: tapMic)
                 .font(Tokens.Typography.body)
                 .foregroundStyle(Tokens.Color.fg)
             Button(voice.snapshot.muted ? "Unmute" : "Mute", action: voice.toggleMute)
@@ -25,11 +25,19 @@ public struct VoiceControlsView: View {
         }
     }
 
+    private var tapLabel: String {
+        VoiceTapAction.label(forState: voice.snapshot.state)
+    }
+
     private func tapMic() {
-        if voice.isActive {
-            voice.hangUp()
-        } else {
+        let action = VoiceTapAction.forState(voice.snapshot.state)
+        switch action {
+        case .start:
             voice.start()
+        case .interrupt:
+            voice.advance()
+        case .hangUp:
+            voice.hangUp()
         }
     }
 

@@ -84,7 +84,7 @@ final class ClassicRuntime: @unchecked Sendable {
         } catch {
             Log.app("voice: classic chat failed")
             if !started {
-                await apply(.turnFailed(.noProviders))
+                await apply(.turnFailed(VoiceFailureMapping.failure(for: error)))
                 return
             }
         }
@@ -115,6 +115,8 @@ final class ClassicRuntime: @unchecked Sendable {
             return "No hay un proveedor de voz disponible."
         case .sessionDropped:
             return "La sesión de voz se cayó."
+        case .networkUnavailable:
+            return "Sin conexión a internet. Verifica tu red."
         }
     }
 }

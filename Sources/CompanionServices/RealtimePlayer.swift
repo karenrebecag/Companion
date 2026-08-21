@@ -70,33 +70,43 @@ public actor RealtimePlayer: PCMPlaying {
         graph.node = nil
         graph.engine = nil
 
+        let engine: AVAudioEngine
         if sharedEngine {
             guard let shared = self.sharedEngine(), shared.isRunning else {
                 Log.app("audio: player shared engine not running")
                 throw VoiceTransportError.unreachable
             }
+            engine = shared
             graph.engine = shared
             graph.ownsEngine = false
         } else {
             guard startsEngine else { return }
-            let privateEngine = makeEngine()
-            graph.engine = privateEngine
+            engine = makeEngine()
+            graph.engine = engine
             graph.ownsEngine = true
-            privateEngine.prepare()
-            do {
-                try privateEngine.start()
-            } catch {
-                Log.app("audio: player engine start failed")
-                graph.engine = nil
-                throw VoiceTransportError.unreachable
-            }
         }
 
-        guard let engine = graph.engine else { throw VoiceTransportError.unreachable }
+        // Wire the graph BEFORE starting. Starting an engine with no
+        // connections makes AVFoundation build its default I/O graph, which
+        // touches the input device the mic engine already owns and raises an
+        // ObjC exception Swift cannot catch — the process just dies. Also no
+        // prepare(): it throws that same uncatchable exception, while start()
+        // reports failure as a plain Swift error we can degrade from.
         let node = AVAudioPlayerNode()
         graph.node = node
         engine.attach(node)
         engine.connect(node, to: engine.mainMixerNode, format: Self.format)
+
+        if graph.ownsEngine {
+            do {
+                try engine.start()
+            } catch {
+                Log.app("audio: player engine start failed")
+                graph.node = nil
+                graph.engine = nil
+                throw VoiceTransportError.unreachable
+            }
+        }
         node.volume = volume
         node.play()
         started = true

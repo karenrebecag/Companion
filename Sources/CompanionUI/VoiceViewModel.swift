@@ -59,10 +59,25 @@ public final class VoiceViewModel {
     private func apply(_ snap: TurnSnapshot) async {
         let previous = snapshot
         snapshot = snap
+
+        // Handle pipeline fallback from realtime to classic.
         if previous.pipeline == .realtime, snap.pipeline == .classic {
             statusText = VoiceCopy.fallbackClassic
             await thread.appendStatus(VoiceCopy.fallbackClassic)
-        } else if snap.state == .idle {
+        }
+
+        // Handle error state with a failure reason.
+        if snap.state == .error, let failure = snap.failure {
+            let message = VoiceCopy.failure(failure)
+            // Only update statusText and emit if this is a new error or a different failure reason.
+            if previous.state != .error || previous.failure != failure {
+                statusText = message
+                await thread.appendStatus(message)
+            }
+        }
+
+        // Clear status when returning to idle.
+        if snap.state == .idle {
             statusText = nil
         }
     }
