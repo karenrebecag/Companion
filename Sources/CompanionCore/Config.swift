@@ -157,6 +157,14 @@ public struct ChatSettings: Sendable, Equatable {
     public static let `default` = ChatSettings()
 }
 
+/// Port for reading the current configuration at runtime.
+/// Implementations read from persistent storage (UserPreferences) and
+/// construct the effective Config, allowing voice session preferences to
+/// apply without session reconstruction.
+public protocol ConfigProviding: Sendable {
+    var current: Config { get }
+}
+
 public struct Config: Sendable, Equatable {
     public var chat: ChatSettings
     public var voice: VoiceSettings

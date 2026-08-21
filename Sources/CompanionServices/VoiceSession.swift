@@ -12,7 +12,7 @@ public actor VoiceSession: VoiceControlling {
     private let transcriber: any Transcriber
     private let synthesizer: any SpeechSynthesizer
     private let secrets: any SecretStore
-    private let config: Config
+    private let configProvider: any ConfigProviding
     private let now: @Sendable () -> TimeInterval
     private let readyTimeout: TimeInterval
     private let realtime: RealtimeRuntime
@@ -46,7 +46,7 @@ public actor VoiceSession: VoiceControlling {
         chat: any ChatProvider,
         secrets: any SecretStore,
         thread: any ConversationPresenting,
-        config: Config,
+        configProvider: any ConfigProviding,
         jobs: (any JobSubmitter)? = nil,
         reachability: any ReachabilityProbing = NetworkReachability(),
         // Injectable: a unit test must not depend on which output device the
@@ -65,7 +65,7 @@ public actor VoiceSession: VoiceControlling {
         self.transcriber = transcriber
         self.synthesizer = synthesizer
         self.secrets = secrets
-        self.config = config
+        self.configProvider = configProvider
         self.jobs = jobs
         self.reachability = reachability
         self.echoFreeProbe = echoFreeProbe
@@ -190,6 +190,9 @@ public actor VoiceSession: VoiceControlling {
             await failRealtimeStart()
             return
         }
+        // Read config from provider at session open time, allowing preferences
+        // to apply without session reconstruction.
+        let config = configProvider.current
         realtime.prepareSessionUpdate(
             config: config, history: await classic.thread.historyTurns())
         do {

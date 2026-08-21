@@ -47,15 +47,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let secrets = KeychainSecretStore()
         let transport = URLSessionChatTransport()
         let probe = LiveCapabilityProbe(transport: transport)
-        let first = NSFullUserName()
-            .split(separator: " ").first.map(String.init) ?? ""
-        let config = Config(ownerFirstName: first)
+        let configProvider = StoredConfigProvider(
+            workdir: FileManager.default.homeDirectoryForCurrentUser.path)
+        let config = configProvider.current
         let chat = ChatProviderClient(
             secrets: secrets,
             probe: probe,
             transport: transport,
             settings: config.chat,
-            ownerFirstName: first)
+            ownerFirstName: config.ownerFirstName)
         let store = ConversationStore(directory: support)
 
         // Job execution infrastructure
@@ -135,7 +135,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             chat: chat,
             secrets: secrets,
             thread: model,
-            config: config,
+            configProvider: configProvider,
             jobs: jobRunner)
         let voice = VoiceViewModel(voice: session, thread: model)
         self.voice = voice

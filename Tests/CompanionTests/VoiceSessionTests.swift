@@ -288,6 +288,7 @@ func makeVoiceHarness(
     let secrets = ScriptedSecrets(keys)
     let thread = ScriptedThread()
     let clock = TestClock()
+    let provider = StaticConfigProvider(Config(ownerFirstName: "Karen"))
     let session = VoiceSession(
         transport: transport,
         mic: mic,
@@ -297,7 +298,7 @@ func makeVoiceHarness(
         chat: chat,
         secrets: secrets,
         thread: thread,
-        config: Config(ownerFirstName: "Karen"),
+        configProvider: provider,
         reachability: ScriptedReachability(online),
         echoFreeProbe: { echoFreeOutput },
         micSilenceTimeout: micSilenceTimeout,
@@ -337,6 +338,13 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
         if !voice.isEmpty { return true }
     }
     return false
+}
+
+/// Static provider for tests: wraps a Config that never changes.
+final class StaticConfigProvider: ConfigProviding, @unchecked Sendable {
+    private let config: Config
+    init(_ config: Config) { self.config = config }
+    var current: Config { config }
 }
 
 final class TestClock: @unchecked Sendable {
