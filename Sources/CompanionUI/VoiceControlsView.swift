@@ -13,6 +13,16 @@ public struct VoiceControlsView: View {
             Button(tapLabel, action: tapMic)
                 .font(Tokens.Typography.body)
                 .foregroundStyle(Tokens.Color.fg)
+            // On speakers the user cannot talk over the agent, so the escape
+            // hatch must be visible. On headphones the flow stays clean: just
+            // speak.
+            if voice.snapshot.state == .speaking,
+               voice.interruptCapability == .tapOnly {
+                Button("Interrumpir") { voice.advance() }
+                    .font(Tokens.Typography.body)
+                    .foregroundStyle(Tokens.Color.accent)
+                    .keyboardShortcut(.escape, modifiers: [])
+            }
             Button(voice.snapshot.muted ? "Unmute" : "Mute", action: voice.toggleMute)
                 .font(Tokens.Typography.caption)
                 .foregroundStyle(Tokens.Color.fg)

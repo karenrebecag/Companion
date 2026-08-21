@@ -137,7 +137,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             thread: model,
             configProvider: configProvider,
             jobs: jobRunner)
-        let voice = VoiceViewModel(voice: session, thread: model)
+        let voice = VoiceViewModel(
+            voice: session, thread: model,
+            outputRoute: AudioOutputWatcher())
         self.voice = voice
 
         // Preview uses the chat audio endpoint, never the realtime session.

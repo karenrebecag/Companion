@@ -102,3 +102,24 @@ public protocol ReachabilityProbing: Sendable {
 public protocol VoiceSampling: Sendable {
     func play(_ text: String, voice: VoiceID) async throws
 }
+
+/// How the user can interrupt the agent, decided by the audio path. The UI
+/// adapts to it: an explicit button when talking over is impossible, a clean
+/// flow when the mic can hear the user during playback.
+public enum InterruptCapability: Sendable, Equatable {
+    /// Echo-free output (headphones) or working AEC: talk over the agent.
+    case voiceAndTap
+    /// Speakers without echo cancellation: only the tap interrupts.
+    case tapOnly
+
+    public static func decide(echoFreeOutput: Bool, aecActive: Bool) -> Self {
+        (echoFreeOutput || aecActive) ? .voiceAndTap : .tapOnly
+    }
+}
+
+/// Observes the audio output route so the UI can adapt live when the user
+/// plugs or unplugs headphones.
+public protocol OutputRouteObserving: Sendable {
+    /// Emits the current echo-free state on subscription and on every change.
+    var echoFreeUpdates: AsyncStream<Bool> { get }
+}

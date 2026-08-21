@@ -230,3 +230,45 @@ final class RecordingVoice: VoiceControlling, @unchecked Sendable {
     func yieldLevels(_ value: VoiceLevels) { levelBox.yield(value) }
     func finish() { snapBox.finish(); levelBox.finish() }
 }
+
+// MARK: - Capacidad de interrupcion adaptativa (peticion de Karen, 6c)
+
+@Test @MainActor func interruptCapabilityTests() async {
+    testCapabilityDecision()
+    await testRouteChangesFlipCapability()
+}
+
+@MainActor func testCapabilityDecision() {
+    expectEq(InterruptCapability.decide(echoFreeOutput: true, aecActive: false),
+             .voiceAndTap, "capacidad: audífonos ⇒ hablar encima")
+    expectEq(InterruptCapability.decide(echoFreeOutput: false, aecActive: true),
+             .voiceAndTap, "capacidad: AEC vivo ⇒ hablar encima")
+    expectEq(InterruptCapability.decide(echoFreeOutput: false, aecActive: false),
+             .tapOnly, "capacidad: bocinas sin AEC ⇒ solo el tap")
+}
+
+@MainActor func testRouteChangesFlipCapability() async {
+    let route = ScriptedRoute()
+    let vm = VoiceViewModel(
+        voice: RecordingVoice(), thread: FakePresenter(), outputRoute: route)
+    vm.onAppear()
+    route.yield(false)
+    await pumpUntil("ruta: bocinas ⇒ botón") {
+        vm.interruptCapability == .tapOnly && !vm.echoFreeOutput
+    }
+    route.yield(true)
+    await pumpUntil("ruta: conectar audífonos ⇒ flujo limpio") {
+        vm.interruptCapability == .voiceAndTap && vm.echoFreeOutput
+    }
+    route.yield(false)
+    await pumpUntil("ruta: desconectar ⇒ vuelve el botón") {
+        vm.interruptCapability == .tapOnly
+    }
+}
+
+private final class ScriptedRoute: OutputRouteObserving, @unchecked Sendable {
+    private let box: (stream: AsyncStream<Bool>, continuation: AsyncStream<Bool>.Continuation)
+    init() { box = AsyncStream.makeStream(of: Bool.self) }
+    var echoFreeUpdates: AsyncStream<Bool> { box.stream }
+    func yield(_ value: Bool) { box.continuation.yield(value) }
+}

@@ -13,16 +13,19 @@ public struct SettingsView: View {
         preview: VoicePreview? = nil,
         executors: ExecutorChoice? = nil,
         onLiveSpeedChange: ((Double) -> Void)? = nil,
-        onAECRearm: (() -> Void)? = nil
+        onAECRearm: (() -> Void)? = nil,
+        echoFreeOutput: Bool = false
     ) {
         self.preview = preview
         self.executors = executors
         self.onLiveSpeedChange = onLiveSpeedChange
         self.onAECRearm = onAECRearm
+        self.echoFreeOutput = echoFreeOutput
     }
 
     private let onLiveSpeedChange: ((Double) -> Void)?
     private let onAECRearm: (() -> Void)?
+    private let echoFreeOutput: Bool
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -96,7 +99,8 @@ public struct SettingsView: View {
                     SettingsVoiceSection(
                         preview: preview,
                         onLiveSpeedChange: onLiveSpeedChange,
-                        onAECRearm: onAECRearm)
+                        onAECRearm: onAECRearm,
+                        echoFreeOutput: echoFreeOutput)
 
                     if let executors, executors.isMeaningful {
                         Divider()

@@ -11,6 +11,9 @@ struct SettingsVoiceSection: View {
     /// Clears the persisted VPIO veto; lives in Services, so the composition
     /// hands it in (UI cannot import Services by layering).
     let onAECRearm: (() -> Void)?
+    /// With an echo-free output there is no echo to cancel: the toggle locks
+    /// with an explanation instead of offering a knob that does nothing.
+    let echoFreeOutput: Bool
 
     @State private var settings = VoiceProfile.settings
 
@@ -65,12 +68,15 @@ struct SettingsVoiceSection: View {
                     Text("Cancelación de eco")
                         .font(.uiLabel)
                         .foregroundStyle(Semantic.foreground)
-                    Text("En algunos equipos la de Apple no arranca; si falla, se desactiva sola.")
+                    Text(echoFreeOutput
+                         ? "Con audífonos no hace falta: ya puedes interrumpir hablando."
+                         : "En algunos equipos la de Apple no arranca; si falla, se desactiva sola.")
                         .font(.uiCaption)
                         .foregroundStyle(Semantic.mutedForeground)
                 }
             }
             .toggleStyle(.switch)
+            .disabled(echoFreeOutput)
         }
         .padding(.vertical, Space.x4)
         .padding(.horizontal, Space.x4)

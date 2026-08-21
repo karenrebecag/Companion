@@ -113,7 +113,8 @@ public struct CompanionRootView: View {
                 preview: voicePreview,
                 executors: executors,
                 onLiveSpeedChange: { voice.setSpeed($0) },
-                onAECRearm: onAECRearm)
+                onAECRearm: onAECRearm,
+                echoFreeOutput: voice.echoFreeOutput)
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenSettings)
