@@ -25,6 +25,12 @@ scripts/gates.sh     # build + static checks + layer rules + tests
 to: no secrets, no debug printing, no swallowed errors in Core or Services,
 no file over 800 lines, and no import that breaks the layering.
 
+## The design system
+
+`docs/design-system.md` documents the foundations and every component. A new
+component lands with its section in that file. The UI is not decoration here:
+simplification is only valid where nothing is lost visually.
+
 ## What reviewers look for
 
 - **Wiring, not just code.** The most common defect in this repo's history is

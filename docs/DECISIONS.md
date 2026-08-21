@@ -95,23 +95,53 @@ La actualizacion no es silenciosa: la app avisa y abre la pagina de la
 release. Si algun dia el proyecto crece hasta necesitar actualizacion
 delta o firmada por EdDSA, se revisa este ADR.
 
-## ADR 003 — El orb en SwiftUI, no en Rive
+## ADR 003 — Rive para la mascota (revisa y REVIERTE la version original)
 
-**Fecha:** 2026-08-21 · **Estado:** aceptada
+**Fecha:** 2026-08-21 · **Estado:** aceptada (sustituye a la version previa)
 
-### Contexto
+### Que decia la version original
 
-El prototipo animaba su mascota con Rive: un runtime binario vendoreado que
-pesa entre 8 y 15 MB.
+"El orb en SwiftUI, no en Rive": rechazaba el runtime de Rive porque
+"anade un binario de 8 a 15 MB al DMG".
+
+### Por que se revierte
+
+El argumento era flojo y no estaba medido. Al medirlo:
+
+| | Peso |
+|---|---|
+| App sin mascota | 8.7 MB |
+| RiveRuntime dentro del .app | 15 MB |
+| El .riv de la mascota | 0.5 MB |
+| **App con mascota** | **24 MB** |
+
+24 MB es un tercio de lo que ocupa Slack y lo mismo que pesaba el prototipo.
+Para una app de escritorio en 2026, el peso NO es un costo relevante, y
+rechazar por esa razon una pieza de identidad del producto fue un error de
+criterio: exactamente la clase de simplificacion con perdida visual que el
+principio rector de Wave 6 prohibe.
 
 ### Decision
 
-Dibujar el orb en SwiftUI puro, portando el enfoque del `WavyBlobView` del
-prototipo.
+La mascota del prototipo (`hello.riv`, con su maquina de estados y sus
+listeners de puntero) se integra con RiveRuntime vendoreado como
+`binaryTarget`, sin dSYMs (15 MB en el repo en vez de 56).
 
-### Por que
+### El costo que SI se asume, dicho con claridad
 
-Mismo argumento que el ADR 002 mas el tamano: el DMG de una app que hace voz
-y delegacion no deberia estar dominado por el peso de una animacion. Si en
-algun momento el diseno exige animaciones que SwiftUI no puede dar, se
-reabre.
+Rive entra como **binario precompilado que nadie puede auditar**, en un
+proyecto cuyo valor declarado era "se clona y compila sin descargar nada de
+terceros". Ese es el argumento honesto en contra, no el tamano. Se acepta
+porque la mascota es identidad del producto y su dueña la quiere. Los ADR
+001 y 002 (sin ecosistema Hermes, sin Sparkle) siguen en pie: esta es la
+UNICA dependencia binaria del proyecto y ampliarla exige otro ADR.
+
+### Trampas resueltas (para quien toque el empaquetado)
+
+- SPM no sabe que el framework viaja en el bundle: hay que anadir el rpath
+  `@executable_path/../Frameworks` al binario despues de copiarlo, o dyld no
+  lo encuentra y la app muere al arrancar sin decir por que.
+- Rive resuelve `fileName` contra el bundle PRINCIPAL, no contra el bundle
+  del modulo donde SPM guarda los recursos: el `.riv` se copia a
+  `Contents/Resources`.
+- El framework se firma con la misma identidad que la app, antes que ella.
