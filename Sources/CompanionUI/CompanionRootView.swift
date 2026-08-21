@@ -91,6 +91,13 @@ public struct CompanionRootView: View {
                     voice.toggleMute()
                 case .hangUp:
                     voice.hangUp()
+                case .settings:
+                    showSettings = true
+                case .newConversation:
+                    voice.hangUp()
+                    chat.newConversation()
+                case .attach, .history:
+                    break
                 }
             }
             monitor.start()
@@ -99,6 +106,11 @@ public struct CompanionRootView: View {
         // Settings sheet
         .sheet(isPresented: $showSettings) {
             SettingsView(preview: voicePreview, executors: executors)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .companionOpenSettings)
+        ) { _ in
+            showSettings = true
         }
         // Approval sheet
         .sheet(item: Binding(

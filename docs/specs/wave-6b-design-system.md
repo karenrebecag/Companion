@@ -32,6 +32,9 @@ documentacion viva. **El veredicto visual de Karen ES el criterio de done.**
   hoy dice "no third-party code": atribuir y matizar.
 - Blur del dropdown: **nativo** (`.blur` + scale). No vendorar Pow. Mantiene
   cero dependencias.
+- **Assets (Karen 2026-08-21):** Inter se empaqueta con su texto OFL (SIL).
+  Gadey, Hypodermic y TBJ Interval son All Rights Reserved — solo local; el
+  repo publico degrada Inter → sistema. WAVs: sintesis, no se copian.
 - `staggered(_:step:)` ya existe en `Motion.swift` y respeta reduce-motion:
   usarlo, no reinventarlo.
 
@@ -114,13 +117,11 @@ popover; microinteracciones. Todo respeta reduce-motion.
 `docs/design-system.md`: fundaciones, componentes con estados y donde se
 usan. Regla en CONTRIBUTING: un componente nuevo entra con su seccion.
 
-### 7. Tipografia empaquetada (bloqueada por assets)
+### 7. Tipografia empaquetada
 
-Si Karen autoriza las fuentes: `bundle.sh` las copia a Resources/Fonts,
-`main.swift` llama `Fonts.register()` al arrancar. Verificar nombres
-PostScript (`Hypodermic.otf` vs `"Hypodermic-Regular"`). Si alguna no tiene
-licencia clara para repo publico: documentar y dejar solo local, fallback a
-system (ya existe).
+Inter (OFL) entra al bundle con su licencia. Las propietarias se cargan si
+estan en disco; si no, Inter → sistema. `Fonts.register()` al arrancar.
+Verificar nombres PostScript. WAVs no se copian (sintesis, 6a-5b).
 
 Tocar `bundle.sh`, `gates.sh` o anadir binarios a `Assets/` requiere OK
 explicito.

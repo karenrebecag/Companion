@@ -10,15 +10,13 @@
 | 3 | Voz | APROBADO / EN CURSO | **Conversacion por voz con barge-in** |
 | 4 | Delegacion | CERRADA (4a y 4b) | **Especialista integrado sin instalar nada** |
 | 5 | Producto | CERRADA (5a-5e) | **Distribuible open source** |
-| 6 | Paridad y craft | Specs BORRADOR (kickoff 2026-08-21) | **Iguala o supera al prototipo en uso diario** |
+| 6 | Paridad y craft | 6a APROBADO / EN CURSO | **Iguala o supera al prototipo en uso diario** |
 
 ## Foco actual
 
-Wave 6 en kickoff: 6a → 6b → 6c, specs refinados contra lo que waves 1-5
-realmente produjeron, pendiente de aprobacion de Karen. Arranque propuesto:
-6a (menu, adjuntos, avisos, updates). 6b no empieza sin 6a cerrada; 6c
-necesita 6b-2 (Dropdown) y construye por primera vez el camino
-Ajustes → Config → codec.
+Wave 6a en construccion (TDD, 6a-1 menu). Assets: Inter se publica (OFL);
+Gadey/Hypodermic/TBJ Interval solo local; sonidos por sintesis. 6b y 6c
+siguen en borrador hasta cerrar 6a.
 
 
 ## Brecha con el prototipo (medida 2026-08-21)

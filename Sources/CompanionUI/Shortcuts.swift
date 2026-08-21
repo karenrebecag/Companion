@@ -2,22 +2,30 @@ import Foundation
 import SwiftUI
 
 /// Keyboard shortcut action.
-public enum ShortcutAction: String, Codable, CaseIterable {
+public enum ShortcutAction: String, Codable, CaseIterable, Sendable {
     case toggleVoice = "toggleVoice"
     case toggleMute = "toggleMute"
     case hangUp = "hangUp"
+    case settings = "settings"
+    case attach = "attach"
+    case newConversation = "newConversation"
+    case history = "history"
 
     public var label: String {
         switch self {
         case .toggleVoice: "Iniciar/terminar turno"
         case .toggleMute: "Silenciar/activar sonido"
         case .hangUp: "Terminar llamada"
+        case .settings: "Abrir ajustes"
+        case .attach: "Adjuntar archivos"
+        case .newConversation: "Nueva conversación"
+        case .history: "Ver conversaciones"
         }
     }
 }
 
 /// Keyboard modifiers.
-public struct KeyModifiers: Codable, Equatable, Hashable {
+public struct KeyModifiers: Codable, Equatable, Hashable, Sendable {
     public var command: Bool = false
     public var shift: Bool = false
     public var option: Bool = false
@@ -62,7 +70,7 @@ public struct KeyModifiers: Codable, Equatable, Hashable {
 }
 
 /// A single keyboard shortcut binding.
-public struct Shortcut: Codable, Equatable {
+public struct Shortcut: Codable, Equatable, Sendable {
     public let action: ShortcutAction
     public let keyCode: UInt16
     public let modifiers: KeyModifiers
@@ -80,24 +88,41 @@ public struct Shortcut: Codable, Equatable {
 
     /// Display string for the shortcut.
     public func displayKey() -> String {
-        // Map common key codes to display strings
         let keyName = keyCodeToName(keyCode) ?? "Key(\(keyCode))"
         return "\(modifiers.display())\(modifiers.display().isEmpty ? "" : "+")\(keyName)"
     }
 
-    private func keyCodeToName(_ code: UInt16) -> String? {
-        // Common key codes
-        switch code {
-        case 49: return "Space"
-        case 36: return "Return"
-        case 51: return "Delete"
-        case 53: return "Escape"
-        case 123: return "Left"
-        case 124: return "Right"
-        case 125: return "Down"
-        case 126: return "Up"
-        default: return nil
+    /// Character Cocoa expects on NSMenuItem. Empty if the key has no
+    /// equivalent: the item stays clickable without lying about a key.
+    public var keyEquivalent: String { Self.equivalent(for: keyCode) }
+
+    public static func equivalent(for keyCode: UInt16) -> String {
+        switch keyCode {
+        case 49: return " "
+        case 43: return ","
+        case 47: return "."
+        case 41: return ";"
+        case 44: return "/"
+        case 18: return "1"
+        case 19: return "2"
+        case 20: return "3"
+        case 21: return "4"
+        case 23: return "5"
+        case 22: return "6"
+        case 26: return "7"
+        case 28: return "8"
+        case 25: return "9"
+        case 29: return "0"
+        default:
+            guard let name = keyCodeNames[keyCode], name.count == 1 else {
+                return ""
+            }
+            return name.lowercased()
         }
+    }
+
+    private func keyCodeToName(_ code: UInt16) -> String? {
+        keyCodeNames[code]
     }
 }
 
@@ -118,7 +143,23 @@ public struct ShortcutSet: Codable {
             Shortcut(action: .toggleMute,
                     keyCode: 46,
                     modifiers: KeyModifiers(command: true, option: true)),
+            Shortcut(action: .settings,
+                    keyCode: 43,
+                    modifiers: KeyModifiers(command: true)),
+            Shortcut(action: .attach,
+                    keyCode: 32,
+                    modifiers: KeyModifiers(command: true)),
+            Shortcut(action: .newConversation,
+                    keyCode: 45,
+                    modifiers: KeyModifiers(command: true)),
+            Shortcut(action: .history,
+                    keyCode: 16,
+                    modifiers: KeyModifiers(command: true)),
         ])
+    }
+
+    public func shortcut(for action: ShortcutAction) -> Shortcut? {
+        shortcuts.first { $0.action == action }
     }
 
     /// Check if any shortcuts conflict.
@@ -139,6 +180,8 @@ public struct ShortcutSet: Codable {
     public func save(key: String = "companionShortcuts") {
         if let encoded = try? JSONEncoder().encode(self) {
             UserDefaults.standard.set(encoded, forKey: key)
+            NotificationCenter.default.post(
+                name: .companionShortcutsDidChange, object: nil)
         }
     }
 

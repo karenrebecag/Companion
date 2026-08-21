@@ -162,6 +162,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         self.window = window
+        AppMenu.install(routing: MenuRouting(
+            openSettings: {
+                NotificationCenter.default.post(
+                    name: .companionOpenSettings, object: nil)
+            },
+            attach: {},
+            newConversation: {
+                voice.hangUp()
+                model.newConversation()
+            },
+            history: {},
+            toggleVoice: {
+                if voice.isActive { voice.hangUp() } else { voice.start() }
+            },
+            toggleMute: { voice.toggleMute() },
+            hangUp: { voice.hangUp() }
+        ))
         Log.app("launched")
     }
 

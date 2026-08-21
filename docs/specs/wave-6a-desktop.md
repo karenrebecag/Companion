@@ -1,7 +1,7 @@
 # Wave 6a — Fundamentos de escritorio
 
-**Estado: BORRADOR** — kickoff 2026-08-21 (planner + architect). Pendiente de
-aprobacion de Karen.
+**Estado: APROBADO / EN CURSO** — Karen 2026-08-21. Kickoff ratificado.
+Arranque: 6a-1 (menu).
 
 ## Objetivo
 
@@ -39,7 +39,7 @@ Orden: 6a-1 (menu) en paralelo con 6a-2 (core adjuntos), 6a-5a (avisos) y
 | UI `MenuPlan.swift` (nuevo) | Arbol de menu como valor puro (testeable; CompanionApp no es importable desde tests) |
 | UI `Shortcuts.swift` (ampliar) | `ShortcutAction` nuevos (`newConversation`, `attach`, `history`, `settings`) y `keyEquivalent` |
 | App `AppMenu.swift` (nuevo) | Construye `NSMenu` desde el plan, ancla de retencion, `rebuild()` |
-| App `main.swift` | Instala el menu tras crear los ViewModels |
+| App `CompanionMain.swift` | Instala el menu tras crear los ViewModels. Antes `main.swift`: SPM trata ese nombre como script y no deja un segundo archivo junto a `@main`. |
 
 ```swift
 public enum MenuCommand: String, Sendable, Equatable { /* about…bringAllToFront */ }
@@ -129,8 +129,9 @@ Drag & drop: patron del prototipo (`AttachmentViews.swift`), no inventar.
 
 ### 6a-5b. Sonido de interfaz
 
-Bloqueado por la pregunta de assets de Karen. Default si no hay wavs:
-sintesis en memoria o `NSSound` del sistema — cero binarios.
+Decision de assets (Karen 2026-08-21): **sintesis en memoria**, cero wavs.
+Los del prototipo no tienen licencia documentada. Ambience ya demostro el
+enfoque.
 
 | Archivo | Contenido |
 |---|---|
@@ -194,3 +195,5 @@ manual de Karen. Gates verdes.
 3. Imagen-en-voz-viva diferida a 6c-3.
 4. Tests de update del prototipo no se portan.
 5. Long-paste fuera de alcance.
+6. `main.swift` pasa a `CompanionMain.swift`: SPM no deja un segundo archivo
+   junto a un `main.swift` con `@main`.
