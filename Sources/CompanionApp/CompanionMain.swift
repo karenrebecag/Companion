@@ -57,7 +57,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             probe: probe,
             transport: transport,
             settings: config.chat,
-            ownerFirstName: config.ownerFirstName)
+            ownerFirstName: config.ownerFirstName,
+            ownerAbout: config.ownerAbout,
+            ownerInstructions: config.ownerInstructions,
+            profileSource: {
+                let live = configProvider.current
+                return (live.ownerFirstName, live.ownerAbout,
+                        live.ownerInstructions)
+            })
         let store = ConversationStore(directory: support)
 
         // Job execution infrastructure

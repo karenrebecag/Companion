@@ -195,7 +195,10 @@ final class RealtimeRuntime: @unchecked Sendable {
         config: Config, history: [Turn], canDelegate: Bool = false
     ) -> String {
         var text = ChatPrompt.system(
-            ownerFirstName: config.ownerFirstName, delegateEnabled: canDelegate)
+            ownerFirstName: config.ownerFirstName,
+            delegateEnabled: canDelegate,
+            about: config.ownerAbout,
+            instructions: config.ownerInstructions)
         let tone = config.voice.tone.trimmingCharacters(
             in: .whitespacesAndNewlines)
         if !tone.isEmpty {

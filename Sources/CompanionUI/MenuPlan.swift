@@ -80,6 +80,10 @@ public extension Notification.Name {
         "companion.openSettings")
     static let companionAttach = Notification.Name(
         "companion.attach")
+    static let companionChromeDidChange = Notification.Name(
+        "companion.chromeDidChange")
+    static let companionProfileDidChange = Notification.Name(
+        "companion.profileDidChange")
 }
 
 public enum MenuPlan {

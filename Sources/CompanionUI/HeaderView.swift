@@ -10,28 +10,37 @@ public enum HeaderMetrics {
     public static let avatar: CGFloat = IconSize.hero
 }
 
+public enum HistoryOverlayMetrics {
+    public static let maxSide: CGFloat = SettingsOverlayMetrics.maxSide
+    public static let minWidth: CGFloat = 300
+}
+
 public struct HeaderView: View {
     var chat: ChatViewModel
     var voice: VoiceViewModel
     var executors: ExecutorChoice?
     @Binding var mode: InteractionMode
     var onSettings: () -> Void
+    var onFolder: () -> Void
 
     @Environment(DropdownHost.self) private var host
     @Namespace private var modeNS
+    @State private var avatarImage = UserProfile.avatarImage
 
     public init(
         chat: ChatViewModel,
         voice: VoiceViewModel,
         executors: ExecutorChoice?,
         mode: Binding<InteractionMode>,
-        onSettings: @escaping () -> Void
+        onSettings: @escaping () -> Void,
+        onFolder: @escaping () -> Void = {}
     ) {
         self.chat = chat
         self.voice = voice
         self.executors = executors
         self._mode = mode
         self.onSettings = onSettings
+        self.onFolder = onFolder
     }
 
     public var body: some View {
@@ -51,16 +60,18 @@ public struct HeaderView: View {
                     withAnimation(.springSheet) { host.toggle(.history) }
                 }
                 HoverIconButton(icon: .folder, help: "Carpeta de trabajo") {
-                    onSettings()
-                }
-                HoverIconButton(symbol: "gearshape", help: "Ajustes") {
-                    onSettings()
+                    onFolder()
                 }
                 avatar
             }
         }
         .padding(.horizontal, Space.x4)
         .padding(.top, HeaderMetrics.topClearance)
+        .onReceive(
+            NotificationCenter.default.publisher(for: .companionProfileDidChange)
+        ) { _ in
+            avatarImage = UserProfile.avatarImage
+        }
     }
 
     private var choiceTitle: String {
@@ -128,17 +139,25 @@ public struct HeaderView: View {
 
     private var avatar: some View {
         Button(action: onSettings) {
-            Image(systemName: "person.crop.circle")
-                .font(.uiTitle)
-                .foregroundStyle(Semantic.mutedForeground)
-                .frame(width: HeaderMetrics.avatar, height: HeaderMetrics.avatar)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(Semantic.border, lineWidth: Stroke.hairline))
-                .contentShape(Circle())
+            Group {
+                if let avatarImage {
+                    Image(nsImage: avatarImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: "person.crop.circle")
+                        .font(.uiTitle)
+                        .foregroundStyle(Semantic.mutedForeground)
+                }
+            }
+            .frame(width: HeaderMetrics.avatar, height: HeaderMetrics.avatar)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(Semantic.border, lineWidth: Stroke.hairline))
+            .contentShape(Circle())
         }
         .buttonStyle(PressableStyle())
-        .help("Tu perfil")
-        .accessibilityLabel("Tu perfil")
+        .help("Ajustes")
+        .accessibilityLabel("Ajustes")
     }
 }
 
@@ -163,41 +182,89 @@ struct ChoiceDropdown: View {
     }
 }
 
-struct HistoryDropdown: View {
+struct HistoryOverlay: View {
     var chat: ChatViewModel
     var voice: VoiceViewModel
     var host: DropdownHost
 
     var body: some View {
-        DropdownPanel {
-            DropdownRow(
-                title: "Nueva conversación",
-                symbol: "square.and.pencil",
-                index: 0
-            ) {
-                voice.hangUp()
-                chat.newConversation()
-                withAnimation(.springSheet) { host.dismiss() }
-            }
-            if !chat.recents.isEmpty {
-                Text("Recientes")
-                    .typeEyebrow()
-                    .padding(.horizontal, Space.x2 + Space.x1 / 2)
-                    .padding(.top, Space.x2)
-                    .padding(.bottom, Space.x1)
-                ForEach(Array(chat.recents.enumerated()), id: \.element.id) { i, meta in
+        VStack(alignment: .leading, spacing: Space.none) {
+            header
+            Divider().overlay(Semantic.border)
+            ScrollView {
+                VStack(alignment: .leading, spacing: Space.x1) {
                     DropdownRow(
-                        title: meta.title,
-                        subtitle: Self.relative(meta.updatedAt),
-                        index: i + 1
+                        title: "Nueva conversación",
+                        symbol: "square.and.pencil",
+                        index: 0,
+                        titleMaxWidth: .infinity
                     ) {
                         voice.hangUp()
-                        chat.openConversation(meta.id)
+                        chat.newConversation()
                         withAnimation(.springSheet) { host.dismiss() }
                     }
+                    if chat.recents.isEmpty {
+                        Text("Todavía no hay conversaciones")
+                            .font(.uiCaption)
+                            .foregroundStyle(Semantic.mutedForeground)
+                            .padding(.horizontal, Space.x3)
+                            .padding(.vertical, Space.x2)
+                    } else {
+                        Text("Recientes")
+                            .typeEyebrow()
+                            .padding(.horizontal, Space.x3)
+                            .padding(.top, Space.x3)
+                            .padding(.bottom, Space.x1)
+                        ForEach(
+                            Array(chat.recents.enumerated()), id: \.element.id
+                        ) { i, meta in
+                            DropdownRow(
+                                title: meta.title,
+                                subtitle: Self.relative(meta.updatedAt),
+                                selected: meta.id == chat.conversationId,
+                                index: i + 1,
+                                titleMaxWidth: .infinity
+                            ) {
+                                voice.hangUp()
+                                chat.openConversation(meta.id)
+                                withAnimation(.springSheet) { host.dismiss() }
+                            }
+                        }
+                    }
                 }
+                .padding(Space.x3)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: Radius.xl)
+                .fill(Semantic.surfaceOverlay)
+                .elevation(.sheet)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.xl)
+                .stroke(Semantic.border, lineWidth: Stroke.hairline)
+        )
+    }
+
+    private var header: some View {
+        HStack {
+            Text("Conversaciones")
+                .font(.uiTitle)
+                .foregroundStyle(Semantic.foreground)
+            Spacer()
+            RoundIconButton(
+                icon: .cross,
+                foreground: Semantic.foreground,
+                background: Semantic.surface,
+                help: "Cerrar"
+            ) {
+                withAnimation(.springSheet) { host.dismiss() }
             }
         }
+        .padding(.horizontal, Space.x5)
+        .padding(.top, Space.x5)
+        .padding(.bottom, Space.x3)
     }
 
     static func relative(_ date: Date) -> String {

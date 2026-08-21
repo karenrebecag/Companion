@@ -113,4 +113,11 @@ public protocol AttachmentStoring: Sendable {
     func restore(path: String) -> AttachmentRef?
     func discard(_ ref: AttachmentRef)
     func payload(for ref: AttachmentRef) -> AttachmentPayload?
+    func storedBytes() -> Int
+    func purge()
+}
+
+public extension AttachmentStoring {
+    func storedBytes() -> Int { 0 }
+    func purge() {}
 }

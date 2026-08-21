@@ -22,8 +22,10 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
             chat: .default,
             voice: VoiceProfile.settings,
             executors: [ExecutorCatalog.native],
-            workdir: workdir,
-            ownerFirstName: ownerName
+            workdir: WorkdirPreference.validated ?? workdir,
+            ownerFirstName: ownerName,
+            ownerAbout: UserProfile.about,
+            ownerInstructions: UserProfile.instructions
         )
     }
 }

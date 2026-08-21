@@ -9,6 +9,8 @@ public struct CompanionRootView: View {
     private let voicePreview: VoicePreview?
     private let executors: ExecutorChoice?
     @State private var showSettings = false
+    @State private var settingsTab: SettingsTab = .you
+    @State private var chromeTick = 0
     @State private var keyboardMonitor: KeyboardMonitor?
     @State private var dropdowns = DropdownHost()
     @State private var mode: InteractionMode = .voice
@@ -44,8 +46,10 @@ public struct CompanionRootView: View {
                         executors: executors,
                         mode: $mode,
                         onSettings: {
+                            settingsTab = .you
                             withAnimation(.springSheet) { showSettings = true }
-                        }
+                        },
+                        onFolder: pickWorkdir
                     )
                     .zIndex(2)
                     ThreadView(chat: chat, mode: mode)
@@ -72,6 +76,7 @@ public struct CompanionRootView: View {
                     .animation(.springSheet, value: mode)
                     .zIndex(2)
                 }
+                .id("chrome-\(chromeTick)")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -88,13 +93,16 @@ public struct CompanionRootView: View {
         }
         .environment(dropdowns)
         .overlay {
-            if dropdowns.menu == .choice {
+            if dropdowns.menu == .choice || dropdowns.menu == .history {
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .overlay(Semantic.scrim)
                     .ignoresSafeArea()
                     .transition(.opacity)
-                    .allowsHitTesting(false)
+                    .allowsHitTesting(dropdowns.menu == .history)
+                    .onTapGesture {
+                        withAnimation(.springSheet) { dropdowns.dismiss() }
+                    }
             }
         }
         .overlay {
@@ -112,11 +120,22 @@ public struct CompanionRootView: View {
                     .padding(.top, Space.x1 * 25)
             }
         }
-        .overlay(alignment: .topTrailing) {
+        .overlay {
             if !chat.needsOnboarding, dropdowns.menu == .history {
-                HistoryDropdown(chat: chat, voice: voice, host: dropdowns)
-                    .padding(.trailing, Space.x1 * 18)
-                    .padding(.top, Space.x1 * 25)
+                GeometryReader { geo in
+                    let w = min(
+                        HistoryOverlayMetrics.maxSide,
+                        max(HistoryOverlayMetrics.minWidth,
+                            geo.size.width - Space.x6))
+                    let h = min(
+                        HistoryOverlayMetrics.maxSide,
+                        max(240, geo.size.height - Space.x6))
+                    HistoryOverlay(chat: chat, voice: voice, host: dropdowns)
+                        .frame(width: w)
+                        .frame(maxHeight: h)
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                }
+                .transition(.opacity)
             }
         }
         .dropdownPortal(host: dropdowns)
@@ -186,11 +205,13 @@ public struct CompanionRootView: View {
                             max(320, geo.size.height - Space.x6))
                         SettingsView(
                             preview: voicePreview,
-                            executors: executors,
+                            chat: chat,
                             onLiveSpeedChange: { voice.setSpeed($0) },
+                            onLiveVolumeChange: { voice.setVolume($0) },
                             onAECRearm: onAECRearm,
                             echoFreeOutput: voice.echoFreeOutput,
                             updates: updates,
+                            tab: $settingsTab,
                             onClose: {
                                 withAnimation(.springSheet) { showSettings = false }
                             })
@@ -206,7 +227,16 @@ public struct CompanionRootView: View {
         .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenSettings)
         ) { _ in
+            settingsTab = .app
             withAnimation(.springSheet) { showSettings = true }
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .companionChromeDidChange)
+        ) { _ in
+            chromeTick += 1
+            if let window = NSApp.keyWindow {
+                WindowChrome.applyAppearance(window)
+            }
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionAttach)
@@ -246,6 +276,17 @@ public struct CompanionRootView: View {
             }
         }
         .animation(.springSheet, value: chat.pendingApproval != nil)
+    }
+
+    private func pickWorkdir() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            chat.setFolder(url.path)
+        }
     }
 
     private func pickAttachments() {

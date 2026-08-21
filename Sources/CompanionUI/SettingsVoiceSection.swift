@@ -8,6 +8,8 @@ struct SettingsVoiceSection: View {
     let preview: VoicePreview?
     /// Non-nil while a session can take a live speed update.
     let onLiveSpeedChange: ((Double) -> Void)?
+    /// Volume applies to the local player at once, session or not.
+    let onLiveVolumeChange: ((Double) -> Void)?
     /// Clears the persisted VPIO veto; lives in Services, so the composition
     /// hands it in (UI cannot import Services by layering).
     let onAECRearm: (() -> Void)?
@@ -30,6 +32,11 @@ struct SettingsVoiceSection: View {
                 update { $0.voice = picked }
             }
             previewControls
+            Text("La voz, el tono y el fin de turno aplican en tu próxima "
+                 + "conversación. La velocidad y el volumen cambian al instante.")
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
 
             slider(
                 "Velocidad", value: settings.speed,
@@ -44,64 +51,61 @@ struct SettingsVoiceSection: View {
                 range: 0 ... 1, format: "%.0f%%", scale: 100
             ) { volume in
                 update { $0.volume = volume }
+                onLiveVolumeChange?(volume)
             }
 
-            SettingsItem(
-                title: "Fin de turno",
-                value: TurnCriterion(settings.turnDetection).label,
-                options: TurnCriterion.allCases.map { ($0, $0.label) }
-            ) { criterion in
-                update { $0.turnDetection = criterion.applied(to: settings.turnDetection) }
-            }
-            criterionDetail
+            DisclosureGroup("Avanzado") {
+                VStack(alignment: .leading, spacing: Space.x3) {
+                    SettingsItem(
+                        title: "Fin de turno",
+                        value: TurnCriterion(settings.turnDetection).label,
+                        options: TurnCriterion.allCases.map { ($0, $0.label) }
+                    ) { criterion in
+                        update { $0.turnDetection = criterion.applied(to: settings.turnDetection) }
+                    }
+                    criterionDetail
 
-            AppField(
-                title: "Tono",
-                placeholder: "p. ej. cálida y directa",
-                text: toneBinding)
+                    AppField(
+                        title: "Tono",
+                        placeholder: "p. ej. cálida y directa",
+                        text: toneBinding)
 
-            Toggle(isOn: Binding(
-                get: { ThinkingSoundPref.enabled },
-                set: { ThinkingSoundPref.enabled = $0 })
-            ) {
-                Text("Sonido al pensar")
-                    .font(.uiLabel)
-                    .foregroundStyle(Semantic.foreground)
-            }
-            .toggleStyle(.switch)
-            .tint(Semantic.accent)
-
-            Toggle(isOn: aecBinding) {
-                VStack(alignment: .leading, spacing: Space.x1) {
-                    Text("Cancelación de eco")
-                        .font(.uiLabel)
-                        .foregroundStyle(Semantic.foreground)
-                    Text(echoFreeOutput
-                         ? "Con audífonos no hace falta: ya puedes interrumpir hablando."
-                         : "En algunos equipos la de Apple no arranca; si falla, se desactiva sola.")
-                        .font(.uiCaption)
-                        .foregroundStyle(Semantic.mutedForeground)
+                    Toggle(isOn: aecBinding) {
+                        VStack(alignment: .leading, spacing: Space.x1) {
+                            Text("Cancelación de eco")
+                                .font(.uiLabel)
+                                .foregroundStyle(Semantic.foreground)
+                            Text(echoFreeOutput
+                                 ? "Con audífonos no hace falta: ya puedes interrumpir hablando."
+                                 : "En algunos equipos la de Apple no arranca; si falla, se desactiva sola.")
+                                .font(.uiCaption)
+                                .foregroundStyle(Semantic.mutedForeground)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    .tint(Semantic.accent)
+                    .disabled(echoFreeOutput)
                 }
+                .padding(.top, Space.x3)
             }
-            .toggleStyle(.switch)
+            .font(.uiLabel)
+            .foregroundStyle(Semantic.mutedForeground)
             .tint(Semantic.accent)
-            .disabled(echoFreeOutput)
         }
-        .padding(.vertical, Space.x4)
-        .padding(.horizontal, Space.x4)
+        .padding(.vertical, Space.x2)
     }
 
     // MARK: - Subviews
 
     @ViewBuilder private var previewControls: some View {
         if let preview {
-            Button {
+            AppButton(
+                preview.playing == settings.voice ? "Sonando…" : "Escuchar muestra",
+                kind: .secondary,
+                enabled: preview.playing == nil
+            ) {
                 preview.play(settings.voice)
-            } label: {
-                Text(preview.playing == settings.voice ? "Sonando…" : "Escuchar muestra")
-                    .font(.uiLabel)
             }
-            .disabled(preview.playing != nil)
             if let error = preview.errorText {
                 Text(error)
                     .font(.uiCaption)
@@ -119,6 +123,9 @@ struct SettingsVoiceSection: View {
             ) { value in
                 update { $0.turnDetection = .serverVAD(silenceMs: Int(value)) }
             }
+            Text("Cede el turno cuando llevas este silencio sin hablar.")
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
         case .semanticVAD(let eagerness):
             SettingsItem(
                 title: "Avidez",
@@ -127,6 +134,9 @@ struct SettingsVoiceSection: View {
             ) { picked in
                 update { $0.turnDetection = .semanticVAD(eagerness: picked) }
             }
+            Text("Espera a que la frase suene completa antes de responder.")
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
         }
     }
 

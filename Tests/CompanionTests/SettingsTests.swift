@@ -44,6 +44,93 @@ import Testing
     Highlight.stored = .standard
 }
 
+@Test @MainActor func settingsModuleTests() {
+    testAppearancePreferenceRoundTrip()
+    testAppearanceAutoLeavesWindowToSystem()
+    testTypeScaleClampAndNudge()
+    testProfileFieldsRoundTrip()
+    testWorkdirPreferenceLabel()
+    testWorkdirRejectsUnboundedRoots()
+}
+
+@MainActor func testAppearancePreferenceRoundTrip() {
+    let previous = AppearancePreference.stored
+    defer { AppearancePreference.stored = previous }
+    for pref in AppearancePreference.allCases {
+        AppearancePreference.stored = pref
+        expectEq(AppearancePreference.stored, pref,
+                 "tema: \(pref.rawValue) round-trip")
+    }
+    expectEq(AppearancePreference.light.label, "Claro", "tema: claro")
+    expectEq(AppearancePreference.dark.label, "Oscuro", "tema: oscuro")
+    expectEq(AppearancePreference.auto.label, "Sistema", "tema: sistema")
+}
+
+@MainActor func testAppearanceAutoLeavesWindowToSystem() {
+    expect(WindowChrome.appearance(for: .auto) == nil,
+           "tema: auto no fuerza NSAppearance")
+    expect(WindowChrome.appearance(for: .light) != nil,
+           "tema: claro pinta aqua")
+    expect(WindowChrome.appearance(for: .dark) != nil,
+           "tema: oscuro pinta darkAqua")
+}
+
+@MainActor func testTypeScaleClampAndNudge() {
+    let previous = TypeScale.delta
+    defer { TypeScale.delta = previous }
+    TypeScale.delta = TypeScale.min
+    expectEq(TypeScale.nudge(-1), TypeScale.min, "tipo: no baja de −2")
+    TypeScale.delta = TypeScale.max
+    expectEq(TypeScale.nudge(1), TypeScale.max, "tipo: no sube de +3")
+    TypeScale.delta = 0
+    expectEq(TypeScale.nudge(1), 1, "tipo: nudge +1")
+    expectEq(TypeScale.displayLabel(0), "0", "tipo: cero se lee 0")
+    expectEq(TypeScale.displayLabel(2), "+2", "tipo: positivo con signo")
+    expectEq(TypeScale.displayLabel(-1), "−1", "tipo: negativo tipográfico")
+}
+
+@MainActor func testProfileFieldsRoundTrip() {
+    let previousName = UserProfile.ownerName
+    let previousAbout = UserProfile.about
+    let previousInstructions = UserProfile.instructions
+    defer {
+        UserProfile.ownerName = previousName
+        UserProfile.about = previousAbout
+        UserProfile.instructions = previousInstructions
+    }
+    UserProfile.ownerName = "Karen"
+    UserProfile.about = "diseña producto"
+    UserProfile.instructions = "Sé breve"
+    expectEq(UserProfile.ownerName, "Karen", "perfil: nombre")
+    expectEq(UserProfile.about, "diseña producto", "perfil: about")
+    expectEq(UserProfile.instructions, "Sé breve", "perfil: instrucciones")
+}
+
+@MainActor func testWorkdirPreferenceLabel() {
+    let previous = WorkdirPreference.stored
+    defer { WorkdirPreference.stored = previous }
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    WorkdirPreference.stored = home + "/Desktop"
+    if WorkdirPreference.isAllowed(home + "/Desktop") {
+        expectEq(WorkdirPreference.label, "Desktop", "carpeta: último componente")
+    }
+    WorkdirPreference.stored = nil
+    expect(WorkdirPreference.label == nil, "carpeta: nil no inventa etiqueta")
+}
+
+@MainActor func testWorkdirRejectsUnboundedRoots() {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    expect(!WorkdirPreference.isAllowed("/"), "carpeta: no la raíz del disco")
+    expect(!WorkdirPreference.isAllowed("/Users"), "carpeta: no /Users")
+    expect(!WorkdirPreference.isAllowed("/tmp"), "carpeta: no fuera del home")
+    expect(WorkdirPreference.isAllowed(home), "carpeta: el home sí")
+    let previous = WorkdirPreference.stored
+    defer { WorkdirPreference.stored = previous }
+    WorkdirPreference.stored = "/"
+    expect(WorkdirPreference.validated == nil,
+           "carpeta: / no sobrevive a validated")
+}
+
 // MARK: - Preview de voz y preferencias (cableado de Wave 5a)
 
 @Test @MainActor func voicePreviewTests() async {

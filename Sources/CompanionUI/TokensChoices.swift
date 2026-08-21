@@ -58,7 +58,11 @@ public enum Highlight: String, CaseIterable {
             Highlight(rawValue:
                 UserDefaults.standard.string(forKey: key) ?? "") ?? .standard
         }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: key) }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: key)
+            NotificationCenter.default.post(
+                name: .companionChromeDidChange, object: nil)
+        }
     }
 }
 
@@ -321,7 +325,11 @@ public enum AppTypeface: String, CaseIterable {
             AppTypeface(rawValue:
                 UserDefaults.standard.string(forKey: key) ?? "") ?? .inter
         }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: key) }
+        set {
+            UserDefaults.standard.set(newValue.rawValue, forKey: key)
+            NotificationCenter.default.post(
+                name: .companionChromeDidChange, object: nil)
+        }
     }
 }
 
@@ -342,6 +350,8 @@ public enum TypeScale {
         set {
             UserDefaults.standard.set(Swift.min(max, Swift.max(min, newValue)),
                                       forKey: key)
+            NotificationCenter.default.post(
+                name: .companionChromeDidChange, object: nil)
         }
     }
 
@@ -349,6 +359,18 @@ public enum TypeScale {
 
     public static func apply(_ size: CGFloat) -> CGFloat {
         Swift.max(Self.floor, size + CGFloat(origin + delta))
+    }
+
+    @discardableResult
+    public static func nudge(_ step: Int) -> Int {
+        delta = Swift.min(max, Swift.max(min, delta + step))
+        return delta
+    }
+
+    public static func displayLabel(_ value: Int) -> String {
+        if value == 0 { return "0" }
+        if value > 0 { return "+\(value)" }
+        return "−\(abs(value))"
     }
 
     public static var bodyLead: CGFloat { apply(TypeSize.base) * 0.3 }

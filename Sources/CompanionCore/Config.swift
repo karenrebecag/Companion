@@ -171,19 +171,25 @@ public struct Config: Sendable, Equatable {
     public var executors: [ExecutorDescriptor]
     public var workdir: String?
     public var ownerFirstName: String
+    public var ownerAbout: String
+    public var ownerInstructions: String
 
     public init(
         chat: ChatSettings = .default,
         voice: VoiceSettings = .default,
         executors: [ExecutorDescriptor] = [ExecutorCatalog.native],
         workdir: String? = nil,
-        ownerFirstName: String = ""
+        ownerFirstName: String = "",
+        ownerAbout: String = "",
+        ownerInstructions: String = ""
     ) {
         self.chat = chat
         self.voice = voice
         self.executors = executors
         self.workdir = workdir
         self.ownerFirstName = ownerFirstName
+        self.ownerAbout = ownerAbout
+        self.ownerInstructions = ownerInstructions
     }
 
     public static let `default` = Config()

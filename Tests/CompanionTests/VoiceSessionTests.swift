@@ -443,6 +443,7 @@ final class ScriptedMic: MicCapturing, @unchecked Sendable {
 final class ScriptedPlayer: PCMPlaying, @unchecked Sendable {
     var shared: Bool?, played: [Data] = []
     var flushed = false, stopped = false, hasPending = false
+    var volumes: [Double] = []
     private let drainBox = StreamBox<Void>()
     private let levelBox = StreamBox<Double>()
     var drained: AsyncStream<Void> { drainBox.stream }
@@ -459,6 +460,7 @@ final class ScriptedPlayer: PCMPlaying, @unchecked Sendable {
         drainBox.yield(())
     }
     func stop() async { stopped = true }
+    func setVolume(_ volume: Double) async { volumes.append(volume) }
     func yieldDrained() {
         hasPending = false
         drainBox.yield(())

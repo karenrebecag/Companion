@@ -12,7 +12,7 @@ public actor RealtimePlayer: PCMPlaying {
     private let makeEngine: () -> AVAudioEngine
     private let sharedEngine: () -> AVAudioEngine?
     private let startsEngine: Bool
-    private let volume: Float
+    private var volume: Float
     private let drainBox: AudioStreamBox<Void>
     private let levelBox: AudioStreamBox<Double>
 
@@ -56,6 +56,11 @@ public actor RealtimePlayer: PCMPlaying {
     }
 
     public var hasPending: Bool { pending > 0 }
+
+    public func setVolume(_ volume: Double) async {
+        self.volume = Float(min(max(volume, 0), 1))
+        graph.node?.volume = self.volume
+    }
 
     public func start(sharedEngine: Bool) async throws {
         epoch += 1

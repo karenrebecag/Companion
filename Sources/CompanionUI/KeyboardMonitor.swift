@@ -6,7 +6,7 @@ import Foundation
 final class KeyboardMonitor: @unchecked Sendable {
     private var monitor: Any?
     private let onAction: @MainActor (ShortcutAction) -> Void
-    private let shortcuts: ShortcutSet
+    private var shortcuts: ShortcutSet
 
     init(
         shortcuts: ShortcutSet,
@@ -25,6 +25,13 @@ final class KeyboardMonitor: @unchecked Sendable {
         // Install a local event monitor for keyboard events.
         // NSEvent.addLocalMonitorForEvents is safer than global monitor
         // (won't receive events from background apps).
+        // A captured shortcut must work right away, not after relaunch.
+        NotificationCenter.default.addObserver(
+            forName: .companionShortcutsDidChange, object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.shortcuts = ShortcutSet.load() }
+        }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self else { return event }
 

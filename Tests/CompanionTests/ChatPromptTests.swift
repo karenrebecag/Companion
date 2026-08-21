@@ -9,6 +9,7 @@ import Testing
     testPromptDelegateEnabled()
     testPromptDelegateDisabled()
     testPromptOwnerEdges()
+    testPromptProfileBlock()
 }
 
 @MainActor func testPromptEmptyOwner() {
@@ -105,4 +106,33 @@ import Testing
     let a = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false)
     let b = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false)
     expectEq(a, b, "prompt: la misma entrada produce el mismo texto")
+}
+
+@MainActor func testPromptProfileBlock() {
+    let empty = ChatPrompt.profileBlock(about: "  ", instructions: "")
+    expect(empty == nil, "perfil: vacío no inventa un bloque")
+
+    let about = ChatPrompt.profileBlock(about: "diseña producto", instructions: "")
+    expectEq(about, "Sobre la usuaria — diseña producto. ",
+             "perfil: about viaja como hecho")
+
+    let both = ChatPrompt.profileBlock(
+        about: "diseña", instructions: "Sé breve")
+    expect(both?.contains("Sobre la usuaria — diseña.") == true,
+           "perfil: about y instructions conviven")
+    expect(both?.contains("Instrucciones personalizadas de la usuaria: Sé breve") == true,
+           "perfil: instructions se nombran")
+
+    let wired = ChatPrompt.system(
+        ownerFirstName: "Karen", delegateEnabled: false,
+        about: "diseña producto", instructions: "Sé breve")
+    expect(wired.contains("Sobre la usuaria — diseña producto."),
+           "prompt: el perfil entra al system")
+    expect(wired.contains("Instrucciones personalizadas de la usuaria: Sé breve"),
+           "prompt: las instrucciones entran al system")
+
+    let blank = ChatPrompt.system(
+        ownerFirstName: "Karen", delegateEnabled: false, about: "", instructions: "")
+    expect(!blank.contains("Sobre la usuaria"),
+           "prompt: sin perfil no añade el bloque")
 }

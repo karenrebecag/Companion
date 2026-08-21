@@ -7,6 +7,13 @@ public final class ChatProviderClient: ChatProvider, Sendable {
     private let transport: any ChatTransport
     private let settings: ChatSettings
     private let ownerFirstName: String
+    private let ownerAbout: String
+    private let ownerInstructions: String
+    /// Read at REQUEST time: the profile edited in Settings must reach
+    /// the very next message, not the next app launch. The stored
+    /// strings above stay as the test-friendly fallback.
+    private let profileSource:
+        (@Sendable () -> (name: String, about: String, instructions: String))?
     private let catalog: [ProviderDescriptor]
     private let resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
 
@@ -16,6 +23,9 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         transport: any ChatTransport,
         settings: ChatSettings = .default,
         ownerFirstName: String = "",
+        ownerAbout: String = "",
+        ownerInstructions: String = "",
+        profileSource: (@Sendable () -> (name: String, about: String, instructions: String))? = nil,
         catalog: [ProviderDescriptor] = ProviderDescriptor.catalog,
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil
     ) {
@@ -24,6 +34,9 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         self.transport = transport
         self.settings = settings
         self.ownerFirstName = ownerFirstName
+        self.ownerAbout = ownerAbout
+        self.ownerInstructions = ownerInstructions
+        self.profileSource = profileSource
         self.catalog = catalog
         self.resolveAttachment = resolveAttachment
     }
@@ -84,13 +97,27 @@ public final class ChatProviderClient: ChatProvider, Sendable {
                 }
                 if !(await probe.isAvailable(provider)) { continue }
                 attempted = true
+                let name: String
+                let about: String
+                let instructions: String
+                if let live = profileSource?() {
+                    name = live.name
+                    about = live.about
+                    instructions = live.instructions
+                } else {
+                    name = ownerFirstName
+                    about = ownerAbout
+                    instructions = ownerInstructions
+                }
                 let outcome = await ChatSSEAttempt.run(
                     provider: provider,
                     key: storedKey(for: provider),
                     history: history,
                     tools: tools,
                     settings: settings,
-                    ownerFirstName: ownerFirstName,
+                    ownerFirstName: name,
+                    about: about,
+                    instructions: instructions,
                     transport: transport,
                     resolveAttachment: resolveAttachment,
                     yield: { continuation.yield($0) })

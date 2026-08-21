@@ -170,7 +170,7 @@ import Testing
         items: [DropdownItem(title: "ayer")],
         selectedTitle: "ayer"
     ) { _ in }
-    expect(host.blocksRoot, "history: click-away en root")
+    expect(!host.blocksRoot, "history: overlay centrado, el blur es el sink")
     expect(host.menu == .history, "history reemplaza choice")
 }
 

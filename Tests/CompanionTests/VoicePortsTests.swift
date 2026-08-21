@@ -338,6 +338,7 @@ final class FakePlayer: PCMPlaying, @unchecked Sendable {
     func play(_ pcm16le24k: Data) async { played.append(pcm16le24k); hasPending = true }
     func flush() async { flushed = true; hasPending = false; drainBox.yield(()) }
     func stop() async { stopped = true; drainBox.finish(); levelBox.finish() }
+    func setVolume(_ volume: Double) async {}
     func yieldLevel(_ value: Double) { levelBox.yield(value) }
 }
 
@@ -370,6 +371,7 @@ final class FakeSpeech: SpeechSynthesizer, @unchecked Sendable {
 final class FakeVoice: VoiceControlling, @unchecked Sendable {
     private(set) var speeds: [Double] = []
     func setSpeed(_ speed: Double) async { speeds.append(speed) }
+    func setVolume(_ volume: Double) async {}
 
     var started = false, advanced = false, hungUp = false, muted = false
     private let snapBox = StreamBox<TurnSnapshot>()

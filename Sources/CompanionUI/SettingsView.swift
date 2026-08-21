@@ -1,57 +1,68 @@
+import AppKit
 import CompanionCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 public enum SettingsTab: String, CaseIterable, Equatable {
-    case appearance = "Apariencia"
-    case profile = "Perfil"
+    case you = "Tú"
     case voice = "Voz"
-    case system = "Sistema"
-    case keyboard = "Atajos"
+    case app = "App"
 
-    var symbol: String {
+    public var symbol: String {
         switch self {
-        case .appearance: "paintbrush"
-        case .profile: "person.crop.circle"
+        case .you: "person.crop.circle"
         case .voice: "waveform"
-        case .system: "gearshape"
-        case .keyboard: "keyboard"
+        case .app: "square.grid.2x2"
         }
     }
 }
 
 public enum SettingsOverlayMetrics {
     public static let maxSide: CGFloat = 560
+    public static let cardHeight: CGFloat = 68
+    public static let avatar: CGFloat = Space.x8 + Space.x1
+    public static let stepHit: CGFloat = Space.x8
 }
 
 public struct SettingsView: View {
     private let preview: VoicePreview?
-    private let executors: ExecutorChoice?
+    var chat: ChatViewModel?
     let onClose: () -> Void
+    @Binding var tab: SettingsTab
     @State private var ownerName = UserProfile.ownerName
-    @State private var shortcuts = ShortcutSet.load()
+    @State private var about = UserProfile.about
+    @State private var instructions = UserProfile.instructions
     @State private var interfaceSounds = InterfaceSound.enabled
-    @State private var tab: SettingsTab = .appearance
+    @State private var fontDelta = TypeScale.delta
+    @State private var avatar = UserProfile.avatarImage
+    @State private var confirmPurge = false
+    @State private var storageLabel = "Nada guardado"
     @Environment(DropdownHost.self) private var dropdowns
 
     public init(
         preview: VoicePreview? = nil,
-        executors: ExecutorChoice? = nil,
+        chat: ChatViewModel? = nil,
         onLiveSpeedChange: ((Double) -> Void)? = nil,
+        onLiveVolumeChange: ((Double) -> Void)? = nil,
         onAECRearm: (() -> Void)? = nil,
         echoFreeOutput: Bool = false,
         updates: UpdateState? = nil,
+        tab: Binding<SettingsTab> = .constant(.you),
         onClose: @escaping () -> Void = {}
     ) {
         self.preview = preview
-        self.executors = executors
+        self.chat = chat
         self.onLiveSpeedChange = onLiveSpeedChange
+        self.onLiveVolumeChange = onLiveVolumeChange
         self.onAECRearm = onAECRearm
         self.echoFreeOutput = echoFreeOutput
         self.updates = updates
+        self._tab = tab
         self.onClose = onClose
     }
 
     private let onLiveSpeedChange: ((Double) -> Void)?
+    private let onLiveVolumeChange: ((Double) -> Void)?
     private let onAECRearm: (() -> Void)?
     private let echoFreeOutput: Bool
     private let updates: UpdateState?
@@ -64,11 +75,9 @@ public struct SettingsView: View {
             ScrollView {
                 Group {
                     switch tab {
-                    case .appearance: appearancePane
-                    case .profile: profilePane
+                    case .you: youPane
                     case .voice: voicePane
-                    case .system: systemPane
-                    case .keyboard: keyboardPane
+                    case .app: appPane
                     }
                 }
                 .padding(Space.x5)
@@ -94,8 +103,15 @@ public struct SettingsView: View {
                     }
             }
         }
+        .overlay { purgeConfirm }
         .dropdownPortal(host: dropdowns)
         .onDisappear { dropdowns.dismiss() }
+        .onAppear { storageLabel = chat?.attachmentsStorageLabel ?? "Nada guardado" }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .companionProfileDidChange)
+        ) { _ in
+            avatar = UserProfile.avatarImage
+        }
     }
 
     private var header: some View {
@@ -120,7 +136,7 @@ public struct SettingsView: View {
     }
 
     private var tabs: some View {
-        HStack(spacing: Space.x2) {
+        HStack(spacing: Space.x1) {
             ForEach(SettingsTab.allCases, id: \.self) { t in
                 Button {
                     withAnimation(.springSelect) {
@@ -128,7 +144,7 @@ public struct SettingsView: View {
                         dropdowns.dismiss()
                     }
                 } label: {
-                    HStack(spacing: Space.x1 + Space.x1 / 2) {
+                    VStack(spacing: Space.x1) {
                         Image(systemName: t.symbol)
                             .font(.uiCaption)
                         Text(t.rawValue)
@@ -136,175 +152,185 @@ public struct SettingsView: View {
                     }
                     .foregroundStyle(
                         tab == t ? Semantic.foreground : Semantic.mutedForeground)
-                    .padding(.horizontal, Space.x2 + Space.x1 / 2)
-                    .padding(.vertical, Space.x1 + Space.x1 / 2)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Space.x2)
                     .background(
-                        RoundedRectangle(cornerRadius: Radius.sm)
+                        RoundedRectangle(cornerRadius: Radius.md)
                             .fill(Semantic.surface.opacity(tab == t ? 1 : 0))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Radius.md)
+                            .stroke(
+                                tab == t ? Semantic.border : Color.clear,
+                                lineWidth: Stroke.hairline)
                     )
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(t.rawValue)
+                .accessibilityAddTraits(tab == t ? .isSelected : [])
             }
-            Spacer()
         }
         .padding(.horizontal, Space.x5)
         .padding(.bottom, Space.x3)
     }
 
-    private var appearancePane: some View {
-        VStack(alignment: .leading, spacing: Space.x3) {
-            Text("APARIENCIA")
-                .typeEyebrow()
-            SettingsItem(
-                title: "Tipografía",
-                value: AppTypeface.stored.label,
-                options: AppTypeface.allCases.map { ($0, $0.label) }
-            ) { face in
-                AppTypeface.stored = face
-            }
-            SettingsItem(
-                title: "Color de acento",
-                value: Highlight.stored.label,
-                options: Highlight.allCases.map { ($0, $0.label) },
-                rainbow: { $0 == .standard },
-                swatch: { $0 == .standard ? nil : $0.swatch }
-            ) { highlight in
-                Highlight.stored = highlight
-            }
-        }
-    }
+    // MARK: - Tú
 
-    private var profilePane: some View {
-        VStack(alignment: .leading, spacing: Space.x3) {
-            Text("PERFIL")
+    private var youPane: some View {
+        VStack(alignment: .leading, spacing: Space.x4) {
+            Text("TÚ")
                 .typeEyebrow()
+            photoRow
+            Text("Companion usa esto para conocerte. Se guarda solo, y aplica desde tu siguiente mensaje.")
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
             AppField(
                 title: "Cómo te llamo",
                 placeholder: "Tu nombre",
                 text: $ownerName)
-            .onChange(of: ownerName) { _, name in
-                UserProfile.ownerName = name
+            SettingsMultiline(
+                title: "Sobre ti",
+                placeholder: "En qué trabajas, cómo te gusta que te hablen…",
+                text: $about)
+            SettingsMultiline(
+                title: "Cómo responder",
+                placeholder: "Sé breve, no adules, corrígeme…",
+                text: $instructions)
+        }
+        .onChange(of: ownerName) { persistProfile() }
+        .onChange(of: about) { persistProfile() }
+        .onChange(of: instructions) { persistProfile() }
+    }
+
+    private var photoRow: some View {
+        SettingsLine(
+            title: "Tu foto",
+            subtitle: "Se queda en esta Mac"
+        ) {
+            HStack(spacing: Space.x2) {
+                avatarThumb
+                Button(action: pickAvatar) {
+                    Image(systemName: "pencil")
+                        .font(.uiCaption)
+                        .foregroundStyle(Semantic.foreground)
+                        .frame(width: Space.x6, height: Space.x6)
+                        .background(Circle().fill(Semantic.surface))
+                        .overlay(Circle().stroke(Semantic.border, lineWidth: Stroke.hairline))
+                }
+                .buttonStyle(PressableStyle())
+                .help("Cambiar foto")
+                .accessibilityLabel("Cambiar foto")
             }
         }
     }
+
+    private var avatarThumb: some View {
+        Group {
+            if let avatar {
+                Image(nsImage: avatar)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: "person.crop.circle")
+                    .font(.uiTitle)
+                    .foregroundStyle(Semantic.mutedForeground)
+            }
+        }
+        .frame(
+            width: SettingsOverlayMetrics.avatar,
+            height: SettingsOverlayMetrics.avatar)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(Semantic.border, lineWidth: Stroke.hairline))
+    }
+
+    // MARK: - Voz
 
     private var voicePane: some View {
-        VStack(alignment: .leading, spacing: Space.x6) {
-            SettingsVoiceSection(
-                preview: preview,
-                onLiveSpeedChange: onLiveSpeedChange,
-                onAECRearm: onAECRearm,
-                echoFreeOutput: echoFreeOutput)
-            if let executors, executors.isMeaningful {
-                VStack(alignment: .leading, spacing: Space.x3) {
-                    Text("ESPECIALISTA")
-                        .typeEyebrow()
-                    SettingsItem(
-                        title: "Quién trabaja los encargos",
-                        value: executors.available
-                            .first { $0.id == executors.selected }?
-                            .title ?? "Nativo",
-                        options: executors.available.map { ($0.id, $0.title) }
-                    ) { id in
-                        executors.selected = id
-                    }
-                }
-            }
-        }
+        SettingsVoiceSection(
+            preview: preview,
+            onLiveSpeedChange: onLiveSpeedChange,
+            onLiveVolumeChange: onLiveVolumeChange,
+            onAECRearm: onAECRearm,
+            echoFreeOutput: echoFreeOutput)
     }
 
-    private var systemPane: some View {
-        VStack(alignment: .leading, spacing: Space.x3) {
-            Text("SISTEMA")
-                .typeEyebrow()
-            VStack(alignment: .leading, spacing: Space.x2) {
-                Text("Versión")
-                    .font(.uiLabel)
-                    .foregroundStyle(Semantic.foreground)
-                Text(appVersion)
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
-                if let updates {
-                    if let available = updates.available {
-                        Link(
-                            "Ver la versión \(available.tag)",
-                            destination: available.pageURL)
-                        .font(.uiLabel)
-                        .foregroundStyle(Semantic.accent)
-                    } else {
-                        AppButton(
-                            updates.checking
-                                ? "Buscando…" : "Buscar actualización",
-                            kind: .ghost,
-                            enabled: !updates.checking
-                        ) {
-                            updates.requestCheck()
+    // MARK: - App
+
+    private var appPane: some View {
+        SettingsAppPane(
+            chat: chat,
+            updates: updates,
+            fontDelta: $fontDelta,
+            interfaceSounds: $interfaceSounds,
+            storageLabel: $storageLabel,
+            confirmPurge: $confirmPurge)
+    }
+
+    @ViewBuilder
+    private var purgeConfirm: some View {
+        if confirmPurge {
+            ZStack {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Semantic.scrim)
+                    .onTapGesture { confirmPurge = false }
+                VStack(alignment: .leading, spacing: Space.x3) {
+                    Text("¿Vaciar los archivos guardados?")
+                        .font(.uiSubtitle)
+                        .foregroundStyle(Semantic.foreground)
+                    Text("Se borran las copias de todo lo que has adjuntado, \(storageLabel). Las conversaciones que las citaban se quedan sin ellas y el texto se conserva.")
+                        .font(.uiCaption)
+                        .foregroundStyle(Semantic.mutedForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: Space.x2) {
+                        Spacer()
+                        AppButton("Mejor no", kind: .secondary) { confirmPurge = false }
+                        AppButton("Vaciar", kind: .destructive) {
+                            chat?.purgeStoredAttachments()
+                            storageLabel = chat?.attachmentsStorageLabel ?? "Nada guardado"
+                            confirmPurge = false
                         }
                     }
                 }
-            }
-            Toggle("Sonidos de interfaz", isOn: $interfaceSounds)
-                .font(.uiLabel)
-                .foregroundStyle(Semantic.foreground)
-                .tint(Semantic.accent)
-                .onChange(of: interfaceSounds) { _, on in
-                    InterfaceSound.enabled = on
-                }
-        }
-    }
-
-    private var keyboardPane: some View {
-        VStack(alignment: .leading, spacing: Space.x3) {
-            Text("ATAJOS")
-                .typeEyebrow()
-            if !shortcuts.shortcuts.isEmpty {
-                VStack(alignment: .leading, spacing: Space.x2) {
-                    ForEach(Array(shortcuts.shortcuts.enumerated()), id: \.offset) { _, shortcut in
-                        shortcutRow(shortcut)
-                    }
-                }
-            }
-            if !shortcuts.hasConflicts().isEmpty {
-                Text("Hay conflictos entre atajos")
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.destructive)
+                .padding(Space.x5)
+                .frame(maxWidth: 400)
+                .background(
+                    RoundedRectangle(cornerRadius: Radius.xl)
+                        .fill(Semantic.surfaceOverlay)
+                        .elevation(.sheet)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: Radius.xl)
+                        .stroke(Semantic.border, lineWidth: Stroke.hairline)
+                )
             }
         }
     }
 
-    private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "desconocida"
+    // Sin notificación por tecla: la de perfil solo la manda el avatar,
+    // que es lo único que otros observan; el texto se lee por petición.
+    private func persistProfile() {
+        UserProfile.ownerName = ownerName
+        UserProfile.about = about
+        UserProfile.instructions = instructions
     }
 
-    private func shortcutRow(_ shortcut: Shortcut) -> some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            HStack {
-                Text(shortcut.action.label)
-                    .font(.uiLabel)
-                    .foregroundStyle(Semantic.foreground)
-                Spacer()
-                Text(shortcut.displayKey())
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
+    private func pickAvatar() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.image]
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            if UserProfile.setAvatar(from: url) {
+                avatar = UserProfile.avatarImage
             }
         }
     }
+
 }
-
-// MARK: - Border Bottom Modifier
-
-private extension View {
-    func borderBottom() -> some View {
-        VStack(spacing: Space.none) {
-            self
-            Divider()
-                .foregroundStyle(Semantic.border)
-        }
-    }
-}
-
-// MARK: - Preview
 
 #if DEBUG
 #Preview {

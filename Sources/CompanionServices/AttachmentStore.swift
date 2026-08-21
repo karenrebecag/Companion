@@ -89,6 +89,52 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
         }
     }
 
+    public func storedBytes() -> Int {
+        var total = 0
+        guard let enumerator = FileManager.default.enumerator(
+            at: root,
+            includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey])
+        else { return 0 }
+        while let url = enumerator.nextObject() as? URL {
+            let values: URLResourceValues
+            do {
+                values = try url.resourceValues(
+                    forKeys: [.fileSizeKey, .isRegularFileKey])
+            } catch {
+                continue
+            }
+            guard values.isRegularFile == true else { continue }
+            total += values.fileSize ?? 0
+        }
+        return total
+    }
+
+    public func storedLabel() -> String {
+        let bytes = storedBytes()
+        if bytes <= 0 { return "Nada guardado" }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
+    }
+
+    public func purge() {
+        let contents: [URL]
+        do {
+            contents = try FileManager.default.contentsOfDirectory(
+                at: root, includingPropertiesForKeys: nil)
+        } catch {
+            return
+        }
+        for url in contents {
+            guard isUnderRoot(url) else { continue }
+            do {
+                try FileManager.default.removeItem(at: url)
+            } catch {
+                Log.chat("failed to purge attachment")
+            }
+        }
+    }
+
     public func thumbnailData(for ref: AttachmentRef) -> Data? {
         guard ref.kind == .image else { return nil }
         return jpegData(

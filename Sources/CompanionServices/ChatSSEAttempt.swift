@@ -20,6 +20,8 @@ enum ChatSSEAttempt {
         tools: [ToolSpec],
         settings: ChatSettings,
         ownerFirstName: String,
+        about: String = "",
+        instructions: String = "",
         transport: any ChatTransport,
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil,
         yield: @escaping @Sendable (ChatDelta) -> Void
@@ -27,6 +29,7 @@ enum ChatSSEAttempt {
         guard let request = makeRequest(
             provider: provider, key: key, history: history, tools: tools,
             settings: settings, ownerFirstName: ownerFirstName,
+            about: about, instructions: instructions,
             resolveAttachment: resolveAttachment)
         else { return .failed(.unreachable) }
 
@@ -67,6 +70,8 @@ enum ChatSSEAttempt {
         tools: [ToolSpec],
         settings: ChatSettings,
         ownerFirstName: String,
+        about: String = "",
+        instructions: String = "",
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil
     ) -> URLRequest? {
         guard let url = provider.endpoint else { return nil }
@@ -82,6 +87,7 @@ enum ChatSSEAttempt {
         guard let body = makeBody(
             provider: provider, history: history, tools: tools,
             settings: settings, ownerFirstName: ownerFirstName,
+            about: about, instructions: instructions,
             resolveAttachment: resolveAttachment)
         else { return nil }
         request.httpBody = body
@@ -104,13 +110,16 @@ private func makeBody(
     tools: [ToolSpec],
     settings: ChatSettings,
     ownerFirstName: String,
+    about: String,
+    instructions: String,
     resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
 ) -> Data? {
     let delegateEnabled = tools.contains { $0.name == "delegate" }
     var messages: [[String: Any]] = [[
         "role": TurnRole.system.rawValue,
         "content": ChatPrompt.system(
-            ownerFirstName: ownerFirstName, delegateEnabled: delegateEnabled),
+            ownerFirstName: ownerFirstName, delegateEnabled: delegateEnabled,
+            about: about, instructions: instructions),
     ]]
     let window = max(settings.historyWindow, 0)
     for turn in history.suffix(window) {

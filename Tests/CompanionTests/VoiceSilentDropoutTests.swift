@@ -178,6 +178,7 @@ private final class FailingSendTransport: VoiceTransport, @unchecked Sendable {
 }
 
 private final class SilentPlayer: PCMPlaying, @unchecked Sendable {
+    func setVolume(_ volume: Double) async {}
     func start(sharedEngine: Bool) async throws {}
     func play(_ pcm16le24k: Data) async {}
     func flush() async {}

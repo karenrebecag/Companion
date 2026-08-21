@@ -136,6 +136,10 @@ public actor VoiceSession: VoiceControlling {
         await realtime.send(RealtimeCodec.speedUpdate(speed))
     }
 
+    public func setVolume(_ volume: Double) async {
+        await player.setVolume(volume)
+    }
+
     public func start() async {
         await apply(.startVoice(preferRealtime: openAIKey() != nil))
     }

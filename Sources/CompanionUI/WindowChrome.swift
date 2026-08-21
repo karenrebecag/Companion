@@ -20,6 +20,19 @@ public enum WindowChrome {
         window.contentAspectRatio = aspectRatio
         window.contentMinSize = contentMinSize
         window.contentMaxSize = contentMaxSize
+        applyAppearance(window)
+    }
+
+    public static func appearance(for pref: AppearancePreference) -> NSAppearance? {
+        switch pref {
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        case .auto: nil
+        }
+    }
+
+    public static func applyAppearance(_ window: NSWindow) {
+        window.appearance = appearance(for: AppearancePreference.stored)
     }
 
     public static func install<Root: View>(

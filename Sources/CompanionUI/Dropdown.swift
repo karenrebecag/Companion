@@ -39,10 +39,10 @@ public final class DropdownHost {
 
     public init() {}
 
-    /// Choice/history live on the root. Settings picks must not cover the window
-    /// under the sheet — leftover isOpen after dismiss would freeze clicks.
+    /// Choice is a header panel: the root hit-sink covers the rest of the
+    /// window. History is a centered overlay; its blur is the sink.
     public var blocksRoot: Bool {
-        session.isOpen && (menu == .choice || menu == .history)
+        session.isOpen && menu == .choice
     }
 
     public func toggle(_ menu: OpenMenu) {
@@ -180,6 +180,7 @@ struct DropdownRow: View {
     var index = 0
     var swatch: Color? = nil
     var rainbow = false
+    var titleMaxWidth: CGFloat = 240
     let action: () -> Void
 
     @State private var hovering = false
@@ -212,7 +213,7 @@ struct DropdownRow: View {
                             .lineLimit(1)
                     }
                 }
-                .frame(maxWidth: 240, alignment: .leading)
+                .frame(maxWidth: titleMaxWidth, alignment: .leading)
                 Spacer(minLength: Space.x3)
                 if selected {
                     IconGlyph(icon: .check, size: 12)
@@ -313,10 +314,12 @@ struct SettingsItem<T: Hashable>: View {
 
     var body: some View {
         HStack {
-            Text(title)
-                .font(.uiLabel)
-                .foregroundStyle(Semantic.foreground)
-            Spacer()
+            if !title.isEmpty {
+                Text(title)
+                    .font(.uiLabel)
+                    .foregroundStyle(Semantic.foreground)
+                Spacer()
+            }
             Button {
                 withAnimation(.springSheet) {
                     host.present(

@@ -3,7 +3,24 @@ import Foundation
 public enum ChatPrompt: Sendable {
     /// Personality always applies. The original concatenated it only on the
     /// named-owner branch because `+` binds tighter than `?:`.
-    public static func system(ownerFirstName: String, delegateEnabled: Bool) -> String {
+    public static func profileBlock(about: String, instructions: String) -> String? {
+        let about = about.trimmingCharacters(in: .whitespacesAndNewlines)
+        let instructions = instructions.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        var out = ""
+        if !about.isEmpty { out += "Sobre la usuaria — \(about). " }
+        if !instructions.isEmpty {
+            out += "Instrucciones personalizadas de la usuaria: \(instructions)"
+        }
+        return out.isEmpty ? nil : out
+    }
+
+    public static func system(
+        ownerFirstName: String,
+        delegateEnabled: Bool,
+        about: String = "",
+        instructions: String = ""
+    ) -> String {
         let owner = ownerFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
         let greeting = owner.isEmpty
             ? "Eres Companion, asistente de voz en esta Mac. "
@@ -13,6 +30,9 @@ public enum ChatPrompt: Sendable {
             + "No eres Hermes, no eres un TUI, no estás en una terminal. "
             + "No inventes backends ni rutas internas. "
             + "Si no sabes algo, dilo. Charla, no un informe."
+        if let block = profileBlock(about: about, instructions: instructions) {
+            prompt += " " + block
+        }
         if delegateEnabled {
             prompt += " El especialista SÍ tiene los archivos, la "
                 + "terminal, las herramientas de esta Mac Y BÚSQUEDA EN "

@@ -36,6 +36,8 @@ public protocol PCMPlaying: Sendable {
     func play(_ pcm16le24k: Data) async
     func flush() async
     func stop() async
+    /// Live volume (0...1): the slider must not wait for an app relaunch.
+    func setVolume(_ volume: Double) async
     var hasPending: Bool { get async }
     var drained: AsyncStream<Void> { get }
     var levels: AsyncStream<Double> { get }
@@ -80,6 +82,8 @@ public struct VoiceLevels: Sendable, Equatable {
 public protocol VoiceControlling: Sendable {
     /// Applies mid-session; the server accepts speed changes but not voice.
     func setSpeed(_ speed: Double) async
+    /// Playback volume, applied live to the local player.
+    func setVolume(_ volume: Double) async
     func start() async
     func advance() async
     func hangUp() async

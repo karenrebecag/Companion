@@ -36,9 +36,31 @@ public final class ChatViewModel: ConversationPresenting {
     public var dropTargeted = false
     public private(set) var busySince: Date?
 
+    public var folderName: String?
+
     public var folderLabel: String? {
-        guard let path = config.workdir, !path.isEmpty else { return nil }
-        return URL(fileURLWithPath: path).lastPathComponent
+        folderName
+            ?? WorkdirPreference.label
+            ?? config.workdir.map { URL(fileURLWithPath: $0).lastPathComponent }
+    }
+
+    public func setFolder(_ path: String) {
+        guard WorkdirPreference.isAllowed(path) else { return }
+        WorkdirPreference.stored = path
+        folderName = WorkdirPreference.label
+    }
+
+    public var attachmentsStorageLabel: String {
+        let bytes = attachments?.storedBytes() ?? 0
+        if bytes <= 0 { return "Nada guardado" }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: Int64(bytes))
+    }
+
+    public func purgeStoredAttachments() {
+        attachments?.purge()
+        pendingAttachments = []
     }
     public private(set) var recents: [ConversationMeta] = []
     public private(set) var errorText: String?
@@ -74,6 +96,8 @@ public final class ChatViewModel: ConversationPresenting {
         self.jobSubmitter = jobSubmitter
         self.notices = notices
         self.attachments = attachments
+        self.folderName = WorkdirPreference.label
+            ?? config.workdir.map { URL(fileURLWithPath: $0).lastPathComponent }
     }
 
     public func toast(_ text: String, level: NoticeLevel = .info) {

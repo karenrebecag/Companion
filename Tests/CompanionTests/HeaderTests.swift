@@ -6,6 +6,7 @@ import Testing
     testModeHasVoiceAndText()
     testAvatarMatchesHeroIcon()
     testSettingsTabsSkipHermes()
+    testHistoryOverlayUsesSettingsBounds()
 }
 
 @MainActor func testTopClearanceClearsTrafficLights() {
@@ -28,5 +29,17 @@ import Testing
     expect(
         !SettingsTab.allCases.map(\.rawValue).contains { $0.lowercased().contains("hermes") },
         "ajustes: sin tab Hermes")
-    expectEq(SettingsTab.allCases.count, 5, "ajustes: panes existentes, no MCP")
+    expectEq(SettingsTab.allCases, [.you, .voice, .app],
+             "ajustes: Tú, Voz, App — no MCP ni atajos sueltos")
+    expectEq(SettingsTab.you.symbol, "person.crop.circle", "ajustes: Tú es perfil")
+    expectEq(SettingsTab.voice.symbol, "waveform", "ajustes: Voz")
+    expectEq(SettingsTab.app.symbol, "square.grid.2x2", "ajustes: App")
+}
+
+@MainActor func testHistoryOverlayUsesSettingsBounds() {
+    expectEq(
+        HistoryOverlayMetrics.maxSide, SettingsOverlayMetrics.maxSide,
+        "recientes: mismo tope 560 que ajustes")
+    expectEq(HistoryOverlayMetrics.minWidth, 300,
+             "recientes: no se estrecha más que ajustes")
 }
