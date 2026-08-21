@@ -27,6 +27,15 @@ enum AudioDevicePin {
         return (input, output)
     }
 
+    /// Plain AUHAL input: pin only the input bus to the built-in mic. After a
+    /// failed VPIO attempt the process default can stay glued to the broken
+    /// aggregate (input reads 3ch instead of the built-in mic's 1ch) and the
+    /// graph starts but never delivers a buffer.
+    static func pinInput(_ unit: AudioUnit) -> Bool {
+        guard let pair = builtInPair() else { return false }
+        return setDevice(unit, device: pair.input, element: 1)
+    }
+
     /// Both buses, both devices, before init — partial pinning can fail if
     /// either side is not aggregatable (Apple's guidelines).
     static func pin(

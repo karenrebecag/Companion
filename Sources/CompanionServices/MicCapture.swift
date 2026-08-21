@@ -120,6 +120,10 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
         prepareEngine()
         guard let engine else { throw VoiceTransportError.unreachable }
         let input = engine.inputNode
+        if !voiceProcessing, let unit = input.audioUnit {
+            let pinned = AudioDevicePin.pinInput(unit)
+            Log.app("audio: plain input pin \(pinned ? "ok" : "FAILED")")
+        }
         let format = input.inputFormat(forBus: 0)
         Log.app("audio: mic start vp=\(voiceProcessing) "
                 + "format=\(Int(format.sampleRate))Hz ch=\(format.channelCount)")

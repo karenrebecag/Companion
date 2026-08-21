@@ -13,8 +13,8 @@
 
 ## Foco actual
 
-Wave 4 (delegacion): pendiente kickoff y aprobacion del spec. Antes, prueba
-manual de voz por Karen (bundle + hablar + matar la red a mitad de turno).
+Wave 4 (delegacion): kickoff en curso. El spec se refina contra lo que las
+waves 1-3 produjeron y necesita aprobacion de Karen antes de escribir codigo.
 
 ## Deuda consciente (con trigger)
 

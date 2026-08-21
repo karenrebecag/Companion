@@ -143,6 +143,29 @@ Descubiertas en prueba manual de Wave 3; ningun test las vio.
   usuaria interrumpir. Por eso el default cambio a AEC on (desviacion 8 del
   spec de Wave 3 queda revocada); el watchdog cubre el riesgo de VPIO.
 
+- **VPIO no levanta con dispositivos dispares** (`kAUInitialize -10875`).
+  Limitacion conocida del framework (foros de Apple 772006 / 810129): el
+  agregado que arma VPIO falla si entrada y salida no casan en canales — un
+  dispositivo virtual (Teams) en la cadena basta. La tecnica documentada de
+  Apple es fijar AMBOS buses del unit con
+  `kAudioOutputUnitProperty_CurrentDevice` antes de inicializar; en esta Mac
+  ni asi levanta. Los stacks de voz en produccion (LiveKit) tratan VPIO como
+  opcional y caen a AEC por software.
+- **Tras un VPIO fallido, el engine simple hereda el agregado roto**: la
+  entrada reporta 3 canales en vez del micrófono integrado (1 ch) y el grafo
+  arranca sin entregar un solo buffer. Fijar la entrada del engine plano al
+  dispositivo integrado (`AudioDevicePin.pinInput`), no confiar en el default
+  del proceso.
+- **Salida sin eco = AEC innecesario.** Con audifonos o bluetooth no hay
+  realimentacion acustica, asi que se pueden mandar frames mientras el agente
+  habla y el barge-in por voz funciona sin VPIO. Detectar por transport type
+  y data source del dispositivo de salida.
+- **Keys importadas desde la terminal piden contrasena en cada arranque.**
+  Un item creado por `security` solo confia en esa herramienta; hay que
+  declarar la app con `-T <ruta al binario>` (con firma estable, la confianza
+  sobrevive a los rebuilds). Cuando la usuaria pega la key en el onboarding
+  esto no ocurre: la app es duena del item.
+
 ## El patron de bug que se repite en este repo
 
 Cuatro veces en Wave 3 aparecio lo mismo: **la logica correcta y testeada,

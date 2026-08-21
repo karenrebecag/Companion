@@ -1,7 +1,8 @@
 # Wave 3 — Voz
 
-**Estado: CERRADO** — 2026-08-20. Falta solo la prueba manual de Karen
-(definicion de done: hablar de punta a punta + caida a clasico).
+**Estado: CERRADO** — 2026-08-21, tras dos rondas de prueba manual en el
+hardware de Karen. Voz de punta a punta, interrupcion por tap siempre y por
+voz con audifonos, caidas visibles y con reconexion.
 Kickoff planner + architect. Ledger de audio/AEC es contrato.
 
 ## Objetivo
