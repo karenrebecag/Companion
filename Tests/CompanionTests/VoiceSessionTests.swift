@@ -12,6 +12,8 @@ import Testing
     await testNoKeyClassicListen()
     await testOpenTimeoutFallsBackClassic()
     await testOfflineStaysInErrorWithoutFallback()
+    await testSilentMicFailsLoud()
+    await testLiveMicSurvivesSilenceWatchdog()
     await testHangUpClosesTransport()
     await testEchoGuardHoldsFrames()
     await testFunctionCallRefusal()
@@ -135,6 +137,26 @@ import Testing
            "offline: no cambia de pipeline")
 }
 
+@MainActor func testSilentMicFailsLoud() async {
+    let h = makeVoiceHarness(micSilenceTimeout: 0.05)
+    h.mic.receivedBuffer = false
+    await h.session.start()
+    await pumpUntil("mic-silencio: error visible") {
+        h.watch.latest.state == .error
+    }
+    expectEq(h.watch.latest.failure, .micSilent,
+             "mic-silencio: la razón es que no entregó audio")
+}
+
+@MainActor func testLiveMicSurvivesSilenceWatchdog() async {
+    let h = makeVoiceHarness(micSilenceTimeout: 0.05)
+    await h.session.start()
+    await pumpUntil("mic-vivo: listening") { h.watch.latest.state == .listening }
+    await settle(0.15)
+    expectEq(h.watch.latest.state, .listening,
+             "mic-vivo: el watchdog no dispara con buffers llegando")
+}
+
 @MainActor func testHangUpClosesTransport() async {
     let h = makeVoiceHarness()
     await h.session.start()
@@ -232,7 +254,8 @@ func makeVoiceHarness(
     autoEvents: [RealtimeEvent] = [.sessionCreated, .sessionUpdated],
     readyTimeout: TimeInterval = 1,
     aec: Bool = false,
-    online: Bool = true
+    online: Bool = true,
+    micSilenceTimeout: TimeInterval = 10
 ) -> VoiceHarness {
     let transport = ScriptedVoiceTransport()
     transport.autoEvents = autoEvents
@@ -258,6 +281,7 @@ func makeVoiceHarness(
         thread: thread,
         config: Config(ownerFirstName: "Karen"),
         reachability: ScriptedReachability(online),
+        micSilenceTimeout: micSilenceTimeout,
         now: { clock.now },
         readyTimeout: readyTimeout)
     let watch = SnapWatch(session.snapshots)
@@ -357,7 +381,7 @@ final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable {
 
 final class ScriptedMic: MicCapturing, @unchecked Sendable {
     var granted = true, started = false, stopped = false
-    var hasEchoCancellation = false, receivedBuffer = false
+    var hasEchoCancellation = false, receivedBuffer = true
     var startError: VoiceTransportError?
     private let box = StreamBox<MicFrame>()
     var frames: AsyncStream<MicFrame> { box.stream }

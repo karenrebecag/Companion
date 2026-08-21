@@ -21,6 +21,7 @@ final class AudioStreamBox<T: Sendable>: @unchecked Sendable {
 public final class MicCapture: MicCapturing, @unchecked Sendable {
     private let access: @Sendable () async -> Bool
     private let echoCancellation: Bool
+    private let vetoStore: AECVetoStoring
     private let watchdogDelay: TimeInterval
     private let sleep: @Sendable (TimeInterval) async throws -> Void
     private let frameBox = AudioStreamBox<MicFrame>()
@@ -47,6 +48,12 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
             Log.app("audio: mic permission \(ok ? "granted" : "DENIED")")
             return ok
         },
+        // The prototype persisted this veto on purpose: on a machine where
+        // VPIO cannot init (kAUInitialize -10875, e.g. aggregate inputs),
+        // retrying it on every session only poisons the HAL for the plain
+        // engine that follows. One failed attempt disables AEC until the
+        // store is cleared (Settings toggle, Wave 5).
+        vetoStore: AECVetoStoring = UserDefaultsAECVeto(),
         watchdogDelay: TimeInterval = 1.5,
         sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { interval in
             try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
@@ -54,6 +61,8 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
     ) {
         self.echoCancellation = echoCancellation
         self.access = access
+        self.vetoStore = vetoStore
+        self.vetoVoiceProcessing = vetoStore.isVetoed
         self.watchdogDelay = watchdogDelay
         self.sleep = sleep
     }
@@ -78,8 +87,9 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
     /// reports 0 Hz meanwhile, and an engine that saw 0 Hz keeps it forever.
     /// Probe with a fresh engine each time, up to ~2 s, before giving up.
     private func retryWithoutVP() async throws {
-        Log.app("audio: retrying without echo cancellation")
+        Log.app("audio: retrying without echo cancellation (veto persisted)")
         vetoVoiceProcessing = true
+        vetoStore.isVetoed = true
         voiceProcessing = false
         muteMixer = nil
         engine = nil
@@ -99,6 +109,7 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
     public func disableVoiceProcessing() async {
         halt()
         vetoVoiceProcessing = true
+        vetoStore.isVetoed = true
         voiceProcessing = false
         muteMixer = nil
         engine = nil

@@ -26,6 +26,8 @@ public actor VoiceSession: VoiceControlling {
     private var playerLevelTask: Task<Void, Never>?
     private var speechTask: Task<Void, Never>?
     private let reachability: any ReachabilityProbing
+    private let micSilenceTimeout: TimeInterval
+    private var micSilenceTask: Task<Void, Never>?
     private var lastMic = 0.0
     private var lastAgent = 0.0
     private var reconnectAttempted = false
@@ -41,6 +43,7 @@ public actor VoiceSession: VoiceControlling {
         thread: any ConversationPresenting,
         config: Config,
         reachability: any ReachabilityProbing = NetworkReachability(),
+        micSilenceTimeout: TimeInterval = 2.5,
         now: @escaping @Sendable () -> TimeInterval = {
             Date().timeIntervalSince1970
         },
@@ -54,6 +57,7 @@ public actor VoiceSession: VoiceControlling {
         self.secrets = secrets
         self.config = config
         self.reachability = reachability
+        self.micSilenceTimeout = micSilenceTimeout
         self.now = now
         self.readyTimeout = readyTimeout
         self.realtime = RealtimeRuntime(
@@ -175,7 +179,10 @@ public actor VoiceSession: VoiceControlling {
         }
         startPumps()
         await realtime.flushPendingUpdate()
-        if await waitForReady() { return }
+        if await waitForReady() {
+            armMicSilenceWatchdog()
+            return
+        }
         if machine.snapshot.state == .connecting {
             // Handshake never completed: unreachable from the user's side.
             await failRealtimeStart(VoiceTransportError.timeout)
@@ -197,7 +204,33 @@ public actor VoiceSession: VoiceControlling {
         }
     }
 
+    /// The prototype armed this at the wiring layer: an engine can start
+    /// clean and still never deliver a buffer (poisoned HAL, VPIO leftovers).
+    /// Waits past MicCapture's own retry window, then fails LOUD instead of
+    /// leaving a mic that listens to nothing forever.
+    private func armMicSilenceWatchdog() {
+        micSilenceTask?.cancel()
+        micSilenceTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await Task.sleep(for: .seconds(micSilenceTimeout))
+            } catch { return }
+            await self.checkMicSilence()
+        }
+    }
+
+    private func checkMicSilence() async {
+        let snap = machine.snapshot
+        guard snap.pipeline == .realtime,
+              snap.state == .listening || snap.state == .connecting,
+              await !mic.receivedBuffer else { return }
+        Log.app("audio: no mic buffer after \(micSilenceTimeout)s — failing loud")
+        await apply(.turnFailed(.micSilent))
+    }
+
     private func closeRealtime() async {
+        micSilenceTask?.cancel()
+        micSilenceTask = nil
         eventTask?.cancel()
         eventTask = nil
         await realtime.close(mic: mic)
