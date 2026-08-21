@@ -60,11 +60,18 @@ public enum Escalation: Sendable {
     public static let voicePreamble =
         "Responde en maximo 2 frases, en espanol, sin markdown. "
 
-    public static func jobPrompt(_ h: Handoff, workdir: String, desktop: String) -> String {
+    public static func jobPrompt(
+        _ h: Handoff, workdir: String, desktop: String,
+        attachments: [String] = []
+    ) -> String {
         var out = "Encargo: \(h.goal)\n"
         if !h.context.isEmpty { out += "Contexto: \(h.context)\n" }
         out += "Carpeta de trabajo: \(workdir)\n"
         out += "Escritorio: \(desktop)"
+        if !attachments.isEmpty {
+            out += "\nAdjuntos del turno (rutas locales, ábrelos tú):"
+            for path in attachments { out += "\n- \(path)" }
+        }
         return out
     }
 

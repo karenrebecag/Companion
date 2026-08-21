@@ -3,56 +3,51 @@ import CompanionCore
 import Foundation
 import Testing
 
-// MARK: - CLI Executor Discovery Tests
+// La detección es por sistema de archivos: una app GUI no hereda el PATH del
+// shell, así que "which" en subproceso mentía (decía no-instalado con claude
+// instalado, y la delegación moría en processLaunchFailed).
 
 @Test @MainActor
 func cliProbeFindsClaude() throws {
-    let result = try runAsync {
-        var launcher = StubProcessLauncher()
-        let probe = CLIExecutorProbe(
-            processLauncher: launcher,
-            workdir: "/tmp/test"
-        )
-
-        // Simulate 'which claude' returning a path (success)
-        launcher.setNextResponse("/usr/local/bin/claude")
-
-        let detected = await probe.detectAvailable()
-        return detected.map { $0.id.rawValue }
-    }
-
-    expect(result.contains("claude-code"), "probe finds claude code executor")
+    let probe = CLIExecutorProbe(locator: CLIBinaryLocator(home: "/Users/k") {
+        $0 == "/Users/k/.local/bin/claude"
+    })
+    let detected = try runAsync { await probe.detectAvailable() }
+    expect(detected.contains { $0.id.rawValue == "claude-code" },
+           "probe: claude instalado ⇒ ejecutor en el catálogo")
+    expect(!detected.contains { $0.id.rawValue == "hermes" },
+           "probe: hermes ausente ⇒ fuera del catálogo")
 }
 
 @Test @MainActor
 func cliProbeFindsBoth() throws {
-    let result = try runAsync {
-        var launcher = StubProcessLauncher()
-        let probe = CLIExecutorProbe(
-            processLauncher: launcher,
-            workdir: "/tmp/test"
-        )
+    let probe = CLIExecutorProbe(locator: CLIBinaryLocator(home: "/Users/k") {
+        ["/Users/k/.local/bin/claude", "/Users/k/.local/bin/hermes"].contains($0)
+    })
+    let detected = try runAsync { await probe.detectAvailable() }
+    expect(detected.contains { $0.id.rawValue == "claude-code" }, "probe: claude")
+    expect(detected.contains { $0.id.rawValue == "hermes" }, "probe: hermes")
+}
 
-        // Simulate both binaries found
-        launcher.setNextResponse("/usr/local/bin/claude")
-        launcher.setNextResponse("/usr/local/bin/hermes")
-
-        let detected = await probe.detectAvailable()
-        return detected.map { $0.id.rawValue }
-    }
-
-    expect(result.contains("claude-code"), "probe finds claude")
-    expect(result.contains("hermes"), "probe finds hermes")
+@Test @MainActor
+func cliProbeResolvesExecutablePath() throws {
+    let probe = CLIExecutorProbe(locator: CLIBinaryLocator(home: "/Users/k") {
+        $0 == "/Users/k/.local/bin/claude"
+    })
+    expectEq(probe.executablePath(for: ExecutorID(rawValue: "claude-code")),
+             "/Users/k/.local/bin/claude",
+             "probe: entrega la ruta real para lanzar, no una adivinada")
+    expectEq(probe.executablePath(for: ExecutorID(rawValue: "hermes")), nil,
+             "probe: sin binario no hay ruta")
 }
 
 @Test @MainActor
 func executorProviderSelectsExecutor() throws {
     let result = try runAsync {
-        var launcher = StubProcessLauncher()
         let nativeExecutor = StubExecutor(id: "native")
-        let probe = CLIExecutorProbe(processLauncher: launcher, workdir: "/tmp/test")
-
-        launcher.setNextResponse("/usr/local/bin/claude")
+        let probe = CLIExecutorProbe(locator: CLIBinaryLocator(home: "/Users/k") {
+            $0 == "/Users/k/.local/bin/claude"
+        })
         let provider = ExecutorProvider(nativeExecutor: nativeExecutor, cliProbe: probe)
 
         await provider.refreshAvailableExecutors()
@@ -70,22 +65,20 @@ func executorProviderSelectsExecutor() throws {
 @Test @MainActor
 func executorProviderDegradesMissingExecutor() throws {
     let result = try runAsync {
-        var launcher = StubProcessLauncher()
         let nativeExecutor = StubExecutor(id: "native")
-        let probe = CLIExecutorProbe(processLauncher: launcher, workdir: "/tmp/test")
-
-        // First, claude is available
-        launcher.setNextResponse("/usr/local/bin/claude")
+        let installed = ExecutableSet(["/Users/k/.local/bin/claude"])
+        let probe = CLIExecutorProbe(locator: CLIBinaryLocator(home: "/Users/k") {
+            installed.contains($0)
+        })
         let provider = ExecutorProvider(nativeExecutor: nativeExecutor, cliProbe: probe)
 
         await provider.refreshAvailableExecutors()
         _ = provider.selectExecutor(id: ExecutorID(rawValue: "claude-code"))
 
-        // Now simulate claude disappearing (no output from which)
-        launcher.setNextResponse(nil)
+        // Claude se desinstala entre un refresh y otro
+        installed.set([])
         await provider.refreshAvailableExecutors()
 
-        // Should degrade to native
         let selected = provider.getSelectedExecutorId()
         return selected.rawValue
     }
@@ -94,6 +87,15 @@ func executorProviderDegradesMissingExecutor() throws {
 }
 
 // MARK: - Stubs
+
+/// Un "sistema de archivos" mutable: qué binarios existen ahora mismo.
+final class ExecutableSet: @unchecked Sendable {
+    private let lock = NSLock()
+    private var paths: Set<String>
+    init(_ paths: Set<String>) { self.paths = paths }
+    func set(_ paths: Set<String>) { lock.withLock { self.paths = paths } }
+    func contains(_ path: String) -> Bool { lock.withLock { paths.contains(path) } }
+}
 
 struct StubExecutor: Executor {
     let id: String
@@ -114,4 +116,3 @@ struct StubExecutor: Executor {
         JobResult(output: "stub", isError: false)
     }
 }
-

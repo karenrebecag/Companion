@@ -120,9 +120,11 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
            let workdir,
            let approvals,
            let descriptor = currentCatalog().first(where: { $0.id == id }),
+           let path = cliProbe.executablePath(for: id),
            let built = ExecutorFactory.createExecutor(
                descriptor: descriptor,
                workdir: workdir,
+               executablePath: path,
                processLauncher: processLauncher,
                approvals: approvals) {
             executor = built

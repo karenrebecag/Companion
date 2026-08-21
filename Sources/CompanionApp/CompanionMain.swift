@@ -72,10 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // catalog is just the native executor and nothing changes (ADR 001).
         let executors = ExecutorProvider(
             nativeExecutor: nativeExecutor,
-            cliProbe: CLIExecutorProbe(
-                processLauncher: RealProcessLauncher(),
-                workdir: config.workdir ?? FileManager.default
-                    .homeDirectoryForCurrentUser.path),
+            cliProbe: CLIExecutorProbe(),
             workdir: config.workdir,
             approvals: approvals)
         // The picker starts with the native executor and grows when the probe
@@ -191,12 +188,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             defer: false)
         window.title = "Companion"
         WindowChrome.configure(window)
-        let hosting = NSHostingView(
-            rootView: CompanionRootView(
-                chat: model, voice: voice,
-                voicePreview: preview, executors: choice,
-                onAECRearm: { UserDefaultsAECVeto().isVetoed = false },
-                updates: updates))
+        let root = CompanionRootView(
+            chat: model, voice: voice,
+            voicePreview: preview, executors: choice,
+            onAECRearm: { UserDefaultsAECVeto().isVetoed = false },
+            updates: updates)
+        let hosting = NSHostingView(rootView: root)
         WindowChrome.install(hosting, in: window)
         window.center()
         window.makeKeyAndOrderFront(nil)

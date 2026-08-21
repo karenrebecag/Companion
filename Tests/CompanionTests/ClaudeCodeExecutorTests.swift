@@ -12,6 +12,7 @@ func claudeCodeExecutorDescriptorIdentifies() throws {
 
     let executor = ClaudeCodeExecutor(
         workdir: "/tmp/test",
+        executablePath: "/stub/bin/claude",
         processLauncher: launcher,
         approvals: approvals
     )
@@ -29,6 +30,7 @@ func claudeCodeExecutorRunsJobWithTranscript() throws {
 
         let executor = ClaudeCodeExecutor(
             workdir: "/tmp/test",
+            executablePath: "/stub/bin/claude",
             processLauncher: launcher,
             approvals: approvals
         )
@@ -59,6 +61,7 @@ func claudeCodeExecutorEmitsStepEvents() throws {
 
         let executor = ClaudeCodeExecutor(
             workdir: "/tmp/test",
+            executablePath: "/stub/bin/claude",
             processLauncher: launcher,
             approvals: approvals
         )
@@ -110,6 +113,7 @@ func claudeCodeExecutorRequestsApprovalForRiskyTools() throws {
 
         let executor = ClaudeCodeExecutor(
             workdir: "/tmp/test",
+            executablePath: "/stub/bin/claude",
             processLauncher: launcher,
             approvals: approvals
         )
@@ -156,7 +160,8 @@ final class StubProcessLauncher: ProcessLauncher, @unchecked Sendable {
     /// One queued answer per launch: probing twice must be able to say "found"
     /// and then "gone", which a single shared transcript cannot express.
     private var queued: [[String]] = []
-    private(set) var launched: [(executable: String, cwd: String?)] = []
+    private(set) var launched: [(executable: String, arguments: [String], cwd: String?)] = []
+    private(set) var handles: [StubProcessHandle] = []
 
     func setResponseTranscript(_ lines: [String]) {
         lock.withLock { transcript = lines }
@@ -172,11 +177,13 @@ final class StubProcessLauncher: ProcessLauncher, @unchecked Sendable {
         cwd: String?
     ) async -> (any ProcessHandle)? {
         let lines: [String] = lock.withLock {
-            launched.append((executable, cwd))
+            launched.append((executable, arguments, cwd))
             if !queued.isEmpty { return queued.removeFirst() }
             return transcript ?? []
         }
-        return StubProcessHandle(transcript: lines)
+        let handle = StubProcessHandle(transcript: lines)
+        lock.withLock { handles.append(handle) }
+        return handle
     }
 }
 
@@ -187,6 +194,7 @@ final class StubProcessHandle: ProcessHandle, @unchecked Sendable {
     private let transcript: [String]
     private var index = 0
     private var terminated = false
+    private(set) var sent: [String] = []
 
     init(transcript: [String]) {
         self.transcript = transcript
@@ -194,7 +202,9 @@ final class StubProcessHandle: ProcessHandle, @unchecked Sendable {
 
     var wasTerminated: Bool { lock.withLock { terminated } }
 
-    func sendLine(_ line: String) async throws {}
+    func sendLine(_ line: String) async throws {
+        lock.withLock { sent.append(line) }
+    }
 
     func readLine() async -> String? {
         lock.withLock {

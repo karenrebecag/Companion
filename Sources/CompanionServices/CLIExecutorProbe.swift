@@ -1,38 +1,29 @@
 import CompanionCore
 import Foundation
 
-/// Detects optional CLI executors available in the system PATH.
-/// Builds a catalog of [claude-code, hermes] if their binaries are found.
+/// Detecta los ejecutores CLI opcionales instalados en la máquina.
+/// Catálogo posible: [claude-code, hermes]; sin binarios queda vacío y el
+/// proveedor solo ofrece el nativo (ADR 001).
 public struct CLIExecutorProbe: Sendable {
-    private let processLauncher: any ProcessLauncher
-    private let workdir: String
+    private let locator: CLIBinaryLocator
 
-    public init(
-        processLauncher: any ProcessLauncher,
-        workdir: String
-    ) {
-        self.processLauncher = processLauncher
-        self.workdir = workdir
+    public init(locator: CLIBinaryLocator = CLIBinaryLocator()) {
+        self.locator = locator
     }
 
-    /// Probe PATH for Claude Code and Hermes binaries.
-    /// Returns descriptors for those found (in order of availability).
+    /// Descriptores de los CLI presentes, en orden estable.
     public func detectAvailable() async -> [ExecutorDescriptor] {
         var detected: [ExecutorDescriptor] = []
-
-        // Check for claude in PATH
-        if await isBinaryAvailable("claude") {
+        if locator.locate("claude") != nil {
             detected.append(ExecutorDescriptor(
                 id: ExecutorID(rawValue: "claude-code"),
                 shortName: "claude",
                 title: "Claude Code",
                 kind: .detectedCLI,
-                modelArgs: ["-m", "claude-opus-4-1"]
+                modelArgs: ["--model", "opus"]
             ))
         }
-
-        // Check for hermes in PATH
-        if await isBinaryAvailable("hermes") {
+        if locator.locate("hermes") != nil {
             detected.append(ExecutorDescriptor(
                 id: ExecutorID(rawValue: "hermes"),
                 shortName: "hermes",
@@ -41,26 +32,15 @@ public struct CLIExecutorProbe: Sendable {
                 modelArgs: []
             ))
         }
-
         return detected
     }
 
-    /// Check if a binary exists in PATH by attempting `which <binary>`.
-    private func isBinaryAvailable(_ binary: String) async -> Bool {
-        let executable = "/usr/bin/which"
-        let args = [binary]
-
-        guard let handle = await processLauncher.launch(
-            executable: executable,
-            arguments: args,
-            cwd: workdir
-        ) else {
-            return false
+    /// Ruta real para lanzar el ejecutor elegido; nil si ya no está.
+    public func executablePath(for id: ExecutorID) -> String? {
+        switch id.rawValue {
+        case "claude-code": return locator.locate("claude")
+        case "hermes": return locator.locate("hermes")
+        default: return nil
         }
-
-        // If which succeeds, it prints the path; any output = found
-        let found = (await handle.readLine()) != nil
-        await handle.terminate()
-        return found
     }
 }

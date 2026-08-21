@@ -3,14 +3,16 @@ import CompanionCore
 import Foundation
 import Testing
 
-// MARK: - HermesExecutor Tests (TDD RED phase)
+// Hermes no tiene modo stdio: es batch con el prompt como argumento -q
+// (mandarlo por stdin lo dejaba esperando para siempre). El rol del ejecutor
+// viaja pegado al prompt porque no hay flag de system prompt.
 
 @Test @MainActor
 func hermesExecutorDescriptorIdentifies() throws {
-    var launcher = StubProcessLauncher()
     let executor = HermesExecutor(
         workdir: "/tmp/test",
-        processLauncher: launcher
+        executablePath: "/stub/bin/hermes",
+        processLauncher: StubProcessLauncher()
     )
 
     expectEq(executor.descriptor.id.rawValue, "hermes", "descriptor id is hermes")
@@ -20,10 +22,11 @@ func hermesExecutorDescriptorIdentifies() throws {
 
 @Test @MainActor
 func hermesExecutorRunsBatchJob() throws {
+    let launcher = StubProcessLauncher()
     let result = try runAsync {
-        var launcher = StubProcessLauncher()
         let executor = HermesExecutor(
             workdir: "/tmp/test",
+            executablePath: "/stub/bin/hermes",
             processLauncher: launcher
         )
 
@@ -31,24 +34,35 @@ func hermesExecutorRunsBatchJob() throws {
         let (events, sink) = AsyncStream<JobEvent>.makeStream()
         events.ignore()
 
-        // Hermes batch: just output, no NDJSON
-        let response = "Task completed successfully"
-        launcher.setResponseTranscript([response])
-
-        let jobResult = try await executor.run(job, events: sink)
-        return jobResult
+        launcher.setResponseTranscript(["Task completed successfully"])
+        return try await executor.run(job, events: sink)
     }
 
     expectEq(result.output, "Task completed successfully", "hermes returns output")
     expect(!result.isError, "hermes batch result is success")
+
+    guard let launch = launcher.launched.first else {
+        return expect(false, "hermes: hubo un launch")
+    }
+    expectEq(launch.executable, "/stub/bin/hermes",
+             "hermes: corre el binario resuelto")
+    guard let q = launch.arguments.firstIndex(of: "-q"),
+          q + 1 < launch.arguments.count else {
+        return expect(false, "hermes: el prompt viaja como argumento -q")
+    }
+    let prompt = launch.arguments[q + 1]
+    expect(prompt.contains("test"), "hermes: el objetivo va en el prompt")
+    expect(prompt.contains(Escalation.executorRole.prefix(30)),
+           "hermes: el rol viaja pegado al prompt — no hay flag de system")
 }
 
 @Test @MainActor
 func hermesExecutorEmitsStepEvents() throws {
     let result = try runAsync {
-        var launcher = StubProcessLauncher()
+        let launcher = StubProcessLauncher()
         let executor = HermesExecutor(
             workdir: "/tmp/test",
+            executablePath: "/stub/bin/hermes",
             processLauncher: launcher
         )
 

@@ -1,19 +1,24 @@
 import CompanionCore
 import Foundation
 
-/// Executor that runs `hermes chat -Q` as a batch subprocess.
-/// No persistent session: each job is a fresh invocation that captures output.
+/// Ejecutor sobre `hermes chat -Q`: batch, sin sesión persistente.
+/// Hermes no tiene modo stdio — el prompt viaja como argumento -q (por stdin
+/// se quedaba esperando para siempre) y el rol va pegado al prompt porque
+/// tampoco hay flag de system prompt.
 public struct HermesExecutor: Executor, Sendable {
     public var descriptor: ExecutorDescriptor
 
     private let workdir: String
+    private let executablePath: String
     private let processLauncher: any ProcessLauncher
 
     public init(
         workdir: String,
+        executablePath: String,
         processLauncher: any ProcessLauncher
     ) {
         self.workdir = workdir
+        self.executablePath = executablePath
         self.processLauncher = processLauncher
 
         self.descriptor = ExecutorDescriptor(
@@ -25,52 +30,41 @@ public struct HermesExecutor: Executor, Sendable {
         )
     }
 
-    /// Execute a job as a batch: launch hermes, send full prompt, capture output.
     public func run(
         _ job: JobRequest,
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {
         try Task.checkCancellation()
 
-        // Build full prompt from job details
-        let prompt = """
-        Goal: \(job.goal)
-        Context: \(job.context)
-        """
-
-        // Launch hermes chat -Q (quiet mode, batch)
-        let executable = "/usr/local/bin/hermes"
-        let args = ["chat", "-Q"]
+        let prompt = Escalation.executorRole + "\n\n" + Escalation.jobPrompt(
+            Handoff(goal: job.goal, context: job.context),
+            workdir: workdir,
+            desktop: NSHomeDirectory() + "/Desktop",
+            attachments: job.attachments)
 
         guard let handle = await processLauncher.launch(
-            executable: executable,
-            arguments: args,
+            executable: executablePath,
+            arguments: ["chat", "-Q", "-q", prompt],
             cwd: workdir
         ) else {
-            return JobResult(output: "Hermes launch failed", isError: true)
+            Log.app("executor: hermes no arrancó en \(executablePath)")
+            return JobResult(output: "", isError: true)
         }
 
         events.yield(.stepStarted(tool: "hermes", summary: "Running Hermes"))
 
-        // Send the full prompt as a single user turn
-        do {
-            try await handle.sendLine(prompt)
-        } catch {
-            events.yield(.stepFinished(tool: "hermes", ok: false))
-            return JobResult(output: "Failed to send prompt to Hermes", isError: true)
-        }
-
-        // Capture all output (hermes -Q outputs result on stdout, all at once)
+        // Batch: todo el stdout hasta EOF es la respuesta.
         var output = ""
         while let line = await handle.readLine() {
-            try Task.checkCancellation()
+            if Task.isCancelled { break }
             output += line + "\n"
         }
 
         await handle.terminate()
+        if Task.isCancelled { throw CancellationError() }
         events.yield(.stepFinished(tool: "hermes", ok: true))
 
-        // Hermes batch output is plain text result, no error marker
-        return JobResult(output: output.trimmingCharacters(in: .whitespacesAndNewlines), isError: false)
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return JobResult(output: trimmed, isError: trimmed.isEmpty)
     }
 }

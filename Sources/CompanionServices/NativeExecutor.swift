@@ -38,7 +38,8 @@ public struct NativeExecutor: Executor, Sendable {
         let jobPrompt = Escalation.jobPrompt(
             handoff,
             workdir: config.workdir ?? "(not configured)",
-            desktop: NSHomeDirectory())
+            desktop: NSHomeDirectory() + "/Desktop",
+            attachments: job.attachments)
 
         // System message with executor role (once)
         let systemMessage = Turn(
