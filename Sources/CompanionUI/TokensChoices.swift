@@ -272,10 +272,18 @@ public enum FontFallback: Sendable {
             return nil
         case .inter:
             return registered.contains("Inter-Regular") ? "Inter-Regular" : nil
+        case .interval:
+            if registered.contains("TBJInterval-Regular") {
+                return "TBJInterval-Regular"
+            }
+            return postScriptName(.inter, registered: registered)
         case .hypodermic:
             if registered.contains("Hypodermic-Regular") {
                 return "Hypodermic-Regular"
             }
+            return postScriptName(.inter, registered: registered)
+        case .gadey:
+            if registered.contains("Gadey") { return "Gadey" }
             return postScriptName(.inter, registered: registered)
         }
     }
@@ -294,14 +302,16 @@ public enum FontFallback: Sendable {
 
 // Typeface selection
 public enum AppTypeface: String, CaseIterable {
-    case inter, hypodermic, serif
+    case inter, interval, hypodermic, gadey, serif
 
     public static let key = "companionTypeface"
 
     public var label: String {
         switch self {
         case .inter: "Inter"
+        case .interval: "TBJ Interval"
         case .hypodermic: "Hypodermic"
+        case .gadey: "Gadey"
         case .serif: "Serif"
         }
     }
@@ -359,7 +369,7 @@ public enum TypeScale {
 public enum Fonts {
     private static let knownNames = [
         "Inter-Regular", "Hypodermic-Regular", "Gadey",
-        "TBJInterval-Regular", "TBJInterval-Bold",
+        "TBJInterval-Regular", "TBJInterval-Bold", "TBJInterval-Light",
     ]
     private static var registered: Set<String> = []
 

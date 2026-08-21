@@ -3,3 +3,12 @@
 *.xcodeproj
 DerivedData/
 .DS_Store
+
+# Proprietary faces: their own metadata says All Rights Reserved, so they
+# cannot ship in an MIT repo. They stay on this Mac and the app degrades to
+# Inter (OFL, bundled) for anyone who clones.
+Sources/CompanionUI/Fonts/Gadey-Regular.otf
+Sources/CompanionUI/Fonts/Hypodermic.otf
+Sources/CompanionUI/Fonts/TBJInterval-Bold.otf
+Sources/CompanionUI/Fonts/TBJInterval-Light.otf
+Sources/CompanionUI/Fonts/TBJInterval-Regular.otf
