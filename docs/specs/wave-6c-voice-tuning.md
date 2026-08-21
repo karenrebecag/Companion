@@ -1,6 +1,9 @@
 # Wave 6c — Voz configurable y presencia sonora
 
-**Estado: CERRADO** — 2026-08-21. Ajustes de voz en sesion, velocidad en
+**Estado: CERRADA** — 2026-08-21. Ajustes de voz completos con velocidad en
+caliente y rearme de AEC; UI adaptativa a la capacidad de interrupcion
+(peticion de Karen, con el matiz del AEC invertido); sonido al pensar (W1);
+imagen a sesion viva (W2). Pendiente solo la prueba manual integral. — 2026-08-21. Ajustes de voz en sesion, velocidad en
 caliente, AEC rearmable, sonido al pensar, imagen a sesion viva.
 
 ## Objetivo

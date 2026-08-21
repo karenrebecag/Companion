@@ -5,6 +5,19 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-21
+
+### Added
+- Pensar ya no es silencio: un acorde suave de fondo mientras el modelo
+  trabaja, con su toggle en Ajustes.
+- Adjuntar una imagen durante una conversacion de voz se la muestra al
+  agente al momento.
+- La interfaz se adapta a como puedes interrumpir: boton visible con
+  bocinas, flujo limpio con audifonos, cambiando en vivo al conectarlos.
+- Ajustes de voz completos: criterio de fin de turno, velocidad (aplica en
+  caliente), volumen, tono y cancelacion de eco con rearme.
+- Avisos con sonido de interfaz para permisos y encargos.
+
 ### Added
 - Avisos breves arriba a la derecha cuando se resuelve un permiso o termina
   un encargo, con un tono corto si los sonidos de interfaz están activos
