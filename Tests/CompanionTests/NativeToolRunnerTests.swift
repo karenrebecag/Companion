@@ -154,9 +154,9 @@ import Testing
 
 @MainActor func testRunShellWithApprovalTimeout() {
     let tempDir = try! FileManager.default.temporaryDirectory.path
-    let runner = NativeToolRunner(workdir: tempDir)
+    let runner = NativeToolRunner(workdir: tempDir, shellTimeout: 0.2)
 
-    let result = try! runAsync(timeout: 120) {
+    let result = try! runAsync(timeout: 10) {
         try await runner.execute(
             tool: "run_shell",
             arguments: ["command": "sleep 120"],

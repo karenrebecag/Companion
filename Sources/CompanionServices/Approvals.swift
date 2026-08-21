@@ -5,7 +5,13 @@ public protocol Clock: Sendable {
     func now() -> TimeInterval
 }
 
-actor Approvals {
+// Protocol for approval handling - allows dependency injection in NativeExecutor.
+public protocol ApprovalsProvider: Sendable {
+    func request(_ approval: ApprovalRequest) async -> ApprovalResponse
+    func resolve(requestId: String, approved: Bool) async -> Bool
+}
+
+actor Approvals: ApprovalsProvider {
     private struct PendingRequest {
         let deadline: TimeInterval
         var response: ApprovalResponse?

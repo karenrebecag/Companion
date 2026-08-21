@@ -9,17 +9,20 @@ public struct NativeExecutor: Executor, Sendable {
     private let chatProvider: any ChatProvider
     private let toolRunner: NativeToolRunner
     private let config: Config
+    private let approvals: any ApprovalsProvider
     private let maxIterations = 10
 
     public init(
         descriptor: ExecutorDescriptor,
         chatProvider: any ChatProvider,
-        config: Config
+        config: Config,
+        approvals: any ApprovalsProvider
     ) {
         self.descriptor = descriptor
         self.chatProvider = chatProvider
         self.toolRunner = NativeToolRunner(workdir: config.workdir)
         self.config = config
+        self.approvals = approvals
     }
 
     /// Execute a job by looping with the model: accumulate text, execute tools on request,
@@ -63,6 +66,7 @@ public struct NativeExecutor: Executor, Sendable {
             var isToolCall = false
             var toolName = ""
             var toolArgs = ""
+            var toolCallId = ""
 
             // Consume stream
             do {
@@ -78,6 +82,13 @@ public struct NativeExecutor: Executor, Sendable {
                         isToolCall = true
                         toolName = h.goal
                         toolArgs = h.context
+
+                    case .toolCall(let id, let name, let arguments):
+                        // Real tool call from provider (not delegate)
+                        isToolCall = true
+                        toolCallId = id
+                        toolName = name
+                        toolArgs = arguments
                     }
                 }
             } catch is CancellationError {
@@ -98,7 +109,7 @@ public struct NativeExecutor: Executor, Sendable {
             var approved = false
 
             if approvalNeeded {
-                // Ask for approval
+                // Ask for approval through Approvals actor
                 let requestId = UUID().uuidString
                 let approval = ApprovalRequest(
                     requestId: requestId,
@@ -108,9 +119,9 @@ public struct NativeExecutor: Executor, Sendable {
 
                 events.yield(.approvalRequested(approval))
 
-                // In this tramp, approval is manual (D2); mock approval for now
-                // Real flow: wait for user response via resolve_approval tool call
-                approved = false // Default deny per spec
+                // Wait for approval response (auto-deny after 120s per Approvals spec)
+                let response = await approvals.request(approval)
+                approved = response.approved
             }
 
             // Execute tool (may fail silently if not approved)
@@ -121,20 +132,15 @@ public struct NativeExecutor: Executor, Sendable {
 
             events.yield(.stepFinished(tool: toolName, ok: toolResult.ok))
 
-            // If tool failed or was denied, inform model and continue
-            if !toolResult.ok {
-                let toolFailure = Turn(
-                    role: .assistant,
-                    content: "Tool \(toolName) failed: \(toolResult.output)")
-                history.append(toolFailure)
-                continue
-            }
-
-            // Tool succeeded: add result to history and continue
-            let toolSuccess = Turn(
-                role: .user,
-                content: "Tool result: \(toolResult.output)")
-            history.append(toolSuccess)
+            // Both the request and its answer go back, carrying the call id:
+            // a tool message without its assistant call is rejected.
+            let call = ToolCallRef(
+                id: toolCallId, name: toolName, arguments: toolArgs)
+            history.append(Turn(role: .assistant, content: "", toolCalls: [call]))
+            history.append(Turn(
+                role: .tool,
+                content: toolResult.output,
+                toolCallID: toolCallId))
         }
 
         // Hit iteration limit

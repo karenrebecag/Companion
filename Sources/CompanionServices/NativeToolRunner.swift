@@ -16,11 +16,14 @@ public struct ToolResult: Sendable {
 public struct NativeToolRunner: Sendable {
     private let workdir: String?
     private let pathValidator: PathValidator
-    private let timeout: TimeInterval = 60 // seconds
+    private let timeout: TimeInterval
 
-    public init(workdir: String?) {
+    /// Injectable timeout: the tests must not sit through a real minute of
+    /// shell, and a blocking test starves everything else on the main actor.
+    public init(workdir: String?, shellTimeout: TimeInterval = 60) {
         self.workdir = workdir
         self.pathValidator = PathValidator(workdir: workdir)
+        self.timeout = shellTimeout
     }
 
     /// Execute a tool with approval gate and path barrier.

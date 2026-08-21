@@ -109,10 +109,25 @@ private func makeBody(
     ]]
     let window = max(settings.historyWindow, 0)
     for turn in history.suffix(window) {
-        messages.append([
+        var message: [String: Any] = [
             "role": turn.role.rawValue,
             "content": Turn.numbered(turn.content, turn.attachments),
-        ])
+        ]
+        // The tool-calling round trip only validates if the assistant's
+        // request and the tool's answer both carry the call id.
+        if !turn.toolCalls.isEmpty {
+            message["tool_calls"] = turn.toolCalls.map { call in
+                [
+                    "id": call.id,
+                    "type": "function",
+                    "function": ["name": call.name, "arguments": call.arguments],
+                ] as [String: Any]
+            }
+        }
+        if let toolCallID = turn.toolCallID {
+            message["tool_call_id"] = toolCallID
+        }
+        messages.append(message)
     }
     var body: [String: Any] = [
         "model": provider.model,
@@ -258,10 +273,29 @@ private actor DeltaSink {
         let reply = full.trimmingCharacters(in: .whitespacesAndNewlines)
         let rest = sentenceBuf.trimmingCharacters(in: .whitespacesAndNewlines)
         sentenceBuf = ""
-        let parsed = started
-            ? Handoff.parse(toolName: name, arguments: arguments) : nil
-        if let parsed {
-            outcome = .handoff(parsed)
+
+        // Determine outcome based on tool call and text
+        var toolCallDelta: ChatDelta? = nil
+        if started && !name.isEmpty {
+            if name == "delegate" {
+                // Delegate is for conversation layer - try to parse handoff
+                let parsed = Handoff.parse(toolName: name, arguments: arguments)
+                if let parsed {
+                    outcome = .handoff(parsed)
+                } else {
+                    // Malformed delegate - fall through to text-based outcome
+                    if error != nil || reply.isEmpty {
+                        outcome = spoke ? .spokePartial : .failed(error ?? .empty)
+                    } else {
+                        outcome = .reply
+                    }
+                }
+            } else {
+                // Non-delegate tool is for specialists - emit as toolCall
+                let callId = UUID().uuidString
+                toolCallDelta = .toolCall(id: callId, name: name, arguments: arguments)
+                outcome = .reply
+            }
         } else if error != nil || reply.isEmpty {
             outcome = spoke ? .spokePartial : .failed(error ?? .empty)
         } else {
@@ -269,12 +303,17 @@ private actor DeltaSink {
         }
         finished = true
         let commit = outcome
+
+        // Emit deltas based on outcome
         switch commit {
         case .handoff(let handoff):
             if !rest.isEmpty { yield(.text(rest)) }
             yield(.handoff(handoff))
         case .reply, .spokePartial:
             if !rest.isEmpty { yield(.text(rest)) }
+            if let toolCall = toolCallDelta {
+                yield(toolCall)
+            }
         case .failed, .cancelled:
             break
         }

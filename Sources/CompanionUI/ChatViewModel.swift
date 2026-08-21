@@ -204,6 +204,9 @@ public final class ChatViewModel: ConversationPresenting {
                     streaming = preface
                 case .handoff(let value):
                     handoff = value
+                case .toolCall:
+                    // Tool calls other than delegate are for specialists only, ignore here
+                    break
                 }
             }
             guard isCurrent(id) else { return }

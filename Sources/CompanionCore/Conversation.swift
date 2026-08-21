@@ -1,7 +1,7 @@
 import Foundation
 
 public enum TurnRole: String, Sendable, Equatable {
-    case user, assistant, system
+    case user, assistant, system, tool
 }
 
 public enum AttachmentKind: Sendable, Equatable {
@@ -23,19 +23,42 @@ public struct AttachmentRef: Sendable, Equatable {
     }
 }
 
+/// One tool the model asked for. The provider needs the id back on the result
+/// message, so the whole call must survive in the history.
+public struct ToolCallRef: Sendable, Equatable {
+    public var id: String
+    public var name: String
+    public var arguments: String
+
+    public init(id: String, name: String, arguments: String) {
+        self.id = id
+        self.name = name
+        self.arguments = arguments
+    }
+}
+
 public struct Turn: Sendable, Equatable {
     public var role: TurnRole
     public var content: String
     public var attachments: [AttachmentRef]
+    /// Set on the assistant turn that requested tools.
+    public var toolCalls: [ToolCallRef]
+    /// Set on a `.tool` turn: which call this result answers. The API rejects
+    /// a tool message without it.
+    public var toolCallID: String?
 
     public init(
         role: TurnRole,
         content: String,
-        attachments: [AttachmentRef] = []
+        attachments: [AttachmentRef] = [],
+        toolCalls: [ToolCallRef] = [],
+        toolCallID: String? = nil
     ) {
         self.role = role
         self.content = content
         self.attachments = attachments
+        self.toolCalls = toolCalls
+        self.toolCallID = toolCallID
     }
 
     /// Numbering is how the model tells three attachments apart.

@@ -3,6 +3,7 @@ import Foundation
 public enum ChatDelta: Sendable, Equatable {
     case text(String)
     case handoff(Handoff)
+    case toolCall(id: String, name: String, arguments: String)
 }
 
 public enum ChatError: Error, Sendable, Equatable {
