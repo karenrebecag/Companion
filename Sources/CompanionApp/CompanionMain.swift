@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var voice: VoiceViewModel?
     private var voicePreview: VoicePreview?
     private var executorChoice: ExecutorChoice?
+    private var updates: UpdateState?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -167,6 +168,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             playback: DataSpeechPlayback()))
         self.voicePreview = preview
 
+        // Update check: once per day, after launch settles; a hit shows the
+        // W3 toast and lights the Settings row. Silence on any failure.
+        let checker = UpdateChecker(transport: transport)
+        let updates = UpdateState(checkNow: {
+            guard let info = await checker.checkNow() else { return nil }
+            return .init(tag: info.tag, pageURL: info.pageURL)
+        })
+        self.updates = updates
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            guard let info = await checker.checkIfDue() else { return }
+            updates.found(.init(tag: info.tag, pageURL: info.pageURL))
+            model.toast("Versión \(info.tag) disponible — Ajustes → Sistema")
+        }
+
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 560, height: 840),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -179,7 +195,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             rootView: CompanionRootView(
                 chat: model, voice: voice,
                 voicePreview: preview, executors: choice,
-                onAECRearm: { UserDefaultsAECVeto().isVetoed = false }))
+                onAECRearm: { UserDefaultsAECVeto().isVetoed = false },
+                updates: updates))
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

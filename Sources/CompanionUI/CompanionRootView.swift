@@ -16,16 +16,19 @@ public struct CompanionRootView: View {
         voice: VoiceViewModel,
         voicePreview: VoicePreview? = nil,
         executors: ExecutorChoice? = nil,
-        onAECRearm: (() -> Void)? = nil
+        onAECRearm: (() -> Void)? = nil,
+        updates: UpdateState? = nil
     ) {
         self.chat = chat
         self.voice = voice
         self.voicePreview = voicePreview
         self.executors = executors
         self.onAECRearm = onAECRearm
+        self.updates = updates
     }
 
     private let onAECRearm: (() -> Void)?
+    private let updates: UpdateState?
 
     private func tapOrb() {
         let action = VoiceTapAction.forState(voice.snapshot.state)
@@ -125,7 +128,8 @@ public struct CompanionRootView: View {
                 executors: executors,
                 onLiveSpeedChange: { voice.setSpeed($0) },
                 onAECRearm: onAECRearm,
-                echoFreeOutput: voice.echoFreeOutput)
+                echoFreeOutput: voice.echoFreeOutput,
+                updates: updates)
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenSettings)

@@ -13,6 +13,11 @@ cd "$ROOT"
 swift build -c "$CONFIG"
 BUILT="$(swift build -c "$CONFIG" --show-bin-path)/companion"
 
+# Single source of truth: the version ships in the binary, so the bundle
+# reads it from Build.swift instead of keeping a copy that drifts.
+VERSION="$(grep -o 'version = "[^"]*"' "$ROOT/Sources/CompanionCore/Build.swift" | cut -d'"' -f2)"
+[ -n "$VERSION" ] || { echo "no pude leer Build.version" >&2; exit 1; }
+
 rm -rf "$APP"
 mkdir -p "$BIN" "$APP/Contents/Resources"
 cp "$BUILT" "$BIN/Companion"
@@ -30,7 +35,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleIdentifier</key><string>com.karen.companion.next</string>
     <key>CFBundleExecutable</key><string>Companion</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>0.3.0</string>
+    <key>CFBundleShortVersionString</key><string>${VERSION}</string>
     <key>CFBundleVersion</key><string>$(git -C "$ROOT" rev-list --count HEAD 2>/dev/null || echo 0)</string>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>NSHighResolutionCapable</key><true/>

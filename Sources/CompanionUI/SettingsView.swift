@@ -15,18 +15,21 @@ public struct SettingsView: View {
         executors: ExecutorChoice? = nil,
         onLiveSpeedChange: ((Double) -> Void)? = nil,
         onAECRearm: (() -> Void)? = nil,
-        echoFreeOutput: Bool = false
+        echoFreeOutput: Bool = false,
+        updates: UpdateState? = nil
     ) {
         self.preview = preview
         self.executors = executors
         self.onLiveSpeedChange = onLiveSpeedChange
         self.onAECRearm = onAECRearm
         self.echoFreeOutput = echoFreeOutput
+        self.updates = updates
     }
 
     private let onLiveSpeedChange: ((Double) -> Void)?
     private let onAECRearm: (() -> Void)?
     private let echoFreeOutput: Bool
+    private let updates: UpdateState?
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -139,6 +142,22 @@ public struct SettingsView: View {
                             Text(appVersion)
                                 .font(.uiCaption)
                                 .foregroundStyle(Semantic.mutedForeground)
+                            if let updates {
+                                if let available = updates.available {
+                                    Link(
+                                        "Ver la versión \(available.tag)",
+                                        destination: available.pageURL)
+                                        .font(.uiLabel)
+                                        .foregroundStyle(Semantic.accent)
+                                } else {
+                                    Button(updates.checking
+                                           ? "Buscando…" : "Buscar actualización") {
+                                        updates.requestCheck()
+                                    }
+                                    .font(.uiCaption)
+                                    .disabled(updates.checking)
+                                }
+                            }
                         }
 
                         Toggle("Sonidos de interfaz", isOn: $interfaceSounds)
