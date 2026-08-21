@@ -1,6 +1,6 @@
 # Wave 4 — Delegacion
 
-**Estado: CERRADO (4a)** — 2026-08-21. El especialista nativo funciona de
+**Estado: CERRADO (4a y 4b)** — 2026-08-21. El especialista nativo funciona de
 punta a punta desde texto y desde voz. Falta la prueba manual de Karen y la
 tanda 4b (adapters de Claude Code y Hermes).
 
@@ -147,3 +147,19 @@ y lectura (los tests verdes no las mostraban):
 
 Pendiente de prueba manual: delegar una lectura, aprobar una escritura,
 denegar, y cancelar a media ejecucion.
+
+## Cierre de 4b (2026-08-21)
+
+Ejecutores opcionales de linea de comandos: Claude Code sobre su protocolo
+NDJSON persistente y Hermes en modo batch, con deteccion de binarios en PATH,
+selector en Ajustes (oculto si solo esta el nativo) y degradacion al nativo
+cuando el elegido desaparece.
+
+Correcciones sobre lo entregado: los tests no compilaban (extensiones con
+propiedades almacenadas, estado global mutable) pero venian declarados
+"COMPLETE + GREEN"; el proveedor tenia un TODO que devolvia SIEMPRE el
+ejecutor nativo aunque detectara claude, y la composicion usaba el proveedor
+simple, con lo que ambos ejecutores eran codigo muerto en produccion
+(undecimo caso del patron del repo); la degradacion se aplicaba en una cola
+asincrona, asi que quien la esperaba leia el estado viejo; y un test dejaba
+al ejecutor esperando los 120 s reales del permiso, colgando la suite.

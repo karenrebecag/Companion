@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var model: ChatViewModel?
     private var voice: VoiceViewModel?
     private var voicePreview: VoicePreview?
+    private var executorChoice: ExecutorChoice?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -65,8 +66,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             chatProvider: chat,
             config: config,
             approvals: approvals)
+        // The real provider probes for claude and hermes; without them the
+        // catalog is just the native executor and nothing changes (ADR 001).
+        let executors = ExecutorProvider(
+            nativeExecutor: nativeExecutor,
+            cliProbe: CLIExecutorProbe(
+                processLauncher: RealProcessLauncher(),
+                workdir: config.workdir ?? FileManager.default
+                    .homeDirectoryForCurrentUser.path),
+            workdir: config.workdir,
+            approvals: approvals)
+        // The picker starts with the native executor and grows when the probe
+        // finds a CLI; nothing appears if none is installed (ADR 001).
+        let choice = ExecutorChoice(
+            available: [ExecutorCatalog.native],
+            selected: .native
+        ) { id in
+            _ = executors.selectExecutor(id: id)
+        }
+        self.executorChoice = choice
+        Task {
+            await executors.refreshAvailableExecutors()
+            await MainActor.run {
+                choice.refresh(
+                    executors.getAvailableExecutors(),
+                    selected: executors.getSelectedExecutorId())
+            }
+        }
+
         let jobRunner = JobRunner(
-            executorProvider: DefaultExecutorProvider(nativeExecutor: nativeExecutor),
+            executorProvider: executors,
             queue: jobQueue,
             approvals: approvals)
 
@@ -127,7 +156,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Companion"
         window.contentView = NSHostingView(
             rootView: CompanionRootView(
-                chat: model, voice: voice, voicePreview: preview))
+                chat: model, voice: voice,
+                voicePreview: preview, executors: choice))
         window.center()
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)

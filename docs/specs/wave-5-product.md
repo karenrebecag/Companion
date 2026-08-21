@@ -1,6 +1,6 @@
 # Wave 5 — Producto
 
-**Estado: 5a, 5b, 5d y 5e CERRADAS** (falta 5c, el orb) — 2026-08-21. Tokens con tema oscuro, motion,
+**Estado: CERRADA** — 5a, 5b, 5c, 5d y 5e — 2026-08-21. Tokens con tema oscuro, motion,
 onboarding pulido, ajustes (perfil, apariencia, voz con preview) y atajos.
 Las decisiones **[DECIDIR]** siguen abiertas: no bloquean 5a.
 
@@ -120,3 +120,11 @@ nadie la instanciara (decimo caso del patron del repo); cableada al render de
 mensajes.
 
 Pendiente: 5c (orb en SwiftUI, ADR 003) y la prueba manual de Karen.
+
+## Cierre de 5c (2026-08-21)
+
+Orb en SwiftUI puro (ADR 003), dibujado con Canvas: respira en reposo, sigue
+el nivel del microfono al escuchar, pulsa al pensar, se mueve con la voz del
+agente al hablar y se apaga hacia el color de error. Respeta la preferencia
+de movimiento reducido. La logica de apariencia vive en funciones puras con
+sus tests; la vista solo dibuja.

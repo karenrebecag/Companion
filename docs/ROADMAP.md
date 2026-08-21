@@ -8,13 +8,14 @@
 | 1 | Core de dominio | CERRADA (2026-08-20) | Logica pura 100% testeada |
 | 2 | Chat vertical | CERRADA (2026-08-20) | **App usable solo con una API key** |
 | 3 | Voz | APROBADO / EN CURSO | **Conversacion por voz con barge-in** |
-| 4 | Delegacion | 4a CERRADA (2026-08-21) | **Especialista integrado sin instalar nada** |
-| 5 | Producto | 5a/5b/5d/5e CERRADAS | **Distribuible open source** |
+| 4 | Delegacion | CERRADA (4a y 4b) | **Especialista integrado sin instalar nada** |
+| 5 | Producto | CERRADA (5a-5e) | **Distribuible open source** |
 
 ## Foco actual
 
-Pendiente: 5c (orb en SwiftUI), la tanda 4b (adapters de Claude Code y
-Hermes) y la prueba manual de Karen sobre delegacion y tarjetas.
+Las cinco waves del programa estan cerradas. Lo que queda es la prueba manual
+de Karen y lo que ella decida despues: notarizar (requiere cuenta de Apple),
+y las ideas post-v1 de abajo.
 
 ## Deuda consciente (con trigger)
 

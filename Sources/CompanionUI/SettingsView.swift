@@ -4,12 +4,17 @@ import SwiftUI
 public struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
     private let preview: VoicePreview?
+    private let executors: ExecutorChoice?
     @State private var ownerName = UserProfile.ownerName
     @State private var voice = VoiceProfile.stored
     @State private var shortcuts = ShortcutSet.load()
 
-    public init(preview: VoicePreview? = nil) {
+    public init(
+        preview: VoicePreview? = nil,
+        executors: ExecutorChoice? = nil
+    ) {
         self.preview = preview
+        self.executors = executors
     }
 
     public var body: some View {
@@ -111,6 +116,27 @@ public struct SettingsView: View {
                     .padding(.vertical, Space.x4)
                     .padding(.horizontal, Space.x4)
 
+                    if let executors, executors.isMeaningful {
+                        Divider()
+                            .foregroundStyle(Semantic.border)
+
+                        VStack(alignment: .leading, spacing: Space.x3) {
+                            Text("ESPECIALISTA")
+                                .typeEyebrow()
+                            SettingsItem(
+                                title: "Quién trabaja los encargos",
+                                value: executors.available
+                                    .first { $0.id == executors.selected }?
+                                    .title ?? "Nativo",
+                                options: executors.available.map { ($0.id, $0.title) }
+                            ) { id in
+                                executors.selected = id
+                            }
+                        }
+                        .padding(.vertical, Space.x4)
+                        .padding(.horizontal, Space.x4)
+                    }
+
                     Divider()
                         .foregroundStyle(Semantic.border)
 
@@ -183,7 +209,9 @@ public struct SettingsView: View {
 
 // MARK: - Settings Item with Picker
 
-private struct SettingsItem<T: Hashable & CaseIterable>: View {
+// Options arrive as a parameter, so requiring CaseIterable only shut out
+// runtime-built lists like the detected executors.
+private struct SettingsItem<T: Hashable>: View {
     let title: String
     let value: String
     let options: [(T, String)]

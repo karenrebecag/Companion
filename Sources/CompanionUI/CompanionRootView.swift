@@ -5,17 +5,32 @@ public struct CompanionRootView: View {
     var chat: ChatViewModel
     var voice: VoiceViewModel
     private let voicePreview: VoicePreview?
+    private let executors: ExecutorChoice?
     @State private var showSettings = false
     @State private var keyboardMonitor: KeyboardMonitor?
 
     public init(
         chat: ChatViewModel,
         voice: VoiceViewModel,
-        voicePreview: VoicePreview? = nil
+        voicePreview: VoicePreview? = nil,
+        executors: ExecutorChoice? = nil
     ) {
         self.chat = chat
         self.voice = voice
         self.voicePreview = voicePreview
+        self.executors = executors
+    }
+
+    private func tapOrb() {
+        let action = VoiceTapAction.forState(voice.snapshot.state)
+        switch action {
+        case .start:
+            voice.start()
+        case .interrupt:
+            voice.advance()
+        case .hangUp:
+            voice.hangUp()
+        }
     }
 
     public var body: some View {
@@ -38,6 +53,20 @@ public struct CompanionRootView: View {
                             .padding(Space.x4)
                         }
                         Spacer()
+                        // Orb: clickable indicator and control for voice state
+                        HStack {
+                            Spacer()
+                            Button(action: tapOrb) {
+                                Orb(
+                                    state: voice.snapshot.state,
+                                    levels: voice.levels,
+                                    accentColor: Semantic.accent
+                                )
+                                .frame(width: 80, height: 80)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(Space.x4)
+                        }
                     }
                 }
             }
@@ -69,7 +98,7 @@ public struct CompanionRootView: View {
         }
         // Settings sheet
         .sheet(isPresented: $showSettings) {
-            SettingsView(preview: voicePreview)
+            SettingsView(preview: voicePreview, executors: executors)
         }
         // Approval sheet
         .sheet(item: Binding(

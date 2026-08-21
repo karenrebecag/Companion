@@ -5,6 +5,16 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-08-21
+
+### Added
+- Orb: la mascota reacciona a la conversacion — respira en reposo, sigue tu
+  voz al escuchar, pulsa al pensar y acompana la del agente al hablar. En
+  SwiftUI puro, sin dependencias ni binarios.
+- Especialistas opcionales: si tienes Claude Code o Hermes instalados,
+  aparecen para elegir; si no, no se nota nada. Si desinstalas el que tenias
+  elegido, vuelve solo al nativo.
+
 ## [0.5.0-wave5a] — 2026-08-21
 
 ### Added
