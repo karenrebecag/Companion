@@ -49,3 +49,17 @@ public protocol Executor: Sendable {
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult
 }
+
+/// Protocol for submitting handoffs and tracking execution.
+/// Abstracts the job runner for dependency injection into UI.
+public protocol JobSubmitter: Sendable {
+    func submit(
+        _ handoff: Handoff,
+        events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult
+    func cancel() async
+    /// The UI must be able to answer a pending approval: without this the
+    /// request only ever ends in the 120s auto-deny.
+    func resolveApproval(requestId: String, approved: Bool) async
+    var isBusy: Bool { get async }
+}

@@ -4,12 +4,19 @@ import Foundation
 /// Port protocols (VoiceTransport, PCMPlaying, ConversationPresenting) may not
 /// conform to Sendable but are safely isolated by exclusive access in VoiceSession.
 final class RealtimeRuntime: @unchecked Sendable {
+    /// Told to the model, not to the user: it keeps talking while the
+    /// specialist works.
+    static let functionAccepted =
+        "El encargo está en marcha; avisa que lo estás trabajando."
+
     static let functionRefusal =
         "Los encargos estarán disponibles en una próxima versión."
 
     let transport: any VoiceTransport
     let player: any PCMPlaying
     let thread: any ConversationPresenting
+    /// Set by VoiceSession when a specialist is available.
+    var onDelegate: (@Sendable (Handoff) -> Void)?
 
     var micEnabled = true
     var didBecomeReady = false
@@ -137,11 +144,24 @@ final class RealtimeRuntime: @unchecked Sendable {
         case .responseDone:
             let pending = await player.hasPending
             return [.responseCompleted(hasPendingAudio: pending)]
-        case .functionCall(_, _, let callId):
+        case .functionCall(let name, let arguments, let callId):
+            // Answer the server immediately so the voice keeps flowing; the
+            // job runs in the background and its result is announced later.
+            guard let onDelegate,
+                  let handoff = Handoff.parse(
+                      toolName: name, arguments: arguments)
+            else {
+                await send(
+                    RealtimeCodec.functionOutput(
+                        callId: callId, output: Self.functionRefusal))
+                await send(RealtimeCodec.responseCreate())
+                return [.functionOutputSent]
+            }
             await send(
                 RealtimeCodec.functionOutput(
-                    callId: callId, output: Self.functionRefusal))
+                    callId: callId, output: Self.functionAccepted))
             await send(RealtimeCodec.responseCreate())
+            onDelegate(handoff)
             return [.functionOutputSent]
         case .serverError(let message):
             Log.app("voice: realtime error \(message)")

@@ -50,4 +50,36 @@ public enum ChatCopy {
             return "No pude guardar la clave. Inténtalo de nuevo."
         }
     }
+
+    public static func step(_ tool: String, _ summary: String) -> String {
+        summary.isEmpty ? tool : "\(tool): \(summary)"
+    }
+
+    public static func stepDone(_ tool: String, ok: Bool) -> String {
+        ok ? "\(tool) — listo" : "\(tool) — falló"
+    }
+
+    public static let approvalPending =
+        "El especialista pide permiso para continuar."
+
+    public static func approvalAnswer(_ approved: Bool) -> String {
+        approved ? "Permiso concedido." : "Permiso denegado."
+    }
+
+    /// Readable summary of a tool request: raw JSON is not a decision aid.
+    public static func approvalDetail(
+        tool: String, inputJSON: String
+    ) -> String {
+        guard let data = inputJSON.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data)
+                as? [String: Any]
+        else { return tool }
+        let interesting = ["command", "path", "url", "query", "content"]
+        for key in interesting {
+            if let value = object[key] as? String, !value.isEmpty {
+                return value.count > 200 ? String(value.prefix(200)) + "…" : value
+            }
+        }
+        return tool
+    }
 }

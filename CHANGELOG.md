@@ -5,6 +5,21 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.4.0-wave4a] — 2026-08-21
+
+### Added
+- Delegacion a un especialista nativo que funciona solo con tu API key: el
+  modelo de charla le pasa el encargo, trabaja en segundo plano con sus
+  herramientas y devuelve el resultado al mismo hilo, desde texto o voz.
+- Seis herramientas con nivel de riesgo declarado: leer, escribir y editar
+  archivos, ejecutar comandos, y consultar la web. Escribir y ejecutar
+  siempre piden permiso.
+- Hoja de permisos con el comando o la ruta en claro (no JSON): permitir o
+  denegar, y si no respondes se deniega solo a los dos minutos.
+- Doble barrera de rutas: ninguna herramienta sale de tu carpeta de trabajo,
+  ni siquiera por un enlace simbolico.
+- Cola serial con presupuesto de quince minutos y cancelacion.
+
 ## [0.3.1-wave3] — 2026-08-21
 
 ### Fixed

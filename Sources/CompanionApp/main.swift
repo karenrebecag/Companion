@@ -55,8 +55,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settings: config.chat,
             ownerFirstName: first)
         let store = ConversationStore(directory: support)
+
+        // Job execution infrastructure
+        let approvals = Approvals(clock: RealtimeClock())
+        let jobQueue = JobQueue()
+        let nativeExecutor = NativeExecutor(
+            descriptor: ExecutorCatalog.native,
+            chatProvider: chat,
+            config: config,
+            approvals: approvals)
+        let jobRunner = JobRunner(
+            executorProvider: DefaultExecutorProvider(nativeExecutor: nativeExecutor),
+            queue: jobQueue,
+            approvals: approvals)
+
         let model = ChatViewModel(
-            chat: chat, secrets: secrets, store: store, config: config)
+            chat: chat, secrets: secrets, store: store, config: config,
+            jobSubmitter: jobRunner)
         self.model = model
 
         let caches = FileManager.default.urls(
@@ -90,7 +105,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             chat: chat,
             secrets: secrets,
             thread: model,
-            config: config)
+            config: config,
+            jobs: jobRunner)
         let voice = VoiceViewModel(voice: session, thread: model)
         self.voice = voice
 

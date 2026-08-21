@@ -31,6 +31,8 @@ public final class ChatViewModel: ConversationPresenting {
     public private(set) var queued: [String] = []
     public private(set) var recents: [ConversationMeta] = []
     public private(set) var errorText: String?
+    /// Non-nil while the specialist waits for a decision; the sheet binds here.
+    public private(set) var pendingApproval: ApprovalRequest?
     public var draft = ""
     public var onboardingKey = ""
     public private(set) var onboardingBusy = false
@@ -39,6 +41,7 @@ public final class ChatViewModel: ConversationPresenting {
     private let secrets: any SecretStore
     private let store: any ConversationStoring
     private let config: Config
+    private let jobSubmitter: (any JobSubmitter)?
     private var conversationId = UUID().uuidString
     private var inFlight: Task<Void, Never>?
 
@@ -46,12 +49,14 @@ public final class ChatViewModel: ConversationPresenting {
         chat: any ChatProvider,
         secrets: any SecretStore,
         store: any ConversationStoring,
-        config: Config
+        config: Config,
+        jobSubmitter: (any JobSubmitter)? = nil
     ) {
         self.chat = chat
         self.secrets = secrets
         self.store = store
         self.config = config
+        self.jobSubmitter = jobSubmitter
     }
 
     public func onAppear() {
@@ -211,7 +216,7 @@ public final class ChatViewModel: ConversationPresenting {
             }
             guard isCurrent(id) else { return }
             streaming = ""
-            commit(preface: preface, handoff: handoff)
+            await commit(preface: preface, handoff: handoff)
             persist()
             busy = false
             drain()
@@ -229,7 +234,80 @@ public final class ChatViewModel: ConversationPresenting {
         }
     }
 
-    private func commit(preface: String, handoff: Handoff?) {
+    /// Test seam: drives the same path the job stream drives, so the wiring
+    /// under test is the real one.
+    public func receiveJobEventForTesting(_ event: JobEvent) {
+        if case .approvalRequested(let request) = event {
+            pendingApproval = request
+        }
+    }
+
+    public func answerApproval(_ approved: Bool) {
+        guard let request = pendingApproval, let submitter = jobSubmitter else { return }
+        pendingApproval = nil
+        messages.append(ChatMessage(
+            isStatus: true, text: ChatCopy.approvalAnswer(approved)))
+        Task { await submitter.resolveApproval(
+            requestId: request.requestId, approved: approved) }
+    }
+
+    private func commit(preface: String, handoff: Handoff?) async {
+        if let handoff, let submitter = jobSubmitter {
+            if !preface.isEmpty {
+                messages.append(ChatMessage(role: .assistant, text: preface))
+            }
+            // Show work in progress
+            messages.append(ChatMessage(
+                isStatus: true, text: "Encargo en marcha: \(handoff.goal)"))
+            persist()
+
+            // Submit to runner
+            let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+            _ = Task {
+                for await event in stream {
+                    // Process events as needed
+                    switch event {
+                    case .stepStarted(let tool, let summary):
+                        messages.append(ChatMessage(
+                            isStatus: true, text: ChatCopy.step(tool, summary)))
+                    case .stepFinished(let tool, let ok):
+                        messages.append(ChatMessage(
+                            isStatus: true, text: ChatCopy.stepDone(tool, ok: ok)))
+                    case .approvalRequested(let request):
+                        // Surface it: a request that only prints text ends in
+                        // the auto-deny with the user none the wiser.
+                        pendingApproval = request
+                        messages.append(ChatMessage(
+                            isStatus: true, text: ChatCopy.approvalPending))
+                    case .thought(let text):
+                        messages.append(ChatMessage(isStatus: true, text: text))
+                    }
+                    persist()
+                }
+            }
+
+            do {
+                let result = try await submitter.submit(handoff, events: sink)
+                sink.finish()
+                if result.isError {
+                    messages.append(ChatMessage(
+                        role: .assistant,
+                        text: "Encargo falló: \(result.output)"))
+                } else {
+                    messages.append(ChatMessage(
+                        role: .assistant,
+                        text: result.output))
+                }
+            } catch {
+                sink.finish()
+                messages.append(ChatMessage(
+                    role: .assistant,
+                    text: "Error en el encargo: \(error.localizedDescription)"))
+            }
+            return
+        }
+
+        // Fallback: show status if no runner
         if let handoff {
             if !preface.isEmpty {
                 messages.append(ChatMessage(role: .assistant, text: preface))
@@ -238,6 +316,7 @@ public final class ChatViewModel: ConversationPresenting {
                 isStatus: true, text: ChatCopy.handoff(handoff)))
             return
         }
+
         if !preface.isEmpty {
             messages.append(ChatMessage(role: .assistant, text: preface))
         }

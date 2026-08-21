@@ -25,6 +25,7 @@ public actor VoiceSession: VoiceControlling {
     private var drainTask: Task<Void, Never>?
     private var playerLevelTask: Task<Void, Never>?
     private var speechTask: Task<Void, Never>?
+    private let jobs: (any JobSubmitter)?
     private let reachability: any ReachabilityProbing
     private let micSilenceTimeout: TimeInterval
     private var micSilenceTask: Task<Void, Never>?
@@ -45,6 +46,7 @@ public actor VoiceSession: VoiceControlling {
         secrets: any SecretStore,
         thread: any ConversationPresenting,
         config: Config,
+        jobs: (any JobSubmitter)? = nil,
         reachability: any ReachabilityProbing = NetworkReachability(),
         micSilenceTimeout: TimeInterval = 2.5,
         now: @escaping @Sendable () -> TimeInterval = {
@@ -59,12 +61,19 @@ public actor VoiceSession: VoiceControlling {
         self.synthesizer = synthesizer
         self.secrets = secrets
         self.config = config
+        self.jobs = jobs
         self.reachability = reachability
         self.micSilenceTimeout = micSilenceTimeout
         self.now = now
         self.readyTimeout = readyTimeout
         self.realtime = RealtimeRuntime(
             transport: transport, player: player, thread: thread)
+        if let jobs {
+            let presenter = thread
+            realtime.onDelegate = { handoff in
+                Task { await VoiceJobBridge.run(handoff, jobs: jobs, thread: presenter) }
+            }
+        }
         self.classic = ClassicRuntime(
             transcriber: transcriber, synthesizer: synthesizer,
             chat: chat, thread: thread)

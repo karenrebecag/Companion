@@ -8,13 +8,13 @@
 | 1 | Core de dominio | CERRADA (2026-08-20) | Logica pura 100% testeada |
 | 2 | Chat vertical | CERRADA (2026-08-20) | **App usable solo con una API key** |
 | 3 | Voz | APROBADO / EN CURSO | **Conversacion por voz con barge-in** |
-| 4 | Delegacion | Spec APROBADO (4a en curso) | **Especialista integrado sin instalar nada** |
+| 4 | Delegacion | 4a CERRADA (2026-08-21) | **Especialista integrado sin instalar nada** |
 | 5 | Producto | Spec BORRADOR | **Distribuible open source** |
 
 ## Foco actual
 
-Wave 4a: NativeExecutor — el especialista integrado que funciona solo con la
-API key. Los adapters de CLI (Claude Code, Hermes) son la tanda 4b.
+Wave 5a: tokens con tema oscuro, motion, onboarding pulido y ajustes con
+preview de voz. La tanda 4b (adapters de CLI) queda para despues de v1.
 
 ## Deuda consciente (con trigger)
 

@@ -11,7 +11,7 @@ public protocol ApprovalsProvider: Sendable {
     func resolve(requestId: String, approved: Bool) async -> Bool
 }
 
-actor Approvals: ApprovalsProvider {
+public actor Approvals: ApprovalsProvider {
     private struct PendingRequest {
         let deadline: TimeInterval
         var response: ApprovalResponse?
@@ -23,12 +23,12 @@ actor Approvals: ApprovalsProvider {
 
     nonisolated let _clock: Clock
 
-    init(clock: Clock) {
+    public init(clock: Clock) {
         self.clock = clock
         self._clock = clock
     }
 
-    func request(_ approval: ApprovalRequest) async -> ApprovalResponse {
+    public func request(_ approval: ApprovalRequest) async -> ApprovalResponse {
         let deadline = clock.now() + timeout
         pending[approval.requestId] = PendingRequest(deadline: deadline)
 
@@ -59,7 +59,7 @@ actor Approvals: ApprovalsProvider {
         return response ?? ApprovalResponse(requestId: approval.requestId, approved: false)
     }
 
-    func resolve(requestId: String, approved: Bool) async -> Bool {
+    public func resolve(requestId: String, approved: Bool) async -> Bool {
         guard pending[requestId] != nil else {
             return false
         }

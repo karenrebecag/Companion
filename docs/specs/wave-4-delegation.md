@@ -1,8 +1,8 @@
 # Wave 4 — Delegacion
 
-**Estado: APROBADO / EN CURSO** — 2026-08-21. Karen dio luz verde y fijo el
-alcance de archivos apuntando a su carpeta de proyectos; el resto se decide
-con las recomendaciones de este spec (abajo, "Decisiones tomadas").
+**Estado: CERRADO (4a)** — 2026-08-21. El especialista nativo funciona de
+punta a punta desde texto y desde voz. Falta la prueba manual de Karen y la
+tanda 4b (adapters de Claude Code y Hermes).
 
 ## Objetivo
 
@@ -125,3 +125,25 @@ Tests en `Tests/CompanionTests/` (target unico, como el resto del repo).
   invoca la capacidad nueva. Va en la checklist de cierre.
 - **Los tests no ven la integracion**: como en Wave 3, la prueba manual es
   parte de la definicion de done, no un extra.
+
+## Cierre de 4a (2026-08-21)
+
+Entregado: nucleo de encargos (tipos, puerto, cola serial con presupuesto y
+cancelacion), registro cerrado de seis tools con doble barrera de rutas,
+actor de permisos con auto-denegacion, loop del agente nativo, coordinador,
+y cableado real desde texto y desde voz con hoja de aprobacion.
+
+Correcciones sobre lo entregado por los agentes, todas por revision con grep
+y lectura (los tests verdes no las mostraban):
+- La cola descartaba el resultado del encargo (delegar no devolvia nada), no
+  se podia cancelar y el presupuesto solo corria si llegaban eventos.
+- Los permisos estaban cableados a denegar siempre ("mock por ahora").
+- El loop no podia invocar tools contra el proveedor real, y el ciclo de
+  tool calling viajaba sin el identificador que exige la API.
+- La UI mostraba "esperando aprobacion" sin ninguna forma de aprobar: todo
+  terminaba en la auto-denegacion a los 120 s.
+- La voz seguia contestando que la delegacion no estaba disponible.
+- Un test dormia 120 s reales y tumbaba pruebas de voz ajenas.
+
+Pendiente de prueba manual: delegar una lectura, aprobar una escritura,
+denegar, y cancelar a media ejecucion.
