@@ -9,9 +9,11 @@ import Testing
 
 @Test @MainActor
 func cliProbeFindsClaude() throws {
-    let probe = CLIExecutorProbe(locator: CLIBinaryLocator(home: "/Users/k") {
-        $0 == "/Users/k/.local/bin/claude"
-    })
+    let probe = CLIExecutorProbe(
+        locator: CLIBinaryLocator(home: "/Users/k") {
+            $0 == "/Users/k/.local/bin/claude"
+        },
+        hermesProviders: { [] })
     let detected = try runAsync { await probe.detectAvailable() }
     expect(detected.contains { $0.id.rawValue == "claude-code" },
            "probe: claude instalado ⇒ ejecutor en el catálogo")
@@ -21,9 +23,11 @@ func cliProbeFindsClaude() throws {
 
 @Test @MainActor
 func cliProbeFindsBoth() throws {
-    let probe = CLIExecutorProbe(locator: CLIBinaryLocator(home: "/Users/k") {
-        ["/Users/k/.local/bin/claude", "/Users/k/.local/bin/hermes"].contains($0)
-    })
+    let probe = CLIExecutorProbe(
+        locator: CLIBinaryLocator(home: "/Users/k") {
+            ["/Users/k/.local/bin/claude", "/Users/k/.local/bin/hermes"].contains($0)
+        },
+        hermesProviders: { [] })
     let detected = try runAsync { await probe.detectAvailable() }
     expect(detected.contains { $0.id.rawValue == "claude-code" }, "probe: claude")
     expect(detected.contains { $0.id.rawValue == "hermes" }, "probe: hermes")
@@ -31,9 +35,11 @@ func cliProbeFindsBoth() throws {
 
 @Test @MainActor
 func cliProbeResolvesExecutablePath() throws {
-    let probe = CLIExecutorProbe(locator: CLIBinaryLocator(home: "/Users/k") {
-        $0 == "/Users/k/.local/bin/claude"
-    })
+    let probe = CLIExecutorProbe(
+        locator: CLIBinaryLocator(home: "/Users/k") {
+            $0 == "/Users/k/.local/bin/claude"
+        },
+        hermesProviders: { [] })
     expectEq(probe.executablePath(for: ExecutorID(rawValue: "claude-code")),
              "/Users/k/.local/bin/claude",
              "probe: entrega la ruta real para lanzar, no una adivinada")
@@ -45,9 +51,11 @@ func cliProbeResolvesExecutablePath() throws {
 func executorProviderSelectsExecutor() throws {
     let result = try runAsync {
         let nativeExecutor = StubExecutor(id: "native")
-        let probe = CLIExecutorProbe(locator: CLIBinaryLocator(home: "/Users/k") {
-            $0 == "/Users/k/.local/bin/claude"
-        })
+        let probe = CLIExecutorProbe(
+            locator: CLIBinaryLocator(home: "/Users/k") {
+                $0 == "/Users/k/.local/bin/claude"
+            },
+            hermesProviders: { [] })
         let provider = ExecutorProvider(nativeExecutor: nativeExecutor, cliProbe: probe)
 
         await provider.refreshAvailableExecutors()
@@ -67,9 +75,11 @@ func executorProviderDegradesMissingExecutor() throws {
     let result = try runAsync {
         let nativeExecutor = StubExecutor(id: "native")
         let installed = ExecutableSet(["/Users/k/.local/bin/claude"])
-        let probe = CLIExecutorProbe(locator: CLIBinaryLocator(home: "/Users/k") {
-            installed.contains($0)
-        })
+        let probe = CLIExecutorProbe(
+            locator: CLIBinaryLocator(home: "/Users/k") {
+                installed.contains($0)
+            },
+            hermesProviders: { [] })
         let provider = ExecutorProvider(nativeExecutor: nativeExecutor, cliProbe: probe)
 
         await provider.refreshAvailableExecutors()

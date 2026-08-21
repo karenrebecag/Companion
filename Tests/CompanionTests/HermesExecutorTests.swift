@@ -57,6 +57,28 @@ func hermesExecutorRunsBatchJob() throws {
 }
 
 @Test @MainActor
+func hermesExecutorPassesProviderArgs() throws {
+    let launcher = StubProcessLauncher()
+    _ = try runAsync {
+        let executor = HermesExecutor(
+            workdir: "/tmp/test",
+            executablePath: "/stub/bin/hermes",
+            processLauncher: launcher,
+            providerArgs: ["--provider", "copilot"])
+        launcher.setResponseTranscript(["ok"])
+        let (events, sink) = AsyncStream<JobEvent>.makeStream()
+        events.ignore()
+        return try await executor.run(
+            JobRequest(id: "1", goal: "x", context: ""), events: sink)
+    }
+    let args = launcher.launched.first?.arguments ?? []
+    guard let i = args.firstIndex(of: "--provider"), i + 1 < args.count else {
+        return expect(false, "hermes: --provider viaja al CLI")
+    }
+    expectEq(args[i + 1], "copilot", "hermes: el proveedor detectado se usa")
+}
+
+@Test @MainActor
 func hermesExecutorEmitsStepEvents() throws {
     let result = try runAsync {
         let launcher = StubProcessLauncher()

@@ -11,15 +11,18 @@ public struct HermesExecutor: Executor, Sendable {
     private let workdir: String
     private let executablePath: String
     private let processLauncher: any ProcessLauncher
+    private let providerArgs: [String]
 
     public init(
         workdir: String,
         executablePath: String,
-        processLauncher: any ProcessLauncher
+        processLauncher: any ProcessLauncher,
+        providerArgs: [String] = []
     ) {
         self.workdir = workdir
         self.executablePath = executablePath
         self.processLauncher = processLauncher
+        self.providerArgs = providerArgs
 
         self.descriptor = ExecutorDescriptor(
             id: ExecutorID(rawValue: "hermes"),
@@ -44,7 +47,7 @@ public struct HermesExecutor: Executor, Sendable {
 
         guard let handle = await processLauncher.launch(
             executable: executablePath,
-            arguments: ["chat", "-Q", "-q", prompt],
+            arguments: ["chat", "-Q"] + providerArgs + ["-q", prompt],
             cwd: workdir
         ) else {
             Log.app("executor: hermes no arrancó en \(executablePath)")

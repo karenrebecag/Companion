@@ -11,26 +11,28 @@ public enum ExecutorFactory {
         processLauncher: any ProcessLauncher,
         approvals: any ApprovalsProvider
     ) -> (any Executor)? {
-        switch descriptor.id.rawValue {
-        case "claude-code":
+        // Prefijo, no igualdad: cada tier de claude y cada proveedor de
+        // hermes es una fila propia (claude-code:opus, hermes:copilot).
+        let id = descriptor.id.rawValue
+        if id.hasPrefix("claude-code") {
             return ClaudeCodeExecutor(
                 workdir: workdir,
                 executablePath: executablePath,
                 processLauncher: processLauncher,
-                approvals: approvals
+                approvals: approvals,
+                modelArgs: descriptor.modelArgs
             )
-
-        case "hermes":
+        }
+        if id.hasPrefix("hermes") {
             return HermesExecutor(
                 workdir: workdir,
                 executablePath: executablePath,
-                processLauncher: processLauncher
+                processLauncher: processLauncher,
+                providerArgs: descriptor.modelArgs
             )
-
-        default:
-            // El nativo se construye en el composition root, no aquí.
-            return nil
         }
+        // El nativo se construye en el composition root, no aquí.
+        return nil
     }
 }
 

@@ -10,6 +10,7 @@ import Testing
 
 @Test @MainActor func claudeWireContractTests() throws {
     try testLaunchArgumentsCarryTheProtocol()
+    try testChosenTierTravelsToTheCLI()
     try testProcessPersistsBetweenJobs()
     try testDeadProcessRespawns()
     try testAttachmentsTravelInTheUserTurn()
@@ -40,11 +41,28 @@ import Testing
            "cable: sin stdio las aprobaciones nunca llegan")
     expect(hasPair(args, "--append-system-prompt", Escalation.executorRole),
            "cable: el rol del ejecutor viaja una vez por sesión")
-    expect(hasPair(args, "--model", "opus"),
-           "cable: el modelo va con --model y alias corto, como el CLI acepta")
+    expect(hasPair(args, "--model", "sonnet"),
+           "cable: sin tier elegido corre sonnet — el worker por defecto")
     expect(!args.contains("-m"),
            "cable: -m no es un flag de claude; mataba el proceso en argparse")
     expectEq(launch.cwd, "/tmp/test", "cable: el workdir es el cwd del hijo")
+}
+
+@MainActor func testChosenTierTravelsToTheCLI() throws {
+    let launcher = StubProcessLauncher()
+    launcher.setResponseTranscript([resultLine("ok")])
+    let executor = ClaudeCodeExecutor(
+        workdir: "/tmp/test",
+        executablePath: "/stub/bin/claude",
+        processLauncher: launcher,
+        approvals: InstantApprovals(approved: false),
+        modelArgs: ["--model", "haiku"])
+
+    _ = try runAsync { try await executor.run(job("1"), events: ignoredSink()) }
+
+    let args = launcher.launched.first?.arguments ?? []
+    expect(hasPair(args, "--model", "haiku"), "tier: el elegido viaja al CLI")
+    expect(!args.contains("sonnet"), "tier: el default no se cuela")
 }
 
 @MainActor func testProcessPersistsBetweenJobs() throws {

@@ -21,7 +21,8 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         workdir: String,
         executablePath: String,
         processLauncher: any ProcessLauncher,
-        approvals: any ApprovalsProvider
+        approvals: any ApprovalsProvider,
+        modelArgs: [String] = ["--model", "sonnet"]
     ) {
         self.workdir = workdir
         self.executablePath = executablePath
@@ -33,7 +34,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             shortName: "claude",
             title: "Claude Code",
             kind: .detectedCLI,
-            modelArgs: ["--model", "opus"]
+            modelArgs: modelArgs
         )
     }
 
