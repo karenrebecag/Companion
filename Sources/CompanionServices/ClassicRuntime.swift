@@ -23,6 +23,7 @@ final class ClassicRuntime: @unchecked Sendable {
 
     func requestListen(
         mic: any MicCapturing,
+        language: AppLanguage,
         apply: @escaping @Sendable (TurnEvent) async -> Void
     ) async {
         let granted = await mic.requestAccess()
@@ -42,7 +43,8 @@ final class ClassicRuntime: @unchecked Sendable {
             return
         }
         do {
-            try await transcriber.start(localeIdentifier: "es-MX")
+            try await transcriber.start(
+                localeIdentifier: language.speechLocaleIdentifier)
         } catch {
             await apply(.voiceStartFailed(.speechEngine))
             return

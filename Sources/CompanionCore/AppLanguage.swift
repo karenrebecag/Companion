@@ -8,6 +8,16 @@ public enum AppLanguage: String, Sendable, CaseIterable, Codable {
     case en
     case es
 
+    /// The locale the system speech recogniser listens in. Regional on
+    /// purpose: with a bare language code SFSpeechRecognizer loses the
+    /// on-device model it has for the regional variant.
+    public var speechLocaleIdentifier: String {
+        switch self {
+        case .en: "en-US"
+        case .es: "es-MX"
+        }
+    }
+
     /// The user's choice wins; otherwise the first system language the app
     /// speaks, in the order the system prefers them. Pure on purpose: the
     /// identifiers come from the composition root, because nothing in Core

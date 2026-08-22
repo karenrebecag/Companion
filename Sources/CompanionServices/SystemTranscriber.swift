@@ -35,7 +35,7 @@ public final class SystemTranscriber: Transcriber, @unchecked Sendable {
     public func start(localeIdentifier: String) async throws {
         halt()
         let locale = Locale(identifier: localeIdentifier.isEmpty
-            ? "es-MX" : localeIdentifier)
+            ? AppLanguage.en.speechLocaleIdentifier : localeIdentifier)
         let rec = SFSpeechRecognizer(locale: locale) ?? SFSpeechRecognizer()
         guard let rec, rec.isAvailable else {
             throw VoiceTransportError.unreachable

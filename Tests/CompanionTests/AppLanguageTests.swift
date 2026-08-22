@@ -16,6 +16,7 @@ import Testing
     testToolDescriptionsTravelInTheLanguage()
     testConfigCarriesTheLanguage()
     testThePreferenceIsActuallyWired()
+    testTheSpeechLocaleFollowsTheLanguage()
 }
 
 /// El patrón de bug de este repo: la decisión existe, nadie la invoca. Sin
@@ -101,6 +102,16 @@ import Testing
            "tool: sigue siendo el JSON plano que espera Realtime")
     expectEq(ToolSpec.resolveApproval(.en).name, "resolve_approval",
              "tool: resolve_approval tampoco cambia de nombre")
+}
+
+/// El reconocedor no escucha "un idioma", escucha un locale. Sin región,
+/// SFSpeechRecognizer se queda sin el modelo on-device que sí tiene para la
+/// variante regional.
+@MainActor func testTheSpeechLocaleFollowsTheLanguage() {
+    expectEq(AppLanguage.en.speechLocaleIdentifier, "en-US",
+             "locale: al inglés se le escucha en inglés")
+    expectEq(AppLanguage.es.speechLocaleIdentifier, "es-MX",
+             "locale: el español conserva el regional que ya funcionaba")
 }
 
 @MainActor func testConfigCarriesTheLanguage() {

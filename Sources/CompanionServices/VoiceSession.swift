@@ -126,7 +126,8 @@ public actor VoiceSession: VoiceControlling {
     /// queue is serial, so a new request means the previous one is settled.
     func noteApproval(_ request: ApprovalRequest) async {
         pendingApproval = request
-        await jobAnnounce(Escalation.approvalAnnouncement(request))
+        await jobAnnounce(Escalation.approvalAnnouncement(
+            request, configProvider.current.language))
     }
 
     /// The model turned the user's spoken answer into a decision. Nothing
@@ -211,7 +212,9 @@ public actor VoiceSession: VoiceControlling {
             case .openRealtimeSession:
                 await openRealtimeSession()
             case .requestClassicListen:
-                await classic.requestListen(mic: mic) { event in
+                await classic.requestListen(
+                    mic: mic, language: configProvider.current.language
+                ) { event in
                     await self.apply(event)
                 }
             case .closeRealtime:

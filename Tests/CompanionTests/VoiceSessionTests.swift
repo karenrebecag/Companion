@@ -106,7 +106,8 @@ import Testing
     await pumpUntil("classic: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
-    expectEq(h.transcriber.locale, "es-MX", "classic: SFSpeech es-MX")
+    expectEq(h.transcriber.locale, "en-US",
+             "classic: SFSpeech en el idioma del usuario")
     expect(h.transcriber.started, "classic: transcriber.start")
     expect(h.transport.key == nil, "classic: no abre realtime sin key")
     expect(h.transport.sent.isEmpty, "classic: no manda frames al WS")
@@ -119,7 +120,7 @@ import Testing
     await pumpUntil("timeout: fallback classic") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
-    expectEq(h.transcriber.locale, "es-MX", "timeout: arma el transcriber")
+    expectEq(h.transcriber.locale, "en-US", "timeout: arma el transcriber")
     expect(h.transcriber.started, "timeout: transcriber.start")
     expect(!h.thread.status.isEmpty, "timeout: avisa la caída")
 }
@@ -285,7 +286,8 @@ func makeVoiceHarness(
     online: Bool = true,
     micSilenceTimeout: TimeInterval = 10,
     echoFreeOutput: Bool = false,
-    jobs: (any JobSubmitter)? = nil
+    jobs: (any JobSubmitter)? = nil,
+    language: AppLanguage = .en
 ) -> VoiceHarness {
     let transport = ScriptedVoiceTransport()
     transport.autoEvents = autoEvents
@@ -300,7 +302,8 @@ func makeVoiceHarness(
     let secrets = ScriptedSecrets(keys)
     let thread = ScriptedThread()
     let clock = TestClock()
-    let provider = StaticConfigProvider(Config(ownerFirstName: "Karen"))
+    let provider = StaticConfigProvider(
+        Config(ownerFirstName: "Karen", language: language))
     let session = VoiceSession(
         transport: transport,
         mic: mic,
