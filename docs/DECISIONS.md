@@ -176,3 +176,48 @@ claude por alias documentado del CLI (Sonnet por defecto, como el
 claudeWorker del prototipo), y una fila por proveedor que hermes ya tenga
 en su cache de modelos. En una Mac sin CLIs el catalogo queda vacio y solo
 existe el ejecutor nativo (ADR 001 intacto).
+
+---
+
+## ADR 005 — El encargo es UI asistiva: no habla por su cuenta
+
+**Contexto.** La Wave 8 le dio voz al encargo por dos motivos buenos: un
+permiso que nadie miraba moria en el auto-deny de los 120 s, y la voz seguia
+diciendo "voy en camino" despues de que el encargo habia terminado. Ambas se
+resolvieron mandando items de sistema al modelo para que narrara. Medido
+despues, eso producia dos mensajes por un resultado: el texto del especialista
+entraba al hilo como mensaje del assistant, y la parafrasis hablada volvia a
+entrar al transcribirse. El que sonaba era el resumen del que estaba escrito.
+
+**Decision (Karen, 2026-08-22).** Un encargo es UI asistiva y no habla por su
+cuenta. Solo se leen las respuestas del assistant. En concreto:
+
+- El resultado vuelve **una vez**: el texto del especialista es el mensaje del
+  hilo y la voz solo acusa que termino, sin releerlo.
+- El permiso **no se pregunta en voz alta**: vive en la hoja.
+
+**Referencia.** Es la forma en que OpenAI cierra una tool: el resultado vuelve
+como `function_call_output` y el modelo produce UNA respuesta que lo incorpora
+— la salida nunca llega a ser un segundo mensaje.
+
+**Donde NO se copia, y por que.** Copiar el patron entero — resultado
+invisible, el mensaje del hilo es lo que dice el modelo — se lleva por delante
+el texto integro del especialista: rutas, comandos, codigo, y las cards, que
+se renderizan del markdown del mensaje. Un encargo que devuelve un mapa
+perderia el mapa. El artefacto se queda como mensaje; lo que se recorta es la
+relectura. La condicion fue explicita: la forma de OpenAI mientras no quite
+valor de producto.
+
+**Consecuencias.**
+- La garantia de la Wave 8 sobrevive por otra via: cual de los dos finales
+  ocurrio lo decide `result.isError`, no el modelo. El fallo conserva su
+  motivo, que es una linea que cambia lo que haces despues.
+- Aprobar por voz pierde el aviso, no la respuesta: `resolve_approval` sigue
+  declarada, asi que quien ve la hoja y dice "si, autorizalo" resuelve sin
+  tocar el trackpad. Un permiso que nadie mira sigue muriendo en el auto-deny,
+  ahora en silencio. Es el precio elegido.
+- `Escalation.approvalAnnouncement` se fue con su llamador; dejarla probada y
+  sin invocar es el patron que este repo lleva corrigiendo desde la Wave 8.
+- Queda abierto: el acuse hablado no llega al pipeline clasico, donde no hay
+  modelo que lo genere. Decidir si se dice por el sintetizador o si el clasico
+  se queda mudo tambien para el acuse.

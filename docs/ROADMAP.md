@@ -49,11 +49,11 @@ Lo que sigue abierto, en orden:
 1. **La guia de Gatekeeper no viaja con el DMG**: quien solo descarga se
    queda sin ella justo cuando la necesita, y en macOS 15+ no hay clic
    derecho que lo salve.
-2. **La voz clasica calla los encargos** (`VoiceSession.jobAnnounce`): no
-   miente, pero en el pipeline de respaldo el que delego por voz no oye ni
-   el exito ni el fallo. Decidir entre narrarlo o declararlo solo-pantalla
-   en un ADR; hasta entonces no se le escribe test, porque fijaria por
-   contrato una conducta que quiza cambie.
+2. **El acuse hablado no llega al pipeline clasico.** El ADR 005 zanjo que el
+   encargo no habla por su cuenta y que la voz solo acusa; en clasico no hay
+   modelo que genere ese acuse, asi que el encargo termina en silencio. Se
+   podria decir por el sintetizador, que ahi si acepta texto arbitrario.
+   Decision pendiente.
 3. **Los especialistas no instalados no se distinguen en la UI**: se ofrecen
    igual que los disponibles.
 4. **Cambiar el idioma no alcanza a una sesion de voz ya abierta**, como

@@ -5,7 +5,25 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+### Changed
+- **El encargo es UI asistiva: no habla por su cuenta.** Decision de producto.
+  El resultado vuelve una sola vez — el texto del especialista es el mensaje
+  del hilo, con su codigo, sus rutas y sus cards, y la voz solo acusa que
+  termino en vez de releerlo. Antes eran dos mensajes por un resultado, y el
+  que sonaba era una parafrasis del que estaba escrito. Es la forma en que
+  OpenAI cierra una tool — vuelve como salida, no como un segundo mensaje —
+  aplicada hasta donde no cuesta producto: copiarla del todo habria borrado
+  del hilo el texto integro del especialista, y con el las cards.
+- **El permiso del especialista deja de preguntarse en voz alta.** Vive en la
+  hoja. `resolve_approval` sigue declarada, asi que quien la ve y dice "si,
+  autorizalo" resuelve sin tocar el trackpad; lo que se pierde, y es el precio
+  elegido, es que un permiso que nadie mira muere en el auto-deny de los 120 s
+  sin que la voz lo mencione. Revierte la parte hablada de la Wave 8.
+
 ### Fixed
+- **La voz ya no intentaba leer una card.** Un encargo que devolvia un mapa o
+  una galeria hacia que el modelo recibiera «```companion:locations» como
+  texto a narrar.
 - **Un encargo que falla dice por que.** Los dos ejecutores de CLI devolvian
   una salida vacia cuando el proceso no arrancaba o terminaba sin reportar, y
   una salida vacia dejaba a la voz sin motivo: rellenaba el hueco diciendo que
