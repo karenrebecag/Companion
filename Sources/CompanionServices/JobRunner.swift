@@ -9,15 +9,20 @@ public struct JobRunner: Sendable, JobSubmitter {
     private let executorProvider: ExecutorProviderProtocol
     private let queue: JobQueue
     private let approvals: any ApprovalsProvider
+    /// A closure, not a value: the failure the user reads has to follow the
+    /// language they picked a minute ago, not the one at construction time.
+    private let language: @Sendable () -> AppLanguage
 
     public init(
         executorProvider: ExecutorProviderProtocol,
         queue: JobQueue,
-        approvals: any ApprovalsProvider
+        approvals: any ApprovalsProvider,
+        language: @escaping @Sendable () -> AppLanguage = { .en }
     ) {
         self.executorProvider = executorProvider
         self.queue = queue
         self.approvals = approvals
+        self.language = language
     }
 
     /// Convert a Handoff into a JobRequest with a unique ID.
@@ -42,21 +47,32 @@ public struct JobRunner: Sendable, JobSubmitter {
         } catch {
             // El error interno va al log; a la usuaria le llega el porqué en
             // humano ("Job failed: processLaunchFailed" en el hilo fue real).
-            Log.app("jobs: encargo falló (\(error))")
-            return JobResult(output: Self.failureText(for: error), isError: true)
+            Log.app("jobs: job failed (\(error))")
+            return JobResult(
+                output: Self.failureText(for: error, language()),
+                isError: true)
         }
     }
 
-    static func failureText(for error: Error) -> String {
+    static func failureText(
+        for error: Error, _ language: AppLanguage = .en
+    ) -> String {
+        let english = language == .en
         switch error {
         case JobQueue.QueueError.budgetExhausted:
-            return "El encargo tardó más de la cuenta y se detuvo."
+            return english
+                ? "The job took longer than allowed and was stopped."
+                : "El encargo tardó más de la cuenta y se detuvo."
         case JobQueue.QueueError.cancelled, is CancellationError:
-            return "Encargo cancelado."
+            return english ? "Job cancelled." : "Encargo cancelado."
         case ExecutorError.processLaunchFailed:
-            return "No pude arrancar el especialista en esta Mac."
+            return english
+                ? "I could not start the specialist on this Mac."
+                : "No pude arrancar el especialista en esta Mac."
         default:
-            return "El encargo no se pudo completar."
+            return english
+                ? "The job could not be completed."
+                : "El encargo no se pudo completar."
         }
     }
 

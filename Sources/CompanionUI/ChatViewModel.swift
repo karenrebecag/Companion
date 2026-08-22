@@ -52,9 +52,15 @@ public final class ChatViewModel: ConversationPresenting {
         folderName = WorkdirPreference.label
     }
 
+    /// Asked instead of comparing the label: a translated string deciding
+    /// whether a button is enabled breaks the moment the language changes.
+    public var hasStoredAttachments: Bool {
+        (attachments?.storedBytes() ?? 0) > 0
+    }
+
     public var attachmentsStorageLabel: String {
         let bytes = attachments?.storedBytes() ?? 0
-        if bytes <= 0 { return "Nada guardado" }
+        if bytes <= 0 { return Localized.string("settings.storage.empty") }
         let formatter = ByteCountFormatter()
         formatter.countStyle = .file
         return formatter.string(fromByteCount: Int64(bytes))
@@ -367,7 +373,8 @@ public final class ChatViewModel: ConversationPresenting {
         }
         guard !stored.isEmpty else { return }
         let title = messages.first { $0.role == .user }
-            .map { String($0.text.prefix(48)) } ?? "Conversación"
+            .map { String($0.text.prefix(48)) }
+            ?? Localized.string("thread.untitled")
         let record = ConversationRecord(
             id: conversationId, title: title, updatedAt: Date(), messages: stored)
         do {

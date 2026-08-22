@@ -66,7 +66,7 @@ public struct RealProcessLauncher: ProcessLauncher {
             try process.run()
             return RealProcessHandle(process: process, stdin: inputPipe, stdout: outputPipe)
         } catch {
-            Log.app("process: launch de \(executable) falló: \(error)")
+            Log.app("process: launching \(executable) failed: \(error)")
             return nil
         }
     }
@@ -131,7 +131,7 @@ private final class RealProcessHandle: ProcessHandle, @unchecked Sendable {
             try stdinPipe.fileHandleForWriting.close()
         } catch {
             // Cerrar un pipe ya cerrado tira; el proceso muere igual abajo.
-            Log.app("process: stdin ya estaba cerrado")
+            Log.app("process: stdin was already closed")
         }
         if process.isRunning { process.terminate() }
     }

@@ -17,7 +17,7 @@ struct AttachmentStrip: View {
         }
         .frame(maxHeight: Space.x8 * 2)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Archivos adjuntos")
+        .accessibilityLabel(Localized.string("attach.list"))
     }
 
     private func chip(_ ref: AttachmentRef) -> some View {
@@ -47,7 +47,8 @@ struct AttachmentStrip: View {
                     .contentShape(Circle())
             }
             .buttonStyle(PressableStyle())
-            .accessibilityLabel("Quitar \(ref.name)")
+            .accessibilityLabel(String(
+            format: Localized.string("attach.remove"), ref.name))
         }
         .padding(Space.x1 + Space.x1 / 2)
         .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Semantic.surface))
@@ -55,7 +56,7 @@ struct AttachmentStrip: View {
             RoundedRectangle(cornerRadius: Radius.lg)
                 .stroke(Semantic.border, lineWidth: Stroke.hairline))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(ref.name), \(AttachmentLook.detail(ref.byteCount))")
+        .accessibilityLabel("\(ref.name), \(AttachmentLook.detail(ref.byteCount))")  // token-exempt: nombre y tamano son datos
     }
 }
 
@@ -70,10 +71,10 @@ struct DropVeil: View {
                 Image(systemName: "arrow.down.doc")
                     .font(.system(size: IconSize.hero, weight: .light))
                     .foregroundStyle(Semantic.foreground)
-                Text("Suéltalos aquí")
+                Text(Localized.string("attach.drop.title"))
                     .font(.uiTitle)
                     .foregroundStyle(Semantic.foreground)
-                Text("Imágenes, PDFs, código: lo que quieras que mire")
+                Text(Localized.string("attach.drop.subtitle"))
                     .font(.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
             }
@@ -97,7 +98,7 @@ struct MessageAttachments: View {
                 tile(ref)
             }
             if overflow > 0 {
-                Text("+\(overflow)")
+                Text("+\(overflow)")  // token-exempt: una cifra.
                     .font(.uiLabel)
                     .foregroundStyle(Semantic.mutedForeground)
                     .frame(width: side, height: side)
@@ -148,7 +149,8 @@ struct MessageAttachments: View {
         }
         .buttonStyle(PressableStyle())
         .help(ref.name)
-        .accessibilityLabel("\(ref.name). Abrir")
+        .accessibilityLabel(String(
+            format: Localized.string("attach.open"), ref.name))
     }
 }
 

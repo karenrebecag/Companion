@@ -5,6 +5,7 @@ import PackageDescription
 // arquitectura: si Core intentara importar UI, no compila.
 let package = Package(
     name: "Companion",
+    defaultLocalization: "en",
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "companion", targets: ["CompanionApp"]),

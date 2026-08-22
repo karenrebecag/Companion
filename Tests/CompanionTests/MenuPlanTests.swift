@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 @Test @MainActor func menuPlanTests() {
+    pinLanguage()
     testEditCommandsStayFixedWhenShortcutsRebind()
     testAttachKeyEquivalentFollowsShortcutSet()
     testMissingShortcutKeepsItemWithoutKey()
@@ -63,7 +64,7 @@ import Testing
 
 @MainActor func testDefaultPlanHasFourSectionsAndVoiceItems() {
     let plan = MenuPlan.build(shortcuts: .defaults)
-    expectEq(plan.map { $0.title }, ["Companion", "Edición", "Conversación", "Ventana"],
+    expectEq(plan.map { $0.title }, ["Companion", "Edit", "Conversation", "Window"],
              "menu: las cuatro secciones de una app de Mac")
     expect(item(plan, .toggleVoice) != nil, "menu: turno de voz visible")
     expect(item(plan, .toggleMute) != nil, "menu: mute visible")

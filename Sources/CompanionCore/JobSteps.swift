@@ -37,9 +37,12 @@ public enum JobSteps: Sendable {
         public static let tool = "Thinking"
     }
 
-    /// "2 búsquedas · 1 archivo · 1 comando" — derived from the steps, never
-    /// invented. The same file touched twice is one file.
-    public static func summary(_ steps: [JobStepInfo]) -> String? {
+    /// "2 searches · 1 file · 1 command" — derived from the steps, never
+    /// invented. The same file touched twice is one file. Core has no bundle
+    /// to look strings up in, so the language arrives as a parameter.
+    public static func summary(
+        _ steps: [JobStepInfo], _ language: AppLanguage = .en
+    ) -> String? {
         var searches = 0
         var pages = 0
         var commands = 0
@@ -56,13 +59,18 @@ public enum JobSteps: Sendable {
             default: break
             }
         }
+        let words = SummaryWords(language)
         var parts: [String] = []
-        if searches > 0 { parts.append(count(searches, "búsqueda", "búsquedas")) }
-        if pages > 0 { parts.append(count(pages, "página", "páginas")) }
-        if !files.isEmpty {
-            parts.append(count(files.count, "archivo", "archivos"))
+        if searches > 0 {
+            parts.append(count(searches, words.search, words.searches))
         }
-        if commands > 0 { parts.append(count(commands, "comando", "comandos")) }
+        if pages > 0 { parts.append(count(pages, words.page, words.pages)) }
+        if !files.isEmpty {
+            parts.append(count(files.count, words.file, words.files))
+        }
+        if commands > 0 {
+            parts.append(count(commands, words.command, words.commands))
+        }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
@@ -80,11 +88,34 @@ public enum JobSteps: Sendable {
         return out
     }
 
-    /// "Trabajó 47 s" / "Trabajó 1:42". Nobody reads "Trabajó 102 s".
-    public static func worked(_ seconds: Double) -> String {
+    /// "Worked 47 s" / "Worked 1:42". Nobody reads "Worked 102 s".
+    public static func worked(
+        _ seconds: Double, _ language: AppLanguage = .en
+    ) -> String {
+        let verb = language == .en ? "Worked" : "Trabajó"
         let total = Int(seconds.rounded())
-        guard total >= 60 else { return "Trabajó \(total) s" }
-        return "Trabajó \(total / 60):\(String(format: "%02d", total % 60))"
+        guard total >= 60 else { return "\(verb) \(total) s" }
+        return "\(verb) \(total / 60):\(String(format: "%02d", total % 60))"
+    }
+
+    private struct SummaryWords {
+        let search, searches, page, pages: String
+        let file, files, command, commands: String
+
+        init(_ language: AppLanguage) {
+            switch language {
+            case .en:
+                (search, searches) = ("search", "searches")
+                (page, pages) = ("page", "pages")
+                (file, files) = ("file", "files")
+                (command, commands) = ("command", "commands")
+            case .es:
+                (search, searches) = ("búsqueda", "búsquedas")
+                (page, pages) = ("página", "páginas")
+                (file, files) = ("archivo", "archivos")
+                (command, commands) = ("comando", "comandos")
+            }
+        }
     }
 
     /// The path is whatever follows the verb in the label.

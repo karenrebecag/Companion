@@ -35,7 +35,7 @@ struct ShortcutCaptureField: View {
             .buttonStyle(.plain)
 
             if isCapturing {
-                Text("Presiona Esc para cancelar")
+                Text(Localized.string("shortcut.escToCancel"))
                     .font(Font.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
             }

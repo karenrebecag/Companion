@@ -25,7 +25,7 @@ public struct StatusLine: View {
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
                 if chat.pendingApproval != nil {
-                    Text("El especialista espera tu permiso")
+                    Text(Localized.string("status.approvalWaiting"))
                         .font(.uiCaption)
                         .foregroundStyle(Semantic.accentText)
                 }
@@ -59,7 +59,8 @@ public struct StatusLine: View {
         if let since = chat.busySince {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let secs = Int(context.date.timeIntervalSince(since))
-                Text("\(secs / 60):\(String(format: "%02d", secs % 60)) · Esc para cortar")
+                Text("\(secs / 60):\(String(format: "%02d", secs % 60)) · "  // token-exempt: reloj
+                    + Localized.string("status.escToStop"))
                     .font(.uiMicro)
                     .foregroundStyle(Semantic.mutedForeground)
                     .monospacedDigit()

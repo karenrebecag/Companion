@@ -99,24 +99,28 @@ final class ClassicRuntime: @unchecked Sendable {
         await apply(.replyCompleted)
     }
 
-    static func status(_ reason: TurnFailure) -> String {
-        switch reason {
-        case .micDenied:
-            return "No pude usar el micrófono."
-        case .micUnavailable:
-            return "El micrófono no está disponible."
-        case .micSilent:
-            return "El micrófono no entregó audio."
-        case .notHeard:
-            return "No te escuché."
-        case .speechEngine:
-            return "Me quedé sin voz."
-        case .noProviders:
-            return "No hay un proveedor de voz disponible."
-        case .sessionDropped:
-            return "La sesión de voz se cayó."
-        case .networkUnavailable:
-            return "Sin conexión a internet. Verifica tu red."
+    static func status(
+        _ reason: TurnFailure, _ language: AppLanguage = .en
+    ) -> String {
+        switch (reason, language) {
+        case (.micDenied, .en): "I could not use the microphone."
+        case (.micDenied, .es): "No pude usar el micrófono."
+        case (.micUnavailable, .en): "The microphone is unavailable."
+        case (.micUnavailable, .es): "El micrófono no está disponible."
+        case (.micSilent, .en): "The microphone delivered no audio."
+        case (.micSilent, .es): "El micrófono no entregó audio."
+        case (.notHeard, .en): "I did not hear you."
+        case (.notHeard, .es): "No te escuché."
+        case (.speechEngine, .en): "I lost my voice."
+        case (.speechEngine, .es): "Me quedé sin voz."
+        case (.noProviders, .en): "No voice provider is available."
+        case (.noProviders, .es): "No hay un proveedor de voz disponible."
+        case (.sessionDropped, .en): "The voice session dropped."
+        case (.sessionDropped, .es): "La sesión de voz se cayó."
+        case (.networkUnavailable, .en):
+            "No internet connection. Check your network."
+        case (.networkUnavailable, .es):
+            "Sin conexión a internet. Verifica tu red."
         }
     }
 }

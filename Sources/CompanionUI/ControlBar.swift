@@ -143,7 +143,7 @@ public struct ControlBar: View {
                 : Semantic.foreground,
             background: muted ? Semantic.destructive : Semantic.surface,
             bordered: MuteChrome.bordered(muted: muted),
-            help: muted ? "Activar micrófono" : "Silenciar micrófono"
+            help: muted ? Localized.string("controlbar.unmute") : Localized.string("controlbar.mute")
         ) { voice.toggleMute() }
     }
 

@@ -20,7 +20,7 @@ public enum Highlight: String, CaseIterable {
         case .orange:   "Naranja"
         case .purple:   "Morado"
         case .white:    "Blanco"
-        case .lime:     "Verde eléctrico"
+        case .lime:     Localized.string("accent.lime")
         }
     }
 

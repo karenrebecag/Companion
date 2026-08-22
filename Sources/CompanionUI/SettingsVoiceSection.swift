@@ -21,25 +21,24 @@ struct SettingsVoiceSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
-            Text("VOZ")
+            Text(Localized.string("settings.voice.header"))
                 .typeEyebrow()
 
             SettingsItem(
-                title: "Voz",
+                title: Localized.string("settings.voice.voice"),
                 value: settings.voice.displayName,
                 options: VoiceID.allCases.map { ($0, $0.displayName) }
             ) { picked in
                 update { $0.voice = picked }
             }
             previewControls
-            Text("La voz, el tono y el fin de turno aplican en tu próxima "
-                 + "conversación. La velocidad y el volumen cambian al instante.")
+            Text(Localized.string("settings.voice.blurb"))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
 
             slider(
-                "Velocidad", value: settings.speed,
+                Localized.string("settings.voice.speed"), value: settings.speed,
                 range: 0.25 ... 1.5, format: "%.2fx"
             ) { speed in
                 update { $0.speed = speed }
@@ -47,17 +46,17 @@ struct SettingsVoiceSection: View {
                 onLiveSpeedChange?(speed)
             }
             slider(
-                "Volumen", value: settings.volume,
+                Localized.string("settings.voice.volume"), value: settings.volume,
                 range: 0 ... 1, format: "%.0f%%", scale: 100
             ) { volume in
                 update { $0.volume = volume }
                 onLiveVolumeChange?(volume)
             }
 
-            DisclosureGroup("Avanzado") {
+            DisclosureGroup(Localized.string("settings.voice.advanced")) {
                 VStack(alignment: .leading, spacing: Space.x3) {
                     SettingsItem(
-                        title: "Fin de turno",
+                        title: Localized.string("settings.voice.turnEnd"),
                         value: TurnCriterion(settings.turnDetection).label,
                         options: TurnCriterion.allCases.map { ($0, $0.label) }
                     ) { criterion in
@@ -66,18 +65,18 @@ struct SettingsVoiceSection: View {
                     criterionDetail
 
                     AppField(
-                        title: "Tono",
-                        placeholder: "p. ej. cálida y directa",
+                        title: Localized.string("settings.voice.tone"),
+                        placeholder: Localized.string("settings.voice.tone.placeholder"),
                         text: toneBinding)
 
                     Toggle(isOn: aecBinding) {
                         VStack(alignment: .leading, spacing: Space.x1) {
-                            Text("Cancelación de eco")
+                            Text(Localized.string("settings.voice.aec"))
                                 .font(.uiLabel)
                                 .foregroundStyle(Semantic.foreground)
                             Text(echoFreeOutput
-                                 ? "Con audífonos no hace falta: ya puedes interrumpir hablando."
-                                 : "En algunos equipos la de Apple no arranca; si falla, se desactiva sola.")
+                                 ? Localized.string("settings.voice.aec.headphones")
+                                 : Localized.string("settings.voice.aec.warning"))
                                 .font(.uiCaption)
                                 .foregroundStyle(Semantic.mutedForeground)
                         }
@@ -100,7 +99,7 @@ struct SettingsVoiceSection: View {
     @ViewBuilder private var previewControls: some View {
         if let preview {
             AppButton(
-                preview.playing == settings.voice ? "Sonando…" : "Escuchar muestra",
+                preview.playing == settings.voice ? Localized.string("settings.voice.preview.playing") : Localized.string("settings.voice.preview.listen"),
                 kind: .secondary,
                 enabled: preview.playing == nil
             ) {
@@ -118,23 +117,23 @@ struct SettingsVoiceSection: View {
         switch settings.turnDetection {
         case .serverVAD(let ms):
             slider(
-                "Paciencia", value: Double(ms),
+                Localized.string("settings.voice.patience"), value: Double(ms),
                 range: 200 ... 1500, format: "%.0f ms"
             ) { value in
                 update { $0.turnDetection = .serverVAD(silenceMs: Int(value)) }
             }
-            Text("Cede el turno cuando llevas este silencio sin hablar.")
+            Text(Localized.string("settings.voice.patience.blurb"))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
         case .semanticVAD(let eagerness):
             SettingsItem(
-                title: "Avidez",
+                title: Localized.string("settings.voice.eagerness"),
                 value: eagerness.label,
                 options: Eagerness.allCases.map { ($0, $0.label) }
             ) { picked in
                 update { $0.turnDetection = .semanticVAD(eagerness: picked) }
             }
-            Text("Espera a que la frase suene completa antes de responder.")
+            Text(Localized.string("settings.voice.eagerness.blurb"))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
         }
@@ -202,8 +201,8 @@ enum TurnCriterion: CaseIterable, Hashable {
 
     var label: String {
         switch self {
-        case .silence: "Silencio"
-        case .meaning: "Sentido"
+        case .silence: Localized.string("settings.voice.turnEnd.silence")
+        case .meaning: Localized.string("settings.voice.turnEnd.meaning")
         }
     }
 
@@ -219,9 +218,9 @@ enum TurnCriterion: CaseIterable, Hashable {
 extension Eagerness {
     var label: String {
         switch self {
-        case .low: "Baja"
+        case .low: Localized.string("settings.voice.eagerness.low")
         case .auto: "Auto"
-        case .high: "Alta"
+        case .high: Localized.string("settings.voice.eagerness.high")
         }
     }
 }

@@ -1,3 +1,4 @@
+import CompanionCore
 import AppKit
 import SwiftUI
 
@@ -66,6 +67,8 @@ struct SettingsAppPane: View {
     @Binding var confirmPurge: Bool
     @State private var thinkingSound = ThinkingSoundPref.enabled
     @State private var hotkeyLabel = ""
+    /// Bumped on a language change so every string on screen repaints.
+    @State var languageTick = 0
 
     // La carpeta y el especialista viven en la barra superior, siempre a un
     // click; duplicarlos aqui creaba dos controles para el mismo estado.
@@ -86,9 +89,9 @@ struct SettingsAppPane: View {
 
     private var appearanceBlock: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
-            Text("APARIENCIA")
+            Text(Localized.string("settings.app.header"))
                 .typeEyebrow()
-            Text("Cómo se ve Companion en tu Mac.")
+            Text(Localized.string("settings.app.blurb"))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
             HStack(spacing: Space.x2) {
@@ -97,12 +100,12 @@ struct SettingsAppPane: View {
                 }
             }
             SettingsLine(
-                title: "Tamaño de texto",
-                subtitle: "Toda la app, de −2 a +3"
+                title: Localized.string("settings.app.textSize"),
+                subtitle: Localized.string("settings.app.textSize.subtitle")
             ) { fontStepper }
             SettingsLine(
-                title: "Tipografía",
-                subtitle: "Si no está instalada en tu Mac, se usa Inter."
+                title: Localized.string("settings.app.typeface"),
+                subtitle: Localized.string("settings.app.typeface.subtitle")
             ) { EmptyView() }
             LazyVGrid(
                 columns: [
@@ -117,8 +120,8 @@ struct SettingsAppPane: View {
                 }
             }
             SettingsLine(
-                title: "Color de énfasis",
-                subtitle: "Botones principales y el orb"
+                title: Localized.string("settings.app.accent"),
+                subtitle: Localized.string("settings.app.accent.subtitle")
             ) {
                 SettingsItem(
                     title: "",
@@ -130,16 +133,18 @@ struct SettingsAppPane: View {
                     Highlight.stored = highlight
                 }
             }
+            languageRow
         }
+        .id(languageTick)
     }
 
     private var hotkeyBlock: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
-            Text("ATAJO")
+            Text(Localized.string("settings.app.shortcut.header"))
                 .typeEyebrow()
             SettingsLine(
-                title: "Hablar",
-                subtitle: "Inicia o cuelga el turno de voz"
+                title: Localized.string("settings.app.shortcut.talk"),
+                subtitle: Localized.string("settings.app.shortcut.subtitle")
             ) {
                 Text(hotkeyLabel)
                     .font(.uiMono)
@@ -162,9 +167,9 @@ struct SettingsAppPane: View {
 
     private var soundBlock: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
-            Text("SONIDO")
+            Text(Localized.string("settings.app.sound.header"))
                 .typeEyebrow()
-            Toggle("Sonidos de interfaz", isOn: $interfaceSounds)
+            Toggle(Localized.string("settings.app.sound.interface"), isOn: $interfaceSounds)
                 .font(.uiLabel)
                 .foregroundStyle(Semantic.foreground)
                 .tint(Semantic.accent)
@@ -173,10 +178,10 @@ struct SettingsAppPane: View {
                 }
             Toggle(isOn: $thinkingSound) {
                 VStack(alignment: .leading, spacing: Space.x1) {
-                    Text("Sonido al pensar")
+                    Text(Localized.string("settings.app.sound.thinking"))
                         .font(.uiLabel)
                         .foregroundStyle(Semantic.foreground)
-                    Text("Un acorde suave mientras la voz piensa.")
+                    Text(Localized.string("settings.app.sound.thinking.subtitle"))
                         .font(.uiCaption)
                         .foregroundStyle(Semantic.mutedForeground)
                 }
@@ -191,10 +196,10 @@ struct SettingsAppPane: View {
 
     private var systemBlock: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
-            Text("SISTEMA")
+            Text(Localized.string("settings.app.system.header"))
                 .typeEyebrow()
             VStack(alignment: .leading, spacing: Space.x2) {
-                Text("Versión")
+                Text(Localized.string("settings.app.version"))
                     .font(.uiLabel)
                     .foregroundStyle(Semantic.foreground)
                 Text(appVersion)
@@ -203,14 +208,17 @@ struct SettingsAppPane: View {
                 if let updates {
                     if let available = updates.available {
                         Link(
-                            "Ver la versión \(available.tag)",
+                            String(
+                                format: Localized.string(
+                                    "settings.app.version.see"),
+                                available.tag),
                             destination: available.pageURL)
                         .font(.uiLabel)
                         .foregroundStyle(Semantic.accent)
                     } else {
                         AppButton(
                             updates.checking
-                                ? "Buscando…" : "Buscar actualización",
+                                ? Localized.string("settings.app.version.checking") : Localized.string("settings.app.version.check"),
                             kind: .ghost,
                             enabled: !updates.checking
                         ) {
@@ -220,13 +228,13 @@ struct SettingsAppPane: View {
                 }
             }
             SettingsLine(
-                title: "Archivos adjuntos",
+                title: Localized.string("settings.app.attachments"),
                 subtitle: storageLabel
             ) {
                 AppButton(
-                    "Vaciar",
+                    Localized.string("settings.purge.confirm"),
                     kind: .destructive,
-                    enabled: storageLabel != "Nada guardado"
+                    enabled: chat?.hasStoredAttachments ?? false
                 ) {
                     confirmPurge = true
                 }
@@ -244,7 +252,9 @@ struct SettingsAppPane: View {
                 .foregroundStyle(Semantic.foreground)
                 .frame(minWidth: Space.x6)
                 .multilineTextAlignment(.center)
-                .accessibilityLabel("Tamaño \(TypeScale.displayLabel(fontDelta))")
+                .accessibilityLabel(String(
+                    format: Localized.string("settings.app.textSize.label"),
+                    TypeScale.displayLabel(fontDelta)))
             fontStep("plus", enabled: fontDelta < TypeScale.max) {
                 fontDelta = TypeScale.nudge(1)
             }
@@ -269,7 +279,7 @@ struct SettingsAppPane: View {
         .buttonStyle(PressableStyle())
         .disabled(!enabled)
         .accessibilityLabel(
-            symbol == "plus" ? "Texto más grande" : "Texto más pequeño")
+            symbol == "plus" ? Localized.string("settings.app.textSize.bigger") : Localized.string("settings.app.textSize.smaller"))
     }
 
     private func themeCard(_ pref: AppearancePreference) -> some View {
@@ -353,6 +363,6 @@ struct SettingsAppPane: View {
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-            ?? "desconocida"
+            ?? Localized.string("settings.app.version.unknown")
     }
 }

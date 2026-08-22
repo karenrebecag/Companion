@@ -172,24 +172,24 @@ import Testing
              "toolUse: el bloque del stream se captura con su detalle")
 
     expectEq(AgentStreamCodec.stepLabel("WebSearch", "precio del dólar"),
-             "buscando en internet: precio del dólar",
+             "searching the web: precio del dólar",
              "step: el nombre técnico se vuelve verbo")
-    expectEq(AgentStreamCodec.stepLabel("Bash", ""), "corriendo",
+    expectEq(AgentStreamCodec.stepLabel("Bash", ""), "running",
              "step: sin detalle queda el verbo solo")
-    expectEq(AgentStreamCodec.stepLabel("WebFetch", "x"), "leyendo la web: x",
+    expectEq(AgentStreamCodec.stepLabel("WebFetch", "x"), "reading the web: x",
              "step: WebFetch")
-    expectEq(AgentStreamCodec.stepLabel("Read", "a.md"), "leyendo: a.md", "step: Read")
-    expectEq(AgentStreamCodec.stepLabel("Write", ""), "editando", "step: Write")
-    expectEq(AgentStreamCodec.stepLabel("Edit", ""), "editando", "step: Edit")
-    expectEq(AgentStreamCodec.stepLabel("NotebookEdit", ""), "editando",
+    expectEq(AgentStreamCodec.stepLabel("Read", "a.md"), "reading: a.md", "step: Read")
+    expectEq(AgentStreamCodec.stepLabel("Write", ""), "editing", "step: Write")
+    expectEq(AgentStreamCodec.stepLabel("Edit", ""), "editing", "step: Edit")
+    expectEq(AgentStreamCodec.stepLabel("NotebookEdit", ""), "editing",
              "step: NotebookEdit")
-    expectEq(AgentStreamCodec.stepLabel("Grep", "foo"), "buscando en el código: foo",
+    expectEq(AgentStreamCodec.stepLabel("Grep", "foo"), "searching the code: foo",
              "step: Grep")
-    expectEq(AgentStreamCodec.stepLabel("Glob", ""), "buscando en el código",
+    expectEq(AgentStreamCodec.stepLabel("Glob", ""), "searching the code",
              "step: Glob")
-    expectEq(AgentStreamCodec.stepLabel("Task", ""), "delegando", "step: Task")
-    expectEq(AgentStreamCodec.stepLabel("Agent", ""), "delegando", "step: Agent")
-    expectEq(AgentStreamCodec.stepLabel("TodoWrite", ""), "organizando el plan",
+    expectEq(AgentStreamCodec.stepLabel("Task", ""), "delegating", "step: Task")
+    expectEq(AgentStreamCodec.stepLabel("Agent", ""), "delegating", "step: Agent")
+    expectEq(AgentStreamCodec.stepLabel("TodoWrite", ""), "organising the plan",
              "step: TodoWrite")
     expectEq(AgentStreamCodec.stepLabel("FooBar", "z"), "foobar: z",
              "step: tool desconocido se lee en minúsculas")

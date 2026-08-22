@@ -2,23 +2,18 @@ import CompanionCore
 import SwiftUI
 
 public enum ChatIdle {
-    public static let phrases = [
-        "Lista cuando tú lo estés",
-        "¿En qué andamos hoy?",
-        "Cuéntame qué sigue",
-        "Tu Mac y yo, a tus órdenes",
-        "Dime y lo hacemos",
-        "Empecemos cuando quieras",
-    ]
+    /// Read at call time, not stored: the phrases have to follow a language
+    /// change without relaunching the app.
+    public static var phrases: [String] {
+        (1...6).map { Localized.string("idle.phrase.\($0)") }
+    }
 
     public static let bubbleRadius: CGFloat = Radius.xl
 
     public static func caption(_ mode: InteractionMode) -> String {
         switch mode {
-        case .voice:
-            "Toca el orb de abajo para empezar a hablar"
-        case .text:
-            "Escribe abajo y presiona Enter"
+        case .voice: Localized.string("idle.caption.voice")
+        case .text: Localized.string("idle.caption.text")
         }
     }
 }
@@ -148,7 +143,7 @@ public struct ThreadView: View {
         if !model.queued.isEmpty {
             VStack(alignment: .leading, spacing: Space.x1) {
                 ForEach(Array(model.queued.enumerated()), id: \.offset) { _, text in
-                    Text("En cola: \(text)")
+                    Text(String(format: Localized.string("thread.queued"), text))
                         .font(Font.uiCaption)
                         .foregroundStyle(Semantic.mutedForeground)
                         .lineLimit(1)

@@ -1,8 +1,11 @@
 import CompanionCore
 import Foundation
 
+/// Screen copy for the chat surface. The wording lives in the catalogs
+/// (en.lproj is the source); this stays the seam every view goes through, so
+/// a new string cannot enter the app monolingual by accident.
 public enum ChatCopy {
-    public static let emptyKey = "Pega tu clave de OpenAI para empezar."
+    public static var emptyKey: String { Localized.string("chat.key.empty") }
 
     public static func error(_ error: Error) -> String {
         if let chat = error as? ChatError {
@@ -12,79 +15,84 @@ public enum ChatCopy {
             return secretCopy(secret)
         }
         if error is PersistenceError {
-            return "No pude guardar la conversación. Revisa el espacio en disco."
+            return Localized.string("chat.error.persistence")
         }
-        return "Algo salió mal. Inténtalo de nuevo."
+        return Localized.string("chat.error.generic")
     }
 
     public static func handoff(_ h: Handoff) -> String {
-        "Encargo: \(h.goal) — el especialista llega en una próxima versión."
+        String(format: Localized.string("chat.handoff.pending"), h.goal)
     }
 
     private static func chatCopy(_ error: ChatError) -> String {
         switch error {
         case .unauthorized, .invalidKey:
-            return "Esta clave no es válida. Revísala en platform.openai.com."
+            return Localized.string("chat.error.invalidKey")
         case .forbidden:
-            return "Esta clave no tiene permiso. Revisa su acceso en platform.openai.com."
+            return Localized.string("chat.error.forbidden")
         case .rateLimited:
-            return "Demasiadas peticiones. Espera un momento e inténtalo de nuevo."
+            return Localized.string("chat.error.rateLimited")
         case .timeout, .unreachable:
-            return "No pude conectar. Revisa la red e inténtalo de nuevo."
+            return Localized.string("chat.error.unreachable")
         case .httpStatus(let code):
-            return "El servidor respondió \(code). Inténtalo de nuevo."
+            return String(
+                format: Localized.string("chat.error.httpStatus"), code)
         case .noProvider:
-            return "No hay un proveedor de chat disponible."
+            return Localized.string("chat.error.noProvider")
         case .empty:
-            return "El modelo no contestó. Inténtalo de nuevo."
+            return Localized.string("chat.error.empty")
         }
     }
 
     private static func secretCopy(_ error: SecretStoreError) -> String {
         switch error {
         case .denied:
-            return "No pude guardar la clave en el llavero. Autoriza el acceso e inténtalo de nuevo."
+            return Localized.string("chat.secret.denied")
         case .emptyValue:
             return emptyKey
         case .notAvailable, .unexpected:
-            return "No pude guardar la clave. Inténtalo de nuevo."
+            return Localized.string("chat.secret.failed")
         }
     }
 
+    /// Tool names are wire identifiers, not copy: they stay as the specialist
+    /// reports them so a step can be matched to a log line.
     public static func step(_ tool: String, _ summary: String) -> String {
         summary.isEmpty ? tool : "\(tool): \(summary)"
     }
 
     public static func stepDone(_ tool: String, ok: Bool) -> String {
-        ok ? "\(tool) — listo" : "\(tool) — falló"
+        String(
+            format: Localized.string(ok ? "chat.step.done" : "chat.step.failed"),
+            tool)
     }
 
-    public static let approvalPending =
-        "El especialista pide permiso para continuar."
+    public static var approvalPending: String {
+        Localized.string("chat.approval.pending")
+    }
 
     public static func approvalAnswer(_ approved: Bool) -> String {
-        approved ? "Permiso concedido." : "Permiso denegado."
+        Localized.string(
+            approved ? "chat.approval.granted" : "chat.approval.denied")
     }
 
-    public static let jobDone = "Encargo listo"
-    public static let jobFailed = "Encargo falló"
+    public static var jobDone: String { Localized.string("chat.job.done") }
+    public static var jobFailed: String { Localized.string("chat.job.failed") }
 
     public static func attached(_ name: String) -> String {
-        "Adjuntado: \(name)"
+        String(format: Localized.string("chat.attach.done"), name)
     }
 
     public static func attachFailed(_ error: AttachmentError) -> String {
         switch error {
-        case .tooLarge:
-            return "El archivo es demasiado grande (máximo 20 MB)."
-        case .unreadable:
-            return "No pude leer ese archivo."
-        case .io:
-            return "No pude guardar el adjunto."
+        case .tooLarge: return Localized.string("chat.attach.tooLarge")
+        case .unreadable: return Localized.string("chat.attach.unreadable")
+        case .io: return Localized.string("chat.attach.io")
         }
     }
 
     /// Readable summary of a tool request: raw JSON is not a decision aid.
+    /// Nothing to translate — it is the specialist's own input echoed back.
     public static func approvalDetail(
         tool: String, inputJSON: String
     ) -> String {

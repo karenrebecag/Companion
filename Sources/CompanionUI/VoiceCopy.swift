@@ -1,33 +1,29 @@
 import CompanionCore
 
 public enum VoiceCopy {
-    public static let fallbackClassic =
-        "La voz en vivo no está disponible. Sigo por el micrófono clásico."
+    public static var fallbackClassic: String {
+        Localized.string("voice.fallback.classic")
+    }
 
-    public static let functionRefusal =
-        "Los encargos estarán disponibles en una próxima versión."
+    public static var functionRefusal: String {
+        Localized.string("voice.function.refusal")
+    }
 
     public static func failure(_ reason: TurnFailure) -> String {
         switch reason {
-        case .micDenied:
-            return "Sin permiso de micrófono. Revisa Ajustes del sistema."
-        case .micUnavailable:
-            return "El micrófono no está disponible."
-        case .micSilent:
-            return "El micrófono no entregó audio."
-        case .notHeard:
-            return "No te escuché."
-        case .speechEngine:
-            return "Me quedé sin voz. Revisa el TTS."
-        case .noProviders:
-            return "No hay un proveedor de voz disponible."
-        case .sessionDropped:
-            return "La sesión de voz se cayó."
+        case .micDenied: Localized.string("voice.fail.micDenied")
+        case .micUnavailable: Localized.string("voice.fail.micUnavailable")
+        case .micSilent: Localized.string("voice.fail.micSilent")
+        case .notHeard: Localized.string("voice.fail.notHeard")
+        case .speechEngine: Localized.string("voice.fail.speechEngine")
+        case .noProviders: Localized.string("voice.fail.noProviders")
+        case .sessionDropped: Localized.string("voice.fail.sessionDropped")
         case .networkUnavailable:
-            return "No hay conexión a internet. Verifica tu red."
+            Localized.string("voice.fail.networkUnavailable")
         }
     }
 
-    public static let previewFailed =
-        "No se pudo reproducir la muestra. Revisa tu conexión."
+    public static var previewFailed: String {
+        Localized.string("voice.preview.failed")
+    }
 }

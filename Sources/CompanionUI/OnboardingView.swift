@@ -17,18 +17,18 @@ public struct OnboardingView: View {
                 .frame(height: 180)
 
             VStack(alignment: .leading, spacing: Space.x3) {
-                Text("Companion")
+                Text("Companion")  // token-exempt: nombre del producto.
                     .font(.uiHeading)
                     .foregroundStyle(Semantic.foreground)
 
-                Text("Tu voz privada asistente. Necesita tu clave de OpenAI.")
+                Text(Localized.string("onboarding.blurb"))
                     .font(.uiBody)
                     .foregroundStyle(Semantic.mutedForeground)
             }
 
             VStack(alignment: .leading, spacing: Space.x2) {
                 AppField(
-                    title: "Clave de OpenAI",
+                    title: Localized.string("onboarding.key"),
                     placeholder: "sk-proj-...",
                     text: $model.onboardingKey,
                     error: model.onboardingBusy ? nil : model.errorText,
@@ -36,7 +36,7 @@ public struct OnboardingView: View {
                     onSubmit: { Task { await model.submitOnboarding() } })
 
                 HStack(spacing: Space.x2) {
-                    Text("Obtener clave")
+                    Text(Localized.string("onboarding.getKey"))
                         .font(.uiCaption)
                         .foregroundStyle(Semantic.accentText)
                     Link("", destination: URL(string: "https://platform.openai.com/api/keys")!)
@@ -48,7 +48,7 @@ public struct OnboardingView: View {
                 HStack(spacing: Space.x2) {
                     ProgressView()
                         .frame(width: 12, height: 12)
-                    Text("Verificando...")
+                    Text(Localized.string("onboarding.verifying"))
                         .font(.uiCaption)
                         .foregroundStyle(Semantic.mutedForeground)
                 }

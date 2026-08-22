@@ -5,6 +5,7 @@ import SwiftUI
 import Testing
 
 @Test @MainActor func chatViewModelTests() async {
+    pinLanguage()
     await testTokensRamp()
     await testChatCopy()
     await testSendAppendsUserAndStreamsAssistant()
@@ -41,34 +42,34 @@ import Testing
 }
 
 @MainActor func testChatCopy() async {
-    let invalid = "Esta clave no es válida. Revísala en platform.openai.com."
-    let persist = "No pude guardar la conversación. Revisa el espacio en disco."
-    let net = "No pude conectar. Revisa la red e inténtalo de nuevo."
-    expectEq(ChatCopy.emptyKey, "Pega tu clave de OpenAI para empezar.", "copy: vacío")
+    let invalid = "This key is not valid. Check it at platform.openai.com."
+    let persist = "I could not save the conversation. Check your disk space."
+    let net = "I could not connect. Check your network and try again."
+    expectEq(ChatCopy.emptyKey, "Paste your OpenAI key to get started.", "copy: vacío")
     expectEq(ChatCopy.error(ChatError.unauthorized), invalid, "copy: 401")
     expectEq(ChatCopy.error(ChatError.invalidKey), invalid, "copy: invalidKey")
     expectEq(ChatCopy.error(ChatError.forbidden),
-             "Esta clave no tiene permiso. Revisa su acceso en platform.openai.com.",
+             "This key has no permission. Check its access at platform.openai.com.",
              "copy: 403")
     expectEq(ChatCopy.error(ChatError.rateLimited),
-             "Demasiadas peticiones. Espera un momento e inténtalo de nuevo.",
+             "Too many requests. Wait a moment and try again.",
              "copy: 429")
     expectEq(ChatCopy.error(ChatError.timeout), net, "copy: timeout")
     expectEq(ChatCopy.error(ChatError.unreachable), net, "copy: unreachable")
     expectEq(ChatCopy.error(ChatError.httpStatus(502)),
-             "El servidor respondió 502. Inténtalo de nuevo.", "copy: httpStatus")
+             "The server answered 502. Try again.", "copy: httpStatus")
     expectEq(ChatCopy.error(ChatError.noProvider),
-             "No hay un proveedor de chat disponible.", "copy: noProvider")
+             "No chat provider is available.", "copy: noProvider")
     expectEq(ChatCopy.error(ChatError.empty),
-             "El modelo no contestó. Inténtalo de nuevo.", "copy: empty")
+             "The model did not answer. Try again.", "copy: empty")
     expectEq(ChatCopy.error(SecretStoreError.denied),
-             "No pude guardar la clave en el llavero. Autoriza el acceso e inténtalo de nuevo.",
+             "I could not save the key to the keychain. Allow access and try again.",
              "copy: denied")
     expectEq(ChatCopy.error(PersistenceError.io), persist, "copy: persist io")
     expectEq(ChatCopy.error(PersistenceError.encoding), persist, "copy: persist enc")
     expectEq(
         ChatCopy.handoff(Handoff(goal: "listar el escritorio", context: "x")),
-        "Encargo: listar el escritorio — el especialista llega en una próxima versión.",
+        "Job: listar el escritorio — the specialist arrives in a future version.",
         "copy: handoff")
 }
 

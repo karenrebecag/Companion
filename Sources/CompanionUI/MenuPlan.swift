@@ -90,9 +90,9 @@ public enum MenuPlan {
     public static func build(shortcuts: ShortcutSet) -> [MenuSectionPlan] {
         [
             MenuSectionPlan(title: "Companion", items: appItems(shortcuts)),
-            MenuSectionPlan(title: "Edición", items: editItems()),
-            MenuSectionPlan(title: "Conversación", items: conversationItems(shortcuts)),
-            MenuSectionPlan(title: "Ventana", items: windowItems()),
+            MenuSectionPlan(title: Localized.string("menu.edit"), items: editItems()),
+            MenuSectionPlan(title: Localized.string("menu.conversation"), items: conversationItems(shortcuts)),
+            MenuSectionPlan(title: Localized.string("menu.window"), items: windowItems()),
         ]
     }
 
@@ -137,7 +137,7 @@ public enum MenuPlan {
         [
             bound(.attach, "Adjuntar archivos…", shortcuts),
             .separator(),
-            bound(.newConversation, "Nueva conversación", shortcuts),
+            bound(.newConversation, Localized.string("shortcut.newConversation"), shortcuts),
             bound(.history, "Conversaciones", shortcuts),
             .separator(),
             bound(.toggleVoice, "Iniciar/terminar turno", shortcuts),

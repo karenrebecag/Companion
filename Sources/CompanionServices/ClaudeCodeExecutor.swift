@@ -62,7 +62,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             // The stored thread is gone from the CLI's side. Forget it and
             // start clean once — never twice: the second attempt carries no
             // id, so it cannot raise this again.
-            Log.app("executor: sesión guardada rechazada; arranco limpio")
+            Log.app("executor: stored session rejected; starting clean")
             sessions?.set(nil, for: sessionKey)
             do {
                 return try await attempt(job, events: events)
@@ -83,7 +83,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {
         try Task.checkCancellation()
-        Log.app("executor: cable caído; retomo el encargo en batch")
+        Log.app("executor: cable died; picking the job up in batch")
         events.yield(.thought(Escalation.fallbackNotice(language)))
 
         var args = ["-p", batchPrompt(job), "--output-format", "text"]
@@ -94,7 +94,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         guard let handle = await processLauncher.launch(
             executable: executablePath, arguments: args, cwd: workdir
         ) else {
-            Log.app("executor: el batch tampoco arrancó")
+            Log.app("executor: the batch did not start either")
             return JobResult(output: "", isError: true)
         }
         var output = ""
@@ -155,7 +155,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             case .approval(let approval):
                 events.yield(.approvalRequested(approval))
                 let response = await approvals.request(approval)
-                let message = response.approved ? "" : "La usuaria no lo autorizó."
+                let message = response.approved ? "" : deniedMessage
                 if let control = AgentStreamCodec.controlResponse(
                     requestId: approval.requestId,
                     allow: response.approved,
@@ -221,7 +221,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             arguments: args,
             cwd: workdir
         ) else {
-            Log.app("executor: claude no arrancó en \(executablePath)")
+            Log.app("executor: claude did not start at \(executablePath)")
             throw ExecutorError.processLaunchFailed
         }
 
@@ -255,6 +255,13 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             workdir: workdir,
             desktop: NSHomeDirectory() + "/Desktop",
             attachments: job.attachments, language: language)
+    }
+
+    /// Read by the specialist, so it follows the answer language.
+    private var deniedMessage: String {
+        language == .en
+            ? "The user did not allow it."
+            : "La usuaria no lo autorizó."
     }
 
     private var sessionKey: ExecutorSessionKey {

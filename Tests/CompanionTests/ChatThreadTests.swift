@@ -2,6 +2,7 @@ import CompanionUI
 import Testing
 
 @Test @MainActor func chatThreadTests() {
+    pinLanguage()
     testIdlePhrasesHaveNoDashes()
     testIdleCaptionFollowsMode()
     testUserBubbleRadiusIsLarge()
@@ -20,7 +21,7 @@ import Testing
         ChatIdle.caption(.voice).contains("orb"),
         "idle voz: invita a tocar el orb")
     expect(
-        ChatIdle.caption(.text).contains("Escribe"),
+        ChatIdle.caption(.text).contains("Type"),
         "idle texto: invita a escribir")
 }
 
@@ -31,6 +32,6 @@ import Testing
 
 @MainActor func testComposerPlaceholder() {
     expectEq(
-        ChatInputCopy.placeholder, "Escríbele a Companion",
+        ChatInputCopy.placeholder, "Write to Companion",
         "composer: mismo placeholder que el prototipo")
 }

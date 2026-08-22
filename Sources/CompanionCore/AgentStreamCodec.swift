@@ -86,17 +86,23 @@ public enum AgentStreamCodec: Sendable {
     }
 
     /// Technical tool names are opaque in a glanceable timeline.
-    public static func stepLabel(_ tool: String, _ detail: String) -> String {
+    public static func stepLabel(
+        _ tool: String, _ detail: String, _ language: AppLanguage = .en
+    ) -> String {
+        let english = language == .en
         let verb: String
         switch tool {
-        case "WebSearch": verb = "buscando en internet"
-        case "WebFetch": verb = "leyendo la web"
-        case "Read": verb = "leyendo"
-        case "Write", "Edit", "NotebookEdit": verb = "editando"
-        case "Bash": verb = "corriendo"
-        case "Grep", "Glob": verb = "buscando en el código"
-        case "Task", "Agent": verb = "delegando"
-        case "TodoWrite": verb = "organizando el plan"
+        case "WebSearch": verb = english ? "searching the web" : "buscando en internet"
+        case "WebFetch": verb = english ? "reading the web" : "leyendo la web"
+        case "Read": verb = english ? "reading" : "leyendo"
+        case "Write", "Edit", "NotebookEdit":
+            verb = english ? "editing" : "editando"
+        case "Bash": verb = english ? "running" : "corriendo"
+        case "Grep", "Glob":
+            verb = english ? "searching the code" : "buscando en el código"
+        case "Task", "Agent": verb = english ? "delegating" : "delegando"
+        case "TodoWrite":
+            verb = english ? "organising the plan" : "organizando el plan"
         default: verb = tool.lowercased()
         }
         return detail.isEmpty ? verb : "\(verb): \(detail)"

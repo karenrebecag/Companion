@@ -14,11 +14,11 @@ public enum ShortcutAction: String, Codable, CaseIterable, Sendable {
     public var label: String {
         switch self {
         case .toggleVoice: "Iniciar/terminar turno"
-        case .toggleMute: "Silenciar/activar sonido"
+        case .toggleMute: Localized.string("shortcut.toggleMute")
         case .hangUp: "Terminar llamada"
         case .settings: "Abrir ajustes"
         case .attach: "Adjuntar archivos"
-        case .newConversation: "Nueva conversación"
+        case .newConversation: Localized.string("shortcut.newConversation")
         case .history: "Ver conversaciones"
         }
     }

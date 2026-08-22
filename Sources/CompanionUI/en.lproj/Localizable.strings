@@ -1,0 +1,175 @@
+/* Source language. Keys are stable identifiers; the English string is the
+   original and Spanish follows it in es.lproj. */
+
+/* Onboarding and keys */
+"chat.key.empty" = "Paste your OpenAI key to get started.";
+"chat.secret.denied" = "I could not save the key to the keychain. Allow access and try again.";
+"chat.secret.failed" = "I could not save the key. Try again.";
+
+/* Errors */
+"chat.error.generic" = "Something went wrong. Try again.";
+"chat.error.persistence" = "I could not save the conversation. Check your disk space.";
+"chat.error.invalidKey" = "This key is not valid. Check it at platform.openai.com.";
+"chat.error.forbidden" = "This key has no permission. Check its access at platform.openai.com.";
+"chat.error.rateLimited" = "Too many requests. Wait a moment and try again.";
+"chat.error.unreachable" = "I could not connect. Check your network and try again.";
+"chat.error.httpStatus" = "The server answered %d. Try again.";
+"chat.error.noProvider" = "No chat provider is available.";
+"chat.error.empty" = "The model did not answer. Try again.";
+
+/* Jobs */
+"chat.handoff.pending" = "Job: %@ — the specialist arrives in a future version.";
+"chat.step.done" = "%@ — done";
+"chat.step.failed" = "%@ — failed";
+"chat.approval.pending" = "The specialist is asking permission to continue.";
+"chat.approval.granted" = "Permission granted.";
+"chat.approval.denied" = "Permission denied.";
+"chat.job.done" = "Job done";
+"chat.job.failed" = "Job failed";
+"job.working" = "The specialist is working";
+
+/* Attachments */
+"chat.attach.done" = "Attached: %@";
+"chat.attach.tooLarge" = "That file is too large (20 MB maximum).";
+"chat.attach.unreadable" = "I could not read that file.";
+"chat.attach.io" = "I could not save the attachment.";
+
+/* Voice */
+"voice.fallback.classic" = "Live voice is unavailable. Carrying on with the classic microphone.";
+"voice.function.refusal" = "Jobs will be available in a future version.";
+"voice.fail.micDenied" = "No microphone permission. Check System Settings.";
+"voice.fail.micUnavailable" = "The microphone is unavailable.";
+"voice.fail.micSilent" = "The microphone delivered no audio.";
+"voice.fail.notHeard" = "I did not hear you.";
+"voice.fail.speechEngine" = "I lost my voice. Check the TTS.";
+"voice.fail.noProviders" = "No voice provider is available.";
+"voice.fail.sessionDropped" = "The voice session dropped.";
+"voice.fail.networkUnavailable" = "No internet connection. Check your network.";
+"voice.preview.failed" = "The sample could not play. Check your connection.";
+
+/* Idle */
+"idle.phrase.1" = "Ready when you are";
+"idle.phrase.2" = "What are we up to today?";
+"idle.phrase.3" = "Tell me what is next";
+"idle.phrase.4" = "Your Mac and I, at your service";
+"idle.phrase.5" = "Say the word and we do it";
+"idle.phrase.6" = "Let's start whenever you like";
+"idle.caption.voice" = "Tap the orb below to start talking";
+"idle.caption.text" = "Type below and press Enter";
+
+/* Settings */
+"settings.title" = "Settings";
+"settings.close" = "Close";
+"settings.tab.you" = "You";
+"settings.tab.voice" = "Voice";
+"settings.tab.app" = "App";
+"settings.you.header" = "YOU";
+"settings.you.blurb" = "Companion uses this to know you. It saves itself, and applies from your next message.";
+"settings.you.name" = "What I call you";
+"settings.you.name.placeholder" = "Your name";
+"settings.you.about" = "About you";
+"settings.you.about.placeholder" = "What you work on, how you like to be spoken to…";
+"settings.you.instructions" = "How to answer";
+"settings.you.instructions.placeholder" = "Be brief, do not flatter, correct me…";
+"settings.you.photo" = "Your photo";
+"settings.you.photo.subtitle" = "Stays on this Mac";
+"settings.you.photo.change" = "Change photo";
+"settings.purge.title" = "Empty the stored files?";
+"settings.purge.cancel" = "Better not";
+"settings.purge.confirm" = "Empty";
+"settings.storage.empty" = "Nothing stored";
+"settings.app.header" = "APPEARANCE";
+"settings.app.blurb" = "How Companion looks on your Mac.";
+"settings.app.textSize" = "Text size";
+"settings.app.textSize.subtitle" = "The whole app, from −2 to +3";
+"settings.app.typeface" = "Typeface";
+"settings.app.typeface.subtitle" = "If it is not installed on your Mac, Inter is used.";
+"settings.app.accent" = "Accent colour";
+"settings.app.accent.subtitle" = "Primary buttons and the orb";
+"settings.app.shortcut.header" = "SHORTCUT";
+"settings.app.shortcut.talk" = "Talk";
+"settings.app.shortcut.subtitle" = "Starts or hangs up the voice turn";
+"settings.app.sound.header" = "SOUND";
+"settings.app.sound.interface" = "Interface sounds";
+"settings.app.sound.thinking" = "Thinking sound";
+"settings.app.sound.thinking.subtitle" = "A soft chord while the voice thinks.";
+"settings.app.system.header" = "SYSTEM";
+"settings.app.version" = "Version";
+"settings.app.version.see" = "See version %@";
+"settings.app.version.checking" = "Checking…";
+"settings.app.version.check" = "Check for update";
+"settings.app.version.unknown" = "unknown";
+"settings.app.attachments" = "Attachments";
+"settings.app.textSize.label" = "Size %@";
+"settings.app.textSize.bigger" = "Bigger text";
+"settings.app.textSize.smaller" = "Smaller text";
+"settings.voice.header" = "VOICE";
+"settings.voice.voice" = "Voice";
+"settings.voice.blurb" = "Voice, tone and turn detection apply to your next conversation. Speed and volume change instantly.";
+"settings.voice.speed" = "Speed";
+"settings.voice.volume" = "Volume";
+"settings.voice.advanced" = "Advanced";
+"settings.voice.turnEnd" = "Turn detection";
+"settings.voice.tone" = "Tone";
+"settings.voice.tone.placeholder" = "e.g. warm and direct";
+"settings.voice.aec" = "Echo cancellation";
+"settings.voice.aec.headphones" = "Not needed with headphones: you can already interrupt by talking.";
+"settings.voice.aec.warning" = "On some machines Apple's does not start; if it fails, it turns itself off.";
+"settings.voice.preview.playing" = "Playing…";
+"settings.voice.preview.listen" = "Hear a sample";
+"settings.voice.patience" = "Patience";
+"settings.voice.patience.blurb" = "Gives up the turn once you have been silent this long.";
+"settings.voice.eagerness" = "Eagerness";
+"settings.voice.eagerness.blurb" = "Waits for the sentence to sound complete before answering.";
+"settings.voice.turnEnd.silence" = "Silence";
+"settings.voice.turnEnd.meaning" = "Meaning";
+"settings.voice.eagerness.low" = "Low";
+"settings.voice.eagerness.auto" = "Auto";
+"settings.voice.eagerness.high" = "High";
+"settings.purge.blurb" = "The copies of everything you attached are deleted, %@. Conversations that cited them are left without them, and the text is kept.";
+
+/* Views */
+"approval.title" = "Let the specialist do this?";
+"approval.autodeny" = "If you do not answer, it is denied on its own.";
+"approval.deny" = "Do not allow";
+"approval.allow" = "Allow";
+"attach.list" = "Attachments";
+"attach.remove" = "Remove %@";
+"attach.open" = "%@. Open";
+"attach.drop.title" = "Drop them here";
+"attach.drop.subtitle" = "Images, PDFs, code: whatever you want it to look at";
+"composer.placeholder" = "Write to Companion";
+"composer.send" = "Send";
+"controlbar.unmute" = "Turn the microphone on";
+"controlbar.mute" = "Mute the microphone";
+"header.settings" = "Settings";
+"header.newConversation" = "New conversation";
+"header.noConversations" = "No conversations yet";
+"header.recent" = "Recent";
+"header.conversations" = "Conversations";
+"menu.edit" = "Edit";
+"menu.conversation" = "Conversation";
+"menu.window" = "Window";
+"shortcut.newConversation" = "New conversation";
+"shortcut.toggleMute" = "Mute/unmute";
+"thread.queued" = "Queued: %@";
+"thread.untitled" = "Conversation";
+"onboarding.blurb" = "Your private voice assistant. It needs your OpenAI key.";
+"onboarding.key" = "OpenAI key";
+"onboarding.getKey" = "Get a key";
+"onboarding.verifying" = "Verifying…";
+"status.approvalWaiting" = "The specialist is waiting for your permission";
+"status.escToStop" = "Esc to stop";
+"sources.title" = "Sources";
+"sources.web" = "Web";
+"sources.files" = "Files";
+"map.open" = "Open";
+"shortcut.escToCancel" = "Press Esc to cancel";
+"accent.lime" = "Electric green";
+"voice.sample" = "Hi, I am Companion. This is how I sound.";
+"settings.app.language" = "Language";
+"settings.app.language.subtitle" = "The interface and the language Companion answers in";
+"settings.app.language.system" = "System";
+"settings.app.language.en" = "English";
+"settings.app.language.es" = "Spanish";
+"notices.label" = "Notices";

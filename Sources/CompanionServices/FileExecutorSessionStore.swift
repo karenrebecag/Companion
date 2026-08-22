@@ -37,7 +37,7 @@ public final class FileExecutorSessionStore: ExecutorSessionStoring, @unchecked 
             return try JSONDecoder().decode(
                 [String: [String: String]].self, from: data)
         } catch {
-            Log.app("sessions: store ilegible; arranco vacío")
+            Log.app("sessions: unreadable store; starting empty")
             return [:]
         }
     }
@@ -52,7 +52,7 @@ public final class FileExecutorSessionStore: ExecutorSessionStoring, @unchecked 
             try data.write(to: fileURL, options: .atomic)
         } catch {
             // Losing the id costs a fresh thread next launch, nothing more.
-            Log.app("sessions: no pude guardar el hilo del especialista")
+            Log.app("sessions: could not save the specialist thread")
         }
     }
 }

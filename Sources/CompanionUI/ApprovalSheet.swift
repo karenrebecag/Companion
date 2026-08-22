@@ -14,7 +14,7 @@ public struct ApprovalSheet: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: Space.x4) {
-            Text("¿Permitir que el especialista haga esto?")
+            Text(Localized.string("approval.title"))
                 .font(Font.uiTitle)
                 .foregroundStyle(Semantic.foreground)
 
@@ -34,15 +34,15 @@ public struct ApprovalSheet: View {
             .background(Semantic.surface)
             .clipShape(RoundedRectangle(cornerRadius: 8))
 
-            Text("Si no respondes, se deniega solo.")
+            Text(Localized.string("approval.autodeny"))
                 .font(Font.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
 
             HStack(spacing: Space.x3) {
-                AppButton("No permitir", kind: .secondary) { answer(false) }
+                AppButton(Localized.string("approval.deny"), kind: .secondary) { answer(false) }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                AppButton("Permitir", kind: .primary) { answer(true) }
+                AppButton(Localized.string("approval.allow"), kind: .primary) { answer(true) }
                     .keyboardShortcut(.defaultAction)
             }
         }

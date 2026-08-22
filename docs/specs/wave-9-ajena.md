@@ -56,7 +56,24 @@ cuando la app sale de la Mac donde nació.
 
 ---
 
-## 9-1 La app habla el idioma de quien la usa
+## 9-1 La app habla el idioma de quien la usa · CERRADA (2026-08-22)
+
+Entregado en dos commits: el idioma del modelo (prompts, tools, copy del
+especialista) y el de la UI (catálogo, selector en Ajustes, gate). 157
+claves en cada catálogo, 170 tests verdes, gates sin avisos.
+
+**Desviación del mecanismo:** `.lproj/Localizable.strings` en vez de un
+String Catalog `.xcstrings`. Razón medida: SPM compila los `.lproj` con
+`swift build` a secas y el archivo se edita a mano; el catálogo moderno
+depende de tooling de Xcode en la ruta de build. El seam (`Localized`) es
+el mismo si algún día se migra.
+
+**Hallazgo, anotado y no resuelto:** `AgentStreamCodec.stepLabel` — los
+verbos humanos de la línea de tiempo ("leyendo: a.md") — no lo llama nadie
+fuera de los tests. La tarjeta usa `ChatCopy.step`, que pinta el nombre
+técnico de la herramienta. Es una decisión de UI, no un cable suelto de
+esta pieza: cambiarlo altera lo que se ve en cada encargo. Queda para tu
+ojo en el veredicto visual.
 
 Hoy la UI es española y, peor, **los prompts también**: `ChatPrompt.system`,
 `Escalation.voicePreamble` ("Responde en maximo 2 frases, en espanol"),

@@ -1,0 +1,175 @@
+/* Traducción. El copy original de la app: se conserva verbatim, no se
+   regenera desde el inglés. */
+
+/* Onboarding y claves */
+"chat.key.empty" = "Pega tu clave de OpenAI para empezar.";
+"chat.secret.denied" = "No pude guardar la clave en el llavero. Autoriza el acceso e inténtalo de nuevo.";
+"chat.secret.failed" = "No pude guardar la clave. Inténtalo de nuevo.";
+
+/* Errores */
+"chat.error.generic" = "Algo salió mal. Inténtalo de nuevo.";
+"chat.error.persistence" = "No pude guardar la conversación. Revisa el espacio en disco.";
+"chat.error.invalidKey" = "Esta clave no es válida. Revísala en platform.openai.com.";
+"chat.error.forbidden" = "Esta clave no tiene permiso. Revisa su acceso en platform.openai.com.";
+"chat.error.rateLimited" = "Demasiadas peticiones. Espera un momento e inténtalo de nuevo.";
+"chat.error.unreachable" = "No pude conectar. Revisa la red e inténtalo de nuevo.";
+"chat.error.httpStatus" = "El servidor respondió %d. Inténtalo de nuevo.";
+"chat.error.noProvider" = "No hay un proveedor de chat disponible.";
+"chat.error.empty" = "El modelo no contestó. Inténtalo de nuevo.";
+
+/* Encargos */
+"chat.handoff.pending" = "Encargo: %@ — el especialista llega en una próxima versión.";
+"chat.step.done" = "%@ — listo";
+"chat.step.failed" = "%@ — falló";
+"chat.approval.pending" = "El especialista pide permiso para continuar.";
+"chat.approval.granted" = "Permiso concedido.";
+"chat.approval.denied" = "Permiso denegado.";
+"chat.job.done" = "Encargo listo";
+"chat.job.failed" = "Encargo falló";
+"job.working" = "El especialista está trabajando";
+
+/* Adjuntos */
+"chat.attach.done" = "Adjuntado: %@";
+"chat.attach.tooLarge" = "El archivo es demasiado grande (máximo 20 MB).";
+"chat.attach.unreadable" = "No pude leer ese archivo.";
+"chat.attach.io" = "No pude guardar el adjunto.";
+
+/* Voz */
+"voice.fallback.classic" = "La voz en vivo no está disponible. Sigo por el micrófono clásico.";
+"voice.function.refusal" = "Los encargos estarán disponibles en una próxima versión.";
+"voice.fail.micDenied" = "Sin permiso de micrófono. Revisa Ajustes del sistema.";
+"voice.fail.micUnavailable" = "El micrófono no está disponible.";
+"voice.fail.micSilent" = "El micrófono no entregó audio.";
+"voice.fail.notHeard" = "No te escuché.";
+"voice.fail.speechEngine" = "Me quedé sin voz. Revisa el TTS.";
+"voice.fail.noProviders" = "No hay un proveedor de voz disponible.";
+"voice.fail.sessionDropped" = "La sesión de voz se cayó.";
+"voice.fail.networkUnavailable" = "No hay conexión a internet. Verifica tu red.";
+"voice.preview.failed" = "No se pudo reproducir la muestra. Revisa tu conexión.";
+
+/* Idle */
+"idle.phrase.1" = "Lista cuando tú lo estés";
+"idle.phrase.2" = "¿En qué andamos hoy?";
+"idle.phrase.3" = "Cuéntame qué sigue";
+"idle.phrase.4" = "Tu Mac y yo, a tus órdenes";
+"idle.phrase.5" = "Dime y lo hacemos";
+"idle.phrase.6" = "Empecemos cuando quieras";
+"idle.caption.voice" = "Toca el orb de abajo para empezar a hablar";
+"idle.caption.text" = "Escribe abajo y presiona Enter";
+
+/* Ajustes */
+"settings.title" = "Ajustes";
+"settings.close" = "Cerrar";
+"settings.tab.you" = "Tú";
+"settings.tab.voice" = "Voz";
+"settings.tab.app" = "App";
+"settings.you.header" = "TÚ";
+"settings.you.blurb" = "Companion usa esto para conocerte. Se guarda solo, y aplica desde tu siguiente mensaje.";
+"settings.you.name" = "Cómo te llamo";
+"settings.you.name.placeholder" = "Tu nombre";
+"settings.you.about" = "Sobre ti";
+"settings.you.about.placeholder" = "En qué trabajas, cómo te gusta que te hablen…";
+"settings.you.instructions" = "Cómo responder";
+"settings.you.instructions.placeholder" = "Sé breve, no adules, corrígeme…";
+"settings.you.photo" = "Tu foto";
+"settings.you.photo.subtitle" = "Se queda en esta Mac";
+"settings.you.photo.change" = "Cambiar foto";
+"settings.purge.title" = "¿Vaciar los archivos guardados?";
+"settings.purge.cancel" = "Mejor no";
+"settings.purge.confirm" = "Vaciar";
+"settings.storage.empty" = "Nada guardado";
+"settings.app.header" = "APARIENCIA";
+"settings.app.blurb" = "Cómo se ve Companion en tu Mac.";
+"settings.app.textSize" = "Tamaño de texto";
+"settings.app.textSize.subtitle" = "Toda la app, de −2 a +3";
+"settings.app.typeface" = "Tipografía";
+"settings.app.typeface.subtitle" = "Si no está instalada en tu Mac, se usa Inter.";
+"settings.app.accent" = "Color de énfasis";
+"settings.app.accent.subtitle" = "Botones principales y el orb";
+"settings.app.shortcut.header" = "ATAJO";
+"settings.app.shortcut.talk" = "Hablar";
+"settings.app.shortcut.subtitle" = "Inicia o cuelga el turno de voz";
+"settings.app.sound.header" = "SONIDO";
+"settings.app.sound.interface" = "Sonidos de interfaz";
+"settings.app.sound.thinking" = "Sonido al pensar";
+"settings.app.sound.thinking.subtitle" = "Un acorde suave mientras la voz piensa.";
+"settings.app.system.header" = "SISTEMA";
+"settings.app.version" = "Versión";
+"settings.app.version.see" = "Ver la versión %@";
+"settings.app.version.checking" = "Buscando…";
+"settings.app.version.check" = "Buscar actualización";
+"settings.app.version.unknown" = "desconocida";
+"settings.app.attachments" = "Archivos adjuntos";
+"settings.app.textSize.label" = "Tamaño %@";
+"settings.app.textSize.bigger" = "Texto más grande";
+"settings.app.textSize.smaller" = "Texto más pequeño";
+"settings.voice.header" = "VOZ";
+"settings.voice.voice" = "Voz";
+"settings.voice.blurb" = "La voz, el tono y el fin de turno aplican en tu próxima conversación. La velocidad y el volumen cambian al instante.";
+"settings.voice.speed" = "Velocidad";
+"settings.voice.volume" = "Volumen";
+"settings.voice.advanced" = "Avanzado";
+"settings.voice.turnEnd" = "Fin de turno";
+"settings.voice.tone" = "Tono";
+"settings.voice.tone.placeholder" = "p. ej. cálida y directa";
+"settings.voice.aec" = "Cancelación de eco";
+"settings.voice.aec.headphones" = "Con audífonos no hace falta: ya puedes interrumpir hablando.";
+"settings.voice.aec.warning" = "En algunos equipos la de Apple no arranca; si falla, se desactiva sola.";
+"settings.voice.preview.playing" = "Sonando…";
+"settings.voice.preview.listen" = "Escuchar muestra";
+"settings.voice.patience" = "Paciencia";
+"settings.voice.patience.blurb" = "Cede el turno cuando llevas este silencio sin hablar.";
+"settings.voice.eagerness" = "Avidez";
+"settings.voice.eagerness.blurb" = "Espera a que la frase suene completa antes de responder.";
+"settings.voice.turnEnd.silence" = "Silencio";
+"settings.voice.turnEnd.meaning" = "Sentido";
+"settings.voice.eagerness.low" = "Baja";
+"settings.voice.eagerness.auto" = "Auto";
+"settings.voice.eagerness.high" = "Alta";
+"settings.purge.blurb" = "Se borran las copias de todo lo que has adjuntado, %@. Las conversaciones que las citaban se quedan sin ellas y el texto se conserva.";
+
+/* Vistas */
+"approval.title" = "¿Permitir que el especialista haga esto?";
+"approval.autodeny" = "Si no respondes, se deniega solo.";
+"approval.deny" = "No permitir";
+"approval.allow" = "Permitir";
+"attach.list" = "Archivos adjuntos";
+"attach.remove" = "Quitar %@";
+"attach.open" = "%@. Abrir";
+"attach.drop.title" = "Suéltalos aquí";
+"attach.drop.subtitle" = "Imágenes, PDFs, código: lo que quieras que mire";
+"composer.placeholder" = "Escríbele a Companion";
+"composer.send" = "Enviar";
+"controlbar.unmute" = "Activar micrófono";
+"controlbar.mute" = "Silenciar micrófono";
+"header.settings" = "Ajustes";
+"header.newConversation" = "Nueva conversación";
+"header.noConversations" = "Todavía no hay conversaciones";
+"header.recent" = "Recientes";
+"header.conversations" = "Conversaciones";
+"menu.edit" = "Edición";
+"menu.conversation" = "Conversación";
+"menu.window" = "Ventana";
+"shortcut.newConversation" = "Nueva conversación";
+"shortcut.toggleMute" = "Silenciar/activar sonido";
+"thread.queued" = "En cola: %@";
+"thread.untitled" = "Conversación";
+"onboarding.blurb" = "Tu voz privada asistente. Necesita tu clave de OpenAI.";
+"onboarding.key" = "Clave de OpenAI";
+"onboarding.getKey" = "Obtener clave";
+"onboarding.verifying" = "Verificando...";
+"status.approvalWaiting" = "El especialista espera tu permiso";
+"status.escToStop" = "Esc para cortar";
+"sources.title" = "Fuentes";
+"sources.web" = "Web";
+"sources.files" = "Archivos";
+"map.open" = "Abrir";
+"shortcut.escToCancel" = "Presiona Esc para cancelar";
+"accent.lime" = "Verde eléctrico";
+"voice.sample" = "Hola, soy Companion. Así sueno.";
+"settings.app.language" = "Idioma";
+"settings.app.language.subtitle" = "La interfaz y el idioma en el que contesta Companion";
+"settings.app.language.system" = "Sistema";
+"settings.app.language.en" = "Inglés";
+"settings.app.language.es" = "Español";
+"notices.label" = "Avisos";

@@ -45,7 +45,7 @@ public struct HeaderView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: Space.gapXS) {
-            Text("Companion")
+            Text("Companion")  // token-exempt: nombre del producto.
                 .font(.uiLogo)
                 .tracking(Tracking.tighter, at: TypeSize.display)
                 .foregroundStyle(Semantic.foreground)
@@ -55,7 +55,7 @@ public struct HeaderView: View {
                 Spacer()
                 HoverIconButton(
                     symbol: "clock.arrow.circlepath",
-                    help: "Conversaciones"
+                    help: Localized.string("header.conversations")
                 ) {
                     withAnimation(.springSheet) { host.toggle(.history) }
                 }
@@ -156,8 +156,8 @@ public struct HeaderView: View {
             .contentShape(Circle())
         }
         .buttonStyle(PressableStyle())
-        .help("Ajustes")
-        .accessibilityLabel("Ajustes")
+        .help(Localized.string("header.settings"))
+        .accessibilityLabel(Localized.string("header.settings"))
     }
 }
 
@@ -194,7 +194,7 @@ struct HistoryOverlay: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.x1) {
                     DropdownRow(
-                        title: "Nueva conversación",
+                        title: Localized.string("header.newConversation"),
                         symbol: "square.and.pencil",
                         index: 0,
                         titleMaxWidth: .infinity
@@ -204,13 +204,13 @@ struct HistoryOverlay: View {
                         withAnimation(.springSheet) { host.dismiss() }
                     }
                     if chat.recents.isEmpty {
-                        Text("Todavía no hay conversaciones")
+                        Text(Localized.string("header.noConversations"))
                             .font(.uiCaption)
                             .foregroundStyle(Semantic.mutedForeground)
                             .padding(.horizontal, Space.x3)
                             .padding(.vertical, Space.x2)
                     } else {
-                        Text("Recientes")
+                        Text(Localized.string("header.recent"))
                             .typeEyebrow()
                             .padding(.horizontal, Space.x3)
                             .padding(.top, Space.x3)
@@ -249,7 +249,7 @@ struct HistoryOverlay: View {
 
     private var header: some View {
         HStack {
-            Text("Conversaciones")
+            Text(Localized.string("header.conversations"))
                 .font(.uiTitle)
                 .foregroundStyle(Semantic.foreground)
             Spacer()

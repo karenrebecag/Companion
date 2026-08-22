@@ -109,7 +109,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let jobRunner = JobRunner(
             executorProvider: executors,
             queue: jobQueue,
-            approvals: approvals)
+            approvals: approvals,
+            language: { configProvider.current.language })
 
         let sound = SynthesizedUISound(
             isEnabled: { InterfaceSound.enabled })

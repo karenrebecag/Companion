@@ -1,7 +1,7 @@
 import SwiftUI
 
 public enum ChatInputCopy {
-    public static let placeholder = "Escríbele a Companion"
+    public static let placeholder = Localized.string("composer.placeholder")
 }
 
 private struct ModeSwapChrome: ViewModifier {
@@ -77,7 +77,7 @@ public struct ChatInputView: View {
         .disabled(empty || voice.isActive)
         .opacity(empty ? 0.35 : 1)
         .animation(.easeOut(duration: MotionTime.fast), value: empty)
-        .accessibilityLabel("Enviar")
+        .accessibilityLabel(Localized.string("composer.send"))
     }
 
     private func send() {

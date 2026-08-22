@@ -66,7 +66,7 @@ public struct HermesExecutor: Executor, Sendable {
             arguments: args + ["-q", prompt],
             cwd: workdir
         ) else {
-            Log.app("executor: hermes no arrancó en \(executablePath)")
+            Log.app("executor: hermes did not start at \(executablePath)")
             return JobResult(output: "", isError: true)
         }
 

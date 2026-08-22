@@ -78,7 +78,7 @@ struct MapCard: View {
                     }
                     if let url = loc.url, let parsed = URL(string: url) {
                         Link(destination: parsed) {
-                            Text("Abrir")
+                            Text(Localized.string("map.open"))
                                 .font(Font.uiCaption)
                                 .foregroundStyle(Semantic.accent)
                         }

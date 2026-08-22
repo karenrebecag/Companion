@@ -4,6 +4,7 @@ import Foundation
 import Testing
 
 @Test @MainActor func voiceViewModelTests() async {
+    pinLanguage()
     await testVoiceCopy()
     await testVoiceViewModelIdleAtInit()
     await testVoiceViewModelForwardsControls()
@@ -19,39 +20,39 @@ import Testing
 @MainActor func testVoiceCopy() async {
     expectEq(
         VoiceCopy.fallbackClassic,
-        "La voz en vivo no está disponible. Sigo por el micrófono clásico.",
+        "Live voice is unavailable. Carrying on with the classic microphone.",
         "copy: fallback clásico")
     expectEq(
         VoiceCopy.functionRefusal,
-        "Los encargos estarán disponibles en una próxima versión.",
+        "Jobs will be available in a future version.",
         "copy: function refusal al estilo handoff")
     expectEq(
         VoiceCopy.failure(.micDenied),
-        "Sin permiso de micrófono. Revisa Ajustes del sistema.",
+        "No microphone permission. Check System Settings.",
         "copy: micDenied")
     expectEq(
         VoiceCopy.failure(.micUnavailable),
-        "El micrófono no está disponible.",
+        "The microphone is unavailable.",
         "copy: micUnavailable")
     expectEq(
         VoiceCopy.failure(.micSilent),
-        "El micrófono no entregó audio.",
+        "The microphone delivered no audio.",
         "copy: micSilent")
     expectEq(
         VoiceCopy.failure(.notHeard),
-        "No te escuché.",
+        "I did not hear you.",
         "copy: notHeard")
     expectEq(
         VoiceCopy.failure(.speechEngine),
-        "Me quedé sin voz. Revisa el TTS.",
+        "I lost my voice. Check the TTS.",
         "copy: speechEngine")
     expectEq(
         VoiceCopy.failure(.noProviders),
-        "No hay un proveedor de voz disponible.",
+        "No voice provider is available.",
         "copy: noProviders")
     expectEq(
         VoiceCopy.failure(.sessionDropped),
-        "La sesión de voz se cayó.",
+        "The voice session dropped.",
         "copy: sessionDropped")
 
     let all: [TurnFailure] = [

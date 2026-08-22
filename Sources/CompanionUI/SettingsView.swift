@@ -4,9 +4,15 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 public enum SettingsTab: String, CaseIterable, Equatable {
-    case you = "Tú"
-    case voice = "Voz"
-    case app = "App"
+    case you
+    case voice
+    case app
+
+    /// The raw value is an identifier (it is persisted and compared); what
+    /// the tab bar shows is this, which follows the language.
+    public var title: String {
+        Localized.string("settings.tab.\(rawValue)")
+    }
 
     public var symbol: String {
         switch self {
@@ -36,7 +42,7 @@ public struct SettingsView: View {
     @State private var fontDelta = TypeScale.delta
     @State private var avatar = UserProfile.avatarImage
     @State private var confirmPurge = false
-    @State private var storageLabel = "Nada guardado"
+    @State private var storageLabel = Localized.string("settings.storage.empty")
     @Environment(DropdownHost.self) private var dropdowns
 
     public init(
@@ -106,7 +112,8 @@ public struct SettingsView: View {
         .overlay { purgeConfirm }
         .dropdownPortal(host: dropdowns)
         .onDisappear { dropdowns.dismiss() }
-        .onAppear { storageLabel = chat?.attachmentsStorageLabel ?? "Nada guardado" }
+        .onAppear { storageLabel = chat?.attachmentsStorageLabel
+                ?? Localized.string("settings.storage.empty") }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionProfileDidChange)
         ) { _ in
@@ -116,7 +123,7 @@ public struct SettingsView: View {
 
     private var header: some View {
         HStack {
-            Text("Ajustes")
+            Text(Localized.string("settings.title"))
                 .font(.uiTitle)
                 .foregroundStyle(Semantic.foreground)
             Spacer()
@@ -124,7 +131,7 @@ public struct SettingsView: View {
                 icon: .cross,
                 foreground: Semantic.foreground,
                 background: Semantic.surface,
-                help: "Cerrar"
+                help: Localized.string("settings.close")
             ) {
                 dropdowns.dismiss()
                 withAnimation(.springSheet) { onClose() }
@@ -147,7 +154,7 @@ public struct SettingsView: View {
                     VStack(spacing: Space.x1) {
                         Image(systemName: t.symbol)
                             .font(.uiCaption)
-                        Text(t.rawValue)
+                        Text(t.title)
                             .font(.uiCaption)
                     }
                     .foregroundStyle(
@@ -167,7 +174,7 @@ public struct SettingsView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(t.rawValue)
+                .accessibilityLabel(t.title)
                 .accessibilityAddTraits(tab == t ? .isSelected : [])
             }
         }
@@ -179,24 +186,24 @@ public struct SettingsView: View {
 
     private var youPane: some View {
         VStack(alignment: .leading, spacing: Space.x4) {
-            Text("TÚ")
+            Text(Localized.string("settings.you.header"))
                 .typeEyebrow()
             photoRow
-            Text("Companion usa esto para conocerte. Se guarda solo, y aplica desde tu siguiente mensaje.")
+            Text(Localized.string("settings.you.blurb"))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
             AppField(
-                title: "Cómo te llamo",
-                placeholder: "Tu nombre",
+                title: Localized.string("settings.you.name"),
+                placeholder: Localized.string("settings.you.name.placeholder"),
                 text: $ownerName)
             SettingsMultiline(
-                title: "Sobre ti",
-                placeholder: "En qué trabajas, cómo te gusta que te hablen…",
+                title: Localized.string("settings.you.about"),
+                placeholder: Localized.string("settings.you.about.placeholder"),
                 text: $about)
             SettingsMultiline(
-                title: "Cómo responder",
-                placeholder: "Sé breve, no adules, corrígeme…",
+                title: Localized.string("settings.you.instructions"),
+                placeholder: Localized.string("settings.you.instructions.placeholder"),
                 text: $instructions)
         }
         .onChange(of: ownerName) { persistProfile() }
@@ -206,8 +213,8 @@ public struct SettingsView: View {
 
     private var photoRow: some View {
         SettingsLine(
-            title: "Tu foto",
-            subtitle: "Se queda en esta Mac"
+            title: Localized.string("settings.you.photo"),
+            subtitle: Localized.string("settings.you.photo.subtitle")
         ) {
             HStack(spacing: Space.x2) {
                 avatarThumb
@@ -220,8 +227,8 @@ public struct SettingsView: View {
                         .overlay(Circle().stroke(Semantic.border, lineWidth: Stroke.hairline))
                 }
                 .buttonStyle(PressableStyle())
-                .help("Cambiar foto")
-                .accessibilityLabel("Cambiar foto")
+                .help(Localized.string("settings.you.photo.change"))
+                .accessibilityLabel(Localized.string("settings.you.photo.change"))
             }
         }
     }
@@ -277,19 +284,22 @@ public struct SettingsView: View {
                     .overlay(Semantic.scrim)
                     .onTapGesture { confirmPurge = false }
                 VStack(alignment: .leading, spacing: Space.x3) {
-                    Text("¿Vaciar los archivos guardados?")
+                    Text(Localized.string("settings.purge.title"))
                         .font(.uiSubtitle)
                         .foregroundStyle(Semantic.foreground)
-                    Text("Se borran las copias de todo lo que has adjuntado, \(storageLabel). Las conversaciones que las citaban se quedan sin ellas y el texto se conserva.")
+                    Text(String(
+                        format: Localized.string("settings.purge.blurb"),
+                        storageLabel))
                         .font(.uiCaption)
                         .foregroundStyle(Semantic.mutedForeground)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: Space.x2) {
                         Spacer()
-                        AppButton("Mejor no", kind: .secondary) { confirmPurge = false }
-                        AppButton("Vaciar", kind: .destructive) {
+                        AppButton(Localized.string("settings.purge.cancel"), kind: .secondary) { confirmPurge = false }
+                        AppButton(Localized.string("settings.purge.confirm"), kind: .destructive) {
                             chat?.purgeStoredAttachments()
-                            storageLabel = chat?.attachmentsStorageLabel ?? "Nada guardado"
+                            storageLabel = chat?.attachmentsStorageLabel
+                ?? Localized.string("settings.storage.empty")
                             confirmPurge = false
                         }
                     }

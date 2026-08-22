@@ -1,6 +1,8 @@
 // Thin shims over Swift Testing so the 1000+ existing call sites keep their
 // (condition, label) shape; sourceLocation flows so failures point at the
 // real assertion line, not this file.
+import CompanionCore
+@testable import CompanionUI
 import Foundation
 import Testing
 
@@ -96,4 +98,11 @@ final class MockClock: Clock, @unchecked Sendable {
         defer { lock.signal() }
         _now = now
     }
+}
+
+/// UI copy tests assert exact wording, so they must not depend on which
+/// language the machine running them happens to prefer. English is the
+/// source; a Spanish assertion pins `.es` explicitly.
+@MainActor func pinLanguage(_ language: AppLanguage = .en) {
+    Localized.language = { language }
 }

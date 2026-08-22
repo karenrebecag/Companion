@@ -54,7 +54,7 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
             if let selected = self._selectedExecutorId, selected != .native {
                 let available = newExecutors.map { $0.id }
                 if !available.contains(selected) {
-                    Log.app("executors: \(selected.rawValue) ya no está; uso el nativo")
+                    Log.app("executors: \(selected.rawValue) is gone; falling back to the native one")
                     self._selectedExecutorId = .native
                     self._cachedExecutors[selected] = nil
                 }

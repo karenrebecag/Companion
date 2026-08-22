@@ -238,7 +238,8 @@ public actor VoiceSession: VoiceControlling {
             case .finishSpeechStream:
                 await synthesizer.finish()
             case .noteFailure(let reason):
-                await classic.thread.appendStatus(ClassicRuntime.status(reason))
+                await classic.thread.appendStatus(ClassicRuntime.status(
+                    reason, configProvider.current.language))
             }
         }
     }

@@ -22,7 +22,7 @@ struct JobCardView: View {
                     steps: Array(job.steps.suffix(Self.visibleSteps)))
                     .padding(.leading, Space.x1)
             }
-            if let summary = JobSteps.summary(job.steps) {
+            if let summary = JobSteps.summary(job.steps, Localized.language()) {
                 Text(summary)
                     .font(.uiMicro)
                     .foregroundStyle(Semantic.mutedForeground)
@@ -59,7 +59,8 @@ struct JobCardView: View {
     private var clock: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             Text(JobSteps.worked(
-                context.date.timeIntervalSince(job.startedAt)))
+                context.date.timeIntervalSince(job.startedAt),
+                Localized.language()))
                 .font(.uiMonoSm)
                 .foregroundStyle(Semantic.mutedForeground)
                 .monospacedDigit()
@@ -83,7 +84,7 @@ struct JobCardView: View {
 }
 
 enum JobCardCopy {
-    static let working = "El especialista está trabajando"
+    static var working: String { Localized.string("job.working") }
 }
 
 /// The step timeline, Grok-style: an icon per tool, a thread joining them,

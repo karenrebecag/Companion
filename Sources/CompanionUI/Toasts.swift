@@ -63,6 +63,6 @@ struct ToastStack: View {
         .frame(maxWidth: 280, alignment: .trailing)
         .allowsHitTesting(false)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Avisos")
+        .accessibilityLabel(Localized.string("notices.label"))
     }
 }

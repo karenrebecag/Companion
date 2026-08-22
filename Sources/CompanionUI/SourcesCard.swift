@@ -11,7 +11,7 @@ struct SourcesCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.none) {
-            Text("Fuentes")
+            Text(Localized.string("sources.title"))
                 .font(Font.uiCaption)
                 .foregroundStyle(Semantic.foreground)
                 .textCase(.uppercase)
@@ -38,7 +38,7 @@ struct SourcesCard: View {
             if !fileSources.isEmpty {
                 sectionRow(
                     icon: "doc",
-                    title: "Archivos",
+                    title: Localized.string("sources.files"),
                     count: fileSources.count,
                     isOpen: $filesExpanded
                 )
@@ -79,7 +79,7 @@ struct SourcesCard: View {
 
                 Spacer()
 
-                Text("\(count)")
+                Text("\(count)")  // token-exempt: una cifra, no copy.
                     .font(Font.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
 

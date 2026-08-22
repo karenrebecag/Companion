@@ -15,7 +15,7 @@ public final class VoicePreview {
     }
 
     /// Short on purpose: a preview is for timbre, not for listening to a speech.
-    public static let sampleText = "Hola, soy Companion. Así sueno."
+    public static let sampleText = Localized.string("voice.sample")
 
     public func play(_ voice: VoiceID) {
         guard playing == nil else { return }

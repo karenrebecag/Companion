@@ -24,21 +24,24 @@ import Testing
         JobStepInfo(tool: "Read", label: "Read: /tmp/plan.md"),
         JobStepInfo(tool: "Bash", label: "Bash: ls"),
     ]
-    expectEq(JobSteps.summary(steps), "2 búsquedas · 1 archivo · 1 comando",
+    expectEq(JobSteps.summary(steps), "2 searches · 1 file · 1 command",
              "resumen: cuenta por tipo, los archivos únicos una vez")
     expectEq(JobSteps.summary([]), nil,
              "resumen: sin pasos no hay chip que enseñar")
     expectEq(JobSteps.summary([JobStepInfo(tool: "WebSearch", label: "x")]),
-             "1 búsqueda", "resumen: el singular no dice «1 búsquedas»")
+             "1 search", "resumen: el singular no dice «1 searches»")
+    expectEq(JobSteps.summary(steps, .es), "2 búsquedas · 1 archivo · 1 comando",
+             "resumen: la traducción conserva el copy original")
     expectEq(JobSteps.files(steps), ["/tmp/plan.md"],
              "archivos: la misma ruta tocada dos veces es una")
 }
 
 /// Segundos abajo, minutos arriba: nadie lee "Trabajó 102 s".
 @MainActor func testWorkedDuration() {
-    expectEq(JobSteps.worked(47), "Trabajó 47 s", "duración: segundos sueltos")
-    expectEq(JobSteps.worked(102), "Trabajó 1:42", "duración: minutos con cero")
-    expectEq(JobSteps.worked(0), "Trabajó 0 s", "duración: recién empezado")
+    expectEq(JobSteps.worked(47), "Worked 47 s", "duración: segundos sueltos")
+    expectEq(JobSteps.worked(102), "Worked 1:42", "duración: minutos con cero")
+    expectEq(JobSteps.worked(102, .es), "Trabajó 1:42", "duración: en español")
+    expectEq(JobSteps.worked(0), "Worked 0 s", "duración: recién empezado")
 }
 
 @MainActor func testIconPerTool() {

@@ -105,6 +105,20 @@ else
     pass "CompanionUI sin literales de padding/spacing/cornerRadius"
 fi
 
+# Copy que no pasa por el catalogo: la UI nace monolingue otra vez. Se mira
+# donde el usuario lee — Text(...), help, accessibilityLabel — y se exime lo
+# que no es copy (identificadores, simbolos SF) con token-exempt.
+copy_hits=$(grep -rnE \
+    '(Text\(|\.help\(|\.accessibilityLabel\()"[^"]{3,}"' \
+    "$SRC/CompanionUI" --include='*.swift' 2>/dev/null \
+    | grep -v 'token-exempt:' || true)
+if [ -n "$copy_hits" ]; then
+    fail "CompanionUI: texto literal fuera del catalogo (usar Localized):"
+    echo "$copy_hits"
+else
+    pass "CompanionUI sin texto literal fuera del catalogo"
+fi
+
 # -------------------------------------------------------------- Gate 4: tests
 section "Gate 4 — tests"
 out=$(cd "$ROOT" && swift test 2>&1)
