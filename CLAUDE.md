@@ -43,6 +43,24 @@ referencia `../companion` (solo lectura: se consulta, jamas se edita).
 - Toda lectura del entorno pasa por `Config`; keys en Keychain; cero paths
   a `~/.hermes` ni dotfiles.
 
+## La app instalada
+
+Karen trabaja sobre **el producto**, no sobre un build de desarrollo aparte:
+en `/Applications/Companion.app` vive `com.karen.companion` y no hay segunda
+copia. Para que vea un cambio:
+
+```bash
+./scripts/bundle.sh release     # compila, empaqueta e instala en /Applications
+```
+
+Hay que cerrar la app antes (`osascript -e 'quit app "Companion"'`) o el
+bundle se reemplaza debajo de la instancia viva. Los tests y los gates
+siguen corriendo en debug: son otro directorio de build, no se pisan.
+
+La identidad de desarrollo (`Companion Next`) sigue existiendo en
+`ProductIdentity` y en `bundle.sh` — es lo que usaria un contribuyente para
+no pisar su propia copia instalada — pero en esta Mac no hay ninguna.
+
 ## Entorno de esta Mac
 
 Swift 6.3 con Xcode instalado (xcode-select apunta a Xcode.app): Swift

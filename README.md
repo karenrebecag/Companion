@@ -37,12 +37,19 @@ swift build
 swift test           # Swift Testing
 scripts/gates.sh     # full compliance suite
 
-scripts/bundle.sh    # .app bundle — required for voice
-open build/Companion.app
+scripts/bundle.sh          # .app bundle — required for voice
+open "build/Companion Next.app"
+
+scripts/bundle.sh release  # the product itself, installed to /Applications
 ```
 
 Voice needs the bundle: macOS only prompts for microphone and speech access
 when the binary carries the matching usage descriptions in an Info.plist.
+
+A debug bundle installs as **Companion Next** with its own bundle id, so it
+never displaces a copy of the release you may have installed. Two apps that
+share an id make macOS open whichever it resolved first — see
+`docs/DISTRIBUTION.md`.
 
 Run `scripts/make-signing-cert.sh` once. Without a stable signing identity
 every rebuild is a different app to macOS, so it silently drops the
