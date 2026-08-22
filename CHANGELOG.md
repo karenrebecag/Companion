@@ -5,6 +5,32 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-08-22
+
+### Added
+- Se puede autorizar al especialista **por voz**: cuando pide permiso, la voz
+  lo pregunta en su turno y tu respuesta lo resuelve. Antes la solicitud solo
+  existia en la hoja de la pantalla y, con las manos ocupadas, moria en el
+  auto-rechazo de los dos minutos.
+- El especialista **recuerda en que iban** entre arranques de la app: el hilo
+  de cada carpeta se guarda y se retoma. Si el guardado ya no le sirve, se
+  olvida y empieza limpio, una sola vez.
+- Un encargo cuyo canal se cae a media tarea **se termina por la via lenta**
+  en vez de perderse, retomando la sesion; el hilo dice que hubo desvio.
+- La espera del encargo es una **tarjeta con paso vivo y reloj**: que esta
+  haciendo ahora, desde hace cuanto, y un resumen ("2 busquedas · 1 archivo").
+
+### Changed
+- Los pasos del encargo dejan de caer como lineas de status sueltas en el
+  hilo: viven en la tarjeta mientras corre. El informe final no cambia.
+- Documentacion honesta: NOTICE atribuye RiveRuntime (6.23.1, MIT) y lo fija
+  por checksum; el ROADMAP mide de nuevo (16.828 lineas contra 15.307 del
+  prototipo, 13.622 de tests contra 1.228) y deja de decir "cero
+  dependencias"; ADR 002 anota que su premisa perdio una parte.
+- Los tres archivos que rozaban el limite quedaron partidos por tema
+  (tipografia, encargos del chat, bombas de la sesion de voz): gates sin un
+  solo aviso.
+
 ## [0.8.1] — 2026-08-21
 
 ### Fixed

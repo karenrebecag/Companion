@@ -88,6 +88,15 @@ codea.
 5. `scripts/gates.sh` + bundle + reabrir.
 6. Veredicto visual. Si no, se itera el mismo spec. No se avanza.
 
+## Punto de partida real (medido 2026-08-22)
+
+Los doce specs siguen en BORRADOR, pero Wave 6b ya movio la foto por otra
+via: `981ed19` (mascota Rive en el idle + paleta viva del orb), `9f1558a`
+(frases del idle con maquina de escribir) y `a02a767` (componentes propios,
+sintaxis). **06 (orb) y 09 (chat/idle) parten de ese estado, no del de sus
+specs**: el agente que los tome compara contra el codigo de hoy y anota lo
+que ya este hecho en vez de "restaurarlo". Ningun otro spec cambia.
+
 ## Ya heredado (no rehacer)
 
 Tokens `Semantic` / `Space` / `Radius` / `Elevation`, Inter, syntax en

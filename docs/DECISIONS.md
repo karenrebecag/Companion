@@ -95,6 +95,15 @@ La actualizacion no es silenciosa: la app avisa y abre la pagina de la
 release. Si algun dia el proyecto crece hasta necesitar actualizacion
 delta o firmada por EdDSA, se revisa este ADR.
 
+### Nota 2026-08-22 — la premisa perdio una parte
+
+"Se clona y compila sin descargar nada de terceros" dejo de ser cierto al
+aceptarse ADR 003: `vendor/RiveRuntime.xcframework` es un binario
+precompilado. La decision NO se reabre — Sparkle sigue fuera —, pero el
+argumento honesto ya no es "cero terceros" sino **uno solo, elegido,
+atribuido y fijado por checksum** en `NOTICE.md`. Un segundo binario exige
+su propio ADR; si alguna vez son varios, este ADR se revisa entero.
+
 ## ADR 003 — Rive para la mascota (revisa y REVIERTE la version original)
 
 **Fecha:** 2026-08-21 · **Estado:** aceptada (sustituye a la version previa)

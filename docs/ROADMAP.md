@@ -12,47 +12,52 @@
 | 5 | Producto | CERRADA (5a-5e) | **Distribuible open source** |
 | 6 | Paridad y craft | 6a CERRADA; 6c CERRADA; 6b EN CURSO | **Iguala o supera al prototipo en uso diario** |
 | 7 | Delegacion de verdad | CERRADA (7a y 7b, 2026-08-21) | **"Crea un archivo" por voz termina en archivo real** |
+| 8 | Cabos sueltos | CERRADA (2026-08-22) | **Nada probado se queda sin cablear; ningun doc miente** |
 
 ## Foco actual
 
-Las siete waves estan cerradas. La prueba manual de Karen destapo que la
-delegacion por voz nunca habia funcionado end-to-end (Wave 7 la reparo:
-cable del CLI, circuito de vuelta a la voz, errores en humano). Queda
-repetir esa prueba — "crea un archivo prueba1.md en mi escritorio" — mas el
-veredicto visual del design system (criterio de done de 6b), y despues lo
-que ella decida: notarizar (requiere cuenta de Apple) o las ideas post-v1.
+**Wave 8 cerrada** (`docs/specs/wave-8-cabos.md`): aprobar por voz ya esta
+declarado y cableado, la sesion del especialista sobrevive al reinicio, un
+cable stdio muerto ya no pierde el encargo, la tarjeta del encargo tiene
+paso vivo y reloj, y los docs dejaron de afirmar cosas que el codigo
+desmiente. Gates en 0 fallos y 0 avisos, 168 tests.
+
+Queda lo que solo Karen puede cerrar: repetir la prueba manual de
+delegacion ("crea un archivo prueba1.md en mi escritorio"), el veredicto
+visual del design system (criterio de done de 6b, programa atomico en
+`docs/specs/ds/`), y despues notarizar o las ideas post-v1.
 
 
-## Brecha con el prototipo (medida 2026-08-21)
+## Brecha con el prototipo (medida 2026-08-22)
 
-El rebuild tiene ~10.600 lineas contra 15.300 del prototipo, con 10.500
-lineas de tests contra 1.200 y cero dependencias externas. Lo que falta para
-igualarlo en utilidad diaria, en orden de dolor:
+| | Prototipo | Rebuild |
+|---|---|---|
+| Sources | 15.307 lineas | 16.828 |
+| Tests | 1.228 lineas | 13.622 |
+| Dependencias | Pow, livekit-ui, Orb (vendoreados), Mapbox, Hermes (Python) | RiveRuntime.xcframework |
 
-1. **Menu de la aplicacion** — sin `NSApp.mainMenu` NO funcionan Cmd+C/V/X en
-   ningun campo de texto. El prototipo lo documenta en la primera linea de
-   `AppMenu.swift`: "en Cocoa eso no es cosmetico". Es el unico fallo que
-   hace la app frustrante de usar.
-2. **Adjuntar archivos e imagenes** — los tipos existen en Core
-   (`AttachmentRef` viaja en los turnos) pero no hay UI: no se puede
-   arrastrar una imagen ni compartir un archivo con el especialista.
-3. **Actualizaciones** — decididas contra GitHub Releases (ADR 002), sin
-   implementar: hoy actualizar es recompilar a mano.
-4. **Pulido con impacto**: avisos efimeros (no hay confirmacion visual de
-   nada), sonido de fondo mientras piensa (el silencio se hace largo),
-   resaltado de sintaxis en bloques de codigo, y los ajustes de deteccion de
-   fin de turno (silencio vs semantico, paciencia, AEC).
+La medicion del 2026-08-21 ("~10.600 contra 15.300, cero dependencias
+externas") quedo obsoleta en un dia y en dos sentidos: el rebuild ya es mas
+grande que el prototipo en codigo fuente, y tiene una dependencia binaria
+(ADR 003, atribuida y fijada por checksum en `NOTICE.md`). Es la unica, y
+sumar otra exige otro ADR.
+
+Los cuatro puntos de dolor de aquella medicion estan **cerrados**: menu de
+aplicacion (Cmd+C/V/X), adjuntos con arrastre, actualizaciones contra
+GitHub Releases, y el pulido (avisos, sonido al pensar, sintaxis resaltada,
+ajustes de fin de turno). Lo que queda vive en Wave 8 y en el programa DS.
 
 Fuera por decision, no por olvido: handoff a terminal de Hermes (ADR 001),
-mascota interactiva con Rive (ADR 003), Sparkle (ADR 002). El mapa pasa de
-Mapbox a MapKit: menos personalizable, sin token ni WebView.
+Sparkle (ADR 002). El mapa pasa de Mapbox a MapKit: menos personalizable,
+sin token ni WebView.
 
 ## Deuda consciente (con trigger)
 
 - Firma ad-hoc: los permisos TCC de microfono se re-piden en cada rebuild.
   Identidad estable "Companion Dev" -> Wave 5.
 
-- Notarizacion requiere Xcode (notarytool) -> resolver antes de cerrar Wave 5.
+- Notarizacion: notarytool ya esta disponible (Xcode instalado); falta la
+  cuenta de Apple Developer -> decision de Karen, no bloqueo tecnico.
 
 ## Despues de v1 (ideas, sin compromiso)
 
