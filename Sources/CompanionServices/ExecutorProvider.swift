@@ -19,19 +19,24 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
         cliProbe: CLIExecutorProbe,
         workdir: String? = nil,
         processLauncher: any ProcessLauncher = RealProcessLauncher(),
-        approvals: (any ApprovalsProvider)? = nil
+        approvals: (any ApprovalsProvider)? = nil,
+        sessions: (any ExecutorSessionStoring)? = nil
     ) {
         self.nativeExecutor = nativeExecutor
         self.cliProbe = cliProbe
         self.workdir = workdir
         self.processLauncher = processLauncher
         self.approvals = approvals
+        self.sessions = sessions
         self._selectedExecutorId = .native
     }
 
     private let workdir: String?
     private let processLauncher: any ProcessLauncher
     private let approvals: (any ApprovalsProvider)?
+    /// Threads survive app launches only if the store reaches the executor
+    /// that owns the id; a provider built without it keeps the old amnesia.
+    private let sessions: (any ExecutorSessionStoring)?
 
     /// Update the catalog of available executors (probe for CLI tools).
     public func refreshAvailableExecutors() async {
@@ -126,7 +131,8 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
                workdir: workdir,
                executablePath: path,
                processLauncher: processLauncher,
-               approvals: approvals) {
+               approvals: approvals,
+               sessions: sessions) {
             executor = built
         }
 

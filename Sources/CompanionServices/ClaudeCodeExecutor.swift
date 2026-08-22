@@ -13,21 +13,29 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
     private let executablePath: String
     private let processLauncher: any ProcessLauncher
     private let approvals: any ApprovalsProvider
+    private let sessions: (any ExecutorSessionStoring)?
     private let lock = NSLock()
     private var handle: (any ProcessHandle)?
     private var sessionId: String?
+    /// Whether the live process was launched resuming a stored thread, and
+    /// whether it ever said hello. A resume the CLI rejects looks exactly like
+    /// this: a process that starts, prints nothing and dies.
+    private var resumedFromStore = false
+    private var sawInitialized = false
 
     public init(
         workdir: String,
         executablePath: String,
         processLauncher: any ProcessLauncher,
         approvals: any ApprovalsProvider,
-        modelArgs: [String] = ["--model", "sonnet"]
+        modelArgs: [String] = ["--model", "sonnet"],
+        sessions: (any ExecutorSessionStoring)? = nil
     ) {
         self.workdir = workdir
         self.executablePath = executablePath
         self.processLauncher = processLauncher
         self.approvals = approvals
+        self.sessions = sessions
 
         self.descriptor = ExecutorDescriptor(
             id: ExecutorID(rawValue: "claude-code"),
@@ -43,6 +51,64 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {
         try Task.checkCancellation()
+        do {
+            return try await attempt(job, events: events)
+        } catch ExecutorError.staleSession {
+            // The stored thread is gone from the CLI's side. Forget it and
+            // start clean once — never twice: the second attempt carries no
+            // id, so it cannot raise this again.
+            Log.app("executor: sesión guardada rechazada; arranco limpio")
+            sessions?.set(nil, for: sessionKey)
+            do {
+                return try await attempt(job, events: events)
+            } catch ExecutorError.cableDied {
+                return try await fallbackToBatch(job, events: events)
+            }
+        } catch ExecutorError.cableDied {
+            return try await fallbackToBatch(job, events: events)
+        }
+    }
+
+    /// The stdio cable died with work already done. The prototype fell back to
+    /// a batch subprocess rather than losing the job; resuming the session is
+    /// what keeps the half-finished work. One try only, and never after a
+    /// cancellation — the user said stop.
+    private func fallbackToBatch(
+        _ job: JobRequest,
+        events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try Task.checkCancellation()
+        Log.app("executor: cable caído; retomo el encargo en batch")
+        events.yield(.thought(Escalation.fallbackNotice))
+
+        var args = ["-p", batchPrompt(job), "--output-format", "text"]
+        args += descriptor.modelArgs
+        args += ["--append-system-prompt", Escalation.executorRole]
+        if let resume = effectiveSession() { args += ["--resume", resume] }
+
+        guard let handle = await processLauncher.launch(
+            executable: executablePath, arguments: args, cwd: workdir
+        ) else {
+            Log.app("executor: el batch tampoco arrancó")
+            return JobResult(output: "", isError: true)
+        }
+        var output = ""
+        while let line = await handle.readLine() {
+            if Task.isCancelled { break }
+            output += line + "\n"
+        }
+        await handle.terminate()
+        if Task.isCancelled { throw CancellationError() }
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return JobResult(
+            output: trimmed, isError: trimmed.isEmpty,
+            sessionId: lock.withLock { sessionId })
+    }
+
+    private func attempt(
+        _ job: JobRequest,
+        events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
         let handle = try await ensureProcessRunning()
         let turn = buildUserTurn(job)
         do {
@@ -66,7 +132,13 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
 
             switch AgentStreamCodec.parse(line) {
             case .initialized(let sid):
-                lock.withLock { sessionId = sid }
+                lock.withLock {
+                    sessionId = sid
+                    sawInitialized = true
+                }
+                // The thread the CLI actually opened wins over the one we
+                // asked for: resuming yesterday's id tomorrow needs this.
+                sessions?.set(sid, for: sessionKey)
 
             case .toolUse(let name, let detail):
                 events.yield(.stepStarted(tool: name, summary: detail))
@@ -105,9 +177,12 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             throw CancellationError()
         }
         // El stream cerró sin result: el proceso murió a media tarea.
+        let (resumed, greeted) = lock.withLock {
+            (resumedFromStore, sawInitialized)
+        }
         await dropProcess()
-        return JobResult(
-            output: "", isError: true, sessionId: lock.withLock { sessionId })
+        if resumed && !greeted { throw ExecutorError.staleSession }
+        throw ExecutorError.cableDied
     }
 
     // MARK: - Proceso
@@ -133,6 +208,9 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         args += descriptor.modelArgs
         args += ["--append-system-prompt", Escalation.executorRole]
 
+        let stored = effectiveSession()
+        if let stored { args += ["--resume", stored] }
+
         guard let fresh = await processLauncher.launch(
             executable: executablePath,
             arguments: args,
@@ -142,7 +220,11 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             throw ExecutorError.processLaunchFailed
         }
 
-        lock.withLock { handle = fresh }
+        lock.withLock {
+            handle = fresh
+            resumedFromStore = stored != nil
+            sawInitialized = false
+        }
         return fresh
     }
 
@@ -152,6 +234,26 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             return handle
         }
         await dead?.terminate()
+    }
+
+    /// The store is the durable truth; the in-memory id covers a run with no
+    /// store wired (tests, and the native-only composition).
+    private func effectiveSession() -> String? {
+        let saved = sessions?.session(for: sessionKey)
+            ?? lock.withLock { sessionId }
+        return ExecutorSessions.effective(saved, for: descriptor.id)
+    }
+
+    private func batchPrompt(_ job: JobRequest) -> String {
+        Escalation.jobPrompt(
+            Handoff(goal: job.goal, context: job.context),
+            workdir: workdir,
+            desktop: NSHomeDirectory() + "/Desktop",
+            attachments: job.attachments)
+    }
+
+    private var sessionKey: ExecutorSessionKey {
+        ExecutorSessionKey(executor: descriptor.id, workdir: workdir)
     }
 
     private func buildUserTurn(_ job: JobRequest) -> String {
@@ -167,4 +269,10 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
 enum ExecutorError: Error {
     case processLaunchFailed
     case invalidTranscript
+    /// Launched with a stored `--resume` the CLI would not take. Internal:
+    /// `run` swallows it by retrying clean, so it never reaches the user.
+    case staleSession
+    /// The stdio stream closed without a result: the process died mid-task.
+    /// Internal too — `run` answers it with the batch fallback.
+    case cableDied
 }

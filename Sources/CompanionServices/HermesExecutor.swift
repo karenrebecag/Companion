@@ -12,17 +12,20 @@ public struct HermesExecutor: Executor, Sendable {
     private let executablePath: String
     private let processLauncher: any ProcessLauncher
     private let providerArgs: [String]
+    private let sessions: (any ExecutorSessionStoring)?
 
     public init(
         workdir: String,
         executablePath: String,
         processLauncher: any ProcessLauncher,
-        providerArgs: [String] = []
+        providerArgs: [String] = [],
+        sessions: (any ExecutorSessionStoring)? = nil
     ) {
         self.workdir = workdir
         self.executablePath = executablePath
         self.processLauncher = processLauncher
         self.providerArgs = providerArgs
+        self.sessions = sessions
 
         self.descriptor = ExecutorDescriptor(
             id: ExecutorID(rawValue: "hermes"),
@@ -45,9 +48,18 @@ public struct HermesExecutor: Executor, Sendable {
             desktop: NSHomeDirectory() + "/Desktop",
             attachments: job.attachments)
 
+        // Hermes prints its durable id on stderr, which this adapter does not
+        // read; the `latest` sentinel is exactly what it exists for — resume
+        // the last thread of this folder without knowing its name.
+        var args = ["chat", "-Q"] + providerArgs
+        if let resume = ExecutorSessions.effective(
+            sessions?.session(for: sessionKey), for: descriptor.id) {
+            args += ["--resume", resume]
+        }
+
         guard let handle = await processLauncher.launch(
             executable: executablePath,
-            arguments: ["chat", "-Q"] + providerArgs + ["-q", prompt],
+            arguments: args + ["-q", prompt],
             cwd: workdir
         ) else {
             Log.app("executor: hermes no arrancó en \(executablePath)")
@@ -68,6 +80,13 @@ public struct HermesExecutor: Executor, Sendable {
         events.yield(.stepFinished(tool: "hermes", ok: true))
 
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            sessions?.set(ExecutorSessions.latest, for: sessionKey)
+        }
         return JobResult(output: trimmed, isError: trimmed.isEmpty)
+    }
+
+    private var sessionKey: ExecutorSessionKey {
+        ExecutorSessionKey(executor: descriptor.id, workdir: workdir)
     }
 }

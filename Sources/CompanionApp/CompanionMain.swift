@@ -77,11 +77,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             approvals: approvals)
         // The real provider probes for claude and hermes; without them the
         // catalog is just the native executor and nothing changes (ADR 001).
+        let sessions = FileExecutorSessionStore(
+            fileURL: support
+                .deletingLastPathComponent()
+                .appendingPathComponent("executor-sessions.json"))
         let executors = ExecutorProvider(
             nativeExecutor: nativeExecutor,
             cliProbe: CLIExecutorProbe(),
             workdir: config.workdir,
-            approvals: approvals)
+            approvals: approvals,
+            sessions: sessions)
         // The picker starts with the native executor and grows when the probe
         // finds a CLI; nothing appears if none is installed (ADR 001).
         let choice = ExecutorChoice(

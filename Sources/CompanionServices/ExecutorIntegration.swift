@@ -9,7 +9,8 @@ public enum ExecutorFactory {
         workdir: String,
         executablePath: String,
         processLauncher: any ProcessLauncher,
-        approvals: any ApprovalsProvider
+        approvals: any ApprovalsProvider,
+        sessions: (any ExecutorSessionStoring)? = nil
     ) -> (any Executor)? {
         // Prefijo, no igualdad: cada tier de claude y cada proveedor de
         // hermes es una fila propia (claude-code:opus, hermes:copilot).
@@ -20,7 +21,8 @@ public enum ExecutorFactory {
                 executablePath: executablePath,
                 processLauncher: processLauncher,
                 approvals: approvals,
-                modelArgs: descriptor.modelArgs
+                modelArgs: descriptor.modelArgs,
+                sessions: sessions
             )
         }
         if id.hasPrefix("hermes") {
@@ -28,7 +30,8 @@ public enum ExecutorFactory {
                 workdir: workdir,
                 executablePath: executablePath,
                 processLauncher: processLauncher,
-                providerArgs: descriptor.modelArgs
+                providerArgs: descriptor.modelArgs,
+                sessions: sessions
             )
         }
         // El nativo se construye en el composition root, no aquí.

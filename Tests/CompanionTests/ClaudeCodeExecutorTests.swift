@@ -171,6 +171,12 @@ final class StubProcessLauncher: ProcessLauncher, @unchecked Sendable {
         lock.withLock { queued.append(response.map { [$0] } ?? []) }
     }
 
+    /// Varias líneas por lanzamiento: un arranque que muere y otro que
+    /// responde no caben en un transcript compartido.
+    func setNextTranscript(_ lines: [String]) {
+        lock.withLock { queued.append(lines) }
+    }
+
     func launch(
         executable: String,
         arguments: [String],
