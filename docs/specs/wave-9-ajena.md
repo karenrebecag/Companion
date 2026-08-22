@@ -1,8 +1,32 @@
 # Wave 9 — Que la use alguien que no seas tú
 
-**Estado: BORRADOR.** Karen aprueba pieza por pieza; sin APROBADO no se
+**Estado: EN CURSO.** Karen aprueba pieza por pieza; sin APROBADO no se
 codea. Las dos decisiones que bifurcaban el trabajo ya están tomadas
-(2026-08-22) y sus consecuencias están integradas abajo.
+(2026-08-22) y sus consecuencias están integradas abajo. El cierre lo dicta
+Karen: la wave no se marca CERRADA mientras el journey del desconocido siga
+teniendo tramos abiertos.
+
+### Qué salió y qué falta (auditoría 2026-08-22)
+
+Publicado en 0.10.0: idioma de UI y de prompts (inglés como fuente, español
+como traducción), nombre e identidad del producto, ruta de instalación sin
+compilar, primer DMG con las dos rutas de Gatekeeper, y `Build.version`
+alineado con el tag y el CHANGELOG.
+
+Cerrado después de la auditoría: el idioma manda también en el plano de voz
+— el reconocedor escucha en el idioma del usuario y el permiso del
+especialista se pregunta en ese idioma. Los dos eran la misma forma de bug:
+la decisión existía y nadie la invocaba.
+
+Abierto, y es lo que impide marcar la wave cerrada:
+
+- La voz sintetizada offline sigue fijada en es-MX (`OpenAITTS.swift`).
+- La key no se valida de forma antes de salir a la red, y un Keychain
+  rechazado la deja solo en memoria sin ofrecer reintento.
+- La guía de Gatekeeper vive en el README de GitHub, no dentro del DMG:
+  quien solo descarga se queda sin ella justo cuando la necesita.
+- El README no tiene captura ni video: la narrativa de producto ya está,
+  pero de un producto visual no se ve un solo píxel antes de compilarlo.
 
 ## Por qué esta wave
 

@@ -13,18 +13,51 @@
 | 6 | Paridad y craft | 6a CERRADA; 6c CERRADA; 6b EN CURSO | **Iguala o supera al prototipo en uso diario** |
 | 7 | Delegacion de verdad | CERRADA (7a y 7b, 2026-08-21) | **"Crea un archivo" por voz termina en archivo real** |
 | 8 | Cabos sueltos | CERRADA (2026-08-22) | **Nada probado se queda sin cablear; ningun doc miente** |
+| 9 | Que la use alguien que no seas tu | EN CURSO | **Un desconocido instala, pega su key y conversa** |
 
 ## Foco actual
 
-**Wave 8 cerrada** (`docs/specs/wave-8-cabos.md`): aprobar por voz ya esta
-declarado y cableado, la sesion del especialista sobrevive al reinicio, un
-cable stdio muerto ya no pierde el encargo, la tarjeta del encargo tiene
-paso vivo y reloj, y los docs dejaron de afirmar cosas que el codigo
-desmiente. Gates en 0 fallos y 0 avisos, 168 tests.
+**Wave 9 en curso.** El grueso salio en la release 0.10.0 (2026-08-22):
+idioma de UI y de prompts, nombre del producto, ruta de instalacion sin
+compilar y el primer DMG publicado. La auditoria del flujo completo hecha
+ese mismo dia midio que tan cerrado esta el circuito, dimension por
+dimension:
 
-Queda lo que solo Karen puede cerrar: repetir la prueba manual de
-delegacion ("crea un archivo prueba1.md en mi escritorio"), el veredicto
-visual del design system (criterio de done de 6b, programa atomico en
+| Dimension | Estado |
+|---|---|
+| Mecanica (build, tests, gates, TurnMachine) | SOLIDO |
+| Release y trazabilidad (DMG, tag, CHANGELOG, licencias) | CERRADO |
+| Voz vs especialista: la voz nunca inventa un final feliz | PARCIAL |
+| Idioma | PARCIAL |
+| Onboarding en frio | ABIERTO |
+| README como puerta de entrada | PARCIAL |
+
+Cerrado despues de esa medicion: el idioma manda tambien en el plano de voz
+— el reconocedor escucha en el idioma del usuario y el permiso se pregunta
+en ese idioma.
+
+Lo que sigue abierto, en orden:
+
+1. **Voz sintetizada offline en es-MX** (`OpenAITTS.swift`): el fallback sin
+   red le contesta en espanol a quien eligio ingles. Ultimo tramo del mismo
+   bug de idioma.
+2. **Onboarding**: la key no se valida de forma antes de salir a la red; un
+   Keychain rechazado deja la key solo en memoria y sin reintento; la guia
+   de Gatekeeper vive en el README de GitHub y no dentro del DMG.
+3. **La voz clasica calla los encargos** (`VoiceSession.jobAnnounce`): no
+   miente, pero en el pipeline de respaldo el que delego por voz no oye ni
+   el exito ni el fallo. Decidir entre narrarlo o declararlo solo-pantalla
+   en un ADR.
+4. **Sin tests de `jobAnnounce`/`flushAnnouncements`**: la costura entre el
+   resultado del encargo y lo que sale por la bocina es invisible a la
+   suite.
+5. **README sin captura y sin video**: la narrativa de producto ya esta
+   (que problema resuelve, para quien, por que se reconstruyo), pero de un
+   producto visual no se ve un solo pixel antes de compilarlo.
+
+Y lo que solo Karen puede cerrar: repetir la prueba manual de delegacion
+("crea un archivo prueba1.md en mi escritorio"), el veredicto visual del
+design system (criterio de done de 6b, programa atomico en
 `docs/specs/ds/`), y despues notarizar o las ideas post-v1.
 
 
@@ -32,8 +65,8 @@ visual del design system (criterio de done de 6b, programa atomico en
 
 | | Prototipo | Rebuild |
 |---|---|---|
-| Sources | 15.307 lineas | 16.828 |
-| Tests | 1.228 lineas | 13.622 |
+| Sources | 15.307 lineas | 18.125 |
+| Tests | 1.228 lineas | 14.838 |
 | Dependencias | Pow, livekit-ui, Orb (vendoreados), Mapbox, Hermes (Python) | RiveRuntime.xcframework |
 
 La medicion del 2026-08-21 ("~10.600 contra 15.300, cero dependencias
@@ -66,4 +99,3 @@ sin token ni WebView.
   prototipo por esta exacta razon. Primera candidata post-v1.
 - SpeechAnalyzer (macOS 26) como STT local de proxima generacion.
 - Servidores MCP como fuente de tools extra del NativeExecutor.
-- Localizacion (la UI nace en espanol; en para contribuir).

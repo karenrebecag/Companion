@@ -5,6 +5,16 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+### Fixed
+- **La voz tambien habla el idioma del usuario.** Wave 9 llevo el idioma a la
+  interfaz y a los prompts de texto, pero el plano de voz se quedo atras: el
+  reconocedor escuchaba siempre en es-MX, asi que quien hablaba ingles era
+  transcrito como si fuera espanol; y el permiso del especialista se
+  preguntaba en voz alta siempre en ingles aunque la hoja lo mostrara en
+  espanol. Las dos veces la decision existia y nadie la invocaba — el patron
+  de bug de este repo — y dos tests que ya existian daban por buena la
+  omision, fijando "es-MX" sobre un arnes en ingles.
+
 ## [0.10.0] — 2026-08-22
 
 Primera version publicada. Sin notarizar (no hay cuenta de Apple Developer):
