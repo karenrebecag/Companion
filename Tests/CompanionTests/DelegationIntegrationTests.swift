@@ -129,12 +129,13 @@ private struct SlowExecutor: Executor {
     testStepsPaintInTheThread()
 }
 
-/// Voice-delegated jobs feed the same seam: their steps must land in the
-/// thread as status lines, not vanish into a drained stream.
+/// Voice-delegated jobs feed the same seam: their steps must reach the UI,
+/// not vanish into a drained stream. Since Wave 8 they land in the live card
+/// (paso vivo + duracion) instead of one loose status line per step.
 @MainActor func testStepsPaintInTheThread() {
     let vm = wiredViewModel(RecordingSubmitter())
     vm.receiveJobEvent(.stepStarted(tool: "write_file", summary: "prueba1.md"))
-    expect(vm.messages.contains { $0.isStatus && $0.text.contains("prueba1.md") },
+    expect(vm.job?.steps.contains { $0.label.contains("prueba1.md") } ?? false,
            "pasos: el encargo por voz pinta su linea de tiempo")
 }
 

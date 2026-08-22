@@ -94,7 +94,13 @@ public struct ThreadView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: Space.stack) {
-                    if model.busy, model.streaming.isEmpty {
+                    // The live card replaces the bare skeleton while a
+                    // specialist works: same slot, but it says what is
+                    // happening and for how long.
+                    if let job = model.job {
+                        JobCardView(job: job)
+                            .upsideDown()
+                    } else if model.busy, model.streaming.isEmpty {
                         skeleton
                             .upsideDown()
                     }

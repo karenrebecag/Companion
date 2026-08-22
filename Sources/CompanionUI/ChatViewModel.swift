@@ -28,13 +28,15 @@ public struct ChatMessage: Identifiable, Equatable {
 @MainActor
 public final class ChatViewModel: ConversationPresenting {
     public private(set) var needsOnboarding = true
-    public private(set) var messages: [ChatMessage] = []
+    public internal(set) var messages: [ChatMessage] = []
     public private(set) var streaming = ""
     public private(set) var busy = false
     public private(set) var queued: [String] = []
     public internal(set) var pendingAttachments: [AttachmentRef] = []
     public var dropTargeted = false
     public private(set) var busySince: Date?
+    /// Non-nil while a specialist works: the live card owns the steps.
+    public internal(set) var job: JobTimeline?
 
     public var folderName: String?
 
@@ -65,7 +67,7 @@ public final class ChatViewModel: ConversationPresenting {
     public private(set) var recents: [ConversationMeta] = []
     public private(set) var errorText: String?
     /// Non-nil while the specialist waits for a decision; the sheet binds here.
-    public private(set) var pendingApproval: ApprovalRequest?
+    public internal(set) var pendingApproval: ApprovalRequest?
     public var draft = ""
     public var onboardingKey = ""
     public private(set) var onboardingBusy = false
@@ -74,7 +76,7 @@ public final class ChatViewModel: ConversationPresenting {
     private let secrets: any SecretStore
     private let store: any ConversationStoring
     private let config: Config
-    private let jobSubmitter: (any JobSubmitter)?
+    let jobSubmitter: (any JobSubmitter)?
     public let notices: NoticeCenter
     let attachments: (any AttachmentStoring)?
     var conversationId = UUID().uuidString
@@ -217,11 +219,15 @@ public final class ChatViewModel: ConversationPresenting {
     }
 
     public func appendAssistant(_ text: String) async {
+        // A result landing means the job is over: a live card left running
+        // under the report is the app lying about what it is doing.
+        finishJob()
         messages.append(ChatMessage(role: .assistant, text: text))
         persist()
     }
 
     public func appendStatus(_ text: String) async {
+        finishJob()
         messages.append(ChatMessage(isStatus: true, text: text))
         persist()
     }
@@ -291,77 +297,9 @@ public final class ChatViewModel: ConversationPresenting {
         }
     }
 
-    /// One seam for every job event, chat-born or voice-born: steps and
-    /// thoughts paint the timeline, an approval lands where the sheet looks.
-    public func receiveJobEvent(_ event: JobEvent) {
-        switch event {
-        case .stepStarted(let tool, let summary):
-            messages.append(ChatMessage(
-                isStatus: true, text: ChatCopy.step(tool, summary)))
-        case .stepFinished(let tool, let ok):
-            messages.append(ChatMessage(
-                isStatus: true, text: ChatCopy.stepDone(tool, ok: ok)))
-        case .approvalRequested(let request):
-            // Surface it: a request that only prints text ends in the
-            // auto-deny with the user none the wiser.
-            pendingApproval = request
-            messages.append(ChatMessage(
-                isStatus: true, text: ChatCopy.approvalPending))
-        case .thought(let text):
-            messages.append(ChatMessage(isStatus: true, text: text))
-        }
-        persist()
-    }
-
-    public func answerApproval(_ approved: Bool) {
-        guard let request = pendingApproval, let submitter = jobSubmitter else { return }
-        pendingApproval = nil
-        messages.append(ChatMessage(
-            isStatus: true, text: ChatCopy.approvalAnswer(approved)))
-        toast(ChatCopy.approvalAnswer(approved),
-              level: approved ? .info : .error)
-        Task { await submitter.resolveApproval(
-            requestId: request.requestId, approved: approved) }
-    }
-
     private func commit(preface: String, handoff: Handoff?) async {
         if let handoff, let submitter = jobSubmitter {
-            if !preface.isEmpty {
-                messages.append(ChatMessage(role: .assistant, text: preface))
-            }
-            // Show work in progress
-            messages.append(ChatMessage(
-                isStatus: true, text: "Encargo en marcha: \(handoff.goal)"))
-            persist()
-
-            // Submit to runner
-            let (stream, sink) = AsyncStream<JobEvent>.makeStream()
-            _ = Task {
-                for await event in stream { receiveJobEvent(event) }
-            }
-
-            do {
-                let result = try await submitter.submit(handoff, events: sink)
-                sink.finish()
-                if result.isError {
-                    messages.append(ChatMessage(
-                        isStatus: true,
-                        text: Escalation.jobFailedStatus(
-                            handoff.goal, detail: result.output)))
-                    toast(ChatCopy.jobFailed, level: .error)
-                } else {
-                    messages.append(ChatMessage(
-                        role: .assistant,
-                        text: result.output))
-                    toast(ChatCopy.jobDone)
-                }
-            } catch {
-                sink.finish()
-                messages.append(ChatMessage(
-                    role: .assistant,
-                    text: "Error en el encargo: \(error.localizedDescription)"))
-                toast(ChatCopy.jobFailed, level: .error)
-            }
+            await runJob(preface: preface, handoff: handoff, submitter: submitter)
             return
         }
 
@@ -422,7 +360,7 @@ public final class ChatViewModel: ConversationPresenting {
         }
     }
 
-    private func persist() {
+    func persist() {
         let stored = messages.map { message -> ConversationMessage in
             let role = message.isStatus ? "status" : (message.role?.rawValue ?? "assistant")
             return ConversationMessage(role: role, text: message.text)
