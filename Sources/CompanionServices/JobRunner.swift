@@ -41,6 +41,7 @@ public struct JobRunner: Sendable, JobSubmitter {
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {
         let job = await handoffToRequest(handoff)
+        events.yield(.started(goal: handoff.goal))
         let executor = executorProvider.selectExecutor(for: handoff)
         do {
             return try await queue.submit(job, to: executor, events: events)

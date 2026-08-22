@@ -15,7 +15,8 @@ enum VoiceJobBridge {
         jobs: any JobSubmitter,
         thread: any ConversationPresenting,
         onEvent: (@Sendable (JobEvent) -> Void)? = nil,
-        announce: (@Sendable (String) async -> Void)? = nil
+        announce: (@Sendable (String) async -> Void)? = nil,
+        language: AppLanguage = .en
     ) async {
         let (stream, sink) = AsyncStream<JobEvent>.makeStream()
         let pump = Task {
@@ -26,19 +27,31 @@ enum VoiceJobBridge {
             let result = try await jobs.submit(handoff, events: sink)
             sink.finish()
             if result.isError {
-                await thread.appendStatus(
-                    Escalation.jobFailedStatus(handoff.goal, detail: result.output))
-                await announce?(Escalation.jobFailedAnnouncement(handoff.goal))
+                await thread.appendStatus(Escalation.jobFailedStatus(
+                    handoff.goal, detail: result.output, language))
+                await announce?(Escalation.jobFailedAnnouncement(
+                    handoff.goal,
+                    reason: Escalation.resultSummary(result.output),
+                    language))
             } else {
                 await thread.appendAssistant(result.output)
-                await announce?(Escalation.jobDoneAnnouncement(handoff.goal))
+                // What the specialist actually said, not a promise: the voice
+                // cannot read the thread and will invent the rest.
+                await announce?(Escalation.jobDoneAnnouncement(
+                    handoff.goal,
+                    summary: Escalation.resultSummary(result.output),
+                    language))
             }
         } catch {
             sink.finish()
             Log.app("voice: job failed (\(error))")
-            await thread.appendStatus(
-                Escalation.jobFailedStatus(handoff.goal, detail: ""))
-            await announce?(Escalation.jobFailedAnnouncement(handoff.goal))
+            // A thrown error is still a reason: silence here is what made the
+            // voice fall back on inventing an outcome.
+            let reason = JobRunner.failureText(for: error, language)
+            await thread.appendStatus(Escalation.jobFailedStatus(
+                handoff.goal, detail: reason, language))
+            await announce?(Escalation.jobFailedAnnouncement(
+                handoff.goal, reason: reason, language))
         }
     }
 }

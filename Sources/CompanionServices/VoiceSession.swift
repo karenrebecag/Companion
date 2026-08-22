@@ -112,7 +112,8 @@ public actor VoiceSession: VoiceControlling {
                         },
                         announce: { [weak self] text in
                             await self?.jobAnnounce(text)
-                        })
+                        },
+                        language: configProvider.current.language)
                 }
             }
             realtime.onResolveApproval = { [weak self] approved in

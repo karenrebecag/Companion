@@ -46,6 +46,38 @@ cuando la app sale de la Mac donde nació.
    - Cuando exista la cuenta, `scripts/release.sh` ya la usa solo: no hay
      que rehacer nada, solo guardar credenciales.
 
+## 9-0 La voz narraba lo que no podía leer · CERRADA (2026-08-22)
+
+Destapado por la prueba manual de Karen con la app instalada: pidió crear
+un `.md` en el escritorio, la voz dijo "the file is right there on your
+desktop" **dos veces**, y el especialista había reportado justo lo
+contrario en el hilo. El archivo nunca existió.
+
+Dos defectos, ninguno del modelo:
+
+1. **El anuncio no llevaba el resultado.** `jobDoneAnnouncement` decía "el
+   resultado ya está en pantalla; cuéntalo en una frase" y jamás pasaba el
+   texto: el hilo es la UI, no la sesión de voz. Pedirle narrar algo que no
+   puede leer garantiza que lo invente, y lo plausible es que salió bien.
+   Ahora viaja la primera línea del resultado (`resultSummary`) con la
+   instrucción explícita de no adornar ni afirmar éxito si el reporte dice
+   otra cosa. El camino de excepción tampoco anunciaba motivo: ahora lleva
+   el texto en humano de `JobRunner.failureText`.
+2. **El encargo no dejaba huella.** Wave 8 sustituyó la línea de status
+   "Encargo en marcha: <goal>" por la tarjeta viva, que desaparece al
+   terminar. Sin registro de QUÉ se delegó, "¿por qué buscó en vez de
+   crear?" no se puede diagnosticar. Al cerrar, la tarjeta deja una línea
+   con el objetivo y el resumen de pasos.
+
+De paso, dos cables que faltaban: `JobEvent.started(goal:)` para que el
+encargo por voz también se registre con nombre (misma costura que el chat),
+y el idioma del anuncio, que iba fijo en inglés aunque la sesión fuera
+española.
+
+**Pendiente de la prueba manual:** por qué el especialista buscó en vez de
+crear. Con el registro puesto, el hilo ya dice qué goal recibió — se repite
+la prueba y se lee ahí.
+
 ## Piezas
 
 ```

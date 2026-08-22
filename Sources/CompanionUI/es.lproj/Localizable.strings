@@ -173,3 +173,4 @@
 "settings.app.language.en" = "Inglés";
 "settings.app.language.es" = "Español";
 "notices.label" = "Avisos";
+"job.record" = "Encargo: %@";

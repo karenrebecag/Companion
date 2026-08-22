@@ -90,31 +90,67 @@ extension Escalation {
 
     // MARK: - Cierre del encargo hacia la voz
 
-    /// System items for the voice model: without them it stays blind to the
-    /// result and keeps promising "on my way" about a job already dead.
+    /// The first useful line of a result, which is what the specialist is
+    /// told to open with. Read aloud, so no markdown and no essay.
+    public static func resultSummary(_ text: String, limit: Int = 200) -> String {
+        let line = text.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty } ?? ""
+        let clean = line.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)
+        // The ellipsis counts: `limit` is the length of what gets spoken.
+        guard clean.count > limit else { return clean }
+        return String(clean.prefix(limit - 1)) + "…"
+    }
+
+    /// System items for the voice model. It cannot read the thread, so the
+    /// result travels here: told to narrate something it cannot see, the
+    /// model invents a happy ending — it did, on screen, over a file that
+    /// was never created.
     public static func jobDoneAnnouncement(
-        _ goal: String, _ language: AppLanguage = .en
+        _ goal: String, summary: String = "", _ language: AppLanguage = .en
     ) -> String {
+        let said = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         switch language {
         case .en:
-            return "Job finished: «\(goal)». The result is already on screen; "
-                + "say it in one sentence."
+            guard !said.isEmpty else {
+                return "Job finished: «\(goal)». The result is on screen; say "
+                    + "only that it is done. Do not add details you were not "
+                    + "given."
+            }
+            return "Job finished: «\(goal)». The specialist reports: «\(said)». "
+                + "Tell the user exactly that, in one sentence. Do not add "
+                + "anything you were not told, and do not claim success if "
+                + "the report says otherwise."
         case .es:
-            return "Encargo terminado: «\(goal)». El resultado ya está en "
-                + "pantalla; cuéntalo en una frase."
+            guard !said.isEmpty else {
+                return "Encargo terminado: «\(goal)». El resultado está en "
+                    + "pantalla; di solo que terminó. No añadas detalles que "
+                    + "no te dieron."
+            }
+            return "Encargo terminado: «\(goal)». El especialista reporta: "
+                + "«\(said)». Dile exactamente eso al usuario, en una frase. "
+                + "No añadas nada que no te hayan dicho, ni digas que salió "
+                + "bien si el reporte dice lo contrario."
         }
     }
 
     public static func jobFailedAnnouncement(
-        _ goal: String, _ language: AppLanguage = .en
+        _ goal: String, reason: String = "", _ language: AppLanguage = .en
     ) -> String {
+        let why = reason.trimmingCharacters(in: .whitespacesAndNewlines)
         switch language {
         case .en:
-            return "The job «\(goal)» failed or ran out of time. Tell the user "
-                + "and offer to try again."
+            let base = why.isEmpty
+                ? "The job «\(goal)» failed or ran out of time."
+                : "The job «\(goal)» failed: «\(why)»."
+            return base + " Tell the user that and offer to try again. Never "
+                + "say it worked."
         case .es:
-            return "El encargo «\(goal)» falló o se quedó sin tiempo. Díselo "
-                + "al usuario y ofrece reintentarlo."
+            let base = why.isEmpty
+                ? "El encargo «\(goal)» falló o se quedó sin tiempo."
+                : "El encargo «\(goal)» falló: «\(why)»."
+            return base + " Díselo al usuario y ofrece reintentarlo. Nunca "
+                + "digas que salió bien."
         }
     }
 

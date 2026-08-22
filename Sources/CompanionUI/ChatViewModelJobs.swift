@@ -28,8 +28,18 @@ extension ChatViewModel {
         job = JobTimeline(goal: goal)
     }
 
+    /// The live card is for the wait; this is the record. Replacing the old
+    /// status line with a card that vanishes left no trace of WHAT was
+    /// delegated, which made a specialist that searched instead of creating
+    /// impossible to diagnose.
     func finishJob() {
-        job = nil
+        defer { job = nil }
+        guard let job, let goal = job.goal else { return }
+        var text = String(format: Localized.string("job.record"), goal)
+        if let summary = JobSteps.summary(job.steps, Localized.language()) {
+            text += " · " + summary
+        }
+        messages.append(ChatMessage(isStatus: true, text: text))
     }
 
     func appendStep(_ step: JobStepInfo) {
@@ -41,6 +51,10 @@ extension ChatViewModel {
     /// thoughts paint the timeline, an approval lands where the sheet looks.
     public func receiveJobEvent(_ event: JobEvent) {
         switch event {
+        case .started(let goal):
+            // Chat already named the job; a voice-born one gets its name here
+            // so the record it leaves behind is not anonymous.
+            if job == nil { startJob(goal: goal) } else { job?.goal = goal }
         case .stepStarted(let tool, let summary):
             appendStep(JobStepInfo(
                 tool: tool, label: ChatCopy.step(tool, summary)))

@@ -36,6 +36,11 @@ public struct JobResult: Sendable, Equatable {
 }
 
 public enum JobEvent: Sendable, Equatable {
+    /// What was delegated. Chat knows it up front; a voice-born job only
+    /// exists as events, and without this its record in the thread is
+    /// anonymous — which is exactly what made "why did it search instead of
+    /// create?" undiagnosable.
+    case started(goal: String)
     case stepStarted(tool: String, summary: String)
     case stepFinished(tool: String, ok: Bool)
     case approvalRequested(ApprovalRequest)
