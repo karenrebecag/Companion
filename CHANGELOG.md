@@ -6,6 +6,17 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 ## [Unreleased]
 
 ### Fixed
+- **Un encargo que falla dice por que.** Los dos ejecutores de CLI devolvian
+  una salida vacia cuando el proceso no arrancaba o terminaba sin reportar, y
+  una salida vacia dejaba a la voz sin motivo: rellenaba el hueco diciendo que
+  el encargo "fallo o se quedo sin tiempo", un reloj que nunca corrio. Misma
+  familia que el bug que la Wave 8 creyo cerrar.
+- **Un permiso negado se reporta como permiso.** Negar el reconocimiento de
+  voz mandaba al usuario a "revisar el TTS": el lugar equivocado para un
+  permiso de entrada. Ahora manda a Ajustes del sistema.
+- **Lo que no puede ser una clave se responde sin salir a la red.** Pegar la
+  URL de donde se sacan las claves, o media clave, costaba un viaje a OpenAI
+  para volver como "esta clave no es valida", que culpa a la clave.
 - **La voz tambien habla el idioma del usuario.** Wave 9 llevo el idioma a la
   interfaz y a los prompts de texto, pero el plano de voz se quedo atras: el
   reconocedor escuchaba siempre en es-MX, asi que quien hablaba ingles era
@@ -13,7 +24,10 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   preguntaba en voz alta siempre en ingles aunque la hoja lo mostrara en
   espanol. Las dos veces la decision existia y nadie la invocaba — el patron
   de bug de este repo — y dos tests que ya existian daban por buena la
-  omision, fijando "es-MX" sobre un arnes en ingles.
+  omision, fijando "es-MX" sobre un arnes en ingles. El tercer punto donde se
+  decidia un locale a mano — la voz sintetizada sin red — quedo derivado del
+  mismo idioma: era el que contestaba en espanol a quien eligio ingles justo
+  cuando no queda otro canal.
 
 ## [0.10.0] — 2026-08-22
 

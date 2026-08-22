@@ -18,15 +18,16 @@ Cerrado después de la auditoría: el idioma manda también en el plano de voz
 especialista se pregunta en ese idioma. Los dos eran la misma forma de bug:
 la decisión existía y nadie la invocaba.
 
+Cerrado también el idioma en la voz de respaldo, el guardia de forma de la
+clave y el aviso de permiso denegado.
+
 Abierto, y es lo que impide marcar la wave cerrada:
 
-- La voz sintetizada offline sigue fijada en es-MX (`OpenAITTS.swift`).
-- La key no se valida de forma antes de salir a la red, y un Keychain
-  rechazado la deja solo en memoria sin ofrecer reintento.
 - La guía de Gatekeeper vive en el README de GitHub, no dentro del DMG:
   quien solo descarga se queda sin ella justo cuando la necesita.
 - El README no tiene captura ni video: la narrativa de producto ya está,
   pero de un producto visual no se ve un solo píxel antes de compilarlo.
+- Los especialistas no instalados se ofrecen igual que los disponibles.
 
 ## Por qué esta wave
 

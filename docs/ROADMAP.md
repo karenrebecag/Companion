@@ -28,32 +28,46 @@ dimension:
 | Mecanica (build, tests, gates, TurnMachine) | SOLIDO |
 | Release y trazabilidad (DMG, tag, CHANGELOG, licencias) | CERRADO |
 | Voz vs especialista: la voz nunca inventa un final feliz | PARCIAL |
-| Idioma | PARCIAL |
+| Idioma | CERRADO |
 | Onboarding en frio | ABIERTO |
 | README como puerta de entrada | PARCIAL |
 
-Cerrado despues de esa medicion: el idioma manda tambien en el plano de voz
-— el reconocedor escucha en el idioma del usuario y el permiso se pregunta
-en ese idioma.
+Cerrado despues de esa medicion:
+
+- **El idioma manda en todo el plano de voz.** El reconocedor escucha en el
+  idioma del usuario, el permiso se pregunta en ese idioma y la voz de
+  respaldo sin red contesta en el. Los tres puntos donde se decidia un locale
+  a mano derivan ahora de `AppLanguage`, unica fuente.
+- **Un encargo que falla dice por que.** Los ejecutores de CLI devolvian una
+  salida vacia y la voz rellenaba el hueco con un reloj que nunca corrio.
+- **Un permiso negado se reporta como permiso**, no como sintesis rota.
+- **Lo imposible se responde sin red**: un pegado que no puede ser una clave
+  ya no cuesta un viaje a OpenAI para volver culpando a la clave.
 
 Lo que sigue abierto, en orden:
 
-1. **Voz sintetizada offline en es-MX** (`OpenAITTS.swift`): el fallback sin
-   red le contesta en espanol a quien eligio ingles. Ultimo tramo del mismo
-   bug de idioma.
-2. **Onboarding**: la key no se valida de forma antes de salir a la red; un
-   Keychain rechazado deja la key solo en memoria y sin reintento; la guia
-   de Gatekeeper vive en el README de GitHub y no dentro del DMG.
-3. **La voz clasica calla los encargos** (`VoiceSession.jobAnnounce`): no
+1. **La guia de Gatekeeper no viaja con el DMG**: quien solo descarga se
+   queda sin ella justo cuando la necesita, y en macOS 15+ no hay clic
+   derecho que lo salve.
+2. **La voz clasica calla los encargos** (`VoiceSession.jobAnnounce`): no
    miente, pero en el pipeline de respaldo el que delego por voz no oye ni
    el exito ni el fallo. Decidir entre narrarlo o declararlo solo-pantalla
-   en un ADR.
-4. **Sin tests de `jobAnnounce`/`flushAnnouncements`**: la costura entre el
-   resultado del encargo y lo que sale por la bocina es invisible a la
-   suite.
+   en un ADR; hasta entonces no se le escribe test, porque fijaria por
+   contrato una conducta que quiza cambie.
+3. **Los especialistas no instalados no se distinguen en la UI**: se ofrecen
+   igual que los disponibles.
+4. **Cambiar el idioma no alcanza a una sesion de voz ya abierta**, como
+   tampoco la alcanzan la voz ni la velocidad: se aplica en la siguiente.
 5. **README sin captura y sin video**: la narrativa de producto ya esta
    (que problema resuelve, para quien, por que se reconstruyo), pero de un
    producto visual no se ve un solo pixel antes de compilarlo.
+
+Dos hallazgos de aquella auditoria no sobrevivieron a la verificacion contra
+el codigo, y quedan anotados para que nadie los persiga otra vez: el circuito
+de anuncios **si** tiene tests (`VoiceJobCircuitTests` cubre que el anuncio
+sale al escuchar y que espera su turno mientras el agente habla), y un
+llavero rechazado **no** pierde la clave: se queda en el campo y el boton la
+reintenta.
 
 Y lo que solo Karen puede cerrar: repetir la prueba manual de delegacion
 ("crea un archivo prueba1.md en mi escritorio"), el veredicto visual del
