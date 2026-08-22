@@ -115,4 +115,38 @@ public enum Escalation: Sendable {
         let extra = detail.trimmingCharacters(in: .whitespacesAndNewlines)
         return extra.isEmpty ? base : base + " " + extra
     }
+
+    /// El cable stdio murió con trabajo hecho: se retoma por batch. Silencio
+    /// aquí seria una pausa larga sin explicacion en pantalla.
+    public static let fallbackNotice =
+        "Se cortó el canal con el especialista; retomo el encargo por la vía "
+            + "lenta."
+
+    // MARK: - Permisos hacia la voz
+
+    /// Se lee en voz alta: dice QUÉ se pide, jamás el comando crudo (una ruta
+    /// con `rm -rf` dictada por bocina no informa, asusta). Sin resumen del
+    /// especialista queda el nombre de la herramienta, nunca una frase vacía.
+    public static func approvalAnnouncement(_ request: ApprovalRequest) -> String {
+        let what = request.summary.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+        let subject = what.isEmpty ? request.toolName : what
+        return "El especialista pide permiso para \(subject). Pregúntale al "
+            + "usuario si lo autoriza y, cuando conteste, usa resolve_approval "
+            + "con su respuesta."
+    }
+
+    /// Acuse del tool call: sin él la voz se queda muda esperando al servidor.
+    public static func approvalAck(approved: Bool) -> String {
+        approved
+            ? "Permiso concedido; el especialista continúa. Dilo en una frase."
+            : "Permiso denegado; el especialista buscará otra ruta. Dilo en "
+                + "una frase."
+    }
+
+    /// El modelo puede llamar la tool sin que haya nada pendiente (o después
+    /// de que la usuaria contestó en pantalla). Nunca inventar que se autorizó.
+    public static let approvalNothingPending =
+        "No hay ninguna solicitud de permiso pendiente. No digas que "
+            + "autorizaste nada."
 }

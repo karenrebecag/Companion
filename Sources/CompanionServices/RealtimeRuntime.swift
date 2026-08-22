@@ -17,10 +17,14 @@ final class RealtimeRuntime: @unchecked Sendable {
     let thread: any ConversationPresenting
     /// Set by VoiceSession when a specialist is available.
     var onDelegate: (@Sendable (Handoff) -> Void)?
+    /// The user answered a pending permission out loud. Returns whether the
+    /// answer landed on a real request: the ack must not tell the model a
+    /// permission was granted when there was nothing left to grant.
+    var onResolveApproval: (@Sendable (Bool) async -> Bool)?
 
     var micEnabled = true
     var didBecomeReady = false
-    private var pendingUpdate: String?
+    private(set) var pendingUpdate: String?
     private var voiceSent = false
     private var backchannel = BackchannelGate()
     private var transportDown = false
@@ -54,7 +58,11 @@ final class RealtimeRuntime: @unchecked Sendable {
         pendingUpdate = RealtimeCodec.sessionUpdate(
             instructions: Self.instructions(
                 config: config, history: history, canDelegate: canDelegate),
-            tools: canDelegate ? [ToolSpec.delegate] : [],
+            // Approvals only exist because jobs exist: the same flag gates
+            // both tools. Declared and tested since Wave 4, resolve_approval
+            // had no caller outside the suite until Wave 8 — a permission
+            // with your hands full died in the 120s auto-deny, unspoken.
+            tools: canDelegate ? [ToolSpec.delegate, ToolSpec.resolveApproval] : [],
             voice: voice,
             speed: config.voice.speed,
             turnDetection: config.voice.turnDetection)
@@ -159,6 +167,10 @@ final class RealtimeRuntime: @unchecked Sendable {
             let pending = await player.hasPending
             return [.responseCompleted(hasPendingAudio: pending)]
         case .functionCall(let name, let arguments, let callId):
+            if name == ToolSpec.resolveApproval.name {
+                await resolveApproval(arguments: arguments, callId: callId)
+                return [.functionOutputSent]
+            }
             // Answer the server immediately so the voice keeps flowing; the
             // job runs in the background and its result is announced later.
             guard let onDelegate,
@@ -189,6 +201,25 @@ final class RealtimeRuntime: @unchecked Sendable {
             // FIX 5: Unknown events are logged with type name via traceName, not generic "ignored".
             return []
         }
+    }
+
+    /// A spoken "sí" is not a decision until the model turns it into a JSON
+    /// boolean: anything else (truncated arguments, `1`, a missing field)
+    /// resolves nothing and leaves the request alive for the sheet or a
+    /// second try. Granting a permission by accident is unrecoverable.
+    private func resolveApproval(arguments: String, callId: String) async {
+        let decision = RealtimeCodec.approvalDecision(fromArguments: arguments)
+        var output = Escalation.approvalNothingPending
+        if let decision, let onResolveApproval {
+            if await onResolveApproval(decision) {
+                output = Escalation.approvalAck(approved: decision)
+            }
+        } else if decision == nil {
+            Log.app("voice: resolve_approval with no usable decision")
+        }
+        await send(
+            RealtimeCodec.functionOutput(callId: callId, output: output))
+        await send(RealtimeCodec.responseCreate())
     }
 
     static func instructions(
