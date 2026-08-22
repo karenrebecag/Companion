@@ -184,7 +184,27 @@ solo aparece en la máquina de otro.
 
 ---
 
-## 9-3 Cómo se llama el producto
+## 9-3 Cómo se llama el producto · CERRADA (2026-08-22)
+
+`ProductIdentity` en Core es la fuente; `bundle.sh` deriva id, nombre visible
+y archivo de log de la configuración, y un test compara las asignaciones
+exactas del script contra el enum (subcadenas no bastan:
+`com.karen.companion.next` contiene al id de release).
+
+El build de desarrollo deja de ocupar el nombre y la ruta del producto: se
+instala como `Companion Next.app`. Se borró el duplicado que quedaba en
+`/Applications/Companion.app` — era el mismo build con el nombre equivocado.
+
+`bundle.sh release` se **niega a empaquetar** mientras el prototipo siga en
+`~/Applications/companion.app`: reclama `com.karen.companion` y su
+LaunchAgent lo revive al iniciar sesión. Desinstalarlo es paso documentado
+del release, no una sorpresa a mitad del DMG.
+
+**No hizo falta migrar datos:** Application Support ya vivía en
+`Companion/`, no en `Companion Next/`, así que conversaciones, adjuntos y
+sesiones del especialista los comparten las dos identidades.
+
+## 9-3 Cómo se llama el producto — contrato original
 
 `Companion Next` y `com.karen.companion.next` son andamio: nacieron para
 que LaunchServices no abriera el prototipo al pedir el rebuild (ledger).

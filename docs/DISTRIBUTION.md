@@ -2,6 +2,25 @@
 
 How a build reaches someone else's Mac.
 
+## Two identities, one Mac
+
+| | Bundle id | In the Finder | Log |
+|---|---|---|---|
+| Release (`bundle.sh release`) | `com.karen.companion` | Companion.app | `~/Library/Logs/Companion.log` |
+| Development (`bundle.sh`) | `com.karen.companion.next` | Companion Next.app | `~/Library/Logs/CompanionNext.log` |
+
+The strings live in `Sources/CompanionCore/ProductIdentity.swift`; a test
+compares them against this script, because a plist written by bash that
+drifts installs an app whose own code does not recognise it.
+
+They never share an id on purpose: two apps claiming one bundle id make
+LaunchServices open whichever it resolved first, which is how a "fixed" build
+kept launching the old one. For the same reason the author's earlier
+prototype — installed at `~/Applications/companion.app` with a LaunchAgent
+that revives it at login — must be uninstalled before packaging a release,
+since it claims `com.karen.companion` too. `bundle.sh release` refuses to run
+while it is there and says so.
+
 ## Build a release
 
 ```bash

@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-APP="$ROOT/build/Companion.app"
+APP="$ROOT/build/Companion.app"  # release: DISPLAY_NAME = Companion
 DMG="$ROOT/build/Companion.dmg"
 
 "$ROOT/scripts/bundle.sh" release

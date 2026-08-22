@@ -27,11 +27,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        // Own log file: the prototype still writes Companion.log, and mixing
-        // both makes voice debugging unreadable. Rename when it is retired.
+        // The bundle around the binary decides which app this is; the log
+        // follows it so two builds never interleave their turns.
+        let identity = ProductIdentity.of(
+            bundleID: Bundle.main.bundleIdentifier)
         Log.configure(
-            fileURL: home
-                .appendingPathComponent("Library/Logs/CompanionNext.log"))
+            fileURL: home.appendingPathComponent(
+                "Library/Logs/\(identity.logFileName)"))
         Fonts.register()
 
         let support = FileManager.default.urls(

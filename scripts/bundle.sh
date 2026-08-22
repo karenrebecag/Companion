@@ -6,9 +6,6 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG="${1:-debug}"
-APP="$ROOT/build/Companion.app"
-BIN="$APP/Contents/MacOS"
-
 cd "$ROOT"
 swift build -c "$CONFIG"
 BUILT="$(swift build -c "$CONFIG" --show-bin-path)/companion"
@@ -17,6 +14,34 @@ BUILT="$(swift build -c "$CONFIG" --show-bin-path)/companion"
 # reads it from Build.swift instead of keeping a copy that drifts.
 VERSION="$(grep -o 'version = "[^"]*"' "$ROOT/Sources/CompanionCore/Build.swift" | cut -d'"' -f2)"
 [ -n "$VERSION" ] || { echo "no pude leer Build.version" >&2; exit 1; }
+
+# Identity per configuration. The source of truth is ProductIdentity.swift and
+# a test compares the two: a plist written here that drifts installs an app
+# whose own code does not recognise it. Two builds may sit on one Mac, so they
+# never share a bundle id — same id means LaunchServices opens whichever it
+# resolved first (the scar that named this app "Next" in the first place).
+if [ "$CONFIG" = "release" ]; then
+    BUNDLE_ID="com.karen.companion"
+    DISPLAY_NAME="Companion"
+    LOG_NAME="Companion.log"
+else
+    BUNDLE_ID="com.karen.companion.next"
+    DISPLAY_NAME="Companion Next"
+    LOG_NAME="CompanionNext.log"
+fi
+
+# The prototype owns com.karen.companion and a LaunchAgent revives it at
+# login. Shipping a release next to it is the collision this whole scheme
+# exists to avoid, so it stops here instead of producing a broken install.
+if [ "$CONFIG" = "release" ] && [ -d "$HOME/Applications/companion.app" ]; then
+    echo "el prototipo sigue instalado en ~/Applications/companion.app y" >&2
+    echo "reclama $BUNDLE_ID. Corre su uninstall.sh antes de empaquetar" >&2
+    echo "el release, o las dos apps se pisan en LaunchServices." >&2
+    exit 1
+fi
+
+APP="$ROOT/build/$DISPLAY_NAME.app"
+BIN="$APP/Contents/MacOS"
 
 rm -rf "$APP"
 mkdir -p "$BIN" "$APP/Contents/Resources"
@@ -53,12 +78,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Companion Next</string>
-    <key>CFBundleDisplayName</key><string>Companion Next</string>
-    <!-- Distinct from the prototype's com.karen.companion: sharing the id
-         makes LaunchServices open whichever app it resolved first. Settle the
-         final id when the prototype is retired (Wave 5). -->
-    <key>CFBundleIdentifier</key><string>com.karen.companion.next</string>
+    <key>CFBundleName</key><string>${DISPLAY_NAME}</string>
+    <key>CFBundleDisplayName</key><string>${DISPLAY_NAME}</string>
+    <key>CFBundleIdentifier</key><string>${BUNDLE_ID}</string>
     <key>CFBundleExecutable</key><string>Companion</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
@@ -105,11 +127,11 @@ fi
 
 # Install to /Applications: testing always opens THE app, never a stray
 # build. Same path + same bundle id + same identity = TCC grants survive.
-INSTALL="/Applications/Companion.app"
+INSTALL="/Applications/$DISPLAY_NAME.app"
 if rm -rf "$INSTALL" 2>/dev/null && ditto "$APP" "$INSTALL" 2>/dev/null; then
     echo "built and installed $INSTALL (signed: $SIGN)"
-    echo "run: open $INSTALL    logs: ~/Library/Logs/CompanionNext.log"
+    echo "run: open \"$INSTALL\"    logs: ~/Library/Logs/$LOG_NAME"
 else
     echo "built $APP (signed: $SIGN) — no pude instalar en /Applications"
-    echo "run: open $APP    logs: ~/Library/Logs/CompanionNext.log"
+    echo "run: open \"$APP\"    logs: ~/Library/Logs/$LOG_NAME"
 fi
