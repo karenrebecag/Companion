@@ -225,7 +225,25 @@ de Application Support (migrar lo que ya existe, no perderlo).
 
 ---
 
-## 9-4 El primer release de verdad
+## 9-4 El primer release de verdad · CERRADA (2026-08-22)
+
+Publicado: [v0.10.0](https://github.com/karenrebecag/Companion/releases/tag/v0.10.0)
+con `Companion.dmg` (8.3 MB) adjunto. `Build.version` sube a 0.10.0 — no 1.0.0:
+sin notarizar y sin que nadie haya hecho el primer arranque limpio (9-2),
+llamarlo 1.0 sería marketing.
+
+Cerrado el círculo del updater, que era el único camino del repo que nunca
+se pudo recorrer: hasta hoy el repo no tenía un solo release y el updater
+solo había visto 404. `RUN_SMOKE=1 swift test --filter updateSmokeTests` sale
+a la API real y comprueba las tres ramas — una versión vieja ve el release,
+una más nueva no ofrece nada, y la que corre hoy está al día. Documentado en
+CONTRIBUTING; los gates siguen sin tocar la red.
+
+El prototipo quedó desinstalado (app + LaunchAgent), así que `bundle.sh
+release` ya no se topa con su guardia y el release reclama
+`com.karen.companion` sin pelearse con nadie.
+
+## 9-4 El primer release de verdad — contrato original
 
 Hoy `scripts/release.sh` construye, firma si hay identidad y notariza si hay
 credenciales; el repo no tiene ni un release publicado.

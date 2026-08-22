@@ -50,3 +50,17 @@ simplification is only valid where nothing is lost visually.
 Some layers cannot be covered by tests: microphone permissions, CoreAudio,
 code signing. Those are verified by hand on a real Mac before a wave closes,
 and what they teach goes into the ledger.
+
+## The one test that goes online
+
+`scripts/gates.sh` never touches the network. One test does, and only when
+asked:
+
+```bash
+RUN_SMOKE=1 swift test --filter updateSmokeTests
+```
+
+It checks the update path against the real GitHub releases API. It exists
+because until the first release was published the only path that code had
+ever taken was the 404, and a fixture can drift from what the API actually
+returns. Run it after publishing a release.
