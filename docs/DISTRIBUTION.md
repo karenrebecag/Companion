@@ -31,13 +31,22 @@ The script degrades on purpose: with no Developer ID it still produces a DMG
 and says the build is unsigned, because that build is useful to anyone who
 compiles from source.
 
-## The three levels of trust
+## Where this project actually is
+
+Releases ship **ad-hoc signed**, because there is no Apple Developer account
+behind the project. That is not a temporary state waiting on a script: it is
+a decision with a price, and the price is paid by whoever downloads.
 
 | Level | What the user sees | What it needs |
 |---|---|---|
-| Ad-hoc (today) | Gatekeeper blocks it; user must right-click → Open once | Nothing |
-| Developer ID signed | Same warning, but identifies the developer | Apple Developer Program |
-| Signed + notarized | Opens like any app | Program + `notarytool` credentials |
+| **Ad-hoc — what ships today** | Gatekeeper blocks the first open; the user has to allow it by hand, and the steps differ on macOS 14 vs 15+ | Nothing |
+| Developer ID signed | Same warning, but it names the developer | Apple Developer Program (99 USD/year) |
+| Signed + notarized | Opens like any other app | Program + `notarytool` credentials |
+
+The README carries both unblock routes, because right-click → Open stopped
+working in macOS 15 and half the people who download would be stuck without
+the second one. `scripts/release.sh` already signs and notarizes the day
+credentials exist; nothing here has to be rewritten for that.
 
 ## Setting up notarization (once)
 
@@ -70,7 +79,12 @@ the audio section of `docs/REFERENCE.md`.
 
 ## Updates
 
-There is no update framework and that is deliberate: the project ships with
-zero external dependencies. Releases are published on GitHub and the app can
-compare its version against the latest release (see ADR 002 in
-`docs/DECISIONS.md`).
+There is no update framework and that is deliberate: the only binary this
+project ships that it did not build is RiveRuntime (ADR 003, attributed and
+pinned by checksum in `NOTICE.md`), and adding a second one takes another
+ADR. Releases are published on GitHub and the app compares its version
+against the latest release (ADR 002).
+
+The check is silent by design: no network, a 404, a hostile payload — all of
+them produce nothing on screen. An update check must never hand the user an
+error to deal with.

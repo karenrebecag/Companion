@@ -8,6 +8,28 @@ Ground-up rebuild of a working prototype, built spec-first. Requires only
 macOS 14+ and an OpenAI API key; specialist executors (Claude Code, Hermes)
 are optional capabilities detected at runtime.
 
+## Install
+
+Download `Companion.dmg` from the [latest release](https://github.com/karenrebecag/Companion/releases/latest),
+open it and drag the app to Applications.
+
+The build is **not notarized** — there is no Apple Developer account behind
+it — so macOS will refuse to open it the first time. Getting past that is a
+one-time step, and it changed in macOS 15:
+
+- **macOS 14 (Sonoma):** right-click the app → **Open** → **Open** again.
+- **macOS 15 (Sequoia) and later:** double-click it once and let it be
+  blocked, then go to **System Settings → Privacy & Security**, scroll to the
+  message about Companion and press **Open Anyway**. Right-click → Open no
+  longer works there.
+
+Companion then asks for the microphone and for speech recognition the first
+time you speak. Both prompts are the system's; the app has no way to skip
+them, and refusing either leaves the rest of it working.
+
+You also need an OpenAI API key, which the app asks for on first run and
+stores in your keychain.
+
 ## Build
 
 ```bash

@@ -5,6 +5,33 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-08-22
+
+Primera version publicada. Sin notarizar (no hay cuenta de Apple Developer):
+al abrirla la primera vez hay que sortear Gatekeeper — el README dice como,
+en macOS 14 y en macOS 15+, que ya no son lo mismo.
+
+### Added
+- La app habla el idioma de quien la usa, ingles o espanol, y **el modelo
+  contesta en ese idioma**: no era barniz de interfaz, los prompts fijaban el
+  idioma de las respuestas. Se elige en Ajustes o se sigue al sistema.
+- El especialista puede pedir permiso **por voz**: con las manos ocupadas, la
+  solicitud se pregunta en voz alta y tu respuesta la resuelve.
+- El especialista recuerda en que iban entre arranques, y un encargo cuyo
+  canal se cae se termina por la via lenta en vez de perderse.
+- La espera del encargo es una tarjeta con paso vivo, reloj y resumen; al
+  cerrar deja una linea con lo que se delego.
+
+### Fixed
+- **La voz ya no inventa el final.** Narraba encargos que no podia leer: se le
+  pedia contar un resultado que nunca se le pasaba, y rellenaba con lo mas
+  plausible — que habia salido bien. Ahora recibe lo que reporto el
+  especialista, con instruccion explicita de no adornar.
+
+### Changed
+- El producto se llama **Companion** (`com.karen.companion`); el build de
+  trabajo es Companion Next y nunca comparten identidad.
+
 ## [0.9.0] — 2026-08-22
 
 ### Added
