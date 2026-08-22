@@ -3,6 +3,7 @@
 
 /* Onboarding y claves */
 "chat.key.empty" = "Pega tu clave de OpenAI para empezar.";
+"chat.key.malformed" = "Esto no tiene forma de clave de OpenAI. Empieza con sk- y no lleva espacios.";
 "chat.secret.denied" = "No pude guardar la clave en el llavero. Autoriza el acceso e inténtalo de nuevo.";
 "chat.secret.failed" = "No pude guardar la clave. Inténtalo de nuevo.";
 

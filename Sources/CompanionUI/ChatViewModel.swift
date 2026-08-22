@@ -140,6 +140,12 @@ public final class ChatViewModel: ConversationPresenting {
             errorText = ChatCopy.emptyKey
             return
         }
+        // A pasted URL or a truncation is answerable here: sending it out
+        // buys the same rejection two seconds later and blames the key.
+        if !APIKeyShape.looksPlausible(key) {
+            errorText = ChatCopy.malformedKey
+            return
+        }
         onboardingBusy = true
         errorText = nil
         defer { onboardingBusy = false }

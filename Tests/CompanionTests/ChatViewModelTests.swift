@@ -28,6 +28,8 @@ import Testing
     await testHistoryTurnsWindowsAndSkipsStatus()
     await testConversationPresentingEmptyAndUnicode()
     await testPendingAttachmentsStageThenRideTheTurn()
+    testAKeyIsJudgedByShapeBeforeTheNetwork()
+    await testAMangledPasteNeverReachesTheNetwork()
 }
 
 @MainActor func testTokensRamp() async {
@@ -170,22 +172,25 @@ import Testing
     let chat = FakeChatProvider(verifyError: ChatError.unauthorized)
     let secrets = TestSecretStore()
     let vm = onboard(chat, secrets)
-    vm.onboardingKey = "sk-bad"
+    // Con forma de clave: lo que se prueba aquí es el 401 del servidor, no
+    // el guardia local de forma, que ni siquiera dejaría salir a la red.
+    vm.onboardingKey = "sk-proj-badbadbadbadbad"
     await awaitMain { await vm.submitOnboarding() }
     expect(vm.needsOnboarding, "onboard fail: sigue")
     expectEq(readOpenAI(secrets), nil, "onboard fail: no escribe")
     expectEq(vm.errorText, ChatCopy.error(ChatError.unauthorized), "onboard fail: 401")
-    expectEq(chat.verifyKeys, ["sk-bad"], "onboard fail: pingueó")
+    expectEq(chat.verifyKeys, ["sk-proj-badbadbadbadbad"], "onboard fail: pingueó")
 }
 
 @MainActor func testOnboardingPingOkWritesKey() async {
     let chat = FakeChatProvider()
     let secrets = TestSecretStore()
     let vm = onboard(chat, secrets)
-    vm.onboardingKey = "  sk-live  \n"
+    vm.onboardingKey = "  sk-proj-livelivelivelive  \n"
     await awaitMain { await vm.submitOnboarding() }
     expect(!vm.needsOnboarding, "onboard ok: entra")
-    expectEq(readOpenAI(secrets), "sk-live", "onboard ok: escribe OPENAI")
+    expectEq(readOpenAI(secrets), "sk-proj-livelivelivelive",
+             "onboard ok: escribe OPENAI")
     expect(vm.errorText == nil, "onboard ok: sin error")
     expectEq(vm.onboardingKey, "", "onboard ok: limpia")
     expectEq(chat.verifyProviders, [.openAI], "onboard ok: ping OpenAI")
@@ -431,6 +436,49 @@ import Testing
     expect(vm.pendingAttachments.isEmpty, "send: la tira se vacía")
     expectEq(vm.messages.first?.attachments.count, 1, "send: viajan con el turno")
     await settle()
+}
+
+/// La forma se juzga en local y sin red. Deliberadamente floja: rechazar una
+/// clave valida es peor que dejar pasar una mala, asi que solo atrapa lo que
+/// no puede ser una clave.
+@MainActor func testAKeyIsJudgedByShapeBeforeTheNetwork() {
+    expect(APIKeyShape.looksPlausible("sk-proj-Ab3dEf6hIj9lMn2pQr5tUv8x"),
+           "forma: una clave de proyecto pasa")
+    expect(APIKeyShape.looksPlausible("  sk-Ab3dEf6hIj9lMn2pQr5tUv8x  "),
+           "forma: los espacios de los bordes son del portapapeles, no de la clave")
+    expect(!APIKeyShape.looksPlausible(
+        "https://platform.openai.com/api/keys"),
+           "forma: pegar la URL de donde se saca la clave no es la clave")
+    expect(!APIKeyShape.looksPlausible("sk-corta"),
+           "forma: una clave truncada a la mitad no llega")
+    expect(!APIKeyShape.looksPlausible("sk-Ab3dEf6h Ij9lMn2pQr5tUv8x"),
+           "forma: un espacio en medio delata un pegado partido")
+    expect(!APIKeyShape.looksPlausible("Ab3dEf6hIj9lMn2pQr5tUv8xYz1234"),
+           "forma: sin el prefijo no es de OpenAI")
+}
+
+/// El bug: cualquier cosa no vacia salia a la red y volvia 1-2 segundos
+/// despues como "esta clave no es valida", sin decir que lo que pego no era
+/// una clave.
+@MainActor func testAMangledPasteNeverReachesTheNetwork() async {
+    let chat = FakeChatProvider()
+    let secrets = TestSecretStore()
+    let vm = onboard(chat, secrets)
+
+    vm.onboardingKey = "https://platform.openai.com/api/keys"
+    await vm.submitOnboarding()
+
+    expect(chat.verifyKeys.isEmpty,
+           "forma: un pegado imposible no gasta un viaje a la red")
+    expectEq(readOpenAI(secrets), nil, "forma: y no se guarda nada")
+    expect(vm.needsOnboarding, "forma: sigue pidiendo la clave")
+    expectEq(vm.errorText, ChatCopy.malformedKey,
+             "forma: el aviso dice que lo pegado no tiene forma de clave")
+
+    vm.onboardingKey = "sk-proj-Ab3dEf6hIj9lMn2pQr5tUv8x"
+    await vm.submitOnboarding()
+    expectEq(chat.verifyKeys.count, 1,
+             "forma: una clave plausible si sale a verificarse")
 }
 
 @MainActor func primed(

@@ -20,6 +20,10 @@ public enum ChatCopy {
         return Localized.string("chat.error.generic")
     }
 
+    public static var malformedKey: String {
+        Localized.string("chat.key.malformed")
+    }
+
     public static func handoff(_ h: Handoff) -> String {
         String(format: Localized.string("chat.handoff.pending"), h.goal)
     }

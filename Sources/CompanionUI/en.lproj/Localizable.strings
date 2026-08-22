@@ -3,6 +3,7 @@
 
 /* Onboarding and keys */
 "chat.key.empty" = "Paste your OpenAI key to get started.";
+"chat.key.malformed" = "That does not look like an OpenAI key. It starts with sk- and has no spaces.";
 "chat.secret.denied" = "I could not save the key to the keychain. Allow access and try again.";
 "chat.secret.failed" = "I could not save the key. Try again.";
 
