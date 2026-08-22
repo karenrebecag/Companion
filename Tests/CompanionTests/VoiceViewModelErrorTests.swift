@@ -21,4 +21,11 @@ import Testing
     expectEq(VoiceCopy.failure(.speechEngine),
              "I lost my voice. Check the TTS.",
              "error: speechEngine message is correct")
+
+    // Un permiso negado se arregla en Ajustes del sistema, no en el TTS.
+    let denied = VoiceCopy.failure(.speechDenied)
+    expect(denied.contains("System Settings"),
+           "error: speechDenied manda a donde se concede el permiso")
+    expect(!denied.contains("TTS"),
+           "error: speechDenied no culpa a la síntesis de voz")
 }

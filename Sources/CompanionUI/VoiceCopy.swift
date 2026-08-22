@@ -16,6 +16,7 @@ public enum VoiceCopy {
         case .micSilent: Localized.string("voice.fail.micSilent")
         case .notHeard: Localized.string("voice.fail.notHeard")
         case .speechEngine: Localized.string("voice.fail.speechEngine")
+        case .speechDenied: Localized.string("voice.fail.speechDenied")
         case .noProviders: Localized.string("voice.fail.noProviders")
         case .sessionDropped: Localized.string("voice.fail.sessionDropped")
         case .networkUnavailable:

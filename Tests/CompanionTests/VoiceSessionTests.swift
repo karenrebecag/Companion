@@ -10,6 +10,7 @@ import Testing
     await testUnmuteClearsAudio()
     await testSpeakingSpeechStartedCancels()
     await testNoKeyClassicListen()
+    await testDenyingSpeechIsNotBlamedOnTheVoice()
     await testOpenTimeoutFallsBackClassic()
     await testOfflineStaysInErrorWithoutFallback()
     await testEchoFreeOutputForwardsWhileSpeaking()
@@ -111,6 +112,23 @@ import Testing
     expect(h.transcriber.started, "classic: transcriber.start")
     expect(h.transport.key == nil, "classic: no abre realtime sin key")
     expect(h.transport.sent.isEmpty, "classic: no manda frames al WS")
+}
+
+/// Negar el reconocimiento de voz es negar un permiso de ENTRADA, y se
+/// reportaba como `.speechEngine`, cuya copy manda a revisar la sintesis:
+/// quien acababa de decir "no" a un dialogo del sistema era enviado al lugar
+/// equivocado, sin una sola pista del permiso que habia negado.
+@MainActor func testDenyingSpeechIsNotBlamedOnTheVoice() async {
+    let h = makeVoiceHarness(key: nil, autoEvents: [])
+    h.transcriber.grantsAuthorization = false
+    await h.session.start()
+    await pumpUntil("permiso: la sesión no arranca") {
+        h.watch.latest.state == .error
+    }
+    expectEq(h.watch.latest.failure, .speechDenied,
+             "permiso: el fallo dice que falta un permiso, no que se rompió el TTS")
+    expect(!h.transcriber.started,
+           "permiso: sin autorización no se arma el reconocedor")
 }
 
 @MainActor func testOpenTimeoutFallsBackClassic() async {
@@ -472,13 +490,14 @@ final class ScriptedPlayer: PCMPlaying, @unchecked Sendable {
 
 final class ScriptedTranscriber: Transcriber, @unchecked Sendable {
     var authorized = false, locale = "", started = false, stoppedText = ""
+    var grantsAuthorization = true
     var appended: [MicFrame] = []
     var isAuthorized: Bool { authorized }
     private let box = StreamBox<String>()
     var partials: AsyncStream<String> { box.stream }
 
     func requestAuthorization() async -> Bool {
-        authorized = true
+        authorized = grantsAuthorization
         return authorized
     }
     func start(localeIdentifier: String) async throws {

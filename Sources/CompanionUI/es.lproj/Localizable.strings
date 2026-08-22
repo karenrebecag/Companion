@@ -43,6 +43,7 @@
 "voice.fail.micSilent" = "El micrófono no entregó audio.";
 "voice.fail.notHeard" = "No te escuché.";
 "voice.fail.speechEngine" = "Me quedé sin voz. Revisa el TTS.";
+"voice.fail.speechDenied" = "Sin permiso de reconocimiento de voz. Revisa Ajustes del sistema.";
 "voice.fail.noProviders" = "No hay un proveedor de voz disponible.";
 "voice.fail.sessionDropped" = "La sesión de voz se cayó.";
 "voice.fail.networkUnavailable" = "No hay conexión a internet. Verifica tu red.";

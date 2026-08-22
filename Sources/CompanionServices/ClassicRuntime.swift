@@ -33,7 +33,7 @@ final class ClassicRuntime: @unchecked Sendable {
         }
         let speech = await transcriber.requestAuthorization()
         if !speech {
-            await apply(.voiceStartFailed(.speechEngine))
+            await apply(.voiceStartFailed(.speechDenied))
             return
         }
         do {
@@ -115,6 +115,10 @@ final class ClassicRuntime: @unchecked Sendable {
         case (.notHeard, .es): "No te escuché."
         case (.speechEngine, .en): "I lost my voice."
         case (.speechEngine, .es): "Me quedé sin voz."
+        case (.speechDenied, .en):
+            "No speech recognition permission. Check System Settings."
+        case (.speechDenied, .es):
+            "Sin permiso de reconocimiento de voz. Revisa Ajustes del sistema."
         case (.noProviders, .en): "No voice provider is available."
         case (.noProviders, .es): "No hay un proveedor de voz disponible."
         case (.sessionDropped, .en): "The voice session dropped."

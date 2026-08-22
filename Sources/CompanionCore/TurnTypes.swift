@@ -10,6 +10,10 @@ public enum VoicePipeline: Sendable, Equatable { case classic, realtime }
 
 public enum TurnFailure: Sendable, Equatable {
     case micDenied, micUnavailable, micSilent, notHeard, speechEngine, noProviders, sessionDropped, networkUnavailable
+    /// Speech recognition refused: an INPUT permission, not a broken
+    /// synthesiser. Separate case because the two are fixed in different
+    /// places and telling them apart is the whole value of the message.
+    case speechDenied
 }
 
 public struct TurnSnapshot: Sendable, Equatable {

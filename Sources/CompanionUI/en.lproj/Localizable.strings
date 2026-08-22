@@ -43,6 +43,7 @@
 "voice.fail.micSilent" = "The microphone delivered no audio.";
 "voice.fail.notHeard" = "I did not hear you.";
 "voice.fail.speechEngine" = "I lost my voice. Check the TTS.";
+"voice.fail.speechDenied" = "No speech recognition permission. Check System Settings.";
 "voice.fail.noProviders" = "No voice provider is available.";
 "voice.fail.sessionDropped" = "The voice session dropped.";
 "voice.fail.networkUnavailable" = "No internet connection. Check your network.";
