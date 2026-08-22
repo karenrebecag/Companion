@@ -115,12 +115,22 @@ func approvalsCannotResolveRequestTwice() throws {
             return response
         }
 
-        try? await Task.sleep(nanoseconds: 50_000_000)
-        let first = await approvals.resolve(requestId: "req-4", approved: true)
-        try? await Task.sleep(nanoseconds: 10_000_000)
-        let second = await approvals.resolve(requestId: "req-4", approved: false)
+        // Reintentar hasta que la solicitud este registrada, en vez de dormir
+        // 50 ms y confiar: bajo carga la tarea no habia arrancado y el primer
+        // resolve caia en "unknown request".
+        var first = false
+        for _ in 0..<500 where !first {
+            first = await approvals.resolve(requestId: "req-4", approved: true)
+            if !first { try? await Task.sleep(nanoseconds: 1_000_000) }
+        }
 
+        // Esperar la ENTREGA, no un reloj: cuando la respuesta llega, el
+        // pendiente ya se retiro. Dormir 10 ms asumia que el waiter alcanzaba
+        // a despertarse, y cuando no lo hacia el segundo resolve encontraba la
+        // solicitud viva y la resolvia — el test fallaba por su propia prisa,
+        // no por el codigo.
         let response = await task.value
+        let second = await approvals.resolve(requestId: "req-4", approved: false)
         return (first, second, response)
     }
 
