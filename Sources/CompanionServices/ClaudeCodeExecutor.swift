@@ -95,7 +95,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             executable: executablePath, arguments: args, cwd: workdir
         ) else {
             Log.app("executor: the batch did not start either")
-            return JobResult(output: "", isError: true)
+            throw ExecutorError.processLaunchFailed
         }
         var output = ""
         while let line = await handle.readLine() {
@@ -105,8 +105,9 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         await handle.terminate()
         if Task.isCancelled { throw CancellationError() }
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { throw ExecutorError.emptyResult }
         return JobResult(
-            output: trimmed, isError: trimmed.isEmpty,
+            output: trimmed, isError: false,
             sessionId: lock.withLock { sessionId })
     }
 
@@ -287,4 +288,7 @@ enum ExecutorError: Error {
     /// The stdio stream closed without a result: the process died mid-task.
     /// Internal too — `run` answers it with the batch fallback.
     case cableDied
+    /// The batch ran to the end and said nothing. Reaches the user, because
+    /// by then there is no route left to try.
+    case emptyResult
 }

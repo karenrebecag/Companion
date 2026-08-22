@@ -10,7 +10,7 @@ import Testing
 @Test @MainActor func executorFallbackTests() throws {
     try testDeadCableFinishesInBatch()
     try testFallbackNarratesTheDetour()
-    try testBatchFailureStopsThere()
+    try testBatchFailureStopsThereWithAReason()
     try testCancellationNeverFallsBack()
 }
 
@@ -85,24 +85,39 @@ private func store() -> FileExecutorSessionStore {
     }, "desvío: el hilo cuenta que se cayó el canal y se retomó por otra vía")
 }
 
-/// El batch también falla: fallo honesto, sin bucle de reintentos.
-@MainActor func testBatchFailureStopsThere() throws {
+/// El batch también falla: fallo honesto, sin bucle de reintentos, y con un
+/// motivo. Devolvía un resultado con la salida vacía, y una salida vacía deja
+/// a la voz sin nada que narrar: terminaba diciendo que el encargo "falló o
+/// se quedó sin tiempo", que es una explicación inventada — no hubo ningún
+/// reloj de por medio.
+@MainActor func testBatchFailureStopsThereWithAReason() throws {
     let launcher = StubProcessLauncher()
     launcher.setNextTranscript([])
     launcher.setNextTranscript([])
     let sessions = store()
 
-    let result = try runAsync {
+    let thrown = try runAsync { () -> Error? in
         let executor = makeFallbackClaude(launcher: launcher, sessions: sessions)
         let (events, sink) = AsyncStream<JobEvent>.makeStream()
         events.ignore()
-        return try await executor.run(
-            JobRequest(id: "j1", goal: "lo imposible", context: ""),
-            events: sink)
+        do {
+            _ = try await executor.run(
+                JobRequest(id: "j1", goal: "lo imposible", context: ""),
+                events: sink)
+            return nil
+        } catch {
+            return error
+        }
     }
 
     expectEq(launcher.launched.count, 2, "batch fallido: no hay tercer intento")
-    expect(result.isError, "batch fallido: se reporta como fallo")
+    expect(thrown is ExecutorError, "batch fallido: se reporta como fallo")
+
+    // Lo que el usuario acaba oyendo.
+    let spoken = JobRunner.failureText(for: thrown ?? ExecutorError.cableDied)
+    expect(!spoken.isEmpty, "batch fallido: el fallo llega con motivo")
+    expect(!spoken.lowercased().contains("time"),
+           "batch fallido: no se inventa un reloj que nunca corrió")
 }
 
 /// Cancelar es cancelar: no se relanza nada por detrás.

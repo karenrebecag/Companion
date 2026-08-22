@@ -67,7 +67,7 @@ public struct HermesExecutor: Executor, Sendable {
             cwd: workdir
         ) else {
             Log.app("executor: hermes did not start at \(executablePath)")
-            return JobResult(output: "", isError: true)
+            throw ExecutorError.processLaunchFailed
         }
 
         events.yield(.stepStarted(tool: "hermes", summary: "Running Hermes"))
@@ -84,10 +84,9 @@ public struct HermesExecutor: Executor, Sendable {
         events.yield(.stepFinished(tool: "hermes", ok: true))
 
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            sessions?.set(ExecutorSessions.latest, for: sessionKey)
-        }
-        return JobResult(output: trimmed, isError: trimmed.isEmpty)
+        if trimmed.isEmpty { throw ExecutorError.emptyResult }
+        sessions?.set(ExecutorSessions.latest, for: sessionKey)
+        return JobResult(output: trimmed, isError: false)
     }
 
     private var sessionKey: ExecutorSessionKey {

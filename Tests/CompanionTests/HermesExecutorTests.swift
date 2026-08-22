@@ -20,6 +20,37 @@ func hermesExecutorDescriptorIdentifies() throws {
     expectEq(executor.descriptor.kind, .detectedCLI, "kind is detectedCLI")
 }
 
+/// El mismo agujero que tenia el fallback batch de Claude Code: un encargo
+/// que termina sin decir nada devolvia un resultado con la salida vacia, y
+/// una salida vacia deja a la voz sin motivo que narrar — acababa culpando a
+/// un reloj que nunca corrio.
+@Test @MainActor
+func hermesEmptyRunFailsWithAReason() throws {
+    let launcher = StubProcessLauncher()
+    let thrown = try runAsync { () -> Error? in
+        let executor = HermesExecutor(
+            workdir: "/tmp/test",
+            executablePath: "/stub/bin/hermes",
+            processLauncher: launcher
+        )
+        let job = JobRequest(id: "job-1", goal: "lo imposible", context: "")
+        let (events, sink) = AsyncStream<JobEvent>.makeStream()
+        events.ignore()
+        launcher.setResponseTranscript([])
+        do {
+            _ = try await executor.run(job, events: sink)
+            return nil
+        } catch {
+            return error
+        }
+    }
+
+    expect(thrown is ExecutorError, "hermes vacio: se reporta como fallo")
+    let spoken = JobRunner.failureText(for: thrown ?? ExecutorError.cableDied)
+    expect(!spoken.lowercased().contains("time"),
+           "hermes vacio: no se inventa un reloj que nunca corrio")
+}
+
 @Test @MainActor
 func hermesExecutorRunsBatchJob() throws {
     let launcher = StubProcessLauncher()

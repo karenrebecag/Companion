@@ -66,6 +66,10 @@ public struct JobRunner: Sendable, JobSubmitter {
                 : "El encargo tardó más de la cuenta y se detuvo."
         case JobQueue.QueueError.cancelled, is CancellationError:
             return english ? "Job cancelled." : "Encargo cancelado."
+        case ExecutorError.emptyResult:
+            return english
+                ? "The specialist finished without reporting anything."
+                : "El especialista terminó sin reportar nada."
         case ExecutorError.processLaunchFailed:
             return english
                 ? "I could not start the specialist on this Mac."
