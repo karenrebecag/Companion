@@ -102,35 +102,27 @@ extension Escalation {
         return String(clean.prefix(limit - 1)) + "…"
     }
 
-    /// System items for the voice model. It cannot read the thread, so the
-    /// result travels here: told to narrate something it cannot see, the
-    /// model invents a happy ending — it did, on screen, over a file that
-    /// was never created.
+    /// System item for the voice model when a job lands well. It acknowledges;
+    /// it does not read the result back. The specialist's text is already the
+    /// thread message — with its code, its paths and its cards — and a spoken
+    /// paraphrase of it was a second message for one result, lossy on exactly
+    /// the content that cannot be spoken.
+    ///
+    /// The guarantee that Wave 8 bought survives: which of the two endings
+    /// happened still comes from the specialist, never from the model, and it
+    /// is told not to add what it was not given.
     public static func jobDoneAnnouncement(
-        _ goal: String, summary: String = "", _ language: AppLanguage = .en
+        _ goal: String, _ language: AppLanguage = .en
     ) -> String {
-        let said = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         switch language {
         case .en:
-            guard !said.isEmpty else {
-                return "Job finished: «\(goal)». The result is on screen; say "
-                    + "only that it is done. Do not add details you were not "
-                    + "given."
-            }
-            return "Job finished: «\(goal)». The specialist reports: «\(said)». "
-                + "Tell the user exactly that, in one sentence. Do not add "
-                + "anything you were not told, and do not claim success if "
-                + "the report says otherwise."
+            return "Job finished: «\(goal)». The result is on screen; say "
+                + "only that it is done. Do not add details you were not "
+                + "given, and do not read the result back."
         case .es:
-            guard !said.isEmpty else {
-                return "Encargo terminado: «\(goal)». El resultado está en "
-                    + "pantalla; di solo que terminó. No añadas detalles que "
-                    + "no te dieron."
-            }
-            return "Encargo terminado: «\(goal)». El especialista reporta: "
-                + "«\(said)». Dile exactamente eso al usuario, en una frase. "
-                + "No añadas nada que no te hayan dicho, ni digas que salió "
-                + "bien si el reporte dice lo contrario."
+            return "Encargo terminado: «\(goal)». El resultado está en "
+                + "pantalla; di solo que terminó. No añadas detalles que no "
+                + "te dieron, ni releas el resultado."
         }
     }
 

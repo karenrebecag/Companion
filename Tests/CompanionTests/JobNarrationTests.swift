@@ -14,9 +14,9 @@ import Testing
 @Test @MainActor func jobNarrationTests() async {
     pinLanguage()
     testResultSummaryTakesTheFirstLine()
-    testAnnouncementCarriesTheResult()
+    testTheDoneAnnouncementAcknowledgesWithoutReadingBack()
     testFailureAnnouncementCarriesTheReason()
-    await testBridgeNarratesWhatTheSpecialistSaid()
+    await testBridgeAcknowledgesWithoutRereadingTheResult()
     await testTheJobLeavesARecordInTheThread()
     await testVoiceJobsRecordTheirGoalToo()
     await testAnnouncementFollowsTheLanguage()
@@ -50,13 +50,16 @@ import Testing
            "resumen: una frase, no un informe leído en voz alta")
 }
 
-@MainActor func testAnnouncementCarriesTheResult() {
-    let text = Escalation.jobDoneAnnouncement(
-        "create test.md", summary: "I could not find the Desktop folder")
-    expect(text.contains("I could not find the Desktop folder"),
-           "anuncio: la voz recibe lo que dijo el especialista")
-    expect(text.lowercased().contains("do not add")
-           || text.lowercased().contains("nothing"),
+/// El exito ya no se relee: el texto del especialista es el mensaje del hilo
+/// y la voz solo acusa. Lo que NO cambia es la prohibición de adornar, que es
+/// lo que impedía inventar un final feliz.
+@MainActor func testTheDoneAnnouncementAcknowledgesWithoutReadingBack() {
+    let text = Escalation.jobDoneAnnouncement("create test.md")
+    expect(text.contains("create test.md"),
+           "anuncio: se nombra el encargo que terminó")
+    expect(text.lowercased().contains("on screen"),
+           "anuncio: se remite a la pantalla, que es donde está el resultado")
+    expect(text.lowercased().contains("do not add"),
            "anuncio: se le prohíbe explícitamente adornar")
 }
 
@@ -67,20 +70,26 @@ import Testing
            "fallo: la voz dice el motivo real, no un genérico")
 }
 
-/// El circuito completo: lo que el especialista devuelve es lo que se anuncia.
-@MainActor func testBridgeNarratesWhatTheSpecialistSaid() async {
+/// El circuito completo. La garantía de la Wave 8 sigue en pie por otra vía:
+/// cuál de los dos finales ocurrió lo decide el especialista, no el modelo.
+/// Lo que ya no pasa es que el resultado se lea dos veces.
+@MainActor func testBridgeAcknowledgesWithoutRereadingTheResult() async {
     let announced = TextBox()
+    let thread = ScriptedThread()
+    let output = "Cree el archivo en el escritorio.\n\nDetalle…"
     await VoiceJobBridge.run(
         Handoff(goal: "create test.md", context: ""),
-        jobs: FixedSubmitter(result: JobResult(
-            output: "No pude crear el archivo: la ruta no existe.\n\nDetalle…",
-            isError: false)),
-        thread: ScriptedThread(),
+        jobs: FixedSubmitter(result: JobResult(output: output, isError: false)),
+        thread: thread,
         announce: { announced.append($0) })
 
+    expectEq(thread.turns.last?.content, output,
+             "circuito: el texto del especialista es el mensaje, entero")
     let text = announced.all.joined(separator: " ")
-    expect(text.contains("No pude crear el archivo"),
-           "circuito: la voz narra el resultado real, no un final feliz")
+    expect(!text.contains("Cree el archivo"),
+           "circuito: la voz no repite lo que ya está en pantalla")
+    expect(text.contains("create test.md"),
+           "circuito: pero sí sabe qué encargo terminó")
 }
 
 /// La tarjeta viva desaparece al terminar; sin registro no se puede saber

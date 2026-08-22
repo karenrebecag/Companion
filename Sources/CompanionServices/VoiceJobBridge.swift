@@ -34,13 +34,13 @@ enum VoiceJobBridge {
                     reason: Escalation.resultSummary(result.output),
                     language))
             } else {
+                // The result travels once: the specialist's text IS the
+                // assistant message. The voice only acknowledges — reading it
+                // back made a second message for one result, and a card or a
+                // code block cannot survive being spoken.
                 await thread.appendAssistant(result.output)
-                // What the specialist actually said, not a promise: the voice
-                // cannot read the thread and will invent the rest.
-                await announce?(Escalation.jobDoneAnnouncement(
-                    handoff.goal,
-                    summary: Escalation.resultSummary(result.output),
-                    language))
+                await announce?(
+                    Escalation.jobDoneAnnouncement(handoff.goal, language))
             }
         } catch {
             sink.finish()

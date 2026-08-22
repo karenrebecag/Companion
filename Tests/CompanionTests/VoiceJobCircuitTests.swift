@@ -6,9 +6,17 @@ import Testing
 // El circuito de vuelta del encargo por voz. El bug que esto reemplaza: el
 // resultado solo se pegaba al hilo visual y la voz seguía diciendo "voy en
 // camino" después de que el encargo ya había muerto — estaba ciega.
+//
+// Decisión de producto (2026-08-22), a la manera de OpenAI: el resultado
+// vuelve UNA vez. El texto del especialista es el mensaje del hilo — ahí
+// viven el código, las rutas y las cards — y la voz solo acusa que terminó,
+// sin releerlo. Dos mensajes por un resultado era la duplicación a matar.
+// El fallo es la excepción: su motivo es una línea que cambia lo que haces
+// después, y viaja.
 
 @Test @MainActor func voiceJobCircuitTests() async {
     await testBridgeAnnouncesSuccess()
+    await testTheArtifactStaysInTheThreadNotInTheVoice()
     await testBridgeHumanizesFailure()
     await testBridgeForwardsEvents()
     await testAnnouncementFlowsWhenListening()
@@ -25,9 +33,30 @@ import Testing
         announce: { announced.append($0) })
 
     expectEq(thread.turns.last?.content, "# listo",
-             "circuito: el resultado aterriza en el hilo")
+             "circuito: el resultado aterriza en el hilo, íntegro")
     expect(announced.all.contains { $0.contains("crear prueba1.md") },
            "circuito: la voz se entera de que terminó, con el goal")
+    expect(!announced.all.contains { $0.contains("listo") },
+           "circuito: la voz NO relee el resultado; ya está en pantalla")
+}
+
+/// El caso que la regla protege: un encargo cuyo resultado es una card o un
+/// bloque de código no se puede "resumir" a la voz sin perderlo. El mensaje
+/// del hilo es el artefacto; la voz solo avisa.
+@MainActor func testTheArtifactStaysInTheThreadNotInTheVoice() async {
+    let thread = ScriptedThread()
+    let announced = TextBox()
+    let card = "```companion:locations\n[{\"name\":\"Cabo\"}]\n```"
+    await VoiceJobBridge.run(
+        Handoff(goal: "buscar hoteles", context: ""),
+        jobs: FixedSubmitter(result: JobResult(output: card, isError: false)),
+        thread: thread,
+        announce: { announced.append($0) })
+
+    expectEq(thread.turns.last?.content, card,
+             "artefacto: la card llega entera al hilo")
+    expect(!announced.all.contains { $0.contains("companion:locations") },
+           "artefacto: la voz no intenta leer una card en voz alta")
 }
 
 @MainActor func testBridgeHumanizesFailure() async {
