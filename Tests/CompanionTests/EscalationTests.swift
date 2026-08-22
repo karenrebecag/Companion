@@ -17,7 +17,7 @@ import Testing
     expect(p.contains("plan de migración"), "executor: lleva el objetivo")
     expect(p.contains("repo en Swift"), "executor: lleva el contexto")
     expect(p.contains("quiero migrar esto"), "executor: lleva la petición original")
-    expect(p.contains("pantalla"), "executor: pide respuesta completa para pantalla")
+    expect(p.contains("screen"), "executor: pide respuesta completa para pantalla")
     expect(p.contains("/tmp/work"), "executor: inyecta workdir")
     expect(p.contains("/tmp/Desktop"), "executor: inyecta desktop")
 
@@ -35,14 +35,16 @@ import Testing
     let p = Escalation.jobPrompt(h, workdir: "/Users/me/proj", desktop: "/Users/me/Desktop")
     expect(p.contains("renombrar capturas"), "encargo: lleva el objetivo")
     expect(p.contains("solo las png"), "encargo: lleva el contexto")
-    expect(p.contains("Carpeta de trabajo:"), "encargo: lleva el workdir")
+    expect(p.contains("Working folder:"), "encargo: lleva el workdir")
     expect(p.contains("/Users/me/proj"), "encargo: inyecta workdir")
     expect(p.contains("/Users/me/Desktop"), "encargo: inyecta desktop")
-    expect(!Escalation.executorRole.isEmpty
-           && !p.contains(Escalation.executorRole),
+    expect(!Escalation.executorRole().isEmpty
+           && !p.contains(Escalation.executorRole()),
            "encargo: el rol NO viaja por encargo — va una vez, en el system prompt")
-    expect(Escalation.executorRole.contains("Companion (asistente de voz)"),
-           "encargo: el rol conserva el wording original")
+    expect(Escalation.executorRole().contains("Companion (a voice assistant)"),
+           "encargo: el rol viaja en la fuente")
+    expect(Escalation.executorRole(.es).contains("Companion (asistente de voz)"),
+           "encargo: la traducción conserva el wording original")
 
     let sinContexto = Escalation.jobPrompt(
         Handoff(goal: "leer notas", context: ""),
@@ -52,16 +54,18 @@ import Testing
 }
 
 @MainActor func testPromptPreambulo() {
-    expectEq(Escalation.voicePreamble,
+    expectEq(Escalation.voicePreamble(.es),
              "Responde en maximo 2 frases, en espanol, sin markdown. ",
              "preámbulo: wording original intacto")
+    expect(Escalation.voicePreamble().contains("English"),
+             "preámbulo: la fuente pide inglés")
     let first = Escalation.voiceTurnPrompt("hola", firstTurn: true)
-    expect(first.hasPrefix(Escalation.voicePreamble),
+    expect(first.hasPrefix(Escalation.voicePreamble()),
            "preámbulo: el primer turno lleva la instrucción")
     expectEq(Escalation.voiceTurnPrompt("hola", firstTurn: false), "hola",
              "preámbulo: los turnos siguientes van limpios")
     expectEq(Escalation.voiceTurnPrompt("", firstTurn: true),
-             Escalation.voicePreamble,
+             Escalation.voicePreamble(),
              "preámbulo: texto vacío en el primer turno es solo la instrucción")
     expectEq(Escalation.voiceTurnPrompt("", firstTurn: false), "",
              "preámbulo: texto vacío en turnos siguientes queda vacío")

@@ -269,7 +269,7 @@ import Testing
     vm.draft = "hola"
     vm.send()
     await pumpUntil("tools: idle") { !vm.busy }
-    expectEq(chat.toolsSeen, [.delegate], "tools: siempre delegate")
+    expectEq(chat.toolsSeen, [.delegate()], "tools: siempre delegate")
 }
 
 @MainActor func testChangeKeyCancelsAndDropsQueue() async {

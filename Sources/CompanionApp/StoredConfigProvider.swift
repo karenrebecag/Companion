@@ -25,7 +25,8 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
             workdir: WorkdirPreference.validated ?? workdir,
             ownerFirstName: ownerName,
             ownerAbout: UserProfile.about,
-            ownerInstructions: UserProfile.instructions
+            ownerInstructions: UserProfile.instructions,
+            language: LanguagePreference.current
         )
     }
 }

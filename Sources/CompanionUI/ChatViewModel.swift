@@ -260,7 +260,7 @@ public final class ChatViewModel: ConversationPresenting {
         var preface = ""
         var handoff: Handoff?
         do {
-            let stream = chat.stream(history, tools: [.delegate])
+            let stream = chat.stream(history, tools: [.delegate(config.language)])
             for try await delta in stream {
                 guard isCurrent(id) else { return }
                 switch delta {

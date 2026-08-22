@@ -5,12 +5,21 @@ import Foundation
 /// conform to Sendable but are safely isolated by exclusive access in VoiceSession.
 final class RealtimeRuntime: @unchecked Sendable {
     /// Told to the model, not to the user: it keeps talking while the
-    /// specialist works.
-    static let functionAccepted =
-        "El encargo está en marcha; avisa que lo estás trabajando."
+    /// specialist works. Model-facing copy follows the answer language, or
+    /// the agent narrates the job in one language and the turn in another.
+    static func functionAccepted(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: "The job is under way; say you are working on it."
+        case .es: "El encargo está en marcha; avisa que lo estás trabajando."
+        }
+    }
 
-    static let functionRefusal =
-        "Los encargos estarán disponibles en una próxima versión."
+    static func functionRefusal(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: "Jobs will be available in a future version."
+        case .es: "Los encargos estarán disponibles en una próxima versión."
+        }
+    }
 
     let transport: any VoiceTransport
     let player: any PCMPlaying
@@ -27,6 +36,9 @@ final class RealtimeRuntime: @unchecked Sendable {
     private(set) var pendingUpdate: String?
     private var voiceSent = false
     private var backchannel = BackchannelGate()
+    /// Whatever the session was opened with: the tools, the instructions and
+    /// every model-facing line have to agree on one language.
+    private(set) var language: AppLanguage = .en
     private var transportDown = false
 
     init(
@@ -50,6 +62,7 @@ final class RealtimeRuntime: @unchecked Sendable {
     func prepareSessionUpdate(
         config: Config, history: [Turn], canDelegate: Bool = false
     ) {
+        language = config.language
         let voice: VoiceID? = voiceSent ? nil : config.voice.voice
         // Without the tool declared AND the prompt saying the specialist
         // exists, the model answers "I cannot create files" — it never learns
@@ -62,7 +75,10 @@ final class RealtimeRuntime: @unchecked Sendable {
             // both tools. Declared and tested since Wave 4, resolve_approval
             // had no caller outside the suite until Wave 8 — a permission
             // with your hands full died in the 120s auto-deny, unspoken.
-            tools: canDelegate ? [ToolSpec.delegate, ToolSpec.resolveApproval] : [],
+            tools: canDelegate
+                ? [ToolSpec.delegate(config.language),
+                   ToolSpec.resolveApproval(config.language)]
+                : [],
             voice: voice,
             speed: config.voice.speed,
             turnDetection: config.voice.turnDetection)
@@ -167,7 +183,7 @@ final class RealtimeRuntime: @unchecked Sendable {
             let pending = await player.hasPending
             return [.responseCompleted(hasPendingAudio: pending)]
         case .functionCall(let name, let arguments, let callId):
-            if name == ToolSpec.resolveApproval.name {
+            if name == ToolSpec.resolveApproval(language).name {
                 await resolveApproval(arguments: arguments, callId: callId)
                 return [.functionOutputSent]
             }
@@ -179,13 +195,13 @@ final class RealtimeRuntime: @unchecked Sendable {
             else {
                 await send(
                     RealtimeCodec.functionOutput(
-                        callId: callId, output: Self.functionRefusal))
+                        callId: callId, output: Self.functionRefusal(language)))
                 await send(RealtimeCodec.responseCreate())
                 return [.functionOutputSent]
             }
             await send(
                 RealtimeCodec.functionOutput(
-                    callId: callId, output: Self.functionAccepted))
+                    callId: callId, output: Self.functionAccepted(language)))
             await send(RealtimeCodec.responseCreate())
             onDelegate(handoff)
             return [.functionOutputSent]
@@ -209,10 +225,10 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// second try. Granting a permission by accident is unrecoverable.
     private func resolveApproval(arguments: String, callId: String) async {
         let decision = RealtimeCodec.approvalDecision(fromArguments: arguments)
-        var output = Escalation.approvalNothingPending
+        var output = Escalation.approvalNothingPending(language)
         if let decision, let onResolveApproval {
             if await onResolveApproval(decision) {
-                output = Escalation.approvalAck(approved: decision)
+                output = Escalation.approvalAck(approved: decision, language)
             }
         } else if decision == nil {
             Log.app("voice: resolve_approval with no usable decision")
@@ -229,15 +245,30 @@ final class RealtimeRuntime: @unchecked Sendable {
             ownerFirstName: config.ownerFirstName,
             delegateEnabled: canDelegate,
             about: config.ownerAbout,
-            instructions: config.ownerInstructions)
+            instructions: config.ownerInstructions,
+            language: config.language)
         let tone = config.voice.tone.trimmingCharacters(
             in: .whitespacesAndNewlines)
         if !tone.isEmpty {
-            text += "\nCómo debes sonar al hablar: " + tone
+            text += "\n" + toneLabel(config.language) + tone
         }
         if let seed = RealtimeCodec.seed(from: history) {
-            text += "\nContexto de la conversación previa:\n" + seed
+            text += "\n" + seedLabel(config.language) + "\n" + seed
         }
         return text
+    }
+
+    private static func toneLabel(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: "How you should sound when speaking: "
+        case .es: "Cómo debes sonar al hablar: "
+        }
+    }
+
+    private static func seedLabel(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: "Context from the earlier conversation:"
+        case .es: "Contexto de la conversación previa:"
+        }
     }
 }

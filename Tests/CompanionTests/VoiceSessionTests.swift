@@ -251,7 +251,7 @@ import Testing
         }
     }
     let added = Array(h.transport.sent.dropFirst(before))
-    expect(added.contains { $0.contains("Los encargos estarán disponibles") },
+    expect(added.contains { $0.contains("Jobs will be available") },
            "fn: negativa de encargos")
     expect(added.contains { $0.contains("c1") }, "fn: call_id viaja")
     expect(hasMessage(added, type: "response.create"),

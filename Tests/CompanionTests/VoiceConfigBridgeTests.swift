@@ -246,7 +246,7 @@ private func hasVoiceInSessionUpdate(_ sent: [String], expectedVoice: VoiceID? =
     let update = h.transport.sent.first { $0.contains("session.update") } ?? ""
     expect(update.contains("\"delegate\""),
            "voz: declara la herramienta delegate (sin ella el modelo dice 'no puedo')")
-    expect(update.contains("especialista"),
+    expect(update.contains("specialist"),
            "voz: las instrucciones le dicen que el especialista existe")
 }
 

@@ -340,7 +340,7 @@ final class MemoryConversationStore: ConversationStoring, @unchecked Sendable {
         verifyError: nil)
     do {
         let history = [Turn(role: .user, content: "hola")]
-        let tools: [ToolSpec] = [.delegate]
+        let tools: [ToolSpec] = [.delegate()]
         let got = try waitAsync { () async throws -> [ChatDelta] in
             var out: [ChatDelta] = []
             for try await delta in provider.stream(history, tools: tools) {

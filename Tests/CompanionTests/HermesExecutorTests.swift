@@ -52,7 +52,7 @@ func hermesExecutorRunsBatchJob() throws {
     }
     let prompt = launch.arguments[q + 1]
     expect(prompt.contains("test"), "hermes: el objetivo va en el prompt")
-    expect(prompt.contains(Escalation.executorRole.prefix(30)),
+    expect(prompt.contains(Escalation.executorRole().prefix(30)),
            "hermes: el rol viaja pegado al prompt — no hay flag de system")
 }
 

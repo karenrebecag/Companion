@@ -34,119 +34,61 @@ public struct Handoff: Sendable, Equatable {
 }
 
 public enum Escalation: Sendable {
-    /// Injected once per specialist session, never per job — repeating it
-    /// burns tokens and drowns the transcript.
-    public static let executorRole = "Companion (asistente de voz) te delega "
-        + "encargos. Tú tienes las herramientas; ella solo habla con el "
-        + "usuario. Haz el trabajo (archivos, comandos, plan) y responde "
-        + "para pantalla, empezando con un resumen de una línea — la voz "
-        + "narra solo ese arranque. El cliente RENDERIZA MARKDOWN: usa "
-        + "encabezados con #, listas con - o 1., tablas con pipes cuando "
-        + "compares datos, y fences con lenguaje para código o comandos. "
-        + "Datos repetidos con las mismas columnas van en tabla, no en "
-        + "prosa con guiones. Además el cliente pinta TARJETAS NATIVAS desde "
-        + "fences companion: para lugares físicos con coordenadas emite "
-        + "```companion:locations con JSON "
-        + "{\"title\",\"locations\":[{\"id\",\"name\",\"eyebrow\",\"address\","
-        + "\"lat\",\"lng\",\"url\"}]} (lat/lng numéricos obligatorios); para "
-        + "comparar imágenes emite ```companion:gallery con "
-        + "{\"title\",\"images\":[{\"path\" local o \"url\" https,"
-        + "\"caption\"}]}. Si no aplica, markdown normal. Si usaste la web, "
-        + "cierra con una sección Sources: en lista, cada fuente como "
-        + "[título](url) — una línea de qué aporta."
-
-    /// A paragraph read aloud is unbearable; this goes on the first voice
-    /// turn only so later turns are not padded with the same instruction.
-    public static let voicePreamble =
-        "Responde en maximo 2 frases, en espanol, sin markdown. "
+    /// Copy for both languages lives in EscalationCopy.swift; this file is
+    /// the shape of a handoff, not its wording.
 
     public static func jobPrompt(
         _ h: Handoff, workdir: String, desktop: String,
-        attachments: [String] = []
+        attachments: [String] = [], language: AppLanguage = .en
     ) -> String {
-        var out = "Encargo: \(h.goal)\n"
-        if !h.context.isEmpty { out += "Contexto: \(h.context)\n" }
-        out += "Carpeta de trabajo: \(workdir)\n"
-        out += "Escritorio: \(desktop)"
+        let l = jobLabels(language)
+        var out = "\(l.job): \(h.goal)\n"
+        if !h.context.isEmpty { out += "\(l.context): \(h.context)\n" }
+        out += "\(l.workdir): \(workdir)\n"
+        out += "\(l.desktop): \(desktop)"
         if !attachments.isEmpty {
-            out += "\nAdjuntos del turno (rutas locales, ábrelos tú):"
+            out += "\n" + l.attachments
             for path in attachments { out += "\n- \(path)" }
         }
         return out
     }
 
     public static func executorPrompt(
-        _ h: Handoff, original: String, workdir: String, desktop: String
+        _ h: Handoff, original: String, workdir: String, desktop: String,
+        language: AppLanguage = .en
     ) -> String {
-        var out = "Companion te pasa trabajo. Tú tienes las herramientas; "
-        out += "ella solo habló con el usuario.\n"
-        out += "Objetivo: \(h.goal)\n"
-        if !h.context.isEmpty { out += "Contexto: \(h.context)\n" }
-        out += "Carpeta de trabajo: \(workdir)\n"
-        out += "Escritorio: \(desktop)\n"
-        out += "Petición original: «\(original)»\n"
-        out += "Haz el trabajo (archivos, comandos, plan). Respuesta completa "
-        out += "para pantalla. Empieza con un resumen de una línea; la voz "
-        out += "lee solo ese arranque."
+        let l = jobLabels(language)
+        var out: String
+        switch language {
+        case .en:
+            out = "Companion is handing you work. You have the tools; she "
+                + "only spoke with the user.\n"
+        case .es:
+            out = "Companion te pasa trabajo. Tú tienes las herramientas; "
+                + "ella solo habló con el usuario.\n"
+        }
+        out += "\(l.job): \(h.goal)\n"
+        if !h.context.isEmpty { out += "\(l.context): \(h.context)\n" }
+        out += "\(l.workdir): \(workdir)\n"
+        out += "\(l.desktop): \(desktop)\n"
+        switch language {
+        case .en:
+            out += "Original request: «\(original)»\n"
+            out += "Do the work (files, commands, a plan). A full answer for "
+            out += "a screen. Start with a one-line summary; the voice reads "
+            out += "only that opening."
+        case .es:
+            out += "Petición original: «\(original)»\n"
+            out += "Haz el trabajo (archivos, comandos, plan). Respuesta "
+            out += "completa para pantalla. Empieza con un resumen de una "
+            out += "línea; la voz lee solo ese arranque."
+        }
         return out
     }
 
-    public static func voiceTurnPrompt(_ text: String, firstTurn: Bool) -> String {
-        firstTurn ? voicePreamble + text : text
+    public static func voiceTurnPrompt(
+        _ text: String, firstTurn: Bool, language: AppLanguage = .en
+    ) -> String {
+        firstTurn ? voicePreamble(language) + text : text
     }
-
-    // MARK: - Cierre del encargo hacia la voz
-
-    /// System items para el modelo de voz: sin ellos queda ciego al resultado
-    /// y sigue prometiendo "voy en camino" sobre un encargo ya muerto.
-    public static func jobDoneAnnouncement(_ goal: String) -> String {
-        "Encargo terminado: «\(goal)». El resultado ya está en pantalla; "
-            + "cuéntalo en una frase."
-    }
-
-    public static func jobFailedAnnouncement(_ goal: String) -> String {
-        "El encargo «\(goal)» falló o se quedó sin tiempo. Díselo al usuario "
-            + "y ofrece reintentarlo."
-    }
-
-    /// Para pantalla: el fallo en humano, jamás el error interno.
-    public static func jobFailedStatus(_ goal: String, detail: String) -> String {
-        let base = "El encargo «\(goal)» no se pudo completar."
-        let extra = detail.trimmingCharacters(in: .whitespacesAndNewlines)
-        return extra.isEmpty ? base : base + " " + extra
-    }
-
-    /// El cable stdio murió con trabajo hecho: se retoma por batch. Silencio
-    /// aquí seria una pausa larga sin explicacion en pantalla.
-    public static let fallbackNotice =
-        "Se cortó el canal con el especialista; retomo el encargo por la vía "
-            + "lenta."
-
-    // MARK: - Permisos hacia la voz
-
-    /// Se lee en voz alta: dice QUÉ se pide, jamás el comando crudo (una ruta
-    /// con `rm -rf` dictada por bocina no informa, asusta). Sin resumen del
-    /// especialista queda el nombre de la herramienta, nunca una frase vacía.
-    public static func approvalAnnouncement(_ request: ApprovalRequest) -> String {
-        let what = request.summary.trimmingCharacters(
-            in: .whitespacesAndNewlines)
-        let subject = what.isEmpty ? request.toolName : what
-        return "El especialista pide permiso para \(subject). Pregúntale al "
-            + "usuario si lo autoriza y, cuando conteste, usa resolve_approval "
-            + "con su respuesta."
-    }
-
-    /// Acuse del tool call: sin él la voz se queda muda esperando al servidor.
-    public static func approvalAck(approved: Bool) -> String {
-        approved
-            ? "Permiso concedido; el especialista continúa. Dilo en una frase."
-            : "Permiso denegado; el especialista buscará otra ruta. Dilo en "
-                + "una frase."
-    }
-
-    /// El modelo puede llamar la tool sin que haya nada pendiente (o después
-    /// de que la usuaria contestó en pantalla). Nunca inventar que se autorizó.
-    public static let approvalNothingPending =
-        "No hay ninguna solicitud de permiso pendiente. No digas que "
-            + "autorizaste nada."
 }

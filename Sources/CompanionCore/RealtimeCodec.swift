@@ -151,8 +151,10 @@ public enum RealtimeCodec: Sendable {
         ])
     }
 
-    public static func approvalToolJSON() -> String {
-        ToolSpec.resolveApproval.encodeRealtime()
+    public static func approvalToolJSON(
+        _ language: AppLanguage = .en
+    ) -> String {
+        ToolSpec.resolveApproval(language).encodeRealtime()
     }
 
     /// Only a JSON boolean counts — a spoken "sí" must not grant a permission.

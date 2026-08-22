@@ -14,6 +14,9 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
     private let processLauncher: any ProcessLauncher
     private let approvals: any ApprovalsProvider
     private let sessions: (any ExecutorSessionStoring)?
+    /// The role and the job prompt are read by the specialist: they travel
+    /// in the language the user is being answered in, not in the app's.
+    private let language: AppLanguage
     private let lock = NSLock()
     private var handle: (any ProcessHandle)?
     private var sessionId: String?
@@ -29,13 +32,15 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         processLauncher: any ProcessLauncher,
         approvals: any ApprovalsProvider,
         modelArgs: [String] = ["--model", "sonnet"],
-        sessions: (any ExecutorSessionStoring)? = nil
+        sessions: (any ExecutorSessionStoring)? = nil,
+        language: AppLanguage = .en
     ) {
         self.workdir = workdir
         self.executablePath = executablePath
         self.processLauncher = processLauncher
         self.approvals = approvals
         self.sessions = sessions
+        self.language = language
 
         self.descriptor = ExecutorDescriptor(
             id: ExecutorID(rawValue: "claude-code"),
@@ -79,11 +84,11 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
     ) async throws -> JobResult {
         try Task.checkCancellation()
         Log.app("executor: cable caído; retomo el encargo en batch")
-        events.yield(.thought(Escalation.fallbackNotice))
+        events.yield(.thought(Escalation.fallbackNotice(language)))
 
         var args = ["-p", batchPrompt(job), "--output-format", "text"]
         args += descriptor.modelArgs
-        args += ["--append-system-prompt", Escalation.executorRole]
+        args += ["--append-system-prompt", Escalation.executorRole(language)]
         if let resume = effectiveSession() { args += ["--resume", resume] }
 
         guard let handle = await processLauncher.launch(
@@ -206,7 +211,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             "--permission-prompt-tool", "stdio",
         ]
         args += descriptor.modelArgs
-        args += ["--append-system-prompt", Escalation.executorRole]
+        args += ["--append-system-prompt", Escalation.executorRole(language)]
 
         let stored = effectiveSession()
         if let stored { args += ["--resume", stored] }
@@ -249,7 +254,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             Handoff(goal: job.goal, context: job.context),
             workdir: workdir,
             desktop: NSHomeDirectory() + "/Desktop",
-            attachments: job.attachments)
+            attachments: job.attachments, language: language)
     }
 
     private var sessionKey: ExecutorSessionKey {
@@ -261,7 +266,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             Handoff(goal: job.goal, context: job.context),
             workdir: workdir,
             desktop: NSHomeDirectory() + "/Desktop",
-            attachments: job.attachments)
+            attachments: job.attachments, language: language)
         return AgentStreamCodec.userTurn(prompt) ?? ""
     }
 }

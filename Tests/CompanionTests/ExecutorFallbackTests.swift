@@ -80,7 +80,7 @@ private func store() -> FileExecutorSessionStore {
     }
 
     expect(events.contains {
-        if case .thought(let text) = $0 { return text == Escalation.fallbackNotice }
+        if case .thought(let text) = $0 { return text == Escalation.fallbackNotice() }
         return false
     }, "desvío: el hilo cuenta que se cayó el canal y se retomó por otra vía")
 }

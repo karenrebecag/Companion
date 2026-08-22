@@ -92,22 +92,24 @@ import Testing
 }
 
 @MainActor func testToolSpecChatEncode() {
-    expectEq(ToolSpec.delegate.name, "delegate", "spec: delegate se llama delegate")
-    expectEq(ToolSpec.resolveApproval.name, "resolve_approval",
+    expectEq(ToolSpec.delegate().name, "delegate", "spec: delegate se llama delegate")
+    expectEq(ToolSpec.resolveApproval().name, "resolve_approval",
              "spec: approval se llama resolve_approval")
-    expect(ToolSpec.delegate.description.contains("especialista"),
-           "spec: descripción de delegate del original")
-    expect(ToolSpec.delegate.description.contains("internet"),
+    expect(ToolSpec.delegate().description.contains("specialist"),
+           "spec: la fuente inglesa nombra al especialista")
+    expect(ToolSpec.delegate(.es).description.contains("especialista"),
+           "spec: la traducción conserva el wording original")
+    expect(ToolSpec.delegate().description.contains("internet"),
            "spec: delegate menciona internet")
-    expect(ToolSpec.resolveApproval.description.contains("permiso"),
-           "spec: descripción de approval del original")
+    expect(ToolSpec.resolveApproval().description.contains("permission"),
+           "spec: descripción de approval en la fuente")
 
-    let chat = json(ToolSpec.delegate.encodeChat())
+    let chat = json(ToolSpec.delegate().encodeChat())
     expectEq(chat["type"] as? String ?? "", "function", "chat: type function")
     expect(chat["name"] == nil, "chat: name vive dentro de function")
     let fn = chat["function"] as? [String: Any] ?? [:]
     expectEq(fn["name"] as? String ?? "", "delegate", "chat: function.name")
-    expect((fn["description"] as? String ?? "").contains("archivos"),
+    expect((fn["description"] as? String ?? "").contains("files"),
            "chat: description viaja anidada")
     let params = fn["parameters"] as? [String: Any] ?? [:]
     expectEq(params["type"] as? String ?? "", "object", "chat: parameters.object")
@@ -116,13 +118,14 @@ import Testing
     let props = params["properties"] as? [String: Any] ?? [:]
     let goal = props["goal"] as? [String: Any] ?? [:]
     expectEq(goal["type"] as? String ?? "", "string", "chat: goal es string")
-    expectEq(goal["description"] as? String ?? "", "qué se necesita, una línea",
+    expectEq(goal["description"] as? String ?? "", "what is needed, one line",
              "chat: wording de goal")
     let ctx = props["context"] as? [String: Any] ?? [:]
-    expectEq(ctx["description"] as? String ?? "", "lo que el especialista debe saber",
+    expectEq(ctx["description"] as? String ?? "",
+             "what the specialist should know",
              "chat: wording de context")
 
-    let approvalChat = json(ToolSpec.resolveApproval.encodeChat())
+    let approvalChat = json(ToolSpec.resolveApproval().encodeChat())
     let afn = approvalChat["function"] as? [String: Any] ?? [:]
     expectEq(afn["name"] as? String ?? "", "resolve_approval",
              "chat: approval anidado")

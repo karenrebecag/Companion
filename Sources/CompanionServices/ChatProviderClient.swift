@@ -14,6 +14,9 @@ public final class ChatProviderClient: ChatProvider, Sendable {
     /// strings above stay as the test-friendly fallback.
     private let profileSource:
         (@Sendable () -> (name: String, about: String, instructions: String))?
+    /// Read at request time too: switching language in Settings has to reach
+    /// the next message, not the next launch.
+    private let languageSource: (@Sendable () -> AppLanguage)?
     private let catalog: [ProviderDescriptor]
     private let resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
 
@@ -26,6 +29,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         ownerAbout: String = "",
         ownerInstructions: String = "",
         profileSource: (@Sendable () -> (name: String, about: String, instructions: String))? = nil,
+        languageSource: (@Sendable () -> AppLanguage)? = nil,
         catalog: [ProviderDescriptor] = ProviderDescriptor.catalog,
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil
     ) {
@@ -37,6 +41,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         self.ownerAbout = ownerAbout
         self.ownerInstructions = ownerInstructions
         self.profileSource = profileSource
+        self.languageSource = languageSource
         self.catalog = catalog
         self.resolveAttachment = resolveAttachment
     }
@@ -118,6 +123,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
                     ownerFirstName: name,
                     about: about,
                     instructions: instructions,
+                    language: languageSource?() ?? .en,
                     transport: transport,
                     resolveAttachment: resolveAttachment,
                     yield: { continuation.yield($0) })

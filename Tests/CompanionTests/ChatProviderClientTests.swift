@@ -98,7 +98,7 @@ import Testing
     let transport = ScriptedTransport()
     transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.delegateFragments))
     let deltas = collectChat(
-        makeChatClient(transport: transport), tools: [.delegate])
+        makeChatClient(transport: transport), tools: [.delegate()])
     expectEq(deltas, [
         .handoff(Handoff(goal: "listar el escritorio", context: "workdir ~")),
     ], "tool: fragmentos arman delegate y emiten handoff")
@@ -108,7 +108,7 @@ import Testing
     let transport = ScriptedTransport()
     transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.malformedDelegate))
     let deltas = collectChat(
-        makeChatClient(transport: transport), tools: [.delegate])
+        makeChatClient(transport: transport), tools: [.delegate()])
     expectEq(deltas, [.text("Puedo intentarlo")],
              "tool malformado: no delega, queda el texto")
     expect(!deltas.contains { if case .handoff = $0 { return true }; return false },
@@ -134,7 +134,7 @@ import Testing
 @MainActor func testToolsAttachedWhenNonEmpty() {
     let transport = ScriptedTransport()
     transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
-    _ = collectChat(makeChatClient(transport: transport), tools: [.delegate])
+    _ = collectChat(makeChatClient(transport: transport), tools: [.delegate()])
     guard let req = transport.requests.first else {
         expect(false, "tools: no hubo request")
         return
@@ -146,7 +146,7 @@ import Testing
     expectEq(tools.first?["type"] as? String, "function", "tools: type function")
     let fn = tools.first?["function"] as? [String: Any] ?? [:]
     expectEq(fn["name"] as? String, "delegate", "tools: function.name delegate")
-    expect(chatSystem(body).contains("llama a delegate"),
+    expect(chatSystem(body).contains("call delegate"),
            "tools: system con delegateEnabled")
 }
 

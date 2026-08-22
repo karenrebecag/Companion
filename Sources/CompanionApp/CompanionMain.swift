@@ -64,7 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let live = configProvider.current
                 return (live.ownerFirstName, live.ownerAbout,
                         live.ownerInstructions)
-            })
+            },
+            languageSource: { configProvider.current.language })
         let store = ConversationStore(directory: support)
 
         // Job execution infrastructure

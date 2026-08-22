@@ -3,7 +3,7 @@ import CompanionCore
 import Foundation
 import Testing
 
-// Aprobar por voz. El bug que esto repara: `ToolSpec.resolveApproval` y
+// Aprobar por voz. El bug que esto repara: `ToolSpec.resolveApproval()` y
 // `RealtimeCodec.approvalToolJSON()` existían, estaban probados, y sus únicos
 // llamadores eran los tests — la sesión declaraba solo `delegate`. Con las
 // manos ocupadas, un permiso del especialista moría en el auto-deny de 120 s

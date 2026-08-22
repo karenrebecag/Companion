@@ -4,6 +4,27 @@ import Foundation
 
 /// Preferences the window owns. Kept out of Config (which describes the
 /// product) because these are this user's choices and must survive relaunch.
+/// The app's language: the system's unless the user picked one. Stored as
+/// the raw code so an unknown value (a downgrade, a hand-edited default)
+/// resolves to the source language instead of crashing.
+public enum LanguagePreference {
+    nonisolated private static let key = "companion.language"
+
+    /// nil means "follow the system", which is not the same as English.
+    nonisolated public static var stored: AppLanguage? {
+        get {
+            UserDefaults.standard.string(forKey: key)
+                .flatMap(AppLanguage.init(rawValue:))
+        }
+        set { UserDefaults.standard.set(newValue?.rawValue, forKey: key) }
+    }
+
+    nonisolated public static var current: AppLanguage {
+        AppLanguage.resolved(
+            preferred: stored, system: Locale.preferredLanguages)
+    }
+}
+
 public enum UserProfile {
     nonisolated private static let nameKey = "companion.ownerName"
     nonisolated private static let aboutKey = "companion.ownerAbout"

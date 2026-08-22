@@ -173,6 +173,9 @@ public struct Config: Sendable, Equatable {
     public var ownerFirstName: String
     public var ownerAbout: String
     public var ownerInstructions: String
+    /// Decides the UI copy AND the language the model answers in; a prompt
+    /// left in one language makes the other half of the app a lie.
+    public var language: AppLanguage
 
     public init(
         chat: ChatSettings = .default,
@@ -181,7 +184,8 @@ public struct Config: Sendable, Equatable {
         workdir: String? = nil,
         ownerFirstName: String = "",
         ownerAbout: String = "",
-        ownerInstructions: String = ""
+        ownerInstructions: String = "",
+        language: AppLanguage = .en
     ) {
         self.chat = chat
         self.voice = voice
@@ -190,6 +194,7 @@ public struct Config: Sendable, Equatable {
         self.ownerFirstName = ownerFirstName
         self.ownerAbout = ownerAbout
         self.ownerInstructions = ownerInstructions
+        self.language = language
     }
 
     public static let `default` = Config()

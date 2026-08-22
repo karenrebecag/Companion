@@ -1,6 +1,9 @@
 import CompanionCore
 import Testing
 
+// El inglés es la fuente desde Wave 9; estos casos caracterizan la
+// traducción española y la piden explícitamente. La cobertura del inglés
+// vive en AppLanguageTests.
 @Test @MainActor func chatPromptTests() {
     testPromptEmptyOwner()
     testPromptNamedOwner()
@@ -13,7 +16,7 @@ import Testing
 }
 
 @MainActor func testPromptEmptyOwner() {
-    let p = ChatPrompt.system(ownerFirstName: "", delegateEnabled: false)
+    let p = ChatPrompt.system(ownerFirstName: "", delegateEnabled: false, language: .es)
     expect(p.hasPrefix("Eres Companion, asistente de voz en esta Mac."),
            "prompt: sin dueña arranca en esta Mac")
     expect(!p.contains("en la Mac de"),
@@ -21,7 +24,7 @@ import Testing
 }
 
 @MainActor func testPromptNamedOwner() {
-    let p = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false)
+    let p = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false, language: .es)
     expect(p.contains("en la Mac de Karen"),
            "prompt: con dueña nombra la Mac")
     expect(!p.contains("en esta Mac"),
@@ -31,8 +34,8 @@ import Testing
 }
 
 @MainActor func testPromptPersonalityAlways() {
-    let empty = ChatPrompt.system(ownerFirstName: "", delegateEnabled: false)
-    let named = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: true)
+    let empty = ChatPrompt.system(ownerFirstName: "", delegateEnabled: false, language: .es)
+    let named = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: true, language: .es)
     for (p, label) in [(empty, "vacío"), (named, "Karen")] {
         expect(p.contains("Español, cálido, directo, 2 a 4 frases."),
                "prompt: personalidad siempre aplica (\(label))")
@@ -42,7 +45,7 @@ import Testing
 }
 
 @MainActor func testPromptIdentity() {
-    let p = ChatPrompt.system(ownerFirstName: "", delegateEnabled: false)
+    let p = ChatPrompt.system(ownerFirstName: "", delegateEnabled: false, language: .es)
     expect(p.contains("No eres Hermes"),
            "prompt: no es Hermes")
     expect(p.contains("no eres un TUI"),
@@ -56,7 +59,7 @@ import Testing
 }
 
 @MainActor func testPromptDelegateEnabled() {
-    let p = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: true)
+    let p = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: true, language: .es)
     expect(p.contains("delegate"),
            "prompt: con delegación nombra la tool delegate")
     expect(p.contains("especialista"),
@@ -72,7 +75,7 @@ import Testing
 }
 
 @MainActor func testPromptDelegateDisabled() {
-    let p = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false)
+    let p = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false, language: .es)
     expect(!p.contains("delegate"),
            "prompt: sin delegación no menciona delegate")
     expect(!p.contains("especialista"),
@@ -82,42 +85,42 @@ import Testing
 }
 
 @MainActor func testPromptOwnerEdges() {
-    let spaces = ChatPrompt.system(ownerFirstName: "   \n", delegateEnabled: false)
+    let spaces = ChatPrompt.system(ownerFirstName: "   \n", delegateEnabled: false, language: .es)
     expect(spaces.hasPrefix("Eres Companion, asistente de voz en esta Mac."),
            "prompt: nombre solo espacios es dueña vacía")
     expect(!spaces.contains("en la Mac de"),
            "prompt: espacios no se interpolan como nombre")
 
-    let padded = ChatPrompt.system(ownerFirstName: "  Karen  ", delegateEnabled: false)
+    let padded = ChatPrompt.system(ownerFirstName: "  Karen  ", delegateEnabled: false, language: .es)
     expect(padded.contains("en la Mac de Karen"),
            "prompt: recorta el nombre antes de interpolar")
     expect(!padded.contains("en la Mac de  Karen"),
            "prompt: no deja espacios alrededor del nombre")
 
-    let unicode = ChatPrompt.system(ownerFirstName: "María", delegateEnabled: false)
+    let unicode = ChatPrompt.system(ownerFirstName: "María", delegateEnabled: false, language: .es)
     expect(unicode.contains("en la Mac de María"),
            "prompt: unicode en el nombre viaja")
 
     let special = ChatPrompt.system(
-        ownerFirstName: "Ana; DROP", delegateEnabled: false)
+        ownerFirstName: "Ana; DROP", delegateEnabled: false, language: .es)
     expect(special.contains("en la Mac de Ana; DROP"),
            "prompt: el nombre no se sanitiza — es un dato, no SQL")
 
-    let a = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false)
-    let b = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false)
+    let a = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false, language: .es)
+    let b = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false, language: .es)
     expectEq(a, b, "prompt: la misma entrada produce el mismo texto")
 }
 
 @MainActor func testPromptProfileBlock() {
-    let empty = ChatPrompt.profileBlock(about: "  ", instructions: "")
+    let empty = ChatPrompt.profileBlock(about: "  ", instructions: "", language: .es)
     expect(empty == nil, "perfil: vacío no inventa un bloque")
 
-    let about = ChatPrompt.profileBlock(about: "diseña producto", instructions: "")
+    let about = ChatPrompt.profileBlock(about: "diseña producto", instructions: "", language: .es)
     expectEq(about, "Sobre la usuaria — diseña producto. ",
              "perfil: about viaja como hecho")
 
     let both = ChatPrompt.profileBlock(
-        about: "diseña", instructions: "Sé breve")
+        about: "diseña", instructions: "Sé breve", language: .es)
     expect(both?.contains("Sobre la usuaria — diseña.") == true,
            "perfil: about y instructions conviven")
     expect(both?.contains("Instrucciones personalizadas de la usuaria: Sé breve") == true,
@@ -125,14 +128,14 @@ import Testing
 
     let wired = ChatPrompt.system(
         ownerFirstName: "Karen", delegateEnabled: false,
-        about: "diseña producto", instructions: "Sé breve")
+        about: "diseña producto", instructions: "Sé breve", language: .es)
     expect(wired.contains("Sobre la usuaria — diseña producto."),
            "prompt: el perfil entra al system")
     expect(wired.contains("Instrucciones personalizadas de la usuaria: Sé breve"),
            "prompt: las instrucciones entran al system")
 
     let blank = ChatPrompt.system(
-        ownerFirstName: "Karen", delegateEnabled: false, about: "", instructions: "")
+        ownerFirstName: "Karen", delegateEnabled: false, about: "", instructions: "", language: .es)
     expect(!blank.contains("Sobre la usuaria"),
            "prompt: sin perfil no añade el bloque")
 }

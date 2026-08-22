@@ -81,7 +81,7 @@ import Testing
 @MainActor func testRealtimeSessionUpdate() {
     let up = json(RealtimeCodec.sessionUpdate(
         instructions: "hola",
-        tools: [ToolSpec.delegate, .resolveApproval],
+        tools: [ToolSpec.delegate(), ToolSpec.resolveApproval()],
         voice: .marin,
         speed: 1.0,
         turnDetection: .serverVAD(silenceMs: 700)))
@@ -148,7 +148,7 @@ import Testing
 
     let quoted = json(RealtimeCodec.sessionUpdate(
         instructions: #"dijo "hola" y ñoño"#,
-        tools: [ToolSpec.delegate],
+        tools: [ToolSpec.delegate()],
         voice: .cedar,
         speed: 0.25,
         turnDetection: .semanticVAD(eagerness: .low)))
@@ -234,19 +234,19 @@ import Testing
     expectEq(t["type"] as? String ?? "", "function", "tool: type function")
     expect(t["function"] == nil, "tool: plano, como exige Realtime")
     expectEq(RealtimeCodec.approvalToolJSON(),
-             ToolSpec.resolveApproval.encodeRealtime(),
+             ToolSpec.resolveApproval().encodeRealtime(),
              "tool: approvalToolJSON es encodeRealtime de resolveApproval")
     let params = t["parameters"] as? [String: Any] ?? [:]
     expectEq((params["required"] as? [String]) ?? [], ["approved"],
              "tool: required approved")
     let approved = ((params["properties"] as? [String: Any])?["approved"]) as? [String: Any] ?? [:]
     expectEq(approved["type"] as? String ?? "", "boolean", "tool: approved boolean")
-    expectEq(approved["description"] as? String ?? "", "true si el usuario lo autorizó",
+    expectEq(approved["description"] as? String ?? "", "true if the user allowed it",
              "tool: wording de approved")
 
     let up = json(RealtimeCodec.sessionUpdate(
         instructions: "x",
-        tools: [ToolSpec.delegate, .resolveApproval],
+        tools: [ToolSpec.delegate(), ToolSpec.resolveApproval()],
         voice: .marin,
         speed: 1.0,
         turnDetection: .serverVAD(silenceMs: 700)))
@@ -311,7 +311,7 @@ import Testing
     expectEq(emptyItem["call_id"] as? String ?? "missing", "", "fn out: call_id vacío")
     expectEq(emptyItem["output"] as? String ?? "missing", "", "fn out: output vacío")
 
-    let rt = json(ToolSpec.delegate.encodeRealtime())
+    let rt = json(ToolSpec.delegate().encodeRealtime())
     expectEq(rt["name"] as? String ?? "", "delegate", "realtime tool: name arriba")
     expect(rt["function"] == nil, "realtime tool: sin nido function")
     expectEq(rt["type"] as? String ?? "", "function", "realtime tool: type")

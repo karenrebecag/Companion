@@ -13,19 +13,22 @@ public struct HermesExecutor: Executor, Sendable {
     private let processLauncher: any ProcessLauncher
     private let providerArgs: [String]
     private let sessions: (any ExecutorSessionStoring)?
+    private let language: AppLanguage
 
     public init(
         workdir: String,
         executablePath: String,
         processLauncher: any ProcessLauncher,
         providerArgs: [String] = [],
-        sessions: (any ExecutorSessionStoring)? = nil
+        sessions: (any ExecutorSessionStoring)? = nil,
+        language: AppLanguage = .en
     ) {
         self.workdir = workdir
         self.executablePath = executablePath
         self.processLauncher = processLauncher
         self.providerArgs = providerArgs
         self.sessions = sessions
+        self.language = language
 
         self.descriptor = ExecutorDescriptor(
             id: ExecutorID(rawValue: "hermes"),
@@ -42,11 +45,12 @@ public struct HermesExecutor: Executor, Sendable {
     ) async throws -> JobResult {
         try Task.checkCancellation()
 
-        let prompt = Escalation.executorRole + "\n\n" + Escalation.jobPrompt(
-            Handoff(goal: job.goal, context: job.context),
-            workdir: workdir,
-            desktop: NSHomeDirectory() + "/Desktop",
-            attachments: job.attachments)
+        let prompt = Escalation.executorRole(language) + "\n\n"
+            + Escalation.jobPrompt(
+                Handoff(goal: job.goal, context: job.context),
+                workdir: workdir,
+                desktop: NSHomeDirectory() + "/Desktop",
+                attachments: job.attachments, language: language)
 
         // Hermes prints its durable id on stderr, which this adapter does not
         // read; the `latest` sentinel is exactly what it exists for — resume

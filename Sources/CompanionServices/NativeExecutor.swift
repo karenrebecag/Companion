@@ -39,12 +39,12 @@ public struct NativeExecutor: Executor, Sendable {
             handoff,
             workdir: config.workdir ?? "(not configured)",
             desktop: NSHomeDirectory() + "/Desktop",
-            attachments: job.attachments)
+            attachments: job.attachments, language: config.language)
 
         // System message with executor role (once)
         let systemMessage = Turn(
             role: .system,
-            content: Escalation.executorRole)
+            content: Escalation.executorRole(config.language))
 
         // User message with job details (delimited section for anti-injection)
         let userMessage = Turn(

@@ -30,33 +30,72 @@ public struct ToolSpec: Sendable, Equatable {
         self.required = required
     }
 
-    public static let delegate = ToolSpec(
-        name: "delegate",
-        description: "Pasa el turno al especialista, que sí tiene los "
-            + "archivos, la terminal, las herramientas de esta Mac y "
-            + "acceso a internet. Úsala para TODO lo que toque disco, "
-            + "código, carpetas, comandos, trabajo técnico, búsquedas en "
-            + "la web o lectura de páginas.",
-        properties: [
-            ToolProperty(name: "goal", type: "string",
-                         description: "qué se necesita, una línea"),
-            ToolProperty(name: "context", type: "string",
-                         description: "lo que el especialista debe saber"),
-        ],
-        required: ["goal"]
-    )
+    /// Names are wire contract and never translate; descriptions are read by
+    /// the model and must match the language it answers in, or it reasons in
+    /// one language and speaks another.
+    public static func delegate(_ language: AppLanguage = .en) -> ToolSpec {
+        switch language {
+        case .en:
+            return ToolSpec(
+                name: "delegate",
+                description: "Hand the turn to the specialist, which does "
+                    + "have the files, the terminal, this Mac's tools and "
+                    + "internet access. Use it for ANYTHING touching disk, "
+                    + "code, folders, commands, technical work, web searches "
+                    + "or reading pages.",
+                properties: [
+                    ToolProperty(name: "goal", type: "string",
+                                 description: "what is needed, one line"),
+                    ToolProperty(name: "context", type: "string",
+                                 description: "what the specialist should know"),
+                ],
+                required: ["goal"])
+        case .es:
+            return ToolSpec(
+                name: "delegate",
+                description: "Pasa el turno al especialista, que sí tiene los "
+                    + "archivos, la terminal, las herramientas de esta Mac y "
+                    + "acceso a internet. Úsala para TODO lo que toque disco, "
+                    + "código, carpetas, comandos, trabajo técnico, búsquedas "
+                    + "en la web o lectura de páginas.",
+                properties: [
+                    ToolProperty(name: "goal", type: "string",
+                                 description: "qué se necesita, una línea"),
+                    ToolProperty(name: "context", type: "string",
+                                 description: "lo que el especialista debe saber"),
+                ],
+                required: ["goal"])
+        }
+    }
 
-    public static let resolveApproval = ToolSpec(
-        name: "resolve_approval",
-        description: "Responde la solicitud de permiso pendiente del "
-            + "especialista. Úsala SOLO después de que el sistema anuncie "
-            + "que pide permiso y el usuario conteste.",
-        properties: [
-            ToolProperty(name: "approved", type: "boolean",
-                         description: "true si el usuario lo autorizó"),
-        ],
-        required: ["approved"]
-    )
+    public static func resolveApproval(
+        _ language: AppLanguage = .en
+    ) -> ToolSpec {
+        switch language {
+        case .en:
+            return ToolSpec(
+                name: "resolve_approval",
+                description: "Answer the specialist's pending permission "
+                    + "request. Use it ONLY after the system announces a "
+                    + "request and the user replies.",
+                properties: [
+                    ToolProperty(name: "approved", type: "boolean",
+                                 description: "true if the user allowed it"),
+                ],
+                required: ["approved"])
+        case .es:
+            return ToolSpec(
+                name: "resolve_approval",
+                description: "Responde la solicitud de permiso pendiente del "
+                    + "especialista. Úsala SOLO después de que el sistema "
+                    + "anuncie que pide permiso y el usuario conteste.",
+                properties: [
+                    ToolProperty(name: "approved", type: "boolean",
+                                 description: "true si el usuario lo autorizó"),
+                ],
+                required: ["approved"])
+        }
+    }
 
     /// Realtime is flat (`name` at the top); chat completions nest under `function`.
     public func encodeRealtime() -> String {

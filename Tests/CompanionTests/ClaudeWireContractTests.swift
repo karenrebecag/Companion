@@ -39,7 +39,7 @@ import Testing
            "cable: stream-json en -p exige --verbose para emitir eventos")
     expect(hasPair(args, "--permission-prompt-tool", "stdio"),
            "cable: sin stdio las aprobaciones nunca llegan")
-    expect(hasPair(args, "--append-system-prompt", Escalation.executorRole),
+    expect(hasPair(args, "--append-system-prompt", Escalation.executorRole()),
            "cable: el rol del ejecutor viaja una vez por sesión")
     expect(hasPair(args, "--model", "sonnet"),
            "cable: sin tier elegido corre sonnet — el worker por defecto")
