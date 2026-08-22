@@ -154,7 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             cache: PhraseCache(directory: caches),
             fetcher: OpenAITTSClient(secrets: secrets, transport: transport),
             playback: DataSpeechPlayback(),
-            fallback: AVSpeechFallback(),
+            fallback: AVSpeechFallback(language: config.language),
             voice: config.voice.voice)
         // Voice-born jobs paint through the same seam as chat-born ones:
         // steps, thoughts and approvals land in the thread and the sheet.

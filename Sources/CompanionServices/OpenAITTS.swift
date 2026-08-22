@@ -50,10 +50,22 @@ public actor DataSpeechPlayback: SpeechPlayback {
 }
 
 public struct AVSpeechFallback: SystemSpeechFallback, Sendable {
-    public init() {}
+    /// No default on purpose: this voice only speaks when the network is
+    /// gone, so a call site that forgets the language would be discovered by
+    /// the one user who can least afford it.
+    private let language: AppLanguage
+
+    public init(language: AppLanguage) {
+        self.language = language
+    }
+
+    public var voiceLocaleIdentifier: String {
+        language.speechLocaleIdentifier
+    }
 
     public func speak(_ text: String) async throws {
-        try await SpeechGate.speak(text)
+        try await SpeechGate.speak(
+            text, localeIdentifier: voiceLocaleIdentifier)
     }
 }
 
@@ -115,15 +127,18 @@ private final class SpeechGate: NSObject, AVSpeechSynthesizerDelegate {
     private static var current: SpeechGate?
     private var continuation: CheckedContinuation<Void, Error>?
 
-    static func speak(_ text: String) async throws {
+    static func speak(_ text: String, localeIdentifier: String) async throws {
         let gate = SpeechGate()
         current = gate
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
             gate.continuation = cont
             synth.delegate = gate
             let utterance = AVSpeechUtterance(string: text)
-            utterance.voice = AVSpeechSynthesisVoice(language: "es-MX")
-                ?? AVSpeechSynthesisVoice(language: "es")
+            // The regional voice first; the bare code is the fallback for a
+            // Mac that never downloaded it.
+            utterance.voice = AVSpeechSynthesisVoice(language: localeIdentifier)
+                ?? AVSpeechSynthesisVoice(
+                    language: String(localeIdentifier.prefix(2)))
             synth.speak(utterance)
         }
         current = nil
