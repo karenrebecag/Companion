@@ -3,16 +3,18 @@ import CompanionCore
 import Foundation
 import Testing
 
-// Aprobar por voz. El bug que esto repara: `ToolSpec.resolveApproval()` y
-// `RealtimeCodec.approvalToolJSON()` existían, estaban probados, y sus únicos
-// llamadores eran los tests — la sesión declaraba solo `delegate`. Con las
-// manos ocupadas, un permiso del especialista moría en el auto-deny de 120 s
-// sin que la voz dijera una palabra.
+// Aprobar por voz. La Wave 8 hizo que la voz PREGUNTARA el permiso; la
+// decisión de producto de 2026-08-22 lo revierte: el encargo es UI asistiva y
+// no habla por su cuenta. La solicitud vive en la hoja y nada más.
+//
+// Lo que sobrevive es la respuesta: `resolve_approval` sigue declarada, así
+// que quien ve la hoja y dice "sí, autorízalo" resuelve sin tocar el trackpad.
+// Lo que se pierde, y es el precio elegido: un permiso que nadie mira muere en
+// el auto-deny de los 120 s sin que la voz lo mencione.
 
 @Test @MainActor func voiceApprovalTests() async {
     testApprovalToolIsDeclared()
-    testApprovalCopyIsForTheEar()
-    await testApprovalAnnouncedWhenListening()
+    await testApprovalNeverReachesTheEar()
     await testVoiceGrantReachesTheJob()
     await testMalformedDecisionResolvesNothing()
     await testNoVoiceSessionMeansNoAnnouncement()
@@ -39,29 +41,9 @@ import Testing
            "tools: sin especialista no se ofrece resolver permisos")
 }
 
-/// El copy es Core puro: se lee en voz alta, nunca vuelca el comando crudo.
-@MainActor func testApprovalCopyIsForTheEar() {
-    let request = ApprovalRequest(
-        requestId: "r1", toolName: "bash",
-        summary: "borrar la carpeta build",
-        inputJSON: #"{"command":"rm -rf build"}"#)
-    let ask = Escalation.approvalAnnouncement(request)
-    expect(ask.contains("borrar la carpeta build"),
-           "copy: la solicitud dice qué se pide")
-    expect(!ask.contains("rm -rf"),
-           "copy: el comando crudo no se lee en voz alta")
-    expect(Escalation.approvalAck(approved: true)
-        != Escalation.approvalAck(approved: false),
-           "copy: conceder y denegar no suenan igual")
-
-    let bare = ApprovalRequest(
-        requestId: "r2", toolName: "write_file", summary: "", inputJSON: "{}")
-    expect(Escalation.approvalAnnouncement(bare).contains("write_file"),
-           "copy: sin resumen se nombra la herramienta, no queda en blanco")
-}
-
-/// 2. La solicitud espera turno como cualquier anuncio: nunca pisa al agente.
-@MainActor func testApprovalAnnouncedWhenListening() async {
+/// 2. La solicitud no suena. El encargo no interrumpe: la hoja la muestra y
+/// ahí se queda.
+@MainActor func testApprovalNeverReachesTheEar() async {
     let jobs = ApprovingSubmitter()
     let h = makeVoiceHarness(jobs: jobs)
     await h.session.start()
@@ -76,22 +58,14 @@ import Testing
         requestId: "r1", toolName: "bash", summary: "borrar la carpeta build",
         inputJSON: #"{"command":"rm -rf build"}"#))
 
-    // El acuse del delegate dejó la sesión pensando: el anuncio espera.
+    // Vuelve a escuchar: el momento en el que ANTES salía el anuncio.
+    h.transport.yield(.responseDone)
+    await pumpUntil("permiso: la sesión vuelve a escuchar") {
+        h.watch.latest.state == .listening
+    }
     try? await Task.sleep(for: .milliseconds(80))
     expect(!h.transport.sent.contains { $0.contains("borrar la carpeta build") },
-           "permiso: el anuncio no se cuela mientras el agente tiene el turno")
-
-    h.transport.yield(.responseDone)
-    await pumpUntil("permiso: la voz lo pregunta al volver a escuchar") {
-        h.transport.sent.contains {
-            $0.contains("conversation.item.create")
-                && $0.contains("borrar la carpeta build")
-        }
-    }
-    let announcements = h.transport.sent.filter {
-        $0.contains("borrar la carpeta build")
-    }
-    expectEq(announcements.count, 1, "permiso: se pregunta una sola vez")
+           "permiso: no se pregunta en voz alta; la hoja es el único canal")
 }
 
 /// 3. La respuesta del modelo llega al encargo vivo, con acuse para la voz.
@@ -110,8 +84,8 @@ import Testing
         requestId: "r7", toolName: "bash", summary: "borrar build",
         inputJSON: "{}"))
     h.transport.yield(.responseDone)
-    await pumpUntil("concede: la voz preguntó") {
-        h.transport.sent.contains { $0.contains("borrar build") }
+    await pumpUntil("concede: vuelve a escuchar") {
+        h.watch.latest.state == .listening
     }
 
     h.transport.yield(.functionCall(
@@ -141,8 +115,8 @@ import Testing
         requestId: "r9", toolName: "bash", summary: "algo delicado",
         inputJSON: "{}"))
     h.transport.yield(.responseDone)
-    await pumpUntil("roto: la voz preguntó") {
-        h.transport.sent.contains { $0.contains("algo delicado") }
+    await pumpUntil("roto: vuelve a escuchar") {
+        h.watch.latest.state == .listening
     }
 
     // Truncado por el servidor, y el clásico "1" que NO es un booleano.
@@ -163,7 +137,7 @@ import Testing
     }
 }
 
-/// 5. Sin sesión de voz viva la conducta actual no cambia: solo el hilo.
+/// 5. Sin sesión de voz viva tampoco cambia nada: solo el hilo.
 @MainActor func testNoVoiceSessionMeansNoAnnouncement() async {
     let jobs = ApprovingSubmitter()
     let h = makeVoiceHarness(jobs: jobs)

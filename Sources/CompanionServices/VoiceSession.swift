@@ -124,10 +124,13 @@ public actor VoiceSession: VoiceControlling {
 
     /// The permission the specialist is blocked on. One at a time: the job
     /// queue is serial, so a new request means the previous one is settled.
+    ///
+    /// Deliberately silent: a job is assistive UI and does not interrupt to
+    /// ask. The sheet shows the request; `resolve_approval` stays declared so
+    /// a spoken "yes" still lands, but nobody is told out loud. The price,
+    /// chosen: a request nobody looks at dies in the 120 s auto-deny.
     func noteApproval(_ request: ApprovalRequest) async {
         pendingApproval = request
-        await jobAnnounce(Escalation.approvalAnnouncement(
-            request, configProvider.current.language))
     }
 
     /// The model turned the user's spoken answer into a decision. Nothing

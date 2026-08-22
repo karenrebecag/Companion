@@ -11,15 +11,16 @@ import Testing
     await testSpeedCanChangeInHotSession()
     await testAECToggleRearmVeto()
     await testTheEarListensInTheUserLanguage()
-    await testTheApprovalIsAskedInTheUserLanguage()
 }
 
 // MARK: - El idioma manda también en la voz
 
-// Wave 9 llevó el idioma a la UI y a los prompts de texto, pero el plano de
-// voz se quedó atrás: la entrada escuchaba siempre en es-MX y el permiso se
-// preguntaba siempre en inglés. Las dos veces la decisión existía y nadie la
-// invocaba, que es el patrón de bug de este repo.
+// Wave 9 llevó el idioma a la UI y a los prompts de texto, pero la entrada de
+// voz se quedó atrás: el reconocedor escuchaba siempre en es-MX. La decisión
+// existía y nadie la invocaba, que es el patrón de bug de este repo.
+//
+// Hubo un segundo caso, el permiso preguntado siempre en inglés, que dejó de
+// existir cuando el permiso dejó de preguntarse en voz alta (2026-08-22).
 
 /// El oído: un usuario en inglés hablaba inglés y el reconocedor lo
 /// transcribía como si fuera español.
@@ -41,36 +42,6 @@ import Testing
     }
     expectEq(spanish.transcriber.locale, "es-MX",
              "oído: el español no pierde lo que ya funcionaba")
-}
-
-/// La boca, en el momento más delicado del producto: el permiso se pregunta
-/// por el altavoz con las manos ocupadas. La hoja lo mostraba en español y la
-/// voz lo preguntaba en inglés.
-@MainActor func testTheApprovalIsAskedInTheUserLanguage() async {
-    let jobs = ApprovingSubmitter()
-    let h = makeVoiceHarness(jobs: jobs, language: .es)
-    await h.session.start()
-    await pumpUntil("permiso: listening") { h.watch.latest.state == .listening }
-
-    h.transport.yield(.functionCall(
-        name: "delegate", arguments: #"{"goal":"limpiar build"}"#, callId: "c1"))
-    await pumpUntil("permiso: encargo aceptado") {
-        h.transport.sent.contains { $0.contains("function_call_output") }
-    }
-    jobs.askApproval(ApprovalRequest(
-        requestId: "r1", toolName: "bash", summary: "borrar la carpeta build",
-        inputJSON: "{}"))
-    h.transport.yield(.responseDone)
-    await pumpUntil("permiso: la voz lo pregunta") {
-        h.transport.sent.contains { $0.contains("borrar la carpeta build") }
-    }
-
-    let ask = h.transport.sent.first { $0.contains("borrar la carpeta build") }
-        ?? ""
-    expect(ask.contains("pide permiso"),
-           "permiso: se pregunta en el idioma del usuario, no en inglés")
-    expect(!ask.contains("asking permission"),
-           "permiso: y no llega la versión inglesa por detrás")
 }
 
 // MARK: - ConfigProviding protocol

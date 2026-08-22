@@ -182,28 +182,6 @@ extension Escalation {
 
     // MARK: - Permisos hacia la voz
 
-    /// Read out loud: it says WHAT is being asked, never the raw command (a
-    /// path with `rm -rf` dictated through a speaker does not inform, it
-    /// frightens). With no summary from the specialist the tool name stands
-    /// in, never an empty sentence.
-    public static func approvalAnnouncement(
-        _ request: ApprovalRequest, _ language: AppLanguage = .en
-    ) -> String {
-        let what = request.summary.trimmingCharacters(
-            in: .whitespacesAndNewlines)
-        let subject = what.isEmpty ? request.toolName : what
-        switch language {
-        case .en:
-            return "The specialist is asking permission to \(subject). Ask the "
-                + "user whether they allow it and, once they answer, use "
-                + "resolve_approval with their reply."
-        case .es:
-            return "El especialista pide permiso para \(subject). Pregúntale "
-                + "al usuario si lo autoriza y, cuando conteste, usa "
-                + "resolve_approval con su respuesta."
-        }
-    }
-
     /// Tool-call ack: without it the voice sits mute waiting on the server.
     public static func approvalAck(
         approved: Bool, _ language: AppLanguage = .en

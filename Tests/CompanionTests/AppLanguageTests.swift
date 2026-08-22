@@ -80,10 +80,6 @@ import Testing
            "preámbulo: la voz pide brevedad en inglés")
     expect(!hasSpanish(Escalation.jobDoneAnnouncement("clean the desk", .en)),
            "aviso: el cierre del encargo se narra en inglés")
-    expect(!hasSpanish(Escalation.approvalAnnouncement(
-        ApprovalRequest(requestId: "r", toolName: "bash",
-                        summary: "delete build", inputJSON: "{}"), .en)),
-           "permiso: se pregunta en inglés")
     // Y el español no se regenera: es el que ya estaba.
     expect(Escalation.jobDoneAnnouncement("limpiar", .es)
         .contains("Encargo terminado"),
