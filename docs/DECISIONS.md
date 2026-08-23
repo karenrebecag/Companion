@@ -214,7 +214,10 @@ valor de producto.
   motivo, que es una linea que cambia lo que haces despues.
 - Aprobar por voz pierde el aviso, no la respuesta: `resolve_approval` sigue
   declarada, asi que quien ve la hoja y dice "si, autorizalo" resuelve sin
-  tocar el trackpad. Un permiso que nadie mira sigue muriendo en el auto-deny,
+  tocar el trackpad. Esto NO salio gratis: la descripcion de la tool exigia un
+  anuncio previo del sistema, asi que al callar el anuncio quedaba prohibida la
+  unica via que sobrevivia. Corregido el mismo dia; sin eso, este ADR
+  prometia algo que el codigo negaba. Un permiso que nadie mira sigue muriendo en el auto-deny,
   ahora en silencio. Es el precio elegido.
 - `Escalation.approvalAnnouncement` se fue con su llamador; dejarla probada y
   sin invocar es el patron que este repo lleva corrigiendo desde la Wave 8.

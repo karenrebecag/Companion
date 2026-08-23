@@ -21,6 +21,10 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   sin que la voz lo mencione. Revierte la parte hablada de la Wave 8.
 
 ### Fixed
+- **La tool de permiso ya no se condiciona a un anuncio que no ocurre.** Al
+  callar el anuncio, `resolve_approval` seguia diciendole al modelo que la
+  usara "solo despues de que el sistema anuncie": se le prohibia la unica via
+  que quedaba para aprobar hablando.
 - **La voz ya no intentaba leer una card.** Un encargo que devolvia un mapa o
   una galeria hacia que el modelo recibiera «```companion:locations» como
   texto a narrar.
