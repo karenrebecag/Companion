@@ -76,8 +76,9 @@ public struct ToolSpec: Sendable, Equatable {
             return ToolSpec(
                 name: "resolve_approval",
                 description: "Answer the specialist's pending permission "
-                    + "request. Use it ONLY after the system announces a "
-                    + "request and the user replies.",
+                    + "request, which is waiting on screen. Use it when the "
+                    + "user says whether they allow it; never invent an "
+                    + "answer they did not give.",
                 properties: [
                     ToolProperty(name: "approved", type: "boolean",
                                  description: "true if the user allowed it"),
@@ -87,8 +88,9 @@ public struct ToolSpec: Sendable, Equatable {
             return ToolSpec(
                 name: "resolve_approval",
                 description: "Responde la solicitud de permiso pendiente del "
-                    + "especialista. Úsala SOLO después de que el sistema "
-                    + "anuncie que pide permiso y el usuario conteste.",
+                    + "especialista, que está esperando en pantalla. Úsala "
+                    + "cuando el usuario diga si lo autoriza; nunca inventes "
+                    + "una respuesta que no dio.",
                 properties: [
                     ToolProperty(name: "approved", type: "boolean",
                                  description: "true si el usuario lo autorizó"),

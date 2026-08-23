@@ -29,7 +29,7 @@ The project started as a working prototype and was rebuilt from zero with a stri
 
 - **One thread for voice and text.** OpenAI Realtime for live voice with barge-in (tap anytime; by voice when output is echo-free, e.g. headphones). Classic pipeline (mic → system speech recognition → chat → TTS) as fallback.
 - **Delegation to a specialist.** The chat model can hand off a job. A built-in `NativeExecutor` runs a tool loop over any OpenAI-compatible endpoint with a small, deliberate set of tools (read / write / edit files, shell, web). Claude Code and Hermes appear as options only if they are installed.
-- **Approvals, including by voice.** Destructive actions require explicit permission. The request can be answered from the sheet or spoken while hands are busy. Unanswered requests time out to deny.
+- **Approvals, answerable by voice.** Destructive actions require explicit permission. The request appears in a sheet — a job is assistive UI and does not interrupt to ask — and can be answered out loud while hands are busy. Unanswered requests time out to deny.
 - **Keys stay on the machine.** Stored in the Keychain. Nothing reads environment files or `~/.hermes` as a requirement.
 - **Degrades on purpose.** No optional CLI → the app still works. No network → clear failure instead of a silent mic. Missing permissions → the rest of the product remains usable.
 
@@ -80,7 +80,7 @@ What was deliberately left out is as important as what shipped: no mandatory Pyt
 
 The engineering and process are mature for a personal project of this scope. The product still has gaps that matter when the audience is no longer only the author:
 
-- **Trust of the voice loop.** The specialist can fail while the spoken summary still sounds successful. Closing that gap is product work, not a cosmetic fix.
+- **Trust of the voice loop.** Mostly closed: the voice no longer reads a result back — the specialist's text is the message and the voice only acknowledges, and which of the two endings happened comes from the job, not from the model ([ADR 005](docs/DECISIONS.md)). What is still open is silence, not lying: the classic fallback has no model to produce that acknowledgment, so a job ends there without a word, and a permission nobody looks at times out to deny just as quietly.
 - **First-run for a stranger.** Gatekeeper (ad-hoc build), microphone and speech prompts, and a required API key are real walls. The happy path for someone who has never seen the repo is still being hardened.
 - **Discoverability of delegation.** The most differentiated capability is not self-explanatory. Users have to learn what they can actually ask for.
 - **Continuity.** Conversations and per-folder job sessions persist. There is not yet a deliberate local knowledge layer that makes the companion feel like it accumulates context about *you* over time.

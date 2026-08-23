@@ -233,9 +233,27 @@ import Testing
     expectEq(t["name"] as? String ?? "", "resolve_approval", "tool: nombre")
     expectEq(t["type"] as? String ?? "", "function", "tool: type function")
     expect(t["function"] == nil, "tool: plano, como exige Realtime")
-    expectEq(RealtimeCodec.approvalToolJSON(),
-             ToolSpec.resolveApproval().encodeRealtime(),
+    // Las dos rutas deben producir el MISMO tool, no los mismos bytes: el
+    // orden de claves de un diccionario de Swift cambia entre procesos, y
+    // comparar el texto hacía fallar este test al azar.
+    expectEq(NSDictionary(dictionary: json(RealtimeCodec.approvalToolJSON())),
+             NSDictionary(dictionary:
+                json(ToolSpec.resolveApproval().encodeRealtime())),
              "tool: approvalToolJSON es encodeRealtime de resolveApproval")
+
+    // ADR 005: el sistema ya no anuncia el permiso. Una tool condicionada a un
+    // anuncio que no ocurre es una tool que el modelo no usa — y con ella se
+    // cae lo único que quedaba de aprobar por voz.
+    let english = ToolSpec.resolveApproval(.en).description
+    expect(!english.lowercased().contains("announce"),
+           "tool: no se condiciona a un anuncio que ya no existe")
+    expect(english.lowercased().contains("screen"),
+           "tool: remite a la pantalla, donde sí vive la solicitud")
+    let spanish = ToolSpec.resolveApproval(.es).description
+    expect(!spanish.lowercased().contains("anuncie"),
+           "tool: en español tampoco")
+    expect(spanish.lowercased().contains("pantalla"),
+           "tool: y también remite a la pantalla")
     let params = t["parameters"] as? [String: Any] ?? [:]
     expectEq((params["required"] as? [String]) ?? [], ["approved"],
              "tool: required approved")

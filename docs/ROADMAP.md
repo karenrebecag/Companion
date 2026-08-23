@@ -54,8 +54,10 @@ Lo que sigue abierto, en orden:
    modelo que genere ese acuse, asi que el encargo termina en silencio. Se
    podria decir por el sintetizador, que ahi si acepta texto arbitrario.
    Decision pendiente.
-3. **Los especialistas no instalados no se distinguen en la UI**: se ofrecen
-   igual que los disponibles.
+3. **La delegacion no se descubre sola.** Es la capacidad mas diferenciada y
+   la menos obvia: un desconocido puede usar Companion como chat con voz y no
+   tocar nunca al especialista. Mejor tarjeta y mejores pasos no ensenan que
+   se puede pedir.
 4. **Cambiar el idioma no alcanza a una sesion de voz ya abierta**, como
    tampoco la alcanzan la voz ni la velocidad: se aplica en la siguiente.
 5. **README sin captura y sin video**: la narrativa de producto ya esta
