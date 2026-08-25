@@ -2,12 +2,18 @@ import CompanionCore
 import Foundation
 
 public struct ToolResult: Sendable {
+    /// What the model reads. `content`, in the vocabulary of the Apps SDK.
     public var ok: Bool
     public var output: String
+    /// What the interface paints, on its own channel. The model never reads
+    /// this, which is the point: a coordinate it cannot see is a coordinate it
+    /// cannot rewrite wrong.
+    public var card: Card?
 
-    public init(ok: Bool, output: String) {
+    public init(ok: Bool, output: String, card: Card? = nil) {
         self.ok = ok
         self.output = output
+        self.card = card
     }
 }
 
@@ -16,14 +22,40 @@ public struct ToolResult: Sendable {
 public struct NativeToolRunner: Sendable {
     private let workdir: String?
     private let pathValidator: PathValidator
+    private let places: (any PlacesSearching)?
+    private let webSearch: (any WebSearching)?
     private let timeout: TimeInterval
+    /// Enough to recognise a name, short of pasting a whole disk into the
+    /// model's context.
+    private static let maxListEntries = 250
+    private static let maxListDepth = 3
 
     /// Injectable timeout: the tests must not sit through a real minute of
     /// shell, and a blocking test starves everything else on the main actor.
-    public init(workdir: String?, shellTimeout: TimeInterval = 60) {
+    public init(
+        workdir: String?,
+        shellTimeout: TimeInterval = 60,
+        places: (any PlacesSearching)? = MapKitPlacesSearch(),
+        webSearch: (any WebSearching)? = nil
+    ) {
         self.workdir = workdir
         self.pathValidator = PathValidator(workdir: workdir)
         self.timeout = shellTimeout
+        self.places = places
+        self.webSearch = webSearch
+    }
+
+    /// What the model is allowed to see it has. A tool whose backing is not
+    /// configured is not advertised: offering one that always fails captures
+    /// the intent and then dies, which is how "buscar cines" ended in "no
+    /// puedo buscar en la web" instead of falling through to find_places.
+    public var availableTools: [NativeTool] {
+        NativeTool.allCases.filter { tool in
+            switch tool {
+            case .webSearch: return webSearch?.isConfigured == true
+            default: return true
+            }
+        }
     }
 
     /// Execute a tool with approval gate and path barrier.
@@ -44,6 +76,10 @@ public struct NativeToolRunner: Sendable {
 
         // Dispatch to implementation
         switch nativeTool {
+        case .findPlaces:
+            return await findPlaces(arguments: arguments)
+        case .listDirectory:
+            return listDirectory(arguments: arguments)
         case .readFile:
             return try readFile(arguments: arguments)
         case .writeFile:
@@ -51,11 +87,11 @@ public struct NativeToolRunner: Sendable {
         case .editFile:
             return try editFile(arguments: arguments)
         case .runShell:
-            return try runShell(arguments: arguments)
+            return await runShell(arguments: arguments)
         case .webFetch:
             return try await webFetch(arguments: arguments)
         case .webSearch:
-            return try await webSearch(arguments: arguments)
+            return await runWebSearch(arguments: arguments)
         }
     }
 
@@ -152,7 +188,125 @@ public struct NativeToolRunner: Sendable {
         }
     }
 
-    private func runShell(arguments: [String: Any]) throws -> ToolResult {
+    /// The model picks WHAT to show; the lookup decides WITH WHAT. That split
+    /// is the whole contract: the names and addresses go back as text so the
+    /// model can talk about them, and the coordinates travel on the card
+    /// channel where the model cannot reach them.
+    private func findPlaces(arguments: [String: Any]) async -> ToolResult {
+        guard let query = arguments["query"] as? String, !query.isEmpty else {
+            return ToolResult(ok: false, output: "Missing query argument")
+        }
+        guard let places else {
+            return ToolResult(ok: false, output: "Place lookup is unavailable")
+        }
+        let near = arguments["near"] as? String
+        let found = await places.search(query, near: near)
+        guard !found.isEmpty else {
+            // An empty map is worse than no map: it reads as "the place does
+            // not exist" when it only means this query missed.
+            return ToolResult(
+                ok: false, output: "No places found for: \(query)")
+        }
+
+        let lines = found.map { place in
+            place.address.isEmpty
+                ? "- \(place.name)"
+                : "- \(place.name) — \(place.address)"
+        }
+        let block = LocationsBlock(
+            title: query,
+            locations: found.map { place in
+                LocationsBlock.Location(
+                    id: nil, name: place.name, eyebrow: nil,
+                    address: place.address.isEmpty ? nil : place.address,
+                    lat: place.lat, lng: place.lng, url: nil)
+            })
+        return ToolResult(
+            ok: true,
+            output: lines.joined(separator: "\n"),
+            card: Card(payload: .locations(block), source: .tool))
+    }
+
+    /// The cheapest way to stop being wrong about a name. Safe on purpose:
+    /// if looking cost an approval, exploring a folder would cost one click
+    /// per level and the specialist would guess instead of look.
+    private func listDirectory(arguments: [String: Any]) -> ToolResult {
+        guard let path = arguments["path"] as? String else {
+            return ToolResult(ok: false, output: "Missing path argument")
+        }
+        // JSON numbers arrive as Int, but a model that writes "2" is not
+        // wrong enough to deserve a failure.
+        let asked = (arguments["depth"] as? Int)
+            ?? (arguments["depth"] as? String).flatMap(Int.init)
+            ?? 1
+        let depth = min(max(asked, 1), Self.maxListDepth)
+
+        guard pathValidator.isAllowed(path) else {
+            return ToolResult(
+                ok: false, output: "Path outside working directory: \(path)")
+        }
+        let realPath = resolveRealPath(path)
+        guard pathValidator.isAllowed(realPath) else {
+            return ToolResult(
+                ok: false, output: "Path outside working directory: \(path)")
+        }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(
+            atPath: realPath, isDirectory: &isDirectory)
+        else {
+            return ToolResult(ok: false, output: "No such folder: \(path)")
+        }
+        guard isDirectory.boolValue else {
+            return ToolResult(ok: false, output: "Not a folder: \(path)")
+        }
+
+        var lines: [String] = []
+        var total = 0
+        collect(realPath, prefix: "", depth: depth, into: &lines, total: &total)
+
+        if lines.isEmpty {
+            return ToolResult(ok: true, output: "(empty folder)")
+        }
+        var output = lines.joined(separator: "\n")
+        if total > lines.count {
+            // Never a silent cap: a truncated listing that does not say so
+            // reads as "this is everything", which is a lie about the folder.
+            output += "\n… \(total) entries in total, \(lines.count) shown."
+        }
+        return ToolResult(ok: true, output: output)
+    }
+
+    private func collect(
+        _ dir: String, prefix: String, depth: Int,
+        into lines: inout [String], total: inout Int
+    ) {
+        let names: [String]
+        do {
+            names = try FileManager.default.contentsOfDirectory(atPath: dir)
+        } catch {
+            lines.append("\(prefix)(unreadable folder)")
+            return
+        }
+        // Dotfiles are noise for the question this tool answers, and a home
+        // folder has hundreds of them.
+        let visible = names.filter { !$0.hasPrefix(".") }.sorted()
+        total += visible.count
+        for name in visible {
+            guard lines.count < Self.maxListEntries else { return }
+            let full = (dir as NSString).appendingPathComponent(name)
+            var isDir: ObjCBool = false
+            FileManager.default.fileExists(atPath: full, isDirectory: &isDir)
+            lines.append(prefix + name + (isDir.boolValue ? "/" : ""))
+            if isDir.boolValue, depth > 1 {
+                collect(
+                    full, prefix: prefix + "  ", depth: depth - 1,
+                    into: &lines, total: &total)
+            }
+        }
+    }
+
+    private func runShell(arguments: [String: Any]) async -> ToolResult {
         guard let command = arguments["command"] as? String else {
             return ToolResult(ok: false, output: "Missing command argument")
         }
@@ -161,46 +315,29 @@ public struct NativeToolRunner: Sendable {
             return ToolResult(ok: false, output: "No working directory configured")
         }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", command]
-        process.currentDirectoryURL = URL(fileURLWithPath: workdir)
+        // Delegated to ProcessGroupRunner for two reasons the old inline
+        // version got wrong: it read the pipes only after waiting (so any
+        // output past ~64 KB blocked the child and surfaced as a bogus
+        // timeout), and it killed the shell without its descendants, leaving
+        // whatever the command had started behind.
+        let outcome = await ProcessGroupRunner.run(
+            executable: "/bin/sh", arguments: ["-c", command],
+            cwd: workdir, timeout: timeout)
 
-        let outPipe = Pipe()
-        let errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
-
-        do {
-            try process.run()
-
-            // Wait with timeout
-            let deadline = Date().addingTimeInterval(timeout)
-            while process.isRunning && Date() < deadline {
-                usleep(10_000) // 0.01 second
-            }
-
-            if process.isRunning {
-                process.terminate()
-                return ToolResult(
-                    ok: false,
-                    output: "Command execution timeout exceeded (\(timeout)s)")
-            }
-
-            let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-            let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-
-            var output = String(data: outData, encoding: .utf8) ?? ""
-            let stderr = String(data: errData, encoding: .utf8) ?? ""
-
-            if !stderr.isEmpty {
-                output += "\n" + stderr
-            }
-
-            return ToolResult(ok: process.terminationStatus == 0, output: output)
-        } catch {
-            return ToolResult(ok: false, output: "Failed to execute command: \(error)")
+        var output = outcome.stdout
+        if !outcome.stderr.isEmpty {
+            output += output.isEmpty ? outcome.stderr : "\n" + outcome.stderr
         }
+        if outcome.timedOut {
+            // What it managed to print before hanging is usually the clue to
+            // WHY it hung, so it travels with the failure instead of being
+            // thrown away.
+            let notice = "Command execution timeout exceeded (\(timeout)s)"
+            return ToolResult(
+                ok: false,
+                output: output.isEmpty ? notice : notice + "\n" + output)
+        }
+        return ToolResult(ok: outcome.exitCode == 0, output: output)
     }
 
     private func webFetch(arguments: [String: Any]) async throws -> ToolResult {
@@ -250,16 +387,32 @@ public struct NativeToolRunner: Sendable {
         }
     }
 
-    private func webSearch(arguments: [String: Any]) async throws -> ToolResult {
-        guard arguments["query"] as? String != nil else {
+    private func runWebSearch(arguments: [String: Any]) async -> ToolResult {
+        guard let query = arguments["query"] as? String, !query.isEmpty else {
             return ToolResult(ok: false, output: "Missing query argument")
         }
-
-        // web_search requires a provider key we don't have configured yet
-        // Return "not available" instead of inventing a backend
-        return ToolResult(
-            ok: false,
-            output: "web_search not available: requires configured search provider API key")
+        guard let webSearch, webSearch.isConfigured else {
+            // Reachable only if something called the tool without asking
+            // `availableTools` first. Said plainly rather than pretending.
+            return ToolResult(
+                ok: false, output: "Web search is not configured")
+        }
+        do {
+            let results = try await webSearch.search(query)
+            guard !results.isEmpty else {
+                return ToolResult(
+                    ok: false, output: "No web results for: \(query)")
+            }
+            // Title, url and snippet: enough to answer, and the url is what
+            // lets the answer cite instead of assert.
+            let lines = results.map { result in
+                "- \(result.title) — \(result.url)\n  \(result.snippet)"
+            }
+            return ToolResult(ok: true, output: lines.joined(separator: "\n"))
+        } catch {
+            return ToolResult(
+                ok: false, output: "Web search failed: \(error)")
+        }
     }
 
     // MARK: - Path Utilities

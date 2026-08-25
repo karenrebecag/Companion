@@ -101,6 +101,38 @@ public struct GalleryBlock: Sendable, Equatable {
     }
 }
 
+/// Where a card's data came from.
+///
+/// The industry contract says the application supplies the data and the model
+/// only selects what to show. Our CLI specialists cannot honour that — they run
+/// their own tools and hand back text — so a fence stays their only channel.
+/// What we refuse to do is present both with the same authority: a pin the
+/// model wrote from memory looks exactly as confident as one that was looked
+/// up, and that is the whole defect.
+public enum CardSource: Sendable, Equatable {
+    /// The app looked it up. Trusted.
+    case tool
+    /// The model wrote it into a fence. Unverified by construction.
+    case model
+}
+
+public enum CardPayload: Sendable, Equatable {
+    case locations(LocationsBlock)
+    case gallery(GalleryBlock)
+}
+
+/// What the interface paints, travelling on its own channel — never through
+/// the model's context, which is where a transcribed coordinate goes wrong.
+public struct Card: Sendable, Equatable {
+    public var payload: CardPayload
+    public var source: CardSource
+
+    public init(payload: CardPayload, source: CardSource) {
+        self.payload = payload
+        self.source = source
+    }
+}
+
 public enum CompanionBlocks: Sendable {
     public static let locationsLanguage = "companion:locations"
     public static let galleryLanguage = "companion:gallery"

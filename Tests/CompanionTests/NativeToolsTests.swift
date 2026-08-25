@@ -3,16 +3,29 @@ import Testing
 
 @testable import CompanionCore
 
+// The count is pinned on purpose: ADR 001 chose a deliberately small tool
+// set, so growing it is a decision someone must make on purpose, not a drift
+// that nobody notices.
+//
+// Seventh: list_directory (2026-08-24), after the specialist said "I found no
+// such folder" about a folder that was right there — it had no way to look.
+// Eighth: find_places (2026-08-24), so a map is drawn from a lookup instead of
+// from what the model remembers. That one had NO observed failure behind it —
+// it closes a documented architectural defect, which is a different and
+// weaker reason, and Wave 9e says so out loud.
 @Test @MainActor
-func nativeToolEnumHasAllSixTools() {
+func nativeToolEnumHasAllEightTools() {
     let allCases = NativeTool.allCases
-    expectEq(allCases.count, 6, "exactly 6 native tools")
+    expectEq(allCases.count, 8, "exactly 8 native tools")
 }
 
 @Test @MainActor
 func nativeToolEnumContainsRequiredTools() {
     let toolNames = Set(NativeTool.allCases.map { $0.rawValue })
-    let required = Set(["read_file", "write_file", "edit_file", "run_shell", "web_fetch", "web_search"])
+    let required = Set([
+        "find_places", "list_directory", "read_file", "write_file",
+        "edit_file", "run_shell", "web_fetch", "web_search",
+    ])
     expectEq(toolNames, required, "has all required tools")
 }
 

@@ -12,6 +12,8 @@ import Testing
     testEditFileWithApproval()
     testRunShellRequiresApproval()
     testRunShellWithApprovalTimeout()
+    testRunShellSurvivesOutputBiggerThanAPipe()
+    testRunShellTimeoutKeepsWhatItPrinted()
     testWebFetchSafe()
     testWebSearchSafe()
     testSymlinkDoubleBarrier()
@@ -164,6 +166,43 @@ import Testing
     }
 
     expectEq(result.ok, false, "run_shell with timeout: fails after 60s")
+}
+
+@MainActor func testRunShellSurvivesOutputBiggerThanAPipe() {
+    // Regresion de Wave 9c: un pipe aguanta ~64 KB. Leyendo la salida DESPUES
+    // de esperar al proceso, cualquier comando mas hablador que eso se
+    // bloqueaba escribiendo y el usuario recibia "timeout" por un comando que
+    // funcionaba — un `git log` cualquiera lo disparaba.
+    let tempDir = try! FileManager.default.temporaryDirectory.path
+    let runner = NativeToolRunner(workdir: tempDir, shellTimeout: 10)
+
+    let result = try! runAsync(timeout: 20) {
+        try await runner.execute(
+            tool: "run_shell",
+            arguments: ["command": "yes 0123456789 | head -c 200000"],
+            approved: true)
+    }
+
+    expect(result.ok, "salida grande: el comando se considera exitoso")
+    expectEq(result.output.utf8.count, 200_000, "y llega entera")
+}
+
+@MainActor func testRunShellTimeoutKeepsWhatItPrinted() {
+    // Lo que alcanzo a imprimir antes de colgarse suele ser la pista de POR
+    // QUE se colgo, asi que viaja con el fallo en vez de tirarse.
+    let tempDir = try! FileManager.default.temporaryDirectory.path
+    let runner = NativeToolRunner(workdir: tempDir, shellTimeout: 0.4)
+
+    let result = try! runAsync(timeout: 10) {
+        try await runner.execute(
+            tool: "run_shell",
+            arguments: ["command": "echo pista; sleep 30"],
+            approved: true)
+    }
+
+    expect(!result.ok, "sigue siendo un fallo")
+    expect(result.output.contains("timeout"), "y lo dice")
+    expect(result.output.contains("pista"), "sin tirar lo que ya habia impreso")
 }
 
 // MARK: - Web Fetch (safe)

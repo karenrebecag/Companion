@@ -8,20 +8,19 @@ struct SourcesCard: View {
 
     @State private var webExpanded = false
     @State private var filesExpanded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.none) {
             Text(Localized.string("sources.title"))
-                .font(Font.uiCaption)
-                .foregroundStyle(Semantic.foreground)
-                .textCase(.uppercase)
+                .typeEyebrow()
                 .padding(.top, Space.x3)
                 .padding(.bottom, Space.x3)
 
             if !webSources.isEmpty {
                 sectionRow(
                     icon: "globe",
-                    title: "Web",
+                    title: Localized.string("sources.web"),
                     count: webSources.count,
                     isOpen: $webExpanded
                 )
@@ -47,13 +46,7 @@ struct SourcesCard: View {
                 }
             }
         }
-        .padding(Space.x4)
-        .background(Semantic.surface)
-        .cornerRadius(Radius.md)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Semantic.border, lineWidth: Stroke.hairline)
-        )
+        .cardSurface()
     }
 
     private func sectionRow(
@@ -63,28 +56,28 @@ struct SourcesCard: View {
         isOpen: Binding<Bool>
     ) -> some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .springSelect) {
                 isOpen.wrappedValue.toggle()
             }
         } label: {
             HStack(spacing: Space.x3) {
                 Image(systemName: icon)
-                    .font(.system(size: 12))
+                    .font(.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
-                    .frame(width: 16, alignment: .center)
+                    .frame(width: CardMetrics.iconColumn, alignment: .center)
 
                 Text(title)
-                    .font(Font.uiCaption)
+                    .font(.uiLabel)
                     .foregroundStyle(Semantic.foreground)
 
                 Spacer()
 
                 Text("\(count)")  // token-exempt: una cifra, no copy.
-                    .font(Font.uiCaption)
+                    .font(.uiMicro)
                     .foregroundStyle(Semantic.mutedForeground)
 
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 10))
+                    .font(.uiMicro)
                     .foregroundStyle(Semantic.mutedForeground)
                     .rotationEffect(.degrees(isOpen.wrappedValue ? 180 : 0))
             }
@@ -112,7 +105,7 @@ struct SourcesCard: View {
         } label: {
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text(link.title)
-                    .font(Font.uiCaption)
+                    .font(.uiLabel)
                     .foregroundStyle(Semantic.foreground)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -156,13 +149,15 @@ struct SourcesCard: View {
         } label: {
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text(name)
-                    .font(Font.uiCaption)
+                    .font(.uiLabel)
                     .foregroundStyle(Semantic.foreground)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
-                Text(ext.isEmpty ? "Archivo" : "Archivo \(ext)")
-                    .font(Font.uiCaption)
+                Text(ext.isEmpty
+                     ? Localized.string("sources.file")
+                     : String(format: Localized.string("sources.file.kind"), ext))
+                    .font(.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

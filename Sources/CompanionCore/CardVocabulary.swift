@@ -1,0 +1,45 @@
+import Foundation
+
+/// The one description of the native cards, shared by every prompt that can
+/// produce them.
+///
+/// It used to live inline inside the specialist's role, which had two costs.
+/// The chat layer never learned the syntax, so asking about a place without
+/// delegating could not paint a map the renderer was perfectly able to draw.
+/// And any second copy would have drifted from this one the first time the
+/// JSON shape changed.
+///
+/// The shape is taught in prose, which is weaker than a schema: structured
+/// outputs constrain generation, a description only suggests. That is the
+/// price of working with any OpenAI-compatible provider, including the small
+/// local models that fail at tool calling — and it is why a malformed fence
+/// degrades to a visible code block instead of vanishing.
+public enum CardVocabulary: Sendable {
+    public static func text(_ language: AppLanguage = .en) -> String {
+        switch language {
+        case .en:
+            return "The client paints NATIVE CARDS from companion: fences. "
+                + "For physical places emit ```\(CompanionBlocks.locationsLanguage) "
+                + "with JSON {\"title\",\"locations\":[{\"id\",\"name\","
+                + "\"eyebrow\",\"address\",\"lat\",\"lng\",\"url\"}]} — lat/lng "
+                + "must be numbers, and DO NOT invent them: only emit this "
+                + "card for places you actually looked up, because a pin in "
+                + "the wrong street looks exactly as confident as a right "
+                + "one. To compare images emit ```\(CompanionBlocks.galleryLanguage) "
+                + "with {\"title\",\"images\":[{\"path\" local or \"url\" "
+                + "https,\"caption\"}]}. If neither applies, plain markdown."
+        case .es:
+            return "El cliente pinta TARJETAS NATIVAS desde fences companion: "
+                + "para lugares físicos emite ```\(CompanionBlocks.locationsLanguage) "
+                + "con JSON {\"title\",\"locations\":[{\"id\",\"name\","
+                + "\"eyebrow\",\"address\",\"lat\",\"lng\",\"url\"}]} — lat/lng "
+                + "numéricos obligatorios, y NO te las inventes: emite esta "
+                + "tarjeta solo para lugares que de verdad consultaste, porque "
+                + "un pin en la calle equivocada se ve igual de seguro que uno "
+                + "correcto. Para comparar imágenes emite "
+                + "```\(CompanionBlocks.galleryLanguage) con "
+                + "{\"title\",\"images\":[{\"path\" local o \"url\" https,"
+                + "\"caption\"}]}. Si no aplica, markdown normal."
+        }
+    }
+}

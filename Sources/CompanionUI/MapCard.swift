@@ -12,8 +12,8 @@ struct MapCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
             // Title
-            Text(block.title ?? "Ubicaciones")
-                .font(Font.uiBody)
+            Text(block.title ?? Localized.string("map.title"))
+                .font(.uiSubtitle)
                 .foregroundStyle(Semantic.foreground)
 
             // Map
@@ -35,10 +35,10 @@ struct MapCard: View {
                 }
             }
             .mapStyle(.standard(pointsOfInterest: .excludingAll))
-            .frame(height: 200)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .frame(height: CardMetrics.map)
+            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: Radius.md)
                     .stroke(Semantic.border, lineWidth: Stroke.hairline)
             )
 
@@ -50,26 +50,20 @@ struct MapCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Space.x4)
-        .background(Semantic.surface)
-        .cornerRadius(Radius.md)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Semantic.border, lineWidth: Stroke.hairline)
-        )
+        .cardSurface()
     }
 
     private func locationRow(_ loc: LocationsBlock.Location) -> some View {
         VStack(alignment: .leading, spacing: Space.x2) {
             HStack(alignment: .top, spacing: Space.x3) {
                 Image(systemName: "location.fill")
-                    .font(.system(size: 12))
+                    .font(.uiCaption)
                     .foregroundStyle(Semantic.accent)
-                    .frame(width: 16, alignment: .center)
+                    .frame(width: CardMetrics.iconColumn, alignment: .center)
 
                 VStack(alignment: .leading, spacing: Space.x1) {
                     Text(loc.name)
-                        .font(Font.uiBody)
+                        .font(.uiLabel)
                         .foregroundStyle(Semantic.foreground)
                     if let address = loc.address, !address.isEmpty {
                         Text(address)

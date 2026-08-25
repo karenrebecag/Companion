@@ -68,6 +68,38 @@ public struct ToolSpec: Sendable, Equatable {
         }
     }
 
+    /// The brake, by voice. Without it the only way to stop a job you never
+    /// asked for was the button — and someone talking to their Mac is not
+    /// looking at it. Denying a permission was never a stop: it refused one
+    /// command and the job carried on.
+    public static func stopJob(_ language: AppLanguage = .en) -> ToolSpec {
+        switch language {
+        case .en:
+            return ToolSpec(
+                name: "stop_job",
+                description: "Stop the job the specialist is running now. "
+                    + "ONLY when the user explicitly asks to stop or cancel — "
+                    + "\"stop\", \"cancel\", \"leave it\". Asking for something "
+                    + "ELSE is not a request to stop: a new task is queued "
+                    + "behind this one, and calling this would throw away work "
+                    + "they still want. What was already done is kept.",
+                properties: [],
+                required: [])
+        case .es:
+            return ToolSpec(
+                name: "stop_job",
+                description: "Para el encargo que el especialista está "
+                    + "haciendo ahora. SOLO cuando la usuaria pida parar o "
+                    + "cancelar de forma explícita — \"para\", \"cancela\", "
+                    + "\"déjalo\". Pedir OTRA cosa no es pedir que pares: una "
+                    + "tarea nueva se encola detrás de esta, y llamarte aquí "
+                    + "tiraría trabajo que todavía quiere. Lo ya hecho se "
+                    + "conserva.",
+                properties: [],
+                required: [])
+        }
+    }
+
     public static func resolveApproval(
         _ language: AppLanguage = .en
     ) -> ToolSpec {

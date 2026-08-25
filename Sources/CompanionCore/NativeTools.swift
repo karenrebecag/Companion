@@ -6,6 +6,8 @@ public enum RiskLevel: Sendable, Equatable {
 }
 
 public enum NativeTool: String, CaseIterable, Sendable, Equatable {
+    case findPlaces = "find_places"
+    case listDirectory = "list_directory"
     case readFile = "read_file"
     case writeFile = "write_file"
     case editFile = "edit_file"
@@ -15,7 +17,7 @@ public enum NativeTool: String, CaseIterable, Sendable, Equatable {
 
     public var riskLevel: RiskLevel {
         switch self {
-        case .readFile, .webFetch, .webSearch:
+        case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch:
             return .safe
         case .writeFile, .editFile, .runShell:
             return .requiresApproval
@@ -24,6 +26,42 @@ public enum NativeTool: String, CaseIterable, Sendable, Equatable {
 
     public var spec: ToolSpec {
         switch self {
+        case .findPlaces:
+            return ToolSpec(
+                name: "find_places",
+                description: "Find real places near somewhere — cinemas, "
+                    + "restaurants, shops, an address, a landmark. Use it "
+                    + "whenever the user asks where something is or what is "
+                    + "nearby; it is a map lookup, not a web search, and it "
+                    + "works with no keys. You get names and addresses to "
+                    + "talk about, and the map is drawn from the lookup "
+                    + "rather than from anything you type.",
+                properties: [
+                    ToolProperty(name: "query", type: "string",
+                                 description: "what to look for"),
+                    ToolProperty(name: "near", type: "string",
+                                 description: "city or area to search in"),
+                ],
+                required: ["query"])
+        case .listDirectory:
+            return ToolSpec(
+                name: "list_directory",
+                // The description earns its length: without it the model has
+                // no way to know that looking around is cheap and allowed, and
+                // it falls back to shell for something that needs no approval.
+                description: "List what is inside a folder. Use this FIRST "
+                    + "whenever the user names a file or folder loosely — the "
+                    + "name they say and the name on disk rarely match "
+                    + "exactly, and reading the real listing lets you "
+                    + "recognise it. Never guess a path you have not listed.",
+                properties: [
+                    ToolProperty(name: "path", type: "string",
+                                 description: "folder to list"),
+                    ToolProperty(name: "depth", type: "integer",
+                                 description: "levels to descend, 1 by "
+                                     + "default, 3 at most"),
+                ],
+                required: ["path"])
         case .readFile:
             return ToolSpec(
                 name: "read_file",

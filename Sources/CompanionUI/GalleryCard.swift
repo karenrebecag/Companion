@@ -10,7 +10,7 @@ struct GalleryCard: View {
             // Title
             if let title = block.title, !title.isEmpty {
                 Text(title)
-                    .font(Font.uiBody)
+                    .font(.uiSubtitle)
                     .foregroundStyle(Semantic.foreground)
             }
 
@@ -24,13 +24,7 @@ struct GalleryCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(Space.x4)
-        .background(Semantic.surface)
-        .cornerRadius(Radius.md)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Semantic.border, lineWidth: Stroke.hairline)
-        )
+        .cardSurface()
     }
 
     private func imageTile(_ item: GalleryBlock.Item) -> some View {
@@ -39,10 +33,10 @@ struct GalleryCard: View {
                 open(item)
             } label: {
                 imageView(item)
-                    .frame(width: 120, height: 120)
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .frame(width: CardMetrics.thumb, height: CardMetrics.thumb)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.sm))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: Radius.sm)
                             .stroke(Semantic.border, lineWidth: Stroke.hairline)
                     )
             }
@@ -53,7 +47,7 @@ struct GalleryCard: View {
                     .font(Font.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
                     .lineLimit(2)
-                    .frame(width: 120, alignment: .leading)
+                    .frame(width: CardMetrics.thumb, alignment: .leading)
             }
         }
     }
@@ -86,7 +80,7 @@ struct GalleryCard: View {
         ZStack {
             Semantic.muted
             Image(systemName: "photo")
-                .font(.system(size: 20))
+                .font(.uiTitle)
                 .foregroundStyle(Semantic.border)
         }
     }
