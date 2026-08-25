@@ -26,6 +26,9 @@ final class RealtimeRuntime: @unchecked Sendable {
     let thread: any ConversationPresenting
     /// Set by VoiceSession when a specialist is available.
     var onDelegate: (@Sendable (Handoff) -> Void)?
+    /// The brake, reachable from the voice. Set by the session that owns the
+    /// job runner.
+    var onStopJob: (@Sendable () async -> Void)?
     /// The user answered a pending permission out loud. Returns whether the
     /// answer landed on a real request: the ack must not tell the model a
     /// permission was granted when there was nothing left to grant.
@@ -77,7 +80,8 @@ final class RealtimeRuntime: @unchecked Sendable {
             // with your hands full died in the 120s auto-deny, unspoken.
             tools: canDelegate
                 ? [ToolSpec.delegate(config.language),
-                   ToolSpec.resolveApproval(config.language)]
+                   ToolSpec.resolveApproval(config.language),
+                   ToolSpec.stopJob(config.language)]
                 : [],
             voice: voice,
             speed: config.voice.speed,
@@ -185,6 +189,12 @@ final class RealtimeRuntime: @unchecked Sendable {
         case .functionCall(let name, let arguments, let callId):
             if name == ToolSpec.resolveApproval(language).name {
                 await resolveApproval(arguments: arguments, callId: callId)
+                return [.functionOutputSent]
+            }
+            if name == ToolSpec.stopJob(language).name {
+                await onStopJob?()
+                await send(RealtimeCodec.functionOutput(
+                    callId: callId, output: "stopped"))
                 return [.functionOutputSent]
             }
             // Answer the server immediately so the voice keeps flowing; the

@@ -21,14 +21,7 @@ extension Escalation {
                 + "- or 1. lists, pipe tables when you compare data, and "
                 + "fences with a language for code or commands. Repeated data "
                 + "with the same columns goes in a table, not in prose with "
-                + "dashes. The client also paints NATIVE CARDS from companion: "
-                + "fences: for physical places with coordinates emit "
-                + "```companion:locations with JSON "
-                + "{\"title\",\"locations\":[{\"id\",\"name\",\"eyebrow\","
-                + "\"address\",\"lat\",\"lng\",\"url\"}]} (lat/lng must be "
-                + "numbers); to compare images emit ```companion:gallery with "
-                + "{\"title\",\"images\":[{\"path\" local or \"url\" https,"
-                + "\"caption\"}]}. If neither applies, plain markdown. If you "
+                + "dashes. \(CardVocabulary.text(.en)) If you "
                 + "used the web, close with a Sources: section as a list, each "
                 + "source as [title](url) — one line on what it adds."
         case .es:
@@ -40,14 +33,7 @@ extension Escalation {
                 + "encabezados con #, listas con - o 1., tablas con pipes cuando "
                 + "compares datos, y fences con lenguaje para código o comandos. "
                 + "Datos repetidos con las mismas columnas van en tabla, no en "
-                + "prosa con guiones. Además el cliente pinta TARJETAS NATIVAS desde "
-                + "fences companion: para lugares físicos con coordenadas emite "
-                + "```companion:locations con JSON "
-                + "{\"title\",\"locations\":[{\"id\",\"name\",\"eyebrow\",\"address\","
-                + "\"lat\",\"lng\",\"url\"}]} (lat/lng numéricos obligatorios); para "
-                + "comparar imágenes emite ```companion:gallery con "
-                + "{\"title\",\"images\":[{\"path\" local o \"url\" https,"
-                + "\"caption\"}]}. Si no aplica, markdown normal. Si usaste la web, "
+                + "prosa con guiones. \(CardVocabulary.text(.es)) Si usaste la web, "
                 + "cierra con una sección Sources: en lista, cada fuente como "
                 + "[título](url) — una línea de qué aporta."
         }
@@ -111,6 +97,66 @@ extension Escalation {
     /// The guarantee that Wave 8 bought survives: which of the two endings
     /// happened still comes from the specialist, never from the model, and it
     /// is told not to add what it was not given.
+    /// Said when a request arrives while a job is already running.
+    ///
+    /// It QUEUES. Neither reference cancels running work to make room: they
+    /// offer three separate gestures — interrupt (stop, keep what is done),
+    /// steer (inject into the live turn, keep progress), and queue (store it,
+    /// run it after). Asking for a second thing is none of the first two.
+    ///
+    /// The first version of this said "tell me to stop if you want me to drop
+    /// it and do this instead". It was written for the user and the MODEL read
+    /// it as an instruction: asked for cinemas while searching parks, it
+    /// called `stop_job` and killed both. Copy that reaches a model is not
+    /// copy, it is a prompt — so this one states a fact and forbids the move.
+    public static func queuedNotice(
+        _ goal: String, _ language: AppLanguage = .en
+    ) -> String {
+        switch language {
+        case .en: return "Queued: «\(goal)». It starts when the current one ends."
+        case .es: return "En cola: «\(goal)». Empieza al terminar el de ahora."
+        }
+    }
+
+    /// Instruction to the voice. The prohibition is explicit because the
+    /// permissive version cost a cancelled job.
+    public static func queuedAnnouncement(
+        _ goal: String, _ language: AppLanguage = .en
+    ) -> String {
+        switch language {
+        case .en:
+            return "«\(goal)» is queued behind the job running now. Say only "
+                + "that you will do it next. Do NOT stop or cancel anything."
+        case .es:
+            return "«\(goal)» quedó en cola detrás del encargo de ahora. Di "
+                + "solo que lo harás enseguida. NO pares ni canceles nada."
+        }
+    }
+
+    /// What the app understood, shown before the work starts.
+    ///
+    /// The root of the 2026-08-24 session: speech recognition returned
+    /// gibberish, the chat model invented a plausible task from it — checking
+    /// the disk — and a job touching the filesystem began on something the
+    /// user never said. She only found out from the report.
+    ///
+    /// Verbatim, never paraphrased: rewording it would be the same trap in a
+    /// second layer. What is shown has to be what will be done.
+    public static func heardNotice(
+        _ goal: String, _ language: AppLanguage = .en
+    ) -> String {
+        switch language {
+        case .en: return "Heard: «\(goal)». Say stop if that is not it."
+        case .es: return "Entendí: «\(goal)». Dime para si no es eso."
+        }
+    }
+
+    /// Typing already showed you your own words; repeating them would be the
+    /// filler this thread has too much of already.
+    public static func needsHeardNotice(bornFromVoice: Bool) -> Bool {
+        bornFromVoice
+    }
+
     public static func jobDoneAnnouncement(
         _ goal: String, _ language: AppLanguage = .en
     ) -> String {

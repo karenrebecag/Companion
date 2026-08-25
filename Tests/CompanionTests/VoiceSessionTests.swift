@@ -140,7 +140,12 @@ import Testing
     }
     expectEq(h.transcriber.locale, "en-US", "timeout: arma el transcriber")
     expect(h.transcriber.started, "timeout: transcriber.start")
-    expect(!h.thread.status.isEmpty, "timeout: avisa la caída")
+    // El aviso ya NO sale de aquí: Services escribía su propia redacción del
+    // fallo además de la del catálogo, y el usuario leía dos mensajes para un
+    // solo problema. El dueño es VoiceViewModel, que lo emite una vez y en el
+    // idioma del catálogo (VoiceViewModelTests lo exige).
+    expect(h.thread.status.isEmpty,
+           "timeout: Services no escribe copy de usuario")
 }
 
 @MainActor func testOfflineStaysInErrorWithoutFallback() async {

@@ -100,33 +100,4 @@ final class ClassicRuntime: @unchecked Sendable {
         }
         await apply(.replyCompleted)
     }
-
-    static func status(
-        _ reason: TurnFailure, _ language: AppLanguage = .en
-    ) -> String {
-        switch (reason, language) {
-        case (.micDenied, .en): "I could not use the microphone."
-        case (.micDenied, .es): "No pude usar el micrófono."
-        case (.micUnavailable, .en): "The microphone is unavailable."
-        case (.micUnavailable, .es): "El micrófono no está disponible."
-        case (.micSilent, .en): "The microphone delivered no audio."
-        case (.micSilent, .es): "El micrófono no entregó audio."
-        case (.notHeard, .en): "I did not hear you."
-        case (.notHeard, .es): "No te escuché."
-        case (.speechEngine, .en): "I lost my voice."
-        case (.speechEngine, .es): "Me quedé sin voz."
-        case (.speechDenied, .en):
-            "No speech recognition permission. Check System Settings."
-        case (.speechDenied, .es):
-            "Sin permiso de reconocimiento de voz. Revisa Ajustes del sistema."
-        case (.noProviders, .en): "No voice provider is available."
-        case (.noProviders, .es): "No hay un proveedor de voz disponible."
-        case (.sessionDropped, .en): "The voice session dropped."
-        case (.sessionDropped, .es): "La sesión de voz se cayó."
-        case (.networkUnavailable, .en):
-            "No internet connection. Check your network."
-        case (.networkUnavailable, .es):
-            "Sin conexión a internet. Verifica tu red."
-        }
-    }
 }

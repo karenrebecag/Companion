@@ -187,5 +187,10 @@ final class ApprovingSubmitter: JobSubmitter, @unchecked Sendable {
         }
     }
 
-    var isBusy: Bool { get async { true } }
+    /// Era `true` fijo, de cuando nadie leia esto. Desde Wave 9g-3 el puente
+    /// SI lo lee para no arrancar un segundo encargo, asi que un fake que se
+    /// declara ocupado desde el principio impide que arranque el primero.
+    var isBusy: Bool {
+        get async { lock.withLock { sink != nil } }
+    }
 }

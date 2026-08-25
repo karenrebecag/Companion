@@ -105,20 +105,20 @@ public final class VoiceViewModel {
         let previous = snapshot
         snapshot = snap
 
-        // Handle pipeline fallback from realtime to classic.
+        // One event, one line. This is the only place a voice failure reaches
+        // the thread: Services used to append its own hardcoded wording too,
+        // so a single failure showed up twice, phrased differently.
         if previous.pipeline == .realtime, snap.pipeline == .classic {
+            // Falling back is the useful headline; the raw reason underneath
+            // it would just be the same news told twice.
             statusText = VoiceCopy.fallbackClassic
             await thread.appendStatus(VoiceCopy.fallbackClassic)
-        }
-
-        // Handle error state with a failure reason.
-        if snap.state == .error, let failure = snap.failure {
+        } else if let failure = snap.failure, previous.failure != failure {
+            // Keyed on the failure changing, not on the state: recovery keeps
+            // the session listening while still reporting why it stumbled.
             let message = VoiceCopy.failure(failure)
-            // Only update statusText and emit if this is a new error or a different failure reason.
-            if previous.state != .error || previous.failure != failure {
-                statusText = message
-                await thread.appendStatus(message)
-            }
+            statusText = message
+            await thread.appendStatus(message)
         }
 
         // Clear status when returning to idle.

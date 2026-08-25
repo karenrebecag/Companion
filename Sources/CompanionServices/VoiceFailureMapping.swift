@@ -14,7 +14,10 @@ public enum VoiceFailureMapping: Sendable {
             }
         case let chat as ChatError:
             switch chat {
-            case .unreachable, .timeout, .noProvider: return .networkUnavailable
+            case .unreachable, .timeout: return .networkUnavailable
+            // `noProvider` es la escalera agotada, no la red caida. Decir "no
+            // hay internet" con la red perfecta manda al usuario a arreglar lo
+            // que no esta roto, y `noProviders` ya existia para esto.
             default: return .noProviders
             }
         case let url as URLError:

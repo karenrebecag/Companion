@@ -30,6 +30,7 @@ public enum ChatPrompt: Sendable {
     public static func system(
         ownerFirstName: String,
         delegateEnabled: Bool,
+        webSearchEnabled: Bool = false,
         about: String = "",
         instructions: String = "",
         language: AppLanguage = .en
@@ -41,7 +42,15 @@ public enum ChatPrompt: Sendable {
             about: about, instructions: instructions, language: language) {
             prompt += " " + block
         }
-        if delegateEnabled { prompt += " " + delegateRule(language) }
+        if delegateEnabled {
+            prompt += " " + delegateRule(language, web: webSearchEnabled)
+        }
+        // The chat layer paints cards too. It used to be the specialist's
+        // privilege by accident — nobody decided it, the vocabulary simply
+        // lived in the specialist's role — so a question about a place that
+        // needed no delegation could not produce the map the client already
+        // knew how to draw.
+        prompt += " " + CardVocabulary.text(language)
         return prompt
     }
 
@@ -75,23 +84,35 @@ public enum ChatPrompt: Sendable {
         }
     }
 
-    private static func delegateRule(_ language: AppLanguage) -> String {
+    /// The web half is conditional on purpose. Promising search the product
+    /// cannot do sent the model to a tool that always failed, and it reported
+    /// back "I cannot search the web" instead of trying another route — the
+    /// promise was what captured the intent.
+    private static func delegateRule(
+        _ language: AppLanguage, web: Bool
+    ) -> String {
         switch language {
         case .en:
-            return "The specialist DOES have the files, the terminal, this "
-                + "Mac's tools AND WEB SEARCH. Desktop, documents, reading or "
-                + "editing files, code, commands, technical work, searching "
-                + "the web or reading a page: call delegate. Never say you "
-                + "cannot see the disk or have no internet — delegate. You "
+            let reach = web
+                ? "this Mac's tools AND WEB SEARCH"
+                : "this Mac's tools, and it can look up real places and open "
+                    + "a page by URL"
+            return "The specialist DOES have the files, the terminal, \(reach). "
+                + "Desktop, documents, reading or editing files, code, "
+                + "commands, technical work, places, reading a page: call "
+                + "delegate. Never say you cannot see the disk — delegate. You "
                 + "may say one short sentence before delegating."
         case .es:
-            return "El especialista SÍ tiene los archivos, la "
-                + "terminal, las herramientas de esta Mac Y BÚSQUEDA EN "
-                + "INTERNET. Escritorio, documentos, leer o editar archivos, "
-                + "código, comandos, trabajo técnico, buscar en la web o leer "
-                + "una página: llama a delegate. Nunca digas que no puedes "
-                + "ver el disco ni que no tienes internet — delega. Puedes "
-                + "decir una frase corta antes de delegar."
+            let reach = web
+                ? "las herramientas de esta Mac Y BÚSQUEDA EN INTERNET"
+                : "las herramientas de esta Mac, y puede consultar lugares "
+                    + "reales y abrir una página por su URL"
+            return "El especialista SÍ tiene los archivos, la terminal, "
+                + "\(reach). Escritorio, documentos, leer o editar archivos, "
+                + "código, comandos, trabajo técnico, lugares, leer una "
+                + "página: llama a delegate. Nunca digas que no puedes ver el "
+                + "disco — delega. Puedes decir una frase corta antes de "
+                + "delegar."
         }
     }
 }

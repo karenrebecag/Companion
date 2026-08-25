@@ -95,6 +95,9 @@ public actor VoiceSession: VoiceControlling {
         // announce path), which is only legal once every property is set.
         if let jobs {
             let presenter = thread
+            // Same runner the button reaches. Someone talking to their Mac is
+            // not looking at it, so the brake has to be sayable.
+            realtime.onStopJob = { await jobs.cancel() }
             realtime.onDelegate = { [weak self] handoff in
                 Task {
                     await VoiceJobBridge.run(
@@ -244,9 +247,12 @@ public actor VoiceSession: VoiceControlling {
                 await synthesizer.begin()
             case .finishSpeechStream:
                 await synthesizer.finish()
-            case .noteFailure(let reason):
-                await classic.thread.appendStatus(ClassicRuntime.status(
-                    reason, configProvider.current.language))
+            case .noteFailure:
+                // Deliberately silent. The failure reaches the thread through
+                // the view model, which reads the language catalog; Services
+                // writing its own wording meant one failure arrived twice, in
+                // two different sentences, and the user read it as two bugs.
+                break
             }
         }
     }

@@ -24,7 +24,37 @@ public enum ChatCopy {
         Localized.string("chat.key.malformed")
     }
 
+    /// What the model is told a card showed. Names, never coordinates: the
+    /// point of the card channel is that the payload does not reach it.
+    public static func cardShown(_ card: Card) -> String {
+        switch card.payload {
+        case .locations(let block):
+            let names = block.locations.map(\.name).joined(separator: ", ")
+            return String(
+                format: Localized.string("chat.card.locations"), names)
+        case .gallery:
+            return Localized.string("chat.card.gallery")
+        }
+    }
+
+    public static var jobStopped: String {
+        Localized.string("chat.job.stopped")
+    }
+
+    /// Was hardcoded Spanish in the UI layer, outside the catalog, where the
+    /// static gate could not see it because it is not a `Text(...)`.
+    public static func jobFailedNotice(_ error: Error) -> String {
+        String(format: Localized.string("chat.job.failed"), "\(error)")
+    }
+
+    /// The specialist IS running. Used to mark what was delegated.
     public static func handoff(_ h: Handoff) -> String {
+        String(format: Localized.string("chat.handoff.started"), h.goal)
+    }
+
+    /// Only when there is no runner wired at all — tests, and a composition
+    /// with the specialist left out.
+    public static func handoffUnavailable(_ h: Handoff) -> String {
         String(format: Localized.string("chat.handoff.pending"), h.goal)
     }
 

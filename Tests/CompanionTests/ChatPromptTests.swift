@@ -68,8 +68,19 @@ import Testing
            "prompt: el especialista tiene archivos")
     expect(p.contains("terminal"),
            "prompt: el especialista tiene terminal")
-    expect(p.contains("internet") || p.contains("INTERNET"),
-           "prompt: el especialista tiene internet")
+    // Ya no se promete internet incondicionalmente: prometer una busqueda que
+    // el producto no puede hacer mandaba al modelo a una tool que siempre
+    // fallaba, y volvia diciendo "no puedo buscar en la web" en vez de probar
+    // otra via. La promesa era lo que capturaba la intencion (Wave 9f).
+    expect(!p.contains("INTERNET"),
+           "prompt: sin busqueda configurada no se promete internet")
+    expect(p.contains("lugares"),
+           "prompt: pero si lo que de verdad puede — consultar lugares")
+    let withWeb = ChatPrompt.system(
+        ownerFirstName: "Karen", delegateEnabled: true,
+        webSearchEnabled: true, language: .es)
+    expect(withWeb.contains("INTERNET"),
+           "prompt: con busqueda configurada si se promete")
     expect(p.contains("Español, cálido, directo, 2 a 4 frases."),
            "prompt: delegar no se come la personalidad")
 }
