@@ -118,17 +118,30 @@ public enum WorkdirPreference {
     nonisolated public static var stored: String? {
         get {
             let value = UserDefaults.standard.string(forKey: key)
-            return (value?.isEmpty == false) ? value : nil
+            return value.flatMap { isAllowed($0) ? $0 : nil }
         }
         set {
-            if let newValue, isAllowed(newValue) {
-                UserDefaults.standard.set(
-                    URL(fileURLWithPath: newValue).resolvingSymlinksInPath().path,
-                    forKey: key)
-            } else {
+            guard let newValue, isAllowed(newValue) else {
                 UserDefaults.standard.removeObject(forKey: key)
+                return
             }
+            // The home folder is a valid choice and a bad memory. It reaches
+            // everything, so remembering that you once said yes hands the
+            // specialist your whole account on every future launch. The
+            // reference draws the same line: trust for the home directory is
+            // held for the session and never written to disk.
+            guard !isHome(newValue) else {
+                UserDefaults.standard.removeObject(forKey: key)
+                return
+            }
+            UserDefaults.standard.set(newValue, forKey: key)
         }
+    }
+
+    nonisolated static func isHome(_ path: String) -> Bool {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+            .resolvingSymlinksInPath().path
+        return URL(fileURLWithPath: path).resolvingSymlinksInPath().path == home
     }
 
     nonisolated public static var validated: String? {
@@ -261,5 +274,64 @@ public enum ThinkingSoundPref {
     nonisolated public static var enabled: Bool {
         get { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}
+
+/// Which provider this user settled on, and — for a local runtime — which tag.
+/// Stored apart from the key: choosing Ollama is a preference, not a secret,
+/// and it has to survive a relaunch or "use the model on my Mac" is a click
+/// the user repeats every morning.
+public enum ProviderPreference {
+    nonisolated private static let nameKey = "companion.provider"
+    nonisolated private static let modelKey = "companion.provider.model"
+    nonisolated private static let orderKey = "companion.provider.order"
+
+    nonisolated public static var name: String? {
+        get { UserDefaults.standard.string(forKey: nameKey) }
+        set { UserDefaults.standard.set(newValue, forKey: nameKey) }
+    }
+
+    nonisolated public static var localModel: String? {
+        get { UserDefaults.standard.string(forKey: modelKey) }
+        set { UserDefaults.standard.set(newValue, forKey: modelKey) }
+    }
+
+    /// Provider ids, best first. Stored as ids and not display names because
+    /// the name is copy — it can be translated or reworded, and a preference
+    /// keyed by copy breaks the day someone edits a string.
+    nonisolated public static var order: [String] {
+        get { UserDefaults.standard.stringArray(forKey: orderKey) ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: orderKey) }
+    }
+
+    /// Rebuilt rather than stored as one blob: a half-written pair (a name
+    /// with no tag) must read as "nothing chosen", not as a path that will
+    /// fail on the first message.
+    nonisolated public static var acceptedPath: LocalPath? {
+        switch name {
+        case LocalPath.appleFM.providerName:
+            return .appleFM
+        case LocalPath.ollama(model: "").providerName:
+            guard let model = localModel, !model.isEmpty else { return nil }
+            return .ollama(model: model)
+        default:
+            return nil
+        }
+    }
+
+    /// Accepting a local path is also an opinion about the ladder: someone who
+    /// chose to talk to their own Mac wants that first, not as a fallback.
+    nonisolated public static func accept(_ path: LocalPath) {
+        name = path.providerName
+        localModel = path.model
+        var next = order.filter { $0 != path.providerId }
+        next.insert(path.providerId, at: 0)
+        order = next
+    }
+
+    nonisolated public static func forget() {
+        UserDefaults.standard.removeObject(forKey: nameKey)
+        UserDefaults.standard.removeObject(forKey: modelKey)
+        UserDefaults.standard.removeObject(forKey: orderKey)
     }
 }

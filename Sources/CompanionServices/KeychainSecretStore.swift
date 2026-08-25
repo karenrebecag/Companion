@@ -2,6 +2,26 @@ import CompanionCore
 import Foundation
 import Security
 
+/// Keys in the login keychain — the file-based one, which is what `SecItem`
+/// targets on macOS unless asked otherwise.
+///
+/// HACK: this is the legacy keychain, and it is a deliberate choice, not an
+/// oversight. The modern data-protection keychain would end the password
+/// dialogs for good (its access is bound to the app's identity rather than to
+/// an ACL that a re-signing invalidates), but reaching it needs
+/// `kSecUseDataProtectionKeychain` together with an `application-identifier`
+/// entitlement, and that needs a Team ID this project does not have yet.
+/// Upgrade trigger: the day the Apple Developer account exists, move to the
+/// data-protection keychain and delete this note.
+///
+/// What was removed, and why it mattered: this used to set
+/// `kSecAttrAccessible` and `kSecAttrSynchronizable: false` under a comment
+/// promising "survive lock, never leave this Mac". Apple documents
+/// `kSecAttrAccessible` as irrelevant to the file-based keychain, so the
+/// attribute did nothing and the promise was not the code's to make. The
+/// no-sync half happens to hold — the file keychain does not sync — but by
+/// accident, not by that flag. A security comment that overstates is worse
+/// than none: it stops the next person from checking.
 public struct KeychainSecretStore: SecretStore, Sendable {
     public static let service = "Companion"
 
@@ -41,10 +61,6 @@ public struct KeychainSecretStore: SecretStore, Sendable {
 
         var add = query
         add[kSecValueData as String] = data
-        // Survive lock; never leave this Mac (no iCloud sync).
-        add[kSecAttrAccessible as String] =
-            kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        add[kSecAttrSynchronizable as String] = kCFBooleanFalse as Any
         try Self.check(SecItemAdd(add as CFDictionary, nil))
     }
 

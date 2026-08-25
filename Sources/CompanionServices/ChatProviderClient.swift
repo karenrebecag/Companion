@@ -18,7 +18,15 @@ public final class ChatProviderClient: ChatProvider, Sendable {
     /// the next message, not the next launch.
     private let languageSource: (@Sendable () -> AppLanguage)?
     private let catalog: [ProviderDescriptor]
+    /// Read at REQUEST time, like the profile and the language above: which
+    /// local models exist is a fact about the machine that changes while the
+    /// app is open, and a catalog frozen at launch would keep offering a model
+    /// the user deleted.
+    private let catalogSource: (@Sendable () -> [ProviderDescriptor])?
     private let resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
+    /// Injectable so a test does not sit through a real backoff. The retry is
+    /// the behaviour under test; the waiting is not.
+    private let sleep: @Sendable (TimeInterval) async throws -> Void
 
     public init(
         secrets: any SecretStore,
@@ -31,7 +39,9 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         profileSource: (@Sendable () -> (name: String, about: String, instructions: String))? = nil,
         languageSource: (@Sendable () -> AppLanguage)? = nil,
         catalog: [ProviderDescriptor] = ProviderDescriptor.catalog,
-        resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil
+        catalogSource: (@Sendable () -> [ProviderDescriptor])? = nil,
+        resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil,
+        sleep: (@Sendable (TimeInterval) async throws -> Void)? = nil
     ) {
         self.secrets = secrets
         self.probe = probe
@@ -43,7 +53,11 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         self.profileSource = profileSource
         self.languageSource = languageSource
         self.catalog = catalog
+        self.catalogSource = catalogSource
         self.resolveAttachment = resolveAttachment
+        self.sleep = sleep ?? { seconds in
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+        }
     }
 
     public func stream(_ history: [Turn], tools: [ToolSpec])
@@ -91,11 +105,12 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         continuation: AsyncThrowingStream<ChatDelta, Error>.Continuation
     ) async {
         let providers = ProviderDescriptor.route(
-            preferred: settings.preferredProviderName, catalog: catalog)
+            order: settings.providerOrder,
+            catalog: catalogSource?() ?? catalog)
         do {
             var lastError: ChatError?
             var attempted = false
-            for provider in providers {
+            providerLoop: for provider in providers {
                 try Task.checkCancellation()
                 if provider.secretKey != nil, storedKey(for: provider) == nil {
                     continue
@@ -114,29 +129,48 @@ public final class ChatProviderClient: ChatProvider, Sendable {
                     about = ownerAbout
                     instructions = ownerInstructions
                 }
-                let outcome = await ChatSSEAttempt.run(
-                    provider: provider,
-                    key: storedKey(for: provider),
-                    history: history,
-                    tools: tools,
-                    settings: settings,
-                    ownerFirstName: name,
-                    about: about,
-                    instructions: instructions,
-                    language: languageSource?() ?? .en,
-                    transport: transport,
-                    resolveAttachment: resolveAttachment,
-                    yield: { continuation.yield($0) })
-                switch outcome {
-                case .cancelled:
-                    continuation.finish(throwing: CancellationError())
-                    return
-                case .failed(let error):
-                    lastError = error
-                    continue
-                case .reply, .spokePartial, .handoff:
-                    continuation.finish()
-                    return
+                // Attempts against THIS provider before demoting it. A 429 or
+                // a timeout used to drop straight down the ladder, and with
+                // nothing below it the user was told there was no provider —
+                // a burst of traffic reported as a broken setup.
+                var attempt = 1
+                while true {
+                    try Task.checkCancellation()
+                    let outcome = await ChatSSEAttempt.run(
+                        provider: provider,
+                        key: storedKey(for: provider),
+                        history: history,
+                        tools: tools,
+                        settings: settings,
+                        ownerFirstName: name,
+                        about: about,
+                        instructions: instructions,
+                        language: languageSource?() ?? .en,
+                        transport: transport,
+                        resolveAttachment: resolveAttachment,
+                        yield: { continuation.yield($0) })
+                    switch outcome {
+                    case .cancelled:
+                        continuation.finish(throwing: CancellationError())
+                        return
+                    case .reply, .spokePartial, .handoff:
+                        continuation.finish()
+                        return
+                    case .failed(let error):
+                        lastError = error
+                        guard RetryPolicy.shouldRetry(
+                            error, attempt: attempt)
+                        else { continue providerLoop }
+                        attempt += 1
+                        do {
+                            try await sleep(
+                                RetryPolicy.delay(attempt: attempt))
+                        } catch {
+                            continuation.finish(
+                                throwing: CancellationError())
+                            return
+                        }
+                    }
                 }
             }
             continuation.finish(

@@ -294,7 +294,7 @@ struct SettingsAppPane: View {
         } label: {
             VStack(spacing: Space.x2) {
                 Image(systemName: pref.symbol)
-                    .font(Fonts.sans(TypeSize.md))
+                    .font(Fonts.sans(TypeSize.strong))
                     .foregroundStyle(
                         selected ? Semantic.foreground : Semantic.mutedForeground)
                 Text(pref.label)
@@ -328,7 +328,7 @@ struct SettingsAppPane: View {
         } label: {
             VStack(spacing: Space.x2) {
                 Text("Aa")
-                    .font(Fonts.sample(face, size: TypeSize.lg))
+                    .font(Fonts.sample(face, size: TypeSize.title))
                     .foregroundStyle(
                         selected ? Semantic.foreground : Semantic.mutedForeground)
                 Text(face.label)

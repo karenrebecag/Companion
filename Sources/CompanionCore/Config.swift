@@ -4,6 +4,9 @@ public enum SecretKey: String, Sendable, Equatable {
     case openAI = "OPENAI_API_KEY"
     case groq = "GROQ_API_KEY"
     case openRouter = "OPENROUTER_API_KEY"
+    /// Web search. A secondary key like the rest: without it the tool is not
+    /// offered at all, which is the whole point — see Wave 9f.
+    case brave = "BRAVE_API_KEY"
 }
 
 public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
@@ -13,19 +16,24 @@ public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
     public var model: String
     /// nil = local, no auth (Ollama).
     public var secretKey: SecretKey?
+    /// nil = do not send the field at all. A temperature is a choice about a
+    /// SPECIFIC model, so it does not survive a model change.
+    public var temperature: Double?
 
     public init(
         id: String,
         name: String,
         baseURL: URL,
         model: String,
-        secretKey: SecretKey?
+        secretKey: SecretKey?,
+        temperature: Double? = 0.7
     ) {
         self.id = id
         self.name = name
         self.baseURL = baseURL
         self.model = model
         self.secretKey = secretKey
+        self.temperature = temperature
     }
 
     /// Original concatenates `base + "/chat/completions"`; base has no
@@ -50,6 +58,18 @@ public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         secretKey: .groq
     )
 
+    public static let openRouter = ProviderDescriptor(
+        id: "openrouter",
+        name: "OpenRouter",
+        baseURL: URL(string: "https://openrouter.ai/api/v1")!,
+        model: "openai/gpt-4o",
+        secretKey: .openRouter
+    )
+
+    /// The model here is a PLACEHOLDER, never a promise: which tag exists is
+    /// a fact about the user's machine, so the composition root replaces it
+    /// with one the daemon actually has (see `LocalCatalog`). Shipping a fixed
+    /// tag made the health probe say yes and the first message die on a 404.
     public static let ollama = ProviderDescriptor(
         id: "ollama",
         name: "Ollama",
@@ -58,17 +78,41 @@ public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         secretKey: nil
     )
 
-    public static let catalog: [ProviderDescriptor] = [openAI, groq, ollama]
+    /// Immutable update: the catalog entry is a template and each resolution
+    /// produces a new descriptor rather than editing the shared one.
+    public func withModel(_ model: String) -> ProviderDescriptor {
+        var copy = self
+        copy.model = model
+        // Kept unless the new model cannot take it. Dropping it always would
+        // strip the local row of its temperature on every launch — Ollama's
+        // model is resolved at runtime, so it goes through here every time —
+        // while keeping it always would turn a switch to a reasoning model
+        // into a 400 on every message.
+        if !ChatParameters.acceptsTemperature(model) { copy.temperature = nil }
+        return copy
+    }
 
-    /// Known preferred name moves to the front; unknown keeps catalog order.
+    public static let catalog: [ProviderDescriptor] = [
+        openAI, groq, openRouter, ollama,
+    ]
+
+    /// The ladder, in the user's order. Named ids go first in the order given;
+    /// everything unnamed keeps catalog order behind them.
+    ///
+    /// Absent does NOT mean off. A provider the user has never seen — one that
+    /// appeared because they installed Ollama or pasted a key — must not start
+    /// switched off just because an older preference did not mention it. An
+    /// off switch needs a UI to toggle it, and until that exists inventing one
+    /// here would only produce a setting nobody can undo.
     public static func route(
-        preferred: String?,
+        order: [String],
         catalog: [ProviderDescriptor] = catalog
     ) -> [ProviderDescriptor] {
-        guard let p = catalog.first(where: { $0.name == preferred }) else {
-            return catalog
+        let named = order.compactMap { id in
+            catalog.first { $0.id == id }
         }
-        return [p] + catalog.filter { $0 != p }
+        let rest = catalog.filter { !order.contains($0.id) }
+        return named + rest
     }
 }
 
@@ -137,18 +181,20 @@ public struct VoiceSettings: Sendable, Equatable {
 }
 
 public struct ChatSettings: Sendable, Equatable {
-    public var preferredProviderName: String?
+    /// Provider ids, best first. Empty means "catalog order", which is what a
+    /// user who never expressed an opinion gets.
+    public var providerOrder: [String]
     public var historyWindow: Int
     public var inactivityTimeout: TimeInterval
     public var turnTimeout: TimeInterval
 
     public init(
-        preferredProviderName: String? = nil,
+        providerOrder: [String] = [],
         historyWindow: Int = 20,
         inactivityTimeout: TimeInterval = 15,
         turnTimeout: TimeInterval = 60
     ) {
-        self.preferredProviderName = preferredProviderName
+        self.providerOrder = providerOrder
         self.historyWindow = historyWindow
         self.inactivityTimeout = inactivityTimeout
         self.turnTimeout = turnTimeout

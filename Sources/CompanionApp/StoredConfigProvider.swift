@@ -19,7 +19,9 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
             : UserProfile.ownerName
 
         return Config(
-            chat: .default,
+            // Was `.default`, which pinned the preference to nil no matter
+            // what the user chose: the field existed and never arrived.
+            chat: ChatSettings(providerOrder: ProviderPreference.order),
             voice: VoiceProfile.settings,
             executors: [ExecutorCatalog.native],
             workdir: WorkdirPreference.validated ?? workdir,

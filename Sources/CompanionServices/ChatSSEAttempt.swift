@@ -149,9 +149,16 @@ private func makeBody(
     var body: [String: Any] = [
         "model": provider.model,
         "stream": true,
-        "temperature": 0.7,
         "messages": messages,
     ]
+    // Sent only when the descriptor chose one AND the model takes it. A
+    // reasoning model answers 400 to the field itself, which the ladder would
+    // report as "no provider available" — the wrong place to send someone
+    // looking for the fault.
+    if let temperature = provider.temperature,
+       ChatParameters.acceptsTemperature(provider.model) {
+        body["temperature"] = temperature
+    }
     if !tools.isEmpty {
         var encoded: [Any] = []
         for spec in tools {

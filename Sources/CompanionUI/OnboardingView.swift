@@ -1,6 +1,8 @@
 import CompanionCore
 import SwiftUI
 
+/// First run. The key used to be the only door; now it is the upgrade, and the
+/// screen shows whichever way in this Mac actually has.
 public struct OnboardingView: View {
     @Bindable var model: ChatViewModel
 
@@ -21,27 +23,88 @@ public struct OnboardingView: View {
                     .font(.uiHeading)
                     .foregroundStyle(Semantic.foreground)
 
-                Text(Localized.string("onboarding.blurb"))
+                Text(blurb)
                     .font(.uiBody)
                     .foregroundStyle(Semantic.mutedForeground)
             }
 
-            VStack(alignment: .leading, spacing: Space.x2) {
-                AppField(
-                    title: Localized.string("onboarding.key"),
-                    placeholder: "sk-proj-...",
-                    text: $model.onboardingKey,
-                    error: model.onboardingBusy ? nil : model.errorText,
-                    secure: true,
-                    onSubmit: { Task { await model.submitOnboarding() } })
+            localSection
 
-                HStack(spacing: Space.x2) {
-                    Text(Localized.string("onboarding.getKey"))
-                        .font(.uiCaption)
-                        .foregroundStyle(Semantic.accentText)
-                    Link("", destination: URL(string: "https://platform.openai.com/api/keys")!)
-                        .frame(height: 16)
+            keySection
+
+            Spacer()
+        }
+        .padding(Space.x6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// The headline follows the state: promising a local model before the
+    /// probe answers is how a launch ends up contradicting itself.
+    private var blurb: String {
+        switch model.startup {
+        case .probing:
+            return Localized.string("onboarding.probing")
+        case .base:
+            return Localized.string("onboarding.base.blurb")
+        case .none, .premium:
+            return Localized.string("onboarding.blurb")
+        }
+    }
+
+    @ViewBuilder private var localSection: some View {
+        switch model.startup {
+        case .probing:
+            HStack(spacing: Space.x2) {
+                ProgressView()
+                    .frame(width: 12, height: 12)
+                Text(Localized.string("onboarding.probing"))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+            }
+        case .base(let paths):
+            VStack(alignment: .leading, spacing: Space.x2) {
+                ForEach(paths, id: \.providerName) { path in
+                    AppButton(pathTitle(path)) {
+                        model.acceptLocalBase(path)
+                    }
                 }
+            }
+        case .none:
+            Text(Localized.string("onboarding.local.missing"))
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+        case .premium:
+            EmptyView()
+        }
+    }
+
+    private func pathTitle(_ path: LocalPath) -> String {
+        guard let model = path.model else {
+            return Localized.string("onboarding.local.apple")
+        }
+        return String(format: Localized.string("onboarding.local.ollama"), model)
+    }
+
+    @ViewBuilder private var keySection: some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            Text(Localized.string("onboarding.key.optional"))
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+
+            AppField(
+                title: Localized.string("onboarding.key"),
+                placeholder: "sk-proj-...",
+                text: $model.onboardingKey,
+                error: model.onboardingBusy ? nil : model.errorText,
+                secure: true,
+                onSubmit: { Task { await model.submitOnboarding() } })
+
+            HStack(spacing: Space.x2) {
+                Text(Localized.string("onboarding.getKey"))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.accentText)
+                Link("", destination: URL(string: "https://platform.openai.com/api/keys")!)
+                    .frame(height: 16)
             }
 
             if model.onboardingBusy {
@@ -56,18 +119,20 @@ public struct OnboardingView: View {
 
             HStack(spacing: Space.x3) {
                 AppButton(
-                    "Continuar",
+                    Localized.string("onboarding.continue"),
+                    kind: hasLocalPath ? .secondary : .primary,
                     enabled: !cannotContinue
                 ) {
                     Task { await model.submitOnboarding() }
                 }
                 Spacer()
             }
-
-            Spacer()
         }
-        .padding(Space.x6)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var hasLocalPath: Bool {
+        if case .base = model.startup { return true }
+        return false
     }
 
     private var cannotContinue: Bool {

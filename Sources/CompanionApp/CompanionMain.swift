@@ -25,6 +25,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var executorChoice: ExecutorChoice?
     private var updates: UpdateState?
 
+    /// A net, not a guarantee, and the difference matters: this runs on an
+    /// orderly quit and on nothing else. A crash or a Force Quit gives the app
+    /// no chance, and macOS has no way to ask the kernel to take our children
+    /// with us. What we started under those conditions survives us — stated
+    /// here so nobody reads this method as a promise it cannot keep.
+    func applicationWillTerminate(_ notification: Notification) {
+        ProcessRegistry.shared.terminateAll()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         let home = FileManager.default.homeDirectoryForCurrentUser
         // The bundle around the binary decides which app this is; the log
@@ -48,12 +57,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Log.app("could not create conversations dir")
         }
 
-        let secrets = KeychainSecretStore()
+        // Envuelto: el bucle de routing pide la misma clave dos veces por
+        // proveedor y la voz otra vez al abrir sesion. Sin cache eso son
+        // varias lecturas del llavero por mensaje, y cuando el ACL del item no
+        // reconoce a la app, cada lectura es un dialogo de contrasena.
+        let secrets = CachingSecretStore(KeychainSecretStore())
         let transport = URLSessionChatTransport()
         let probe = LiveCapabilityProbe(transport: transport)
-        let configProvider = StoredConfigProvider(
-            workdir: FileManager.default.homeDirectoryForCurrentUser.path)
+        // No default reach. Handing over the whole home folder on first launch
+        // was a security decision taken by omission: nobody chose it and
+        // nobody was asked. Without a folder the specialist simply has none,
+        // and the question arrives when reach is actually needed instead of
+        // as friction at startup.
+        let configProvider = StoredConfigProvider(workdir: nil)
         let config = configProvider.current
+        // Which local model exists is a fact about THIS Mac, so the Ollama row
+        // is resolved at runtime instead of shipping a fixed tag. Scanned once
+        // at launch; the router reads the result per request.
+        let localCatalog = LocalCatalog(
+            scan: OllamaModelScan(transport: transport))
+        // The router needs this even when onboarding never runs: someone with
+        // a key still deserves the local model as a fallback. The onboarding
+        // probe below refreshes it again only when there is NO key, which is
+        // one extra GET to localhost in exchange for never routing to a model
+        // the daemon does not have.
+        Task {
+            await localCatalog.refresh(
+                preferred: ProviderPreference.localModel)
+        }
         let chat = ChatProviderClient(
             secrets: secrets,
             probe: probe,
@@ -67,7 +98,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 return (live.ownerFirstName, live.ownerAbout,
                         live.ownerInstructions)
             },
-            languageSource: { configProvider.current.language })
+            languageSource: { configProvider.current.language },
+            catalogSource: { localCatalog.effective() })
         let store = ConversationStore(directory: support)
 
         // Job execution infrastructure
@@ -77,7 +109,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             descriptor: ExecutorCatalog.native,
             chatProvider: chat,
             config: config,
-            approvals: approvals)
+            approvals: approvals,
+            webSearch: BraveWebSearch(transport: transport, secrets: secrets))
         // The real provider probes for claude and hermes; without them the
         // catalog is just the native executor and nothing changes (ADR 001).
         let sessions = FileExecutorSessionStore(
@@ -131,7 +164,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             chat: chat, secrets: secrets, store: store, config: config,
             jobSubmitter: jobRunner,
             notices: NoticeCenter(sound: sound),
-            attachments: attachmentStore)
+            attachments: attachmentStore,
+            startupProbe: localCatalog)
         self.model = model
 
         let caches = FileManager.default.urls(

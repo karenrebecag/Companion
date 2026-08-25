@@ -109,7 +109,24 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
         var cached: (any Executor)? = nil
 
         stateQueue.sync {
-            id = _selectedExecutorId ?? .native
+            let selected = _selectedExecutorId ?? .native
+            // The dropdown picks who you TALK to. The work goes where the
+            // capability lives: a request for cinemas used to die in the
+            // native lane with an installed Claude Code sitting next to it.
+            // Read directly: currentCatalog() would take this same queue and
+            // deadlock.
+            let installed = _availableExecutors.isEmpty
+                ? [ExecutorCatalog.native]
+                : _availableExecutors
+            id = WorkRouting.executor(
+                selected: selected, installed: installed)
+            if WorkRouting.overrides(selected: selected, chosen: id) {
+                // Said out loud, as the prototype did in its status line: a
+                // routing nobody can see is the app deciding behind your back.
+                Log.app(
+                    "executor: work routed from \(selected.rawValue) to "
+                    + "\(id.rawValue) — it has the tools")
+            }
             cached = _cachedExecutors[id]
         }
 
