@@ -37,6 +37,31 @@ the author's machine — their metadata says All Rights Reserved, so the repo
 ships Inter and the app degrades to it, then to the system font. Faces are
 registered at launch from the bundle, Application Support and ~/Library/Fonts.
 
+The ramp is five steps named for their role, not their size — **11 / 13 /
+16 / 22 / 29**. It is OSMO's UI band re-anchored on the macOS body (13):
+that leaves 1.18x below the body and 2.23x above, so hierarchy is built
+*upward*. Trying to differentiate downward is what the old ramp did, and
+every step below the body hit the floor and rendered identical.
+
+| Token | Size | Styles |
+|---|---|---|
+| `micro` | 11 | eyebrow, caption, mono, action |
+| `base` | 13 | body, label, code |
+| `strong` | 16 | subtitle, group header |
+| `title` | 22 | sheet title, heading |
+| `display` | 29 | logo, onboarding |
+
+The Settings size control is **multiplicative** (1.08 per step, −1…+3), not
+additive. An offset preserves absolute differences and destroys the ratios at
+the extremes; a factor preserves the ratios everywhere. A test asserts the
+ramp stays strictly increasing and every ratio holds within 5% at each step —
+the same test reproduces the old collapse if the floor is raised back.
+
+At `micro` the size channel is exhausted: nothing is smaller. What
+distinguishes an eyebrow there is family (mono), case (uppercase) and
+tracking, not size. Derivation and the full channel budget live in
+`docs/specs/reticula/`.
+
 ### Spacing
 
 One scale (`Space.x1` … `Space.x8`). A gate fails the build if a numeric

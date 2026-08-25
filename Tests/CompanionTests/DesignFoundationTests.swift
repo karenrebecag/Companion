@@ -12,6 +12,9 @@ import Testing
     testDestructiveContrastPassesAA()
     testFontFallbackDegradesToInterThenSystem()
     testSpaceRamp()
+    testTypeLadderIsTheDocumentedRamp()
+    testTypeLadderHoldsRatios()
+    testTypeFloorHoldsAtSmallest()
 }
 
 @MainActor func testElevationScaleIsMonotonic() {
@@ -88,4 +91,65 @@ import Testing
     _ = (Semantic.background, Semantic.surface, Semantic.foreground,
          Semantic.mutedForeground, Semantic.border, Semantic.accent,
          Semantic.destructive, Font.uiTitle, Font.uiBody, Font.uiCaption)
+}
+
+// MARK: - Escala tipografica (R-01)
+
+/// La rampa nominal 11/13/16/22/29. Su razon de ser: antes de R-01 la escala
+/// documentada solo se pintaba con delta +3, y en delta 0 dos tokens caian
+/// al piso y renderizaban identicos.
+@MainActor func testTypeLadderIsTheDocumentedRamp() {
+    let previous = TypeScale.delta
+    defer { TypeScale.delta = previous }
+    TypeScale.delta = 0
+    expectEq(
+        typeLadder().map { TypeScale.apply($0) },
+        [CGFloat(11), 13, 16, 22, 29],
+        "tipo: delta 0 pinta la rampa documentada 11/13/16/22/29")
+}
+
+/// El control de tamano es multiplicativo, no aditivo: sumar un offset
+/// aplasta las razones en los extremos. En todos los pasos la rampa crece y
+/// cada razon se mantiene; la desviacion es solo el redondeo a punto entero.
+@MainActor func testTypeLadderHoldsRatios() {
+    let previous = TypeScale.delta
+    defer { TypeScale.delta = previous }
+    let ladder = typeLadder()
+    let nominal = (1..<ladder.count).map { ladder[$0] / ladder[$0 - 1] }
+    for delta in TypeScale.min...TypeScale.max {
+        TypeScale.delta = delta
+        let rendered = typeLadder().map { TypeScale.apply($0) }
+        for i in 1..<rendered.count {
+            expect(
+                rendered[i] > rendered[i - 1],
+                "tipo: delta \(delta) — el escalon \(i) no crece "
+                    + "(\(rendered[i - 1]) → \(rendered[i]))")
+            let drift = abs(rendered[i] / rendered[i - 1] / nominal[i - 1] - 1)
+            expect(
+                drift <= 0.05,
+                "tipo: delta \(delta) — razon \(i) se desvia "
+                    + "\(Int((drift * 100).rounded()))%")
+        }
+    }
+}
+
+/// El piso solo actua en el paso mas pequeno; ese es todo su papel.
+@MainActor func testTypeFloorHoldsAtSmallest() {
+    let previous = TypeScale.delta
+    defer { TypeScale.delta = previous }
+    TypeScale.delta = TypeScale.min
+    expectEq(
+        TypeScale.apply(TypeSize.micro), TypeScale.floor,
+        "tipo: en el paso minimo el micro toca el piso")
+    TypeScale.delta = 0
+    expect(
+        TypeScale.apply(TypeSize.micro) > TypeScale.floor,
+        "tipo: en delta 0 el piso no recorta nada")
+}
+
+/// Funcion y no constante: los tokens estan aislados al MainActor y el
+/// inicializador de un global no lo esta.
+@MainActor private func typeLadder() -> [CGFloat] {
+    [TypeSize.micro, TypeSize.base, TypeSize.strong,
+     TypeSize.title, TypeSize.display]
 }

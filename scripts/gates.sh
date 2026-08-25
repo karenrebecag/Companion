@@ -99,10 +99,25 @@ spacing_hits=$(grep -rnE \
     "$SRC/CompanionUI" --include='*.swift' 2>/dev/null \
     | grep -v 'token-exempt:' || true)
 if [ -n "$spacing_hits" ]; then
-    fail "CompanionUI: padding/spacing/cornerRadius literal (usar Space/Radius):"
+    fail "CompanionUI: padding/spacing literal (usar Space/Radius):"
     echo "$spacing_hits"
 else
-    pass "CompanionUI sin literales de padding/spacing/cornerRadius"
+    pass "CompanionUI sin literales de padding/spacing (cornerRadius: lo cubre el contrato)"
+fi
+
+# Reticula: el escaneo profundo (radios, frames, aritmetica sobre Space,
+# .system(size:), opacidad sobre roles, duraciones, copy con ?? o ternario)
+# vive en conformance/ui-contract.json y lo ejecuta uiConformanceTests dentro
+# de Gate 4. Aqui solo se hace visible la deuda: el numero solo puede bajar.
+if [ -f "$ROOT/conformance/ui-contract.json" ]; then
+    debt=$(python3 -c "
+import json
+b = json.load(open('$ROOT/conformance/ui-contract.json'))['baseline']
+print(f\"{len(b)} archivos, {sum(sum(v.values()) for v in b.values())} infracciones\")
+" 2>/dev/null || echo "no medible")
+    pass "reticula: ratchet en $debt (Gate 4 lo aplica)"
+else
+    fail "falta conformance/ui-contract.json"
 fi
 
 # Copy que no pasa por el catalogo: la UI nace monolingue otra vez. Se mira
@@ -116,7 +131,7 @@ if [ -n "$copy_hits" ]; then
     fail "CompanionUI: texto literal fuera del catalogo (usar Localized):"
     echo "$copy_hits"
 else
-    pass "CompanionUI sin texto literal fuera del catalogo"
+    pass "CompanionUI sin texto literal pegado a Text( (?? y ternarios los cubre el contrato)"
 fi
 
 # -------------------------------------------------------------- Gate 4: tests

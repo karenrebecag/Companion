@@ -1,0 +1,106 @@
+{
+  "$comment": "Contrato de la reticula de CompanionUI, ejecutable. Runner: Tests/CompanionTests/ConformanceTests.swift. Patron tomado de ATOMUIKIT/atom-uikit-ds/conformance (modelo Willison: el contrato es data, el runner es tonto). 'baseline' es RATCHET de deuda pre-contrato: si un archivo empeora falla; si mejora, el runner pide bajar el numero. Meter deuda nueva aqui para que pase un cambio propio se le dice a Karen. Valvula por linea: // token-exempt: <por que>.",
+  "scanDirs": [
+    "Sources/CompanionUI"
+  ],
+  "rules": {
+    "radius-literal": {
+      "why": "un radio literal no sigue a Radius: en R-06 el relleno cambia y el filete se queda, y el desajuste no lo avisa nadie. La forma comun aqui es RoundedRectangle(cornerRadius: 8), que el grep de gates.sh no ve",
+      "pattern": "cornerRadius\\s*[:(]\\s*[0-9]"
+    },
+    "frame-literal": {
+      "why": "una medida de lienzo escrita a mano no esta en ninguna rampa; son la mitad de los 27 valores distintos que llegan a pantalla",
+      "pattern": "\\.frame\\([^)]*(?:width|height|minWidth|minHeight|maxWidth|maxHeight)\\s*:\\s*[0-9]"
+    },
+    "space-arithmetic": {
+      "why": "Space.x1 usado como multiplicador es escribir pixeles esquivando el gate (Space.x1 * 52 = 208). Si el valor no esta en la rampa, la rampa esta incompleta: se agrega el token, no se calcula en la vista",
+      "pattern": "Space\\.x[0-9]+\\s*[-+*/]|[0-9]+\\s*\\*\\s*Space\\."
+    },
+    "system-font": {
+      "why": "se salta TypeScale Y la tipografia elegida: no responde ni al control de tamano ni a la fuente del usuario. Toda tipografia pasa por Fonts/Font.ui*",
+      "pattern": "system\\(size:\\s*[0-9]"
+    },
+    "role-opacity": {
+      "why": "el estado es un rol semantico, no un alfa inventado por call site. Tres idiomas distintos de 'seleccionado' salieron de aqui",
+      "pattern": "Semantic\\.[a-zA-Z]+\\.opacity\\("
+    },
+    "raw-duration": {
+      "why": "las duraciones salen de MotionTime; una literal es motion inventado y suele venir sin reduce-motion",
+      "pattern": "duration:\\s*[0-9]"
+    },
+    "copy-literal": {
+      "why": "copy fuera del catalogo: la UI nace monolingue otra vez. El grep de gates.sh solo ve la comilla pegada a Text(, asi que ?? y los ternarios se le escapan",
+      "pattern": "Text\\([^)]*\\?\\??\\s*\"[^\"]{3,}\""
+    }
+  },
+  "exemptFiles": {},
+  "baseline": {
+    "ApprovalSheet.swift": {
+      "frame-literal": 1,
+      "radius-literal": 1
+    },
+    "AttachmentViews.swift": {
+      "space-arithmetic": 12
+    },
+    "ChatInputView.swift": {
+      "space-arithmetic": 1
+    },
+    "CompanionRootView.swift": {
+      "space-arithmetic": 2
+    },
+    "Dropdown.swift": {
+      "space-arithmetic": 3
+    },
+    "HeaderView.swift": {
+      "role-opacity": 1,
+      "space-arithmetic": 11
+    },
+    "JobCardView.swift": {
+      "frame-literal": 1,
+      "space-arithmetic": 1
+    },
+    "MarkdownView.swift": {
+      "frame-literal": 2
+    },
+    "OnboardingView.swift": {
+      "frame-literal": 4
+    },
+    "Orb.swift": {
+      "raw-duration": 1
+    },
+    "Orb/OrbView.swift": {
+      "space-arithmetic": 1
+    },
+    "Orb/RotatingGlowView.swift": {
+      "raw-duration": 1
+    },
+    "Pressable.swift": {
+      "role-opacity": 1
+    },
+    "SettingsAppPane.swift": {
+      "role-opacity": 4
+    },
+    "SettingsView.swift": {
+      "frame-literal": 2,
+      "role-opacity": 1,
+      "space-arithmetic": 1
+    },
+    "Shimmer.swift": {
+      "space-arithmetic": 1
+    },
+    "ShortcutCaptureField.swift": {
+      "copy-literal": 1,
+      "radius-literal": 1
+    },
+    "StatusLine.swift": {
+      "copy-literal": 1,
+      "space-arithmetic": 2
+    },
+    "ThreadView.swift": {
+      "space-arithmetic": 8
+    },
+    "Toasts.swift": {
+      "frame-literal": 1
+    }
+  }
+}

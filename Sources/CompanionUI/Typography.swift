@@ -82,10 +82,15 @@ public enum AppTypeface: String, CaseIterable {
 // Type scale
 public enum TypeScale {
     public static let key = "companionFontDelta"
-    public static let min = -2
+    /// -2 no existe: con el cuerpo ya en el piso de plataforma no hay a
+    /// donde bajar sin fundir dos escalones en uno.
+    public static let min = -1
     public static let max = 3
-    public static let origin = -3
-    private static let migratedKey = "companionFontDeltaV2"
+    private static let migratedKey = "companionFontDeltaV3"
+    /// Razon por paso. El control es multiplicativo y no aditivo: sumar un
+    /// offset conserva las diferencias absolutas y destruye las razones en
+    /// los extremos — es lo que fundia micro y base en un solo valor.
+    private static let step = 1.08
 
     public static var delta: Int {
         get {
@@ -101,10 +106,12 @@ public enum TypeScale {
         }
     }
 
-    public static let floor: CGFloat = 12
+    /// NSFont caption2. Solo actua en el paso minimo; ese es todo su papel.
+    public static let floor: CGFloat = 10
 
     public static func apply(_ size: CGFloat) -> CGFloat {
-        Swift.max(Self.floor, size + CGFloat(origin + delta))
+        let scaled = size * CGFloat(pow(step, Double(delta)))
+        return Swift.max(Self.floor, scaled.rounded())
     }
 
     @discardableResult
@@ -122,11 +129,18 @@ public enum TypeScale {
     public static var bodyLead: CGFloat { apply(TypeSize.base) * 0.3 }
     public static var codeLead: CGFloat { apply(TypeSize.base) * 0.15 }
 
+    /// Alto de una linea de cuerpo ya renderizada. Un caret o el hueco de una
+    /// frase tienen que seguir al texto: con un token de espacio fijo se
+    /// quedarian cortos en cuanto el usuario sube el tamano.
+    public static var bodyLine: CGFloat { apply(TypeSize.base) + bodyLead }
+
     private static func migrateIfNeeded() {
         let d = UserDefaults.standard
         guard !d.bool(forKey: migratedKey) else { return }
         if let old = d.object(forKey: key) as? Int {
-            d.set(Swift.min(max, Swift.max(min, old - origin)), forKey: key)
+            // Bajo el origen -3 el nominal era +3; ahora el nominal es 0.
+            // Sin esto convivian dos poblaciones viendo escalas distintas.
+            d.set(Swift.min(max, Swift.max(min, old - 3)), forKey: key)
         }
         d.set(true, forKey: migratedKey)
     }
@@ -217,19 +231,22 @@ public enum Fonts {
 
 // Font styles
 extension Font {
-    public static var uiEyebrow: Font { Fonts.mono(TypeSize.sm, bold: true) }
-    public static var uiMicro: Font { Fonts.sans(TypeSize.xs) }
-    public static var uiCaption: Font { Fonts.sans(TypeSize.sm) }
-    public static var uiLabel: Font { Fonts.sans(TypeSize.sm) }
+    // En el piso el tamano ya no diferencia: lo hacen familia, caja y
+    // tracking. Ver "presupuesto de canales" en docs/specs/reticula.
+    public static var uiEyebrow: Font { Fonts.mono(TypeSize.micro, bold: true) }
+    public static var uiMicro: Font { Fonts.sans(TypeSize.micro) }
+    public static var uiCaption: Font { Fonts.sans(TypeSize.micro) }
+    public static var uiMono: Font { Fonts.mono(TypeSize.micro) }
+    public static var uiMonoSm: Font { Fonts.mono(TypeSize.micro) }
+    public static var uiAction: Font { Fonts.mono(TypeSize.micro, bold: true) }
+    public static var uiLabel: Font { Fonts.sans(TypeSize.base) }
     public static var uiBody: Font { Fonts.sans(TypeSize.base) }
-    public static var uiSubtitle: Font { Fonts.sans(TypeSize.md) }
-    public static var uiTitle: Font { Fonts.sans(TypeSize.lg) }
-    public static var uiHeading: Font { Fonts.sans(TypeSize.xl) }
-    public static var uiLogo: Font { Fonts.logo(TypeSize.display) }
-    public static var uiMono: Font { Fonts.mono(TypeSize.sm) }
-    public static var uiMonoSm: Font { Fonts.mono(TypeSize.xs) }
     public static var uiCode: Font { Fonts.mono(TypeSize.base) }
-    public static var uiAction: Font { Fonts.mono(TypeSize.sm, bold: true) }
+    public static var uiSubtitle: Font { Fonts.sans(TypeSize.strong) }
+    // Mismo papel con dos nombres; unificarlos es R-04.
+    public static var uiTitle: Font { Fonts.sans(TypeSize.title) }
+    public static var uiHeading: Font { Fonts.sans(TypeSize.title) }
+    public static var uiLogo: Font { Fonts.logo(TypeSize.display) }
 }
 
 // Type styling for Views
@@ -238,21 +255,21 @@ extension View {
     public func typeEyebrow() -> some View {
         font(.uiEyebrow)
             .textCase(.uppercase)
-            .tracking(Tracking.wider, at: TypeSize.sm)
+            .tracking(Tracking.wider, at: TypeSize.micro)
             .foregroundStyle(Semantic.mutedForeground)
     }
 
     /// Large sizes need to close space or they look loose.
     public func typeHeading() -> some View {
-        font(.uiHeading).tracking(Tracking.tight, at: TypeSize.xl)
+        font(.uiHeading).tracking(Tracking.tight, at: TypeSize.title)
     }
 
     public func typeTitle() -> some View {
-        font(.uiTitle).tracking(Tracking.tight, at: TypeSize.lg)
+        font(.uiTitle).tracking(Tracking.tight, at: TypeSize.title)
     }
 
     public func typeSubtitle() -> some View {
-        font(.uiSubtitle).tracking(Tracking.snug, at: TypeSize.md)
+        font(.uiSubtitle).tracking(Tracking.snug, at: TypeSize.strong)
     }
 
     /// Letter spacing in em units; SwiftUI wants points.

@@ -178,15 +178,21 @@ public enum Radius {
     public static let full: CGFloat = 100
 }
 
-// Type sizes (tercera mayor 16·1.25^n)
+// Type sizes. Banda UI de OSMO (11..30) re-anclada en el body de macOS: con
+// el cuerpo en 13 quedan 1.18x por debajo y 2.23x por encima, asi que la
+// jerarquia se construye hacia arriba, no hacia abajo. Nombres por papel y
+// no por talla. Ver docs/specs/reticula/01-escala-tipografica.md.
 public enum TypeSize {
-    public static let xs: CGFloat = 10.24
-    public static let sm: CGFloat = 12.8
-    public static let base: CGFloat = 16
-    public static let md: CGFloat = 18
-    public static let lg: CGFloat = 20
-    public static let xl: CGFloat = 25
-    public static let display: CGFloat = 31.25
+    /// Mono, eyebrow y caption. Piso de plataforma: no hay nada mas abajo.
+    public static let micro: CGFloat = 11
+    /// Cuerpo y etiqueta de fila. NSFont.systemFontSize.
+    public static let base: CGFloat = 13
+    /// Subtitulo y encabezado de grupo.
+    public static let strong: CGFloat = 16
+    /// Titulo de hoja.
+    public static let title: CGFloat = 22
+    /// Logo y onboarding.
+    public static let display: CGFloat = 29
 }
 
 // Letter spacing

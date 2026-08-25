@@ -64,13 +64,16 @@ public struct MarkdownView: View {
             // Companion card blocks: try to render as rich cards, degrade to code on JSON error.
             if language == CompanionBlocks.locationsLanguage {
                 if let locations = CompanionBlocks.locations(body) {
-                    MapCard(block: locations)
+                    // From a fence: the model authored it, and the card says so.
+                    CardView(card: Card(
+                        payload: .locations(locations), source: .model))
                 } else {
                     codeBlock(body, language: language)
                 }
             } else if language == CompanionBlocks.galleryLanguage {
                 if let gallery = CompanionBlocks.gallery(body) {
-                    GalleryCard(block: gallery)
+                    CardView(card: Card(
+                        payload: .gallery(gallery), source: .model))
                 } else {
                     codeBlock(body, language: language)
                 }

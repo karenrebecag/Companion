@@ -93,7 +93,7 @@ public struct ThreadView: View {
                     // specialist works: same slot, but it says what is
                     // happening and for how long.
                     if let job = model.job {
-                        JobCardView(job: job)
+                        JobCardView(onStop: { model.cancelJob() }, job: job)
                             .upsideDown()
                     } else if model.busy, model.streaming.isEmpty {
                         skeleton
@@ -163,6 +163,10 @@ public struct ThreadView: View {
                 .padding(.vertical, Space.x1)
         } else if message.role == .user {
             userTurn(message)
+        } else if let card = message.card {
+            // Its own channel all the way to the screen: never parsed out of
+            // text, so nothing the model wrote can reach this pin.
+            CardView(card: card)
         } else {
             assistantRow(message.text)
         }

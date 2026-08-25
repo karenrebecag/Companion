@@ -191,7 +191,7 @@ public struct TypewriterView: View {
                 }
             }
         }
-        .frame(minHeight: TypeSize.lg)
+        .frame(minHeight: TypeScale.bodyLine)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(phrases.joined(separator: ", "))
     }
@@ -199,7 +199,7 @@ public struct TypewriterView: View {
     private func cursor(lit: Bool) -> some View {
         Rectangle()
             .fill(Semantic.accent)
-            .frame(width: Stroke.medium, height: TypeSize.lg)
+            .frame(width: Stroke.medium, height: TypeScale.bodyLine)
             .opacity(lit ? 1 : 0)
             .offset(y: 2)
             .accessibilityHidden(true)
