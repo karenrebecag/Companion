@@ -48,8 +48,13 @@ final class AsyncBox<T: Sendable>: @unchecked Sendable {
     }
 }
 
+/// El plazo generoso no es holgura: estos tests son todos `@MainActor` y este
+/// bucle espera OCUPANDO el main actor, asi que bajo carga se quedan sin turno
+/// unos a otros. Con 2 s la suite fallaba de forma intermitente sin que nada
+/// estuviera roto. Sale en cuanto se cumple la condicion, asi que un plazo
+/// largo no cuesta nada cuando todo va bien.
 @MainActor func pumpUntil(
-    _ label: String, timeout: TimeInterval = 2,
+    _ label: String, timeout: TimeInterval = 10,
     sourceLocation: SourceLocation = #_sourceLocation, _ pred: () -> Bool
 ) async {
     let deadline = Date().addingTimeInterval(timeout)

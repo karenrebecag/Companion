@@ -79,7 +79,7 @@ import Testing
     let previous = TypeScale.delta
     defer { TypeScale.delta = previous }
     TypeScale.delta = TypeScale.min
-    expectEq(TypeScale.nudge(-1), TypeScale.min, "tipo: no baja de −2")
+    expectEq(TypeScale.nudge(-1), TypeScale.min, "tipo: no baja de −1")
     TypeScale.delta = TypeScale.max
     expectEq(TypeScale.nudge(1), TypeScale.max, "tipo: no sube de +3")
     TypeScale.delta = 0

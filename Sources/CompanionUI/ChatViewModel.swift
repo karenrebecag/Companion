@@ -2,32 +2,68 @@ import CompanionCore
 import Foundation
 import Observation
 
+/// How a message enters the model's memory, when that differs from how the
+/// reader sees it. The thread and the model's history used to be one array,
+/// and their requirements are opposite: the reader wants the whole report, the
+/// model wants a bounded, correctly attributed trace of it.
+public struct Recall: Sendable, Equatable {
+    public var role: TurnRole
+    public var content: String
+    public var toolCalls: [ToolCallRef]
+    public var toolCallID: String?
+
+    public init(
+        role: TurnRole,
+        content: String,
+        toolCalls: [ToolCallRef] = [],
+        toolCallID: String? = nil
+    ) {
+        self.role = role
+        self.content = content
+        self.toolCalls = toolCalls
+        self.toolCallID = toolCallID
+    }
+}
+
 public struct ChatMessage: Identifiable, Equatable {
     public let id: UUID
     public var role: TurnRole?
     public var isStatus: Bool
     public var text: String
     public var attachments: [AttachmentRef]
+    /// Painted from its own channel, not parsed out of the text. A card that
+    /// is here never passed through the model.
+    public var card: Card?
+    /// nil means "remember me as you read me", which is every ordinary
+    /// message and therefore changes nothing for them.
+    public var recall: Recall?
 
     public init(
         id: UUID = UUID(),
         role: TurnRole? = nil,
         isStatus: Bool = false,
         text: String,
-        attachments: [AttachmentRef] = []
+        attachments: [AttachmentRef] = [],
+        card: Card? = nil,
+        recall: Recall? = nil
     ) {
         self.id = id
         self.role = role
         self.isStatus = isStatus
         self.text = text
         self.attachments = attachments
+        self.card = card
+        self.recall = recall
     }
 }
 
 @Observable
 @MainActor
 public final class ChatViewModel: ConversationPresenting {
-    public private(set) var needsOnboarding = true
+    public internal(set) var needsOnboarding = true
+    /// How the launch resolved. `needsOnboarding` stays true until this
+    /// settles, so the root never paints the thread and takes it back.
+    public internal(set) var startup: StartupState = .probing
     public internal(set) var messages: [ChatMessage] = []
     public private(set) var streaming = ""
     public private(set) var busy = false
@@ -37,6 +73,14 @@ public final class ChatViewModel: ConversationPresenting {
     public private(set) var busySince: Date?
     /// Non-nil while a specialist works: the live card owns the steps.
     public internal(set) var job: JobTimeline?
+    /// Set by the brake so the job's own ending knows it was stopped rather
+    /// than broken.
+    var cancelledJob = false
+    /// Whether this job has had anything approved yet. A job whose FIRST
+    /// action you refuse is almost never one you want carrying on by another
+    /// route — which is exactly what happened when a denial stopped `diskutil`
+    /// and the job finished with `df -h` anyway.
+    var jobHasApprovedAction = false
 
     public var folderName: String?
 
@@ -71,7 +115,7 @@ public final class ChatViewModel: ConversationPresenting {
         pendingAttachments = []
     }
     public private(set) var recents: [ConversationMeta] = []
-    public private(set) var errorText: String?
+    public internal(set) var errorText: String?
     /// Non-nil while the specialist waits for a decision; the sheet binds here.
     public internal(set) var pendingApproval: ApprovalRequest?
     public var draft = ""
@@ -79,9 +123,15 @@ public final class ChatViewModel: ConversationPresenting {
     public private(set) var onboardingBusy = false
 
     private let chat: any ChatProvider
-    private let secrets: any SecretStore
+    let secrets: any SecretStore
     private let store: any ConversationStoring
     private let config: Config
+    let startupProbe: (any StartupProbing)?
+    /// The local path this user accepted, held in memory so a stale
+    /// preference can never unlock the app on its own: it only counts once
+    /// the probe has seen that path alive in THIS launch.
+    var acceptedLocal: LocalPath?
+    var probeTask: Task<Void, Never>?
     let jobSubmitter: (any JobSubmitter)?
     public let notices: NoticeCenter
     let attachments: (any AttachmentStoring)?
@@ -95,12 +145,14 @@ public final class ChatViewModel: ConversationPresenting {
         config: Config,
         jobSubmitter: (any JobSubmitter)? = nil,
         notices: NoticeCenter = NoticeCenter(),
-        attachments: (any AttachmentStoring)? = nil
+        attachments: (any AttachmentStoring)? = nil,
+        startupProbe: (any StartupProbing)? = nil
     ) {
         self.chat = chat
         self.secrets = secrets
         self.store = store
         self.config = config
+        self.startupProbe = startupProbe
         self.jobSubmitter = jobSubmitter
         self.notices = notices
         self.attachments = attachments
@@ -110,27 +162,6 @@ public final class ChatViewModel: ConversationPresenting {
 
     public func toast(_ text: String, level: NoticeLevel = .info) {
         notices.toast(text, level: level)
-    }
-
-    public func onAppear() {
-        do {
-            let raw = try secrets.read(.openAI)
-            let key = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            if key.isEmpty {
-                needsOnboarding = true
-                return
-            }
-            needsOnboarding = false
-        } catch {
-            needsOnboarding = true
-            errorText = ChatCopy.error(error)
-            return
-        }
-        do {
-            try loadMostRecent()
-        } catch {
-            errorText = ChatCopy.error(error)
-        }
     }
 
     public func submitOnboarding() async {
@@ -153,6 +184,7 @@ public final class ChatViewModel: ConversationPresenting {
             try await chat.verify(key, provider: .openAI)
             try secrets.write(.openAI, value: key)
             onboardingKey = ""
+            startup = .premium
             needsOnboarding = false
             try loadMostRecent()
         } catch {
@@ -168,9 +200,11 @@ public final class ChatViewModel: ConversationPresenting {
         streaming = ""
         busy = false
         busySince = nil
-        needsOnboarding = true
         onboardingKey = ""
         errorText = nil
+        // Someone already talking to a local model must not go mute for
+        // touching the premium field. The door closes only if nothing is left.
+        if acceptedLocal == nil { needsOnboarding = true }
     }
 
     public func send() {
@@ -321,7 +355,7 @@ public final class ChatViewModel: ConversationPresenting {
                 messages.append(ChatMessage(role: .assistant, text: preface))
             }
             messages.append(ChatMessage(
-                isStatus: true, text: ChatCopy.handoff(handoff)))
+                isStatus: true, text: ChatCopy.handoffUnavailable(handoff)))
             return
         }
 
@@ -329,6 +363,10 @@ public final class ChatViewModel: ConversationPresenting {
             messages.append(ChatMessage(role: .assistant, text: preface))
         }
     }
+
+    /// Test seam: the history the provider would receive, which is now a
+    /// different thing from what the thread shows.
+    func historyForTests() -> [Turn] { windowedTurns() }
 
     private func drain() {
         guard !needsOnboarding, !queued.isEmpty else { return }
@@ -339,20 +377,60 @@ public final class ChatViewModel: ConversationPresenting {
         conversationId == id && !Task.isCancelled
     }
 
-    private func windowedTurns() -> [Turn] {
+    func windowedTurns() -> [Turn] {
         let turns: [Turn] = messages.compactMap { message in
+            // A status line carries no memory of its own — unless it was given
+            // one, which is how the delegate call survives in the history.
+            if let recall = message.recall {
+                return Turn(
+                    role: recall.role, content: recall.content,
+                    attachments: message.attachments,
+                    toolCalls: recall.toolCalls,
+                    toolCallID: recall.toolCallID)
+            }
             if message.isStatus { return nil }
             guard let role = message.role else { return nil }
+            // What the assistant said goes through the same filter as a
+            // specialist report: card payloads are interface, not context, and
+            // the chat layer can emit them too now.
+            let content = role == .assistant
+                ? ConversationMemory.recall(message.text)
+                : message.text
             return Turn(
-                role: role, content: message.text,
+                role: role, content: content,
                 attachments: message.attachments)
         }
         let window = max(0, config.chat.historyWindow)
         guard window > 0, turns.count > window else { return turns }
-        return Array(turns.suffix(window))
+        // What falls out of the window leaves a note instead of a hole.
+        let kept = Self.dropOrphanedToolTurns(Array(turns.suffix(window)))
+        let dropped = Array(turns.prefix(turns.count - window))
+        guard let note = ConversationMemory.compaction(
+            of: dropped, language: config.language)
+        else { return kept }
+        return [note] + kept
     }
 
-    private func loadMostRecent() throws {
+    /// The window can fall between a delegate call and the result that answers
+    /// it. A tool turn whose call was cut away is not merely useless: the
+    /// provider rejects the whole request over it, so the turn after a long
+    /// conversation would fail outright.
+    static func dropOrphanedToolTurns(_ turns: [Turn]) -> [Turn] {
+        var known: Set<String> = []
+        var kept: [Turn] = []
+        for turn in turns {
+            for call in turn.toolCalls { known.insert(call.id) }
+            if turn.role == .tool {
+                guard let id = turn.toolCallID, known.contains(id) else {
+                    continue
+                }
+            }
+            kept.append(turn)
+        }
+        return kept
+    }
+
+    func loadMostRecent() throws {
         recents = try store.list()
         guard let meta = recents.first, let record = try store.load(meta.id) else {
             conversationId = UUID().uuidString

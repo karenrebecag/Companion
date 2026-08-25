@@ -68,6 +68,62 @@ smell de scope: para poder infinito ya existen los adapters opcionales.
 - `Brain` deja de ser {fast, hermes, claude} hardcodeado: es una lista de
   ejecutores descubiertos + el nativo.
 
+### Nota 2026-08-24 — la septima tool, y por que no viola el "chico"
+
+El set nativo pasa de seis a siete con `list_directory`. Se anota aqui porque
+este ADR eligio un set "curado y deliberadamente chico" y advirtio que crecer
+hacia los 40+ tools de hermes seria smell de scope.
+
+**El disparador fue de uso real, no de deseo.** Karen pidio buscar una carpeta
+en el escritorio; el especialista contesto "no encontre ninguna carpeta llamada
+'Software Development Projects'". La carpeta existe y se llama
+`SoftwareDevProjects`. No fue torpeza del modelo: con seis tools, `read_file`
+exige saber la ruta y la unica forma de mirar alrededor era `run_shell`, que
+pide aprobacion humana en cada comando. El especialista no tenia ojos.
+
+**Por que una tool y no una busqueda.** La tentacion era `find_files` con glob
+o substring. No habria servido: "Software Development Projects" no coincide con
+`SoftwareDevProjects` por ninguna de las dos. Lo que faltaba no era mejor
+busqueda sino VER la lista y dejar que el modelo reconozca el nombre. Una
+primitiva, no un motor.
+
+**Por que es `.safe`.** Si mirar costara una aprobacion, explorar una carpeta
+costaria un clic por nivel y el especialista volveria a adivinar rutas en vez
+de mirarlas. Escribir sigue pidiendo permiso; mirar no.
+
+El limite del ADR sigue en pie: la siguiente tool exige el mismo ejercicio —
+un fallo observado, y la prueba de que ninguna de las que ya existen lo cubre.
+
+---
+
+### Nota 2026-08-24 — la octava tool, con una razon mas debil y dicha asi
+
+`find_places` (MKLocalSearch, nativo y sin clave) entra al set nativo.
+
+**El disparador NO fue un fallo observado**, y eso importa: la nota anterior
+fijo la regla de que cada tool nueva exige un fallo visto y la prueba de que
+ninguna existente lo cubre. Aqui no hemos visto un pin equivocado. Lo que hay
+es un defecto de arquitectura documentado — las tarjetas de lugares las
+originaba el MODELO, escribiendo coordenadas de memoria dentro de un fence — y
+la industria define lo contrario: la aplicacion aporta el dato y el modelo solo
+elige que mostrar.
+
+Es una razon legitima y es mas debil que la de `list_directory`. Queda escrita
+como lo que es, para que la regla no se ablande por acumulacion.
+
+**Lo que ninguna tool existente cubria:** `web_search` devuelve prosa, no
+coordenadas. Que el modelo las extraiga de la prosa es exactamente el paso que
+esta wave elimina.
+
+**Lo que NO se hizo, y por que.** Prohibir el fence habria dejado sin tarjetas
+a los especialistas CLI, que no corren nuestras tools y solo devuelven texto.
+En vez de eso la tarjeta lleva PROCEDENCIA: la nacida de una consulta se pinta
+como siempre; la que escribio el modelo lo dice en pantalla. Si no podemos
+impedir que la invente, dejamos de presentarla con la misma autoridad que un
+dato verificado.
+
+---
+
 ## ADR 002 — Actualizaciones sin Sparkle
 
 **Fecha:** 2026-08-21 · **Estado:** aceptada
@@ -224,3 +280,99 @@ valor de producto.
 - Queda abierto: el acuse hablado no llega al pipeline clasico, donde no hay
   modelo que lo genere. Decidir si se dice por el sintetizador o si el clasico
   se queda mudo tambien para el acuse.
+
+---
+
+## ADR 006 — Base local, nube opcional
+
+**Fecha:** 2026-08-22 · **Estado:** BORRADOR (sale de la spec Wave 9b)
+
+**Contexto.** Companion se presenta como conversacion natural con el Mac y
+acceso al ecosistema local de AI, con menos friccion que Siri, pero hoy solo
+arranca con una clave de pago: `ChatViewModel.onAppear` decide el onboarding
+leyendo unicamente la clave de OpenAI del Keychain, y `send()` esta detras de
+ese flag. La escalera de proveedores YA salta los que no tienen clave y los
+locales caidos (`ChatProviderClient:93-103`); el muro no esta en el routing,
+esta en el arranque. Y el unico camino local que existe apunta a un tag
+constante (`qwen3.6:27b`) que casi ningun Mac tiene instalado, asi que el
+camino gratis falla en silencio antes de empezar.
+
+**Decision.**
+
+1. **La base no exige clave, y ninguna clave es requisito.** OpenAI, Groq y
+   OpenRouter son la misma clase de cosa: claves secundarias que viven en
+   Ajustes y suben el techo del producto. La unica razon por la que OpenAI
+   parecia distinta es que era la unica, y por eso se comio el onboarding. El
+   producto tiene dos personas: quien no sabe que es una API key, y quien pega
+   las suyas para sacarle todo el jugo.
+
+2. **Los pesos no viajan en el DMG.** Companion instala app y logica. Los pesos
+   los aporta el sistema (Apple Foundation Models) o un runtime que el usuario
+   ya tiene (Ollama). El binario no crece, actualizar el cerebro no exige
+   republicar, y el modelo correcto lo decide la RAM de quien la usa.
+
+3. **Detectar es leer.** El scan de los modelos instalados cumple las tres
+   condiciones del ADR 004: vive en un unico adapter, es read-only sobre HTTP a
+   localhost, y con Ollama apagado el producto se comporta identico. Es la
+   misma familia que `HermesProviderScan`.
+
+4. **La descarga del modelo base la orquesta la app, por la API del daemon.**
+   Esta decision CORRIGE el borrador del mismo dia, que dejaba el pull fuera
+   por el ADR 004. Se corrige por dos razones, y la segunda es la que importa:
+
+   - De producto: quien no sabe que es una API key tampoco sabe que es una
+     terminal. Ofrecerle un comando para pegar en Terminal.app es cambiar un
+     muro por otro con mejor educacion.
+   - De arquitectura: **Ollama expone el pull por HTTP**
+     (`POST localhost:11434/api/pull`, NDJSON con progreso). Companion no
+     ejecuta ningun binario ajeno — hace una peticion al daemon que el usuario
+     ya decidio correr, sobre el mismo host que `EndpointPolicy` autoriza. Sin
+     `Process`, sin PATH, sin shell. **El ADR 004 se respeta tal cual esta
+     escrito**; la premisa que estaba mal era suponer que pull = subprocess.
+
+   La descarga es opcional en las dos direcciones: nunca automatica, y no se
+   ofrece siquiera a quien ya tiene un modelo usable, una clave, o Apple FM.
+
+5. **Instalar el propio Ollama sigue fuera.** Traerse el instalador firmado de
+   otro proveedor y ejecutarlo es cadena de suministro, no deteccion. Eso si
+   exigiria su propio ADR. Companion enlaza a `ollama.com`.
+
+6. **La escalera es del usuario.** El orden de proveedores y el modelo de cada
+   uno dejan de ser constantes del codigo: son configuracion persistida
+   (`providerOrder`), reordenable y apagable, con la base local por defecto
+   delante porque es gratis, privada y no depende de la red. Apagarlo todo
+   devuelve la base local: una app sin ningun camino no es una configuracion,
+   es un fallo.
+
+7. **Apple FM no es una fila del catalogo.** `ProviderDescriptor` tiene
+   `baseURL` no opcional y todo lo que va aguas abajo asume un endpoint
+   OpenAI-compatible sobre HTTP y SSE. `SystemLanguageModel` es una API
+   in-process. Entra como un `ChatProvider` compuesto en la raiz de
+   composicion, que es la junta que el puerto ya ofrece.
+
+**Consecuencias.**
+
+- `needsOnboarding` deja de significar "no hay clave de OpenAI" y pasa a
+  significar "no hay ningun camino vivo". La decision se vuelve asincrona, con
+  un estado de sondeo explicito para que la raiz no parpadee.
+- `ProviderDescriptor.model` deja de ser constante: el catalogo efectivo se
+  arma en runtime en la raiz de composicion, donde `ChatProviderClient` ya
+  acepta que se lo inyecten.
+- `ChatSettings.preferredProviderName` se sustituye por `providerOrder`.
+  Sustituir sale gratis: hoy nadie escribe ese campo, y `StoredConfigProvider`
+  pasa `chat: .default`, asi que no hay dato viejo que migrar.
+- `ChatProvider.verify(_:provider:)` ya es generica sobre el descriptor;
+  verificar Groq u OpenRouter no necesita codigo nuevo, solo dejar de llamarla
+  con `.openAI` cableado. A `SecretKey.openRouter` le falta su descriptor.
+- **Un limite que no se puede configurar, y se nombra en el copy:** el tier de
+  voz en tiempo real es de OpenAI y punto. `RealtimeCodec:25` construye
+  `wss://api.openai.com/v1/realtime`; el codec, los eventos y el transporte
+  estan escritos contra ese esquema. Cambiar de proveedor ahi no es un campo de
+  configuracion, es un segundo protocolo full-duplex. En cambio STT y TTS **si**
+  son huecos intercambiables: `Transcriber` y `SpeechSynthesizer` son puertos, y
+  el segundo ya tiene dos implementaciones vivas. Por eso el copy dice "Voz en
+  tiempo real (OpenAI)" y no "voz premium".
+- El techo de contexto de Apple FM (`contextSize`, 4096 tokens de entrada y
+  salida juntos, leido del SDK) obliga a un presupuesto de historia propio para
+  ese proveedor. Si no da para una conversacion util, el adapter no se escribe:
+  es la puerta de evidencia de la pieza 9b-2.

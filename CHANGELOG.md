@@ -5,6 +5,79 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+### Added
+- **Companion arranca sin clave.** Chat, encargos y voz por turnos funcionan
+  con lo que ya corre en la Mac. La escalera de proveedores ya degradaba sola;
+  el muro estaba en tres lineas del arranque y en un tag de Ollama escrito a
+  mano que casi ninguna Mac tiene instalado — el probe decia que si y el primer
+  mensaje moria en un 404. Ahora el modelo local se resuelve leyendo lo que hay
+  (Wave 9b).
+- **`list_directory`.** El especialista podia leer un archivo si sabia la ruta
+  y no podia mirar alrededor sin pedir permiso por comando. Pidio "busca una
+  carpeta en el escritorio" y contesto que no existia una carpeta que estaba
+  ahi: no le faltaba inteligencia, le faltaban ojos.
+- **`find_places` sobre MapKit**, y las tarjetas nacidas de una consulta viajan
+  por su propio canal: el modelo lee nombres y direcciones, nunca coordenadas,
+  asi que no puede reescribirlas mal. Las que escribe el modelo en un fence
+  siguen pintandose y **dicen que Companion no las verifico**.
+- **`web_search` de verdad** (Brave), como clave secundaria. Era un munon que
+  siempre fallaba y aun asi se anunciaba: capturaba la intencion y se moria.
+- **Parar un encargo**, con boton y por voz. `JobRunner.cancel()` existia desde
+  la Wave 4 sin un solo llamador.
+- **Reintento en limite de tasa** antes de bajar de peldano.
+
+### Changed
+- **Lo que se ve deja de ser lo que se recuerda.** El informe completo del
+  especialista entraba en el historial como algo que el modelo de charla habia
+  dicho: se comia el contexto, le ensenaba a escribir informes contra su propio
+  prompt, y le dejaba releer un resultado que nunca produjo. Medido en una
+  sesion real, un solo informe era el 23% del historial. Ahora vuelve como
+  resultado de tool, acotado, y atado a la llamada que lo pidio (Wave 9d).
+- **El trabajo va al carril que tiene herramientas**, no al que dice el
+  desplegable. El prototipo ya lo hacia; el rebuild corria el encargo en lo
+  seleccionado, y el default era el mas debil.
+- **Pedir otra cosa mientras trabaja encola**, no cancela. La primera version
+  rechazaba y salio peor: el mensaje de rechazo ofrecia "dime para", el modelo
+  lo leyo como instruccion y mato el encargo vivo. Copy que llega a un modelo
+  no es copy, es prompt.
+- **Negar el primer paso para el encargo entero.** Negar uno posterior solo
+  acota: para entonces va donde tu lo mandaste.
+- **La carpeta personal deja de ser el alcance por defecto.** Se repartia el
+  home entero desde el primer arranque sin preguntar. Elegirlo sigue siendo
+  posible y **no se recuerda entre sesiones**, que es donde la referencia
+  tambien traza la linea.
+- **El historial se comprime en vez de truncarse.** Lo que salia de la ventana
+  desaparecia sin rastro.
+- **Una tool que no puede correr no se le ensena al modelo**, y el prompt dejo
+  de prometer busqueda web sin condicion.
+
+### Fixed
+- **"No hay conexion a internet" con la red perfecta.** `noProvider` — la
+  escalera agotada — se contaba como red caida, y mandaba a arreglar lo que no
+  estaba roto. Mismo defecto que un 429 leyendose como "no hay proveedor".
+- **Un fallo salia dos veces con dos redacciones**, una desde Services con
+  texto cableado y otra desde el catalogo. Un solo dueno, y es el del catalogo.
+- **El especialista perdia el disco al caer a batch.** El respaldo corria sin
+  una sola bandera de permisos: sin manos y con boca, contestaba "no encontre
+  nada" a preguntas que si tenian respuesta.
+- **`temperature` iba cableada** y los modelos de razonamiento la rechazan con
+  400. Latente hoy, garantizado en cuanto el panel deje elegir modelo.
+- **El llavero prometia lo que no cumplia:** `kSecAttrAccessible` no aplica al
+  llavero de archivo, que es el que usamos. Se quitaron los atributos muertos y
+  el comentario dice lo que de verdad pasa.
+- **Una lectura del llavero por proveedor y por turno** eran hasta cinco
+  dialogos de contrasena por mensaje. Ahora una por clave.
+- **El registro de un encargo no decia nada si lo corrio el ejecutor nativo:**
+  solo conocia los nombres de herramienta de Claude Code.
+- **La app anunciaba que "el especialista llega en una proxima version"**
+  mientras el especialista trabajaba: copy vieja reutilizada sin leerla.
+- **Salida de shell mayor que un pipe (~64 KB)** se reportaba como timeout: se
+  leia despues de esperar, asi que el hijo se bloqueaba escribiendo.
+- **Los subprocesos morian sin su descendencia**, y ninguno moria al cerrar la
+  app. Ahora cada uno vive en su propio grupo, con escalada a SIGKILL.
+- **La suite era intermitente** y nadie lo habia medido: `pumpUntil` esperaba
+  2 s ocupando el main actor, con todos los tests en el main actor.
+
 ### Changed
 - **El encargo es UI asistiva: no habla por su cuenta.** Decision de producto.
   El resultado vuelve una sola vez — el texto del especialista es el mensaje

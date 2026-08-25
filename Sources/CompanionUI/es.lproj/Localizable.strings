@@ -20,6 +20,7 @@
 
 /* Encargos */
 "chat.handoff.pending" = "Encargo: %@ — el especialista llega en una próxima versión.";
+"chat.handoff.started" = "Encargo: %@";
 "chat.step.done" = "%@ — listo";
 "chat.step.failed" = "%@ — falló";
 "chat.approval.pending" = "El especialista pide permiso para continuar.";
@@ -156,10 +157,23 @@
 "shortcut.toggleMute" = "Silenciar/activar sonido";
 "thread.queued" = "En cola: %@";
 "thread.untitled" = "Conversación";
-"onboarding.blurb" = "Tu voz privada asistente. Necesita tu clave de OpenAI.";
+"onboarding.blurb" = "Tu asistente de voz privado. Corre en tu Mac; la clave es opcional.";
 "onboarding.key" = "Clave de OpenAI";
 "onboarding.getKey" = "Obtener clave";
 "onboarding.verifying" = "Verificando...";
+"chat.card.locations" = "Se mostró un mapa con: %@.";
+"chat.card.gallery" = "Se mostró una galería en pantalla.";
+"chat.job.stopped" = "Paraste el encargo.";
+"job.stop" = "Parar";
+"chat.job.failed" = "El encargo no pudo terminar: %@";
+"card.unverified" = "Companion no verificó estas ubicaciones.";
+"onboarding.probing" = "Buscando IA en este Mac…";
+"onboarding.base.blurb" = "Listo para hablar: sin cuenta y sin pegar nada.";
+"onboarding.local.ollama" = "Usar %@ en tu Mac";
+"onboarding.local.apple" = "Usar el modelo que trae este Mac";
+"onboarding.local.missing" = "No encontré ningún runtime local. Instala Ollama (unos 2 minutos) y vuelve a abrir Companion, o pega una clave abajo.";
+"onboarding.key.optional" = "Opcional: una clave desbloquea la voz en tiempo real y modelos más fuertes.";
+"onboarding.continue" = "Continuar";
 "status.approvalWaiting" = "El especialista espera tu permiso";
 "status.escToStop" = "Esc para cortar";
 "sources.title" = "Fuentes";
@@ -176,3 +190,6 @@
 "settings.app.language.es" = "Español";
 "notices.label" = "Avisos";
 "job.record" = "Encargo: %@";
+"map.title" = "Ubicaciones";
+"sources.file" = "Archivo";
+"sources.file.kind" = "Archivo %@";

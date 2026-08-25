@@ -69,8 +69,18 @@ import Testing
              "copy: denied")
     expectEq(ChatCopy.error(PersistenceError.io), persist, "copy: persist io")
     expectEq(ChatCopy.error(PersistenceError.encoding), persist, "copy: persist enc")
+    // Dos copys distintas desde Wave 9g: una marca lo delegado cuando el
+    // especialista SI corre, y la otra es la nota de "aqui no hay runner".
+    // Estaban fundidas, y la version larga salia en encargos que si estaban
+    // ejecutandose — la app diciendo que el especialista llegaria algun dia
+    // mientras trabajaba.
     expectEq(
         ChatCopy.handoff(Handoff(goal: "listar el escritorio", context: "x")),
+        "Job: listar el escritorio",
+        "copy: encargo en marcha")
+    expectEq(
+        ChatCopy.handoffUnavailable(
+            Handoff(goal: "listar el escritorio", context: "x")),
         "Job: listar el escritorio — the specialist arrives in a future version.",
         "copy: handoff")
 }
@@ -239,7 +249,8 @@ import Testing
     vm.draft = "hazlo"
     vm.send()
     await pumpUntil("handoff: idle") { !vm.busy }
-    let status = ChatCopy.handoff(handoff)
+    // Este recorrido no tiene runner cableado: es la nota de ausencia.
+    let status = ChatCopy.handoffUnavailable(handoff)
     expectEq(vm.messages.map(\.text), ["hazlo", "Voy. ", status], "handoff: prefacio")
     expectEq(vm.messages.map(\.isStatus), [false, false, true], "handoff: estado")
     do {
@@ -385,8 +396,15 @@ import Testing
     await port.appendAssistant("b")
     await port.appendUser("tres")
     let turns = await port.historyTurns()
-    expectEq(turns.map(\.role), [.assistant, .user], "hist: ventana 2, sin status")
-    expectEq(turns.map(\.content), ["b", "tres"], "hist: los dos últimos de chat")
+    // Desde Wave 9h lo que sale de la ventana deja una NOTA en vez de un
+    // hueco: truncar en silencio es lo que hacia que el modelo olvidara cosas
+    // que la usuaria recordaba haber dicho.
+    expectEq(turns.map(\.role), [.system, .assistant, .user],
+             "hist: ventana 2 mas la nota de lo comprimido")
+    expectEq(turns.map(\.content).suffix(2), ["b", "tres"],
+             "hist: los dos últimos de chat siguen enteros")
+    expect(turns.first?.content.contains("uno") == true,
+           "hist: y la primera petición sobrevive en la nota")
     expectEq(vm.messages.count, 6, "hist: el hilo guarda todo")
     expect(!turns.contains { $0.content == "nota" }, "hist: status fuera")
 }
@@ -409,7 +427,12 @@ import Testing
     let long = String(repeating: "a", count: 10_000)
     await port.appendAssistant(long)
     let after = await port.historyTurns()
-    expectEq(after.last?.content.count, 10_000, "present: 10k chars")
+    // Ya no viaja entero: desde Wave 9d lo que el asistente dice entra en la
+    // memoria acotado al presupuesto. El hilo y la persistencia siguen
+    // guardando los 10k — se comprueba abajo — porque lo que se muestra y lo
+    // que se recuerda dejaron de ser lo mismo.
+    expect((after.last?.content.count ?? 0) <= ConversationMemory.defaultBudget + 200,
+           "present: la memoria acota lo que el asistente dice")
     do {
         let loaded = try store.load(store.list()[0].id)
         expectEq(loaded?.messages.count, 5, "present: persiste los cinco")

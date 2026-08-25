@@ -20,6 +20,7 @@
 
 /* Jobs */
 "chat.handoff.pending" = "Job: %@ — the specialist arrives in a future version.";
+"chat.handoff.started" = "Job: %@";
 "chat.step.done" = "%@ — done";
 "chat.step.failed" = "%@ — failed";
 "chat.approval.pending" = "The specialist is asking permission to continue.";
@@ -156,10 +157,23 @@
 "shortcut.toggleMute" = "Mute/unmute";
 "thread.queued" = "Queued: %@";
 "thread.untitled" = "Conversation";
-"onboarding.blurb" = "Your private voice assistant. It needs your OpenAI key.";
+"onboarding.blurb" = "Your private voice assistant. It runs on your Mac; a key is optional.";
 "onboarding.key" = "OpenAI key";
 "onboarding.getKey" = "Get a key";
 "onboarding.verifying" = "Verifying…";
+"chat.card.locations" = "A map was shown with: %@.";
+"chat.card.gallery" = "A gallery was shown on screen.";
+"chat.job.stopped" = "You stopped the job.";
+"job.stop" = "Stop";
+"chat.job.failed" = "The job could not finish: %@";
+"card.unverified" = "Companion did not verify these locations.";
+"onboarding.probing" = "Looking for AI on this Mac…";
+"onboarding.base.blurb" = "Ready to talk — no account, nothing to paste.";
+"onboarding.local.ollama" = "Use %@ on your Mac";
+"onboarding.local.apple" = "Use the model built into this Mac";
+"onboarding.local.missing" = "No local runtime found. Install Ollama (about 2 minutes) and reopen Companion, or paste a key below.";
+"onboarding.key.optional" = "Optional — a key unlocks real-time voice and stronger models.";
+"onboarding.continue" = "Continue";
 "status.approvalWaiting" = "The specialist is waiting for your permission";
 "status.escToStop" = "Esc to stop";
 "sources.title" = "Sources";
@@ -176,3 +190,6 @@
 "settings.app.language.es" = "Spanish";
 "notices.label" = "Notices";
 "job.record" = "Job: %@";
+"map.title" = "Locations";
+"sources.file" = "File";
+"sources.file.kind" = "%@ file";

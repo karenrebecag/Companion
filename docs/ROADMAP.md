@@ -14,8 +14,204 @@
 | 7 | Delegacion de verdad | CERRADA (7a y 7b, 2026-08-21) | **"Crea un archivo" por voz termina en archivo real** |
 | 8 | Cabos sueltos | CERRADA (2026-08-22) | **Nada probado se queda sin cablear; ningun doc miente** |
 | 9 | Que la use alguien que no seas tu | EN CURSO | **Un desconocido instala, pega su key y conversa** |
+| 9b | Base local, nube opcional | APROBADO / EN CURSO | **Un desconocido conversa sin pegar ninguna key** |
+| 9c | Procesos y rendimiento | APROBADO / EN CURSO | **Nada que Companion lanza sobrevive a Companion** |
+| 9d | Lo que se ve y lo que se recuerda | CERRADA (2026-08-24) | **El modelo deja de creerse autor del informe del especialista** |
+| 9g | Ciclo de vida del encargo | CERRADA (2026-08-24) | **Puedes parar lo que no pediste** |
+| 9h | Los limites: alcance, ritmo y memoria | CERRADA (2026-08-24) | **El especialista deja de tener tu home por defecto** |
 
 ## Foco actual
+
+### El carril del trabajo (2026-08-24)
+
+**Sintoma:** Karen pidio "cines cerca de Reforma" y la app contesto "no puedo
+buscar en la web" — con Claude Code instalado y pagado al lado.
+
+**Causa, en dos capas.**
+
+1. `web_search` era un munon: devolvia siempre "not available: requires
+   configured search provider API key". Y aun asi se anunciaba al modelo,
+   porque `nativeToolSpecs()` publicaba `NativeTool.allCases` sin filtrar, y
+   `ChatPrompt.delegateRule` prometia "Y BUSQUEDA EN INTERNET" sin condicion.
+   Anunciar una tool rota es PEOR que no tenerla: **captura la intencion y
+   luego se muere**, asi que el modelo reporto que no podia en vez de buscar
+   otra via. `find_places`, que resolvia el caso con MapKit, nunca se intento.
+2. `ExecutorProvider` corria el encargo en **lo que dijera el desplegable**, y
+   su default es `.native`. El prototipo no hacia eso: `workExecutor(
+   claudeInstalled:)` mandaba el trabajo a claude si estaba instalado,
+   ELIGIERAS LO QUE ELIGIERAS para conversar, y lo decia en la linea de estado.
+
+**Arreglado.**
+
+- `availableTools` filtra: una tool sin respaldo configurado no se ofrece.
+- La promesa de internet en el prompt es condicional.
+- `ExecutorCapability` + `WorkRouting`: el carril de charla y el de trabajo son
+  elecciones distintas, y el trabajo va al especialista detectado.
+- El desvio se registra: un ruteo invisible es la app decidiendo a tus espaldas.
+
+**Un error mio que cazo un test.** Rankee los carriles contando capacidades.
+Parecia principiado y era falso: native tiene `.places` y un CLI tiene `.web`,
+empatan a tres, y el empate dejaba el trabajo en el carril mas debil — el bug
+exacto que el ruteo existe para arreglar. Se ranking por tipo, como el
+prototipo, con el vendor fuera.
+
+**Sobre Brave.** Se implemento `web_search` de verdad (Brave: indice propio, la
+latencia mas baja de las APIs de agentes, lo que decide en un producto de voz).
+Pero **no es la respuesta principal**: para un Mac con Claude Code la busqueda
+ya esta pagada. Queda como ultimo recurso para la persona base de 9b, que no
+tiene ningun carril con web — y por eso su clave es secundaria y su tool no se
+anuncia sin ella.
+
+
+
+### Auditoria contra documentacion (2026-08-24)
+
+Se reviso lo que este codigo asume de APIs ajenas. Dos defectos, arreglados;
+tres cosas verificadas que estaban bien, anotadas para no volver a mirarlas.
+
+**Arreglado — `temperature` cableado.** `ChatSSEAttempt` mandaba
+`"temperature": 0.7` siempre. Los modelos de razonamiento (serie o, GPT-5) no
+lo ignoran: devuelven 400 con `unsupported_value`. Hoy no molestaba porque el
+default es `gpt-4o`, pero **9b-3 existe para que el usuario elija el modelo**,
+asi que era una bomba con fecha. Ahora el campo viaja solo si el descriptor
+eligio uno Y el modelo lo acepta (`ChatParameters`, puro y probado). La
+heuristica por nombre lleva `HACK:` con su gatillo: leer el cuerpo del error
+del proveedor en vez de adivinar por la cadena.
+
+**Arreglado — el llavero prometia lo que no cumplia.** `KeychainSecretStore`
+ponia `kSecAttrAccessible` y `kSecAttrSynchronizable: false` bajo un
+comentario que decia "sobrevive al bloqueo, no sale de esta Mac". Apple
+documenta que `kSecAttrAccessible` **no es relevante en el keychain de
+archivo**, que es el que `SecItem` usa en macOS por defecto — y la inspeccion
+del item de Karen lo confirmo: vive en `login.keychain-db`. El atributo no
+hacia nada. Se quitaron los dos atributos muertos y el comentario dice ahora lo
+que de verdad pasa, con el gatillo de migrar al data-protection keychain
+cuando exista la cuenta de Developer (exige Team ID).
+
+**Verificado y correcto, para no re-auditarlo:**
+
+- Realtime: `wss://api.openai.com/v1/realtime?model=gpt-realtime` con solo
+  `Authorization` y SIN la cabecera `OpenAI-Beta: realtime=v1`. Es exactamente
+  la forma GA; la cabecera era de la beta y hay que quitarla.
+- `max_tokens`: deprecado a favor de `max_completion_tokens` y rechazado por la
+  serie o. No lo mandamos, asi que no aplica.
+- `SFSpeechRecognizer`: **no** esta deprecado. El SDK 26.5 ya trae
+  `SpeechTranscriber`, pero migrar es la deuda post-v1 que ya estaba anotada,
+  no un defecto.
+
+
+
+### Hallazgos de la captura de Karen (2026-08-24)
+
+Una captura de uso real destapo cuatro cosas. Dos ya estan arregladas con test
+en rojo primero; dos quedan anotadas con su causa medida.
+
+**Arreglado.**
+
+1. **"No hay conexion a internet" con la red perfecta.**
+   `VoiceFailureMapping` mandaba `ChatError.noProvider` a `.networkUnavailable`.
+   `noProvider` es la escalera de proveedores agotada, no la red caida: mandaba
+   al usuario a arreglar lo que no estaba roto. `TurnFailure.noProviders` — la
+   respuesta correcta — ya existia en la enum y nadie la usaba para esto.
+2. **Un fallo, dos mensajes, dos redacciones.** `VoiceSession` escribia el
+   fallo al hilo con texto cableado en Services (`ClassicRuntime.status`) y
+   `VoiceViewModel` lo escribia otra vez desde el catalogo. El usuario leia dos
+   bugs donde habia uno. Ahora hay un solo dueno, y es el que pasa por el
+   catalogo de idiomas; `ClassicRuntime.status` se fue entera. Ojo al detalle
+   que casi cuesta un hueco: la ruta de RECUPERACION emite el fallo sin poner
+   el estado en `.error`, asi que la condicion de la UI paso a mirar el cambio
+   de fallo y no el estado.
+
+**Anotado, con causa medida.**
+
+3. ~~Los widgets no pueden aparecer.~~ **RETIRADO (2026-08-24): era falso.**
+   `Escalation.executorRole` SI ensena la sintaxis de tarjetas al especialista
+   — vive en `EscalationCopy.swift`, y el grep original miro `ChatPrompt.swift`
+   y `Escalation.swift`. Las tarjetas estan cableadas de punta a punta. Que no
+   salgan en una respuesta concreta es correcto cuando esa respuesta no tiene
+   ni lugares ni imagenes. Queda como recordatorio de que un grep que no
+   encuentra algo no prueba que no exista.
+4. **Dos cadenas monolingues sobrevivientes de Wave 9.**
+   `VoiceAttachmentCopy.caption` (prompt al modelo, solo espanol: un usuario en
+   ingles recibe una instruccion en espanol) y `ChatViewModelJobs:125`
+   ("Error en el encargo: …", copy de usuario fuera del catalogo). El gate no
+   las ve porque ninguna es un `Text(...)`.
+
+**Sin confirmar:** el resultado del especialista salio DOS veces en el hilo,
+una con un espacio comido ("escritorio.Si") y otra limpia. Las dos rutas de
+encargo (`runJob` y `VoiceJobBridge`) anaden el resultado una sola vez cada
+una, asi que no reproduje la causa. Hace falta el log de esa sesion.
+
+
+
+**Wave 9b arrancada (2026-08-22).** Spec APROBADO en
+`docs/specs/wave-9b-base-local.md`, ADR 006 en `DECISIONS.md`. La wave nace de
+medir el codigo en vez del deseo: la escalera de proveedores YA degradaba sola
+sin key, y el muro real eran tres lineas de `ChatViewModel` mas un tag de
+Ollama escrito a mano que ningun Mac tiene instalado.
+
+Entregado — **9b-1 PR 1, el cable**:
+
+- `LocalModels.swift` (Core, puro): escalones de RAM con umbrales que caen
+  ENTRE configuraciones que Apple vende, y la regla de que modelo local elegir
+  (excluir embeddings, respetar lo guardado, el mayor que quepa, desempate
+  determinista).
+- `OllamaModelScan.swift` (Services, read-only, ADR 004): lee `/api/tags` y
+  distingue cuatro estados. El cuarto es el que faltaba: **binario instalado
+  con el daemon apagado no es lo mismo que no tener Ollama**, y decirle
+  "instalalo" a quien ya lo tiene es falso.
+- `LocalCatalog`: Ollama entra al catalogo SOLO con un tag que el daemon tiene.
+  Sin scan, no se ofrece.
+- El orden de la escalera NO cambia en este PR: hacerlo ahora moveria a Ollama
+  por delante de OpenAI para quien ya tiene key. Eso es de 9b-3, donde el
+  usuario lo ve y lo decide.
+
+Entregado — **9b-1 PR 2, el muro** (2026-08-23):
+
+- `StartupState` en Core: `premium` / `probing` / `base([LocalPath])` / `none`.
+  Cuatro estados y no un Bool, que es lo que evita que la raiz pinte el hilo y
+  se lo lleve de vuelta.
+- Con clave, **el sondeo ni se lanza**: el arranque premium no paga por
+  preguntarle a un daemon que no le importa.
+- `acceptLocalBase(_:)` abre la app sin salir a la red — el camino local jamas
+  llama a `verify` contra OpenAI, que es la forma de bug que Wave 9 ya cerro en
+  el guardia de forma de la clave.
+- Un camino guardado se acepta solo en el siguiente arranque **solo si el
+  sondeo lo vio vivo en ESE arranque**: un modelo borrado entre sesiones no
+  desbloquea una app que no puede hablar.
+- `changeKey()` deja de encarcelar a quien ya hablaba en local. Aviso honesto:
+  esa funcion **hoy no la llama nadie en Sources** — su boton vive en el panel
+  de 9b-3. Se arregla ahora porque la semantica es la correcta, pero es codigo
+  probado y sin invocar hasta esa pieza.
+- `ProviderPreference` (UserDefaults) y `StoredConfigProvider` dejando de pasar
+  `chat: .default`: la preferencia por fin llega al router.
+- Onboarding reescrito a tres caminos, con copy nuevo en los dos catalogos. El
+  boton "Continuar" estaba **hardcodeado en espanol** desde Wave 9; ahora pasa
+  por el catalogo.
+
+Entregado — **9b-3, el motor** (2026-08-23), y su prerrequisito:
+
+- `CachingSecretStore`: decorador en la raiz de composicion. El bucle de
+  routing pedia la misma clave dos veces por proveedor y la voz otra vez al
+  abrir sesion — de tres a cinco lecturas del llavero por mensaje, que con el
+  ACL desajustado son otros tantos dialogos de contrasena. Ahora es una por
+  clave. Los fallos NO se cachean: un llavero bloqueado suele ser temporal y
+  recordar el "no" condenaria la sesion.
+- `ChatSettings.preferredProviderName` sustituido por `providerOrder: [String]`
+  (ids, no nombres: el nombre es copy y se puede reescribir).
+- **Ausente no significa apagado.** Un proveedor que el usuario nunca vio no
+  puede nacer apagado, porque no hay como encenderlo hasta que exista el panel.
+- `ProviderDescriptor.openRouter`: la enum `SecretKey` tenia el caso desde
+  siempre y le faltaba el descriptor, que era justo lo que hacia inalcanzable
+  esa fila.
+- Aceptar la base local **pone esa fila primero**: quien elige hablar con su
+  propio Mac no la quiere de respaldo.
+
+Pendiente: la UI del panel de 9b-3, el contador de procesos de 9c-3,
+9b-4 (descarga opcional por `POST /api/pull`), 9b-2 (Apple FM, tras su puerta
+de evidencia de 4096 tokens).
+
+## Foco anterior
 
 **Wave 9 en curso.** El grueso salio en la release 0.10.0 (2026-08-22):
 idioma de UI y de prompts, nombre del producto, ruta de instalacion sin
