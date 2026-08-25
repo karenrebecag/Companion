@@ -7,6 +7,9 @@ import SwiftUI
 /// The finished report stays a normal assistant message — this card is only
 /// about the wait.
 struct JobCardView: View {
+    /// The pedal. Nil keeps the card read-only for anywhere that shows a job
+    /// it does not own.
+    var onStop: (() -> Void)?
     let job: JobTimeline
     /// Only the tail: a job with forty steps must not push the conversation
     /// off screen while it runs.
@@ -51,6 +54,17 @@ struct JobCardView: View {
                 .lineLimit(1)
             Spacer(minLength: Space.x2)
             clock
+            if let onStop {
+                // Beside the clock on purpose: the two things you want while
+                // waiting are how long it has been and how to make it stop.
+                Button(action: onStop) {
+                    Text(JobCardCopy.stop)
+                        .font(.uiCaption)
+                        .foregroundStyle(Semantic.mutedForeground)
+                }
+                .buttonStyle(.plain)
+                .help(JobCardCopy.stop)
+            }
         }
     }
 
@@ -85,6 +99,7 @@ struct JobCardView: View {
 
 enum JobCardCopy {
     static var working: String { Localized.string("job.working") }
+    static var stop: String { Localized.string("job.stop") }
 }
 
 /// The step timeline, Grok-style: an icon per tool, a thread joining them,

@@ -16,11 +16,13 @@ public struct NativeExecutor: Executor, Sendable {
         descriptor: ExecutorDescriptor,
         chatProvider: any ChatProvider,
         config: Config,
-        approvals: any ApprovalsProvider
+        approvals: any ApprovalsProvider,
+        webSearch: (any WebSearching)? = nil
     ) {
         self.descriptor = descriptor
         self.chatProvider = chatProvider
-        self.toolRunner = NativeToolRunner(workdir: config.workdir)
+        self.toolRunner = NativeToolRunner(
+            workdir: config.workdir, webSearch: webSearch)
         self.config = config
         self.approvals = approvals
     }
@@ -132,6 +134,9 @@ public struct NativeExecutor: Executor, Sendable {
                 approved: approved || !approvalNeeded)
 
             events.yield(.stepFinished(tool: toolName, ok: toolResult.ok))
+            // Straight to the interface. It is not appended to the turn below,
+            // so the model never sees the payload it would otherwise retype.
+            if let card = toolResult.card { events.yield(.card(card)) }
 
             // Both the request and its answer go back, carrying the call id:
             // a tool message without its assistant call is rejected.
@@ -153,7 +158,8 @@ public struct NativeExecutor: Executor, Sendable {
     // MARK: - Helpers
 
     private func nativeToolSpecs() -> [ToolSpec] {
-        NativeTool.allCases.map { $0.spec }
+        // Only what can actually run. The catalog is not the offer.
+        toolRunner.availableTools.map { $0.spec }
     }
 
     private func riskLevel(tool: String) -> RiskLevel {

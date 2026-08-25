@@ -49,12 +49,20 @@ public enum JobSteps: Sendable {
         var files: Set<String> = []
         for step in steps {
             switch step.tool {
-            case "WebSearch": searches += 1
-            case "WebFetch": pages += 1
-            case "Bash": commands += 1
-            case "Read", "Write", "Edit", "NotebookEdit":
+            // Both vocabularies. These names were Claude Code's only, so a
+            // job run by the native executor left a record that said nothing
+            // about what it had done — which matters most exactly when you
+            // stopped it and want to know how far it got.
+            case "WebSearch", "web_search": searches += 1
+            case "WebFetch", "web_fetch": pages += 1
+            case "Bash", "run_shell": commands += 1
+            case "list_directory", "find_places": searches += 1
+            case "Read", "Write", "Edit", "NotebookEdit",
+                 "read_file", "write_file", "edit_file":
                 if let path = path(of: step) {
                     files.insert((path as NSString).lastPathComponent)
+                } else {
+                    files.insert(step.tool)
                 }
             default: break
             }

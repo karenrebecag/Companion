@@ -45,6 +45,11 @@ public enum JobEvent: Sendable, Equatable {
     case stepFinished(tool: String, ok: Bool)
     case approvalRequested(ApprovalRequest)
     case thought(String)
+    /// What the interface should paint, straight from the tool that produced
+    /// it. Deliberately NOT part of the tool's text result: a payload that
+    /// travels through the model's context comes back rewritten, and a
+    /// rewritten coordinate is a pin in the wrong street.
+    case card(Card)
 }
 
 public protocol Executor: Sendable {

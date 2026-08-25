@@ -23,6 +23,21 @@ enum VoiceJobBridge {
             for await event in stream { onEvent?(event) }
         }
         defer { pump.cancel() }
+        // Queued, not refused and never at the cost of what is running.
+        // `JobQueue` already serialises execution, so submitting is enough to
+        // make it wait; what was missing was saying so, because a second job
+        // announcing itself as if it had started is what made two of them
+        // fight over one card and one approval slot.
+        let waiting = await jobs.isBusy
+        await thread.appendStatus(
+            waiting
+                ? Escalation.queuedNotice(handoff.goal, language)
+                : Escalation.heardNotice(handoff.goal, language))
+        if waiting {
+            await announce?(
+                Escalation.queuedAnnouncement(handoff.goal, language))
+        }
+
         do {
             let result = try await jobs.submit(handoff, events: sink)
             sink.finish()

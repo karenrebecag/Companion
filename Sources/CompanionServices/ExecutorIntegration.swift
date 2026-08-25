@@ -39,36 +39,26 @@ public enum ExecutorFactory {
     }
 }
 
-/// Lanzador real: subprocesos de verdad con pipes.
+/// Lanzador real: subprocesos de verdad con pipes, cada uno en SU grupo de
+/// proceso. El grupo importa porque un especialista arranca ayudantes propios:
+/// senalar solo al hijo directo los deja vivos y launchd los adopta.
 public struct RealProcessLauncher: ProcessLauncher {
-    public init() {}
+    private let registry: ProcessRegistry
+
+    public init(registry: ProcessRegistry = .shared) {
+        self.registry = registry
+    }
 
     public func launch(
         executable: String,
         arguments: [String],
         cwd: String?
     ) async -> (any ProcessHandle)? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executable)
-        process.arguments = arguments
-        if let cwd = cwd {
-            process.currentDirectoryURL = URL(fileURLWithPath: cwd)
-        }
-
-        let inputPipe = Pipe()
-        let outputPipe = Pipe()
-
-        process.standardInput = inputPipe
-        process.standardOutput = outputPipe
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            try process.run()
-            return RealProcessHandle(process: process, stdin: inputPipe, stdout: outputPipe)
-        } catch {
-            Log.app("process: launching \(executable) failed: \(error)")
-            return nil
-        }
+        guard let group = ProcessGroupRunner.spawnSession(
+            executable: executable, arguments: arguments, cwd: cwd,
+            registry: registry)
+        else { return nil }
+        return RealProcessHandle(group: group)
     }
 }
 
@@ -86,19 +76,17 @@ private final class LineAccumulator: @unchecked Sendable {
 /// final + @unchecked: Process/Pipe no son Sendable y el handle lo consume
 /// un solo task (el del ejecutor), en serie.
 private final class RealProcessHandle: ProcessHandle, @unchecked Sendable {
-    private let process: Process
-    private let stdinPipe: Pipe
+    private let group: GroupProcess
     /// Un solo consumidor por contrato; nadie más toca este iterador.
     private var iterator: AsyncStream<String>.Iterator
 
-    init(process: Process, stdin: Pipe, stdout: Pipe) {
-        self.process = process
-        self.stdinPipe = stdin
+    init(group: GroupProcess) {
+        self.group = group
         let (stream, sink) = AsyncStream<String>.makeStream()
         self.iterator = stream.makeAsyncIterator()
 
         let accumulator = LineAccumulator()
-        stdout.fileHandleForReading.readabilityHandler = { fileHandle in
+        group.stdout.fileHandleForReading.readabilityHandler = { fileHandle in
             let data = fileHandle.availableData
             guard !data.isEmpty else {
                 // EOF: entregar el resto y cerrar el stream.
@@ -116,7 +104,7 @@ private final class RealProcessHandle: ProcessHandle, @unchecked Sendable {
             throw ProcessError.invalidEncoding
         }
         do {
-            try stdinPipe.fileHandleForWriting.write(contentsOf: data)
+            try group.stdin.fileHandleForWriting.write(contentsOf: data)
         } catch {
             throw ProcessError.writeFailed
         }
@@ -126,18 +114,19 @@ private final class RealProcessHandle: ProcessHandle, @unchecked Sendable {
         await iterator.next()
     }
 
+    /// Cierra stdin primero — muchos CLIs salen solos al ver EOF — y solo
+    /// entonces mata al grupo con la escalera SIGTERM/SIGKILL.
     func terminate() async {
         do {
-            try stdinPipe.fileHandleForWriting.close()
+            try group.stdin.fileHandleForWriting.close()
         } catch {
-            // Cerrar un pipe ya cerrado tira; el proceso muere igual abajo.
             Log.app("process: stdin was already closed")
         }
-        if process.isRunning { process.terminate() }
+        group.terminate()
     }
 
     var isRunning: Bool {
-        process.isRunning
+        group.isRunning
     }
 }
 

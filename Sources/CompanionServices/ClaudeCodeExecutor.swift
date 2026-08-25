@@ -86,7 +86,16 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         Log.app("executor: cable died; picking the job up in batch")
         events.yield(.thought(Escalation.fallbackNotice(language)))
 
-        var args = ["-p", batchPrompt(job), "--output-format", "text"]
+        // Same posture as the streaming path, and as the prototype's batch:
+        // without these the fallback runs on default permissions AND has no
+        // way to ask for more (there is no --permission-prompt-tool here), so
+        // the specialist silently loses the disk and answers "I found nothing"
+        // to questions that do have an answer.
+        var args = [
+            "-p", batchPrompt(job), "--output-format", "text",
+            "--permission-mode", "acceptEdits",
+            "--allowedTools", "WebSearch,WebFetch",
+        ]
         args += descriptor.modelArgs
         args += ["--append-system-prompt", Escalation.executorRole(language)]
         if let resume = effectiveSession() { args += ["--resume", resume] }
