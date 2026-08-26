@@ -169,6 +169,23 @@ public enum IconSize {
     public static let hero: CGFloat = 28
 }
 
+// Onboarding washes: barely-there color fields behind a hero. Defined HERE so
+// views never reach for Semantic.x.opacity (the conformance rule) — the wash
+// derives from the same highlight the accent uses, at whisper opacity.
+public enum Wash {
+    /// The glow behind the hero figure.
+    public static var hero: Color {
+        (Highlight.stored.ns.map { Color(nsColor: $0) }
+            ?? Neutral.n500.color).opacity(0.16)
+    }
+
+    /// The faint field that tints the top of the sheet.
+    public static var field: Color {
+        (Highlight.stored.ns.map { Color(nsColor: $0) }
+            ?? Neutral.n500.color).opacity(0.06)
+    }
+}
+
 // Border radius
 public enum Radius {
     public static let sm: CGFloat = 4

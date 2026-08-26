@@ -245,6 +245,8 @@ extension Font {
     public static var uiSubtitle: Font { Fonts.sans(TypeSize.strong) }
     // Mismo papel con dos nombres; unificarlos es R-04.
     public static var uiTitle: Font { Fonts.sans(TypeSize.title) }
+    /// Onboarding hero title: the one place the sheet speaks at display size.
+    public static var uiDisplay: Font { Fonts.sans(TypeSize.display) }
     public static var uiHeading: Font { Fonts.sans(TypeSize.title) }
     public static var uiLogo: Font { Fonts.logo(TypeSize.display) }
 }

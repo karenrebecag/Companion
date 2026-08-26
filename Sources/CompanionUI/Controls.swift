@@ -1,8 +1,22 @@
 import SwiftUI
 
+/// R-06: the shape system is BINARY — near-sharp or pill, nothing between.
+public enum AppButtonShape: Sendable {
+    case standard, pill
+
+    var radius: CGFloat {
+        switch self {
+        case .standard: Radius.md
+        case .pill: Radius.full
+        }
+    }
+}
+
 public struct AppButton: View {
     let title: String
     var kind: AppButtonKind = .primary
+    var shape: AppButtonShape = .standard
+    var fullWidth = false
     var enabled: Bool = true
     let action: () -> Void
 
@@ -12,11 +26,15 @@ public struct AppButton: View {
     public init(
         _ title: String,
         kind: AppButtonKind = .primary,
+        shape: AppButtonShape = .standard,
+        fullWidth: Bool = false,
         enabled: Bool = true,
         action: @escaping () -> Void
     ) {
         self.title = title
         self.kind = kind
+        self.shape = shape
+        self.fullWidth = fullWidth
         self.enabled = enabled
         self.action = action
     }
@@ -25,13 +43,15 @@ public struct AppButton: View {
         Button(action: action) {
             Text(title)
                 .font(.uiAction)
+                .frame(maxWidth: fullWidth ? .infinity : nil)
                 .padding(.horizontal, Space.x4)
-                .padding(.vertical, Space.x2)
+                .padding(.vertical, shape == .pill ? Space.x3 : Space.x2)
         }
         .buttonStyle(
             AppButtonStyle(
                 kind: kind, enabled: enabled,
-                hovering: hovering, focused: focused))
+                hovering: hovering, focused: focused,
+                radius: shape.radius))
         .disabled(!enabled)
         .onHover { hovering = $0 }
         .focusable()
@@ -45,6 +65,7 @@ private struct AppButtonStyle: ButtonStyle {
     let enabled: Bool
     var hovering: Bool
     var focused: Bool
+    var radius: CGFloat = Radius.md
 
     func makeBody(configuration: Configuration) -> some View {
         let state = ControlState.resolve(
@@ -56,14 +77,14 @@ private struct AppButtonStyle: ButtonStyle {
         configuration.label
             .foregroundStyle(ink(look))
             .background(fill(look))
-            .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+            .clipShape(RoundedRectangle(cornerRadius: radius))
             .overlay {
-                RoundedRectangle(cornerRadius: Radius.md)
+                RoundedRectangle(cornerRadius: radius)
                     .stroke(stroke(look), lineWidth: Stroke.hairline)
             }
             .overlay {
                 if look.focusRing > 0 {
-                    RoundedRectangle(cornerRadius: Radius.md)
+                    RoundedRectangle(cornerRadius: radius)
                         .stroke(Semantic.accent, lineWidth: look.focusRing)
                 }
             }

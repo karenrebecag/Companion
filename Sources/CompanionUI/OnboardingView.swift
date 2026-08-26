@@ -3,6 +3,10 @@ import SwiftUI
 
 /// First run. The key used to be the only door; now it is the upgrade, and the
 /// screen shows whichever way in this Mac actually has.
+///
+/// Layout (2026-08-26): hero orb over whisper-light washes, then the
+/// eyebrow → display title → muted blurb hierarchy, then the state's own
+/// content, and a full-width pill CTA — the R-06 shape system's round pole.
 public struct OnboardingView: View {
     @Bindable var model: ChatViewModel
 
@@ -11,31 +15,77 @@ public struct OnboardingView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: Space.x6) {
-            // The mascot greets on first run: the app's face before it has
-            // anything to say.
-            MascotView(excited: model.onboardingBusy)
-                .frame(maxWidth: .infinity)
-                .frame(height: 180)
-
-            VStack(alignment: .leading, spacing: Space.x3) {
-                Text("Companion")  // token-exempt: nombre del producto.
-                    .font(.uiHeading)
-                    .foregroundStyle(Semantic.foreground)
-
-                Text(blurb)
-                    .font(.uiBody)
-                    .foregroundStyle(Semantic.mutedForeground)
+        ZStack(alignment: .top) {
+            washes
+            VStack(alignment: .leading, spacing: Space.none) {
+                Spacer(minLength: Space.x8)
+                hero
+                Spacer(minLength: Space.x8)
+                header
+                Spacer(minLength: Space.x6)
+                stateContent
+                Spacer()
+                footer
             }
-
-            localSection
-
-            keySection
-
-            Spacer()
+            .padding(.horizontal, Space.x8)
+            .padding(.bottom, Space.x6)
+            .frame(maxWidth: 520)
         }
-        .padding(Space.x6)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Barely-there color fields: a glow under the hero and a faint tint on
+    /// the top of the sheet, both from the accent at whisper opacity.
+    private var washes: some View {
+        GeometryReader { geo in
+            ZStack {
+                LinearGradient(
+                    colors: [Wash.field, .clear],
+                    startPoint: .top, endPoint: .center)
+                RadialGradient(
+                    colors: [Wash.hero, .clear],
+                    center: .init(x: 0.5, y: 0.22),
+                    startRadius: 0,
+                    endRadius: geo.size.width / 2)
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private var hero: some View {
+        Orb(
+            state: .idle,
+            levels: VoiceLevels(mic: 0, agent: 0),
+            accentColor: Semantic.accent)
+        .frame(height: 200)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: Space.x3) {
+            HStack(spacing: Space.x2) {
+                Image(systemName: "waveform")
+                    .font(.uiEyebrow)
+                Text("COMPANION")  // token-exempt: nombre del producto.
+                    .font(.uiEyebrow)
+                    .tracking(Tracking.wide, at: TypeSize.micro)
+            }
+            .foregroundStyle(Semantic.accentText)
+
+            (Text(Localized.string("onboarding.title.l1"))
+                + Text(verbatim: "\n")
+                + Text(Localized.string("onboarding.title.l2")))
+                .font(.uiDisplay)
+                .bold()
+                .tracking(Tracking.tighter, at: TypeSize.display)
+                .foregroundStyle(Semantic.foreground)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(blurb)
+                .font(.uiBody)
+                .foregroundStyle(Semantic.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     /// The headline follows the state: promising a local model before the
@@ -51,30 +101,84 @@ public struct OnboardingView: View {
         }
     }
 
-    @ViewBuilder private var localSection: some View {
-        switch model.startup {
-        case .probing:
-            HStack(spacing: Space.x2) {
-                ProgressView()
-                    .frame(width: 12, height: 12)
-                Text(Localized.string("onboarding.probing"))
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
-            }
-        case .base(let paths):
-            VStack(alignment: .leading, spacing: Space.x2) {
-                ForEach(paths, id: \.providerName) { path in
-                    AppButton(pathTitle(path)) {
-                        model.acceptLocalBase(path)
+    @ViewBuilder private var stateContent: some View {
+        VStack(alignment: .leading, spacing: Space.x4) {
+            switch model.startup {
+            case .probing:
+                HStack(spacing: Space.x2) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(Localized.string("onboarding.probing"))
+                        .font(.uiCaption)
+                        .foregroundStyle(Semantic.mutedForeground)
+                }
+            case .base(let paths):
+                VStack(spacing: Space.x2) {
+                    ForEach(paths, id: \.providerName) { path in
+                        AppButton(
+                            pathTitle(path), kind: .primary,
+                            shape: .pill, fullWidth: true
+                        ) {
+                            model.acceptLocalBase(path)
+                        }
                     }
                 }
+            case .none:
+                Text(Localized.string("onboarding.local.missing"))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .premium:
+                EmptyView()
             }
-        case .none:
-            Text(Localized.string("onboarding.local.missing"))
+
+            keyEntry
+        }
+    }
+
+    @ViewBuilder private var keyEntry: some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            Text(Localized.string("onboarding.key.optional"))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
-        case .premium:
-            EmptyView()
+
+            AppField(
+                title: nil,
+                placeholder: "sk-proj-...",
+                text: $model.onboardingKey,
+                error: model.onboardingBusy ? nil : model.errorText,
+                secure: true,
+                onSubmit: { Task { await model.submitOnboarding() } })
+
+            if model.onboardingBusy {
+                HStack(spacing: Space.x2) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(Localized.string("onboarding.verifying"))
+                        .font(.uiCaption)
+                        .foregroundStyle(Semantic.mutedForeground)
+                }
+            }
+        }
+    }
+
+    private var footer: some View {
+        VStack(spacing: Space.x3) {
+            AppButton(
+                Localized.string("onboarding.continue"),
+                kind: hasLocalPath ? .secondary : .primary,
+                shape: .pill, fullWidth: true,
+                enabled: !cannotContinue
+            ) {
+                Task { await model.submitOnboarding() }
+            }
+
+            Link(destination: URL(string: "https://platform.openai.com/api/keys")!) {
+                Text(Localized.string("onboarding.getKey"))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.accentText)
+            }
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -83,51 +187,6 @@ public struct OnboardingView: View {
             return Localized.string("onboarding.local.apple")
         }
         return String(format: Localized.string("onboarding.local.ollama"), model)
-    }
-
-    @ViewBuilder private var keySection: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            Text(Localized.string("onboarding.key.optional"))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-
-            AppField(
-                title: Localized.string("onboarding.key"),
-                placeholder: "sk-proj-...",
-                text: $model.onboardingKey,
-                error: model.onboardingBusy ? nil : model.errorText,
-                secure: true,
-                onSubmit: { Task { await model.submitOnboarding() } })
-
-            HStack(spacing: Space.x2) {
-                Text(Localized.string("onboarding.getKey"))
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.accentText)
-                Link("", destination: URL(string: "https://platform.openai.com/api/keys")!)
-                    .frame(height: 16)
-            }
-
-            if model.onboardingBusy {
-                HStack(spacing: Space.x2) {
-                    ProgressView()
-                        .frame(width: 12, height: 12)
-                    Text(Localized.string("onboarding.verifying"))
-                        .font(.uiCaption)
-                        .foregroundStyle(Semantic.mutedForeground)
-                }
-            }
-
-            HStack(spacing: Space.x3) {
-                AppButton(
-                    Localized.string("onboarding.continue"),
-                    kind: hasLocalPath ? .secondary : .primary,
-                    enabled: !cannotContinue
-                ) {
-                    Task { await model.submitOnboarding() }
-                }
-                Spacer()
-            }
-        }
     }
 
     private var hasLocalPath: Bool {

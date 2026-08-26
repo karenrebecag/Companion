@@ -157,6 +157,8 @@
 "shortcut.toggleMute" = "Silenciar/activar sonido";
 "thread.queued" = "En cola: %@";
 "thread.untitled" = "Conversación";
+"onboarding.title.l1" = "Tu asistente de voz,";
+"onboarding.title.l2" = "privado, en tu Mac";
 "onboarding.blurb" = "Tu asistente de voz privado. Corre en tu Mac; la clave es opcional.";
 "onboarding.key" = "Clave de OpenAI";
 "onboarding.getKey" = "Obtener clave";

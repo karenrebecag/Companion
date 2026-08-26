@@ -157,6 +157,8 @@
 "shortcut.toggleMute" = "Mute/unmute";
 "thread.queued" = "Queued: %@";
 "thread.untitled" = "Conversation";
+"onboarding.title.l1" = "Your voice assistant,";
+"onboarding.title.l2" = "private, on your Mac";
 "onboarding.blurb" = "Your private voice assistant. It runs on your Mac; a key is optional.";
 "onboarding.key" = "OpenAI key";
 "onboarding.getKey" = "Get a key";
