@@ -39,7 +39,10 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
             ownerInstructions: UserProfile.instructions,
             language: LanguagePreference.current,
             memory: memory.map {
-                MemoryPrompt.inject($0.load(), language: LanguagePreference.current)
+                MemoryPrompt.inject(
+                    $0.load(), language: LanguagePreference.current,
+                    notesDirectory: MemoryLocation.directory()
+                        .appendingPathComponent("notes").path)
             } ?? "",
             mcpServers: MCPConfigFile.load()
         )

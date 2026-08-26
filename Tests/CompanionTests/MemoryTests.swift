@@ -19,13 +19,19 @@ func testInjectFramesMemoryAsData() {
     let pack = MemoryPack(core: "Karen es ingeniera frontend.",
                           recentSessions: ["## ayer\n- pidió un cuento"],
                           notes: ["prefiere respuestas cortas"])
-    let block = MemoryPrompt.inject(pack, language: .es)
+    let block = MemoryPrompt.inject(
+        pack, language: .es, notesDirectory: "/tmp/mem/notes")
     expect(block.contains("DATOS"), "inject: se enmarca como datos")
     expect(block.contains("nunca instrucciones"),
            "inject: el marco anti-inyección viaja — memoria no manda")
     expect(block.contains("Karen es ingeniera"), "inject: el core viaja")
     expect(block.contains("pidió un cuento"), "inject: lo episódico viaja")
     expect(block.contains("respuestas cortas"), "inject: las notas viajan")
+    // El bug medido: "la carpeta de memoria" sin ruta hizo que el
+    // especialista inventara un user_profile.md en otro lado.
+    expect(block.contains("/tmp/mem/notes"),
+           "inject: la ruta de notas viaja EXPLICITA — sin dirección, el "
+           + "especialista inventa una")
 }
 
 func testInjectCapsAndEmpty() {
