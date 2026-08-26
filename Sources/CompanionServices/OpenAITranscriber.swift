@@ -35,6 +35,11 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
     /// worst failure mode this class can have — measured, not hypothetical.
     private var fellBack = false
     private var language = "en"
+    /// Health trace: every link in the hearing chain must be visible in the
+    /// log — a session that heard nothing used to look identical to one where
+    /// the user never spoke.
+    private var sentFrames = 0
+    private var heardAnything = false
 
     public init(
         keyProvider: @escaping @Sendable () -> String?,
@@ -77,6 +82,8 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
         lock.withLock {
             language = hint
             fellBack = false
+            sentFrames = 0
+            heardAnything = false
         }
         try await send(Self.sessionUpdateJSON(
             language: hint, turnDetection: turnDetection()), over: task)
@@ -93,6 +100,15 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
         if waiting { return }
         do {
             try await send(payload, over: socket)
+            let count = lock.withLock { () -> Int in
+                sentFrames += 1
+                return sentFrames
+            }
+            // A session that sends 5 s of audio and hears nothing back is
+            // broken somewhere upstream — say so instead of staying silent.
+            if count == 50, !lock.withLock({ heardAnything }) {
+                Log.app("ear: 50 frames sent, no transcript back yet")
+            }
         } catch {
             // One dead socket must not log ten times a second: drop it and go
             // quiet; the receive loop already reported why it died.
@@ -225,14 +241,21 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
             case .success(let message):
                 if case .string(let json) = message {
                     if let delta = Self.delta(fromEvent: json) {
-                        let next = self.lock.withLock { () -> String in
+                        let (next, first): (String, Bool) = self.lock.withLock {
                             self.text += delta
-                            return self.text
+                            let first = !self.heardAnything
+                            self.heardAnything = true
+                            return (self.text, first)
+                        }
+                        if first {
+                            Log.app("ear: hearing («\(String(next.prefix(30)))»)")
                         }
                         self.box.yield(next)
                     } else if let final = Self.completedTranscript(fromEvent: json) {
+                        Log.app("ear: segment «\(String(final.prefix(60)))»")
                         self.turnBox.yield(.finished(text: final))
                     } else if Self.isSpeechStarted(event: json) {
+                        Log.app("ear: vad speech started")
                         self.turnBox.yield(.speechStarted)
                     } else if Self.isSessionReady(event: json) {
                         self.flushQueued(over: task)

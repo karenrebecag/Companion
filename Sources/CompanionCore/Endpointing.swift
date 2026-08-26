@@ -20,6 +20,24 @@ public enum EchoGuard: Sendable {
     public static func isRealInterruption(heard: String, agentSaying: String) -> Bool {
         words(heard).count >= 2 && !isEcho(heard: heard, agentSaying: agentSaying)
     }
+
+    /// On speakers a VAD segment can SPAN the agent's echo and the user's real
+    /// words — the mic heard the reply's tail, then the user. Strip the
+    /// leading run of words that belong to the agent's utterance (three or
+    /// more, so a user who also opens with "hola" is not robbed) and return
+    /// what the user actually said. Everything echoed → empty → drop it.
+    public static func scrub(heard: String, agentSaying: String) -> String {
+        let agentWords = Set(words(agentSaying))
+        guard !agentWords.isEmpty else { return heard }
+        let heardWords = words(heard)
+        var cut = 0
+        for word in heardWords {
+            guard agentWords.contains(word) else { break }
+            cut += 1
+        }
+        guard cut >= 3 else { return heard }
+        return heardWords.dropFirst(cut).joined(separator: " ")
+    }
 }
 
 public enum SpeechCues: Sendable {

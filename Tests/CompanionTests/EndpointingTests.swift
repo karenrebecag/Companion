@@ -29,6 +29,7 @@ private func drive(_ ep: inout Endpointer, rms: Double,
     testTranscriptEndpointerQuietClose()
     testTranscriptEndpointerTimeout()
     testEchoGuard()
+    testEchoScrub()
     testEchoGuardWords()
 }
 
@@ -180,6 +181,31 @@ private func drive(_ ep: inout Endpointer, rms: Double,
            "transcript-ep: maxUtterance corta un monólogo infinito")
     expect(ep.feed(text: "dime la hora", level: 0, at: 4.0) == .timedOut,
            "transcript-ep: el veredicto terminal se conserva")
+}
+
+/// El caso de la captura (2026-08-25): en bocinas, el segmento del VAD juntó
+/// el eco del agente («Hola, sí, te escucho claramente...») con las palabras
+/// reales de la usuaria — y todo entró a su burbuja. El scrub recorta el
+/// prefijo eco y deja solo lo suyo.
+@MainActor func testEchoScrub() {
+    let agent = "Hola, sí, te escucho claramente. ¿En qué te echo una mano hoy?"
+    let mixed = "Hola, sí, te escucho claramente. ¿En qué te echo una mano "
+        + "hoy? Hola, ¿puedes crear un archivo de prueba?"
+    let scrubbed = EchoGuard.scrub(heard: mixed, agentSaying: agent)
+    expect(!scrubbed.contains("escucho claramente"),
+           "scrub: el eco del agente se recorta")
+    expect(scrubbed.contains("puedes crear un archivo"),
+           "scrub: las palabras de la usuaria sobreviven")
+
+    expectEq(EchoGuard.scrub(heard: "crea un archivo nuevo", agentSaying: agent),
+             "crea un archivo nuevo",
+             "scrub: un turno sin eco pasa intacto, con su puntuación")
+    expect(EchoGuard.words(EchoGuard.scrub(
+        heard: "te escucho claramente hoy", agentSaying: agent)).isEmpty,
+        "scrub: eco puro queda vacío — se tira")
+    expectEq(EchoGuard.scrub(heard: "hola puedes ayudarme", agentSaying: agent),
+             "hola puedes ayudarme",
+             "scrub: abrir con una palabra compartida no te roba el turno")
 }
 
 @MainActor func testEchoGuard() {

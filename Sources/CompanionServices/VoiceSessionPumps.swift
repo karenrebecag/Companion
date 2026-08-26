@@ -44,20 +44,23 @@ extension VoiceSession {
                 guard machine.snapshot.state != .speaking else { continue }
                 await apply(.serverSpeechStarted)
             case .finished(let text):
-                let trimmed = text.trimmingCharacters(
-                    in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { continue }
+                // 9j-6a: on speakers a segment can SPAN the agent's echo and
+                // the user's words — the reply's tail leaked into her bubble.
+                // Scrub the echoed prefix ALWAYS (not only while speaking):
+                // what remains is what the user actually said. Nothing left,
+                // or punctuation only, is pure echo — dropped.
+                let scrubbed = EchoGuard.scrub(
+                    heard: text, agentSaying: realtime.agentSpeech)
+                guard !EchoGuard.words(scrubbed).isEmpty else { continue }
                 if machine.snapshot.state == .speaking {
-                    // 9j-6a: on speakers the mic hears the agent, and that
-                    // echo transcribes as the agent's OWN words. Overlap with
-                    // what the agent is saying = echo; a backchannel is under
-                    // two words; anything else is the user really breaking in.
+                    // Still talking over the agent: a backchannel is under two
+                    // words; anything more is the user really breaking in.
                     guard EchoGuard.isRealInterruption(
-                        heard: trimmed, agentSaying: realtime.agentSpeech)
+                        heard: scrubbed, agentSaying: realtime.agentSpeech)
                     else { continue }
                     await apply(.serverSpeechStarted)
                 }
-                earSegment = trimmed
+                earSegment = scrubbed
                 await apply(.serverSpeechStopped)
             }
         }

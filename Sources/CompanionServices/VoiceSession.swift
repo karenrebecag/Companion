@@ -223,6 +223,8 @@ public actor VoiceSession: VoiceControlling {
 
     public func toggleMute() async {
         await apply(.toggleMute(hasPendingAudio: await player.hasPending))
+        // A muted mic is the most invisible way to "not be heard": trace it.
+        Log.app("voice: mic \(machine.snapshot.muted ? "muted" : "unmuted")")
     }
 
     func apply(_ event: TurnEvent) async {
