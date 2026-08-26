@@ -149,6 +149,18 @@ public enum WorkdirPreference {
         return URL(fileURLWithPath: stored).resolvingSymlinksInPath().path
     }
 
+    /// The directory the specialist actually runs in. With no folder chosen,
+    /// it is the home tree — full reach, the specialist's toolbox is not
+    /// fenced to a subfolder. This reverses the Wave 9h default by the owner's
+    /// call: Companion is meant to match the Claude Code CLI, where the user
+    /// scopes the work in the conversation, not a standing sandbox. `acceptEdits`
+    /// still auto-accepts only edits, and commands still ask through the voice
+    /// sheet — reach is wide, the permission gate stays.
+    nonisolated public static var effective: String {
+        validated ?? FileManager.default.homeDirectoryForCurrentUser
+            .resolvingSymlinksInPath().path
+    }
+
     nonisolated public static var label: String? {
         validated.map { URL(fileURLWithPath: $0).lastPathComponent }
     }

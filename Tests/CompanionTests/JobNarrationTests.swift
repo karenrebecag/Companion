@@ -32,7 +32,7 @@ import Testing
         thread: ScriptedThread(),
         announce: { announced.append($0) },
         language: .es)
-    expect(announced.all.joined().contains("Encargo terminado"),
+    expect(announced.all.joined().contains("en pantalla"),
            "idioma: el anuncio viaja en el idioma de la sesión")
 }
 

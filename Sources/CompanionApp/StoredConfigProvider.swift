@@ -24,7 +24,10 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
             chat: ChatSettings(providerOrder: ProviderPreference.order),
             voice: VoiceProfile.settings,
             executors: [ExecutorCatalog.native],
-            workdir: WorkdirPreference.validated ?? workdir,
+            // No chosen folder means full reach (the home tree), not the
+            // native fallback: the specialist gets its whole toolbox, like the
+            // CLI. A folder the user picked still narrows it.
+            workdir: workdir ?? WorkdirPreference.effective,
             ownerFirstName: ownerName,
             ownerAbout: UserProfile.about,
             ownerInstructions: UserProfile.instructions,

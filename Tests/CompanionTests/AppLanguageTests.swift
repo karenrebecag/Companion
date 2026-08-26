@@ -80,10 +80,10 @@ import Testing
            "preámbulo: la voz pide brevedad en inglés")
     expect(!hasSpanish(Escalation.jobDoneAnnouncement("clean the desk", .en)),
            "aviso: el cierre del encargo se narra en inglés")
-    // Y el español no se regenera: es el que ya estaba.
+    // Y el español llega en español, no regenerado en inglés.
     expect(Escalation.jobDoneAnnouncement("limpiar", .es)
-        .contains("Encargo terminado"),
-           "español: la traducción conserva el copy original")
+        .contains("en pantalla"),
+           "español: el acuse viaja en el idioma de la sesión")
 }
 
 /// El schema viaja al servidor: cambiar el idioma no puede romper el JSON
