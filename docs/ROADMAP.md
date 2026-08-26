@@ -18,7 +18,8 @@
 | 9c | Procesos y rendimiento | APROBADO / EN CURSO | **Nada que Companion lanza sobrevive a Companion** |
 | 9d | Lo que se ve y lo que se recuerda | CERRADA (2026-08-24) | **El modelo deja de creerse autor del informe del especialista** |
 | 9g | Ciclo de vida del encargo | CERRADA (2026-08-24) | **Puedes parar lo que no pediste** |
-| 9h | Los limites: alcance, ritmo y memoria | CERRADA (2026-08-24) | **El especialista deja de tener tu home por defecto** |
+| 9h | Los limites: alcance, ritmo y memoria | CERRADA (2026-08-24); default REVOCADO en 9i | **El especialista deja de tener tu home por defecto** |
+| 9i | Voz hibrida: el oido transcribe, el modelo habla | ENTREGADA (2026-08-25) | **"Crea un archivo" por voz termina en archivo real, en el escritorio real** |
 
 ## Foco actual
 

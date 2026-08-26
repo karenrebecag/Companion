@@ -6,6 +6,31 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 ## [Unreleased]
 
 ### Added
+- **Voz híbrida (Wave 9i): el oído transcribe, el modelo lee y habla.** El mic
+  ya no llega al modelo conversacional: `gpt-live-transcribe` (sesión realtime
+  de solo transcripción, con buffer de arranque para no perder ni el primer
+  fonema) produce el texto, y ese texto — fiel — arma el turno. Apple es-MX
+  queda como oído del pipeline clásico. Los turnos los deciden las palabras
+  (el transcript crece/se asienta), no el volumen; el barge-in sigue siendo
+  local y vetado. Medido en uso real: "crea un archivo de prueba en mi
+  escritorio" termina en archivo real, y los turnos siguientes continúan el
+  encargo.
+- **El especialista alcanza toda la cuenta.** El default de alcance de 9h se
+  revocó por decisión de la dueña: sin carpeta elegida, el workdir es el home
+  — como el CLI. Los edits pasan solos; los comandos siguen pidiendo permiso.
+
+### Changed
+- **Un solo dueño del ciclo de respuesta realtime.** Cinco call sites de
+  `response.create` corrían a ciegas contra un server que sostiene UNA
+  respuesta; un turno commiteado a media respuesta era rechazado y quedaba
+  huérfano. Ahora hay un embudo con prioridad: el turno del usuario preempta,
+  tools y anuncios esperan.
+- **El especialista actúa en vez de interrogar.** Su rol exige completar con
+  defaults razonables y anotar la decisión — cada encargo moría en una
+  pregunta aclaratoria que el bucle de voz no sostiene.
+- **La voz no canta victoria por un rechazo.** El acuse de encargo se remite a
+  lo que el especialista respondió; la orden incondicional de "di que terminó"
+  convertía un "no pude" en un "listo".
 - **Companion arranca sin clave.** Chat, encargos y voz por turnos funcionan
   con lo que ya corre en la Mac. La escalera de proveedores ya degradaba sola;
   el muro estaba en tres lineas del arranque y en un tag de Ollama escrito a
