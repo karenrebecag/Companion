@@ -17,6 +17,9 @@ public final class ChatProviderClient: ChatProvider, Sendable {
     /// Read at request time too: switching language in Settings has to reach
     /// the next message, not the next launch.
     private let languageSource: (@Sendable () -> AppLanguage)?
+    /// Read at request time, like the profile: memory written at the close of
+    /// one session must reach the very next message (9j-2).
+    private let memorySource: (@Sendable () -> String)?
     private let catalog: [ProviderDescriptor]
     /// Read at REQUEST time, like the profile and the language above: which
     /// local models exist is a fact about the machine that changes while the
@@ -38,6 +41,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         ownerInstructions: String = "",
         profileSource: (@Sendable () -> (name: String, about: String, instructions: String))? = nil,
         languageSource: (@Sendable () -> AppLanguage)? = nil,
+        memorySource: (@Sendable () -> String)? = nil,
         catalog: [ProviderDescriptor] = ProviderDescriptor.catalog,
         catalogSource: (@Sendable () -> [ProviderDescriptor])? = nil,
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil,
@@ -52,6 +56,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         self.ownerInstructions = ownerInstructions
         self.profileSource = profileSource
         self.languageSource = languageSource
+        self.memorySource = memorySource
         self.catalog = catalog
         self.catalogSource = catalogSource
         self.resolveAttachment = resolveAttachment
@@ -146,6 +151,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
                         about: about,
                         instructions: instructions,
                         language: languageSource?() ?? .en,
+                        memory: memorySource?() ?? "",
                         transport: transport,
                         resolveAttachment: resolveAttachment,
                         yield: { continuation.yield($0) })

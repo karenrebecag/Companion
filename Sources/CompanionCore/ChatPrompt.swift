@@ -33,7 +33,8 @@ public enum ChatPrompt: Sendable {
         webSearchEnabled: Bool = false,
         about: String = "",
         instructions: String = "",
-        language: AppLanguage = .en
+        language: AppLanguage = .en,
+        memory: String = ""
     ) -> String {
         let owner = ownerFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
         var prompt = greeting(owner: owner, language: language)
@@ -51,6 +52,11 @@ public enum ChatPrompt: Sendable {
         // needed no delegation could not produce the map the client already
         // knew how to draw.
         prompt += " " + CardVocabulary.text(language)
+        // Memory travels LAST and pre-framed as data: what earlier sessions
+        // recorded must inform the answer, never override the rules above.
+        if !memory.isEmpty {
+            prompt += "\n\n" + memory
+        }
         return prompt
     }
 

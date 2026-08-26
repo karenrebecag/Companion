@@ -69,7 +69,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // nobody was asked. Without a folder the specialist simply has none,
         // and the question arrives when reach is actually needed instead of
         // as friction at startup.
-        let configProvider = StoredConfigProvider(workdir: nil)
+        // 9j-2: memory lives in plain markdown the user can open and edit.
+        // The profile already written in Settings seeds the core on first run.
+        let memoryStore = FileMemoryStore()
+        memoryStore.ensureCore(seed: [UserProfile.about, UserProfile.instructions]
+            .filter { !$0.isEmpty }.joined(separator: "\n\n"))
+        let configProvider = StoredConfigProvider(
+            workdir: nil, memory: memoryStore)
         let config = configProvider.current
         // Which local model exists is a fact about THIS Mac, so the Ollama row
         // is resolved at runtime instead of shipping a fixed tag. Scanned once
@@ -99,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         live.ownerInstructions)
             },
             languageSource: { configProvider.current.language },
+            memorySource: { configProvider.current.memory },
             catalogSource: { localCatalog.effective() })
         let store = ConversationStore(directory: support)
 
@@ -213,7 +220,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             realtimeEar: OpenAITranscriber(
                 keyProvider: { try? secrets.read(.openAI) ?? nil },
                 // The Settings knob drives the server's VAD (9j-1).
-                turnDetection: { configProvider.current.voice.turnDetection }))
+                turnDetection: { configProvider.current.voice.turnDetection }),
+            memoryStore: memoryStore)
         let ambience = AmbienceObserver(
             sound: ThinkingSound(),
             isEnabled: { ThinkingSoundPref.enabled })

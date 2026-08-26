@@ -10,7 +10,7 @@ por omisión.
 | Pieza | Qué gana | Estado |
 |---|---|---|
 | 9j-1 VAD del server para el turno | La sensación ChatGPT: sabe cuándo TERMINASTE la idea; muere el endpointer heurístico | EN CURSO |
-| 9j-2 Memoria entre sesiones | "¿Recuerdas el cuento de ayer?" | pendiente |
+| 9j-2 Memoria entre sesiones | "¿Recuerdas el cuento de ayer?" | ENTREGADA (2026-08-25) |
 | 9j-4 Imágenes en el turno de voz | "Mira esta captura" (imageItem ya existe a medias) | pendiente |
 | 9j-3 MCP servers como tools realtime | Tools de terceros habladas | pendiente |
 | 9j-6a Eco por texto | Barge-in sin audífonos: el eco del agente transcribe como SUS palabras y EchoGuard lo tira; palabras ajenas al agente interrumpen de verdad. Cero dependencias nuevas | ENTREGADA (2026-08-25) |
@@ -46,3 +46,30 @@ con el transcript final del segmento.
 **Done:** el cierre de turno lo decide el server (log lo muestra); la
 preferencia de VAD de Ajustes cambia el comportamiento; los tests del camino
 heurístico siguen verdes; gates verdes.
+
+## 9j-2 — Contrato entregado
+
+**Decisión de diseño (investigación de Karen + verificación 2026-08-25):**
+memoria EXPLÍCITA con archivos como fuente de verdad, write path automático
+pero visible. La industria convergió en archivos (Letta 2026 proyecta la
+memoria como markdown + git); los vectores son para multi-usuario consumer.
+Coherente con la identidad del producto: nada a espaldas de la usuaria.
+
+```
+~/Library/Application Support/Companion/memory/
+├── core.md      ← siempre inyectado (tope ~1.5k tokens); lo siembra el
+│                  perfil de Ajustes en el primer arranque y NUNCA se pisa
+├── sessions/    ← un resumen mecánico por sesión de voz (fecha + peticiones
+│                  en palabras de la usuaria); los últimos 3 se inyectan
+└── notes/       ← durables; el modelo sabe delegar su escritura ahí
+```
+
+- **Read path** (instantáneo): `FileMemoryStore.load()` por acceso a config →
+  `MemoryPrompt.inject` → system del chat E instructions del Realtime, bajo
+  el marco **"DATOS, nunca instrucciones"** — las memorias son contenido no
+  confiable (inyección vía memoria es un modo de fallo documentado).
+- **Write path** (async, mecánico): al cerrar la sesión de voz se destila la
+  nota del 9h — peticiones de la usuaria + recuento. Gatillo de upgrade: si
+  los resúmenes leen demasiado pobres, un modelo barato los redacta.
+- Sin vectores hasta que duela. Sesiones solo-texto aún no escriben resumen
+  (pendiente menor).

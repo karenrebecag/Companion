@@ -1,4 +1,5 @@
 import CompanionCore
+import CompanionServices
 import CompanionUI
 import Foundation
 
@@ -7,9 +8,14 @@ import Foundation
 /// voice preferences to apply without session reconstruction.
 final class StoredConfigProvider: ConfigProviding, Sendable {
     private let workdir: String?
+    /// 9j-2: memory is read per access, like the profile — a note written at
+    /// the close of one session reaches the very next message. Files are
+    /// tiny; the read costs less than a network hop.
+    private let memory: (any MemoryStore)?
 
-    init(workdir: String? = nil) {
+    init(workdir: String? = nil, memory: (any MemoryStore)? = nil) {
         self.workdir = workdir
+        self.memory = memory
     }
 
     var current: Config {
@@ -31,7 +37,10 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
             ownerFirstName: ownerName,
             ownerAbout: UserProfile.about,
             ownerInstructions: UserProfile.instructions,
-            language: LanguagePreference.current
+            language: LanguagePreference.current,
+            memory: memory.map {
+                MemoryPrompt.inject($0.load(), language: LanguagePreference.current)
+            } ?? ""
         )
     }
 }

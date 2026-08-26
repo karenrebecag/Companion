@@ -57,6 +57,10 @@ public actor VoiceSession: VoiceControlling {
     /// The finished segment waiting to be committed as the turn's text.
     var earSegment: String?
     var earTurnTask: Task<Void, Never>?
+    private let memoryStore: (any MemoryStore)?
+    /// Thread length at session open: the summary covers THIS session's
+    /// exchanges, not the whole run.
+    private var sessionStartTurns = 0
 
     public init(
         transport: any VoiceTransport,
@@ -75,6 +79,9 @@ public actor VoiceSession: VoiceControlling {
         // es-MX garbles, but classic must keep the on-device ear — it exists
         // precisely for the no-key, no-network user.
         realtimeEar: (any Transcriber)? = nil,
+        // 9j-2: where session summaries land at close. The write path is
+        // async and mechanical — it never blocks audio or teardown.
+        memoryStore: (any MemoryStore)? = nil,
         reachability: any ReachabilityProbing = NetworkReachability(),
         // Injectable: a unit test must not depend on which output device the
         // machine happens to have plugged in (found out the hard way when the
@@ -95,6 +102,7 @@ public actor VoiceSession: VoiceControlling {
         self.configProvider = configProvider
         self.jobs = jobs
         self.onJobEvent = onJobEvent
+        self.memoryStore = memoryStore
         self.reachability = reachability
         self.echoFreeProbe = echoFreeProbe
             ?? { AudioDevicePin.outputIsEchoFree() }
@@ -324,6 +332,7 @@ public actor VoiceSession: VoiceControlling {
         // Read config from provider at session open time, allowing preferences
         // to apply without session reconstruction.
         let config = configProvider.current
+        sessionStartTurns = await classic.thread.historyTurns().count
         realtime.prepareSessionUpdate(
             config: config, history: await classic.thread.historyTurns(),
             canDelegate: jobs != nil)
@@ -432,6 +441,28 @@ public actor VoiceSession: VoiceControlling {
         earSegment = nil
         await audit.end()
         await realtime.close(mic: mic)
+        await writeSessionMemory()
+    }
+
+    /// 9j-2 write path: distill what THIS session asked into a short note.
+    /// Mechanical (no model call) and best-effort — a failed write is logged,
+    /// never surfaced as a session error.
+    private func writeSessionMemory() async {
+        guard let memoryStore else { return }
+        let turns = await classic.thread.historyTurns()
+        guard turns.count > sessionStartTurns else { return }
+        let fresh = Array(turns.dropFirst(sessionStartTurns))
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        guard let summary = MemorySummary.distill(
+            turns: fresh, date: formatter.string(from: Date())) else { return }
+        do {
+            try memoryStore.appendSession(summary)
+            Log.app("memory: session summary saved")
+        } catch {
+            Log.app("memory: summary write failed (\(error))")
+        }
     }
 
     private func waitForReady() async -> Bool {

@@ -315,7 +315,8 @@ final class RealtimeRuntime: @unchecked Sendable {
             delegateEnabled: canDelegate,
             about: config.ownerAbout,
             instructions: config.ownerInstructions,
-            language: config.language)
+            language: config.language,
+            memory: config.memory)
         let tone = config.voice.tone.trimmingCharacters(
             in: .whitespacesAndNewlines)
         if !tone.isEmpty {

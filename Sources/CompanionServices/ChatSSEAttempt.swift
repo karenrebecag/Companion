@@ -23,6 +23,7 @@ enum ChatSSEAttempt {
         about: String = "",
         instructions: String = "",
         language: AppLanguage = .en,
+        memory: String = "",
         transport: any ChatTransport,
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil,
         yield: @escaping @Sendable (ChatDelta) -> Void
@@ -31,6 +32,7 @@ enum ChatSSEAttempt {
             provider: provider, key: key, history: history, tools: tools,
             settings: settings, ownerFirstName: ownerFirstName,
             about: about, instructions: instructions, language: language,
+            memory: memory,
             resolveAttachment: resolveAttachment)
         else { return .failed(.unreachable) }
 
@@ -74,6 +76,7 @@ enum ChatSSEAttempt {
         about: String = "",
         instructions: String = "",
         language: AppLanguage = .en,
+        memory: String = "",
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil
     ) -> URLRequest? {
         guard let url = provider.endpoint else { return nil }
@@ -115,6 +118,7 @@ private func makeBody(
     about: String,
     instructions: String,
     language: AppLanguage,
+    memory: String = "",
     resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
 ) -> Data? {
     let delegateEnabled = tools.contains { $0.name == "delegate" }
@@ -122,7 +126,8 @@ private func makeBody(
         "role": TurnRole.system.rawValue,
         "content": ChatPrompt.system(
             ownerFirstName: ownerFirstName, delegateEnabled: delegateEnabled,
-            about: about, instructions: instructions, language: language),
+            about: about, instructions: instructions, language: language,
+            memory: memory),
     ]]
     let window = max(settings.historyWindow, 0)
     for turn in history.suffix(window) {

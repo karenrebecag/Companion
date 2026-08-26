@@ -222,6 +222,9 @@ public struct Config: Sendable, Equatable {
     /// Decides the UI copy AND the language the model answers in; a prompt
     /// left in one language makes the other half of the app a lie.
     public var language: AppLanguage
+    /// The assembled memory block (core + recent sessions + notes), injected
+    /// into every prompt. Empty when there is nothing remembered (9j-2).
+    public var memory: String
 
     public init(
         chat: ChatSettings = .default,
@@ -231,7 +234,8 @@ public struct Config: Sendable, Equatable {
         ownerFirstName: String = "",
         ownerAbout: String = "",
         ownerInstructions: String = "",
-        language: AppLanguage = .en
+        language: AppLanguage = .en,
+        memory: String = ""
     ) {
         self.chat = chat
         self.voice = voice
@@ -241,6 +245,7 @@ public struct Config: Sendable, Equatable {
         self.ownerAbout = ownerAbout
         self.ownerInstructions = ownerInstructions
         self.language = language
+        self.memory = memory
     }
 
     public static let `default` = Config()
