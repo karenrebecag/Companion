@@ -50,6 +50,11 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// A non-preempting response request that arrived mid-response; sent when
     /// the active one finishes.
     private var pendingResponse = false
+    /// What the agent is saying in the CURRENT response — the reference for
+    /// text-level echo discrimination (9j-6a): on speakers the mic hears the
+    /// agent, so a heard segment overlapping these words is echo, not the
+    /// user. The prototype's EchoGuard trick, revived.
+    private(set) var agentSpeech = ""
     /// Whatever the session was opened with: the tools, the instructions and
     /// every model-facing line have to agree on one language.
     private(set) var language: AppLanguage = .en
@@ -73,6 +78,7 @@ final class RealtimeRuntime: @unchecked Sendable {
         transportDown = false
         responseActive = false
         pendingResponse = false
+        agentSpeech = ""
     }
 
     /// The single funnel for asking the server to respond. The server holds
@@ -210,6 +216,7 @@ final class RealtimeRuntime: @unchecked Sendable {
             // is ignored — Apple es-MX is the source, delivered on commit.
             return []
         case .assistantTranscriptDelta(let delta):
+            agentSpeech += delta
             await thread.showStream(delta)
             return []
         case .assistantTranscriptDone(let text):
@@ -225,6 +232,9 @@ final class RealtimeRuntime: @unchecked Sendable {
             return [.agentAudioStopped]
         case .responseCreated:
             responseActive = true
+            // A fresh response is a fresh utterance: the echo reference must
+            // not accumulate the whole session.
+            agentSpeech = ""
             return []
         case .responseDone:
             responseActive = false

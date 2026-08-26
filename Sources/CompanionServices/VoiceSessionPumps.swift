@@ -48,7 +48,13 @@ extension VoiceSession {
                     in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { continue }
                 if machine.snapshot.state == .speaking {
-                    guard EchoGuard.words(trimmed).count >= 2 else { continue }
+                    // 9j-6a: on speakers the mic hears the agent, and that
+                    // echo transcribes as the agent's OWN words. Overlap with
+                    // what the agent is saying = echo; a backchannel is under
+                    // two words; anything else is the user really breaking in.
+                    guard EchoGuard.isRealInterruption(
+                        heard: trimmed, agentSaying: realtime.agentSpeech)
+                    else { continue }
                     await apply(.serverSpeechStarted)
                 }
                 earSegment = trimmed
@@ -126,9 +132,16 @@ extension VoiceSession {
                 let aec = await mic.hasEchoCancellation || echoFreeOutput
                 let snap = machine.snapshot
                 let guarded = machine.isEchoGuarded(at: now())
+                // With a segmenting ear the acoustic gate relaxes on speakers
+                // (9j-6a): the ear hears the agent's echo, yes — but the echo
+                // TRANSCRIBES as the agent's own words, and EchoGuard drops
+                // those segments by text. Without a segmenting ear, the old
+                // acoustic rule stands.
                 let clean = !frame.pcm16le24k.isEmpty && !snap.muted
                     && realtime.micEnabled
-                    && (aec || (snap.state != .speaking && !guarded))
+                    && (segmentingEar != nil
+                        ? !guarded
+                        : (aec || (snap.state != .speaking && !guarded)))
                 let reason: GateReason? = clean ? nil : RealtimeGate.reason(
                     muted: snap.muted, emptyPCM: frame.pcm16le24k.isEmpty,
                     micEnabled: realtime.micEnabled, state: snap.state,

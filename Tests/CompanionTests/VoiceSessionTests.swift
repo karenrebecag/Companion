@@ -8,6 +8,7 @@ import Testing
     await testMuteAfterSpeechCommitsNativeText()
     await testUserTurnPreemptsActiveResponse()
     await testSegmentingEarDrivesTheTurn()
+    await testSpeakerEchoIsDroppedButRealInterruptionCuts()
     await testMuteWithoutSpeechDoesNotCommit()
     await testUnmuteClearsAudio()
     await testSpeakingSpeechStartedCancels()
@@ -68,6 +69,39 @@ import Testing
     expect(!Array(h.transport.sent.dropFirst(during))
         .contains { $0.contains("ajá") },
            "segmento: un backchannel de una palabra se tira")
+}
+
+/// 9j-6a: barge-in on SPEAKERS without AEC. The mic hears the agent; that
+/// echo transcribes as the agent's own words and is dropped by text overlap.
+/// Words that are NOT the agent's are the user really breaking in.
+@MainActor func testSpeakerEchoIsDroppedButRealInterruptionCuts() async {
+    let ear = ScriptedSegmentingEar()
+    let h = makeVoiceHarness(realtimeEar: ear)
+    await h.session.start()
+    await pumpUntil("eco: listening") { h.watch.latest.state == .listening }
+    // El agente habla: su transcript es la referencia del eco.
+    h.transport.yield(.responseCreated)
+    h.transport.yield(.assistantTranscriptDelta("te cuento la historia del faro"))
+    h.transport.yield(.audioDelta(Data([0x01, 0x00])))
+    await pumpUntil("eco: speaking") { h.watch.latest.state == .speaking }
+
+    // Las bocinas devuelven las palabras del agente: eco, se tira.
+    let before = h.transport.sent.count
+    ear.yieldTurn(.finished(text: "cuento la historia del faro"))
+    await settle(0.15)
+    expect(!Array(h.transport.sent.dropFirst(before))
+        .contains { $0.contains("historia del faro") },
+           "eco: las palabras del agente no se vuelven turno del usuario")
+
+    // Palabras que NO son del agente: interrupción real → cancela y commitea.
+    ear.yieldTurn(.finished(text: "espera mejor hazlo en otra carpeta"))
+    await pumpUntil("eco: la interrupción real se commitea") {
+        Array(h.transport.sent.dropFirst(before))
+            .contains { $0.contains("espera mejor hazlo") }
+    }
+    expect(hasMessage(Array(h.transport.sent.dropFirst(before)),
+                      type: "response.cancel"),
+           "eco: y corta al agente")
 }
 
 /// Wave 9i: muting mid-utterance commits the turn from the NATIVE transcript —
