@@ -135,16 +135,15 @@ extension VoiceSession {
                 let aec = await mic.hasEchoCancellation || echoFreeOutput
                 let snap = machine.snapshot
                 let guarded = machine.isEchoGuarded(at: now())
-                // With a segmenting ear the acoustic gate relaxes on speakers
-                // (9j-6a): the ear hears the agent's echo, yes — but the echo
-                // TRANSCRIBES as the agent's own words, and EchoGuard drops
-                // those segments by text. Without a segmenting ear, the old
-                // acoustic rule stands.
+                // Half-duplex without AEC: while the agent speaks on open
+                // speakers, the ear is CLOSED — letting it hear and scrubbing
+                // the echo by text leaked the agent's whole reply into the
+                // user's bubble twice (measured). With AEC or an echo-free
+                // output the mic is clean of the agent, so full duplex and
+                // barge-in stay. Speaker barge-in needs real AEC (9j-6b).
                 let clean = !frame.pcm16le24k.isEmpty && !snap.muted
                     && realtime.micEnabled
-                    && (segmentingEar != nil
-                        ? !guarded
-                        : (aec || (snap.state != .speaking && !guarded)))
+                    && (aec || (snap.state != .speaking && !guarded))
                 let reason: GateReason? = clean ? nil : RealtimeGate.reason(
                     muted: snap.muted, emptyPCM: frame.pcm16le24k.isEmpty,
                     micEnabled: realtime.micEnabled, state: snap.state,

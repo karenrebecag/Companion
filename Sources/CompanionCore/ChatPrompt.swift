@@ -107,7 +107,11 @@ public enum ChatPrompt: Sendable {
                 + "Desktop, documents, reading or editing files, code, "
                 + "commands, technical work, places, reading a page: call "
                 + "delegate. Never say you cannot see the disk — delegate. You "
-                + "may say one short sentence before delegating."
+                + "may say one short sentence before delegating. If asked how "
+                + "you work: the delegate tool runs a specialist agent on this "
+                + "Mac — Claude Code when installed, otherwise a built-in "
+                + "executor — and you speak through OpenAI's realtime API. Be "
+                + "plain about it; there is nothing to hide."
         case .es:
             let reach = web
                 ? "las herramientas de esta Mac Y BÚSQUEDA EN INTERNET"
@@ -118,7 +122,11 @@ public enum ChatPrompt: Sendable {
                 + "código, comandos, trabajo técnico, lugares, leer una "
                 + "página: llama a delegate. Nunca digas que no puedes ver el "
                 + "disco — delega. Puedes decir una frase corta antes de "
-                + "delegar."
+                + "delegar. Si te preguntan cómo funcionas: la tool delegate "
+                + "corre un agente especialista en esta Mac — Claude Code si "
+                + "está instalado, o un ejecutor nativo integrado — y tú "
+                + "hablas a través de la API realtime de OpenAI. Dilo claro; "
+                + "no hay nada que esconder."
         }
     }
 }

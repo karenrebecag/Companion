@@ -8,6 +8,7 @@ import Testing
     await testMuteAfterSpeechCommitsNativeText()
     await testUserTurnPreemptsActiveResponse()
     await testSegmentingEarDrivesTheTurn()
+    await testStreamedReplyAccumulates()
     await testSpeakerEchoIsDroppedButRealInterruptionCuts()
     await testMuteWithoutSpeechDoesNotCommit()
     await testUnmuteClearsAudio()
@@ -69,6 +70,22 @@ import Testing
     expect(!Array(h.transport.sent.dropFirst(during))
         .contains { $0.contains("ajá") },
            "segmento: un backchannel de una palabra se tira")
+}
+
+/// The streamed bubble must GROW: showStream replaces what is on screen, so
+/// the runtime accumulates deltas before showing — passing fragments made the
+/// text flash one word at a time until the whole reply landed at once.
+@MainActor func testStreamedReplyAccumulates() async {
+    let h = makeVoiceHarness()
+    await h.session.start()
+    await pumpUntil("stream: listening") { h.watch.latest.state == .listening }
+    h.transport.yield(.responseCreated)
+    h.transport.yield(.assistantTranscriptDelta("Hola, "))
+    h.transport.yield(.assistantTranscriptDelta("¿qué "))
+    h.transport.yield(.assistantTranscriptDelta("tal?"))
+    await pumpUntil("stream: el texto crece acumulado") {
+        h.thread.stream == "Hola, ¿qué tal?"
+    }
 }
 
 /// 9j-6a: barge-in on SPEAKERS without AEC. The mic hears the agent; that
@@ -657,6 +674,8 @@ final class ScriptedThread: ConversationPresenting, @unchecked Sendable {
         turns.append(Turn(role: .assistant, content: text))
     }
     func appendStatus(_ text: String) async { status.append(text) }
-    func showStream(_ text: String) async { stream += text }
+    // Mirrors the REAL contract (ChatViewModel replaces): the old fake
+    // accumulated, which is exactly why no test caught the flashing bubble.
+    func showStream(_ text: String) async { stream = text }
     func finishStream() async { finished = true }
 }

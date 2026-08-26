@@ -221,7 +221,10 @@ final class RealtimeRuntime: @unchecked Sendable {
             return []
         case .assistantTranscriptDelta(let delta):
             agentSpeech += delta
-            await thread.showStream(delta)
+            // The ACCUMULATED text, not the delta: showStream replaces what
+            // is on screen, so passing fragments made the bubble flash one
+            // word at a time until the finished message landed whole.
+            await thread.showStream(agentSpeech)
             return []
         case .assistantTranscriptDone(let text):
             await thread.finishStream()
