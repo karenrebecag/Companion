@@ -100,6 +100,7 @@ private struct AppButtonStyle: ButtonStyle {
         case .destructive: Semantic.destructive
         case .surface: Semantic.surface
         case .clear: Color.clear
+        case .ink: Semantic.primary
         }
     }
 
@@ -109,6 +110,7 @@ private struct AppButtonStyle: ButtonStyle {
         case .onDestructive: Semantic.destructiveForeground
         case .foreground: Semantic.foreground
         case .accentText: Semantic.accentText
+        case .onInk: Semantic.primaryForeground
         }
     }
 

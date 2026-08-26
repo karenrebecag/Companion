@@ -16,14 +16,17 @@ public enum ControlState: Sendable, CaseIterable {
 
 public enum AppButtonKind: Sendable, CaseIterable {
     case primary, secondary, destructive, ghost
+    /// Solid ink button: black on light, white on dark. For surfaces that
+    /// must stay clean of the app accent (the onboarding hero sheet).
+    case neutral
 }
 
 public enum ControlFill: Sendable, Equatable {
-    case accent, destructive, surface, clear
+    case accent, destructive, surface, clear, ink
 }
 
 public enum ControlInk: Sendable, Equatable {
-    case onAccent, onDestructive, foreground, accentText
+    case onAccent, onDestructive, foreground, accentText, onInk
 }
 
 public enum ControlStroke: Sendable, Equatable {
@@ -68,6 +71,7 @@ public struct ControlLook: Equatable, Sendable {
         case .secondary: .surface
         case .destructive: .destructive
         case .ghost: .clear
+        case .neutral: .ink
         }
     }
 
@@ -77,6 +81,7 @@ public struct ControlLook: Equatable, Sendable {
         case .secondary: .foreground
         case .destructive: .onDestructive
         case .ghost: .accentText
+        case .neutral: .onInk
         }
     }
 
@@ -84,7 +89,7 @@ public struct ControlLook: Equatable, Sendable {
         switch kind {
         case .secondary: .border
         case .ghost: .none
-        case .primary, .destructive: .none
+        case .primary, .destructive, .neutral: .none
         }
     }
 

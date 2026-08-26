@@ -32,6 +32,10 @@ public struct OnboardingView: View {
             .frame(maxWidth: 520)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Semantic.background)
+        // The first screen is always light and black-and-white: clean paper
+        // before the app's own accent enters (decision de Karen 2026-08-26).
+        .environment(\.colorScheme, .light)
     }
 
     /// Barely-there color fields: a glow under the hero and a faint tint on
@@ -56,7 +60,7 @@ public struct OnboardingView: View {
         Orb(
             state: .idle,
             levels: VoiceLevels(mic: 0, agent: 0),
-            accentColor: Semantic.accent)
+            accentColor: Semantic.foreground)
         .frame(height: 200)
         .frame(maxWidth: .infinity)
     }
@@ -70,7 +74,7 @@ public struct OnboardingView: View {
                     .font(.uiEyebrow)
                     .tracking(Tracking.wide, at: TypeSize.micro)
             }
-            .foregroundStyle(Semantic.accentText)
+            .foregroundStyle(Semantic.mutedForeground)
 
             (Text(Localized.string("onboarding.title.l1"))
                 + Text(verbatim: "\n")
@@ -116,7 +120,7 @@ public struct OnboardingView: View {
                 VStack(spacing: Space.x2) {
                     ForEach(paths, id: \.providerName) { path in
                         AppButton(
-                            pathTitle(path), kind: .primary,
+                            pathTitle(path), kind: .neutral,
                             shape: .pill, fullWidth: true
                         ) {
                             model.acceptLocalBase(path)
@@ -166,7 +170,7 @@ public struct OnboardingView: View {
         VStack(spacing: Space.x3) {
             AppButton(
                 Localized.string("onboarding.continue"),
-                kind: hasLocalPath ? .secondary : .primary,
+                kind: hasLocalPath ? .secondary : .neutral,
                 shape: .pill, fullWidth: true,
                 enabled: !cannotContinue
             ) {
@@ -176,7 +180,8 @@ public struct OnboardingView: View {
             Link(destination: URL(string: "https://platform.openai.com/api/keys")!) {
                 Text(Localized.string("onboarding.getKey"))
                     .font(.uiCaption)
-                    .foregroundStyle(Semantic.accentText)
+                    .underline()
+                    .foregroundStyle(Semantic.mutedForeground)
             }
             .frame(maxWidth: .infinity)
         }
