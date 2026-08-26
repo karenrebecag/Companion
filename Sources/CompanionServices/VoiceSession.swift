@@ -17,6 +17,9 @@ public actor VoiceSession: VoiceControlling {
     private let readyTimeout: TimeInterval
     let realtime: RealtimeRuntime
     private let classic: ClassicRuntime
+    /// Diagnostic microscope over the realtime path. Reuses the injected
+    /// transcriber (idle in realtime mode) as native ground truth.
+    let audit: VoiceAudit
     private let snapBox: AudioStreamBox<TurnSnapshot>
     let levelBox: AudioStreamBox<VoiceLevels>
 
@@ -41,6 +44,12 @@ public actor VoiceSession: VoiceControlling {
     var lastMic = 0.0
     var lastAgent = 0.0
     var reconnectAttempted = false
+    /// Wave 9i: the local voice-activity endpointer. OpenAI no longer listens,
+    /// so the client decides when a user turn starts and ends, from the mic.
+    /// Wave 9i: the user's turn, driven by the native transcript. Created when
+    /// the transcript starts growing; the turn closes when it settles — robust
+    /// to a noisy mic whose RMS never drops to true silence.
+    var transcriptEnd: TranscriptEndpointer?
 
     public init(
         transport: any VoiceTransport,
@@ -54,6 +63,11 @@ public actor VoiceSession: VoiceControlling {
         configProvider: any ConfigProviding,
         jobs: (any JobSubmitter)? = nil,
         onJobEvent: (@Sendable (JobEvent) -> Void)? = nil,
+        // The realtime pipeline's ear, when it differs from the classic one:
+        // OpenAI's live transcription hears mixed-language speech that Apple
+        // es-MX garbles, but classic must keep the on-device ear — it exists
+        // precisely for the no-key, no-network user.
+        realtimeEar: (any Transcriber)? = nil,
         reachability: any ReachabilityProbing = NetworkReachability(),
         // Injectable: a unit test must not depend on which output device the
         // machine happens to have plugged in (found out the hard way when the
@@ -85,6 +99,9 @@ public actor VoiceSession: VoiceControlling {
         self.classic = ClassicRuntime(
             transcriber: transcriber, synthesizer: synthesizer,
             chat: chat, thread: thread)
+        let audit = VoiceAudit(native: realtimeEar ?? transcriber)
+        self.audit = audit
+        self.realtime.audit = audit
         let snapBox = AudioStreamBox<TurnSnapshot>()
         let levelBox = AudioStreamBox<VoiceLevels>()
         self.snapBox = snapBox
@@ -167,7 +184,8 @@ public actor VoiceSession: VoiceControlling {
               !pendingAnnouncements.isEmpty else { return }
         let text = pendingAnnouncements.removeFirst()
         await realtime.send(RealtimeCodec.systemItem(text))
-        await realtime.send(RealtimeCodec.responseCreate())
+        // An announcement never talks over anyone: it waits its turn.
+        await realtime.requestResponse()
     }
 
     public func setSpeed(_ speed: Double) async {
@@ -238,7 +256,12 @@ public actor VoiceSession: VoiceControlling {
                     await synthesizer.stop()
                 }
             case .commitAndRespond:
-                await realtime.commitAndRespond()
+                // Muting mid-utterance: there is no audio buffer to commit any
+                // more — closing the turn from the native transcript IS the
+                // commit (Wave 9i).
+                await commitTurnFromNative()
+            case .commitWithText:
+                await commitTurnFromNative()
             case .clearInputAudio:
                 await realtime.clearInputAudio()
             case .setMicEnabled(let on):
@@ -303,6 +326,10 @@ public actor VoiceSession: VoiceControlling {
         startPumps()
         await realtime.flushPendingUpdate()
         if await waitForReady() {
+            // Only once the session is truly ready: arming the native recognizer
+            // for a turn that never opened (offline dies before here) would look
+            // exactly like the classic path coming up with no network.
+            await audit.begin(locale: config.language.speechLocaleIdentifier)
             armMicSilenceWatchdog()
             return
         }
@@ -351,12 +378,39 @@ public actor VoiceSession: VoiceControlling {
         await apply(.turnFailed(.micSilent))
     }
 
+    /// Wave 9i: end of a user turn. Drive it from Apple's transcript; with
+    /// nothing reliably heard, degrade to the audio OpenAI would have used.
+    private func commitTurnFromNative() async {
+        // Let the last native partial settle before reading it. A cancel here
+        // means the session is tearing down — drop the turn, don't commit.
+        do {
+            try await Task.sleep(nanoseconds: 250_000_000)
+        } catch {
+            return
+        }
+        // v1 is hybrid-only: Apple is the ear. Without it (Speech denied) there
+        // is no input path — say so once, don't spin responding to nothing.
+        guard audit.isLive else {
+            Log.app("voice: no native ear (Speech Recognition not authorized) "
+                + "— enable it in System Settings › Privacy › Speech Recognition")
+            return
+        }
+        let text = audit.turnText()
+        audit.logTurn()
+        // Mark everything recognized so far as this turn's — the recognizer
+        // keeps running (a restart re-enters its ~12 s cold start).
+        audit.consume()
+        guard !text.isEmpty else { return }
+        await realtime.commitWithText(text)
+    }
+
     private func closeRealtime() async {
         pendingAnnouncements.removeAll()
         micSilenceTask?.cancel()
         micSilenceTask = nil
         eventTask?.cancel()
         eventTask = nil
+        await audit.end()
         await realtime.close(mic: mic)
     }
 

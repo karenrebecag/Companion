@@ -90,8 +90,10 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
     expect(m.snapshot.speechOpen, "ciclo: speechOpen al oír")
     expectEq(m.snapshot.state, .listening, "ciclo: sigue listening")
 
+    // Wave 9i: el fin de habla ya no deja que el server responda desde el
+    // audio; pide armar el turno con el texto nativo (Apple).
     let stopped = apply(&m, .serverSpeechStopped, at: 11)
-    expectEq(stopped, [], "ciclo: speechStopped no dispara I/O")
+    expectEq(stopped, [.commitWithText], "ciclo: speechStopped arma el turno con texto")
     expectEq(m.snapshot.state, .thinking, "ciclo: speechStopped → thinking")
     expect(!m.snapshot.speechOpen, "ciclo: speechOpen cierra al parar")
 

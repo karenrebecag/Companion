@@ -206,7 +206,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             thread: model,
             configProvider: configProvider,
             jobs: jobRunner,
-            onJobEvent: onJobEvent)
+            onJobEvent: onJobEvent,
+            // Realtime hears through OpenAI's live transcription (measured
+            // better on mixed-language speech); classic keeps the on-device
+            // ear above, which needs no key and no network.
+            realtimeEar: OpenAITranscriber(
+                keyProvider: { try? secrets.read(.openAI) ?? nil }))
         let ambience = AmbienceObserver(
             sound: ThinkingSound(),
             isEnabled: { ThinkingSoundPref.enabled })

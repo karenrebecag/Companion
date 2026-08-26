@@ -102,6 +102,11 @@ public enum TurnEffect: Sendable, Equatable {
     case submitUtterance
     case cancelAgentOutput
     case commitAndRespond
+    /// Wave 9i: arm the turn from the native (Apple) transcript instead of the
+    /// audio OpenAI would guess from. The session reads the native text and
+    /// either sends it as the user turn or, with nothing heard, degrades to
+    /// committing the audio.
+    case commitWithText
     case clearInputAudio
     case setMicEnabled(Bool)
     case beginSpeechStream

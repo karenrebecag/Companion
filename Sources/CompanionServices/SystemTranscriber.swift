@@ -15,8 +15,22 @@ public final class SystemTranscriber: Transcriber, @unchecked Sendable {
     private var recognizer: SFSpeechRecognizer?
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+    /// Callbacks land here, not on the app's main queue: the UI must never be
+    /// able to starve recognition results.
+    private let callbackQueue: OperationQueue = {
+        let q = OperationQueue()
+        q.maxConcurrentOperationCount = 1
+        return q
+    }()
+    private var appended = 0
+    private var sawWords = false
 
     public var partials: AsyncStream<String> { box.stream }
+
+    /// Live snapshot of the recognized text — the recognition callback keeps it
+    /// current, so reading it never halts recognition and never consumes the
+    /// partials stream.
+    public var currentText: String { transcript.snapshot() }
 
     public var isAuthorized: Bool {
         SFSpeechRecognizer.authorizationStatus() == .authorized
@@ -40,6 +54,7 @@ public final class SystemTranscriber: Transcriber, @unchecked Sendable {
         guard let rec, rec.isAvailable else {
             throw VoiceTransportError.unreachable
         }
+        rec.queue = callbackQueue
         let req = SFSpeechAudioBufferRecognitionRequest()
         req.shouldReportPartialResults = true
         if rec.supportsOnDeviceRecognition {
@@ -48,16 +63,40 @@ public final class SystemTranscriber: Transcriber, @unchecked Sendable {
         recognizer = rec
         request = req
         transcript.set("")
-        task = rec.recognitionTask(with: req) { [weak self] result, _ in
-            guard let self, let result else { return }
+        appended = 0
+        sawWords = false
+        task = rec.recognitionTask(with: req) { [weak self] result, error in
+            guard let self else { return }
+            // A silent failure here is a session that "no me escucha" with no
+            // trace. Log it; halt() cancels are expected and produce one line.
+            if let error, result == nil {
+                Log.app("speech: recognition failed "
+                    + "(\(error.localizedDescription))")
+                return
+            }
+            guard let result else { return }
             let next = result.bestTranscription.formattedString
+            if !self.sawWords, !next.isEmpty {
+                self.sawWords = true
+                Log.app("speech: first words «\(String(next.prefix(40)))»")
+            }
             self.transcript.set(next)
             self.box.yield(next)
         }
     }
 
     public func append(_ frame: MicFrame) async {
-        guard let request, let buffer = Self.buffer(from: frame) else { return }
+        guard let request else {
+            // A silent guard here once swallowed a whole session's audio; if
+            // frames arrive with no live request, that has to be visible.
+            Log.app("speech: frame dropped — no live recognition request")
+            return
+        }
+        guard let buffer = Self.buffer(from: frame) else { return }
+        appended += 1
+        if appended == 1 || appended % 100 == 0 {
+            Log.app("speech: appended \(appended) buffers")
+        }
         request.append(buffer)
     }
 

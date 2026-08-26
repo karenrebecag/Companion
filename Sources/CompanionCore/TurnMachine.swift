@@ -260,7 +260,9 @@ extension TurnMachine {
         guard snapshot.pipeline == .realtime, isVoiceActive else { return [] }
         snapshot.speechOpen = false
         snapshot.state = .thinking
-        return []
+        // The server no longer responds from the audio (create_response:false):
+        // arm the turn from the native transcript.
+        return [.commitWithText]
     }
 
     private mutating func agentAudioStarted() -> [TurnEffect] {

@@ -34,11 +34,22 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// permission was granted when there was nothing left to grant.
     var onResolveApproval: (@Sendable (Bool) async -> Bool)?
 
+    /// Diagnostic microscope, set by the session. Observes turn boundaries and
+    /// the model's goal; never affects the path.
+    var audit: VoiceAudit?
+
     var micEnabled = true
     var didBecomeReady = false
     private(set) var pendingUpdate: String?
     private var voiceSent = false
     private var backchannel = BackchannelGate()
+    /// The server's response lifecycle, tracked from ITS events — the turn
+    /// machine tracks audio playback, and the gap between "audio drained" and
+    /// `response.done` is exactly where a commit used to race the server.
+    private(set) var responseActive = false
+    /// A non-preempting response request that arrived mid-response; sent when
+    /// the active one finishes.
+    private var pendingResponse = false
     /// Whatever the session was opened with: the tools, the instructions and
     /// every model-facing line have to agree on one language.
     private(set) var language: AppLanguage = .en
@@ -60,6 +71,27 @@ final class RealtimeRuntime: @unchecked Sendable {
         pendingUpdate = nil
         voiceSent = false
         transportDown = false
+        responseActive = false
+        pendingResponse = false
+    }
+
+    /// The single funnel for asking the server to respond. The server holds
+    /// ONE response at a time; five call sites used to race it blind. A user
+    /// turn preempts (their voice outranks whatever the agent was saying);
+    /// everything else waits its turn.
+    func requestResponse(preempting: Bool = false) async {
+        guard responseActive else {
+            await send(RealtimeCodec.responseCreate())
+            return
+        }
+        if preempting {
+            await send(RealtimeCodec.responseCancel())
+            await player.flush()
+            // The server processes in order: the cancel lands first.
+            await send(RealtimeCodec.responseCreate())
+        } else {
+            pendingResponse = true
+        }
     }
 
     func prepareSessionUpdate(
@@ -112,9 +144,14 @@ final class RealtimeRuntime: @unchecked Sendable {
         await send(RealtimeCodec.appendAudio(frame.pcm16le24k))
     }
 
-    func commitAndRespond() async {
-        await send(RealtimeCodec.commitAudio())
-        await send(RealtimeCodec.responseCreate())
+    /// Wave 9i: arm the turn from the ear's transcript — the mic never
+    /// reaches the conversation model, so the accurate text IS the turn. The
+    /// user's turn preempts whatever the agent was still saying.
+    func commitWithText(_ text: String) async {
+        await thread.appendUser(text)
+        Log.app("voice: turn from native text «\(text)»")
+        await send(RealtimeCodec.userTextItem(text))
+        await requestResponse(preempting: true)
     }
 
     func clearInputAudio() async {
@@ -163,11 +200,14 @@ final class RealtimeRuntime: @unchecked Sendable {
         case .sessionUpdated:
             return []
         case .speechStarted:
+            // Wave 9i: OpenAI does not do VAD (turn_detection null); if a stray
+            // event arrives it is harmless — turns are driven locally.
             return [.serverSpeechStarted]
         case .speechStopped:
             return [.serverSpeechStopped]
-        case .userTranscript(let text):
-            await thread.appendUser(text)
+        case .userTranscript:
+            // Wave 9i: OpenAI's transcription is off; if a stray one arrives it
+            // is ignored — Apple es-MX is the source, delivered on commit.
             return []
         case .assistantTranscriptDelta(let delta):
             await thread.showStream(delta)
@@ -183,7 +223,15 @@ final class RealtimeRuntime: @unchecked Sendable {
             return [.agentAudioStarted]
         case .agentAudioStopped:
             return [.agentAudioStopped]
+        case .responseCreated:
+            responseActive = true
+            return []
         case .responseDone:
+            responseActive = false
+            if pendingResponse {
+                pendingResponse = false
+                await send(RealtimeCodec.responseCreate())
+            }
             let pending = await player.hasPending
             return [.responseCompleted(hasPendingAudio: pending)]
         case .functionCall(let name, let arguments, let callId):
@@ -206,13 +254,14 @@ final class RealtimeRuntime: @unchecked Sendable {
                 await send(
                     RealtimeCodec.functionOutput(
                         callId: callId, output: Self.functionRefusal(language)))
-                await send(RealtimeCodec.responseCreate())
+                await requestResponse()
                 return [.functionOutputSent]
             }
             await send(
                 RealtimeCodec.functionOutput(
                     callId: callId, output: Self.functionAccepted(language)))
-            await send(RealtimeCodec.responseCreate())
+            await requestResponse()
+            audit?.noteGoal(handoff.goal)
             onDelegate(handoff)
             return [.functionOutputSent]
         case .serverError(let message):
@@ -245,7 +294,7 @@ final class RealtimeRuntime: @unchecked Sendable {
         }
         await send(
             RealtimeCodec.functionOutput(callId: callId, output: output))
-        await send(RealtimeCodec.responseCreate())
+        await requestResponse()
     }
 
     static func instructions(

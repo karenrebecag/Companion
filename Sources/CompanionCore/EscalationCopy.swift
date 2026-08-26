@@ -15,7 +15,12 @@ extension Escalation {
         case .en:
             return "Companion (a voice assistant) delegates jobs to you. You "
                 + "have the tools; she only talks to the user. Do the work "
-                + "(files, commands, a plan) and answer for a screen, "
+                + "(files, commands, a plan). The user is SPEAKING, not "
+                + "reading a chat: never end with only a clarifying question. "
+                + "When details are missing, pick sensible defaults, complete "
+                + "the task, and note the choice in one line — an empty file "
+                + "that exists beats a perfect file that was never created. "
+                + "Answer for a screen, "
                 + "starting with a one-line summary — it is the first "
                 + "thing the user reads. The client RENDERS MARKDOWN: use # headings, "
                 + "- or 1. lists, pipe tables when you compare data, and "
@@ -27,7 +32,12 @@ extension Escalation {
         case .es:
             return "Companion (asistente de voz) te delega "
                 + "encargos. Tú tienes las herramientas; ella solo habla con el "
-                + "usuario. Haz el trabajo (archivos, comandos, plan) y responde "
+                + "usuario. Haz el trabajo (archivos, comandos, plan). El "
+                + "usuario está HABLANDO, no leyendo un chat: nunca termines "
+                + "solo con una pregunta aclaratoria. Si faltan detalles, elige "
+                + "un default razonable, completa la tarea y anota la decisión "
+                + "en una línea — un archivo vacío que existe vale más que uno "
+                + "perfecto que nunca se creó. Responde "
                 + "para pantalla, empezando con un resumen de una línea — es lo "
                 + "primero que lee el usuario. El cliente RENDERIZA MARKDOWN: usa "
                 + "encabezados con #, listas con - o 1., tablas con pipes cuando "
@@ -162,13 +172,19 @@ extension Escalation {
     ) -> String {
         switch language {
         case .en:
-            return "Job finished: «\(goal)». The result is on screen; say "
-                + "only that it is done. Do not add details you were not "
-                + "given, and do not read the result back."
+            // The reply on screen is the truth — a success OR a "could not".
+            // The old copy commanded "say it is done" unconditionally, so a
+            // polite refusal (which the CLI returns with is_error:false) got
+            // announced as a finished job. Acknowledge what the reply SAYS.
+            return "The specialist answered «\(goal)»; the reply is on "
+                + "screen. Acknowledge in one line what it says — do not add "
+                + "details you were not given, do not read the result back, "
+                + "and do not say it worked unless the reply says so."
         case .es:
-            return "Encargo terminado: «\(goal)». El resultado está en "
-                + "pantalla; di solo que terminó. No añadas detalles que no "
-                + "te dieron, ni releas el resultado."
+            return "El especialista respondió «\(goal)»; la respuesta está "
+                + "en pantalla. Acusa en una línea lo que dice — no añadas "
+                + "detalles que no te dieron, no releas el resultado, y no "
+                + "digas que salió bien salvo que la respuesta lo diga."
         }
     }
 

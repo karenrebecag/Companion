@@ -348,6 +348,7 @@ final class FakeTranscriber: Transcriber, @unchecked Sendable {
     var isAuthorized: Bool { authorized }
     private let box = StreamBox<String>()
     var partials: AsyncStream<String> { box.stream }
+    var currentText: String { stoppedText }
     func requestAuthorization() async -> Bool { authorized = true; return authorized }
     func start(localeIdentifier: String) async throws { locale = localeIdentifier }
     func append(_ frame: MicFrame) async { appended.append(frame) }

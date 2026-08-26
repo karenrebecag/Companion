@@ -8,6 +8,7 @@ public enum RealtimeEvent: Sendable, Equatable {
     case assistantTranscriptDone(String)
     case audioDelta(Data)
     case functionCall(name: String, arguments: String, callId: String)
+    case responseCreated
     case responseDone, serverError(String)
     case agentAudioStarted, agentAudioStopped
     // FIX 5: Preserve unknown event type names for observability, not just generic .ignored.
@@ -54,6 +55,7 @@ public enum RealtimeCodec: Sendable {
                   let args = obj["arguments"] as? String,
                   let callId = obj["call_id"] as? String else { return .ignored }
             return .functionCall(name: name, arguments: args, callId: callId)
+        case "response.created": return .responseCreated
         case "response.done": return .responseDone
         case "output_audio_buffer.started": return .agentAudioStarted
         case "output_audio_buffer.stopped", "output_audio_buffer.cleared":
@@ -89,10 +91,15 @@ public enum RealtimeCodec: Sendable {
             "audio": [
                 "input": [
                     "format": ["type": "audio/pcm", "rate": 24000],
-                    "transcription": ["model": "gpt-4o-mini-transcribe",
-                                      "language": "es"],
+                    // No input_audio_transcription: OpenAI mis-hears Mexican
+                    // Spanish (measured — "Mi madre no invierte" for "crea un
+                    // archivo"). Apple es-MX is the source now (Wave 9i).
                     "noise_reduction": ["type": "near_field"],
-                    "turn_detection": turnDetectionJSON(turnDetection),
+                    // turn_detection: null — OpenAI does not listen at all. The
+                    // mic never reaches it; a local endpointer decides turns and
+                    // Apple es-MX provides the text (Wave 9i). No audio in means
+                    // no audio conversation item to fight the text one.
+                    "turn_detection": NSNull(),
                 ],
                 "output": output,
             ],
@@ -117,6 +124,19 @@ public enum RealtimeCodec: Sendable {
             "item": [
                 "type": "message",
                 "role": "system",
+                "content": [["type": "input_text", "text": text]],
+            ],
+        ])
+    }
+
+    /// The user's turn as TEXT — the native (Apple) transcript — so the model
+    /// reasons over what was actually said, not what it guessed from the audio.
+    public static func userTextItem(_ text: String) -> String {
+        encodeJSON([
+            "type": "conversation.item.create",
+            "item": [
+                "type": "message",
+                "role": "user",
                 "content": [["type": "input_text", "text": text]],
             ],
         ])
@@ -198,15 +218,6 @@ public enum RealtimeCodec: Sendable {
     }
 }
 
-private func turnDetectionJSON(_ detection: TurnDetection) -> [String: Any] {
-    switch detection {
-    case .serverVAD(let ms):
-        return ["type": "server_vad", "silence_duration_ms": ms]
-    case .semanticVAD(let eagerness):
-        return ["type": "semantic_vad", "eagerness": eagerness.rawValue]
-    }
-}
-
 extension RealtimeEvent {
     /// Short label for the turn trace; never includes transcripts or audio.
     public var traceName: String {
@@ -221,6 +232,7 @@ extension RealtimeEvent {
         case .audioDelta(let data): "audio.delta \(data.count)B"
         case .agentAudioStarted: "audio.started"
         case .agentAudioStopped: "audio.stopped"
+        case .responseCreated: "response.created"
         case .responseDone: "response.done"
         case .functionCall: "function.call"
         case .serverError(let message): "server.error \(message)"

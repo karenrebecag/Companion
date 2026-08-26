@@ -6,7 +6,7 @@ import Testing
 
 @Test @MainActor func voiceConfigBridgeTests() async {
     await testConfigProviderReadAtSessionOpen()
-    await testTurnDetectionChangeAppliesToNextSession()
+    await testTurnDetectionIsNullSoOpenAIDoesNotListen()
     await testOwnerNameReachesCodec()
     await testSpeedCanChangeInHotSession()
     await testAECToggleRearmVeto()
@@ -62,7 +62,7 @@ import Testing
     expectEq(provider.readCount, 1, "config provider: reads once per session start")
 }
 
-@MainActor func testTurnDetectionChangeAppliesToNextSession() async {
+@MainActor func testTurnDetectionIsNullSoOpenAIDoesNotListen() async {
     let provider = TestConfigProvider(config: Config(
         voice: VoiceSettings(turnDetection: .semanticVAD(eagerness: .high))))
     let h = makeVoiceHarnessWithProvider(provider)
@@ -72,13 +72,14 @@ import Testing
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
 
-    // Session uses semantic VAD with high eagerness from the provider
+    // Wave 9i: OpenAI never listens — turn_detection is null no matter the
+    // user's VAD preference, which now drives the LOCAL endpointer instead.
     let update = sessionUpdateJSON(h.transport.sent)
-    let turnDetection = turnDetectionFromJSON(update)
-    expectEq(turnDetection["type"] as? String, "semantic_vad",
-             "turn detection: session uses semantic_vad")
-    expectEq(turnDetection["eagerness"] as? String, "high",
-             "turn detection: session has high eagerness from provider")
+    let session = update["session"] as? [String: Any] ?? [:]
+    let audio = session["audio"] as? [String: Any] ?? [:]
+    let input = audio["input"] as? [String: Any] ?? [:]
+    expect(input["turn_detection"] is NSNull,
+           "turn detection: null — OpenAI no hace VAD, escucha Apple")
 }
 
 @MainActor func testOwnerNameReachesCodec() async {
@@ -207,13 +208,6 @@ private struct TestReachability: ReachabilityProbing {
 private func sessionUpdateJSON(_ sent: [String]) -> [String: Any] {
     let updateMsg = sent.first(where: { $0.contains("session.update") }) ?? "{}"
     return (try? JSONSerialization.jsonObject(with: updateMsg.data(using: .utf8)!)) as? [String: Any] ?? [:]
-}
-
-private func turnDetectionFromJSON(_ updateJSON: [String: Any]) -> [String: Any] {
-    let session = updateJSON["session"] as? [String: Any] ?? [:]
-    let audio = session["audio"] as? [String: Any] ?? [:]
-    let input = audio["input"] as? [String: Any] ?? [:]
-    return input["turn_detection"] as? [String: Any] ?? [:]
 }
 
 private func hasVoiceInSessionUpdate(_ sent: [String], expectedVoice: VoiceID? = nil) -> Bool {

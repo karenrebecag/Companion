@@ -50,6 +50,10 @@ public protocol Transcriber: Sendable {
     func append(_ frame: MicFrame) async
     func stop() async -> String
     var partials: AsyncStream<String> { get }
+    /// The transcript recognized so far this turn, read without halting — the
+    /// turn logic reads it live to decide when speech has settled, then again
+    /// to commit. A snapshot, so there is no single-pass stream to race on.
+    var currentText: String { get }
 }
 
 public enum SpeechEvent: Sendable, Equatable {

@@ -5,7 +5,8 @@ import Testing
 
 @Test @MainActor func voiceSessionTests() async {
     await testStartWithKeyListensRealtime()
-    await testMuteAfterSpeechCommits()
+    await testMuteAfterSpeechCommitsNativeText()
+    await testUserTurnPreemptsActiveResponse()
     await testMuteWithoutSpeechDoesNotCommit()
     await testUnmuteClearsAudio()
     await testSpeakingSpeechStartedCancels()
@@ -13,11 +14,11 @@ import Testing
     await testDenyingSpeechIsNotBlamedOnTheVoice()
     await testOpenTimeoutFallsBackClassic()
     await testOfflineStaysInErrorWithoutFallback()
-    await testEchoFreeOutputForwardsWhileSpeaking()
+    await testEchoFreeBargeInWhileSpeaking()
     await testSilentMicFailsLoud()
     await testLiveMicSurvivesSilenceWatchdog()
     await testHangUpClosesTransport()
-    await testEchoGuardHoldsFrames()
+    await testNoBargeInWithoutAEC()
     await testFunctionCallRefusal()
 }
 
@@ -37,21 +38,53 @@ import Testing
            "start: la primera update lleva voz")
 }
 
-@MainActor func testMuteAfterSpeechCommits() async {
+/// Wave 9i: muting mid-utterance commits the turn from the NATIVE transcript —
+/// there is no audio buffer at OpenAI to commit any more.
+@MainActor func testMuteAfterSpeechCommitsNativeText() async {
     let h = makeVoiceHarness()
+    h.transcriber.stoppedText = "hola compa"
     await h.session.start()
     await pumpUntil("mute-speech: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.speechStarted)
     await pumpUntil("mute-speech: speechOpen") { h.watch.latest.speechOpen }
     let before = h.transport.sent.count
     await h.session.toggleMute()
-    await pumpUntil("mute-speech: muted") { h.watch.latest.muted }
+    await pumpUntil("mute-speech: texto nativo enviado") {
+        hasMessage(Array(h.transport.sent.dropFirst(before)),
+                   type: "conversation.item.create")
+    }
     let added = Array(h.transport.sent.dropFirst(before))
-    expect(hasMessage(added, type: "input_audio_buffer.commit"),
-           "mute-speech: commit a media frase")
+    expect(added.contains { $0.contains("hola compa") },
+           "mute-speech: viaja el texto de Apple, no audio")
     expect(hasMessage(added, type: "response.create"),
-           "mute-speech: response.create tras commit")
+           "mute-speech: response.create tras el texto")
     expect(h.watch.latest.pipeline == .realtime, "mute-speech: sigue realtime")
+}
+
+/// The server holds ONE response at a time; a user turn committed mid-response
+/// used to be rejected ("already has an active response") and the turn's text
+/// was left orphaned — "en mi desktop" answered a question nobody processed.
+/// The funnel cancels the active response first: the user's voice outranks it.
+@MainActor func testUserTurnPreemptsActiveResponse() async {
+    let h = makeVoiceHarness()
+    h.transcriber.stoppedText = "en mi desktop"
+    await h.session.start()
+    await pumpUntil("preempt: listening") { h.watch.latest.state == .listening }
+    h.transport.yield(.responseCreated)
+    h.transport.yield(.speechStarted)
+    await pumpUntil("preempt: speechOpen") { h.watch.latest.speechOpen }
+    let before = h.transport.sent.count
+    await h.session.toggleMute()  // commits the turn from the native text
+    await pumpUntil("preempt: turno enviado") {
+        hasMessage(Array(h.transport.sent.dropFirst(before)),
+                   type: "response.create")
+    }
+    let added = Array(h.transport.sent.dropFirst(before))
+    let cancelAt = added.firstIndex { $0.contains("response.cancel") }
+    let createAt = added.firstIndex { $0.contains("response.create") }
+    expect(cancelAt != nil, "preempt: cancela la respuesta activa")
+    expect(cancelAt! < createAt!,
+           "preempt: el cancel viaja ANTES del create del turno nuevo")
 }
 
 @MainActor func testMuteWithoutSpeechDoesNotCommit() async {
@@ -62,9 +95,10 @@ import Testing
     let before = h.transport.sent.count
     await h.session.toggleMute()
     await pumpUntil("mute-quiet: muted") { h.watch.latest.muted }
+    await settle(0.4)  // past the commit's transcript-settle delay
     let added = Array(h.transport.sent.dropFirst(before))
-    expect(!hasMessage(added, type: "input_audio_buffer.commit"),
-           "mute-quiet: sin commit de buffer vacío")
+    expect(!hasMessage(added, type: "conversation.item.create"),
+           "mute-quiet: sin turno — no hay texto que mandar")
     expect(!hasMessage(added, type: "response.create"),
            "mute-quiet: sin response.create")
 }
@@ -193,73 +227,49 @@ import Testing
     expect(h.mic.stopped, "hangup: para el mic")
 }
 
-/// Headphones/bluetooth output: no room echo, so frames DO travel while the
-/// agent speaks and voice barge-in works without AEC (Wave 3 feature).
-@MainActor func testEchoFreeOutputForwardsWhileSpeaking() async {
+/// Wave 9i: the mic never reaches OpenAI, so barge-in is a LOCAL decision. On
+/// echo-free output (headphones), a vetted frame while the agent speaks cuts
+/// it — a `response.cancel`. A single loud frame is a backchannel and does not.
+@MainActor func testEchoFreeBargeInWhileSpeaking() async {
     let h = makeVoiceHarness(echoFreeOutput: true)
     await h.session.start()
     await pumpUntil("echo-free: listening") { h.watch.latest.state == .listening }
-    h.mic.yield(MicFrame(pcm16le24k: Data([0x10, 0x00]), rms: 0.4))
-    await pumpUntil("echo-free: frame viaja") { appendCount(h.transport.sent) == 1 }
     h.transport.yield(.audioDelta(Data([0x03, 0x00])))
     await pumpUntil("echo-free: speaking") { h.watch.latest.state == .speaking }
+    let before = h.transport.sent.count
 
-    // A single loud frame is a backchannel ("ajá") and must NOT reach the
-    // server: it would make its VAD cut the agent off mid-sentence.
+    // A single loud frame is a backchannel ("ajá") — must NOT cut the agent.
     h.mic.yield(MicFrame(pcm16le24k: Data([0x11, 0x00]), rms: 0.5))
     await settle(0.05)
-    expectEq(appendCount(h.transport.sent), 1,
+    expectEq(cancelCount(Array(h.transport.sent.dropFirst(before))), 0,
              "echo-free: un asentimiento corto no interrumpe")
 
-    // Sustained speech does get through, and then nothing is clipped.
+    // Sustained speech barges in: the agent is cancelled.
     for _ in 0 ..< BackchannelGate.defaultRequiredFrames {
         h.mic.yield(MicFrame(pcm16le24k: Data([0x11, 0x00]), rms: 0.5))
     }
     await pumpUntil("echo-free: hablar sostenido sí interrumpe") {
-        appendCount(h.transport.sent) > 1
+        cancelCount(Array(h.transport.sent.dropFirst(before))) >= 1
     }
 }
 
-@MainActor func testEchoGuardHoldsFrames() async {
+/// Without AEC the mic hears the agent (room echo), so sustained frames over
+/// the agent must NOT be taken as the user barging in — that would be the
+/// agent cutting itself off. No `response.cancel`.
+@MainActor func testNoBargeInWithoutAEC() async {
     let h = makeVoiceHarness()
-    h.clock.now = 1_000
     await h.session.start()
     await pumpUntil("echo: listening") { h.watch.latest.state == .listening }
-
-    let live = MicFrame(pcm16le24k: Data([0x10, 0x00]), rms: 0.4)
-    h.mic.yield(live)
-    await pumpUntil("echo: frame en listening viaja") {
-        appendCount(h.transport.sent) == 1
-    }
-
     h.transport.yield(.audioDelta(Data([0x03, 0x00])))
     await pumpUntil("echo: speaking") { h.watch.latest.state == .speaking }
-    let duringSpeak = appendCount(h.transport.sent)
-    h.mic.yield(MicFrame(pcm16le24k: Data([0x11, 0x00]), rms: 0.5))
-    await settle(0.04)
-    expectEq(appendCount(h.transport.sent), duringSpeak,
-             "echo: AEC off no manda frames en speaking")
+    let before = h.transport.sent.count
 
-    h.player.yieldDrained()
-    await pumpUntil("echo: drained → listening") {
-        h.watch.latest.state == .listening && h.watch.latest.echoGuardUntil > 0
+    for _ in 0 ..< BackchannelGate.defaultRequiredFrames * 2 {
+        h.mic.yield(MicFrame(pcm16le24k: Data([0x11, 0x00]), rms: 0.5))
     }
-    h.clock.now = 1_000.10
-    h.mic.yield(MicFrame(pcm16le24k: Data([0x12, 0x00]), rms: 0.4))
-    await settle(0.04)
-    expectEq(appendCount(h.transport.sent), duringSpeak,
-             "echo: 350 ms de guarda tras drained")
-
-    h.mic.yield(MicFrame(pcm16le24k: Data(), rms: 0))
-    h.clock.now = 1_000.40
-    await settle(0.04)
-    expectEq(appendCount(h.transport.sent), duringSpeak,
-             "echo: PCM vacío nunca viaja")
-
-    h.mic.yield(MicFrame(pcm16le24k: Data([0x13, 0x00]), rms: 0.3))
-    await pumpUntil("echo: después de 350 ms viaja") {
-        appendCount(h.transport.sent) == duringSpeak + 1
-    }
+    await settle(0.06)
+    expectEq(cancelCount(Array(h.transport.sent.dropFirst(before))), 0,
+             "echo: sin AEC, hablar sobre el agente no interrumpe (podría ser eco)")
 }
 
 @MainActor func testFunctionCallRefusal() async {
@@ -360,8 +370,8 @@ func hasMessage(_ sent: [String], type: String) -> Bool {
     sent.contains { messageType($0) == type }
 }
 
-private func appendCount(_ sent: [String]) -> Int {
-    sent.filter { messageType($0) == "input_audio_buffer.append" }.count
+private func cancelCount(_ sent: [String]) -> Int {
+    sent.filter { messageType($0) == "response.cancel" }.count
 }
 
 private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
@@ -500,6 +510,7 @@ final class ScriptedTranscriber: Transcriber, @unchecked Sendable {
     var isAuthorized: Bool { authorized }
     private let box = StreamBox<String>()
     var partials: AsyncStream<String> { box.stream }
+    var currentText: String { stoppedText }
 
     func requestAuthorization() async -> Bool {
         authorized = grantsAuthorization

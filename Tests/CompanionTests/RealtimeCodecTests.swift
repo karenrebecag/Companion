@@ -21,6 +21,8 @@ import Testing
            "parse: speech_started")
     expect(RealtimeCodec.parse(#"{"type":"input_audio_buffer.speech_stopped"}"#) == .speechStopped,
            "parse: speech_stopped")
+    expect(RealtimeCodec.parse(#"{"type":"response.created"}"#) == .responseCreated,
+           "parse: response.created abre el ciclo de respuesta")
     expect(RealtimeCodec.parse(#"{"type":"response.done"}"#) == .responseDone,
            "parse: response.done")
     expect(RealtimeCodec.parse(#"{"type":"output_audio_buffer.started"}"#)
@@ -96,16 +98,15 @@ import Testing
     let format = input["format"] as? [String: Any] ?? [:]
     expectEq(format["type"] as? String ?? "", "audio/pcm", "update: pcm de entrada")
     expectEq(format["rate"] as? Int ?? 0, 24000, "update: 24 kHz de entrada")
-    let tx = input["transcription"] as? [String: Any] ?? [:]
-    expectEq(tx["model"] as? String ?? "", "gpt-4o-mini-transcribe",
-             "update: transcribe mini")
-    expectEq(tx["language"] as? String ?? "", "es", "update: idioma es")
+    // Wave 9i: OpenAI ya NO transcribe la entrada — Apple es-MX es la fuente.
+    expect(input["transcription"] == nil,
+           "update: sin input_audio_transcription — Apple es la fuente")
     let nr = input["noise_reduction"] as? [String: Any] ?? [:]
     expectEq(nr["type"] as? String ?? "", "near_field", "update: near_field")
-    let vad = input["turn_detection"] as? [String: Any] ?? [:]
-    expectEq(vad["type"] as? String ?? "", "server_vad", "update: VAD del server")
-    expectEq(vad["silence_duration_ms"] as? Int ?? 0, 700,
-             "update: 700 ms de silencio")
+    // Wave 9i: turn_detection null — OpenAI no escucha; el endpointer local
+    // decide los turnos y Apple da el texto.
+    expect(input["turn_detection"] is NSNull,
+           "update: turn_detection null — OpenAI no hace VAD")
     let output = audio["output"] as? [String: Any] ?? [:]
     let outFmt = output["format"] as? [String: Any] ?? [:]
     expectEq(outFmt["rate"] as? Int ?? 0, 24000, "update: 24 kHz de salida")
@@ -139,12 +140,11 @@ import Testing
         as? [String: Any] ?? [:]
     expect(out2["voice"] == nil, "update: voice nil omite la clave")
     expectEq(out2["speed"] as? Double ?? 0, 1.25, "update: speed siempre viaja")
-    let vad2 = (((muted["session"] as? [String: Any])?["audio"] as? [String: Any])?["input"]
-                as? [String: Any])?["turn_detection"] as? [String: Any] ?? [:]
-    expectEq(vad2["type"] as? String ?? "", "semantic_vad", "update: semantic_vad")
-    expectEq(vad2["eagerness"] as? String ?? "", "auto", "update: eagerness auto")
-    expect(vad2["silence_duration_ms"] == nil,
-           "update: semantic_vad no lleva silence_ms")
+    // Wave 9i: turn_detection es null pase lo que pase — OpenAI no escucha.
+    let td2 = ((muted["session"] as? [String: Any])?["audio"] as? [String: Any])?["input"]
+        as? [String: Any]
+    expect(td2?["turn_detection"] is NSNull,
+           "update: turn_detection null sin importar la preferencia de VAD")
 
     let quoted = json(RealtimeCodec.sessionUpdate(
         instructions: #"dijo "hola" y ñoño"#,
@@ -362,6 +362,22 @@ import Testing
         json(RealtimeCodec.appendAudio(large))["audio"] as? String ?? "",
         large.base64EncodedString(),
         "append: 10k bytes caben")
+}
+
+// Wave 9i: el contenido del turno entra como texto de usuario (el de Apple),
+// no como audio que OpenAI adivina.
+@Test @MainActor func realtimeUserTextItem() {
+    let item = json(RealtimeCodec.userTextItem("crea prueba.md en el escritorio"))
+    expectEq(item["type"] as? String ?? "", "conversation.item.create",
+             "userText: crea un item de conversación")
+    let msg = item["item"] as? [String: Any] ?? [:]
+    expectEq(msg["type"] as? String ?? "", "message", "userText: es un mensaje")
+    expectEq(msg["role"] as? String ?? "", "user", "userText: rol usuario")
+    let content = msg["content"] as? [[String: Any]] ?? []
+    expectEq(content.first?["type"] as? String ?? "", "input_text",
+             "userText: contenido de texto de entrada")
+    expectEq(content.first?["text"] as? String ?? "",
+             "crea prueba.md en el escritorio", "userText: el texto de Apple, íntegro")
 }
 
 private func json(_ s: String) -> [String: Any] {

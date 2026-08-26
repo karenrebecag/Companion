@@ -1,0 +1,91 @@
+import Foundation
+
+/// Why a mic frame did NOT reach OpenAI. The realtime path gates frames before
+/// forwarding; when the model misses part of an instruction, the first question
+/// is whether the audio ever left this machine. These are the gates.
+public enum GateReason: String, Sendable, Equatable, Hashable, CaseIterable {
+    case empty       // the frame carried no PCM
+    case muted       // mic muted or disabled
+    case echoGuard   // listening, but guarded against the agent's own echo
+    case noAEC       // agent is speaking and there is no echo cancellation
+    case backchannel // speaking + AEC, but the gate judged it a short "ajá"
+}
+
+/// The raw tally of one user turn: how many frames reached OpenAI and how many
+/// were gated, by reason. This is "lo que OpenAI recibe", counted.
+public struct FrameTally: Sendable, Equatable {
+    public var forwarded = 0
+    public var gated: [GateReason: Int] = [:]
+
+    public init() {}
+
+    public mutating func add(forwarded: Bool, reason: GateReason?) {
+        if forwarded { self.forwarded += 1 }
+        else if let reason { gated[reason, default: 0] += 1 }
+    }
+
+    public var gatedTotal: Int { gated.values.reduce(0, +) }
+    public var total: Int { forwarded + gatedTotal }
+}
+
+/// Read-only classifier that names the gate a frame hit, WITHOUT the stateful
+/// backchannel RMS check `shouldForward` owns — the audit must never mutate the
+/// path it watches. Only called for frames the path already gated, so the
+/// forwarded branches here are unreachable and collapse to `.empty`.
+public enum RealtimeGate {
+    public static func reason(
+        muted: Bool, emptyPCM: Bool, micEnabled: Bool,
+        state: TurnState, echoGuarded: Bool, aec: Bool
+    ) -> GateReason {
+        if emptyPCM { return .empty }
+        if !micEnabled || muted { return .muted }
+        if state != .speaking { return echoGuarded ? .echoGuard : .empty }
+        if !aec { return .noAEC }
+        return .backchannel
+    }
+}
+
+/// Turns one turn's evidence into log lines. Pure: no audio, no I/O — just the
+/// native ground truth, what OpenAI transcribed, the frame counts, and a
+/// verdict on WHERE an instruction was lost.
+public enum VoiceAuditReport {
+    public static func turnLine(
+        native: String, openAI: String, tally: FrameTally, goal: String?
+    ) -> String {
+        let gates = GateReason.allCases
+            .compactMap { r in tally.gated[r].map { "\(r.rawValue) \($0)" } }
+            .joined(separator: ", ")
+        let goalPart = goal.map { " goal=«\($0)»" } ?? ""
+        return "audit turn: native=«\(native)» openai=«\(openAI)» "
+            + "frames fwd=\(tally.forwarded) gated=\(tally.gatedTotal)"
+            + (gates.isEmpty ? "" : " (\(gates))") + goalPart
+    }
+
+    /// The point of the whole layer: judged against what OpenAI actually
+    /// received, where did the missing words go?
+    public static func verdict(
+        native: String, openAI: String, tally: FrameTally
+    ) -> String {
+        let missing = words(native).subtracting(words(openAI))
+        if missing.isEmpty {
+            return "audit verdict: OpenAI received the full utterance "
+                + "(fwd=\(tally.forwarded), gated=\(tally.gatedTotal))"
+        }
+        let lost = missing.sorted().joined(separator: " ")
+        // A meaningful share of the audio never left the machine.
+        if tally.gatedTotal > 0, tally.gatedTotal * 4 >= tally.forwarded {
+            return "audit verdict: CLIPPED before OpenAI — \(tally.gatedTotal) "
+                + "frames gated vs \(tally.forwarded) sent; missing: \(lost)"
+        }
+        return "audit verdict: OpenAI GOT the audio (fwd=\(tally.forwarded), "
+            + "gated=\(tally.gatedTotal)) but its transcript/model dropped: \(lost)"
+    }
+
+    /// Content words, lowercased, short stopwords dropped so "en"/"el" don't
+    /// count as heard. Punctuation split so «desktop.» matches "desktop".
+    static func words(_ text: String) -> Set<String> {
+        Set(text.lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { $0.count > 2 })
+    }
+}

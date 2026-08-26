@@ -85,22 +85,68 @@ extension VoiceSession {
             case .classic:
                 await transcriber.append(frame)
             case .realtime:
-                // Echo-free output (headphones/bluetooth) is as good as AEC:
-                // there is no room echo to cancel, so the server may hear the
-                // user over the agent and voice barge-in works without VPIO.
+                // Wave 9i: the mic audio never reaches the conversation model;
+                // the ear transcribes it and text drives the turn. Hearing and
+                // barge-in are SEPARATE decisions: the backchannel gate exists
+                // to keep an "ajá" from cutting the agent off, but a real
+                // session showed it also deafening the ear mid-over-talk
+                // (fwd=20, gated=85 — half a sentence lost). The ear hears
+                // every frame that cannot contain the agent's own voice; the
+                // gate only decides whether the agent gets interrupted.
                 let aec = await mic.hasEchoCancellation || echoFreeOutput
                 let snap = machine.snapshot
-                guard realtime.shouldForward(
-                    frame,
-                    muted: snap.muted,
-                    aec: aec,
-                    state: snap.state,
-                    echoGuarded: machine.isEchoGuarded(at: now())
-                ) else { continue }
-                await realtime.append(frame)
+                let guarded = machine.isEchoGuarded(at: now())
+                let clean = !frame.pcm16le24k.isEmpty && !snap.muted
+                    && realtime.micEnabled
+                    && (aec || (snap.state != .speaking && !guarded))
+                let reason: GateReason? = clean ? nil : RealtimeGate.reason(
+                    muted: snap.muted, emptyPCM: frame.pcm16le24k.isEmpty,
+                    micEnabled: realtime.micEnabled, state: snap.state,
+                    echoGuarded: guarded, aec: aec)
+                await audit.hear(frame, forwarded: clean, reason: reason)
+                if snap.state == .speaking {
+                    // Barge-in stays vetted: only sustained speech over the
+                    // agent (with a clean mic) cuts it off.
+                    if realtime.shouldForward(
+                        frame, muted: snap.muted, aec: aec,
+                        state: snap.state, echoGuarded: guarded) {
+                        await apply(.serverSpeechStarted)
+                    }
+                } else if clean {
+                    await driveTurn(rms: frame.rms)
+                }
             case nil:
                 continue
             }
+        }
+    }
+
+    /// The words themselves drive the turn (Wave 9i): it opens when the ear's
+    /// transcript grows past what earlier turns consumed, and closes when the
+    /// transcript settles. RMS never opens a turn — this mic's noise floor
+    /// sits above any usable threshold (measured 0.12 in "silence"), so
+    /// energy cannot be trusted. Barge-in is decided upstream, per frame.
+    func driveTurn(rms: Double) async {
+        let text = audit.turnText()
+        if transcriptEnd == nil {
+            guard !text.isEmpty else { return }
+            // Tuned to measured RMS on this mic (speech 0.3–0.8, floor 0.12):
+            // voiceFloor above the floor so audible speech HOLDS the turn open
+            // even when network deltas lag, and maxDelay generous enough that
+            // a delta hiccup does not cut a sentence in half.
+            var cfg = TranscriptEndpointer.Config()
+            cfg.voiceFloor = 0.18
+            cfg.minDelay = 0.9
+            cfg.maxDelay = 4.0
+            transcriptEnd = TranscriptEndpointer(config: cfg, start: now())
+            await apply(.serverSpeechStarted)
+        }
+        switch transcriptEnd?.feed(text: text, level: rms, at: now()) {
+        case .finished, .timedOut:
+            transcriptEnd = nil
+            await apply(.serverSpeechStopped)
+        case .listening, .none:
+            break
         }
     }
 
