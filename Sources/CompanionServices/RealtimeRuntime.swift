@@ -33,6 +33,9 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// answer landed on a real request: the ack must not tell the model a
     /// permission was granted when there was nothing left to grant.
     var onResolveApproval: (@Sendable (Bool) async -> Bool)?
+    /// A remote MCP tool waits for the user's yes (9j-3); the session parks
+    /// it so the spoken resolve_approval can answer it.
+    var onMCPApproval: (@Sendable (ApprovalRequest) -> Void)?
 
     /// Diagnostic microscope, set by the session. Observes turn boundaries and
     /// the model's goal; never affects the path.
@@ -123,7 +126,8 @@ final class RealtimeRuntime: @unchecked Sendable {
                 : [],
             voice: voice,
             speed: config.voice.speed,
-            turnDetection: config.voice.turnDetection)
+            turnDetection: config.voice.turnDetection,
+            mcpServers: config.mcpServers)
     }
 
     func flushPendingUpdate() async {
@@ -230,6 +234,18 @@ final class RealtimeRuntime: @unchecked Sendable {
             return [.agentAudioStarted]
         case .agentAudioStopped:
             return [.agentAudioStopped]
+        case .mcpApprovalRequest(let id, let server, let tool, let args):
+            // OpenAI runs the tool server-side once approved; the client's
+            // whole job is the user's yes. Park the request for the spoken
+            // resolve_approval and have the model ask out loud.
+            onMCPApproval?(ApprovalRequest(
+                requestId: id, toolName: "\(server)/\(tool)",
+                summary: tool, inputJSON: args))
+            await send(RealtimeCodec.systemItem(
+                MCPServerConfig.approvalPrompt(
+                    server: server, tool: tool, language)))
+            await requestResponse()
+            return []
         case .responseCreated:
             responseActive = true
             // A fresh response is a fresh utterance: the echo reference must

@@ -40,7 +40,8 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
             language: LanguagePreference.current,
             memory: memory.map {
                 MemoryPrompt.inject($0.load(), language: LanguagePreference.current)
-            } ?? ""
+            } ?? "",
+            mcpServers: MCPConfigFile.load()
         )
     }
 }

@@ -21,8 +21,16 @@ enum VoiceAttachmentCodec: Sendable {
 }
 
 enum VoiceAttachmentCopy {
-    static func caption(name: String) -> String {
-        "El usuario adjuntó \(name). Míralo y espera a que te pregunte."
+    /// Model-facing, so it travels in the session's language: an English
+    /// session getting a Spanish instruction was the last monolingual string
+    /// the Wave 9 audit flagged (9j-4).
+    static func caption(name: String, language: AppLanguage) -> String {
+        switch language {
+        case .en:
+            return "The user attached \(name). Look at it and wait to be asked."
+        case .es:
+            return "El usuario adjuntó \(name). Míralo y espera a que te pregunte."
+        }
     }
 }
 
@@ -35,7 +43,9 @@ extension VoiceSession {
         guard isLiveRealtime else { return }
         guard case .imageDataURL(let dataURL) = payload else { return }
         await realtime.send(RealtimeCodec.imageItem(
-            dataURL: dataURL, caption: VoiceAttachmentCopy.caption(name: name)))
+            dataURL: dataURL,
+            caption: VoiceAttachmentCopy.caption(
+                name: name, language: configProvider.current.language)))
     }
 
     var isLiveRealtime: Bool {

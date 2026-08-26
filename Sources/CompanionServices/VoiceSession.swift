@@ -12,7 +12,7 @@ public actor VoiceSession: VoiceControlling {
     let transcriber: any Transcriber
     let synthesizer: any SpeechSynthesizer
     private let secrets: any SecretStore
-    private let configProvider: any ConfigProviding
+    let configProvider: any ConfigProviding
     let now: @Sendable () -> TimeInterval
     private let readyTimeout: TimeInterval
     let realtime: RealtimeRuntime
@@ -41,6 +41,9 @@ public actor VoiceSession: VoiceControlling {
     /// talked over by its own announcement.
     private var pendingAnnouncements: [String] = []
     private var pendingApproval: ApprovalRequest?
+    /// A remote MCP tool waiting for the user's spoken yes (9j-3). Answered
+    /// over the websocket, not through the job runner.
+    private var pendingMCPApproval: ApprovalRequest?
     var lastMic = 0.0
     var lastAgent = 0.0
     var reconnectAttempted = false
@@ -156,6 +159,13 @@ public actor VoiceSession: VoiceControlling {
                 await self?.answerPendingApproval(approved) ?? false
             }
         }
+        realtime.onMCPApproval = { [weak self] request in
+            Task { [weak self] in await self?.noteMCPApproval(request) }
+        }
+    }
+
+    func noteMCPApproval(_ request: ApprovalRequest) async {
+        pendingMCPApproval = request
     }
 
     /// The permission the specialist is blocked on. One at a time: the job
@@ -173,6 +183,15 @@ public actor VoiceSession: VoiceControlling {
     /// pending means the sheet already answered it (or the model invented the
     /// call): resolving anyway would grant a permission nobody asked about.
     func answerPendingApproval(_ approved: Bool) async -> Bool {
+        // An MCP approval outranks a job approval: it arrived through the
+        // live session the user is answering into.
+        if let mcp = pendingMCPApproval {
+            pendingMCPApproval = nil
+            await realtime.send(RealtimeCodec.mcpApprovalResponse(
+                requestId: mcp.requestId, approve: approved))
+            await realtime.requestResponse()
+            return true
+        }
         guard let request = pendingApproval else {
             Log.app("voice: approval answered with nothing pending")
             return false

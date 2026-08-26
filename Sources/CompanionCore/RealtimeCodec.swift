@@ -10,6 +10,9 @@ public enum RealtimeEvent: Sendable, Equatable {
     case functionCall(name: String, arguments: String, callId: String)
     case responseCreated
     case responseDone, serverError(String)
+    /// A remote MCP tool call waits for the user's yes (9j-3).
+    case mcpApprovalRequest(id: String, server: String, tool: String,
+                            argumentsJSON: String)
     case agentAudioStarted, agentAudioStopped
     // FIX 5: Preserve unknown event type names for observability, not just generic .ignored.
     case unknown(String)
@@ -55,6 +58,15 @@ public enum RealtimeCodec: Sendable {
                   let args = obj["arguments"] as? String,
                   let callId = obj["call_id"] as? String else { return .ignored }
             return .functionCall(name: name, arguments: args, callId: callId)
+        case "conversation.item.added", "conversation.item.created":
+            guard let item = obj["item"] as? [String: Any],
+                  item["type"] as? String == "mcp_approval_request",
+                  let id = item["id"] as? String else { return .ignored }
+            return .mcpApprovalRequest(
+                id: id,
+                server: item["server_label"] as? String ?? "",
+                tool: item["name"] as? String ?? "",
+                argumentsJSON: item["arguments"] as? String ?? "")
         case "response.created": return .responseCreated
         case "response.done": return .responseDone
         case "output_audio_buffer.started": return .agentAudioStarted
@@ -74,7 +86,8 @@ public enum RealtimeCodec: Sendable {
         tools: [ToolSpec],
         voice: VoiceID?,
         speed: Double,
-        turnDetection: TurnDetection
+        turnDetection: TurnDetection,
+        mcpServers: [MCPServerConfig] = []
     ) -> String {
         var output: [String: Any] = [
             "format": ["type": "audio/pcm", "rate": 24000],
@@ -104,8 +117,12 @@ public enum RealtimeCodec: Sendable {
                 "output": output,
             ],
         ]
-        if !tools.isEmpty {
-            session["tools"] = tools.map { $0.realtimeObject() }
+        // MCP servers ride the same tools array: OpenAI executes their
+        // tools server-side, the client only declares and approves (9j-3).
+        let allTools = tools.map { $0.realtimeObject() }
+            + mcpServers.map { $0.realtimeObject() }
+        if !allTools.isEmpty {
+            session["tools"] = allTools
         }
         return encodeJSON(["type": "session.update", "session": session])
     }
@@ -206,6 +223,20 @@ public enum RealtimeCodec: Sendable {
         encodeJSON(["type": "response.cancel"])
     }
 
+    /// The user's decision on a remote MCP tool call (9j-3).
+    public static func mcpApprovalResponse(
+        requestId: String, approve: Bool
+    ) -> String {
+        encodeJSON([
+            "type": "conversation.item.create",
+            "item": [
+                "type": "mcp_approval_response",
+                "approval_request_id": requestId,
+                "approve": approve,
+            ],
+        ])
+    }
+
     public static func functionOutput(callId: String, output: String) -> String {
         encodeJSON([
             "type": "conversation.item.create",
@@ -232,6 +263,8 @@ extension RealtimeEvent {
         case .audioDelta(let data): "audio.delta \(data.count)B"
         case .agentAudioStarted: "audio.started"
         case .agentAudioStopped: "audio.stopped"
+        case .mcpApprovalRequest(_, let server, let tool, _):
+            "mcp.approval \(server)/\(tool)"
         case .responseCreated: "response.created"
         case .responseDone: "response.done"
         case .functionCall: "function.call"

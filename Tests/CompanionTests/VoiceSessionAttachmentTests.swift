@@ -30,8 +30,13 @@ import Testing
     let obj = jsonDict(items[0])
     let parts = ((obj["item"] as? [String: Any])?["content"] as? [[String: Any]]) ?? []
     expectEq(parts[0]["text"] as? String,
-             VoiceAttachmentCopy.caption(name: "foto.png"),
-             "push: caption con el nombre")
+             VoiceAttachmentCopy.caption(name: "foto.png", language: .en),
+             "push: caption con el nombre, en el idioma de la sesión")
+    // 9j-4: la última cadena monolingüe de la auditoría de Wave 9, cerrada.
+    expect(VoiceAttachmentCopy.caption(name: "x.png", language: .en)
+        .contains("attached"), "caption: inglés para sesión en inglés")
+    expect(VoiceAttachmentCopy.caption(name: "x.png", language: .es)
+        .contains("adjuntó"), "caption: español para sesión en español")
     expectEq(parts[1]["image_url"] as? String, "data:image/png;base64,QQ==",
              "push: viaja el base64")
     expectEq(obj["type"] as? String, "conversation.item.create",

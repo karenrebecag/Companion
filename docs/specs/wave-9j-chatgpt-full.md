@@ -11,8 +11,8 @@ por omisión.
 |---|---|---|
 | 9j-1 VAD del server para el turno | La sensación ChatGPT: sabe cuándo TERMINASTE la idea; muere el endpointer heurístico | EN CURSO |
 | 9j-2 Memoria entre sesiones | "¿Recuerdas el cuento de ayer?" | ENTREGADA (2026-08-25) |
-| 9j-4 Imágenes en el turno de voz | "Mira esta captura" (imageItem ya existe a medias) | pendiente |
-| 9j-3 MCP servers como tools realtime | Tools de terceros habladas | pendiente |
+| 9j-4 Imágenes en el turno de voz | Ya estaba cableado; se cerró la última cadena monolingüe (caption es/en) | ENTREGADA (2026-08-25) |
+| 9j-3 MCP servers como tools realtime | Declarados en `mcp.json` (junto a la memoria); OpenAI los ejecuta server-side; aprobación hablada vía resolve_approval, default "always" | ENTREGADA (2026-08-25) |
 | 9j-6a Eco por texto | Barge-in sin audífonos: el eco del agente transcribe como SUS palabras y EchoGuard lo tira; palabras ajenas al agente interrumpen de verdad. Cero dependencias nuevas | ENTREGADA (2026-08-25) |
 | 9j-6b WebRTC + AEC3 real | Solo si 9j-6a no basta en uso: exige vendorear libwebrtc (ADR) | en espera de evidencia |
 | 9j-5 Paralingüística (audio + texto fiel) | La calidez de ChatGPT Voice | pendiente, con riesgo |

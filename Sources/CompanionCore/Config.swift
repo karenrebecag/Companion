@@ -225,6 +225,9 @@ public struct Config: Sendable, Equatable {
     /// The assembled memory block (core + recent sessions + notes), injected
     /// into every prompt. Empty when there is nothing remembered (9j-2).
     public var memory: String
+    /// Remote MCP servers for the realtime session (9j-3), from the user's
+    /// mcp.json. OpenAI executes their tools server-side.
+    public var mcpServers: [MCPServerConfig]
 
     public init(
         chat: ChatSettings = .default,
@@ -235,7 +238,8 @@ public struct Config: Sendable, Equatable {
         ownerAbout: String = "",
         ownerInstructions: String = "",
         language: AppLanguage = .en,
-        memory: String = ""
+        memory: String = "",
+        mcpServers: [MCPServerConfig] = []
     ) {
         self.chat = chat
         self.voice = voice
@@ -246,6 +250,7 @@ public struct Config: Sendable, Equatable {
         self.ownerInstructions = ownerInstructions
         self.language = language
         self.memory = memory
+        self.mcpServers = mcpServers
     }
 
     public static let `default` = Config()
