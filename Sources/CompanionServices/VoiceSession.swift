@@ -48,8 +48,15 @@ public actor VoiceSession: VoiceControlling {
     /// so the client decides when a user turn starts and ends, from the mic.
     /// Wave 9i: the user's turn, driven by the native transcript. Created when
     /// the transcript starts growing; the turn closes when it settles — robust
-    /// to a noisy mic whose RMS never drops to true silence.
+    /// to a noisy mic whose RMS never drops to true silence. Only runs when
+    /// the ear does not segment turns itself (9j-1).
     var transcriptEnd: TranscriptEndpointer?
+    /// The ear that detects turn boundaries itself, when there is one: the
+    /// server's VAD knows when an idea ended; the local heuristics never did.
+    let segmentingEar: (any SegmentingTranscriber)?
+    /// The finished segment waiting to be committed as the turn's text.
+    var earSegment: String?
+    var earTurnTask: Task<Void, Never>?
 
     public init(
         transport: any VoiceTransport,
@@ -102,6 +109,7 @@ public actor VoiceSession: VoiceControlling {
         let audit = VoiceAudit(native: realtimeEar ?? transcriber)
         self.audit = audit
         self.realtime.audit = audit
+        self.segmentingEar = realtimeEar as? any SegmentingTranscriber
         let snapBox = AudioStreamBox<TurnSnapshot>()
         let levelBox = AudioStreamBox<VoiceLevels>()
         self.snapBox = snapBox
@@ -378,9 +386,16 @@ public actor VoiceSession: VoiceControlling {
         await apply(.turnFailed(.micSilent))
     }
 
-    /// Wave 9i: end of a user turn. Drive it from Apple's transcript; with
-    /// nothing reliably heard, degrade to the audio OpenAI would have used.
+    /// End of a user turn. A segmenting ear (9j-1) hands the turn's final
+    /// text directly; otherwise it is read from the ear's running transcript.
     private func commitTurnFromNative() async {
+        // The server segmented the turn: its text is final, commit at once.
+        if let segment = earSegment {
+            earSegment = nil
+            audit.consume()
+            await realtime.commitWithText(segment)
+            return
+        }
         // Let the last native partial settle before reading it. A cancel here
         // means the session is tearing down — drop the turn, don't commit.
         do {
@@ -410,6 +425,9 @@ public actor VoiceSession: VoiceControlling {
         micSilenceTask = nil
         eventTask?.cancel()
         eventTask = nil
+        earTurnTask?.cancel()
+        earTurnTask = nil
+        earSegment = nil
         await audit.end()
         await realtime.close(mic: mic)
     }

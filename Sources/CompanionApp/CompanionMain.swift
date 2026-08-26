@@ -211,7 +211,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // better on mixed-language speech); classic keeps the on-device
             // ear above, which needs no key and no network.
             realtimeEar: OpenAITranscriber(
-                keyProvider: { try? secrets.read(.openAI) ?? nil }))
+                keyProvider: { try? secrets.read(.openAI) ?? nil },
+                // The Settings knob drives the server's VAD (9j-1).
+                turnDetection: { configProvider.current.voice.turnDetection }))
         let ambience = AmbienceObserver(
             sound: ThinkingSound(),
             isEnabled: { ThinkingSoundPref.enabled })

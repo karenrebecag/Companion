@@ -9,8 +9,10 @@ import Testing
 @Test func openAITranscriberWireTests() {
     testLanguageHint()
     testSessionUpdateShape()
+    testTurnDetectionMapping()
     testAppendShape()
     testDeltaParsing()
+    testSegmentParsing()
     testErrorParsing()
 }
 
@@ -24,7 +26,8 @@ func testLanguageHint() {
 }
 
 func testSessionUpdateShape() {
-    let json = parse(OpenAITranscriber.sessionUpdateJSON(language: "es"))
+    let json = parse(OpenAITranscriber.sessionUpdateJSON(
+        language: "es", turnDetection: .serverVAD(silenceMs: 700)))
     expectEq(json["type"] as? String, "session.update", "update: tipo")
     let session = json["session"] as? [String: Any] ?? [:]
     expectEq(session["type"] as? String, "transcription",
@@ -35,10 +38,27 @@ func testSessionUpdateShape() {
     expectEq(tx["model"] as? String, "gpt-live-transcribe",
              "update: el modelo vigente, no la generación 4o retirada")
     expectEq(tx["languages"] as? [String], ["es"], "update: idioma esperado")
-    expect(input["turn_detection"] is NSNull,
-           "update: el turno lo decide el cliente, no el servidor")
+    // 9j-1: el VAD del server segmenta los turnos con la preferencia del
+    // usuario — el cliente deja de adivinar cuándo terminó la idea.
+    let vad = input["turn_detection"] as? [String: Any] ?? [:]
+    expectEq(vad["type"] as? String, "server_vad",
+             "update: el server segmenta los turnos")
     let format = input["format"] as? [String: Any] ?? [:]
     expectEq(format["rate"] as? Int, 24000, "update: 24 kHz como el mic")
+}
+
+func testTurnDetectionMapping() {
+    let server = OpenAITranscriber.turnDetectionJSON(.serverVAD(silenceMs: 900))
+    expectEq(server["type"] as? String, "server_vad", "vad: tipo server")
+    expectEq(server["silence_duration_ms"] as? Int, 900,
+             "vad: el silencio del usuario viaja")
+    expect(server["create_response"] == nil && server["interrupt_response"] == nil,
+           "vad: campos de speech-to-speech no viajan a transcripción")
+
+    let semantic = OpenAITranscriber.turnDetectionJSON(
+        .semanticVAD(eagerness: .high))
+    expectEq(semantic["type"] as? String, "semantic_vad", "vad: tipo semántico")
+    expectEq(semantic["eagerness"] as? String, "high", "vad: eagerness viaja")
 }
 
 func testAppendShape() {
@@ -57,6 +77,21 @@ func testDeltaParsing() {
            "delta: otros eventos no son texto")
     expect(OpenAITranscriber.delta(fromEvent: "basura") == nil,
            "delta: basura no truena")
+}
+
+func testSegmentParsing() {
+    expectEq(OpenAITranscriber.completedTranscript(fromEvent:
+        #"{"type":"conversation.item.input_audio_transcription.completed","transcript":"crea prueba dos"}"#),
+        "crea prueba dos", "segmento: el completed trae el texto final")
+    expect(OpenAITranscriber.completedTranscript(
+        fromEvent: #"{"type":"session.created"}"#) == nil,
+        "segmento: otros eventos no son segmentos")
+    expect(OpenAITranscriber.isSpeechStarted(event:
+        #"{"type":"input_audio_buffer.speech_started"}"#),
+        "segmento: el server avisa que empezaste a hablar")
+    expect(!OpenAITranscriber.isSpeechStarted(event:
+        #"{"type":"input_audio_buffer.speech_stopped"}"#),
+        "segmento: stopped no es started")
 }
 
 func testErrorParsing() {

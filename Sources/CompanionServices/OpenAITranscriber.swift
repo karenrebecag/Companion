@@ -12,12 +12,17 @@ import Foundation
 /// continuous-transcript contract the turn logic already consumes; the
 /// committed-prefix bookkeeping lives in the caller. Costs $0.017/min of
 /// session audio, so it is started only when the realtime pipeline opens.
-public final class OpenAITranscriber: Transcriber, @unchecked Sendable {
+public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable {
     private let keyProvider: @Sendable () -> String?
+    /// The user's turn-detection preference (Settings), read at session open:
+    /// since 9j-1 the server's VAD segments the turns, so the knob that went
+    /// unconsumed after 9i drives it again.
+    private let turnDetection: @Sendable () -> TurnDetection
     private let lock = NSLock()
     private var text = ""
     private var socket: URLSessionWebSocketTask?
     private let box = AudioStreamBox<String>()
+    private let turnBox = AudioStreamBox<EarTurnEvent>()
     /// Audio spoken during the websocket handshake must not fall on the
     /// floor: "hola" said two seconds after opening came back as "Ya." with
     /// its first phonemes lost. Frames queue here until the server acks the
@@ -26,11 +31,19 @@ public final class OpenAITranscriber: Transcriber, @unchecked Sendable {
     private var queued: [String] = []
     private static let maxQueued = 150  // ~15 s of 100 ms frames
 
-    public init(keyProvider: @escaping @Sendable () -> String?) {
+    public init(
+        keyProvider: @escaping @Sendable () -> String?,
+        turnDetection: @escaping @Sendable () -> TurnDetection = {
+            .serverVAD(silenceMs: 700)
+        }
+    ) {
         self.keyProvider = keyProvider
+        self.turnDetection = turnDetection
     }
 
     public var partials: AsyncStream<String> { box.stream }
+
+    public var turnEvents: AsyncStream<EarTurnEvent> { turnBox.stream }
 
     public var currentText: String { lock.withLock { text } }
 
@@ -56,7 +69,8 @@ public final class OpenAITranscriber: Transcriber, @unchecked Sendable {
         task.resume()
         receiveLoop(on: task)
         try await send(Self.sessionUpdateJSON(
-            language: Self.languageHint(from: localeIdentifier)), over: task)
+            language: Self.languageHint(from: localeIdentifier),
+            turnDetection: turnDetection()), over: task)
     }
 
     public func append(_ frame: MicFrame) async {
@@ -93,7 +107,9 @@ public final class OpenAITranscriber: Transcriber, @unchecked Sendable {
         return prefix.isEmpty ? "en" : String(prefix).lowercased()
     }
 
-    static func sessionUpdateJSON(language: String) -> String {
+    static func sessionUpdateJSON(
+        language: String, turnDetection: TurnDetection
+    ) -> String {
         encode([
             "type": "session.update",
             "session": [
@@ -106,13 +122,26 @@ public final class OpenAITranscriber: Transcriber, @unchecked Sendable {
                             "languages": [language],
                             "delay": "low",
                         ],
-                        // The client owns turn-taking (Wave 9i); the server
-                        // just transcribes a continuous stream.
-                        "turn_detection": NSNull(),
+                        // 9j-1: the server's VAD segments the turns — it
+                        // knows when an idea ended; the client's heuristics
+                        // never did. The user's Settings knob decides which.
+                        "turn_detection": turnDetectionJSON(turnDetection),
                     ],
                 ],
             ],
         ])
+    }
+
+    /// The user's preference mapped to the wire. `create_response` /
+    /// `interrupt_response` apply only to speech-to-speech sessions, so a
+    /// transcription session sends neither.
+    static func turnDetectionJSON(_ detection: TurnDetection) -> [String: Any] {
+        switch detection {
+        case .serverVAD(let ms):
+            return ["type": "server_vad", "silence_duration_ms": ms]
+        case .semanticVAD(let eagerness):
+            return ["type": "semantic_vad", "eagerness": eagerness.rawValue]
+        }
     }
 
     static func appendJSON(_ pcm16le24k: Data) -> String {
@@ -145,6 +174,21 @@ public final class OpenAITranscriber: Transcriber, @unchecked Sendable {
         object(from: json)?["type"] as? String == "session.updated"
     }
 
+    /// The server's VAD heard the user start speaking.
+    static func isSpeechStarted(event json: String) -> Bool {
+        object(from: json)?["type"] as? String
+            == "input_audio_buffer.speech_started"
+    }
+
+    /// A finished segment's final transcript, or nil for any other event.
+    static func completedTranscript(fromEvent json: String) -> String? {
+        guard let obj = object(from: json),
+              obj["type"] as? String
+                  == "conversation.item.input_audio_transcription.completed"
+        else { return nil }
+        return obj["transcript"] as? String
+    }
+
     private static func object(from json: String) -> [String: Any]? {
         do {
             return try JSONSerialization.jsonObject(
@@ -170,6 +214,10 @@ public final class OpenAITranscriber: Transcriber, @unchecked Sendable {
                             return self.text
                         }
                         self.box.yield(next)
+                    } else if let final = Self.completedTranscript(fromEvent: json) {
+                        self.turnBox.yield(.finished(text: final))
+                    } else if Self.isSpeechStarted(event: json) {
+                        self.turnBox.yield(.speechStarted)
                     } else if Self.isSessionReady(event: json) {
                         self.flushQueued(over: task)
                     } else if let error = Self.errorMessage(fromEvent: json) {

@@ -56,6 +56,20 @@ public protocol Transcriber: Sendable {
     var currentText: String { get }
 }
 
+/// What a segmenting ear says about turn boundaries (Wave 9j-1): the server's
+/// VAD knows when the user STARTED speaking and hands each finished utterance
+/// as final text — the client stops guessing with heuristics.
+public enum EarTurnEvent: Sendable, Equatable {
+    case speechStarted
+    case finished(text: String)
+}
+
+/// An ear that detects turn boundaries itself. The session prefers these
+/// events over its local endpointer when the ear provides them.
+public protocol SegmentingTranscriber: Transcriber {
+    var turnEvents: AsyncStream<EarTurnEvent> { get }
+}
+
 public enum SpeechEvent: Sendable, Equatable {
     case chunkStarted(text: String, duration: TimeInterval)
     case level(Double)

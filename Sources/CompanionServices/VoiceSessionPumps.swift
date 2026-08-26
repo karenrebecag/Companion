@@ -25,6 +25,36 @@ extension VoiceSession {
         if speechTask == nil {
             speechTask = Task { [weak self] in await self?.pumpSpeech() }
         }
+        if earTurnTask == nil, segmentingEar != nil {
+            earTurnTask = Task { [weak self] in await self?.pumpEarTurns() }
+        }
+    }
+
+    /// 9j-1: the server's VAD owns turn-taking. It opens the turn when the
+    /// user starts speaking and hands each finished utterance as final text —
+    /// that text IS the turn. Over the agent, the prototype's rule applies:
+    /// under two words is a backchannel and is dropped; two or more is a real
+    /// interruption — cancel and commit.
+    func pumpEarTurns() async {
+        guard let segmentingEar else { return }
+        for await event in segmentingEar.turnEvents {
+            if Task.isCancelled { return }
+            switch event {
+            case .speechStarted:
+                guard machine.snapshot.state != .speaking else { continue }
+                await apply(.serverSpeechStarted)
+            case .finished(let text):
+                let trimmed = text.trimmingCharacters(
+                    in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                if machine.snapshot.state == .speaking {
+                    guard EchoGuard.words(trimmed).count >= 2 else { continue }
+                    await apply(.serverSpeechStarted)
+                }
+                earSegment = trimmed
+                await apply(.serverSpeechStopped)
+            }
+        }
     }
 
     func pumpEvents() async {
@@ -112,7 +142,9 @@ extension VoiceSession {
                         state: snap.state, echoGuarded: guarded) {
                         await apply(.serverSpeechStarted)
                     }
-                } else if clean {
+                } else if clean, segmentingEar == nil {
+                    // Only without a segmenting ear: otherwise the server's
+                    // VAD owns the turn (9j-1) and two deciders would race.
                     await driveTurn(rms: frame.rms)
                 }
             case nil:

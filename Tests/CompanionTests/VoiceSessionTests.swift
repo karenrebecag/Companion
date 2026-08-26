@@ -7,6 +7,7 @@ import Testing
     await testStartWithKeyListensRealtime()
     await testMuteAfterSpeechCommitsNativeText()
     await testUserTurnPreemptsActiveResponse()
+    await testSegmentingEarDrivesTheTurn()
     await testMuteWithoutSpeechDoesNotCommit()
     await testUnmuteClearsAudio()
     await testSpeakingSpeechStartedCancels()
@@ -36,6 +37,37 @@ import Testing
            "start: manda session.update")
     expect(hasVoiceInSessionUpdate(h.transport.sent),
            "start: la primera update lleva voz")
+}
+
+/// 9j-1: with a segmenting ear the server's VAD owns the turns — a finished
+/// segment commits AS the turn's text, with no local endpointer involved. And
+/// over the agent, a one-word segment is a backchannel and is dropped.
+@MainActor func testSegmentingEarDrivesTheTurn() async {
+    let ear = ScriptedSegmentingEar()
+    let h = makeVoiceHarness(realtimeEar: ear)
+    await h.session.start()
+    await pumpUntil("segmento: listening") { h.watch.latest.state == .listening }
+    let before = h.transport.sent.count
+    ear.yieldTurn(.speechStarted)
+    await pumpUntil("segmento: speechOpen") { h.watch.latest.speechOpen }
+    ear.yieldTurn(.finished(text: "crea prueba dos en el desktop"))
+    await pumpUntil("segmento: el texto del segmento ES el turno") {
+        Array(h.transport.sent.dropFirst(before))
+            .contains { $0.contains("crea prueba dos en el desktop") }
+    }
+    expect(hasMessage(Array(h.transport.sent.dropFirst(before)),
+                      type: "response.create"),
+           "segmento: y pide la respuesta")
+
+    // Un "ajá" sobre el agente no interrumpe ni se vuelve turno.
+    h.transport.yield(.audioDelta(Data([0x01, 0x00])))
+    await pumpUntil("segmento: speaking") { h.watch.latest.state == .speaking }
+    let during = h.transport.sent.count
+    ear.yieldTurn(.finished(text: "ajá"))
+    await settle(0.1)
+    expect(!Array(h.transport.sent.dropFirst(during))
+        .contains { $0.contains("ajá") },
+           "segmento: un backchannel de una palabra se tira")
 }
 
 /// Wave 9i: muting mid-utterance commits the turn from the NATIVE transcript —
@@ -320,7 +352,8 @@ func makeVoiceHarness(
     micSilenceTimeout: TimeInterval = 10,
     echoFreeOutput: Bool = false,
     jobs: (any JobSubmitter)? = nil,
-    language: AppLanguage = .en
+    language: AppLanguage = .en,
+    realtimeEar: (any Transcriber)? = nil
 ) -> VoiceHarness {
     let transport = ScriptedVoiceTransport()
     transport.autoEvents = autoEvents
@@ -348,6 +381,7 @@ func makeVoiceHarness(
         thread: thread,
         configProvider: provider,
         jobs: jobs,
+        realtimeEar: realtimeEar,
         reachability: ScriptedReachability(online),
         echoFreeProbe: { echoFreeOutput },
         micSilenceTimeout: micSilenceTimeout,
@@ -522,6 +556,27 @@ final class ScriptedTranscriber: Transcriber, @unchecked Sendable {
     }
     func append(_ frame: MicFrame) async { appended.append(frame) }
     func stop() async -> String { stoppedText }
+}
+
+/// A segmenting ear (9j-1): the server's VAD decides the turns and hands
+/// each finished utterance as final text.
+final class ScriptedSegmentingEar: SegmentingTranscriber, @unchecked Sendable {
+    var authorized = true, locale = "", started = false, stoppedText = ""
+    var isAuthorized: Bool { authorized }
+    private let box = StreamBox<String>()
+    private let turns = StreamBox<EarTurnEvent>()
+    var partials: AsyncStream<String> { box.stream }
+    var turnEvents: AsyncStream<EarTurnEvent> { turns.stream }
+    var currentText: String { stoppedText }
+
+    func requestAuthorization() async -> Bool { authorized }
+    func start(localeIdentifier: String) async throws {
+        locale = localeIdentifier
+        started = true
+    }
+    func append(_ frame: MicFrame) async {}
+    func stop() async -> String { stoppedText }
+    func yieldTurn(_ event: EarTurnEvent) { turns.yield(event) }
 }
 
 final class ScriptedSynth: SpeechSynthesizer, @unchecked Sendable {
