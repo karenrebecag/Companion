@@ -35,8 +35,10 @@ func testSessionUpdateShape() {
     let input = ((session["audio"] as? [String: Any])?["input"]
         as? [String: Any]) ?? [:]
     let tx = input["transcription"] as? [String: Any] ?? [:]
-    expectEq(tx["model"] as? String, "gpt-live-transcribe",
-             "update: el modelo vigente, no la generación 4o retirada")
+    // gpt-transcribe: el único que acepta turn_detection (gpt-live-transcribe
+    // lo rechaza y dejaba el oído sordo) y además el más preciso en el probe.
+    expectEq(tx["model"] as? String, "gpt-transcribe",
+             "update: el modelo de alta precisión que sí segmenta")
     expectEq(tx["languages"] as? [String], ["es"], "update: idioma esperado")
     // 9j-1: el VAD del server segmenta los turnos con la preferencia del
     // usuario — el cliente deja de adivinar cuándo terminó la idea.
@@ -45,6 +47,15 @@ func testSessionUpdateShape() {
              "update: el server segmenta los turnos")
     let format = input["format"] as? [String: Any] ?? [:]
     expectEq(format["rate"] as? Int, 24000, "update: 24 kHz como el mic")
+
+    // El fallback de resiliencia: sin VAD, el campo viaja null — un oído
+    // sordo por config rechazada es el peor modo de falla.
+    let fallback = parse(OpenAITranscriber.sessionUpdateJSON(
+        language: "es", turnDetection: nil))
+    let fbInput = (((fallback["session"] as? [String: Any])?["audio"]
+        as? [String: Any])?["input"] as? [String: Any]) ?? [:]
+    expect(fbInput["turn_detection"] is NSNull,
+           "update: el fallback apaga el VAD, no el oído")
 }
 
 func testTurnDetectionMapping() {

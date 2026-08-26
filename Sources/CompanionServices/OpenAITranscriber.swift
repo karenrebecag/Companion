@@ -30,6 +30,11 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
     private var ready = false
     private var queued: [String] = []
     private static let maxQueued = 150  // ~15 s of 100 ms frames
+    /// One retry without server VAD when the config is rejected: a deaf ear
+    /// (frames queued forever waiting for an ack that never comes) is the
+    /// worst failure mode this class can have — measured, not hypothetical.
+    private var fellBack = false
+    private var language = "en"
 
     public init(
         keyProvider: @escaping @Sendable () -> String?,
@@ -68,9 +73,13 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
         socket = task
         task.resume()
         receiveLoop(on: task)
+        let hint = Self.languageHint(from: localeIdentifier)
+        lock.withLock {
+            language = hint
+            fellBack = false
+        }
         try await send(Self.sessionUpdateJSON(
-            language: Self.languageHint(from: localeIdentifier),
-            turnDetection: turnDetection()), over: task)
+            language: hint, turnDetection: turnDetection()), over: task)
     }
 
     public func append(_ frame: MicFrame) async {
@@ -107,8 +116,10 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
         return prefix.isEmpty ? "en" : String(prefix).lowercased()
     }
 
+    /// `turnDetection: nil` disables server segmentation (the resilience
+    /// fallback: a deaf ear is worse than a heuristic one).
     static func sessionUpdateJSON(
-        language: String, turnDetection: TurnDetection
+        language: String, turnDetection: TurnDetection?
     ) -> String {
         encode([
             "type": "session.update",
@@ -118,14 +129,19 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
                     "input": [
                         "format": ["type": "audio/pcm", "rate": 24000],
                         "transcription": [
-                            "model": "gpt-live-transcribe",
+                            // gpt-transcribe, NOT gpt-live-transcribe: the
+                            // live model REJECTS turn_detection (measured:
+                            // "Turn detection is not supported for this
+                            // transcription model" left the ear deaf), and
+                            // the probe showed gpt-transcribe + server VAD
+                            // segmenting alone with better accuracy — it got
+                            // "Créame" where both others heard "Creo".
+                            "model": "gpt-transcribe",
                             "languages": [language],
-                            "delay": "low",
                         ],
-                        // 9j-1: the server's VAD segments the turns — it
-                        // knows when an idea ended; the client's heuristics
-                        // never did. The user's Settings knob decides which.
-                        "turn_detection": turnDetectionJSON(turnDetection),
+                        "turn_detection": turnDetection.map {
+                            turnDetectionJSON($0) as Any
+                        } ?? (NSNull() as Any),
                     ],
                 ],
             ],
@@ -222,6 +238,7 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
                         self.flushQueued(over: task)
                     } else if let error = Self.errorMessage(fromEvent: json) {
                         Log.app("ear: transcription error (\(error))")
+                        self.fallBackIfConfigRejected(over: task)
                     }
                 }
                 self.receiveLoop(on: task)
@@ -231,6 +248,21 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
 
     private func send(_ json: String, over task: URLSessionWebSocketTask) async throws {
         try await task.send(.string(json))
+    }
+
+    /// An error before the session ack means the config was rejected and the
+    /// ack will never come — retry once without server VAD so the ear still
+    /// hears (the session falls back to its heuristic turn-taking).
+    private func fallBackIfConfigRejected(over task: URLSessionWebSocketTask) {
+        let (retry, hint): (Bool, String) = lock.withLock {
+            guard !ready, !fellBack else { return (false, language) }
+            fellBack = true
+            return (true, language)
+        }
+        guard retry else { return }
+        Log.app("ear: config rejected — retrying without server VAD")
+        task.send(.string(Self.sessionUpdateJSON(
+            language: hint, turnDetection: nil))) { _ in }
     }
 
     private func flushQueued(over task: URLSessionWebSocketTask) {
