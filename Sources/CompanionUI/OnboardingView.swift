@@ -66,7 +66,7 @@ public struct OnboardingView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: Space.x3) {
+        VStack(alignment: .leading, spacing: Space.x4) {
             HStack(spacing: Space.x2) {
                 Image(systemName: "waveform")
                     .font(.uiEyebrow)
@@ -86,7 +86,7 @@ public struct OnboardingView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(blurb)
-                .font(.uiBody)
+                .font(.uiSubtitle)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -106,7 +106,7 @@ public struct OnboardingView: View {
     }
 
     @ViewBuilder private var stateContent: some View {
-        VStack(alignment: .leading, spacing: Space.x4) {
+        VStack(alignment: .leading, spacing: Space.x5) {
             switch model.startup {
             case .probing:
                 HStack(spacing: Space.x2) {
@@ -128,10 +128,25 @@ public struct OnboardingView: View {
                     }
                 }
             case .none:
-                Text(Localized.string("onboarding.local.missing"))
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: Space.x3) {
+                    Text(Localized.string("onboarding.local.missing"))
+                        .font(.uiCaption)
+                        .foregroundStyle(Semantic.mutedForeground)
+                        .fixedSize(horizontal: false, vertical: true)
+                    AppButton(
+                        Localized.string("onboarding.ollama.download"),
+                        kind: .secondary, shape: .pill, fullWidth: true
+                    ) {
+                        NSWorkspace.shared.open(
+                            URL(string: "https://ollama.com/download/mac")!)
+                    }
+                    AppButton(
+                        Localized.string("onboarding.ollama.installed"),
+                        kind: .ghost, shape: .pill, fullWidth: true
+                    ) {
+                        model.retryLocalProbe()
+                    }
+                }
             case .premium:
                 EmptyView()
             }
@@ -150,8 +165,13 @@ public struct OnboardingView: View {
                 title: nil,
                 placeholder: "sk-proj-...",
                 text: $model.onboardingKey,
-                error: model.onboardingBusy ? nil : model.errorText,
+                // An empty field has nothing to be wrong about: the error
+                // only appears once there is a key to judge — the sheet used
+                // to open already red.
+                error: model.onboardingBusy || model.onboardingKey.isEmpty
+                    ? nil : model.errorText,
                 secure: true,
+                neutral: true,
                 onSubmit: { Task { await model.submitOnboarding() } })
 
             if model.onboardingBusy {
@@ -167,7 +187,7 @@ public struct OnboardingView: View {
     }
 
     private var footer: some View {
-        VStack(spacing: Space.x3) {
+        VStack(spacing: Space.x4) {
             AppButton(
                 Localized.string("onboarding.continue"),
                 kind: hasLocalPath ? .secondary : .neutral,

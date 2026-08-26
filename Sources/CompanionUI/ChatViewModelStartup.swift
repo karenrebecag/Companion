@@ -27,6 +27,11 @@ extension ChatViewModel {
     /// `probing` exists as a state instead of a spinner over a half-built UI.
     /// The 2 s cap the spec asks for is owned by the adapter's own timeout:
     /// a second timer here would only duplicate it.
+    /// "Ya instalé Ollama": probe again without relaunching the app.
+    public func retryLocalProbe() {
+        beginProbe()
+    }
+
     private func beginProbe() {
         probeTask?.cancel()
         needsOnboarding = true

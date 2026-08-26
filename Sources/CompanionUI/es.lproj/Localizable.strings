@@ -170,11 +170,13 @@
 "chat.job.failed" = "El encargo no pudo terminar: %@";
 "card.unverified" = "Companion no verificó estas ubicaciones.";
 "onboarding.probing" = "Buscando IA en este Mac…";
-"onboarding.base.blurb" = "Lista para hablar — sin cuenta y sin configurar nada.";
+"onboarding.base.blurb" = "Lista para hablar. Sin cuenta y sin configurar nada.";
 "onboarding.local.ollama" = "Empezar con %@ en tu Mac";
 "onboarding.local.apple" = "Empezar con el modelo de esta Mac";
-"onboarding.local.missing" = "Esta Mac aún no tiene un modelo local. Instala Ollama en dos minutos y vuelve — o pega tu clave y empieza ya.";
+"onboarding.local.missing" = "Esta Mac aún no tiene un modelo local. Descárgalo en un par de minutos, o pega tu clave y empieza ya.";
 "onboarding.key.optional" = "¿Tienes clave de OpenAI? Desbloquea la voz en tiempo real y los modelos más capaces.";
+"onboarding.ollama.download" = "Descargar Ollama";
+"onboarding.ollama.installed" = "Ya lo instalé, buscar de nuevo";
 "onboarding.continue" = "Empezar";
 "status.approvalWaiting" = "El especialista espera tu permiso";
 "status.escToStop" = "Esc para cortar";

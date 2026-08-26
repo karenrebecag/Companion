@@ -42,7 +42,7 @@ public struct AppButton: View {
     public var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.uiAction)
+                .font(shape == .pill ? .uiActionLarge : .uiAction)
                 .frame(maxWidth: fullWidth ? .infinity : nil)
                 .padding(.horizontal, Space.x4)
                 .padding(.vertical, shape == .pill ? Space.x3 : Space.x2)
@@ -129,6 +129,9 @@ public struct AppField: View {
     @Binding var text: String
     var error: String? = nil
     var secure = false
+    /// Neutral chrome: the focus ring in ink instead of the app accent, for
+    /// surfaces that stay black-and-white (the onboarding sheet).
+    var neutral = false
     var onSubmit: (() -> Void)? = nil
 
     @FocusState private var focused: Bool
@@ -140,6 +143,7 @@ public struct AppField: View {
         text: Binding<String>,
         error: String? = nil,
         secure: Bool = false,
+        neutral: Bool = false,
         onSubmit: (() -> Void)? = nil
     ) {
         self.title = title
@@ -147,6 +151,7 @@ public struct AppField: View {
         self._text = text
         self.error = error
         self.secure = secure
+        self.neutral = neutral
         self.onSubmit = onSubmit
     }
 
@@ -183,7 +188,8 @@ public struct AppField: View {
             .overlay {
                 if look.focusRing > 0 {
                     RoundedRectangle(cornerRadius: Radius.md)
-                        .stroke(Semantic.accent, lineWidth: look.focusRing)
+                        .stroke(neutral ? Semantic.foreground : Semantic.accent,
+                                lineWidth: look.focusRing)
                 }
             }
             .onHover { hovering = $0 }
