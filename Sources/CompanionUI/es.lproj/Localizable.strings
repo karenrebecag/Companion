@@ -179,6 +179,16 @@
 "onboarding.ollama.installed" = "Ya lo instalé. Volver a buscar";
 "onboarding.section.local" = "En tu Mac";
 "onboarding.section.key" = "Con tu clave de OpenAI";
+"onboarding.choice.local.title" = "En tu Mac";
+"onboarding.choice.local.sub" = "Privado y gratis. Funciona sin internet.";
+"onboarding.choice.cloud.title" = "Con OpenAI";
+"onboarding.choice.cloud.sub" = "Voz en tiempo real y mejores modelos.";
+"onboarding.local.ready" = "%@ listo para hablar";
+"onboarding.local.none.status" = "Sin modelo todavía";
+"onboarding.local.apple.short" = "El modelo de tu Mac";
+"onboarding.ollama.what" = "Ollama es una app gratuita que corre modelos de IA en tu Mac.";
+"onboarding.ollama.waiting" = "Esperando la instalación…";
+"onboarding.cta.probing" = "Buscando…";
 "onboarding.continue" = "Conectar con OpenAI";
 "status.approvalWaiting" = "El especialista espera tu permiso";
 "status.escToStop" = "Esc para cortar";

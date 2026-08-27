@@ -181,6 +181,20 @@ public enum Wash {
     public static var field: Color { Neutral.n500.color.opacity(0.05) }
 }
 
+// Layout container (R-03). OSMO's system is adimensional fractions of the
+// available width; the app adds the one absolute it needs: the centered
+// reading column a full-screen sheet lays on.
+public enum Container {
+    /// OSMO container fractions: .is--m / .is--sm / .is--s.
+    public static let m: CGFloat = 0.825
+    public static let sm: CGFloat = 0.65
+    public static let s: CGFloat = 0.5
+    /// The centered reading column for full-screen sheets.
+    public static let sheet: CGFloat = 520
+    /// Hero figure height inside a sheet.
+    public static let hero: CGFloat = 200
+}
+
 // Border radius
 public enum Radius {
     public static let sm: CGFloat = 4
