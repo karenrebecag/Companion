@@ -7,7 +7,7 @@ import Testing
     testPrimaryFillAndInk()
     testHoverRaisesElevation()
     testFocusedShowsTokenRing()
-    testDisabledDropsOpacity()
+    testDisabledStaysLegible()
     testDestructiveAndGhostKinds()
     testFieldErrorStroke()
     testDropdownClosesOnEscapeAndOutside()
@@ -49,9 +49,13 @@ import Testing
     expectEq(field.focusRing, Stroke.medium, "field focused: same ring token")
 }
 
-@MainActor func testDisabledDropsOpacity() {
+/// Disabled is its OWN look, not a faded one: 40% opacity over a solid ink
+/// fill left gray-on-gray text nobody could read (review 2026-08-26).
+@MainActor func testDisabledStaysLegible() {
     let look = ControlLook.button(.primary, .disabled)
-    expect(look.opacity < 1, "disabled: faded")
+    expectEq(look.opacity, 1, "disabled: nada de desvanecer el texto")
+    expectEq(look.fill, .surface, "disabled: superficie callada")
+    expectEq(look.ink, .muted, "disabled: tinta apagada pero legible")
     expectEq(look.focusRing, 0, "disabled: no ring")
 }
 

@@ -26,7 +26,7 @@ public enum ControlFill: Sendable, Equatable {
 }
 
 public enum ControlInk: Sendable, Equatable {
-    case onAccent, onDestructive, foreground, accentText, onInk
+    case onAccent, onDestructive, foreground, accentText, onInk, muted
 }
 
 public enum ControlStroke: Sendable, Equatable {
@@ -44,13 +44,21 @@ public struct ControlLook: Equatable, Sendable {
     public static func button(
         _ kind: AppButtonKind, _ state: ControlState
     ) -> ControlLook {
-        ControlLook(
+        // Disabled is its OWN look, not a faded one: 40% opacity over a solid
+        // ink fill left gray-on-gray text nobody could read. A quiet surface
+        // with muted ink stays legible while clearly not inviting.
+        if state == .disabled {
+            return ControlLook(
+                fill: .surface, ink: .muted, stroke: .border,
+                elevation: .rest, focusRing: 0, opacity: 1)
+        }
+        return ControlLook(
             fill: fill(kind),
             ink: ink(kind),
             stroke: stroke(kind),
             elevation: state == .hover ? .hover : .rest,
             focusRing: ring(state),
-            opacity: state == .disabled ? 0.4 : 1)
+            opacity: 1)
     }
 
     public static func field(

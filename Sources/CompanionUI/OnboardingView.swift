@@ -24,8 +24,7 @@ public struct OnboardingView: View {
                 header
                 Spacer(minLength: Space.x6)
                 stateContent
-                Spacer()
-                footer
+                Spacer(minLength: Space.x6)
             }
             .padding(.horizontal, Space.x8)
             .padding(.bottom, Space.x6)
@@ -105,8 +104,17 @@ public struct OnboardingView: View {
         }
     }
 
+    /// Two discrete cards, one per way in: mixing both flows in one column
+    /// made one sentence point at an input on the other side of the sheet.
     @ViewBuilder private var stateContent: some View {
-        VStack(alignment: .leading, spacing: Space.x5) {
+        VStack(alignment: .leading, spacing: Space.x4) {
+            localCard
+            keyCard
+        }
+    }
+
+    @ViewBuilder private var localCard: some View {
+        OnboardingCard(title: Localized.string("onboarding.section.local")) {
             switch model.startup {
             case .probing:
                 HStack(spacing: Space.x2) {
@@ -135,7 +143,7 @@ public struct OnboardingView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     AppButton(
                         Localized.string("onboarding.ollama.download"),
-                        kind: .secondary, shape: .pill, fullWidth: true
+                        kind: .neutral, shape: .pill, fullWidth: true
                     ) {
                         NSWorkspace.shared.open(
                             URL(string: "https://ollama.com/download/mac")!)
@@ -150,60 +158,56 @@ public struct OnboardingView: View {
             case .premium:
                 EmptyView()
             }
-
-            keyEntry
         }
     }
 
-    @ViewBuilder private var keyEntry: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            Text(Localized.string("onboarding.key.optional"))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
+    @ViewBuilder private var keyCard: some View {
+        OnboardingCard(title: Localized.string("onboarding.section.key")) {
+            VStack(alignment: .leading, spacing: Space.x3) {
+                Text(Localized.string("onboarding.key.optional"))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            AppField(
-                title: nil,
-                placeholder: "sk-proj-...",
-                text: $model.onboardingKey,
-                // An empty field has nothing to be wrong about: the error
-                // only appears once there is a key to judge — the sheet used
-                // to open already red.
-                error: model.onboardingBusy || model.onboardingKey.isEmpty
-                    ? nil : model.errorText,
-                secure: true,
-                neutral: true,
-                onSubmit: { Task { await model.submitOnboarding() } })
+                AppField(
+                    title: nil,
+                    placeholder: "sk-proj-...",
+                    text: $model.onboardingKey,
+                    // An empty field has nothing to be wrong about: the error
+                    // only appears once there is a key to judge.
+                    error: model.onboardingBusy || model.onboardingKey.isEmpty
+                        ? nil : model.errorText,
+                    secure: true,
+                    neutral: true,
+                    onSubmit: { Task { await model.submitOnboarding() } })
 
-            if model.onboardingBusy {
-                HStack(spacing: Space.x2) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(Localized.string("onboarding.verifying"))
+                if model.onboardingBusy {
+                    HStack(spacing: Space.x2) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(Localized.string("onboarding.verifying"))
+                            .font(.uiCaption)
+                            .foregroundStyle(Semantic.mutedForeground)
+                    }
+                }
+
+                AppButton(
+                    Localized.string("onboarding.continue"),
+                    kind: .neutral, shape: .pill, fullWidth: true,
+                    enabled: !cannotContinue
+                ) {
+                    Task { await model.submitOnboarding() }
+                }
+
+                Link(destination: URL(
+                    string: "https://platform.openai.com/api/keys")!) {
+                    Text(Localized.string("onboarding.getKey"))
                         .font(.uiCaption)
+                        .underline()
                         .foregroundStyle(Semantic.mutedForeground)
                 }
+                .frame(maxWidth: .infinity)
             }
-        }
-    }
-
-    private var footer: some View {
-        VStack(spacing: Space.x4) {
-            AppButton(
-                Localized.string("onboarding.continue"),
-                kind: hasLocalPath ? .secondary : .neutral,
-                shape: .pill, fullWidth: true,
-                enabled: !cannotContinue
-            ) {
-                Task { await model.submitOnboarding() }
-            }
-
-            Link(destination: URL(string: "https://platform.openai.com/api/keys")!) {
-                Text(Localized.string("onboarding.getKey"))
-                    .font(.uiCaption)
-                    .underline()
-                    .foregroundStyle(Semantic.mutedForeground)
-            }
-            .frame(maxWidth: .infinity)
         }
     }
 
@@ -214,14 +218,32 @@ public struct OnboardingView: View {
         return String(format: Localized.string("onboarding.local.ollama"), model)
     }
 
-    private var hasLocalPath: Bool {
-        if case .base = model.startup { return true }
-        return false
-    }
-
     private var cannotContinue: Bool {
         model.onboardingBusy
             || model.onboardingKey.trimmingCharacters(in: .whitespacesAndNewlines)
                 .isEmpty
+    }
+}
+
+/// A quiet container: one card per way in, so the two flows never share a
+/// sentence again.
+private struct OnboardingCard<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.x3) {
+            Text(title)
+                .typeEyebrow()
+            content
+        }
+        .padding(Space.x4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Semantic.surface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.lg))
+        .overlay {
+            RoundedRectangle(cornerRadius: Radius.lg)
+                .stroke(Semantic.border, lineWidth: Stroke.hairline)
+        }
     }
 }

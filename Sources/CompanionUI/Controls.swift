@@ -42,7 +42,10 @@ public struct AppButton: View {
     public var body: some View {
         Button(action: action) {
             Text(title)
-                .font(shape == .pill ? .uiActionLarge : .uiAction)
+                // Pills speak SANS: the mono action face is the DS voice for
+                // compact controls, but at hero size it fought the sheet.
+                .font(shape == .pill ? .uiCta : .uiAction)
+                .fontWeight(shape == .pill ? .semibold : nil)
                 .frame(maxWidth: fullWidth ? .infinity : nil)
                 .padding(.horizontal, Space.x4)
                 .padding(.vertical, shape == .pill ? Space.x3 : Space.x2)
@@ -84,8 +87,12 @@ private struct AppButtonStyle: ButtonStyle {
             }
             .overlay {
                 if look.focusRing > 0 {
+                    // A neutral button must not put on the app accent even to
+                    // focus: on the clean sheet it read as a debug outline.
                     RoundedRectangle(cornerRadius: radius)
-                        .stroke(Semantic.accent, lineWidth: look.focusRing)
+                        .stroke(kind == .neutral
+                                    ? Semantic.foreground : Semantic.accent,
+                                lineWidth: look.focusRing)
                 }
             }
             .elevation(look.elevation)
@@ -111,6 +118,7 @@ private struct AppButtonStyle: ButtonStyle {
         case .foreground: Semantic.foreground
         case .accentText: Semantic.accentText
         case .onInk: Semantic.primaryForeground
+        case .muted: Semantic.mutedForeground
         }
     }
 

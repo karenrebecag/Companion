@@ -239,8 +239,9 @@ extension Font {
     public static var uiMono: Font { Fonts.mono(TypeSize.micro) }
     public static var uiMonoSm: Font { Fonts.mono(TypeSize.micro) }
     public static var uiAction: Font { Fonts.mono(TypeSize.micro, bold: true) }
-    /// Pill CTAs: a hero button cannot whisper at 11 pt.
-    public static var uiActionLarge: Font { Fonts.mono(TypeSize.strong, bold: true) }
+    /// Pill CTAs: a hero button cannot whisper at 11 pt, and at this size the
+    /// mono action face fights the sheet — sans carries it.
+    public static var uiCta: Font { Fonts.sans(TypeSize.strong) }
     public static var uiLabel: Font { Fonts.sans(TypeSize.base) }
     public static var uiBody: Font { Fonts.sans(TypeSize.base) }
     public static var uiCode: Font { Fonts.mono(TypeSize.base) }
