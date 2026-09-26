@@ -34,13 +34,14 @@ extension View {
     /// el relleno usaba el token y el filete un literal: al cambiar `Radius`
     /// se desincronizan y nada lo avisa. Aqui comparten UNO.
     func cardSurface() -> some View {
-        padding(Space.x4)
+        // 16l-3: Incredible's elevated card — white, #eee edge, radius 16.
+        padding(CardChrome.padding)
             .background(
-                RoundedRectangle(cornerRadius: Radius.md)
+                RoundedRectangle(cornerRadius: CardChrome.radius)
                     .fill(Semantic.surface))
             .overlay(
-                RoundedRectangle(cornerRadius: Radius.md)
-                    .stroke(Semantic.border, lineWidth: Stroke.hairline))
+                RoundedRectangle(cornerRadius: CardChrome.radius)
+                    .stroke(Semantic.borderChrome, lineWidth: Stroke.hairline))
     }
 }
 

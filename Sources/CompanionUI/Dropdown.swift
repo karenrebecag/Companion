@@ -142,10 +142,12 @@ private struct DropdownChrome: ViewModifier {
 }
 
 private extension AnyTransition {
+    /// 16l-2: Incredible's menu fades and settles from 0.97, no blur.
     static var dropdown: AnyTransition {
         .modifier(
-            active: DropdownChrome(blur: 12, scale: 0.94, opacity: 0),
+            active: DropdownChrome(blur: 0, scale: MenuMetrics.enterScale, opacity: 0),
             identity: DropdownChrome(blur: 0, scale: 1, opacity: 1))
+        .animation(MotionCurve.animation(MotionCurve.standard, MenuMetrics.duration))
     }
 }
 
@@ -153,19 +155,19 @@ struct DropdownPanel<Content: View>: View {
     @ViewBuilder let content: Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.x1) {
+        VStack(alignment: .leading, spacing: MenuMetrics.gap) {
             content
         }
-        .padding(Space.x2)
+        .padding(MenuMetrics.padding)
         .fixedSize(horizontal: true, vertical: false)
         .background(
-            RoundedRectangle(cornerRadius: Radius.lg)
+            RoundedRectangle(cornerRadius: MenuMetrics.radius)
                 .fill(Semantic.surfaceOverlay)
-                .elevation(.popover)
+                .elevation(.sheet)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: Radius.lg)
-                .stroke(Semantic.border, lineWidth: Stroke.hairline)
+            RoundedRectangle(cornerRadius: MenuMetrics.radius)
+                .stroke(Semantic.popupBorder, lineWidth: Stroke.hairline)
         )
         .transition(.dropdown)
     }
@@ -187,7 +189,7 @@ struct DropdownRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Space.x2) {
+            HStack(spacing: MenuMetrics.itemGap) {
                 if rainbow {
                     RainbowDot()
                 } else if let swatch {
@@ -203,7 +205,7 @@ struct DropdownRow: View {
                 }
                 VStack(alignment: .leading, spacing: Space.x1 / 2) {
                     Text(title)
-                        .font(.uiLabel)
+                        .font(Fonts.sans(TypeSize.body).weight(.medium))
                         .foregroundStyle(Semantic.foreground)
                         .lineLimit(1)
                     if let subtitle {
@@ -220,12 +222,12 @@ struct DropdownRow: View {
                         .foregroundStyle(Semantic.foreground)
                 }
             }
-            .padding(.horizontal, Space.x3)
-            .padding(.vertical, Space.x2)
+            .padding(.horizontal, MenuMetrics.itemPaddingX)
+            .padding(.vertical, MenuMetrics.itemPaddingY)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(RoundedRectangle(cornerRadius: Radius.md))
+            .contentShape(RoundedRectangle(cornerRadius: MenuMetrics.itemRadius))
             .background(
-                RoundedRectangle(cornerRadius: Radius.md)
+                RoundedRectangle(cornerRadius: MenuMetrics.itemRadius)
                     .fill(hovering || highlighted ? Semantic.hover : Color.clear)
             )
         }
@@ -233,7 +235,7 @@ struct DropdownRow: View {
         .onHover { hovering = $0 }
         .accessibilityLabel(subtitle.map { "\(title), \($0)" } ?? title)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        .animation(.easeOut(duration: MotionTime.fast), value: hovering)
+        .animation(.expoOut(MotionTime.fast), value: hovering)
         .staggered(index)
     }
 }
@@ -254,7 +256,7 @@ extension View {
                         Color.clear
                         DropdownPanel {
                             ScrollView {
-                                VStack(alignment: .leading, spacing: Space.x1) {
+                                VStack(alignment: .leading, spacing: MenuMetrics.gap) {
                                     ForEach(Array(host.items.enumerated()), id: \.offset) { i, item in
                                         DropdownRow(
                                             title: item.title,
@@ -308,9 +310,14 @@ struct SettingsItem<T: Hashable>: View {
     let options: [(T, String)]
     var rainbow: ((T) -> Bool)? = nil
     var swatch: ((T) -> Color?)? = nil
+    /// Which menu this is. Rows show their own title and leave this one
+    /// blank, so two blank titles on a page would share an anchor (16g).
+    var id: String? = nil
     let onChange: (T) -> Void
 
     @Environment(DropdownHost.self) private var host
+
+    var menu: OpenMenu { .settingsPick(id ?? title) }
 
     var body: some View {
         HStack {
@@ -323,7 +330,7 @@ struct SettingsItem<T: Hashable>: View {
             Button {
                 withAnimation(.springSheet) {
                     host.present(
-                        .settingsPick(title),
+                        menu,
                         items: options.map { opt in
                             DropdownItem(
                                 title: opt.1,
@@ -336,22 +343,25 @@ struct SettingsItem<T: Hashable>: View {
                     }
                 }
             } label: {
-                HStack(spacing: Space.x2) {
+                // 16l-2: Incredible's select trigger.
+                HStack(spacing: SelectMetrics.gap) {
                     Text(value)
-                        .font(.uiCaption)
-                        .foregroundStyle(Semantic.accentText)
-                    Image(systemName: "chevron.down")
+                        .font(Fonts.sans(TypeSize.body).weight(.medium))
+                        .foregroundStyle(Semantic.foreground)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
                         .font(.uiMicro)
-                        .foregroundStyle(Semantic.mutedForeground)
+                        .foregroundStyle(Semantic.faintForeground)
                 }
-                .padding(.horizontal, Space.x3)
-                .padding(.vertical, Space.x2)
-                .background(Semantic.muted)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.md))
+                .padding(.horizontal, SelectMetrics.paddingX)
+                .frame(height: SelectMetrics.height)
+                .background(Semantic.wash)
+                .clipShape(RoundedRectangle(cornerRadius: SelectMetrics.radius))
+                .contentShape(RoundedRectangle(cornerRadius: SelectMetrics.radius))
             }
             .buttonStyle(.plain)
             .dropdownAnchor(
-                host.menu == .settingsPick(title) && host.session.isOpen)
+                host.menu == menu && host.session.isOpen)
         }
     }
 }

@@ -11,6 +11,7 @@ import Testing
     testAccentOnLimePassesAA()
     testDestructiveContrastPassesAA()
     testFontFallbackDegradesToInterThenSystem()
+    testGeistIsTheFixedFaceLikeIncredible()
     testSpaceRamp()
     testTypeLadderIsTheDocumentedRamp()
     testTypeLadderHoldsRatios()
@@ -95,17 +96,17 @@ import Testing
 
 // MARK: - Escala tipografica (R-01)
 
-/// La rampa nominal 11/13/16/22/29. Su razon de ser: antes de R-01 la escala
-/// documentada solo se pintaba con delta +3, y en delta 0 dos tokens caian
-/// al piso y renderizaban identicos.
+/// La rampa nominal es la de Incredible (16k). Su razon de ser desde R-01:
+/// en delta 0 la escala documentada es exactamente la que se pinta, sin dos
+/// tokens fundidos en el piso.
 @MainActor func testTypeLadderIsTheDocumentedRamp() {
     let previous = TypeScale.delta
     defer { TypeScale.delta = previous }
     TypeScale.delta = 0
     expectEq(
         typeLadder().map { TypeScale.apply($0) },
-        [CGFloat(11), 13, 16, 22, 29],
-        "tipo: delta 0 pinta la rampa documentada 11/13/16/22/29")
+        [CGFloat(11), 12, 13, 14, 15, 16, 20, 22, 30],
+        "tipo: delta 0 pinta la rampa de Incredible")
 }
 
 /// El control de tamano es multiplicativo, no aditivo: sumar un offset
@@ -150,6 +151,22 @@ import Testing
 /// Funcion y no constante: los tokens estan aislados al MainActor y el
 /// inicializador de un global no lo esta.
 @MainActor private func typeLadder() -> [CGFloat] {
-    [TypeSize.micro, TypeSize.base, TypeSize.strong,
-     TypeSize.title, TypeSize.display]
+    [TypeSize.micro, TypeSize.caption, TypeSize.body, TypeSize.rowTitle,
+     TypeSize.heroBody, TypeSize.sectionTitle, TypeSize.dialogTitle,
+     TypeSize.bannerTitle, TypeSize.pageTitle]
+}
+
+
+/// Wave 16c: Incredible's system is Geist + Geist Mono, fixed. The face is
+/// no longer a preference; Inter then the system stay as fallbacks.
+@MainActor func testGeistIsTheFixedFaceLikeIncredible() {
+    expectEq(FontFallback.sansFamily(registered: ["Geist-Regular", "Inter-Regular"]), "Geist",
+             "geist: la familia fija")
+    expectEq(FontFallback.sansFamily(registered: ["Inter-Regular"]), "Inter-Regular",
+             "geist: sin Geist, Inter")
+    expect(FontFallback.sansFamily(registered: []) == nil, "geist: sin nada, el sistema")
+    expectEq(FontFallback.monoName(bold: false, registered: ["GeistMono-Regular"]), "GeistMono-Regular",
+             "geist mono: regular")
+    expectEq(FontFallback.monoName(bold: true, registered: ["GeistMono-Medium"]), "GeistMono-Medium",
+             "geist mono: el peso fuerte es Medium")
 }

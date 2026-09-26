@@ -1,15 +1,9 @@
 import SwiftUI
 
-/// R-06: the shape system is BINARY — near-sharp or pill, nothing between.
+/// 16l: every Incredible button is a pill. `standard` is its md button
+/// (40 high); `pill` is the welcome button (46 high, 15 pt).
 public enum AppButtonShape: Sendable {
     case standard, pill
-
-    var radius: CGFloat {
-        switch self {
-        case .standard: Radius.md
-        case .pill: Radius.full
-        }
-    }
 }
 
 public struct AppButton: View {
@@ -41,25 +35,40 @@ public struct AppButton: View {
 
     public var body: some View {
         Button(action: action) {
+            // The welcome button speaks Geist like the rest of that sheet.
             Text(title)
-                // Pills speak SANS: the mono action face is the DS voice for
-                // compact controls, but at hero size it fought the sheet.
-                .font(shape == .pill ? .uiCta : .uiAction)
-                .fontWeight(shape == .pill ? .semibold : nil)
+                .font(Fonts.sans(fontSize, face: shape == .pill ? .geist : .system).weight(.semibold))
+                .tracking(shape == .pill ? Tracking.snug : 0, at: fontSize)
+                .lineLimit(1)
                 .frame(maxWidth: fullWidth ? .infinity : nil)
-                .padding(.horizontal, Space.x4)
-                .padding(.vertical, shape == .pill ? Space.x3 : Space.x2)
+                .padding(.horizontal, paddingX)
+                .frame(height: height)
         }
         .buttonStyle(
             AppButtonStyle(
                 kind: kind, enabled: enabled,
-                hovering: hovering, focused: focused,
-                radius: shape.radius))
+                hovering: hovering, focused: focused))
         .disabled(!enabled)
         .onHover { hovering = $0 }
         .focusable()
         .focused($focused)
         .accessibilityAddTraits(.isButton)
+    }
+
+    private var isWash: Bool { kind == .secondary || kind == .ghost }
+
+    private var fontSize: CGFloat {
+        if shape == .pill { return TypeSize.heroBody }
+        return isWash ? TypeSize.body : TypeSize.rowTitle
+    }
+
+    private var paddingX: CGFloat {
+        if shape == .pill { return ButtonMetrics.welcomePadding }
+        return isWash ? ButtonMetrics.ghostPadding : ButtonMetrics.padding
+    }
+
+    private var height: CGFloat {
+        shape == .pill ? ButtonMetrics.welcomeHeight : ButtonMetrics.height
     }
 }
 
@@ -68,7 +77,6 @@ private struct AppButtonStyle: ButtonStyle {
     let enabled: Bool
     var hovering: Bool
     var focused: Bool
-    var radius: CGFloat = Radius.md
 
     func makeBody(configuration: Configuration) -> some View {
         let state = ControlState.resolve(
@@ -78,55 +86,43 @@ private struct AppButtonStyle: ButtonStyle {
             focused: focused)
         let look = ControlLook.button(kind, state)
         configuration.label
-            .foregroundStyle(ink(look))
-            .background(fill(look))
-            .clipShape(RoundedRectangle(cornerRadius: radius))
-            .overlay {
-                RoundedRectangle(cornerRadius: radius)
-                    .stroke(stroke(look), lineWidth: Stroke.hairline)
-            }
+            .foregroundStyle(ink(look, state))
+            .background(Capsule().fill(fill(look, state)))
+            .contentShape(Capsule())
             .overlay {
                 if look.focusRing > 0 {
-                    // A neutral button must not put on the app accent even to
-                    // focus: on the clean sheet it read as a debug outline.
-                    RoundedRectangle(cornerRadius: radius)
-                        .stroke(kind == .neutral
-                                    ? Semantic.foreground : Semantic.accent,
-                                lineWidth: look.focusRing)
+                    // Incredible outlines focus in the button's own ink,
+                    // 2 pt out from the edge.
+                    Capsule()
+                        .stroke(Semantic.foreground, lineWidth: look.focusRing)
+                        .padding(-Stroke.medium)
                 }
             }
-            .elevation(look.elevation)
             .opacity(look.opacity)
-            .scaleEffect(state == .pressed ? 0.98 : 1)
-            .animation(.springPress, value: configuration.isPressed)
+            .scaleEffect(look.scale)
+            .animation(MotionCurve.animation(MotionCurve.settle, ButtonMetrics.duration),
+                       value: look.scale)
     }
 
-    private func fill(_ look: ControlLook) -> Color {
+    private func fill(_ look: ControlLook, _ state: ControlState) -> Color {
+        let hot = state == .hover || state == .pressed
         switch look.fill {
-        case .accent: Semantic.accent
-        case .destructive: Semantic.destructive
-        case .surface: Semantic.surface
-        case .clear: Color.clear
-        case .ink: Semantic.primary
+        case .destructive: return hot ? Semantic.dangerHover : Semantic.destructive
+        case .surface: return Semantic.surface
+        case .clear: return hot ? Semantic.hoverSubtle : Color.clear
+        case .ink: return Semantic.primary
+        case .wash: return Semantic.wash
         }
     }
 
-    private func ink(_ look: ControlLook) -> Color {
+    private func ink(_ look: ControlLook, _ state: ControlState) -> Color {
         switch look.ink {
-        case .onAccent: Semantic.accentForeground
-        case .onDestructive: Semantic.destructiveForeground
-        case .foreground: Semantic.foreground
-        case .accentText: Semantic.accentText
-        case .onInk: Semantic.primaryForeground
-        case .muted: Semantic.mutedForeground
-        }
-    }
-
-    private func stroke(_ look: ControlLook) -> Color {
-        switch look.stroke {
-        case .none: Color.clear
-        case .border: Semantic.border
-        case .destructive: Semantic.destructive
+        case .onDestructive: return Semantic.destructiveForeground
+        case .foreground: return Semantic.foreground
+        case .onInk: return Semantic.primaryForeground
+        case .muted:
+            // Ghost: secondary grey that turns primary under the pointer.
+            return state == .hover ? Semantic.foreground : Semantic.mutedForeground
         }
     }
 }

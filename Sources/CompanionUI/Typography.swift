@@ -11,6 +11,12 @@ public enum TypeFamily {
     public static let mono = "TBJ Interval"
 }
 
+/// Which face a surface speaks (16k-2): Incredible's window uses the system
+/// face; its island and welcome use Geist.
+public enum FontFace: Sendable {
+    case system, geist
+}
+
 /// Resolves a requested face against what is actually registered.
 /// Proprietary fonts stay local; missing ones fall to Inter, then the system.
 public enum FontFallback: Sendable {
@@ -43,7 +49,22 @@ public enum FontFallback: Sendable {
         return postScriptName(.inter, registered: registered)
     }
 
+    /// Wave 16c: Geist is the product's face, as in Incredible — a family
+    /// name, so SwiftUI's `.weight` picks Medium/SemiBold/Bold inside it.
+    public static func sansFamily(registered: Set<String>) -> String? {
+        sansFamily(for: .geist, registered: registered)
+    }
+
+    /// nil means the system face.
+    public static func sansFamily(for face: FontFace, registered: Set<String>) -> String? {
+        guard face == .geist else { return nil }
+        if registered.contains("Geist-Regular") { return "Geist" }
+        return postScriptName(.inter, registered: registered)
+    }
+
     public static func monoName(bold: Bool, registered: Set<String>) -> String? {
+        let geist = bold ? "GeistMono-Medium" : "GeistMono-Regular"
+        if registered.contains(geist) { return geist }
         let wanted = bold ? "TBJInterval-Bold" : "TBJInterval-Regular"
         if registered.contains(wanted) { return wanted }
         return postScriptName(.inter, registered: registered)
@@ -126,7 +147,9 @@ public enum TypeScale {
         return "−\(abs(value))"
     }
 
-    public static var bodyLead: CGFloat { apply(TypeSize.base) * 0.3 }
+    public static var bodyLead: CGFloat {
+        Leading.spacing(Leading.body, at: apply(TypeSize.body))
+    }
     public static var codeLead: CGFloat { apply(TypeSize.base) * 0.15 }
 
     /// Alto de una linea de cuerpo ya renderizada. Un caret o el hueco de una
@@ -146,10 +169,36 @@ public enum TypeScale {
     }
 }
 
+// Line height per role (16k), as Incredible's CSS ratios.
+public enum Leading {
+    public static let micro: CGFloat = 1.35
+    public static let caption: CGFloat = 1.4
+    public static let body: CGFloat = 1.5
+    public static let rowTitle: CGFloat = 1.4
+    public static let heroBody: CGFloat = 1.5
+    public static let sectionTitle: CGFloat = 1.3
+    public static let dialogTitle: CGFloat = 1.2
+    public static let bannerTitle: CGFloat = 1.2
+    public static let pageTitle: CGFloat = 1.2
+    public static let display: CGFloat = 1.06
+
+    public static let tight: CGFloat = 1.25
+    public static let snug: CGFloat = 1.375
+    public static let normal: CGFloat = 1.5
+    public static let relaxed: CGFloat = 1.625
+
+    /// CSS gives the whole line box; SwiftUI's `lineSpacing` only the gap
+    /// added between lines, so the font size itself comes off.
+    public static func spacing(_ ratio: CGFloat, at size: CGFloat) -> CGFloat {
+        Swift.max(0, size * (ratio - 1))
+    }
+}
+
 // Font registry. Bundle holds Inter (OFL). Proprietary faces load from
 // Application Support if the user dropped them; otherwise Inter then system.
 public enum Fonts {
     private static let knownNames = [
+        "Geist-Regular", "GeistMono-Regular", "GeistMono-Medium",
         "Inter-Regular", "Hypodermic-Regular", "Gadey",
         "TBJInterval-Regular", "TBJInterval-Bold", "TBJInterval-Light",
     ]
@@ -196,8 +245,22 @@ public enum Fonts {
         registered = Set(knownNames.filter { NSFont(name: $0, size: 12) != nil })
     }
 
+    /// The window's face: the system one, as Incredible's main window (16k-2).
     public static func sans(_ size: CGFloat) -> Font {
-        sample(AppTypeface.stored, size: size)
+        sans(size, face: .system)
+    }
+
+    /// The island and the welcome sheet speak Geist.
+    public static func geist(_ size: CGFloat) -> Font {
+        sans(size, face: .geist)
+    }
+
+    public static func sans(_ size: CGFloat, face: FontFace) -> Font {
+        let s = TypeScale.apply(size)
+        if let name = FontFallback.sansFamily(for: face, registered: registered) {
+            return Font.custom(name, size: s)
+        }
+        return Font.system(size: s)
     }
 
     public static func sample(_ face: AppTypeface, size: CGFloat) -> Font {
@@ -252,6 +315,20 @@ extension Font {
     public static var uiDisplay: Font { Fonts.sans(TypeSize.display) }
     public static var uiHeading: Font { Fonts.sans(TypeSize.title) }
     public static var uiLogo: Font { Fonts.logo(TypeSize.display) }
+}
+
+/// The same roles in Geist, for the island, the welcome sheet and the
+/// approval panel (16k-2).
+public enum GeistFont {
+    public static var uiMicro: Font { Fonts.geist(TypeSize.micro) }
+    public static var uiCaption: Font { Fonts.geist(TypeSize.micro) }
+    public static var uiCta: Font { Fonts.geist(TypeSize.strong) }
+    public static var uiLabel: Font { Fonts.geist(TypeSize.base) }
+    public static var uiBody: Font { Fonts.geist(TypeSize.base) }
+    public static var uiSubtitle: Font { Fonts.geist(TypeSize.strong) }
+    public static var uiTitle: Font { Fonts.geist(TypeSize.title) }
+    public static var uiDisplay: Font { Fonts.geist(TypeSize.display) }
+    public static var uiHeading: Font { Fonts.geist(TypeSize.title) }
 }
 
 // Type styling for Views

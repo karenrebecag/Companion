@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct StatusLine: View {
+    @Environment(\.openURL) private var openURL
     var chat: ChatViewModel
     var voice: VoiceViewModel
 
@@ -24,7 +25,19 @@ public struct StatusLine: View {
                         .shimmering(active: ShimmerMotion.isActive(for: voice.snapshot.state))
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
-                if chat.pendingApproval != nil {
+                if let link = VoiceCopy.settingsLink(after: chat.session.projection.interruption) {
+                    Button(Localized.string("permission.open")) { openURL(link) }
+                        .buttonStyle(.link)
+                        .font(.uiCaption)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                if chat.debugTranscripts {
+                    Text(Localized.string("debug.transcriptsOn"))
+                        .font(.uiCaption)
+                        .foregroundStyle(Semantic.accentText)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
+                if chat.session.projection.approval != nil {
                     Text(Localized.string("status.approvalWaiting"))
                         .font(.uiCaption)
                         .foregroundStyle(Semantic.accentText)
@@ -49,7 +62,8 @@ public struct StatusLine: View {
     private var isVisible: Bool {
         chat.folderLabel != nil
             || !(voice.statusText ?? "").isEmpty
-            || chat.pendingApproval != nil
+            || chat.session.projection.approval != nil
+            || chat.debugTranscripts
             || chat.busySince != nil
             || !chat.queued.isEmpty
     }

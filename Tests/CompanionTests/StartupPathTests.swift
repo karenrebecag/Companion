@@ -206,9 +206,9 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
 @MainActor func testANewProviderLandsAtTheEndNotTheFront() {
     // Instalar Ollama no puede reordenar lo que el usuario ya decidio, y un
     // proveedor que nunca vio no puede nacer apagado: no hay como encenderlo.
-    let order = ["groq", "openai"]
+    let order = ["openrouter", "openai"]
     let names = ProviderDescriptor.route(order: order).map(\.name)
-    expectEq(names, ["Groq", "OpenAI", "OpenRouter", "Ollama"],
+    expectEq(names, ["OpenRouter", "OpenAI", "Ollama"],
              "lo nombrado manda; lo nuevo va detras, no fuera")
 }
 

@@ -110,6 +110,17 @@ public enum ChatCopy {
             approved ? "chat.approval.granted" : "chat.approval.denied")
     }
 
+    /// The user's "no", painted as a decision (Wave 10c 3B.4).
+    public static func approvalDeniedTool(_ tool: String) -> String {
+        String(format: Localized.string("chat.approval.deniedTool"), tool)
+    }
+
+    /// Answered from the session's memory, no sheet (Wave 10c 3B.2).
+    public static func approvalRemembered(_ tool: String, approved: Bool) -> String {
+        String(format: Localized.string(
+            approved ? "chat.approval.rememberedAllow" : "chat.approval.rememberedDeny"), tool)
+    }
+
     public static var jobDone: String { Localized.string("chat.job.done") }
     public static var jobFailed: String { Localized.string("chat.job.failed") }
 
@@ -130,11 +141,30 @@ public enum ChatCopy {
     public static func approvalDetail(
         tool: String, inputJSON: String
     ) -> String {
-        guard let data = inputJSON.data(using: .utf8),
-              let object = try? JSONSerialization.jsonObject(with: data)
-                as? [String: Any]
-        else { return tool }
-        let interesting = ["command", "path", "url", "query", "content"]
+        // Parsed the way the executor parses (repair included): the sheet
+        // must show exactly what will run (security review 2026-09-05).
+        guard let object = ToolArguments.parse(inputJSON) else { return tool }
+        // Wave 15g, review 2026-09-25 M1: the hands ask only about text the
+        // user did not say, so the sheet shows all of it — a cut would hide
+        // the part that runs. Return names the app, and in a command app the
+        // line it would run.
+        if tool == ParentTool.typeText.rawValue, let text = object["text"] as? String {
+            return text
+        }
+        // Wave 16a: a destructive click names the button and its app.
+        if tool == ParentTool.click.rawValue, let label = object["label"] as? String {
+            let app = object["app"] as? String ?? ""
+            return app.isEmpty ? label : "\(label) · \(app)"
+        }
+        if tool == ParentTool.pressKey.rawValue, let key = object["key"] as? String {
+            var detail = key
+            if let app = object["app"] as? String, !app.isEmpty { detail += " · \(app)" }
+            if let line = object["line"] as? String, !line.isEmpty { detail += "\n\(line)" }
+            return detail
+        }
+        // `goal`: a proposed handoff (security review 2026-09-25) is
+        // approved on what it would delegate, never on the word "delegate".
+        let interesting = ["command", "path", "url", "query", "content", "goal"]
         for key in interesting {
             if let value = object[key] as? String, !value.isEmpty {
                 return value.count > 200 ? String(value.prefix(200)) + "…" : value

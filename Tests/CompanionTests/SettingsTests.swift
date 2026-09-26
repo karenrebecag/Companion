@@ -51,6 +51,22 @@ import Testing
     testProfileFieldsRoundTrip()
     testWorkdirPreferenceLabel()
     testWorkdirRejectsUnboundedRoots()
+    testDecisionPreferenceDefaultsOffAndRoundTrips()
+}
+
+/// DM1c-3 (wave-dm1-router.md §8): missing key reads as off — the router
+/// stays out of the classic hold until the user opts in from Settings.
+@MainActor func testDecisionPreferenceDefaultsOffAndRoundTrips() {
+    let suite = "companion.tests.decision"
+    DecisionPreference.store = UserDefaults(suiteName: suite)!
+    defer { DecisionPreference.store = .standard }
+    DecisionPreference.store.removePersistentDomain(forName: suite)
+
+    expect(!DecisionPreference.enabled, "decisión: sin clave, arranca apagado")
+    DecisionPreference.enabled = true
+    expect(DecisionPreference.enabled, "decisión: round-trip enciende")
+    DecisionPreference.enabled = false
+    expect(!DecisionPreference.enabled, "decisión: round-trip apaga")
 }
 
 @MainActor func testAppearancePreferenceRoundTrip() {

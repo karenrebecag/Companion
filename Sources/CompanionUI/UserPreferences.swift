@@ -192,6 +192,9 @@ public enum VoiceProfile {
     nonisolated private static let turnDetectionEagernessKey = "companion.voice.turnDetectionEagerness"
     nonisolated private static let toneKey = "companion.voice.tone"
     nonisolated private static let echoCancellationKey = "companion.voice.echoCancellation"
+    nonisolated private static let modeKey = "companion.voice.mode"
+    /// 15b-2: the dictation key setting (§4 API `DictationKey`).
+    nonisolated private static let dictationKeyKey = "companion.voice.dictationKey"
 
     nonisolated public static var stored: VoiceID {
         get {
@@ -212,6 +215,13 @@ public enum VoiceProfile {
             let volume = Double(UserDefaults.standard.double(forKey: volumeKey))
             let tone = UserDefaults.standard.string(forKey: toneKey) ?? ""
             let aec = UserDefaults.standard.bool(forKey: echoCancellationKey)
+            let mode = UserDefaults.standard.string(forKey: modeKey)
+                .flatMap(VoiceMode.init(rawValue:)) ?? .automatic
+            // A stray/hand-edited value (or a downgrade from a newer build)
+            // must resolve to the shipped default, never crash (same
+            // contract `mode` already has).
+            let dictationKey = UserDefaults.standard.string(forKey: dictationKeyKey)
+                .flatMap(DictationKey.init(rawValue:)) ?? .rightOption
 
             let turnDetection: TurnDetection
             let detectionType = UserDefaults.standard.string(
@@ -232,20 +242,34 @@ public enum VoiceProfile {
                 volume: volume > 0 ? volume : 1.0,
                 turnDetection: turnDetection,
                 tone: tone,
-                echoCancellation: aec
+                echoCancellation: aec,
+                mode: mode,
+                dictationKey: dictationKey
             )
         }
         set {
+            // Code review 2026-09-23 (medio): read before writing — every
+            // voice control (a volume drag fires many times a second)
+            // writes through this same setter, so the App layer must only
+            // rebuild its `HoldKeyTap` when this ONE field actually moved.
+            let previousDictationKey = settings.dictationKey
             stored = newValue.voice
             UserDefaults.standard.set(newValue.speed, forKey: speedKey)
             UserDefaults.standard.set(newValue.volume, forKey: volumeKey)
             UserDefaults.standard.set(newValue.tone, forKey: toneKey)
             UserDefaults.standard.set(newValue.echoCancellation, forKey: echoCancellationKey)
+            UserDefaults.standard.set(newValue.mode.rawValue, forKey: modeKey)
+            UserDefaults.standard.set(newValue.dictationKey.rawValue, forKey: dictationKeyKey)
 
             let (detType, ms, eagerness) = turnDetectionComponents(newValue.turnDetection)
             UserDefaults.standard.set(detType, forKey: turnDetectionTypeKey)
             if let ms { UserDefaults.standard.set(ms, forKey: turnDetectionMsKey) }
             if let eagerness { UserDefaults.standard.set(eagerness, forKey: turnDetectionEagernessKey) }
+
+            if previousDictationKey != newValue.dictationKey {
+                NotificationCenter.default.post(
+                    name: .companionDictationKeyDidChange, object: nil)
+            }
         }
     }
 
@@ -279,6 +303,18 @@ public enum InterfaceSound {
     }
 }
 
+/// Wave 16d: the words the ear should get right, as the user typed them.
+public enum VocabularyPreference {
+    nonisolated private static let key = "companion.vocabulary"
+
+    nonisolated public static var text: String {
+        get { UserDefaults.standard.string(forKey: key) ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+
+    nonisolated public static var words: [String] { Vocabulary.parse(text) }
+}
+
 /// Whether the thinking phase carries its background chord.
 public enum ThinkingSoundPref {
     nonisolated private static let key = "companion.thinkingSound"
@@ -286,6 +322,22 @@ public enum ThinkingSoundPref {
     nonisolated public static var enabled: Bool {
         get { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: key) }
+    }
+}
+
+/// DM1c-3 (wave-dm1-router.md §8): the "Decidir en local" Settings toggle.
+/// Off by default — a missing key must never turn the router on for someone
+/// who has never seen the switch. `StoredConfigProvider` ORs this with the
+/// `COMPANION_DECISION` env override, which stays the escape hatch for a
+/// headless run with no Settings pane to click.
+public enum DecisionPreference {
+    nonisolated private static let key = "companion.decision.enabled"
+    /// Swappable so a test writes into its own suite, never the user's.
+    nonisolated(unsafe) public static var store: UserDefaults = .standard
+
+    nonisolated public static var enabled: Bool {
+        get { store.object(forKey: key) as? Bool ?? false }
+        set { store.set(newValue, forKey: key) }
     }
 }
 

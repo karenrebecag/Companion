@@ -126,12 +126,15 @@ public struct HoverIconButton: View {
             }
             .foregroundStyle(
                 hovering ? Semantic.foreground : Semantic.mutedForeground)
-            .frame(width: IconSize.hero, height: IconSize.hero)
-            .contentShape(Rectangle())
-            .hoverChip(hovering: $hovering, icon: true)
+            // 16l: Incredible's small icon button, a 28 circle with a 2 % wash.
+            .frame(width: IconButtonSize.small.side, height: IconButtonSize.small.side)
+            .background(Circle().fill(hovering ? Semantic.hoverSubtle : Color.clear))
+            .contentShape(Circle())
+            .onHover { hovering = $0 }
+            .animation(MotionCurve.animation(MotionCurve.standard, MotionTime.fast), value: hovering)
             .accessibilityHidden(true)
         }
-        .buttonStyle(PressableStyle())
+        .buttonStyle(.plain)
         .help(help)
         .accessibilityLabel(help)
     }

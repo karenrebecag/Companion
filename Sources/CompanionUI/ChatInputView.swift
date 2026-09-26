@@ -53,7 +53,7 @@ public struct ChatInputView: View {
             RoundedRectangle(cornerRadius: Radius.lg)
                 .stroke(Semantic.border, lineWidth: Stroke.hairline)
         )
-        .animation(.easeOut(duration: MotionTime.base), value: focused)
+        .animation(.expoOut(MotionTime.base), value: focused)
     }
 
     private var empty: Bool {
@@ -76,7 +76,7 @@ public struct ChatInputView: View {
         .padding([.bottom, .trailing], Space.x2)
         .disabled(empty || voice.isActive)
         .opacity(empty ? 0.35 : 1)
-        .animation(.easeOut(duration: MotionTime.fast), value: empty)
+        .animation(.expoOut(MotionTime.fast), value: empty)
         .accessibilityLabel(Localized.string("composer.send"))
     }
 
