@@ -9,6 +9,7 @@ import Testing
     testPumpParsesEvents()
     testCloseFinishesStream()
     testReceiveThrowMarksClosed()
+    testUnexpectedDisconnectEmitsServerError()
     testConnectErrorMapping()
     testSendEdges()
     testReopenAndDefaultInit()
@@ -120,6 +121,36 @@ import Testing
         } catch {
             expect(false, "drop: VoiceTransportError, no \(error)")
         }
+    }
+}
+
+/// Code review finding (HIGH): `open()` cleared `closingExplicitly` then ran
+/// its own defensive `teardown`, which unconditionally set it back to true —
+/// so an unexpected mid-session drop could never be told apart from an
+/// explicit `close()`, and `.serverError` was dead code after every `open()`.
+@MainActor func testUnexpectedDisconnectEmitsServerError() {
+    let dropped = FakeSocket()
+    let transport = RealtimeWSTransport(connector: FakeConnector(dropped))
+    runOk("unexpected disconnect: serverError") {
+        let probe = EventProbe(transport.events())
+        try await transport.open(key: "sk", url: wsURL())
+        dropped.fail(URLError(.networkConnectionLost))
+        let got = await probe.finishedItems()
+        expect(
+            got.contains { if case .serverError = $0 { return true }; return false },
+            "unexpected disconnect: emite .serverError")
+    }
+
+    let closedCleanly = FakeSocket()
+    let politeTransport = RealtimeWSTransport(connector: FakeConnector(closedCleanly))
+    runOk("explicit close: no serverError") {
+        let probe = EventProbe(politeTransport.events())
+        try await politeTransport.open(key: "sk", url: wsURL())
+        await politeTransport.close()
+        let got = await probe.finishedItems()
+        expect(
+            !got.contains { if case .serverError = $0 { return true }; return false },
+            "explicit close: sin .serverError")
     }
 }
 

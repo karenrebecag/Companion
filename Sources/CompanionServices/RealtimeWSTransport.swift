@@ -39,8 +39,12 @@ public actor RealtimeWSTransport: VoiceTransport {
             }
         }
 
-        closingExplicitly = false
         await teardown(finishStream: false)
+        // teardown() always leaves the flag true (its own explicit-close
+        // path relies on that); re-clear it here so a later unexpected
+        // receive failure on THIS connection can still be told apart from
+        // an explicit close().
+        closingExplicitly = false
         if pipe.isFinished { pipe.reset() }
         let connected: any RealtimeSocketing
         do {
@@ -134,7 +138,7 @@ public struct URLSessionRealtimeConnector: RealtimeConnecting, Sendable {
         request.setValue(bearer, forHTTPHeaderField: "Authorization")
         let handshake = WebSocketHandshake()
         let session = URLSession(
-            configuration: .default, delegate: handshake, delegateQueue: nil)
+            configuration: NoStoreSession.configuration(), delegate: handshake, delegateQueue: nil)
         let task = session.webSocketTask(with: request)
         let socket = URLSessionRealtimeSocket(task: task, session: session)
         task.resume()
