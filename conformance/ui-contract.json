@@ -31,9 +31,23 @@
     "copy-literal": {
       "why": "copy fuera del catalogo: la UI nace monolingue otra vez. El grep de gates.sh solo ve la comilla pegada a Text(, asi que ?? y los ternarios se le escapan",
       "pattern": "Text\\([^)]*\\?\\??\\s*\"[^\"]{3,}\""
+    },
+    "session-kind-write": {
+      "why": "la UI pinta la proyeccion; solo SessionMachine la muta a traves de SessionModel. Una vista que escribe cualquier campo de la proyeccion (kind, encargo, cola, cards, razon, voz, aviso, hold, parcial, objetivos, pipeline, dictado) es la transicion local que el contrato del HUD prohibe (relay-hud-spec/00 G2; 12d cubre los once campos)",
+      "pattern": "projection\\.(kind|job|approvalQueue|cards|interruption|voice|notice|holding|partial|targets|pipeline|dictation)\\s*(\\+=|-=|=[^=]|\\[[^\\]]*\\]\\s*=[^=]|\\.(append|insert|remove|popLast|swapAt))"
+    },
+    "main-activation": {
+      "why": "un hold normal no exige abrir main (relay-hud-spec/00 §3 humano, 05 §10). La UI no activa la app ni trae ventanas al frente; eso lo decide CompanionMain (onShowMain). Cubre las formas viejas y modernas (activate(options:), makeKey(), orderFront(); revision 12d). orderFrontRegardless y orderOut en la island no roban el foco y no cuentan",
+      "pattern": "NSApp\\.activate|NSApplication\\.\\w+\\.activate|NSRunningApplication\\.\\w+\\.activate|makeKeyAndOrderFront|\\.makeKey\\(\\)|activate\\(ignoringOtherApps|activate\\(options:|\\.orderFront\\("
+    },
+    "soft-easing": {
+      "why": "spec 16f §9 (M3): una curva escrita en la vista no sigue la regla de entrada; easeIn/easeOut/easeInOut de SwiftUI arrancan lentos y snappy/bouncy rebotan. Toda curva sale de Motion.swift (expoOut, MotionSpring) o de IslandMotion",
+      "pattern": "\\.(easeIn|easeOut|easeInOut)\\(|\\.(snappy|bouncy|smooth)\\b|\\.osmo\\("
     }
   },
-  "exemptFiles": {},
+  "exemptFiles": {
+    "IslandMotion.swift": "archivo de tokens (spec 16f §9): aqui se declaran las duraciones, curvas y amplitudes de la isla, como MotionTime en Motion.swift; MotionBudgetTests las comprueba contra las reglas M1-M8"
+  },
   "baseline": {
     "ApprovalSheet.swift": {
       "frame-literal": 1,
@@ -62,9 +76,6 @@
     "MarkdownView.swift": {
       "frame-literal": 2
     },
-    "Orb.swift": {
-      "raw-duration": 1
-    },
     "Orb/OrbView.swift": {
       "space-arithmetic": 1
     },
@@ -74,12 +85,7 @@
     "Pressable.swift": {
       "role-opacity": 1
     },
-    "SettingsAppPane.swift": {
-      "role-opacity": 4
-    },
     "SettingsView.swift": {
-      "frame-literal": 2,
-      "role-opacity": 1,
       "space-arithmetic": 1
     },
     "Shimmer.swift": {

@@ -64,7 +64,63 @@ struct UIContract: Decodable {
     print("  ok    [conformance] \(clean) archivos dentro de contrato")
 }
 
+/// El libro de puertas del HUD (Wave 12d). No ejecuta nada: comprueba que
+/// cada puerta cita tests que existen y corren (`@Test` o invocados) y
+/// reglas que existen, para que el libro no pueda citar pruebas que ya se
+/// borraron o que nadie llama.
+@Test func hudGatesTests() throws {
+    guard let root = Conformance.repoRoot() else { return }
+    let ledger = try Conformance.gates(at: root)
+    let contract = try Conformance.contract(at: root)
+    let testSources = Conformance.swiftFiles(
+        in: root.appendingPathComponent("Tests/CompanionTests"))
+    let corpus = testSources.flatMap { Conformance.logicalLines(of: $0) }
+    expect(!ledger.gates.isEmpty, "puertas: el libro no está vacío")
+    for gate in ledger.gates {
+        expect(!gate.tests.isEmpty || !gate.rules.isEmpty,
+               "puertas: \(gate.id) no cita ni tests ni reglas")
+        for name in gate.tests {
+            expect(Conformance.testRuns(name, in: corpus),
+                   "puertas: \(gate.id) cita un test que no existe o no corre: \(name)")
+        }
+        for rule in gate.rules {
+            expect(contract.rules[rule] != nil,
+                   "puertas: \(gate.id) cita una regla que no existe: \(rule)")
+        }
+    }
+    print("  ok    [puertas] \(ledger.gates.count) puertas del HUD con pruebas")
+}
+
+extension HUDGates {
+    /// The gates the wave specs name (12d, 12e); the runner checks presence,
+    /// this list checks that none went missing.
+    static let expected = [
+        "hold-without-main", "overlay-listens-only", "four-kinds-only",
+        "voice-is-a-port-not-a-kind", "stop-is-idle-children-die",
+        "cards-are-not-the-conversation", "child-work-has-a-row",
+        "no-skill-body-in-hist", "missing-allow-list-denies", "one-host-per-sheet",
+        "dictation-never-logged",
+    ]
+}
+
+struct HUDGate: Decodable {
+    let id: String
+    let source: String
+    let claim: String
+    let tests: [String]
+    let rules: [String]
+}
+
+struct HUDGates: Decodable {
+    let gates: [HUDGate]
+}
+
 enum Conformance {
+    static func gates(at root: URL) throws -> HUDGates {
+        let url = root.appendingPathComponent("conformance/hud-gates.json")
+        return try JSONDecoder().decode(HUDGates.self, from: Data(contentsOf: url))
+    }
+
     /// El checkout, desde este archivo. Si alguien compila el paquete fuera del
     /// repo no hay fuentes que escanear y el test se salta en vez de mentir.
     static func repoRoot() -> URL? {
@@ -97,6 +153,10 @@ enum Conformance {
     /// `// token-exempt:`, que es la que ya usa el repo.
     static func logicalLines(of file: URL) -> [String] {
         guard let src = try? String(contentsOf: file, encoding: .utf8) else { return [] }
+        return logicalLines(of: src)
+    }
+
+    static func logicalLines(of src: String) -> [String] {
         var out: [String] = []
         var buffer = ""
         var depth = 0
@@ -115,6 +175,21 @@ enum Conformance {
         }
         if !buffer.isEmpty, !buffer.contains("token-exempt:") { out.append(buffer) }
         return out
+    }
+
+    /// A cited test counts only if it runs: Swift Testing discovers it
+    /// (`@Test` on its declaration) or some other line calls it. A name that
+    /// is merely declared, or that only a comment mentions, does not.
+    static func testRuns(_ name: String, in lines: [String]) -> Bool {
+        let declaration = "func \(name)("
+        guard let index = lines.firstIndex(where: { $0.contains(declaration) }) else { return false }
+        let attributed = lines[max(0, index - 1)...index].contains { $0.contains("@Test") }
+        if attributed { return true }
+        let escaped = NSRegularExpression.escapedPattern(for: name)
+        guard let call = try? NSRegularExpression(pattern: "(?<!func )\\b\(escaped)\\(") else { return false }
+        return lines.contains { line in
+            call.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
+        }
     }
 
     static func count(_ pattern: String, in units: [String]) -> Int {

@@ -53,7 +53,7 @@ done
 
 # Errores tragados: try? esta prohibido en Core y Services (la leccion mas
 # cara del proyecto original). En UI se tolera con warn.
-swallowed=$(grep -rn 'try?' "$SRC/CompanionCore" "$SRC/CompanionServices" 2>/dev/null || true)
+swallowed=$(grep -rnE '(^|[^[:alnum:]_])try\?' "$SRC/CompanionCore" "$SRC/CompanionServices" 2>/dev/null || true)
 if [ -n "$swallowed" ]; then
     fail "try? en Core/Services (manejar o propagar, nunca tragar):"
     echo "$swallowed"
@@ -61,9 +61,28 @@ else
     pass "sin try? en Core/Services"
 fi
 
+# Revision de seguridad 2026-09-25 (CRITICAL-1): la cache en disco de
+# URLSession guardaba keys y cuerpos con contexto de pantalla. Toda sesion
+# sale de NoStoreSession (ChatTransport.swift); cualquier otra se rechaza.
+cache_hits=$(grep -rnE 'URLSession\.shared|URLSessionConfiguration\.(default|ephemeral)|configuration: *\.(default|ephemeral)|URLCache\(' \
+        "$SRC" --include='*.swift' 2>/dev/null \
+    | grep -vE '/ChatTransport\.swift:|/LegacyURLCachePurge\.swift:' || true)
+# Una sesion propia (con delegate) vale solo si su configuracion es la comun;
+# se mira la linea del constructor y la siguiente.
+session_hits=$(grep -rnE -A1 'URLSession\((configuration:.*)?$|URLSession\(configuration:' \
+        "$SRC" --include='*.swift' 2>/dev/null \
+    | grep -E 'configuration:' | grep -v 'NoStoreSession' \
+    | grep -vE '/ChatTransport\.swift[-:]' || true)
+if [ -n "$cache_hits$session_hits" ]; then
+    fail "URLSession fuera de NoStoreSession (cachea keys y cuerpos en disco):"
+    printf '%s\n' "$cache_hits" "$session_hits" | grep -v '^$'
+else
+    pass "toda URLSession sale de NoStoreSession (sin cache en disco)"
+fi
+
 # TCC no muestra el prompt de microfono/voz sin usage descriptions: si se
 # pierden del bundle, la voz falla en runtime y ningun test lo ve.
-for key in NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription; do
+for key in NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSScreenCaptureUsageDescription; do
     if grep -q "$key" "$ROOT/scripts/bundle.sh" 2>/dev/null; then
         pass "bundle declara $key"
     else
@@ -118,6 +137,18 @@ print(f\"{len(b)} archivos, {sum(sum(v.values()) for v in b.values())} infraccio
     pass "reticula: ratchet en $debt (Gate 4 lo aplica)"
 else
     fail "falta conformance/ui-contract.json"
+fi
+
+# El libro de puertas del HUD (12d): cada puerta cita los tests que la
+# prueban; hudGatesTests (Gate 4) falla si cita uno que ya no existe.
+if [ -f "$ROOT/conformance/hud-gates.json" ]; then
+    gates=$(python3 -c "
+import json
+print(len(json.load(open('$ROOT/conformance/hud-gates.json'))['gates']))
+" 2>/dev/null || echo "?")
+    pass "libro de puertas del HUD: $gates puertas (Gate 4 lo aplica)"
+else
+    fail "falta conformance/hud-gates.json"
 fi
 
 # Copy que no pasa por el catalogo: la UI nace monolingue otra vez. Se mira
