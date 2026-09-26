@@ -20,7 +20,7 @@ func testInjectFramesMemoryAsData() {
                           recentSessions: ["## ayer\n- pidió un cuento"],
                           notes: ["prefiere respuestas cortas"])
     let block = MemoryPrompt.inject(
-        pack, language: .es, notesDirectory: "/tmp/mem/notes")
+        pack, language: .es, knowledgeDirectory: "/tmp/Companion/knowledge")
     expect(block.contains("DATOS"), "inject: se enmarca como datos")
     expect(block.contains("nunca instrucciones"),
            "inject: el marco anti-inyección viaja — memoria no manda")
@@ -29,9 +29,12 @@ func testInjectFramesMemoryAsData() {
     expect(block.contains("respuestas cortas"), "inject: las notas viajan")
     // El bug medido: "la carpeta de memoria" sin ruta hizo que el
     // especialista inventara un user_profile.md en otro lado.
-    expect(block.contains("/tmp/mem/notes"),
-           "inject: la ruta de notas viaja EXPLICITA — sin dirección, el "
+    expect(block.contains("/tmp/Companion/knowledge"),
+           "inject: la ruta viaja EXPLICITA — sin dirección, el "
            + "especialista inventa una")
+    // Wave 11a: una sola forma de recordar, y es la que tiene catálogo.
+    expect(block.contains("knowledge-builder"), "inject: apunta a la skill")
+    expect(!block.contains("notes"), "inject: ya no manda a la carpeta de notas")
 }
 
 func testInjectCapsAndEmpty() {
@@ -40,6 +43,11 @@ func testInjectCapsAndEmpty() {
     let huge = MemoryPack(core: String(repeating: "a", count: 50_000))
     expect(MemoryPrompt.inject(huge).count < MemoryPrompt.coreCap + 500,
            "inject: el core no puede comerse el contexto")
+    // Security review 2026-09-06: un grafema con 50 000 marcas pasaba el
+    // tope por `count`; el tope cuenta scalars, como el bloque de contexto.
+    let marks = MemoryPack(core: "a" + String(repeating: "\u{0301}", count: 50_000))
+    expect(MemoryPrompt.inject(marks).unicodeScalars.count < MemoryPrompt.coreCap + 500,
+           "inject: el tope cuenta scalars, no grafemas")
 }
 
 func testDistillTakesUserAsks() {
