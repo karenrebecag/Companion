@@ -14,8 +14,9 @@ import Testing
              "keychain: el servicio es Companion, no el bundle id")
     expectEq(SecretKey.openAI.rawValue, "OPENAI_API_KEY",
              "keychain: account OpenAI = OPENAI_API_KEY")
+    // 15e-2: the retired Groq key is found and purged by this exact name.
     expectEq(SecretKey.groq.rawValue, "GROQ_API_KEY",
-             "keychain: account Groq = GROQ_API_KEY")
+             "keychain: account Groq (retirada) = GROQ_API_KEY")
     expectEq(SecretKey.openRouter.rawValue, "OPENROUTER_API_KEY",
              "keychain: account OpenRouter = OPENROUTER_API_KEY")
 }
@@ -34,7 +35,7 @@ import Testing
     }
 
     do {
-        try KeychainSecretStore().write(.groq, value: "  \n\t  ")
+        try KeychainSecretStore().write(.cerebras, value: "  \n\t  ")
         expect(false, "keychain: solo espacios debía tirar emptyValue")
     } catch let error as SecretStoreError {
         expectEq(error, .emptyValue, "keychain: recortado vacío tira emptyValue")
@@ -58,7 +59,7 @@ import Testing
         try store.write(.openAI, value: "  sk-live  \n")
         expectEq(try store.read(.openAI), "sk-live",
                  "memory: escribe, recorta y lee")
-        expect(try store.read(.groq) == nil,
+        expect(try store.read(.cerebras) == nil,
                "memory: una clave no pisa la otra")
 
         try store.write(.openAI, value: "sk-nueva")
@@ -82,7 +83,7 @@ import Testing
     }
 
     do {
-        try store.write(.groq, value: "")
+        try store.write(.cerebras, value: "")
         expect(false, "memory: vacío debía tirar emptyValue")
     } catch let error as SecretStoreError {
         expectEq(error, .emptyValue, "memory: vacío tira emptyValue")

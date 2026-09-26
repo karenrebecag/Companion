@@ -10,11 +10,26 @@ public enum Log: Sendable {
 
     private static let sink = Sink()
 
+    /// Code review 2026-09-24 (medio): tests run in parallel and each one
+    /// that pointed the process-wide sink at its own file could lose its
+    /// lines to the next. A capture binds to the task tree instead.
+    @TaskLocal private static var capture: URL?
+
     public static func configure(fileURL: URL) {
         sink.lock.lock()
         sink.fileURL = fileURL
         sink.failed = false
         sink.lock.unlock()
+    }
+
+    /// Routes every line logged by `body` and the tasks it starts (not
+    /// detached ones) to `url`, leaving the process-wide sink untouched.
+    public static func capturing<R>(
+        to url: URL,
+        isolation: isolated (any Actor)? = #isolation,
+        _ body: () async throws -> R
+    ) async rethrows -> R {
+        try await $capture.withValue(url, operation: body, isolation: isolation)
     }
 
     public static func app(_ message: String) { write(tag: "app", message: message) }
@@ -24,19 +39,28 @@ public enum Log: Sendable {
     public static func audio(_ message: String) { write(tag: "audio", message: message) }
 
     private static func write(tag: String, message: String) {
+        let line = "\(timestamp()) [\(tag)] \(message)\n"
         sink.lock.lock()
         defer { sink.lock.unlock() }
+        if let captured = capture {
+            // A failed capture only loses its own test's lines; the test
+            // reading them is what reports it.
+            _ = append(line, to: captured)
+            return
+        }
         guard let url = sink.fileURL, !sink.failed else { return }
+        if !append(line, to: url) { sink.failed = true }
+    }
 
-        let line = "\(timestamp()) [\(tag)] \(message)\n"
+    /// Caller holds `sink.lock`. False when the line could not be written.
+    private static func append(_ line: String, to url: URL) -> Bool {
         let parent = url.deletingLastPathComponent()
         do {
             try FileManager.default.createDirectory(
                 at: parent, withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700])
         } catch {
-            sink.failed = true
-            return
+            return false
         }
 
         let data = Data(line.utf8)
@@ -49,15 +73,16 @@ public enum Log: Sendable {
                 }
                 _ = try handle.seekToEnd()
                 try handle.write(contentsOf: data)
+                return true
             } catch {
-                sink.failed = true
+                return false
             }
-        } else {
-            do {
-                try data.write(to: url, options: .atomic)
-            } catch {
-                sink.failed = true
-            }
+        }
+        do {
+            try data.write(to: url, options: .atomic)
+            return true
+        } catch {
+            return false
         }
     }
 
