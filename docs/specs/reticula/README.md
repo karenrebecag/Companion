@@ -1,6 +1,6 @@
 # Reticula — transformacion del sistema de OSMO
 
-**Estado: BORRADOR.** Programa hermano de `../ds/`, no continuacion.
+**Estado: BORRADOR. La escala (01) y el radio (06) quedan sustituidos por la wave 16k (valores de Incredible).** Programa hermano de `../ds/`, no continuacion.
 
 `ds/` porta el prototipo componente a componente. Este programa corrige los
 **fundamentos** — escala tipografica, tier de seccion, retitcula de columna —

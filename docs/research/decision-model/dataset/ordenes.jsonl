@@ -1,0 +1,171 @@
+{"id": "r001", "texto": "abre safari, puedes?", "idioma": "es", "accion": "open_app", "args": {"app": "Safari"}, "irreversible": false, "fuente": "real", "notas": ""}
+{"id": "r002", "texto": "cines cerca de Reforma", "idioma": "es", "accion": "find_places", "args": {"query": "cines cerca de Reforma"}, "irreversible": false, "fuente": "real", "notas": ""}
+{"id": "r003", "texto": "crea un archivo", "idioma": "es", "accion": "task", "args": {"goal": "crear un archivo"}, "irreversible": false, "fuente": "real", "notas": ""}
+{"id": "r004", "texto": "abre Safari", "idioma": "es", "accion": "open_app", "args": {"app": "Safari"}, "irreversible": false, "fuente": "real", "notas": ""}
+{"id": "s172", "texto": "abre el chrome", "idioma": "es", "accion": "open_app", "args": {"app": "Chrome"}, "irreversible": false, "fuente": "sintetica", "notas": "partial name reclasificada: no la dijo Karen"}
+{"id": "s173", "texto": "open notes app", "idioma": "en", "accion": "open_app", "args": {"app": "Notes"}, "irreversible": false, "fuente": "sintetica", "notas": "partial app name reclasificada: no la dijo Karen"}
+{"id": "s174", "texto": "switch to slack", "idioma": "en", "accion": "open_app", "args": {"app": "Slack"}, "irreversible": false, "fuente": "sintetica", "notas": "partial name reclasificada: no la dijo Karen"}
+{"id": "s175", "texto": "baja el volumen", "idioma": "es", "accion": "volume", "args": {"op": "down"}, "irreversible": false, "fuente": "sintetica", "notas": "reclasificada: no la dijo Karen"}
+{"id": "s176", "texto": "copia eso", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "copy"}, "irreversible": false, "fuente": "sintetica", "notas": "reclasificada: no la dijo Karen"}
+{"id": "s177", "texto": "mute the audio", "idioma": "en", "accion": "volume", "args": {"op": "mute"}, "irreversible": false, "fuente": "sintetica", "notas": "reclasificada: no la dijo Karen"}
+{"id": "s011", "texto": "ábreme el Safari", "idioma": "es", "accion": "open_app", "args": {"app": "Safari"}, "irreversible": false, "fuente": "sintetica", "notas": "Mexican Spanish variation"}
+{"id": "s012", "texto": "abre Finder", "idioma": "es", "accion": "open_app", "args": {"app": "Finder"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s013", "texto": "open mail", "idioma": "en", "accion": "open_app", "args": {"app": "Mail"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s014", "texto": "launch calendar app", "idioma": "en", "accion": "open_app", "args": {"app": "Calendar"}, "irreversible": false, "fuente": "sintetica", "notas": "partial name"}
+{"id": "s015", "texto": "abre Music", "idioma": "es", "accion": "open_app", "args": {"app": "Music"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s016", "texto": "open terminal", "idioma": "en", "accion": "open_app", "args": {"app": "Terminal"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s017", "texto": "launch cursor", "idioma": "en", "accion": "open_app", "args": {"app": "Cursor"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s018", "texto": "abre Xcode", "idioma": "es", "accion": "open_app", "args": {"app": "Xcode"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s019", "texto": "open system settings", "idioma": "en", "accion": "open_app", "args": {"app": "System Settings"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s020", "texto": "abre Messages", "idioma": "es", "accion": "open_app", "args": {"app": "Messages"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s021", "texto": "go to youtube", "idioma": "en", "accion": "open_url", "args": {"url": "https://www.youtube.com"}, "irreversible": false, "fuente": "sintetica", "notas": "generic URL"}
+{"id": "s022", "texto": "abre google", "idioma": "es", "accion": "open_url", "args": {"url": "https://www.google.com"}, "irreversible": false, "fuente": "sintetica", "notas": "generic URL"}
+{"id": "s023", "texto": "open github", "idioma": "en", "accion": "open_url", "args": {"url": "https://www.github.com"}, "irreversible": false, "fuente": "sintetica", "notas": "generic URL"}
+{"id": "s024", "texto": "ve a wikipedia", "idioma": "es", "accion": "open_url", "args": {"url": "https://www.wikipedia.org"}, "irreversible": false, "fuente": "sintetica", "notas": "generic URL"}
+{"id": "s025", "texto": "open stackoverflow", "idioma": "en", "accion": "open_url", "args": {"url": "https://www.stackoverflow.com"}, "irreversible": false, "fuente": "sintetica", "notas": "generic URL"}
+{"id": "s026", "texto": "abre amazon", "idioma": "es", "accion": "open_url", "args": {"url": "https://www.amazon.com"}, "irreversible": false, "fuente": "sintetica", "notas": "generic URL"}
+{"id": "s027", "texto": "go to twitter", "idioma": "en", "accion": "open_url", "args": {"url": "https://www.twitter.com"}, "irreversible": false, "fuente": "sintetica", "notas": "generic URL"}
+{"id": "s028", "texto": "abre github en español", "idioma": "es", "accion": "open_url", "args": {"url": "https://www.github.com"}, "irreversible": false, "fuente": "sintetica", "notas": "generic URL"}
+{"id": "s029", "texto": "abre el archivo de notas", "idioma": "es", "accion": "open_file", "args": {"path": "~/Documents/notas.txt"}, "irreversible": false, "fuente": "sintetica", "notas": "generic file path"}
+{"id": "s030", "texto": "open my budget document", "idioma": "en", "accion": "open_file", "args": {"path": "~/Documents/presupuesto.pdf"}, "irreversible": false, "fuente": "sintetica", "notas": "generic file path"}
+{"id": "s031", "texto": "abre las fotos", "idioma": "es", "accion": "open_file", "args": {"path": "~/Pictures/photos.jpg"}, "irreversible": false, "fuente": "sintetica", "notas": "generic file path"}
+{"id": "s032", "texto": "open config file", "idioma": "en", "accion": "open_file", "args": {"path": "~/Documents/config.txt"}, "irreversible": false, "fuente": "sintetica", "notas": "generic file path"}
+{"id": "s033", "texto": "abre el video", "idioma": "es", "accion": "open_file", "args": {"path": "~/Documents/video.mp4"}, "irreversible": false, "fuente": "sintetica", "notas": "generic file path"}
+{"id": "s034", "texto": "open the spreadsheet", "idioma": "en", "accion": "open_file", "args": {"path": "~/Documents/datos.xlsx"}, "irreversible": false, "fuente": "sintetica", "notas": "generic file path"}
+{"id": "s035", "texto": "abre mi presentacion", "idioma": "es", "accion": "open_file", "args": {"path": "~/Documents/presentation.pptx"}, "irreversible": false, "fuente": "sintetica", "notas": "generic file path"}
+{"id": "s036", "texto": "open resume file", "idioma": "en", "accion": "open_file", "args": {"path": "~/Documents/resume.pdf"}, "irreversible": false, "fuente": "sintetica", "notas": "generic file path"}
+{"id": "s037", "texto": "list all apps", "idioma": "en", "accion": "list_apps", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s038", "texto": "muestra las apps disponibles", "idioma": "es", "accion": "list_apps", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s039", "texto": "what apps do i have", "idioma": "en", "accion": "list_apps", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s040", "texto": "dame las aplicaciones", "idioma": "es", "accion": "list_apps", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s041", "texto": "show installed apps", "idioma": "en", "accion": "list_apps", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s042", "texto": "cuales son mis apps", "idioma": "es", "accion": "list_apps", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s043", "texto": "read the ai skill", "idioma": "en", "accion": "read_skill", "args": {"name": "ai"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s044", "texto": "lee la habilidad de integracion", "idioma": "es", "accion": "read_skill", "args": {"name": "integration"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s045", "texto": "show me the cloud skill", "idioma": "en", "accion": "read_skill", "args": {"name": "cloud"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s046", "texto": "abre la habilidad de busqueda", "idioma": "es", "accion": "read_skill", "args": {"name": "search"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s047", "texto": "read calendar skill", "idioma": "en", "accion": "read_skill", "args": {"name": "calendar"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s048", "texto": "lee mis habilidades de codigo", "idioma": "es", "accion": "read_skill", "args": {"name": "code"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s049", "texto": "find restaurants near me", "idioma": "en", "accion": "find_places", "args": {"query": "restaurants near me"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s050", "texto": "busca cafes en el centro", "idioma": "es", "accion": "find_places", "args": {"query": "cafes en el centro"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s051", "texto": "where are hotels downtown", "idioma": "en", "accion": "find_places", "args": {"query": "hotels downtown"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s052", "texto": "halla museos cercanos", "idioma": "es", "accion": "find_places", "args": {"query": "museos cercanos"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s053", "texto": "find grocery stores", "idioma": "en", "accion": "find_places", "args": {"query": "grocery stores"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s054", "texto": "busca parques en la ciudad", "idioma": "es", "accion": "find_places", "args": {"query": "parques en la ciudad"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s055", "texto": "turn up the volume", "idioma": "en", "accion": "volume", "args": {"op": "up"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s056", "texto": "sube el sonido", "idioma": "es", "accion": "volume", "args": {"op": "up"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s057", "texto": "lower the sound", "idioma": "en", "accion": "volume", "args": {"op": "down"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s058", "texto": "baja el audio", "idioma": "es", "accion": "volume", "args": {"op": "down"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s059", "texto": "unmute it", "idioma": "en", "accion": "volume", "args": {"op": "unmute"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s060", "texto": "activa el sonido", "idioma": "es", "accion": "volume", "args": {"op": "unmute"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s061", "texto": "make it louder", "idioma": "en", "accion": "volume", "args": {"op": "up"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s062", "texto": "pon volumen maximo", "idioma": "es", "accion": "volume", "args": {"op": "max"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s063", "texto": "maximize volume", "idioma": "en", "accion": "volume", "args": {"op": "max"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s064", "texto": "silencia todo", "idioma": "es", "accion": "volume", "args": {"op": "mute"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s065", "texto": "quietale volumen", "idioma": "es", "accion": "volume", "args": {"op": "down"}, "irreversible": false, "fuente": "sintetica", "notas": "Mexican Spanish"}
+{"id": "s066", "texto": "press enter", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "enter"}, "irreversible": true, "fuente": "sintetica", "notas": ""}
+{"id": "s067", "texto": "presiona enter", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "enter"}, "irreversible": true, "fuente": "sintetica", "notas": ""}
+{"id": "s068", "texto": "escape from this", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "escape"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s069", "texto": "sal de aqui", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "escape"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s070", "texto": "paste the text", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "paste"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s071", "texto": "pega el texto", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "paste"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s072", "texto": "undo that", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "undo"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s073", "texto": "deshaz eso", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "undo"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s074", "texto": "redo it", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "redo"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s075", "texto": "rehaz lo anterior", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "redo"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s076", "texto": "select everything", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "select_all"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s077", "texto": "selecciona todo", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "select_all"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s078", "texto": "save the file", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "save"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s079", "texto": "guarda esto", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "save"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s080", "texto": "find in page", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "find"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s081", "texto": "busca en la pagina", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "find"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s082", "texto": "open a new tab", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "new_tab"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s083", "texto": "abre una pestana nueva", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "new_tab"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s084", "texto": "close this tab", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "close_tab_or_window"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s085", "texto": "cierra esta pestana", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "close_tab_or_window"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s086", "texto": "reopen closed tab", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "reopen_closed_tab"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s087", "texto": "reabre la pestana cerrada", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "reopen_closed_tab"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s088", "texto": "exit the application", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "quit_app"}, "irreversible": true, "fuente": "sintetica", "notas": "irreversible"}
+{"id": "s089", "texto": "cierra la aplicacion", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "quit_app"}, "irreversible": true, "fuente": "sintetica", "notas": "irreversible"}
+{"id": "s090", "texto": "refresh the page", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "reload"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s091", "texto": "recarga la pagina", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "reload"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s092", "texto": "go back", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "browser_back"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s093", "texto": "regresa", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "browser_back"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s094", "texto": "next tab", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "next_tab"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s095", "texto": "siguiente pestana", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "next_tab"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s096", "texto": "previous tab", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "previous_tab"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s097", "texto": "pestana anterior", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "previous_tab"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s098", "texto": "fullscreen mode", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "fullscreen"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s099", "texto": "pantalla completa", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "fullscreen"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s100", "texto": "zoom in", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "zoom_in"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s101", "texto": "ampliar la vista", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "zoom_in"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s102", "texto": "zoom out", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "zoom_out"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s103", "texto": "reduce la vista", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "zoom_out"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s104", "texto": "send this message", "idioma": "en", "accion": "shortcut", "args": {"shortcut": "send_message"}, "irreversible": true, "fuente": "sintetica", "notas": "irreversible"}
+{"id": "s105", "texto": "envia el mensaje", "idioma": "es", "accion": "shortcut", "args": {"shortcut": "send_message"}, "irreversible": true, "fuente": "sintetica", "notas": "irreversible"}
+{"id": "s106", "texto": "scroll up", "idioma": "en", "accion": "scroll", "args": {"direction": "up", "amount": "line"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s107", "texto": "sube en la pagina", "idioma": "es", "accion": "scroll", "args": {"direction": "up", "amount": "line"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s108", "texto": "scroll down", "idioma": "en", "accion": "scroll", "args": {"direction": "down", "amount": "line"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s109", "texto": "baja en la pagina", "idioma": "es", "accion": "scroll", "args": {"direction": "down", "amount": "line"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s110", "texto": "scroll up a page", "idioma": "en", "accion": "scroll", "args": {"direction": "up", "amount": "page"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s111", "texto": "sube una pagina", "idioma": "es", "accion": "scroll", "args": {"direction": "up", "amount": "page"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s112", "texto": "scroll down a lot", "idioma": "en", "accion": "scroll", "args": {"direction": "down", "amount": "lots"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s113", "texto": "baja mucho", "idioma": "es", "accion": "scroll", "args": {"direction": "down", "amount": "lots"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s114", "texto": "go to the top", "idioma": "en", "accion": "scroll", "args": {"direction": "top", "amount": "page"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s115", "texto": "ve al principio", "idioma": "es", "accion": "scroll", "args": {"direction": "top", "amount": "page"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s116", "texto": "go to the bottom", "idioma": "en", "accion": "scroll", "args": {"direction": "bottom", "amount": "page"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s117", "texto": "ve al final", "idioma": "es", "accion": "scroll", "args": {"direction": "bottom", "amount": "page"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s118", "texto": "play the music", "idioma": "en", "accion": "media", "args": {"op": "play"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s119", "texto": "comienza la musica", "idioma": "es", "accion": "media", "args": {"op": "play"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s120", "texto": "pause playback", "idioma": "en", "accion": "media", "args": {"op": "pause"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s121", "texto": "pausa la reproduccion", "idioma": "es", "accion": "media", "args": {"op": "pause"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s122", "texto": "next track", "idioma": "en", "accion": "media", "args": {"op": "next"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s123", "texto": "siguiente cancion", "idioma": "es", "accion": "media", "args": {"op": "next"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s124", "texto": "previous song", "idioma": "en", "accion": "media", "args": {"op": "previous"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s125", "texto": "cancion anterior", "idioma": "es", "accion": "media", "args": {"op": "previous"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s126", "texto": "play my music", "idioma": "en", "accion": "media", "args": {"op": "play"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s127", "texto": "toca mi musica", "idioma": "es", "accion": "media", "args": {"op": "play"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s128", "texto": "lock the screen", "idioma": "en", "accion": "system", "args": {"op": "lock"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s129", "texto": "bloquea la pantalla", "idioma": "es", "accion": "system", "args": {"op": "lock"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s130", "texto": "sleep the display", "idioma": "en", "accion": "system", "args": {"op": "sleep_display"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s131", "texto": "apaga la pantalla", "idioma": "es", "accion": "system", "args": {"op": "sleep_display"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s132", "texto": "show desktop", "idioma": "en", "accion": "system", "args": {"op": "show_desktop"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s133", "texto": "muestra el escritorio", "idioma": "es", "accion": "system", "args": {"op": "show_desktop"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s134", "texto": "toggle dark mode", "idioma": "en", "accion": "system", "args": {"op": "toggle_dark_mode"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s135", "texto": "modo oscuro", "idioma": "es", "accion": "system", "args": {"op": "toggle_dark_mode"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s136", "texto": "empty the trash", "idioma": "en", "accion": "system", "args": {"op": "empty_trash"}, "irreversible": true, "fuente": "sintetica", "notas": "irreversible"}
+{"id": "s137", "texto": "vacia la papelera", "idioma": "es", "accion": "system", "args": {"op": "empty_trash"}, "irreversible": true, "fuente": "sintetica", "notas": "irreversible"}
+{"id": "s138", "texto": "take a screenshot", "idioma": "en", "accion": "system", "args": {"op": "screenshot"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s139", "texto": "toma una captura", "idioma": "es", "accion": "system", "args": {"op": "screenshot"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s140", "texto": "type hello world", "idioma": "en", "accion": "type_text", "args": {"text": "hello world", "submit": false}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s141", "texto": "escribe hola mundo", "idioma": "es", "accion": "type_text", "args": {"text": "hola mundo", "submit": false}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s142", "texto": "type thank you", "idioma": "en", "accion": "type_text", "args": {"text": "thank you", "submit": false}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s143", "texto": "escribe gracias", "idioma": "es", "accion": "type_text", "args": {"text": "gracias", "submit": false}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s144", "texto": "type buy milk and send", "idioma": "en", "accion": "type_text", "args": {"text": "buy milk", "submit": true}, "irreversible": true, "fuente": "sintetica", "notas": "irreversible"}
+{"id": "s145", "texto": "escribe compra leche y envia", "idioma": "es", "accion": "type_text", "args": {"text": "compra leche", "submit": true}, "irreversible": true, "fuente": "sintetica", "notas": "irreversible"}
+{"id": "s146", "texto": "type see you tomorrow", "idioma": "en", "accion": "type_text", "args": {"text": "see you tomorrow", "submit": false}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s147", "texto": "escribe hasta manana", "idioma": "es", "accion": "type_text", "args": {"text": "gracias, nos vemos mañana", "submit": false}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s148", "texto": "type response and submit", "idioma": "en", "accion": "type_text", "args": {"text": "yes, sounds good", "submit": true}, "irreversible": true, "fuente": "sintetica", "notas": "irreversible"}
+{"id": "s149", "texto": "type question", "idioma": "en", "accion": "type_text", "args": {"text": "what time is it?", "submit": false}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s150", "texto": "escribe comentario", "idioma": "es", "accion": "type_text", "args": {"text": "muy bueno", "submit": false}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s151", "texto": "open and edit the document", "idioma": "en", "accion": "task", "args": {"goal": "abrir y editar el documento"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s152", "texto": "crea un nuevo proyecto", "idioma": "es", "accion": "task", "args": {"goal": "crear un nuevo proyecto"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s153", "texto": "open notes and write buy milk", "idioma": "en", "accion": "task", "args": {"goal": "open notes and write buy milk"}, "irreversible": false, "fuente": "sintetica", "notas": "compound task"}
+{"id": "s154", "texto": "envia un email", "idioma": "es", "accion": "task", "args": {"goal": "enviar un correo"}, "irreversible": true, "fuente": "sintetica", "notas": "task that could be irreversible"}
+{"id": "s155", "texto": "schedule a meeting", "idioma": "en", "accion": "task", "args": {"goal": "schedule a meeting"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s156", "texto": "guarda una copia de seguridad", "idioma": "es", "accion": "task", "args": {"goal": "guardar una copia de seguridad"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s157", "texto": "backup my files", "idioma": "en", "accion": "task", "args": {"goal": "backup my files"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s158", "texto": "importa estos datos", "idioma": "es", "accion": "task", "args": {"goal": "importar estos datos"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s159", "texto": "export report", "idioma": "en", "accion": "task", "args": {"goal": "export report"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s160", "texto": "organiza los archivos", "idioma": "es", "accion": "task", "args": {"goal": "organizar los archivos"}, "irreversible": false, "fuente": "sintetica", "notas": ""}
+{"id": "s161", "texto": "no abras nada", "idioma": "es", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "negation"}
+{"id": "s162", "texto": "do not open anything", "idioma": "en", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "negation"}
+{"id": "s163", "texto": "no, asi dejalo", "idioma": "es", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "negation"}
+{"id": "s164", "texto": "stop that", "idioma": "en", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "negation"}
+{"id": "s165", "texto": "nunca lo hagas", "idioma": "es", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "negation"}
+{"id": "s166", "texto": "cancel this", "idioma": "en", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "negation"}
+{"id": "s167", "texto": "que hora es la cena", "idioma": "es", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "ambient chatter"}
+{"id": "s168", "texto": "what time is dinner", "idioma": "en", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "ambient chatter"}
+{"id": "s169", "texto": "hmm let me think", "idioma": "en", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "ambient chatter"}
+{"id": "s170", "texto": "dejame pensar un momento", "idioma": "es", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "ambient chatter"}
+{"id": "s171", "texto": "i need to check", "idioma": "en", "accion": "none", "args": {}, "irreversible": false, "fuente": "sintetica", "notas": "ambient chatter"}

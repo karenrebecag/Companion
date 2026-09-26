@@ -5,7 +5,293 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+### Fixed
+- **Tu voz se ve en la isla mientras hablas (2026-09-25).** En el modo clásico la isla leía el oído
+  de OpenAI, que ahí no recibe audio; ahora lee el oído que escucha.
+- **Las respuestas se leen con formato (2026-09-25).** Negrita, cursiva y enlaces en párrafos y
+  viñetas en vez de asteriscos; solo los enlaces web se abren.
+
 ### Added
+- **Página Apps (Wave 16k-1, 2026-09-25).** Personalizar › Apps como en Incredible: buscador,
+  destacadas con el total, rejilla de dos columnas y "Mostrar más". "+ Conectar" abre la conexión
+  de Pipedream en el navegador. La primera vez pide la dirección y la clave de tu función
+  `companion-apps`; la clave queda en el llavero y nunca sigue una redirección a otro sitio.
+- **La ventana como la de Incredible (Wave 16j-1/2, 2026-09-25).** Barra lateral, Inicio con la
+  tarjeta "Mantén fn", primeros pasos y las tareas por día; cada tarea abre su conversación y
+  "Seguir" la pasa a la isla con la etiqueta TAREA. Sin chat en la ventana ni líneas internas. La ventana es horizontal 16:10 (1120×700) como la de
+  Incredible, en vez de la columna 2:3 del chat.
+- **La isla más útil, primera parte (Wave 16i-1, 2026-09-25).** El panel ya no se ve abierto y
+  vacío: el contenido entra con el panel y se va con él. Al pasar el ratón la muesca se asoma con
+  rebote y sombra como NotchNook, y solo abre si el puntero se queda 150 ms. El menú "…" y el nuevo
+  volumen de la voz son popovers propios, oscuros, que crecen desde su botón; tooltips en hablar,
+  enviar y volumen. Mientras habla, el orb es el botón rojo de parar, y al parar sale "Cancelado".
+  "No te oí" y los avisos con salida son tarjetas con icono, anillo de cuenta atrás y botón.
+- **Movimiento suave en toda la app (Wave 16f-2, 2026-09-25).** Ocho reglas de smooth motion
+  (spec 16f §9) con test: una sola curva de entrada, resortes casi sin rebote, cerrar más rápido
+  que abrir, desenfoques y desplazamientos chicos, escalonado de 40 ms y reducir movimiento como
+  fundido corto. En la isla, la línea de estado cambia con un deslizamiento suave, las palabras se
+  aclaran una a una, las tarjetas entran escalonadas, la luz de "hecho" aparece con un rebote leve y
+  la hoja de aprobación sube. Ninguna vista puede escribir su propia curva.
+- **La isla nace del notch (Wave 16f, 2026-09-25).** En reposo es la muesca; al pasar el ratón se
+  estira en dos tiempos (píldora y panel) con los resortes medidos en la grabación de Incredible, y
+  el contenido entra después con fundido y desenfoque; al cerrar, al revés. La ventana ya no se
+  mueve: crece la forma. Los clics pasan a la app de atrás fuera de la forma. La respuesta se lee en
+  grande y sus palabras se aclaran al ritmo de la voz; tres huecos de tareas arriba a la derecha.
+- **Ajustes con la forma de Incredible (Wave 16g, 2026-09-25).** Hoja con barra lateral y buscador
+  (sin acentos, es/en, salta a la fila y la ilumina); siete páginas: General, Voz, Vocabulario,
+  Memoria, Tú, Privacidad, Sistema; tarjetas blancas de filas con el control al final. Vocabulario
+  como lista con ejemplo y "Añadir palabra". Memoria nueva: ves lo que Companion guardó y olvidas lo
+  que quieras. Sistema con zona de peligro. Siguen 14 opciones. Seguridad: la memoria ya no lee
+  enlaces simbólicos (ni archivos ni carpetas), que podían meter cualquier archivo tuyo en el prompt.
+- **UX como Incredible (Wave 16c–16e, 2026-09-25).** La isla es la app: al pasar el ratón,
+  campo "Pídele algo a Companion…", adjuntar, enviar, menú de 5 y tus últimas respuestas como
+  tarjetas; luz ámbar cuando te necesita y verde al terminar; al escuchar solo barras y lo que va
+  oyendo; "no te oí" se va a los 6 s; los errores traen su salida. Bienvenida de 7 pantallas con
+  los 4 permisos en una, medidor de micro y un hold real al final. Ajustes en 3 pestañas con 14
+  opciones y sin jerga; palabras que el oído debe entender bien; menús en tu idioma; icono en la
+  barra de menús. Geist como tipografía. Permitir en una hoja ya no responde a Return.
+- **Vista y click como Incredible (Wave 16a, 2026-09-25).** `look` lee la ventana de delante como
+  una lista numerada de sus controles y texto; `click` pulsa por número (acción del elemento, foco
+  o click de ratón enviado a esa app, sin mover tu puntero); `scroll`, `menu` ("Archivo > Exportar
+  como PDF…") y `see` (captura descrita, solo cuando se pregunta por algo visual). Las apps Electron
+  y Chromium se preparan al pasar al frente para que muestren su contenido. Pulsar "Permitir" o
+  "Aceptar" va directo; borrar, pagar, suscribir, enviar o publicar piden confirmación salvo que lo
+  pidieras con esa palabra; un icono sin nombre o el "Sí" de un diálogo de borrar también la piden.
+  La visión ya no corre en cada turno (ahorra 3,3–3,7 s). El asistente puede encadenar hasta 8
+  acciones por turno.
+- **El especialista ya no pide permisos (Wave 16b).** Claude Code corre en modo `auto` con una lista
+  de prohibidos (sudo, git push, borrar el disco o tu carpeta, curl/wget a una shell, AppleScript);
+  lo que aún pregunte se niega solo, sin hoja.
+- **Manos sobre la pantalla (Wave 15g, 2026-09-25).** El asistente escribe,
+  pulsa una tecla, trae una ventana al frente y lee el campo enfocado de la
+  app que tenías delante (`type_text`, `press_key`, `focus_window`,
+  `read_focused`), por Accesibilidad y sin subagente ni AppleScript. Se
+  ofrecen solo con Accesibilidad concedida y nunca con Companion delante.
+  Lo que escribe o envía se ata a lo que dijiste: en terminales y apps de
+  agentes, Return siempre pide confirmación y solo se escribe sin preguntar
+  una línea que dijiste; en el resto, Return va directo si pediste enviar y
+  una dirección que no dijiste pide confirmación. Actúa sobre la app que
+  tenías delante al hablar (salvo que en el turno pidas abrir otra). El
+  prompt dice actuar en vez de instruir, y la visión ya no bloquea cada
+  turno: si llega tarde viaja al siguiente, solo en la misma app y 30 s.
+- **Boca sin huecos, con voz de verdad, y sin leer JSON (Wave 15f, 2026-09-25).**
+  ElevenLabs (Flash v2.5, voz Ana María, elegida a ciegas entre 6 candidatas)
+  como boca del hold cuando hay clave: primer byte en 180–210 ms frente a
+  500–700 de OpenAI; OpenAI (alloy, `speed 1.1`, `instructions`) de respaldo,
+  con cortacircuito de 60 s si ElevenLabs falla y pausa hasta clave nueva en
+  401. La frase N+1 se pide mientras suena la N (una en vuelo por delante).
+  Un `{"goal":…}` escrito como texto por el modelo ya no se pronuncia: si es
+  eco de la pantalla o del portapapeles se descarta; si no, se propone
+  ("¿Lo delego?") y solo corre con tu sí. Una frase de razonamiento en otro
+  idioma se descarta; las citas, errores y traducciones se respetan. El
+  encargo al especialista se anuncia con una frase fija y un resumen de dos
+  frases, nunca con el prompt literal. Ajustes: fila ElevenLabs en Claves y
+  selector de voz con 6 presets, id libre y muestra. Timeline: `firstCut→
+  ttsRequest`, `ttsRequest→firstByte`, `firstByte→audible`. Cerebro: se
+  queda Cerebras gpt-oss-120b (banco: 299 ms TTFT, cero fugas con frases
+  sueltas). Medido en vivo: soltar→audio 1,0–1,2 s en turnos sin tool.
+
+### Security
+- **Campos de contraseña de verdad detectados (15g).** El dictado (12e), la
+  lectura de pantalla y las manos comparaban el rol con `AXSecureTextField`,
+  que es un subrol: un `NSSecureTextField` real nunca se reconocía. Ahora se
+  miran rol y subrol en un solo sitio.
+- **El portapapeles de un gestor de contraseñas no entra al contexto (15g).**
+  Contenido marcado `org.nspasteboard.ConcealedType` o `TransientType` se salta.
+- **La red ya no deja claves en disco (15f).** `URLSession` guardaba en
+  `~/Library/Caches/<bundle>/Cache.db` las peticiones a OpenAI, Cerebras, Groq
+  y ElevenLabs con sus cabeceras de autorización y cuerpos (conversación,
+  texto de pantalla y portapapeles). Todos los caminos de red usan ahora una
+  sesión sin cache ni cookies; el cache viejo se purga al arrancar y un gate
+  estático impide que vuelva. Hay que rotar las claves que estuvieron ahí.
+- El log de depuración de transcripts redacta también claves `sk_`; el id de
+  voz de ElevenLabs se valida antes de tocar la red o el Keychain.
+
+### Added
+- **Oye la frase entera y sin Groq (Waves 15d y 15e, 2026-09-24).** El
+  micrófono abre al bajar FN (antes esperaba 250 ms de umbral + 200 ms de
+  arranque: media frase perdida) y deja una cola de 300 ms al soltar; un
+  tap descarta el audio en memoria sin que nada salga de la máquina. El
+  oído es `SpeechAnalyzer` de Apple en el dispositivo (final a 23–39 ms
+  tras la cola; spike: 54 ms p50 frente a 430 ms de WhisperKit y 500–750 ms
+  de Groq), con tu nombre y tus apps como vocabulario. Groq desaparece:
+  ni oído, ni cerebro, ni fila en Ajustes; una clave guardada antes se
+  purga sola del Keychain. Cerebro del hold: Cerebras gpt-oss-120b, y si
+  falla OpenAI gpt-4o-mini. Un hold sin voz vuelve a reposo con el
+  micrófono apagado. Instrucción de idioma delante del transcript, prompt
+  de voz al estilo "router con voz" (dos frases, sin markdown), primer
+  corte de la boca a la coma / 40 caracteres / 400 ms. Modo depuración
+  opt-in `COMPANION_DEBUG_TRANSCRIPTS=1`: `heard=`/`said=` en
+  `~/Library/Logs/Companion-transcripts.log` (0600, claves redactadas,
+  borrado al arrancar sin la variable) con aviso en la barra de estado y
+  la island. Plataforma mínima: macOS 26. Medido en vivo (22 holds):
+  `release→earFinal` p50 360 ms; `release→audio` p50 1,65 s — el tramo que
+  queda es la boca (TTS 730 ms p50), siguiente wave.
+
+### Added
+- **Dicta en el campo donde está tu cursor (Wave 12e).** La misma tecla,
+  otro destino: con un campo de texto de otra app enfocado (Slack, Notas,
+  Safari), mantener FN y soltar pega ahí lo que dijiste; la island dice
+  "Dictando en Slack" con el parcial y luego "Pegado en Slack"; nada
+  viaja a la conversación ni al log (solo cuántos caracteres y dónde).
+  Sin campo, con una contraseña, con Companion delante o sin el permiso
+  de Accesibilidad, el hold habla con Companion como siempre. Ajustes ›
+  App › HABLAR gana "Al mantener FN": Automático (por defecto), Hablar
+  con Companion, Dictar; cuando puede dictar y falta Accesibilidad, la
+  fila del permiso aparece ahí mismo. El texto entra por Accesibilidad
+  (texto seleccionado del elemento enfocado) y, si la app lo ignora, por
+  el portapapeles con un Cmd+V, devolviendo después lo que había en el
+  portapapeles, de todos los tipos y solo si nadie más lo tocó mientras
+  tanto. Nunca en un campo seguro, nunca en una app distinta de la que
+  estaba delante al pulsar. Preguntar por el campo no retrasa el
+  micrófono: va en su propia tarea, con tope de 0,25 s por llamada.
+- **La island ya no enseña una tecla muerta (12e).** Sin el permiso de
+  Monitoreo de entrada, pasar el ratón dice "FN está apagada. Clic para
+  permitirla" en vez de "Mantén FN para hablar"; el clic abre la ventana.
+- **El oído deja de escribir lo que oye en el log (12e).** Las líneas
+  `ear: hearing` y `ear: segment` cuentan caracteres, nunca palabras.
+  Cierra la deuda abierta por la revisión de seguridad de 12b.
+- **Mantén FN y habla (Wave 12b).** El micrófono ya no es un toggle dentro
+  de la ventana: con Companion detrás, mantener FN abre la sesión y el
+  micro, soltar envía lo que el oído nativo oyó (ForceEndpoint), un tap
+  enseña el hold, mantener mientras Companion habla la calla. La tecla se
+  oye con un event tap listen-only sobre `flagsChanged` (solo FN, nunca
+  lo que escribes) que exige el permiso de Monitoreo de entrada, con su
+  fila en Ajustes › App › HABLAR. La **island**: un `NSPanel` que no se
+  activa, encima de todas las apps y en todos los Spaces, bajo la banda
+  del notch: pebble en reposo (ocultable), nudge con "Mantén FN para
+  hablar" al pasar el ratón, medidor en Listening, fase en Processing,
+  fila del encargo con Stop, y la hoja de permiso hospedada ahí mismo.
+  Cerrar la ventana principal ya no cierra la app; el Dock y el pebble la
+  traen de vuelta. `Cmd+Opt+Space` sigue como manos libres.
+- **Los contratos del HUD, ejecutables (Wave 12d).** Nada cambia en
+  pantalla. Las puertas del auditor de la spec de producto (hold sin abrir
+  main, la island solo escucha, cuatro kinds, Stop es Idle y los hijos
+  mueren, las cards no son la conversación, el encargo tiene fila, sin
+  cuerpo de skill en el historial, sin actor de permisos se deniega, una
+  hoja tiene un solo anfitrión) viven en `conformance/hud-gates.json`: cada
+  puerta cita los tests que la prueban y `hudGatesTests` falla si cita uno
+  que ya no existe o que nadie llama, o si el libro pierde una puerta. La
+  regla `session-kind-write` cubre los once campos de la proyección (y
+  `+=`, subíndice, `insert`) y la nueva `main-activation` impide que la
+  UI active la app por cualquiera de sus formas (`activate(options:)`,
+  `makeKey()`, `orderFront(` incluidas). La denegación del padre es un
+  `ContractError` (`denied_by_user`) con el mismo texto de siempre para
+  el modelo, fijado como string literal en las pruebas.
+- **Ver lo que oye (Wave 12c).** Mientras mantienes FN la island muestra
+  el texto que el oído va reconociendo, y lo conserva en "Enviando…"
+  hasta que Companion empieza a pensar. El oído arranca al pulsar, en
+  paralelo con el socket: la primera palabra de un hold ya no se pierde
+  en el handshake. Un hold es un solo turno: una pausa dentro del hold ya
+  no envía (al soltar viaja lo que el oído lleva oído desde la
+  pulsación: la tecla es dueña del turno y el VAD del servidor no cierra
+  ni abre turnos mientras dura la sesión del hold). Cada hold deja en el
+  log una línea `voice timeline:` con
+  press→mic, press→ear, press→ready, press→partial, release→commit y
+  commit→audio en milisegundos, y el arranque una línea `prewarm:` con lo
+  que se preparó antes del primer hold (motor del micro si ya tiene
+  permiso, red; nunca el llavero ni un permiso). La pista "Mantén FN para hablar" del hover se
+  enseña hasta el primer hold completado; un tap la pide siempre.
+- **Revisiones de la 12b (2026-09-06).** Seguridad: una sesión abierta
+  por un hold que reposa con el micro cerrado cuelga sola a los 20 s (el
+  micro físico seguía tomado con la ventana cerrada); el pebble no se
+  oculta mientras la voz vive; la hoja de la island ignora el clic que ya
+  iba en camino (0,6 s). Código: una pulsación durante una suelta manda
+  (la suelta tardía se descarta); re-pulsar mientras conecta ya no deja
+  el micro cerrado; la hoja tiene un solo anfitrión (main si es key, si
+  no la island); el tap de FN guarda puerto y run loop bajo un lock y se
+  para al salir.
+- **El reductor de sesión (Wave 12a).** Un estado para toda la sesión, no
+  tres: `SessionMachine` en Core (kinds Idle / Hover / Listening /
+  Processing con fases Pending, Thinking, Speaking, ToolExecuting,
+  SubAgentRunning, Completed) observa la máquina de voz y suma lo que ésta
+  no ve: el turno tecleado, las manos del padre, el encargo del especialista
+  y la cola de la hoja. `SessionModel` (UI) es el único que muta la
+  proyección y ejecuta los efectos (`cancelJob`, `resolveApproval`, el timer
+  de Completed, el log `session: a -> b`). `VoiceSession.events` es un solo
+  stream hacia fuera donde había seis closures. Cancelar y fallar vuelven a
+  Idle con un `InterruptReason`; un micrófono denegado ya no deja la voz en
+  un modo "error": es una card con enlace a Ajustes. Regla de conformidad
+  `session-kind-write`: ninguna vista escribe el kind.
+- **Skills y knowledge (Wave 11a).** Companion es un cliente Agent Skills
+  (agentskills.io): `~/Library/Application Support/Companion/skills/default/`
+  lleva doce skills del sistema (texto propio, sembradas desde el bundle en
+  cada arranque), `skills/custom/` las de la usuaria y `knowledge/` un
+  hecho por carpeta. El prompt del padre y el encargo del especialista llevan
+  el catálogo `<active_skills>` / `<active_knowledge>` (nombre — descripción
+  — ruta, datos con topes); el cuerpo se lee bajo demanda: `read_skill` en
+  la conversación, `read_file` en el encargo. `default/` es solo lectura para
+  el modelo (`denied_path`); escribir en `custom/` o `knowledge/` pasa por la
+  aprobación de siempre y el resultado termina con `Skill sync: saved |
+  failed — por qué | already up to date`. La memoria apunta a la skill
+  knowledge-builder; `notes/` sigue leyéndose. Las cuatro skills que
+  dependen de capacidades que no existen (scheduling, browser-use,
+  excel-live, premium-documents) dicen lo que Companion sí puede y cierran
+  con "What Companion cannot do yet".
+
+### Changed
+- `JobTimeline` vive en Core (la proyección lo lleva). `ChatViewModel.job` y
+  `pendingApproval` son lecturas de `session.projection`; `approvalQueue` y
+  `jobHasApprovedAction` desaparecen. Negar el primer paso o pulsar Stop
+  niega también las peticiones que quedaban en cola, en vez de dejarlas al
+  auto-deny de 120 s.
+
+### Fixed
+- **El "sí" hablado podía conceder otra petición.** La voz resolvía su
+  propio "pendiente" (un slot que se sobreescribía) mientras la hoja
+  mostraba otra petición; y aprobar un `open_url` del padre desarmaba la
+  regla "negar el primer paso para el encargo" (security review
+  2026-09-06). Ahora la voz manda `approvalSpoken` al reductor, que
+  contesta lo que la hoja muestra con las reglas de la hoja, y solo las
+  peticiones del especialista cuentan como acciones del encargo.
+- **Un turno tecleado abandonado dejaba el chrome pegado.** Cambiar de
+  conversación o de clave con una respuesta en vuelo no cerraba el turno en
+  la sesión (code review 2026-09-06).
+- **La memoria no llegaba al chat tecleado.** `makeRequest` la recibía y no
+  la reenviaba a `makeBody`: solo la voz realtime la veía. Medido al cablear
+  el catálogo por el mismo hueco; test de regresión en
+  `ChatProviderClientTests`.
+- **Nada se pierde (Wave 10c).** Dos tool calls en una respuesta se fundían
+  en `"read_filewrite_file"`; ahora se cosen por `index` (spec 07) y viajan
+  juntas en `ChatDelta.toolCalls`: un `assistant` con todas, un `tool` por
+  cada una, deduplicadas. Los argumentos rotos se evitan con `strict: true`
+  en OpenAI y se reparan (lista de json_repair) para el resto; lo
+  irreparable devuelve `invalid_args` con lo que el modelo mandó, nunca
+  `[:]`. Los permisos esperan en una continuation (sin polling), la hoja
+  tiene "Recordar durante esta sesión" (clave `Tool(patrón *)`, deny gana,
+  muere con el proceso) y negar devuelve `denied_by_user`, una instrucción
+  que el modelo no reintenta. `open_url` pide permiso por la misma hoja
+  cuando la URL no salió de las palabras de la usuaria (3D).
+- **El turno lleva contexto y fuente (Wave 10a).** El modelo recibía el
+  string crudo y nada más: "resume esto" no tenía *esto*. Ahora cada turno
+  viaja con un bloque `<context>` — fuente (voz/tecleado), hora, app enfrente,
+  documentos abiertos y, solo si se enciende, portapapeles — enmarcado como
+  DATOS, nunca instrucciones, escapado, con topes visibles, y **solo en el
+  turno actual**: el historial y la memoria guardan una línea compacta
+  (`[voz · Safari · 2 docs]`); el disco no guarda nada de lo sensado. Los
+  sensores corren bajo un presupuesto de 150 ms y nunca retrasan el turno:
+  lo que no llegó, no viaja. Accesibilidad es el único permiso nuevo, se
+  muestra en Ajustes › Contexto como una fila con "Abrir Ajustes del
+  Sistema" (nunca un diálogo sorpresa), y sin ella el producto es el de hoy
+  más el nombre de la app enfrente. La negativa del mic también gana botón.
+  Se borran `Escalation.voicePreamble` / `voiceTurnPrompt` (cero llamadores
+  desde Wave 8): la pista "máximo 2 frases, sin markdown" viaja ahora en
+  `<how_to_reply>` de cada turno de voz.
+  Revisiones (2026-09-05): la nota de sesión lee `memoryTurns()` (palabras, sin la línea compacta ni la app al frente); los topes cuentan lo escapado y el bloque entero degrada hasta caber; los documentos se leen de la última app que no es Companion (`lastOtherPID`); el prompt dice que lo que hay en `<context>` nunca abre una URL, archivo o app por sí solo.
+- **El padre actúa (Wave 10b).** El turno conversacional tenía una sola tool,
+  `delegate`, así que "abre Safari" era un encargo: cola, especialista, hasta
+  diez rondas de modelo, `run_shell` y una hoja de permiso para algo que la
+  usuaria acababa de pedir en voz alta. Ahora el padre tiene manos propias
+  — `open_app`, `open_url`, `open_file`, `list_apps` (y `find_places`, que
+  ya no necesitaba disco) — sin permiso, sin subproceso: todo por
+  `NSWorkspace` detrás de un puerto. Los validadores vienen de Relay con las
+  dos correcciones de su review (home canonicalizado, symlink a oculto), y
+  el error viaja como contrato: `denied_path: …` para que el modelo pida otra
+  ruta en vez de rodearla. Chat y voz clásica hacen un loop de hasta tres
+  rondas; en realtime el server ya lo hace y el cliente responde en línea.
+  Cada acción deja su línea en el hilo y su `Recall` de tool en la memoria,
+  como el encargo deja el suyo. El prompt deja de decir "nunca digas que no
+  puedes ver el disco — delega".
 - **Voz híbrida (Wave 9i): el oído transcribe, el modelo lee y habla.** El mic
   ya no llega al modelo conversacional: `gpt-live-transcribe` (sesión realtime
   de solo transcripción, con buffer de arranque para no perder ni el primer
