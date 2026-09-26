@@ -3,7 +3,10 @@ import Foundation
 public enum ChatDelta: Sendable, Equatable {
     case text(String)
     case handoff(Handoff)
-    case toolCall(id: String, name: String, arguments: String)
+    /// Every call of the round together, on purpose: the assistant turn that
+    /// remembers the round needs all of them, and the provider rejects a
+    /// history where a call is missing its answer (Wave 10c).
+    case toolCalls([ToolCallRef])
 }
 
 public enum ChatError: Error, Sendable, Equatable {
@@ -91,8 +94,33 @@ public struct ConversationMessage: Sendable, Equatable {
 public protocol ConversationPresenting: Sendable {
     func historyTurns() async -> [Turn]
     func appendUser(_ text: String) async
+    /// The thread paints `text`; the memory keeps the compact context line
+    /// (Wave 10a). Presenters without a memory of their own take the default.
+    func appendUser(_ text: String, context: TurnContext?) async
+    /// What the cross-session memory may see: the words, never the context.
+    /// What the model sees (`historyTurns`) and what gets written to disk
+    /// for next month are two different things.
+    func memoryTurns() async -> [Turn]
     func appendAssistant(_ text: String) async
     func appendStatus(_ text: String) async
     func showStream(_ text: String) async
     func finishStream() async
+    /// Wave 15b-9: when the thread last had a real turn — spoken, typed, or a
+    /// job result landing — so the NEXT turn can say how long it has been.
+    /// Nil for a thread with no clock of its own (every fake but the real
+    /// presenter) and nil once a rollover is due, so a stale thread's clock
+    /// never leaks a tag into the fresh one about to replace it.
+    func lastInteraction() async -> Date?
+}
+
+extension ConversationPresenting {
+    public func appendUser(_ text: String, context: TurnContext?) async {
+        await appendUser(text)
+    }
+
+    public func memoryTurns() async -> [Turn] {
+        await historyTurns()
+    }
+
+    public func lastInteraction() async -> Date? { nil }
 }

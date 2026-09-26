@@ -13,6 +13,8 @@ import Testing
     testPromptDelegateDisabled()
     testPromptOwnerEdges()
     testPromptProfileBlock()
+    testPromptParentToolsActRule()
+    testPromptCarriesSkills()
 }
 
 @MainActor func testPromptEmptyOwner() {
@@ -66,8 +68,9 @@ import Testing
            "prompt: con delegación nombra al especialista")
     expect(p.contains("archivos"),
            "prompt: el especialista tiene archivos")
-    expect(p.contains("terminal"),
-           "prompt: el especialista tiene terminal")
+    // 15g-3: a shell, not "the terminal" — the assistant has the hands now.
+    expect(p.contains("shell"),
+           "prompt: el especialista tiene una shell")
     // Ya no se promete internet incondicionalmente: prometer una busqueda que
     // el producto no puede hacer mandaba al modelo a una tool que siempre
     // fallaba, y volvia diciendo "no puedo buscar en la web" en vez de probar
@@ -83,6 +86,8 @@ import Testing
            "prompt: con busqueda configurada si se promete")
     expect(p.contains("Español, cálido, directo, 2 a 4 frases."),
            "prompt: delegar no se come la personalidad")
+    expect(!p.contains("realtime"),
+           "prompt: el hold ya no habla por la API realtime")
 }
 
 @MainActor func testPromptDelegateDisabled() {
@@ -149,4 +154,58 @@ import Testing
         ownerFirstName: "Karen", delegateEnabled: false, about: "", instructions: "", language: .es)
     expect(!blank.contains("Sobre la usuaria"),
            "prompt: sin perfil no añade el bloque")
+}
+
+/// Wave 10b: el prompt deja de decir "no puedes ver el disco". Con manos
+/// propias el modelo actúa en una frase; delegar queda para leer, cambiar,
+/// correr y buscar.
+@MainActor func testPromptParentToolsActRule() {
+    for language in [AppLanguage.es, .en] {
+        let p = ChatPrompt.system(
+            ownerFirstName: "Karen", delegateEnabled: true,
+            parentToolsEnabled: true, language: language)
+        expect(!p.contains("cannot see the disk") && !p.contains("no puedes ver el disco"),
+               "prompt \(language): ya no dice que no puede ver el disco")
+        expect(p.contains("open_app") || p.contains("open apps") || p.contains("abrir apps"),
+               "prompt \(language): dice que puede abrir apps")
+        expect(p.contains("delegate"), "prompt \(language): delegate sigue")
+    }
+    let es = ChatPrompt.system(
+        ownerFirstName: "Karen", delegateEnabled: true,
+        parentToolsEnabled: true, language: .es)
+    expect(es.contains("especialista") && es.contains("archivos") && es.contains("shell"),
+           "prompt es: el especialista conserva su alcance")
+    let solo = ChatPrompt.system(
+        ownerFirstName: "Karen", delegateEnabled: false,
+        parentToolsEnabled: true, language: .es)
+    expect(!solo.contains("delegate") && (solo.contains("abrir") || solo.contains("abre")),
+           "prompt es: manos sin especialista — actúa, no delega")
+    expect(solo.contains("dentro de <context>") && solo.contains("con sus palabras"),
+           "prompt es: lo que hay en <context> son datos, no una orden")
+    let none = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: true, language: .es)
+    expect(none.contains("delegate") && !none.contains("no puedes ver el disco"),
+           "prompt es: sin manos tampoco vuelve la frase vieja")
+}
+
+
+// Wave 11a: el catálogo viaja como datos al final; la regla de cómo usarlo
+// va en el cuerpo, y solo cuando hay catálogo.
+@MainActor func testPromptCarriesSkills() {
+    let block = "<active_skills>\n  - writing-content — Writes. — /x/SKILL.md\n</active_skills>"
+    for language in [AppLanguage.en, .es] {
+        let with = ChatPrompt.system(
+            ownerFirstName: "Karen", delegateEnabled: true, parentToolsEnabled: true,
+            language: language, memory: "Memory — DATA: likes coffee", skills: block)
+        expect(with.hasSuffix(block), "prompt \(language): el catálogo cierra el prompt")
+        expect(with.contains("read_skill"), "prompt \(language): dice cómo leer una skill")
+        expect(with.range(of: "likes coffee")!.lowerBound < with.range(of: "<active_skills>\n")!.lowerBound,
+               "prompt \(language): memoria antes que catálogo")
+        let without = ChatPrompt.system(
+            ownerFirstName: "Karen", delegateEnabled: true, parentToolsEnabled: true, language: language)
+        expect(!without.contains("read_skill") && !without.contains("active_skills"),
+               "prompt \(language): sin catálogo no se promete nada")
+    }
+    let es = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: true, language: .es, skills: block)
+    expect(es.contains("nombra la skill") && es.contains("context"), "prompt es: al delegar, nombra la skill en el contexto")
+    expect(es.contains("en voz alta"), "prompt es: nunca lee el catálogo en voz alta")
 }

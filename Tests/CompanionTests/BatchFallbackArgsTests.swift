@@ -23,8 +23,8 @@ import Testing
         return
     }
     let batch = String(source[start.lowerBound...].prefix(1200))
-    expect(batch.contains("--permission-mode"),
-           "el batch declara su modo de permisos, como el streaming")
-    expect(batch.contains("--allowedTools"),
-           "y las herramientas que no exigen un clic humano")
+    // Wave 16b: both paths share `permissionArgs` (auto mode + deny list);
+    // SpecialistAutoModeTests checks the batch launch's real arguments.
+    expect(batch.contains("Self.permissionArgs"),
+           "el batch declara su modo de permisos, el mismo que el streaming")
 }

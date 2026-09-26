@@ -14,15 +14,18 @@ enum VoiceJobBridge {
         _ handoff: Handoff,
         jobs: any JobSubmitter,
         thread: any ConversationPresenting,
-        onEvent: (@Sendable (JobEvent) -> Void)? = nil,
-        announce: (@Sendable (String) async -> Void)? = nil,
+        onEvent: (@Sendable (SessionEvent) -> Void)? = nil,
+        announce: (@Sendable (JobAnnouncement) async -> Void)? = nil,
         language: AppLanguage = .en
     ) async {
         let (stream, sink) = AsyncStream<JobEvent>.makeStream()
         let pump = Task {
-            for await event in stream { onEvent?(event) }
+            for await event in stream { onEvent?(.job(event)) }
         }
         defer { pump.cancel() }
+        // Named up front: the runner says it too, but a submitter that does
+        // not must still leave a card with a goal on it.
+        onEvent?(.job(.started(goal: handoff.goal)))
         // Queued, not refused and never at the cost of what is running.
         // `JobQueue` already serialises execution, so submitting is enough to
         // make it wait; what was missing was saying so, because a second job
@@ -34,39 +37,39 @@ enum VoiceJobBridge {
                 ? Escalation.queuedNotice(handoff.goal, language)
                 : Escalation.heardNotice(handoff.goal, language))
         if waiting {
-            await announce?(
-                Escalation.queuedAnnouncement(handoff.goal, language))
+            await announce?(JobAnnouncement(goal: handoff.goal, outcome: .queued, language: language))
         }
 
         do {
             let result = try await jobs.submit(handoff, events: sink)
             sink.finish()
+            onEvent?(.jobFinished(ok: !result.isError))
             if result.isError {
                 await thread.appendStatus(Escalation.jobFailedStatus(
                     handoff.goal, detail: result.output, language))
-                await announce?(Escalation.jobFailedAnnouncement(
-                    handoff.goal,
-                    reason: Escalation.resultSummary(result.output),
-                    language))
+                await announce?(JobAnnouncement(
+                    goal: handoff.goal, outcome: .failed(reason: result.output), language: language))
             } else {
                 // The result travels once: the specialist's text IS the
-                // assistant message. The voice only acknowledges — reading it
-                // back made a second message for one result, and a card or a
-                // code block cannot survive being spoken.
+                // assistant message. The voice never reads it back — a card
+                // or a code block cannot survive being spoken; it acknowledges
+                // (realtime) or says a short summary through the mouth's
+                // guards (classic, code review 2026-09-25 HIGH-B).
                 await thread.appendAssistant(result.output)
-                await announce?(
-                    Escalation.jobDoneAnnouncement(handoff.goal, language))
+                await announce?(JobAnnouncement(
+                    goal: handoff.goal, outcome: .done(result: result.output), language: language))
             }
         } catch {
             sink.finish()
+            onEvent?(.jobFinished(ok: false))
             Log.app("voice: job failed (\(error))")
             // A thrown error is still a reason: silence here is what made the
             // voice fall back on inventing an outcome.
             let reason = JobRunner.failureText(for: error, language)
             await thread.appendStatus(Escalation.jobFailedStatus(
                 handoff.goal, detail: reason, language))
-            await announce?(Escalation.jobFailedAnnouncement(
-                handoff.goal, reason: reason, language))
+            await announce?(JobAnnouncement(
+                goal: handoff.goal, outcome: .failed(reason: reason), language: language))
         }
     }
 }

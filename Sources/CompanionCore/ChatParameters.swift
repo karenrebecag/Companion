@@ -12,7 +12,7 @@ public enum ChatParameters: Sendable {
     /// maps a status code and discards the body. Upgrade trigger: the first
     /// time a model outside these families rejects a parameter, parse the
     /// error and let the provider answer instead of guessing from a string.
-    private static let reasoningPrefixes = ["o1", "o3", "o4", "gpt-5"]
+    private static let reasoningPrefixes = ["o1", "o3", "o4", "gpt-5", "gpt-oss"]
 
     public static func acceptsTemperature(_ model: String) -> Bool {
         let name = family(of: model)

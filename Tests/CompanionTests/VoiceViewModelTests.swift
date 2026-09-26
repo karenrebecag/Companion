@@ -44,11 +44,11 @@ import Testing
         "copy: notHeard")
     expectEq(
         VoiceCopy.failure(.speechEngine),
-        "I lost my voice. Check the TTS.",
+        "I lost my voice. Try again in a moment.",
         "copy: speechEngine")
     expectEq(
         VoiceCopy.failure(.noProviders),
-        "No voice provider is available.",
+        "A key is missing, so I can't answer.",
         "copy: noProviders")
     expectEq(
         VoiceCopy.failure(.sessionDropped),
@@ -57,7 +57,7 @@ import Testing
 
     let all: [TurnFailure] = [
         .micDenied, .micUnavailable, .micSilent, .notHeard,
-        .speechEngine, .noProviders, .sessionDropped,
+        .speechEngine, .noProviders, .quotaExceeded, .sessionDropped,
     ]
     var seen: Set<String> = []
     for reason in all {
@@ -230,6 +230,14 @@ final class RecordingVoice: VoiceControlling, @unchecked Sendable {
     func toggleMute() async { muteToggles += 1; muted.toggle() }
     func push(attachment: AttachmentRef) async { pushed.append(attachment) }
     var pushed: [AttachmentRef] = []
+    /// Wave 12b: the hold port, in call order.
+    private(set) var calls: [String] = []
+    func hold() async { calls.append("hold") }
+    func holdProvisionally() async { calls.append("holdProvisionally") }
+    func confirmHold() async { calls.append("confirmHold") }
+    func release() async { calls.append("release") }
+    func discard() async { calls.append("discard") }
+    func interrupt() async { calls.append("interrupt") }
     func yieldSnapshot(_ snapshot: TurnSnapshot) { snapBox.yield(snapshot) }
     func yieldLevels(_ value: VoiceLevels) { levelBox.yield(value) }
     func finish() { snapBox.finish(); levelBox.finish() }

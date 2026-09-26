@@ -73,7 +73,7 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
         else { throw VoiceTransportError.unreachable }
         var request = URLRequest(url: url)
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        let task = URLSession.shared.webSocketTask(with: request)
+        let task = NoStoreSession.shared.webSocketTask(with: request)
         lock.withLock { text = "" }
         socket = task
         task.resume()
@@ -213,6 +213,17 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
     }
 
     /// A finished segment's final transcript, or nil for any other event.
+    /// What the user says is theirs: the log keeps the rhythm of the ear
+    /// (first hypothesis, each closed segment) and never the words. A
+    /// dictated sentence would otherwise land in the app log (12e).
+    static func earLine(hearing text: String) -> String {
+        "ear: hearing (\(text.count) chars)"
+    }
+
+    static func earLine(segment text: String) -> String {
+        "ear: segment (\(text.count) chars)"
+    }
+
     static func completedTranscript(fromEvent json: String) -> String? {
         guard let obj = object(from: json),
               obj["type"] as? String
@@ -248,11 +259,11 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
                             return (self.text, first)
                         }
                         if first {
-                            Log.app("ear: hearing («\(String(next.prefix(30)))»)")
+                            Log.app(Self.earLine(hearing: next))
                         }
                         self.box.yield(next)
                     } else if let final = Self.completedTranscript(fromEvent: json) {
-                        Log.app("ear: segment «\(String(final.prefix(60)))»")
+                        Log.app(Self.earLine(segment: final))
                         self.turnBox.yield(.finished(text: final))
                     } else if Self.isSpeechStarted(event: json) {
                         Log.app("ear: vad speech started")

@@ -13,6 +13,8 @@ public struct HermesExecutor: Executor, Sendable {
     private let processLauncher: any ProcessLauncher
     private let providerArgs: [String]
     private let sessions: (any ExecutorSessionStoring)?
+    /// The skills catalog for the job prompt (Wave 11a).
+    private let skills: @Sendable () -> String
     private let language: AppLanguage
 
     public init(
@@ -21,13 +23,15 @@ public struct HermesExecutor: Executor, Sendable {
         processLauncher: any ProcessLauncher,
         providerArgs: [String] = [],
         sessions: (any ExecutorSessionStoring)? = nil,
-        language: AppLanguage = .en
+        language: AppLanguage = .en,
+        skills: @escaping @Sendable () -> String = { "" }
     ) {
         self.workdir = workdir
         self.executablePath = executablePath
         self.processLauncher = processLauncher
         self.providerArgs = providerArgs
         self.sessions = sessions
+        self.skills = skills
         self.language = language
 
         self.descriptor = ExecutorDescriptor(
@@ -50,7 +54,8 @@ public struct HermesExecutor: Executor, Sendable {
                 Handoff(goal: job.goal, context: job.context),
                 workdir: workdir,
                 desktop: NSHomeDirectory() + "/Desktop",
-                attachments: job.attachments, language: language)
+                attachments: job.attachments, language: language,
+                skills: skills())
 
         // Hermes prints its durable id on stderr, which this adapter does not
         // read; the `latest` sentinel is exactly what it exists for — resume

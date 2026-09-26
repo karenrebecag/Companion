@@ -1,10 +1,22 @@
 import CompanionCore
 import CompanionServices
+@testable import CompanionUI
 import Foundation
 import Testing
 
 @Test @MainActor func voiceSessionTests() async {
     await testStartWithKeyListensRealtime()
+    await testRealtimeParentToolAnsweredInline()
+    await testClassicParentToolLoopsOneRound()
+    await testRealtimeParentToolCardReachesTheThread()
+    await testClassicFlushesFragmentBeforeNextRound()
+    await testRealtimeTurnCarriesContext()
+    await testClassicTurnCarriesContext()
+    await testSessionMemoryNeverKeepsContext()
+    await testClassicForeignURLAsksThroughTheSheet()
+    await testRealtimeForeignURLAsksThroughTheSheet()
+    await testRealtimeStaleTextDoesNotAuthorise()
+    await testModelCannotApproveItsOwnURL()
     await testMuteAfterSpeechCommitsNativeText()
     await testUserTurnPreemptsActiveResponse()
     await testSegmentingEarDrivesTheTurn()
@@ -273,15 +285,17 @@ import Testing
     }
     expectEq(h.watch.latest.failure, .networkUnavailable,
              "offline: la razón es la falta de red")
-    expect(!h.transcriber.started,
-           "offline: no arma el clásico, que también necesita red")
+    // 12c: the ear comes up with the press; a session that dies offline
+    // takes it down again, and the classic path is never armed.
+    expect(h.transcriber.stops >= 1,
+           "offline: el oído que arrancó con la sesión se apaga con ella")
     expect(h.watch.latest.pipeline != .classic,
            "offline: no cambia de pipeline")
 }
 
 @MainActor func testSilentMicFailsLoud() async {
     let h = makeVoiceHarness(micSilenceTimeout: 0.05)
-    h.mic.receivedBuffer = false
+    h.mic.receivedBufferValue = false
     await h.session.start()
     await pumpUntil("mic-silencio: error visible") {
         h.watch.latest.state == .error
@@ -376,75 +390,7 @@ import Testing
     expect(!h.watch.latest.awaitingExecutor, "fn: no dispara delegateCallStarted")
 }
 
-struct VoiceHarness {
-    let session: VoiceSession
-    let transport: ScriptedVoiceTransport
-    let mic: ScriptedMic
-    let player: ScriptedPlayer
-    let transcriber: ScriptedTranscriber
-    let thread: ScriptedThread
-    let clock: TestClock
-    let watch: SnapWatch
-}
-
-private struct ScriptedReachability: ReachabilityProbing {
-    let online: Bool
-    init(_ online: Bool) { self.online = online }
-    var isOnline: Bool { get async { online } }
-}
-
-@MainActor
-func makeVoiceHarness(
-    key: String? = "sk-test",
-    autoEvents: [RealtimeEvent] = [.sessionCreated, .sessionUpdated],
-    readyTimeout: TimeInterval = 1,
-    aec: Bool = false,
-    online: Bool = true,
-    micSilenceTimeout: TimeInterval = 10,
-    echoFreeOutput: Bool = false,
-    jobs: (any JobSubmitter)? = nil,
-    language: AppLanguage = .en,
-    realtimeEar: (any Transcriber)? = nil
-) -> VoiceHarness {
-    let transport = ScriptedVoiceTransport()
-    transport.autoEvents = autoEvents
-    let mic = ScriptedMic()
-    mic.hasEchoCancellation = aec
-    let player = ScriptedPlayer()
-    let transcriber = ScriptedTranscriber()
-    let synth = ScriptedSynth()
-    let chat = ScriptedChat()
-    var keys: [SecretKey: String] = [:]
-    if let key { keys[.openAI] = key }
-    let secrets = ScriptedSecrets(keys)
-    let thread = ScriptedThread()
-    let clock = TestClock()
-    let provider = StaticConfigProvider(
-        Config(ownerFirstName: "Karen", language: language))
-    let session = VoiceSession(
-        transport: transport,
-        mic: mic,
-        player: player,
-        transcriber: transcriber,
-        synthesizer: synth,
-        chat: chat,
-        secrets: secrets,
-        thread: thread,
-        configProvider: provider,
-        jobs: jobs,
-        realtimeEar: realtimeEar,
-        reachability: ScriptedReachability(online),
-        echoFreeProbe: { echoFreeOutput },
-        micSilenceTimeout: micSilenceTimeout,
-        now: { clock.now },
-        readyTimeout: readyTimeout)
-    let watch = SnapWatch(session.snapshots)
-    return VoiceHarness(
-        session: session, transport: transport, mic: mic, player: player,
-        transcriber: transcriber, thread: thread, clock: clock, watch: watch)
-}
-
-private func messageType(_ json: String) -> String? {
+func messageType(_ json: String) -> String? {
     guard let data = json.data(using: .utf8),
           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     else { return nil }
@@ -474,208 +420,328 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
     return false
 }
 
-/// Static provider for tests: wraps a Config that never changes.
-final class StaticConfigProvider: ConfigProviding, @unchecked Sendable {
-    private let config: Config
-    init(_ config: Config) { self.config = config }
-    var current: Config { config }
+// MARK: - Wave 10b: el padre actúa por voz
+
+/// Realtime: el server hace el loop; el cliente responde el function call en
+/// línea — sin encargo, sin hoja — y pide la siguiente respuesta.
+@MainActor func testRealtimeParentToolAnsweredInline() async {
+    let opener = FakeWorkspaceOpener()
+    let h = makeVoiceHarness(parentTools: ParentToolRunner(workspace: opener))
+    // 10c 3D: a URL opens unasked only when the user said it.
+    h.transcriber.stoppedText = "abre example.com"
+    await h.session.start()
+    await pumpUntil("padre rt: listening") { h.watch.latest.state == .listening }
+    expect(h.transport.sent.contains { $0.contains("session.update") && $0.contains("open_app") },
+           "padre rt: session.update declara las tools del padre")
+    expect(h.transport.sent.contains { $0.contains("session.update") && $0.contains("hands on this Mac") },
+           "padre rt: y las instrucciones dicen que tiene manos")
+    h.transport.yield(.speechStarted)
+    await pumpUntil("padre rt: speechOpen") { h.watch.latest.speechOpen }
+    await h.session.toggleMute()
+    await pumpUntil("padre rt: texto comprometido") { hasMessage(h.transport.sent, type: "conversation.item.create") }
+    let before = h.transport.sent.count
+    h.transport.yield(.functionCall(
+        name: "open_url", arguments: #"{"url":"https://example.com"}"#, callId: "c9"))
+    await pumpUntil("padre rt: output enviado") {
+        h.transport.sent.dropFirst(before).contains { $0.contains("function_call_output") }
+    }
+    let added = Array(h.transport.sent.dropFirst(before))
+    expectEq(opener.openedURLs.map(\.absoluteString), ["https://example.com"],
+             "padre rt: el opener fue llamado")
+    expect(added.contains { $0.contains("c9") && $0.contains("example.com") },
+           "padre rt: el output responde al call_id con el resultado")
+    expect(hasMessage(added, type: "response.create"), "padre rt: response.create después")
+    expect(!h.watch.latest.awaitingExecutor, "padre rt: no es un encargo")
+    expect(h.thread.status.contains { $0.contains("example.com") },
+           "padre rt: el hilo registra qué hizo la app sola")
 }
 
-final class TestClock: @unchecked Sendable {
-    var now: TimeInterval = 0
+/// Clásico: tool call → se ejecuta → segunda ronda con el resultado en el
+/// historial → la frase de la segunda ronda llega al sintetizador.
+@MainActor func testClassicParentToolLoopsOneRound() async {
+    let opener = FakeWorkspaceOpener(installed: ["Safari"])
+    let h = makeVoiceHarness(key: nil, parentTools: ParentToolRunner(workspace: opener))
+    h.chat.rounds = [
+        [.toolCalls([ToolCallRef(id: "c1", name: "open_app", arguments: #"{"name":"Safari"}"#)])],
+        [.text("Listo, abrí Safari.")],
+    ]
+    h.transcriber.stoppedText = "abre safari"
+    await h.session.start()
+    await pumpUntil("padre cl: listening") {
+        h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
+    }
+    await h.session.advance()
+    // 15d-5: the first utterance now ends at the comma.
+    await pumpUntil("padre cl: habló la segunda ronda") {
+        h.synth.queue == ["Listo,", "abrí Safari."]
+    }
+    expectEq(opener.openedApps, ["Safari"], "padre cl: se abrió")
+    expectEq(h.chat.histories.count, 2, "padre cl: dos rondas")
+    expect(h.chat.histories[1].contains { $0.role == .tool && $0.toolCallID == "c1" },
+           "padre cl: la ronda 2 vio el resultado")
+    expect(h.chat.toolsSeen.map(\.name).contains("open_app"), "padre cl: anuncia open_app")
+    expect(!h.chat.toolsSeen.map(\.name).contains("delegate"),
+           "padre cl: sin jobs no anuncia delegate")
+    expect(h.thread.status.contains { $0.contains("Safari") }, "padre cl: línea de estado")
 }
 
-final class SnapWatch: @unchecked Sendable {
+/// La tarjeta de `find_places` viaja por el mismo seam que la de un encargo
+/// (`JobEvent.card` → `receiveJobEvent`): el mapa aparece en voz sin encargo.
+@MainActor func testRealtimeParentToolCardReachesTheThread() async {
+    let place = FoundPlace(name: "Cinépolis Reforma", address: "Reforma 222", lat: 19.43, lng: -99.16)
+    let box = JobEventBox()
+    let h = makeVoiceHarness(
+        parentTools: ParentToolRunner(workspace: FakeWorkspaceOpener(), places: FakePlaces(found: [place])),
+        onJobEvent: { box.append($0) })
+    await h.session.start()
+    await pumpUntil("card rt: listening") { h.watch.latest.state == .listening }
+    h.transport.yield(.functionCall(
+        name: "find_places", arguments: #"{"query":"cines cerca de Reforma"}"#, callId: "c5"))
+    await pumpUntil("card rt: tarjeta") { box.events.contains { if case .card = $0 { true } else { false } } }
+    expect(box.events.contains { if case .card(let card) = $0, case .locations(let b) = card.payload {
+        b.locations.map(\.name) == ["Cinépolis Reforma"] } else { false } },
+           "card rt: la tarjeta lleva el lugar encontrado")
+    expect(h.transport.sent.contains { $0.contains("function_call_output") && $0.contains("Cinépolis") },
+           "card rt: el modelo lee el nombre, no la coordenada")
+}
+
+/// Un fragmento sin punto antes de la acción se dice antes de la siguiente
+/// ronda, no pegado a ella: "Voy a abrir Safari" + "Listo." son dos frases.
+@MainActor func testClassicFlushesFragmentBeforeNextRound() async {
+    let opener = FakeWorkspaceOpener(installed: ["Safari"])
+    let h = makeVoiceHarness(key: nil, parentTools: ParentToolRunner(workspace: opener))
+    h.chat.rounds = [
+        [.text("Voy a abrir Safari"),
+         .toolCalls([ToolCallRef(id: "c1", name: "open_app", arguments: #"{"name":"Safari"}"#)])],
+        [.text("Listo.")],
+    ]
+    h.transcriber.stoppedText = "abre safari"
+    await h.session.start()
+    await pumpUntil("flush cl: listening") {
+        h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
+    }
+    await h.session.advance()
+    await pumpUntil("flush cl: dos frases") { h.synth.queue.count >= 2 }
+    expectEq(h.synth.queue, ["Voy a abrir Safari", "Listo."], "flush cl: frases separadas, en orden")
+}
+
+final class JobEventBox: @unchecked Sendable {
     private let lock = NSLock()
-    private var latestValue = TurnSnapshot.idle
-
-    var latest: TurnSnapshot {
-        lock.lock()
-        defer { lock.unlock() }
-        return latestValue
-    }
-
-    init(_ stream: AsyncStream<TurnSnapshot>) {
-        Task { [weak self] in
-            for await snap in stream { self?.store(snap) }
-        }
-    }
-
-    private func store(_ snap: TurnSnapshot) {
-        lock.lock()
-        latestValue = snap
-        lock.unlock()
-    }
+    private var _events: [JobEvent] = []
+    var events: [JobEvent] { lock.lock(); defer { lock.unlock() }; return _events }
+    func append(_ event: JobEvent) { lock.lock(); _events.append(event); lock.unlock() }
 }
 
-final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable {
-    var key: String?, url: URL?, sent: [String] = [], closed = false
-    var openError: VoiceTransportError?
-    var autoEvents: [RealtimeEvent] = []
-    var openCount = 0
-    private let box = StreamBox<RealtimeEvent>()
+// MARK: - Wave 10a: el turno de voz lleva contexto
 
-    func open(key: String, url: URL) async throws {
-        if let openError { throw openError }
-        openCount += 1
-        (self.key, self.url) = (key, url)
-        for event in autoEvents { box.yield(event) }
+/// El item de usuario que va al server lleva el bloque; el hilo recibe el
+/// texto crudo; la fuente es voz.
+@MainActor func testRealtimeTurnCarriesContext() async {
+    let sensor = FakeContextSensor(TurnContext(source: .typed, focusedApp: "Notes"))
+    let h = makeVoiceHarness(sensor: sensor)
+    h.transcriber.stoppedText = "hola compa"
+    await h.session.start()
+    await pumpUntil("ctx rt: listening") { h.watch.latest.state == .listening }
+    h.transport.yield(.speechStarted)
+    await pumpUntil("ctx rt: speechOpen") { h.watch.latest.speechOpen }
+    let before = h.transport.sent.count
+    await h.session.toggleMute()
+    await pumpUntil("ctx rt: item enviado") {
+        hasMessage(Array(h.transport.sent.dropFirst(before)), type: "conversation.item.create")
     }
-
-    func send(_ json: String) async throws { sent.append(json) }
-    func events() -> AsyncStream<RealtimeEvent> { box.stream }
-    func close() async { closed = true }
-    func yield(_ event: RealtimeEvent) { box.yield(event) }
-
-    /// Simulate transport pump receiving an error and failing.
-    func simulateReceiveFailure() async {
-        await Task.yield()
-        box.finish()
-    }
-
-    /// Simulate stream ending without explicit close (abrupt termination).
-    func simulateStreamEnd() async {
-        await Task.yield()
-        box.finish()
-    }
+    let item = h.transport.sent.dropFirst(before).first { $0.contains("conversation.item.create") } ?? ""
+    expect(item.contains("<context source=\\\"voice\\\"") || item.contains("<context source=\"voice\""),
+           "ctx rt: el item lleva el bloque con fuente voz")
+    expect(item.contains("Notes") && item.contains("hola compa"), "ctx rt: app y texto")
+    expect(item.contains("how_to_reply"), "ctx rt: la pista de respuesta corta va en el turno")
+    expectEq(h.thread.turns.last?.content, "hola compa", "ctx rt: el hilo recibe el texto crudo")
+    expect(!sensor.calls.isEmpty, "ctx rt: se sensó")
 }
 
-final class ScriptedMic: MicCapturing, @unchecked Sendable {
-    var granted = true, started = false, stopped = false
-    var hasEchoCancellation = false, receivedBuffer = true
-    var startError: VoiceTransportError?
-    private let box = StreamBox<MicFrame>()
-    var frames: AsyncStream<MicFrame> { box.stream }
-
-    func requestAccess() async -> Bool { granted }
-    func start() async throws {
-        if let startError { throw startError }
-        started = true
-        stopped = false
+@MainActor func testClassicTurnCarriesContext() async {
+    let sensor = FakeContextSensor(TurnContext(source: .typed, focusedApp: "Notes"))
+    let h = makeVoiceHarness(key: nil, sensor: sensor)
+    h.chat.rounds = [[.text("Listo.")]]
+    h.transcriber.stoppedText = "resume esto"
+    await h.session.start()
+    await pumpUntil("ctx cl: listening") {
+        h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
-    func stop() async { stopped = true }
-    func disableVoiceProcessing() async { hasEchoCancellation = false }
-    func yield(_ frame: MicFrame) {
-        receivedBuffer = true
-        box.yield(frame)
-    }
+    await h.session.advance()
+    await pumpUntil("ctx cl: habló") { h.synth.queue.contains("Listo.") }
+    let last = h.chat.histories.first?.last
+    expect(last?.role == .user && last?.content.contains("<context source=\"voice\"") == true,
+           "ctx cl: el último turno lleva el bloque con fuente voz")
+    expect(last?.content.hasSuffix("resume esto") == true, "ctx cl: el texto al final")
+    expect(h.thread.turns.contains { $0.role == .user && $0.content == "resume esto" },
+           "ctx cl: el hilo recibe el texto crudo")
+    expect(h.thread.turns.contains { $0.role == .assistant && $0.content.contains("Listo.") },
+           "ctx cl: y la respuesta")
 }
 
-final class ScriptedPlayer: PCMPlaying, @unchecked Sendable {
-    var shared: Bool?, played: [Data] = []
-    var flushed = false, stopped = false, hasPending = false
-    var volumes: [Double] = []
-    private let drainBox = StreamBox<Void>()
-    private let levelBox = StreamBox<Double>()
-    var drained: AsyncStream<Void> { drainBox.stream }
-    var levels: AsyncStream<Double> { levelBox.stream }
-
-    func start(sharedEngine: Bool) async throws { shared = sharedEngine }
-    func play(_ pcm16le24k: Data) async {
-        played.append(pcm16le24k)
-        hasPending = true
+/// La nota de sesión (9j-2, solo la cierra el pipeline realtime) toma
+/// `memoryTurns()`: las palabras, nunca la compacta con la app al frente.
+@MainActor func testSessionMemoryNeverKeepsContext() async {
+    let store = RecordingMemoryStore()
+    let sensor = FakeContextSensor(TurnContext(source: .typed, focusedApp: "1Password"))
+    let h = makeVoiceHarness(sensor: sensor, memoryStore: store)
+    h.transcriber.stoppedText = "resume esto"
+    await h.session.start()
+    await pumpUntil("mem: listening") { h.watch.latest.state == .listening }
+    h.transport.yield(.speechStarted)
+    await pumpUntil("mem: speechOpen") { h.watch.latest.speechOpen }
+    let before = h.transport.sent.count
+    await h.session.toggleMute()
+    await pumpUntil("mem: item enviado") {
+        hasMessage(Array(h.transport.sent.dropFirst(before)), type: "conversation.item.create")
     }
-    func flush() async {
-        flushed = true
-        hasPending = false
-        drainBox.yield(())
-    }
-    func stop() async { stopped = true }
-    func setVolume(_ volume: Double) async { volumes.append(volume) }
-    func yieldDrained() {
-        hasPending = false
-        drainBox.yield(())
-    }
+    expect(h.thread.history.contains { $0.content.contains("[voice · 1Password]") },
+           "mem: el historial del modelo sí lleva la compacta (como el real)")
+    await h.session.hangUp()
+    await pumpUntil("mem: nota escrita") { !store.sessions.isEmpty }
+    let note = store.sessions.joined()
+    expect(note.contains("resume esto"), "mem: la nota conserva la petición")
+    expect(!note.contains("1Password") && !note.contains("[voice") && !note.contains("[voz"),
+           "mem: la nota no lleva la app ni la compacta")
 }
 
-final class ScriptedTranscriber: Transcriber, @unchecked Sendable {
-    var authorized = false, locale = "", started = false, stoppedText = ""
-    var grantsAuthorization = true
-    var appended: [MicFrame] = []
-    var isAuthorized: Bool { authorized }
-    private let box = StreamBox<String>()
-    var partials: AsyncStream<String> { box.stream }
-    var currentText: String { stoppedText }
-
-    func requestAuthorization() async -> Bool {
-        authorized = grantsAuthorization
-        return authorized
-    }
-    func start(localeIdentifier: String) async throws {
-        locale = localeIdentifier
-        started = true
-    }
-    func append(_ frame: MicFrame) async { appended.append(frame) }
-    func stop() async -> String { stoppedText }
+final class RecordingMemoryStore: MemoryStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _sessions: [String] = []
+    var sessions: [String] { lock.lock(); defer { lock.unlock() }; return _sessions }
+    func load() -> MemoryPack { MemoryPack(core: "", recentSessions: [], notes: []) }
+    func appendSession(_ summary: String) throws { lock.lock(); _sessions.append(summary); lock.unlock() }
 }
 
-/// A segmenting ear (9j-1): the server's VAD decides the turns and hands
-/// each finished utterance as final text.
-final class ScriptedSegmentingEar: SegmentingTranscriber, @unchecked Sendable {
-    var authorized = true, locale = "", started = false, stoppedText = ""
-    var isAuthorized: Bool { authorized }
-    private let box = StreamBox<String>()
-    private let turns = StreamBox<EarTurnEvent>()
-    var partials: AsyncStream<String> { box.stream }
-    var turnEvents: AsyncStream<EarTurnEvent> { turns.stream }
-    var currentText: String { stoppedText }
+// MARK: - Wave 10c 3D: open_url con puerta, por voz
 
-    func requestAuthorization() async -> Bool { authorized }
-    func start(localeIdentifier: String) async throws {
-        locale = localeIdentifier
-        started = true
+/// 27. Clásico: un host que no se dijo → la solicitud sale por el mismo seam
+/// que la hoja de los encargos y queda pendiente para el "sí" hablado; nada
+/// se abre hasta resolver el actor.
+@MainActor func testClassicForeignURLAsksThroughTheSheet() async {
+    let opener = FakeWorkspaceOpener()
+    let approvals = FakeApprovals()
+    let box = JobEventBox()
+    let h = makeVoiceHarness(
+        key: nil, parentTools: ParentToolRunner(workspace: opener),
+        onJobEvent: { box.append($0) }, approvals: approvals)
+    h.chat.rounds = [
+        [.toolCalls([ToolCallRef(id: "c1", name: "open_url", arguments: #"{"url":"https://evil.example/x"}"#)])],
+        [.text("Listo.")],
+    ]
+    h.transcriber.stoppedText = "resume esto"
+    await h.session.start()
+    await pumpUntil("puerta cl: listening") {
+        h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
-    func append(_ frame: MicFrame) async {}
-    func stop() async -> String { stoppedText }
-    func yieldTurn(_ event: EarTurnEvent) { turns.yield(event) }
+    // `advance()` runs the classic turn inline and the turn is parked on the
+    // sheet: awaiting it here would be the deadlock the sheet resolves.
+    let turn = Task { await h.session.advance() }
+    await pumpUntil("puerta cl: solicitud") {
+        box.events.contains { if case .approvalRequested(let r) = $0 { r.toolName == "open_url" } else { false } }
+    }
+    expect(opener.openedURLs.isEmpty, "puerta cl: nada abierto mientras espera")
+    let request = await approvals.waiting
+    expect(request != nil, "puerta cl: el actor tiene la solicitud")
+    _ = await approvals.resolve(requestId: request?.requestId ?? "", approved: true)
+    await pumpUntil("puerta cl: abre") { !opener.openedURLs.isEmpty }
+    expectEq(opener.openedURLs.map(\.absoluteString), ["https://evil.example/x"], "puerta cl: con sí, abre")
+    await pumpUntil("puerta cl: segunda ronda") { h.synth.queue.contains("Listo.") }
+    await turn.value
 }
 
-final class ScriptedSynth: SpeechSynthesizer, @unchecked Sendable {
-    var began = false, finished = false, stopped = false
-    var queue: [String] = [], spoken: String?, speakingNow = ""
-    private let box = StreamBox<SpeechEvent>()
-    var events: AsyncStream<SpeechEvent> { box.stream }
-    func begin() async { began = true }
-    func enqueue(_ sentence: String) async { queue.append(sentence) }
-    func finish() async { finished = true }
-    func stop() async { stopped = true }
-    func spokenSoFar() async -> String? { spoken }
+/// Realtime: mismo caso; el function output espera a la decisión y con
+/// "no" lleva la instrucción `denied_by_user`.
+@MainActor func testRealtimeForeignURLAsksThroughTheSheet() async {
+    let opener = FakeWorkspaceOpener()
+    let approvals = FakeApprovals()
+    let box = JobEventBox()
+    let h = makeVoiceHarness(
+        parentTools: ParentToolRunner(workspace: opener),
+        onJobEvent: { box.append($0) }, approvals: approvals)
+    h.transcriber.stoppedText = "resume esto"
+    await h.session.start()
+    await pumpUntil("puerta rt: listening") { h.watch.latest.state == .listening }
+    h.transport.yield(.speechStarted)
+    await pumpUntil("puerta rt: speechOpen") { h.watch.latest.speechOpen }
+    await h.session.toggleMute()
+    await pumpUntil("puerta rt: item enviado") { hasMessage(h.transport.sent, type: "conversation.item.create") }
+    let before = h.transport.sent.count
+    h.transport.yield(.functionCall(
+        name: "open_url", arguments: #"{"url":"https://evil.example/x"}"#, callId: "c9"))
+    await pumpUntil("puerta rt: solicitud") {
+        box.events.contains { if case .approvalRequested(let r) = $0 { r.toolName == "open_url" } else { false } }
+    }
+    expect(opener.openedURLs.isEmpty, "puerta rt: nada abierto")
+    expect(!h.transport.sent.dropFirst(before).contains { $0.contains("function_call_output") },
+           "puerta rt: el output espera a la decisión")
+    let request = await approvals.waiting
+    _ = await approvals.resolve(requestId: request?.requestId ?? "", approved: false)
+    await pumpUntil("puerta rt: output") {
+        h.transport.sent.dropFirst(before).contains { $0.contains("function_call_output") }
+    }
+    expect(opener.openedURLs.isEmpty, "puerta rt: con no, no abre")
+    expect(h.transport.sent.dropFirst(before).contains { $0.contains("denied_by_user") },
+           "puerta rt: el modelo lee la instrucción")
 }
 
-final class ScriptedChat: ChatProvider, @unchecked Sendable {
-    var deltas: [ChatDelta] = []
-    func stream(_ history: [Turn], tools: [ToolSpec])
-        -> AsyncThrowingStream<ChatDelta, Error>
-    {
-        let canned = deltas
-        return AsyncThrowingStream { continuation in
-            for delta in canned { continuation.yield(delta) }
-            continuation.finish()
-        }
+/// Code review (MEDIO/ALTO): `lastUserText` quedaba viejo; una mención de
+/// otro turno autorizaba una URL nueva. Empezar a hablar borra el texto de
+/// referencia; un turno sin texto comprometido falla cerrado.
+@MainActor func testRealtimeStaleTextDoesNotAuthorise() async {
+    let opener = FakeWorkspaceOpener()
+    let approvals = FakeApprovals()
+    let box = JobEventBox()
+    let h = makeVoiceHarness(
+        parentTools: ParentToolRunner(workspace: opener),
+        onJobEvent: { box.append($0) }, approvals: approvals)
+    h.transcriber.stoppedText = "abre example.com"
+    await h.session.start()
+    await pumpUntil("viejo: listening") { h.watch.latest.state == .listening }
+    h.transport.yield(.speechStarted)
+    await pumpUntil("viejo: speechOpen") { h.watch.latest.speechOpen }
+    await h.session.toggleMute()
+    await pumpUntil("viejo: texto comprometido") { hasMessage(h.transport.sent, type: "conversation.item.create") }
+    h.transport.yield(.responseDone)
+    // A new utterance starts and nothing gets committed (server-side turn).
+    h.transport.yield(.speechStarted)
+    await settle(0.05)
+    h.transport.yield(.functionCall(
+        name: "open_url", arguments: #"{"url":"https://example.com/late"}"#, callId: "c1"))
+    await pumpUntil("viejo: pide permiso") {
+        box.events.contains { if case .approvalRequested(let r) = $0 { r.toolName == "open_url" } else { false } }
     }
-    func verify(_ key: String, provider: ProviderDescriptor) async throws {}
+    expect(opener.openedURLs.isEmpty, "viejo: la mención del turno anterior no autoriza")
 }
 
-final class ScriptedSecrets: SecretStore, @unchecked Sendable {
-    var values: [SecretKey: String]
-    init(_ values: [SecretKey: String] = [:]) { self.values = values }
-    func read(_ key: SecretKey) throws -> String? { values[key] }
-    func write(_ key: SecretKey, value: String) throws { values[key] = value }
-    func delete(_ key: SecretKey) throws { values.removeValue(forKey: key) }
-}
-
-final class ScriptedThread: ConversationPresenting, @unchecked Sendable {
-    var turns: [Turn] = [], status: [String] = [], stream = "", finished = false
-    func historyTurns() async -> [Turn] { turns }
-    func appendUser(_ text: String) async {
-        turns.append(Turn(role: .user, content: text))
+/// Security review (verificado, sin test): el modelo no puede pedir
+/// `open_url` y contestarse `resolve_approval(true)` en la misma respuesta.
+/// Los eventos van en serie: la puerta bloquea hasta la decisión humana.
+@MainActor func testModelCannotApproveItsOwnURL() async {
+    let opener = FakeWorkspaceOpener()
+    let approvals = FakeApprovals()
+    let box = JobEventBox()
+    let h = makeVoiceHarness(
+        jobs: ApprovingSubmitter(),
+        parentTools: ParentToolRunner(workspace: opener),
+        onJobEvent: { box.append($0) }, approvals: approvals)
+    await h.session.start()
+    await pumpUntil("auto: listening") { h.watch.latest.state == .listening }
+    h.transport.yield(.functionCall(
+        name: "open_url", arguments: #"{"url":"https://evil.example/x"}"#, callId: "c1"))
+    h.transport.yield(.functionCall(
+        name: "resolve_approval", arguments: #"{"approved":true}"#, callId: "c2"))
+    await pumpUntil("auto: pide permiso") {
+        box.events.contains { if case .approvalRequested(let r) = $0 { r.toolName == "open_url" } else { false } }
     }
-    func appendAssistant(_ text: String) async {
-        turns.append(Turn(role: .assistant, content: text))
+    await settle(0.15)
+    expect(opener.openedURLs.isEmpty, "auto: el resolve del modelo no abrió nada")
+    expect(await approvals.resolutions.isEmpty, "auto: nadie resolvió la petición")
+    let request = await approvals.waiting
+    _ = await approvals.resolve(requestId: request?.requestId ?? "", approved: false)
+    await pumpUntil("auto: output de la negación") { h.transport.sent.contains { $0.contains("denied_by_user") } }
+    await pumpUntil("auto: el resolve tardío no encuentra nada") {
+        h.transport.sent.contains { $0.contains("c2") && $0.contains("function_call_output") }
     }
-    func appendStatus(_ text: String) async { status.append(text) }
-    // Mirrors the REAL contract (ChatViewModel replaces): the old fake
-    // accumulated, which is exactly why no test caught the flashing bubble.
-    func showStream(_ text: String) async { stream = text }
-    func finishStream() async { finished = true }
+    expect(opener.openedURLs.isEmpty, "auto: sigue sin abrir")
 }

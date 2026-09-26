@@ -14,6 +14,7 @@ import Testing
     testDeltaParsing()
     testSegmentParsing()
     testErrorParsing()
+    testTheEarLogsCountsNotWords()
 }
 
 func testLanguageHint() {
@@ -116,4 +117,18 @@ func testErrorParsing() {
 
 private func parse(_ s: String) -> [String: Any] {
     (try? JSONSerialization.jsonObject(with: Data(s.utf8))) as? [String: Any] ?? [:]
+}
+
+/// 12e. Lo que el oído oye es del usuario: el log cuenta caracteres y
+/// nunca palabras (deuda de la revisión de 12b, vista en vivo 2026-09-06
+/// con «ear: segment «Hola, ¿estás ahí?»» en el log).
+func testTheEarLogsCountsNotWords() {
+    let hearing = OpenAITranscriber.earLine(hearing: "Hola, ¿estás ahí?")
+    let segment = OpenAITranscriber.earLine(segment: "Hola. Hola, hola.")
+    expect(hearing.hasPrefix("ear: hearing"), "oído: la línea sigue diciendo que oye")
+    expect(segment.hasPrefix("ear: segment"), "oído: y que cerró un segmento")
+    expect(hearing.contains("17 chars"), "oído: cuenta")
+    expect(segment.contains("17 chars"), "oído: cuenta el segmento")
+    expect(!hearing.contains("Hola"), "oído: nunca las palabras")
+    expect(!segment.contains("Hola"), "oído: nunca el segmento")
 }

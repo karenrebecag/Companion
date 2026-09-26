@@ -17,6 +17,9 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
     /// The role and the job prompt are read by the specialist: they travel
     /// in the language the user is being answered in, not in the app's.
     private let language: AppLanguage
+    /// The skills catalog for the job prompt (Wave 11a); Claude Code reads
+    /// the paths with its own Read.
+    private let skills: @Sendable () -> String
     private let lock = NSLock()
     private var handle: (any ProcessHandle)?
     private var sessionId: String?
@@ -33,7 +36,8 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         approvals: any ApprovalsProvider,
         modelArgs: [String] = ["--model", "sonnet"],
         sessions: (any ExecutorSessionStoring)? = nil,
-        language: AppLanguage = .en
+        language: AppLanguage = .en,
+        skills: @escaping @Sendable () -> String = { "" }
     ) {
         self.workdir = workdir
         self.executablePath = executablePath
@@ -41,6 +45,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         self.approvals = approvals
         self.sessions = sessions
         self.language = language
+        self.skills = skills
 
         self.descriptor = ExecutorDescriptor(
             id: ExecutorID(rawValue: "claude-code"),
@@ -91,11 +96,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         // way to ask for more (there is no --permission-prompt-tool here), so
         // the specialist silently loses the disk and answers "I found nothing"
         // to questions that do have an answer.
-        var args = [
-            "-p", batchPrompt(job), "--output-format", "text",
-            "--permission-mode", "acceptEdits",
-            "--allowedTools", "WebSearch,WebFetch",
-        ]
+        var args = ["-p", batchPrompt(job), "--output-format", "text"] + Self.permissionArgs
         args += descriptor.modelArgs
         args += ["--append-system-prompt", Escalation.executorRole(language)]
         if let resume = effectiveSession() { args += ["--resume", resume] }
@@ -163,14 +164,16 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
                 events.yield(.thought(text))
 
             case .approval(let approval):
-                events.yield(.approvalRequested(approval))
-                let response = await approvals.request(approval)
-                let message = response.approved ? "" : deniedMessage
+                // Wave 16b: in auto mode a question means the classifier was
+                // not sure. Karen asked for no permission sheets, so the
+                // safe answer is no, said to the specialist, never to her.
+                // Tool name only in the log: the input can hold anything.
+                Log.app("executor: auto-denied \(approval.toolName)")
                 if let control = AgentStreamCodec.controlResponse(
                     requestId: approval.requestId,
-                    allow: response.approved,
+                    allow: false,
                     inputJSON: approval.inputJSON,
-                    message: message
+                    message: Self.autoDeniedMessage
                 ) {
                     try await handle.sendLine(control)
                 }
@@ -200,6 +203,39 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         throw ExecutorError.cableDied
     }
 
+    // MARK: - Permisos (Wave 16b)
+
+    /// Never without asking — and nobody is asked any more: root, pushing
+    /// code, wiping the disk or home, piping the web into a shell. AppleScript
+    /// drives the screen, which is the parent's hands' job since 15g/16a.
+    /// Claude Code splits `bash -c`, `;`/`&&` chains and full paths before
+    /// matching (verified 2026-09-25 against 2.1.282), so these prefixes hold
+    /// against wrappers; the variants cover other spellings. Not covered, by
+    /// design of any list: a script written then run, `python -c`, base64.
+    /// That residue is the auto classifier's, which Karen accepted.
+    static let deniedTools = [
+        "Bash(sudo *)", "Bash(git push*)",
+        "Bash(rm -rf /*)", "Bash(rm -rf ~*)", "Bash(rm -fr /*)", "Bash(rm -fr ~*)",
+        "Bash(rm -rf $HOME*)",
+        "Bash(curl * | sh*)", "Bash(curl * | bash*)", "Bash(wget * | sh*)", "Bash(wget * | bash*)",
+        "Bash(osascript *)",
+    ]
+
+    /// `auto`: Claude Code's classifier approves what is safe and refuses
+    /// what is risky, without a sheet (Karen, 2026-09-25). Web reads stay
+    /// explicitly allowed: a search is never a question.
+    /// Each pattern is its own argument: they contain spaces, and the CLI
+    /// also splits a single value on spaces (verified 2026-09-25, 2.1.282).
+    static let permissionArgs = [
+        "--permission-mode", "auto",
+        "--allowedTools", "WebSearch,WebFetch",
+        "--disallowedTools",
+    ] + deniedTools
+
+    static let autoDeniedMessage =
+        "Not allowed without asking, and this session does not ask. Find a way that "
+        + "does not need it, or say what you could not do."
+
     // MARK: - Proceso
 
     private func ensureProcessRunning() async throws -> any ProcessHandle {
@@ -212,14 +248,10 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             "--input-format", "stream-json",
             // Sin --verbose, stream-json en modo -p no emite los eventos.
             "--output-format", "stream-json", "--verbose",
-            // acceptEdits: los archivos pasan sin preguntar; lo demás llega
-            // como can_use_tool por el mismo cable gracias a stdio.
-            "--permission-mode", "acceptEdits",
-            // Leer la web no es destructivo, y cada WebFetch con permiso
-            // manual convertía una búsqueda en 5 minutos de diálogo.
-            "--allowedTools", "WebSearch,WebFetch",
+            // Lo que el modo auto aún pregunte llega como can_use_tool por
+            // este cable, y se niega solo (16b).
             "--permission-prompt-tool", "stdio",
-        ]
+        ] + Self.permissionArgs
         args += descriptor.modelArgs
         args += ["--append-system-prompt", Escalation.executorRole(language)]
 
@@ -264,14 +296,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             Handoff(goal: job.goal, context: job.context),
             workdir: workdir,
             desktop: NSHomeDirectory() + "/Desktop",
-            attachments: job.attachments, language: language)
-    }
-
-    /// Read by the specialist, so it follows the answer language.
-    private var deniedMessage: String {
-        language == .en
-            ? "The user did not allow it."
-            : "La usuaria no lo autorizó."
+            attachments: job.attachments, language: language, skills: skills())
     }
 
     private var sessionKey: ExecutorSessionKey {
@@ -283,7 +308,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
             Handoff(goal: job.goal, context: job.context),
             workdir: workdir,
             desktop: NSHomeDirectory() + "/Desktop",
-            attachments: job.attachments, language: language)
+            attachments: job.attachments, language: language, skills: skills())
         return AgentStreamCodec.userTurn(prompt) ?? ""
     }
 }

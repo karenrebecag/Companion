@@ -195,7 +195,8 @@ final class TestConfigProvider: ConfigProviding, @unchecked Sendable {
     let watch = SnapWatch(session.snapshots)
     return VoiceHarness(
         session: session, transport: transport, mic: mic, player: player,
-        transcriber: transcriber, thread: thread, clock: clock, watch: watch)
+        transcriber: transcriber, thread: thread, clock: clock, watch: watch,
+        synth: synth, chat: chat, secrets: secrets)
 }
 
 private struct TestReachability: ReachabilityProbing {

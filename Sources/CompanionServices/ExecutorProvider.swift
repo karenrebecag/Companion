@@ -20,7 +20,8 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
         workdir: String? = nil,
         processLauncher: any ProcessLauncher = RealProcessLauncher(),
         approvals: (any ApprovalsProvider)? = nil,
-        sessions: (any ExecutorSessionStoring)? = nil
+        sessions: (any ExecutorSessionStoring)? = nil,
+        skills: @escaping @Sendable () -> String = { "" }
     ) {
         self.nativeExecutor = nativeExecutor
         self.cliProbe = cliProbe
@@ -28,6 +29,7 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
         self.processLauncher = processLauncher
         self.approvals = approvals
         self.sessions = sessions
+        self.skills = skills
         self._selectedExecutorId = .native
     }
 
@@ -37,6 +39,8 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
     /// Threads survive app launches only if the store reaches the executor
     /// that owns the id; a provider built without it keeps the old amnesia.
     private let sessions: (any ExecutorSessionStoring)?
+    /// The skills catalog every CLI executor puts in its job prompt (11a).
+    private let skills: @Sendable () -> String
 
     /// Update the catalog of available executors (probe for CLI tools).
     public func refreshAvailableExecutors() async {
@@ -149,7 +153,8 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
                executablePath: path,
                processLauncher: processLauncher,
                approvals: approvals,
-               sessions: sessions) {
+               sessions: sessions,
+               skills: skills) {
             executor = built
         }
 

@@ -20,6 +20,8 @@ public final class ChatProviderClient: ChatProvider, Sendable {
     /// Read at request time, like the profile: memory written at the close of
     /// one session must reach the very next message (9j-2).
     private let memorySource: (@Sendable () -> String)?
+    /// The skills catalog, read per request like memory (Wave 11a).
+    private let skillsSource: (@Sendable () -> String)?
     private let catalog: [ProviderDescriptor]
     /// Read at REQUEST time, like the profile and the language above: which
     /// local models exist is a fact about the machine that changes while the
@@ -30,6 +32,13 @@ public final class ChatProviderClient: ChatProvider, Sendable {
     /// Injectable so a test does not sit through a real backoff. The retry is
     /// the behaviour under test; the waiting is not.
     private let sleep: @Sendable (TimeInterval) async throws -> Void
+    /// Wave 15c-7: the hold's fast brain passes 1. Its backoff on a 429 was
+    /// the 8-24 s turns measured live; the next provider answers sooner than
+    /// any wait could.
+    private let maxAttempts: Int
+    /// Wave 15d-9: the hold's clients ask for the voice rules; the typed
+    /// chat's client keeps the default and its prompt stays as it was.
+    private let voice: Bool
 
     public init(
         secrets: any SecretStore,
@@ -42,11 +51,16 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         profileSource: (@Sendable () -> (name: String, about: String, instructions: String))? = nil,
         languageSource: (@Sendable () -> AppLanguage)? = nil,
         memorySource: (@Sendable () -> String)? = nil,
+        skillsSource: (@Sendable () -> String)? = nil,
         catalog: [ProviderDescriptor] = ProviderDescriptor.catalog,
         catalogSource: (@Sendable () -> [ProviderDescriptor])? = nil,
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil,
-        sleep: (@Sendable (TimeInterval) async throws -> Void)? = nil
+        sleep: (@Sendable (TimeInterval) async throws -> Void)? = nil,
+        maxAttempts: Int = RetryPolicy.maxAttempts,
+        voice: Bool = false
     ) {
+        self.maxAttempts = maxAttempts
+        self.voice = voice
         self.secrets = secrets
         self.probe = probe
         self.transport = transport
@@ -57,6 +71,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         self.profileSource = profileSource
         self.languageSource = languageSource
         self.memorySource = memorySource
+        self.skillsSource = skillsSource
         self.catalog = catalog
         self.catalogSource = catalogSource
         self.resolveAttachment = resolveAttachment
@@ -152,6 +167,8 @@ public final class ChatProviderClient: ChatProvider, Sendable {
                         instructions: instructions,
                         language: languageSource?() ?? .en,
                         memory: memorySource?() ?? "",
+                        skills: skillsSource?() ?? "",
+                        voice: voice,
                         transport: transport,
                         resolveAttachment: resolveAttachment,
                         yield: { continuation.yield($0) })
@@ -160,12 +177,16 @@ public final class ChatProviderClient: ChatProvider, Sendable {
                         continuation.finish(throwing: CancellationError())
                         return
                     case .reply, .spokePartial, .handoff:
+                        // 15c-0: the ladder's own log used to be decorative
+                        // (`lastStack` nobody read) — this is who actually
+                        // answered, never the words (DM1c-1 §8).
+                        Log.chat("chat: answered by \(provider.id)/\(provider.model)")
                         continuation.finish()
                         return
                     case .failed(let error):
                         lastError = error
-                        guard RetryPolicy.shouldRetry(
-                            error, attempt: attempt)
+                        guard attempt < maxAttempts,
+                              RetryPolicy.shouldRetry(error, attempt: attempt)
                         else { continue providerLoop }
                         attempt += 1
                         do {

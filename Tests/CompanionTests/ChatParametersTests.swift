@@ -25,7 +25,8 @@ import Testing
     // eso se lee como "no hay proveedor disponible", que manda a Karen a
     // buscar el fallo donde no esta.
     for model in ["o1", "o1-mini", "o3", "o3-mini", "o4-mini",
-                  "gpt-5", "gpt-5-mini", "gpt-5.2"] {
+                  "gpt-5", "gpt-5-mini", "gpt-5.2",
+                  "gpt-oss-120b", "openai/gpt-oss-120b"] {
         expect(!ChatParameters.acceptsTemperature(model),
                "\(model) razona: la temperatura la rechaza el proveedor")
     }
@@ -71,7 +72,7 @@ import Testing
     let transport = ScriptedTransport()
     transport.stub(provider, ScriptedReply(status: 200, lines: []))
     let client = ChatProviderClient(
-        secrets: TestSecretStore([.openAI: "sk-test", .groq: "sk-test"]),
+        secrets: TestSecretStore([.openAI: "sk-test", .openRouter: "sk-test"]),
         probe: TestProbe(available: [provider.id]),
         transport: transport,
         catalog: [provider])

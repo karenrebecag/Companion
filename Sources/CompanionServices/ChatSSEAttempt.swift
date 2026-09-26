@@ -24,6 +24,8 @@ enum ChatSSEAttempt {
         instructions: String = "",
         language: AppLanguage = .en,
         memory: String = "",
+        skills: String = "",
+        voice: Bool = false,
         transport: any ChatTransport,
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil,
         yield: @escaping @Sendable (ChatDelta) -> Void
@@ -32,7 +34,7 @@ enum ChatSSEAttempt {
             provider: provider, key: key, history: history, tools: tools,
             settings: settings, ownerFirstName: ownerFirstName,
             about: about, instructions: instructions, language: language,
-            memory: memory,
+            memory: memory, skills: skills, voice: voice,
             resolveAttachment: resolveAttachment)
         else { return .failed(.unreachable) }
 
@@ -77,6 +79,8 @@ enum ChatSSEAttempt {
         instructions: String = "",
         language: AppLanguage = .en,
         memory: String = "",
+        skills: String = "",
+        voice: Bool = false,
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil
     ) -> URLRequest? {
         guard let url = provider.endpoint else { return nil }
@@ -93,6 +97,7 @@ enum ChatSSEAttempt {
             provider: provider, history: history, tools: tools,
             settings: settings, ownerFirstName: ownerFirstName,
             about: about, instructions: instructions, language: language,
+            memory: memory, skills: skills, voice: voice,
             resolveAttachment: resolveAttachment)
         else { return nil }
         request.httpBody = body
@@ -119,15 +124,26 @@ private func makeBody(
     instructions: String,
     language: AppLanguage,
     memory: String = "",
+    skills: String = "",
+    voice: Bool = false,
     resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
 ) -> Data? {
     let delegateEnabled = tools.contains { $0.name == "delegate" }
+    // Derived from the tools, like delegate: what is declared is what the
+    // prompt may promise, and nothing the prompt promises goes undeclared.
+    let parentToolsEnabled = tools.contains { ParentTool(rawValue: $0.name) != nil }
+    // Wave 15g-3: the hands are declared only with Accessibility granted,
+    // so the declaration, not a setting, decides whether typing is promised.
+    let handsEnabled = tools.contains { $0.name == "type_text" }
     var messages: [[String: Any]] = [[
         "role": TurnRole.system.rawValue,
         "content": ChatPrompt.system(
             ownerFirstName: ownerFirstName, delegateEnabled: delegateEnabled,
+            parentToolsEnabled: parentToolsEnabled,
+            handsEnabled: handsEnabled,
+            sightEnabled: tools.contains { $0.name == ParentTool.look.rawValue },
             about: about, instructions: instructions, language: language,
-            memory: memory),
+            memory: memory, skills: skills, voice: voice),
     ]]
     let window = max(settings.historyWindow, 0)
     for turn in history.suffix(window) {
@@ -164,10 +180,16 @@ private func makeBody(
        ChatParameters.acceptsTemperature(provider.model) {
         body["temperature"] = temperature
     }
+    // 15c-3: only the descriptor that asks for it (the hold's gpt-oss
+    // brain) — never guessed from the model name.
+    if let effort = provider.reasoningEffort {
+        body["reasoning_effort"] = effort
+    }
     if !tools.isEmpty {
         var encoded: [Any] = []
         for spec in tools {
-            guard let data = spec.encodeChat().data(using: .utf8) else { continue }
+            guard let data = spec.encodeChat(strict: provider.supportsStrictTools)
+                .data(using: .utf8) else { continue }
             do {
                 encoded.append(try JSONSerialization.jsonObject(with: data))
             } catch {
@@ -236,7 +258,7 @@ private func sleepSeconds(_ seconds: TimeInterval) async throws {
     try await Task.sleep(for: .seconds(max(seconds, 0)))
 }
 
-/// Groq/Ollama reject multimodal parts. Parts only appear when a resolved
+/// OpenAI-compatible servers such as Ollama reject multimodal parts. Parts only appear when a resolved
 /// image is actually going to travel; everything else stays a String.
 private func messageContent(
     _ turn: Turn,
@@ -329,36 +351,31 @@ private actor DeltaSink {
 
     func finish(error: ChatError?) -> ChatAttemptOutcome {
         if finished { return outcome }
-        let started = tool.started
-        let name = tool.name
-        let arguments = tool.arguments
+        let calls = tool.calls.filter { !$0.name.isEmpty }
         let spoke = spokePartial
         let reply = full.trimmingCharacters(in: .whitespacesAndNewlines)
         let rest = sentenceBuf.trimmingCharacters(in: .whitespacesAndNewlines)
         sentenceBuf = ""
 
-        // Determine outcome based on tool call and text
-        var toolCallDelta: ChatDelta? = nil
-        if started && !name.isEmpty {
-            if name == "delegate" {
-                // Delegate is for conversation layer - try to parse handoff
-                let parsed = Handoff.parse(toolName: name, arguments: arguments)
-                if let parsed {
-                    outcome = .handoff(parsed)
-                } else {
-                    // Malformed delegate - fall through to text-based outcome
-                    if error != nil || reply.isEmpty {
-                        outcome = spoke ? .spokePartial : .failed(error ?? .empty)
-                    } else {
-                        outcome = .reply
-                    }
+        // `delegate` is the conversation layer's; everything else is a call
+        // the parent (10b) or the specialist answers. Both may come in one
+        // round: the calls travel first, the handoff closes the turn.
+        var handoff: Handoff?
+        var others: [ToolCallRef] = []
+        for call in calls {
+            if call.name == "delegate" {
+                // A malformed delegate does not escalate; the text stands.
+                if handoff == nil {
+                    handoff = Handoff.parse(toolName: call.name, arguments: call.arguments)
                 }
             } else {
-                // Non-delegate tool is for specialists - emit as toolCall
-                let callId = UUID().uuidString
-                toolCallDelta = .toolCall(id: callId, name: name, arguments: arguments)
-                outcome = .reply
+                others.append(call)
             }
+        }
+        if let handoff {
+            outcome = .handoff(handoff)
+        } else if !others.isEmpty {
+            outcome = .reply
         } else if error != nil || reply.isEmpty {
             outcome = spoke ? .spokePartial : .failed(error ?? .empty)
         } else {
@@ -367,16 +384,14 @@ private actor DeltaSink {
         finished = true
         let commit = outcome
 
-        // Emit deltas based on outcome
         switch commit {
         case .handoff(let handoff):
             if !rest.isEmpty { yield(.text(rest)) }
+            if !others.isEmpty { yield(.toolCalls(others)) }
             yield(.handoff(handoff))
         case .reply, .spokePartial:
             if !rest.isEmpty { yield(.text(rest)) }
-            if let toolCall = toolCallDelta {
-                yield(toolCall)
-            }
+            if !others.isEmpty { yield(.toolCalls(others)) }
         case .failed, .cancelled:
             break
         }

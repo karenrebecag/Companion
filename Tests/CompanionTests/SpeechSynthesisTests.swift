@@ -3,7 +3,7 @@ import CompanionServices
 import Foundation
 import Testing
 
-@Test @MainActor func speechSynthesisTests() {
+@Test @MainActor func speechSynthesisTests() async {
     testPhraseCache()
     testPhraseCacheLimits()
     testBeginFinishEmptyEmitsFinished()
@@ -15,6 +15,10 @@ import Testing
     testStopDropsPendingKeepsPrefix()
     testBeginResetsSpokenSoFar()
     testTheOfflineVoiceSpeaksTheUserLanguage()
+    await testPrewarmDedupsAnInFlightFetch()
+    await testStreamedChunksReachPlaybackBeforeTheStreamEnds()
+    await testStopDuringAStreamSilencesAndDoesNotCacheThePartial()
+    await testACompletedStreamCachesAndReplaysOffline()
 }
 
 /// La voz de respaldo entra justo cuando no hay red, que es cuando el usuario
@@ -228,8 +232,11 @@ import Testing
             expectEq(await synth.speakingNow, "", "stop: speakingNow vacío")
             expectEq(await synth.spokenSoFar(), "Uno.", "stop: conserva prefix")
             expectEq(await play.texts, ["Uno.", "Dos."], "stop: no llega a Tres")
-            expectEq(fetch.calls.map(\.text), ["Uno.", "Dos."],
-                     "stop: no fetch de Tres")
+            // 15f-5: while Dos sounds, Tres may already be requested (one
+            // ahead) — it is paid for, never heard, and nothing past it is.
+            expectEq(Array(fetch.calls.map(\.text).prefix(2)), ["Uno.", "Dos."],
+                     "stop: Uno y Dos se piden en orden")
+            expect(fetch.calls.count <= 3, "stop: nunca más de una por delante")
             expect(await play.stops > 0, "stop: corta playback")
         }
     }
@@ -260,6 +267,266 @@ import Testing
     }
 }
 
+/// Code review 2026-09-23 (medio): two presses warming the same missing
+/// phrase used to fire two fetches — `prewarm`'s own Task is fire-and-forget,
+/// so nothing stopped a second call from racing the first before the cache
+/// had a chance to fill.
+// Not `runOk`/`withTempDir`: that pair bridges a SYNC closure into async by
+// blocking the main thread on a semaphore — deadlocks the moment the async
+// body hops back onto the (blocked) MainActor, which `pumpUntilAsync` does.
+@MainActor func testPrewarmDedupsAnInFlightFetch() async {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("companion-tts-dedup-\(UUID().uuidString)", isDirectory: true)
+    do {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    } catch {
+        expect(false, "dedup: no se pudo crear el temp dir \(error)")
+        return
+    }
+    defer { try? FileManager.default.removeItem(at: dir) }
+
+    let cache = PhraseCache(directory: dir)
+    let fetch = GatedFetch()
+    let synth = SpeechSynthesis(
+        cache: cache, fetcher: fetch, playback: FakePlay(),
+        fallback: FakeFallback(), voice: .marin)
+    await fetch.block("Uno.")
+    await synth.prewarm(["Uno.", "Dos."])
+    await fetch.waitUntilBlocked("Uno.")
+    // A second press asks for "Uno." again while its fetch is still in
+    // flight: it must not start a second round trip. (The gate only holds
+    // the FIRST call to "Uno." — a leftover duplicate sails through
+    // unblocked, so it shows up as an extra call instead of a hang.)
+    await synth.prewarm(["Uno.", "Tres."])
+    await settle(0.05)
+    await fetch.release()
+    await pumpUntilAsync("dedup: las frases nuevas llegan a fetch") {
+        let calls = await fetch.calls
+        return calls.contains("Dos.") && calls.contains("Tres.")
+    }
+    let calls = await fetch.calls
+    expectEq(calls.filter { $0 == "Uno." }.count, 1,
+             "dedup: Uno. se pide una sola vez aunque dos prewarm lo pidan")
+    expect(calls.contains("Dos.") && calls.contains("Tres."),
+           "dedup: la frase nueva de cada prewarm sí se pide")
+}
+
+/// A fetch that blocks only the FIRST call to a given phrase, so a test can
+/// hold that one open and observe a second `prewarm` call racing it — a
+/// leftover duplicate sails through unblocked instead of deadlocking the
+/// test on a second, orphaned continuation. Same continuation-exchange
+/// shape as `FakePlay.blockAt`.
+actor GatedFetch: TTSFetching {
+    private(set) var calls: [String] = []
+    private var blockedOnce: Set<String> = []
+    private var blockedPhrase: String?
+    private var gate: CheckedContinuation<Void, Never>?
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    func block(_ phrase: String) { blockedOnce.insert(phrase) }
+
+    func fetch(_ text: String, voice: VoiceID) async throws -> Data {
+        calls.append(text)
+        guard blockedOnce.remove(text) != nil else { return Data(text.utf8) }
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            gate = c
+            blockedPhrase = text
+            if let waiter { waiter.resume() }
+            waiter = nil
+        }
+        return Data(text.utf8)
+    }
+
+    func waitUntilBlocked(_ phrase: String) async {
+        if blockedPhrase == phrase { return }
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            waiter = c
+        }
+    }
+
+    func release() {
+        gate?.resume()
+        gate = nil
+    }
+}
+
+/// Wave 15c-5 TDD row 13: the mouth must not wait for the whole sentence to
+/// download before it starts moving air. Gate held before the 3rd of 3
+/// chunks so the assertion catches the player with only the first two in
+/// hand — proof they were scheduled before the stream even finished.
+@MainActor func testStreamedChunksReachPlaybackBeforeTheStreamEnds() async {
+    let dir = makeTTSTempDir("stream-order")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let fetch = GatedChunkFetch()
+    await fetch.script("Hola.", chunks: [Data("A".utf8), Data("B".utf8), Data("C".utf8)], gateBeforeIndex: 2)
+    let play = FakePlay()
+    let synth = SpeechSynthesis(
+        cache: PhraseCache(directory: dir), fetcher: fetch, playback: play,
+        fallback: FakeFallback(), voice: .marin)
+    await synth.begin()
+    await synth.enqueue("Hola.")
+    await synth.finish()
+    await fetch.waitUntilGated()
+    await pumpUntilAsync("streaming: los dos primeros llegan a playback") {
+        await play.played.count == 2
+    }
+    expectEq(await play.played.count, 2,
+             "streaming: el player ya tiene los dos primeros antes de que llegue el tercero")
+    await fetch.release()
+    await pumpUntilAsync("streaming: el tercer chunk llega") {
+        await play.played.count == 3
+    }
+    expectEq(await play.texts, ["A", "B", "C"], "streaming: orden preservado")
+}
+
+/// Wave 15c-5 TDD row 14: `stop()` mid-sentence silences right away and the
+/// interrupted download must never land in the phrase cache.
+@MainActor func testStopDuringAStreamSilencesAndDoesNotCacheThePartial() async {
+    let dir = makeTTSTempDir("stream-stop")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let cache = PhraseCache(directory: dir)
+    let fetch = GatedChunkFetch()
+    await fetch.script("Hola.", chunks: [Data("A".utf8), Data("B".utf8), Data("C".utf8)], gateBeforeIndex: 1)
+    let play = FakePlay()
+    let synth = SpeechSynthesis(
+        cache: cache, fetcher: fetch, playback: play, fallback: FakeFallback(), voice: .marin)
+    await synth.begin()
+    await synth.enqueue("Hola.")
+    await synth.finish()
+    await fetch.waitUntilGated()
+    await pumpUntilAsync("stop en vivo: el primer chunk llega a playback") {
+        await play.played.count == 1
+    }
+    expectEq(await play.played.count, 1, "stop en vivo: solo el primer chunk sonó")
+    await synth.stop()
+    expect(await play.stops > 0, "stop en vivo: corta playback de inmediato")
+    await fetch.release()
+    await settle(0.1)
+    expectEq(await play.played.count, 1,
+              "stop en vivo: lo que llega tras stop no se reproduce")
+    do {
+        expectEq(try cache.data(for: "Hola."), nil, "stop en vivo: no cachea lo parcial")
+    } catch {
+        expect(false, "stop en vivo: leer la caché no debía tirar \(error)")
+    }
+}
+
+/// Wave 15c-5 TDD row 15: once the stream finishes, the full phrase is
+/// cached and a later hold — even offline — replays it without a fetch.
+@MainActor func testACompletedStreamCachesAndReplaysOffline() async {
+    let dir = makeTTSTempDir("stream-cache")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let cache = PhraseCache(directory: dir)
+    let fetch = GatedChunkFetch()
+    await fetch.script("Hola.", chunks: [Data("A".utf8), Data("B".utf8), Data("C".utf8)])
+    let play = FakePlay()
+    let synth = SpeechSynthesis(
+        cache: cache, fetcher: fetch, playback: play, fallback: FakeFallback(), voice: .marin)
+    let tap = EventTap.start(synth.events)
+    await synth.begin()
+    await synth.enqueue("Hola.")
+    await synth.finish()
+    expectEq(await tap.waitTerminal(), [
+        .chunkStarted(text: "Hola.", duration: 0),
+        .finished,
+    ], "offline: termina bien la primera vez")
+    do {
+        expectEq(try cache.data(for: "Hola."), Data("ABC".utf8),
+                 "offline: cachea el PCM completo, en orden")
+    } catch {
+        expect(false, "offline: leer la caché no debía tirar \(error)")
+    }
+
+    let offlineFetch = FakeFetch()
+    offlineFetch.error = TTSStubError.boom
+    let replayPlay = FakePlay()
+    let replay = SpeechSynthesis(
+        cache: cache, fetcher: offlineFetch, playback: replayPlay,
+        fallback: FakeFallback(), voice: .marin)
+    expectEq(await speak(replay, "Hola."), [
+        .chunkStarted(text: "Hola.", duration: 0),
+        .finished,
+    ], "offline: la repetición también termina bien")
+    expect(offlineFetch.calls.isEmpty, "offline: sin red, no hay fetch")
+    expectEq(await replayPlay.texts, ["ABC"], "offline: reproduce el PCM cacheado")
+}
+
+/// Wave 15c-5: a phrase delivered as separate PCM chunks instead of one
+/// blob, with an optional gate before one of them — lets a test observe
+/// that earlier chunks already reached playback before a later one arrives,
+/// the same continuation-exchange shape as `GatedFetch`/`FakePlay.blockAt`.
+actor GatedChunkFetch: TTSFetching {
+    private(set) var calls: [String] = []
+    private var scripted: [String: [Data]] = [:]
+    private var gateBefore: [String: Int] = [:]
+    private var gate: CheckedContinuation<Void, Never>?
+    private var waiter: CheckedContinuation<Void, Never>?
+    private var gated = false
+
+    func script(_ phrase: String, chunks: [Data], gateBeforeIndex: Int? = nil) {
+        scripted[phrase] = chunks
+        if let gateBeforeIndex { gateBefore[phrase] = gateBeforeIndex }
+    }
+
+    func fetch(_ text: String, voice: VoiceID) async throws -> Data {
+        calls.append(text)
+        return (scripted[text] ?? []).reduce(Data(), +)
+    }
+
+    nonisolated func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
+        AsyncThrowingStream { continuation in
+            let pump = Task {
+                await self.record(text)
+                let parts = await self.parts(for: text)
+                let holdIndex = await self.gateIndex(for: text)
+                for (index, part) in parts.enumerated() {
+                    if Task.isCancelled { break }
+                    if index == holdIndex { await self.hold() }
+                    continuation.yield(part)
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in pump.cancel() }
+        }
+    }
+
+    private func record(_ text: String) { calls.append(text) }
+    private func parts(for text: String) -> [Data] { scripted[text] ?? [] }
+    private func gateIndex(for text: String) -> Int? { gateBefore[text] }
+
+    private func hold() async {
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+            gate = c
+            gated = true
+            let wake = waiter
+            waiter = nil
+            wake?.resume()
+        }
+    }
+
+    func waitUntilGated() async {
+        if gated { return }
+        await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in waiter = c }
+    }
+
+    func release() {
+        gated = false
+        gate?.resume()
+        gate = nil
+    }
+}
+
+func makeTTSTempDir(_ label: String) -> URL {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("companion-tts-\(label)-\(UUID().uuidString)", isDirectory: true)
+    do {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    } catch {
+        expect(false, "\(label): no se pudo crear el temp dir \(error)")
+    }
+    return dir
+}
+
 enum TTSStubError: Error { case boom }
 
 final class FakeFetch: TTSFetching, @unchecked Sendable {
@@ -279,6 +546,11 @@ actor FakePlay: SpeechPlayback {
     private let blockAt: Int
     private var hold: CheckedContinuation<Void, Never>?
     private var started: CheckedContinuation<Void, Never>?
+    /// Wave 15c-5: the task actually running `for try await chunk in
+    /// chunks` — `stop()` cancels this one directly (the pattern
+    /// `ChatSSEAttempt` already uses) instead of hoping cancellation
+    /// travels on its own through a stream built somewhere else.
+    private var consumer: Task<Data, Error>?
 
     init(blockAt: Int = .max) { self.blockAt = blockAt }
 
@@ -287,6 +559,24 @@ actor FakePlay: SpeechPlayback {
     }
 
     func play(_ data: Data) async throws {
+        try await record(data)
+    }
+
+    func play(_ chunks: AsyncThrowingStream<Data, Error>) async throws -> Data {
+        let task = Task { () throws -> Data in
+            var assembled = Data()
+            for try await chunk in chunks {
+                assembled.append(chunk)
+                try await self.record(chunk)
+            }
+            return assembled
+        }
+        consumer = task
+        defer { consumer = nil }
+        return try await task.value
+    }
+
+    private func record(_ data: Data) async throws {
         played.append(data)
         guard played.count >= blockAt else { return }
         await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
@@ -300,6 +590,7 @@ actor FakePlay: SpeechPlayback {
 
     func stop() async {
         stops += 1
+        consumer?.cancel()
         hold?.resume()
         hold = nil
         started?.resume()
@@ -326,15 +617,21 @@ final class FakeFallback: SystemSpeechFallback, @unchecked Sendable {
 actor EventTap {
     private var buffer: [SpeechEvent] = []
     private var waiter: CheckedContinuation<[SpeechEvent], Never>?
+    /// 15f-5: the mouth's timing marks are their own contract; the tests
+    /// about what is spoken and in what order read the list without them.
+    private let keepMarks: Bool
 
-    static func start(_ stream: AsyncStream<SpeechEvent>) -> EventTap {
-        let tap = EventTap()
+    private init(keepMarks: Bool) { self.keepMarks = keepMarks }
+
+    static func start(_ stream: AsyncStream<SpeechEvent>, keepMarks: Bool = false) -> EventTap {
+        let tap = EventTap(keepMarks: keepMarks)
         Task { await tap.pull(stream) }
         return tap
     }
 
     private func pull(_ stream: AsyncStream<SpeechEvent>) async {
         for await event in stream {
+            if case .mark = event, !keepMarks { continue }
             buffer.append(event)
             if event == .finished || event == .failed, let waiter {
                 self.waiter = nil

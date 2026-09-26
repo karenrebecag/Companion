@@ -102,8 +102,8 @@ private func makeSerializingClient(
     resolve: @escaping @Sendable (AttachmentRef) -> AttachmentPayload?
 ) -> ChatProviderClient {
     ChatProviderClient(
-        secrets: TestSecretStore([.openAI: "sk-test", .groq: "gsk-test"]),
-        probe: TestProbe(available: ["openai", "groq"]),
+        secrets: TestSecretStore([.openAI: "sk-test", .openRouter: "or-test"]),
+        probe: TestProbe(available: ["openai", "openrouter"]),
         transport: transport,
         ownerFirstName: "Karen",
         resolveAttachment: resolve)

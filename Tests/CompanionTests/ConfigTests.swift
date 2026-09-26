@@ -11,16 +11,21 @@ import Testing
 
 @MainActor func testTalkRoute() {
     let names = ProviderDescriptor.route(order: []).map { $0.name }
-    expectEq(names, ["OpenAI", "Groq", "OpenRouter", "Ollama"],
-             "ruta: default OpenAI → Groq → Ollama")
+    expectEq(names, ["OpenAI", "OpenRouter", "Ollama"],
+             "ruta: default OpenAI → OpenRouter → Ollama")
 
-    let groqFirst = ProviderDescriptor.route(order: ["groq"]).map { $0.name }
-    expectEq(groqFirst, ["Groq", "OpenAI", "OpenRouter", "Ollama"],
+    let ollamaFirst = ProviderDescriptor.route(order: ["ollama"]).map { $0.name }
+    expectEq(ollamaFirst, ["Ollama", "OpenAI", "OpenRouter"],
              "ruta: el preferido encabeza, el resto conserva orden")
 
     let unknown = ProviderDescriptor.route(order: ["gemini"]).map { $0.name }
-    expectEq(unknown, ["OpenAI", "Groq", "OpenRouter", "Ollama"],
+    expectEq(unknown, ["OpenAI", "OpenRouter", "Ollama"],
              "ruta: preferido desconocido no rompe — ruta default")
+
+    // 15e-2: a pre-15e preference may still name Groq; it is ignored now.
+    let retired = ProviderDescriptor.route(order: ["groq"]).map { $0.id }
+    expectEq(retired, ["openai", "openrouter", "ollama"],
+             "ruta: un orden guardado con Groq ya no lo resucita")
 
     for p in ProviderDescriptor.catalog {
         expectEq(p.endpoint?.absoluteString ?? "",
@@ -43,14 +48,6 @@ import Testing
              "https://api.openai.com/v1/chat/completions",
              "openai: endpoint chat/completions")
 
-    let groq = ProviderDescriptor.groq
-    expectEq(groq.id, "groq", "groq: id")
-    expectEq(groq.name, "Groq", "groq: name")
-    expectEq(groq.model, "llama-3.3-70b-versatile", "groq: llama 3.3 70b")
-    expectEq(groq.baseURL.absoluteString, "https://api.groq.com/openai/v1",
-             "groq: base openai-compatible")
-    expectEq(groq.secretKey, .groq, "groq: GROQ_API_KEY")
-
     let openRouter = ProviderDescriptor.openRouter
     let ollama = ProviderDescriptor.ollama
     expectEq(ollama.id, "ollama", "ollama: id")
@@ -60,10 +57,11 @@ import Testing
              "ollama: localhost /v1")
     expect(ollama.secretKey == nil, "ollama: sin llave")
 
-    expectEq(ProviderDescriptor.catalog, [openAI, groq, openRouter, ollama],
-             "catalog: OpenAI → Groq → OpenRouter → Ollama")
+    expectEq(ProviderDescriptor.catalog, [openAI, openRouter, ollama],
+             "catalog: OpenAI → OpenRouter → Ollama, sin Groq (15e-2)")
+    expect(!ProviderDescriptor.catalog.contains { $0.secretKey == .groq },
+           "catalog: ninguna fila usa la clave de Groq")
     expectEq(SecretKey.openAI.rawValue, "OPENAI_API_KEY", "secret: OpenAI")
-    expectEq(SecretKey.groq.rawValue, "GROQ_API_KEY", "secret: Groq")
     expectEq(SecretKey.openRouter.rawValue, "OPENROUTER_API_KEY",
              "secret: OpenRouter")
     // Dejo de ser el caso: la enum tenía el caso y le faltaba descriptor, que
@@ -104,6 +102,11 @@ import Testing
            "config: las 10 voces de Realtime")
     expectEq(Eagerness.allCases.map(\.rawValue), ["low", "auto", "high"],
              "config: eagerness de semantic_vad")
+    // 15f-6: Karen eligió a ciegas a Ana María (es-MX) el 2026-09-25.
+    expectEq(c.elevenLabsVoiceID, "m7yTemJqdIqrcNleANfX",
+             "config: Ana María es la voz ElevenLabs por defecto")
+    expectEq(Config.defaultElevenLabsVoiceID, "m7yTemJqdIqrcNleANfX",
+             "config: el default público es Ana María")
 }
 
 @MainActor func testVoiceSettingsClamp() {
@@ -156,32 +159,32 @@ import Testing
 
 @MainActor func testChatSettingsAndRouteEdges() {
     expectEq(ProviderDescriptor.route(order: [""]).map(\.name),
-             ["OpenAI", "Groq", "OpenRouter", "Ollama"],
+             ["OpenAI", "OpenRouter", "Ollama"],
              "ruta: preferido vacío es ruta default")
     expect(ProviderDescriptor.route(order: ["openai"], catalog: []).isEmpty,
            "ruta: catálogo vacío no inventa proveedores")
 
-    let custom = [ProviderDescriptor.ollama, ProviderDescriptor.groq]
+    let custom = [ProviderDescriptor.ollama, ProviderDescriptor.openRouter]
     expectEq(ProviderDescriptor.route(order: [], catalog: custom).map(\.name),
-             ["Ollama", "Groq"],
+             ["Ollama", "OpenRouter"],
              "ruta: catálogo custom conserva orden")
-    expectEq(ProviderDescriptor.route(order: ["groq"], catalog: custom).map(\.name),
-             ["Groq", "Ollama"],
+    expectEq(ProviderDescriptor.route(order: ["openrouter"], catalog: custom).map(\.name),
+             ["OpenRouter", "Ollama"],
              "ruta: preferido custom encabeza, el resto conserva orden")
     expectEq(ProviderDescriptor.route(order: ["openai"], catalog: custom).map(\.name),
-             ["Ollama", "Groq"],
+             ["Ollama", "OpenRouter"],
              "ruta: se compara por name, no por id")
 
     let chat = ChatSettings(
-        providerOrder: ["groq"],
+        providerOrder: ["openrouter"],
         historyWindow: 0,
         inactivityTimeout: 0,
         turnTimeout: 0)
-    expectEq(chat.providerOrder, ["groq"], "chat: el orden se guarda")
+    expectEq(chat.providerOrder, ["openrouter"], "chat: el orden se guarda")
     expectEq(chat.historyWindow, 0, "chat: ventana 0 es válida (sin historial)")
     expectEq(
         ProviderDescriptor.route(order: chat.providerOrder).map(\.name),
-        ["Groq", "OpenAI", "OpenRouter", "Ollama"],
+        ["OpenRouter", "OpenAI", "Ollama"],
         "chat: el preferido de settings rota la ruta")
 
     var cfg = Config.default

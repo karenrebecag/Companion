@@ -34,6 +34,14 @@ import Testing
         VoiceFailureMapping.failure(for: ChatError.unauthorized),
         .noProviders,
         "clave rechazada no es problema de red")
+    expectEq(
+        VoiceFailureMapping.failure(for: ChatError.httpStatus(429)),
+        .quotaExceeded,
+        "429 de cuota no es red ni proveedor ausente")
+    expect(
+        VoiceFailureMapping.isQuota(
+            "You have no credits remaining. Add credits to continue using the API"),
+        "credits remaining es cuota")
 }
 
 @MainActor func testURLErrorsMap() {
