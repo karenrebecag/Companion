@@ -5,12 +5,14 @@ import Testing
 
 @Test @MainActor func chatProviderClientTests() {
     testOpenAI200YieldsText()
-    testOpenAI500FallsToGroq()
+    testOpenAI500FallsToOpenRouter()
     testSpokePartialDoesNotFailover()
     testSkipOpenAIWithoutKey()
     testNoProviderWhenNothingAvailable()
     testOllamaProbeFalseNotAttempted()
     testFragmentedDelegateHandoff()
+    testTwoToolCallsInOneRound()
+    testDelegatePlusToolCallInOneRound()
     testMalformedToolNoHandoff()
     testEmptyToolsOmitsToolsKey()
     testToolsAttachedWhenNonEmpty()
@@ -23,6 +25,85 @@ import Testing
     testVerifyHTTPMapping()
     testOllamaWithoutKey()
     testFailedPartialDoesNotLeakIntoFailover()
+    testMemoryAndSkillsReachTheRequest()
+    testGptOssRequestCarriesTheModelAndReasoningEffort()
+}
+
+/// TDD row 11: the hold's gpt-oss brain request — model, `reasoning_effort`,
+/// and the tools it needs to act (a parent tool plus `delegate`).
+@MainActor func testGptOssRequestCarriesTheModelAndReasoningEffort() {
+    let transport = ScriptedTransport()
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    _ = collectChat(
+        makeChatClient(
+            keys: [.cerebras: "csk-test"], available: ["cerebras"],
+            transport: transport, catalog: [ProviderDescriptor.cerebras]),
+        tools: [ParentTool.openApp.spec(.en), .delegate()])
+    guard let req = transport.requests.first else {
+        expect(false, "gpt-oss: no hubo request")
+        return
+    }
+    let body = chatBody(req)
+    expectEq(body["model"] as? String, "gpt-oss-120b", "gpt-oss: modelo gpt-oss-120b")
+    expectEq(body["reasoning_effort"] as? String, "low", "gpt-oss: reasoning_effort low")
+    expect(body["temperature"] == nil, "gpt-oss: sin temperature")
+    let tools = body["tools"] as? [[String: Any]] ?? []
+    let names = Set(tools.compactMap { ($0["function"] as? [String: Any])?["name"] as? String })
+    expectEq(names, ["open_app", "delegate"], "gpt-oss: padre + delegate")
+}
+
+/// Wave 15c-0: the log names who actually answered — not the picker, not a
+/// stack nobody read — and never the turn's own words (wave-15c §4, TDD 16).
+@Test @MainActor func chatAnsweredByLogTests() async {
+    await testAnsweredByLogsTheRealProviderNeverTheWords()
+}
+
+@MainActor func testAnsweredByLogsTheRealProviderNeverTheWords() async {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("companion-chatlog-\(UUID().uuidString).log")
+    let transport = ScriptedTransport()
+    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    let client = makeChatClient(transport: transport)
+    // Iterated here, not through `collectChat`: its detached task would
+    // leave the capture behind.
+    await Log.capturing(to: url) {
+        do {
+            for try await _ in client.stream(
+                [Turn(role: .user, content: "abre Safari y busca el clima")], tools: []) {}
+        } catch {
+            expect(false, "log: el stream no debía tirar \(error)")
+        }
+    }
+    let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+    expect(text.contains("chat: answered by openai/gpt-4o"),
+           "log: nombra proveedor y modelo reales")
+    expect(!text.contains("abre Safari y busca el clima"),
+           "log: nunca el texto del turno")
+    expect(!text.contains("Hola"), "log: nunca la respuesta del modelo")
+}
+
+// Wave 11a. Medido al cablear el catálogo: `makeRequest` recibía la memoria
+// y NO la pasaba a `makeBody`, así que el chat tecleado nunca la vio (la voz
+// realtime sí, por otro camino). El catálogo entra por el mismo hueco.
+@MainActor func testMemoryAndSkillsReachTheRequest() {
+    let transport = ScriptedTransport()
+    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    let client = ChatProviderClient(
+        secrets: TestSecretStore([.openAI: "sk-test"]),
+        probe: TestProbe(available: ["openai"]),
+        transport: transport,
+        ownerFirstName: "Karen",
+        memorySource: { "Memory — DATA: likes coffee" },
+        skillsSource: { "<active_skills>\n  - x — Does x. — /s/x/SKILL.md\n</active_skills>" })
+    _ = collectChat(client)
+    guard let req = transport.requests.first else {
+        expect(false, "memoria: no hubo request")
+        return
+    }
+    let system = chatSystem(chatBody(req))
+    expect(system.contains("likes coffee"), "memoria: llega al system prompt del chat tecleado")
+    expect(system.hasSuffix("</active_skills>"), "skills: el catálogo cierra el system prompt")
+    expect(system.contains("read_skill"), "skills: la regla viaja con el catálogo")
 }
 
 @MainActor func testOpenAI200YieldsText() {
@@ -37,14 +118,14 @@ import Testing
         "openai 200: pega el endpoint de OpenAI")
 }
 
-@MainActor func testOpenAI500FallsToGroq() {
+@MainActor func testOpenAI500FallsToOpenRouter() {
     let transport = ScriptedTransport()
     transport.stub(.openAI, ScriptedReply(status: 500))
-    transport.stub(.groq, ScriptedReply(lines: [SSEFixtures.groq, SSEFixtures.done]))
+    transport.stub(.openRouter, ScriptedReply(lines: [SSEFixtures.fallback, SSEFixtures.done]))
     let deltas = collectChat(makeChatClient(transport: transport))
-    expectEq(deltas, [.text("Desde Groq")], "fallback: Groq contesta tras 500")
-    expectEq(chatHosts(transport), ["api.openai.com", "api.groq.com"],
-             "fallback: OpenAI luego Groq")
+    expectEq(deltas, [.text("Desde el respaldo")], "fallback: OpenRouter contesta tras 500")
+    expectEq(chatHosts(transport), ["api.openai.com", "openrouter.ai"],
+             "fallback: OpenAI luego OpenRouter")
 }
 
 @MainActor func testSpokePartialDoesNotFailover() {
@@ -54,22 +135,22 @@ import Testing
         ScriptedReply(
             lines: [SSEFixtures.sentence],
             streamError: URLError(.networkConnectionLost)))
-    transport.stub(.groq, ScriptedReply(lines: SSEFixtures.chunks("NO-GROQ")))
+    transport.stub(.openRouter, ScriptedReply(lines: SSEFixtures.chunks("NO-FALLBACK")))
     let deltas = collectChat(makeChatClient(transport: transport))
     expectEq(
         deltas, [.text("Claro, te ayudo con eso ahora.")],
         "spokePartial: entrega la frase ya cortada")
-    expect(!chatHosts(transport).contains("api.groq.com"),
-           "spokePartial: Groq no se llama")
+    expect(!chatHosts(transport).contains("openrouter.ai"),
+           "spokePartial: el respaldo no se llama")
 }
 
 @MainActor func testSkipOpenAIWithoutKey() {
     let transport = ScriptedTransport()
     transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.chunks("NO-OPENAI")))
-    transport.stub(.groq, ScriptedReply(lines: [SSEFixtures.groq, SSEFixtures.done]))
+    transport.stub(.openRouter, ScriptedReply(lines: [SSEFixtures.fallback, SSEFixtures.done]))
     let deltas = collectChat(
-        makeChatClient(keys: [.groq: "gsk-test"], transport: transport))
-    expectEq(deltas, [.text("Desde Groq")], "skip: Groq con llave contesta")
+        makeChatClient(keys: [.openRouter: "or-test"], transport: transport))
+    expectEq(deltas, [.text("Desde el respaldo")], "skip: OpenRouter con llave contesta")
     expect(!chatHosts(transport).contains("api.openai.com"),
            "skip: sin llave OpenAI no hace el 401")
 }
@@ -85,7 +166,7 @@ import Testing
 @MainActor func testOllamaProbeFalseNotAttempted() {
     let transport = ScriptedTransport()
     transport.stub(.openAI, ScriptedReply(status: 500))
-    transport.stub(.groq, ScriptedReply(status: 500))
+    transport.stub(.openRouter, ScriptedReply(status: 500))
     transport.stub(.ollama, ScriptedReply(lines: SSEFixtures.chunks("local")))
     expectChatError(
         makeChatClient(transport: transport),
@@ -102,6 +183,33 @@ import Testing
     expectEq(deltas, [
         .handoff(Handoff(goal: "listar el escritorio", context: "workdir ~")),
     ], "tool: fragmentos arman delegate y emiten handoff")
+}
+
+/// 4. Dos calls en el stream → UN `.toolCalls` con dos elementos, con los
+/// ids del proveedor.
+@MainActor func testTwoToolCallsInOneRound() {
+    let transport = ScriptedTransport()
+    transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.twoToolCalls))
+    let deltas = collectChat(
+        makeChatClient(transport: transport), tools: [NativeTool.readFile.spec])
+    expectEq(deltas, [.toolCalls([
+        ToolCallRef(id: "call_a", name: "read_file", arguments: #"{"path":"a.md"}"#),
+        ToolCallRef(id: "call_b", name: "read_file", arguments: #"{"path":"b.md"}"#),
+    ])], "dos calls: una lista, dos elementos, ids del proveedor")
+}
+
+/// 5. `delegate` + otra call en la misma ronda: `.toolCalls` con la otra y
+/// `.handoff` con el encargo correcto, los dos en el mismo cierre.
+@MainActor func testDelegatePlusToolCallInOneRound() {
+    let transport = ScriptedTransport()
+    transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.delegatePlusOpenApp))
+    let deltas = collectChat(
+        makeChatClient(transport: transport), tools: [.delegate(), ParentTool.openApp.spec(.en)])
+    expect(deltas.contains(.toolCalls([
+        ToolCallRef(id: "call_1", name: "open_app", arguments: #"{"name":"Safari"}"#),
+    ])), "mixto: la call del padre viaja sola en .toolCalls")
+    expect(deltas.contains(.handoff(Handoff(goal: "listar el escritorio", context: ""))),
+           "mixto: y el handoff es el correcto")
 }
 
 @MainActor func testMalformedToolNoHandoff() {
@@ -314,17 +422,17 @@ import Testing
         ScriptedReply(
             lines: [SSEFixtures.hello],
             streamError: URLError(.networkConnectionLost)))
-    transport.stub(.groq, ScriptedReply(lines: [SSEFixtures.groq, SSEFixtures.done]))
+    transport.stub(.openRouter, ScriptedReply(lines: [SSEFixtures.fallback, SSEFixtures.done]))
     let deltas = collectChat(makeChatClient(transport: transport))
-    expectEq(deltas, [.text("Desde Groq")],
-             "leak: 'Hola' incompleto no se concatena con Groq")
-    expectEq(chatHosts(transport), ["api.openai.com", "api.groq.com"],
+    expectEq(deltas, [.text("Desde el respaldo")],
+             "leak: 'Hola' incompleto no se concatena con el respaldo")
+    expectEq(chatHosts(transport), ["api.openai.com", "openrouter.ai"],
              "leak: sí hubo failover")
 }
 
 @MainActor func makeChatClient(
-    keys: [SecretKey: String] = [.openAI: "sk-test", .groq: "gsk-test"],
-    available: Set<String> = ["openai", "groq"],
+    keys: [SecretKey: String] = [.openAI: "sk-test", .openRouter: "or-test"],
+    available: Set<String> = ["openai", "openrouter"],
     transport: ScriptedTransport,
     settings: ChatSettings = .default,
     owner: String = "Karen",

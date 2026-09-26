@@ -7,8 +7,9 @@ enum SSEFixtures {
     static let hello =
         #"data: {"choices":[{"delta":{"content":"Hola"}}]}"#
 
-    static let groq =
-        #"data: {"choices":[{"delta":{"content":"Desde Groq"}}]}"#
+    /// What the second rung of a ladder answers in a failover test.
+    static let fallback =
+        #"data: {"choices":[{"delta":{"content":"Desde el respaldo"}}]}"#
 
     /// 25+ chars and ". " so SentenceSplitter.takeSentence cuts.
     static let sentence =
@@ -54,4 +55,21 @@ enum SSEFixtures {
         }
         return "data: " + (String(data: data, encoding: .utf8) ?? "{}")
     }
+
+    /// Wave 10c: dos calls intercaladas por índice, como las manda OpenAI.
+    static let twoToolCalls = [
+        #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a","type":"function","function":{"name":"read_file","arguments":""}}]}}]}"#,
+        #"data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_b","type":"function","function":{"name":"read_file","arguments":""}}]}}]}"#,
+        #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"path\":"}}]}}]}"#,
+        #"data: {"choices":[{"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{\"path\":\"b.md\"}"}}]}}]}"#,
+        #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"a.md\"}"}}]}}]}"#,
+        #"data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+        done,
+    ]
+
+    static let delegatePlusOpenApp = [
+        #"data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_0","function":{"name":"delegate","arguments":"{\"goal\":\"listar el escritorio\"}"}}]}}]}"#,
+        #"data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_1","function":{"name":"open_app","arguments":"{\"name\":\"Safari\"}"}}]}}]}"#,
+        done,
+    ]
 }

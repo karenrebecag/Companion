@@ -5,9 +5,23 @@ public struct PhraseCache: Sendable {
     private static let maxChars = 80
 
     private let directory: URL
+    /// Wave 15f-5: what else changes the audio (voice, speed, style). Empty
+    /// keeps the keys every existing cache already has on disk.
+    private let variant: String
 
     public init(directory: URL) {
+        self.init(directory: directory, variant: "")
+    }
+
+    private init(directory: URL, variant: String) {
         self.directory = directory
+        self.variant = variant
+    }
+
+    /// The same directory, keyed apart: audio stored under one variant is
+    /// never read back under another.
+    public func scoped(_ variant: String) -> PhraseCache {
+        PhraseCache(directory: directory, variant: variant)
     }
 
     public func data(for phrase: String) throws -> Data? {
@@ -26,10 +40,12 @@ public struct PhraseCache: Sendable {
     }
 
     private func fileURL(for phrase: String) -> URL {
-        directory.appendingPathComponent(Self.fnv1a(phrase))
+        // Unit separator: no phrase or variant boundary can be forged by text.
+        let key = variant.isEmpty ? phrase : variant + "\u{1F}" + phrase
+        return directory.appendingPathComponent(Self.fnv1a(key))
     }
 
-    private static func fnv1a(_ phrase: String) -> String {
+    static func fnv1a(_ phrase: String) -> String {
         var hash: UInt64 = 0xcbf29ce484222325
         for byte in phrase.utf8 {
             hash ^= UInt64(byte)

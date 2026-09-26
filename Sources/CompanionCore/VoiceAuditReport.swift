@@ -55,8 +55,9 @@ public enum VoiceAuditReport {
         let gates = GateReason.allCases
             .compactMap { r in tally.gated[r].map { "\(r.rawValue) \($0)" } }
             .joined(separator: ", ")
-        let goalPart = goal.map { " goal=«\($0)»" } ?? ""
-        return "audit turn: native=«\(native)» openai=«\(openAI)» "
+        // Counts, never the words: this line reaches the shared main log.
+        let goalPart = goal.map { " goal=\($0.count) chars" } ?? ""
+        return "audit turn: native=\(native.count) chars openai=\(openAI.count) chars "
             + "frames fwd=\(tally.forwarded) gated=\(tally.gatedTotal)"
             + (gates.isEmpty ? "" : " (\(gates))") + goalPart
     }

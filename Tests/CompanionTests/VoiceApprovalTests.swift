@@ -1,5 +1,6 @@
 import CompanionCore
 @testable import CompanionServices
+@testable import CompanionUI
 import Foundation
 import Testing
 
@@ -69,9 +70,12 @@ import Testing
 }
 
 /// 3. La respuesta del modelo llega al encargo vivo, con acuse para la voz.
+/// Desde 12a viaja por el reductor de sesión (`approvalSpoken`): la voz
+/// contesta lo que la hoja muestra, con las mismas reglas que la hoja.
 @MainActor func testVoiceGrantReachesTheJob() async {
     let jobs = ApprovingSubmitter()
-    let h = makeVoiceHarness(jobs: jobs)
+    let sessionModel = SessionModel(jobs: jobs, approvals: nil)
+    let h = makeVoiceHarness(jobs: jobs, session: sessionModel)
     await h.session.start()
     await pumpUntil("concede: listening") { h.watch.latest.state == .listening }
 
@@ -86,6 +90,10 @@ import Testing
     h.transport.yield(.responseDone)
     await pumpUntil("concede: vuelve a escuchar") {
         h.watch.latest.state == .listening
+    }
+    // The sheet shows the request before anyone can say yes to it.
+    await pumpUntil("concede: la hoja tiene la petición") {
+        sessionModel.projection.approval?.requestId == "r7"
     }
 
     h.transport.yield(.functionCall(
@@ -102,7 +110,8 @@ import Testing
 /// 4. Un JSON roto no concede ni deniega: la solicitud sigue viva.
 @MainActor func testMalformedDecisionResolvesNothing() async {
     let jobs = ApprovingSubmitter()
-    let h = makeVoiceHarness(jobs: jobs)
+    let sessionModel = SessionModel(jobs: jobs, approvals: nil)
+    let h = makeVoiceHarness(jobs: jobs, session: sessionModel)
     await h.session.start()
     await pumpUntil("roto: listening") { h.watch.latest.state == .listening }
 
@@ -117,6 +126,9 @@ import Testing
     h.transport.yield(.responseDone)
     await pumpUntil("roto: vuelve a escuchar") {
         h.watch.latest.state == .listening
+    }
+    await pumpUntil("roto: la hoja tiene la petición") {
+        sessionModel.projection.approval?.requestId == "r9"
     }
 
     // Truncado por el servidor, y el clásico "1" que NO es un booleano.

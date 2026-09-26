@@ -26,6 +26,10 @@ final class VoiceAudit: @unchecked Sendable {
     /// session has no input path.
     var isLive: Bool { enabled }
 
+    /// The ear's running hypotheses (Wave 12c). One consumer: the session's
+    /// partial pump, which reads `turnText()` on the actor after each one.
+    var partials: AsyncStream<String> { native.partials }
+
     func begin(locale: String) async {
         guard await native.requestAuthorization() else {
             Log.app("ear: not authorized (Speech permission or missing key) — ear off")
@@ -74,7 +78,7 @@ final class VoiceAudit: @unchecked Sendable {
     func noteGoal(_ goal: String) {
         guard enabled else { return }
         self.goal = goal
-        Log.app("ear goal: «\(goal)»")
+        Log.app("ear goal: \(goal.count) chars")
     }
 
     /// One line per turn: the source text and the frame counts.

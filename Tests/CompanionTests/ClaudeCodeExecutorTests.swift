@@ -147,7 +147,9 @@ func claudeCodeExecutorRequestsApprovalForRiskyTools() throws {
         return false
     }
 
-    expect(hasApprovalRequest, "emits approvalRequested")
+    // Wave 16b (Karen, 2026-09-25): no permission sheets for the specialist.
+    // Auto mode decides; a question that still arrives is denied on the wire.
+    expect(!hasApprovalRequest, "a risky tool is denied without a sheet")
 }
 
 // MARK: - Stubs compartidos

@@ -177,7 +177,7 @@ final class MemorySecretStore: SecretStore, @unchecked Sendable {
     }
 
     do {
-        try store.write(.groq, value: "   \n\t  ")
+        try store.write(.cerebras, value: "   \n\t  ")
         expect(false, "secret: solo espacios debía tirar emptyValue")
     } catch let error as SecretStoreError {
         expectEq(error, .emptyValue, "secret: recortado vacío tira emptyValue")
@@ -189,7 +189,7 @@ final class MemorySecretStore: SecretStore, @unchecked Sendable {
         try store.write(.openAI, value: "  sk-live  \n")
         expectEq(try store.read(.openAI), "sk-live",
                  "secret: escribe, recorta y lee")
-        expect(try store.read(.groq) == nil,
+        expect(try store.read(.cerebras) == nil,
                "secret: una clave no pisa la otra")
 
         try store.write(.openAI, value: "sk-nueva")
@@ -201,8 +201,8 @@ final class MemorySecretStore: SecretStore, @unchecked Sendable {
                  "secret: unicode en el valor")
 
         let large = String(repeating: "a", count: 10_000)
-        try store.write(.groq, value: large)
-        expectEq(try store.read(.groq)?.count ?? -1, 10_000,
+        try store.write(.cerebras, value: large)
+        expectEq(try store.read(.cerebras)?.count ?? -1, 10_000,
                  "secret: 10k caracteres caben")
 
         try store.delete(.openAI)
@@ -364,7 +364,7 @@ final class MemoryConversationStore: ConversationStoring, @unchecked Sendable {
         deltas: [], verifyError: .unauthorized)
     do {
         try waitAsync { () async throws -> Void in
-            try await failing.verify("", provider: .groq)
+            try await failing.verify("", provider: .openRouter)
         }
         expect(false, "provider: verify debía tirar unauthorized")
     } catch let error as ChatError {

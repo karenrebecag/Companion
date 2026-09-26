@@ -106,6 +106,21 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
 
     public func stop() async { halt() }
 
+    /// Wave 12c: build the engine and enable voice processing at boot so
+    /// the first hold does not pay for it. Only with the mic already
+    /// granted: a permission prompt at launch is not a warm-up. Never
+    /// `engine.prepare()` here: on a graph with no tap installed it raises
+    /// an Objective-C exception and took the whole app down (seen live
+    /// 2026-09-06); `start()` prepares once the tap exists.
+    public func prewarm() async {
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
+            Log.app("prewarm: mic not granted yet, engine left cold")
+            return
+        }
+        guard !running else { return }
+        prepareEngine()
+    }
+
     public func disableVoiceProcessing() async {
         halt()
         vetoVoiceProcessing = true
@@ -116,6 +131,10 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
     }
 
     private func startOnce() throws {
+        guard MicStartPlan.decide(running: running, tapInstalled: tapInstalled) == .start else {
+            Log.app("audio: mic start ignored — already running with a tap installed")
+            return
+        }
         didReceive = false
         prepareEngine()
         guard let engine else { throw VoiceTransportError.unreachable }
@@ -142,6 +161,15 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
             muteMixer = mute
         }
 
+        // Never install a second tap over a live one: installTap on a bus
+        // that already has one raises an ObjC exception, uncatchable in
+        // Swift (live crash 2026-09-23). tearDownEngine keeps this false in
+        // the normal path; this is the belt for whatever rebuilds the graph
+        // without going through it.
+        if tapInstalled {
+            input.removeTap(onBus: 0)
+            tapInstalled = false
+        }
         input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buffer, _ in
             self?.handleTap(buffer)
         }

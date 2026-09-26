@@ -21,18 +21,23 @@ public final class VoiceViewModel {
 
     private let voice: any VoiceControlling
     private let thread: any ConversationPresenting
+    /// The session reducer hears every snapshot (Wave 12a). A forward, not a
+    /// second source: the session never reads `snapshot` from here.
+    private let session: SessionModel?
     private let tasks = Tasks()
 
     public init(
         voice: any VoiceControlling,
         thread: any ConversationPresenting,
         outputRoute: (any OutputRouteObserving)? = nil,
-        onSnapshot: (@Sendable (TurnSnapshot) -> Void)? = nil
+        onSnapshot: (@Sendable (TurnSnapshot) -> Void)? = nil,
+        session: SessionModel? = nil
     ) {
         self.voice = voice
         self.thread = thread
         self.outputRoute = outputRoute
         self.onSnapshot = onSnapshot
+        self.session = session
     }
 
     /// External observers (ambience) tap here: the snapshot stream has one
@@ -102,6 +107,7 @@ public final class VoiceViewModel {
 
     private func apply(_ snap: TurnSnapshot) async {
         onSnapshot?(snap)
+        session?.send(.voice(snap))
         let previous = snapshot
         snapshot = snap
 

@@ -30,7 +30,7 @@ import Testing
         Handoff(goal: "crear prueba1.md", context: ""),
         jobs: FixedSubmitter(result: JobResult(output: "# listo", isError: false)),
         thread: thread,
-        announce: { announced.append($0) })
+        announce: { announced.append($0.instruction) })
 
     expectEq(thread.turns.last?.content, "# listo",
              "circuito: el resultado aterriza en el hilo, íntegro")
@@ -51,7 +51,7 @@ import Testing
         Handoff(goal: "buscar hoteles", context: ""),
         jobs: FixedSubmitter(result: JobResult(output: card, isError: false)),
         thread: thread,
-        announce: { announced.append($0) })
+        announce: { announced.append($0.instruction) })
 
     expectEq(thread.turns.last?.content, card,
              "artefacto: la card llega entera al hilo")
@@ -66,7 +66,7 @@ import Testing
         Handoff(goal: "lo imposible", context: ""),
         jobs: FixedSubmitter(result: JobResult(output: "", isError: true)),
         thread: thread,
-        announce: { announced.append($0) })
+        announce: { announced.append($0.instruction) })
 
     let status = thread.status.joined(separator: " ")
     expect(status.contains("lo imposible"),
@@ -86,7 +86,7 @@ import Testing
         onEvent: { seen.append($0) })
 
     expect(seen.all.contains {
-        if case .stepStarted = $0 { return true }
+        if case .job(.stepStarted) = $0 { return true }
         return false
     }, "circuito: los pasos del especialista llegan a quien pinta")
 }
@@ -165,9 +165,9 @@ final class TextBox: @unchecked Sendable {
 
 final class EventTextBox: @unchecked Sendable {
     private let lock = NSLock()
-    private var events: [JobEvent] = []
-    func append(_ event: JobEvent) { lock.withLock { events.append(event) } }
-    var all: [JobEvent] { lock.withLock { events } }
+    private var events: [SessionEvent] = []
+    func append(_ event: SessionEvent) { lock.withLock { events.append(event) } }
+    var all: [SessionEvent] { lock.withLock { events } }
 }
 
 struct FixedSubmitter: JobSubmitter {

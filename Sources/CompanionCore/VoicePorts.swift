@@ -26,9 +26,16 @@ public protocol MicCapturing: Sendable {
     func start() async throws
     func stop() async
     func disableVoiceProcessing() async
+    /// Build what the first start would build, without opening the mic
+    /// or asking for it (Wave 12c). Default: nothing.
+    func prewarm() async
     var frames: AsyncStream<MicFrame> { get }
     var hasEchoCancellation: Bool { get async }
     var receivedBuffer: Bool { get async }
+}
+
+extension MicCapturing {
+    public func prewarm() async {}
 }
 
 public protocol PCMPlaying: Sendable {
@@ -70,8 +77,21 @@ public protocol SegmentingTranscriber: Transcriber {
     var turnEvents: AsyncStream<EarTurnEvent> { get }
 }
 
+/// Wave 15f-5: the instants inside the mouth for the FIRST sentence of a
+/// turn — the session stamps them on its own clock as they arrive, so a slow
+/// voice reads apart as queue, network or player.
+public enum SpeechMark: Sendable, Equatable {
+    /// The first sentence reached the synthesizer.
+    case firstCut
+    /// Its TTS request left.
+    case ttsRequest
+    /// Its first PCM bytes came back.
+    case firstByte
+}
+
 public enum SpeechEvent: Sendable, Equatable {
     case chunkStarted(text: String, duration: TimeInterval)
+    case mark(SpeechMark)
     case level(Double)
     case finished
     case failed
@@ -85,6 +105,25 @@ public protocol SpeechSynthesizer: Sendable {
     func spokenSoFar() async -> String?
     var speakingNow: String { get async }
     var events: AsyncStream<SpeechEvent> { get }
+    /// Wave 15b-3/4: whether `phrase` is already on disk, without fetching
+    /// it — `AckPolicy` reads this to pick between the specific reply and
+    /// the quick ack.
+    func isCached(_ phrase: String) async -> Bool
+    /// Fetches and stores each phrase in the background, never touching the
+    /// speech queue or player: warming must never make a hold's own reply
+    /// wait, and must never sound.
+    func prewarm(_ phrases: [String]) async
+    /// Opens a connection to the TTS endpoint ahead of the first phrase.
+    func warmConnection() async
+}
+
+/// A synthesizer that does not implement warming (a test fake, or a future
+/// port with nothing to warm) costs nothing extra: pressing a hold simply
+/// finds these calls no-ops.
+extension SpeechSynthesizer {
+    public func isCached(_ phrase: String) async -> Bool { false }
+    public func prewarm(_ phrases: [String]) async {}
+    public func warmConnection() async {}
 }
 
 public struct VoiceLevels: Sendable, Equatable {
@@ -107,8 +146,27 @@ public protocol VoiceControlling: Sendable {
     func hangUp() async
     func toggleMute() async
     func push(attachment: AttachmentRef) async
+    /// Wave 12b: the hold. Press opens; release sends what was heard;
+    /// discard closes without sending; interrupt cuts the agent.
+    func hold() async
+    /// FN on the way down: a press that may still turn out to be a tap.
+    /// Only local work starts until `confirmHold` or the release.
+    func holdProvisionally() async
+    func confirmHold() async
+    func release() async
+    func discard() async
+    func interrupt() async
     var snapshots: AsyncStream<TurnSnapshot> { get }
     var levels: AsyncStream<VoiceLevels> { get }
+}
+
+extension VoiceControlling {
+    public func hold() async {}
+    public func holdProvisionally() async { await hold() }
+    public func confirmHold() async {}
+    public func release() async {}
+    public func discard() async {}
+    public func interrupt() async {}
 }
 
 /// Whether this Mac has a route to the internet. Lets the session tell "the

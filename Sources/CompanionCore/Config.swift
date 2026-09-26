@@ -2,11 +2,23 @@ import Foundation
 
 public enum SecretKey: String, Sendable, Equatable {
     case openAI = "OPENAI_API_KEY"
+    /// 15e-2: Groq is no longer a provider. The case survives only so
+    /// `KeychainSecretStore` can find and delete a key saved before 15e —
+    /// nothing reads it for any other purpose.
     case groq = "GROQ_API_KEY"
     case openRouter = "OPENROUTER_API_KEY"
+    /// Wave 15c-7: the hold's fast brain, 500k tokens/min where the previous
+    /// fast brain's 8k/min free cap ran out in two hold turns.
+    case cerebras = "CEREBRAS_API_KEY"
     /// Web search. A secondary key like the rest: without it the tool is not
     /// offered at all, which is the whole point — see Wave 9f.
     case brave = "BRAVE_API_KEY"
+    /// Wave 15f-7a: the hold's mouth when a voice is chosen too; without it
+    /// the mouth stays OpenAI's.
+    case elevenLabs = "ELEVENLABS_API_KEY"
+    /// Wave 16k: the key the app shows the companion-apps function. Not a
+    /// provider key: it opens only Karen's own function.
+    case companionApps = "COMPANION_APPS_KEY"
 }
 
 public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
@@ -19,6 +31,10 @@ public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
     /// nil = do not send the field at all. A temperature is a choice about a
     /// SPECIFIC model, so it does not survive a model change.
     public var temperature: Double?
+    /// nil = do not send the field. Wave 15c-3: `gpt-oss`'s own knob, sent
+    /// only for the descriptor that asks for it (the hold's fast brain) —
+    /// never guessed for a model that never mentioned it.
+    public var reasoningEffort: String?
 
     public init(
         id: String,
@@ -26,7 +42,8 @@ public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         baseURL: URL,
         model: String,
         secretKey: SecretKey?,
-        temperature: Double? = 0.7
+        temperature: Double? = 0.7,
+        reasoningEffort: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -34,7 +51,14 @@ public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         self.model = model
         self.secretKey = secretKey
         self.temperature = temperature
+        self.reasoningEffort = reasoningEffort
     }
+
+    /// Whether the provider takes `strict: true` on a function tool. Known
+    /// for OpenAI; the compatibles answer 400 to fields they do not know.
+    /// HACK: decided by id. Upgrade trigger: read the provider's 400 body
+    /// once and flip per provider instead of guessing.
+    public var supportsStrictTools: Bool { id == "openai" }
 
     /// Original concatenates `base + "/chat/completions"`; base has no
     /// trailing slash, so `absoluteString` matches that contract.
@@ -50,12 +74,18 @@ public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         secretKey: .openAI
     )
 
-    public static let groq = ProviderDescriptor(
-        id: "groq",
-        name: "Groq",
-        baseURL: URL(string: "https://api.groq.com/openai/v1")!,
-        model: "llama-3.3-70b-versatile",
-        secretKey: .groq
+    /// Wave 15c-7: gpt-oss-120b, measured live at 0.27 s to a tool call with
+    /// a 500k tokens/min limit (spec §11). Not in `catalog`: it is the hold's
+    /// brain, not a typed-chat row. Low reasoning effort is the hold's speed
+    /// budget, not a default for every model.
+    public static let cerebras = ProviderDescriptor(
+        id: "cerebras",
+        name: "Cerebras",
+        baseURL: URL(string: "https://api.cerebras.ai/v1")!,
+        model: "gpt-oss-120b",
+        secretKey: .cerebras,
+        temperature: nil,
+        reasoningEffort: "low"
     )
 
     public static let openRouter = ProviderDescriptor(
@@ -93,7 +123,7 @@ public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
     }
 
     public static let catalog: [ProviderDescriptor] = [
-        openAI, groq, openRouter, ollama,
+        openAI, openRouter, ollama,
     ]
 
     /// The ladder, in the user's order. Named ids go first in the order given;
@@ -113,6 +143,50 @@ public struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         }
         let rest = catalog.filter { !order.contains($0.id) }
         return named + rest
+    }
+}
+
+/// 15b-1: the key that dictates into the focused field. FN is always the
+/// agent now (§3A); dictation is a second, separate hold, off a closed set
+/// so it never collides with a system shortcut. `keyCode`/`deviceFlag` are
+/// plain values (not `CGEventFlags`) because Core cannot import
+/// CoreGraphics — Services wraps them for the actual event tap.
+public enum DictationKey: String, Sendable, Equatable, CaseIterable {
+    case off, rightOption, rightCommand
+
+    /// `nil` for `.off`: there is no key to arm.
+    public var keyCode: Int64? {
+        switch self {
+        case .off: return nil
+        case .rightOption: return 61
+        case .rightCommand: return 54
+        }
+    }
+
+    /// The device-specific bit for the RIGHT-hand key: the plain modifier
+    /// mask matches either side, and Opción Izquierda types `@`/`#` on a
+    /// Spanish keyboard — measured risk, §11.
+    public var deviceFlag: UInt64? {
+        switch self {
+        case .off: return nil
+        case .rightOption: return 0x40
+        case .rightCommand: return 0x10
+        }
+    }
+}
+
+/// Code review 2026-09-23 (medio): the dictation `HoldKeyTap` was built once
+/// at launch from whatever `dictationKey` read then — changing "Tecla de
+/// dictado" in Settings (including turning it off) did nothing until
+/// restart. This is the rebuild decision the App layer must act on when the
+/// setting changes, pure so it is testable without a real `CGEventTap`.
+public enum DictationTapChange: Sendable, Equatable {
+    case stop
+    case rebuild(keyCode: Int64, flag: UInt64)
+
+    public static func decide(for key: DictationKey) -> DictationTapChange {
+        guard let keyCode = key.keyCode, let flag = key.deviceFlag else { return .stop }
+        return .rebuild(keyCode: keyCode, flag: flag)
     }
 }
 
@@ -145,6 +219,11 @@ public struct VoiceSettings: Sendable, Equatable {
     }
     public var tone: String
     public var echoCancellation: Bool
+    /// Wave 12e: what a hold does with the words.
+    public var mode: VoiceMode
+    /// 15b-1: the separate key that dictates. FN itself no longer reads
+    /// `mode` at press — this is the only thing left deciding dictation.
+    public var dictationKey: DictationKey
 
     public init(
         voice: VoiceID = .marin,
@@ -152,7 +231,9 @@ public struct VoiceSettings: Sendable, Equatable {
         volume: Double = 1.0,
         turnDetection: TurnDetection = .serverVAD(silenceMs: 700),
         tone: String = "",
-        echoCancellation: Bool = true
+        echoCancellation: Bool = true,
+        mode: VoiceMode = .automatic,
+        dictationKey: DictationKey = .rightOption
     ) {
         self.voice = voice
         self.speed = Self.clamp(speed, Self.speedRange)
@@ -160,6 +241,8 @@ public struct VoiceSettings: Sendable, Equatable {
         self.turnDetection = Self.clamped(turnDetection)
         self.tone = tone
         self.echoCancellation = echoCancellation
+        self.mode = mode
+        self.dictationKey = dictationKey
     }
 
     public static let `default` = VoiceSettings()
@@ -203,6 +286,34 @@ public struct ChatSettings: Sendable, Equatable {
     public static let `default` = ChatSettings()
 }
 
+/// DM1c-2 (wave-dm1-router.md §8): the local router in front of the classic
+/// hold. Off by default until DM1b's accuracy bar and DM1c-3's Settings
+/// toggle both land. `COMPANION_DECISION=1` is the only way to flip it
+/// before that toggle exists — an optional override read fresh per
+/// construction, the same shape `OllamaModelScan` uses for its RAM tier,
+/// never a required secret.
+public struct DecisionSettings: Sendable, Equatable {
+    public var enabled: Bool
+    /// `DecisionGate.plan`'s race budget (wave-dm1-router.md §8 done: "commit→decision < 1.5s").
+    public var budget: Duration
+    public var judgeModel: String
+    public var ollamaURL: String
+
+    public init(
+        enabled: Bool = ProcessInfo.processInfo.environment["COMPANION_DECISION"] == "1",
+        budget: Duration = .seconds(2),
+        judgeModel: String = "qwen3:4b",
+        ollamaURL: String = "http://localhost:11434"
+    ) {
+        self.enabled = enabled
+        self.budget = budget
+        self.judgeModel = judgeModel
+        self.ollamaURL = ollamaURL
+    }
+
+    public static let `default` = DecisionSettings()
+}
+
 /// Port for reading the current configuration at runtime.
 /// Implementations read from persistent storage (UserPreferences) and
 /// construct the effective Config, allowing voice session preferences to
@@ -225,9 +336,24 @@ public struct Config: Sendable, Equatable {
     /// The assembled memory block (core + recent sessions + notes), injected
     /// into every prompt. Empty when there is nothing remembered (9j-2).
     public var memory: String
+    /// The rendered skills + knowledge catalog (Wave 11a), injected after
+    /// memory. Empty when there is no catalog, and then nothing is promised.
+    public var skills: String
     /// Remote MCP servers for the realtime session (9j-3), from the user's
     /// mcp.json. OpenAI executes their tools server-side.
     public var mcpServers: [MCPServerConfig]
+    /// Which perception channels travel with each turn (Wave 10a). Read per
+    /// access like everything else: turning one off applies to the next turn.
+    public var contextChannels: ContextChannels
+    /// The turn cannot wait for the Accessibility tree of a busy app: what
+    /// has not arrived by then does not travel.
+    public var contextBudget: Duration
+    /// DM1c-2: the local router in front of the classic hold. Off by default.
+    public var decision: DecisionSettings
+    public var debugTranscripts: Bool
+    /// Wave 15f-7a: the ElevenLabs voice the hold speaks with. Empty means
+    /// none chosen, and the mouth stays OpenAI's even with the key saved.
+    public var elevenLabsVoiceID: String
 
     public init(
         chat: ChatSettings = .default,
@@ -239,7 +365,13 @@ public struct Config: Sendable, Equatable {
         ownerInstructions: String = "",
         language: AppLanguage = .en,
         memory: String = "",
-        mcpServers: [MCPServerConfig] = []
+        skills: String = "",
+        mcpServers: [MCPServerConfig] = [],
+        contextChannels: ContextChannels = .default,
+        contextBudget: Duration = .milliseconds(150),
+        decision: DecisionSettings = DecisionSettings(),
+        debugTranscripts: Bool = Config.debugTranscriptsEnabled(),
+        elevenLabsVoiceID: String = Config.defaultElevenLabsVoiceID
     ) {
         self.chat = chat
         self.voice = voice
@@ -250,7 +382,27 @@ public struct Config: Sendable, Equatable {
         self.ownerInstructions = ownerInstructions
         self.language = language
         self.memory = memory
+        self.skills = skills
         self.mcpServers = mcpServers
+        self.contextChannels = contextChannels
+        self.contextBudget = contextBudget
+        self.decision = decision
+        self.debugTranscripts = debugTranscripts
+        self.elevenLabsVoiceID = elevenLabsVoiceID
+    }
+
+    /// Karen's blind pick on 2026-09-25 (15f-6): "Ana María", Mexican
+    /// Spanish, over the earlier default Brian (`Gubgw9l4dtIoQA9YZHgx`),
+    /// an American voice whose Spanish accent sounded off. It is a
+    /// shared-library voice and plays by id without adding it to the
+    /// account, so saving the key is still the only step.
+    public static let defaultElevenLabsVoiceID = "m7yTemJqdIqrcNleANfX"
+
+    /// Wave 15d-6: the hold's words are private; only the exact value opts in.
+    public static func debugTranscriptsEnabled(
+        _ environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        environment["COMPANION_DEBUG_TRANSCRIPTS"] == "1"
     }
 
     public static let `default` = Config()

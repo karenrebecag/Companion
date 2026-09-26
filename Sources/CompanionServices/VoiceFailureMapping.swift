@@ -15,6 +15,7 @@ public enum VoiceFailureMapping: Sendable {
         case let chat as ChatError:
             switch chat {
             case .unreachable, .timeout: return .networkUnavailable
+            case .httpStatus(429): return .quotaExceeded
             // `noProvider` es la escalera agotada, no la red caida. Decir "no
             // hay internet" con la red perfecta manda al usuario a arreglar lo
             // que no esta roto, y `noProviders` ya existia para esto.
@@ -23,8 +24,15 @@ public enum VoiceFailureMapping: Sendable {
         case let url as URLError:
             return isOffline(url) ? .networkUnavailable : .sessionDropped
         default:
+            if isQuota(error.localizedDescription) { return .quotaExceeded }
             return .sessionDropped
         }
+    }
+
+    public static func isQuota(_ message: String) -> Bool {
+        let lower = message.lowercased()
+        return lower.contains("credit") || lower.contains("quota")
+            || lower.contains("billing") || lower.contains("insufficient")
     }
 
     private static func isOffline(_ error: URLError) -> Bool {

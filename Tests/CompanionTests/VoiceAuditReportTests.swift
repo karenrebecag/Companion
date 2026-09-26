@@ -54,13 +54,16 @@ func testTurnLineCarriesBothSidesAndCounts() {
     let line = VoiceAuditReport.turnLine(
         native: "crea prueba en el escritorio",
         openAI: "crea prueba", tally: tally, goal: "crear archivo")
-    expect(line.contains("native=«crea prueba en el escritorio»"),
-           "línea: la verdad nativa entera")
-    expect(line.contains("openai=«crea prueba»"), "línea: lo que OpenAI transcribió")
+    // Code review 2026-09-24: counts, never the words — the main log is
+    // shared in bug reports.
+    expect(line.contains("native=28 chars"), "línea: cuánto oyó el oído nativo")
+    expect(line.contains("openai=11 chars"), "línea: cuánto transcribió OpenAI")
+    expect(!line.contains("escritorio"), "línea: nunca lo dicho")
     expect(line.contains("fwd=80"), "línea: frames reenviados")
     expect(line.contains("gated=5") && line.contains("muted 5"),
            "línea: filtrados, con razón")
-    expect(line.contains("goal=«crear archivo»"), "línea: el goal que armó el modelo")
+    expect(line.contains("goal=13 chars"), "línea: el goal, contado")
+    expect(!line.contains("crear archivo"), "línea: el goal nunca en claro")
 }
 
 func testVerdictFullUtterance() {

@@ -36,10 +36,10 @@ import Testing
 
     expect(probeAvailable(probe, .openAI),
            "probe: OpenAI es true sin llamar transporte")
-    expect(probeAvailable(probe, .groq),
-           "probe: Groq es true sin llamar transporte")
+    expect(probeAvailable(probe, .cerebras),
+           "probe: Cerebras es true sin llamar transporte")
     expectEq(fake.requests.count, 0,
-             "probe: OpenAI/Groq no tocan la red")
+             "probe: OpenAI/Cerebras no tocan la red")
 }
 
 @MainActor func testKeyedCustomProviderSkipsTransport() {

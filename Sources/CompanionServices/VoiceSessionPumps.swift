@@ -11,8 +11,15 @@ extension VoiceSession {
         if eventTask == nil {
             eventTask = Task { [weak self] in await self?.pumpEvents() }
         }
-        if frameTask == nil {
-            frameTask = Task { [weak self] in await self?.pumpFrames() }
+        startFramePump()
+        let pipeline = machine.snapshot.pipeline
+        if partialTask != nil, partialPipeline != pipeline {
+            partialTask?.cancel()
+            partialTask = nil
+        }
+        if partialTask == nil {
+            partialPipeline = pipeline
+            partialTask = Task { [weak self] in await self?.pumpPartials() }
         }
         if drainTask == nil {
             drainTask = Task { [weak self] in await self?.pumpDrained() }
@@ -30,6 +37,43 @@ extension VoiceSession {
         }
     }
 
+    /// Wave 12c: frames start flowing at the mic, before the socket, so a
+    /// hold's first words are not lost to the handshake.
+    func startFramePump() {
+        if frameTask == nil {
+            frameTask = Task { [weak self] in await self?.pumpFrames() }
+        }
+    }
+
+    /// The mic is open because a hold holds it: the ear's segments and
+    /// partials belong to that one turn.
+    var holdOpen: Bool {
+        let snap = machine.snapshot
+        return snap.holdArmed && snap.state == .listening && !snap.muted
+    }
+
+    /// Wave 12c: the ear's hypotheses reach the island while the key is
+    /// down. Read on the actor so `turnText()` sees a stable `committed`.
+    func pumpPartials() async {
+        // Classic hold feeds Apple; realtime hold feeds the audit ear.
+        // Picking at start matches which `startPumps` caller armed us.
+        // The text comes from the same ear as the stream: the audit wraps the
+        // realtime ear when the app has one, and on classic that ear hears
+        // nothing (seen live 2026-09-25: the island stayed blank).
+        let realtime = machine.snapshot.pipeline == .realtime
+        let stream = realtime ? audit.partials : transcriber.partials
+        for await _ in stream {
+            if Task.isCancelled { return }
+            guard holdOpen else { continue }
+            let text = realtime ? audit.turnText()
+                : transcriber.currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard text != lastPartial else { continue }
+            lastPartial = text
+            if !text.isEmpty { timeline.mark(.firstPartial, at: now()) }
+            eventBox.yield(.partialTranscript(text))
+        }
+    }
+
     /// 9j-1: the server's VAD owns turn-taking. It opens the turn when the
     /// user starts speaking and hands each finished utterance as final text —
     /// that text IS the turn. Over the agent, the prototype's rule applies:
@@ -41,9 +85,15 @@ extension VoiceSession {
             if Task.isCancelled { return }
             switch event {
             case .speechStarted:
-                guard machine.snapshot.state != .speaking else { continue }
+                guard machine.snapshot.state != .speaking, !machine.snapshot.holdArmed else { continue }
                 await apply(.serverSpeechStarted)
             case .finished(let text):
+                // In a hold session the key owns the turn, not the server's
+                // VAD: a segment closed while the key is down is not the end,
+                // and one closed after the release (or a discard) is not a
+                // new turn. The release already sent the ear's running text,
+                // which includes these words (Wave 12c, code review).
+                if machine.snapshot.holdArmed { continue }
                 // 9j-6a: on speakers a segment can SPAN the agent's echo and
                 // the user's words — the reply's tail leaked into her bubble.
                 // Scrub the echoed prefix ALWAYS (not only while speaking):
@@ -118,10 +168,15 @@ extension VoiceSession {
     func pumpFrames() async {
         for await frame in mic.frames {
             if Task.isCancelled { return }
+            if timeline.pressed != nil { timeline.mark(.micReady, at: now()) }
             lastMic = frame.rms
             levelBox.yield(VoiceLevels(mic: lastMic, agent: lastAgent))
             switch machine.snapshot.pipeline {
             case .classic:
+                // 15c-7: the buffer only measures energy; the ear hears
+                // what it missed while starting first, then this frame.
+                classic.holdAudio.hearLive(frame)
+                await classic.flushEarlyAudio()
                 await transcriber.append(frame)
             case .realtime:
                 // Wave 9i: the mic audio never reaches the conversation model;
@@ -163,6 +218,11 @@ extension VoiceSession {
                     await driveTurn(rms: frame.rms)
                 }
             case nil:
+                // 15d-1: the mic is up before the on-device ear is; what
+                // it hears meanwhile is the first word, kept for the ear.
+                if machine.snapshot.classicListenPending {
+                    classic.holdAudio.hearBeforeEar(frame)
+                }
                 continue
             }
         }
@@ -217,15 +277,149 @@ extension VoiceSession {
             if Task.isCancelled { return }
             switch event {
             case .finished:
+                await logAnnouncementSaid()
                 await apply(.speechFinished)
             case .failed:
+                await logAnnouncementSaid()
                 await apply(.speechFailed)
             case .level(let value):
                 lastAgent = value
                 levelBox.yield(VoiceLevels(mic: lastMic, agent: lastAgent))
+            case .mark(let mark):
+                // Same guard as `.chunkStarted`: a job announcement's marks,
+                // or a later sentence's, are not this hold's first sentence.
+                if timeline.released != nil, timeline.firstAudio == nil {
+                    timeline.mark(TurnTimeline.Point(mark), at: now())
+                }
             case .chunkStarted:
-                break
+                // 15b-0: the classic path's only audio signal —
+                // `.agentAudioStarted` (VoiceSession.apply) exists for
+                // realtime alone. Guarded so a stray chunk with no released
+                // hold (a job announcement) or a turn already measured never
+                // rewrites the line.
+                if timeline.released != nil, timeline.firstAudio == nil {
+                    timeline.mark(.firstAudio, at: now())
+                    flushTimeline()
+                }
             }
         }
+    }
+
+    func jobAnnounce(_ announcement: JobAnnouncement) async {
+        let snap = machine.snapshot
+        guard snap.state != .idle, snap.state != .error else { return }
+        if snap.pipeline == .realtime {
+            pendingAnnouncements.append(announcement.instruction)
+            await flushAnnouncements()
+            return
+        }
+        // Code review 2026-09-25 (HIGH-B): classic has no model behind the
+        // synthesizer, so the instruction is never spoken; the classic
+        // runtime says our line and a summary turn through `TurnMouth`.
+        await cutAnnouncement()
+        announcementUnlogged = true
+        let classic = classic
+        announceTask = Task { await classic.announce(announcement) }
+    }
+
+    /// A press over the announcement: what already sounded is its `said=`.
+    func cutAnnouncement() async {
+        announceTask?.cancel()
+        announceTask = nil
+        // Already logged means its audio already ended: nothing to silence.
+        guard announcementUnlogged else { return }
+        await logAnnouncementSaid()
+        await synthesizer.stop()
+    }
+
+    /// 15f-3: the specialist's outcome is spoken outside any turn, so the
+    /// turn's own `said=` never saw it. Written once the audio is done (or
+    /// cut), from what the synthesizer actually said; the flag is read now,
+    /// not at the start — the job may outlive the setting it began under.
+    func logAnnouncementSaid() async {
+        guard announcementUnlogged else { return }
+        announcementUnlogged = false
+        guard configProvider.current.debugTranscripts,
+              let said = await synthesizer.spokenSoFar() else { return }
+        classic.transcripts?.said(said)
+    }
+
+    func completeHold(hasSpeech: Bool) async {
+        switch await destination() {
+        case .dictation(let field):
+            screen?.cancel()
+            let generation = holdGeneration
+            // What the mic heard before the ear was up goes to the ear
+            // first, as `finalTranscript` does, and leaves no PCM behind.
+            await classic.flushEarlyAudio()
+            // Through `stopEar()` so a listen started meanwhile waits for it.
+            let text = await classic.stopEar().value
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Code review 2026-09-24 (medio): a newer press owns the session
+            // now; pasting or discarding for this one would hang it up.
+            guard generation == holdGeneration else { return }
+            if text.isEmpty {
+                // Code review 2026-09-23 (medio): this return never reaches
+                // `senseVoice`, so the press-time sense `fanOut` started is
+                // never consumed — cancel it here instead of leaking it.
+                classic.cancelPressedContext()
+                eventBox.yield(.heardNothing)
+                await apply(.holdDiscarded)
+                return
+            }
+            if await dictate(text, into: field) {
+                // Same gap: dictation succeeded, so this turn never submits
+                // and never reads the sense either.
+                classic.cancelPressedContext()
+                await apply(.holdDiscarded)
+                return
+            }
+            classic.leftoverHeard = text
+            await apply(.holdReleased(hasSpeech: true))
+        case .agent(let notice):
+            if notice == .needsAccessibility {
+                eventBox.yield(.dictationFailed(.needsAccessibility))
+            }
+            // 15b-0: `commitTimeline` used to be `routeThroughDecisionGate`'s
+            // own mark (DM1c-2), reached only with a router attached. Every
+            // classic hold ends up here, router or not — this is the one
+            // place both paths share.
+            commitTimeline()
+            await apply(.holdReleased(hasSpeech: hasSpeech))
+        }
+    }
+
+    /// Named on press so 14b can switch the tube without hunting the picker.
+    func rememberStack(openAI: Bool) {
+        // 15c-7: Cerebras goes first for brain even with OpenAI present, so
+        // its presence is checked on every press — OpenRouter still cannot
+        // outrank OpenAI, so it stays skipped.
+        var present: [SecretKey: Bool] = [
+            .openAI: openAI, .cerebras: hasSecret(.cerebras),
+            .elevenLabs: hasSecret(.elevenLabs),
+        ]
+        if !openAI {
+            present[.openRouter] = hasSecret(.openRouter)
+        }
+        lastStack = VoiceStackResolver.resolve(
+            secrets: present,
+            appleSpeech: true,
+            localModel: nil,
+            elevenLabsVoiceID: configProvider.current.elevenLabsVoiceID)
+        if let lastStack {
+            Log.app("voice stack: \(lastStack.logLine)")
+        }
+    }
+
+    func hasSecret(_ key: SecretKey) -> Bool {
+        let value: String?
+        do {
+            value = try secrets.read(key)
+        } catch {
+            return false
+        }
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
+        return !trimmed.isEmpty
     }
 }

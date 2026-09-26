@@ -19,7 +19,7 @@ import Testing
              "The voice session dropped.",
              "error: sessionDropped message is correct")
     expectEq(VoiceCopy.failure(.speechEngine),
-             "I lost my voice. Check the TTS.",
+             "I lost my voice. Try again in a moment.",
              "error: speechEngine message is correct")
 
     // Un permiso negado se arregla en Ajustes del sistema, no en el TTS.

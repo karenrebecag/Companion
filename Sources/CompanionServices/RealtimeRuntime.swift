@@ -29,6 +29,10 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// The brake, reachable from the voice. Set by the session that owns the
     /// job runner.
     var onStopJob: (@Sendable () async -> Void)?
+    /// Wave DM0: the session's clock. Only the runtime knows the instant a
+    /// tool call arrives and the instant the parent finished; the session
+    /// owns the timeline.
+    var markTimeline: (@Sendable (TurnTimeline.Point) async -> Void)?
     /// The user answered a pending permission out loud. Returns whether the
     /// answer landed on a real request: the ack must not tell the model a
     /// permission was granted when there was nothing left to grant.
@@ -36,6 +40,19 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// A remote MCP tool waits for the user's yes (9j-3); the session parks
     /// it so the spoken resolve_approval can answer it.
     var onMCPApproval: (@Sendable (ApprovalRequest) -> Void)?
+    /// The parent's hands (Wave 10b). The server runs the loop; the client
+    /// answers each call inline and asks for the next response.
+    var parentTools: (any ParentToolExecuting)?
+    /// A parent tool's card (a map from `find_places`) takes the job card's
+    /// road: the presenter port speaks text only, and the seam that already
+    /// paints a specialist's map is the right one for the parent's too.
+    /// The session's outward stream (Wave 12a): cards and the parent's hands.
+    var events: AudioStreamBox<SessionEvent>?
+    /// The `open_url` gate (Wave 10c 3D); empty = fail closed.
+    var parentGuard = ParentToolGuard()
+    /// What the user last said, for the gate: a URL is only unasked-for
+    /// when it is not in these words.
+    private(set) var lastUserText = ""
 
     /// Diagnostic microscope, set by the session. Observes turn boundaries and
     /// the model's goal; never affects the path.
@@ -112,18 +129,23 @@ final class RealtimeRuntime: @unchecked Sendable {
         // exists, the model answers "I cannot create files" — it never learns
         // it can hand work over. Wave 3 shipped tools: [] on purpose; Wave 4
         // wired the call but never turned the tool back on.
+        let parentSpecs = parentTools?.specs(config.language) ?? []
         pendingUpdate = RealtimeCodec.sessionUpdate(
             instructions: Self.instructions(
-                config: config, history: history, canDelegate: canDelegate),
+                config: config, history: history, canDelegate: canDelegate,
+                parentToolsEnabled: parentTools != nil,
+                handsEnabled: parentSpecs.contains { $0.name == ParentTool.typeText.rawValue },
+                sightEnabled: parentSpecs.contains { $0.name == ParentTool.look.rawValue }),
             // Approvals only exist because jobs exist: the same flag gates
             // both tools. Declared and tested since Wave 4, resolve_approval
             // had no caller outside the suite until Wave 8 — a permission
             // with your hands full died in the 120s auto-deny, unspoken.
-            tools: canDelegate
-                ? [ToolSpec.delegate(config.language),
-                   ToolSpec.resolveApproval(config.language),
-                   ToolSpec.stopJob(config.language)]
-                : [],
+            tools: parentSpecs
+                + (canDelegate
+                    ? [ToolSpec.delegate(config.language),
+                       ToolSpec.resolveApproval(config.language),
+                       ToolSpec.stopJob(config.language)]
+                    : []),
             voice: voice,
             speed: config.voice.speed,
             turnDetection: config.voice.turnDetection,
@@ -157,10 +179,16 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// Wave 9i: arm the turn from the ear's transcript — the mic never
     /// reaches the conversation model, so the accurate text IS the turn. The
     /// user's turn preempts whatever the agent was still saying.
-    func commitWithText(_ text: String) async {
-        await thread.appendUser(text)
-        Log.app("voice: turn from native text «\(text)»")
-        await send(RealtimeCodec.userTextItem(text))
+    func commitWithText(_ text: String, context: TurnContext? = nil) async {
+        lastUserText = text
+        await thread.appendUser(text, context: context)
+        Log.app("voice: turn from native text \(text.count) chars")
+        // The block goes to the server with THIS turn only; the thread keeps
+        // the compact line, so the seed never fills with XML (Wave 10a).
+        let payload = context.map {
+            ContextBlock.wrap(text, with: ContextBlock.render($0, language: language))
+        } ?? text
+        await send(RealtimeCodec.userTextItem(payload))
         await requestResponse(preempting: true)
     }
 
@@ -210,6 +238,9 @@ final class RealtimeRuntime: @unchecked Sendable {
         case .sessionUpdated:
             return []
         case .speechStarted:
+            // A new utterance: what was said before no longer vouches for a
+            // URL (10c 3D); the native ear sets it again on commit.
+            lastUserText = ""
             // Wave 9i: OpenAI does not do VAD (turn_detection null); if a stray
             // event arrives it is harmless — turns are driven locally.
             return [.serverSpeechStarted]
@@ -274,6 +305,30 @@ final class RealtimeRuntime: @unchecked Sendable {
                     callId: callId, output: "stopped"))
                 return [.functionOutputSent]
             }
+            // An action of the parent's own: done here, recorded in the
+            // thread, answered to the server — no job, no sheet.
+            if let parentTools, parentTools.handles(name) {
+                let call = ToolCallRef(id: callId, name: name, arguments: arguments)
+                await markTimeline?(.toolCallSeen)
+                events?.yield(.parentActing(targets: [ParentTool.target(of: call)]))
+                let outcome: ParentToolOutcome
+                if let denied = await parentGuard.check(
+                    call, said: lastUserText, language: language, tools: parentTools) {
+                    outcome = denied
+                } else {
+                    outcome = await parentTools.execute(
+                        name: name, argumentsJSON: arguments)
+                }
+                await thread.appendStatus(
+                    ParentToolCopy.status(name, outcome, language))
+                if let card = outcome.card { events?.yield(.job(.card(card))) }
+                events?.yield(.parentActed)
+                await markTimeline?(.toolDone)
+                await send(RealtimeCodec.functionOutput(
+                    callId: callId, output: outcome.output))
+                await requestResponse()
+                return [.functionOutputSent]
+            }
             // Answer the server immediately so the voice keeps flowing; the
             // job runs in the background and its result is announced later.
             guard let onDelegate,
@@ -295,6 +350,9 @@ final class RealtimeRuntime: @unchecked Sendable {
             return [.functionOutputSent]
         case .serverError(let message):
             Log.app("voice: realtime error \(message)")
+            if VoiceFailureMapping.isQuota(message) {
+                return [.turnFailed(.quotaExceeded)]
+            }
             if message.lowercased().contains("session") {
                 return [.turnFailed(.sessionDropped)]
             }
@@ -327,15 +385,20 @@ final class RealtimeRuntime: @unchecked Sendable {
     }
 
     static func instructions(
-        config: Config, history: [Turn], canDelegate: Bool = false
+        config: Config, history: [Turn], canDelegate: Bool = false,
+        parentToolsEnabled: Bool = false, handsEnabled: Bool = false, sightEnabled: Bool = false
     ) -> String {
         var text = ChatPrompt.system(
             ownerFirstName: config.ownerFirstName,
             delegateEnabled: canDelegate,
+            parentToolsEnabled: parentToolsEnabled,
+            handsEnabled: handsEnabled,
+            sightEnabled: sightEnabled,
             about: config.ownerAbout,
             instructions: config.ownerInstructions,
             language: config.language,
-            memory: config.memory)
+            memory: config.memory,
+            skills: config.skills)
         let tone = config.voice.tone.trimmingCharacters(
             in: .whitespacesAndNewlines)
         if !tone.isEmpty {
