@@ -76,8 +76,8 @@ import Testing
 @MainActor func testEscalationSpeaksTheLanguage() {
     expect(!hasSpanish(Escalation.executorRole(.en)),
            "rol: el especialista recibe su contrato en inglés")
-    expect(!hasSpanish(Escalation.voicePreamble(.en)),
-           "preámbulo: la voz pide brevedad en inglés")
+    expect(!hasSpanish(ContextBlock.replyHint(.voice, language: .en) ?? ""),
+           "pista: la voz pide brevedad en inglés (Wave 10a: vive en ContextBlock)")
     expect(!hasSpanish(Escalation.jobDoneAnnouncement("clean the desk", .en)),
            "aviso: el cierre del encargo se narra en inglés")
     // Y el español llega en español, no regenerado en inglés.

@@ -51,6 +51,12 @@ public struct ThreadView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    /// Status lines are the island's to say (16j-1); the thread keeps the
+    /// user's turns and the replies, as Incredible's conversation does.
+    static func visible(_ messages: [ChatMessage]) -> [ChatMessage] {
+        messages.filter { !$0.isStatus }
+    }
+
     private var isIdle: Bool {
         model.messages.isEmpty && model.streaming.isEmpty && !model.busy
     }
@@ -92,7 +98,7 @@ public struct ThreadView: View {
                     // The live card replaces the bare skeleton while a
                     // specialist works: same slot, but it says what is
                     // happening and for how long.
-                    if let job = model.job {
+                    if let job = model.session.projection.job {
                         JobCardView(onStop: { model.cancelJob() }, job: job)
                             .upsideDown()
                     } else if model.busy, model.streaming.isEmpty {
@@ -107,7 +113,7 @@ public struct ThreadView: View {
                             .id("streaming")
                     }
                     queuedRows
-                    ForEach(model.messages.reversed()) { message in
+                    ForEach(Self.visible(model.messages).reversed()) { message in
                         messageRow(message)
                             .upsideDown()
                             .id(message.id)

@@ -1,45 +1,47 @@
 import CompanionCore
 import SwiftUI
 
-/// The language row and its choices. Split out of SettingsAppPane at the
-/// 400-line gate; it is also the only control that has to repaint the whole
-/// pane, which is easier to see on its own.
-extension SettingsAppPane {
-    var languageRow: some View {
-        SettingsLine(
+/// The language row (Wave 16g: in General). The only control that has
+/// to repaint the whole sheet, so it reports the change instead of owning a
+/// tick of its own.
+struct SettingsLanguageLine: View {
+    let onChange: () -> Void
+
+    var body: some View {
+        SettingsRow(
             title: Localized.string("settings.app.language"),
-            subtitle: Localized.string("settings.app.language.subtitle")
+            subtitle: Localized.string("settings.app.language.subtitle"),
+            key: "settings.app.language"
         ) {
             SettingsItem(
                 title: "",
-                value: LanguageChoice.current.label,
-                options: LanguageChoice.allCases.map { ($0, $0.label) }
+                value: SettingsLanguageChoice.current.label,
+                options: SettingsLanguageChoice.allCases.map { ($0, $0.label) },
+                id: "settings.app.language"
             ) { choice in
                 LanguagePreference.stored = choice.language
-                // The screen is already full of resolved strings; the tick is
-                // what repaints all of them at once.
-                languageTick += 1
+                onChange()
             }
         }
     }
+}
 
-    /// System, English or Spanish. "System" is not the same as English: it
-    /// means follow the Mac, and it has to survive changing the Mac's setting.
-    enum LanguageChoice: String, CaseIterable, Hashable {
-        case system, en, es
+/// System, English or Spanish. "System" is not the same as English: it
+/// means follow the Mac, and it has to survive changing the Mac's setting.
+enum SettingsLanguageChoice: String, CaseIterable, Hashable {
+    case system, en, es
 
-        static var current: LanguageChoice {
-            LanguagePreference.stored.map {
-                LanguageChoice(rawValue: $0.rawValue) ?? .system
-            } ?? .system
-        }
+    static var current: SettingsLanguageChoice {
+        LanguagePreference.stored.map {
+            SettingsLanguageChoice(rawValue: $0.rawValue) ?? .system
+        } ?? .system
+    }
 
-        var language: AppLanguage? {
-            self == .system ? nil : AppLanguage(rawValue: rawValue)
-        }
+    var language: AppLanguage? {
+        self == .system ? nil : AppLanguage(rawValue: rawValue)
+    }
 
-        var label: String {
-            Localized.string("settings.app.language.\(rawValue)")
-        }
+    var label: String {
+        Localized.string("settings.app.language.\(rawValue)")
     }
 }

@@ -24,7 +24,6 @@ public struct HeaderView: View {
     var onFolder: () -> Void
 
     @Environment(DropdownHost.self) private var host
-    @Namespace private var modeNS
     @State private var avatarImage = UserProfile.avatarImage
 
     public init(
@@ -49,9 +48,9 @@ public struct HeaderView: View {
                 .font(.uiLogo)
                 .tracking(Tracking.tighter, at: TypeSize.display)
                 .foregroundStyle(Semantic.foreground)
+            // No executor choice and no voice/text switch (16j-1): the brain
+            // routes on its own and the voice lives in the island.
             HStack(spacing: Space.x2) {
-                choiceMenu
-                modeToggle
                 Spacer()
                 HoverIconButton(
                     symbol: "clock.arrow.circlepath",
@@ -72,69 +71,6 @@ public struct HeaderView: View {
         ) { _ in
             avatarImage = UserProfile.avatarImage
         }
-    }
-
-    private var choiceTitle: String {
-        guard let executors else { return ExecutorCatalog.native.title }
-        return executors.available.first { $0.id == executors.selected }?.title
-            ?? ExecutorCatalog.native.title
-    }
-
-    private var choiceMenu: some View {
-        Button {
-            withAnimation(.springSheet) { host.toggle(.choice) }
-        } label: {
-            HStack(spacing: Space.x1) {
-                Text(choiceTitle)
-                    .font(Fonts.mono(11.5))
-                Image(systemName: "chevron.down")
-                    .font(Fonts.sans(8))
-                    .rotationEffect(.degrees(host.menu == .choice ? 180 : 0))
-            }
-            .foregroundStyle(Semantic.mutedForeground)
-            .padding(.horizontal, Space.x2 + Space.x1 / 2)
-            .padding(.vertical, Space.x1 + Space.x1 / 2)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .fixedSize()
-        .hoverChip()
-    }
-
-    private var modeToggle: some View {
-        HStack(spacing: Space.x1 / 2) {
-            modeSegment(.voice, "waveform", "Modo voz")
-            modeSegment(.text, "keyboard", "Modo texto")
-        }
-        .padding(Space.x1 / 2)
-        .background(Capsule().fill(Semantic.surface.opacity(0.55)))
-        .overlay(Capsule().stroke(Semantic.border, lineWidth: Stroke.hairline).opacity(0.5))
-    }
-
-    private func modeSegment(
-        _ m: InteractionMode, _ symbol: String, _ help: String
-    ) -> some View {
-        Button {
-            withAnimation(.springSelect) { mode = m }
-        } label: {
-            Image(systemName: symbol)
-                .font(.uiCaption)
-                .foregroundStyle(
-                    mode == m ? Semantic.foreground : Semantic.mutedForeground)
-                .frame(
-                    width: Space.x6 + Space.x1 / 2,
-                    height: Space.x5 + Space.x1 / 2)
-                .background {
-                    if mode == m {
-                        Capsule().fill(Semantic.background)
-                            .elevationChip()
-                            .matchedGeometryEffect(id: "modeSel", in: modeNS)
-                    }
-                }
-                .contentShape(Capsule())
-        }
-        .buttonStyle(PressableStyle())
-        .help(help)
     }
 
     private var avatar: some View {

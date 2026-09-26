@@ -27,8 +27,8 @@ import Testing
 
 @MainActor func testPrimaryFillAndInk() {
     let look = ControlLook.button(.primary, .normal)
-    expectEq(look.fill, .accent, "primary: fill accent")
-    expectEq(look.ink, .onAccent, "primary: ink on accent")
+    expectEq(look.fill, .ink, "primary: black like Incredible (16l)")
+    expectEq(look.ink, .onInk, "primary: white text")
     expectEq(look.elevation, Elevation.rest, "primary rest: no extra shadow")
     expectEq(look.focusRing, 0, "primary rest: no ring")
     expectEq(look.opacity, 1, "primary rest: full opacity")
@@ -36,9 +36,9 @@ import Testing
 
 @MainActor func testHoverRaisesElevation() {
     let look = ControlLook.button(.primary, .hover)
-    expectEq(look.elevation, Elevation.hover, "hover: elevation hover")
+    expectEq(look.scale, ButtonMetrics.hoverScale, "hover: grows instead of lifting (16l)")
     let pressed = ControlLook.button(.primary, .pressed)
-    expectEq(pressed.fill, .accent, "pressed: keeps accent fill")
+    expectEq(pressed.fill, .ink, "pressed: keeps ink fill")
 }
 
 @MainActor func testFocusedShowsTokenRing() {
@@ -49,13 +49,13 @@ import Testing
     expectEq(field.focusRing, Stroke.medium, "field focused: same ring token")
 }
 
-/// Disabled is its OWN look, not a faded one: 40% opacity over a solid ink
-/// fill left gray-on-gray text nobody could read (review 2026-08-26).
+/// 16l: Incredible fades a disabled button to 50 %. At 50 % the white text
+/// on black still reads; the 2026-08-26 problem was 40 % over an accent fill.
 @MainActor func testDisabledStaysLegible() {
     let look = ControlLook.button(.primary, .disabled)
-    expectEq(look.opacity, 1, "disabled: nada de desvanecer el texto")
-    expectEq(look.fill, .surface, "disabled: superficie callada")
-    expectEq(look.ink, .muted, "disabled: tinta apagada pero legible")
+    expectEq(look.opacity, StateAlpha.disabled, "disabled: 50 % como Incredible")
+    expectEq(look.fill, .ink, "disabled: mismo relleno")
+    expectEq(look.scale, 1, "disabled: no crece")
     expectEq(look.focusRing, 0, "disabled: no ring")
 }
 
@@ -65,10 +65,11 @@ import Testing
     expectEq(dest.ink, .onDestructive, "destructive: ink")
     let ghost = ControlLook.button(.ghost, .normal)
     expectEq(ghost.fill, .clear, "ghost: no fill")
+    expectEq(ghost.ink, .muted, "ghost: secondary grey text")
     expectEq(ghost.stroke, .none, "ghost: no stroke")
     let secondary = ControlLook.button(.secondary, .normal)
-    expectEq(secondary.fill, .surface, "secondary: surface")
-    expectEq(secondary.stroke, .border, "secondary: bordered")
+    expectEq(secondary.fill, .wash, "secondary: 5 % wash (16l)")
+    expectEq(secondary.stroke, .none, "secondary: no border (16l)")
 }
 
 @MainActor func testFieldErrorStroke() {

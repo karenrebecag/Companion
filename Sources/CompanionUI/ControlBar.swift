@@ -130,8 +130,8 @@ public struct ControlBar: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .animation(.snappy, value: voice.isActive)
-        .animation(.snappy, value: voice.snapshot.muted)
+        .animation(.springSelect, value: voice.isActive)
+        .animation(.springSelect, value: voice.snapshot.muted)
     }
 
     private var muteButton: some View {

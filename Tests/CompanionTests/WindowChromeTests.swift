@@ -3,36 +3,38 @@ import CompanionUI
 import Testing
 
 @Test @MainActor func windowChromeTests() {
-    testDesignSizeIsPortraitColumn()
-    testAspectRatioIsTwoByThree()
+    testDesignSizeIsLandscapeLikeIncredible()
+    testAspectRatioIsSixteenByTen()
     testContentFloorAndCeilingKeepAspect()
     testStyleMaskPaintsUnderTitlebar()
     testWindowStaysRetainedOnClose()
 }
 
-@MainActor func testDesignSizeIsPortraitColumn() {
-    expectEq(WindowChrome.designSize, NSSize(width: 560, height: 840),
-             "ventana: 560x840 de diseño")
+// Spec 16j §8: the window is Incredible's, a sidebar and a page, landscape
+// (its recording measures 2286x1440, 16:10), no longer the 2:3 chat column.
+@MainActor func testDesignSizeIsLandscapeLikeIncredible() {
+    expectEq(WindowChrome.designSize, NSSize(width: 1120, height: 700),
+             "ventana: 1120x700 de diseño")
 }
 
-@MainActor func testAspectRatioIsTwoByThree() {
-    expectEq(WindowChrome.aspectRatio, NSSize(width: 2, height: 3),
-             "ventana: columna 2:3")
+@MainActor func testAspectRatioIsSixteenByTen() {
+    expectEq(WindowChrome.aspectRatio, NSSize(width: 16, height: 10),
+             "ventana: 16:10 como Incredible")
 }
 
 @MainActor func testContentFloorAndCeilingKeepAspect() {
-    expectEq(WindowChrome.contentMinSize, NSSize(width: 440, height: 660),
-             "ventana: piso 440x660")
-    expectEq(WindowChrome.contentMaxSize, NSSize(width: 680, height: 1020),
-             "ventana: techo 680x1020")
+    expectEq(WindowChrome.contentMinSize, NSSize(width: 880, height: 550),
+             "ventana: piso 880x550, cabe la barra lateral y la tarjeta de pasos")
+    expectEq(WindowChrome.contentMaxSize, NSSize(width: 1440, height: 900),
+             "ventana: techo 1440x900")
     let minH = WindowChrome.contentMinSize.width
         * WindowChrome.aspectRatio.height / WindowChrome.aspectRatio.width
     let maxH = WindowChrome.contentMaxSize.width
         * WindowChrome.aspectRatio.height / WindowChrome.aspectRatio.width
     expectEq(minH, WindowChrome.contentMinSize.height,
-             "ventana: piso respeta 2:3")
+             "ventana: piso respeta 16:10")
     expectEq(maxH, WindowChrome.contentMaxSize.height,
-             "ventana: techo respeta 2:3")
+             "ventana: techo respeta 16:10")
 }
 
 @MainActor func testStyleMaskPaintsUnderTitlebar() {

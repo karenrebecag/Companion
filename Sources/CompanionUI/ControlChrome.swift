@@ -22,11 +22,12 @@ public enum AppButtonKind: Sendable, CaseIterable {
 }
 
 public enum ControlFill: Sendable, Equatable {
-    case accent, destructive, surface, clear, ink
+    /// `wash` is Incredible's ghost fill: black 5 % over the surface.
+    case destructive, surface, clear, ink, wash
 }
 
 public enum ControlInk: Sendable, Equatable {
-    case onAccent, onDestructive, foreground, accentText, onInk, muted
+    case onDestructive, foreground, onInk, muted
 }
 
 public enum ControlStroke: Sendable, Equatable {
@@ -40,25 +41,23 @@ public struct ControlLook: Equatable, Sendable {
     public let elevation: Elevation
     public let focusRing: CGFloat
     public let opacity: Double
+    /// Incredible's buttons grow on hover instead of lifting a shadow.
+    public var scale: CGFloat = 1
 
     public static func button(
         _ kind: AppButtonKind, _ state: ControlState
     ) -> ControlLook {
-        // Disabled is its OWN look, not a faded one: 40% opacity over a solid
-        // ink fill left gray-on-gray text nobody could read. A quiet surface
-        // with muted ink stays legible while clearly not inviting.
-        if state == .disabled {
-            return ControlLook(
-                fill: .surface, ink: .muted, stroke: .border,
-                elevation: .rest, focusRing: 0, opacity: 1)
-        }
+        // 16l: Incredible fades the same look to 50 % and never shadows a
+        // button; the solid and wash kinds grow 3 % under the pointer.
+        let grows = state == .hover && kind != .ghost && kind != .destructive
         return ControlLook(
             fill: fill(kind),
             ink: ink(kind),
             stroke: stroke(kind),
-            elevation: state == .hover ? .hover : .rest,
-            focusRing: ring(state),
-            opacity: 1)
+            elevation: .rest,
+            focusRing: state == .disabled ? 0 : ring(state),
+            opacity: state == .disabled ? StateAlpha.disabled : 1,
+            scale: grows ? ButtonMetrics.hoverScale : 1)
     }
 
     public static func field(
@@ -75,29 +74,25 @@ public struct ControlLook: Equatable, Sendable {
 
     private static func fill(_ kind: AppButtonKind) -> ControlFill {
         switch kind {
-        case .primary: .accent
-        case .secondary: .surface
+        case .primary, .neutral: .ink
+        case .secondary: .wash
         case .destructive: .destructive
         case .ghost: .clear
-        case .neutral: .ink
         }
     }
 
     private static func ink(_ kind: AppButtonKind) -> ControlInk {
         switch kind {
-        case .primary: .onAccent
+        case .primary, .neutral: .onInk
         case .secondary: .foreground
         case .destructive: .onDestructive
-        case .ghost: .accentText
-        case .neutral: .onInk
+        case .ghost: .muted
         }
     }
 
     private static func stroke(_ kind: AppButtonKind) -> ControlStroke {
         switch kind {
-        case .secondary: .border
-        case .ghost: .none
-        case .primary, .destructive, .neutral: .none
+        case .primary, .secondary, .destructive, .ghost, .neutral: .none
         }
     }
 

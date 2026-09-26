@@ -9,17 +9,15 @@ final class AppMenu: NSObject {
     private static var installed: AppMenu?
 
     private let routing: MenuRouting
-    private var observer: NSObjectProtocol?
+    private var observers: [NSObjectProtocol] = []
 
     private init(routing: MenuRouting) {
         self.routing = routing
         super.init()
-        observer = NotificationCenter.default.addObserver(
-            forName: .companionShortcutsDidChange,
-            object: nil,
-            queue: .main
-        ) { _ in
-            Task { @MainActor in AppMenu.rebuild() }
+        observers = [.companionShortcutsDidChange, .companionLanguageDidChange].map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+                Task { @MainActor in AppMenu.rebuild() }
+            }
         }
     }
 
@@ -43,7 +41,8 @@ final class AppMenu: NSObject {
                 submenu.addItem(nsItem(item))
             }
             bar.addItem(branch(section.title, submenu))
-            if section.title == "Ventana" {
+            // The title follows the language; "Ventana" missed English.
+            if section.title == Localized.string("menu.window") {
                 NSApp.windowsMenu = submenu
             }
         }

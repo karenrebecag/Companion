@@ -9,72 +9,65 @@ public struct CompanionRootView: View {
     private let voicePreview: VoicePreview?
     private let executors: ExecutorChoice?
     @State private var showSettings = false
-    @State private var settingsTab: SettingsTab = .you
+    @State private var settingsTab: SettingsTab = .general
     @State private var chromeTick = 0
     @State private var keyboardMonitor: KeyboardMonitor?
     @State private var dropdowns = DropdownHost()
-    @State private var mode: InteractionMode = .voice
+    @State private var page = MainPage.home
+    /// The task whose detail sheet is open (spec 16j §8).
+    @State private var openTask: ConversationMeta?
+    /// Read once per opened task: the store is disk, and the body re-runs
+    /// on every streamed token (code review 16j-2).
+    @State private var openTaskMessages: [ChatMessage] = []
+    @Environment(\.openURL) private var openURL
 
     public init(
         chat: ChatViewModel,
         voice: VoiceViewModel,
         voicePreview: VoicePreview? = nil,
         executors: ExecutorChoice? = nil,
-        onAECRearm: (() -> Void)? = nil,
-        updates: UpdateState? = nil
+        updates: UpdateState? = nil,
+        welcome: WelcomeModel? = nil,
+        memory: (any MemoryBrowsing)? = nil,
+        apps: AppsModel? = nil
     ) {
         self.chat = chat
         self.voice = voice
         self.voicePreview = voicePreview
         self.executors = executors
-        self.onAECRearm = onAECRearm
         self.updates = updates
+        self.welcome = welcome
+        self.memory = memory
+        self.apps = apps
     }
 
-    private let onAECRearm: (() -> Void)?
     private let updates: UpdateState?
+    private let welcome: WelcomeModel?
+    private let memory: (any MemoryBrowsing)?
+    private let apps: AppsModel?
 
     public var body: some View {
         Group {
-            if chat.needsOnboarding {
+            if let welcome, !welcome.done || chat.needsOnboarding {
+                WelcomeView(welcome: welcome, chat: chat)
+            } else if chat.needsOnboarding {
                 OnboardingView(model: chat)
             } else {
-                VStack(alignment: .leading, spacing: Space.x2) {
-                    HeaderView(
-                        chat: chat,
-                        voice: voice,
-                        executors: executors,
-                        mode: $mode,
-                        onSettings: {
-                            settingsTab = .you
-                            withAnimation(.springSheet) { showSettings = true }
-                        },
-                        onFolder: pickWorkdir
-                    )
-                    .zIndex(2)
-                    ThreadView(chat: chat, mode: mode)
-                        .zIndex(0)
-                    StatusLine(chat: chat, voice: voice)
-                        .zIndex(2)
-                    if !chat.pendingAttachments.isEmpty {
-                        AttachmentStrip(chat: chat)
-                            .transition(.modeSwap)
-                            .zIndex(2)
+                // Incredible's window (spec 16j §8): an index of what the island
+                // did. Talking, and continuing a task, happen in the island.
+                HStack(spacing: Space.none) {
+                    MainSidebar(
+                        page: $page,
+                        onSettings: { openSettings(.general) },
+                        onFeedback: { if let url = IslandCopy.feedbackURL { openURL(url) } })
+                    Rectangle().fill(Semantic.borderChrome).frame(width: Stroke.hairline)
+                    if page == .apps, let apps {
+                        AppsPage(apps: apps)
+                    } else {
+                        HomePage(chat: chat, onOpen: { task in
+                            withAnimation(.springSheet) { openTask = task }
+                        }, onSettings: openSettings)
                     }
-                    Group {
-                        if mode == .text {
-                            ChatInputView(chat: chat, voice: voice)
-                                .padding(.horizontal, Space.x4)
-                                .padding(.bottom, Space.x3)
-                                .transition(.modeSwap)
-                        } else {
-                            ControlBar(voice: voice, mode: mode)
-                                .padding(.bottom, Space.x3)
-                                .transition(.modeSwap)
-                        }
-                    }
-                    .animation(.springSheet, value: mode)
-                    .zIndex(2)
                 }
                 .id("chrome-\(chromeTick)")
             }
@@ -141,7 +134,7 @@ public struct CompanionRootView: View {
         .dropdownPortal(host: dropdowns)
         .animation(.springSheet, value: dropdowns.menu)
         .onExitCommand {
-            if chat.pendingApproval != nil {
+            if chat.session.projection.approval != nil {
                 chat.answerApproval(false)
             } else if showSettings, dropdowns.session.isOpen {
                 withAnimation(.springSheet) { dropdowns.dismiss() }
@@ -198,19 +191,17 @@ public struct CompanionRootView: View {
                         }
                     GeometryReader { geo in
                         let w = min(
-                            SettingsOverlayMetrics.maxSide,
+                            SettingsOverlayMetrics.maxWidth,
                             max(300, geo.size.width - Space.x6))
                         let h = min(
-                            SettingsOverlayMetrics.maxSide,
+                            SettingsOverlayMetrics.maxHeight,
                             max(320, geo.size.height - Space.x6))
                         SettingsView(
                             preview: voicePreview,
                             chat: chat,
-                            onLiveSpeedChange: { voice.setSpeed($0) },
-                            onLiveVolumeChange: { voice.setVolume($0) },
-                            onAECRearm: onAECRearm,
-                            echoFreeOutput: voice.echoFreeOutput,
                             updates: updates,
+                            welcome: welcome,
+                            memory: memory,
                             tab: $settingsTab,
                             onClose: {
                                 withAnimation(.springSheet) { showSettings = false }
@@ -224,10 +215,17 @@ public struct CompanionRootView: View {
             }
         }
         .animation(.springSheet, value: showSettings)
+        .overlay { taskSheet }
+        .animation(.springSheet, value: openTask?.id)
+        .onChange(of: openTask?.id) { _, id in
+            openTaskMessages = id.map(chat.transcript) ?? []
+        }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenSettings)
-        ) { _ in
-            settingsTab = .app
+        ) { note in
+            // The island names the page it means: keys live in privacy, the
+            // shortcuts in general; the menu opens at the top.
+            settingsTab = (note.object as? String).flatMap(SettingsTab.init(rawValue:)) ?? .general
             withAnimation(.springSheet) { showSettings = true }
         }
         .onReceive(
@@ -247,7 +245,7 @@ public struct CompanionRootView: View {
             for url in urls { adoptFile(url) }
             return true
         } isTargeted: { over in
-            withAnimation(.easeOut(duration: MotionTime.fast)) {
+            withAnimation(.expoOut(MotionTime.fast)) {
                 chat.dropTargeted = over
             }
         }
@@ -256,14 +254,14 @@ public struct CompanionRootView: View {
         }
         .animation(.springSheet, value: chat.pendingAttachments)
         .overlay {
-            if let request = chat.pendingApproval {
+            if let request = chat.session.projection.approval {
                 ZStack {
                     Rectangle()
                         .fill(.ultraThinMaterial)
                         .overlay(Semantic.scrim)
                         .ignoresSafeArea()
-                    ApprovalSheet(request: request) { approved in
-                        chat.answerApproval(approved)
+                    ApprovalSheet(request: request) { approved, remember in
+                        chat.answerApproval(approved, remember: remember)
                     }
                     .background(Semantic.surfaceOverlay)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
@@ -275,7 +273,7 @@ public struct CompanionRootView: View {
                 .transition(.opacity)
             }
         }
-        .animation(.springSheet, value: chat.pendingApproval != nil)
+        .animation(.springSheet, value: chat.session.projection.approval != nil)
     }
 
     private func pickWorkdir() {
@@ -286,6 +284,38 @@ public struct CompanionRootView: View {
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             chat.setFolder(url.path)
+        }
+    }
+
+    private func openSettings(_ tab: SettingsTab) {
+        settingsTab = tab
+        withAnimation(.springSheet) { showSettings = true }
+    }
+
+    @ViewBuilder
+    private var taskSheet: some View {
+        if let task = openTask {
+            ZStack {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Semantic.scrim)
+                    .ignoresSafeArea()
+                    .onTapGesture { openTask = nil }
+                GeometryReader { geo in
+                    TaskDetailSheet(
+                        task: task, messages: openTaskMessages, canFollowUp: chat.canFollowUp,
+                        onFollowUp: {
+                            guard chat.followUp(task) else { return }
+                            openTask = nil
+                            NotificationCenter.default.post(name: .companionFollowUp, object: nil)
+                        },
+                        onClose: { openTask = nil })
+                    .frame(width: min(MainWindowMetrics.detailMaxWidth, geo.size.width - Space.x6),
+                           height: min(MainWindowMetrics.detailMaxHeight, geo.size.height - Space.x6))
+                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                }
+            }
+            .transition(.opacity)
         }
     }
 

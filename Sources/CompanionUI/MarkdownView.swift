@@ -27,7 +27,7 @@ public struct MarkdownView: View {
     private func block(_ kind: MarkdownSplitter.Kind) -> some View {
         switch kind {
         case .prose(let text):
-            Text(text)
+            Text(Self.inline(text))
                 .font(Font.uiBody)
                 .foregroundStyle(Semantic.foreground)
                 .textSelection(.enabled)
@@ -39,7 +39,7 @@ public struct MarkdownView: View {
         case .list(let ordered, let items):
             VStack(alignment: .leading, spacing: Space.x1) {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    Text(listLine(ordered: ordered, index: index, item: item))
+                    Text(Self.inline(listLine(ordered: ordered, index: index, item: item)))
                         .font(Font.uiBody)
                         .foregroundStyle(Semantic.foreground)
                         .textSelection(.enabled)
@@ -50,7 +50,7 @@ public struct MarkdownView: View {
                 Rectangle()
                     .fill(Semantic.border)
                     .frame(width: 2)
-                Text(text)
+                Text(Self.inline(text))
                     .font(Font.uiBody)
                     .foregroundStyle(Semantic.mutedForeground)
                     .textSelection(.enabled)
@@ -86,6 +86,43 @@ public struct MarkdownView: View {
                 .foregroundStyle(Semantic.foreground)
                 .textSelection(.enabled)
         }
+    }
+
+    /// Bold, italics, code and links drawn, not shown as marks. Only web
+    /// links stay clickable: the model writes them, and a file or app URL
+    /// from a reply must not open with one click.
+    nonisolated static func inline(_ text: String) -> AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace, failurePolicy: .returnPartiallyParsedIfPossible)
+        guard var parsed = try? AttributedString(markdown: text, options: options) else {
+            return AttributedString(text)
+        }
+        // Ranges first: writing while walking the runs invalidates them.
+        let unsafe = parsed.runs.compactMap { run -> Range<AttributedString.Index>? in
+            guard let link = run.link else { return nil }
+            let web = ["http", "https"].contains(link.scheme?.lowercased() ?? "")
+            let label = String(parsed[run.range].characters)
+            return web && !disguises(label, link) ? nil : run.range
+        }
+        for range in unsafe { parsed[range].link = nil }
+        return parsed
+    }
+
+    /// A label that reads as one site while the link goes to another is a
+    /// phishing shape (security review 16j-2): it stays text.
+    nonisolated static func disguises(_ label: String, _ link: URL) -> Bool {
+        guard let shown = siteName(label) else { return false }
+        let target = siteName(link.host ?? "") ?? ""
+        return shown != target && !target.hasSuffix("." + shown)
+    }
+
+    nonisolated private static func siteName(_ text: String) -> String? {
+        var host = text.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !host.isEmpty, !host.contains(where: \.isWhitespace) else { return nil }
+        if let range = host.range(of: "://") { host = String(host[range.upperBound...]) }
+        host = String(host.prefix { $0 != "/" && $0 != "?" && $0 != "#" })
+        guard host.contains(".") else { return nil }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
     }
 
     private func listLine(

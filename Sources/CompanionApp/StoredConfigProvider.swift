@@ -12,10 +12,17 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
     /// the close of one session reaches the very next message. Files are
     /// tiny; the read costs less than a network hop.
     private let memory: (any MemoryStore)?
+    /// Wave 11a: the catalog is rendered per access too, so a skill saved in
+    /// this turn is listed in the next prompt.
+    private let skills: SkillStore?
+    private let location: SkillsLocation
 
-    init(workdir: String? = nil, memory: (any MemoryStore)? = nil) {
+    init(workdir: String? = nil, memory: (any MemoryStore)? = nil,
+         skills: SkillStore? = nil, location: SkillsLocation = .standard()) {
         self.workdir = workdir
         self.memory = memory
+        self.skills = skills
+        self.location = location
     }
 
     var current: Config {
@@ -41,10 +48,19 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
             memory: memory.map {
                 MemoryPrompt.inject(
                     $0.load(), language: LanguagePreference.current,
-                    notesDirectory: MemoryLocation.directory()
-                        .appendingPathComponent("notes").path)
+                    knowledgeDirectory: location.knowledge.path)
             } ?? "",
-            mcpServers: MCPConfigFile.load()
+            skills: skills?.rendered(language: LanguagePreference.current) ?? "",
+            mcpServers: MCPConfigFile.load(),
+            contextChannels: ContextPreference.channels,
+            // DM1c-3: the stored toggle wins when on; `COMPANION_DECISION=1`
+            // (DecisionSettings' own default) stays the override for a
+            // headless run with no Settings pane to click.
+            decision: DecisionSettings(
+                enabled: DecisionPreference.enabled || DecisionSettings().enabled),
+            // 15f-6: read per access, so a voice picked in Settings reaches
+            // the next sentence without rebuilding the mouth.
+            elevenLabsVoiceID: ElevenLabsVoicePreference.voiceID
         )
     }
 }

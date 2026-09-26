@@ -76,6 +76,9 @@ public struct MenuRouting {
 public extension Notification.Name {
     static let companionShortcutsDidChange = Notification.Name(
         "companion.shortcutsDidChange")
+    /// Wave 16d: the menus follow a language picked in Settings.
+    static let companionLanguageDidChange = Notification.Name(
+        "companion.languageDidChange")
     static let companionOpenSettings = Notification.Name(
         "companion.openSettings")
     static let companionAttach = Notification.Name(
@@ -84,6 +87,12 @@ public extension Notification.Name {
         "companion.chromeDidChange")
     static let companionProfileDidChange = Notification.Name(
         "companion.profileDidChange")
+    /// 15b code review (medio): `dictationKey` changed in Settings — the App
+    /// layer rebuilds (or tears down) the dictation `HoldKeyTap`. `nonisolated`:
+    /// posted from `VoiceProfile.settings`, itself `nonisolated` so any
+    /// thread can persist a voice setting.
+    nonisolated static let companionDictationKeyDidChange = Notification.Name(
+        "companion.dictationKeyDidChange")
 }
 
 public enum MenuPlan {
@@ -98,17 +107,17 @@ public enum MenuPlan {
 
     private static func appItems(_ shortcuts: ShortcutSet) -> [MenuItemPlan] {
         [
-            fixed("Acerca de Companion", .about),
+            fixed(Localized.string("menu.item.about"), .about),
             .separator(),
-            bound(.settings, "Ajustes…", shortcuts),
+            bound(.settings, Localized.string("menu.item.settings"), shortcuts),
             .separator(),
-            item("Ocultar Companion", .hide, "h", KeyModifiers(command: true)),
+            item(Localized.string("menu.item.hide"), .hide, "h", KeyModifiers(command: true)),
             item(
-                "Ocultar otras", .hideOthers, "h",
+                Localized.string("menu.item.hideOthers"), .hideOthers, "h",
                 KeyModifiers(command: true, option: true)),
-            fixed("Mostrar todo", .showAll),
+            fixed(Localized.string("menu.item.showAll"), .showAll),
             .separator(),
-            item("Salir de Companion", .quit, "q", KeyModifiers(command: true)),
+            item(Localized.string("menu.item.quit"), .quit, "q", KeyModifiers(command: true)),
         ]
     }
 
@@ -117,42 +126,42 @@ public enum MenuPlan {
     private static func editItems() -> [MenuItemPlan] {
         let command = KeyModifiers(command: true)
         return [
-            item("Deshacer", .undo, "z", command),
+            item(Localized.string("menu.item.undo"), .undo, "z", command),
             item(
-                "Rehacer", .redo, "z",
+                Localized.string("menu.item.redo"), .redo, "z",
                 KeyModifiers(command: true, shift: true)),
             .separator(),
-            item("Cortar", .cut, "x", command),
-            item("Copiar", .copy, "c", command),
-            item("Pegar", .paste, "v", command),
+            item(Localized.string("menu.item.cut"), .cut, "x", command),
+            item(Localized.string("menu.item.copy"), .copy, "c", command),
+            item(Localized.string("menu.item.paste"), .paste, "v", command),
             item(
-                "Pegar sin formato", .pastePlain, "v",
+                Localized.string("menu.item.pastePlain"), .pastePlain, "v",
                 KeyModifiers(command: true, shift: true, option: true)),
             .separator(),
-            item("Seleccionar todo", .selectAll, "a", command),
+            item(Localized.string("menu.item.selectAll"), .selectAll, "a", command),
         ]
     }
 
     private static func conversationItems(_ shortcuts: ShortcutSet) -> [MenuItemPlan] {
         [
-            bound(.attach, "Adjuntar archivos…", shortcuts),
+            bound(.attach, Localized.string("menu.item.attach"), shortcuts),
             .separator(),
             bound(.newConversation, Localized.string("shortcut.newConversation"), shortcuts),
-            bound(.history, "Conversaciones", shortcuts),
+            bound(.history, Localized.string("menu.item.history"), shortcuts),
             .separator(),
-            bound(.toggleVoice, "Iniciar/terminar turno", shortcuts),
-            bound(.toggleMute, "Silenciar/activar sonido", shortcuts),
-            bound(.hangUp, "Terminar llamada", shortcuts),
+            bound(.toggleVoice, Localized.string("menu.item.toggleVoice"), shortcuts),
+            bound(.toggleMute, Localized.string("menu.item.toggleMute"), shortcuts),
+            bound(.hangUp, Localized.string("menu.item.hangUp"), shortcuts),
         ]
     }
 
     private static func windowItems() -> [MenuItemPlan] {
         let command = KeyModifiers(command: true)
         return [
-            item("Minimizar", .minimize, "m", command),
-            item("Cerrar", .close, "w", command),
+            item(Localized.string("menu.item.minimize"), .minimize, "m", command),
+            item(Localized.string("menu.item.close"), .close, "w", command),
             .separator(),
-            fixed("Traer todo al frente", .bringAllToFront),
+            fixed(Localized.string("menu.item.bringAllToFront"), .bringAllToFront),
         ]
     }
 
@@ -178,6 +187,29 @@ public enum MenuPlan {
         MenuItemPlan(
             title: title, command: command,
             keyEquivalent: key, modifiers: modifiers)
+    }
+}
+
+/// The menu bar item (Wave 16d): Incredible's five, so the app stays
+/// reachable with the window closed.
+public enum StatusCommand: String, Sendable, Equatable, CaseIterable {
+    case cancel, show, settings, checkUpdates, quit
+}
+
+public struct StatusMenuItem: Sendable, Equatable {
+    public let command: StatusCommand
+    public let title: String
+    public let keyEquivalent: String
+}
+
+public enum StatusMenuPlan {
+    public static var items: [StatusMenuItem] {
+        StatusCommand.allCases.map { command in
+            StatusMenuItem(
+                command: command,
+                title: Localized.string("status.\(command.rawValue)"),
+                keyEquivalent: command == .cancel ? "\u{1b}" : "")
+        }
     }
 }
 
