@@ -84,6 +84,8 @@ public enum AXPointerProbe {
     }
 
     /// Whether one of Companion's own clickable windows is under the point.
+    /// Deadlock-free only while nothing on main ever waits on the sampler's
+    /// private queue: keep it that way.
     /// Click-through windows (the glow, the resting island) are skipped: the
     /// window server skips them too when it hit-tests. A window of ours hidden
     /// behind another app's reads as covering, which only skips a sample.
@@ -93,7 +95,9 @@ public enum AXPointerProbe {
                 // Accessibility's origin is the primary screen's top-left.
                 let height = NSScreen.screens.first?.frame.height ?? 0
                 let flipped = CGPoint(x: point.x, y: height - point.y)
-                return NSApp.windows.contains {
+                // No NSApplication (a test process): there are no windows of ours.
+                guard let app = NSApp else { return false }
+                return app.windows.contains {
                     $0.isVisible && !$0.ignoresMouseEvents && $0.frame.contains(flipped)
                 }
             }

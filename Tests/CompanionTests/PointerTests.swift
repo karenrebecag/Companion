@@ -77,6 +77,7 @@ import Testing
     let sampler = PointerSampler(
         probe: { _ in PointedElement(app: "Notas", role: "AXTextArea", text: "lista", at: 0) },
         location: { CGPoint(x: 10, y: 10) },
+        ownsPoint: { _ in false },
         now: { clock.now },
         ticks: false)
     sampler.start()
