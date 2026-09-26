@@ -50,6 +50,12 @@ public enum JobEvent: Sendable, Equatable {
     /// travels through the model's context comes back rewritten, and a
     /// rewritten coordinate is a pin in the wrong street.
     case card(Card)
+    /// The user said no (Wave 10c 3B.4): a decision, painted as one — not a
+    /// failed step. The model reads `denied_by_user` on its side.
+    case approvalDenied(tool: String)
+    /// Answered from the session's memory, without the sheet: "allowed, as
+    /// before" / "denied, as before".
+    case approvalRemembered(tool: String, approved: Bool)
 }
 
 public protocol Executor: Sendable {
@@ -71,5 +77,14 @@ public protocol JobSubmitter: Sendable {
     /// The UI must be able to answer a pending approval: without this the
     /// request only ever ends in the 120s auto-deny.
     func resolveApproval(requestId: String, approved: Bool) async
+    /// Wave 10c: the sheet's "remember for this session". Submitters without
+    /// a memory take the default and drop the flag.
+    func resolveApproval(requestId: String, approved: Bool, remember: Bool) async
     var isBusy: Bool { get async }
+}
+
+extension JobSubmitter {
+    public func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
+        await resolveApproval(requestId: requestId, approved: approved)
+    }
 }

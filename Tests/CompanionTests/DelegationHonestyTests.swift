@@ -45,7 +45,7 @@ import Testing
         Handoff(goal: goal, context: ""),
         jobs: FixedSubmitter(result: JobResult(output: refusal, isError: false)),
         thread: thread,
-        announce: { announced.append($0) },
+        announce: { announced.append($0.instruction) },
         language: .en)
 
     expectEq(thread.turns.last?.content, refusal,

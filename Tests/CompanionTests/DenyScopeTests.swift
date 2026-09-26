@@ -7,6 +7,7 @@ import Testing
     await testDenyingTheFirstActionStopsTheJob()
     await testDenyingALaterActionOnlyRefusesThatAction()
     await testApprovingNeverStops()
+    await testDenyingTheFirstActionRemembersNothing()
 }
 
 @MainActor private func awaiting(_ submitter: WatchfulSubmitter) -> ChatViewModel {
@@ -67,4 +68,17 @@ private func request(_ id: String) -> ApprovalRequest {
     vm.answerApproval(true)
     await settle(0.15)
     expect(!submitter.cancelled, "autorizar no para nada")
+}
+
+/// 23 (10c). Negar el primer paso cancela el encargo y no deja nada en la
+/// memoria aunque el toggle estuviera marcado: no hubo encargo que recordar.
+@MainActor func testDenyingTheFirstActionRemembersNothing() async {
+    let submitter = WatchfulSubmitter()
+    let vm = awaiting(submitter)
+    await pumpUntil("recuerda: arranca") { vm.job != nil }
+    vm.receiveJobEvent(.approvalRequested(request("a1")))
+    vm.answerApproval(false, remember: true)
+    await pumpUntil("recuerda: para") { submitter.cancelled }
+    await pumpUntil("recuerda: resolvió") { !submitter.remembered.isEmpty }
+    expectEq(submitter.remembered, [false], "recuerda: el primer no no se recuerda")
 }

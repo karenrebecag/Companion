@@ -81,9 +81,12 @@ public struct JobRunner: Sendable, JobSubmitter {
         }
     }
 
-    /// Cancel the job currently running.
     public func resolveApproval(requestId: String, approved: Bool) async {
-        _ = await approvals.resolve(requestId: requestId, approved: approved)
+        await resolveApproval(requestId: requestId, approved: approved, remember: false)
+    }
+
+    public func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
+        _ = await approvals.resolve(requestId: requestId, approved: approved, remember: remember)
     }
 
     public func cancel() async {

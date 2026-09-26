@@ -4,7 +4,6 @@ import Testing
 @Test @MainActor func escalationTests() {
     testExecutorPrompt()
     testJobPrompt()
-    testPromptPreambulo()
     testHandoffRobustness()
 }
 
@@ -51,24 +50,14 @@ import Testing
         workdir: "/w", desktop: "/d")
     expect(!sinContexto.contains("Contexto:"),
            "encargo: sin contexto no hay línea vacía")
-}
 
-@MainActor func testPromptPreambulo() {
-    expectEq(Escalation.voicePreamble(.es),
-             "Responde en maximo 2 frases, en espanol, sin markdown. ",
-             "preámbulo: wording original intacto")
-    expect(Escalation.voicePreamble().contains("English"),
-             "preámbulo: la fuente pide inglés")
-    let first = Escalation.voiceTurnPrompt("hola", firstTurn: true)
-    expect(first.hasPrefix(Escalation.voicePreamble()),
-           "preámbulo: el primer turno lleva la instrucción")
-    expectEq(Escalation.voiceTurnPrompt("hola", firstTurn: false), "hola",
-             "preámbulo: los turnos siguientes van limpios")
-    expectEq(Escalation.voiceTurnPrompt("", firstTurn: true),
-             Escalation.voicePreamble(),
-             "preámbulo: texto vacío en el primer turno es solo la instrucción")
-    expectEq(Escalation.voiceTurnPrompt("", firstTurn: false), "",
-             "preámbulo: texto vacío en turnos siguientes queda vacío")
+    // Wave 11a: el catálogo viaja con el encargo; sin catálogo, el prompt
+    // de 10c no cambia en un byte.
+    let block = "<active_skills>\n  - x — Does x. — /s/x/SKILL.md\n</active_skills>"
+    let conSkills = Escalation.jobPrompt(h, workdir: "/w", desktop: "/d", skills: block)
+    expect(conSkills.hasSuffix("\n" + block), "encargo: el catálogo cierra el encargo")
+    expectEq(Escalation.jobPrompt(h, workdir: "/w", desktop: "/d", skills: ""),
+             Escalation.jobPrompt(h, workdir: "/w", desktop: "/d"), "encargo: vacío = igual que antes")
 }
 
 @MainActor func testHandoffRobustness() {

@@ -30,7 +30,7 @@ import Testing
         Handoff(goal: "crear test.md", context: ""),
         jobs: FixedSubmitter(result: JobResult(output: "Hecho", isError: false)),
         thread: ScriptedThread(),
-        announce: { announced.append($0) },
+        announce: { announced.append($0.instruction) },
         language: .es)
     expect(announced.all.joined().contains("en pantalla"),
            "idioma: el anuncio viaja en el idioma de la sesión")
@@ -81,7 +81,7 @@ import Testing
         Handoff(goal: "create test.md", context: ""),
         jobs: FixedSubmitter(result: JobResult(output: output, isError: false)),
         thread: thread,
-        announce: { announced.append($0) })
+        announce: { announced.append($0.instruction) })
 
     expectEq(thread.turns.last?.content, output,
              "circuito: el texto del especialista es el mensaje, entero")

@@ -5,92 +5,83 @@ public protocol Clock: Sendable {
     func now() -> TimeInterval
 }
 
-// Protocol for approval handling - allows dependency injection in NativeExecutor.
-public protocol ApprovalsProvider: Sendable {
-    func request(_ approval: ApprovalRequest) async -> ApprovalResponse
-    func resolve(requestId: String, approved: Bool) async -> Bool
-}
-
+/// Where a permission waits (Wave 10c 3B.1): `request` suspends on a
+/// continuation, `resolve` resumes it, and a timer denies it on its own at
+/// the deadline. No polling — ARCHITECTURE.md's rule. The session's memory
+/// of remembered decisions lives here too, because this is the actor that
+/// receives `remember`.
 public actor Approvals: ApprovalsProvider {
-    private struct PendingRequest {
-        let deadline: TimeInterval
-        var response: ApprovalResponse?
+    private struct Pending {
+        let request: ApprovalRequest
+        let continuation: CheckedContinuation<ApprovalResponse, Never>
+        let timer: Task<Void, Never>
     }
 
-    private var pending: [String: PendingRequest] = [:]
+    private var pending: [String: Pending] = [:]
+    private var memory = ApprovalMemory()
     private let clock: Clock
-    private let timeout: TimeInterval = 120
+    private let timeout: TimeInterval
 
-    nonisolated let _clock: Clock
-
-    public init(clock: Clock) {
+    public init(clock: Clock, timeout: TimeInterval = 120) {
         self.clock = clock
-        self._clock = clock
+        self.timeout = timeout
     }
 
+    /// Suspends until `resolve`, the deadline, or the caller's cancellation:
+    /// a turn that was switched away must not stay parked on the sheet.
     public func request(_ approval: ApprovalRequest) async -> ApprovalResponse {
-        let deadline = clock.now() + timeout
-        pending[approval.requestId] = PendingRequest(deadline: deadline)
-
-        let timeoutTask = Task {
-            await autoDeny(requestId: approval.requestId, deadline: deadline)
-        }
-
-        // Poll for resolution
-        while pending[approval.requestId] != nil && clock.now() < deadline {
-            do {
-                try await Task.sleep(nanoseconds: 10_000_000) // 0.01 seconds
-            } catch {
-                // Cancelled or other error — stop polling
-                break
+        let id = approval.requestId
+        let started = clock.now()
+        let timeout = self.timeout
+        if Task.isCancelled { return ApprovalResponse(requestId: id, approved: false) }
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { continuation in
+                let timer = Task { [weak self] in
+                    do {
+                        try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+                    } catch {
+                        return
+                    }
+                    await self?.autoDeny(id, started: started)
+                }
+                pending[id] = Pending(request: approval, continuation: continuation, timer: timer)
+                if Task.isCancelled {
+                    _ = resolveNow(requestId: id, approved: false, remember: false)
+                }
             }
-
-            if let pending = pending[approval.requestId],
-               let response = pending.response {
-                self.pending.removeValue(forKey: approval.requestId)
-                timeoutTask.cancel()
-                return response
-            }
+        } onCancel: {
+            Task { await self.resolve(requestId: id, approved: false, remember: false) }
         }
-
-        // If we get here, timeout or already resolved
-        timeoutTask.cancel()
-        let response = pending.removeValue(forKey: approval.requestId)?.response
-        return response ?? ApprovalResponse(requestId: approval.requestId, approved: false)
     }
 
     public func resolve(requestId: String, approved: Bool) async -> Bool {
-        guard pending[requestId] != nil else {
-            return false
+        await resolve(requestId: requestId, approved: approved, remember: false)
+    }
+
+    public func resolve(requestId: String, approved: Bool, remember: Bool) async -> Bool {
+        resolveNow(requestId: requestId, approved: approved, remember: remember)
+    }
+
+    private func resolveNow(requestId: String, approved: Bool, remember: Bool) -> Bool {
+        guard let entry = pending.removeValue(forKey: requestId) else { return false }
+        entry.timer.cancel()
+        if remember, let key = ApprovalKey.from(entry.request) {
+            memory = memory.remembering(key, approved: approved)
         }
-
-        let response = ApprovalResponse(requestId: requestId, approved: approved)
-        pending[requestId]?.response = response
-
+        entry.continuation.resume(returning: ApprovalResponse(
+            requestId: requestId, approved: approved, remember: remember))
         return true
     }
 
-    private func autoDeny(requestId: String, deadline: TimeInterval) async {
-        while clock.now() < deadline {
-            do {
-                try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-            } catch {
-                // Cancelled or other error — stop waiting
-                return
-            }
-        }
-
-        _ = await resolve(requestId: requestId, approved: false)
+    public func remembered(_ approval: ApprovalRequest) async -> Bool? {
+        guard let key = ApprovalKey.from(approval) else { return nil }
+        return memory.decision(for: key)
     }
-}
 
-public struct ApprovalResponse: Sendable, Equatable {
-    public var requestId: String
-    public var approved: Bool
-
-    public init(requestId: String, approved: Bool) {
-        self.requestId = requestId
-        self.approved = approved
+    private func autoDeny(_ requestId: String, started: TimeInterval) async {
+        guard pending[requestId] != nil else { return }
+        Log.app("approvals: auto-denied after \(Int(clock.now() - started))s")
+        _ = await resolve(requestId: requestId, approved: false, remember: false)
     }
 }
 

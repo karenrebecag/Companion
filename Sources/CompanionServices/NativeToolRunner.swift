@@ -25,6 +25,14 @@ public struct NativeToolRunner: Sendable {
     private let places: (any PlacesSearching)?
     private let webSearch: (any WebSearching)?
     private let timeout: TimeInterval
+    /// The denial is copy a model reads; it follows the user's language.
+    private let language: AppLanguage
+    /// The app's own folders (Wave 11a): readable beyond the workdir, and
+    /// the place where a write earns a sync line.
+    private let skills: SkillsLocation?
+    /// A skill body is a few hundred lines; a 10 MB read_file cap is not a
+    /// cap for this.
+    static let maxSkillBody = 40_000
     /// Enough to recognise a name, short of pasting a whole disk into the
     /// model's context.
     private static let maxListEntries = 250
@@ -36,13 +44,17 @@ public struct NativeToolRunner: Sendable {
         workdir: String?,
         shellTimeout: TimeInterval = 60,
         places: (any PlacesSearching)? = MapKitPlacesSearch(),
-        webSearch: (any WebSearching)? = nil
+        webSearch: (any WebSearching)? = nil,
+        language: AppLanguage = .en,
+        skills: SkillsLocation? = nil
     ) {
         self.workdir = workdir
-        self.pathValidator = PathValidator(workdir: workdir)
+        self.pathValidator = PathValidator(workdir: workdir, extraRoots: skills?.roots ?? [])
         self.timeout = shellTimeout
         self.places = places
         self.webSearch = webSearch
+        self.language = language
+        self.skills = skills
     }
 
     /// What the model is allowed to see it has. A tool whose backing is not
@@ -69,9 +81,10 @@ public struct NativeToolRunner: Sendable {
             return ToolResult(ok: false, output: "Unknown tool: \(tool)")
         }
 
-        // First gate: check risk level and approval
+        // First gate: a refused permission is an instruction to the model,
+        // not a system error it should retry (Wave 10c 3B.4).
         if nativeTool.riskLevel == .requiresApproval && !approved {
-            return ToolResult(ok: false, output: "Tool requires approval: \(tool)")
+            return ToolResult(ok: false, output: Escalation.deniedByUser(language))
         }
 
         // Dispatch to implementation
@@ -136,22 +149,110 @@ public struct NativeToolRunner: Sendable {
             return ToolResult(ok: false, output: "Missing content argument")
         }
 
-        // Double barrier
-        guard pathValidator.isAllowed(path) else {
-            return ToolResult(ok: false, output: "Path outside working directory")
+        let realPath: String
+        switch writeBarrier(path) {
+        case .success(let resolved): realPath = resolved
+        case .failure(let refused): return refused
         }
 
-        let realPath = resolveRealPath(path)
-        guard pathValidator.isAllowed(realPath) else {
-            return ToolResult(ok: false, output: "Resolved path outside working directory")
+        let entry = skills?.classify(realPath)
+        if entry != nil, content.utf8.count > SkillCatalog.Caps.fileBytes {
+            return ToolResult(ok: false, output: oversize(realPath, content.utf8.count).wire)
         }
-
+        let previous = existingText(realPath)
         do {
+            // The folder may not exist yet: a new skill starts with its
+            // folder, and "No such file" would send the model to run_shell.
+            // Catalog folders are the user's alone (0700/0600, like
+            // attachments); a plain workdir write keeps the folder's umask.
+            let folder = (realPath as NSString).deletingLastPathComponent
+            try FileManager.default.createDirectory(
+                atPath: folder, withIntermediateDirectories: true,
+                attributes: entry == nil ? nil : [.posixPermissions: 0o700])
             try content.write(toFile: realPath, atomically: true, encoding: .utf8)
-            return ToolResult(ok: true, output: "File written successfully")
+            if entry != nil {
+                try FileManager.default.setAttributes(
+                    [.posixPermissions: 0o600], ofItemAtPath: realPath)
+            }
+            return ToolResult(
+                ok: true,
+                output: "File written successfully"
+                    + syncSuffix(realPath, previous: previous, content: content))
         } catch {
             return ToolResult(ok: false, output: "Failed to write file: \(error)")
         }
+    }
+
+    /// Read barrier, then write barrier, lexical and real. A path inside a
+    /// read-only root answers with the contract code the model recovers by
+    /// (`denied_path`, LAYERING §3), not with "outside".
+    /// HACK: check-then-write on a path string. A process running as the
+    /// same user could swap a folder for a symlink in between; that process
+    /// already owns the home folder. Trigger: a second writer on these roots
+    /// (a CLI executor writing concurrently) — then `open(O_NOFOLLOW)`.
+    private enum WriteBarrier {
+        case success(String)
+        case failure(ToolResult)
+    }
+
+    private func writeBarrier(_ path: String) -> WriteBarrier {
+        guard pathValidator.isAllowed(path) else {
+            return .failure(ToolResult(ok: false, output: "Path outside working directory"))
+        }
+        guard pathValidator.isAllowed(path, forWrite: true) else {
+            return .failure(ToolResult(ok: false, output: readOnly(path).wire))
+        }
+        let realPath = resolveRealPath(path)
+        guard pathValidator.isAllowed(realPath) else {
+            return .failure(ToolResult(ok: false, output: "Resolved path outside working directory"))
+        }
+        guard pathValidator.isAllowed(realPath, forWrite: true) else {
+            return .failure(ToolResult(ok: false, output: readOnly(realPath).wire))
+        }
+        return .success(realPath)
+    }
+
+    private func readOnly(_ path: String) -> ContractError {
+        let custom = skills?.customSkills.path ?? "the custom skills folder"
+        return .deniedPath(
+            "\(path) is read-only: system skills belong to Companion. "
+                + "Write your own skill under \(custom)")
+    }
+
+    private func existingText(_ path: String) -> String? {
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        do {
+            let size = try FileManager.default.attributesOfItem(atPath: path)[.size] as? Int ?? 0
+            guard size <= SkillCatalog.Caps.fileBytes else { return nil }
+            return try String(contentsOfFile: path, encoding: .utf8)
+        } catch {
+            return nil
+        }
+    }
+
+    private func oversize(_ path: String, _ bytes: Int) -> ContractError {
+        .invalidArgs(
+            "\(path) would be \(bytes) bytes; a skill or knowledge file must stay under "
+                + "\(SkillCatalog.Caps.fileBytes) bytes. Keep SKILL.md short and move "
+                + "reference material to a references/ file")
+    }
+
+    /// The sync line (corpus spec 12): only on a catalog file, and always
+    /// with the why, so the model rewrites instead of guessing. The file is
+    /// written either way — the user can fix it by hand.
+    private func syncSuffix(_ realPath: String, previous: String?, content: String) -> String {
+        guard let skills, let entry = skills.classify(realPath) else { return "" }
+        let outcome: SkillSync.Outcome
+        if previous == content {
+            outcome = .upToDate
+        } else {
+            do {
+                outcome = .saved(try SkillFrontmatter.parse(content, folder: entry.name).name)
+            } catch {
+                outcome = .failed(error.why)
+            }
+        }
+        return "\n" + SkillSync.line(entry.kind, outcome)
     }
 
     private func editFile(arguments: [String: Any]) throws -> ToolResult {
@@ -165,24 +266,26 @@ public struct NativeToolRunner: Sendable {
             return ToolResult(ok: false, output: "Missing new_string argument")
         }
 
-        // Double barrier
-        guard pathValidator.isAllowed(path) else {
-            return ToolResult(ok: false, output: "Path outside working directory")
-        }
-
-        let realPath = resolveRealPath(path)
-        guard pathValidator.isAllowed(realPath) else {
-            return ToolResult(ok: false, output: "Resolved path outside working directory")
+        let realPath: String
+        switch writeBarrier(path) {
+        case .success(let resolved): realPath = resolved
+        case .failure(let refused): return refused
         }
 
         do {
-            var content = try String(contentsOfFile: realPath, encoding: .utf8)
-            guard content.contains(oldString) else {
+            let previous = try String(contentsOfFile: realPath, encoding: .utf8)
+            guard previous.contains(oldString) else {
                 return ToolResult(ok: false, output: "old_string not found in file")
             }
-            content = content.replacingOccurrences(of: oldString, with: newString)
+            let content = previous.replacingOccurrences(of: oldString, with: newString)
+            if skills?.classify(realPath) != nil, content.utf8.count > SkillCatalog.Caps.fileBytes {
+                return ToolResult(ok: false, output: oversize(realPath, content.utf8.count).wire)
+            }
             try content.write(toFile: realPath, atomically: true, encoding: .utf8)
-            return ToolResult(ok: true, output: "File edited successfully")
+            return ToolResult(
+                ok: true,
+                output: "File edited successfully"
+                    + syncSuffix(realPath, previous: previous, content: content))
         } catch {
             return ToolResult(ok: false, output: "Failed to edit file: \(error)")
         }
@@ -355,7 +458,7 @@ public struct NativeToolRunner: Sendable {
         }
 
         let request = URLRequest(url: url, timeoutInterval: 30)
-        let session = URLSession.shared
+        let session = NoStoreSession.shared
 
         do {
             let (data, response) = try await session.data(for: request)

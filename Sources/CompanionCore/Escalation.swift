@@ -39,7 +39,8 @@ public enum Escalation: Sendable {
 
     public static func jobPrompt(
         _ h: Handoff, workdir: String, desktop: String,
-        attachments: [String] = [], language: AppLanguage = .en
+        attachments: [String] = [], language: AppLanguage = .en,
+        skills: String = ""
     ) -> String {
         let l = jobLabels(language)
         var out = "\(l.job): \(h.goal)\n"
@@ -50,6 +51,9 @@ public enum Escalation: Sendable {
             out += "\n" + l.attachments
             for path in attachments { out += "\n- \(path)" }
         }
+        // The catalog closes the job (Wave 11a): paths to read_file, so the
+        // specialist opens the skill the parent named instead of guessing it.
+        if !skills.isEmpty { out += "\n" + skills }
         return out
     }
 
@@ -85,10 +89,57 @@ public enum Escalation: Sendable {
         }
         return out
     }
+}
 
-    public static func voiceTurnPrompt(
-        _ text: String, firstTurn: Bool, language: AppLanguage = .en
-    ) -> String {
-        firstTurn ? voicePreamble(language) + text : text
+/// Code review 2026-09-25 (HIGH-B): what the end of a job tells the voice.
+/// Realtime hands the model `instruction`, a system item it answers in its
+/// own words. Classic has no model on the other side of the synthesizer, so
+/// it says `spokenLine` (ours, fixed) and asks the hold brain to summarize
+/// `summarySource` in a turn of its own — the instruction is never spoken.
+public struct JobAnnouncement: Sendable, Equatable {
+    public enum Outcome: Sendable, Equatable {
+        case queued
+        case done(result: String)
+        case failed(reason: String)
+    }
+
+    public var goal: String
+    public var outcome: Outcome
+    public var language: AppLanguage
+
+    public init(goal: String, outcome: Outcome, language: AppLanguage) {
+        self.goal = goal
+        self.outcome = outcome
+        self.language = language
+    }
+
+    public var instruction: String {
+        switch outcome {
+        case .queued: return Escalation.queuedAnnouncement(goal, language)
+        case .done: return Escalation.jobDoneAnnouncement(goal, language)
+        case .failed(let reason):
+            return Escalation.jobFailedAnnouncement(
+                goal, reason: Escalation.resultSummary(reason), language)
+        }
+    }
+
+    public var spokenLine: String {
+        switch outcome {
+        case .queued: return Escalation.jobQueuedSpoken(language)
+        case .done: return Escalation.jobDoneSpoken(language)
+        case .failed: return Escalation.jobFailedSpoken(language)
+        }
+    }
+
+    /// What the summarizing turn reads; nil when there is nothing to add.
+    public var summarySource: String? {
+        let text: String
+        switch outcome {
+        case .queued: return nil
+        case .done(let result): text = result
+        case .failed(let reason): text = reason
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

@@ -49,15 +49,6 @@ extension Escalation {
         }
     }
 
-    /// A paragraph read aloud is unbearable; this goes on the first voice
-    /// turn only so later turns are not padded with the same instruction.
-    public static func voicePreamble(_ language: AppLanguage = .en) -> String {
-        switch language {
-        case .en: return "Answer in at most 2 sentences, in English, no markdown. "
-        case .es: return "Responde en maximo 2 frases, en espanol, sin markdown. "
-        }
-    }
-
     // MARK: - Job labels
 
     static func jobLabels(_ language: AppLanguage) -> JobLabels {
@@ -208,6 +199,57 @@ extension Escalation {
         }
     }
 
+    // MARK: - Said by the classic voice (code review 2026-09-25, HIGH-B)
+
+    /// Our own words, so nothing a model wrote is the first thing heard.
+    public static func jobDoneSpoken(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "Done, it is on screen."
+        case .es: return "Listo, ya está en pantalla."
+        }
+    }
+
+    public static func jobFailedSpoken(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "I could not finish it."
+        case .es: return "No pude terminarlo."
+        }
+    }
+
+    public static func jobQueuedSpoken(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "It is queued; I will do it right after this one."
+        case .es: return "Queda en cola; lo hago en cuanto termine este."
+        }
+    }
+
+    /// A long result is summarized from its head: the model needs the gist,
+    /// and the whole report can run to pages.
+    public static let summaryInputLimit = 4000
+
+    /// The summarizing turn's only message: the result framed as a tool
+    /// result, so the model reads it as data to summarize and never as
+    /// orders, and the ask after it.
+    public static func summaryRequest(_ source: String, _ language: AppLanguage) -> String {
+        // A result that closes the frame itself would let its tail read as ours.
+        let framed = source.replacingOccurrences(of: "</tool_result>", with: "</tool-result>")
+        let clipped = framed.count > summaryInputLimit
+            ? String(framed.prefix(summaryInputLimit)) + "…" : framed
+        let ask: String
+        switch language {
+        case .en:
+            ask = "The specialist's result is above; you already said it is on screen. Say "
+                + "in at most two short sentences what it says, for the voice: no code, no "
+                + "JSON, no long paths, nothing it does not say."
+        case .es:
+            ask = "Arriba está el resultado del especialista; ya dijiste que está en pantalla. "
+                + "Di en dos frases cortas como mucho lo que dice, para la voz: sin código, sin "
+                + "JSON, sin rutas largas, nada que no diga."
+        }
+        return ContextBlock.languageInstruction(language) + "\n\n<tool_result name=\"delegate\">\n"
+            + clipped + "\n</tool_result>\n\n" + ask
+    }
+
     /// For the screen: the failure in human words, never the internal error.
     public static func jobFailedStatus(
         _ goal: String, detail: String, _ language: AppLanguage = .en
@@ -253,6 +295,28 @@ extension Escalation {
         case (.es, false):
             return "Permiso denegado; el especialista buscará otra ruta. Dilo "
                 + "en una frase."
+        }
+    }
+
+    /// What the tool returns when the user said no (Wave 10c 3B.4). Read by
+    /// a model, "Tool requires approval" is a configuration error to retry
+    /// or route around; this is the corpus's `RememberInterruption`: an
+    /// instruction not to propose the same thing again.
+    public static func deniedByUser(_ language: AppLanguage = .en) -> String {
+        ContractError.deniedByUser(language).wire
+    }
+
+    /// The message alone; the code is `ContractError`'s (12d).
+    public static func deniedByUserMessage(_ language: AppLanguage = .en) -> String {
+        switch language {
+        case .en:
+            return "the user refused this action. Do not retry "
+                + "it or work around it; either take a different route that "
+                + "needs no permission, or stop and say what you could not do."
+        case .es:
+            return "la usuaria rechazó esta acción. No la "
+                + "reintentes ni la rodees; toma otra ruta que no necesite "
+                + "permiso, o detente y di qué no pudiste hacer."
         }
     }
 
