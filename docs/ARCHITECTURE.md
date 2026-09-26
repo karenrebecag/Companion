@@ -43,6 +43,14 @@ tested, no I/O. A runtime in Services executes effects and feeds results back
 as events. (If you come from the web: it's a Redux reducer with an effect
 interpreter.)
 
+Since Wave 12a there are two reducers, one projection: `TurnMachine` owns
+how the voice captures and plays; `SessionMachine` (Core) observes its
+snapshots and owns what the chrome shows — Idle / Hover / Listening /
+Processing(phase) — plus typed turns, the parent's hands, the specialist's
+job and the approval queue. `SessionModel` (UI) is the only writer of the
+projection; views read it, view models send events. A failure or a stop is
+an `InterruptReason` on the way back to Idle, never a kind of its own.
+
 ## Concurrency rules
 
 - Swift 6 language mode everywhere; data races are compile errors.
@@ -80,4 +88,7 @@ trigger: once Xcode is installed, migrate mechanically to a real
 `.testTarget`. Core targets ~complete coverage; the reference project's test
 suite is ported as a characterization contract. `scripts/gates.sh` runs
 build + static checks + architecture checks + tests; it must be green before
-any merge.
+any merge. Two contracts are data, not prose: `conformance/ui-contract.json`
+(grid and projection rules over `Sources/CompanionUI`, a ratchet on old debt)
+and `conformance/hud-gates.json` (the HUD's auditor gates, each citing the
+tests that prove it; the runner fails when a cited test disappears).

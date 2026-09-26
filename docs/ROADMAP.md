@@ -20,8 +20,62 @@
 | 9g | Ciclo de vida del encargo | CERRADA (2026-08-24) | **Puedes parar lo que no pediste** |
 | 9h | Los limites: alcance, ritmo y memoria | CERRADA (2026-08-24); default REVOCADO en 9i | **El especialista deja de tener tu home por defecto** |
 | 9i | Voz hibrida: el oido transcribe, el modelo habla | ENTREGADA (2026-08-25) | **"Crea un archivo" por voz termina en archivo real, en el escritorio real** |
+| 10 | El loop usuario → app → sistema (mapa `AI_Research/AIResearch/COMPANION-MAP.md`) | 10b ENTREGADA (2026-09-05); 10a ENTREGADA (2026-09-05, con permisos de spec 28); 10c ENTREGADA (2026-09-05, con la puerta de `open_url`) | **"Abre Safari" por voz abre Safari, sin hoja y sin encargo; nada de lo que el modelo pide se pierde** |
+| 11 | Skills y knowledge (Agent Skills, spec 12/13 del corpus) | 11a ENTREGADA (2026-09-06, `docs/specs/wave-11a-skills.md`); 11b y 11c pendientes | **"Enséñale a Companion cómo…" queda en un archivo que la próxima sesión lee sola** |
+| 12 | El HUD (spec de producto `~/Desktop/relay-hud-spec/`, fuera del repo) | 12a ENTREGADA (2026-09-06, `docs/specs/wave-12a-reductor-de-sesion.md`); 12b ENTREGADA (2026-09-06, `docs/specs/wave-12b-hold-fn-island.md`, revisiones cerradas); 12c ENTREGADA (2026-09-06, `docs/specs/wave-12c-parciales-metricas-precalentar.md`); 12d ENTREGADA (2026-09-06, `docs/specs/wave-12d-contratos-del-hud.md`: el libro de puertas `conformance/hud-gates.json`, revisiones cerradas); 12e ENTREGADA (`docs/specs/wave-12e-dictado-en-el-campo.md`: dictar en el campo enfocado de otra app con la misma tecla, revisiones cerradas; §11 recoge lo que enseñó la prueba en vivo). Queda de la spec de producto la acción por Accesibilidad. Pendiente de Karen: conceder Monitoreo de entrada (nunca se pidió: sin fila en TCC) y encender Accesibilidad (denegada), y decidir si el modo por defecto sigue siendo Automático o pasa a Hablar con Companion. D8 (socket caliente en boot) se decide con las líneas `voice timeline:` que ahora deja cada hold. Deuda cerrada en 12e para el oído (`ear:` ya solo cuenta caracteres); sigue abierta para `VoiceAudit.logTurn()`, que escribe la transcripción literal del turno hablado (no del dictado) en el log | **Mantener FN y hablar, sin abrir la ventana** |
+| DM0 | Línea base y arnés del modelo de decisión (`docs/specs/wave-dm0-linea-base-decision.md`; discovery en `docs/research/decision-model/`) | EN CURSO (2026-09-22): `TurnTimeline` mide `commit→tool` y `tool→done`; `ordenes.jsonl` 171 filas (4 reales) con test; gates verdes. Pendiente de Karen: 30 holds → `baseline-2026-09.md`, reclasificar reales hasta ≥60 % | **Saber cuánto tarda hoy "abre Safari" y contra qué órdenes se medirá el modelo de decisión** |
+| DM1 | Router: decidir barato, escalar poco, aprobar solo lo irreversible (`docs/specs/wave-dm1-router.md`) | EN CURSO (2026-09-22): **DM1a hecha** — Core puro (`Decision`, `Candidates`, `Plan`, `Arbitration`), 16 tests dm1, reviews APPROVE; DM1b (adapters) espera DM0 cerrada, DM1c (cableado) espera hold + oído | **"Abre Safari" sin tool call del modelo fuerte y sin hoja; lo irreversible confirma por voz** |
 
 ## Foco actual
+
+### Vista, click y UX (16a–16e cerradas, 2026-09-25)
+
+`look`/`click`/`scroll`/`menu`/`see` sobre Accesibilidad como el helper de Incredible; el
+especialista en modo `auto` sin hojas. Falta la prueba en vivo de Karen (§7 de la spec 16).
+16c–16e UX/UI con paridad de Incredible CERRADA 2026-09-25 (`wave-16c-ux-como-incredible.md` §9); falta la prueba en vivo de Karen.
+16g Ajustes con barra lateral, buscador, Vocabulario y Memoria CERRADA 2026-09-25 (`wave-16g-ajustes-como-incredible.md` §8). 16f notch y motion CERRADA EN CÓDIGO 2026-09-25 (`wave-16f-notch-y-motion.md` §8); falta verificación en vivo y la grabación comparada. 16h (conversación) en BORRADOR. 16i (isla útil) APROBADA; 16i-1 CERRADA EN CÓDIGO 2026-09-25 (`wave-16i-isla-util.md` §13), falta verificación en vivo; siguen 16i-2 a 16i-5. 16j (ventana como Incredible) APROBADA por dirección; 16j-1 y 16j-2 CERRADAS EN CÓDIGO 2026-09-25 (spec §10); siguen 16j-3 (tareas vivas) y 16k (Apps con Pipedream): 16k APROBADA, 16k-0 (función en repo aparte `companion-apps`) CERRADA EN CÓDIGO 2026-09-25, sin desplegar; 16k-1 (página Apps) CERRADA EN CÓDIGO 2026-09-25 (spec §8); sigue 16k-2 (conectar/desconectar).
+
+### Boca y manos (15f y 15g cerradas, 2026-09-25)
+
+15f cerrada: ElevenLabs Ana María (180–210 ms al primer byte), tubería de frases,
+JSON nunca hablado (eco descartado / propuesta con sí), filtro de fugas de
+razonamiento, anuncio del encargo con palabras propias, y el hallazgo crítico
+de seguridad del cache de `URLSession` (claves y cuerpos en disco desde antes
+de 15c) corregido. Pendiente de Karen: rotar OpenAI/Cerebras/ElevenLabs y
+revocar Groq; borrar `~/Library/Caches/com.karen.companion/`.
+
+15g (manos): `type_text`, `press_key`, `focus_window`, `read_focused` por
+Accesibilidad a la app delante, sin subagente ni AppleScript; prompt "actuar,
+nunca instruir"; visión que no bloquea. Cerrada tras la revisión (seguridad
+BLOCK → corregido): campos de contraseña por subrol, escribir/Return atados a lo
+dicho y a la app de cuando se habló, apps de comandos ampliadas, portapapeles
+ocultado por gestores fuera del contexto. Falta la prueba en vivo de 15f+15g
+junta (§7 de 15g y §6 de 15f). Siguiente, con OK de Karen: waves de UX.
+
+### Oído completo y sin Groq (15d + 15e, 2026-09-24)
+
+**Síntoma:** "sigue siendo lento de a madre, no escucha bien". Estudio de
+Incredible (trazas, binario, docs): no es más rápida en números (5,1 s), pero
+oye la frase entera (mic a +3 ms, cola de 300 ms) y da feedback inmediato.
+
+**Causa:** perdíamos ~0,5 s de frase al inicio (umbral tap/hold + arranque) y
+la última sílaba al soltar; Groq Whisper remoto 500–750 ms y su gpt-oss con
+tope de 8k tokens/min metía backoffs de 8–24 s.
+
+**Hecho:** mic al key-down (solo lo local y reversible; captura de pantalla,
+fan-out y cortar una respuesta esperan al umbral de 250 ms), cola de 300 ms,
+oído Apple `SpeechAnalyzer` on-device (spike: 54 ms p50; WhisperKit 430 ms y
+pierde clips < 1 s), Groq eliminado de todo, cerebro Cerebras → gpt-4o-mini,
+plataforma macOS 26, modo depuración de transcripts opt-in.
+
+**Medido en vivo (22 holds de Karen):** `release→earFinal` p50 360 ms (con
+la cola); transcripts largos y complejos completos; `release→audio` p50 1,65 s
+= cola 300 + oído 60 + cerebro 570 + boca 730. **Lo que queda:** la boca
+(TTS p50 730 ms, p90 1,4 s) y dos defectos de habla: el modelo pronuncia
+el JSON de `delegate` cuando lo escribe como texto en vez de llamar a la
+tool (4 de 22 turnos) y a veces lee su razonamiento en inglés ("We need to
+answer..."). Siguiente wave: 15f (boca + nunca leer JSON ni razonamiento).
+Después, las waves UX de `docs/research/ux-incredible-vs-companion.md`.
 
 ### El carril del trabajo (2026-08-24)
 

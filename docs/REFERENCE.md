@@ -186,6 +186,275 @@ Descubiertas en prueba manual de Wave 3; ningun test las vio.
   timeout de 5 s disfrazado de CancellationError. Los helpers que se usen
   dentro de runAsync van nonisolated.
 
+## Percepcion del sistema (Wave 10a)
+
+- **Accesibilidad va atada a la firma, como el mic.** El grant se concede a
+  mano en System Settings › Privacidad › Accesibilidad y queda ligado a la
+  identidad de firma: un rebuild con otro cert lo borra en silencio y
+  `OpenDocumentsSensor` vuelve a `[]` sin error. Por eso `isTrusted()` se
+  relee en cada `sense` y la fila de Ajustes lo muestra; sin `scripts/
+  make-signing-cert.sh` estable, cada build pide el permiso otra vez.
+- **El prompt de Accesibilidad sale UNA vez** por app + firma
+  (`AXIsProcessTrustedWithOptions` con `AXTrustedCheckOptionPrompt`); tras
+  negarlo, devuelve `false` sin UI. El deep link
+  `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility`
+  es la unica salida que no se agota.
+- **`frontmostApplication` somos nosotros** cuando la usuaria le habla a la
+  ventana: el sensor reporta la ultima app activada que no es Companion
+  (`didActivateApplicationNotification`). Sin eso `<focused_app>` diria
+  siempre "Companion".
+- **`kAXDocumentAttribute` no existe en Electron**; VS Code y Chrome dan
+  titulos de ventana, y Chrome es una ventana AX por ventana, no por pestaña.
+  Lo que hay es titulo o nada (spec 09: resumenes, no volcado de AX).
+- **`NSPasteboard` en macOS 15.4+ puede avisar por cada lectura**
+  (`accessBehavior`). El canal nace apagado y solo lee si `changeCount` se
+  movio.
+- **La espera con presupuesto no puede ser un `TaskGroup`** con el hijo que
+  bloquea dentro: el grupo espera a todos sus hijos al salir. Los sensores
+  corren `Task.detached` y `sense` compite una continuation contra un sleep;
+  lo que llego tarde se descarta.
+- **El constante `kAXTrustedCheckOptionPrompt`** es un global no
+  concurrency-safe bajo Swift 6; se usa su valor documentado como string.
+
+## Tool calls y permisos (Wave 10c)
+
+- **Dos calls en una respuesta llegan intercaladas por `index`** (0,1,0,1).
+  Leer `tool_calls.first` las funde. `index` es el único campo required del
+  fragmento; `id` y `name` llegan en el primero. Ollama y algunos
+  compatibles no mandan `id`: se inventa uno estable por ronda.
+- **`strict: true` solo en OpenAI.** Exige `additionalProperties: false` y
+  todo en `required` (lo opcional como `["string","null"]`). Los
+  compatibles contestan 400 al campo; `supportsStrictTools` decide por id
+  hasta leer el 400 real.
+- **Reparación de argumentos** (`ToolArguments`): solo si
+  `JSONSerialization` falló; la lista de json_repair; lo super roto es
+  `nil` → `invalid_args: could not parse arguments: <crudo>`.
+- **Permisos**: `Approvals` es un actor con continuations; auto-deny a los
+  120 s con `Task.sleep` cancelable. La memoria (`ApprovalKey`,
+  `Tool(patrón *)`) vive en el actor y muere con el proceso. Deny gana.
+  Negar devuelve `denied_by_user: …` (`Escalation.deniedByUser`).
+- **`open_url` con puerta** cuando el host no aparece en las palabras de la
+  usuaria (URL entera, host sin `www.`, o etiqueta registrable ≥ 3 letras
+  no seguida de punto). Chat, clásico y realtime pasan por el mismo actor y
+  la misma hoja. En clásico el turno de voz espera a la hoja (o al
+  auto-deny); en realtime el texto de referencia es el último
+  `commitWithText`.
+
+## Skills y knowledge (Wave 11a)
+
+- **Formato Agent Skills, literal**: `name` 1-64, `[a-z0-9]` y guiones
+  simples, igual a la carpeta, sin `anthropic`/`claude`; `description` 1-1024
+  sin tags XML. El parser (`SkillFrontmatter`) es `clave: valor` plano,
+  `>`/`|` pliega líneas, `metadata:` y lo desconocido se ignoran. Sin
+  librería YAML.
+- **El cuerpo nunca va al prompt.** Solo la línea de catálogo (nombre —
+  descripción — ruta), escapada y con topes en scalars (`SkillCatalog.Caps`:
+  240 / 32 / 6 000). Cabe quitando custom desde el final; una del sistema
+  nunca cae.
+- **Raíces con modo** (`PathValidator.Root`): workdir rw, `skills/default`
+  ro, `skills/custom` rw, `knowledge` rw, `memory` rw. Un relativo sin
+  workdir no resuelve. Escribir en ro devuelve `denied_path: …` (contrato),
+  no "outside". `write_file` crea la carpeta padre.
+- **Línea de sync** solo sobre `<raíz>/<name>/SKILL.md` o `KNOWLEDGE.md`
+  (`SkillsLocation.classify`, un nivel). El archivo se escribe aunque el
+  frontmatter falle; el `failed — por qué` es para que el modelo reescriba.
+- **`read_skill`** solo por nombre del catálogo; una ruta no es un nombre
+  válido → `not_found` sin mirar el disco. Se anuncia solo si hay store.
+- **`default/` se regenera desde el bundle** en cada arranque cuando difiere
+  (también lo editado a mano). `Bundle.module` de Services requiere
+  `resources: [.copy("Skills")]` en `Package.swift`; `bundle.sh` ya copia
+  los `.bundle` de SPM.
+- **Cicatriz**: la memoria nunca llegaba al chat tecleado (`makeRequest` no
+  la reenviaba a `makeBody`). Cualquier cosa nueva que entre al system
+  prompt por `ChatSSEAttempt` necesita el test de request, no solo el de
+  `ChatPrompt`.
+
+## El reductor de sesión (Wave 12a)
+
+- **Dos máquinas, una proyección.** `TurnMachine` sigue mandando en la
+  captura (idle → connecting → listening → thinking → speaking → error).
+  `SessionMachine` la observa por `.voice(TurnSnapshot)` y decide el chrome:
+  Idle / Hover / Listening / Processing(fase). `error` es de la voz; la
+  sesión lo proyecta como `interruption = .failure` + card, y vuelve a Idle.
+- **Quién escribe qué.** Solo `SessionModel.send` muta `projection`
+  (`private(set)` + regla `session-kind-write` en `conformance/ui-contract.json`,
+  que desde 12d cubre los once campos).
+  `ChatViewModel` manda eventos (`typedSubmitted` / `typedReplyStreaming` /
+  `typedReplyFinished`, `parentActing` / `parentActed`, `job(e)`,
+  `approvalAnswered`, `stop`) y lee `session.projection`. `VoiceViewModel`
+  reenvía cada snapshot. Las vistas leen `chat.session.projection`.
+- **Un stream hacia fuera.** `VoiceSession.events` lleva `.job(e)` (encargo
+  por voz, cards del padre, peticiones de `open_url`), `.parentActing /
+  .parentActed` y `.approvalSettled` (el "sí" hablado). `CompanionMain` lo
+  bombea a `ChatViewModel.receive`, que escribe el hilo y reenvía al
+  reductor. Los closures que quedan en `VoiceSession.init` son órdenes del
+  modelo (`onDelegate`, `onStopJob`, `onResolveApproval`, `onMCPApproval`):
+  pasan a efectos en 12b.
+- **Efectos y puertos.** `cancelJob` → `JobSubmitter.cancel`;
+  `resolveApproval(id, ok, remember)` → `ApprovalsProvider` si hay actor,
+  si no el submitter; `scheduleCompletedExpiry` → `sleep` inyectable (el
+  siguiente evento que saque el kind de Completed lo cancela);
+  `logTransition` → `log` inyectado (`Log.app` en la app).
+- **Reglas que el reductor absorbió.** Negar el PRIMER paso para el encargo
+  (10c 3B.4) y no recuerda; negar uno posterior solo lo niega. Stop niega
+  la cola entera. Un paso huérfano abre la tarjeta sin nombre; `.started`
+  la nombra después. `jobFinished` sin encargo no hace nada.
+- **Cards son de un paso.** `projection.cards` se vacía en cada evento; lo
+  que deba durar (el enlace a Ajustes) sale de `interruption`, que dura
+  hasta que la sesión sale de Idle.
+- **Cicatriz**: la hoja no se cerraba tras un "sí" hablado porque la voz y
+  la UI tenían dos nociones de "pendiente". Todo lo que resuelva un permiso
+  fuera de la hoja tiene que emitir `approvalSettled`.
+
+## Dictar en el campo enfocado (Wave 12e)
+
+- **Una bifurcación del hold, no un kind.** `DictationRouter.destination`
+  (Core, pura) decide **al pulsar** con el modo (`VoiceSettings.mode`:
+  `agent`, `dictation`, `automatic`), el campo enfocado de la app de
+  delante (`FocusedFieldProbing`) y la confianza AX. `VoiceSession.hold()`
+  guarda `dictationTarget` y emite `.dictating(app:)`; al soltar,
+  `commitTurnFromNative` llama a `TextInjecting.inject` y emite
+  `.dictated(app:)` en vez de `commitWithText`. Cualquier fallo del
+  inyector (`fieldGone`, `refused`, `needsAccessibility`) manda las
+  palabras a Companion: nada se pierde y nada se pega en otra app.
+- **El reductor** solo gana `projection.dictation` (la app): se escribe en
+  Listening, sobrevive Pending y Completed (`.dictated` → Completed con su
+  temporizador), y se borra al salir de esas fases, en `begin()` y en Stop.
+  `.dictationFailed(.needsAccessibility)` es un aviso
+  (`.permission(.accessibilityDenied)`) sin transición: el turno del
+  agente es dueño del kind y el aviso se ve al reposar.
+- **La sonda no está en el camino de la pulsación.** `routeHold` lanza una
+  `Task.detached` y `commitTurnFromNative` espera su resultado al soltar;
+  cada llamada AX lleva `AXUIElementSetMessagingTimeout` de 0,25 s. Una app
+  colgada delante retrasaba el micro y congelaba el actor de voz entero
+  (revisión 12e). Un rebote de la pulsación conserva el destino decidido.
+- **`AXTextInjector`** (Services): sonda `kAXFocusedUIElementAttribute` de
+  la app de delante (nunca Companion), rol `AXTextField`/`AXTextArea`/
+  `AXComboBox` o `AXValue` settable; `AXSecureTextField` es un campo
+  seguro y nunca objetivo. Inyecta con `kAXSelectedTextAttribute` (inserta
+  en el cursor, respeta la selección) y, si la app lo ignora, portapapeles
+  + Cmd+V por `CGEvent`, restaurando a los 300 ms **todos** los tipos que
+  había, y solo si `changeCount` dice que nadie más escribió en el
+  portapapeles mientras tanto. Vuelve a comprobar el `pid` y el rol al
+  soltar. El inicializador falla sin bundle id propio: sin él Companion no
+  podría excluirse a sí misma de los destinos. La constante del
+  rol seguro no existe en el framework: es el literal `"AXSecureTextField"`.
+- **Lo dictado no se loguea.** `audit.logTurn()` se salta en el camino del
+  dictado; el log dice `dictation: pasted N chars into <app> via ax|paste`.
+  Puerta `dictation-never-logged` en `conformance/hud-gates.json`.
+- **La manos libres y el clásico** (sin clave) siempre hablan con
+  Companion: `routeHold` solo corre con realtime.
+
+## El libro de puertas del HUD (Wave 12d)
+
+- **`conformance/hud-gates.json`**: las puertas del auditor
+  (`relay-hud-spec/05` §10, `00` §3) como data: id, fuente, afirmación,
+  tests que la prueban y reglas del contrato que la vigilan.
+  `hudGatesTests` (en `ConformanceTests.swift`) comprueba que cada test
+  citado corre (`Conformance.testRuns`: `func <nombre>(` en las líneas
+  lógicas de `Tests/CompanionTests`, con `@Test` o invocado desde otra
+  línea) y cada regla existe; no ejecuta nada, `swift test` ya lo hace.
+  `testTheLedgerKeepsItsTenGates` fija los diez ids (`HUDGates.expected`).
+  Una puerta nueva se añade con su test y en esa lista; un test que se
+  borra o deja de llamarse rompe la puerta que lo citaba.
+- **`main-activation`**: `Sources/CompanionUI` nunca activa la app
+  (`NSApp.activate`, `NSApplication.*.activate`, `activate(options:)`,
+  `makeKeyAndOrderFront`, `.makeKey()`, `.orderFront(`); traer main lo
+  decide `CompanionMain` por `onShowMain`. `orderFrontRegardless` y
+  `orderOut` en la island no roban el foco y no cuentan.
+- **`HUDContractTests.swift`**: cuatro kinds por `switch` exhaustivo (un
+  quinto no compila), Stop desde cada kind alcanzable, la puerta del padre
+  cerrada sin actor (Services y UI), el cuerpo de `read_skill` fuera del
+  `ConversationStore` (vive en `Recall`, la memoria del turno).
+- **`ContractError.deniedByUser`**: la única denegación del padre;
+  `Escalation.deniedByUser` es su `wire` (mismo texto). El mensaje sin
+  código está en `Escalation.deniedByUserMessage`.
+
+## Ver lo que oye: parciales, un turno por hold, tiempos (Wave 12c)
+
+- **El parcial es un campo, no un kind.** `SessionEvent.partialTranscript`
+  solo escribe `projection.partial` en Listening; sobrevive a Pending y se
+  borra al salir de esas dos fases y en `begin()`. `IslandState.partial`
+  lo lleva en `.listening` y `.pending`; la island lo pinta con la cola
+  visible (`truncationMode(.head)`).
+- **De dónde sale.** `VoiceAudit.partials` es el stream del oído nativo;
+  `VoiceSession.pumpPartials()` lee `turnText()` **en el actor** (así ve
+  un `committed` estable) y lo emite solo con `holdOpen` (`holdArmed &&
+  listening && !muted`). La manos libres no emite parciales.
+- **El oído arranca al pulsar.** `openRealtimeSession` arranca el pump de
+  frames y `beginEar` (una `Task` sobre el actor, no `async let`: el
+  audit vive en el actor) antes de `transport.open`; el camino de ready
+  la espera. Si la sesión muere mientras, `beginEar` apaga el oído.
+- **Un hold es un turno.** En una sesión con `holdArmed`, `pumpEarTurns`
+  ignora `.speechStarted` y `.finished` (también tras soltar o tras un
+  tap: lo tardío no es un turno). Al soltar viaja `turnText()`, y cada
+  pulsación hace `audit.consume()` para que lo tardío del hold anterior
+  no se cuele. Cierra el HACK de 12b §9.9. La versión con `heldSegments`
+  perdía el segmento en vuelo y enviaba segundos turnos (revisiones).
+- **`TurnTimeline`** (Core, pura): la primera marca gana; `line()` es
+  `nil` sin `pressed`; huecos como «—». `VoiceSession.flushTimeline()` la
+  escribe al primer audio del agente, al colgar o al pulsar de nuevo;
+  `lastTimeline` la guarda para tests. Nunca texto, solo milisegundos.
+- **`prewarm()`** en boot (`CompanionMain`, `Task.detached`: una tarea
+  `.utility` heredada por el main actor nunca corrió ahí):
+  `mic.prewarm()` (solo con el micro ya autorizado: `prepareEngine` +
+  sin `engine.prepare()`, que sin tap lanza una excepción y mata la app)
+  y alcance de red. Una línea
+  `prewarm:`. Ni permisos, ni sockets, **ni llavero**: leer la clave en
+  boot abrió el diálogo del llavero en la build de desarrollo (la ACL del
+  item no lista esa firma) y bloqueó la tarea. El socket realtime no se
+  precalienta: vida máxima y cierre por inactividad lo dejarían muerto al
+  pulsar.
+- **`holdLearned`** (`IslandPreference.holdLearned`): lo escribe la island
+  al ver `.processing(.pending)`; el hover deja de enseñar el hold, el tap
+  lo pide siempre.
+
+## Mantener FN y la island (Wave 12b)
+
+- **Tres máquinas, un hold.** `HoldKeyClassifier` (Core, puro) decide tap
+  vs hold por duración y emite `pressed` al bajar, no al confirmar.
+  `SessionMachine` recibe `pressed / released / tapped` y emite
+  `startListening / stopListening(commit:) / cancelVoiceOutput`.
+  `TurnMachine` recibe `holdPressed / holdReleased / holdDiscarded /
+  interrupt`. `VoiceSession.hold() / release() / discard() / interrupt()`
+  son el puerto.
+- **Soltar es ForceEndpoint.** `holdReleased` en realtime = `muted` +
+  `.commitWithText`; no depende de `speechOpen` (el VAD del servidor).
+  Vacío → `VoiceSession` emite `SessionEvent.heardNothing`, nunca
+  `.utteranceEmpty` (ese cae al clásico).
+- **Entre holds la sesión sigue abierta con el micro cerrado.** Para el
+  reductor, `listening + muted` es reposo (Completed con timer si venía de
+  processing, Idle si no), salvo en Pending. `realtimeSessionReady` ya no
+  fuerza `muted = false`: una suelta antes de ready deja el micro cerrado.
+- **La island no decide nada.** `IslandState.from(projection,
+  pebbleHidden:)` es la única función que traduce la proyección a chrome
+  (tamaño por rol, medidor, línea, Stop, hoja). `IslandPanel`:
+  `.nonactivatingPanel`, `.statusBar`, todos los Spaces, `canBecomeKey =
+  false`; hover por `NSTrackingArea .activeAlways`. El alto lo mide la
+  vista (`PreferenceKey`) y el panel se re-ancla en `visibleFrame.maxY`.
+- **El tap de FN.** `HoldKeyTap` (Services): `CGEvent.tapCreate` en
+  `.cgSessionEventTap`, `.listenOnly`, máscara solo `flagsChanged`, keycode
+  63, bit `.maskSecondaryFn`; run loop propio; se re-arma en
+  `tapDisabledByTimeout`. `CGPreflightListenEventAccess` antes de instalar;
+  `applicationDidBecomeActive` reintenta tras conceder el permiso. Sin
+  clave de Info.plist: Monitoreo de entrada no tiene usage description.
+- **Ajuste del sistema que rompe FN:** Teclado › "Pulsar la tecla globo
+  para" tiene que estar en "No hacer nada"; la fila de Ajustes lo dice.
+- **La voz caliente cuelga sola.** Una sesión que abrió un hold y reposa
+  con el micro cerrado (`holdArmed && muted`, chrome en idle/hover/
+  completed) arma `scheduleVoiceIdleExpiry` (20 s) y al vencer `hangUpVoice`.
+  Es la única forma de soltar el micro físico: con AEC el reproductor
+  comparte el motor del micro, así que no se para el micro a medias. La
+  manos libres silenciada desde la ventana no entra: su botón lo muestra.
+- **La hoja tiene un anfitrión.** `HoldSettingsModel.mainInFront` (key
+  window) decide: main pinta la hoja, la island no la duplica. En la
+  island, `ApprovalClickGuard` ignora respuestas en los primeros 0,6 s.
+- **`notice` vs `cards`.** Las cards duran un paso; `notice` es lo que el
+  reposo sigue mostrando (hint, "no te oí", permiso) hasta que algo nuevo
+  empieza. Lo que deba verse tras la snapshot de la voz va en `notice`.
+- **Cicatriz**: la retícula. Anchos de la island como tokens en
+  `IslandChrome`, `Space.x0` para un spacing cero; nada de `Space.x8 * 2`.
+
 ## El patron de bug que se repite en este repo
 
 Cuatro veces en Wave 3 aparecio lo mismo: **la logica correcta y testeada,
