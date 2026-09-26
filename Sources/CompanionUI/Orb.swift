@@ -36,10 +36,10 @@ public struct Orb: View {
             .padding(Space.x2)
             .scaleEffect(
                 reduceMotion ? 1 : OrbAppearance.scaleFromLevel(live))
-            .animation(.easeOut(duration: 0.08), value: levels)
+            .animation(.expoOut(MotionTime.follow), value: levels)
             .animation(
                 reduceMotion
-                    ? .easeOut(duration: MotionTime.fast)
+                    ? .expoOut(MotionTime.fast)
                     : .springSelect,
                 value: state)
             .opacity(OrbAppearance.opacity(for: state))

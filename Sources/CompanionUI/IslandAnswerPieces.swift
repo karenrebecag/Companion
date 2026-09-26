@@ -1,0 +1,213 @@
+import CompanionCore
+import SwiftUI
+
+// Wave 16l-4: the island's own ink and the pieces Incredible draws inside
+// it, measured in its overlay CSS (docs/research/incredible-componentes.md).
+
+/// White over the black island, as Incredible's `--ci-*` alphas.
+public enum IslandAlpha {
+    public static let text = 0.95
+    public static let secondary = 0.64
+    public static let muted = 0.42
+    public static let tile = 0.06
+    public static let tileHover = 0.12
+    public static let border = 0.09
+    public static let divider = 0.07
+}
+
+public enum IslandPalette {
+    public static let accent = Swatch("78AAFF")
+    public static let error = Swatch("FF7A64")
+    /// The answer option's hover.
+    public static let indigo = Swatch("8184F8")
+}
+
+public enum IslandMetrics {
+    public static let sendSide: CGFloat = 30
+    public static let openRadius: CGFloat = Radius.panel
+    /// The open island's edge: `--color-border-default` on the overlay.
+    public static let rimAlpha = 0.12
+}
+
+public enum AnswerOptionMetrics {
+    public static let paddingY: CGFloat = 11
+    public static let paddingX: CGFloat = Space.x3
+    public static let radius: CGFloat = 12
+    public static let gap: CGFloat = 11
+}
+
+public enum ReferentChipMetrics {
+    public static let radius: CGFloat = 7
+    public static let paddingLeading: CGFloat = 5
+    public static let paddingTrailing: CGFloat = 7
+    public static let paddingY: CGFloat = 1
+    public static let size: CGFloat = 12.5
+    public static let maxWidth: CGFloat = 230
+    public static let fill = 0.13
+    public static let stroke = 0.24
+}
+
+public enum CaptureCardMetrics {
+    public static let height: CGFloat = 64
+    public static let radius: CGFloat = Radius.md
+}
+
+public enum CaptureKind: CaseIterable, Sendable {
+    case text, screenshot, file, task
+
+    public var width: CGFloat {
+        switch self {
+        case .text, .file: 120
+        case .screenshot: 96
+        case .task: 140
+        }
+    }
+}
+
+public enum AnswerPopupMetrics {
+    public static let maxWidth: CGFloat = 580
+    public static let screenFraction: CGFloat = 0.76
+    public static let paddingTop: CGFloat = 18
+    public static let paddingX: CGFloat = 22
+    public static let paddingBottom: CGFloat = Space.x4
+
+    /// min(580, 76 % of the screen), as Incredible's `min(580px, 76vw)`.
+    public static func width(screen: CGFloat) -> CGFloat {
+        min(maxWidth, (screen * screenFraction).rounded())
+    }
+}
+
+/// "Abriendo Safari, Notas…" as a verb and one chip per target.
+public enum ReferentLine {
+    public static func parts(_ targets: [String], language: AppLanguage)
+        -> (verb: String, referents: [String])
+    {
+        let referents = targets.filter { !$0.isEmpty }
+        guard !referents.isEmpty else {
+            return (ParentToolCopy.acting([], language), [])
+        }
+        let verb = switch language {
+        case .en: "Opening"
+        case .es: "Abriendo"
+        }
+        return (verb, referents)
+    }
+}
+
+/// "Abriendo" followed by a chip per target; any other line stays text.
+struct IslandStatusText: View {
+    let line: IslandState.Line
+
+    var body: some View {
+        if case .acting(let targets) = line,
+           case let parts = ReferentLine.parts(targets, language: Localized.language()),
+           !parts.referents.isEmpty
+        {
+            HStack(spacing: Space.x1) {
+                Text(parts.verb)
+                    .font(GeistFont.uiLabel)
+                    .foregroundStyle(IslandInk.text)
+                ForEach(parts.referents, id: \.self) { ReferentChip(text: $0) }
+            }
+            .accessibilityElement(children: .combine)
+        } else {
+            Text(IslandCopy.line(line))
+                .font(GeistFont.uiLabel)
+                .foregroundStyle(IslandInk.text)
+                .lineLimit(2)
+        }
+    }
+}
+
+/// A tinted label for the thing Companion is pointing at.
+struct ReferentChip: View {
+    let text: String
+    var tint: Color = IslandPalette.accent.color
+
+    var body: some View {
+        Text(text)
+            .font(Fonts.geist(ReferentChipMetrics.size).weight(.medium))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .padding(.leading, ReferentChipMetrics.paddingLeading)
+            .padding(.trailing, ReferentChipMetrics.paddingTrailing)
+            .padding(.vertical, ReferentChipMetrics.paddingY)
+            .frame(maxWidth: ReferentChipMetrics.maxWidth, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: ReferentChipMetrics.radius)
+                .fill(tint.opacity(ReferentChipMetrics.fill)))
+            .overlay(RoundedRectangle(cornerRadius: ReferentChipMetrics.radius)
+                .strokeBorder(tint.opacity(ReferentChipMetrics.stroke), lineWidth: Stroke.hairline))
+    }
+}
+
+/// One choice when the island asks a question: a quiet tile that turns
+/// indigo under the pointer.
+struct AnswerOption: View {
+    let title: String
+    var badge: String? = nil
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: AnswerOptionMetrics.gap) {
+                if let badge {
+                    Text(badge)
+                        .font(Fonts.geist(TypeSize.caption).weight(.semibold))
+                        .foregroundStyle(IslandInk.text)
+                        .frame(width: IconButtonSize.small.side * 0.75, height: IconButtonSize.small.side * 0.75)
+                        .background(RoundedRectangle(cornerRadius: Radius.md)
+                            .fill(hovering ? IslandPalette.indigo.color.opacity(0.42) : IslandInk.chip))
+                }
+                Text(title)
+                    .font(Fonts.geist(TypeSize.body))
+                    .foregroundStyle(IslandInk.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.vertical, AnswerOptionMetrics.paddingY)
+            .padding(.horizontal, AnswerOptionMetrics.paddingX)
+            .background(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius)
+                .fill(hovering ? IslandPalette.indigo.color.opacity(0.22) : IslandInk.chip))
+            .overlay(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius)
+                .strokeBorder(hovering ? IslandPalette.indigo.color.opacity(0.4) : IslandInk.hairline,
+                              lineWidth: Stroke.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(MotionCurve.animation(MotionCurve.standard, MotionTime.fast), value: hovering)
+    }
+}
+
+/// A captured thing waiting to go with the next turn: clipboard text, a
+/// screenshot, a file or a task.
+struct CaptureCard<Content: View>: View {
+    let kind: CaptureKind
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+            .frame(width: kind.width, height: CaptureCardMetrics.height, alignment: .topLeading)
+            .padding(kind == .screenshot ? Space.none : Space.x2)
+            .background(RoundedRectangle(cornerRadius: CaptureCardMetrics.radius).fill(IslandInk.popover))
+            .clipShape(RoundedRectangle(cornerRadius: CaptureCardMetrics.radius))
+            .shadow(color: .black.opacity(0.28), radius: 6, y: 4)
+    }
+}
+
+/// The rich answer surface: headings, lists, tables and code live inside it.
+struct AnswerPopup<Content: View>: View {
+    let screenWidth: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.x3) { content() }
+            .padding(.top, AnswerPopupMetrics.paddingTop)
+            .padding(.horizontal, AnswerPopupMetrics.paddingX)
+            .padding(.bottom, AnswerPopupMetrics.paddingBottom)
+            .frame(width: AnswerPopupMetrics.width(screen: screenWidth), alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: Radius.lg).fill(IslandInk.popover))
+            .elevation(.sheet)
+    }
+}

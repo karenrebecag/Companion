@@ -96,7 +96,7 @@ struct ShimmerRing: View {
                 bandSize: ShimmerRingMotion.bandSize(thinking: thinking))
             .opacity(active ? 1 : 0)
             .animation(
-                .easeOut(duration: reduceMotion ? 0 : MotionTime.fast),
+                .expoOut(reduceMotion ? 0 : MotionTime.fast),
                 value: active)
     }
 }
