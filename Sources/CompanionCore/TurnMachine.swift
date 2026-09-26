@@ -44,7 +44,135 @@ public struct TurnMachine: Sendable, Equatable {
         case .playerDrained: return playerDrained(at: now)
         case .delegateCallStarted: return delegateCallStarted()
         case .functionOutputSent: return functionOutputSent()
+        case .holdPressed(let preferRealtime): return holdPressed(preferRealtime)
+        case .holdReleased(let hasSpeech): return holdReleased(hasSpeech)
+        case .holdDiscarded: return holdDiscarded()
+        case .interrupt: return interrupt()
         }
+    }
+}
+
+// MARK: - Wave 12b: the hold
+
+extension TurnMachine {
+    private mutating func holdPressed(_ preferRealtime: Bool) -> [TurnEffect] {
+        switch snapshot.state {
+        case .idle, .error:
+            let effects = startVoice(preferRealtime)
+            snapshot.holdArmed = true
+            return effects
+        case .connecting:
+            // A release in between left `muted` set; the key is down again,
+            // so the session must come up with the mic open (code review
+            // 2026-09-06).
+            snapshot.holdArmed = true
+            snapshot.muted = false
+            return []
+        case .listening:
+            guard snapshot.pipeline == .realtime, snapshot.muted else { return [] }
+            return openMic()
+        case .thinking, .speaking:
+            guard snapshot.pipeline == .realtime else {
+                return cutClassicTurn()
+            }
+            snapshot.state = .listening
+            return [.cancelAgentOutput] + openMic()
+        }
+    }
+
+    private mutating func holdReleased(_ hasSpeech: Bool) -> [TurnEffect] {
+        switch snapshot.state {
+        case .idle where snapshot.classicListenPending:
+            return abandonPendingListen()
+        case .connecting:
+            // Released before the session was ready: no turn. The mic stays
+            // closed when the session comes up.
+            snapshot.holdArmed = false
+            snapshot.muted = true
+            return []
+        case .listening:
+            guard snapshot.pipeline == .realtime else { return advance(hasSpeech) }
+            return closeMic() + [.commitWithText]
+        // The server's own VAD can close the segment and move on to
+        // `.thinking`/`.speaking` while the key is still physically down
+        // (live 2026-09-22): the key-up must still close the mic and force
+        // the endpoint, matching what `release()` promises — sending what
+        // the ear heard without asking the server's VAD whether it agrees.
+        // Classic has no concurrent VAD racing the key, so it is unaffected.
+        case .thinking, .speaking:
+            guard snapshot.pipeline == .realtime else { return [] }
+            return closeMic() + [.commitWithText]
+        case .idle, .error:
+            return []
+        }
+    }
+
+    private mutating func holdDiscarded() -> [TurnEffect] {
+        switch snapshot.state {
+        case .idle where snapshot.classicListenPending:
+            return abandonPendingListen()
+        case .connecting:
+            snapshot.holdArmed = false
+            snapshot.muted = true
+            return []
+        case .listening:
+            guard snapshot.pipeline == .realtime else { return hangUp() }
+            guard !snapshot.muted else { return [] }
+            return closeMic() + [.clearInputAudio]
+        case .idle, .error, .thinking, .speaking:
+            return []
+        }
+    }
+
+    private mutating func interrupt() -> [TurnEffect] {
+        switch snapshot.state {
+        case .thinking, .speaking:
+            // Code review 2026-09-23 (alto): `interrupt` (spoken "para"/the
+            // stop button) used to reuse `cutClassicTurn()` — holdPressed's
+            // own reopen — and left a hot, unowned mic listening with no
+            // endpointer and no key held to ever close it. Unlike a press,
+            // nothing is about to hold this mic: it ends the same way a
+            // hold now ends idle after its reply, torn down, not relistening.
+            guard snapshot.pipeline == .realtime else {
+                return [.cancelAgentOutput] + hangUp()
+            }
+            snapshot.state = .listening
+            return [.cancelAgentOutput]
+        case .idle, .error, .connecting, .listening:
+            return []
+        }
+    }
+
+    /// Classic `.thinking`/`.speaking` cut short by a press or an interrupt
+    /// (15b-10 — `.thinking` used to return `[]`, spec §1-D): the turn
+    /// stops and the mic reopens, the same shape whichever state it lands
+    /// in, so `ClassicRuntime.submit` never races a fresh hold.
+    private mutating func cutClassicTurn() -> [TurnEffect] {
+        snapshot.interruptionPending = true
+        snapshot.state = .listening
+        return [.cancelAgentOutput, .requestClassicListen]
+    }
+
+    /// 15d-1: the key came up while the classic mic was still starting
+    /// (a tap now lands inside press→mic). Nothing to stop yet: the listen
+    /// that arrives next belongs to no hold, and `classicListenArmed` tears
+    /// it down instead of listening for nobody.
+    private mutating func abandonPendingListen() -> [TurnEffect] {
+        snapshot.classicListenPending = false
+        snapshot.holdArmed = false
+        return []
+    }
+
+    private mutating func openMic() -> [TurnEffect] {
+        snapshot.muted = false
+        snapshot.speechOpen = false
+        return [.setMicEnabled(true), .clearInputAudio]
+    }
+
+    private mutating func closeMic() -> [TurnEffect] {
+        snapshot.muted = true
+        snapshot.speechOpen = false
+        return [.setMicEnabled(false)]
     }
 }
 
@@ -58,7 +186,8 @@ extension TurnMachine {
         switch snapshot.pipeline {
         case .realtime: [.closeRealtime]
         case .classic: [.stopClassicIO]
-        case nil: []
+        // A classic listen still starting may already own a running mic.
+        case nil: snapshot.classicListenPending ? [.stopClassicIO] : []
         }
     }
 
@@ -85,8 +214,15 @@ extension TurnMachine {
         return effects
     }
 
+    /// Code review 2026-09-24 (alto): a hold never recovers into listening
+    /// — no key is down to ever close that mic. Hands-free recovers once;
+    /// a recover whose listen never armed (`failure` still set) gives up.
     private mutating func failOrRecover(_ reason: TurnFailure) -> [TurnEffect] {
-        snapshot.inConversation ? recover(reason) : fail(reason)
+        let recovering = snapshot.state == .listening && snapshot.failure != nil
+        guard snapshot.inConversation, !snapshot.holdArmed, !recovering else {
+            return fail(reason)
+        }
+        return recover(reason)
     }
 
     private mutating func beginUtterance(typed: Bool) -> [TurnEffect] {
@@ -131,9 +267,7 @@ extension TurnMachine {
                 snapshot.state = .listening
                 return [.cancelAgentOutput]
             }
-            snapshot.interruptionPending = true
-            snapshot.state = .listening
-            return [.cancelAgentOutput, .requestClassicListen]
+            return cutClassicTurn()
         }
     }
 
@@ -161,8 +295,13 @@ extension TurnMachine {
     }
 
     private mutating func classicListenArmed() -> [TurnEffect] {
-        guard snapshot.classicListenPending || snapshot.pipeline == .classic
-        else { return [] }
+        guard snapshot.classicListenPending || snapshot.pipeline == .classic else {
+            // A listen nobody waits for any more (released, discarded or
+            // hung up while the mic came up): the mic is on, so stop it.
+            // A typed turn in flight is not a resting session: leave it be.
+            let resting = snapshot.state == .idle || snapshot.state == .error
+            return snapshot.pipeline == nil && resting ? [.stopClassicIO] : []
+        }
         snapshot.classicListenPending = false
         snapshot.state = .listening
         snapshot.pipeline = .classic
@@ -176,9 +315,10 @@ extension TurnMachine {
         guard snapshot.state == .connecting else { return [] }
         snapshot.state = .listening
         snapshot.pipeline = .realtime
-        snapshot.muted = false
         snapshot.speechOpen = false
-        return []
+        // A hold released while connecting left `muted` set: the session
+        // comes up with the mic closed and nothing sent (Wave 12b).
+        return snapshot.muted ? [.setMicEnabled(false)] : []
     }
 
     private mutating func endpointFinished() -> [TurnEffect] {
@@ -210,13 +350,23 @@ extension TurnMachine {
     private mutating func speechFinished() -> [TurnEffect] {
         guard snapshot.state == .speaking, snapshot.pipeline != .realtime else { return [] }
         snapshot.streamingStarted = false
-        if snapshot.typedTurn {
+        // A HOLD turn ends when its reply is spoken: the user presses again
+        // for the next one, unlike hands-free. Relistening here re-armed a
+        // mic `submit()` never stopped — MicCapture.startOnce() then
+        // installed a second tap on the still-running engine and crashed
+        // (live 2026-09-23).
+        if snapshot.typedTurn || snapshot.holdArmed {
+            let effects = snapshot.holdArmed ? teardownEffects() : []
             snapshot.typedTurn = false
+            snapshot.holdArmed = false
+            // The conversation this reply belonged to was a hold's: the next
+            // failure must not take the hands-free recover path.
+            snapshot.inConversation = false
             snapshot.state = .idle
             snapshot.pipeline = nil
             snapshot.speechOpen = false
             snapshot.echoGuardUntil = 0
-            return []
+            return effects
         }
         snapshot.state = .listening
         snapshot.pipeline = .classic
