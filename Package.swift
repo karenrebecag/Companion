@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "Companion",
     defaultLocalization: "en",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v26)],
     products: [
         .executable(name: "companion", targets: ["CompanionApp"]),
         .library(name: "CompanionCore", targets: ["CompanionCore"]),
@@ -18,7 +18,13 @@ let package = Package(
 
         // Adaptadores al mundo real: red, audio, subprocesos, Keychain.
         // Implementan los puertos (protocolos) que Core define.
-        .target(name: "CompanionServices", dependencies: ["CompanionCore"]),
+        // Skills/<name>/SKILL.md: the system skills (Wave 11a), copied as-is
+        // and seeded onto disk at launch so the user can open them.
+        .target(
+            name: "CompanionServices",
+            dependencies: ["CompanionCore"],
+            resources: [.copy("Skills")]
+        ),
 
         // SwiftUI + tokens de diseño. MainActor por default: el compilador
         // garantiza que nada muta estado observable fuera del main thread.
