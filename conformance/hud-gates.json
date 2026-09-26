@@ -1,0 +1,116 @@
+{
+  "$comment": "Libro de puertas del HUD (Wave 12d): relay-hud-spec/05 §10 y 00 §3, hechos ejecutables. Runner: hudGatesTests en Tests/CompanionTests/ConformanceTests.swift. Cada puerta cita los tests que la prueban (func <nombre>( en Tests/CompanionTests) y las reglas de ui-contract.json que la vigilan; una puerta sin ambos, o que cita un test que ya no existe, falla. Modelo Willison: el contrato es data, el runner es tonto.",
+  "gates": [
+    {
+      "id": "hold-without-main",
+      "source": "relay-hud-spec/05 §10; 00 §3 humano",
+      "claim": "Un hold normal no exige abrir main; la UI nunca activa la app.",
+      "tests": [
+        "testHoldEffectsReachTheVoicePort",
+        "testHoldThenReleaseSendsTheNativeText"
+      ],
+      "rules": [
+        "main-activation"
+      ]
+    },
+    {
+      "id": "overlay-listens-only",
+      "source": "relay-hud-spec/05 §10; 00 §3 overlay",
+      "claim": "La island pinta la proyección; solo el reductor la escribe.",
+      "tests": [
+        "testTheUIMustNotWriteTheKind",
+        "testIslandStateFromProjection"
+      ],
+      "rules": [
+        "session-kind-write"
+      ]
+    },
+    {
+      "id": "four-kinds-only",
+      "source": "relay-hud-spec/00 §3 reductor; 05 §4",
+      "claim": "Idle, Hover, Listening, Processing{phase}. Nada más.",
+      "tests": [
+        "testFourKindsAndNothingElse"
+      ],
+      "rules": []
+    },
+    {
+      "id": "voice-is-a-port-not-a-kind",
+      "source": "relay-hud-spec/00 §3 reductor",
+      "claim": "Prewarm, connecting y el parcial no mueven el kind.",
+      "tests": [
+        "testConnectingKeepsTheKind",
+        "testThePartialIsAFieldNotAKind"
+      ],
+      "rules": []
+    },
+    {
+      "id": "stop-is-idle-children-die",
+      "source": "relay-hud-spec/05 §10; 00 G4",
+      "claim": "Stop desde cualquier kind es Idle; el encargo se cancela y la cola se deniega.",
+      "tests": [
+        "testStopFromEveryKindIsIdle",
+        "testStopReturnsToIdleAndKillsTheChildren"
+      ],
+      "rules": []
+    },
+    {
+      "id": "cards-are-not-the-conversation",
+      "source": "relay-hud-spec/05 §10; 00 G3",
+      "claim": "Las cards duran un paso y no se guardan con la conversación.",
+      "tests": [
+        "testCardsAreTransient",
+        "testToolBodiesStayOutOfTheStore"
+      ],
+      "rules": []
+    },
+    {
+      "id": "child-work-has-a-row",
+      "source": "relay-hud-spec/05 §10; 00 G6",
+      "claim": "Un encargo en marcha tiene fila en la island.",
+      "tests": [
+        "testJobStartedIsSubAgentRunning",
+        "testIslandStateFromProjection"
+      ],
+      "rules": []
+    },
+    {
+      "id": "no-skill-body-in-hist",
+      "source": "relay-hud-spec/05 §10; 00 G7",
+      "claim": "El cuerpo de una skill vive en la memoria del turno, no en el historial guardado.",
+      "tests": [
+        "testToolBodiesStayOutOfTheStore"
+      ],
+      "rules": []
+    },
+    {
+      "id": "missing-allow-list-denies",
+      "source": "relay-hud-spec/05 §10; 00 G8",
+      "claim": "Sin actor de permisos la puerta del padre deniega; nunca abre por omisión.",
+      "tests": [
+        "testTheGateFailsClosedWithoutAnActor",
+        "testForeignURLDeniedIsAnInstruction"
+      ],
+      "rules": []
+    },
+    {
+      "id": "one-host-per-sheet",
+      "source": "12b code review; relay-hud-spec/03 §3",
+      "claim": "Una petición se pinta en un solo sitio: main si es key, si no la island.",
+      "tests": [
+        "testIslandYieldsTheSheetToMain"
+      ],
+      "rules": []
+    },
+    {
+      "id": "dictation-never-logged",
+      "source": "corpus spec 11 (Observed); relay-hud-spec/05 §4 (12e)",
+      "claim": "Lo dictado va al campo enfocado y a ningún otro sitio: ni al log, ni al historial, ni a la conversación.",
+      "tests": [
+        "testDictationNeverReachesTheLog",
+        "testAHoldDictatesIntoTheField"
+      ],
+      "rules": []
+    }
+  ]
+}
