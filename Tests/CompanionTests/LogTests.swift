@@ -2,7 +2,27 @@ import CompanionServices
 import Foundation
 import Testing
 
-@Test @MainActor func logTests() {
+/// M5 (code review 2026-09-24): tests read their own log lines while other
+/// tests, in parallel, point the process-wide sink elsewhere. A capture
+/// keeps its task's lines, child tasks included, whatever the global does.
+/// It runs inside `logTests` because it moves the global sink itself.
+@MainActor func testACaptureKeepsItsOwnLinesWhenTheSinkMoves() async {
+    let mine = uniqueLogURL()
+    let other = uniqueLogURL()
+    let sentinel = "capture-\(UUID().uuidString)"
+    await Log.capturing(to: mine) {
+        Log.configure(fileURL: other)
+        Log.app(sentinel)
+        await Task { Log.app("child-\(sentinel)") }.value
+    }
+    expect(readFile(mine).contains(sentinel), "captura: la línea propia llega")
+    expect(readFile(mine).contains("child-\(sentinel)"), "captura: también la de una tarea hija")
+    expect(!readFile(other).contains(sentinel), "captura: nunca al sink global")
+}
+
+// The only suite that points the process-wide sink anywhere: every other
+// test reads its lines through `Log.capturing`.
+@Test @MainActor func logTests() async {
     testLogUnconfiguredIsNoOp()
     testLogAppWritesMessage()
     testLogChatWritesAndAppends()
@@ -12,6 +32,7 @@ import Testing
     testLogReconfigureRecovers()
     testLogNoErrorInterpolation()
     testLogNoPaths()
+    await testACaptureKeepsItsOwnLinesWhenTheSinkMoves()
 }
 
 @MainActor func testLogUnconfiguredIsNoOp() {

@@ -105,10 +105,10 @@ final class CountingSecretStore: SecretStore, @unchecked Sendable {
 }
 
 @MainActor func testKeysAreCachedIndependently() {
-    let inner = CountingSecretStore([.openAI: "a", .groq: "b"])
+    let inner = CountingSecretStore([.openAI: "a", .cerebras: "b"])
     let store = CachingSecretStore(inner)
     expectEq(read(store, .openAI), "a", "openai")
-    expectEq(read(store, .groq), "b", "groq")
+    expectEq(read(store, .cerebras), "b", "cerebras")
     expectEq(read(store, .openAI), "a", "openai otra vez")
     expectEq(inner.reads, 2, "una lectura por clave, no una por llamada")
 }
@@ -117,12 +117,12 @@ final class CountingSecretStore: SecretStore, @unchecked Sendable {
     // La forma real del bucle de routing: por proveedor con clave se lee en el
     // guardia y otra vez al pasarla al intento. Con el decorador, un turno
     // completo cuesta una lectura por clave y no cinco.
-    let inner = CountingSecretStore([.openAI: "a", .groq: "b"])
+    let inner = CountingSecretStore([.openAI: "a", .cerebras: "b"])
     let store = CachingSecretStore(inner)
     for _ in 0 ..< 3 {
         _ = read(store, .openAI)
         _ = read(store, .openAI)
-        _ = read(store, .groq)
+        _ = read(store, .cerebras)
     }
     expectEq(inner.reads, 2, "un turno entero: dos lecturas del llavero")
 }
