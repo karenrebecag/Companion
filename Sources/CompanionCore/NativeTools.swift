@@ -132,40 +132,55 @@ public enum NativeTool: String, CaseIterable, Sendable, Equatable {
     }
 }
 
+/// Where the specialist may read and where it may write. The working folder
+/// is one root; the app's own folders (skills, knowledge, memory) are others,
+/// and the system skills are readable but never writable (Wave 11a).
 public struct PathValidator: Sendable {
-    public var workdir: String?
+    public struct Root: Sendable, Equatable {
+        public var path: String
+        public var writable: Bool
 
-    public init(workdir: String?) {
-        self.workdir = workdir
+        public init(path: String, writable: Bool) {
+            self.path = (path as NSString).standardizingPath
+            self.writable = writable
+        }
     }
 
-    public func isAllowed(_ path: String) -> Bool {
-        guard let workdir = workdir else {
-            return false
-        }
+    public var workdir: String?
+    public var roots: [Root]
 
-        // Normalize the path to resolve . and .. components
-        let normalizedWorkdir = (workdir as NSString).standardizingPath
+    public init(workdir: String?) {
+        self.init(workdir: workdir, extraRoots: [])
+    }
+
+    public init(workdir: String?, extraRoots: [Root]) {
+        self.workdir = workdir
+        var roots = extraRoots
+        if let workdir { roots.insert(Root(path: workdir, writable: true), at: 0) }
+        self.roots = roots
+    }
+
+    /// Normalizes `.` and `..` first; a relative path resolves against the
+    /// working folder and has nowhere to go without one.
+    public func isAllowed(_ path: String, forWrite: Bool = false) -> Bool {
         let normalizedPath: String
-
-        // If path is absolute, use it; if relative, resolve against workdir
         if path.hasPrefix("/") {
             normalizedPath = (path as NSString).standardizingPath
         } else {
-            let combined = (normalizedWorkdir as NSString).appendingPathComponent(path)
+            guard let workdir else { return false }
+            let combined = ((workdir as NSString).standardizingPath as NSString)
+                .appendingPathComponent(path)
             normalizedPath = (combined as NSString).standardizingPath
         }
-
-        // Ensure the normalized path starts with the normalized workdir
-        if normalizedPath == normalizedWorkdir {
-            return true
+        return roots.contains { root in
+            (!forWrite || root.writable) && Self.contains(root.path, normalizedPath)
         }
+    }
 
-        // Check if path is inside workdir (with trailing slash for directory boundary)
-        let workdirWithSlash = normalizedWorkdir.hasSuffix("/")
-            ? normalizedWorkdir
-            : normalizedWorkdir + "/"
-
-        return normalizedPath.hasPrefix(workdirWithSlash)
+    /// A trailing slash keeps `/a/b` from claiming `/a/bc`.
+    private static func contains(_ root: String, _ path: String) -> Bool {
+        if path == root { return true }
+        let withSlash = root.hasSuffix("/") ? root : root + "/"
+        return path.hasPrefix(withSlash)
     }
 }

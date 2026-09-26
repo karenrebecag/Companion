@@ -39,10 +39,10 @@ public struct ToolSpec: Sendable, Equatable {
             return ToolSpec(
                 name: "delegate",
                 description: "Hand the turn to the specialist, which does "
-                    + "have the files, the terminal, this Mac's tools and "
+                    + "have a shell, the files, this Mac's tools and "
                     + "internet access. Use it for ANYTHING touching disk, "
                     + "code, folders, commands, technical work, web searches "
-                    + "or reading pages.",
+                    + "or reading pages. Never for typing into an app.",
                 properties: [
                     ToolProperty(name: "goal", type: "string",
                                  description: "what is needed, one line"),
@@ -53,11 +53,12 @@ public struct ToolSpec: Sendable, Equatable {
         case .es:
             return ToolSpec(
                 name: "delegate",
-                description: "Pasa el turno al especialista, que sí tiene los "
-                    + "archivos, la terminal, las herramientas de esta Mac y "
+                description: "Pasa el turno al especialista, que sí tiene una "
+                    + "shell, los archivos, las herramientas de esta Mac y "
                     + "acceso a internet. Úsala para TODO lo que toque disco, "
                     + "código, carpetas, comandos, trabajo técnico, búsquedas "
-                    + "en la web o lectura de páginas.",
+                    + "en la web o lectura de páginas. Nunca para escribir en "
+                    + "un campo o app.",
                 properties: [
                     ToolProperty(name: "goal", type: "string",
                                  description: "qué se necesita, una línea"),
@@ -136,35 +137,45 @@ public struct ToolSpec: Sendable, Equatable {
         encodeJSON(realtimeObject())
     }
 
-    public func encodeChat() -> String {
-        encodeJSON([
+    /// `strict: true` is OpenAI's own answer to malformed arguments (Wave
+    /// 10c 3A.4, layer 1). Its contract: `additionalProperties: false`,
+    /// every property in `required`, and the optional ones nullable. Only
+    /// for providers that take the field; the rest get the plain shape.
+    public func encodeChat(strict: Bool = false) -> String {
+        var function = functionBody(strict: strict)
+        if strict { function["strict"] = true }
+        return encodeJSON([
             "type": "function",
-            "function": functionBody(),
+            "function": function,
         ])
     }
 
     func realtimeObject() -> [String: Any] {
-        var obj = functionBody()
+        var obj = functionBody(strict: false)
         obj["type"] = "function"
         return obj
     }
 
-    private func functionBody() -> [String: Any] {
+    private func functionBody(strict: Bool) -> [String: Any] {
         var props: [String: Any] = [:]
         for property in properties {
+            let optional = !required.contains(property.name)
+            let type: Any = strict && optional ? [property.type, "null"] : property.type
             props[property.name] = [
-                "type": property.type,
+                "type": type,
                 "description": property.description,
             ]
         }
+        var parameters: [String: Any] = [
+            "type": "object",
+            "properties": props,
+            "required": strict ? properties.map(\.name) : required,
+        ]
+        if strict { parameters["additionalProperties"] = false }
         return [
             "name": name,
             "description": description,
-            "parameters": [
-                "type": "object",
-                "properties": props,
-                "required": required,
-            ],
+            "parameters": parameters,
         ]
     }
 }

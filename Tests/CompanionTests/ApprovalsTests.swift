@@ -66,22 +66,64 @@ func approvalsCanDenyRequest() throws {
     expect(didResolve, "resolve returned success")
 }
 
+/// 16. El timeout de verdad: con `timeout: 0.05` la solicitud se niega sola
+/// y la entrada pendiente desaparece. Sustituye al `expect(true)` de antes.
 @Test @MainActor
-func approvalsAutoDenyAfter120Seconds() throws {
-    // This test is simplified - the actual timeout is hard to test with mock clock
-    // because the autoDeny task will keep checking the clock
-    let clock = MockClock()
-    let approvals = Approvals(clock: clock)
+func approvalsAutoDenyAfterTimeout() throws {
+    let result = try runAsync {
+        let approvals = Approvals(clock: MockClock(), timeout: 0.05)
+        let request = ApprovalRequest(
+            requestId: "req-3", toolName: "edit_file", summary: "edit something", inputJSON: "{}")
+        let response = await approvals.request(request)
+        let late = await approvals.resolve(requestId: "req-3", approved: true)
+        return (response, late)
+    }
+    expect(!result.0.approved, "timeout: se niega sola")
+    expectEq(result.0.requestId, "req-3", "timeout: la respuesta es la de la solicitud")
+    expect(!result.1, "timeout: ya no hay nada pendiente que resolver")
+}
 
-    let request = ApprovalRequest(
-        requestId: "req-3",
-        toolName: "edit_file",
-        summary: "edit something",
-        inputJSON: "{}"
-    )
+/// 15. `resolve` reanuda `request` sin dormir: menos de 5 ms después.
+@Test @MainActor
+func approvalsResolveWakesWithoutPolling() throws {
+    let elapsed = try runAsync {
+        let approvals = Approvals(clock: MockClock())
+        let request = ApprovalRequest(
+            requestId: "req-fast", toolName: "run_shell", summary: "", inputJSON: "{}")
+        let task = Task { await approvals.request(request) }
+        try await Task.sleep(nanoseconds: 20_000_000)
+        let start = ContinuousClock.now
+        _ = await approvals.resolve(requestId: "req-fast", approved: true)
+        _ = await task.value
+        return ContinuousClock.now - start
+    }
+    expect(elapsed < .milliseconds(5), "sin polling: despierta en \(elapsed)")
+}
 
-    // Instead of testing the full timeout logic, we just verify the request mechanism works
-    expect(true, "auto-deny timeout path exists")
+/// 17. `resolve(remember: true)` viaja en la respuesta y queda en la memoria
+/// del actor: la siguiente solicitud con la misma clave no espera a nadie.
+@Test @MainActor
+func approvalsRememberForTheSession() throws {
+    let result = try runAsync {
+        let approvals = Approvals(clock: MockClock())
+        let first = ApprovalRequest(
+            requestId: "w1", toolName: "write_file", summary: "",
+            inputJSON: #"{"path":"~/Desktop/a.md","content":"x"}"#)
+        let task = Task { await approvals.request(first) }
+        try await Task.sleep(nanoseconds: 20_000_000)
+        _ = await approvals.resolve(requestId: "w1", approved: true, remember: true)
+        let response = await task.value
+        let same = ApprovalRequest(
+            requestId: "w2", toolName: "write_file", summary: "",
+            inputJSON: #"{"path":"~/Desktop/b.md","content":"y"}"#)
+        let other = ApprovalRequest(
+            requestId: "w3", toolName: "write_file", summary: "",
+            inputJSON: #"{"path":"~/Docs/c.md","content":"z"}"#)
+        return (response, await approvals.remembered(same), await approvals.remembered(other))
+    }
+    expect(result.0.remember, "recordar: la respuesta lo dice")
+    expectEq(result.1, true, "recordar: la misma clave ya está decidida")
+    expect(result.2 == nil, "recordar: otra clave sigue preguntando")
 }
 
 @Test @MainActor

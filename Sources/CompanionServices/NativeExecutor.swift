@@ -10,6 +10,9 @@ public struct NativeExecutor: Executor, Sendable {
     private let toolRunner: NativeToolRunner
     private let config: Config
     private let approvals: any ApprovalsProvider
+    /// Read per job, like memory: a skill saved this turn is in the next
+    /// job's catalog. Falls back to the config snapshot.
+    private let skillsSource: (@Sendable () -> String)?
     private let maxIterations = 10
 
     public init(
@@ -17,14 +20,18 @@ public struct NativeExecutor: Executor, Sendable {
         chatProvider: any ChatProvider,
         config: Config,
         approvals: any ApprovalsProvider,
-        webSearch: (any WebSearching)? = nil
+        webSearch: (any WebSearching)? = nil,
+        skills: SkillsLocation? = nil,
+        skillsSource: (@Sendable () -> String)? = nil
     ) {
         self.descriptor = descriptor
         self.chatProvider = chatProvider
         self.toolRunner = NativeToolRunner(
-            workdir: config.workdir, webSearch: webSearch)
+            workdir: config.workdir, webSearch: webSearch, language: config.language,
+            skills: skills)
         self.config = config
         self.approvals = approvals
+        self.skillsSource = skillsSource
     }
 
     /// Execute a job by looping with the model: accumulate text, execute tools on request,
@@ -41,7 +48,8 @@ public struct NativeExecutor: Executor, Sendable {
             handoff,
             workdir: config.workdir ?? "(not configured)",
             desktop: NSHomeDirectory() + "/Desktop",
-            attachments: job.attachments, language: config.language)
+            attachments: job.attachments, language: config.language,
+            skills: skillsSource?() ?? config.skills)
 
         // System message with executor role (once)
         let systemMessage = Turn(
@@ -66,10 +74,7 @@ public struct NativeExecutor: Executor, Sendable {
             let tools = nativeToolSpecs()
             let stream = chatProvider.stream(history, tools: tools)
 
-            var isToolCall = false
-            var toolName = ""
-            var toolArgs = ""
-            var toolCallId = ""
+            var calls: [ToolCallRef] = []
 
             // Consume stream
             do {
@@ -79,19 +84,12 @@ public struct NativeExecutor: Executor, Sendable {
                     switch delta {
                     case .text(let text):
                         accumulatedOutput += text
-
-                    case .handoff(let h):
-                        // Tool call: parse which tool and its args
-                        isToolCall = true
-                        toolName = h.goal
-                        toolArgs = h.context
-
-                    case .toolCall(let id, let name, let arguments):
-                        // Real tool call from provider (not delegate)
-                        isToolCall = true
-                        toolCallId = id
-                        toolName = name
-                        toolArgs = arguments
+                    case .handoff:
+                        // The specialist does not delegate; a handoff here
+                        // is a model calling a tool it was not offered.
+                        Log.app("native: ignoring delegate call from the specialist")
+                    case .toolCalls(let round):
+                        calls += round
                     }
                 }
             } catch is CancellationError {
@@ -101,52 +99,30 @@ public struct NativeExecutor: Executor, Sendable {
             }
 
             // If model returned text and no tool call, we're done
-            if !isToolCall || toolName.isEmpty {
+            if calls.isEmpty {
                 return JobResult(output: accumulatedOutput, isError: false)
             }
 
-            // Tool was requested: check approval and execute
-            events.yield(.stepStarted(tool: toolName, summary: "Executing \(toolName)"))
-
-            let approvalNeeded = riskLevel(tool: toolName) == .requiresApproval
-            var approved = false
-
-            if approvalNeeded {
-                // Ask for approval through Approvals actor
-                let requestId = UUID().uuidString
-                let approval = ApprovalRequest(
-                    requestId: requestId,
-                    toolName: toolName,
-                    summary: "Tool requires user approval",
-                    inputJSON: toolArgs)
-
-                events.yield(.approvalRequested(approval))
-
-                // Wait for approval response (auto-deny after 120s per Approvals spec)
-                let response = await approvals.request(approval)
-                approved = response.approved
+            // One assistant turn carries every call of the round; each answer
+            // follows with its own id (the provider rejects a round with a
+            // missing answer). Runs in index order, deduplicated: the same
+            // tool with the same arguments runs once and answers twice
+            // (`routing_dedupe`, spec 24 §5).
+            history.append(Turn(role: .assistant, content: "", toolCalls: calls))
+            var answered: [String: ToolResult] = [:]
+            for call in calls {
+                try Task.checkCancellation()
+                let key = Self.dedupeKey(call)
+                let result: ToolResult
+                if let repeated = answered[key] {
+                    result = repeated
+                } else {
+                    result = try await perform(call, events: events)
+                    answered[key] = result
+                }
+                history.append(Turn(
+                    role: .tool, content: result.output, toolCallID: call.id))
             }
-
-            // Execute tool (may fail silently if not approved)
-            let toolResult = try await executeToolSafely(
-                tool: toolName,
-                arguments: parseToolArguments(toolArgs),
-                approved: approved || !approvalNeeded)
-
-            events.yield(.stepFinished(tool: toolName, ok: toolResult.ok))
-            // Straight to the interface. It is not appended to the turn below,
-            // so the model never sees the payload it would otherwise retype.
-            if let card = toolResult.card { events.yield(.card(card)) }
-
-            // Both the request and its answer go back, carrying the call id:
-            // a tool message without its assistant call is rejected.
-            let call = ToolCallRef(
-                id: toolCallId, name: toolName, arguments: toolArgs)
-            history.append(Turn(role: .assistant, content: "", toolCalls: [call]))
-            history.append(Turn(
-                role: .tool,
-                content: toolResult.output,
-                toolCallID: toolCallId))
         }
 
         // Hit iteration limit
@@ -156,6 +132,74 @@ public struct NativeExecutor: Executor, Sendable {
     }
 
     // MARK: - Helpers
+
+    /// One call: arguments repaired or refused, approval asked or remembered,
+    /// the tool run through the single entry point, events for the card.
+    private func perform(
+        _ call: ToolCallRef, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> ToolResult {
+        let toolName = call.name
+        // Never `[:]` on a parse failure: the model must see what it sent
+        // to be able to correct it (OpenAI: "validate the arguments").
+        guard let arguments = ToolArguments.parse(call.arguments) else {
+            return ToolResult(
+                ok: false,
+                output: "invalid_args: could not parse arguments: \(call.arguments)")
+        }
+        events.yield(.stepStarted(tool: toolName, summary: "Executing \(toolName)"))
+
+        let approvalNeeded = riskLevel(tool: toolName) == .requiresApproval
+        var approved = !approvalNeeded
+        if approvalNeeded {
+            let approval = ApprovalRequest(
+                requestId: UUID().uuidString,
+                toolName: toolName,
+                summary: "Tool requires user approval",
+                inputJSON: call.arguments)
+            // A decision the session already took answers without the sheet
+            // (3B.2); otherwise wait (auto-deny after 120s per Approvals).
+            if let decision = await approvals.remembered(approval) {
+                events.yield(.approvalRemembered(tool: toolName, approved: decision))
+                approved = decision
+            } else {
+                events.yield(.approvalRequested(approval))
+                approved = await approvals.request(approval).approved
+            }
+            if !approved { events.yield(.approvalDenied(tool: toolName)) }
+        }
+
+        // A tool that throws (real I/O failure) is one failed step the model
+        // reads about, not a lost round: the calls before it already ran.
+        let toolResult: ToolResult
+        do {
+            toolResult = try await executeToolSafely(
+                tool: toolName, arguments: arguments, approved: approved)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            toolResult = ToolResult(ok: false, output: "tool failed: \(error)")
+        }
+        events.yield(.stepFinished(tool: toolName, ok: toolResult.ok))
+        // Straight to the interface. It is not appended to the turn, so the
+        // model never sees the payload it would otherwise retype.
+        if let card = toolResult.card { events.yield(.card(card)) }
+        return toolResult
+    }
+
+    /// Same tool, same arguments once canonicalised (sorted keys, no
+    /// whitespace) — one intent, however the model spelled it.
+    static func dedupeKey(_ call: ToolCallRef) -> String {
+        guard let object = ToolArguments.parse(call.arguments) else {
+            return call.name + "\u{0}" + call.arguments
+        }
+        do {
+            let data = try JSONSerialization.data(
+                withJSONObject: object, options: [.sortedKeys])
+            return call.name + "\u{0}" + (String(data: data, encoding: .utf8) ?? call.arguments)
+        } catch {
+            return call.name + "\u{0}" + call.arguments
+        }
+    }
 
     private func nativeToolSpecs() -> [ToolSpec] {
         // Only what can actually run. The catalog is not the offer.
@@ -174,18 +218,5 @@ public struct NativeExecutor: Executor, Sendable {
         approved: Bool
     ) async throws -> ToolResult {
         return try await toolRunner.execute(tool: tool, arguments: arguments, approved: approved)
-    }
-
-    /// Parse tool arguments from JSON string (from model output).
-    private func parseToolArguments(_ json: String) -> [String: Any] {
-        guard let data = json.data(using: .utf8) else { return [:] }
-        do {
-            guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return [:]
-            }
-            return obj
-        } catch {
-            return [:]
-        }
     }
 }

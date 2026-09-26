@@ -188,3 +188,30 @@ func validatePathAcceptsCurrentDirectoryReference() throws {
     // Single dot should be normalized and accepted
     expect(result || !result, "dot normalization handled")
 }
+
+// MARK: - Wave 11a: raíces con modo
+
+@Test @MainActor
+func validatorRootsReadAndWriteByMode() {
+    let validator = PathValidator(
+        workdir: "/home/user/project",
+        extraRoots: [
+            PathValidator.Root(path: "/app/skills/default", writable: false),
+            PathValidator.Root(path: "/app/skills/custom", writable: true),
+        ])
+    expect(validator.isAllowed("/app/skills/default/x/SKILL.md"), "roots: default se lee")
+    expect(!validator.isAllowed("/app/skills/default/x/SKILL.md", forWrite: true), "roots: default no se escribe")
+    expect(validator.isAllowed("/app/skills/custom/y/SKILL.md", forWrite: true), "roots: custom se escribe")
+    expect(validator.isAllowed("/home/user/project/a.txt", forWrite: true), "roots: el workdir sigue escribible")
+    expect(!validator.isAllowed("/app/skills/other/x", forWrite: false), "roots: fuera de todo, no")
+    expect(validator.isAllowed("/app/skills/default/../custom/y/SKILL.md", forWrite: true),
+           "roots: se normaliza y cae en custom")
+    expect(!validator.isAllowed("/app/skills/custom/../default/x/SKILL.md", forWrite: true),
+           "roots: normalizado a default, no se escribe")
+    expect(!validator.isAllowed("/app/skills/defaultx/SKILL.md"), "roots: el prefijo respeta la barra")
+    expect(validator.isAllowed("src/a.swift", forWrite: true), "roots: relativo resuelve contra el workdir")
+    let noWorkdir = PathValidator(
+        workdir: nil, extraRoots: [PathValidator.Root(path: "/app/skills/default", writable: false)])
+    expect(noWorkdir.isAllowed("/app/skills/default/x/SKILL.md"), "roots: sin workdir, las raíces extra siguen")
+    expect(!noWorkdir.isAllowed("src/a.swift"), "roots: sin workdir, un relativo no tiene contra qué resolver")
+}

@@ -43,6 +43,16 @@ final class WatchfulSubmitter: JobSubmitter, @unchecked Sendable {
         _cancelled = true
     }
     func resolveApproval(requestId: String, approved: Bool) async {}
+    private var _remembered: [Bool] = []
+    /// Wave 10c: what the sheet asked to remember, per answer.
+    var remembered: [Bool] { lock.lock(); defer { lock.unlock() }; return _remembered }
+    func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
+        record(remember)
+    }
+    private func record(_ remember: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        _remembered.append(remember)
+    }
     var isBusy: Bool { get async { false } }
 }
 

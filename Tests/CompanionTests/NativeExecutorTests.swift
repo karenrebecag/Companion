@@ -6,17 +6,17 @@ import Testing
 // MARK: - RED tests for toolCall support and Approvals integration
 
 @Test @MainActor
-func chatDeltaEmitsToolCall() {
-    // Test that ChatDelta enum has a toolCall case
-    let toolCall = ChatDelta.toolCall(id: "call_123", name: "readFile", arguments: "{\"path\":\"test.txt\"}")
-
-    switch toolCall {
-    case .toolCall(let id, let name, let arguments):
-        expectEq(id, "call_123", "id should match")
-        expectEq(name, "readFile", "name should be readFile")
-        expect(arguments.contains("test.txt"), "arguments should contain path")
+func chatDeltaEmitsToolCalls() {
+    // Wave 10c: a list per round — the assistant turn that remembers the
+    // round needs every call together.
+    let ref = ToolCallRef(id: "call_123", name: "readFile", arguments: "{\"path\":\"test.txt\"}")
+    let delta = ChatDelta.toolCalls([ref])
+    switch delta {
+    case .toolCalls(let calls):
+        expectEq(calls.map(\.id), ["call_123"], "id should match")
+        expectEq(calls.first?.name, "readFile", "name should be readFile")
     default:
-        Issue.record("toolCall case should exist")
+        Issue.record("toolCalls case should exist")
     }
 }
 
@@ -209,11 +209,8 @@ final class ToolCallTestProvider: ChatProvider, @unchecked Sendable {
     {
         AsyncThrowingStream { continuation in
             Task {
-                continuation.yield(.toolCall(
-                    id: "call_123",
-                    name: toolName,
-                    arguments: arguments
-                ))
+                continuation.yield(.toolCalls([ToolCallRef(
+                    id: "call_123", name: toolName, arguments: arguments)]))
                 continuation.finish()
             }
         }
@@ -228,11 +225,8 @@ final class InfiniteToolCallProvider: ChatProvider, @unchecked Sendable {
     {
         AsyncThrowingStream { continuation in
             Task {
-                continuation.yield(.toolCall(
-                    id: "call_123",
-                    name: "readFile",
-                    arguments: "{\"path\":\"test.txt\"}"
-                ))
+                continuation.yield(.toolCalls([ToolCallRef(
+                    id: "call_123", name: "readFile", arguments: "{\"path\":\"test.txt\"}")]))
                 continuation.finish()
             }
         }
@@ -408,8 +402,8 @@ private final class ScriptedToolProvider: ChatProvider, @unchecked Sendable {
         }
         return AsyncThrowingStream { continuation in
             if let call {
-                continuation.yield(.toolCall(
-                    id: call.id, name: call.name, arguments: call.args))
+                continuation.yield(.toolCalls([ToolCallRef(
+                    id: call.id, name: call.name, arguments: call.args)]))
             } else {
                 continuation.yield(.text("listo"))
             }
@@ -465,11 +459,272 @@ private final class RepeatingToolProvider: ChatProvider, @unchecked Sendable {
         onCall?(seen)
         let call = (name: name, args: args)
         return AsyncThrowingStream { continuation in
-            continuation.yield(.toolCall(
-                id: "call", name: call.name, arguments: call.args))
+            continuation.yield(.toolCalls([ToolCallRef(
+                id: "call", name: call.name, arguments: call.args)]))
             continuation.finish()
         }
     }
 
     func verify(_ key: String, provider: ProviderDescriptor) async throws {}
+}
+
+
+// MARK: - Wave 10c: N calls por ronda, deduplicadas, con argumentos reparados
+
+@Test @MainActor func nativeExecutorRoundTests() async {
+    await testTwoCallsInOneRoundRunInOrder()
+    await testIdenticalCallsRunOnce()
+    await testTwoApprovalsInOneRound()
+    await testUnparseableArgumentsAreReportedRaw()
+    await testRememberedApprovalSkipsTheSheet()
+    await testRememberedDenialNeverRuns()
+    await testDenialIsAnInstructionNotAnError()
+}
+
+private func scratchDir(_ tag: String) -> URL {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("\(tag)-\(UUID().uuidString)")
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    return dir
+}
+
+/// 12. Dos lecturas en una ronda: el runner las recibió en orden y la
+/// historia lleva `assistant(toolCalls: 2)` + `tool(a)` + `tool(b)`.
+@MainActor func testTwoCallsInOneRoundRunInOrder() async {
+    let dir = scratchDir("two")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    try? "AAA".write(to: dir.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+    try? "BBB".write(to: dir.appendingPathComponent("b.txt"), atomically: true, encoding: .utf8)
+    let provider = RoundsProvider(rounds: [
+        [.toolCalls([
+            ToolCallRef(id: "a", name: "read_file", arguments: #"{"path":"a.txt"}"#),
+            ToolCallRef(id: "b", name: "read_file", arguments: #"{"path":"b.txt"}"#),
+        ])],
+        [.text("listo")],
+    ])
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native, chatProvider: provider,
+        config: Config(workdir: dir.path), approvals: InstantApprovals(approved: true))
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    let seen = RoundEvents(stream)
+    let result = try? await executor.run(JobRequest(id: "j", goal: "lee", context: ""), events: sink)
+    sink.finish()
+    expectEq(result?.output, "listo", "dos: termina con el texto de la ronda 2")
+    let second = provider.histories.last ?? []
+    let asked = second.first { !$0.toolCalls.isEmpty }
+    expectEq(asked?.toolCalls.map(\.id), ["a", "b"], "dos: un assistant con las dos calls")
+    let answers = second.filter { $0.role == .tool }
+    expectEq(answers.map(\.toolCallID), ["a", "b"], "dos: tool(a) + tool(b), en orden")
+    expectEq(answers.map(\.content), ["AAA", "BBB"], "dos: cada respuesta con su contenido")
+    expectEq(await seen.steps, ["read_file", "read_file"], "dos: dos pasos en la tarjeta")
+}
+
+/// 13. Dos calls idénticas: se ejecuta una; dos `.tool` con el mismo
+/// resultado y distinto id (los dos turnos tienen que existir).
+@MainActor func testIdenticalCallsRunOnce() async {
+    let dir = scratchDir("dedupe")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    try? "AAA".write(to: dir.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+    let provider = RoundsProvider(rounds: [
+        [.toolCalls([
+            ToolCallRef(id: "a", name: "read_file", arguments: #"{"path":"a.txt"}"#),
+            ToolCallRef(id: "b", name: "read_file", arguments: #"{ "path" : "a.txt" }"#),
+        ])],
+        [.text("listo")],
+    ])
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native, chatProvider: provider,
+        config: Config(workdir: dir.path), approvals: InstantApprovals(approved: true))
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    let seen = RoundEvents(stream)
+    _ = try? await executor.run(JobRequest(id: "j", goal: "lee", context: ""), events: sink)
+    sink.finish()
+    let answers = (provider.histories.last ?? []).filter { $0.role == .tool }
+    expectEq(answers.map(\.toolCallID), ["a", "b"], "dedupe: dos respuestas")
+    expectEq(answers.map(\.content), ["AAA", "AAA"], "dedupe: el mismo resultado")
+    expectEq(await seen.steps, ["read_file"], "dedupe: un solo paso ejecutado")
+}
+
+/// 14. Dos `write_file` en la ronda con aprobación instantánea: dos
+/// solicitudes y dos pasos terminados.
+@MainActor func testTwoApprovalsInOneRound() async {
+    let dir = scratchDir("writes")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let provider = RoundsProvider(rounds: [
+        [.toolCalls([
+            ToolCallRef(id: "a", name: "write_file", arguments: #"{"path":"a.txt","content":"1"}"#),
+            ToolCallRef(id: "b", name: "write_file", arguments: #"{"path":"b.txt","content":"2"}"#),
+        ])],
+        [.text("listo")],
+    ])
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native, chatProvider: provider,
+        config: Config(workdir: dir.path), approvals: InstantApprovals(approved: true))
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    let seen = RoundEvents(stream)
+    _ = try? await executor.run(JobRequest(id: "j", goal: "escribe", context: ""), events: sink)
+    sink.finish()
+    expectEq(await seen.approvals, 2, "permisos: dos solicitudes")
+    expectEq(await seen.finished, [true, true], "permisos: dos pasos terminados bien")
+    expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("b.txt").path),
+           "permisos: el segundo también se escribió")
+}
+
+/// 11 (runner). Argumentos irreparables: nunca `[:]` mudo; el modelo lee
+/// `invalid_args` con lo que mandó, y la tool no corre.
+@MainActor func testUnparseableArgumentsAreReportedRaw() async {
+    let dir = scratchDir("raw")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let provider = RoundsProvider(rounds: [
+        [.toolCalls([ToolCallRef(id: "a", name: "write_file", arguments: "sure, writing it now")])],
+        [.text("ok")],
+    ])
+    let approvals = CountingApprovals()
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native, chatProvider: provider,
+        config: Config(workdir: dir.path), approvals: approvals)
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    stream.ignore()
+    _ = try? await executor.run(JobRequest(id: "j", goal: "x", context: ""), events: sink)
+    sink.finish()
+    let answer = (provider.histories.last ?? []).first { $0.role == .tool }
+    expect(answer?.content.hasPrefix("invalid_args: could not parse arguments: sure, writing it now") == true,
+           "crudo: el modelo ve lo que mandó (\(answer?.content ?? "nil"))")
+    expectEq(await approvals.requests, 0, "crudo: no se pidió permiso por algo que no se puede ejecutar")
+}
+
+actor RoundEvents {
+    private(set) var steps: [String] = []
+    private(set) var finished: [Bool] = []
+    private(set) var approvals = 0
+    private(set) var remembered: [Bool] = []
+    private(set) var denied: [String] = []
+    init(_ stream: AsyncStream<JobEvent>) {
+        Task { for await event in stream { await self.add(event) } }
+    }
+    private func add(_ event: JobEvent) {
+        switch event {
+        case .stepStarted(let tool, _): steps.append(tool)
+        case .stepFinished(_, let ok): finished.append(ok)
+        case .approvalRequested: approvals += 1
+        case .approvalRemembered(_, let approved): remembered.append(approved)
+        case .approvalDenied(let tool): denied.append(tool)
+        default: break
+        }
+    }
+}
+
+actor CountingApprovals: ApprovalsProvider {
+    private(set) var requests = 0
+    func request(_ approval: ApprovalRequest) async -> ApprovalResponse {
+        requests += 1
+        return ApprovalResponse(requestId: approval.requestId, approved: true)
+    }
+    func resolve(requestId: String, approved: Bool) async -> Bool { true }
+}
+
+/// One list of deltas per round; records every history it was handed.
+final class RoundsProvider: ChatProvider, @unchecked Sendable {
+    private let lock = NSLock()
+    private var rounds: [[ChatDelta]]
+    private var _histories: [[Turn]] = []
+    var histories: [[Turn]] { lock.withLock { _histories } }
+    init(rounds: [[ChatDelta]]) { self.rounds = rounds }
+    func stream(_ history: [Turn], tools: [ToolSpec]) -> AsyncThrowingStream<ChatDelta, Error> {
+        let canned: [ChatDelta] = lock.withLock {
+            _histories.append(history)
+            return rounds.isEmpty ? [.text("")] : rounds.removeFirst()
+        }
+        return AsyncThrowingStream { continuation in
+            for delta in canned { continuation.yield(delta) }
+            continuation.finish()
+        }
+    }
+    func verify(_ key: String, provider: ProviderDescriptor) async throws {}
+}
+
+/// 20. La memoria ya aprobó la clave: no se pide, sí se ejecuta, y la
+/// tarjeta lo registra como "permitido, como antes".
+@MainActor func testRememberedApprovalSkipsTheSheet() async {
+    let dir = scratchDir("remembered")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let provider = RoundsProvider(rounds: [
+        [.toolCalls([ToolCallRef(id: "a", name: "write_file", arguments: #"{"path":"a.txt","content":"1"}"#)])],
+        [.text("listo")],
+    ])
+    let approvals = MemoryApprovals(decision: true)
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native, chatProvider: provider,
+        config: Config(workdir: dir.path), approvals: approvals)
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    let seen = RoundEvents(stream)
+    _ = try? await executor.run(JobRequest(id: "j", goal: "x", context: ""), events: sink)
+    sink.finish()
+    expectEq(await approvals.requests, 0, "memoria: no se pidió")
+    expectEq(await seen.approvals, 0, "memoria: la hoja no se abrió")
+    expect(FileManager.default.fileExists(atPath: dir.appendingPathComponent("a.txt").path),
+           "memoria: sí se ejecutó")
+    expectEq(await seen.remembered, [true], "memoria: la tarjeta dice permitido, como antes")
+}
+
+/// 21. La memoria ya negó la clave: no se pide, no se ejecuta, y el modelo
+/// lee `denied_by_user`.
+@MainActor func testRememberedDenialNeverRuns() async {
+    let dir = scratchDir("denied-memory")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let provider = RoundsProvider(rounds: [
+        [.toolCalls([ToolCallRef(id: "a", name: "write_file", arguments: #"{"path":"a.txt","content":"1"}"#)])],
+        [.text("ok")],
+    ])
+    let approvals = MemoryApprovals(decision: false)
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native, chatProvider: provider,
+        config: Config(workdir: dir.path, language: .es), approvals: approvals)
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    let seen = RoundEvents(stream)
+    _ = try? await executor.run(JobRequest(id: "j", goal: "x", context: ""), events: sink)
+    sink.finish()
+    expectEq(await approvals.requests, 0, "negada: no se pidió")
+    expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("a.txt").path),
+           "negada: no se ejecutó")
+    let answer = (provider.histories.last ?? []).first { $0.role == .tool }
+    expectEq(answer?.content, Escalation.deniedByUser(.es), "negada: el modelo lee la instrucción, en su idioma")
+    expectEq(await seen.remembered, [false], "negada: la tarjeta dice denegado, como antes")
+    expectEq(await seen.denied, ["write_file"], "negada: y el evento de negación sale")
+}
+
+/// 3B.4. Negar en vivo: el resultado es una instrucción, no un error de
+/// sistema, y la tarjeta recibe `approvalDenied`.
+@MainActor func testDenialIsAnInstructionNotAnError() async {
+    let dir = scratchDir("denied-live")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let provider = RoundsProvider(rounds: [
+        [.toolCalls([ToolCallRef(id: "a", name: "run_shell", arguments: #"{"command":"ls"}"#)])],
+        [.text("ok")],
+    ])
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native, chatProvider: provider,
+        config: Config(workdir: dir.path), approvals: InstantApprovals(approved: false))
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    let seen = RoundEvents(stream)
+    _ = try? await executor.run(JobRequest(id: "j", goal: "x", context: ""), events: sink)
+    sink.finish()
+    let answer = (provider.histories.last ?? []).first { $0.role == .tool }
+    expectEq(answer?.content, Escalation.deniedByUser(.en), "negar: instrucción en inglés")
+    expect(answer?.content.hasPrefix("denied_by_user:") == true, "negar: con el código del contrato")
+    expectEq(await seen.denied, ["run_shell"], "negar: el evento sale una vez")
+    expectEq(await seen.finished, [false], "negar: el paso termina en no-ok")
+}
+
+/// Remembers a fixed decision for every key; counts real requests.
+actor MemoryApprovals: ApprovalsProvider {
+    private let decision: Bool
+    private(set) var requests = 0
+    init(decision: Bool) { self.decision = decision }
+    func request(_ approval: ApprovalRequest) async -> ApprovalResponse {
+        requests += 1
+        return ApprovalResponse(requestId: approval.requestId, approved: false)
+    }
+    func resolve(requestId: String, approved: Bool) async -> Bool { true }
+    func remembered(_ approval: ApprovalRequest) async -> Bool? { decision }
 }
