@@ -28,6 +28,13 @@
 
 ## Foco actual
 
+### Entregables como Incredible (Wave 20, cerrada en código 2026-09-28)
+
+PDF y `.xlsx` nativos desde un JSON de bloques (`create_document`), Excel y Numbers en vivo por
+Apple Events (`sheet_read` / `sheet_write` con copia y relectura) y tarjetas de cifras, tablas y
+gráficas en el chat. Sin Python ni `pandoc` (ADR 001). Falta la verificación en vivo de Karen
+(`wave-20-entregables.md` §10); `.docx`/`.pptx` fuera por D7 (a).
+
 ### Las manos para Claude Code (Wave 17, cerrada en código 2026-09-28)
 
 Companion presta sus manos (`look`/`click`/`type_text`/`open_app`…) a una sesión de Claude Code
