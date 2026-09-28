@@ -119,6 +119,10 @@ public enum CardSource: Sendable, Equatable {
 public enum CardPayload: Sendable, Equatable {
     case locations(LocationsBlock)
     case gallery(GalleryBlock)
+    /// Wave 20: figures, rows and series (Incredible's stat/table/chart).
+    case stats(StatsBlock)
+    case table(TableBlock)
+    case chart(ChartBlock)
 }
 
 /// What the interface paints, travelling on its own channel — never through
@@ -172,7 +176,7 @@ public enum CompanionBlocks: Sendable {
         return GalleryBlock(title: dict["title"] as? String, images: renderable)
     }
 
-    private static func jsonObject(_ body: String) -> [String: Any]? {
+    static func jsonObject(_ body: String) -> [String: Any]? {
         guard let data = body.data(using: .utf8) else { return nil }
         let raw: Any
         do {
@@ -216,7 +220,7 @@ public enum CompanionBlocks: Sendable {
 
     /// JSONSerialization boxes numbers as NSNumber. `is Bool` is true for
     /// NSNumber(1), so reject with CFBoolean identity instead.
-    private static func jsonDouble(_ value: Any?) -> Double? {
+    static func jsonDouble(_ value: Any?) -> Double? {
         guard let value else { return nil }
         if let number = value as? NSNumber {
             if CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }

@@ -77,6 +77,8 @@ public struct MarkdownView: View {
                 } else {
                     codeBlock(body, language: language)
                 }
+            } else if let payload = Self.dataCard(language: language, body: body) {
+                CardView(card: Card(payload: payload, source: .model))
             } else {
                 codeBlock(body, language: language)
             }
@@ -85,6 +87,16 @@ public struct MarkdownView: View {
                 .font(.system(.body, design: .monospaced))
                 .foregroundStyle(Semantic.foreground)
                 .textSelection(.enabled)
+        }
+    }
+
+    /// Wave 20: the data fences. Nil keeps a broken one visible as code.
+    nonisolated static func dataCard(language: String, body: String) -> CardPayload? {
+        switch language {
+        case CompanionBlocks.statsLanguage: CompanionBlocks.stats(body).map { .stats($0) }
+        case CompanionBlocks.tableLanguage: CompanionBlocks.table(body).map { .table($0) }
+        case CompanionBlocks.chartLanguage: CompanionBlocks.chart(body)
+        default: nil
         }
     }
 

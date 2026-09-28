@@ -25,6 +25,10 @@ import SwiftUI
 enum CardMetrics {
     static let map: CGFloat = 200
     static let thumb: CGFloat = 120
+    /// Wave 20: a stat tile's narrowest column, a chart's plot, a table's cap.
+    static let statMin: CGFloat = 120
+    static let chart: CGFloat = 200
+    static let tableMax: CGFloat = 320
     /// Columna del icono de fila: un paso de la rampa, no un numero.
     static let iconColumn: CGFloat = Space.x4
 }
@@ -55,6 +59,12 @@ struct CardView: View {
                 MapCard(block: block)
             case .gallery(let block):
                 GalleryCard(block: block)
+            case .stats(let block):
+                StatsCard(block: block)
+            case .table(let block):
+                TableCard(block: block)
+            case .chart(let block):
+                ChartCard(block: block)
             }
             if card.source == .model {
                 Text(Localized.string("card.unverified"))

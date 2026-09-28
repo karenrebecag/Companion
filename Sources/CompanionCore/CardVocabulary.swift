@@ -27,7 +27,14 @@ public enum CardVocabulary: Sendable {
                 + "the wrong street looks exactly as confident as a right "
                 + "one. To compare images emit ```\(CompanionBlocks.galleryLanguage) "
                 + "with {\"title\",\"images\":[{\"path\" local or \"url\" "
-                + "https,\"caption\"}]}. If neither applies, plain markdown."
+                + "https,\"caption\"}]}. For figures emit ```\(CompanionBlocks.statsLanguage) "
+                + "with {\"title\",\"items\":[{\"label\",\"value\",\"delta\"}]}; for "
+                + "rows emit ```\(CompanionBlocks.tableLanguage) with {\"title\",\"columns\":[...],"
+                + "\"rows\":[[...]]}; for a series emit ```\(CompanionBlocks.chartLanguage) with "
+                + "{\"title\",\"kind\":\"bar|line|area|pie|donut|scatter\",\"unit\",\"labels\":[...],"
+                + "\"series\":[{\"name\",\"values\":[numbers, one per label]}]}. Only numbers "
+                + "you looked up or were given — never invented. "
+                + "If none applies, plain markdown."
         case .es:
             return "El cliente pinta TARJETAS NATIVAS desde fences companion: "
                 + "para lugares físicos emite ```\(CompanionBlocks.locationsLanguage) "
@@ -39,7 +46,14 @@ public enum CardVocabulary: Sendable {
                 + "correcto. Para comparar imágenes emite "
                 + "```\(CompanionBlocks.galleryLanguage) con "
                 + "{\"title\",\"images\":[{\"path\" local o \"url\" https,"
-                + "\"caption\"}]}. Si no aplica, markdown normal."
+                + "\"caption\"}]}. Para cifras emite ```\(CompanionBlocks.statsLanguage) "
+                + "con {\"title\",\"items\":[{\"label\",\"value\",\"delta\"}]}; para filas "
+                + "emite ```\(CompanionBlocks.tableLanguage) con {\"title\",\"columns\":[...],"
+                + "\"rows\":[[...]]}; para una serie emite ```\(CompanionBlocks.chartLanguage) con "
+                + "{\"title\",\"kind\":\"bar|line|area|pie|donut|scatter\",\"unit\",\"labels\":[...],"
+                + "\"series\":[{\"name\",\"values\":[números, uno por etiqueta]}]}. Solo números "
+                + "que consultaste o te dieron — nunca inventados. "
+                + "Si nada aplica, markdown normal."
         }
     }
 }

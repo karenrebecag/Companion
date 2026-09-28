@@ -116,6 +116,12 @@ public enum ConversationMemory: Sendable {
             return "[tarjeta de mapa mostrada en pantalla]"
         case CompanionBlocks.galleryLanguage:
             return "[tarjeta de galería mostrada en pantalla]"
+        case CompanionBlocks.statsLanguage:
+            return "[tarjeta de cifras mostrada en pantalla]"
+        case CompanionBlocks.tableLanguage:
+            return "[tabla mostrada en pantalla]"
+        case CompanionBlocks.chartLanguage:
+            return "[gráfica mostrada en pantalla]"
         default:
             return "[tarjeta mostrada en pantalla]"
         }

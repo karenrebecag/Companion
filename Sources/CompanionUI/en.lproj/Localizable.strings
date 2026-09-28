@@ -543,3 +543,8 @@
 "apps.panel.disconnect.confirmButton" = "Disconnect";
 "apps.panel.disconnect.cancel" = "Cancel";
 "apps.panel.disconnecting" = "Disconnecting…";
+
+/* Wave 20: data cards */
+"card.table.truncated" = "Showing the first %d rows.";
+"card.chart" = "Chart";
+"chat.card.data" = "[data shown in a card on screen]";
