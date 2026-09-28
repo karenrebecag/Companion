@@ -174,6 +174,13 @@ if [ $rc -eq 0 ]; then
 else
     fail "swift test fallo:"
     echo "$out" | tail -20
+    # Debugging 2026-09-28: las ultimas 20 lineas casi nunca alcanzan cuando
+    # falla un dispatcher que agrupa muchos sub-tests (Issue recorded llega
+    # antes del resumen) — sin esto el detalle se perdia y solo quedaba
+    # "fallo con 1 issue" para adivinar cual.
+    echo
+    echo "-- detalle del fallo (busqueda en toda la salida, no solo el final) --"
+    echo "$out" | grep -E '✘|↳|Issue recorded|Expectation failed'
 fi
 
 # ------------------------------------------------------------------- Resumen
