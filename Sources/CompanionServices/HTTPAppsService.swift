@@ -36,6 +36,12 @@ public struct HTTPAppsService: AppsService {
         return try AppsWire.connectLink(status: status, body: body)
     }
 
+    public func tools(app: String) async throws -> [AppAction] {
+        let payload = try JSONSerialization.data(withJSONObject: ["app": app])
+        let (status, body) = try await send("api/tools", method: "POST", body: payload)
+        return try AppsWire.tools(status: status, body: body)
+    }
+
     private func send(
         _ path: String, method: String = "GET", query: [String: String] = [:], body: Data? = nil
     ) async throws -> (Int, Data) {

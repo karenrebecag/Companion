@@ -512,3 +512,17 @@
 "apps.error.rateLimited" = "Too many requests in a row. Wait a moment.";
 "apps.error.unreachable" = "Could not reach the function. Check the connection or the address.";
 "apps.error.generic" = "Something went wrong talking to the apps. Try again.";
+"apps.panel.connect" = "Connect %@";
+"apps.panel.poweredBy" = "Companion works with a partner service called Pipedream to power its app connections.";
+"apps.panel.privacy" = "Companion only uses this connection for the things you ask it to do. Your data is never used to train a model.";
+"apps.panel.emptyNotConnected" = "Connect %@ to see everything it can do.";
+"apps.panel.emptyListed" = "%@ didn't list any actions just now. Reconnect it, or try again.";
+"apps.panel.search" = "Search %ld actions";
+"apps.panel.noMatches" = "No action matches that search.";
+"apps.panel.loading" = "Loading actions…";
+"apps.group.leer" = "Read";
+"apps.group.leer.note" = "Only reads. Nothing in the app changes.";
+"apps.group.crearYCambiar" = "Create and change";
+"apps.group.crearYCambiar.note" = "Changes something in the app. Companion shows you what before it does.";
+"apps.group.borrar" = "Delete";
+"apps.group.borrar.note" = "Removes something. Companion always asks first.";
