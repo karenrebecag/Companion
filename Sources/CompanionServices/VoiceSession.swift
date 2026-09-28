@@ -18,13 +18,15 @@ public actor VoiceSession: VoiceControlling {
     let secrets: any SecretStore
     let configProvider: any ConfigProviding
     let now: @Sendable () -> TimeInterval
-    private let readyTimeout: TimeInterval
+    /// Read by VoiceSessionRealtimeOpen's `waitForReady`.
+    let readyTimeout: TimeInterval
     let realtime: RealtimeRuntime
     let classic: ClassicRuntime
     /// Diagnostic microscope over the realtime path. Reuses the injected
     /// transcriber (idle in realtime mode) as native ground truth.
     let audit: VoiceAudit
-    private let snapBox: AudioStreamBox<TurnSnapshot>
+    /// Written by VoiceSessionTurnLoop's `apply`.
+    let snapBox: AudioStreamBox<TurnSnapshot>
     let levelBox: AudioStreamBox<VoiceLevels>
     let eventBox: AudioStreamBox<SessionEvent>
 
@@ -39,25 +41,32 @@ public actor VoiceSession: VoiceControlling {
     /// `said=` waits until its audio ends or a press cuts it.
     var announceTask: Task<Void, Never>?
     var announcementUnlogged = false
-    private let jobs: (any JobSubmitter)?
-    private let sensor: (any ContextSensing)?
-    private let echoFreeProbe: @Sendable () -> Bool
+    /// Read by VoiceSessionRealtimeOpen's `openRealtimeSession`.
+    let jobs: (any JobSubmitter)?
+    /// Read by VoiceSessionCommit's `senseVoice`.
+    let sensor: (any ContextSensing)?
+    /// Read by VoiceSessionRealtimeOpen's `openRealtimeSession`.
+    let echoFreeProbe: @Sendable () -> Bool
     let reachability: any ReachabilityProbing
-    private let micSilenceTimeout: TimeInterval
+    /// Read by VoiceSessionRealtimeOpen's watchdog.
+    let micSilenceTimeout: TimeInterval
     /// 15d-2: how long the mic keeps feeding the ears after the key comes
     /// up — the last syllable rides the tail (Incredible: 300 ms).
     let releaseTail: TimeInterval
-    private var micSilenceTask: Task<Void, Never>?
+    /// Written by VoiceSessionRealtimeOpen's watchdog.
+    var micSilenceTask: Task<Void, Never>?
     /// Sampled once per session open; swapping outputs mid-session keeps the
     /// conservative value until the next turn.
     var echoFreeOutput = false
     /// Job outcomes waiting for a listening gap; the voice must never be
     /// talked over by its own announcement.
     var pendingAnnouncements: [String] = []
-    private var pendingApproval: ApprovalRequest?
+    /// Written by VoiceSessionApprovals.
+    var pendingApproval: ApprovalRequest?
     /// A remote MCP tool waiting for the user's spoken yes (9j-3). Answered
-    /// over the websocket, not through the job runner.
-    private var pendingMCPApproval: ApprovalRequest?
+    /// over the websocket, not through the job runner. Written by
+    /// VoiceSessionApprovals.
+    var pendingMCPApproval: ApprovalRequest?
     var lastMic = 0.0
     var lastAgent = 0.0
     var reconnectAttempted = false
@@ -74,15 +83,18 @@ public actor VoiceSession: VoiceControlling {
     /// The finished segment waiting to be committed as the turn's text.
     var earSegment: String?
     var earTurnTask: Task<Void, Never>?
-    private let memoryStore: (any MemoryStore)?
+    /// Read by VoiceSessionTeardown's `writeSessionMemory`.
+    let memoryStore: (any MemoryStore)?
     private let approvals: (any ApprovalsProvider)?
     /// Thread length at session open: the summary covers THIS session's
-    /// exchanges, not the whole run.
-    private var sessionStartTurns = 0
+    /// exchanges, not the whole run. Written by VoiceSessionRealtimeOpen,
+    /// read by VoiceSessionTeardown.
+    var sessionStartTurns = 0
     /// The next `.commitWithText` closes a hold (Wave 12b): an empty ear
     /// then means "nothing to send", said out loud to the session, instead
-    /// of the silent nothing a paused conversation gets.
-    private var commitClosesHold = false
+    /// of the silent nothing a paused conversation gets. Written by
+    /// VoiceSessionCommit.
+    var commitClosesHold = false
     /// Bumped by every press; a release compares it after its suspension.
     /// Not private: VoiceSessionTimeline reads and bumps it (Pumps precedent).
     var holdGeneration = 0
@@ -115,7 +127,8 @@ public actor VoiceSession: VoiceControlling {
     /// Wave 12e: the field this hold dictates into, decided at press; and
     /// why it could not, when the words go to Companion instead.
     let fieldProbe: (any FocusedFieldProbing)?
-    private let injector: (any TextInjecting)?
+    /// Read by VoiceSessionCommit's `dictate`.
+    let injector: (any TextInjecting)?
     /// Decided from the field focused at press, but off the press path: the
     /// Accessibility round trip is a call into the app in front, which may
     /// be busy, and the microphone must never wait for it. The release is
@@ -273,57 +286,6 @@ public actor VoiceSession: VoiceControlling {
         classic.parentGuard = parentGuard
     }
 
-    func noteMCPApproval(_ request: ApprovalRequest) async {
-        pendingMCPApproval = request
-    }
-
-    /// The permission the specialist is blocked on. One at a time: the job
-    /// queue is serial, so a new request means the previous one is settled.
-    ///
-    /// Deliberately silent: a job is assistive UI and does not interrupt to
-    /// ask. The sheet shows the request; `resolve_approval` stays declared so
-    /// a spoken "yes" still lands, but nobody is told out loud. The price,
-    /// chosen: a request nobody looks at dies in the 120 s auto-deny.
-    func noteApproval(_ request: ApprovalRequest) async {
-        pendingApproval = request
-    }
-
-    /// The model turned the user's spoken answer into a decision. Nothing
-    /// pending means the sheet already answered it (or the model invented the
-    /// call): resolving anyway would grant a permission nobody asked about.
-    func answerPendingApproval(_ approved: Bool) async -> Bool {
-        // An MCP approval outranks a job approval: it arrived through the
-        // live session the user is answering into.
-        if let mcp = pendingMCPApproval {
-            pendingMCPApproval = nil
-            await realtime.send(RealtimeCodec.mcpApprovalResponse(
-                requestId: mcp.requestId, approve: approved))
-            await realtime.requestResponse()
-            return true
-        }
-        guard pendingApproval != nil else {
-            Log.app("voice: approval answered with nothing pending")
-            return false
-        }
-        pendingApproval = nil
-        // Not resolved here: the answer goes to the session reducer, which
-        // resolves what the sheet shows (the first of its queue) with the
-        // sheet's rules. Two notions of "pending" let a spoken yes grant a
-        // request nobody was looking at (security review 2026-09-06).
-        eventBox.yield(.approvalSpoken(approved: approved))
-        return true
-    }
-
-    func flushAnnouncements() async {
-        guard machine.snapshot.pipeline == .realtime,
-              machine.snapshot.state == .listening,
-              !pendingAnnouncements.isEmpty else { return }
-        let text = pendingAnnouncements.removeFirst()
-        await realtime.send(RealtimeCodec.systemItem(text))
-        // An announcement never talks over anyone: it waits its turn.
-        await realtime.requestResponse()
-    }
-
     public func setSpeed(_ speed: Double) async {
         // Only a live realtime session has anywhere to send this; otherwise the
         // next session picks the persisted value up through the provider.
@@ -358,356 +320,5 @@ public actor VoiceSession: VoiceControlling {
 
     public func interrupt() async {
         await apply(.interrupt)
-    }
-
-    func apply(_ event: TurnEvent) async {
-        let before = machine.snapshot.state
-        switch event {
-        case .realtimeSessionReady: timeline.mark(.sessionReady, at: now())
-        case .firstSentence: timeline.mark(.firstToken, at: now())
-        case .agentAudioStarted:
-            timeline.mark(.firstAudio, at: now())
-            flushTimeline()
-        default: break
-        }
-        let effects = machine.handle(event, at: now())
-        // Voice failures are invisible without a trace of the turn: the log is
-        // the only witness of what the server and the audio graph did.
-        if machine.snapshot.state != before {
-            Log.app("voice: \(before) -> \(machine.snapshot.state)")
-        }
-        snapBox.yield(machine.snapshot)
-        await perform(effects)
-        await flushAnnouncements()
-    }
-
-    private func perform(_ effects: [TurnEffect]) async {
-        for effect in effects {
-            switch effect {
-            case .openRealtimeSession:
-                await openRealtimeSession()
-            case .requestClassicListen:
-                startPumps()
-                await classic.requestListen(
-                    mic: mic, language: configProvider.current.language
-                ) { event in
-                    await self.apply(event)
-                }
-            case .closeRealtime:
-                await closeRealtime()
-            case .stopClassicIO:
-                await classic.stopIO(mic: mic)
-            case .submitUtterance:
-                startClassicTurn(config: configProvider.current)
-            case .cancelAgentOutput:
-                if machine.snapshot.pipeline == .realtime {
-                    await realtime.cancelAgent()
-                } else {
-                    await cancelClassicTurn()
-                }
-            case .commitAndRespond:
-                // Muting mid-utterance: there is no audio buffer to commit any
-                // more — closing the turn from the native transcript IS the
-                // commit (Wave 9i).
-                await commitTurnFromNative()
-            case .commitWithText:
-                await commitTurnFromNative()
-            case .clearInputAudio:
-                await realtime.clearInputAudio()
-            case .setMicEnabled(let on):
-                realtime.micEnabled = on
-            case .beginSpeechStream:
-                await synthesizer.begin()
-            case .finishSpeechStream:
-                await synthesizer.finish()
-            case .noteFailure:
-                // Deliberately silent. The failure reaches the thread through
-                // the view model, which reads the language catalog; Services
-                // writing its own wording meant one failure arrived twice, in
-                // two different sentences, and the user read it as two bugs.
-                break
-            }
-        }
-    }
-
-    private func openRealtimeSession() async {
-        realtime.reset()
-        reconnectAttempted = false
-        echoFreeOutput = echoFreeProbe()
-        if echoFreeOutput { Log.app("audio: echo-free output detected") }
-        guard let key = openAIKey() else {
-            await failRealtimeStart()
-            return
-        }
-        let granted = await mic.requestAccess()
-        if !granted {
-            await apply(.voiceStartFailed(.micDenied))
-            return
-        }
-        do {
-            try await mic.start()
-        } catch {
-            await apply(.voiceStartFailed(.micUnavailable))
-            return
-        }
-        let aec = await mic.hasEchoCancellation
-        do {
-            try await player.start(sharedEngine: aec)
-        } catch {
-            await failRealtimeStart()
-            return
-        }
-        guard let url = RealtimeCodec.url() else {
-            await failRealtimeStart()
-            return
-        }
-        // Read config from provider at session open time, allowing preferences
-        // to apply without session reconstruction.
-        let config = configProvider.current
-        // Wave 12c: the user is already talking. The frames queue from here
-        // and the ear comes up alongside the socket, not after it; the
-        // first word of a hold used to fall in that gap.
-        startFramePump()
-        let locale = config.language.speechLocaleIdentifier
-        earTask = Task { [weak self] in await self?.beginEar(locale: locale) }
-        realtime.prepareSessionUpdate(
-            config: config, history: await classic.thread.historyTurns(),
-            canDelegate: jobs != nil)
-        sessionStartTurns = await classic.thread.memoryTurns().count
-        do {
-            try await transport.open(key: key, url: url)
-        } catch {
-            await failRealtimeStart(error)
-            return
-        }
-        startPumps()
-        await realtime.flushPendingUpdate()
-        if await waitForReady() {
-            await earTask?.value
-            earTask = nil
-            armMicSilenceWatchdog()
-            return
-        }
-        if machine.snapshot.state == .connecting {
-            // Handshake never completed: unreachable from the user's side.
-            await failRealtimeStart(VoiceTransportError.timeout)
-        }
-    }
-
-    /// The ear, started on the actor while the socket opens. A session that
-    /// died meanwhile (offline, refused) takes the ear down with it.
-    private func beginEar(locale: String) async {
-        await audit.begin(locale: locale)
-        let state = machine.snapshot.state
-        guard state == .connecting || state == .listening else {
-            await audit.end()
-            return
-        }
-        if audit.isLive { timeline.mark(.earReady, at: now()) }
-    }
-
-    private func failRealtimeStart(_ error: Error? = nil) async {
-        // Offline is not the same as "the realtime server did not answer":
-        // classic still works in the second case, but with no network it would
-        // trade a readable error for a mic listening in silence.
-        let online = await reachability.isOnline
-        let failure = online
-            ? VoiceFailureMapping.failure(for: error)
-            : .networkUnavailable
-        await apply(.voiceStartFailed(failure))
-        guard online else { return }
-        if machine.snapshot.state == .error {
-            await apply(.startVoice(preferRealtime: false))
-        }
-    }
-
-    /// The prototype armed this at the wiring layer: an engine can start
-    /// clean and still never deliver a buffer (poisoned HAL, VPIO leftovers).
-    /// Waits past MicCapture's own retry window, then fails LOUD instead of
-    /// leaving a mic that listens to nothing forever.
-    private func armMicSilenceWatchdog() {
-        micSilenceTask?.cancel()
-        micSilenceTask = Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await Task.sleep(for: .seconds(micSilenceTimeout))
-            } catch { return }
-            await self.checkMicSilence()
-        }
-    }
-
-    private func checkMicSilence() async {
-        let snap = machine.snapshot
-        guard snap.pipeline == .realtime,
-              snap.state == .listening || snap.state == .connecting,
-              await !mic.receivedBuffer else { return }
-        Log.app("audio: no mic buffer after \(micSilenceTimeout)s — failing loud")
-        await apply(.turnFailed(.micSilent))
-    }
-
-    /// End of a user turn. A segmenting ear (9j-1) hands the turn's final
-    /// text directly; otherwise it is read from the ear's running transcript.
-    private func commitTurnFromNative() async {
-        let closesHold = commitClosesHold
-        commitClosesHold = false
-        // The server segmented the turn: its text is final, commit at once.
-        if let segment = earSegment {
-            earSegment = nil
-            audit.consume()
-            commitTimeline()
-            await realtime.commitWithText(segment, context: await senseVoice())
-            return
-        }
-        // Let the last native partial settle before reading it. A cancel here
-        // means the session is tearing down — drop the turn, don't commit.
-        do {
-            try await Task.sleep(nanoseconds: 250_000_000)
-        } catch {
-            screen?.cancel()
-            return
-        }
-        // v1 is hybrid-only: Apple is the ear. Without it (Speech denied) there
-        // is no input path — say so once, don't spin responding to nothing.
-        guard audit.isLive else {
-            Log.app("voice: no native ear (Speech Recognition not authorized) "
-                + "— enable it in System Settings › Privacy › Speech Recognition")
-            if closesHold { eventBox.yield(.heardNothing) }
-            screen?.cancel()
-            return
-        }
-        let text = audit.turnText()
-        var target: FocusedField?
-        var notice: DictationNotice?
-        switch await destination() {
-        case .dictation(let field): target = field
-        case .agent(let why): notice = why
-        }
-        // Dictated words are the user's document, not ours: they never
-        // reach the log (corpus spec 11).
-        if target == nil { audit.logTurn() }
-        // Mark everything recognized so far as this turn's — the recognizer
-        // keeps running (a restart re-enters its ~12 s cold start).
-        audit.consume()
-        guard !text.isEmpty else {
-            if closesHold { eventBox.yield(.heardNothing) }
-            screen?.cancel()
-            return
-        }
-        if target != nil { screen?.cancel() }
-        if let target, await dictate(text, into: target) { return }
-        commitTimeline()
-        await realtime.commitWithText(text, context: await senseVoice())
-        if notice == .needsAccessibility {
-            eventBox.yield(.dictationFailed(.needsAccessibility))
-        }
-    }
-
-    /// True when the words landed in the field. On any failure they go to
-    /// Companion instead: nothing the user said is lost, and never pasted
-    /// anywhere but the field probed at press.
-    func dictate(_ text: String, into field: FocusedField) async -> Bool {
-        guard let injector else { return false }
-        switch await injector.inject(text, into: field) {
-        case .injected(let count, let route):
-            commitTimeline()
-            Log.app("dictation: pasted \(count) chars into \(field.app) via \(route.rawValue)")
-            eventBox.yield(.dictated(app: field.app))
-            return true
-        case .failed(let reason):
-            Log.app("dictation: \(reason) in \(field.app); the words go to Companion")
-            if reason == .needsAccessibility {
-                eventBox.yield(.dictationFailed(.needsAccessibility))
-            }
-            return false
-        }
-    }
-
-    /// Sensed per spoken turn, within the budget; the source is voice.
-    private func senseVoice() async -> TurnContext? {
-        guard let sensor else { return nil }
-        let config = configProvider.current
-        var ctx = await sensor.sense(config.contextChannels, budget: config.contextBudget)
-        ctx.source = .voice
-        if config.contextChannels.contains(.screen), let screen {
-            let brief = await screen.finish(wait: .seconds(2))
-            ctx.screenSummary = brief.summary
-            ctx.screenSnippets = brief.snippets
-            ctx.screenPending = brief.pending
-            ctx.pointed = brief.pointed
-        }
-        return ctx
-    }
-
-    private func closeRealtime() async {
-        screen?.cancel()
-        pendingAnnouncements.removeAll()
-        micSilenceTask?.cancel()
-        micSilenceTask = nil
-        eventTask?.cancel()
-        eventTask = nil
-        earTurnTask?.cancel()
-        earTurnTask = nil
-        partialTask?.cancel()
-        partialTask = nil
-        await earTask?.value
-        earTask = nil
-        earSegment = nil
-        dictationTask?.cancel()
-        dictationTask = nil
-        flushTimeline()
-        await audit.end()
-        await realtime.close(mic: mic)
-        await writeSessionMemory()
-    }
-
-    /// 9j-2 write path: distill what THIS session asked into a short note.
-    /// Mechanical (no model call) and best-effort — a failed write is logged,
-    /// never surfaced as a session error.
-    private func writeSessionMemory() async {
-        guard let memoryStore else { return }
-        // The memory reads the words, not the model's history: the compact
-        // context line ("[voice · 1Password]") must never reach a file.
-        let turns = await classic.thread.memoryTurns()
-        guard turns.count > sessionStartTurns else { return }
-        let fresh = Array(turns.dropFirst(sessionStartTurns))
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        guard let summary = MemorySummary.distill(
-            turns: fresh, date: formatter.string(from: Date())) else { return }
-        do {
-            try memoryStore.appendSession(summary)
-            Log.app("memory: session summary saved")
-        } catch {
-            Log.app("memory: summary write failed (\(error))")
-        }
-    }
-
-    private func waitForReady() async -> Bool {
-        if readyTimeout <= 0 { return realtime.didBecomeReady }
-        let deadline = ContinuousClock.now + .seconds(readyTimeout)
-        while ContinuousClock.now < deadline {
-            if realtime.didBecomeReady { return true }
-            if machine.snapshot.state != .connecting { return false }
-            do {
-                try await Task.sleep(for: .milliseconds(5))
-            } catch {
-                return realtime.didBecomeReady
-            }
-        }
-        return realtime.didBecomeReady
-    }
-
-    func openAIKey() -> String? {
-        let value: String?
-        do {
-            value = try secrets.read(.openAI)
-        } catch {
-            Log.app("voice: OpenAI key unread")
-            return nil
-        }
-        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-            ?? ""
-        return trimmed.isEmpty ? nil : trimmed
     }
 }
