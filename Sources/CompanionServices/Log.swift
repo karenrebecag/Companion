@@ -38,6 +38,10 @@ public enum Log: Sendable {
 
     public static func audio(_ message: String) { write(tag: "audio", message: message) }
 
+    /// Wave 17: the local bridge (socket, hello, calls). Never the tool
+    /// arguments or `output` — only name, outcome, target and a char count.
+    public static func bridge(_ message: String) { write(tag: "bridge", message: message) }
+
     private static func write(tag: String, message: String) {
         let line = "\(timestamp()) [\(tag)] \(message)\n"
         sink.lock.lock()

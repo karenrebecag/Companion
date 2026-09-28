@@ -18,6 +18,7 @@ import Testing
     testFirstCallFromListedNeedsApproval()
     testApprovedThenAdmitProceeds()
     testDeniedThenAdmitFails()
+    testBudgetSurvivesHelloByeReconnect()
     testHelloWhileListedProceedsStaysListed()
 }
 
@@ -328,4 +329,46 @@ private func testHelloWhileListedProceedsStaysListed() {
         return expect(false, "hello while listed: should proceed")
     }
     expect(policy.isListed, "hello while listed: still listed")
+}
+
+/// Security review 2026-09-28 (HIGH): `helloReceived` used to zero the
+/// write-budget window on the idle/closed → listed transition, so
+/// `hello → 30 writes → bye → hello → …` reset the 30/min budget on every
+/// reconnect. The budget is per PROCESS, not per connection — it must only
+/// ever shrink by time passing (`admit`'s own sliding-window prune), never
+/// by a fresh `hello`.
+private func testBudgetSurvivesHelloByeReconnect() {
+    var policy = BridgePolicy()
+    let t0 = Date()
+
+    _ = policy.helloReceived(now: t0)
+    _ = policy.admit(tool: "click", now: t0) // triggers needsApproval
+    policy.approved(until: nil, now: t0)
+    for i in 0 ..< 30 {
+        let verdict = policy.admit(tool: "click", now: t0)
+        guard case .proceed = verdict else {
+            return expect(false, "write \(i): should proceed while filling the budget")
+        }
+    }
+
+    // The connection drops (or a `bye` arrives) and the client reconnects.
+    policy.disconnected()
+    let helloVerdict = policy.helloReceived(now: t0.addingTimeInterval(1))
+    guard case .proceed = helloVerdict else {
+        return expect(false, "reconnect: hello should proceed from idle")
+    }
+    policy.approved(until: nil, now: t0.addingTimeInterval(1))
+
+    let stillLimited = policy.admit(tool: "click", now: t0.addingTimeInterval(1))
+    guard case .reject(let code) = stillLimited else {
+        return expect(false, "reconnect within the window: budget must not have reset")
+    }
+    expectEq(code, BridgeCode.rateLimited,
+             "reconnect within the window: still rate_limited — hello does not launder the budget")
+
+    // Past the 60 s window, the old writes finally age out on their own.
+    let afterWindow = policy.admit(tool: "click", now: t0.addingTimeInterval(61))
+    guard case .proceed = afterWindow else {
+        return expect(false, "past the window: should proceed once the old writes expire")
+    }
 }

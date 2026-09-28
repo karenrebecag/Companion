@@ -54,11 +54,16 @@ public struct BridgePolicy: Sendable, Equatable {
     /// Called when hello is received. Transitions from idle or closed to listed
     /// (tools published), or from listed to listed (client listing again),
     /// or rejects if already in an active session (awaitingApproval, open, paused).
+    ///
+    /// Security review 2026-09-28 (HIGH): never resets `writeTimestamps`
+    /// here. The budget is per PROCESS, not per connection — `admit`'s own
+    /// sliding-window prune is the only thing allowed to shrink it, or
+    /// `hello → 30 writes → bye → hello → …` would launder the 30/min cap
+    /// on every reconnect.
     public mutating func helloReceived(now: Date) -> BridgeVerdict {
         switch state {
         case .idle, .closed:
             state = .listed
-            writeTimestamps = []
             return .proceed
         case .listed:
             // Another hello while listing tools is fine; stay listed
