@@ -128,6 +128,11 @@ public final class IslandGeometry {
     public var peeking = false
     /// The open dropdown's frame in the canvas, for the click area (16o-1).
     public var portal: CGRect?
+    /// A file is being dragged over the shape (16i-2), and the zone under it.
+    public var dropping = false
+    public var dropZone: IslandDropZone?
+    /// Where a dropped file goes; the view installs it.
+    @ObservationIgnored public var onDrop: (([URL], IslandDropZone) -> Void)?
 
     public init(notch: Notch = NotchGeometry.notch(on: ScreenShape(
         frame: CGRect(x: 0, y: 0, width: 1512, height: 982), visibleMaxY: 945, safeTop: 0,
@@ -164,12 +169,17 @@ public final class IslandPanel: NSPanel {
     private var leaveTask: Task<Void, Never>?
     private var monitors: [Any] = []
     private var screenObserver: NSObjectProtocol?
+    private let dropTarget: IslandDropTarget
+    private let catcher: IslandDropCatcher
 
     public init<Content: View>(
         content: Content, geometry: IslandGeometry, onHover: @escaping @MainActor (Bool) -> Void
     ) {
         self.geometry = geometry
         self.onHover = onHover
+        let dropTarget = IslandDropTarget(geometry: geometry)
+        self.dropTarget = dropTarget
+        catcher = IslandDropCatcher(target: dropTarget)
         super.init(
             contentRect: NSRect(origin: .zero, size: NSSize(width: IslandChrome.canvasWidth,
                                                             height: IslandChrome.canvasHeight)),
@@ -186,9 +196,12 @@ public final class IslandPanel: NSPanel {
         becomesKeyOnlyIfNeeded = true
         isReleasedWhenClosed = false
         ignoresMouseEvents = true
-        let hosting = NSHostingView(rootView: content)
+        let hosting = IslandHostingView(rootView: content)
         hosting.sizingOptions = []
         hosting.autoresizingMask = [.width, .height]
+        hosting.dropTarget = dropTarget
+        hosting.card = { [weak self] in self?.shape ?? .zero }
+        hosting.registerForDraggedTypes(IslandDropTarget.types)
         contentView = hosting
         redock()
         watchPointer()
@@ -217,6 +230,7 @@ public final class IslandPanel: NSPanel {
             setHit(.zero)
             return
         }
+        defer { syncCatcher() }
         let target = IslandChrome.shapeSize(for: size, contentHeight: contentHeight, notch: geometry.notch)
         let sizes = IslandChrome.hitSizes(current: hitSize, target: target)
         setHit(sizes.now)
@@ -240,6 +254,14 @@ public final class IslandPanel: NSPanel {
             IslandChrome.hitSize(base: hitSize, peeking: geometry.peeking,
                                  resting: IslandMotion.rests(presented.size), notch: geometry.notch),
             notch: geometry.notch)
+        syncCatcher()
+    }
+
+    private func syncCatcher() {
+        let rect = hitSize == .zero ? .zero : IslandDropCatch.rect(
+            shape: shape, hardwareNotch: geometry.notch.isHardware,
+            resting: IslandMotion.rests(presented.size), dropping: geometry.dropping)
+        catcher.follow(rect, below: self)
     }
 
     /// The display with the notch, or the one with the menu bar. Never

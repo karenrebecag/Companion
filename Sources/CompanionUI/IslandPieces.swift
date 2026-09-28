@@ -197,7 +197,10 @@ struct IslandComposer: View {
     var focused: FocusState<Bool>.Binding
     let mark: AnyView
     let onSend: () -> Void
-    let onAttach: () -> Void
+    /// The clip opens its dropdown through the portal, like the header's (16i-2).
+    @Binding var popover: IslandPopoverKind?
+    /// A staged attachment is enough to send, as in the window.
+    var staged = false
     @State private var clipHover = false
 
     var body: some View {
@@ -216,16 +219,19 @@ struct IslandComposer: View {
                 .focused(focused)
                 .onSubmit(onSend)
                 .padding(.leading, IslandFieldMetrics.textInset)
-            Button(action: onAttach) {
+            Button {
+                popover = IslandPopoverToggle.next(current: popover, tapped: .attach)
+            } label: {
                 Image(systemName: "paperclip")
                     .font(.system(size: TypeSize.sectionTitle, weight: .regular))
-                    .foregroundStyle(clipHover ? IslandInk.text : IslandInk.secondary)
+                    .foregroundStyle(clipLit ? IslandInk.text : IslandInk.secondary)
                     .frame(width: IslandFieldMetrics.tool, height: IslandFieldMetrics.tool)
-                    .background(Circle().fill(clipHover ? IslandInk.chipPressed : Color.clear))
+                    .background(Circle().fill(clipLit ? IslandInk.chipPressed : Color.clear))
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .onHover { clipHover = $0 }
+            .portal(popover == .attach ? .popover(.attach) : nil)
             .accessibilityLabel(Localized.string("island.attach"))
             Button(action: onSend) {
                 Image(systemName: "arrow.up")
@@ -245,7 +251,8 @@ struct IslandComposer: View {
         .background(RoundedRectangle(cornerRadius: IslandFieldMetrics.radius).fill(IslandInk.fieldFill))
     }
 
-    private var ready: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var ready: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || staged }
+    private var clipLit: Bool { clipHover || popover == .attach }
 }
 
 /// The destructive entry asks once, inside the panel: a sheet or an alert

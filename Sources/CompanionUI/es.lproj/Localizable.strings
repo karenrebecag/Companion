@@ -546,3 +546,15 @@
 "card.table.truncated" = "Se muestran las primeras %d filas.";
 "card.chart" = "Gráfica";
 "chat.card.data" = "[datos mostrados en una tarjeta en pantalla]";
+
+/* Wave 16i-2: the clip and dropping on the notch */
+"island.attach.chooseFile" = "Elegir archivo…";
+"island.attach.captureText" = "Capturar texto";
+"island.attach.screenshot" = "Captura de pantalla";
+"island.attach.noText" = "No encontré texto en esa zona.";
+"island.attach.captureFailed" = "No pude hacer la captura.";
+"island.attach.needsScreen" = "Para capturar, da el permiso de Grabación de pantalla.";
+"island.drop.title" = "Suelta el archivo";
+"island.drop.ask" = "Pregúntale";
+"island.drop.airDrop" = "AirDrop";
+"island.drop.airDropUnavailable" = "AirDrop no está disponible ahora.";
