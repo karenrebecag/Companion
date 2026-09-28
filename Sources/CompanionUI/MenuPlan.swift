@@ -93,6 +93,15 @@ public extension Notification.Name {
     /// thread can persist a voice setting.
     nonisolated static let companionDictationKeyDidChange = Notification.Name(
         "companion.dictationKeyDidChange")
+    /// Wave 17: "Detener manos" from the island's chip — CompanionMain owns
+    /// the bridge host, so the panel (which does not) asks by notification,
+    /// same seam as `companionAttach`.
+    static let companionStopHands = Notification.Name(
+        "companion.stopHands")
+    /// Wave 17: the "Lend your hands" toggle changed — the App layer starts
+    /// or stops the bridge listener without a relaunch.
+    nonisolated static let companionHandsLendingDidChange = Notification.Name(
+        "companion.handsLendingDidChange")
 }
 
 public enum MenuPlan {
@@ -193,7 +202,10 @@ public enum MenuPlan {
 /// The menu bar item (Wave 16d): Incredible's five, so the app stays
 /// reachable with the window closed.
 public enum StatusCommand: String, Sendable, Equatable, CaseIterable {
-    case cancel, show, settings, checkUpdates, quit
+    // Wave 17: `stopHands` sits before `quit` — `StatusBarMenu.rebuild()`
+    // draws a separator right before quit, and adding a case here is the
+    // only thing that moves an entry ahead of that separator.
+    case cancel, show, settings, checkUpdates, stopHands, quit
 }
 
 public struct StatusMenuItem: Sendable, Equatable {
@@ -207,9 +219,15 @@ public enum StatusMenuPlan {
         StatusCommand.allCases.map { command in
             StatusMenuItem(
                 command: command,
-                title: Localized.string("status.\(command.rawValue)"),
+                title: Localized.string(titleKey(for: command)),
                 keyEquivalent: command == .cancel ? "\u{1b}" : "")
         }
+    }
+
+    /// Every other entry's title lives at "status.<command>"; `stopHands`
+    /// uses "menu.stopHands" instead (spec §4), its own catalog entry.
+    private static func titleKey(for command: StatusCommand) -> String {
+        command == .stopHands ? "menu.stopHands" : "status.\(command.rawValue)"
     }
 }
 

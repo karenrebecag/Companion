@@ -22,6 +22,11 @@ public final class SessionModel {
     private var pendingExpiry: Task<Void, Never>?
     private var voiceIdle: Task<Void, Never>?
     private var noticeExpiry: Task<Void, Never>?
+    /// Wave 17: "the voice wins" — `BridgeHost` pauses the bridge for any
+    /// turn of Karen's own and resumes it back at rest. `send(_:)` is the
+    /// only place `projection.kind` changes, so it is the only place that
+    /// needs to notice.
+    public var onKindChange: (@MainActor (SessionKind) -> Void)?
 
     public init(
         jobs: (any JobSubmitter)?,
@@ -43,8 +48,12 @@ public final class SessionModel {
     /// can write its record when the reducer decided to stop a job.
     @discardableResult
     public func send(_ event: SessionEvent) -> [SessionEffect] {
+        let previousKind = projection.kind
         let effects = machine.handle(event)
         projection = machine.projection
+        if projection.kind != previousKind {
+            onKindChange?(projection.kind)
+        }
         // Anything that moved the chrome off Completed owns it now; a late
         // timer must not drag a new turn back to Idle.
         if projection.kind != .processing(.completed) {

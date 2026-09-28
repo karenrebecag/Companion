@@ -15,6 +15,7 @@ import Testing
     try await testInvalidUTF8LineGetsBadFrameAndConnectionStaysOpen()
     try await testSessionApprovedAfterClientLeftDoesNotExecute()
     try testStopRemovesBothFiles()
+    try await testStartAfterStopServesOnTheNewSocket()
 }
 
 private func tempBridgeDirectory() -> URL {
@@ -236,6 +237,42 @@ func testStopRemovesBothFiles() throws {
 
     expect(!FileManager.default.fileExists(atPath: sockPath), "after stop: socket removed")
     expect(!FileManager.default.fileExists(atPath: tokenPath), "after stop: token removed")
+}
+
+// MARK: - 6. start() after stop() on the same instance
+
+/// Code review 2026-09-28 (MEDIUM): `BridgeHost` keeps ONE listener for the
+/// app's lifetime and flips it with the "Prestar las manos" toggle, so
+/// start→stop→start on the same instance is a user-reachable path nothing
+/// exercised. The second cycle must accept a client on the new socket, hand
+/// it a fresh token, and serve a `hello` end to end.
+@MainActor func testStartAfterStopServesOnTheNewSocket() async throws {
+    let dir = tempBridgeDirectory()
+    let box = Box<BridgeConnection>()
+    let listener = BridgeListener(directory: dir) { connection in box.set(connection) }
+    try listener.start()
+    let firstToken = listener.token
+    listener.stop()
+    try listener.start()
+    defer { listener.stop() }
+
+    expect(listener.token != firstToken, "restart: the token is regenerated")
+    expectEq(listener.token.count, 64, "restart: the new token is a full token")
+
+    let session = BridgeSession(
+        tools: FakeParentTools(), guard: ParentToolGuard(),
+        token: { listener.token }, language: { .en }, accessibility: { true })
+    let client = try PosixTestClient(path: dir.appendingPathComponent("bridge.sock").path)
+    defer { client.close() }
+    let connection = await waitForConnection { box.get() }
+    expect(connection != nil, "restart: the second listen socket accepts")
+    guard let connection else { return }
+    Task.detached { await session.serve(connection) }
+
+    try client.send(
+        #"{"id":1,"method":"hello","params":{"token":"\#(listener.token)","client":"claude-code","protocol":1}}"#)
+    let reply = client.readLine()
+    expect(reply?.contains("\"session\"") == true, "restart: hello round-trips on the new socket")
 }
 
 // MARK: - test helpers

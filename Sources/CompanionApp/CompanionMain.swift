@@ -43,6 +43,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dictationTap: HoldKeyTap?
     /// Set by `presentWindow`, read by `startHoldKeyIfAllowed` below.
     var holdSettings: HoldSettingsModel?
+    /// Wave 17: the local MCP bridge for Claude Code, off unless the setting
+    /// is on. Read by `presentWindow` (the status menu's "Detener manos").
+    var bridgeHost: BridgeHost?
 
     /// A net, not a guarantee, and the difference matters: this runs on an
     /// orderly quit and on nothing else. A crash or a Force Quit gives the app
@@ -70,6 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let pipeline = makeVoicePipeline(
             environment: env, providers: providers, jobs: jobs, sensing: sensing)
         self.voice = pipeline.voice
+        installBridge(environment: env, jobs: jobs, sensing: sensing)
         presentWindow(
             model: sensing.model, voice: pipeline.voice, sessionModel: sensing.sessionModel,
             choice: jobs.choice, memoryStore: env.memoryStore, secrets: env.secrets,
@@ -100,6 +104,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Wave 15a §10: Karen chose "already clean" — the thread archives
         // here, before the window can show it stale.
         model?.rolloverIfIdle()
+    }
+
+    /// Wave 17: the same `parentTools`/`approvals` the chat and the voice
+    /// already use — the bridge is a third caller of the same seam, not a
+    /// second set of hands. Starts only if the setting was already on from
+    /// a previous launch; the toggle in Settings starts/stops it live.
+    private func installBridge(
+        environment env: LaunchEnvironment, jobs: JobInfrastructure, sensing: SensingAndModel
+    ) {
+        let accessibility = AccessibilityPermission()
+        let bridgeHost = BridgeHost(
+            tools: sensing.parentTools, approvals: jobs.approvals,
+            language: { env.configProvider.current.language },
+            accessibility: { accessibility.isTrusted() },
+            sessionModel: sensing.sessionModel)
+        bridgeHost.apply(enabled: HandsLendingPreference.enabled)
+        self.bridgeHost = bridgeHost
+        NotificationCenter.default.addObserver(
+            forName: .companionHandsLendingDidChange, object: nil, queue: .main
+        ) { _ in
+            Task { @MainActor in bridgeHost.apply(enabled: HandsLendingPreference.enabled) }
+        }
+        NotificationCenter.default.addObserver(
+            forName: .companionStopHands, object: nil, queue: .main
+        ) { _ in
+            Task { @MainActor in bridgeHost.stopHands() }
+        }
     }
 
     /// Called from CompanionMainWindow.swift's `presentWindow`.

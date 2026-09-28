@@ -24,7 +24,23 @@ import Testing
         await testHoldEffectsReachTheVoicePort()
         await testTheProvisionalPressAndItsConfirmReachTheVoicePort()
         await testTheWarmSessionHangsUpThroughThePort()
+        testOnKindChangeFiresOnlyWhenTheKindActuallyMoves()
     }
+}
+
+/// Wave 17: `BridgeHost` pauses the bridge for any turn of Karen's own and
+/// resumes it at rest by observing `onKindChange` — it must fire exactly
+/// once per real move and never on an event that leaves `kind` where it was.
+@MainActor func testOnKindChangeFiresOnlyWhenTheKindActuallyMoves() {
+    let session = SessionModel(jobs: nil, approvals: nil)
+    var seen: [SessionKind] = []
+    session.onKindChange = { seen.append($0) }
+    session.send(.hoverEntered)
+    expectEq(seen, [.hover], "onKindChange: idle -> hover avisa")
+    session.send(.hoverEntered)
+    expectEq(seen, [.hover], "onKindChange: sin cambio real, sin aviso otra vez")
+    session.send(.hoverLeft)
+    expectEq(seen, [.hover, .idle], "onKindChange: hover -> idle avisa")
 }
 
 /// 21 (12b). Los efectos del hold llegan al puerto de voz.

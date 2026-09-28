@@ -1,6 +1,6 @@
 # Wave 17 — El puente: las manos de Companion para Claude Code (MCP local)
 
-**Estado: APROBADO (2026-09-28).** Karen: "Aprobada, adelante". P1: el ajuste nace apagado siempre. P2: 17-4 espera a la prueba en vivo. Rama `feat/17-puente-mcp`
+**Estado: CERRADO EN CÓDIGO (2026-09-28).** 17-0, 17-1, 17-2 y 17-3 (shim en `companion-mcp`) entregadas con gates verdes y dos revisiones de seguridad (§9-6 y §9-8) corregidas con test primero. Falta la prueba en vivo de Karen (§7) y su `claude mcp add`. 17-4 espera a esa prueba. Karen: "Aprobada, adelante". P1: el ajuste nace apagado siempre. P2: 17-4 espera a la prueba en vivo. Rama `feat/17-puente-mcp`
 (worktree `companion-next-mcp`); el shim vive en un repo hermano, `companion-mcp`.
 
 Karen (2026-09-28): "¿puedes usar a Companion para controlar mi computadora y hacerlo por tu
@@ -223,3 +223,15 @@ despacha subagentes de modelo bajo para el código sobre spec y tests, y revisa 
    desviación 5 se corrige en ese punto. (c) Una línea no UTF-8 responde `bad_frame` en vez de
    tragarse. (d) Una hoja aprobada después de que el cliente se fue no ejecuta nada.
 
+9. **Revisión de código del cierre (2026-09-28): APPROVE, 0 críticos, 0 altos, 2 medios, 1
+   bajo**; los tres atendidos con test primero. (a) `handle(line:)` respondía `frame_too_large`
+   sin cerrar: el transporte cortaba antes y lo tapaba, pero la entrada documentada "sin socket"
+   ahora también cierra (§3c). (b) `start()` tras `stop()` en el mismo listener — lo que hace el
+   ajuste al apagarse y encenderse sin relanzar — no tenía test; ahora hay uno con socket real:
+   token nuevo y `hello` completo por el segundo socket (pasó en verde a la primera: era
+   cobertura, no bug). (c) Las ramas de caducidad de `BridgePolicy` son inertes desde la
+   desviación 5 (`until` siempre `nil`); se documenta en el sitio en vez de borrarlas, el estado
+   sigue llevando `until` y los tests fijan la semántica. Además, hallazgo propio de la
+   auditoría de 17-2: `BridgeHost` pausaba el puente en `.hover` (el puntero sobre la isla);
+   `SessionKind.isUsersTurn` deja el turno en `.listening`/`.processing` y el `resume` se
+   dispara una sola vez al terminar el turno.

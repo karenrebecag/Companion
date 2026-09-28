@@ -23,6 +23,7 @@ import Testing
     await testLogNeverLeaksArgumentsOrOutput()
     await testStopWithdrawsPendingSheetAndClosesSession()
     await testOnActionFiresForSuccessfulWriteCallsOnly()
+    await testOversizedLineThroughHandleClosesTheConnection()
 }
 
 // MARK: - wire helpers
@@ -500,4 +501,22 @@ final class ScriptedApprovals: ApprovalsProvider, @unchecked Sendable {
     func setAnswer(_ value: Bool, forTool tool: String) {
         lock.lock(); answersByTool[tool] = value; lock.unlock()
     }
+}
+
+// MARK: - code review 2026-09-28 (MEDIUM): the size contract at the actor
+
+/// `BridgeConnection` already cuts an oversized line before it reaches the
+/// actor, so in production `handle(line:)` never saw one and answered with
+/// `close: false`. Spec §3c is "una línea mayor cierra la conexión": the
+/// entry point documented as "pure enough to test without a socket" must
+/// honour it on its own, or a future caller that trusts it inherits a hole.
+@MainActor func testOversizedLineThroughHandleClosesTheConnection() async {
+    let s = session(tools: FakeParentTools())
+    let oversized = "{\"id\":1,\"method\":\"hello\",\"params\":{\"token\":\""
+        + String(repeating: "a", count: BridgeCodec.maxLineBytes) + "\"}}"
+
+    let result = await s.handle(line: oversized)
+
+    expect(result.reply.contains(BridgeCode.frameTooLarge), "handle: too large is frame_too_large")
+    expect(result.close, "handle: too large closes the connection, like the transport does")
 }

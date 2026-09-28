@@ -1,8 +1,11 @@
 import Foundation
 
-/// Wave 17. Strings for the bridge: sheet copy (title and options), chip label,
-/// button, settings title and description, and the data-not-instructions suffix
-/// for tool descriptions. All catalog-based; no formatting beyond concatenation.
+/// Wave 17. Strings for the bridge that stay OUTSIDE the UI catalog: the
+/// approval sheet's title and detail (built before `Localized` can be
+/// reached — `BridgeSession` is a Services actor) and the data-not-
+/// instructions suffix for tool descriptions, read by the shim too.
+/// §9-5/17-2: the chip, "Stop hands" and the setting moved to
+/// `Localized`/`Localizable.strings` — one catalog for what the user reads.
 
 public enum BridgeCopy {
     /// Sheet title when the bridge requests approval. Caller embeds the
@@ -23,77 +26,6 @@ public enum BridgeCopy {
             return "It can click, type, and control your screen. Destructive actions still ask."
         case .es:
             return "Puede pulsar, escribir y controlar tu pantalla. Las acciones destructivas siguen pidiendo permiso."
-        }
-    }
-
-    /// First button: allow for 1 hour.
-    public static func allowOneHour(_ language: AppLanguage = .en) -> String {
-        switch language {
-        case .en:
-            return "Allow for 1 hour"
-        case .es:
-            return "Permitir 1 hora"
-        }
-    }
-
-    /// Second button: allow until connection closes.
-    public static func allowThisConnection(_ language: AppLanguage = .en) -> String {
-        switch language {
-        case .en:
-            return "Only this connection"
-        case .es:
-            return "Solo esta conexión"
-        }
-    }
-
-    /// Third button: deny.
-    public static func deny(_ language: AppLanguage = .en) -> String {
-        switch language {
-        case .en:
-            return "No"
-        case .es:
-            return "No"
-        }
-    }
-
-    /// The chip shown in the status bar while a session is open. Caller
-    /// embeds the client name like "\(clientName) \(chipLabelSuffix(.en))".
-    public static func chipLabel(_ language: AppLanguage = .en) -> String {
-        switch language {
-        case .en:
-            return "Hands"
-        case .es:
-            return "Manos"
-        }
-    }
-
-    /// The button in the chip and in the menu to stop the session.
-    public static func stopHands(_ language: AppLanguage = .en) -> String {
-        switch language {
-        case .en:
-            return "Stop hands"
-        case .es:
-            return "Detener manos"
-        }
-    }
-
-    /// Setting title under Agents > Lend your hands to other agents.
-    public static func settingTitle(_ language: AppLanguage = .en) -> String {
-        switch language {
-        case .en:
-            return "Lend your hands to other agents"
-        case .es:
-            return "Prestar las manos a otros agentes"
-        }
-    }
-
-    /// One-line description for the setting.
-    public static func settingDescription(_ language: AppLanguage = .en) -> String {
-        switch language {
-        case .en:
-            return "Let Claude Code control your screen when you ask."
-        case .es:
-            return "Permite a Claude Code controlar tu pantalla cuando lo pidas."
         }
     }
 

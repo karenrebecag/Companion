@@ -303,6 +303,24 @@ public enum InterfaceSound {
     }
 }
 
+/// Wave 17 (spec §3 "Ajuste", P1): "Agentes › Prestar las manos a otros
+/// agentes". Default OFF everywhere — a missing key must never open a
+/// socket nobody asked for. Posts on every real change so `CompanionMain`
+/// can start or stop the bridge listener without a relaunch, the same shape
+/// `companionDictationKeyDidChange` already uses for the FN tap.
+public enum HandsLendingPreference {
+    nonisolated private static let key = "companion.lendHands"
+
+    nonisolated public static var enabled: Bool {
+        get { UserDefaults.standard.bool(forKey: key) }
+        set {
+            guard newValue != enabled else { return }
+            UserDefaults.standard.set(newValue, forKey: key)
+            NotificationCenter.default.post(name: .companionHandsLendingDidChange, object: nil)
+        }
+    }
+}
+
 /// Wave 16d: the words the ear should get right, as the user typed them.
 public enum VocabularyPreference {
     nonisolated private static let key = "companion.vocabulary"

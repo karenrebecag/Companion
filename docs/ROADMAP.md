@@ -28,6 +28,16 @@
 
 ## Foco actual
 
+### Las manos para Claude Code (Wave 17, cerrada en código 2026-09-28)
+
+Companion presta sus manos (`look`/`click`/`type_text`/`open_app`…) a una sesión de Claude Code
+por un socket Unix local + shim MCP (`companion-mcp`, repo hermano). Mismo runner, mismas hojas,
+cero palabras dichas: lo sensible pide permiso; presupuesto 30 escrituras/min por proceso; la voz
+de Karen pausa el puente; chip "Manos: Claude Code" y "Detener manos" en isla y menú; ajuste
+*Prestar las manos a otros agentes* apagado por defecto. Una hoja por sesión (nunca se recuerda:
+revisión de seguridad). Falta la prueba en vivo (`wave-17-puente-mcp.md` §7); después, 17-4 (el
+especialista con el mismo shim en vez de `osascript`).
+
 ### Vista, click y UX (16a–16e cerradas, 2026-09-25)
 
 `look`/`click`/`scroll`/`menu`/`see` sobre Accesibilidad como el helper de Incredible; el

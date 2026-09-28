@@ -75,7 +75,11 @@ public actor BridgeSession {
     public func handle(line: String) async -> (reply: String, close: Bool) {
         switch BridgeCodec.decode(line: line) {
         case .failure(let error):
-            return (BridgeCodec.encode(.error(id: nil, error)), false)
+            // Spec §3c: an oversized line closes the connection. The
+            // transport cuts it first in production; this entry point is
+            // the documented socket-free one, so it keeps the contract too.
+            let tooLarge = error.code == BridgeCode.frameTooLarge
+            return (BridgeCodec.encode(.error(id: nil, error)), tooLarge)
         case .success(.hello(let id, let hello)):
             return await handleHello(id: id, hello: hello)
         case .success(.call(let id, let call)):

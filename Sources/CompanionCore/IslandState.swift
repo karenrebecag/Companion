@@ -42,6 +42,8 @@ public struct IslandState: Sendable, Equatable {
     public enum Action: Sendable, Equatable {
         case openKeys
         case openPermission(TurnFailure)
+        /// Wave 17: "Corte" — closes the bridge session from the chip.
+        case stopHands
     }
 
     public var size: Size
@@ -53,6 +55,10 @@ public struct IslandState: Sendable, Equatable {
     public var partial: String?
     public var light: Light = .none
     public var action: Action?
+    /// Wave 17: the bridge's client name while a session is open (spec §3
+    /// "Se ve"), independent of `size`/`line` — the chip rides alongside
+    /// whatever the chrome is doing.
+    public var hands: String?
     /// The sheet replaced the field: the panel must hand the keyboard back,
     /// or the next Return meant for the draft answers the sheet (security
     /// review 16, critical).
@@ -112,6 +118,16 @@ public struct IslandState: Sendable, Equatable {
         if let approval = p.approval {
             state.size = .card
             state.approval = mainInFront ? nil : approval
+        }
+        // Wave 17: the chip needs somewhere to live even at rest — but never
+        // shrinks a sheet already showing (`size` is `.card` by the time the
+        // approval block above runs, so this `hidden`/`pebble` check never
+        // fires while one is up).
+        if let client = p.handsLentTo {
+            state.hands = client
+            if state.size == .hidden || state.size == .pebble {
+                state.size = .nudge
+            }
         }
         state.light = light(p)
         state.action = action(state.line)
