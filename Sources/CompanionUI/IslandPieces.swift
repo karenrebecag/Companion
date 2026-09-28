@@ -283,7 +283,7 @@ enum IslandReplyText {
     static let maxLength = 240
 
     static func spoken(from reply: String) -> String {
-        let paragraph = reply.components(separatedBy: "\n\n")
+        let paragraph = MarkdownSplitter.proseWithoutCards(reply).components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { !$0.isEmpty } ?? ""
         // Model text is unbounded and this runs on every streamed token: cut

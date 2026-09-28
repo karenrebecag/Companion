@@ -74,6 +74,46 @@ public struct MarkdownSplitter: Sendable {
         return out.joined(separator: "\n\n")
     }
 
+    /// The reply as words only: every `companion:` card removed. An unclosed
+    /// fence counts as code to the end, so a card still streaming never
+    /// shows half its JSON.
+    public static func proseWithoutCards(_ text: String) -> String {
+        split(text).compactMap { part -> String? in
+            switch part.kind {
+            case .prose(let t):
+                return t
+            case .quote(let t):
+                return "> " + t
+            case .heading(let level, let t):
+                return String(repeating: "#", count: level) + " " + t
+            case .list(_, let items):
+                return items.map {
+                    String(repeating: "  ", count: $0.depth) + "- " + $0.text
+                }.joined(separator: "\n")
+            case .rule:
+                return "---"
+            case .code(let lang, let body):
+                return lang.hasPrefix("companion:") ? nil : "```\(lang)\n\(body)\n```"
+            case .table(let headers, let rows):
+                return ([headers] + rows).map { "| " + $0.joined(separator: " | ") + " |" }
+                    .joined(separator: "\n")
+            }
+        }.joined(separator: "\n\n")
+    }
+
+    /// What a card-only reply can still say on the island.
+    public static func firstCardTitle(_ text: String) -> String? {
+        for part in split(text) {
+            guard case .code(let lang, let body) = part.kind,
+                  lang.hasPrefix("companion:"),
+                  let title = CompanionBlocks.jsonObject(body)?["title"] as? String
+            else { continue }
+            let clean = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !clean.isEmpty { return clean }
+        }
+        return nil
+    }
+
     public static func extractSources(_ parts: [Part])
         -> (rest: [Part], web: [SourceLink]) {
         guard let start = parts.firstIndex(where: { isSourcesHeader($0.kind) })
