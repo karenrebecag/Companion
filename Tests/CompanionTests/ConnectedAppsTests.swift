@@ -55,6 +55,57 @@ private func data(_ json: String) -> Data { Data(json.utf8) }
     }
 }
 
+// Wave 16k-2a: /api/tools marks each tool "read" or "write" (companion-apps
+// lib/mcp.mjs classify()); the app itself decides the third bucket from a
+// destructive flag the function does not send yet but the wire tolerates.
+@Test func appActionGroupMapping() {
+    #expect(AppAction.classify(kind: "read", destructive: false) == .leer)
+    #expect(AppAction.classify(kind: nil, destructive: false) == .crearYCambiar, "undeclared never reads")
+    #expect(AppAction.classify(kind: "write", destructive: false) == .crearYCambiar)
+    #expect(AppAction.classify(kind: "write", destructive: true) == .borrar, "destructive beats write when both appear")
+    #expect(AppAction.classify(kind: "destructive", destructive: false) == .borrar)
+    #expect(AppAction.classify(kind: "read", destructive: true) == .borrar, "destructive beats a stray read too")
+}
+
+@Test func appsWireToolsParsing() throws {
+    let actions = try AppsWire.tools(status: 200, body: data("""
+    {"success":true,"data":{"tools":[
+      {"name":"slack-send-message","description":"Send a message","kind":"write"},
+      {"name":"slack-list-channels","description":"List channels","kind":"read"},
+      {"name":"slack-archive-channel","description":"Archive a channel","kind":"write","destructive":true},
+      {"name":"slack-add-reaction","description":"React to a message"}
+    ]}}
+    """))
+    #expect(actions.map(\.slug) == [
+        "slack-add-reaction", "slack-archive-channel", "slack-list-channels", "slack-send-message",
+    ], "alphabetical order across the whole answer")
+    #expect(actions.first { $0.slug == "slack-add-reaction" }?.group == .crearYCambiar, "no kind at all never reads")
+    #expect(actions.first { $0.slug == "slack-list-channels" }?.group == .leer)
+    #expect(actions.first { $0.slug == "slack-archive-channel" }?.group == .borrar)
+    #expect(actions.first { $0.slug == "slack-send-message" }?.group == .crearYCambiar)
+    #expect(actions.first { $0.slug == "slack-send-message" }?.name == "Slack Send Message")
+
+    let empty = try AppsWire.tools(status: 200, body: data(#"{"success":true,"data":{"tools":[]}}"#))
+    #expect(empty.isEmpty)
+
+    #expect(throws: AppsFailure.invalidInput) {
+        try AppsWire.tools(status: 400, body: data(#"{"success":false,"error":"invalid_input"}"#))
+    }
+    #expect(throws: AppsFailure.unauthorized) {
+        try AppsWire.tools(status: 401, body: data(#"{"success":false,"error":"unauthorized"}"#))
+    }
+}
+
+// Security review 16k-2a (MEDIUM): a misbehaving or hostile MCP app could
+// list far more tools than any real app does; the parser caps it so the
+// panel never has to render (or lazily hold) an unbounded list.
+@Test func appsWireToolsCapsAtTwoHundred() throws {
+    let items = (0..<201).map { #"{"name":"slack-tool-\#($0)","description":"","kind":"read"}"# }
+    let body = data(#"{"success":true,"data":{"tools":["# + items.joined(separator: ",") + "]}}")
+    let actions = try AppsWire.tools(status: 200, body: body)
+    #expect(actions.count == 200, "201 sent, only 200 parsed")
+}
+
 @Test func connectedAppsEndpoint() {
     #expect(AppsEndpoint.validated("https://companion-apps.vercel.app")?.absoluteString
         == "https://companion-apps.vercel.app")

@@ -66,6 +66,33 @@ struct AppsPage: View {
             }
             await apps.search(searchText)
         }
+        .overlay { panelSheet }
+        .animation(.springSheet, value: apps.selected?.id)
+    }
+
+    // Mirrors TaskDetailSheet's presentation idiom (spec 16j §8): a scrim
+    // plus a centered, size-capped sheet over this page's own content.
+    @ViewBuilder
+    private var panelSheet: some View {
+        if let selected = apps.selected {
+            ZStack {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Semantic.scrim)
+                    .ignoresSafeArea()
+                    .onTapGesture { apps.closePanel() }
+                GeometryReader { geo in
+                    AppPanel(
+                        app: selected, state: apps.state(of: selected.slug), phase: apps.actionsPhase,
+                        onConnect: { connect(selected.slug) }, onClose: { apps.closePanel() })
+                    .frame(width: min(AppPanelMetrics.maxWidth, geo.size.width - Space.x6),
+                           height: min(AppPanelMetrics.maxHeight, geo.size.height - Space.x6))
+                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                }
+            }
+            .task(id: selected.id) { await apps.actions(of: selected) }
+            .transition(.opacity)
+        }
     }
 
     private var header: some View {
@@ -148,7 +175,8 @@ struct AppsPage: View {
                                 GridItem(.flexible(), spacing: AppsMetrics.gridGap)],
                       spacing: AppsMetrics.gridGap) {
                 ForEach(apps.apps) { app in
-                    AppCard(app: app, state: apps.state(of: app.slug)) { connect(app.slug) }
+                    AppCard(app: app, state: apps.state(of: app.slug),
+                            onOpen: { apps.open(app) }, onConnect: { connect(app.slug) })
                 }
             }
             if apps.hasMore {
@@ -174,12 +202,13 @@ struct AppsPage: View {
 struct AppCard: View {
     let app: CatalogApp
     let state: ConnectedAccount.State?
+    let onOpen: () -> Void
     let onConnect: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
             HStack(spacing: Space.x3) {
-                icon
+                AppIconView(icon: app.icon, size: AppsMetrics.icon, padding: Space.x1_5)
                 Text(app.name)
                     .font(Fonts.sans(TypeSize.rowTitle).weight(.semibold))
                     .foregroundStyle(Semantic.foreground)
@@ -202,6 +231,10 @@ struct AppCard: View {
         .clipShape(RoundedRectangle(cornerRadius: CardChrome.radius))
         .overlay(RoundedRectangle(cornerRadius: CardChrome.radius)
             .strokeBorder(Semantic.borderChrome, lineWidth: Stroke.hairline))
+        .contentShape(Rectangle())
+        // The Conectar/Reconectar button below is its own Button and keeps
+        // its own action; SwiftUI resolves a tap inside it before this one.
+        .onTapGesture(perform: onOpen)
     }
 
     @ViewBuilder
@@ -219,16 +252,23 @@ struct AppCard: View {
             AppButton(Localized.string("apps.connect"), kind: .secondary, action: onConnect)
         }
     }
+}
 
-    private var icon: some View {
-        // Third-party marks load from the catalog's URL; none is kept here.
-        AsyncImage(url: app.icon) { image in
+/// Third-party marks load from the catalog's URL; none is kept in the repo.
+/// Shared by the card and the panel, which only differ in size.
+struct AppIconView: View {
+    let icon: URL?
+    let size: CGFloat
+    let padding: CGFloat
+
+    var body: some View {
+        AsyncImage(url: icon) { image in
             image.resizable().scaledToFit()
         } placeholder: {
             Image(systemName: "square.grid.2x2").foregroundStyle(Semantic.mutedForeground)
         }
-        .padding(Space.x1_5)
-        .frame(width: AppsMetrics.icon, height: AppsMetrics.icon)
+        .padding(padding)
+        .frame(width: size, height: size)
         .background(RoundedRectangle(cornerRadius: AppsMetrics.iconRadius).fill(Semantic.hover))
         .accessibilityHidden(true)
     }

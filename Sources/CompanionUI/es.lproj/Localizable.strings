@@ -512,3 +512,17 @@
 "apps.error.rateLimited" = "Demasiadas solicitudes seguidas. Espera un momento.";
 "apps.error.unreachable" = "No se pudo llegar a la función. Revisa la conexión o la dirección.";
 "apps.error.generic" = "Algo salió mal al hablar con las apps. Inténtalo otra vez.";
+"apps.panel.connect" = "Conectar %@";
+"apps.panel.poweredBy" = "Companion usa un servicio socio llamado Pipedream para conectar tus apps.";
+"apps.panel.privacy" = "Companion solo usa esta conexión para lo que le pidas. Tus datos nunca se usan para entrenar un modelo.";
+"apps.panel.emptyNotConnected" = "Conecta %@ para ver todo lo que puede hacer.";
+"apps.panel.emptyListed" = "%@ no listó acciones ahora mismo. Reconéctala o inténtalo de nuevo.";
+"apps.panel.search" = "Buscar %ld acciones";
+"apps.panel.noMatches" = "Ninguna acción coincide con esa búsqueda.";
+"apps.panel.loading" = "Cargando acciones…";
+"apps.group.leer" = "Leer";
+"apps.group.leer.note" = "Solo lee. Nada cambia en la app.";
+"apps.group.crearYCambiar" = "Crear y cambiar";
+"apps.group.crearYCambiar.note" = "Cambia algo en la app. Companion te muestra qué antes de hacerlo.";
+"apps.group.borrar" = "Borrar";
+"apps.group.borrar.note" = "Elimina algo. Companion siempre pregunta antes.";

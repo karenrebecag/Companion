@@ -13,6 +13,11 @@ private final class FakeApps: AppsService, @unchecked Sendable {
     var queries: [(String, String?)] = []
     var connectFailure: AppsFailure?
     var slowPages = false
+    var toolsResult: Result<[AppAction], AppsFailure> = .success([])
+    var toolsCalls: [String] = []
+    /// Wave 16k-2a review (HIGH): accounts() lagging behind catalog() is the
+    /// shape of the load() race.
+    var accountsHang = false
 
     func catalog(query: String, after: String?) async throws -> CatalogPage {
         queries.append((query, after))
@@ -21,11 +26,19 @@ private final class FakeApps: AppsService, @unchecked Sendable {
         return pages["\(query)|\(after ?? "")"] ?? CatalogPage(apps: [], total: 0, next: nil)
     }
 
-    func accounts() async throws -> [ConnectedAccount] { try accountsResult.get() }
+    func accounts() async throws -> [ConnectedAccount] {
+        if accountsHang { try await Task.sleep(for: .milliseconds(50)) }
+        return try accountsResult.get()
+    }
 
     func connectLink(app: String) async throws -> URL {
         if let connectFailure { throw connectFailure }
         return URL(string: "https://pipedream.com/_static/connect.html?app=\(app)")!
+    }
+
+    func tools(app: String) async throws -> [AppAction] {
+        toolsCalls.append(app)
+        return try toolsResult.get()
     }
 }
 
@@ -103,6 +116,88 @@ private func model(_ fake: FakeApps, secrets: TestSecretStore = TestSecretStore(
     fake.connectFailure = nil
     #expect(await apps.connect("slack") != nil)
     #expect(apps.connectError == nil)
+}
+
+// Wave 16k-2a: the panel opens on a card tap and loads that app's actions —
+// but only once it is connected (audit §9.6: unconnected never lists).
+@Test @MainActor func appsModelOpensThePanelAndLoadsActionsWhenConnected() async {
+    let fake = FakeApps()
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
+    let listChannels = AppAction(slug: "slack-list-channels", name: "Slack List Channels",
+                                  description: "List channels", group: .leer)
+    fake.toolsResult = .success([listChannels])
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await apps.load()
+    let slack = app("slack")
+    apps.open(slack)
+    #expect(apps.selected == slack)
+    #expect(apps.actionsPhase == .idle, "opening alone does not fetch; the view drives the fetch")
+    await apps.actions(of: slack)
+    #expect(apps.actionsPhase == .ready([listChannels]))
+    #expect(fake.toolsCalls == ["slack"])
+    apps.closePanel()
+    #expect(apps.selected == nil)
+    #expect(apps.actionsPhase == .idle, "closing drops a stale answer for the next app")
+}
+
+@Test @MainActor func appsModelNeverListsToolsForAnUnconnectedApp() async {
+    let fake = FakeApps()
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await apps.load()
+    let gmail = app("gmail")
+    apps.open(gmail)
+    await apps.actions(of: gmail)
+    #expect(apps.actionsPhase == .idle, "not connected: no call, no groups")
+    #expect(fake.toolsCalls.isEmpty)
+}
+
+@Test @MainActor func appsModelSaysWhenActionsFailOrComeBackEmpty() async {
+    let fake = FakeApps()
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
+    fake.toolsResult = .failure(.upstream)
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await apps.load()
+    let slack = app("slack")
+    apps.open(slack)
+    await apps.actions(of: slack)
+    #expect(apps.actionsPhase == .failed(.upstream))
+
+    fake.toolsResult = .success([])
+    apps.open(slack)
+    await apps.actions(of: slack)
+    #expect(apps.actionsPhase == .ready([]), "connected but nothing listed is still its own state, not a failure")
+}
+
+// Code review 16k-2a (HIGH): the old load() flipped `phase` to .ready right
+// after catalog() resolved, before accounts() did. A card tapped in that
+// window ran actions(of:) against a still-empty accounts dict, and once
+// accounts finally arrived nothing re-triggered the fetch — the panel was
+// stuck on ProgressView() forever. The fix awaits both before .ready, so the
+// catalog (and its now-tappable cards) never appears ahead of the marks.
+@Test @MainActor func appsModelNeverGoesReadyBeforeAccountsResolve() async {
+    let fake = FakeApps()
+    fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
+    fake.accountsHang = true
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    let loadTask = Task { await apps.load() }
+    // The catalog leg resolves fast; accounts() is still hanging here.
+    try? await Task.sleep(for: .milliseconds(10))
+    #expect(apps.phase != .ready, "phase must not go ready while accounts is still stale")
+    let slack = app("slack")
+    apps.open(slack)
+    await apps.actions(of: slack)
+    #expect(apps.actionsPhase == .idle, "not marked connected yet, so no fetch — correct for this instant")
+    await loadTask.value
+    // Once load() returns, phase and accounts must agree: no leftover window.
+    #expect(apps.phase == .ready)
+    #expect(apps.state(of: "slack") == .connected)
+    await apps.actions(of: slack)
+    #expect(apps.actionsPhase != .idle, "now connected, loading actually runs — never stuck")
 }
 
 // Code review 16k-1 (HIGH): two taps on "Show more" fetch one page, once.

@@ -63,3 +63,27 @@ private func stubbedService() -> HTTPAppsService {
     await #expect(throws: AppsFailure.unexpected) { _ = try await stubbedService().accounts() }
     AppsStub.lock.withLock { AppsStub.bigBody = false }
 }
+
+// Wave 16k-2a: tools(app:) follows the same send() path, scripted here
+// instead of through AppsStub since it only needs a POST body round trip.
+@Test func httpAppsServiceListsTools() async throws {
+    let transport = ScriptedTransport()
+    transport.stub(url: "https://function.test/api/tools", ScriptedReply(
+        status: 200,
+        body: Data(#"""
+        {"success":true,"data":{"tools":[
+          {"name":"slack-list-channels","description":"List channels","kind":"read"}
+        ]}}
+        """#.utf8)))
+    let service = HTTPAppsService(
+        base: URL(string: "https://function.test")!, key: String(repeating: "k", count: 64), transport: transport)
+    let actions = try await service.tools(app: "slack")
+    #expect(actions == [AppAction(slug: "slack-list-channels", name: "Slack List Channels",
+                                   description: "List channels", group: .leer)])
+    let sent = try #require(transport.requests.first)
+    #expect(sent.httpMethod == "POST")
+    #expect(sent.value(forHTTPHeaderField: "Authorization") == "Bearer \(String(repeating: "k", count: 64))")
+    let body = try #require(sent.httpBody)
+    let sentApp = try JSONSerialization.jsonObject(with: body) as? [String: String]
+    #expect(sentApp?["app"] == "slack")
+}

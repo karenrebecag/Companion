@@ -49,6 +49,40 @@ public struct ConnectedAccount: Sendable, Equatable, Identifiable {
     }
 }
 
+/// One tool a connected app exposes through the function's `/api/tools`
+/// (Wave 16k-2a, spec §9.2.1). `slug` is the wire's own tool name (also what
+/// `/api/tools/call` will take in 16k-3); `name` is a readable label derived
+/// from it.
+public struct AppAction: Sendable, Equatable, Identifiable {
+    public enum Group: String, Sendable, Hashable, CaseIterable {
+        case leer, crearYCambiar, borrar
+    }
+
+    public let slug: String
+    public let name: String
+    public let description: String
+    public let group: Group
+    public var id: String { slug }
+
+    public init(slug: String, name: String, description: String, group: Group) {
+        self.slug = slug
+        self.name = name
+        self.description = description
+        self.group = group
+    }
+
+    /// Server-declared read wins Leer; a destructive flag wins Borrar even
+    /// next to a write kind; everything else — including no declaration at
+    /// all — is Crear y cambiar, never Leer (spec §9.2.1). The function
+    /// (companion-apps lib/mcp.mjs `classify()`) sends only "read"/"write"
+    /// today; `destructive` is read defensively for when it grows a third.
+    public static func classify(kind: String?, destructive: Bool) -> Group {
+        if destructive || kind == "destructive" { return .borrar }
+        if kind == "read" { return .leer }
+        return .crearYCambiar
+    }
+}
+
 public enum AppsFailure: Error, Sendable, Equatable {
     /// The function runs but lacks settings; it names them, never their values.
     case notConfigured([String])
@@ -68,6 +102,7 @@ public protocol AppsService: Sendable {
     func catalog(query: String, after: String?) async throws -> CatalogPage
     func accounts() async throws -> [ConnectedAccount]
     func connectLink(app: String) async throws -> URL
+    func tools(app: String) async throws -> [AppAction]
 }
 
 /// The function's address, as the user types it in.
@@ -126,6 +161,21 @@ public enum AppsWire {
         return url
     }
 
+    /// A realistic MCP app lists well under this; a hostile or broken one
+    /// could try to hand the panel thousands (security review 16k-2a,
+    /// MEDIUM) — capped here, once, rather than trusted to every renderer.
+    public static let maxTools = 200
+
+    /// Sorted alphabetically by display name so any caller that filters this
+    /// list by group inherits the order without sorting again (audit §9.6).
+    public static func tools(status: Int, body: Data) throws -> [AppAction] {
+        let data = try payload(status: status, body: body)
+        guard let tools = data["tools"] as? [[String: Any]] else { throw AppsFailure.unexpected }
+        let sorted = tools.compactMap(action)
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        return Array(sorted.prefix(maxTools))
+    }
+
     public static func failure(status: Int, body: Data) -> AppsFailure {
         let object = json(body)
         switch object?["error"] as? String {
@@ -174,5 +224,19 @@ public enum AppsWire {
         guard let text, let url = URL(string: text), url.scheme == "https", url.host == "pipedream.com"
         else { return nil }
         return url
+    }
+
+    private static func action(_ item: [String: Any]) -> AppAction? {
+        guard let slug = item["name"] as? String, !slug.isEmpty else { return nil }
+        let group = AppAction.classify(kind: item["kind"] as? String, destructive: item["destructive"] as? Bool ?? false)
+        return AppAction(slug: slug, name: humanize(slug), description: item["description"] as? String ?? "", group: group)
+    }
+
+    /// "slack-send-message" -> "Slack Send Message": the wire has no
+    /// separate display label, only the dashed tool name.
+    private static func humanize(_ slug: String) -> String {
+        slug.split(whereSeparator: { $0 == "-" || $0 == "_" })
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
     }
 }
