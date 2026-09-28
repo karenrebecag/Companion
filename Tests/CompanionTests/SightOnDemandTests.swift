@@ -47,8 +47,8 @@ private func sight(_ transport: ScriptedTransport) -> ScreenSight {
 
 @MainActor func testSeeDescribesTheScreenOnDemand() async {
     let transport = visionStub()
-    let brief = await sight(transport).see(app: "Numbers")
-    expectEq(brief?.summary, "a bar chart of sales", "see: describe la captura")
+    let brief = await sight(transport).see(SeeRequest(app: "Numbers"))
+    expect(brief?.summary?.contains("a bar chart of sales") == true, "see: la transcripcion tal cual")
     expectEq(transport.requests.count, 1, "see: una llamada")
 }
 

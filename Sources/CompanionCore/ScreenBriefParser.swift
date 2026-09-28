@@ -31,9 +31,11 @@ public enum ScreenBriefParser {
         return ScreenBrief(summary: summary, snippets: snippets)
     }
 
-    /// `[Safari] "the visible words"` or `[Safari] the visible words`
+    /// `[Safari] "the visible words"` or `[Safari] the visible words`. The
+    /// model drops the `[App]` often enough that a quoted or bulleted line
+    /// counts too; loose prose does not.
     private static func snippet(from line: String) -> ScreenSnippet? {
-        guard line.first == "[" else { return nil }
+        guard line.first == "[" else { return unbracketed(line) }
         guard let close = line.firstIndex(of: "]") else { return nil }
         let app = String(line[line.index(after: line.startIndex)..<close])
             .trimmingCharacters(in: .whitespaces)
@@ -46,5 +48,16 @@ public enum ScreenBriefParser {
         rest = rest.trimmingCharacters(in: .whitespaces)
         guard !rest.isEmpty else { return nil }
         return ScreenSnippet(app: app, text: rest)
+    }
+
+    private static func unbracketed(_ line: String) -> ScreenSnippet? {
+        var rest = line
+        let bulleted = rest.hasPrefix("- ") || rest.hasPrefix("* ")
+        if bulleted { rest = String(rest.dropFirst(2)).trimmingCharacters(in: .whitespaces) }
+        let quoted = rest.hasPrefix("\"") && rest.hasSuffix("\"") && rest.count >= 2
+        guard bulleted || quoted else { return nil }
+        if quoted { rest = String(rest.dropFirst().dropLast()) }
+        rest = rest.trimmingCharacters(in: .whitespaces)
+        return rest.isEmpty ? nil : ScreenSnippet(app: "screen", text: rest)
     }
 }

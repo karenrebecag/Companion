@@ -19,6 +19,24 @@ public struct ScreenVision: Sendable {
     }
 
     public func summarize(jpeg: Data, app: String?) async -> ScreenBrief? {
+        guard let text = await complete(
+            jpeg: jpeg, prompt: Self.prompt(app: app), maxTokens: 400, timeout: 8)
+        else { return nil }
+        return ScreenBriefParser.parse(text)
+    }
+
+    /// The `see` tool: the window's own text, not the sidecar's 50 words.
+    /// The reply is the transcription itself, so it skips the SUMMARY parser.
+    public func transcribe(jpeg: Data, app: String?, question: String?) async -> ScreenBrief? {
+        guard let text = await complete(
+            jpeg: jpeg, prompt: ScreenSeePrompt.prompt(app: app, question: question),
+            maxTokens: ScreenSeePrompt.maxTokens, timeout: 25)
+        else { return nil }
+        let bounded = ScreenSeePrompt.bound(text)
+        return bounded.isEmpty ? nil : ScreenBrief(summary: bounded)
+    }
+
+    private func complete(jpeg: Data, prompt: String, maxTokens: Int, timeout: TimeInterval) async -> String? {
         if Task.isCancelled { return nil }
         let key: String
         do {
@@ -29,15 +47,14 @@ public struct ScreenVision: Sendable {
         }
         guard let url = ProviderDescriptor.openAI.endpoint,
               EndpointPolicy.isAcceptable(url) else { return nil }
-        var request = URLRequest(url: url, timeoutInterval: 8)
+        var request = URLRequest(url: url, timeoutInterval: timeout)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         let b64 = jpeg.base64EncodedString()
-        let prompt = Self.prompt(app: app)
         let body: [String: Any] = [
             "model": model,
-            "max_tokens": 400,
+            "max_tokens": maxTokens,
             "messages": [[
                 "role": "user",
                 "content": [
@@ -60,8 +77,7 @@ public struct ScreenVision: Sendable {
             let (data, response) = try await transport.data(for: request)
             guard response.statusCode == 200 else { return nil }
             if Task.isCancelled { return nil }
-            guard let text = Self.content(from: data) else { return nil }
-            return ScreenBriefParser.parse(text)
+            return Self.content(from: data)
         } catch {
             Log.app("sight: vision request failed (\(error))")
             return nil

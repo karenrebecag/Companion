@@ -94,7 +94,7 @@ func makeSensingAndModel(
             }
             return ScreenHands(ax: ax, screen: sight, target: { frontmost.lastOtherPID },
                                selfInFront: { frontmost.selfInFront },
-                               see: { app in await screenSight.see(app: app) })
+                               see: { request in await screenSight.see(request) })
         })
     let sensor = SystemContextSensor(
         focused: frontmost,

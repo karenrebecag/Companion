@@ -52,12 +52,14 @@ extension ParentToolRunner {
         return nil
     }
 
-    func runSee(hands: ScreenHands, pid: Int32) async -> ParentToolOutcome {
+    func runSee(_ arguments: [String: Any], hands: ScreenHands, pid: Int32) async -> ParentToolOutcome {
         guard let see = hands.see else {
             return .failed(Self.handsError("no_vision", "no screen vision"), tool: ParentTool.see.rawValue)
         }
         let app = hands.reader.focusedField(pid: pid)?.app
-        guard let brief = await see(app) else {
+        let request = SeeRequest(
+            app: app, question: arguments["question"] as? String, pid: pid)
+        guard let brief = await see(request) else {
             Log.app("sight: see failed pid=\(pid)")
             return .failed(Self.handsError(
                 "no_capture", "no screen capture (Screen Recording off, or no OpenAI key)"),
@@ -65,7 +67,7 @@ extension ParentToolRunner {
         }
         let lines = [brief.summary].compactMap { $0 } + brief.snippets.map { "- " + $0.text }
         Log.app("sight: see snippets=\(brief.snippets.count) pid=\(pid)")
-        return ParentToolOutcome(ok: true, output: lines.joined(separator: "\n"),
+        return ParentToolOutcome(ok: true, output: ScreenSeePrompt.bound(lines.joined(separator: "\n")),
                                  tool: ParentTool.see.rawValue)
     }
 
