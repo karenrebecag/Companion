@@ -319,7 +319,18 @@ public struct SessionMachine: Sendable, Equatable {
             // After a Stop, and before anything new starts, a request can
             // only come from the job that was just stopped: it dies with it
             // instead of reopening the sheet (security review 2026-09-06).
-            if projection.interruption == .userStopped, projection.job == nil {
+            // The bridge's session grant is the one exception: it comes from
+            // a NEW connection, never from the stopped child, and Stop's
+            // stale `userStopped` (cleared only when a turn opens) was
+            // silently denying every grant at rest — no sheet, no user
+            // (seen live 2026-09-28). Surfacing it keeps the user, not the
+            // ghost of the last Stop, as the authority. The exemption leans
+            // on a convention: this name is minted only in
+            // `BridgeSession.handleSessionApproval` — every job-side path
+            // either auto-denies stream approvals before they reach here
+            // (`ClaudeCodeExecutor`) or cannot produce the name.
+            if projection.interruption == .userStopped, projection.job == nil,
+               request.toolName != BridgePolicy.sessionApprovalTool {
                 return [.resolveApproval(
                     requestId: request.requestId, approved: false, remember: false)]
             }

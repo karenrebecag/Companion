@@ -26,6 +26,11 @@ public enum BridgeVerdict: Sendable, Equatable {
 /// Pure policy for session authorization and rate limiting. The write budget
 /// counts towards a sliding window; read tools bypass it entirely.
 public struct BridgePolicy: Sendable, Equatable {
+    /// The tool name the session-grant approval carries. Not an executable
+    /// tool: it exists so the reducer and the sheet can tell the bridge's
+    /// ask apart from a job's (`ApprovalKey.from` refuses to remember it).
+    public static let sessionApprovalTool = "bridge_session"
+
     public static let writeTools: Set<String> = [
         "click",
         "type_text",

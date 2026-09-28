@@ -122,6 +122,7 @@ public actor BridgeSession {
     /// The in-flight call (if any) finishes; its reply is `denied_by_user`
     /// or `session_closed`.
     public func stop() async {
+        Log.bridge("stop requested by user")
         policy.stop()
         onState(policy.state)
         if let pendingSheet {
@@ -135,12 +136,16 @@ public actor BridgeSession {
 
     private func handleHello(id: Int, hello: BridgeHello) async -> (String, Bool) {
         guard hello.token == token() else {
+            // The code only, never any token content: this line is the one
+            // trace of a same-uid process knocking with the wrong key.
+            Log.bridge("hello rejected: bad token")
             return (errorLine(id, BridgeCode.badToken, "invalid token"), true)
         }
         let verdict = policy.helloReceived(now: now())
         onState(policy.state)
         switch verdict {
         case .reject(let code):
+            Log.bridge("hello rejected: \(code)")
             return (errorLine(id, code, rejectionMessage(code)), false)
         case .needsApproval:
             // BridgePolicy.helloReceived never asks for approval (the sheet
@@ -148,6 +153,7 @@ public actor BridgeSession {
             return (errorLine(id, BridgeCode.busy, "unexpected state"), false)
         case .proceed:
             client = hello.client
+            Log.bridge("hello client=\(loggableName(client)); tools listed")
             let result = BridgeHelloResult(
                 session: UUID().uuidString,
                 language: language(),
@@ -190,11 +196,17 @@ public actor BridgeSession {
     /// regardless of "remember" on the sheet.
     private func handleSessionApproval(id: Int, call: BridgeCall) async -> (String, Bool) {
         let request = ApprovalRequest(
-            requestId: UUID().uuidString, toolName: "bridge_session",
+            requestId: UUID().uuidString, toolName: BridgePolicy.sessionApprovalTool,
             summary: BridgeCopy.sheetTitle(language()), inputJSON: sessionApprovalInputJSON())
         pendingSheet = request
+        // Seen live 2026-09-28: this whole round trip resolved with no
+        // trace, and only the shim's error said anything happened. The
+        // request and its resolution are the two lines that tell a silent
+        // auto-deny apart from a user's "no".
+        Log.bridge("session approval requested by \(loggableName(client))")
         let approved = await guardian.ask(request)
         pendingSheet = nil
+        Log.bridge("session approval resolved approved=\(approved)")
         guard approved else {
             policy.denied()
             onState(policy.state)
@@ -217,6 +229,7 @@ public actor BridgeSession {
         }
         policy.approved(until: nil, now: now())
         onState(policy.state)
+        Log.bridge("session open for \(loggableName(client))")
         tools.beginTurn()
         let verdict = policy.admit(tool: call.name, now: now())
         onState(policy.state)
@@ -260,6 +273,15 @@ public actor BridgeSession {
         } catch {
             return "{}"
         }
+    }
+
+    /// Wire-provided names pass through here before logging: a crafted
+    /// client name must not forge log lines or spray control characters.
+    private func loggableName(_ name: String) -> String {
+        String(name.unicodeScalars
+            .filter { CharacterSet.alphanumerics.contains($0) || $0 == "-" || $0 == "_" || $0 == "." }
+            .prefix(32)
+            .map(Character.init))
     }
 
     private func errorLine(_ id: Int, _ code: String, _ message: String) -> String {
