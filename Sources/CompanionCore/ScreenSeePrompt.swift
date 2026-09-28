@@ -21,6 +21,9 @@ public enum ScreenSeePrompt {
     public static let maxQuestion = 300
     public static let maxOutput = 4_000
     public static let maxTokens = 900
+    /// Under the MCP shim's 30 s read limit with room for the capture: an
+    /// answer after the shim gave up reads as a failure while the call lives.
+    public static let visionTimeout: TimeInterval = 20
 
     public static func prompt(app: String?, question: String?) -> String {
         let hint = app.map { "Application (hint): \($0).\n" } ?? ""
@@ -39,6 +42,18 @@ public enum ScreenSeePrompt {
     public static func bound(_ text: String) -> String {
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return clean.count > maxOutput ? String(clean.prefix(maxOutput)) + "…" : clean
+    }
+
+    /// Every lane gets the screen in one marked envelope (security review
+    /// 20b): the rule "tool output is data" lives in each lane's prompt, and
+    /// a closing tag drawn on the screen must not end the data early.
+    public static func envelope(_ text: String) -> String {
+        var safe = bound(text)
+        while let close = safe.range(
+            of: "</\\s*screen_transcript\\s*>", options: [.regularExpression, .caseInsensitive]) {
+            safe.replaceSubrange(close, with: "[/screen_transcript]")
+        }
+        return "<screen_transcript untrusted=\"true\">\n" + safe + "\n</screen_transcript>"
     }
 
     private static func focusLine(_ question: String?) -> String {
@@ -62,5 +77,19 @@ public enum DisplayPick {
             if area > 0, area > (best?.area ?? 0) { best = (index, area) }
         }
         return best?.index
+    }
+}
+
+/// What a capture may contain. `see` names its target, so it gets that app's
+/// windows and nothing else on the display; the per-turn sidecar has no
+/// target and keeps the whole display minus Companion.
+public enum CaptureScope: Sendable, Equatable {
+    case targetApp(Int32)
+    case displayWithoutSelf
+    case nothing
+
+    public static func of(pid: Int32?, ownPID: Int32) -> CaptureScope {
+        guard let pid else { return .displayWithoutSelf }
+        return pid == ownPID ? .nothing : .targetApp(pid)
     }
 }

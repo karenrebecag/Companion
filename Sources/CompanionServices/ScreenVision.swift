@@ -30,7 +30,7 @@ public struct ScreenVision: Sendable {
     public func transcribe(jpeg: Data, app: String?, question: String?) async -> ScreenBrief? {
         guard let text = await complete(
             jpeg: jpeg, prompt: ScreenSeePrompt.prompt(app: app, question: question),
-            maxTokens: ScreenSeePrompt.maxTokens, timeout: 25)
+            maxTokens: ScreenSeePrompt.maxTokens, timeout: ScreenSeePrompt.visionTimeout)
         else { return nil }
         let bounded = ScreenSeePrompt.bound(text)
         return bounded.isEmpty ? nil : ScreenBrief(summary: bounded)

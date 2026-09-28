@@ -47,9 +47,20 @@ public struct ScreenCapture: Sendable {
             guard let display = picked.map({ content.displays[$0] })
                 ?? content.displays.first(where: { $0.displayID == CGMainDisplayID() })
                 ?? content.displays.first else { return nil }
-            let excluded = content.applications.filter { $0.bundleIdentifier == bundleID }
-            let filter = SCContentFilter(
-                display: display, excludingApplications: excluded, exceptingWindows: [])
+            let filter: SCContentFilter
+            switch CaptureScope.of(pid: pid, ownPID: ProcessInfo.processInfo.processIdentifier) {
+            case .nothing:
+                return nil
+            case .targetApp(let target):
+                // Only the target's windows leave the Mac, not whatever else
+                // shares its display (security review 20b).
+                guard let app = content.applications.first(where: { $0.processID == target }) else { return nil }
+                filter = SCContentFilter(display: display, including: [app], exceptingWindows: [])
+            case .displayWithoutSelf:
+                let excluded = content.applications.filter { $0.bundleIdentifier == bundleID }
+                filter = SCContentFilter(
+                    display: display, excludingApplications: excluded, exceptingWindows: [])
+            }
             let config = SCStreamConfiguration()
             let width = CGFloat(display.width)
             let height = CGFloat(display.height)

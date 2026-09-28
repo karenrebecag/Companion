@@ -77,7 +77,9 @@ public enum DocumentHTML {
     /// `thead` (measured: page 2 opens on a data row), so a long table is cut
     /// into chunks that each carry the header and never split. Sized for ~28
     /// single-line rows per A4 page; a table of wrapped rows can still overflow
-    /// a chunk. Replace with real header repetition if the renderer honors it.
+    /// a chunk, and a chunk that does not fit the rest of a page moves whole,
+    /// leaving a gap. Columns are fixed so they match across chunks. Replace
+    /// with real header repetition if the renderer honors it.
     static let rowsPerChunk = 20
 
     private static func tableHTML(_ table: TableBlock) -> String {
@@ -109,7 +111,7 @@ public enum DocumentHTML {
       border-radius: 8pt; padding: 10pt; break-inside: avoid; }
     .stat .v { font-size: 18pt; font-weight: 600; } .stat .l { color: #\(DocumentTheme.muted); font-size: 9pt; }
     .d { font-size: 9pt; margin-left: 6pt; } .d.up { color: #\(DocumentTheme.success); } .d.down { color: #\(DocumentTheme.danger); }
-    table { width: 100%; border-collapse: collapse; margin: 6pt 0 12pt; font-size: 9.5pt; }
+    table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 6pt 0 12pt; font-size: 9.5pt; }
     table { break-inside: avoid; } table + table { margin-top: 0; }
     thead { display: table-header-group; } tr { break-inside: avoid; }
     th { text-align: left; color: #\(DocumentTheme.muted); font-weight: 600; border-bottom: 1px solid #\(DocumentTheme.ink); padding: 5pt 6pt; }
