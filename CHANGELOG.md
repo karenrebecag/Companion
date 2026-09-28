@@ -12,6 +12,17 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   viñetas en vez de asteriscos; solo los enlaces web se abren.
 
 ### Added
+- **Conectores como Incredible (Wave 16k-2, 2026-09-28).** Tocar una app abre
+  su panel: descripción y Conectar sin cuenta; con cuenta, las acciones en
+  Leer / Crear y cambiar / Borrar según lo que el servidor declara, con
+  buscador y la descripción remota visualmente distinta del copy propio.
+  Conectar abre el modal con los dos iconos y el punto que viaja, consulta
+  cada 3 s (40 intentos, tope duro 2.5 min — números auditados del binario
+  de Incredible) y termina en "Vamos"; Reintentar pide enlace fresco. La
+  página pone "Tus apps" arriba sin repetirlas en el catálogo, y Desconectar
+  confirma avisando que el grant del lado de la app no se revoca solo. Cada
+  intento y el panel llevan su epoch: dobles taps y respuestas tardías ya no
+  pisan al intento vivo ni duplican DELETEs.
 - **Las manos para Claude Code (Wave 17, 2026-09-28).** Nuevo ajuste en
   Privacidad, "Prestar las manos a otros agentes" — apagado por defecto en
   todo build. Encendido, la primera acción de una sesión del puente abre la
