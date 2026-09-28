@@ -42,7 +42,13 @@ public struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
                 return ApprovalKey(tool: request.toolName, pattern: "\(first) \(words[1]) *")
             }
             return ApprovalKey(tool: request.toolName, pattern: "\(first) *")
-        case NativeTool.writeFile.rawValue, NativeTool.editFile.rawValue:
+        case NativeTool.sheetWrite.rawValue:
+            // Wave 20: the exact rectangle, never the app: "yes to Excel"
+            // would be every future write to any open workbook.
+            guard let range = (arguments["range"] as? String).flatMap(SheetRange.init(a1:)) else { return nil }
+            let app = (arguments["app"] as? String)?.lowercased() ?? "active"
+            return ApprovalKey(tool: request.toolName, pattern: "\(app) \(range.a1)")
+        case NativeTool.writeFile.rawValue, NativeTool.editFile.rawValue, NativeTool.createDocument.rawValue:
             guard let path = arguments["path"] as? String, !path.isEmpty else { return nil }
             var directory = (path as NSString).deletingLastPathComponent
             if directory.isEmpty { directory = "." }

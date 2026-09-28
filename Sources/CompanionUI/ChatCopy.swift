@@ -169,6 +169,10 @@ public enum ChatCopy {
             if let line = object["line"] as? String, !line.isEmpty { detail += "\n\(line)" }
             return detail
         }
+        // Wave 20: a sheet write is approved on its range and its cells.
+        if tool == NativeTool.sheetWrite.rawValue, let detail = SheetValues.approvalDetail(object) {
+            return detail
+        }
         // `goal`: a proposed handoff (security review 2026-09-25) is
         // approved on what it would delegate, never on the word "delegate".
         let interesting = ["command", "path", "url", "query", "content", "goal"]

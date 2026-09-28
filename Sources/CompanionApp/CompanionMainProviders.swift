@@ -101,7 +101,9 @@ func makeJobInfrastructure(
         approvals: approvals,
         webSearch: BraveWebSearch(transport: env.transport, secrets: env.secrets),
         skills: env.skillsLocation,
-        skillsSource: { env.configProvider.current.skills })
+        skillsSource: { env.configProvider.current.skills },
+        documents: NativeDocumentRenderer(),
+        sheets: AppleEventSheets())
     // The real provider probes for claude and hermes; without them the
     // catalog is just the native executor and nothing changes (ADR 001).
     let sessions = FileExecutorSessionStore(

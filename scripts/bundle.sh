@@ -92,6 +92,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>Companion listens when you start a voice turn.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>Companion transcribes your voice on this Mac to understand you.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Companion reads and writes the spreadsheet you have open in Excel or Numbers when you ask it to. Every write asks first and keeps a copy of the workbook.</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>Companion captures the screen when you hold FN so it can see what you are looking at. One snapshot per hold, never a recording, never stored.</string>
 </dict>

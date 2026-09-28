@@ -176,6 +176,15 @@ public enum CompanionBlocks: Sendable {
         return GalleryBlock(title: dict["title"] as? String, images: renderable)
     }
 
+    static func jsonArray(_ body: String) -> [Any]? {
+        guard let data = body.data(using: .utf8) else { return nil }
+        do {
+            return try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed]) as? [Any]
+        } catch {
+            return nil
+        }
+    }
+
     static func jsonObject(_ body: String) -> [String: Any]? {
         guard let data = body.data(using: .utf8) else { return nil }
         let raw: Any

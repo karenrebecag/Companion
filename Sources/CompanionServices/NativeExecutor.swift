@@ -22,13 +22,15 @@ public struct NativeExecutor: Executor, Sendable {
         approvals: any ApprovalsProvider,
         webSearch: (any WebSearching)? = nil,
         skills: SkillsLocation? = nil,
-        skillsSource: (@Sendable () -> String)? = nil
+        skillsSource: (@Sendable () -> String)? = nil,
+        documents: (any DocumentRendering)? = nil,
+        sheets: (any SpreadsheetDriving)? = nil
     ) {
         self.descriptor = descriptor
         self.chatProvider = chatProvider
         self.toolRunner = NativeToolRunner(
             workdir: config.workdir, webSearch: webSearch, language: config.language,
-            skills: skills)
+            skills: skills, documents: documents, sheets: sheets)
         self.config = config
         self.approvals = approvals
         self.skillsSource = skillsSource

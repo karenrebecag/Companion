@@ -108,7 +108,11 @@ extension CompanionBlocks {
     public static let chartLanguage = "companion:chart"
 
     public static func stats(_ body: String) -> StatsBlock? {
-        guard let dict = jsonObject(body), let list = dict["items"] as? [Any] else { return nil }
+        jsonObject(body).flatMap(stats(from:))
+    }
+
+    static func stats(from dict: [String: Any]) -> StatsBlock? {
+        guard let list = dict["items"] as? [Any] else { return nil }
         var items: [StatsBlock.Item] = []
         for raw in list.prefix(StatsBlock.maxItems) {
             guard let item = raw as? [String: Any],
