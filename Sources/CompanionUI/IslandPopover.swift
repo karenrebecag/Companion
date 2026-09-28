@@ -7,6 +7,8 @@ import SwiftUI
 public enum IslandPopoverKind: Equatable, Sendable {
     case menu
     case volume
+    /// The clip's "Add files" (16i-2).
+    case attach
 }
 
 /// A header icon opens its popover, a second click closes it, another icon
@@ -74,6 +76,21 @@ struct IslandMenuList: View {
             }
             IslandPopoverRow(title: Localized.string("island.menu." + item.rawValue),
                              tint: item.destructive ? IslandInk.destructive : IslandInk.text) {
+                onPick(item)
+            }
+        }
+    }
+}
+
+/// The clip's three ways in (spec 16i §2). No shortcut column: the island
+/// never activates the app, so ⌥C/⌥X would reach the app in front (the same
+/// call 16i-1 made for the "…" menu).
+struct IslandAttachList: View {
+    let onPick: (IslandAttachItem) -> Void
+
+    var body: some View {
+        ForEach(IslandAttachItem.allCases, id: \.self) { item in
+            IslandPopoverRow(title: Localized.string("island.attach." + item.rawValue)) {
                 onPick(item)
             }
         }

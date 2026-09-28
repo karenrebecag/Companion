@@ -31,6 +31,8 @@ public struct IslandState: Sendable, Equatable {
         /// Spec 16j §8: a task from the window rides along; the next turn
         /// continues it.
         case followUp(String)
+        /// Spec 16i §4: a file is being dragged over the notch.
+        case dropZones
     }
 
     /// Incredible's status light: amber = it needs you, green = done.
@@ -87,10 +89,15 @@ public struct IslandState: Sendable, Equatable {
     public static func from(
         _ p: SessionProjection, pebbleHidden: Bool, mainInFront: Bool = false,
         holdLearned: Bool = false, keyListening: Bool = true, debugTranscripts: Bool = false,
-        composing: Bool = false, cancelled: Bool = false, followUp: String? = nil
+        composing: Bool = false, cancelled: Bool = false, followUp: String? = nil,
+        dropping: Bool = false
     ) -> IslandState {
         var state: IslandState
         switch p.kind {
+        // A drag offers somewhere to drop only to a notch with nothing to say.
+        case .idle where dropping && p.approval == nil && p.notice == nil,
+             .hover where dropping && p.approval == nil && p.notice == nil:
+            state = IslandState(size: .card, line: .dropZones)
         case .idle where composing:
             // A draft or a focused field outlives the pointer (16e).
             state = IslandState(size: .nudge)

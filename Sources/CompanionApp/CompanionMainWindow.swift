@@ -138,7 +138,9 @@ extension AppDelegate {
                     self?.island?.present(size: size, contentHeight: height)
                     Log.app("island: \(size)")
                 },
-                onReleaseKey: { [weak self] in self?.island?.releaseKey() }),
+                onReleaseKey: { [weak self] in self?.island?.releaseKey() },
+                grabber: ScreenRegionGrabber(directory: FileManager.default.temporaryDirectory
+                    .appendingPathComponent("companion-captures", isDirectory: true))),
             geometry: islandGeometry,
             onHover: { over in sessionModel.send(over ? .hoverEntered : .hoverLeft) })
         island.onResignKey = {

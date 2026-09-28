@@ -13,6 +13,8 @@ public struct IslandView: View {
     let onSize: (IslandState.Size, CGFloat) -> Void
     /// Hands the keyboard back to the app in front once the field is done.
     let onReleaseKey: () -> Void
+    /// The clip's captures (16i-2); absent, the two capture rows say so.
+    let grabber: (any RegionGrabbing)?
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var pointer = HoldKeyClassifier()
@@ -30,6 +32,8 @@ public struct IslandView: View {
     @State private var popover: IslandPopoverKind?
     @State private var cancelled = false
     @State private var cancelledTask: Task<Void, Never>?
+    @State private var attachNote: String?
+    @State private var attachNoteTask: Task<Void, Never>?
 
     /// Incredible stacks the latest few; more is the window's job.
     static let maxResults = 3
@@ -39,7 +43,8 @@ public struct IslandView: View {
         geometry: IslandGeometry = IslandGeometry(),
         onShowMain: @escaping () -> Void,
         onSize: @escaping (IslandState.Size, CGFloat) -> Void,
-        onReleaseKey: @escaping () -> Void = {}
+        onReleaseKey: @escaping () -> Void = {},
+        grabber: (any RegionGrabbing)? = nil
     ) {
         self.chat = chat
         self.voice = voice
@@ -48,6 +53,7 @@ public struct IslandView: View {
         self.onShowMain = onShowMain
         self.onSize = onSize
         self.onReleaseKey = onReleaseKey
+        self.grabber = grabber
     }
 
     private var state: IslandState {
@@ -55,8 +61,10 @@ public struct IslandView: View {
             chat.session.projection, pebbleHidden: hold.pebbleHidden,
             mainInFront: hold.mainInFront, holdLearned: hold.holdLearned,
             keyListening: hold.granted, debugTranscripts: chat.debugTranscripts,
-            composing: fieldFocused || !draft.isEmpty || confirmingClear,
-            cancelled: cancelled, followUp: chat.followUp)
+            composing: IslandComposing.active(
+                focused: fieldFocused, draft: draft, confirmingClear: confirmingClear,
+                staged: chat.pendingAttachments.count, mainInFront: hold.mainInFront),
+            cancelled: cancelled, followUp: chat.followUp, dropping: geometry.dropping)
     }
 
     /// Newest first, the replies of this conversation only, each keyed by
@@ -125,6 +133,9 @@ public struct IslandView: View {
             // the conversation, and the tag has done its job.
             if kind != .idle, kind != .hover, chat.followUp != nil { chat.followUp = nil }
         }
+        .onAppear {
+            geometry.onDrop = { urls, zone in attachActions.drop(urls, zone: zone) }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .islandResignedKey)) { _ in
             // Another app took the keyboard: the field is done, the panel rests.
             fieldFocused = false
@@ -160,6 +171,11 @@ public struct IslandView: View {
                                 }
                             case .volume:
                                 IslandVolumeControl(onChange: voice.setVolume)
+                            case .attach:
+                                IslandAttachList { picked in
+                                    popover = nil
+                                    pickAttach(picked)
+                                }
                             }
                         }
                     }
@@ -328,14 +344,19 @@ public struct IslandView: View {
         VStack(alignment: .leading, spacing: Space.x2) {
             IslandComposer(
                 draft: $draft, focused: $fieldFocused, mark: AnyView(mark),
-                onSend: submit, onAttach: attach)
+                onSend: submit, popover: $popover, staged: !chat.pendingAttachments.isEmpty)
                 .onExitCommand {
                     switch IslandEscape.action(popoverOpen: popover != nil) {
                     case .closePopover: popover = nil
                     case .dismissField: dismissField()
                     }
                 }
-            if case .none = state.line {} else {
+            if !chat.pendingAttachments.isEmpty, !hold.mainInFront {
+                IslandStagedRow(refs: chat.pendingAttachments, onRemove: chat.removePending)
+            }
+            if let attachNote {
+                caption(attachNote)
+            } else if case .none = state.line {} else {
                 caption(IslandCopy.line(state.line))
             }
             if confirmingClear {
@@ -362,7 +383,9 @@ public struct IslandView: View {
 
     @ViewBuilder
     private func status(_ state: IslandState) -> some View {
-        if case .followUp(let title) = state.line {
+        if state.line == .dropZones {
+            IslandDropZones(zone: geometry.dropZone)
+        } else if case .followUp(let title) = state.line {
             IslandFollowUpRow(title: title, onDrop: { chat.followUp = nil })
         } else if let notice = IslandNotice.content(for: state.line) {
             IslandNoticeCard(content: notice, onAction: perform,
@@ -469,7 +492,7 @@ public struct IslandView: View {
 
     private func submit() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty || !chat.pendingAttachments.isEmpty else { return }
         chat.draft = text
         chat.send()
         draft = ""
@@ -481,10 +504,35 @@ public struct IslandView: View {
         onReleaseKey()
     }
 
-    /// The picker and the staged chips live in the window.
-    private func attach() {
-        onShowMain()
-        NotificationCenter.default.post(name: .companionAttach, object: nil)
+    private var attachActions: IslandAttachActions {
+        IslandAttachActions(chat: chat, voice: voice, grabber: grabber, say: sayAttach)
+    }
+
+    private func pickAttach(_ item: IslandAttachItem) {
+        switch item {
+        case .chooseFile:
+            // The picker lives in the window: activating the app is
+            // CompanionMain's call, never the island's (conformance 12d).
+            onShowMain()
+            NotificationCenter.default.post(name: .companionAttach, object: nil)
+        case .screenshot:
+            Task { await attachActions.screenshot() }
+        case .captureText:
+            Task {
+                guard let text = await attachActions.captureText() else { return }
+                draft = IslandDraft.appending(text, to: draft)
+            }
+        }
+    }
+
+    /// One line under the field for a few seconds, then the usual caption.
+    private func sayAttach(_ text: String) {
+        attachNoteTask?.cancel()
+        attachNote = text
+        attachNoteTask = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(IslandAttachMetrics.noteSeconds)) } catch { return }
+            attachNote = nil
+        }
     }
 
     private func choose(_ item: IslandMenuItem) {
@@ -583,6 +631,7 @@ enum IslandCopy {
         case .transcriptsDebug: Localized.string("debug.transcriptsOn")
         case .cancelled: Localized.string("island.cancelled")
         case .followUp(let title): title
+        case .dropZones: Localized.string("island.drop.title")
         }
     }
 
