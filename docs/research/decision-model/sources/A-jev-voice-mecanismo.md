@@ -1,6 +1,6 @@
 # jev-voice — deep technical investigation
 
-Repo: `/Users/karenrebecaog/Desktop/SoftwareDevProjects/jev-voice` (read-only investigation, no files modified).
+Repo: `~/Desktop/SoftwareDevProjects/jev-voice` (read-only investigation, no files modified).
 Upstream: `.venv/lib/python3.12/site-packages/jev_ultrafast` (package `jev-ultrafast==0.1.0`, installed as a dependency, not vendored).
 
 ---

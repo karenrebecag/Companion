@@ -5,10 +5,11 @@ the offered ids. Answers are returned in Jev's wire shape and fed to brain._to_p
 full Plan with min-confidence composition. Measures the 20-question fan-out sequential vs
 concurrent. Confidence = (n*p_max - 1)/(n - 1), the generalisation of docs.typesafe.ai/confidence.
 """
+import pathlib
 import math, string, sys, time, json
 from concurrent.futures import ThreadPoolExecutor
 import httpx
-sys.path.insert(0, "/Users/karenrebecaog/Desktop/SoftwareDevProjects/jev-voice")
+sys.path.insert(0, str(pathlib.Path.home() / "Desktop/SoftwareDevProjects/jev-voice"))
 from jev_voice import brain, actions  # noqa: E402
 
 LABELS = list(string.ascii_uppercase + string.ascii_lowercase)  # 52 single-token labels

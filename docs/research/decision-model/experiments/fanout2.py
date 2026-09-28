@@ -1,10 +1,11 @@
 """Layout B: every fixed menu lives in one cached system prefix; the per-request suffix is just
 utterance + candidates + 'answer question K'. Also: app head with Chrome/Safari offered, and
 fwd+rev order averaging for the action head."""
+import pathlib
 import math, string, sys, time, json
 import httpx
-sys.path.insert(0, "/Users/karenrebecaog/Desktop/SoftwareDevProjects/jev-voice")
-sys.path.insert(0, "/private/tmp/claude-501/-Users-karenrebecaog/87b23e78-f790-4f67-b2a2-b3b6f041e501/scratchpad")
+sys.path.insert(0, str(pathlib.Path.home() / "Desktop/SoftwareDevProjects/jev-voice"))
+sys.path.insert(0, "<scratchpad>")
 from jev_voice import brain, actions  # noqa: E402
 from fanout import LABELS, OLLAMA, CLIENT, UTTS, ask, render_state  # noqa: E402
 

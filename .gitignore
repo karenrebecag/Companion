@@ -13,3 +13,6 @@ Sources/CompanionUI/Fonts/TBJInterval-Bold.otf
 Sources/CompanionUI/Fonts/TBJInterval-Light.otf
 Sources/CompanionUI/Fonts/TBJInterval-Regular.otf
 build/
+
+# Worktrees de agentes (maquinaria de sesion, nunca contenido del repo)
+.claude/worktrees/
