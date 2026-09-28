@@ -177,3 +177,110 @@ Fuera de alcance, anotado: `OpenAITranscriber` usa la misma sesión sin polític
 
 Gates 0 fallos; instalada. Pendiente de Karen: desplegar `companion-apps`, pegar dirección y clave
 en la página, probar en vivo, y la grabación de §6. Sigue 16k-2.
+
+## 9. Spec 16k-2: conectores como Incredible (APROBADO 2026-09-28, "dale"; D1/D2 auditadas contra el binario)
+
+Rama `feat/16k-2-conectores`, worktree `../companion-next-16k2` (la otra sesión sigue en la carpeta
+principal sin pisarse). Karen: "replicar la UI de los conectores de Incredible sobre Companion".
+
+### 9.1 Lo observado (nuevo desde §1)
+
+Fuente: documentación pública `incredible.one/learn?section=app-connectors` (2026-09-28), más las
+capturas de §1. Solo comportamiento y textos visibles.
+- **Tocar una app abre su panel**: nombre, qué puede hacer agrupado en **Read** (solo mirar),
+  **Create and change** (redactar, enviar) y **Delete** (borrar, siempre con confirmación), y el
+  botón **"Connect Gmail"** (con el nombre de la app). Nota: "Incredible works with a partner
+  service called Pipedream to power its app connections".
+- **Conectar**: el modal "Connecting Slack" de §1 (dos iconos, línea con punto que viaja, "Open it
+  again", nota de privacidad); al terminar en el navegador se vuelve y se pulsa **"Let's go"**.
+- **La página Apps muestra primero tus apps conectadas** y debajo el catálogo.
+- **Desconectar** está en el panel de la app: "Your account isn't touched, and you can reconnect
+  anytime." Gmail y Outlook tienen además "Settings" (firma de correo).
+- Etiqueta **Beta** en conexiones nuevas.
+
+### 9.2 Qué hace Companion
+
+1. **Panel de la app** (hoja sobre la ventana, como la de tareas): icono, nombre, descripción,
+   botón "Conectar Slack", y las acciones de la app en tres grupos: **Leer**, **Crear y cambiar**,
+   **Borrar**. El grupo sale de lo que el servidor declara (`readOnlyHint` → Leer,
+   `destructiveHint` → Borrar, el resto → Crear y cambiar); sin declaración cae en Crear y cambiar,
+   nunca en Leer. Nota de Pipedream y la de privacidad.
+2. **Modal "Conectando Slack"**: los dos iconos (Companion → app) unidos por una línea con un punto
+   que viaja (reducir movimiento: punto quieto), "Abrimos el inicio de sesión de Slack en tu
+   navegador. Termina ahí y esta ventana se actualiza sola.", "Abrir de nuevo", nota de
+   privacidad. La app consulta `/api/accounts` cada 3 s mientras el modal está abierto (tope 10
+   min, luego "¿No terminó? Abrir de nuevo"). Cuando aparece la cuenta: "Slack conectado" y
+   **"Vamos"**, que cierra el modal y deja el panel en estado conectado.
+3. **Página**: sección "Tus apps" arriba con las conectadas (y las que piden volver a conectar),
+   catálogo debajo sin repetirlas.
+4. **Conectada**: en el panel, "Conectada" con la cuenta si la hay, y **"Desconectar"** con
+   confirmación: "Companion deja de usar Slack. Tu cuenta de Slack no cambia y puedes volver a
+   conectarla cuando quieras." Llama a `DELETE /api/accounts`, que ya existe y comprueba que la
+   cuenta es tuya.
+5. **Fuera de 16k-2**: "Settings" de firma (no hay dato), etiqueta Beta (Pipedream no la da), la
+   tarjeta "Conectar" en la isla y usar las apps por voz (16k-3), "Añádelo aquí" (16k-4).
+
+### 9.3 Piezas
+
+- Core `ConnectedApps.swift`: `AppAction` (nombre, grupo), lectura de `/api/tools`,
+  `ConnectPoll` puro (intervalo, tope, cuándo parar) con tests.
+- Services `HTTPAppsService.swift`: `tools(app:)`, `disconnect(account:)`.
+- UI nuevos: `AppPanel.swift` (panel), `ConnectingSheet.swift` (modal); `AppsModel` gana
+  `connecting`, `poll()`, `disconnect()`, `actions(of:)`; `AppsPage` gana "Tus apps" y abre el
+  panel al tocar una tarjeta. Textos es/en.
+- Función `companion-apps`: `/api/tools` hoy exige app conectada. Si Pipedream lista herramientas
+  sin cuenta, el panel muestra las acciones antes de conectar (como Incredible); si no, antes de
+  conectar muestra solo la descripción. Se prueba en vivo en la primera sesión, antes de depender
+  de ello. Cambios en la función: test primero, despliegue con tu OK.
+
+### 9.4 Sesiones
+
+- **16k-2a**: panel de la app + acciones agrupadas (+ la prueba en vivo de `/api/tools` sin cuenta).
+- **16k-2b**: modal de conexión con consulta y "Vamos".
+- **16k-2c**: "Tus apps" arriba, desconectar con confirmación, volver a conectar.
+
+Cada una: tests en rojo primero, gates verdes, code-reviewer + security-reviewer, instalar, docs.
+
+### 9.5 Decisiones (auditadas contra el binario, 2026-09-28)
+
+- **D1 RESUELTA — hoja/diálogo, confirmado**: Karen eligió hoja y el código real de Incredible
+  hace exactamente eso: `connector-detail-dialog` con `aria-modal`, backdrop negro al 40 %,
+  X de cierre arriba a la derecha, tamaño `max 1000×700 px` (86 vh máx). Dos columnas a partir
+  de 880 px: izquierda 430 px (icono 44 px, nombre, estado, Desconectar, Website), derecha con
+  scroll propio para las acciones. Nunca navega a otra página.
+- **D2 AJUSTADA — cada 3 s sí; el tope real es ~2 min, no 10**: constantes del binario:
+  intervalo `3e3` (3 s), máximo `40` intentos (~2 min) y un timeout global duro de `15e4`
+  (2.5 min) que corre desde `initiating`. Al agotarse: "no terminó" con **Reintentar** y
+  **Abrir de nuevo** (el enlace de Pipedream vale 4 h, así que reintentar es barato). Companion
+  adopta los números de Incredible: 3 s × 40 intentos + timeout global de 2.5 min.
+
+### 9.6 Auditoría del binario (2026-09-28, solo lectura)
+
+Método: assets del frontend extraídos del binario Tauri (slice arm64, mapa phf con punteros
+chained-fixup, brotli), 1607 archivos; grep sobre `main-*.js` y `firstRun-*.js`. Solo se leyó
+código de UI; jamás `auth.json` ni `bridge-secret`. Hechos nuevos que cierran huecos de §6:
+
+- **Máquina del intento** (una función pura, como el `ConnectPoll` planeado): fases
+  `initiating → waiting(attempts) → complete | timed_out | failed`. `initiating` muestra
+  "Opening your browser…" (o "macOS is asking for permission…" si la app es de tipo `device`).
+  Si `initiateConnection` no trae `redirect_url` pero la cuenta ya está `ACTIVE`, salta directo
+  a `complete`. Con `waiting` y varios intentos, aparece el hint "Still waiting on the browser.
+  If nothing came up, open the link again."
+- **Título del modal por fase**: "Connecting X" → "X is connected" / "X didn't finish
+  connecting" / "Couldn't connect X". En `complete`: palomita sobre la línea animada, copy
+  "You're all set…" y botón "Let's go".
+- **Grupos de acciones**: el servidor declara `gravity` = `Read` | `Write` | `Destructive`; la UI
+  solo agrupa (nada de adivinar por nombre — valida el diseño de la función 16k-0). Notas
+  exactas: Read "Only reads. Nothing in the app changes."; Create and change "Changes something
+  in the app. Incredible shows you what before it does."; Delete "Removes something. Incredible
+  always asks first." Orden alfabético dentro de cada grupo y un buscador "Search N actions"
+  dentro del panel.
+- **Sin conectar, el panel NO lista acciones**: estado vacío "Connect X to see everything it can
+  do."; conectada pero sin lista: "X didn't list any actions just now. Try Check, or reconnect
+  it." (esto responde la duda de §9.3: no hace falta `/api/tools` sin cuenta para la paridad).
+- **Desconectar**: botón fantasma "Disconnect X" con spinner "Disconnecting…"; los servidores
+  MCP propios usan "Remove" (tono peligro) y muestran salud (punto de color + host).
+- **Ajuste por app** visto en el panel: toggle "Run look-ups without asking" (lecturas sin
+  aprobación) — dato útil para 16k-3.
+- **Conectores nativos además de Pipedream**: apps con `auth_method` `api_key`/`basic` abren un
+  formulario local (Username/Password o API key). Fuera de alcance de 16k-2; anotado.
