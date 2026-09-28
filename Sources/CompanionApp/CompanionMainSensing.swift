@@ -95,7 +95,12 @@ func makeSensingAndModel(
             return ScreenHands(ax: ax, screen: sight, target: { frontmost.lastOtherPID },
                                selfInFront: { frontmost.selfInFront },
                                see: { request in await screenSight.see(request) })
-        })
+        },
+        // Wave 20b D2: with Claude Code installed no delegation reaches the
+        // native lane, so the parent carries the deliverables itself.
+        workdir: env.config.workdir,
+        documents: NativeDocumentRenderer(),
+        sheets: AppleEventSheets())
     let sensor = SystemContextSensor(
         focused: frontmost,
         // Documents of the app the user was IN, not of Companion.

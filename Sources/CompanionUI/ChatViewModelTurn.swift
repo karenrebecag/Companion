@@ -223,7 +223,7 @@ extension ChatViewModel {
     /// request outlives the switch, like the job does.
     func dropParentApprovals() {
         let parents = session.projection.approvalQueue
-            .filter { ParentTool(rawValue: $0.toolName) != nil }
+            .filter { ParentTool.ownsRequest($0.toolName) }
         for request in parents {
             session.send(.approvalDropped(requestId: request.requestId))
         }
