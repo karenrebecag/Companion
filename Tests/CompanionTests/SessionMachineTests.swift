@@ -35,6 +35,7 @@ import Testing
     testAParentsApprovalDoesNotCountForTheJob()
     testTheSpokenAnswerGoesToTheSheetsFirst()
     testALateRequestAfterStopIsDenied()
+    testBridgeAskReachesTheSheetAtRest()
     testStopClosesTheTypedTurn()
     testRenamingARunningJobKeepsItsApprovals()
     testPressedStartsListening()
@@ -744,4 +745,34 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     expect(stopped.projection.dictation == nil, "dictado: Stop lo borra")
     _ = stopped.handle(.dictated(app: "Slack"))
     expectEq(stopped.projection.kind, .idle, "dictado: un pegado tardío tras Stop no es Completed")
+}
+
+/// 36 (fix puente). La hoja del puente llega en reposo: el guard del
+/// 2026-09-06 mata la petición tardía del encargo recién parado, no la
+/// sesión nueva del puente. Visto en vivo 2026-09-28: tras cualquier Stop
+/// la proyección quedaba envenenada (`userStopped` solo se limpia al abrir
+/// turno) y toda petición `bridge_session` se negaba sola, sin hoja.
+@MainActor func testBridgeAskReachesTheSheetAtRest() {
+    var m = SessionMachine()
+    _ = m.handle(.job(.started(goal: "x")))
+    _ = m.handle(.stop)
+    expectEq(m.projection.interruption, .userStopped, "previo: el reposo envenenado")
+
+    let bridge = ApprovalRequest(
+        requestId: "b1", toolName: BridgePolicy.sessionApprovalTool,
+        summary: "claude-code pide las manos", inputJSON: #"{"client":"claude-code"}"#)
+    let fx = m.handle(.job(.approvalRequested(bridge)))
+    expect(!fx.contains(.resolveApproval(requestId: "b1", approved: false, remember: false)),
+           "puente: no se niega solo")
+    expectEq(m.projection.approvalQueue, [bridge], "puente: entra a la cola")
+    expectEq(m.projection.cards, [.approval(bridge)], "puente: la hoja se proyecta")
+
+    // La protección original sigue: una petición del encargo parado muere.
+    var late = SessionMachine()
+    _ = late.handle(.job(.started(goal: "x")))
+    _ = late.handle(.stop)
+    let fx2 = late.handle(.job(.approvalRequested(request("r9"))))
+    expect(fx2.contains(.resolveApproval(requestId: "r9", approved: false, remember: false)),
+           "encargo parado: la tardía sigue muriendo")
+    expect(late.projection.approvalQueue.isEmpty, "encargo parado: nada en cola")
 }

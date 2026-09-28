@@ -85,7 +85,7 @@ extension ApprovalSheet {
     }
 
     static func plan(for request: ApprovalRequest, language: AppLanguage) -> Plan {
-        guard request.toolName == "bridge_session" else {
+        guard request.toolName == BridgePolicy.sessionApprovalTool else {
             return Plan(
                 title: Localized.string(
                     ParentTool(rawValue: request.toolName) != nil
