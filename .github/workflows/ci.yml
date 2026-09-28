@@ -9,11 +9,12 @@ jobs:
   gates:
     # The compliance suite is the contract: build, static checks, layer rules
     # and tests. Same script contributors run locally, no CI-only pipeline.
-    runs-on: macos-15
+    # macos-26 (arm64): its default Xcode ships the Swift 6.2+ that
+    # Package.swift requires; macos-15/Xcode 16.4 tops out at 6.1 and the
+    # build died before running a single gate (20 red runs, same cause).
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.4.app
       - name: Show toolchain
         run: swift --version
       - name: Run gates
