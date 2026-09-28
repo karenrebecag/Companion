@@ -178,7 +178,16 @@ Fuera de alcance, anotado: `OpenAITranscriber` usa la misma sesión sin polític
 Gates 0 fallos; instalada. Pendiente de Karen: desplegar `companion-apps`, pegar dirección y clave
 en la página, probar en vivo, y la grabación de §6. Sigue 16k-2.
 
-## 9. Spec 16k-2: conectores como Incredible (APROBADO 2026-09-28, "dale"; D1/D2 auditadas contra el binario)
+## 9. Spec 16k-2: conectores como Incredible (CERRADO 2026-09-28; D1/D2 auditadas contra el binario)
+
+**Cierre**: 16k-2a/2b/2c construidas test-first, doble review por sesión (hallazgos corregidos
+vía tdd-guide: carrera del spinner, epoch de intentos de conexión, guard del doble DELETE),
+gates 0 fallos, 471 tests. Desviaciones: la ruta real de borrar es `DELETE /api/accounts?id=`
+(query, no path); el panel sin conectar muestra solo la descripción (auditoría §9.6), así que
+no hizo falta `/api/tools` sin cuenta; la función hoy solo manda `read|write` — el grupo
+Borrar queda cableado para cuando declare `destructive`. Deuda anotada: extraer el flujo de
+conexión de `AppsModel` (435 líneas) a un colaborador `ConnectFlow` (nota LOW del review).
+Falta el E2E en vivo de Karen con la función desplegada.
 
 Rama `feat/16k-2-conectores`, worktree `../companion-next-16k2` (la otra sesión sigue en la carpeta
 principal sin pisarse). Karen: "replicar la UI de los conectores de Incredible sobre Companion".
