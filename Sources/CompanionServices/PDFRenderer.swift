@@ -27,10 +27,16 @@ final class PDFRenderer: NSObject, WKNavigationDelegate {
         }.joined(separator: ",") + "]"
     }
 
-    func render(html: String, to url: URL) async throws -> Int {
+    /// No script and nothing kept between renders; the rule list is added on top.
+    static func configuration() -> WKWebViewConfiguration {
         let config = WKWebViewConfiguration()
         config.defaultWebpagePreferences.allowsContentJavaScript = false
         config.websiteDataStore = .nonPersistent()
+        return config
+    }
+
+    func render(html: String, to url: URL) async throws -> Int {
+        let config = Self.configuration()
         let rules = try await Self.offlineRules()
         config.userContentController.add(rules.list)
 

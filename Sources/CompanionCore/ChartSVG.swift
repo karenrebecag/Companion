@@ -2,6 +2,8 @@ import Foundation
 
 /// The printable palette. The same hexes as the UI's `Palette` (a test
 /// compares them), kept here because Core cannot see the UI target.
+// HACK: a hand-kept mirror guarded by a parity test. Generate both from one
+// token file when the palette grows past these few colors.
 public enum DocumentTheme {
     public static let ink = "1C1C1E"
     public static let muted = "6C6C70"

@@ -46,7 +46,9 @@ public struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
             // Wave 20: the exact rectangle, never the app: "yes to Excel"
             // would be every future write to any open workbook.
             guard let range = (arguments["range"] as? String).flatMap(SheetRange.init(a1:)) else { return nil }
-            let app = (arguments["app"] as? String)?.lowercased() ?? "active"
+            // Without an app the target is whatever is in front when it runs,
+            // which is not what the user approved.
+            guard let app = (arguments["app"] as? String)?.lowercased() else { return nil }
             return ApprovalKey(tool: request.toolName, pattern: "\(app) \(range.a1)")
         case NativeTool.writeFile.rawValue, NativeTool.editFile.rawValue, NativeTool.createDocument.rawValue:
             guard let path = arguments["path"] as? String, !path.isEmpty else { return nil }

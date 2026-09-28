@@ -12,6 +12,7 @@ import Testing
     testValuesMustFillTheRange()
     testValuesArriveAsJSONTextOrArrays()
     testNetworkFormulasAreRefused()
+    testEveryFormulaTriggerIsChecked()
     testAppleScriptTextIsEscaped()
     testAMatrixBecomesAnAppleScriptList()
     testAFlatReadIsReshapedByColumns()
@@ -69,6 +70,25 @@ func testNetworkFormulasAreRefused() {
     }
     guard case .success = SheetValues.parse(any: [["=SUM(A2:A9)*2"]], for: range) else {
         return expect(false, "una fórmula normal pasa")
+    }
+}
+
+/// Security review 20 (CRITICAL): Excel's formula setter reads `+`, `-` and
+/// `@` like `=`, so a poisoned cell must not dodge the list by its first char.
+func testEveryFormulaTriggerIsChecked() {
+    guard let range = SheetRange(a1: "A1") else { return expect(false, "rango") }
+    for payload in ["+cmd|' /C calc'!A0", "-cmd|' /C calc'!A0", "@WEBSERVICE(\"http://x\")",
+                    "+HYPERLINK(\"http://x\")", " =WEBSERVICE(\"http://x\")",
+                    "=\u{FF37}EBSERVICE(\"http://x\")", "=WEBSERVICE\u{00A0}(\"http://x\")"] {
+        guard case .failure(let error) = SheetValues.parse(any: [[payload]], for: range) else {
+            return expect(false, "fórmula disfrazada aceptada: \(payload)")
+        }
+        expectEq(error, .forbiddenFormula, "fórmula disfrazada rechazada: \(payload)")
+    }
+    for fine in ["-12 grados", "+52 55 1234", "@karen", "a|b"] {
+        guard case .success = SheetValues.parse(any: [[fine]], for: range) else {
+            return expect(false, "un texto inocente pasa: \(fine)")
+        }
     }
 }
 

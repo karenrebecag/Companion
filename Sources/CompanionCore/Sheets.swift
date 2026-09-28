@@ -117,6 +117,9 @@ public enum SheetValues {
             var line: [SheetCell] = []
             for cell in cells {
                 guard let parsed = parse(cell) else { return .failure(.invalidValues) }
+                if case .text(let text) = parsed, looksLikeFormula(text), isForbidden(text) {
+                    return .failure(.forbiddenFormula)
+                }
                 if case .formula(let formula) = parsed, isForbidden(formula) { return .failure(.forbiddenFormula) }
                 line.append(parsed)
             }
@@ -133,15 +136,25 @@ public enum SheetValues {
         return text.hasPrefix("=") ? .formula(text) : .text(text)
     }
 
-    /// DDE (`=cmd|...`) and the functions that fetch; case and spacing do not
-    /// hide them.
+    /// Excel's formula setter, like typing, starts a formula on any of these;
+    /// the cell stays text for us but must pass the same list.
+    static func looksLikeFormula(_ text: String) -> Bool {
+        guard let first = text.first(where: { !$0.isWhitespace }) else { return false }
+        return "=+-@".contains(first)
+    }
+
+    /// DDE (`=cmd|...`) and the functions that fetch; case, spacing and
+    /// full-width lookalikes do not hide them.
     static func isForbidden(_ formula: String) -> Bool {
-        let upper = formula.uppercased().replacingOccurrences(of: " ", with: "")
+        let upper = String(formula.precomposedStringWithCompatibilityMapping.uppercased()
+            .filter { !$0.isWhitespace })
         if upper.contains("|") { return true }
         return forbidden.contains { upper.contains($0 + "(") }
     }
 
     /// Numbers reads a range as one flat list.
+    // HACK: a short read is padded with blanks, so a cell Numbers dropped reads
+    // as empty. Compare counts against the range when a write report must be exact.
     public static func reshape(_ flat: [String], columns: Int) -> [[String]] {
         guard columns > 0 else { return [] }
         var rows: [[String]] = []

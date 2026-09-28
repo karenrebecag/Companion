@@ -1,4 +1,4 @@
-import CompanionCore
+@testable import CompanionCore
 @testable import CompanionServices
 import Foundation
 import Testing
@@ -14,6 +14,7 @@ import Testing
     testXMLIsEscapedAndControlCharactersDropped()
     await testTheZipIsValidForTheSystemUnzip()
     testADocumentWithoutRowsHasNoWorkbook()
+    testAForbiddenFormulaIsWrittenAsText()
 }
 
 private let spec = DocumentSpec.parse("""
@@ -91,4 +92,14 @@ func testTheZipIsValidForTheSystemUnzip() async {
 func testADocumentWithoutRowsHasNoWorkbook() {
     let prose = DocumentSpec(title: "x", blocks: [.paragraph("solo texto")])
     expect(XLSXWriter.package(prose) == nil, "xlsx: sin tablas no hay libro que escribir")
+}
+
+/// Code review 20 (MEDIUM): a cell from the web that looks like a fetching
+/// formula lands as text, never as a live formula in the user's Excel.
+func testAForbiddenFormulaIsWrittenAsText() {
+    let sheet = XLSXWriter.Sheet(name: "x", rows: [["a"], ["=WEBSERVICE(\"https://x\")"], ["=cmd|' /c calc'!A0"], ["+cmd|' /c calc'!A0"]])
+    let xml = XLSXWriter.sheetXML(sheet)
+    expect(!xml.contains("<f>"), "xlsx: ninguna fórmula de red o DDE se escribe como fórmula")
+    expect(xml.contains("WEBSERVICE"), "xlsx: queda visible como texto")
+    expect(xml.contains("<t>+cmd|"), "xlsx: un disparador + queda como texto en línea")
 }

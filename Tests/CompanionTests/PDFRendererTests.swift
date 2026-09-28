@@ -10,6 +10,7 @@ import Testing
 @Test @MainActor func pdfRendererTests() async {
     await testASpecBecomesAPaginatedPDF()
     testTheOfflineRuleBlocksEveryScheme()
+    testThePageRunsNoScriptAndKeepsNothing()
 }
 
 @MainActor func testASpecBecomesAPaginatedPDF() async {
@@ -34,4 +35,11 @@ import Testing
     for scheme in ["https", "http", "file", "data", "wss", "blob", "ftp"] {
         expect(PDFRenderer.blockEverything.contains(scheme), "pdf: la regla bloquea \(scheme)")
     }
+}
+
+/// Code review 20 (MEDIUM): the controls themselves, not just the rule text.
+@MainActor func testThePageRunsNoScriptAndKeepsNothing() {
+    let config = PDFRenderer.configuration()
+    expect(!config.defaultWebpagePreferences.allowsContentJavaScript, "pdf: JavaScript apagado")
+    expect(!config.websiteDataStore.isPersistent, "pdf: almacén de datos desechable")
 }
