@@ -22,7 +22,7 @@ rol**, no con “no hay proveedor”.
 
 Seis subagentes de exploración, 2026-09-07, solo lectura. Código gana a
 docs. Trazas de Incredible: únicamente
-`/Users/karenrebecaog/Documents/Incredible-Debug/2026-09-04/` (app 0.1.81,
+`~/Documents/Incredible-Debug/2026-09-04/` (app 0.1.81,
 cuatro holds, onboarding). `2026-09-05/` es RSS idle, sin pipeline.
 `Documents/Incredible-Agent/` está vacío. **No hay dump del POST del
 orchestrator** (`llm_request_bytes` siempre null).

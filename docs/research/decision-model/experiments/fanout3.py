@@ -1,8 +1,9 @@
 """Cascade instead of speculative fan-out: action (fwd+rev averaged) -> only the heads that
 action consumes. Apps are prefiltered in code (fuzzy) to <=6 before the model sees them."""
+import pathlib
 import difflib, re, sys, time
-sys.path.insert(0, "/Users/karenrebecaog/Desktop/SoftwareDevProjects/jev-voice")
-sys.path.insert(0, "/private/tmp/claude-501/-Users-karenrebecaog/87b23e78-f790-4f67-b2a2-b3b6f041e501/scratchpad")
+sys.path.insert(0, str(pathlib.Path.home() / "Desktop/SoftwareDevProjects/jev-voice"))
+sys.path.insert(0, "<scratchpad>")
 from jev_voice import brain, actions  # noqa: E402
 from fanout import UTTS, ask, render_state  # noqa: E402
 

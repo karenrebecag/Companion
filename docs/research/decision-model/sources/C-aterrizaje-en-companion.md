@@ -1,7 +1,7 @@
 # Landing a decision-model layer (jev-voice pattern) in companion-next
 
 Read-only investigation. Repo root:
-`/Users/karenrebecaog/Desktop/SoftwareDevProjects/companion-next`. No files
+`~/Desktop/SoftwareDevProjects/companion-next`. No files
 were modified.
 
 ---

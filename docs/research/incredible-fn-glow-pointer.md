@@ -193,12 +193,12 @@ sobre una pila de tarjetas): posición fija arriba del trigger (`bottom:100%`, c
 
 ## Archivos fuente citados
 
-- `/private/tmp/claude-501/-Users-karenrebecaog/ff326119-5cb1-40cc-8f6a-3ec3a51e8313/scratchpad/inc/overlay-CkZPSNkG.css`
-- `/private/tmp/claude-501/-Users-karenrebecaog/ff326119-5cb1-40cc-8f6a-3ec3a51e8313/scratchpad/inc/firstRun-BOTAwJJ8.css`
-- `/private/tmp/claude-501/-Users-karenrebecaog/ff326119-5cb1-40cc-8f6a-3ec3a51e8313/scratchpad/inc/js/overlay-DstkIEbM.js`
-- `/private/tmp/claude-501/-Users-karenrebecaog/ff326119-5cb1-40cc-8f6a-3ec3a51e8313/scratchpad/inc/js/main-BL-DABKy.js`
-- `/private/tmp/claude-501/-Users-karenrebecaog/ff326119-5cb1-40cc-8f6a-3ec3a51e8313/scratchpad/inc/js/first-run-stage-jWP7PI3J.js` (demo/tour, citado con salvedad)
-- `/private/tmp/claude-501/-Users-karenrebecaog/ff326119-5cb1-40cc-8f6a-3ec3a51e8313/scratchpad/inc/js/audioLevelsSource-DSOQLR23.js`
-- `/private/tmp/claude-501/-Users-karenrebecaog/ff326119-5cb1-40cc-8f6a-3ec3a51e8313/scratchpad/inc/js/EventsTab-CRHuKw96.js`
+- `<scratchpad>/inc/overlay-CkZPSNkG.css`
+- `<scratchpad>/inc/firstRun-BOTAwJJ8.css`
+- `<scratchpad>/inc/js/overlay-DstkIEbM.js`
+- `<scratchpad>/inc/js/main-BL-DABKy.js`
+- `<scratchpad>/inc/js/first-run-stage-jWP7PI3J.js` (demo/tour, citado con salvedad)
+- `<scratchpad>/inc/js/audioLevelsSource-DSOQLR23.js`
+- `<scratchpad>/inc/js/EventsTab-CRHuKw96.js`
 - `/Applications/Incredible.app/Contents/Info.plist`
 - `~/.incredible/overlay.json` (solo claves/valores de configuración, sin secretos)

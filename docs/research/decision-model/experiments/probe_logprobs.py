@@ -1,8 +1,9 @@
 """Can a local model give a real distribution over an offered closed set, jev-style?
 Uses brain.py's real ACTIONS criteria. Single-token labels, max_tokens=1, read logprobs."""
+import pathlib
 import json, sys, time, string
 import httpx
-sys.path.insert(0, "/Users/karenrebecaog/Desktop/SoftwareDevProjects/jev-voice")
+sys.path.insert(0, str(pathlib.Path.home() / "Desktop/SoftwareDevProjects/jev-voice"))
 from jev_voice.brain import ACTIONS  # noqa: E402
 
 LABELS = list(string.ascii_uppercase[: len(ACTIONS)])

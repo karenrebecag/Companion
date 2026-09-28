@@ -1,6 +1,6 @@
 """Does Ollama reuse the shared system-prompt prefix when only the utterance changes?"""
 import sys, time, httpx
-sys.path.insert(0, "/private/tmp/claude-501/-Users-karenrebecaog/87b23e78-f790-4f67-b2a2-b3b6f041e501/scratchpad")
+sys.path.insert(0, "<scratchpad>")
 from probe_logprobs import SYSTEM, UTTS, dist_from_top
 model = sys.argv[1]
 print(f"model={model}")
