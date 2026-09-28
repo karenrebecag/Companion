@@ -49,10 +49,6 @@
     "IslandMotion.swift": "archivo de tokens (spec 16f §9): aqui se declaran las duraciones, curvas y amplitudes de la isla, como MotionTime en Motion.swift; MotionBudgetTests las comprueba contra las reglas M1-M8"
   },
   "baseline": {
-    "ApprovalSheet.swift": {
-      "frame-literal": 1,
-      "radius-literal": 1
-    },
     "AttachmentViews.swift": {
       "space-arithmetic": 12
     },

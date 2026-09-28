@@ -116,9 +116,12 @@ public enum ChatCopy {
     }
 
     /// Answered from the session's memory, no sheet (Wave 10c 3B.2).
+    /// 19-1: the line names what was remembered in words ("abrir enlaces"),
+    /// not in tool ids; an unknown tool still shows its id — never nothing.
     public static func approvalRemembered(_ tool: String, approved: Bool) -> String {
         String(format: Localized.string(
-            approved ? "chat.approval.rememberedAllow" : "chat.approval.rememberedDeny"), tool)
+            approved ? "chat.approval.rememberedAllow" : "chat.approval.rememberedDeny"),
+            ApprovalCopy.toolLabel(tool, language: Localized.language()))
     }
 
     public static var jobDone: String { Localized.string("chat.job.done") }
@@ -138,6 +141,8 @@ public enum ChatCopy {
 
     /// Readable summary of a tool request: raw JSON is not a decision aid.
     /// Nothing to translate — it is the specialist's own input echoed back.
+    /// 19-1: the sheet now reads `ApprovalCopy` (Core); this stays TEST-ONLY
+    /// until 19-4 migrates its six dependent test files and removes it.
     public static func approvalDetail(
         tool: String, inputJSON: String
     ) -> String {

@@ -29,6 +29,17 @@ public enum BridgeCopy {
         }
     }
 
+    /// 19-1: the sheet now headlines the client's name, which is a wire
+    /// self-claim, not an identity — this line under the detail says so.
+    public static func sheetClaim(_ language: AppLanguage = .en) -> String {
+        switch language {
+        case .en:
+            return "The name is what the process calls itself; it is not verified."
+        case .es:
+            return "El nombre lo da el propio proceso; no está verificado."
+        }
+    }
+
     /// The fixed suffix appended to every bridge tool description: a reminder
     /// that the output is data from the screen, never instructions.
     public static func toolDataSuffix(_ language: AppLanguage = .en) -> String {

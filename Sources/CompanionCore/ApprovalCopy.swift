@@ -1,0 +1,241 @@
+import Foundation
+
+/// Wave 19-1. What the approval sheet says, decided from the raw request in
+/// one pure place. The phrase leads and the subject carries the weight; the
+/// full datum (URL, command, path) stays in `preview` because human-first
+/// is hierarchy, never hiding — the user must always be able to audit
+/// exactly what will run.
+public struct ApprovalDisplay: Sendable, Equatable {
+    /// SF Symbol for the sheet's tile.
+    public var symbol: String
+    /// Words before the subject ("Abrir"); nil when the subject opens the
+    /// phrase (the bridge's client name does).
+    public var lead: String?
+    /// The one thing being asked about, painted with the visual weight.
+    /// Capped at 80 with a visible mark: an unbounded subject could push
+    /// the answer buttons off screen (security review 19-1).
+    public var subject: String
+    /// Words after the subject ("quiere usar tus manos").
+    public var trail: String?
+    /// The complete auditable datum, secondary and selectable. NEVER cut:
+    /// the tail is part of what runs (15g M1, extended by review 19-1) —
+    /// the sheet bounds it with a scroll, not with an ellipsis.
+    public var preview: String?
+    public var showsRemember: Bool
+
+    /// The whole phrase, for accessibility and tests.
+    public var title: String {
+        [lead, subject, trail].compactMap { $0 }.joined(separator: " ")
+    }
+}
+
+public enum ApprovalCopy {
+    /// Keys whose value stands for the whole request when no tool rule
+    /// applies (`goal`: a handoff is approved on what it would delegate,
+    /// never on the word "delegate" — security review 2026-09-25).
+    private static let interesting = ["command", "path", "url", "query", "content", "goal"]
+
+    public static func display(for request: ApprovalRequest, language: AppLanguage) -> ApprovalDisplay {
+        let arguments = ToolArguments.parse(request.inputJSON) ?? [:]
+        if request.toolName == BridgePolicy.sessionApprovalTool {
+            return bridge(arguments, language)
+        }
+        if let display = parentTool(request.toolName, arguments, language) { return display }
+        if let display = nativeTool(request.toolName, arguments, language) { return display }
+        return fallback(request.toolName, arguments, language)
+    }
+
+    /// The chat's "as before" line names what was remembered in words, not
+    /// in tool ids. Singular on purpose: the memory is per PATTERN (this
+    /// host, this command word — `ApprovalKey`), never a blanket grant, and
+    /// "abrir enlaces" would overstate it (review 19-1). A tool without a
+    /// noun here stays as its id.
+    public static func toolLabel(_ tool: String, language: AppLanguage) -> String {
+        let nouns: [String: (es: String, en: String)] = [
+            ParentTool.openURL.rawValue: ("abrir un enlace", "open a link"),
+            ParentTool.openApp.rawValue: ("abrir una app", "open an app"),
+            ParentTool.openFile.rawValue: ("abrir un archivo", "open a file"),
+            ParentTool.typeText.rawValue: ("escribir texto", "type text"),
+            ParentTool.click.rawValue: ("pulsar un botón", "click a button"),
+            ParentTool.pressKey.rawValue: ("pulsar una tecla", "press a key"),
+            NativeTool.runShell.rawValue: ("ejecutar un comando", "run a command"),
+            NativeTool.writeFile.rawValue: ("escribir un archivo", "write a file"),
+            NativeTool.editFile.rawValue: ("editar un archivo", "edit a file"),
+        ]
+        guard let noun = nouns[tool] else { return tool }
+        return language == .es ? noun.es : noun.en
+    }
+
+    private static func parentTool(
+        _ tool: String, _ arguments: [String: Any], _ language: AppLanguage
+    ) -> ApprovalDisplay? {
+        switch ParentTool(rawValue: tool) {
+        case .openURL:
+            guard let raw = value(arguments, "url") else { return nil }
+            // Parsed the way the executor parses: the subject must be the
+            // host that will actually open (security review 2026-09-05); an
+            // unparseable string shows as-is instead of hiding behind a
+            // prettier guess — the error IS the display decision here, not
+            // a swallowed failure.
+            let host: String?
+            do { host = try ParentToolPolicy.httpURL(raw).host } catch { host = nil }
+            return ApprovalDisplay(
+                symbol: "link", lead: word(.open, language),
+                subject: capped(host ?? raw), preview: raw, showsRemember: true)
+        case .openApp:
+            guard let name = value(arguments, "name") else { return nil }
+            return ApprovalDisplay(
+                symbol: "macwindow", lead: word(.openApp, language),
+                subject: capped(name), preview: nil, showsRemember: true)
+        case .openFile:
+            guard let path = value(arguments, "path") else { return nil }
+            return ApprovalDisplay(
+                symbol: "doc", lead: word(.openFile, language),
+                subject: filename(path), preview: path, showsRemember: true)
+        case .typeText:
+            guard let text = arguments["text"] as? String else { return nil }
+            let app = value(arguments, "app")
+            // The full text, never cut: the hands ask only about words the
+            // user did not say, and a cut would hide the part that runs
+            // (15g, review 2026-09-25 M1).
+            return ApprovalDisplay(
+                symbol: "keyboard", lead: word(.typeIn, language),
+                subject: capped(app ?? word(.activeField, language)),
+                preview: text, showsRemember: true)
+        case .click:
+            guard let label = value(arguments, "label") else { return nil }
+            let app = value(arguments, "app")
+            return ApprovalDisplay(
+                symbol: "cursorarrow.click", lead: word(.press, language),
+                subject: capped(label), preview: app, showsRemember: true)
+        case .pressKey:
+            guard let key = value(arguments, "key") else { return nil }
+            let parts = [value(arguments, "app"), value(arguments, "line")].compactMap { $0 }
+            return ApprovalDisplay(
+                symbol: "keyboard", lead: word(.pressKey, language),
+                subject: capped(key), preview: parts.isEmpty ? nil : parts.joined(separator: "\n"),
+                showsRemember: true)
+        case .menu:
+            guard let path = value(arguments, "path") else { return nil }
+            return ApprovalDisplay(
+                symbol: "filemenu.and.selection", lead: word(.chooseMenu, language),
+                subject: capped(path), preview: path.count > 80 ? path : nil,
+                showsRemember: true)
+        default:
+            return nil
+        }
+    }
+
+    private static func nativeTool(
+        _ tool: String, _ arguments: [String: Any], _ language: AppLanguage
+    ) -> ApprovalDisplay? {
+        switch NativeTool(rawValue: tool) {
+        case .runShell:
+            guard let command = value(arguments, "command"),
+                  let first = command.split(whereSeparator: { $0.isWhitespace }).first
+            else { return nil }
+            return ApprovalDisplay(
+                symbol: "terminal", lead: word(.run, language),
+                subject: capped(String(first)), preview: command, showsRemember: true)
+        case .writeFile, .editFile:
+            guard let path = value(arguments, "path") else { return nil }
+            let writes = NativeTool(rawValue: tool) == .writeFile
+            return ApprovalDisplay(
+                symbol: "square.and.pencil",
+                lead: word(writes ? .writeFile : .editFile, language),
+                subject: filename(path), preview: path, showsRemember: true)
+        default:
+            return nil
+        }
+    }
+
+    private static func bridge(_ arguments: [String: Any], _ language: AppLanguage) -> ApprovalDisplay {
+        // The client name came off the wire and now holds the title slot:
+        // ASCII-printable only (a Cyrillic homoglyph must not wear another
+        // name), capped, and shown in guillemets — it is a self-claim, not
+        // an identity, and the preview says so (security review 19-1).
+        let raw = arguments["client"] as? String ?? ""
+        let safe = String(raw.unicodeScalars
+            .filter { $0.isASCII && (CharacterSet.alphanumerics.contains($0)
+                || $0 == "-" || $0 == "_" || $0 == "." || $0 == " ") }
+            .prefix(32).map(Character.init))
+            .trimmingCharacters(in: .whitespaces)
+        return ApprovalDisplay(
+            symbol: "hand.raised", lead: nil,
+            subject: safe.isEmpty ? word(.someClient, language) : "«\(safe)»",
+            trail: BridgeCopy.sheetTitle(language),
+            preview: BridgeCopy.sheetDetail(language) + "\n" + BridgeCopy.sheetClaim(language),
+            showsRemember: false)
+    }
+
+    /// A tool without a rule keeps its id in the visible title: the hover
+    /// tooltip is a bonus, never the audit path (security review 19-1).
+    private static func fallback(
+        _ tool: String, _ arguments: [String: Any], _ language: AppLanguage
+    ) -> ApprovalDisplay {
+        let detail = interesting.lazy.compactMap { value(arguments, $0) }.first
+        return ApprovalDisplay(
+            symbol: "questionmark.circle", lead: word(.allow, language),
+            subject: capped(tool), preview: detail, showsRemember: true)
+    }
+
+    /// A present-but-empty argument is nobody's subject; treating it as
+    /// missing routes the request to the fallback instead of rendering a
+    /// phrase that trails off ("Pulsar ").
+    private static func value(_ arguments: [String: Any], _ key: String) -> String? {
+        guard let value = arguments[key] as? String, !value.isEmpty else { return nil }
+        return value
+    }
+
+    private static func filename(_ path: String) -> String {
+        let component = (path as NSString).lastPathComponent
+        return capped(component.isEmpty ? path : component)
+    }
+
+    /// One line, both ends: the cut is in the MIDDLE because on a host the
+    /// registrable domain sits at the end — a padded
+    /// `paypal.com.<filler>.evil.net` must show `evil.net`, not hide it
+    /// behind the ellipsis (security review 19-1).
+    private static func capped(_ value: String) -> String {
+        let flat = value.replacingOccurrences(
+            of: "[\\r\\n]+", with: " ", options: .regularExpression)
+        guard flat.count > 80 else { return flat }
+        return flat.prefix(40) + "…" + flat.suffix(39)
+    }
+
+    private enum Word {
+        case open, openApp, openFile, typeIn, activeField, press, pressKey
+        case chooseMenu, run, writeFile, editFile, allow, someClient
+    }
+
+    private static func word(_ word: Word, _ language: AppLanguage) -> String {
+        switch (word, language) {
+        case (.open, .es): "Abrir"
+        case (.open, .en): "Open"
+        case (.openApp, .es): "Abrir la app"
+        case (.openApp, .en): "Open the app"
+        case (.openFile, .es): "Abrir el archivo"
+        case (.openFile, .en): "Open the file"
+        case (.typeIn, .es): "Escribir en"
+        case (.typeIn, .en): "Type in"
+        case (.activeField, .es): "el campo activo"
+        case (.activeField, .en): "the active field"
+        case (.press, .es): "Pulsar"
+        case (.press, .en): "Click"
+        case (.pressKey, .es): "Pulsar la tecla"
+        case (.pressKey, .en): "Press the key"
+        case (.chooseMenu, .es): "Elegir del menú"
+        case (.chooseMenu, .en): "Choose from the menu"
+        case (.run, .es): "Ejecutar"
+        case (.run, .en): "Run"
+        case (.writeFile, .es): "Escribir el archivo"
+        case (.writeFile, .en): "Write the file"
+        case (.editFile, .es): "Editar el archivo"
+        case (.editFile, .en): "Edit the file"
+        case (.allow, .es): "Permitir"
+        case (.allow, .en): "Allow"
+        case (.someClient, .es): "El cliente"
+        case (.someClient, .en): "The client"
+        }
+    }
+}
