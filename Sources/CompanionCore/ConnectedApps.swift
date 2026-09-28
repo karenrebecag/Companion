@@ -103,6 +103,8 @@ public protocol AppsService: Sendable {
     func accounts() async throws -> [ConnectedAccount]
     func connectLink(app: String) async throws -> URL
     func tools(app: String) async throws -> [AppAction]
+    /// `account` is the `ConnectedAccount.id`, not the app slug (spec §9.2.4).
+    func disconnect(account: String) async throws
 }
 
 /// The function's address, as the user types it in.
@@ -174,6 +176,15 @@ public enum AppsWire {
         let sorted = tools.compactMap(action)
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         return Array(sorted.prefix(maxTools))
+    }
+
+    /// DELETE /api/accounts?id=... (companion-apps api/accounts.mjs DELETE
+    /// handler) answers `{ disconnected: id }`; returns that id so a caller
+    /// can confirm it matches what it asked to remove.
+    public static func disconnected(status: Int, body: Data) throws -> String {
+        let data = try payload(status: status, body: body)
+        guard let id = data["disconnected"] as? String, !id.isEmpty else { throw AppsFailure.unexpected }
+        return id
     }
 
     public static func failure(status: Int, body: Data) -> AppsFailure {

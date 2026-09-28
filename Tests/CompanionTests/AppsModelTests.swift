@@ -79,6 +79,29 @@ private final class FakeApps: AppsService, @unchecked Sendable {
         toolsCalls.append(app)
         return try toolsResult.get()
     }
+
+    // Wave 16k-2c: disconnect(account:) — gated the same way accounts() is,
+    // so a test can hold one call open to prove a stale answer after
+    // closePanel() is discarded.
+    var disconnectResult: Result<Void, AppsFailure> = .success(())
+    private(set) var disconnectCalls: [String] = []
+    var gateDisconnect = false
+    private var disconnectWaiters: [CheckedContinuation<Void, Never>] = []
+    var gatedDisconnectCallCount: Int { disconnectWaiters.count }
+
+    func releaseDisconnect() {
+        let waiters = disconnectWaiters
+        disconnectWaiters = []
+        for waiter in waiters { waiter.resume() }
+    }
+
+    func disconnect(account: String) async throws {
+        disconnectCalls.append(account)
+        if gateDisconnect {
+            await withCheckedContinuation { disconnectWaiters.append($0) }
+        }
+        try disconnectResult.get()
+    }
 }
 
 private func app(_ slug: String) -> CatalogApp {
@@ -519,4 +542,141 @@ private final class AppsManualSleeper: @unchecked Sendable {
     await pumpUntil("reintentar doble: una sola pregunta") { fake.accountsCallCount == before + 1 }
     await settle()
     #expect(fake.accountsCallCount == before + 1, "reintentar doble: ningún segundo bucle duplicó la pregunta")
+}
+
+// Wave 16k-2c: "Tus apps" arriba (conectadas primero, luego las que piden
+// volver a conectar), el catálogo abajo sin repetirlas (spec §9.2.3).
+
+@Test @MainActor func appsModelDerivesYourAppsAboveTheCatalogWithoutRepeating() async {
+    let fake = FakeApps()
+    fake.pages["|"] = CatalogPage(apps: [app("slack"), app("gmail"), app("notion")], total: 3, next: nil)
+    fake.accountsResult = .success([
+        ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected),
+        ConnectedAccount(id: "apn_2", app: "gmail", name: nil, state: .reconnect),
+    ])
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await apps.load()
+    #expect(apps.connectedSection.map(\.slug) == ["slack", "gmail"],
+            "conectadas antes que las que piden volver a conectar")
+    #expect(apps.catalogSection.map(\.slug) == ["notion"], "el catálogo no repite lo que ya está arriba")
+}
+
+@Test @MainActor func appsModelDerivesEmptySectionsWhenNothingIsConnected() async {
+    let fake = FakeApps()
+    fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await apps.load()
+    #expect(apps.connectedSection.isEmpty, "sin cuentas, 'Tus apps' no existe")
+    #expect(apps.catalogSection.map(\.slug) == ["slack"])
+}
+
+// Wave 16k-2c: desconectar (spec §9.2.4) — confirmar → desconectando →
+// vuelve a "no conectado" con el panel abierto.
+
+@Test @MainActor func appsModelDisconnectsAndRefreshesState() async {
+    let fake = FakeApps()
+    fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: "karen@x", state: .connected)])
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await apps.load()
+    let slack = app("slack")
+    apps.open(slack)
+    #expect(apps.disconnectPhase == .idle)
+    #expect(apps.accountName(of: "slack") == "karen@x")
+
+    apps.confirmDisconnect()
+    #expect(apps.disconnectPhase == .confirming)
+    apps.cancelDisconnect()
+    #expect(apps.disconnectPhase == .idle, "cancelar vuelve sin llamar a la función")
+    #expect(fake.disconnectCalls.isEmpty)
+
+    apps.confirmDisconnect()
+    fake.accountsResult = .success([]) // el refresco ya no la lista
+    await apps.disconnect()
+    #expect(fake.disconnectCalls == ["apn_1"], "el id de la cuenta, no el slug")
+    #expect(apps.disconnectPhase == .idle)
+    #expect(apps.state(of: "slack") == nil, "la tarjeta vuelve a + Conectar")
+    #expect(apps.selected == slack, "el panel sigue abierto (Incredible: 'you can reconnect anytime')")
+}
+
+@Test @MainActor func appsModelDisconnectFailureKeepsThePanelOpen() async {
+    let fake = FakeApps()
+    fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
+    fake.disconnectResult = .failure(.upstream)
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await apps.load()
+    let slack = app("slack")
+    apps.open(slack)
+    apps.confirmDisconnect()
+    await apps.disconnect()
+    #expect(apps.disconnectPhase == .failed(.upstream), "el fallo se dice, sin borrar el panel")
+    #expect(apps.selected == slack)
+    #expect(apps.state(of: "slack") == .connected, "la cuenta sigue conectada")
+}
+
+// Security review 16k-2c (MEDIUM): a fast double-tap on the confirm button
+// spawns two Tasks; without a guard, the second still saw .confirming
+// before the first's `disconnectPhase = .disconnecting` ran, so both went
+// through — two DELETEs for the same account, and whichever resolved last
+// could clobber a success with a stray .failed.
+@Test @MainActor func appsModelGuardsDisconnectAgainstADoubleTap() async {
+    let fake = FakeApps()
+    fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
+    fake.gateDisconnect = true
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await apps.load()
+    let slack = app("slack")
+    apps.open(slack)
+    apps.confirmDisconnect()
+
+    async let first: Void = apps.disconnect()
+    async let second: Void = apps.disconnect()
+    await pumpUntil("doble toque desconectar: la primera llamada queda detenida") {
+        fake.gatedDisconnectCallCount == 1
+    }
+    await settle() // le da tiempo a una segunda llamada espuria de llegar a la compuerta
+    #expect(fake.gatedDisconnectCallCount == 1, "doble toque desconectar: solo una llamada llega a la función")
+
+    fake.accountsResult = .success([])
+    fake.releaseDisconnect()
+    _ = await (first, second)
+
+    #expect(fake.disconnectCalls == ["apn_1"], "doble toque desconectar: una sola DELETE, no dos")
+    #expect(apps.disconnectPhase == .idle, "doble toque desconectar: la fase no queda en un estado a medias")
+}
+
+// A disconnect() landing after closePanel() must not revive the panel nor
+// change a state nobody is looking at any more — mirrors the connect poll's
+// own stillConnecting discipline.
+@Test @MainActor func appsModelDiscardsAStaleDisconnectResultAfterClosePanel() async {
+    let fake = FakeApps()
+    fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
+    fake.gateDisconnect = true
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await apps.load()
+    let slack = app("slack")
+    apps.open(slack)
+    apps.confirmDisconnect()
+    let task = Task { await apps.disconnect() }
+    await pumpUntil("descarte desconectar: la llamada queda detenida en la compuerta") {
+        fake.gatedDisconnectCallCount == 1
+    }
+
+    apps.closePanel()
+    fake.releaseDisconnect()
+    await task.value
+    await settle()
+
+    #expect(apps.selected == nil, "cierre: sigue cerrado")
+    #expect(apps.disconnectPhase == .idle, "cierre: nada revive la confirmación")
+    #expect(apps.state(of: "slack") == .connected, "cierre: la respuesta tardía no toca un estado que nadie mira")
 }

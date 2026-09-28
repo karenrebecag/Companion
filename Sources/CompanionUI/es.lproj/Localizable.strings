@@ -489,6 +489,7 @@
 "apps.title" = "Apps";
 "apps.lede" = "Cada app que conectas hace a Companion más rápido, más preciso y capaz de hacer más.";
 "apps.search" = "Busca tus apps";
+"apps.yours" = "Tus apps";
 "apps.featured" = "Apps destacadas";
 "apps.results" = "Resultados";
 "apps.total" = "%ld apps";
@@ -537,3 +538,8 @@
 "apps.connecting.openAgain" = "Abrir de nuevo";
 "apps.connecting.retry" = "Reintentar";
 "apps.connecting.letsGo" = "Vamos";
+"apps.panel.disconnect" = "Desconectar %@";
+"apps.panel.disconnect.confirm" = "Companion deja de usar %1$@. Tu cuenta de %1$@ no cambia y puedes volver a conectarla cuando quieras. Esto no revoca el acceso del lado de %1$@: hazlo ahí si quieres desconectar del todo.";
+"apps.panel.disconnect.confirmButton" = "Desconectar";
+"apps.panel.disconnect.cancel" = "Cancelar";
+"apps.panel.disconnecting" = "Desconectando…";

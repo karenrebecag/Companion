@@ -119,3 +119,22 @@ private func data(_ json: String) -> Data { Data(json.utf8) }
     #expect(AppsEndpoint.route(base, "api/apps", query: ["q": "sl ack", "after": ""])?.absoluteString
         == "https://x.vercel.app/api/apps?q=sl%20ack")
 }
+
+// Wave 16k-2c: DELETE /api/accounts?id=apn_... (pinned from companion-apps
+// api/accounts.mjs) answers `{ disconnected: id }`; a not-yours or missing
+// id comes back as the function's ordinary error shape.
+@Test func appsWireDisconnected() throws {
+    let id = try AppsWire.disconnected(status: 200, body: data(
+        #"{"success":true,"data":{"disconnected":"apn_1"}}"#))
+    #expect(id == "apn_1")
+
+    #expect(throws: AppsFailure.notFound) {
+        try AppsWire.disconnected(status: 404, body: data(#"{"success":false,"error":"not_found"}"#))
+    }
+    #expect(throws: AppsFailure.invalidInput) {
+        try AppsWire.disconnected(status: 400, body: data(#"{"success":false,"error":"invalid_input"}"#))
+    }
+    #expect(throws: AppsFailure.unexpected) {
+        try AppsWire.disconnected(status: 200, body: data(#"{"success":true,"data":{}}"#))
+    }
+}

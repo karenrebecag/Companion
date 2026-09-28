@@ -87,3 +87,19 @@ private func stubbedService() -> HTTPAppsService {
     let sentApp = try JSONSerialization.jsonObject(with: body) as? [String: String]
     #expect(sentApp?["app"] == "slack")
 }
+
+// Wave 16k-2c: disconnect(account:) follows the same send() path as the
+// rest of the service, pinned to DELETE /api/accounts?id=... (16k-0's
+// api/accounts.mjs DELETE handler).
+@Test func httpAppsServiceDisconnectsAnAccount() async throws {
+    let transport = ScriptedTransport()
+    transport.stub(url: "https://function.test/api/accounts?id=apn_1", ScriptedReply(
+        status: 200, body: Data(#"{"success":true,"data":{"disconnected":"apn_1"}}"#.utf8)))
+    let service = HTTPAppsService(
+        base: URL(string: "https://function.test")!, key: String(repeating: "k", count: 64), transport: transport)
+    try await service.disconnect(account: "apn_1")
+    let sent = try #require(transport.requests.first)
+    #expect(sent.httpMethod == "DELETE")
+    #expect(sent.url?.absoluteString == "https://function.test/api/accounts?id=apn_1")
+    #expect(sent.value(forHTTPHeaderField: "Authorization") == "Bearer \(String(repeating: "k", count: 64))")
+}
