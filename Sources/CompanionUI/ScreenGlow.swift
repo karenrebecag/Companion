@@ -19,13 +19,19 @@ public enum ScreenGlow {
     public static let period = 71.0
 
     /// Speaking is the answer arriving: the edges have done their job.
-    public static func target(_ kind: SessionKind, enabled: Bool) -> Double {
+    /// `hands`: the bridge holds the hands (Wave 17). At rest the aura is
+    /// the one full-screen mark that someone else is driving; during the
+    /// user's own turn the voice levels win unchanged. It stays lit for
+    /// the whole lent stretch — awaiting the sheet and paused included —
+    /// on purpose: it marks who HOLDS the hands, not each keystroke.
+    public static func target(_ kind: SessionKind, enabled: Bool, hands: Bool = false) -> Double {
         guard enabled else { return 0 }
         switch kind {
         case .listening: return listening
         case .processing(.pending), .processing(.thinking),
              .processing(.toolExecuting), .processing(.subAgentRunning): return waiting
-        case .idle, .hover, .processing(.speaking), .processing(.completed): return 0
+        case .idle, .hover: return hands ? waiting : 0
+        case .processing(.speaking), .processing(.completed): return 0
         }
     }
 

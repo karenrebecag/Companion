@@ -17,6 +17,33 @@ import Testing
     expectEq(ScreenGlow.target(.listening, enabled: false), 0, "16o brillo: el interruptor apagado nunca lo muestra")
 }
 
+/// El aura mientras el puente tiene las manos: la pantalla dice quién está
+/// actuando aunque la sesión de voz esté en reposo. Su turno (voz) manda
+/// sobre el nivel; el interruptor general sigue apagándolo todo.
+@Test @MainActor func screenGlowHandsTests() {
+    expectEq(ScreenGlow.target(.idle, enabled: true, hands: true), ScreenGlow.waiting,
+             "manos brillo: en reposo con las manos prestadas, encendida")
+    expectEq(ScreenGlow.target(.hover, enabled: true, hands: true), ScreenGlow.waiting,
+             "manos brillo: hover es reposo")
+    expectEq(ScreenGlow.target(.listening, enabled: true, hands: true), ScreenGlow.listening,
+             "manos brillo: su turno conserva su nivel")
+    expectEq(ScreenGlow.target(.processing(.speaking), enabled: true, hands: true), 0,
+             "manos brillo: hablando es su turno, apagada")
+    expectEq(ScreenGlow.target(.idle, enabled: true, hands: false), 0,
+             "manos brillo: sin manos, el reposo sigue apagado")
+    expectEq(ScreenGlow.target(.idle, enabled: false, hands: true), 0,
+             "manos brillo: el interruptor apagado tambien la apaga")
+    // Candado: las manos solo cambian el reposo; todo lo demas conserva
+    // exactamente su nivel de voz.
+    for kind in [SessionKind.listening, .processing(.pending), .processing(.thinking),
+                 .processing(.toolExecuting), .processing(.subAgentRunning),
+                 .processing(.speaking), .processing(.completed)] {
+        expectEq(ScreenGlow.target(kind, enabled: true, hands: true),
+                 ScreenGlow.target(kind, enabled: true, hands: false),
+                 "manos brillo: \(kind) no cambia con las manos")
+    }
+}
+
 @Test @MainActor func screenGlowTimingTests() {
     expectEq(ScreenGlow.fade(from: 0, to: 0.5), ScreenGlow.fadeIn, "16o brillo: entra en 260 ms")
     expectEq(ScreenGlow.fade(from: 0.5, to: 0), ScreenGlow.fadeOut, "16o brillo: sale en 900 ms")

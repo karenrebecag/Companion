@@ -71,7 +71,8 @@ struct ScreenOverlayView: View {
 
     var body: some View {
         let kind = session.projection.kind
-        let target = ScreenGlow.target(kind, enabled: glowEnabled)
+        let target = ScreenGlow.target(
+            kind, enabled: glowEnabled, hands: session.projection.handsLentTo != nil)
         ZStack {
             // The shader draws at full strength; `listening` is the ceiling.
             ScreenGlowMetalView(running: running, animated: !reduceMotion, onFailure: onFailure)
