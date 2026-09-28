@@ -1,31 +1,34 @@
 ---
 name: premium-documents
-description: Produces a document, report, deck or PDF on disk for the user to open, in the best format the tools on this Mac allow. Use when the user asks for a document, a report, slides, a one-pager or a PDF.
+description: Produces a finished PDF report, one-pager or receipt, or an .xlsx workbook, for the user to open. Use when the user asks for a document, a report, a one-pager, a PDF, or a table they can take away.
 license: Apache-2.0
 metadata:
   author: companion
-  version: "1"
+  version: "2"
 ---
-# Documents and decks
+# Documents
 
-Always deliver a file the user can open. The format follows what the Mac has.
+Always deliver a file the user can open. `create_document` writes it natively: no pandoc, no Python, nothing to install.
 
 ## Steps
 
 1. Ask nothing that a sensible default answers. Title from the request, today's date, the user's name from the profile.
-2. Write the content first as Markdown with `write_file` into the working folder (or Desktop when none is set): headings, short paragraphs, tables for repeated data. This file is always delivered.
-3. Convert only if the tool is present, checked with `run_shell`:
-   - PDF or Word: `pandoc --version` then `pandoc file.md -o file.pdf` (or `.docx`).
-   - Slides: `pandoc file.md -o file.pptx` with one `##` per slide.
-   - Otherwise: leave the Markdown, say which tool would convert it, and do not install anything.
-4. Verify the file exists with `list_directory` before reporting. Report the absolute path.
+2. Gather the facts first (files, the web, what the user pasted). Only figures you looked up or were given go in; never invent a number to fill a chart.
+3. Call `create_document` with a path ending in `.pdf` (a report to read) or `.xlsx` (tables to work with), in the working folder. The `document` argument is JSON text: `{"title","subtitle","blocks":[...]}`.
+4. Build it from blocks, never from HTML or styling; the template owns the look:
+   - `cover` for a report with a first page; skip it for a one-pager.
+   - `stats` for the three to six figures that matter, with `delta` when there is a change.
+   - `table` for anything repeated; `chart` when the shape of the numbers is the point (`bar` to compare, `line` or `area` over time, `pie`/`donut` for parts of a whole).
+   - `heading`, `paragraph`, `bullets` for the argument; `callout` for the one thing not to miss.
+5. The tool checks the file on disk before answering. Report the absolute path and the page count it returns.
 
 ## Writing rules
 
 - Lead with the summary; the voice reads only the first line.
-- Numbers in tables, not in prose.
+- Numbers in tables and stats, not in prose.
 - Sources at the end when the web was used.
+- For an .xlsx, every stats, table and chart block becomes its own sheet; name them with `title`.
 
 ## What Companion cannot do yet
 
-Layouts, themes, charts or images inside the document without pandoc or a Python toolchain installed on this Mac.
+Word (.docx) and PowerPoint (.pptx) files, editing an existing PDF, and pictures inside the document. If the user needs Word, offer the PDF, or Markdown with `write_file`.
