@@ -188,3 +188,36 @@ no la voz.
 
 Pendiente de Karen: prueba en vivo (asomo, popovers, tooltips en un panel no activo, orb de parar,
 tarjeta), y confirmar el aviso "MacBook Pro Speakers" (§2.4).
+
+## 14. Cierre de 16i-2 (2026-09-28)
+
+Hecho, con tests (`IslandAttachTests`, `IslandAttachWiringTests`; gates 0 fallos, 473 tests):
+- §2: el clip abre su menú por el portal, como los de la cabecera: "Elegir archivo…", "Capturar
+  texto", "Captura de pantalla". La captura es `screencapture -i -x -o` a una carpeta temporal
+  propia (0700) y entra como adjunto; "Capturar texto" pasa la región por Vision en el Mac (sin
+  red) y añade el texto al campo, recortado con el tope de cualquier texto en línea. Sin Grabación
+  de pantalla no se abre el selector: se pide el permiso y se dice en una línea.
+- Adjunto como tarjeta bajo el campo (captura con su miniatura, archivo con icono y nombre, ×
+  para quitarlo); un adjunto esperando mantiene el campo abierto y basta para enviar.
+- §4/§11: arrastrar un archivo a la muesca la abre en tarjeta con dos zonas, "Pregúntale"
+  (adjunta) y "AirDrop" (hoja del sistema); la zona bajo el puntero se enciende con el azul
+  discontinuo de NotchNook. Soltar sin zona es "Pregúntale". El arrastre nunca tapa una hoja, un
+  aviso ni un trabajo en curso.
+
+Revisiones: seguridad APPROVE con dos MEDIUM arreglados con test (una carpeta pasaba el tope de
+20 MB porque su tamaño es el del inodo, y un enlace apuntaba fuera: solo entran archivos
+regulares; la ventana que recibe el arrastre también recibe clics: en reposo solo cubre la muesca
+física, y sigue a la tarjeta solo durante un arrastre). Código APPROVE con un MEDIUM arreglado con
+test (el arrastre tapaba un aviso).
+
+Desviaciones, decididas sin preguntar:
+- "Elegir archivo…" sigue abriendo el selector de la ventana: la isla no puede activar la app
+  (conformance 12d), y un selector de una app inactiva se abre detrás.
+- Sin atajos ⌥C/⌥X en el menú del clip, por la misma razón que el "…" de 16i-1.
+- Sin oscurecer la pantalla al arrastrar (§4 fila 1): se siguió §11, que es lo medido.
+- La bandeja es 16i-5: la tarjeta de soltar tiene dos zonas, no tres.
+
+Pendiente de Karen, en vivo (sin test unitario posible): arrastrar desde Finder a la muesca con
+la isla en reposo y abierta (el paso de una ventana a otra durante el arrastre), la captura y el
+OCR con el permiso dado y sin él, y AirDrop. Decisión abierta: un archivo soltado con la voz en
+vivo se le pasa a la sesión de voz sin confirmar, igual que en la ventana; ¿debe esperar a enviar?
