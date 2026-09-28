@@ -11,11 +11,13 @@ public enum BridgeCopy {
     /// Sheet title when the bridge requests approval. Caller embeds the
     /// client name in a format string like "\(clientName) \(sheetTitle(.en))".
     public static func sheetTitle(_ language: AppLanguage = .en) -> String {
+        // 19-1b: "tus manos" read as a metaphor nobody asked for — the
+        // sheet says what it means (feedback en vivo 2026-09-28).
         switch language {
         case .en:
-            return "wants to use your hands"
+            return "wants to use your Mac"
         case .es:
-            return "quiere usar tus manos"
+            return "quiere usar tu Mac"
         }
     }
 

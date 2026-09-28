@@ -5,10 +5,15 @@ import SwiftUI
 /// the specialist is told and looks for another route. "Remember for this
 /// session" (Wave 10c 3B.3) keeps the answer for the same tool and pattern
 /// until the app closes — five files, one question.
+/// 19-1b: compact on Karen's live feedback — one title line, the auto-deny
+/// as a counting ring instead of a sentence, glyphs on the answers.
 public struct ApprovalSheet: View {
     private let request: ApprovalRequest
     private let answer: (Bool, Bool) -> Void
     @State private var remember = false
+    /// When the sheet appeared: the ring counts from here against the same
+    /// deadline the `Approvals` actor denies on (`ApprovalTiming`).
+    @State private var shownAt = Date()
 
     public init(request: ApprovalRequest, answer: @escaping (Bool, Bool) -> Void) {
         self.request = request
@@ -21,21 +26,21 @@ public struct ApprovalSheet: View {
 
     public var body: some View {
         let display = self.display
-        VStack(alignment: .leading, spacing: Space.x4) {
+        VStack(alignment: .leading, spacing: Space.x3) {
             HStack(alignment: .center, spacing: Space.x3) {
-                Image(systemName: display.symbol)
-                    .font(GeistFont.uiLabel)
-                    .foregroundStyle(Semantic.foreground)
-                    .frame(width: Space.x10, height: Space.x10)
-                    .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Semantic.surface))
+                mark(display.mark)
+                    .frame(width: Space.x8, height: Space.x8)
+                    .background(RoundedRectangle(cornerRadius: Radius.chip).fill(Semantic.surface))
                     // 19-1: the raw tool id left the body but stays one
                     // hover away — human-first is hierarchy, not hiding.
                     .help(request.toolName)
                     .accessibilityHidden(true)
                 title(display)
-                    .font(GeistFont.uiTitle)
+                    .font(GeistFont.uiSubtitle)
                     .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityLabel(display.title)
+                autoDenyRing
             }
 
             if let preview = display.preview {
@@ -54,33 +59,81 @@ public struct ApprovalSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: Radius.badge))
             }
 
-            // §9-5: `bridge_session` has no `ApprovalKey` (security review
-            // 2026-09-28) — a "remember" toggle here would promise a memory
-            // that never happens, one sheet per connection, always.
-            if display.showsRemember {
-                Toggle(isOn: $remember) {
-                    Text(Localized.string("approval.remember"))
-                        .font(GeistFont.uiCaption)
-                        .foregroundStyle(Semantic.mutedForeground)
-                }
-                .toggleStyle(.checkbox)
-            }
-
-            Text(Localized.string("approval.autodeny"))
-                .font(GeistFont.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-
             HStack(spacing: Space.x3) {
-                AppButton(Localized.string("approval.deny"), kind: .secondary) { answer(false, remember) }
+                AppButton(Localized.string("approval.deny"), kind: .secondary,
+                          systemImage: "xmark") { answer(false, remember) }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                AppButton(Localized.string("approval.allow"), kind: .primary) { answer(true, remember) }
+                // §9-5: `bridge_session` has no `ApprovalKey` (security
+                // review 2026-09-28) — a "remember" toggle here would
+                // promise a memory that never happens, one sheet per
+                // connection, always.
+                if display.showsRemember {
+                    Toggle(isOn: $remember) {
+                        Text(Localized.string("approval.remember"))
+                            .font(GeistFont.uiCaption)
+                            .foregroundStyle(Semantic.mutedForeground)
+                    }
+                    .toggleStyle(.checkbox)
+                    Spacer()
+                }
+                AppButton(Localized.string("approval.allow"), kind: .primary,
+                          systemImage: "checkmark") { answer(true, remember) }
                     .keyboardShortcut(Self.allowShortcut)
             }
         }
-        .padding(Space.x6)
+        .padding(Space.x4)
         .frame(width: Container.approval)
         .background(Semantic.background)
+    }
+
+    /// The deadline made visible: the ring empties over the same seconds
+    /// the actor counts, so "if you don't answer" needs no sentence. The
+    /// sentence survives for accessibility.
+    private var autoDenyRing: some View {
+        TimelineView(.animation(minimumInterval: 1)) { context in
+            let left = IslandNotice.remaining(
+                elapsed: context.date.timeIntervalSince(shownAt),
+                lifetime: ApprovalTiming.autoDeny)
+            ZStack {
+                Circle().stroke(Semantic.surface, lineWidth: Stroke.thin)
+                Circle()
+                    .trim(from: 0, to: left)
+                    .stroke(Semantic.mutedForeground,
+                            style: StrokeStyle(lineWidth: Stroke.thin, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+        }
+        .frame(width: Space.x5, height: Space.x5)
+        .accessibilityLabel(Localized.string("approval.autodeny"))
+    }
+
+    /// The tile's face: the Claude logo for a claude client (rendered from
+    /// the bundled vector as a template, so it takes the foreground color),
+    /// an SF Symbol for everything else.
+    @ViewBuilder
+    private func mark(_ mark: ApprovalDisplay.Mark) -> some View {
+        switch mark {
+        case .claude:
+            if let logo = ClaudeLogo.image {
+                Image(nsImage: logo)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: Space.x4, height: Space.x4)
+                    .foregroundStyle(Semantic.foreground)
+            } else {
+                symbolMark("hand.raised")
+            }
+        case .symbol(let name):
+            symbolMark(name)
+        }
+    }
+
+    private func symbolMark(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(GeistFont.uiLabel)
+            .foregroundStyle(Semantic.foreground)
     }
 
     private func previewText(_ preview: String) -> some View {
@@ -112,4 +165,17 @@ extension ApprovalSheet {
     /// Allowing is a click, never a stray Return: a key typed for something
     /// else must not approve (security review 16). Deny keeps Escape.
     static let allowShortcut: KeyboardShortcut? = nil
+}
+
+/// The bundled Claude vector, loaded once. It ships as an SVG next to the
+/// mascot; NSImage reads it natively and the template mode keeps only its
+/// alpha, so the sheet tints it like any glyph.
+enum ClaudeLogo {
+    static let image: NSImage? = {
+        guard let url = Bundle.module.url(
+            forResource: "claude", withExtension: "svg", subdirectory: "Mascot"),
+            let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        return image
+    }()
 }

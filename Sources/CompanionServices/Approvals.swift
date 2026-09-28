@@ -22,7 +22,7 @@ public actor Approvals: ApprovalsProvider {
     private let clock: Clock
     private let timeout: TimeInterval
 
-    public init(clock: Clock, timeout: TimeInterval = 120) {
+    public init(clock: Clock, timeout: TimeInterval = ApprovalTiming.autoDeny) {
         self.clock = clock
         self.timeout = timeout
     }

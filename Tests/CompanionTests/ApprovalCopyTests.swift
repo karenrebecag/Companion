@@ -63,14 +63,23 @@ import Testing
 @Test @MainActor func approvalCopyBridgeAndFallbackTests() {
     let bridge = display("bridge_session", #"{"client":"claude-code"}"#)
     expect(bridge.lead == nil, "19-1 puente: el cliente abre la frase")
-    expectEq(bridge.subject, "«claude-code»", "19-1 puente: el nombre entre comillas — es un dicho, no una identidad")
+    expectEq(bridge.subject, "claude-code", "19-1b puente: el nombre plano — la advertencia del detalle ya dice que es un dicho")
+    expectEq(bridge.mark, .claude, "19-1b puente: un cliente claude-* lleva el logo de Claude")
+    expectEq(display("bridge_session", #"{"client":"otro-shim"}"#).mark, .symbol("hand.raised"),
+             "19-1b puente: cliente desconocido, glifo generico")
+    expectEq(display("bridge_session", #"{"client":"claude-evil"}"#).mark, .symbol("hand.raised"),
+             "19-1b puente: el logo es por allowlist exacta — un prefijo no viste a nadie de Claude")
+    expectEq(display("bridge_session", #"{"client":"Claude Desktop"}"#).mark, .claude,
+             "19-1b puente: los clientes Claude conocidos si llevan el logo")
+    expectEq(display("open_url", #"{"url":"https://x.dev/a"}"#).mark, .symbol("link"),
+             "19-1b marca: las tools conservan su glifo")
     expectEq(bridge.trail, BridgeCopy.sheetTitle(.es), "19-1 puente: la frase del catalogo")
     expectEq(bridge.preview, BridgeCopy.sheetDetail(.es) + "\n" + BridgeCopy.sheetClaim(.es),
              "19-1 puente: el costo y la advertencia de nombre sin verificar")
     expect(!bridge.showsRemember, "19-1 puente: jamas se recuerda")
-    expectEq(display("bridge_session", #"{"client":"a\nb<script>"}"#).subject, "«abscript»",
+    expectEq(display("bridge_session", #"{"client":"a\nb<script>"}"#).subject, "abscript",
              "19-1 puente: sin saltos ni marcado, solo lo imprimible del nombre")
-    expectEq(display("bridge_session", #"{"client":"Сlaude-code"}"#).subject, "«laude-code»",
+    expectEq(display("bridge_session", #"{"client":"Сlaude-code"}"#).subject, "laude-code",
              "19-1 puente: solo ASCII — un homoglifo cirilico no se disfraza de nadie")
     expectEq(display("bridge_session", "{}").subject, "El cliente",
              "19-1 puente: sin nombre, un generico")

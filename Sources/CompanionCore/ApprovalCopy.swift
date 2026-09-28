@@ -6,8 +6,11 @@ import Foundation
 /// is hierarchy, never hiding — the user must always be able to audit
 /// exactly what will run.
 public struct ApprovalDisplay: Sendable, Equatable {
-    /// SF Symbol for the sheet's tile.
-    public var symbol: String
+    /// What the sheet's tile draws: an SF Symbol, or the Claude logo when
+    /// the bridge client says it is one (19-1b — the one client we ship a
+    /// face for; the claim note still applies, a logo is not an identity).
+    public enum Mark: Sendable, Equatable { case symbol(String), claude }
+    public var mark: Mark
     /// Words before the subject ("Abrir"); nil when the subject opens the
     /// phrase (the bridge's client name does).
     public var lead: String?
@@ -80,17 +83,17 @@ public enum ApprovalCopy {
             let host: String?
             do { host = try ParentToolPolicy.httpURL(raw).host } catch { host = nil }
             return ApprovalDisplay(
-                symbol: "link", lead: word(.open, language),
+                mark: .symbol("link"), lead: word(.open, language),
                 subject: capped(host ?? raw), preview: raw, showsRemember: true)
         case .openApp:
             guard let name = value(arguments, "name") else { return nil }
             return ApprovalDisplay(
-                symbol: "macwindow", lead: word(.openApp, language),
+                mark: .symbol("macwindow"), lead: word(.openApp, language),
                 subject: capped(name), preview: nil, showsRemember: true)
         case .openFile:
             guard let path = value(arguments, "path") else { return nil }
             return ApprovalDisplay(
-                symbol: "doc", lead: word(.openFile, language),
+                mark: .symbol("doc"), lead: word(.openFile, language),
                 subject: filename(path), preview: path, showsRemember: true)
         case .typeText:
             guard let text = arguments["text"] as? String else { return nil }
@@ -99,26 +102,26 @@ public enum ApprovalCopy {
             // user did not say, and a cut would hide the part that runs
             // (15g, review 2026-09-25 M1).
             return ApprovalDisplay(
-                symbol: "keyboard", lead: word(.typeIn, language),
+                mark: .symbol("keyboard"), lead: word(.typeIn, language),
                 subject: capped(app ?? word(.activeField, language)),
                 preview: text, showsRemember: true)
         case .click:
             guard let label = value(arguments, "label") else { return nil }
             let app = value(arguments, "app")
             return ApprovalDisplay(
-                symbol: "cursorarrow.click", lead: word(.press, language),
+                mark: .symbol("cursorarrow.click"), lead: word(.press, language),
                 subject: capped(label), preview: app, showsRemember: true)
         case .pressKey:
             guard let key = value(arguments, "key") else { return nil }
             let parts = [value(arguments, "app"), value(arguments, "line")].compactMap { $0 }
             return ApprovalDisplay(
-                symbol: "keyboard", lead: word(.pressKey, language),
+                mark: .symbol("keyboard"), lead: word(.pressKey, language),
                 subject: capped(key), preview: parts.isEmpty ? nil : parts.joined(separator: "\n"),
                 showsRemember: true)
         case .menu:
             guard let path = value(arguments, "path") else { return nil }
             return ApprovalDisplay(
-                symbol: "filemenu.and.selection", lead: word(.chooseMenu, language),
+                mark: .symbol("filemenu.and.selection"), lead: word(.chooseMenu, language),
                 subject: capped(path), preview: path.count > 80 ? path : nil,
                 showsRemember: true)
         default:
@@ -135,13 +138,13 @@ public enum ApprovalCopy {
                   let first = command.split(whereSeparator: { $0.isWhitespace }).first
             else { return nil }
             return ApprovalDisplay(
-                symbol: "terminal", lead: word(.run, language),
+                mark: .symbol("terminal"), lead: word(.run, language),
                 subject: capped(String(first)), preview: command, showsRemember: true)
         case .writeFile, .editFile:
             guard let path = value(arguments, "path") else { return nil }
             let writes = NativeTool(rawValue: tool) == .writeFile
             return ApprovalDisplay(
-                symbol: "square.and.pencil",
+                mark: .symbol("square.and.pencil"),
                 lead: word(writes ? .writeFile : .editFile, language),
                 subject: filename(path), preview: path, showsRemember: true)
         default:
@@ -160,9 +163,15 @@ public enum ApprovalCopy {
                 || $0 == "-" || $0 == "_" || $0 == "." || $0 == " ") }
             .prefix(32).map(Character.init))
             .trimmingCharacters(in: .whitespaces)
+        // Exact allowlist, not a prefix: the name is attacker-influenced
+        // and the logo reads as verification — "claude-evil" stays generic
+        // (review 19-1b M2).
+        let claudeClients: Set<String> = ["claude", "claude-code", "claude desktop", "claude-desktop"]
+        let mark: ApprovalDisplay.Mark =
+            claudeClients.contains(safe.lowercased()) ? .claude : .symbol("hand.raised")
         return ApprovalDisplay(
-            symbol: "hand.raised", lead: nil,
-            subject: safe.isEmpty ? word(.someClient, language) : "«\(safe)»",
+            mark: mark, lead: nil,
+            subject: safe.isEmpty ? word(.someClient, language) : safe,
             trail: BridgeCopy.sheetTitle(language),
             preview: BridgeCopy.sheetDetail(language) + "\n" + BridgeCopy.sheetClaim(language),
             showsRemember: false)
@@ -175,7 +184,7 @@ public enum ApprovalCopy {
     ) -> ApprovalDisplay {
         let detail = interesting.lazy.compactMap { value(arguments, $0) }.first
         return ApprovalDisplay(
-            symbol: "questionmark.circle", lead: word(.allow, language),
+            mark: .symbol("questionmark.circle"), lead: word(.allow, language),
             subject: capped(tool), preview: detail, showsRemember: true)
     }
 

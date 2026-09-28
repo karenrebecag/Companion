@@ -423,6 +423,9 @@ public struct IslandView: View {
                         else { return }
                         chat.answerApproval(approved, remember: remember)
                     }
+                    // A new request is a new sheet: without the id the
+                    // reused view keeps the old ring and toggle (19-1b M1).
+                    .id(request.requestId)
                     .transition(.islandReveal(IslandMotionBudget.approval.resolved(reduceMotion: reduceMotion)))
                 }
             }

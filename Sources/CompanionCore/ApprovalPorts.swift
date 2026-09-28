@@ -1,5 +1,11 @@
 import Foundation
 
+/// One number, two readers: the actor that denies on the deadline and the
+/// sheet's countdown ring must agree, or the ring lies (19-1b).
+public enum ApprovalTiming {
+    public static let autoDeny: TimeInterval = 120
+}
+
 /// The user's answer to a permission request. `remember` is the sheet's
 /// toggle (Wave 10c 3B.3): keep this decision for the session.
 public struct ApprovalResponse: Sendable, Equatable {

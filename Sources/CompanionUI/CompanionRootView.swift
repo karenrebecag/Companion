@@ -263,6 +263,11 @@ public struct CompanionRootView: View {
                     ApprovalSheet(request: request) { approved, remember in
                         chat.answerApproval(approved, remember: remember)
                     }
+                    // A new request is a new sheet: without the id, SwiftUI
+                    // reuses the view and the countdown ring (and the
+                    // remember toggle) inherit the previous request's state
+                    // (review 19-1b M1).
+                    .id(request.requestId)
                     .background(Semantic.surfaceOverlay)
                     .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
                     .overlay(

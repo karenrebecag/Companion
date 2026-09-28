@@ -13,8 +13,11 @@ import Testing
             requestId: "1", toolName: BridgePolicy.sessionApprovalTool,
             summary: BridgeCopy.sheetTitle(.en), inputJSON: #"{"client":"claude-code"}"#),
         language: .en)
-    expectEq(bridge.title, "«claude-code» " + BridgeCopy.sheetTitle(.en),
-             "hoja del puente: el titulo nombra al cliente, entre comillas de dicho")
+    expectEq(bridge.title, "claude-code " + BridgeCopy.sheetTitle(.en),
+             "hoja del puente: el titulo nombra al cliente")
+    expect(BridgeCopy.sheetTitle(.es).contains("tu Mac"),
+           "hoja del puente: pide usar tu Mac, no 'tus manos' (feedback 19-1b)")
+    expect(BridgeCopy.sheetTitle(.en).contains("your Mac"), "hoja del puente: en ingles igual")
     expectEq(bridge.preview, BridgeCopy.sheetDetail(.en) + "\n" + BridgeCopy.sheetClaim(.en),
              "hoja del puente: el costo y la advertencia en el detalle")
     expect(!bridge.showsRemember, "hoja del puente: sin recordar, no hay ApprovalKey")
@@ -28,4 +31,8 @@ import Testing
 
     // Un Return perdido no aprueba (security review 16): permitir es click.
     expect(ApprovalSheet.allowShortcut == nil, "hoja: permitir sin atajo de teclado")
+
+    // El vector de Claude viaja en el bundle: si el empaquetado lo pierde,
+    // este test lo dice antes que la hoja (19-1b).
+    expect(ClaudeLogo.image != nil, "hoja: el logo de Claude carga del bundle")
 }

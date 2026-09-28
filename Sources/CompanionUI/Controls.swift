@@ -12,6 +12,8 @@ public struct AppButton: View {
     var shape: AppButtonShape = .standard
     var fullWidth = false
     var enabled: Bool = true
+    /// 19-1b: an optional glyph before the label ("checkmark" on Allow).
+    var systemImage: String?
     let action: () -> Void
 
     @State private var hovering = false
@@ -23,6 +25,7 @@ public struct AppButton: View {
         shape: AppButtonShape = .standard,
         fullWidth: Bool = false,
         enabled: Bool = true,
+        systemImage: String? = nil,
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -30,19 +33,26 @@ public struct AppButton: View {
         self.shape = shape
         self.fullWidth = fullWidth
         self.enabled = enabled
+        self.systemImage = systemImage
         self.action = action
     }
 
     public var body: some View {
         Button(action: action) {
             // The welcome button speaks Geist like the rest of that sheet.
-            Text(title)
-                .font(Fonts.sans(fontSize, face: shape == .pill ? .geist : .system).weight(.semibold))
-                .tracking(shape == .pill ? Tracking.snug : 0, at: fontSize)
-                .lineLimit(1)
-                .frame(maxWidth: fullWidth ? .infinity : nil)
-                .padding(.horizontal, paddingX)
-                .frame(height: height)
+            HStack(spacing: Space.x1) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(Fonts.sans(fontSize, face: .system).weight(.semibold))
+                }
+                Text(title)
+                    .font(Fonts.sans(fontSize, face: shape == .pill ? .geist : .system).weight(.semibold))
+                    .tracking(shape == .pill ? Tracking.snug : 0, at: fontSize)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .padding(.horizontal, paddingX)
+            .frame(height: height)
         }
         .buttonStyle(
             AppButtonStyle(
