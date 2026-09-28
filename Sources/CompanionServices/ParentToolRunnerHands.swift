@@ -20,7 +20,7 @@ public struct ScreenHands: Sendable {
     /// Nil keeps look/click/scroll/menu unoffered.
     let screen: (any ScreenActing)?
     /// 16a-3: a capture described by vision, for questions about pixels.
-    let see: (@Sendable (String?) async -> ScreenBrief?)?
+    let see: (@Sendable (SeeRequest) async -> ScreenBrief?)?
     let tickets = ApprovalTickets()
     let turn = TurnTarget()
     let scans = ScanMemory()
@@ -35,7 +35,7 @@ public struct ScreenHands: Sendable {
         bundleID: @escaping @Sendable (Int32) -> String?,
         selfInFront: @escaping @Sendable () -> Bool = { false },
         screen: (any ScreenActing)? = nil,
-        see: (@Sendable (String?) async -> ScreenBrief?)? = nil
+        see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil
     ) {
         self.screen = screen
         self.see = see
@@ -53,7 +53,7 @@ public struct ScreenHands: Sendable {
     public init(
         ax: AXTextInjector, screen: AXScreen, target: @escaping @Sendable () -> Int32?,
         selfInFront: @escaping @Sendable () -> Bool = { false },
-        see: (@Sendable (String?) async -> ScreenBrief?)? = nil
+        see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil
     ) {
         self.init(
             injector: ax, reader: ax, keys: ax, windows: ax,
@@ -211,7 +211,7 @@ extension ParentToolRunner {
                 "approval_required", "a command app needs approval for typing or Return"),
                 tool: tool.rawValue)
         }
-        if tool == .see { return await runSee(hands: hands, pid: pid) }
+        if tool == .see { return await runSee(arguments, hands: hands, pid: pid) }
         if tool.isSight {
             return await runSight(tool, call, arguments, hands: hands, pid: pid, bundle: bundle ?? "-")
         }

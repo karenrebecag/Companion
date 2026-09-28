@@ -47,11 +47,17 @@ extension ParentTool {
             return ToolSpec(
                 name: rawValue,
                 description: en
-                    ? "Describe what the screen looks like (images, charts, layout) from a "
-                        + "screenshot. Slower than look; use look to read or press things."
-                    : "Describe cómo se ve la pantalla (imágenes, gráficas, diseño) a partir "
-                        + "de una captura. Más lenta que look; para leer o pulsar, look.",
-                properties: [], required: [])
+                    ? "Read the window in front from a screenshot: its text verbatim, "
+                        + "navigation labels, and images or charts briefly. Slower than look; "
+                        + "use look to read or press controls."
+                    : "Lee la ventana de delante a partir de una captura: su texto literal, "
+                        + "las etiquetas de navegación y, en breve, imágenes o gráficas. Más "
+                        + "lenta que look; para leer o pulsar controles, look.",
+                properties: [ToolProperty(
+                    name: "question", type: "string",
+                    description: en ? "optional: what to look for in the window"
+                        : "opcional: qué buscar en la ventana")],
+                required: [])
         default:
             return ToolSpec(
                 name: ParentTool.menu.rawValue,

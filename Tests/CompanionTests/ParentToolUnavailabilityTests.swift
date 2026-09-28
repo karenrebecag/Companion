@@ -6,7 +6,7 @@ import Testing
 // Wave 20b D4: the runner says WHY a known tool is not served right now.
 @Test @MainActor func parentToolUnavailabilityTests() {
     let hands = FakeHands(field: FocusedField(app: "Notes", pid: 7))
-    let seeFn: (@Sendable (String?) async -> ScreenBrief?)? = { _ in ScreenBrief(summary: "x") }
+    let seeFn: (@Sendable (SeeRequest) async -> ScreenBrief?)? = { _ in ScreenBrief(summary: "x") }
     func runner(trusted: Bool, front: Bool, see: Bool = true) -> ParentToolRunner {
         ParentToolRunner(
             workspace: FakeWorkspaceOpener(),

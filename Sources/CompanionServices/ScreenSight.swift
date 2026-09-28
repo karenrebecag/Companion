@@ -96,9 +96,15 @@ public final class ScreenSight: ScreenSeeing, @unchecked Sendable {
 
     /// One capture and one vision call, now: the `see` tool, for a question
     /// about what the screen looks like. Nil without a capture grant or a key.
-    public func see(app: String?) async -> ScreenBrief? {
-        let brief = await run(app: app ?? appName())
-        return brief.summary == nil && brief.snippets.isEmpty ? nil : brief
+    public func see(_ request: SeeRequest) async -> ScreenBrief? {
+        guard let jpeg = await capture.jpeg(pid: request.pid, maxSide: ScreenCapture.seeMaxSide) else {
+            Log.app("screen: see skipped (no grant or capture failed)")
+            return nil
+        }
+        if Task.isCancelled { return nil }
+        let brief = await vision.transcribe(
+            jpeg: jpeg, app: request.app ?? appName(), question: request.question)
+        return brief
     }
 
     public func cancel() {
