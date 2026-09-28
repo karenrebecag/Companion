@@ -1,0 +1,151 @@
+import CompanionCore
+@testable import CompanionServices
+import Foundation
+import Testing
+
+// Wave 20b D2 (spec 20b §3): the chat and the voice reach create_document,
+// sheet_read and sheet_write themselves — with Claude Code installed every
+// delegation leaves the native lane, so the tools were unreachable. The
+// writes ask through a ticket; the MCP bridge never sees any of the three.
+
+private struct FakeDocuments: DocumentRendering {
+    func render(_ spec: DocumentSpec, format: DocumentFormat, to url: URL) async throws -> DocumentReceipt {
+        try Data("%PDF-fake".utf8).write(to: url)
+        return DocumentReceipt(pages: 1, bytes: 9)
+    }
+}
+
+private final class FakeSheets: SpreadsheetDriving, @unchecked Sendable {
+    private let lock = NSLock()
+    private var _writes = 0
+    var writes: Int { lock.withLock { _writes } }
+    func active() async -> SheetApp? { .excel }
+    func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]] { [["Mes", "Ventas"]] }
+    func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]]) async throws -> SheetWriteReceipt {
+        lock.withLock { _writes += 1 }
+        return SheetWriteReceipt(backupPath: "/tmp/libro-backup.xlsx", readBack: [["1"]])
+    }
+}
+
+@Test @MainActor func parentDeliverablesTests() async throws {
+    testTheToolsFollowTheirBacking()
+    await testASheetReadNeedsNoSheet()
+    try await testADocumentRunsOnlyWithItsTicket()
+    await testASheetWriteRunsOnlyWithItsTicket()
+    await testASheetWriteNamesItsApp()
+    await testTheBridgeNeverSeesTheDeliverables()
+    testTheParentOwnsItsDeliverableRequests()
+}
+
+private let documentArgs = #"{"path":"informe.pdf","document":"{\"title\":\"x\",\"blocks\":[{\"type\":\"paragraph\",\"text\":\"hola\"}]}"}"#
+private let writeArgs = #"{"app":"excel","range":"A1","values":"[[1]]"}"#
+
+private func workdir() throws -> URL {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("pd-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    return url
+}
+
+private func runner(workdir: String? = nil, sheets: FakeSheets = FakeSheets()) -> ParentToolRunner {
+    ParentToolRunner(workspace: FakeWorkspaceOpener(installed: [], running: []),
+                     workdir: workdir, documents: FakeDocuments(), sheets: sheets)
+}
+
+@MainActor func testTheToolsFollowTheirBacking() {
+    let bare = ParentToolRunner(workspace: FakeWorkspaceOpener(installed: [], running: []))
+    let names = Set(bare.specs(.es).map(\.name))
+    for tool in NativeTool.parentDeliverables {
+        expect(!names.contains(tool.rawValue) && !bare.handles(tool.rawValue),
+               "padre: sin backing no se ofrece \(tool.rawValue)")
+    }
+    let backed = runner()
+    let offered = Set(backed.specs(.es).map(\.name))
+    for tool in NativeTool.parentDeliverables {
+        expect(offered.contains(tool.rawValue) && backed.handles(tool.rawValue),
+               "padre: con backing se ofrece \(tool.rawValue)")
+    }
+}
+
+@MainActor func testASheetReadNeedsNoSheet() async {
+    let r = runner()
+    let call = ToolCallRef(id: "1", name: "sheet_read", arguments: #"{"range":"A1:B1"}"#)
+    expect(r.approval(for: call, said: "") == nil, "sheet_read: leer no pide hoja")
+    let out = await r.execute(name: "sheet_read", argumentsJSON: #"{"range":"A1:B1"}"#)
+    expect(out.ok && out.output.contains("Ventas"), "sheet_read: el padre lee el libro abierto")
+}
+
+@MainActor func testADocumentRunsOnlyWithItsTicket() async throws {
+    let dir = try workdir()
+    defer { do { try FileManager.default.removeItem(at: dir) } catch {} }
+    let r = runner(workdir: dir.path)
+    let file = dir.appendingPathComponent("informe.pdf").path
+
+    let skipped = await r.execute(name: "create_document", argumentsJSON: documentArgs)
+    expect(!skipped.ok && !FileManager.default.fileExists(atPath: file),
+           "create_document: sin pasar por la hoja no escribe nada")
+
+    let call = ToolCallRef(id: "2", name: "create_document", arguments: documentArgs)
+    guard let request = r.approval(for: call, said: "hazme un pdf") else {
+        return expect(false, "create_document: pide la hoja")
+    }
+    expectEq(request.toolName, "create_document", "create_document: la hoja lleva el nombre de la tool")
+    let denied = await r.execute(name: "create_document", argumentsJSON: documentArgs)
+    expect(!denied.ok, "create_document: pedida pero no concedida, no escribe")
+
+    guard let again = r.approval(for: call, said: "") else { return expect(false, "create_document: hoja otra vez") }
+    r.granted(again)
+    let done = await r.execute(name: "create_document", argumentsJSON: documentArgs)
+    expect(done.ok && FileManager.default.fileExists(atPath: file), "create_document: con el sí, escribe en la carpeta")
+
+    let replay = await r.execute(name: "create_document", argumentsJSON: documentArgs)
+    expect(!replay.ok, "create_document: el ticket se gasta una vez")
+}
+
+@MainActor func testASheetWriteRunsOnlyWithItsTicket() async {
+    let sheets = FakeSheets()
+    let r = runner(sheets: sheets)
+    let skipped = await r.execute(name: "sheet_write", argumentsJSON: writeArgs)
+    expect(!skipped.ok && sheets.writes == 0, "sheet_write: sin hoja no toca el libro")
+
+    let call = ToolCallRef(id: "3", name: "sheet_write", arguments: writeArgs)
+    guard let request = r.approval(for: call, said: "") else { return expect(false, "sheet_write: pide la hoja") }
+    r.granted(request)
+    let other = await r.execute(name: "sheet_write", argumentsJSON: #"{"app":"excel","range":"B9","values":"[[1]]"}"#)
+    expect(!other.ok && sheets.writes == 0, "sheet_write: el sí vale para esa escritura exacta, no para otra")
+    let done = await r.execute(name: "sheet_write", argumentsJSON: writeArgs)
+    expect(done.ok && sheets.writes == 1, "sheet_write: con el sí, escribe una vez")
+}
+
+@MainActor func testTheBridgeNeverSeesTheDeliverables() async {
+    let session = BridgeSession(
+        tools: runner(), guard: ParentToolGuard(approvals: nil),
+        token: { "tok" }, language: { .en }, accessibility: { true }, onAction: { _ in })
+    let hello = await session.handle(line: #"{"id":1,"method":"hello","params":{"token":"tok","client":"t","protocol":1}}"#)
+    for tool in NativeTool.parentDeliverables {
+        expect(!hello.reply.contains("\"\(tool.rawValue)\""), "puente: hello no lista \(tool.rawValue)")
+        let call = await session.handle(
+            line: #"{"id":2,"method":"call","params":{"name":"\#(tool.rawValue)","arguments":{}}}"#)
+        expect(call.reply.contains(BridgeCode.unknownTool), "puente: \(tool.rawValue) no existe por MCP")
+    }
+    expect(NativeTool.parentDeliverables.allSatisfy { BridgeScope.isLocalOnly($0.rawValue) },
+           "puente: la lista local cubre cada entregable")
+}
+
+func testTheParentOwnsItsDeliverableRequests() {
+    expect(ParentTool.ownsRequest("sheet_write"), "cambio de conversación: una hoja del padre para sheet_write se suelta")
+    expect(ParentTool.ownsRequest("look"), "cambio de conversación: las de siempre también")
+    expect(!ParentTool.ownsRequest("write_file"), "cambio de conversación: la de un encargo sobrevive")
+}
+
+/// Security review 20b (MEDIUM): without an app the target is resolved when
+/// it runs, so the user could approve one workbook and write another.
+@MainActor func testASheetWriteNamesItsApp() async {
+    let sheets = FakeSheets()
+    let r = runner(sheets: sheets)
+    let args = #"{"range":"A1","values":"[[1]]"}"#
+    let call = ToolCallRef(id: "4", name: "sheet_write", arguments: args)
+    expect(r.approval(for: call, said: "") == nil, "sheet_write sin app: no hay hoja que aprobar")
+    let out = await r.execute(name: "sheet_write", argumentsJSON: args)
+    expect(!out.ok && out.output.hasPrefix("invalid_args") && sheets.writes == 0,
+           "sheet_write sin app: se rechaza pidiendo la app, sin tocar el libro")
+}

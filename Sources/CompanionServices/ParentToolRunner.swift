@@ -18,19 +18,31 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
     /// The hands (Wave 15g). Offered only while Accessibility is trusted,
     /// read per call: the grant can vanish while the app runs.
     private let hands: ScreenHands?
+    /// Wave 20b D2: the deliverables, offered only with their backing. The
+    /// workdir is the native runner's write barrier for create_document.
+    let workdir: String?
+    let documents: (any DocumentRendering)?
+    let sheets: (any SpreadsheetDriving)?
+    let deliverableTickets = ApprovalTickets()
 
     public init(
         workspace: any WorkspaceOpening,
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
         places: (any PlacesSearching)? = nil,
         skills: (any SkillReading)? = nil,
-        hands: ScreenHands? = nil
+        hands: ScreenHands? = nil,
+        workdir: String? = nil,
+        documents: (any DocumentRendering)? = nil,
+        sheets: (any SpreadsheetDriving)? = nil
     ) {
         self.workspace = workspace
         self.home = home
         self.places = places
         self.skills = skills
         self.hands = hands
+        self.workdir = workdir
+        self.documents = documents
+        self.sheets = sheets
     }
 
     var readyHands: ScreenHands? {
@@ -52,6 +64,7 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
         var specs = ParentTool.specs(language)
             .filter { $0.name != ParentTool.readSkill.rawValue || skills != nil }
         if places != nil { specs.append(NativeTool.findPlaces.spec) }
+        specs += deliverables.map(\.spec)
         if let hands = readyHands {
             specs += ParentTool.handsSpecs(
                 language, sight: hands.screen != nil, see: hands.see != nil)
@@ -66,6 +79,7 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
             if tool.isHands { return readyHands != nil }
             return tool != .readSkill || skills != nil
         }
+        if deliverables.contains(where: { $0.rawValue == name }) { return true }
         return name == NativeTool.findPlaces.rawValue && places != nil
     }
 
@@ -90,6 +104,10 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
                 "could not parse arguments (\(argumentsJSON.count) chars); send one JSON object"))
         }
         guard let tool = ParentTool(rawValue: name) else {
+            if let deliverable = NativeTool(rawValue: name),
+               deliverables.contains(deliverable) {
+                return await runDeliverable(deliverable, arguments: arguments, argumentsJSON: argumentsJSON)
+            }
             return await findPlaces(arguments)
         }
         switch tool {
@@ -115,12 +133,14 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
 
     public func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
         if let request = ParentToolGate.approval(for: call, said: said) { return request }
+        if let request = deliverableApproval(for: call) { return request }
         guard ParentTool(rawValue: call.name)?.isHands == true else { return nil }
         return handsApproval(for: call, said: said)
     }
 
     public func granted(_ request: ApprovalRequest) {
         hands?.tickets.grant(id: request.requestId)
+        deliverableTickets.grant(id: request.requestId)
     }
 
     /// By catalog name only. A path is not a valid name, so it is not found

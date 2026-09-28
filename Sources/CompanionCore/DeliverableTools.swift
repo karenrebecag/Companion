@@ -58,3 +58,27 @@ enum DeliverableTools {
         }
     }
 }
+
+extension NativeTool {
+    /// Offered by the parent itself (spec 20b D2): with Claude Code installed
+    /// every delegation goes to it, and it has none of these.
+    public static let parentDeliverables: [NativeTool] = [.createDocument, .sheetRead, .sheetWrite]
+}
+
+/// Tools the parent offers the user but never lends over the MCP bridge. The
+/// approval memory is process-wide, so a "remember" given in the chat would
+/// wave an agent's workbook writes through; and sheet_read, being safe, would
+/// give it every open workbook without a sheet.
+public enum BridgeScope {
+    public static func isLocalOnly(_ name: String) -> Bool {
+        NativeTool.parentDeliverables.contains { $0.rawValue == name }
+    }
+}
+
+extension ParentTool {
+    /// A pending sheet the parent asked for itself, as opposed to a job's.
+    public static func ownsRequest(_ toolName: String) -> Bool {
+        ParentTool(rawValue: toolName) != nil
+            || NativeTool.parentDeliverables.contains { $0.rawValue == toolName }
+    }
+}

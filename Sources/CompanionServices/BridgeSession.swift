@@ -161,7 +161,9 @@ public actor BridgeSession {
                 session: UUID().uuidString,
                 language: language(),
                 accessibility: accessibility(),
-                tools: tools.specs(language()).map(BridgeToolSpec.init))
+                tools: tools.specs(language())
+                    .filter { !BridgeScope.isLocalOnly($0.name) }
+                    .map(BridgeToolSpec.init))
             return (BridgeCodec.encode(.hello(id: id, result)), false)
         }
     }
@@ -169,6 +171,10 @@ public actor BridgeSession {
     // MARK: - call
 
     private func handleCall(id: Int, call: BridgeCall) async -> (String, Bool) {
+        // Local-only first: the bridge must not even say such a tool exists.
+        guard !BridgeScope.isLocalOnly(call.name) else {
+            return (errorLine(id, BridgeCode.unknownTool, "unknown tool: \(call.name)"), false)
+        }
         guard tools.handles(call.name) else {
             if let reason = tools.unavailability(for: call.name) {
                 return (errorLine(id, reason, unavailableMessage(reason, tool: call.name)), false)
