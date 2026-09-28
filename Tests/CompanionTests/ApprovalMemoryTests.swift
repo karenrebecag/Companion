@@ -105,6 +105,10 @@ private func request(_ tool: String, _ json: String) -> ApprovalRequest {
     }
     expectEq(ApprovalKey.from(request("sheet_write", #"{"range":"b2:c3","values":"[]","app":"Excel"}"#))?.description,
              "sheet_write(excel B2:C3)", "hoja: se recuerda el rectángulo exacto, nunca la app entera")
+    // Code review 20 (HIGH): without an app the target is whatever is in
+    // front when it runs; "active B2:C3" would approve another workbook later.
+    expect(ApprovalKey.from(request("sheet_write", #"{"range":"B2:C3","values":"[]"}"#)) == nil,
+           "hoja: sin app explícita no se recuerda, cada escritura pregunta")
     expect(ApprovalKey.from(request("send_email", #"{"to":"x"}"#)) == nil,
            "desconocida: una tool sin regla no se recuerda")
 }
