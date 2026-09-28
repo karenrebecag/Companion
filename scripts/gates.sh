@@ -167,7 +167,15 @@ fi
 
 # -------------------------------------------------------------- Gate 4: tests
 section "Gate 4 — tests"
-out=$(cd "$ROOT" && swift test 2>&1)
+# HACK: serial solo en CI. El runner de GitHub tiene 3 vCPU y la suite
+# bloquea threads reales con semaforos (runOk/runAsync): en paralelo el pool
+# cooperativo se muere de inanicion en cascada (corrida 36447876523, 13
+# dispatchers caidos a los ~5s). En local (mas cores) el paralelo se queda
+# como esta. Upgrade trigger: migrar los helpers de semaforo a espera
+# estructurada y quitar el flag.
+test_flags=""
+[ "${CI:-}" = "true" ] && test_flags="--no-parallel"
+out=$(cd "$ROOT" && swift test $test_flags 2>&1)
 rc=$?
 if [ $rc -eq 0 ]; then
     pass "swift test verde — $(echo "$out" | grep -oE 'with [0-9]+ tests? in [0-9]+ suites?' | tail -1)"
