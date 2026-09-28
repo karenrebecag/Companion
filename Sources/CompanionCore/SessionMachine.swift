@@ -9,6 +9,10 @@ public struct SessionMachine: Sendable, Equatable {
     public private(set) var projection = SessionProjection()
     /// Seconds Completed stays on screen before Idle.
     public static let completedDelay: TimeInterval = 1.5
+    /// How long the hands aura outlives the last executed bridge call: long
+    /// enough to bridge the gap between an agent's consecutive steps without
+    /// flicker, short enough that an idle-but-open session goes dark.
+    public static let handsGlowLinger: TimeInterval = 4
     /// Seconds Pending waits for the voice to answer before giving up.
     public static let pendingTimeout: TimeInterval = 12
     /// Seconds a hold session may rest, mic closed, before it hangs up. The
@@ -159,8 +163,16 @@ public struct SessionMachine: Sendable, Equatable {
             projection.cards = [card]
         case .handsLent(let client):
             projection.handsLentTo = client
+            if client == nil { projection.handsActing = false; projection.handsTarget = nil }
         case .handsActed:
             projection.handsPulse = (projection.handsPulse + 1) % 1_000
+        case .handsWorking(let target):
+            projection.handsActing = true
+            projection.handsTarget = target
+            effects.append(.scheduleHandsGlowExpiry(Self.handsGlowLinger))
+        case .handsGlowExpired:
+            projection.handsActing = false
+            projection.handsTarget = nil
         case .stop:
             guard projection.kind != .idle else { return [] }
             if voice.state == .thinking || voice.state == .speaking {

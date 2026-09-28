@@ -91,6 +91,13 @@ public struct SessionProjection: Sendable, Equatable {
     /// so the island can key a one-shot pulse animation off a value that
     /// keeps changing instead of a bare "it happened" flag.
     public var handsPulse: Int = 0
+    /// Wave 20b: an executed bridge call happened within the linger. Drives
+    /// the screen aura; `handsLentTo` (the chip) is the permission, this is
+    /// the activity.
+    public var handsActing: Bool = false
+    /// Where the last call acted, in Accessibility's global top-left space.
+    /// Nil when the target app exposed no window; the aura then follows the cursor.
+    public var handsTarget: CGRect?
 
     public var approval: ApprovalRequest? { approvalQueue.first }
 
@@ -156,6 +163,10 @@ public enum SessionEvent: Sendable, Equatable {
     case handsLent(client: String?)
     /// Wave 17: a write action executed through the bridge.
     case handsActed
+    /// Wave 20b: any executed bridge call, reads included; the frame is
+    /// where the target app's window is right now.
+    case handsWorking(target: CGRect?)
+    case handsGlowExpired
     /// The user: Esc, the Stop button, "stop".
     case stop
 }
@@ -165,6 +176,7 @@ public enum SessionEffect: Sendable, Equatable {
     case resolveApproval(requestId: String, approved: Bool, remember: Bool)
     case scheduleCompletedExpiry(TimeInterval)
     case scheduleNoticeExpiry(TimeInterval)
+    case scheduleHandsGlowExpiry(TimeInterval)
     case schedulePendingExpiry(TimeInterval)
     /// Open the session if there is none and open the mic.
     case startListening

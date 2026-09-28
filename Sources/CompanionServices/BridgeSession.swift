@@ -17,6 +17,7 @@ public actor BridgeSession {
     /// 17-2's island chip blinks on this: fired after a successful write
     /// action (§3 "cada acción de escritura lo hace parpadear").
     private let onAction: @Sendable (String) -> Void
+    private let onCall: @Sendable (String) -> Void
 
     private var policy = BridgePolicy()
     /// The client name from `hello` ("claude-code"), carried into the
@@ -41,7 +42,8 @@ public actor BridgeSession {
         accessibility: @escaping @Sendable () -> Bool,
         now: @escaping @Sendable () -> Date = { Date() },
         onState: @escaping @Sendable (BridgeState) -> Void = { _ in },
-        onAction: @escaping @Sendable (String) -> Void = { _ in }
+        onAction: @escaping @Sendable (String) -> Void = { _ in },
+        onCall: @escaping @Sendable (String) -> Void = { _ in }
     ) {
         self.tools = tools
         self.guardian = parentGuard
@@ -51,6 +53,7 @@ public actor BridgeSession {
         self.now = now
         self.onState = onState
         self.onAction = onAction
+        self.onCall = onCall
     }
 
     public var state: BridgeState { policy.state }
@@ -254,6 +257,7 @@ public actor BridgeSession {
         } else {
             outcome = await tools.execute(name: call.name, argumentsJSON: call.argumentsJSON)
         }
+        if outcome.ok { onCall(call.name) }
         if outcome.ok, BridgePolicy.writeTools.contains(call.name) {
             onAction(call.name)
         }

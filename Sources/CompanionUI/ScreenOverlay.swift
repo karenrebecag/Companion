@@ -71,8 +71,7 @@ struct ScreenOverlayView: View {
 
     var body: some View {
         let kind = session.projection.kind
-        let target = ScreenGlow.target(
-            kind, enabled: glowEnabled, hands: session.projection.handsLentTo != nil)
+        let target = ScreenGlow.target(kind, enabled: glowEnabled, hands: handsHere)
         ZStack {
             // The shader draws at full strength; `listening` is the ceiling.
             ScreenGlowMetalView(running: running, animated: !reduceMotion, onFailure: onFailure)
@@ -87,6 +86,19 @@ struct ScreenOverlayView: View {
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         .onChange(of: target, initial: true) { _, new in show(new) }
+    }
+
+    /// Read when the projection changes (each call republishes the target),
+    /// so a moved window or cursor is picked up on the next call.
+    private var handsHere: Bool {
+        guard session.projection.handsActing else { return false }
+        let screens = NSScreen.screens.map(\.frame)
+        let primaryHeight = screens.first?.height ?? screenFrame.height
+        let target = session.projection.handsTarget.map {
+            ScreenGlow.appKitFrame(fromAX: $0, primaryHeight: primaryHeight)
+        }
+        return ScreenGlow.handsOnScreen(
+            screenFrame: screenFrame, screens: screens, target: target, cursor: NSEvent.mouseLocation)
     }
 
     private func show(_ target: Double) {

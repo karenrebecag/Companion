@@ -114,11 +114,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         environment env: LaunchEnvironment, jobs: JobInfrastructure, sensing: SensingAndModel
     ) {
         let accessibility = AccessibilityPermission()
+        // Only its window-frame read is used, which keeps no handles.
+        let windows = AXScreen(
+            selfBundleID: Bundle.main.bundleIdentifier ?? "",
+            trust: { accessibility.isTrusted() })
         let bridgeHost = BridgeHost(
             tools: sensing.parentTools, approvals: jobs.approvals,
             language: { env.configProvider.current.language },
             accessibility: { accessibility.isTrusted() },
-            sessionModel: sensing.sessionModel)
+            sessionModel: sensing.sessionModel,
+            targetFrame: {
+                guard let pid = sensing.frontmost.lastOtherPID else { return nil }
+                return windows.windowFrame(pid: pid)
+            })
         bridgeHost.apply(enabled: HandsLendingPreference.enabled)
         self.bridgeHost = bridgeHost
         NotificationCenter.default.addObserver(

@@ -23,6 +23,7 @@ import Testing
     await testLogNeverLeaksArgumentsOrOutput()
     await testStopWithdrawsPendingSheetAndClosesSession()
     await testOnActionFiresForSuccessfulWriteCallsOnly()
+    await testOnCallFiresForEverySuccessfulCall()
     await testOversizedLineThroughHandleClosesTheConnection()
 }
 
@@ -52,11 +53,13 @@ private func callResultOutput(_ line: String) -> String? {
 
 private func session(
     tools: FakeParentTools, approvals: (any ApprovalsProvider)? = nil, token: String = "tok",
-    onAction: @escaping @Sendable (String) -> Void = { _ in }
+    onAction: @escaping @Sendable (String) -> Void = { _ in },
+    onCall: @escaping @Sendable (String) -> Void = { _ in }
 ) -> BridgeSession {
     BridgeSession(
         tools: tools, guard: ParentToolGuard(approvals: approvals),
-        token: { token }, language: { .en }, accessibility: { true }, onAction: onAction)
+        token: { token }, language: { .en }, accessibility: { true }, onAction: onAction,
+        onCall: onCall)
 }
 
 private func waitUntil(timeout: TimeInterval = 2, _ pred: @escaping @Sendable () -> Bool) async {
@@ -349,6 +352,29 @@ private func waitUntil(timeout: TimeInterval = 2, _ pred: @escaping @Sendable ()
     _ = await deniedSession.handle(line: helloLine(id: 1, token: "tok"))
     _ = await deniedSession.handle(line: callLine(id: 2, name: "click"))
     expectEq(recorder.get(), ["click"], "click denied: onAction still not called")
+}
+
+/// Wave 20b D1: the aura lights on every executed call, reads included, and
+/// never for a denied one.
+@MainActor func testOnCallFiresForEverySuccessfulCall() async {
+    let recorder = Box<[String]>()
+    let record: @Sendable (String) -> Void = { name in recorder.set((recorder.get() ?? []) + [name]) }
+    let tools = FakeParentTools(handledNames: ["look", "click"])
+    let s = session(tools: tools, approvals: ScriptedApprovals(answer: true), onCall: record)
+    _ = await s.handle(line: helloLine(id: 1, token: "tok"))
+    _ = await s.handle(line: callLine(id: 2, name: "look"))
+    _ = await s.handle(line: callLine(id: 3, name: "click"))
+    expectEq(recorder.get(), ["look", "click"], "onCall: lecturas y escrituras")
+
+    let deniedTools = FakeParentTools(handledNames: ["click"])
+    deniedTools.setScriptedApproval(ApprovalRequest(
+        requestId: "c1", toolName: "click", summary: "delete", inputJSON: "{}"))
+    let deniedApprovals = ScriptedApprovals(answer: true)
+    deniedApprovals.setAnswer(false, forTool: "click")
+    let denied = session(tools: deniedTools, approvals: deniedApprovals, onCall: record)
+    _ = await denied.handle(line: helloLine(id: 1, token: "tok"))
+    _ = await denied.handle(line: callLine(id: 2, name: "click"))
+    expectEq(recorder.get(), ["look", "click"], "onCall: una llamada negada no enciende el aura")
 }
 
 // MARK: - fakes

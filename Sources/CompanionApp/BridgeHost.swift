@@ -25,7 +25,8 @@ final class BridgeHost {
         approvals: Approvals,
         language: @escaping @Sendable () -> AppLanguage,
         accessibility: @escaping @Sendable () -> Bool,
-        sessionModel: SessionModel
+        sessionModel: SessionModel,
+        targetFrame: @escaping @Sendable () -> CGRect?
     ) {
         let directory = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -63,6 +64,11 @@ final class BridgeHost {
             },
             onAction: { _ in
                 Task { @MainActor in sessionModel.send(.handsActed) }
+            },
+            // Read off the main actor: the AX round trip may hit a hung app.
+            onCall: { _ in
+                let frame = targetFrame()
+                Task { @MainActor in sessionModel.send(.handsWorking(target: frame)) }
             })
         sessionBox.value = session
         self.listener = listener
