@@ -74,3 +74,13 @@ Cada hallazgo entra con su test en rojo primero. Revisión de código y de segur
 - **R1** El marco de la app objetivo cambia si la ventana se mueve entre monitores durante la acción. Se recalcula en cada llamada.
 - **R2** D2 añade tres tools al chat y el modelo puede usarlas de más. `sheet_read` es safe y sin efectos; las otras dos piden hoja.
 - **R3** El filtro del puente es una lista de nombres. Si mañana se añade una tool de entregables, hay que añadirla también. Un test compara la lista con los `NativeTool` de riesgo que no deben salir por MCP.
+
+## 7. Revisión de seguridad de D2 (2026-09-28): lo que queda abierto
+
+Veredicto APPROVE, sin CRITICAL ni HIGH. Cerrado con test: en el chat y la voz, `sheet_write` exige `app`; sin ella, el destino se decidía al ejecutar y no al aprobar.
+
+Abierto, con su disparador:
+- **(MEDIUM) Lo recordado para `sheet_write` no fija los valores.** Un "recordar" vale para esa app y ese rango, con cualquier contenido, y desde 20b también por voz. Queda como en la 20 (la copia `-backup-` limita el daño). Disparador: si se usa "recordar" en escrituras de hojas, la clave pasa a incluir un hash de los valores, o `sheet_write` deja de recordarse.
+- **(LOW) Un ticket concedido sobrevive hasta 60 s a un turno cancelado**, solo para la llamada idéntica byte a byte. Disparador: si el protocolo `ParentToolExecuting` gana un "fin de turno", se limpian ahí.
+- **(LOW) `approval(for:)` aparca un ticket como efecto lateral.** Si `DecisionGate` lo sondea en paralelo con una petición viva, esta falla cerrada ("denegado").
+- **(INFO) `sheet_read` lee cualquier libro abierto sin hoja**, como `read_file` o `look`. La salida a la red sigue detrás de la hoja de `open_url`.
