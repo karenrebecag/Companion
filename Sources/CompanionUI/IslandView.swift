@@ -421,11 +421,10 @@ public struct IslandView: View {
                     Button(Localized.string("island.stop")) { stop() }
                         .buttonStyle(IslandChipStyle())
                 }
-                if let client = state.hands {
-                    IslandHandsChip(
-                        client: client, pulse: chat.session.projection.handsPulse,
-                        onStop: { perform(.stopHands) })
-                }
+                // 19-1c: the "Manos"/"Detener manos" chip left the island
+                // (Karen, feedback en vivo): during the sheet it duplicated
+                // "No permitir", and at rest the screen aura is the hands
+                // signal. Stopping a live session lives in the menu bar.
                 IslandLight(light: state.light)
             }
             if let partial = state.partial, !partial.isEmpty {

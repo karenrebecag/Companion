@@ -5,9 +5,12 @@ import SwiftUI
 /// "Connecting Slack" modal. Renders `AppsModel`'s own `connectPhase` — no
 /// timer lives here; the 3 s poll runs in the model, this view only paints.
 public enum ConnectingSheetMetrics {
-    public static let maxWidth: CGFloat = 420
-    public static let icon: CGFloat = 44
-    public static let trackWidth: CGFloat = 96
+    // 16k-2d: Incredible's real modal (captured live 2026-09-28) is a
+    // centered composition — big title, 72pt icon lockup, one centered
+    // action — not a leading-aligned card.
+    public static let maxWidth: CGFloat = 520
+    public static let icon: CGFloat = 72
+    public static let trackWidth: CGFloat = 120
     public static let dot: CGFloat = 8
 }
 
@@ -21,56 +24,61 @@ struct ConnectingSheet: View {
     let onClose: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.x4) {
-            header
+        VStack(alignment: .center, spacing: Space.x5) {
+            Text(ConnectingCopy.title(phase, app: app.name))
+                .font(Fonts.sans(TypeSize.display).weight(.semibold))
+                .tracking(Tracking.title, at: TypeSize.display)
+                .foregroundStyle(Semantic.foreground)
+                .multilineTextAlignment(.center)
             track
             Text(ConnectingCopy.body(phase, app: app.name))
                 .font(.uiBody)
                 .foregroundStyle(bodyForeground)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             if showsHint {
                 Text(Localized.string("apps.connecting.hint"))
                     .font(.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
             buttons
             Text(Localized.string("apps.panel.privacy"))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(Space.x6)
-        .frame(maxWidth: ConnectingSheetMetrics.maxWidth, alignment: .leading)
+        .padding(.horizontal, Space.x8)
+        .padding(.vertical, Space.x8)
+        .frame(maxWidth: ConnectingSheetMetrics.maxWidth)
         .background(RoundedRectangle(cornerRadius: Radius.card).fill(Semantic.background))
         .overlay(RoundedRectangle(cornerRadius: Radius.card).stroke(Semantic.border, lineWidth: Stroke.hairline))
+        .overlay(alignment: .topTrailing) { closeButton.padding(Space.x4) }
     }
 
-    private var header: some View {
-        HStack(spacing: Space.x3) {
-            Text(ConnectingCopy.title(phase, app: app.name))
-                .font(.uiSubtitle)
+    private var closeButton: some View {
+        Button(action: onClose) {
+            Image(systemName: "xmark")
+                .font(.uiCaption)
                 .foregroundStyle(Semantic.foreground)
-                .lineLimit(1)
-            Spacer()
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.foreground)
-                    .frame(width: MainWindowMetrics.avatar, height: MainWindowMetrics.avatar)
-                    .background(Circle().fill(Semantic.muted))
-                    .contentShape(Circle())
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel(Localized.string("task.close"))
+                .frame(width: MainWindowMetrics.avatar, height: MainWindowMetrics.avatar)
+                .background(Circle().fill(Semantic.muted))
+                .contentShape(Circle())
         }
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(Localized.string("task.close"))
     }
 
     private var track: some View {
         HStack(spacing: Space.x4) {
             CompanionMarkIcon()
             ConnectTrack(complete: phase == .complete)
-            AppIconView(icon: app.icon, size: ConnectingSheetMetrics.icon, padding: Space.x2)
+            AppIconView(icon: app.icon, size: ConnectingSheetMetrics.icon, padding: Space.x3)
+                .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Semantic.surface))
+                .overlay(RoundedRectangle(cornerRadius: Radius.lg)
+                    .strokeBorder(Semantic.borderChrome, lineWidth: Stroke.hairline))
         }
     }
 

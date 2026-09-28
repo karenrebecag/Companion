@@ -11,7 +11,7 @@ import Testing
 // Lo que sobrevive es la respuesta: `resolve_approval` sigue declarada, así
 // que quien ve la hoja y dice "sí, autorízalo" resuelve sin tocar el trackpad.
 // Lo que se pierde, y es el precio elegido: un permiso que nadie mira muere en
-// el auto-deny de los 120 s sin que la voz lo mencione.
+// el auto-deny (ApprovalTiming) sin que la voz lo mencione.
 
 @Test @MainActor func voiceApprovalTests() async {
     testApprovalToolIsDeclared()

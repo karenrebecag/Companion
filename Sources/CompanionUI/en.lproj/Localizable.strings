@@ -541,6 +541,9 @@
 "apps.panel.disconnect.confirmButton" = "Disconnect";
 "apps.panel.disconnect.cancel" = "Cancel";
 "apps.panel.disconnecting" = "Disconnecting…";
+"apps.seed.banner" = "To connect an app, link your companion-apps function first.";
+"apps.seed.total" = "1,700+ apps";
+"apps.seed.configure" = "Set up";
 
 /* Wave 20: data cards */
 "card.table.truncated" = "Showing the first %d rows.";

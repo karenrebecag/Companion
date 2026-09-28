@@ -159,7 +159,7 @@ public struct NativeExecutor: Executor, Sendable {
                 summary: "Tool requires user approval",
                 inputJSON: call.arguments)
             // A decision the session already took answers without the sheet
-            // (3B.2); otherwise wait (auto-deny after 120s per Approvals).
+            // (3B.2); otherwise wait (auto-deny per ApprovalTiming).
             if let decision = await approvals.remembered(approval) {
                 events.yield(.approvalRemembered(tool: toolName, approved: decision))
                 approved = decision

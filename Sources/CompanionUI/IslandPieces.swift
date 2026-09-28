@@ -123,6 +123,8 @@ struct IslandChipStyle: ButtonStyle {
 /// button so "Detener manos" is one tap wherever the client's name shows.
 /// Pulses once per write action — an agent moving the pointer unannounced is
 /// the thing that frightens; the blink is the announcement.
+/// 19-1c dropped its render (Karen: redundant with "No permitir"); remove
+/// this struct, its strings and BridgeUITests' chip cases in 19-4 cleanup.
 struct IslandHandsChip: View {
     let client: String
     let pulse: Int

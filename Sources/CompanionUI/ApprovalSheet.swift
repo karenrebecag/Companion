@@ -47,16 +47,35 @@ public struct ApprovalSheet: View {
                 // The scroll bounds what the ellipsis used to hide: the
                 // datum is complete (the tail is part of what runs — 15g
                 // M1) and the answer buttons can never be pushed off
-                // screen by a long one (security review 19-1). A short
-                // preview keeps its natural height; only overflow scrolls.
-                ViewThatFits(in: .vertical) {
-                    previewText(preview)
-                    ScrollView(.vertical) { previewText(preview) }
+                // screen by a long one (security review 19-1). Deciding by
+                // length keeps a short preview hugging its text —
+                // ViewThatFits picked the greedy scroll and drew a tall
+                // empty box (seen live 19-1c).
+                Group {
+                    if Self.previewScrolls(preview) {
+                        ScrollView(.vertical) { previewText(preview) }
+                            .frame(maxHeight: Container.hero)
+                    } else {
+                        previewText(preview)
+                    }
                 }
-                .frame(maxHeight: Container.hero)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Semantic.surface)
                 .clipShape(RoundedRectangle(cornerRadius: Radius.badge))
+            }
+
+            // §9-5: `bridge_session` has no `ApprovalKey` (security review
+            // 2026-09-28) — a "remember" toggle here would promise a
+            // memory that never happens, one sheet per connection, always.
+            // Its own row above the CTAs (19-1c): squeezed between the
+            // buttons it truncated them.
+            if display.showsRemember {
+                Toggle(isOn: $remember) {
+                    Text(Localized.string("approval.remember"))
+                        .font(GeistFont.uiCaption)
+                        .foregroundStyle(Semantic.mutedForeground)
+                }
+                .toggleStyle(.checkbox)
             }
 
             HStack(spacing: Space.x3) {
@@ -64,19 +83,6 @@ public struct ApprovalSheet: View {
                           systemImage: "xmark") { answer(false, remember) }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                // §9-5: `bridge_session` has no `ApprovalKey` (security
-                // review 2026-09-28) — a "remember" toggle here would
-                // promise a memory that never happens, one sheet per
-                // connection, always.
-                if display.showsRemember {
-                    Toggle(isOn: $remember) {
-                        Text(Localized.string("approval.remember"))
-                            .font(GeistFont.uiCaption)
-                            .foregroundStyle(Semantic.mutedForeground)
-                    }
-                    .toggleStyle(.checkbox)
-                    Spacer()
-                }
                 AppButton(Localized.string("approval.allow"), kind: .primary,
                           systemImage: "checkmark") { answer(true, remember) }
                     .keyboardShortcut(Self.allowShortcut)
@@ -165,6 +171,18 @@ extension ApprovalSheet {
     /// Allowing is a click, never a stray Return: a key typed for something
     /// else must not approve (security review 16). Deny keeps Escape.
     static let allowShortcut: KeyboardShortcut? = nil
+
+    /// Characters after which the preview trades hugging for a scroll.
+    static let scrollThreshold = 400
+    /// Newlines make a preview tall long before it is long: a few-hundred
+    /// character script can still push the answer buttons off screen, and
+    /// bounding those buttons is the 19-1 guarantee (review 19-1c).
+    static let scrollLineThreshold = 8
+
+    static func previewScrolls(_ preview: String) -> Bool {
+        preview.count > scrollThreshold
+            || preview.lazy.filter { $0 == "\n" }.count >= scrollLineThreshold
+    }
 }
 
 /// The bundled Claude vector, loaded once. It ships as an SVG next to the
