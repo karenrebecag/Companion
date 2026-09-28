@@ -11,6 +11,7 @@ import Testing
     await testASpecBecomesAPaginatedPDF()
     testTheOfflineRuleBlocksEveryScheme()
     testThePageRunsNoScriptAndKeepsNothing()
+    await testATableRepeatsItsHeaderOnEveryPage()
 }
 
 @MainActor func testASpecBecomesAPaginatedPDF() async {
@@ -42,4 +43,31 @@ import Testing
     let config = PDFRenderer.configuration()
     expect(!config.defaultWebpagePreferences.allowsContentJavaScript, "pdf: JavaScript apagado")
     expect(!config.websiteDataStore.isPersistent, "pdf: almacén de datos desechable")
+}
+
+/// Wave 20b D6: a table that crosses a page keeps its header on each page.
+@MainActor func testATableRepeatsItsHeaderOnEveryPage() async {
+    let rows = (0..<150).map { #"["fila \#($0)","\#($0)"]"# }.joined(separator: ",")
+    let json = #"{"title":"Tabla larga","blocks":[{"type":"table","columns":["EncabezadoUno","EncabezadoDos"],"rows":[\#(rows)]}]}"#
+    guard let spec = DocumentSpec.parse(json) else { return expect(false, "tabla: el spec parsea") }
+    let html = DocumentHTML.render(spec)
+    expect(html.contains("<thead>") && html.contains("thead { display: table-header-group; }"),
+           "tabla: el HTML declara el encabezado repetible")
+    expect(html.contains("tr { break-inside: avoid; }"), "tabla: una fila no se parte")
+    expectEq(html.components(separatedBy: "<thead>").count - 1, 8,
+             "tabla: 150 filas en trozos de 20, cada uno con su encabezado")
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("pdf-\(UUID().uuidString).pdf")
+    defer { do { try FileManager.default.removeItem(at: url) } catch {} }
+    do {
+        _ = try await NativeDocumentRenderer().render(spec, format: .pdf, to: url)
+        guard let pdf = PDFDocument(url: url), pdf.pageCount >= 2 else {
+            return expect(false, "tabla: 150 filas ocupan mas de una pagina")
+        }
+        for index in 1..<pdf.pageCount {
+            let text = pdf.page(at: index)?.string ?? ""
+            expect(text.contains("EncabezadoUno"), "tabla: la pagina \(index + 1) repite el encabezado")
+        }
+    } catch {
+        expect(false, "tabla: renderizar no debe fallar (\(error))")
+    }
 }

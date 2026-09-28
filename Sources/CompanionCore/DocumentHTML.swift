@@ -35,10 +35,7 @@ public enum DocumentHTML {
                     + "</div><div class=\"l\">\(escape(item.label))</div></div>"
             }.joined() + "</div>"
         case .table(let table):
-            return title(table.title) + "<table><thead><tr>"
-                + table.columns.map { "<th>\(escape($0))</th>" }.joined() + "</tr></thead><tbody>"
-                + table.rows.map { "<tr>" + $0.map { "<td>\(escape($0))</td>" }.joined() + "</tr>" }.joined()
-                + "</tbody></table>"
+            return title(table.title) + tableHTML(table)
         case .chart(let chart):
             return "<figure>" + title(chart.title, unit: chart.unit) + ChartSVG.render(chart) + "</figure>"
         case .callout(let text, let tone):
@@ -76,6 +73,23 @@ public enum DocumentHTML {
         return out
     }
 
+    /// HACK: WebKit's print path slices the page and ignores a repeating
+    /// `thead` (measured: page 2 opens on a data row), so a long table is cut
+    /// into chunks that each carry the header and never split. Sized for ~28
+    /// single-line rows per A4 page; a table of wrapped rows can still overflow
+    /// a chunk. Replace with real header repetition if the renderer honors it.
+    static let rowsPerChunk = 20
+
+    private static func tableHTML(_ table: TableBlock) -> String {
+        let head = "<thead><tr>" + table.columns.map { "<th>\(escape($0))</th>" }.joined() + "</tr></thead>"
+        let rows = table.rows.map { "<tr>" + $0.map { "<td>\(escape($0))</td>" }.joined() + "</tr>" }
+        guard !rows.isEmpty else { return "<table>\(head)<tbody></tbody></table>" }
+        return stride(from: 0, to: rows.count, by: rowsPerChunk).map { start in
+            "<table>\(head)<tbody>"
+                + rows[start..<min(start + rowsPerChunk, rows.count)].joined() + "</tbody></table>"
+        }.joined()
+    }
+
     /// A4 with print margins; rows and figures never split across pages.
     static let css = """
     @page { size: A4; margin: 18mm 16mm; }
@@ -96,6 +110,7 @@ public enum DocumentHTML {
     .stat .v { font-size: 18pt; font-weight: 600; } .stat .l { color: #\(DocumentTheme.muted); font-size: 9pt; }
     .d { font-size: 9pt; margin-left: 6pt; } .d.up { color: #\(DocumentTheme.success); } .d.down { color: #\(DocumentTheme.danger); }
     table { width: 100%; border-collapse: collapse; margin: 6pt 0 12pt; font-size: 9.5pt; }
+    table { break-inside: avoid; } table + table { margin-top: 0; }
     thead { display: table-header-group; } tr { break-inside: avoid; }
     th { text-align: left; color: #\(DocumentTheme.muted); font-weight: 600; border-bottom: 1px solid #\(DocumentTheme.ink); padding: 5pt 6pt; }
     td { border-bottom: 1px solid #\(DocumentTheme.border); padding: 5pt 6pt; }
