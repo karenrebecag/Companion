@@ -14,12 +14,16 @@ public enum NativeTool: String, CaseIterable, Sendable, Equatable {
     case runShell = "run_shell"
     case webFetch = "web_fetch"
     case webSearch = "web_search"
+    /// Wave 20: deliverables and live spreadsheets.
+    case createDocument = "create_document"
+    case sheetRead = "sheet_read"
+    case sheetWrite = "sheet_write"
 
     public var riskLevel: RiskLevel {
         switch self {
-        case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch:
+        case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch, .sheetRead:
             return .safe
-        case .writeFile, .editFile, .runShell:
+        case .writeFile, .editFile, .runShell, .createDocument, .sheetWrite:
             return .requiresApproval
         }
     }
@@ -128,6 +132,8 @@ public enum NativeTool: String, CaseIterable, Sendable, Equatable {
                 ],
                 required: ["query"]
             )
+        case .createDocument, .sheetRead, .sheetWrite:
+            return DeliverableTools.spec(self)
         }
     }
 }

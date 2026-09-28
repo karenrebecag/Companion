@@ -30,6 +30,10 @@ public struct NativeToolRunner: Sendable {
     /// The app's own folders (Wave 11a): readable beyond the workdir, and
     /// the place where a write earns a sync line.
     private let skills: SkillsLocation?
+    /// Wave 20: absent, the tool is not offered (a tool without a backing
+    /// captures the intent and then dies).
+    let documents: (any DocumentRendering)?
+    let sheets: (any SpreadsheetDriving)?
     /// A skill body is a few hundred lines; a 10 MB read_file cap is not a
     /// cap for this.
     static let maxSkillBody = 40_000
@@ -46,7 +50,9 @@ public struct NativeToolRunner: Sendable {
         places: (any PlacesSearching)? = MapKitPlacesSearch(),
         webSearch: (any WebSearching)? = nil,
         language: AppLanguage = .en,
-        skills: SkillsLocation? = nil
+        skills: SkillsLocation? = nil,
+        documents: (any DocumentRendering)? = nil,
+        sheets: (any SpreadsheetDriving)? = nil
     ) {
         self.workdir = workdir
         self.pathValidator = PathValidator(workdir: workdir, extraRoots: skills?.roots ?? [])
@@ -55,6 +61,8 @@ public struct NativeToolRunner: Sendable {
         self.webSearch = webSearch
         self.language = language
         self.skills = skills
+        self.documents = documents
+        self.sheets = sheets
     }
 
     /// What the model is allowed to see it has. A tool whose backing is not
@@ -65,6 +73,8 @@ public struct NativeToolRunner: Sendable {
         NativeTool.allCases.filter { tool in
             switch tool {
             case .webSearch: return webSearch?.isConfigured == true
+            case .createDocument: return documents != nil
+            case .sheetRead, .sheetWrite: return sheets != nil
             default: return true
             }
         }
@@ -105,6 +115,12 @@ public struct NativeToolRunner: Sendable {
             return try await webFetch(arguments: arguments)
         case .webSearch:
             return await runWebSearch(arguments: arguments)
+        case .createDocument:
+            return await createDocument(arguments: arguments)
+        case .sheetRead:
+            return await sheetRead(arguments: arguments)
+        case .sheetWrite:
+            return await sheetWrite(arguments: arguments)
         }
     }
 
@@ -190,12 +206,12 @@ public struct NativeToolRunner: Sendable {
     /// same user could swap a folder for a symlink in between; that process
     /// already owns the home folder. Trigger: a second writer on these roots
     /// (a CLI executor writing concurrently) — then `open(O_NOFOLLOW)`.
-    private enum WriteBarrier {
+    enum WriteBarrier {
         case success(String)
         case failure(ToolResult)
     }
 
-    private func writeBarrier(_ path: String) -> WriteBarrier {
+    func writeBarrier(_ path: String) -> WriteBarrier {
         guard pathValidator.isAllowed(path) else {
             return .failure(ToolResult(ok: false, output: "Path outside working directory"))
         }

@@ -96,11 +96,15 @@ private func request(_ tool: String, _ json: String) -> ApprovalRequest {
         .writeFile: #"{"path":"~/a.md","content":"x"}"#,
         .editFile: #"{"path":"~/a.md","old_string":"a","new_string":"b"}"#,
         .runShell: #"{"command":"ls"}"#,
+        .createDocument: #"{"path":"~/informes/q3.pdf","document":"{}"}"#,
+        .sheetWrite: #"{"range":"B2:C3","values":"[[1,2],[3,4]]","app":"excel"}"#,
     ]
     for tool in NativeTool.allCases where tool.riskLevel == .requiresApproval {
         expect(ApprovalKey.from(request(tool.rawValue, samples[tool] ?? "{}")) != nil,
                "cobertura: \(tool.rawValue) tiene clave")
     }
+    expectEq(ApprovalKey.from(request("sheet_write", #"{"range":"b2:c3","values":"[]","app":"Excel"}"#))?.description,
+             "sheet_write(excel B2:C3)", "hoja: se recuerda el rectángulo exacto, nunca la app entera")
     expect(ApprovalKey.from(request("send_email", #"{"to":"x"}"#)) == nil,
            "desconocida: una tool sin regla no se recuerda")
 }

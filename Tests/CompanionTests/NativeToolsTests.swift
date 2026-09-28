@@ -13,10 +13,12 @@ import Testing
 // from what the model remembers. That one had NO observed failure behind it —
 // it closes a documented architectural defect, which is a different and
 // weaker reason, and Wave 9e says so out loud.
+// Ninth to eleventh: create_document, sheet_read, sheet_write (Wave 20), after
+// "a PDF of the report" ended in a .md on any Mac without pandoc.
 @Test @MainActor
-func nativeToolEnumHasAllEightTools() {
+func nativeToolEnumHasAllElevenTools() {
     let allCases = NativeTool.allCases
-    expectEq(allCases.count, 8, "exactly 8 native tools")
+    expectEq(allCases.count, 11, "exactly 11 native tools")
 }
 
 @Test @MainActor
@@ -25,6 +27,7 @@ func nativeToolEnumContainsRequiredTools() {
     let required = Set([
         "find_places", "list_directory", "read_file", "write_file",
         "edit_file", "run_shell", "web_fetch", "web_search",
+        "create_document", "sheet_read", "sheet_write",
     ])
     expectEq(toolNames, required, "has all required tools")
 }
