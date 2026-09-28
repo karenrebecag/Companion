@@ -7,6 +7,18 @@ import Foundation
 public enum SessionKind: Sendable, Equatable {
     case idle, hover, listening
     case processing(SessionPhase)
+
+    /// Wave 17 (spec §3 "la voz de Karen gana": "al empezar un hold o
+    /// enviar un chat"): only a hold or a sent chat is Karen's own turn.
+    /// `.hover` — the pointer resting on the island — is rest, same as
+    /// `.idle`: it must not pause the bridge just because the mouse passed
+    /// over the notch.
+    public var isUsersTurn: Bool {
+        switch self {
+        case .listening, .processing: true
+        case .idle, .hover: false
+        }
+    }
 }
 
 public enum SessionPhase: Sendable, Equatable {
@@ -71,6 +83,14 @@ public struct SessionProjection: Sendable, Equatable {
     /// Wave 12e: the app this hold dictates into, while it lasts (Listening,
     /// Pending, Completed). Nil when the hold talks to Companion.
     public var dictation: String?
+    /// Wave 17: the bridge's client name while a session is open, nil once
+    /// it closes. Independent of `kind` — the chip lives alongside whatever
+    /// the chrome is doing, not instead of it.
+    public var handsLentTo: String?
+    /// Wave 17: bumped on every successful write action, wrapping at 1000,
+    /// so the island can key a one-shot pulse animation off a value that
+    /// keeps changing instead of a bare "it happened" flag.
+    public var handsPulse: Int = 0
 
     public var approval: ApprovalRequest? { approvalQueue.first }
 
@@ -130,6 +150,12 @@ public enum SessionEvent: Sendable, Equatable {
     case dictated(app: String)
     /// The hold wanted to dictate and could not; the words went to Companion.
     case dictationFailed(DictationFailure)
+    /// Wave 17: the bridge's session opened (or closed, `nil`) for this
+    /// client. Independent of the turn machinery — a bridge session can sit
+    /// open across many idle moments.
+    case handsLent(client: String?)
+    /// Wave 17: a write action executed through the bridge.
+    case handsActed
     /// The user: Esc, the Stop button, "stop".
     case stop
 }

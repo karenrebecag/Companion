@@ -119,6 +119,44 @@ struct IslandChipStyle: ButtonStyle {
     }
 }
 
+/// Wave 17 (spec §3 "Se ve"): the bridge's chip, label plus its own stop
+/// button so "Detener manos" is one tap wherever the client's name shows.
+/// Pulses once per write action — an agent moving the pointer unannounced is
+/// the thing that frightens; the blink is the announcement.
+struct IslandHandsChip: View {
+    let client: String
+    let pulse: Int
+    let onStop: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pulsing = false
+
+    var body: some View {
+        HStack(spacing: Space.x2) {
+            Text(String(format: Localized.string("island.hands"), client))
+                .font(GeistFont.uiCaption)
+                .foregroundStyle(IslandInk.text)
+                .opacity(pulsing ? IslandHandsMetrics.pulseOpacity : 1)
+                .scaleEffect(pulsing ? IslandHandsMetrics.pulseScale : 1)
+            Button(IslandCopy.action(.stopHands)) { onStop() }
+                .buttonStyle(IslandChipStyle())
+        }
+        .animation(IslandMotionBudget.textSwap.animation(reduceMotion: reduceMotion), value: pulsing)
+        .onChange(of: pulse) { _, _ in
+            guard !reduceMotion else { return }
+            pulsing = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(IslandMotionBudget.textSwap.duration))
+                pulsing = false
+            }
+        }
+    }
+}
+
+private enum IslandHandsMetrics {
+    static let pulseOpacity: Double = 0.55
+    static let pulseScale: CGFloat = 1.04
+}
+
 /// One reply as a card: a title, one line, "View →" for the rest.
 struct IslandResultCard: View {
     let result: IslandResult

@@ -60,6 +60,8 @@ public enum SettingsInventory {
         Option(tab: .you, titleKey: "settings.app.textSize", subtitleKey: "settings.app.textSize.subtitle"),
         Option(tab: .privacy, titleKey: "settings.context.screen", subtitleKey: "settings.context.screen.subtitle"),
         Option(tab: .privacy, titleKey: "settings.context.documents", subtitleKey: nil),
+        Option(tab: .privacy, titleKey: "settings.privacy.lendHands",
+               subtitleKey: "settings.privacy.lendHands.subtitle"),
     ]
 
     public static let panels: [Panel] = [

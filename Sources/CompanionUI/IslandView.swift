@@ -398,6 +398,11 @@ public struct IslandView: View {
                     Button(Localized.string("island.stop")) { stop() }
                         .buttonStyle(IslandChipStyle())
                 }
+                if let client = state.hands {
+                    IslandHandsChip(
+                        client: client, pulse: chat.session.projection.handsPulse,
+                        onStop: { perform(.stopHands) })
+                }
                 IslandLight(light: state.light)
             }
             if let partial = state.partial, !partial.isEmpty {
@@ -509,6 +514,8 @@ public struct IslandView: View {
             NotificationCenter.default.post(name: .companionOpenSettings, object: SettingsTab.privacy.rawValue)
         case .openPermission(let failure):
             if let link = VoiceCopy.settingsLink(for: failure) { openURL(link) }
+        case .stopHands:
+            NotificationCenter.default.post(name: .companionStopHands, object: nil)
         }
     }
 
@@ -580,6 +587,7 @@ enum IslandCopy {
         switch action {
         case .openKeys: Localized.string("island.action.keys")
         case .openPermission: Localized.string("permission.open")
+        case .stopHands: Localized.string("island.hands.stop")
         }
     }
 

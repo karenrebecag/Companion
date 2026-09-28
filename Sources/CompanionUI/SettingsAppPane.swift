@@ -10,6 +10,11 @@ struct SettingsPrivacyPage: View {
     @State private var context = ContextSettingsModel()
     /// Wave 15c-6: reads the Keychain only from `.onAppear`, never at boot.
     @State private var keys = KeysSettingsModel()
+    /// Wave 17: starts from the stored preference; `onChange` below is the
+    /// only writer, so a background change (none exists today) would not
+    /// show up here until the page reappears — same tradeoff `sounds` and
+    /// `screenGlow` already make on this page's sibling.
+    @State private var lendHands = HandsLendingPreference.enabled
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
@@ -26,6 +31,13 @@ struct SettingsPrivacyPage: View {
                     SettingsSwitch(
                         label: Localized.string("settings.context.documents"), isOn: contextBinding(\.documents))
                 }
+                SettingsRow(
+                    title: Localized.string("settings.privacy.lendHands"),
+                    subtitle: Localized.string("settings.privacy.lendHands.subtitle"),
+                    key: "settings.privacy.lendHands"
+                ) {
+                    SettingsSwitch(label: Localized.string("settings.privacy.lendHands"), isOn: $lendHands)
+                }
             }
             if let welcome {
                 SettingsCard(label: Localized.string("settings.permissions")) {
@@ -40,6 +52,7 @@ struct SettingsPrivacyPage: View {
                 keysBlock.padding(Space.x4)
             }
         }
+        .onChange(of: lendHands) { _, on in HandsLendingPreference.enabled = on }
         .onAppear {
             context.accessibility = chat?.accessibility
             context.screenRecording = chat?.screenRecording

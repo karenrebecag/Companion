@@ -157,6 +157,10 @@ public struct SessionMachine: Sendable, Equatable {
             let card = Self.card(for: failure)
             projection.notice = card
             projection.cards = [card]
+        case .handsLent(let client):
+            projection.handsLentTo = client
+        case .handsActed:
+            projection.handsPulse = (projection.handsPulse + 1) % 1_000
         case .stop:
             guard projection.kind != .idle else { return [] }
             if voice.state == .thinking || voice.state == .speaking {

@@ -182,6 +182,7 @@ extension AppDelegate {
                     name: .companionOpenSettings, object: SettingsTab.system.rawValue)
                 updates.requestCheck()
             },
+            .stopHands: { [weak self] in self?.bridgeHost?.stopHands() },
             .quit: { NSApp.terminate(nil) },
         ])
         Log.app("launched")

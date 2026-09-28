@@ -12,6 +12,15 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   viñetas en vez de asteriscos; solo los enlaces web se abren.
 
 ### Added
+- **Las manos para Claude Code (Wave 17, 2026-09-28).** Nuevo ajuste en
+  Privacidad, "Prestar las manos a otros agentes" — apagado por defecto en
+  todo build. Encendido, la primera acción de una sesión del puente abre la
+  misma hoja de aprobación de siempre ("quiere usar tus manos"); aprobada, la
+  isla muestra el chip "Manos: Claude Code" y parpadea con cada acción de
+  escritura, y "Detener manos" (en el chip y en el menú de la barra) cierra
+  la sesión en un gesto. Presupuesto de 30 acciones de escritura por minuto;
+  un turno propio de Karen pausa el puente y lo retoma al terminar. El shim
+  que Claude Code arranca vive en el repo hermano `companion-mcp`, no aquí.
 - **Página Apps (Wave 16k-1, 2026-09-25).** Personalizar › Apps como en Incredible: buscador,
   destacadas con el total, rejilla de dos columnas y "Mostrar más". "+ Conectar" abre la conexión
   de Pipedream en el navegador. La primera vez pide la dirección y la clave de tu función

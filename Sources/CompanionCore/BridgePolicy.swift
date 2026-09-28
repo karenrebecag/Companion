@@ -73,9 +73,11 @@ public struct BridgePolicy: Sendable, Equatable {
         }
     }
 
-    /// Called when the user approves on the sheet. Transitions to open with
-    /// an optional expiration time. Caller passed the user's choice (1 hour or
-    /// until connection drops).
+    /// Called when the user approves on the sheet. `until` is the grant's
+    /// expiry; since §9-5 retired the "1 hour" choice the session always
+    /// passes `nil`, so the expiry branches in `admit` and `resume` are
+    /// inert until a wave brings expiring grants back. Kept, not removed:
+    /// the state carries `until` and the tests pin the expiry semantics.
     public mutating func approved(until: Date?, now: Date) {
         state = .open(until: until)
     }

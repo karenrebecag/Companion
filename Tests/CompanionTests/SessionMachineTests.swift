@@ -49,6 +49,21 @@ import Testing
     testAWarmHoldSessionIdlesOut()
     testThePartialIsAFieldNotAKind()
     testDictationIsAForkNotAKind()
+    testOnlyListeningAndProcessingAreTheUsersTurn()
+}
+
+/// Wave 17 review finding: `BridgeHost` paused the bridge on ANY non-idle
+/// kind, including `.hover` (the pointer resting on the island) — a mouse
+/// pass would pause a session nobody asked to pause. Spec §3 says the voice
+/// wins "al empezar un hold o enviar un chat": only `.listening` and
+/// `.processing` are Karen's own turn.
+@MainActor func testOnlyListeningAndProcessingAreTheUsersTurn() {
+    expect(!SessionKind.idle.isUsersTurn, "turno: reposo no es turno")
+    expect(!SessionKind.hover.isUsersTurn, "turno: el puntero encima no es turno")
+    expect(SessionKind.listening.isUsersTurn, "turno: escuchar sí es turno")
+    for phase: SessionPhase in [.pending, .thinking, .speaking, .toolExecuting, .subAgentRunning, .completed] {
+        expect(SessionKind.processing(phase).isUsersTurn, "turno: procesando (\(phase)) sí es turno")
+    }
 }
 
 // MARK: - Wave 12b: mantener y soltar

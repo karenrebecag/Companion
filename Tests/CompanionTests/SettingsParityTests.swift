@@ -26,7 +26,9 @@ private func words(_ text: String) -> [String] {
 
 @MainActor func testAtMostFifteenOptions() {
     let options = SettingsInventory.options
-    expect(options.count <= 15, "ajustes: \(options.count) opciones, máximo 15")
+    // Wave 17: sixteen now — "Prestar las manos a otros agentes" (spec §3
+    // "Ajuste") is the one addition since the fifteen-option line was drawn.
+    expect(options.count <= 16, "ajustes: \(options.count) opciones, máximo 16")
     expectEq(Set(options.map(\.titleKey)).count, options.count, "ajustes: sin opciones repetidas")
     for gone in ["settings.voice.speed", "settings.voice.turnEnd", "settings.voice.tone",
                  "settings.voice.aec", "settings.voice.eagerness", "settings.voice.patience",
@@ -82,11 +84,15 @@ private func words(_ text: String) -> [String] {
 
 @MainActor func testTheMenuBarItemHasFiveEntries() async {
     await Localized.scoped(to: .es) {
-        expectEq(StatusMenuPlan.items.map(\.command), [.cancel, .show, .settings, .checkUpdates, .quit],
-                 "barra: las cinco de la spec, en orden")
+        // Wave 17: `stopHands` ("Detener manos") joins the five, ahead of the
+        // separator ahead of `quit` — spec §4.
+        expectEq(StatusMenuPlan.items.map(\.command),
+                 [.cancel, .show, .settings, .checkUpdates, .stopHands, .quit],
+                 "barra: las cinco de la spec y Detener manos, en orden")
         expectEq(StatusMenuPlan.items.first?.keyEquivalent, "\u{1b}", "barra: cancelar con Esc")
         expectEq(StatusMenuPlan.items.map(\.title),
-                 ["Cancelar acción", "Mostrar Companion", "Ajustes…", "Buscar actualización…", "Salir"],
+                 ["Cancelar acción", "Mostrar Companion", "Ajustes…", "Buscar actualización…",
+                  "Detener manos", "Salir"],
                  "barra: sus nombres")
     }
 }

@@ -259,6 +259,8 @@
 "settings.context.clipboard.subtitle" = "Apagado por defecto. Lo que copiaste viaja al modelo en ese turno, hasta 400 caracteres. macOS puede mostrar un aviso cada vez que se lee.";
 "settings.context.screen" = "Lo que se ve";
 "settings.context.screen.subtitle" = "Mira la pantalla solo cuando se lo pides, sin sus propias ventanas. La imagen no se guarda.";
+"settings.privacy.lendHands" = "Prestar las manos a otros agentes";
+"settings.privacy.lendHands.subtitle" = "Claude Code y otros agentes locales pueden mirar la pantalla y actuar a través de Companion. Cada sesión pide permiso primero; las acciones sensibles vuelven a pedirlo.";
 "permission.screenRecording.title" = "Grabación de pantalla";
 "permission.screenRecording.body" = "Para ver la pantalla cuando se lo pides. Nunca graba ni guarda lo que ve.";
 "permission.accessibility.title" = "Accesibilidad";
@@ -302,6 +304,8 @@
 "island.clear.no" = "Cancelar";
 "island.result.open" = "Ver →";
 "island.action.keys" = "Abrir Claves";
+"island.hands" = "Manos: %@";
+"island.hands.stop" = "Detener manos";
 "island.light.amber" = "Te necesita";
 "island.light.green" = "Terminado";
 "island.feedback.subject" = "Companion: comentario";
@@ -391,6 +395,7 @@
 "menu.item.minimize" = "Minimizar";
 "menu.item.close" = "Cerrar";
 "menu.item.bringAllToFront" = "Traer todo al frente";
+"menu.stopHands" = "Detener manos";
 "status.cancel" = "Cancelar acción";
 "status.show" = "Mostrar Companion";
 "status.settings" = "Ajustes…";
