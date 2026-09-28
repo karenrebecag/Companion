@@ -1,32 +1,29 @@
 ---
 name: excel-live
-description: Reads and edits .xlsx spreadsheets on this Mac when the tools for it are installed, and says so when they are not. Use when the user mentions a spreadsheet, workbook, Excel or an .xlsx file.
+description: Reads and edits the spreadsheet open right now in Excel or Numbers, and creates new .xlsx workbooks. Use when the user mentions a spreadsheet, workbook, Excel, Numbers or an .xlsx file.
 license: Apache-2.0
 metadata:
   author: companion
-  version: "1"
+  version: "2"
 ---
-# Excel files
+# Spreadsheets
 
-Companion ships no spreadsheet engine. It uses what is installed on the Mac, and checks before promising.
+Companion talks to Excel and Numbers directly, on the sheet the user is looking at. Nothing to install.
 
 ## Steps
 
-1. Check once per job with `run_shell`:
-   ```
-   python3 -c "import openpyxl" && echo ok
-   ```
-   `ok`: use Python with openpyxl (read cells, write values, add a sheet). Failure: stop here and say what is missing (see below).
-2. Locate the file with `list_directory`; never guess the path.
-3. Before writing, copy the file next to itself with a `-backup` suffix; every write asks the user once.
-4. Read back the cells you changed and report them.
+1. `sheet_read` the area first (A1 range, e.g. `A1:F30`). Never write into cells you have not read.
+2. `sheet_write` one rectangle at a time: the `values` argument is JSON rows that match the range exactly. Formulas start with `=`; nothing that fetches from the web or runs commands.
+3. Every write asks the user once, copies the saved workbook next to itself (`-backup-<time>`), and reads the cells back. Report what was written and the backup path.
+4. A new workbook from scratch is `create_document` with a path ending in `.xlsx` (see premium-documents).
 
-## Alternatives when nothing is installed
+## When it answers with a code
 
-- Reading: `xlsx` files are zip archives; `run_shell` with `unzip -p file.xlsx xl/sharedStrings.xml` shows the text values for a quick look.
-- Producing data: write a `.csv` with `write_file`; Excel and Numbers open it.
-- Say clearly: "openpyxl is not installed; I can produce a CSV or you can install it with `pip3 install openpyxl`". Do not install it yourself.
+- `no_open_document`: ask the user to open the workbook.
+- `unsaved_document`: ask them to save it once, so a backup can exist.
+- `needs_permission`: they allow Companion under System Settings, Privacy & Security, Automation.
+- `invalid_args`: fix the range or the shape of `values` and try once more.
 
 ## What Companion cannot do yet
 
-Edit a workbook that Excel has open, run macros, or keep formulas and formatting intact without openpyxl.
+Pivot tables, conditional formatting and macros (macOS exposes none of them), Google Sheets, and any sheet other than the active one (in Numbers, its first table).

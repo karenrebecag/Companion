@@ -155,7 +155,13 @@ public struct NativeDocumentRenderer: DocumentRendering {
             let pages = try await MainActor.run { PDFRenderer() }.render(html: html, to: url)
             return DocumentReceipt(pages: pages, bytes: Self.bytes(url))
         case .xlsx:
-            throw DocumentError.unsupportedFormat
+            guard let data = XLSXWriter.package(spec) else { throw DocumentError.unsupportedFormat }
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                throw DocumentError.renderFailed
+            }
+            return DocumentReceipt(pages: nil, bytes: data.count)
         }
     }
 
