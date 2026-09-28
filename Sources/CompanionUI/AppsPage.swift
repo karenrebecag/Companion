@@ -84,8 +84,14 @@ struct AppsPage: View {
                     .onTapGesture { apps.closePanel() }
                 GeometryReader { geo in
                     AppPanel(
-                        app: selected, state: apps.state(of: selected.slug), phase: apps.actionsPhase,
-                        onConnect: { apps.start(selected) }, onClose: { apps.closePanel() })
+                        app: selected, state: apps.state(of: selected.slug),
+                        accountName: apps.accountName(of: selected.slug), phase: apps.actionsPhase,
+                        disconnectPhase: apps.disconnectPhase,
+                        onConnect: { apps.start(selected) },
+                        onDisconnectTapped: { apps.confirmDisconnect() },
+                        onConfirmDisconnect: { Task { await apps.disconnect() } },
+                        onCancelDisconnect: { apps.cancelDisconnect() },
+                        onClose: { apps.closePanel() })
                     .frame(width: min(AppPanelMetrics.maxWidth, geo.size.width - Space.x6),
                            height: min(AppPanelMetrics.maxHeight, geo.size.height - Space.x6))
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
@@ -173,6 +179,24 @@ struct AppsPage: View {
     }
 
     private var catalog: some View {
+        VStack(alignment: .leading, spacing: Space.x6) {
+            // Spec §9.2.3: "Tus apps" first, only when there is one; the
+            // catalog below never repeats what is already up here.
+            if !apps.connectedSection.isEmpty { yourApps }
+            featured
+        }
+    }
+
+    private var yourApps: some View {
+        VStack(alignment: .leading, spacing: Space.x4) {
+            Text(Localized.string("apps.yours"))
+                .font(.uiLabel.weight(.semibold))
+                .foregroundStyle(Semantic.foreground)
+            grid(apps.connectedSection)
+        }
+    }
+
+    private var featured: some View {
         VStack(alignment: .leading, spacing: Space.x4) {
             HStack {
                 Text(listTitle)
@@ -195,19 +219,23 @@ struct AppsPage: View {
                     .font(.uiBody)
                     .foregroundStyle(Semantic.mutedForeground)
             }
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: AppsMetrics.gridGap),
-                                GridItem(.flexible(), spacing: AppsMetrics.gridGap)],
-                      spacing: AppsMetrics.gridGap) {
-                ForEach(apps.apps) { app in
-                    AppCard(app: app, state: apps.state(of: app.slug),
-                            onOpen: { apps.open(app) }, onConnect: { apps.start(app) })
-                }
-            }
+            grid(apps.catalogSection)
             if apps.hasMore {
                 AppButton(String(format: Localized.string("apps.more"), apps.remaining),
                           kind: .secondary, fullWidth: true, enabled: !apps.fetchingMore) {
                     Task { await apps.more() }
                 }
+            }
+        }
+    }
+
+    private func grid(_ items: [CatalogApp]) -> some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: AppsMetrics.gridGap),
+                            GridItem(.flexible(), spacing: AppsMetrics.gridGap)],
+                  spacing: AppsMetrics.gridGap) {
+            ForEach(items) { app in
+                AppCard(app: app, state: apps.state(of: app.slug),
+                        onOpen: { apps.open(app) }, onConnect: { apps.start(app) })
             }
         }
     }

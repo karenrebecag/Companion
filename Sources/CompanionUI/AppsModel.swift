@@ -22,6 +22,14 @@ public final class AppsModel {
         case failed(AppsFailure)
     }
 
+    /// Wave 16k-2c: the panel's "Desconectar" flow (spec §9.2.4). Kept apart
+    /// from `actionsPhase` for the same reason that one is kept apart from
+    /// `phase` — a stale answer must never repaint a panel nobody has open.
+    public enum DisconnectPhase: Equatable {
+        case idle, confirming, disconnecting
+        case failed(AppsFailure)
+    }
+
     public static let endpointDefault = "companion.apps.endpoint"
     /// `openssl rand -hex 32` gives 64; anything under 32 is not that key.
     static let minimumKeyLength = 32
@@ -36,15 +44,22 @@ public final class AppsModel {
     /// The app whose panel is open, or nil.
     public private(set) var selected: CatalogApp?
     public private(set) var actionsPhase: ActionsPhase = .idle
+    public private(set) var disconnectPhase: DisconnectPhase = .idle
     /// Wave 16k-2b: the app the connecting modal is open for, or nil.
     public private(set) var connecting: CatalogApp?
     public private(set) var connectPhase: ConnectPoll.Phase = .initiating
     private var next: String?
-    private var accounts: [String: ConnectedAccount.State] = [:]
+    /// The full account, not just its state: disconnect(account:) needs the
+    /// id, which the slug alone does not carry.
+    private var accounts: [String: ConnectedAccount] = [:]
     private var service: (any AppsService)?
     private var connectPoll: ConnectPoll?
     private var connectURL: URL?
     private var connectTask: Task<Void, Never>?
+    /// Wave 16k-2c: bumped by every `open(_:)` and `closePanel()`, mirroring
+    /// `connectEpoch` — a disconnect() awaiting the function must not land on
+    /// a panel that closed, or reopened for the same app, while it was gone.
+    private var panelEpoch = 0
     /// Code review + security review (HIGH, 16k-2b): `stillConnecting` used
     /// to compare only the slug, so a same-app double-tap — attempt A still
     /// parked in `connectLink`/`accounts()` while attempt B (same slug)
@@ -90,7 +105,21 @@ public final class AppsModel {
     /// Audit §9.6: the "still waiting on the browser" hint, after several attempts.
     public var connectShowsHint: Bool { connectPoll?.showsStillWaitingHint ?? false }
 
-    public func state(of slug: String) -> ConnectedAccount.State? { accounts[slug] }
+    public func state(of slug: String) -> ConnectedAccount.State? { accounts[slug]?.state }
+    public func accountName(of slug: String) -> String? { accounts[slug]?.name }
+
+    /// "Tus apps" (spec §9.2.3): connected first, then reconnect-needed, in
+    /// the order the catalog already has them — never re-sorted here.
+    public var connectedSection: [CatalogApp] {
+        apps.filter { accounts[$0.slug]?.state == .connected }
+            + apps.filter { accounts[$0.slug]?.state == .reconnect }
+    }
+
+    /// The featured grid below "Tus apps", with those same apps removed so
+    /// nothing repeats between the two sections.
+    public var catalogSection: [CatalogApp] {
+        apps.filter { accounts[$0.slug] == nil }
+    }
 
     /// Saves the function's address and key; false when either is not one.
     @discardableResult
@@ -167,13 +196,17 @@ public final class AppsModel {
     /// mirroring the search debounce), not this call's — a tap must never
     /// block on the network before the sheet appears.
     public func open(_ app: CatalogApp) {
+        panelEpoch += 1
         selected = app
         actionsPhase = .idle
+        disconnectPhase = .idle
     }
 
     public func closePanel() {
+        panelEpoch += 1
         selected = nil
         actionsPhase = .idle
+        disconnectPhase = .idle
     }
 
     /// The function's `/api/tools` requires a connected account; Companion
@@ -190,6 +223,47 @@ public final class AppsModel {
             guard selected?.slug == app.slug else { return }
             actionsPhase = .failed(error as? AppsFailure ?? .unexpected)
         }
+    }
+
+    // MARK: - Wave 16k-2c: disconnect
+
+    /// "Desconectar" in the panel: opens the inline confirmation, no call yet.
+    public func confirmDisconnect() {
+        disconnectPhase = .confirming
+    }
+
+    /// Backing out of the confirmation.
+    public func cancelDisconnect() {
+        disconnectPhase = .idle
+    }
+
+    /// The confirmation's own "Desconectar" (spec §9.2.4): calls
+    /// `DELETE /api/accounts`, then refreshes accounts so the panel/cards
+    /// flip to not-connected on the server's own word, not a local guess.
+    /// The panel itself stays open (Incredible: "you can reconnect anytime").
+    public func disconnect() async {
+        // Security review 16k-2c (MEDIUM): a fast double-tap on the confirm
+        // button spawns two Tasks; both start on the MainActor and this
+        // guard runs before either awaits, so the first Task's synchronous
+        // prefix (guard + phase flip, no suspension point between them)
+        // always finishes before the second Task gets a turn — the second
+        // sees `.disconnecting` already and bails, mirroring `more()`'s own
+        // `fetchingMore` guard against a doubled "Show more" tap.
+        guard disconnectPhase != .disconnecting else { return }
+        guard let app = selected, let account = accounts[app.slug], let service = currentService() else { return }
+        disconnectPhase = .disconnecting
+        let epoch = panelEpoch
+        do {
+            try await service.disconnect(account: account.id)
+        } catch {
+            guard panelEpoch == epoch else { return }
+            disconnectPhase = .failed(error as? AppsFailure ?? .unexpected)
+            return
+        }
+        guard panelEpoch == epoch else { return }
+        accounts = await accountsSnapshot(service)
+        guard panelEpoch == epoch else { return }
+        disconnectPhase = .idle
     }
 
     // MARK: - Wave 16k-2b: the connecting modal
@@ -276,10 +350,9 @@ public final class AppsModel {
                 return // cancelled mid-sleep: closed or replaced by a retry.
             }
             guard stillConnecting(app, epoch: epoch) else { return }
-            let found: Bool
+            let match: ConnectedAccount?
             do {
-                found = try await service.accounts()
-                    .contains { $0.app == app.slug && $0.state == .connected }
+                match = try await service.accounts().first { $0.app == app.slug && $0.state == .connected }
             } catch {
                 // A transient hiccup fetching accounts is one more miss, not
                 // an abort: Pipedream itself is still fine, only this one
@@ -292,8 +365,8 @@ public final class AppsModel {
             // switch, or a same-app retry that landed while this was in
             // flight must discard the answer, not resurrect the modal.
             guard stillConnecting(app, epoch: epoch) else { return }
-            if found { accounts[app.slug] = .connected }
-            apply(found ? .accountSeen : .accountMissing)
+            if let match { accounts[app.slug] = match }
+            apply(match != nil ? .accountSeen : .accountMissing)
         }
     }
 
@@ -321,10 +394,10 @@ public final class AppsModel {
     }
 
     /// Without accounts the catalog still lists; only the marks are missing.
-    private func accountsSnapshot(_ service: any AppsService) async -> [String: ConnectedAccount.State] {
+    private func accountsSnapshot(_ service: any AppsService) async -> [String: ConnectedAccount] {
         do {
             return Dictionary(
-                try await service.accounts().map { ($0.app, $0.state) },
+                try await service.accounts().map { ($0.app, $0) },
                 uniquingKeysWith: { first, _ in first })
         } catch {
             return [:]

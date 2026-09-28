@@ -489,6 +489,7 @@
 "apps.title" = "Apps";
 "apps.lede" = "Every app you connect makes Companion faster, more accurate, and able to do more.";
 "apps.search" = "Search for your apps";
+"apps.yours" = "Your apps";
 "apps.featured" = "Featured apps";
 "apps.results" = "Results";
 "apps.total" = "%ld apps";
@@ -537,3 +538,8 @@
 "apps.connecting.openAgain" = "Open it again";
 "apps.connecting.retry" = "Try again";
 "apps.connecting.letsGo" = "Let's go";
+"apps.panel.disconnect" = "Disconnect %@";
+"apps.panel.disconnect.confirm" = "Companion stops using %1$@. Your %1$@ account isn't touched, and you can reconnect anytime. This doesn't revoke access on %1$@'s side — do that there if you want to fully disconnect.";
+"apps.panel.disconnect.confirmButton" = "Disconnect";
+"apps.panel.disconnect.cancel" = "Cancel";
+"apps.panel.disconnecting" = "Disconnecting…";

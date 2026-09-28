@@ -4,7 +4,7 @@ import SwiftUI
 /// Wave 16k-2a (spec §9.2.1, D1 audited layout): the app panel. Left column
 /// is icon/name/description/connect state; right column is the actions,
 /// grouped Leer / Crear y cambiar / Borrar, with a search field. Connecting
-/// (16k-2b) and Desconectar (16k-2c) are seams left for the next sessions.
+/// is 16k-2b; Desconectar (16k-2c) lives in `connectState` below.
 public enum AppPanelMetrics {
     public static let maxWidth: CGFloat = 1000
     public static let maxHeight: CGFloat = 700
@@ -15,8 +15,13 @@ public enum AppPanelMetrics {
 struct AppPanel: View {
     let app: CatalogApp
     let state: ConnectedAccount.State?
+    let accountName: String?
     let phase: AppsModel.ActionsPhase
+    let disconnectPhase: AppsModel.DisconnectPhase
     let onConnect: () -> Void
+    let onDisconnectTapped: () -> Void
+    let onConfirmDisconnect: () -> Void
+    let onCancelDisconnect: () -> Void
     let onClose: () -> Void
 
     @State private var search = ""
@@ -80,16 +85,64 @@ struct AppPanel: View {
     private var connectState: some View {
         switch state {
         case .connected:
-            HStack(spacing: Space.x2) {
-                StatusDot(IslandInk.green)
-                Text(Localized.string("apps.connected")).font(.uiCaption)
-                    .foregroundStyle(Semantic.foreground)
+            VStack(alignment: .leading, spacing: Space.x3) {
+                HStack(spacing: Space.x2) {
+                    StatusDot(IslandInk.green)
+                    Text(accountName ?? Localized.string("apps.connected")).font(.uiCaption)
+                        .foregroundStyle(Semantic.foreground)
+                        .lineLimit(1)
+                }
+                disconnectSection
             }
         case .reconnect:
-            // Same copy as the card (spec §9.4 leaves "volver a conectar" to 16k-2c).
+            // Same copy as the card (spec §9.4).
             AppButton(Localized.string("apps.reconnect"), action: onConnect)
         case nil:
             AppButton(String(format: Localized.string("apps.panel.connect"), app.name), action: onConnect)
+        }
+    }
+
+    /// Spec §9.2.4 + audit §9.6 (ghost "Disconnect X" with a
+    /// "Disconnecting…" spinner): the confirmation copy also folds in
+    /// Pipedream's own gap (spec §3) — disconnecting here never revokes the
+    /// grant on the app's own side.
+    @ViewBuilder
+    private var disconnectSection: some View {
+        switch disconnectPhase {
+        case .idle:
+            AppButton(String(format: Localized.string("apps.panel.disconnect"), app.name),
+                      kind: .ghost, action: onDisconnectTapped)
+        case .confirming:
+            VStack(alignment: .leading, spacing: Space.x2) {
+                Text(String(format: Localized.string("apps.panel.disconnect.confirm"), app.name))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: Space.x2) {
+                    AppButton(Localized.string("apps.panel.disconnect.confirmButton"),
+                              kind: .destructive, action: onConfirmDisconnect)
+                    AppButton(Localized.string("apps.panel.disconnect.cancel"),
+                              kind: .ghost, action: onCancelDisconnect)
+                }
+            }
+        case .disconnecting:
+            HStack(spacing: Space.x2) {
+                ProgressView().controlSize(.small)
+                Text(Localized.string("apps.panel.disconnecting"))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(Localized.string("apps.panel.disconnecting"))
+        case .failed(let failure):
+            VStack(alignment: .leading, spacing: Space.x2) {
+                Text(AppsCopy.failure(failure))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.destructive)
+                    .fixedSize(horizontal: false, vertical: true)
+                AppButton(String(format: Localized.string("apps.panel.disconnect"), app.name),
+                          kind: .ghost, action: onDisconnectTapped)
+            }
         }
     }
 

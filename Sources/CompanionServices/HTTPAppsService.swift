@@ -42,6 +42,11 @@ public struct HTTPAppsService: AppsService {
         return try AppsWire.tools(status: status, body: body)
     }
 
+    public func disconnect(account: String) async throws {
+        let (status, body) = try await send("api/accounts", method: "DELETE", query: ["id": account])
+        _ = try AppsWire.disconnected(status: status, body: body)
+    }
+
     private func send(
         _ path: String, method: String = "GET", query: [String: String] = [:], body: Data? = nil
     ) async throws -> (Int, Data) {
