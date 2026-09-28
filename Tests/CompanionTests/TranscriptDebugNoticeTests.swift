@@ -7,10 +7,10 @@ import Testing
 // while transcript debugging writes the user's words to disk. The status
 // line and the island's hover both say so, from `Config.debugTranscripts`.
 
-@Test @MainActor func transcriptDebugNoticeTests() {
+@Test @MainActor func transcriptDebugNoticeTests() async {
     testTheViewModelExposesTheDebugFlag()
     testTheIslandHoverSaysDebuggingIsOn()
-    testTheNoticeIsInBothCatalogs()
+    await testTheNoticeIsInBothCatalogs()
 }
 
 @MainActor func testTheViewModelExposesTheDebugFlag() {
@@ -38,15 +38,15 @@ import Testing
     expectEq(off.line, IslandState.Line.none, "aviso: apagada, el hover no cambia")
 }
 
-@MainActor func testTheNoticeIsInBothCatalogs() {
-    let saved = Localized.language
-    defer { Localized.language = saved }
-    Localized.language = { .es }
-    expectEq(Localized.string("debug.transcriptsOn"), "Depuración de transcripciones activa",
-             "aviso: copy en español")
-    expectEq(IslandCopy.line(.transcriptsDebug), "Depuración de transcripciones activa",
-             "aviso: la island lo pinta del catálogo")
-    Localized.language = { .en }
-    expectEq(Localized.string("debug.transcriptsOn"), "Transcript debugging is on",
-             "aviso: copy en inglés")
+@MainActor func testTheNoticeIsInBothCatalogs() async {
+    await Localized.scoped(to: .es) {
+        expectEq(Localized.string("debug.transcriptsOn"), "Depuración de transcripciones activa",
+                 "aviso: copy en español")
+        expectEq(IslandCopy.line(.transcriptsDebug), "Depuración de transcripciones activa",
+                 "aviso: la island lo pinta del catálogo")
+    }
+    await Localized.scoped(to: .en) {
+        expectEq(Localized.string("debug.transcriptsOn"), "Transcript debugging is on",
+                 "aviso: copy en inglés")
+    }
 }

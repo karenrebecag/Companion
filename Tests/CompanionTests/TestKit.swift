@@ -53,8 +53,14 @@ final class AsyncBox<T: Sendable>: @unchecked Sendable {
 /// unos a otros. Con 2 s la suite fallaba de forma intermitente sin que nada
 /// estuviera roto. Sale en cuanto se cumple la condicion, asi que un plazo
 /// largo no cuesta nada cuando todo va bien.
+/// Debugging 2026-09-28: 10 s alcanzaba en esta Mac (14 cores) pero no en el
+/// runner de CI (macos-26, unos pocos vCPUs) — ahi el mismo main actor
+/// contended contra el patron `runOk`/`runAsync` de otros ~50 sitios (cada
+/// uno bloquea un hilo real hasta 5 s con un `DispatchSemaphore`) hacia que
+/// este bucle se quedara sin turno mas tiempo del que el propio predicado
+/// tarda en volverse verdadero.
 @MainActor func pumpUntil(
-    _ label: String, timeout: TimeInterval = 10,
+    _ label: String, timeout: TimeInterval = 30,
     sourceLocation: SourceLocation = #_sourceLocation, _ pred: () -> Bool
 ) async {
     let deadline = Date().addingTimeInterval(timeout)
@@ -108,6 +114,13 @@ final class MockClock: Clock, @unchecked Sendable {
 /// UI copy tests assert exact wording, so they must not depend on which
 /// language the machine running them happens to prefer. English is the
 /// source; a Spanish assertion pins `.es` explicitly.
-@MainActor func pinLanguage(_ language: AppLanguage = .en) {
-    Localized.language = { language }
+/// Debugging 2026-09-28: takes the rest of the dispatcher as a trailing
+/// closure instead of just assigning `Localized.language` — Swift Testing
+/// runs `@Test` functions in parallel, so a bare assignment let two
+/// dispatchers stomp on each other's pin mid-run. `Localized.scoped` binds
+/// it to this call's task tree only.
+@MainActor func pinLanguage<R>(
+    _ language: AppLanguage = .en, _ body: () async throws -> R
+) async rethrows -> R {
+    try await Localized.scoped(to: language, body)
 }

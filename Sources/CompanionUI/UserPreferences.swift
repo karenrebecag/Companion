@@ -350,22 +350,57 @@ public enum ProviderPreference {
     nonisolated private static let modelKey = "companion.provider.model"
     nonisolated private static let orderKey = "companion.provider.order"
 
+    // Debugging 2026-09-28: Swift Testing runs `@Test` functions in parallel
+    // by default, and `startupPathTests`/`providerOrderTests` (same file)
+    // both read/write this preference. A shared `UserDefaults.standard` let
+    // one dispatcher's `forget()`/`accept(_:)` land mid-turn in the other —
+    // same class of bug `Log`'s task-local capture already solved for the
+    // sink. Production code never calls `scoped`, so it always sees
+    // `.standard`.
+
+    /// `UserDefaults` predates `Sendable` and is marked unavailable for it;
+    /// this box is the same `@unchecked` shape `Log`'s own sink uses.
+    /// `nonisolated`: this target defaults every declaration to `@MainActor`,
+    /// but `store` below reads this off the actor.
+    nonisolated private struct DefaultsBox: @unchecked Sendable {
+        let defaults: UserDefaults
+    }
+
+    // Spelled out instead of `@TaskLocal` sugar: the synthesized `$override`
+    // backing storage inherits this target's default `@MainActor` isolation
+    // and `store` below needs to read it from a nonisolated context.
+    nonisolated private static let override = TaskLocal<DefaultsBox?>(wrappedValue: nil)
+
+    nonisolated private static var store: UserDefaults { override.get()?.defaults ?? .standard }
+
+    /// Test seam: binds every read/write this task tree makes (including
+    /// the non-detached `Task` `onAppear`'s probe spawns) to `defaults`
+    /// instead of the process-wide store.
+    public static func scoped<R>(
+        to defaults: UserDefaults,
+        isolation: isolated (any Actor)? = #isolation,
+        _ body: () async throws -> R
+    ) async rethrows -> R {
+        try await override.withValue(
+            DefaultsBox(defaults: defaults), operation: body, isolation: isolation)
+    }
+
     nonisolated public static var name: String? {
-        get { UserDefaults.standard.string(forKey: nameKey) }
-        set { UserDefaults.standard.set(newValue, forKey: nameKey) }
+        get { store.string(forKey: nameKey) }
+        set { store.set(newValue, forKey: nameKey) }
     }
 
     nonisolated public static var localModel: String? {
-        get { UserDefaults.standard.string(forKey: modelKey) }
-        set { UserDefaults.standard.set(newValue, forKey: modelKey) }
+        get { store.string(forKey: modelKey) }
+        set { store.set(newValue, forKey: modelKey) }
     }
 
     /// Provider ids, best first. Stored as ids and not display names because
     /// the name is copy — it can be translated or reworded, and a preference
     /// keyed by copy breaks the day someone edits a string.
     nonisolated public static var order: [String] {
-        get { UserDefaults.standard.stringArray(forKey: orderKey) ?? [] }
-        set { UserDefaults.standard.set(newValue, forKey: orderKey) }
+        get { store.stringArray(forKey: orderKey) ?? [] }
+        set { store.set(newValue, forKey: orderKey) }
     }
 
     /// Rebuilt rather than stored as one blob: a half-written pair (a name
@@ -394,8 +429,8 @@ public enum ProviderPreference {
     }
 
     nonisolated public static func forget() {
-        UserDefaults.standard.removeObject(forKey: nameKey)
-        UserDefaults.standard.removeObject(forKey: modelKey)
-        UserDefaults.standard.removeObject(forKey: orderKey)
+        store.removeObject(forKey: nameKey)
+        store.removeObject(forKey: modelKey)
+        store.removeObject(forKey: orderKey)
     }
 }

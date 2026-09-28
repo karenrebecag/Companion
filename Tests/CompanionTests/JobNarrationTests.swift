@@ -12,14 +12,15 @@ import Testing
 // nunca existió.
 
 @Test @MainActor func jobNarrationTests() async {
-    pinLanguage()
-    testResultSummaryTakesTheFirstLine()
-    testTheDoneAnnouncementAcknowledgesWithoutReadingBack()
-    testFailureAnnouncementCarriesTheReason()
-    await testBridgeAcknowledgesWithoutRereadingTheResult()
-    await testTheJobLeavesARecordInTheThread()
-    await testVoiceJobsRecordTheirGoalToo()
-    await testAnnouncementFollowsTheLanguage()
+    await pinLanguage {
+        testResultSummaryTakesTheFirstLine()
+        testTheDoneAnnouncementAcknowledgesWithoutReadingBack()
+        testFailureAnnouncementCarriesTheReason()
+        await testBridgeAcknowledgesWithoutRereadingTheResult()
+        await testTheJobLeavesARecordInTheThread()
+        await testVoiceJobsRecordTheirGoalToo()
+        await testAnnouncementFollowsTheLanguage()
+    }
 }
 
 /// El anuncio es un system item para el modelo: en español tiene que llegar

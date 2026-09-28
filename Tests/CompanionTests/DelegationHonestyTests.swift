@@ -25,34 +25,35 @@ import Testing
 // MARK: - Bug #1: el acuse no ordena cantar victoria; se remite a la respuesta
 
 @Test @MainActor func voiceAcknowledgesTheReplyInsteadOfClaimingSuccess() async {
-    pinLanguage()
-    let goal = "create prueba1.md on the Desktop"
+    await pinLanguage {
+        let goal = "create prueba1.md on the Desktop"
 
-    // El anuncio ya no manda afirmar éxito incondicional; defiere a lo que el
-    // especialista realmente dijo.
-    let announcement = Escalation.jobDoneAnnouncement(goal, .en)
-    expect(!announcement.lowercased().contains("say only that it is done"),
-           "acuse: no se le ordena al modelo cantar victoria")
-    expect(announcement.lowercased().contains("unless the reply says so"),
-           "acuse: se remite a lo que la respuesta del especialista dice")
+        // El anuncio ya no manda afirmar éxito incondicional; defiere a lo que el
+        // especialista realmente dijo.
+        let announcement = Escalation.jobDoneAnnouncement(goal, .en)
+        expect(!announcement.lowercased().contains("say only that it is done"),
+               "acuse: no se le ordena al modelo cantar victoria")
+        expect(announcement.lowercased().contains("unless the reply says so"),
+               "acuse: se remite a lo que la respuesta del especialista dice")
 
-    // Y el circuito: el texto real del especialista (aquí, un rechazo) aterriza
-    // en el hilo, que es la verdad que el modelo debe acusar.
-    let refusal = "I don't have permission to create a file on the Desktop."
-    let thread = ScriptedThread()
-    let announced = TextBox()
-    await VoiceJobBridge.run(
-        Handoff(goal: goal, context: ""),
-        jobs: FixedSubmitter(result: JobResult(output: refusal, isError: false)),
-        thread: thread,
-        announce: { announced.append($0.instruction) },
-        language: .en)
+        // Y el circuito: el texto real del especialista (aquí, un rechazo) aterriza
+        // en el hilo, que es la verdad que el modelo debe acusar.
+        let refusal = "I don't have permission to create a file on the Desktop."
+        let thread = ScriptedThread()
+        let announced = TextBox()
+        await VoiceJobBridge.run(
+            Handoff(goal: goal, context: ""),
+            jobs: FixedSubmitter(result: JobResult(output: refusal, isError: false)),
+            thread: thread,
+            announce: { announced.append($0.instruction) },
+            language: .en)
 
-    expectEq(thread.turns.last?.content, refusal,
-             "circuito: la respuesta real del especialista queda en pantalla")
-    let announcedText = announced.all.joined(separator: " ")
-    expect(!announcedText.lowercased().contains("say only that it is done"),
-           "circuito: la voz no recibe la orden de decir que quedó hecho")
+        expectEq(thread.turns.last?.content, refusal,
+                 "circuito: la respuesta real del especialista queda en pantalla")
+        let announcedText = announced.all.joined(separator: " ")
+        expect(!announcedText.lowercased().contains("say only that it is done"),
+               "circuito: la voz no recibe la orden de decir que quedó hecho")
+    }
 }
 
 // MARK: - Bug #2: sin carpeta elegida, el alcance por defecto es toda la cuenta

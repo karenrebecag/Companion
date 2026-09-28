@@ -3,19 +3,31 @@ import CompanionCore
 import Foundation
 import Testing
 
+/// Debugging 2026-09-28: this dispatcher and `providerOrderTests()` (below)
+/// both read/write `ProviderPreference`, and Swift Testing schedules the two
+/// `@Test` functions in parallel — `ProviderPreference.scoped` binds each
+/// one's task tree to its own store so neither sees the other's writes.
 @Test @MainActor func startupPathTests() async {
-    await testKeyPresentSkipsTheProbe()
-    await testProbeResolvesToBaseWhenSomethingIsAlive()
-    await testALivePathStillAsksForOneConfirmation()
-    await testNothingAliveEndsInNone()
-    await testTheLocalPathNeverGoesOutToOpenAI()
-    await testAcceptLocalBaseUnlocksAndPersists()
-    await testSavedPathIsAutoAcceptedOnRelaunch()
-    await testSavedPathThatDiedIsNotAutoAccepted()
-    await testSendReachesTheProviderAfterAccepting()
-    await testChangeKeyDoesNotJailAnAcceptedLocalUser()
-    await testChangeKeyStillJailsWhenThereIsNoLocalBase()
-    await testChatIsNeverShownWhileProbing()
+    await ProviderPreference.scoped(to: freshProviderDefaults()) {
+        await testKeyPresentSkipsTheProbe()
+        await testProbeResolvesToBaseWhenSomethingIsAlive()
+        await testALivePathStillAsksForOneConfirmation()
+        await testNothingAliveEndsInNone()
+        await testTheLocalPathNeverGoesOutToOpenAI()
+        await testAcceptLocalBaseUnlocksAndPersists()
+        await testSavedPathIsAutoAcceptedOnRelaunch()
+        await testSavedPathThatDiedIsNotAutoAccepted()
+        await testSendReachesTheProviderAfterAccepting()
+        await testChangeKeyDoesNotJailAnAcceptedLocalUser()
+        await testChangeKeyStillJailsWhenThereIsNoLocalBase()
+        await testChatIsNeverShownWhileProbing()
+    }
+}
+
+/// A fresh, unique domain per dispatcher run: two concurrent runs of the
+/// same suite (or a re-run) never share a leftover key.
+private func freshProviderDefaults() -> UserDefaults {
+    UserDefaults(suiteName: "companion.tests.provider-preference.\(UUID().uuidString)")!
 }
 
 final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
@@ -40,6 +52,16 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     }
 }
 
+/// Debugging 2026-09-28: `onAppear()`'s probe resolves on its own `Task`,
+/// hopping back via `MainActor.run` — under a full-suite run (429 tests,
+/// all funneled through the same main actor) that hop can lose its turn
+/// past `settle()`'s fixed 50ms, so an assertion right after could still
+/// read `.probing`. `vm.startup` is the actual signal `onAppear()`
+/// publishes; poll it instead of guessing how long the hop takes.
+@MainActor private func awaitProbe(_ vm: ChatViewModel) async {
+    await pumpUntil("arranque: el sondeo deja de estar en curso") { vm.startup != .probing }
+}
+
 @MainActor private func local(
     _ probe: FakeStartupProbe,
     chat: FakeChatProvider = FakeChatProvider(),
@@ -58,7 +80,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     let probe = FakeStartupProbe([.ollama(model: "qwen3:14b")])
     let vm = local(probe, secrets: TestSecretStore([.openAI: "sk-test"]))
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     expectEq(vm.startup, .premium, "con clave el arranque es premium")
     expect(!vm.needsOnboarding, "y entra directo")
     expectEq(probe.calls.count, 0, "el sondeo ni se lanza")
@@ -68,7 +90,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     let probe = FakeStartupProbe([.ollama(model: "qwen3:14b")])
     let vm = local(probe)
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     expectEq(vm.startup, .base([.ollama(model: "qwen3:14b")]),
              "el sondeo reporta el camino vivo")
 }
@@ -79,14 +101,14 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     let probe = FakeStartupProbe([.ollama(model: "qwen3:14b")])
     let vm = local(probe)
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     expect(vm.needsOnboarding, "un camino vivo se presenta, no se asume")
 }
 
 @MainActor func testNothingAliveEndsInNone() async {
     let vm = local(FakeStartupProbe([]))
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     expectEq(vm.startup, .none, "sin caminos, el estado lo dice")
     expect(vm.needsOnboarding, "y sigue pidiendo algo")
 }
@@ -97,7 +119,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     let chat = FakeChatProvider()
     let vm = local(FakeStartupProbe([.ollama(model: "qwen3:14b")]), chat: chat)
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     vm.acceptLocalBase(.ollama(model: "qwen3:14b"))
     expectEq(chat.verifyProviders.count, 0, "el camino local no verifica claves")
     expectEq(chat.verifyKeys.count, 0, "ni manda una sola")
@@ -106,7 +128,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
 @MainActor func testAcceptLocalBaseUnlocksAndPersists() async {
     let vm = local(FakeStartupProbe([.ollama(model: "qwen3:14b")]))
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     vm.acceptLocalBase(.ollama(model: "qwen3:14b"))
     expect(!vm.needsOnboarding, "aceptar abre la app")
     expectEq(ProviderPreference.name, "Ollama", "y guarda el proveedor")
@@ -118,7 +140,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     let probe = FakeStartupProbe([.ollama(model: "qwen3:14b")])
     let first = local(probe)
     first.onAppear()
-    await settle()
+    await awaitProbe(first)
     first.acceptLocalBase(.ollama(model: "qwen3:14b"))
 
     // Segundo arranque: mismo camino vivo, cero clics.
@@ -127,7 +149,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
         store: MemoryConversationStore(), config: .default,
         startupProbe: probe)
     second.onAppear()
-    await settle()
+    await awaitProbe(second)
     expect(!second.needsOnboarding, "lo aceptado sobrevive al relaunch")
     expectEq(probe.calls.last, "qwen3:14b",
              "y el sondeo pregunta por el tag guardado")
@@ -138,7 +160,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     let probe = FakeStartupProbe([.ollama(model: "qwen3:14b")])
     let first = local(probe)
     first.onAppear()
-    await settle()
+    await awaitProbe(first)
     first.acceptLocalBase(.ollama(model: "qwen3:14b"))
 
     // El usuario borro ese modelo entre arranques.
@@ -147,7 +169,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
         store: MemoryConversationStore(), config: .default,
         startupProbe: FakeStartupProbe([.ollama(model: "otro:8b")]))
     second.onAppear()
-    await settle()
+    await awaitProbe(second)
     expect(second.needsOnboarding,
            "un camino guardado que ya no existe no se da por bueno")
     ProviderPreference.forget()
@@ -158,7 +180,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     let chat = FakeChatProvider()
     let vm = local(FakeStartupProbe([.ollama(model: "qwen3:14b")]), chat: chat)
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     vm.acceptLocalBase(.ollama(model: "qwen3:14b"))
     vm.draft = "hola"
     vm.send()
@@ -170,7 +192,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
 @MainActor func testChangeKeyDoesNotJailAnAcceptedLocalUser() async {
     let vm = local(FakeStartupProbe([.ollama(model: "qwen3:14b")]))
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     vm.acceptLocalBase(.ollama(model: "qwen3:14b"))
     vm.changeKey()
     expect(!vm.needsOnboarding,
@@ -181,7 +203,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
 @MainActor func testChangeKeyStillJailsWhenThereIsNoLocalBase() async {
     let vm = local(FakeStartupProbe([]), secrets: TestSecretStore([.openAI: "sk-test"]))
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     vm.changeKey()
     expect(vm.needsOnboarding, "sin camino local, quitar la clave si cierra la puerta")
 }
@@ -197,10 +219,12 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
 }
 
 @Test @MainActor func providerOrderTests() async {
-    testANewProviderLandsAtTheEndNotTheFront()
-    testUnknownIdsAreIgnoredNotFatal()
-    await testAcceptingALocalPathPutsItFirst()
-    await testAcceptingTwiceDoesNotDuplicate()
+    await ProviderPreference.scoped(to: freshProviderDefaults()) {
+        testANewProviderLandsAtTheEndNotTheFront()
+        testUnknownIdsAreIgnoredNotFatal()
+        await testAcceptingALocalPathPutsItFirst()
+        await testAcceptingTwiceDoesNotDuplicate()
+    }
 }
 
 @MainActor func testANewProviderLandsAtTheEndNotTheFront() {
@@ -225,7 +249,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     ProviderPreference.forget()
     let vm = local(FakeStartupProbe([.ollama(model: "qwen3:14b")]))
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     vm.acceptLocalBase(.ollama(model: "qwen3:14b"))
     expectEq(ProviderPreference.order.first, "ollama",
              "aceptar la base local es tambien una opinion sobre la escalera")
@@ -236,7 +260,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     ProviderPreference.forget()
     let vm = local(FakeStartupProbe([.ollama(model: "qwen3:14b")]))
     vm.onAppear()
-    await settle()
+    await awaitProbe(vm)
     vm.acceptLocalBase(.ollama(model: "qwen3:14b"))
     vm.acceptLocalBase(.ollama(model: "qwen3:14b"))
     expectEq(ProviderPreference.order.filter { $0 == "ollama" }.count, 1,

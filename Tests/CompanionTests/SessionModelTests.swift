@@ -9,21 +9,22 @@ import Testing
 // VoiceSession. La UI pinta; nunca escribe el kind (G2 como test de auditor).
 
 @Test @MainActor func sessionModelTests() async {
-    pinLanguage()
-    await testAnsweringResolvesThroughTheActor()
-    await testAnsweringFallsBackToTheSubmitter()
-    await testCompletedExpiresIntoIdle()
-    await testAnEventBeforeExpiryCancelsTheTimer()
-    testTransitionsAreLogged()
-    await testChatViewModelProjectsTheJob()
-    await testChatDenialOfTheFirstActionStopsThroughTheSession()
-    await testVoiceSessionPublishesJobEvents()
-    await testVoiceSessionPublishesTheParentsHands()
-    testTheUIMustNotWriteTheKind()
-    await testSwitchingConversationClosesTheTypedTurn()
-    await testHoldEffectsReachTheVoicePort()
-    await testTheProvisionalPressAndItsConfirmReachTheVoicePort()
-    await testTheWarmSessionHangsUpThroughThePort()
+    await pinLanguage {
+        await testAnsweringResolvesThroughTheActor()
+        await testAnsweringFallsBackToTheSubmitter()
+        await testCompletedExpiresIntoIdle()
+        await testAnEventBeforeExpiryCancelsTheTimer()
+        testTransitionsAreLogged()
+        await testChatViewModelProjectsTheJob()
+        await testChatDenialOfTheFirstActionStopsThroughTheSession()
+        await testVoiceSessionPublishesJobEvents()
+        await testVoiceSessionPublishesTheParentsHands()
+        testTheUIMustNotWriteTheKind()
+        await testSwitchingConversationClosesTheTypedTurn()
+        await testHoldEffectsReachTheVoicePort()
+        await testTheProvisionalPressAndItsConfirmReachTheVoicePort()
+        await testTheWarmSessionHangsUpThroughThePort()
+    }
 }
 
 /// 21 (12b). Los efectos del hold llegan al puerto de voz.

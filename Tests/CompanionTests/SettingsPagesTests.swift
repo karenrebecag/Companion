@@ -7,12 +7,12 @@ import Testing
 // Wave 16g (spec 16g): Settings as a sheet with a sidebar and a search, the
 // vocabulary as a list, and a Memory page that reads and forgets entries.
 
-@Test @MainActor func settingsPagesTests() throws {
-    testTheSidebarHasSevenPages()
+@Test @MainActor func settingsPagesTests() async throws {
+    await testTheSidebarHasSevenPages()
     testEveryOptionHasAPage()
     testSearchIgnoresCaseAndAccents()
     testSearchRanksTitlesFirst()
-    testSearchFindsEveryOptionInBothLanguages()
+    await testSearchFindsEveryOptionInBothLanguages()
     testVocabularyAddsAndRemovesOneWord()
     try testMemoryListsNotesAndSessionsNewestFirst()
     try testForgettingMovesOnlyThatEntry()
@@ -21,18 +21,19 @@ import Testing
     try testASymlinkInMemoryIsNeverRead()
     try testALinkedMemoryFolderIsNeverRead()
     testTwoUntitledDropdownsOnOnePageAreDifferentMenus()
-    pinLanguage()
 }
 
-@MainActor func testTheSidebarHasSevenPages() {
+@MainActor func testTheSidebarHasSevenPages() async {
     expectEq(SettingsTab.allCases, [.general, .voice, .vocabulary, .memory, .you, .privacy, .system],
              "ajustes: las siete páginas, en el orden de la barra")
-    Localized.language = { .es }
-    expectEq(SettingsTab.allCases.map(\.title),
-             ["General", "Voz", "Vocabulario", "Memoria", "Tú", "Privacidad", "Sistema"], "ajustes: nombres es")
-    Localized.language = { .en }
-    expectEq(SettingsTab.allCases.map(\.title),
-             ["General", "Voice", "Vocabulary", "Memory", "You", "Privacy", "System"], "settings: names en")
+    await Localized.scoped(to: .es) {
+        expectEq(SettingsTab.allCases.map(\.title),
+                 ["General", "Voz", "Vocabulario", "Memoria", "Tú", "Privacidad", "Sistema"], "ajustes: nombres es")
+    }
+    await Localized.scoped(to: .en) {
+        expectEq(SettingsTab.allCases.map(\.title),
+                 ["General", "Voice", "Vocabulary", "Memory", "You", "Privacy", "System"], "settings: names en")
+    }
     expect(SettingsOverlayMetrics.maxWidth > SettingsOverlayMetrics.maxSide, "ajustes: la barra ensancha la hoja")
 }
 
@@ -70,15 +71,16 @@ func testSearchRanksTitlesFirst() {
              "buscar: el título pesa más que el subtítulo")
 }
 
-@MainActor func testSearchFindsEveryOptionInBothLanguages() {
+@MainActor func testSearchFindsEveryOptionInBothLanguages() async {
     for language in [AppLanguage.es, .en] {
-        Localized.language = { language }
-        let entries = SettingsInventory.searchEntries
-        for option in SettingsInventory.options {
-            let title = Localized.string(option.titleKey)
-            let found = SettingsSearch.match(title, in: entries)
-            expect(found.contains { $0.id == option.titleKey && $0.page == option.tab.rawValue },
-                   "\(language): «\(title)» se encuentra y salta a \(option.tab)")
+        await Localized.scoped(to: language) {
+            let entries = SettingsInventory.searchEntries
+            for option in SettingsInventory.options {
+                let title = Localized.string(option.titleKey)
+                let found = SettingsSearch.match(title, in: entries)
+                expect(found.contains { $0.id == option.titleKey && $0.page == option.tab.rawValue },
+                       "\(language): «\(title)» se encuentra y salta a \(option.tab)")
+            }
         }
     }
 }

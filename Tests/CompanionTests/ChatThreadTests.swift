@@ -1,12 +1,13 @@
 import CompanionUI
 import Testing
 
-@Test @MainActor func chatThreadTests() {
-    pinLanguage()
-    testIdlePhrasesHaveNoDashes()
-    testIdleCaptionFollowsMode()
-    testUserBubbleRadiusIsLarge()
-    testComposerPlaceholder()
+@Test @MainActor func chatThreadTests() async {
+    await pinLanguage {
+        testIdlePhrasesHaveNoDashes()
+        testIdleCaptionFollowsMode()
+        testUserBubbleRadiusIsLarge()
+        testComposerPlaceholder()
+    }
 }
 
 @MainActor func testIdlePhrasesHaveNoDashes() {

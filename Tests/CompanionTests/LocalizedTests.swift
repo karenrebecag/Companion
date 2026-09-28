@@ -6,10 +6,10 @@ import Testing
 // El catálogo de la UI. Media app en cada idioma es peor que una monolingüe:
 // una clave sin traducir es un fallo de la suite, no un aviso.
 
-@Test @MainActor func localizedTests() {
+@Test @MainActor func localizedTests() async {
     testBothCatalogsCoverTheSameKeys()
-    testLookupFollowsTheChosenLanguage()
-    testCopyLayerGoesThroughTheCatalog()
+    await testLookupFollowsTheChosenLanguage()
+    await testCopyLayerGoesThroughTheCatalog()
 }
 
 @MainActor func testBothCatalogsCoverTheSameKeys() {
@@ -22,14 +22,9 @@ import Testing
              "catálogo: no hay español huérfano de una clave fuente")
 }
 
-@MainActor func testLookupFollowsTheChosenLanguage() {
-    let saved = Localized.language
-    defer { Localized.language = saved }
-
-    Localized.language = { .en }
-    let english = Localized.string("chat.job.done")
-    Localized.language = { .es }
-    let spanish = Localized.string("chat.job.done")
+@MainActor func testLookupFollowsTheChosenLanguage() async {
+    let english = await Localized.scoped(to: .en) { Localized.string("chat.job.done") }
+    let spanish = await Localized.scoped(to: .es) { Localized.string("chat.job.done") }
 
     expect(!english.isEmpty && !spanish.isEmpty,
            "lookup: ninguna de las dos queda vacía")
@@ -40,19 +35,18 @@ import Testing
 
 /// La capa de copy sigue siendo la API; lo que cambia es de dónde saca el
 /// texto. Si un Copy devolviera la clave, el catálogo estaría desconectado.
-@MainActor func testCopyLayerGoesThroughTheCatalog() {
-    let saved = Localized.language
-    defer { Localized.language = saved }
-
-    Localized.language = { .en }
-    expect(!ChatCopy.jobDone.contains("."),
-           "copy: ChatCopy.jobDone es texto, no una clave")
-    expect(!VoiceCopy.failure(.micDenied).contains("voice."),
-           "copy: VoiceCopy también pasa por el catálogo")
-    let englishDone = ChatCopy.jobDone
-    Localized.language = { .es }
-    expect(ChatCopy.jobDone != englishDone,
-           "copy: cambiar el idioma cambia lo que se pinta")
+@MainActor func testCopyLayerGoesThroughTheCatalog() async {
+    let englishDone = await Localized.scoped(to: .en) { () -> String in
+        expect(!ChatCopy.jobDone.contains("."),
+               "copy: ChatCopy.jobDone es texto, no una clave")
+        expect(!VoiceCopy.failure(.micDenied).contains("voice."),
+               "copy: VoiceCopy también pasa por el catálogo")
+        return ChatCopy.jobDone
+    }
+    await Localized.scoped(to: .es) {
+        expect(ChatCopy.jobDone != englishDone,
+               "copy: cambiar el idioma cambia lo que se pinta")
+    }
 }
 
 private func catalogKeys(_ language: String) -> Set<String> {

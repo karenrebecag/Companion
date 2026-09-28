@@ -6,23 +6,23 @@ import Testing
 /// Wave 15c-6: Ajustes → Claves. §8 requires the Keychain to be read only
 /// when the pane is shown, never at app boot — `refresh()` is the seam that
 /// draws that line, so it gets its own test apart from save/delete.
-@Test @MainActor func keysSettingsModelTests() {
-    pinLanguage()
-    testRefreshOnlyOnDemandNeverAtInit()
-    testSaveTrimsWritesAndClearsTheField()
-    testSaveRejectsEmptyOrWhitespaceOnly()
-    testDeleteClearsTheSavedState()
-    testProvidersAreIndependent()
-    testWithoutASecretStoreNothingCrashes()
-    testMaskShowsOnlyTheEnds()
-    testSaveExposesOnlyTheMask()
-    testRefreshMasksTheStoredKey()
-    testCerebrasRowSavesItsOwnKey()
-    testThereIsNoGroqRowAndAStoredGroqKeyStaysHidden()
-    testAFailedDeleteSaysSoAndKeepsTheRow()
-    testElevenLabsRowSavesItsOwnKey()
-    testElevenLabsRowCopy()
-    pinLanguage()
+@Test @MainActor func keysSettingsModelTests() async {
+    await pinLanguage {
+        testRefreshOnlyOnDemandNeverAtInit()
+        testSaveTrimsWritesAndClearsTheField()
+        testSaveRejectsEmptyOrWhitespaceOnly()
+        testDeleteClearsTheSavedState()
+        testProvidersAreIndependent()
+        testWithoutASecretStoreNothingCrashes()
+        testMaskShowsOnlyTheEnds()
+        testSaveExposesOnlyTheMask()
+        testRefreshMasksTheStoredKey()
+        testCerebrasRowSavesItsOwnKey()
+        testThereIsNoGroqRowAndAStoredGroqKeyStaysHidden()
+        await testAFailedDeleteSaysSoAndKeepsTheRow()
+        testElevenLabsRowSavesItsOwnKey()
+        await testElevenLabsRowCopy()
+    }
 }
 
 /// 15f-7a: ElevenLabs gets the same row as Cerebras — its own key, masked.
@@ -41,32 +41,34 @@ import Testing
     expect(!model.elevenLabsSaved, "elevenlabs: deja de estar guardada")
 }
 
-@MainActor func testElevenLabsRowCopy() {
+@MainActor func testElevenLabsRowCopy() async {
     for (language, privacy) in [
         (AppLanguage.en, "With ElevenLabs, the text of each reply is sent to ElevenLabs to be voiced."),
         (.es, "Con ElevenLabs, el texto de cada respuesta se envía a ElevenLabs para darle voz."),
     ] {
-        pinLanguage(language)
-        expectEq(Localized.string("settings.keys.elevenlabs"), "ElevenLabs", "elevenlabs: título (\(language))")
-        expectEq(Localized.string("settings.keys.elevenlabs.placeholder"), "sk_…",
-                 "elevenlabs: placeholder (\(language))")
-        expectEq(Localized.string("settings.keys.elevenlabs.privacy"), privacy,
-                 "elevenlabs: privacidad (\(language))")
+        await Localized.scoped(to: language) {
+            expectEq(Localized.string("settings.keys.elevenlabs"), "ElevenLabs", "elevenlabs: título (\(language))")
+            expectEq(Localized.string("settings.keys.elevenlabs.placeholder"), "sk_…",
+                     "elevenlabs: placeholder (\(language))")
+            expectEq(Localized.string("settings.keys.elevenlabs.privacy"), privacy,
+                     "elevenlabs: privacidad (\(language))")
+        }
     }
 }
 
 /// L2 (security review 2026-09-24): a Keychain that refuses the delete
 /// used to be swallowed, and the row cleared as if the key were gone.
-@MainActor func testAFailedDeleteSaysSoAndKeepsTheRow() {
+@MainActor func testAFailedDeleteSaysSoAndKeepsTheRow() async {
     for (language, wording) in [(AppLanguage.en, "Could not delete the key."),
                                 (.es, "No se pudo borrar la clave.")] {
-        pinLanguage(language)
-        let store = RefusingDeleteStore([.openAI: "sk-proj-0123456789abcdWXYZ"])
-        let model = KeysSettingsModel(secrets: store)
-        model.refresh()
-        model.delete(.openAI)
-        expectEq(model.errorText, wording, "L2: el error se dice (\(language))")
-        expectEq(model.masked[.openAI], "sk-p••••WXYZ", "L2: la fila sigue (\(language))")
+        await Localized.scoped(to: language) {
+            let store = RefusingDeleteStore([.openAI: "sk-proj-0123456789abcdWXYZ"])
+            let model = KeysSettingsModel(secrets: store)
+            model.refresh()
+            model.delete(.openAI)
+            expectEq(model.errorText, wording, "L2: el error se dice (\(language))")
+            expectEq(model.masked[.openAI], "sk-p••••WXYZ", "L2: la fila sigue (\(language))")
+        }
     }
 }
 

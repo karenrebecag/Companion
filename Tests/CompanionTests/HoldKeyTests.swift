@@ -6,27 +6,28 @@ import Testing
 // Wave 12b. La tecla que se mantiene, lo que la island decide con la
 // proyección, y la fila del permiso de Monitoreo de entrada. Todo puro.
 
-@Test @MainActor func holdKeyTests() {
-    pinLanguage()
-    testTapVersusHold()
-    testKeyboardHoldWaitsToArm()
-    testKeyboardChordIsNotAHold()
-    testFNArmsOnTheWayDown()
-    testACancelledHoldClosesTheMicQuietly()
-    testFNConfirmsTheHoldAtTheThreshold()
-    testTheSessionHoldsNetworkWorkUntilTheConfirm()
-    testACancelledTapDuringAReplyKeepsTheReplyOnScreen()
-    testStopInsideTheReleaseTailCancelsTheCommit()
-    testHoldTalkRowUsesAccessibility()
-    testIslandStateFromProjection()
-    testIslandYieldsTheSheetToMain()
-    testPebbleShowsWhileTheMicIsEngaged()
-    testApprovalClickGuard()
-    testIslandCarriesThePartial()
-    testTheHoldHintLearns()
-    testInputMonitoringRow()
-    testIslandShowsTheDictation()
-    testTheNudgeDoesNotTeachADeadKey()
+@Test @MainActor func holdKeyTests() async {
+    await pinLanguage {
+        testTapVersusHold()
+        testKeyboardHoldWaitsToArm()
+        testKeyboardChordIsNotAHold()
+        testFNArmsOnTheWayDown()
+        testACancelledHoldClosesTheMicQuietly()
+        testFNConfirmsTheHoldAtTheThreshold()
+        testTheSessionHoldsNetworkWorkUntilTheConfirm()
+        testACancelledTapDuringAReplyKeepsTheReplyOnScreen()
+        testStopInsideTheReleaseTailCancelsTheCommit()
+        testHoldTalkRowUsesAccessibility()
+        testIslandStateFromProjection()
+        testIslandYieldsTheSheetToMain()
+        testPebbleShowsWhileTheMicIsEngaged()
+        testApprovalClickGuard()
+        testIslandCarriesThePartial()
+        testTheHoldHintLearns()
+        testInputMonitoringRow()
+        testIslandShowsTheDictation()
+        testTheNudgeDoesNotTeachADeadKey()
+    }
 }
 
 /// 1. Bajar emite `.pressed` de inmediato (la latencia manda); subir antes
