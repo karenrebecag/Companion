@@ -57,6 +57,12 @@ public struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
                 return nil
             }
         default:
+            // Security review 2026-09-28 (HIGH): `bridge_session`
+            // deliberately falls through to here. `client` is a name the
+            // peer put on the wire, not an identity — any same-uid process
+            // that read `bridge.token` could claim `client: "claude-code"`
+            // and, if "remember" was ever ticked once, inherit the hands
+            // with no sheet. One sheet per connection, every time.
             // A tool without a rule here is never remembered: `Tool(*)` for
             // a future risky tool would be blanket consent by omission.
             return nil

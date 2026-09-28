@@ -205,4 +205,21 @@ despacha subagentes de modelo bajo para el código sobre spec y tests, y revisa 
    **idempotencia** — si el socket cae después de que Companion ejecutó una escritura, un
    reintento del agente la repite. Mientras no haya clave de idempotencia en `call`, la
    descripción de cada tool de escritura lo advierte ("mira antes de reintentar").
+7. **17-1 (Services)**: `ParentToolGuard` pasa a `public` (su tipo aparece en el init público
+   de `BridgeSession`); gana `ask(_:)` (memoria → hoja → actor, fail-closed sin proveedor) y
+   `withdraw(_:)` (retira una hoja aparcada). `stop()` cierra además la conexión activa: el
+   shim solo reconecta cuando el socket cae, y sin EOF el agente quedaría recibiendo
+   `session_closed` hasta reiniciar Companion (hallazgo de la auditoría del orquestador).
+   `BridgeSession` expone `onAction(tool)` tras cada escritura con éxito para el parpadeo del
+   chip. `BridgeListener` hace `shutdown` antes de `close` (un `close` solo no despierta al
+   hilo bloqueado en `accept`/`read`).
+8. **Revisión de seguridad del PR 1 (2026-09-28): WARNING, 0 críticos, 2 altos**, corregidos
+   con test primero. (a) El presupuesto de escrituras es **por proceso**, nunca se reinicia en
+   `hello`/`bye`: reconectar no daba una ventana nueva de 30 clicks. (b) **La sesión del puente
+   nunca se recuerda**: la memoria de aprobación se ataba a `client`, un texto que manda el
+   propio cliente, y cualquier proceso del mismo usuario con el token habría heredado las manos
+   sin hoja tras un solo "recordar". Queda una hoja por conexión (una por sesión de Claude
+   Code, en la primera acción); el caso `bridge_session` de `ApprovalKey.from` se retira y la
+   desviación 5 se corrige en ese punto. (c) Una línea no UTF-8 responde `bad_frame` en vez de
+   tragarse. (d) Una hoja aprobada después de que el cliente se fue no ejecuta nada.
 

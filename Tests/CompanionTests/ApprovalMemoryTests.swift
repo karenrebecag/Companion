@@ -12,6 +12,7 @@ import Testing
     testMemoryRemembersAndDenyWins()
     testCompoundShellCommandsAreNeverRemembered()
     testEveryRiskyToolHasAKeyAndUnknownToolsHaveNone()
+    testBridgeSessionIsNeverRemembered()
 }
 
 private func request(_ tool: String, _ json: String) -> ApprovalRequest {
@@ -102,4 +103,19 @@ private func request(_ tool: String, _ json: String) -> ApprovalRequest {
     }
     expect(ApprovalKey.from(request("send_email", #"{"to":"x"}"#)) == nil,
            "desconocida: una tool sin regla no se recuerda")
+}
+
+/// Security review 2026-09-28 (HIGH): `client` on a `bridge_session` request
+/// arrives over the wire from whatever connected to the socket — any
+/// same-uid process that read `bridge.token` could send `client:
+/// "claude-code"` and, if "remember" was ever ticked once, inherit the
+/// hands with no sheet. A wire-supplied name is not an identity, so this
+/// request is never remembered: no key, ever, regardless of the name.
+@MainActor func testBridgeSessionIsNeverRemembered() {
+    expect(ApprovalKey.from(request("bridge_session", #"{"client":"claude-code"}"#)) == nil,
+           "bridge_session: never a key, even for a plausible client name")
+    expect(ApprovalKey.from(request("bridge_session", #"{"client":""}"#)) == nil,
+           "bridge_session: never a key for an empty client name either")
+    expect(ApprovalKey.from(request("bridge_session", "{}")) == nil,
+           "bridge_session: never a key without a client field")
 }
