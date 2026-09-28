@@ -34,6 +34,8 @@ public enum ChatCopy {
                 format: Localized.string("chat.card.locations"), names)
         case .gallery:
             return Localized.string("chat.card.gallery")
+        case .stats, .table, .chart:
+            return Localized.string("chat.card.data")
         }
     }
 
