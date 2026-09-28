@@ -154,4 +154,8 @@ private let bothScreens = [leftScreen, rightScreen]
     expect(!m.projection.handsActing, "aura linger: cerrar la sesion apaga el aura al instante")
     let timerless = m.handle(.handsGlowExpired)
     expect(timerless.isEmpty && !m.projection.handsActing, "aura linger: un plazo tardio es inocuo")
+    // Code review 20b (MEDIUM): a call still in flight when the session
+    // closed must not light the aura with nobody holding the hands.
+    let late = m.handle(.handsWorking(target: frame))
+    expect(!m.projection.handsActing && late.isEmpty, "aura linger: una llamada tardia sin sesion no la enciende")
 }

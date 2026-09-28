@@ -167,6 +167,8 @@ public struct SessionMachine: Sendable, Equatable {
         case .handsActed:
             projection.handsPulse = (projection.handsPulse + 1) % 1_000
         case .handsWorking(let target):
+            // A call in flight when the session closed: nobody holds the hands.
+            guard projection.handsLentTo != nil else { break }
             projection.handsActing = true
             projection.handsTarget = target
             effects.append(.scheduleHandsGlowExpiry(Self.handsGlowLinger))

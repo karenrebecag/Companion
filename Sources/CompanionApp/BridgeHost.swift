@@ -65,10 +65,13 @@ final class BridgeHost {
             onAction: { _ in
                 Task { @MainActor in sessionModel.send(.handsActed) }
             },
-            // Read off the main actor: the AX round trip may hit a hung app.
+            // Detached so the reply to the agent never waits on the AX round
+            // trip, which a hung app can stretch to a second.
             onCall: { _ in
-                let frame = targetFrame()
-                Task { @MainActor in sessionModel.send(.handsWorking(target: frame)) }
+                Task.detached(priority: .utility) {
+                    let frame = targetFrame()
+                    await MainActor.run { sessionModel.send(.handsWorking(target: frame)) }
+                }
             })
         sessionBox.value = session
         self.listener = listener
