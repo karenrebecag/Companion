@@ -18,6 +18,11 @@ private final class FakeApps: AppsService, @unchecked Sendable {
     /// Wave 16k-2a review (HIGH): accounts() lagging behind catalog() is the
     /// shape of the load() race.
     var accountsHang = false
+    /// Wave 16k-2b: how many times the poll loop actually asked, and a gate
+    /// so a test can hold one call open to prove a late answer is discarded.
+    private(set) var accountsCallCount = 0
+    var gateAccounts = false
+    private var accountsWaiters: [CheckedContinuation<Void, Never>] = []
 
     func catalog(query: String, after: String?) async throws -> CatalogPage {
         queries.append((query, after))
@@ -27,11 +32,45 @@ private final class FakeApps: AppsService, @unchecked Sendable {
     }
 
     func accounts() async throws -> [ConnectedAccount] {
+        accountsCallCount += 1
+        if gateAccounts {
+            await withCheckedContinuation { accountsWaiters.append($0) }
+        }
         if accountsHang { try await Task.sleep(for: .milliseconds(50)) }
         return try accountsResult.get()
     }
 
+    var gatedAccountsCallCount: Int { accountsWaiters.count }
+
+    func releaseAccounts() {
+        let waiters = accountsWaiters
+        accountsWaiters = []
+        for waiter in waiters { waiter.resume() }
+    }
+
+    /// Only the named apps' connectLink calls park — lets a test hold one
+    /// app's attempt open while another's runs to completion around it.
+    var gateConnectLinkFor: Set<String> = []
+    /// Same idea, but consumed on the first park: a same-app double-tap
+    /// needs attempt A's call held while attempt B's (same slug) goes
+    /// straight through, which a set keyed only by slug cannot tell apart.
+    var gateConnectLinkOnceFor: Set<String> = []
+    private var connectLinkWaiters: [CheckedContinuation<Void, Never>] = []
+    var gatedConnectLinkCallCount: Int { connectLinkWaiters.count }
+
+    func releaseConnectLink() {
+        let waiters = connectLinkWaiters
+        connectLinkWaiters = []
+        for waiter in waiters { waiter.resume() }
+    }
+
     func connectLink(app: String) async throws -> URL {
+        if gateConnectLinkFor.contains(app) || gateConnectLinkOnceFor.remove(app) != nil {
+            await withCheckedContinuation { connectLinkWaiters.append($0) }
+            // A real URLSession/Task request cancelled mid-flight throws,
+            // not returns — the same shape `AppsManualSleeper.sleep` uses.
+            try Task.checkCancellation()
+        }
         if let connectFailure { throw connectFailure }
         return URL(string: "https://pipedream.com/_static/connect.html?app=\(app)")!
     }
@@ -47,9 +86,59 @@ private func app(_ slug: String) -> CatalogApp {
 }
 
 @MainActor
-private func model(_ fake: FakeApps, secrets: TestSecretStore = TestSecretStore()) -> (AppsModel, UserDefaults) {
+private func model(
+    _ fake: FakeApps, secrets: TestSecretStore = TestSecretStore(),
+    sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { try await Task.sleep(for: .seconds($0)) },
+    now: @escaping @Sendable () -> TimeInterval = { Date().timeIntervalSince1970 },
+    openBrowser: @escaping @Sendable (URL) -> Void = { _ in }
+) -> (AppsModel, UserDefaults) {
     let defaults = UserDefaults(suiteName: "apps-\(UUID().uuidString)")!
-    return (AppsModel(secrets: secrets, defaults: defaults, makeService: { _, _ in fake }), defaults)
+    return (AppsModel(
+        secrets: secrets, defaults: defaults, makeService: { _, _ in fake },
+        sleep: sleep, now: now, openBrowser: openBrowser), defaults)
+}
+
+/// A manual clock so a global-timeout test can jump straight past the cap
+/// instead of driving 40 real poll cycles. Named apart from VoiceSessionFakes'
+/// own `TestClock` (a different shape, module-visible) to avoid colliding.
+private final class PollClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: TimeInterval
+
+    init(_ value: TimeInterval = 0) { self.value = value }
+
+    func set(_ value: TimeInterval) { lock.withLock { self.value = value } }
+    func now() -> TimeInterval { lock.withLock { value } }
+}
+
+/// A thread-safe sink for URLs `openBrowser` records — the closure itself
+/// must be `@Sendable`, so a plain captured `var` cannot mutate inside it.
+private final class URLSink: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var urls: [URL] = []
+
+    func append(_ url: URL) { lock.withLock { urls.append(url) } }
+}
+
+/// A manual sleeper (mirrors SessionModelTests' own `ManualSleeper`, same
+/// name space clash as `TestClock` above): `sleep` parks until the test
+/// releases it, so a poll loop's 3 s interval never actually waits real time.
+private final class AppsManualSleeper: @unchecked Sendable {
+    private let lock = NSLock()
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    var pending: Int { lock.withLock { waiters.count } }
+
+    func sleep(_ seconds: TimeInterval) async throws {
+        await withCheckedContinuation { continuation in
+            lock.withLock { waiters.append(continuation) }
+        }
+        try Task.checkCancellation()
+    }
+
+    func fire() {
+        let all = lock.withLock { let w = waiters; waiters = []; return w }
+        for waiter in all { waiter.resume() }
+    }
 }
 
 @Test @MainActor func appsPageAsksForTheFunctionFirst() async {
@@ -214,4 +303,220 @@ private func model(_ fake: FakeApps, secrets: TestSecretStore = TestSecretStore(
     _ = await (first, second)
     #expect(apps.apps.map(\.slug) == ["slack", "gmail"])
     #expect(fake.queries.filter { $0.1 == "c2" }.count == 1)
+}
+
+// Wave 16k-2b: the connecting modal's loop — connectLink, open the browser,
+// then ConnectPoll driven by /api/accounts every 3 s (here: every `fire()`).
+
+@Test @MainActor func appsModelConnectsOpensTheBrowserPollsAndCompletes() async {
+    let fake = FakeApps()
+    let sleeper = AppsManualSleeper()
+    let opened = URLSink()
+    let (apps, _) = model(fake, sleep: sleeper.sleep, openBrowser: opened.append)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    let slack = app("slack")
+
+    apps.start(slack)
+    await pumpUntil("connect: llega a waiting(0)") { apps.connectPhase == .waiting(attempts: 0) }
+    #expect(apps.connecting == slack)
+    #expect(opened.urls == [URL(string: "https://pipedream.com/_static/connect.html?app=slack")!],
+            "connect: el navegador abre el enlace de la función")
+
+    await pumpUntil("connect: primer plazo armado") { sleeper.pending == 1 }
+    sleeper.fire()
+    await pumpUntil("connect: primer intento sin cuenta") { apps.connectPhase == .waiting(attempts: 1) }
+    #expect(apps.state(of: "slack") == nil, "connect: todavía no aparece")
+
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
+    await pumpUntil("connect: segundo plazo armado") { sleeper.pending == 1 }
+    sleeper.fire()
+    await pumpUntil("connect: completa") { apps.connectPhase == .complete }
+    #expect(apps.state(of: "slack") == .connected, "connect: las cuentas se refrescan al completar")
+
+    apps.finishConnecting()
+    #expect(apps.connecting == nil, "vamos: cierra el modal")
+    #expect(apps.state(of: "slack") == .connected, "vamos: el panel/las tarjetas quedan en conectado")
+}
+
+@Test @MainActor func appsModelNeverPollsAfterClose() async {
+    let fake = FakeApps()
+    let sleeper = AppsManualSleeper()
+    let (apps, _) = model(fake, sleep: sleeper.sleep)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    apps.start(app("slack"))
+    await pumpUntil("cierre: primer plazo armado") { sleeper.pending == 1 }
+
+    apps.finishConnecting()
+    sleeper.fire()
+    await settle()
+    #expect(fake.accountsCallCount == 0, "cierre: cancelado antes de preguntar de nuevo")
+}
+
+// A poll landing after close must not resurrect the phase or mark the app
+// connected on a stale answer — close, not the network's timing, decides.
+@Test @MainActor func appsModelDiscardsAPollResultThatLandsAfterClose() async {
+    let fake = FakeApps()
+    fake.gateAccounts = true
+    let sleeper = AppsManualSleeper()
+    let (apps, _) = model(fake, sleep: sleeper.sleep)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    let slack = app("slack")
+    apps.start(slack)
+    await pumpUntil("descarte: primer plazo armado") { sleeper.pending == 1 }
+    sleeper.fire()
+    await pumpUntil("descarte: la llamada queda detenida en la compuerta") { fake.gatedAccountsCallCount == 1 }
+
+    apps.finishConnecting()
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
+    fake.releaseAccounts()
+    await settle()
+
+    #expect(apps.connecting == nil, "descarte: sigue cerrado")
+    #expect(apps.connectPhase == .initiating, "descarte: nada revive el modal")
+    #expect(apps.state(of: "slack") == nil, "descarte: la respuesta tardía no marca conectado")
+}
+
+@Test @MainActor func appsModelOpenAgainReopensTheSameLink() async {
+    let fake = FakeApps()
+    let sleeper = AppsManualSleeper()
+    let opened = URLSink()
+    let (apps, _) = model(fake, sleep: sleeper.sleep, openBrowser: opened.append)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    apps.start(app("slack"))
+    await pumpUntil("abrir de nuevo: primer plazo armado") { sleeper.pending == 1 }
+    #expect(opened.urls.count == 1)
+    apps.openAgain()
+    #expect(opened.urls.count == 2)
+    #expect(opened.urls[0] == opened.urls[1], "abrir de nuevo: el mismo enlace, no uno nuevo")
+}
+
+@Test @MainActor func appsModelRetryStartsAFreshAttemptAfterATimeout() async {
+    let fake = FakeApps()
+    let sleeper = AppsManualSleeper()
+    let clock = PollClock(0)
+    let opened = URLSink()
+    let (apps, _) = model(fake, sleep: sleeper.sleep, now: clock.now, openBrowser: opened.append)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    apps.start(app("slack"))
+    await pumpUntil("reintentar: primer plazo armado") { sleeper.pending == 1 }
+
+    // Jumps the injected clock past the 150 s global cap (spec §9.5 D2) so
+    // the very next check times the attempt out without 40 real cycles.
+    clock.set(ConnectPoll.overallTimeout + 1)
+    sleeper.fire()
+    await pumpUntil("reintentar: se agota") { apps.connectPhase == .timedOut }
+
+    clock.set(ConnectPoll.overallTimeout + 2)
+    apps.retryConnecting()
+    await pumpUntil("reintentar: vuelve a waiting(0)") { apps.connectPhase == .waiting(attempts: 0) }
+    #expect(opened.urls.count == 2, "reintentar: un enlace nuevo (el anterior puede ya estar gastado)")
+}
+
+@Test @MainActor func appsModelFailsWhenConnectLinkErrors() async {
+    let fake = FakeApps()
+    fake.connectFailure = .rateLimited
+    let (apps, _) = model(fake)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    apps.start(app("slack"))
+    await pumpUntil("falla: connectLink erróneo llega como fallo del modal") {
+        if case .failed = apps.connectPhase { return true }
+        return false
+    }
+}
+
+// A stale attempt (start(_:) for one app, then another before the first's
+// connectLink even answers) must never paint its late answer over the app
+// that actually owns the modal now — including which link the browser opens.
+@Test @MainActor func appsModelDiscardsAStaleConnectLinkFromASupersededAttempt() async {
+    let fake = FakeApps()
+    fake.gateConnectLinkFor = ["slack"]
+    let opened = URLSink()
+    let (apps, _) = model(fake, openBrowser: opened.append)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    let slack = app("slack")
+    let gmail = app("gmail")
+
+    apps.start(slack)
+    await pumpUntil("carrera: connectLink de slack queda detenido") { fake.gatedConnectLinkCallCount == 1 }
+    // Switches to gmail before slack's connectLink ever answers; gmail's own
+    // call is not gated, so its attempt runs to waiting(0) around slack's.
+    apps.start(gmail)
+    await pumpUntil("carrera: gmail sigue su propio camino") { apps.connectPhase == .waiting(attempts: 0) }
+    #expect(apps.connecting == gmail)
+
+    fake.releaseConnectLink()
+    await settle()
+    #expect(apps.connecting == gmail, "carrera: slack no recupera el modal")
+    #expect(opened.urls == [URL(string: "https://pipedream.com/_static/connect.html?app=gmail")!],
+            "carrera: el enlace tardío de slack nunca se abre para el intento de gmail")
+}
+
+// Code review + security review (HIGH, same finding independently): `stillConnecting`
+// only compared slugs, so a SAME-app double-tap — attempt A still parked in
+// connectLink/accounts() while attempt B (same slug) runs — let A's late,
+// cancelled resolution pass every guard: a spent link reopened, or a
+// spurious `.failed` painted over B's healthy state.
+@Test @MainActor func appsModelDiscardsAStaleConnectLinkFromADoubleTappedConectar() async {
+    let fake = FakeApps()
+    fake.gateConnectLinkOnceFor = ["slack"]
+    let opened = URLSink()
+    let (apps, _) = model(fake, openBrowser: opened.append)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    let slack = app("slack")
+
+    apps.start(slack) // attempt A: connectLink parks
+    await pumpUntil("doble toque: intento A detenido") { fake.gatedConnectLinkCallCount == 1 }
+
+    apps.start(slack) // attempt B, same slug: A is superseded, not just cancelled-and-gone
+    await pumpUntil("doble toque: B llega a waiting(0)") { apps.connectPhase == .waiting(attempts: 0) }
+    #expect(opened.urls.count == 1, "doble toque: solo el enlace de B se abrió hasta ahora")
+
+    // A's connectLink resumes now that it is cancelled: a real request would
+    // throw, not hand back a link for a task nobody is waiting on anymore.
+    fake.releaseConnectLink()
+    await settle()
+
+    #expect(opened.urls.count == 1, "doble toque: la respuesta tardía de A nunca reabre el navegador")
+    #expect(apps.connectPhase == .waiting(attempts: 0), "doble toque: B sigue sano, sin un .failed espurio")
+}
+
+// Same defect, reached through "Reintentar" pressed twice: R1 parked in its
+// fresh connectLink while R2 (the second tap) already runs.
+@Test @MainActor func appsModelDiscardsAStaleRetryFromADoubleTappedReintentar() async {
+    let fake = FakeApps()
+    let sleeper = AppsManualSleeper()
+    let clock = PollClock(0)
+    let opened = URLSink()
+    let (apps, _) = model(fake, sleep: sleeper.sleep, now: clock.now, openBrowser: opened.append)
+    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    apps.start(app("slack"))
+    await pumpUntil("reintentar doble: primer plazo armado") { sleeper.pending == 1 }
+    clock.set(ConnectPoll.overallTimeout + 1)
+    sleeper.fire()
+    await pumpUntil("reintentar doble: se agota") { apps.connectPhase == .timedOut }
+    #expect(opened.urls.count == 1)
+
+    fake.gateConnectLinkOnceFor = ["slack"]
+    clock.set(ConnectPoll.overallTimeout + 2)
+    apps.retryConnecting() // R1: connectLink parks
+    await pumpUntil("reintentar doble: R1 detenido") { fake.gatedConnectLinkCallCount == 1 }
+
+    clock.set(ConnectPoll.overallTimeout + 3)
+    apps.retryConnecting() // R2, same slug: supersedes R1
+    await pumpUntil("reintentar doble: R2 llega a waiting(0)") { apps.connectPhase == .waiting(attempts: 0) }
+    #expect(opened.urls.count == 2, "reintentar doble: solo el enlace de R2 se sumó")
+
+    fake.releaseConnectLink()
+    await settle()
+
+    #expect(opened.urls.count == 2, "reintentar doble: R1 no reabre el navegador al resolver tarde")
+    #expect(apps.connectPhase == .waiting(attempts: 0), "reintentar doble: R2 sigue sano")
+
+    // Only R2's loop should be polling: one sleeper cycle is one accounts() call.
+    let before = fake.accountsCallCount
+    await pumpUntil("reintentar doble: el próximo plazo se arma") { sleeper.pending == 1 }
+    sleeper.fire()
+    await pumpUntil("reintentar doble: una sola pregunta") { fake.accountsCallCount == before + 1 }
+    await settle()
+    #expect(fake.accountsCallCount == before + 1, "reintentar doble: ningún segundo bucle duplicó la pregunta")
 }

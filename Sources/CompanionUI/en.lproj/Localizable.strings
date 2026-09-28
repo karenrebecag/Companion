@@ -526,3 +526,14 @@
 "apps.group.crearYCambiar.note" = "Changes something in the app. Companion shows you what before it does.";
 "apps.group.borrar" = "Delete";
 "apps.group.borrar.note" = "Removes something. Companion always asks first.";
+"apps.connecting.title.progress" = "Connecting %@";
+"apps.connecting.title.complete" = "%@ connected";
+"apps.connecting.title.timedOut" = "%@ didn't finish connecting";
+"apps.connecting.title.failed" = "Couldn't connect %@";
+"apps.connecting.body" = "We opened %@'s sign-in page in your browser. Finish there and this window updates on its own.";
+"apps.connecting.hint" = "Still waiting on the browser. If nothing came up, open the link again.";
+"apps.connecting.timedOut" = "We didn't hear back from %@. The sign-in may not have finished in the browser.";
+"apps.connecting.complete" = "You're all set. Companion can now use %@.";
+"apps.connecting.openAgain" = "Open it again";
+"apps.connecting.retry" = "Try again";
+"apps.connecting.letsGo" = "Let's go";

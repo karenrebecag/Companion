@@ -526,3 +526,14 @@
 "apps.group.crearYCambiar.note" = "Cambia algo en la app. Companion te muestra qué antes de hacerlo.";
 "apps.group.borrar" = "Borrar";
 "apps.group.borrar.note" = "Elimina algo. Companion siempre pregunta antes.";
+"apps.connecting.title.progress" = "Conectando %@";
+"apps.connecting.title.complete" = "%@ conectado";
+"apps.connecting.title.timedOut" = "%@ no terminó de conectarse";
+"apps.connecting.title.failed" = "No se pudo conectar %@";
+"apps.connecting.body" = "Abrimos el inicio de sesión de %@ en tu navegador. Termina ahí y esta ventana se actualiza sola.";
+"apps.connecting.hint" = "Seguimos esperando el navegador. Si no se abrió nada, ábrelo de nuevo.";
+"apps.connecting.timedOut" = "No supimos de %@. Puede que el inicio de sesión no haya terminado en el navegador.";
+"apps.connecting.complete" = "Listo. Companion ya puede usar %@.";
+"apps.connecting.openAgain" = "Abrir de nuevo";
+"apps.connecting.retry" = "Reintentar";
+"apps.connecting.letsGo" = "Vamos";
