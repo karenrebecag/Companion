@@ -13,22 +13,22 @@ import Testing
     guard let dir = ProcessInfo.processInfo.environment["COMPANION_SNAPSHOTS"] else { return }
     let out = URL(fileURLWithPath: dir, isDirectory: true)
     try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-    pinLanguage(.es)
-    for scheme in [ColorScheme.light, .dark] {
-        let tag = scheme == .light ? "light" : "dark"
-        for (name, view) in await islandStates() {
-            try save(view, scheme: scheme, size: CGSize(width: 520, height: 420), to: out, "island-\(name)-\(tag)")
-        }
-        for step in WelcomeStep.allCases {
-            try save(await welcome(step), scheme: scheme, size: CGSize(width: 720, height: 640), to: out,
-                     "welcome-\(step.rawValue)-\(step)-\(tag)")
-        }
-        for tab in SettingsTab.allCases {
-            try save(await settings(tab), scheme: scheme, size: CGSize(width: 780, height: 760), to: out,
-                     "settings-\(tab.rawValue)-\(tag)")
+    try await Localized.scoped(to: .es) {
+        for scheme in [ColorScheme.light, .dark] {
+            let tag = scheme == .light ? "light" : "dark"
+            for (name, view) in await islandStates() {
+                try save(view, scheme: scheme, size: CGSize(width: 520, height: 420), to: out, "island-\(name)-\(tag)")
+            }
+            for step in WelcomeStep.allCases {
+                try save(await welcome(step), scheme: scheme, size: CGSize(width: 720, height: 640), to: out,
+                         "welcome-\(step.rawValue)-\(step)-\(tag)")
+            }
+            for tab in SettingsTab.allCases {
+                try save(await settings(tab), scheme: scheme, size: CGSize(width: 780, height: 760), to: out,
+                         "settings-\(tab.rawValue)-\(tag)")
+            }
         }
     }
-    pinLanguage()
 }
 
 @MainActor private func chat() -> ChatViewModel {

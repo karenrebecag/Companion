@@ -7,13 +7,12 @@ import Testing
 // the tabs to a sidebar: SettingsPagesTests), no technical labels, every menu through the catalog, a menu bar
 // item with five entries, and the ear's vocabulary editable.
 
-@Test @MainActor func settingsParityTests() {
+@Test @MainActor func settingsParityTests() async {
     testAtMostFifteenOptions()
-    testNoVisibleLabelIsJargon()
-    testMenusFollowTheLanguage()
-    testTheMenuBarItemHasFiveEntries()
+    await testNoVisibleLabelIsJargon()
+    await testMenusFollowTheLanguage()
+    await testTheMenuBarItemHasFiveEntries()
     testVocabularyIsParsedFromWhatTheUserTyped()
-    pinLanguage()
 }
 
 private let forbidden = [
@@ -37,7 +36,7 @@ private func words(_ text: String) -> [String] {
     }
 }
 
-@MainActor func testNoVisibleLabelIsJargon() {
+@MainActor func testNoVisibleLabelIsJargon() async {
     let welcome = ["welcome.cover.title", "welcome.cover.body", "welcome.hello.body", "welcome.keys.body",
                    "welcome.keys.local", "welcome.keys.cerebras", "welcome.keys.elevenLabs",
                    "welcome.permissions.body", "welcome.holdKey.body", "welcome.yourTurn.body"]
@@ -52,40 +51,44 @@ private func words(_ text: String) -> [String] {
         }
         + ["settings.keys.blurb", "settings.voice.blurb"]
     for language in [AppLanguage.es, .en] {
-        Localized.language = { language }
-        var texts = keys.map { Localized.string($0) }
-        texts += MenuPlan.build(shortcuts: .defaults).flatMap { [$0.title] + $0.items.map(\.title) }
-        texts += StatusMenuPlan.items.map(\.title)
-        for text in texts {
-            let bad = words(text).filter(forbidden.contains)
-            expect(bad.isEmpty, "\(language): «\(text)» dice \(bad)")
-        }
-        for key in keys {
-            expect(Localized.string(key) != key, "\(language): \(key) está en el catálogo")
+        await Localized.scoped(to: language) {
+            var texts = keys.map { Localized.string($0) }
+            texts += MenuPlan.build(shortcuts: .defaults).flatMap { [$0.title] + $0.items.map(\.title) }
+            texts += StatusMenuPlan.items.map(\.title)
+            for text in texts {
+                let bad = words(text).filter(forbidden.contains)
+                expect(bad.isEmpty, "\(language): «\(text)» dice \(bad)")
+            }
+            for key in keys {
+                expect(Localized.string(key) != key, "\(language): \(key) está en el catálogo")
+            }
         }
     }
 }
 
-@MainActor func testMenusFollowTheLanguage() {
-    Localized.language = { .en }
-    let en = MenuPlan.build(shortcuts: .defaults).flatMap { $0.items.map(\.title) }
-    expect(en.contains("Settings…"), "menú en: Settings…")
-    expect(en.contains("Quit Companion"), "menú en: Quit Companion")
-    expect(!en.contains("Ajustes…"), "menú en: sin español")
-    Localized.language = { .es }
-    let es = MenuPlan.build(shortcuts: .defaults).flatMap { $0.items.map(\.title) }
-    expect(es.contains("Ajustes…"), "menú es: Ajustes…")
-    expect(es.contains("Salir de Companion"), "menú es: Salir de Companion")
+@MainActor func testMenusFollowTheLanguage() async {
+    await Localized.scoped(to: .en) {
+        let en = MenuPlan.build(shortcuts: .defaults).flatMap { $0.items.map(\.title) }
+        expect(en.contains("Settings…"), "menú en: Settings…")
+        expect(en.contains("Quit Companion"), "menú en: Quit Companion")
+        expect(!en.contains("Ajustes…"), "menú en: sin español")
+    }
+    await Localized.scoped(to: .es) {
+        let es = MenuPlan.build(shortcuts: .defaults).flatMap { $0.items.map(\.title) }
+        expect(es.contains("Ajustes…"), "menú es: Ajustes…")
+        expect(es.contains("Salir de Companion"), "menú es: Salir de Companion")
+    }
 }
 
-@MainActor func testTheMenuBarItemHasFiveEntries() {
-    Localized.language = { .es }
-    expectEq(StatusMenuPlan.items.map(\.command), [.cancel, .show, .settings, .checkUpdates, .quit],
-             "barra: las cinco de la spec, en orden")
-    expectEq(StatusMenuPlan.items.first?.keyEquivalent, "\u{1b}", "barra: cancelar con Esc")
-    expectEq(StatusMenuPlan.items.map(\.title),
-             ["Cancelar acción", "Mostrar Companion", "Ajustes…", "Buscar actualización…", "Salir"],
-             "barra: sus nombres")
+@MainActor func testTheMenuBarItemHasFiveEntries() async {
+    await Localized.scoped(to: .es) {
+        expectEq(StatusMenuPlan.items.map(\.command), [.cancel, .show, .settings, .checkUpdates, .quit],
+                 "barra: las cinco de la spec, en orden")
+        expectEq(StatusMenuPlan.items.first?.keyEquivalent, "\u{1b}", "barra: cancelar con Esc")
+        expectEq(StatusMenuPlan.items.map(\.title),
+                 ["Cancelar acción", "Mostrar Companion", "Ajustes…", "Buscar actualización…", "Salir"],
+                 "barra: sus nombres")
+    }
 }
 
 @MainActor func testVocabularyIsParsedFromWhatTheUserTyped() {

@@ -4,17 +4,18 @@ import Foundation
 import Testing
 
 @Test @MainActor func voiceViewModelTests() async {
-    pinLanguage()
-    await testVoiceCopy()
-    await testVoiceViewModelIdleAtInit()
-    await testVoiceViewModelForwardsControls()
-    await testVoiceViewModelOnAppearMirrorsSnapshotAndLevels()
-    await testVoiceViewModelIsActivePerState()
-    await testVoiceViewModelClassicFallbackStatus()
-    await testVoiceViewModelIdleClearsStatus()
-    await testVoiceViewModelToggleMuteForwards()
-    await testVoiceViewModelOnAppearIsIdempotent()
-    await testVoiceViewModelDoubleStartAndHangUp()
+    await pinLanguage {
+        await testVoiceCopy()
+        await testVoiceViewModelIdleAtInit()
+        await testVoiceViewModelForwardsControls()
+        await testVoiceViewModelOnAppearMirrorsSnapshotAndLevels()
+        await testVoiceViewModelIsActivePerState()
+        await testVoiceViewModelClassicFallbackStatus()
+        await testVoiceViewModelIdleClearsStatus()
+        await testVoiceViewModelToggleMuteForwards()
+        await testVoiceViewModelOnAppearIsIdempotent()
+        await testVoiceViewModelDoubleStartAndHangUp()
+    }
 }
 
 @MainActor func testVoiceCopy() async {

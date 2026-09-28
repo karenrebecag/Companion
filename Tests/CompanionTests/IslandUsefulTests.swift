@@ -10,7 +10,7 @@ import Testing
 // opens, draws its own popovers, and says "stopped" and "couldn't hear" as
 // Incredible does.
 
-@Test @MainActor func islandUsefulTests() {
+@Test @MainActor func islandUsefulTests() async {
     testNoPanelIsOpenAndEmpty()
     testThePeekGrowsTheNotchAndCastsAShadow()
     testThePeekIsLivelyAndWaitsBeforeOpening()
@@ -18,10 +18,10 @@ import Testing
     testPopoversAndTooltipsHaveTheirBudget()
     testStopIsTheOrbWhileItSpeaks()
     testCancelledIsAShortPill()
-    testCouldntHearIsACardWithAWayOut()
+    await testCouldntHearIsACardWithAWayOut()
     testTheNoticeCountsDown()
     testTheVoiceVolumeNeverReadsAsUnset()
-    testTheNewWordsAreInBothLanguages()
+    await testTheNewWordsAreInBothLanguages()
 }
 
 private let notch = NotchGeometry.notch(on: ScreenShape(
@@ -125,20 +125,21 @@ private let notch = NotchGeometry.notch(on: ScreenShape(
 }
 
 /// The 18:10 capture of Incredible (spec 16i §9).
-@MainActor func testCouldntHearIsACardWithAWayOut() {
-    Localized.language = { .es }
-    let card = IslandNotice.content(for: .couldntHear)
-    expectEq(card?.symbol, "mic.slash.fill", "no te oí: micrófono tachado")
-    expectEq(card?.title, Localized.string("island.notice.couldntHear.title"), "no te oí: título corto")
-    expectEq(card?.lifetime, SessionMachine.noticeDelay, "no te oí: se va sola a los 6 s")
-    expectEq(card?.action, .openPermission(.micDenied), "no te oí: revisar micrófono")
-    let keys = IslandNotice.content(for: .failure(.noProviders))
-    expectEq(keys?.action, .openKeys, "sin claves: abre Claves")
-    expectEq(keys?.lifetime, nil, "sin claves: no se va sola")
-    expectEq(IslandNotice.content(for: .thinking), nil, "pensando: no es un aviso")
-    let notice = IslandState.from(
-        { var p = SessionProjection(); p.notice = .couldntHear; return p }(), pebbleHidden: false)
-    expectEq(notice.size, .card, "no te oí: tarjeta ancha, no la barra")
+@MainActor func testCouldntHearIsACardWithAWayOut() async {
+    await Localized.scoped(to: .es) {
+        let card = IslandNotice.content(for: .couldntHear)
+        expectEq(card?.symbol, "mic.slash.fill", "no te oí: micrófono tachado")
+        expectEq(card?.title, Localized.string("island.notice.couldntHear.title"), "no te oí: título corto")
+        expectEq(card?.lifetime, SessionMachine.noticeDelay, "no te oí: se va sola a los 6 s")
+        expectEq(card?.action, .openPermission(.micDenied), "no te oí: revisar micrófono")
+        let keys = IslandNotice.content(for: .failure(.noProviders))
+        expectEq(keys?.action, .openKeys, "sin claves: abre Claves")
+        expectEq(keys?.lifetime, nil, "sin claves: no se va sola")
+        expectEq(IslandNotice.content(for: .thinking), nil, "pensando: no es un aviso")
+        let notice = IslandState.from(
+            { var p = SessionProjection(); p.notice = .couldntHear; return p }(), pebbleHidden: false)
+        expectEq(notice.size, .card, "no te oí: tarjeta ancha, no la barra")
+    }
 }
 
 @MainActor func testTheNoticeCountsDown() {
@@ -156,17 +157,17 @@ private let notch = NotchGeometry.notch(on: ScreenShape(
     expectEq(IslandVolume.percent(0.456), 46, "volumen: por ciento redondeado")
 }
 
-@MainActor func testTheNewWordsAreInBothLanguages() {
+@MainActor func testTheNewWordsAreInBothLanguages() async {
     let keys = ["island.cancelled", "island.tip.talk", "island.tip.send", "island.tip.stop",
                 "island.tip.volume", "island.volume", "island.notice.couldntHear.title",
                 "island.notice.couldntHear.body", "island.notice.checkMic", "island.notice.dismiss"]
     for language in [AppLanguage.es, .en] {
-        Localized.language = { language }
-        for key in keys {
-            expect(Localized.string(key) != key, "\(language): \(key) está en el catálogo")
+        await Localized.scoped(to: language) {
+            for key in keys {
+                expect(Localized.string(key) != key, "\(language): \(key) está en el catálogo")
+            }
         }
     }
-    Localized.language = { .es }
 }
 
 /// Security review 16i-1 (HIGH): a display or menu-bar change moved the

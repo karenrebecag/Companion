@@ -270,8 +270,13 @@ actor FakeApprovals: ApprovalsProvider {
 }
 
 /// `pumpUntil` for a predicate that has to hop into an actor.
+/// Debugging 2026-09-28: same headroom as `pumpUntil` (TestKit.swift), same
+/// reason — CI's runner has far fewer cores than a dev Mac, so the main
+/// actor (and the cooperative pool an unstructured `Task` like `prewarm`'s
+/// needs) can go unserved for longer than a tight deadline allows even when
+/// the work itself is instant.
 @MainActor func pumpUntilAsync(
-    _ label: String, timeout: TimeInterval = 10, _ pred: () async -> Bool
+    _ label: String, timeout: TimeInterval = 30, _ pred: () async -> Bool
 ) async {
     let deadline = Date().addingTimeInterval(timeout)
     while !(await pred()), Date() < deadline {

@@ -32,7 +32,7 @@ private let now = ISO8601DateFormatter().date(from: "2026-09-25T19:00:00-06:00")
     expectEq(HomeTasks.ago(now.addingTimeInterval(60), now: now), .justNow, "hace: reloj adelantado")
 }
 
-@Test @MainActor func followUpTests() {
+@Test @MainActor func followUpTests() async {
     let idle = SessionProjection()
     let state = IslandState.from(idle, pebbleHidden: false, followUp: "Busca México")
     expectEq(state.size, .bar, "seguir: la isla abre como barra")
@@ -43,8 +43,9 @@ private let now = ISO8601DateFormatter().date(from: "2026-09-25T19:00:00-06:00")
     listening.kind = .listening
     expectEq(IslandState.from(listening, pebbleHidden: false, followUp: "x").line, IslandState.Line.none,
              "seguir: al hablar, la barra escucha")
-    Localized.language = { .es }
-    expect(Localized.string("island.task") != "island.task", "seguir: la etiqueta está en el catálogo")
+    await Localized.scoped(to: .es) {
+        expect(Localized.string("island.task") != "island.task", "seguir: la etiqueta está en el catálogo")
+    }
 }
 
 /// A task opened from Home shows its conversation without leaving the one in

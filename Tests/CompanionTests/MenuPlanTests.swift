@@ -2,14 +2,15 @@ import CompanionUI
 import Foundation
 import Testing
 
-@Test @MainActor func menuPlanTests() {
-    pinLanguage()
-    testEditCommandsStayFixedWhenShortcutsRebind()
-    testAttachKeyEquivalentFollowsShortcutSet()
-    testMissingShortcutKeepsItemWithoutKey()
-    testInvalidKeyCodeLeavesEmptyEquivalent()
-    testDefaultPlanHasFourSectionsAndVoiceItems()
-    testSystemEditKeys()
+@Test @MainActor func menuPlanTests() async {
+    await pinLanguage {
+        testEditCommandsStayFixedWhenShortcutsRebind()
+        testAttachKeyEquivalentFollowsShortcutSet()
+        testMissingShortcutKeepsItemWithoutKey()
+        testInvalidKeyCodeLeavesEmptyEquivalent()
+        testDefaultPlanHasFourSectionsAndVoiceItems()
+        testSystemEditKeys()
+    }
 }
 
 @MainActor func testEditCommandsStayFixedWhenShortcutsRebind() {

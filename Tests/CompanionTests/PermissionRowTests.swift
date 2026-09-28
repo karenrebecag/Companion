@@ -5,11 +5,12 @@ import Testing
 
 // Wave 10a §3.6. La fila de permiso es un modelo puro: estado, si hay botón,
 // y a dónde lleva. El único prompt del sistema lo dispara la usuaria.
-@Test @MainActor func permissionRowTests() {
-    pinLanguage()
-    testRowShowsButtonOnlyWhenNotGranted()
-    testDocumentsToggleRequestsOnce()
-    testVoiceFailureOffersTheRightLink()
+@Test @MainActor func permissionRowTests() async {
+    await pinLanguage {
+        testRowShowsButtonOnlyWhenNotGranted()
+        testDocumentsToggleRequestsOnce()
+        testVoiceFailureOffersTheRightLink()
+    }
 }
 
 @MainActor func testRowShowsButtonOnlyWhenNotGranted() {
