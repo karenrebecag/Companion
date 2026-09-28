@@ -1,3 +1,4 @@
+import AppKit
 import CompanionCore
 import Foundation
 import Observation
@@ -35,27 +36,59 @@ public final class AppsModel {
     /// The app whose panel is open, or nil.
     public private(set) var selected: CatalogApp?
     public private(set) var actionsPhase: ActionsPhase = .idle
+    /// Wave 16k-2b: the app the connecting modal is open for, or nil.
+    public private(set) var connecting: CatalogApp?
+    public private(set) var connectPhase: ConnectPoll.Phase = .initiating
     private var next: String?
     private var accounts: [String: ConnectedAccount.State] = [:]
     private var service: (any AppsService)?
+    private var connectPoll: ConnectPoll?
+    private var connectURL: URL?
+    private var connectTask: Task<Void, Never>?
+    /// Code review + security review (HIGH, 16k-2b): `stillConnecting` used
+    /// to compare only the slug, so a same-app double-tap — attempt A still
+    /// parked in `connectLink`/`accounts()` while attempt B (same slug)
+    /// already runs — let A's late, cancelled resolution pass every guard.
+    /// Bumped by every `start(_:)`, `retryConnecting()` and
+    /// `finishConnecting()`; each attempt captures its own value and is
+    /// stale the moment it no longer matches.
+    private var connectEpoch = 0
 
     private let secrets: any SecretStore
     private let defaults: UserDefaults
     private let makeService: @Sendable (URL, String) -> any AppsService
+    /// Wave 16k-2b: the same injected-sleep seam `SessionModel` uses, so the
+    /// 3 s poll interval never makes a test wait real time.
+    private let sleep: @Sendable (TimeInterval) async throws -> Void
+    private let now: @Sendable () -> TimeInterval
+    /// Where "Abrimos el inicio de sesión…" actually happens. `NSWorkspace`
+    /// directly, the same as `SourcesCard`/`GalleryCard` — the model has no
+    /// SwiftUI environment to borrow `openURL` from.
+    private let openBrowser: @Sendable (URL) -> Void
 
     public init(
         secrets: any SecretStore,
         defaults: UserDefaults = .standard,
-        makeService: @escaping @Sendable (URL, String) -> any AppsService
+        makeService: @escaping @Sendable (URL, String) -> any AppsService,
+        sleep: @escaping @Sendable (TimeInterval) async throws -> Void = {
+            try await Task.sleep(for: .seconds($0))
+        },
+        now: @escaping @Sendable () -> TimeInterval = { Date().timeIntervalSince1970 },
+        openBrowser: @escaping @Sendable (URL) -> Void = { NSWorkspace.shared.open($0) }
     ) {
         self.secrets = secrets
         self.defaults = defaults
         self.makeService = makeService
+        self.sleep = sleep
+        self.now = now
+        self.openBrowser = openBrowser
     }
 
     public var hasMore: Bool { next != nil }
     public var remaining: Int { max(0, total - apps.count) }
     public var endpoint: String { defaults.string(forKey: Self.endpointDefault) ?? "" }
+    /// Audit §9.6: the "still waiting on the browser" hint, after several attempts.
+    public var connectShowsHint: Bool { connectPoll?.showsStillWaitingHint ?? false }
 
     public func state(of slug: String) -> ConnectedAccount.State? { accounts[slug] }
 
@@ -157,6 +190,126 @@ public final class AppsModel {
             guard selected?.slug == app.slug else { return }
             actionsPhase = .failed(error as? AppsFailure ?? .unexpected)
         }
+    }
+
+    // MARK: - Wave 16k-2b: the connecting modal
+
+    /// "+ Conectar" (card or panel): opens the modal and starts a fresh
+    /// attempt. Fire-and-forget on purpose — the view reads `connectPhase`
+    /// as it moves, the same idiom `open(_:)` uses for the panel.
+    public func start(_ app: CatalogApp) {
+        connectTask?.cancel()
+        connectEpoch += 1
+        let epoch = connectEpoch
+        connecting = app
+        connectURL = nil
+        connectPoll = ConnectPoll(startedAt: now())
+        connectPhase = connectPoll?.phase ?? .initiating
+        connectTask = Task { [weak self] in await self?.runAttempt(for: app, epoch: epoch) }
+    }
+
+    /// "Abrir de nuevo": the same link, not a new `connectLink` call — a
+    /// fresh request would be wasted (the current one is still good for 4 h).
+    public func openAgain() {
+        guard let connectURL else { return }
+        openBrowser(connectURL)
+    }
+
+    /// "Reintentar" (only offered once timed out or failed): the old link
+    /// may be spent, so this asks the function for a new one.
+    public func retryConnecting() {
+        guard let app = connecting else { return }
+        connectTask?.cancel()
+        connectEpoch += 1
+        let epoch = connectEpoch
+        connectURL = nil
+        apply(.retry)
+        connectTask = Task { [weak self] in await self?.runAttempt(for: app, epoch: epoch) }
+    }
+
+    /// "Vamos", or the sheet's close button: structured cancellation for the
+    /// loop, no leaked task. `accounts` was already updated the instant the
+    /// poll saw the account (below), so the panel/cards are already correct
+    /// by the time this runs — this just tears the modal down.
+    public func finishConnecting() {
+        connectTask?.cancel()
+        connectTask = nil
+        connectEpoch += 1
+        connecting = nil
+        connectPoll = nil
+        connectPhase = .initiating
+        connectURL = nil
+    }
+
+    private func runAttempt(for app: CatalogApp, epoch: Int) async {
+        // The task starts on the next MainActor turn, not this one: a close,
+        // a switch to another app, or a same-app double-tap — all called
+        // synchronously right after start(_:)/retryConnecting() — must not
+        // land a failure on an attempt that is not this one any more.
+        guard stillConnecting(app, epoch: epoch) else { return }
+        guard let service = currentService() else {
+            apply(.failure(message: AppsCopy.failure(.unreachable)))
+            return
+        }
+        let url: URL
+        do {
+            url = try await service.connectLink(app: app.slug)
+        } catch {
+            guard stillConnecting(app, epoch: epoch) else { return }
+            apply(.failure(message: AppsCopy.failure(error as? AppsFailure ?? .unexpected)))
+            return
+        }
+        guard stillConnecting(app, epoch: epoch) else { return }
+        connectURL = url
+        apply(.linkObtained)
+        openBrowser(url)
+        guard stillConnecting(app, epoch: epoch) else { return }
+        apply(.browserOpened)
+        await pollLoop(for: app, service: service, epoch: epoch)
+    }
+
+    private func pollLoop(for app: CatalogApp, service: any AppsService, epoch: Int) async {
+        while !Task.isCancelled, stillConnecting(app, epoch: epoch), connectPoll?.isWaiting == true {
+            do {
+                try await sleep(ConnectPoll.interval)
+            } catch {
+                return // cancelled mid-sleep: closed or replaced by a retry.
+            }
+            guard stillConnecting(app, epoch: epoch) else { return }
+            let found: Bool
+            do {
+                found = try await service.accounts()
+                    .contains { $0.app == app.slug && $0.state == .connected }
+            } catch {
+                // A transient hiccup fetching accounts is one more miss, not
+                // an abort: Pipedream itself is still fine, only this one
+                // check failed, and the next tick tries again on its own.
+                guard stillConnecting(app, epoch: epoch) else { return }
+                apply(.accountMissing)
+                continue
+            }
+            // The guard runs again after the network round trip: a close, a
+            // switch, or a same-app retry that landed while this was in
+            // flight must discard the answer, not resurrect the modal.
+            guard stillConnecting(app, epoch: epoch) else { return }
+            if found { accounts[app.slug] = .connected }
+            apply(found ? .accountSeen : .accountMissing)
+        }
+    }
+
+    /// Whether `app`/`epoch` is still the attempt the modal is open for.
+    /// The slug alone is not enough — a same-app double-tap (Conectar twice,
+    /// or Reintentar twice) shares the same slug across two generations, so
+    /// every guard needs the epoch too, not just the app.
+    private func stillConnecting(_ app: CatalogApp, epoch: Int) -> Bool {
+        connectEpoch == epoch && connecting?.slug == app.slug
+    }
+
+    private func apply(_ event: ConnectPoll.Event) {
+        guard var poll = connectPoll else { return }
+        poll.handle(event, at: now())
+        connectPoll = poll
+        connectPhase = poll.phase
     }
 
     private func catalogAttempt(_ service: any AppsService, query: String, after: String?) async -> Result<CatalogPage, AppsFailure> {

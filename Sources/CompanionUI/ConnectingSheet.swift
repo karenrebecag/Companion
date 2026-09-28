@@ -1,0 +1,180 @@
+import CompanionCore
+import SwiftUI
+
+/// Wave 16k-2b (spec §9.2.2, D1 layout, D2/§9.6 audited phases): the
+/// "Connecting Slack" modal. Renders `AppsModel`'s own `connectPhase` — no
+/// timer lives here; the 3 s poll runs in the model, this view only paints.
+public enum ConnectingSheetMetrics {
+    public static let maxWidth: CGFloat = 420
+    public static let icon: CGFloat = 44
+    public static let trackWidth: CGFloat = 96
+    public static let dot: CGFloat = 8
+}
+
+struct ConnectingSheet: View {
+    let app: CatalogApp
+    let phase: ConnectPoll.Phase
+    let showsHint: Bool
+    let onOpenAgain: () -> Void
+    let onRetry: () -> Void
+    let onFinish: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.x4) {
+            header
+            track
+            Text(ConnectingCopy.body(phase, app: app.name))
+                .font(.uiBody)
+                .foregroundStyle(bodyForeground)
+                .fixedSize(horizontal: false, vertical: true)
+            if showsHint {
+                Text(Localized.string("apps.connecting.hint"))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            buttons
+            Text(Localized.string("apps.panel.privacy"))
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(Space.x6)
+        .frame(maxWidth: ConnectingSheetMetrics.maxWidth, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Radius.card).fill(Semantic.background))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card).stroke(Semantic.border, lineWidth: Stroke.hairline))
+    }
+
+    private var header: some View {
+        HStack(spacing: Space.x3) {
+            Text(ConnectingCopy.title(phase, app: app.name))
+                .font(.uiSubtitle)
+                .foregroundStyle(Semantic.foreground)
+                .lineLimit(1)
+            Spacer()
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.foreground)
+                    .frame(width: MainWindowMetrics.avatar, height: MainWindowMetrics.avatar)
+                    .background(Circle().fill(Semantic.muted))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel(Localized.string("task.close"))
+        }
+    }
+
+    private var track: some View {
+        HStack(spacing: Space.x4) {
+            CompanionMarkIcon()
+            ConnectTrack(complete: phase == .complete)
+            AppIconView(icon: app.icon, size: ConnectingSheetMetrics.icon, padding: Space.x2)
+        }
+    }
+
+    private var bodyForeground: Color {
+        if case .failed = phase { return Semantic.destructive }
+        return Semantic.mutedForeground
+    }
+
+    @ViewBuilder
+    private var buttons: some View {
+        switch phase {
+        case .initiating, .waiting:
+            AppButton(Localized.string("apps.connecting.openAgain"), kind: .secondary, action: onOpenAgain)
+        case .timedOut:
+            HStack(spacing: Space.x2) {
+                AppButton(Localized.string("apps.connecting.retry"), action: onRetry)
+                AppButton(Localized.string("apps.connecting.openAgain"), kind: .secondary, action: onOpenAgain)
+            }
+        case .complete:
+            AppButton(Localized.string("apps.connecting.letsGo"), action: onFinish)
+        case .failed:
+            EmptyView()
+        }
+    }
+}
+
+/// The Companion side of the track. A plain glyph in a rounded tile — the
+/// mascot (`Mascot.swift`) pulls in Rive for a full animation this modal
+/// does not need.
+private struct CompanionMarkIcon: View {
+    var body: some View {
+        Image(systemName: "bolt.fill")
+            .font(.uiBody)
+            .foregroundStyle(Semantic.primaryForeground)
+            .frame(width: ConnectingSheetMetrics.icon, height: ConnectingSheetMetrics.icon)
+            .background(RoundedRectangle(cornerRadius: AppsMetrics.iconRadius).fill(Semantic.primary))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Two icons joined by a line with a traveling dot (spec §9.2 D1); reduced
+/// motion keeps the dot still instead of animating it. On complete, a check
+/// replaces the dot on the same track.
+private struct ConnectTrack: View {
+    let complete: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var traveling = false
+
+    private var span: CGFloat { ConnectingSheetMetrics.trackWidth / 2 - ConnectingSheetMetrics.dot / 2 }
+
+    var body: some View {
+        ZStack {
+            Capsule()
+                .fill(Semantic.borderChrome)
+                .frame(width: ConnectingSheetMetrics.trackWidth, height: Stroke.hairline)
+            if complete {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.uiBody)
+                    .foregroundStyle(IslandInk.green)
+            } else {
+                Circle()
+                    .fill(Semantic.primary)
+                    .frame(width: ConnectingSheetMetrics.dot, height: ConnectingSheetMetrics.dot)
+                    .offset(x: reduceMotion ? 0 : (traveling ? span : -span))
+                    .onAppear(perform: startTraveling)
+            }
+        }
+        .frame(width: ConnectingSheetMetrics.trackWidth)
+        .accessibilityHidden(true)
+    }
+
+    private func startTraveling() {
+        guard !reduceMotion else { return }
+        withAnimation(.linear(duration: MotionTime.layout * 2).repeatForever(autoreverses: true)) {
+            traveling = true
+        }
+    }
+}
+
+enum ConnectingCopy {
+    static func title(_ phase: ConnectPoll.Phase, app: String) -> String {
+        switch phase {
+        case .initiating, .waiting:
+            String(format: Localized.string("apps.connecting.title.progress"), app)
+        case .complete:
+            String(format: Localized.string("apps.connecting.title.complete"), app)
+        case .timedOut:
+            String(format: Localized.string("apps.connecting.title.timedOut"), app)
+        case .failed:
+            String(format: Localized.string("apps.connecting.title.failed"), app)
+        }
+    }
+
+    static func body(_ phase: ConnectPoll.Phase, app: String) -> String {
+        switch phase {
+        case .initiating, .waiting:
+            String(format: Localized.string("apps.connecting.body"), app)
+        case .complete:
+            String(format: Localized.string("apps.connecting.complete"), app)
+        case .timedOut:
+            String(format: Localized.string("apps.connecting.timedOut"), app)
+        case .failed(let message):
+            message
+        }
+    }
+}

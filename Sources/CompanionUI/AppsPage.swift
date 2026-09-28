@@ -33,7 +33,6 @@ struct AppsPage: View {
     var apps: AppsModel
     @State private var searchText: String
     @State private var editing = false
-    @Environment(\.openURL) private var openURL
 
     /// The model outlives the page; seeding from it keeps a revisit from
     /// throwing away the last search (code review 16k-1).
@@ -67,7 +66,9 @@ struct AppsPage: View {
             await apps.search(searchText)
         }
         .overlay { panelSheet }
+        .overlay { connectingSheet }
         .animation(.springSheet, value: apps.selected?.id)
+        .animation(.springSheet, value: apps.connecting?.id)
     }
 
     // Mirrors TaskDetailSheet's presentation idiom (spec 16j §8): a scrim
@@ -84,13 +85,36 @@ struct AppsPage: View {
                 GeometryReader { geo in
                     AppPanel(
                         app: selected, state: apps.state(of: selected.slug), phase: apps.actionsPhase,
-                        onConnect: { connect(selected.slug) }, onClose: { apps.closePanel() })
+                        onConnect: { apps.start(selected) }, onClose: { apps.closePanel() })
                     .frame(width: min(AppPanelMetrics.maxWidth, geo.size.width - Space.x6),
                            height: min(AppPanelMetrics.maxHeight, geo.size.height - Space.x6))
                     .position(x: geo.size.width / 2, y: geo.size.height / 2)
                 }
             }
             .task(id: selected.id) { await apps.actions(of: selected) }
+            .transition(.opacity)
+        }
+    }
+
+    // Stacks over the app panel, same scrim idiom: the modal (16k-2b) is
+    // never a navigation, just a sheet on top of whatever else is open.
+    @ViewBuilder
+    private var connectingSheet: some View {
+        if let connecting = apps.connecting {
+            ZStack {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Semantic.scrim)
+                    .ignoresSafeArea()
+                GeometryReader { geo in
+                    ConnectingSheet(
+                        app: connecting, phase: apps.connectPhase, showsHint: apps.connectShowsHint,
+                        onOpenAgain: { apps.openAgain() }, onRetry: { apps.retryConnecting() },
+                        onFinish: { apps.finishConnecting() }, onClose: { apps.finishConnecting() })
+                    .frame(width: min(ConnectingSheetMetrics.maxWidth, geo.size.width - Space.x6))
+                    .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                }
+            }
             .transition(.opacity)
         }
     }
@@ -176,7 +200,7 @@ struct AppsPage: View {
                       spacing: AppsMetrics.gridGap) {
                 ForEach(apps.apps) { app in
                     AppCard(app: app, state: apps.state(of: app.slug),
-                            onOpen: { apps.open(app) }, onConnect: { connect(app.slug) })
+                            onOpen: { apps.open(app) }, onConnect: { apps.start(app) })
                 }
             }
             if apps.hasMore {
@@ -190,12 +214,6 @@ struct AppsPage: View {
 
     private var listTitle: String {
         Localized.string(apps.query.isEmpty ? "apps.featured" : "apps.results")
-    }
-
-    private func connect(_ slug: String) {
-        Task {
-            if let url = await apps.connect(slug) { openURL(url) }
-        }
     }
 }
 
