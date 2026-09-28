@@ -8,6 +8,7 @@ import Testing
 // and a page that cannot reach the network.
 
 @Test @MainActor func pdfRendererTests() async {
+    testChunkedTablesKeepTheirColumns()
     await testASpecBecomesAPaginatedPDF()
     testTheOfflineRuleBlocksEveryScheme()
     testThePageRunsNoScriptAndKeepsNothing()
@@ -70,4 +71,12 @@ import Testing
     } catch {
         expect(false, "tabla: renderizar no debe fallar (\(error))")
     }
+}
+
+/// Code review 20b (MEDIUM): each chunk is its own table; with automatic
+/// layout its columns would jump from page to page.
+func testChunkedTablesKeepTheirColumns() {
+    let html = DocumentHTML.render(DocumentSpec(title: "t", blocks: [.table(TableBlock(
+        title: nil, columns: ["a", "b"], rows: Array(repeating: ["1", "2"], count: 45), truncated: false))]))
+    expect(html.contains("table-layout: fixed"), "pdf: las columnas no dependen del contenido de cada trozo")
 }

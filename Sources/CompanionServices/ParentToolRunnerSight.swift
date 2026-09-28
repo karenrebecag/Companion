@@ -67,7 +67,7 @@ extension ParentToolRunner {
         }
         let lines = [brief.summary].compactMap { $0 } + brief.snippets.map { "- " + $0.text }
         Log.app("sight: see snippets=\(brief.snippets.count) pid=\(pid)")
-        return ParentToolOutcome(ok: true, output: ScreenSeePrompt.bound(lines.joined(separator: "\n")),
+        return ParentToolOutcome(ok: true, output: ScreenSeePrompt.envelope(lines.joined(separator: "\n")),
                                  tool: ParentTool.see.rawValue)
     }
 

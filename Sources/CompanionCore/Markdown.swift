@@ -101,6 +101,17 @@ public struct MarkdownSplitter: Sendable {
         }.joined(separator: "\n\n")
     }
 
+    /// The island reads a reply on every streamed token: it only ever parses
+    /// this much of it (security review 16f), enough for the opening prose
+    /// and the fence of a first card.
+    public static let islandWindow = 4_096
+
+    /// `proseWithoutCards` over the island's window. A cut inside a fence
+    /// reads as an unclosed fence, so it never shows half a card either.
+    public static func islandProse(_ reply: String) -> String {
+        proseWithoutCards(String(reply.prefix(islandWindow)))
+    }
+
     /// What a card-only reply can still say on the island.
     public static func firstCardTitle(_ text: String) -> String? {
         for part in split(text) {

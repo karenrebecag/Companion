@@ -10,6 +10,7 @@ import Testing
     testProseWithoutCardsDropsOnlyCards()
     testTheIslandNeverShowsAFence()
     testACardOnlyReplyUsesTheCardTitle()
+    testTheIslandCutsBeforeItParses()
 }
 
 private let stats = "texto:\n```companion:stats\n{\"title\":\"Ventas\",\"a\":1}\n```"
@@ -38,4 +39,19 @@ private let stats = "texto:\n```companion:stats\n{\"title\":\"Ventas\",\"a\":1}\
     expect(IslandResult(reply: "```companion:stats\n{\"a\":1}\n```") == nil,
            "tarjeta: sin titulo, nada; nunca una llave")
     expectEq(IslandReplyText.spoken(from: only), "", "isla: solo tarjetas, sin texto")
+}
+
+/// Code review 20b (HIGH): the island runs on every streamed token, so it
+/// cuts the reply before parsing it (security review 16f), cards included.
+@MainActor func testTheIslandCutsBeforeItParses() {
+    let window = MarkdownSplitter.islandWindow
+    let head = "Resumen listo."
+    let tail = String(repeating: "x", count: window) + " COLA"
+    let lead = MarkdownSplitter.islandProse(head + "\n\n" + tail)
+    expect(lead.count <= window, "isla: nunca procesa más que su ventana")
+    expect(!lead.contains("COLA"), "isla: lo que pasa la ventana no se procesa")
+    let late = head + "\n" + String(repeating: "y", count: window) + "\n```companion:stats\n{\"title\":\"T\"}\n```"
+    expect(!IslandReplyText.spoken(from: late).contains("companion"), "isla: una tarjeta tras el corte no se filtra")
+    expectEq(MarkdownSplitter.islandProse("```companion:stats\n{\"title\":\"Cifras\"}\n```"), "",
+             "isla: una respuesta solo de tarjetas no deja prosa")
 }
