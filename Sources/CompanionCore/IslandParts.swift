@@ -18,7 +18,10 @@ public struct IslandResult: Sendable, Equatable {
     public let line: String?
 
     public init?(reply: String) {
-        let lines = reply.split(whereSeparator: \.isNewline)
+        let prose = MarkdownSplitter.proseWithoutCards(reply)
+        // A card-only reply still has a title to show, never its JSON.
+        let source = prose.isEmpty ? (MarkdownSplitter.firstCardTitle(reply) ?? "") : prose
+        let lines = source.split(whereSeparator: \.isNewline)
             .map { Self.plain(String($0)) }
             .filter { !$0.isEmpty }
         guard let first = lines.first else { return nil }
