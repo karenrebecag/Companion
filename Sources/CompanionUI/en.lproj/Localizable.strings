@@ -170,12 +170,10 @@
 "settings.purge.blurb" = "The copies of everything you attached are deleted, %@. Conversations that cited them are left without them, and the text is kept.";
 
 /* Views */
-"approval.title" = "Let the specialist do this?";
 "approval.autodeny" = "If you do not answer, it is denied on its own.";
 "approval.deny" = "Do not allow";
 "approval.allow" = "Allow";
 "approval.remember" = "Remember for this session";
-"approval.title.parent" = "Let Companion open this?";
 "attach.list" = "Attachments";
 "attach.remove" = "Remove %@";
 "attach.open" = "%@. Open";

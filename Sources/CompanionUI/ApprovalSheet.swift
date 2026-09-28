@@ -15,34 +15,49 @@ public struct ApprovalSheet: View {
         self.answer = answer
     }
 
-    private var plan: Plan { Self.plan(for: request, language: Localized.language()) }
+    private var display: ApprovalDisplay {
+        ApprovalCopy.display(for: request, language: Localized.language())
+    }
 
     public var body: some View {
-        let plan = self.plan
+        let display = self.display
         VStack(alignment: .leading, spacing: Space.x4) {
-            Text(plan.title)
-                .font(GeistFont.uiTitle)
-                .foregroundStyle(Semantic.foreground)
-
-            VStack(alignment: .leading, spacing: Space.x1) {
-                Text(request.toolName)
-                    .font(GeistFont.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
-                Text(plan.detail)
-                    .font(GeistFont.uiBody)
+            HStack(alignment: .center, spacing: Space.x3) {
+                Image(systemName: display.symbol)
+                    .font(GeistFont.uiLabel)
                     .foregroundStyle(Semantic.foreground)
-                    .textSelection(.enabled)
+                    .frame(width: Space.x10, height: Space.x10)
+                    .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Semantic.surface))
+                    // 19-1: the raw tool id left the body but stays one
+                    // hover away — human-first is hierarchy, not hiding.
+                    .help(request.toolName)
+                    .accessibilityHidden(true)
+                title(display)
+                    .font(GeistFont.uiTitle)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(display.title)
             }
-            .padding(Space.x3)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Semantic.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            if let preview = display.preview {
+                // The scroll bounds what the ellipsis used to hide: the
+                // datum is complete (the tail is part of what runs — 15g
+                // M1) and the answer buttons can never be pushed off
+                // screen by a long one (security review 19-1). A short
+                // preview keeps its natural height; only overflow scrolls.
+                ViewThatFits(in: .vertical) {
+                    previewText(preview)
+                    ScrollView(.vertical) { previewText(preview) }
+                }
+                .frame(maxHeight: Container.hero)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Semantic.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Radius.badge))
+            }
 
             // §9-5: `bridge_session` has no `ApprovalKey` (security review
             // 2026-09-28) — a "remember" toggle here would promise a memory
             // that never happens, one sheet per connection, always.
-            if plan.showsRemember {
+            if display.showsRemember {
                 Toggle(isOn: $remember) {
                     Text(Localized.string("approval.remember"))
                         .font(GeistFont.uiCaption)
@@ -64,8 +79,32 @@ public struct ApprovalSheet: View {
             }
         }
         .padding(Space.x6)
-        .frame(width: 420)
+        .frame(width: Container.approval)
         .background(Semantic.background)
+    }
+
+    private func previewText(_ preview: String) -> some View {
+        Text(preview)
+            .font(GeistFont.uiBody)
+            .foregroundStyle(Semantic.foreground)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(Space.x3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The subject carries the visual weight; the words around it recede.
+    private func title(_ display: ApprovalDisplay) -> Text {
+        var parts = Text("")
+        if let lead = display.lead {
+            parts = parts + Text(lead + " ").foregroundStyle(Semantic.mutedForeground)
+        }
+        parts = parts + Text(display.subject)
+            .fontWeight(.semibold).foregroundStyle(Semantic.foreground)
+        if let trail = display.trail {
+            parts = parts + Text(" " + trail).foregroundStyle(Semantic.mutedForeground)
+        }
+        return parts
     }
 }
 
@@ -73,29 +112,4 @@ extension ApprovalSheet {
     /// Allowing is a click, never a stray Return: a key typed for something
     /// else must not approve (security review 16). Deny keeps Escape.
     static let allowShortcut: KeyboardShortcut? = nil
-
-    /// What the sheet says and offers, decided once so a test can check it
-    /// without rendering SwiftUI. Wave 17: `bridge_session` (no `ParentTool`
-    /// behind it, no `ApprovalKey`) reads its own title/detail from
-    /// `BridgeCopy` and never offers "remember".
-    struct Plan: Equatable {
-        let title: String
-        let detail: String
-        let showsRemember: Bool
-    }
-
-    static func plan(for request: ApprovalRequest, language: AppLanguage) -> Plan {
-        guard request.toolName == BridgePolicy.sessionApprovalTool else {
-            return Plan(
-                title: Localized.string(
-                    ParentTool(rawValue: request.toolName) != nil
-                        ? "approval.title.parent" : "approval.title"),
-                detail: ChatCopy.approvalDetail(tool: request.toolName, inputJSON: request.inputJSON),
-                showsRemember: true)
-        }
-        return Plan(
-            title: request.summary,
-            detail: BridgeCopy.sheetDetail(language),
-            showsRemember: false)
-    }
 }

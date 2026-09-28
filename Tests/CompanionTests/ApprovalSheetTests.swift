@@ -3,40 +3,29 @@ import CompanionCore
 import Foundation
 import Testing
 
-// Wave 17 §6: the sheet for `bridge_session` shows `summary` (already
-// `BridgeCopy.sheetTitle`) as its title, `BridgeCopy.sheetDetail` as its
-// detail, and hides "remember" — that tool has no `ApprovalKey` to key a
-// memory on (security review 2026-09-28, ApprovalMemoryTests).
+// Wave 19-1: la hoja consume `ApprovalCopy` (Core). Aqui se fija lo que la
+// hoja PROMETE mas alla del copy puro (ApprovalCopyTests): el puente nombra
+// a quien pide y esconde recordar; permitir jamas tiene atajo de teclado.
 
-@Test @MainActor func approvalSheetTests() async {
-    await pinLanguage {
-        testBridgeSessionUsesItsOwnTitleAndDetail()
-        testBridgeSessionHidesRemember()
-        testAnOrdinaryToolKeepsItsCatalogTitleAndOffersRemember()
-    }
-}
+@Test @MainActor func approvalSheetTests() {
+    let bridge = ApprovalCopy.display(
+        for: ApprovalRequest(
+            requestId: "1", toolName: BridgePolicy.sessionApprovalTool,
+            summary: BridgeCopy.sheetTitle(.en), inputJSON: #"{"client":"claude-code"}"#),
+        language: .en)
+    expectEq(bridge.title, "«claude-code» " + BridgeCopy.sheetTitle(.en),
+             "hoja del puente: el titulo nombra al cliente, entre comillas de dicho")
+    expectEq(bridge.preview, BridgeCopy.sheetDetail(.en) + "\n" + BridgeCopy.sheetClaim(.en),
+             "hoja del puente: el costo y la advertencia en el detalle")
+    expect(!bridge.showsRemember, "hoja del puente: sin recordar, no hay ApprovalKey")
 
-@MainActor func testBridgeSessionUsesItsOwnTitleAndDetail() {
-    let request = ApprovalRequest(
-        requestId: "1", toolName: "bridge_session",
-        summary: BridgeCopy.sheetTitle(.en), inputJSON: #"{"client":"claude-code"}"#)
-    let plan = ApprovalSheet.plan(for: request, language: .en)
-    expectEq(plan.title, BridgeCopy.sheetTitle(.en), "hoja del puente: el título es el summary")
-    expectEq(plan.detail, BridgeCopy.sheetDetail(.en), "hoja del puente: el detalle es BridgeCopy")
-}
+    let ordinary = ApprovalCopy.display(
+        for: ApprovalRequest(
+            requestId: "2", toolName: "open_url", summary: "abrir url",
+            inputJSON: #"{"url":"https://x.dev/a"}"#),
+        language: .es)
+    expect(ordinary.showsRemember, "otra tool: sigue ofreciendo recordar")
 
-@MainActor func testBridgeSessionHidesRemember() {
-    let request = ApprovalRequest(
-        requestId: "1", toolName: "bridge_session",
-        summary: BridgeCopy.sheetTitle(.es), inputJSON: "{}")
-    let plan = ApprovalSheet.plan(for: request, language: .es)
-    expect(!plan.showsRemember, "hoja del puente: sin recordar, no hay ApprovalKey")
-}
-
-@MainActor func testAnOrdinaryToolKeepsItsCatalogTitleAndOffersRemember() {
-    let request = ApprovalRequest(
-        requestId: "2", toolName: "open_url", summary: "abrir url", inputJSON: #"{"url":"https://x"}"#)
-    let plan = ApprovalSheet.plan(for: request, language: .en)
-    expectEq(plan.title, Localized.string("approval.title.parent"), "otra tool: título del catálogo")
-    expect(plan.showsRemember, "otra tool: sigue ofreciendo recordar")
+    // Un Return perdido no aprueba (security review 16): permitir es click.
+    expect(ApprovalSheet.allowShortcut == nil, "hoja: permitir sin atajo de teclado")
 }

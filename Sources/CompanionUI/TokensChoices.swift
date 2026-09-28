@@ -251,6 +251,9 @@ public enum Container {
     public static let content: CGFloat = 960
     /// Hero figure height inside a sheet.
     public static let hero: CGFloat = 200
+    /// The approval sheet: wide enough for a phrase plus its preview,
+    /// narrow enough to read as an interruption, not a window (19-1).
+    public static let approval: CGFloat = 420
 }
 
 // Border radius, Incredible's named corners (16k).
