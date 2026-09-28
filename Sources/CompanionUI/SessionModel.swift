@@ -22,6 +22,7 @@ public final class SessionModel {
     private var pendingExpiry: Task<Void, Never>?
     private var voiceIdle: Task<Void, Never>?
     private var noticeExpiry: Task<Void, Never>?
+    private var handsGlowExpiry: Task<Void, Never>?
     /// Wave 17: "the voice wins" — `BridgeHost` pauses the bridge for any
     /// turn of Karen's own and resumes it back at rest. `send(_:)` is the
     /// only place `projection.kind` changes, so it is the only place that
@@ -96,6 +97,10 @@ public final class SessionModel {
             // A second "didn't hear you" gets its own six seconds.
             noticeExpiry?.cancel()
             noticeExpiry = timer(delay, then: .noticeExpired)
+        case .scheduleHandsGlowExpiry(let delay):
+            // Each call restarts the four seconds: the aura ends after the last one.
+            handsGlowExpiry?.cancel()
+            handsGlowExpiry = timer(delay, then: .handsGlowExpired)
         case .schedulePendingExpiry(let delay):
             pendingExpiry?.cancel()
             pendingExpiry = timer(delay, then: .pendingTimedOut)

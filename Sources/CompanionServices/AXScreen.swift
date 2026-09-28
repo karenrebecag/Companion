@@ -40,6 +40,19 @@ public final class AXScreen: ScreenActing, @unchecked Sendable {
         self.trust = trust
     }
 
+    /// Where the app's front window is, in AX's global top-left space: what
+    /// the hands aura uses to pick a display. Nil without trust or a window.
+    public func windowFrame(pid: Int32) -> CGRect? {
+        guard trust() else { return nil }
+        let application = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
+        guard let window = AXRead.element(kAXFocusedWindowAttribute, of: application)
+            ?? AXRead.element(kAXMainWindowAttribute, of: application)
+            ?? AXRead.elements(kAXWindowsAttribute, of: application)?.first
+        else { return nil }
+        return AXRead.frame(of: window)
+    }
+
     // MARK: - Walk
 
     public func walk(pid: Int32) -> ScreenWalk? {

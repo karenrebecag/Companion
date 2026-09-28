@@ -75,3 +75,83 @@ import Testing
     let error = ScreenGlowShader.compileError()
     expect(error == nil, "16o brillo: el shader compila (\(error ?? ""))")
 }
+
+// Wave 20b D1: the hands glow marks "an agent is acting now" on the display
+// of the app it acts on, not "a session is open" on every display.
+
+/// Two displays side by side, primary (1440x900) on the left and a taller
+/// one on its right, in AppKit space (bottom-left origin, y up).
+private let leftScreen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+private let rightScreen = CGRect(x: 1440, y: -180, width: 1920, height: 1080)
+private let bothScreens = [leftScreen, rightScreen]
+
+@Test @MainActor func screenGlowAXFrameConversionTests() {
+    // AX: top-left origin, y down, measured from the primary's top edge.
+    let converted = ScreenGlow.appKitFrame(
+        fromAX: CGRect(x: 100, y: 50, width: 400, height: 300), primaryHeight: 900)
+    expectEq(converted, CGRect(x: 100, y: 550, width: 400, height: 300), "aura pantalla: AX arriba-izq a AppKit abajo-izq")
+    let below = ScreenGlow.appKitFrame(
+        fromAX: CGRect(x: 1500, y: 950, width: 200, height: 100), primaryHeight: 900)
+    expectEq(below.origin.y, -150, "aura pantalla: un monitor bajo el primario queda en y negativa")
+}
+
+@Test @MainActor func screenGlowHandsScreenSelectionTests() {
+    let onLeft = CGRect(x: 200, y: 300, width: 500, height: 400)
+    let onRight = CGRect(x: 1800, y: 100, width: 600, height: 500)
+    func lit(_ screen: CGRect, _ target: CGRect?, cursor: CGPoint = .zero) -> Bool {
+        ScreenGlow.handsOnScreen(screenFrame: screen, screens: bothScreens, target: target, cursor: cursor)
+    }
+    expect(lit(leftScreen, onLeft), "aura pantalla: la ventana en el primario enciende el primario")
+    expect(!lit(rightScreen, onLeft), "aura pantalla: y no el otro")
+    expect(lit(rightScreen, onRight), "aura pantalla: la ventana en el segundo enciende el segundo")
+    expect(!lit(leftScreen, onRight), "aura pantalla: y no el primario")
+    // A window straddling the seam belongs to the display holding most of it.
+    let straddling = CGRect(x: 1240, y: 300, width: 600, height: 400)
+    expect(lit(rightScreen, straddling), "aura pantalla: a horcajadas, gana el de mayor area (derecha)")
+    expect(!lit(leftScreen, straddling), "aura pantalla: nunca dos monitores a la vez")
+    // Ties resolve to exactly one display too.
+    let even = CGRect(x: 1240, y: 300, width: 400, height: 400)
+    expectEq([lit(leftScreen, even), lit(rightScreen, even)].filter { $0 }.count, 1, "aura pantalla: empate, uno solo")
+}
+
+@Test @MainActor func screenGlowHandsCursorFallbackTests() {
+    let cursorRight = CGPoint(x: 2000, y: 200)
+    for target in [CGRect?.none, CGRect(x: 9000, y: 9000, width: 10, height: 10)] {
+        expect(ScreenGlow.handsOnScreen(screenFrame: rightScreen, screens: bothScreens, target: target, cursor: cursorRight),
+               "aura pantalla: sin ventana util, el monitor del cursor")
+        expect(!ScreenGlow.handsOnScreen(screenFrame: leftScreen, screens: bothScreens, target: target, cursor: cursorRight),
+               "aura pantalla: el otro apagado")
+    }
+    expect(!ScreenGlow.handsOnScreen(screenFrame: leftScreen, screens: bothScreens, target: nil, cursor: CGPoint(x: -5000, y: 0)),
+           "aura pantalla: cursor fuera de todo, ninguno")
+    expect(ScreenGlow.handsOnScreen(screenFrame: leftScreen, screens: [leftScreen], target: nil, cursor: CGPoint(x: 10, y: 10)),
+           "aura pantalla: un solo monitor con cursor, enciende")
+}
+
+@Test @MainActor func screenGlowHandsLingerReducerTests() {
+    var m = SessionMachine()
+    let frame = CGRect(x: 10, y: 20, width: 300, height: 200)
+    expect(!m.projection.handsActing, "aura linger: en reposo, apagada")
+    var fx = m.handle(.handsLent(client: "Claude Code"))
+    expect(!m.projection.handsActing, "aura linger: abrir la sesion no la enciende")
+    expect(fx.isEmpty, "aura linger: abrir la sesion no agenda nada")
+    fx = m.handle(.handsWorking(target: frame))
+    expect(m.projection.handsActing, "aura linger: una llamada la enciende")
+    expectEq(m.projection.handsTarget, frame, "aura linger: guarda el marco objetivo")
+    expect(fx.contains(.scheduleHandsGlowExpiry(SessionMachine.handsGlowLinger)), "aura linger: agenda el apagado")
+    expectEq(SessionMachine.handsGlowLinger, 4, "aura linger: 4 s tras la ultima llamada")
+    let next = CGRect(x: 1, y: 2, width: 3, height: 4)
+    fx = m.handle(.handsWorking(target: next))
+    expectEq(m.projection.handsTarget, next, "aura linger: cada llamada recalcula el marco")
+    expect(fx.contains(.scheduleHandsGlowExpiry(SessionMachine.handsGlowLinger)), "aura linger: cada llamada reinicia el plazo")
+    _ = m.handle(.handsGlowExpired)
+    expect(!m.projection.handsActing, "aura linger: el plazo la apaga")
+    expectEq(m.projection.handsTarget, nil, "aura linger: y suelta el marco")
+    expectEq(m.projection.handsLentTo, "Claude Code", "aura linger: el chip sigue con la sesion abierta")
+    _ = m.handle(.handsWorking(target: nil))
+    expectEq(m.projection.handsTarget, nil, "aura linger: sin ventana, sin marco (cae al cursor)")
+    _ = m.handle(.handsLent(client: nil))
+    expect(!m.projection.handsActing, "aura linger: cerrar la sesion apaga el aura al instante")
+    let timerless = m.handle(.handsGlowExpired)
+    expect(timerless.isEmpty && !m.projection.handsActing, "aura linger: un plazo tardio es inocuo")
+}
