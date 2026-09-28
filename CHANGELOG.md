@@ -12,6 +12,13 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   viñetas en vez de asteriscos; solo los enlaces web se abren.
 
 ### Added
+- **Documentos, hojas y gráficas (Wave 20, 2026-09-28).** "Hazme un PDF del
+  informe" termina en un PDF de verdad, con tablas y gráficas, sin instalar
+  nada; lo mismo en `.xlsx`. Companion lee y escribe en el Excel o el Numbers
+  que tienes abierto, con tu aprobación, una copia del libro antes y la
+  relectura de lo escrito después; rechaza fórmulas que llaman a la red o
+  ejecutan algo, también disfrazadas con `+`, `-` o `@`. Las cifras, tablas
+  y series llegan al chat como tarjetas con gráfica.
 - **Conectores como Incredible (Wave 16k-2, 2026-09-28).** Tocar una app abre
   su panel: descripción y Conectar sin cuenta; con cuenta, las acciones en
   Leer / Crear y cambiar / Borrar según lo que el servidor declara, con
