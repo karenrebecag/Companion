@@ -170,6 +170,9 @@ public actor BridgeSession {
 
     private func handleCall(id: Int, call: BridgeCall) async -> (String, Bool) {
         guard tools.handles(call.name) else {
+            if let reason = tools.unavailability(for: call.name) {
+                return (errorLine(id, reason, unavailableMessage(reason, tool: call.name)), false)
+            }
             return (errorLine(id, BridgeCode.unknownTool, "unknown tool: \(call.name)"), false)
         }
         let verdict = policy.admit(tool: call.name, now: now())
@@ -290,6 +293,16 @@ public actor BridgeSession {
 
     private func errorLine(_ id: Int, _ code: String, _ message: String) -> String {
         BridgeCodec.encode(.error(id: id, BridgeErrorBody(code: code, message: message)))
+    }
+
+    private func unavailableMessage(_ code: String, tool: String) -> String {
+        switch code {
+        case BridgeCode.selfInFront:
+            return "Companion is in front; bring the app to act on to the front"
+        case BridgeCode.needsAccessibility:
+            return "Accessibility is not granted to Companion"
+        default: return "\(tool) is not available right now"
+        }
     }
 
     private func rejectionMessage(_ code: String) -> String {

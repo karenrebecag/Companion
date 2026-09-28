@@ -18,6 +18,7 @@ import Testing
     await testCallAfterStopIsSessionClosed()
     await testPauseIsBusyResumeProceedsAndRepins()
     await testUnknownToolIsUnknownTool()
+    await testAKnownToolNotReadyNamesTheReason()
     await testThirtyFirstWriteIsRateLimited()
     await testByeClosesAndNextHelloProceeds()
     await testLogNeverLeaksArgumentsOrOutput()
@@ -244,6 +245,25 @@ private func waitUntil(timeout: TimeInterval = 2, _ pred: @escaping @Sendable ()
     expect(result.reply.contains(BridgeCode.unknownTool), "unknown tool: unknown_tool")
 }
 
+/// Wave 20b D4: "not now" is not "does not exist" - the model retries a
+/// tool it was told is missing, and never brings the target app forward.
+@MainActor func testAKnownToolNotReadyNamesTheReason() async {
+    let tools = FakeParentTools(handledNames: [], unavailable: ["look": "self_in_front"])
+    let s = session(tools: tools)
+    _ = await s.handle(line: helloLine(id: 1, token: "tok"))
+    let front = await s.handle(line: callLine(id: 2, name: "look"))
+    expect(front.reply.contains(BridgeCode.selfInFront), "look con Companion delante: self_in_front")
+    expect(front.reply.contains("Companion is in front"), "el mensaje dice que hacer")
+    expect(!front.reply.contains(BridgeCode.unknownTool), "no es unknown_tool")
+    let gone = await s.handle(line: callLine(id: 3, name: "does_not_exist"))
+    expect(gone.reply.contains(BridgeCode.unknownTool), "un nombre que no existe sigue siendo unknown_tool")
+    tools.setUnavailable(["click": "needs_accessibility", "see": "not_available"])
+    let ax = await s.handle(line: callLine(id: 4, name: "click"))
+    expect(ax.reply.contains("needs_accessibility"), "sin Accesibilidad: needs_accessibility")
+    let none = await s.handle(line: callLine(id: 5, name: "see"))
+    expect(none.reply.contains(BridgeCode.notAvailable), "sin respaldo: not_available")
+}
+
 @MainActor func testThirtyFirstWriteIsRateLimited() async {
     let tools = FakeParentTools(handledNames: ["click"])
     let s = session(tools: tools, approvals: ScriptedApprovals(answer: true))
@@ -392,12 +412,15 @@ final class FakeParentTools: ParentToolExecuting, @unchecked Sendable {
     private var _grantedCalls: [ApprovalRequest] = []
     private var _beginTurnCount = 0
     private var _saidSeen: [String] = []
+    private var unavailable: [String: String]
 
     init(
         handledNames: Set<String> = ["look", "click", "type_text", "open_app"],
+        unavailable: [String: String] = [:],
         scriptedOutcome: ParentToolOutcome = ParentToolOutcome(ok: true, output: "ok", target: "Safari")
     ) {
         self.handledNames = handledNames
+        self.unavailable = unavailable
         self.scriptedOutcome = scriptedOutcome
     }
 
@@ -411,6 +434,14 @@ final class FakeParentTools: ParentToolExecuting, @unchecked Sendable {
     func handles(_ name: String) -> Bool {
         lock.lock(); defer { lock.unlock() }
         return handledNames.contains(name)
+    }
+
+    func unavailability(for name: String) -> String? {
+        lock.withLock { unavailable[name] }
+    }
+
+    func setUnavailable(_ value: [String: String]) {
+        lock.withLock { unavailable = value }
     }
 
     func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {

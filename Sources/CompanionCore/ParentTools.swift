@@ -272,6 +272,10 @@ public struct ParentToolOutcome: Sendable, Equatable {
 public protocol ParentToolExecuting: Sendable {
     func specs(_ language: AppLanguage) -> [ToolSpec]
     func handles(_ name: String) -> Bool
+    /// Why a tool that exists is not served right now (`self_in_front`,
+    /// `needs_accessibility`, `not_available`), nil for a name that is not
+    /// a tool or one that is ready.
+    func unavailability(for name: String) -> String?
     func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome
     /// The sheet this call needs before `execute`, or nil. Every path asks
     /// the runner, not `ParentToolGate` directly: only the runner knows the
@@ -286,6 +290,8 @@ public protocol ParentToolExecuting: Sendable {
 }
 
 extension ParentToolExecuting {
+    public func unavailability(for name: String) -> String? { nil }
+
     public func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
         ParentToolGate.approval(for: call, said: said)
     }

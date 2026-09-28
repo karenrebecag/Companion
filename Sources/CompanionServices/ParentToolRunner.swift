@@ -69,6 +69,16 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
         return name == NativeTool.findPlaces.rawValue && places != nil
     }
 
+    public func unavailability(for name: String) -> String? {
+        guard let tool = ParentTool(rawValue: name), !handles(name) else { return nil }
+        guard tool.isHands || tool.isSight else { return BridgeCode.notAvailable }
+        guard let hands else { return BridgeCode.notAvailable }
+        let backed = tool == .see ? hands.see != nil : (!tool.isSight || hands.screen != nil)
+        guard backed else { return BridgeCode.notAvailable }
+        if !hands.trusted() { return BridgeCode.needsAccessibility }
+        return hands.selfInFront() ? BridgeCode.selfInFront : BridgeCode.notAvailable
+    }
+
     public func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
         guard handles(name) else {
             return .failed(.notFound("unknown tool: \(name)"))

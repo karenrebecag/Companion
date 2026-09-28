@@ -175,6 +175,10 @@ public enum BridgeCode {
     public static let deniedByUser = "denied_by_user"
     public static let approvalTimeout = "approval_timeout"
     public static let notAvailable = "not_available"
+    /// The tool exists but Companion's own window is in front, so there is no
+    /// other app to act on: the model can fix it, unlike `unknown_tool`.
+    public static let selfInFront = "self_in_front"
+    public static let needsAccessibility = "needs_accessibility"
     // Framing errors
     public static let unknownMethod = "unknown_method"
     public static let badFrame = "bad_frame"
