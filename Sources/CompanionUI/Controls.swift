@@ -60,6 +60,10 @@ public struct AppButton: View {
                 hovering: hovering, focused: focused))
         .disabled(!enabled)
         .onHover { hovering = $0 }
+        // 19-1c: a CTA under the pointer says so (Karen, feedback en vivo).
+        // pointerStyle, not NSCursor push/pop: the manual stack leaks when
+        // the sheet dismisses under the pointer (review 19-1c H1).
+        .pointerStyle(enabled ? .link : .default)
         .focusable()
         .focused($focused)
         .accessibilityAddTraits(.isButton)

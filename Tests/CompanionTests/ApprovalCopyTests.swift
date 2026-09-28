@@ -10,8 +10,8 @@ import Testing
     let url = display("open_url", #"{"url":"https://upload.wikimedia.org/wikipedia/commons/e/e1/FullMoon2010.jpg"}"#)
     expectEq(url.lead, "Abrir", "19-1 url: el verbo")
     expectEq(url.subject, "upload.wikimedia.org", "19-1 url: el host es el sujeto, no la URL")
-    expectEq(url.preview, "https://upload.wikimedia.org/wikipedia/commons/e/e1/FullMoon2010.jpg",
-             "19-1 url: la URL completa queda auditable")
+    expect(url.preview == nil,
+           "19-1c url: con el host en el titulo, la URL entera era ruido (Karen); solo se muestra si NO parsea")
     expect(url.showsRemember, "19-1 url: recordable")
     expectEq(display("open_url", #"{"url":"https://upload.wikimedia.org/x"}"#, language: .en).lead,
              "Open", "19-1 url: en ingles tambien")
@@ -74,8 +74,8 @@ import Testing
     expectEq(display("open_url", #"{"url":"https://x.dev/a"}"#).mark, .symbol("link"),
              "19-1b marca: las tools conservan su glifo")
     expectEq(bridge.trail, BridgeCopy.sheetTitle(.es), "19-1 puente: la frase del catalogo")
-    expectEq(bridge.preview, BridgeCopy.sheetDetail(.es) + "\n" + BridgeCopy.sheetClaim(.es),
-             "19-1 puente: el costo y la advertencia de nombre sin verificar")
+    expect(bridge.preview == nil,
+           "19-1c puente: sin caja de detalle — el titulo lo dice todo (Karen)")
     expect(!bridge.showsRemember, "19-1 puente: jamas se recuerda")
     expectEq(display("bridge_session", #"{"client":"a\nb<script>"}"#).subject, "abscript",
              "19-1 puente: sin saltos ni marcado, solo lo imprimible del nombre")

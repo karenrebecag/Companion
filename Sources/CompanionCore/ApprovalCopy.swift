@@ -82,9 +82,15 @@ public enum ApprovalCopy {
             // a swallowed failure.
             let host: String?
             do { host = try ParentToolPolicy.httpURL(raw).host } catch { host = nil }
+            // 19-1c: with the host in the title the full URL box read as
+            // noise (Karen). The preview survives only for an unparseable
+            // string long enough that the capped subject hid part of it —
+            // then the box is the only place the whole datum shows.
             return ApprovalDisplay(
                 mark: .symbol("link"), lead: word(.open, language),
-                subject: capped(host ?? raw), preview: raw, showsRemember: true)
+                subject: capped(host ?? raw),
+                preview: host == nil && raw.count > 80 ? raw : nil,
+                showsRemember: true)
         case .openApp:
             guard let name = value(arguments, "name") else { return nil }
             return ApprovalDisplay(
@@ -169,11 +175,16 @@ public enum ApprovalCopy {
         let claudeClients: Set<String> = ["claude", "claude-code", "claude desktop", "claude-desktop"]
         let mark: ApprovalDisplay.Mark =
             claudeClients.contains(safe.lowercased()) ? .claude : .symbol("hand.raised")
+        // 19-1c: no detail box — "quiere usar tu Mac" says it all (Karen,
+        // who approved dropping the unverified-name sentence); the exact
+        // allowlist above is what keeps a stranger from wearing the logo.
+        // BridgeCopy.sheetClaim/sheetDetail are now unread outside tests —
+        // remove in 19-4 cleanup.
         return ApprovalDisplay(
             mark: mark, lead: nil,
             subject: safe.isEmpty ? word(.someClient, language) : safe,
             trail: BridgeCopy.sheetTitle(language),
-            preview: BridgeCopy.sheetDetail(language) + "\n" + BridgeCopy.sheetClaim(language),
+            preview: nil,
             showsRemember: false)
     }
 

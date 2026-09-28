@@ -17,7 +17,7 @@ extension VoiceSession {
     /// Deliberately silent: a job is assistive UI and does not interrupt to
     /// ask. The sheet shows the request; `resolve_approval` stays declared so
     /// a spoken "yes" still lands, but nobody is told out loud. The price,
-    /// chosen: a request nobody looks at dies in the 120 s auto-deny.
+    /// chosen: a request nobody looks at dies in the auto-deny (ApprovalTiming).
     func noteApproval(_ request: ApprovalRequest) async {
         pendingApproval = request
     }

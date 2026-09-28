@@ -107,7 +107,7 @@ func claudeCodeExecutorEmitsStepEvents() throws {
 func claudeCodeExecutorRequestsApprovalForRiskyTools() throws {
     let result = try runAsync {
         let launcher = StubProcessLauncher()
-        // Answers at once: the real actor waits two minutes for a human, which
+        // Answers at once: the real actor waits ApprovalTiming for a human, which
         // would hang the suite (and starve every other test on the main actor).
         let approvals = InstantApprovals(approved: false)
 

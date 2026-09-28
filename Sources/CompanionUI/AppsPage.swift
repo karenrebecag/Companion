@@ -148,10 +148,20 @@ struct AppsPage: View {
     @ViewBuilder
     private var content: some View {
         if apps.phase == .setup || editing {
-            AppsSetupForm(apps: apps, initialEndpoint: apps.endpoint) {
-                editing = false
-                Task { await apps.load() }
+            // 16k-2d: the catalog is the page even before the function
+            // exists — Incredible shows its featured apps from first
+            // launch, and a bare form read as a broken page (Karen, en
+            // vivo). The seed renders the same grid; Conectar routes here.
+            if editing {
+                AppsSetupForm(apps: apps, initialEndpoint: apps.endpoint) {
+                    editing = false
+                    Task { await apps.load() }
+                }
+            } else {
+                setupBanner
             }
+            AppField(placeholder: Localized.string("apps.search"), text: $searchText)
+            seededFeatured
         } else {
             AppField(placeholder: Localized.string("apps.search"), text: $searchText)
             switch apps.phase {
@@ -161,6 +171,47 @@ struct AppsPage: View {
                 ProgressView().controlSize(.small)
             default:
                 catalog
+            }
+        }
+    }
+
+    /// One slim row, not a page: the function is a step, never the show.
+    private var setupBanner: some View {
+        HStack(spacing: Space.x3) {
+            Text(Localized.string("apps.seed.banner"))
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            AppButton(Localized.string("apps.seed.configure"), kind: .secondary) { editing = true }
+        }
+        .padding(.horizontal, Space.x4)
+        .padding(.vertical, Space.x3)
+        .background(Semantic.surface)
+        .clipShape(RoundedRectangle(cornerRadius: CardChrome.radius))
+        .overlay(RoundedRectangle(cornerRadius: CardChrome.radius)
+            .strokeBorder(Semantic.borderChrome, lineWidth: Stroke.hairline))
+    }
+
+    private var seededFeatured: some View {
+        VStack(alignment: .leading, spacing: Space.x4) {
+            HStack {
+                Text(Localized.string("apps.featured"))
+                    .font(.uiLabel.weight(.semibold))
+                    .foregroundStyle(Semantic.foreground)
+                Spacer()
+                Text(Localized.string("apps.seed.total"))
+                    .font(.uiCaption)
+                    .monospacedDigit()
+                    .foregroundStyle(Semantic.mutedForeground)
+            }
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: AppsMetrics.gridGap),
+                                GridItem(.flexible(), spacing: AppsMetrics.gridGap)],
+                      spacing: AppsMetrics.gridGap) {
+                ForEach(CatalogSeed.filtered(searchText, language: Localized.language())) { app in
+                    AppCard(app: app, state: nil,
+                            onOpen: { editing = true }, onConnect: { editing = true })
+                }
             }
         }
     }
@@ -281,6 +332,18 @@ struct AppCard: View {
         // The Conectar/Reconectar button below is its own Button and keeps
         // its own action; SwiftUI resolves a tap inside it before this one.
         .onTapGesture(perform: onOpen)
+        // A tap-only Rectangle is invisible to keyboard and VoiceOver: the
+        // card reads as one button whose default action opens it, with
+        // Conectar kept as a named action (review 19-1c).
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default, onOpen)
+        .accessibilityActions {
+            if state != .connected {
+                Button(Localized.string(state == .reconnect ? "apps.reconnect" : "apps.connect"),
+                       action: onConnect)
+            }
+        }
     }
 
     @ViewBuilder

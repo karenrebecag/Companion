@@ -9,7 +9,7 @@ enum VoiceJobBridge {
     /// text lands in the shared thread AND the voice model gets told via
     /// `announce`, so it narrates reality instead of promising forever.
     /// `onEvent` feeds the UI (steps, approvals): a drained-and-discarded
-    /// stream meant approvals died in the 120s auto-deny unseen.
+    /// stream meant approvals died in the auto-deny (ApprovalTiming) unseen.
     static func run(
         _ handoff: Handoff,
         jobs: any JobSubmitter,

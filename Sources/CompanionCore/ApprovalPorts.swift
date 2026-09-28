@@ -3,7 +3,8 @@ import Foundation
 /// One number, two readers: the actor that denies on the deadline and the
 /// sheet's countdown ring must agree, or the ring lies (19-1b).
 public enum ApprovalTiming {
-    public static let autoDeny: TimeInterval = 120
+    /// 60, was 120: two minutes of ring read as forever (Karen, 19-1c).
+    public static let autoDeny: TimeInterval = 60
 }
 
 /// The user's answer to a permission request. `remember` is the sheet's

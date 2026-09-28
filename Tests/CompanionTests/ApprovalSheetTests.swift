@@ -18,8 +18,7 @@ import Testing
     expect(BridgeCopy.sheetTitle(.es).contains("tu Mac"),
            "hoja del puente: pide usar tu Mac, no 'tus manos' (feedback 19-1b)")
     expect(BridgeCopy.sheetTitle(.en).contains("your Mac"), "hoja del puente: en ingles igual")
-    expectEq(bridge.preview, BridgeCopy.sheetDetail(.en) + "\n" + BridgeCopy.sheetClaim(.en),
-             "hoja del puente: el costo y la advertencia en el detalle")
+    expect(bridge.preview == nil, "hoja del puente: sin caja de detalle (19-1c)")
     expect(!bridge.showsRemember, "hoja del puente: sin recordar, no hay ApprovalKey")
 
     let ordinary = ApprovalCopy.display(
@@ -35,4 +34,13 @@ import Testing
     // El vector de Claude viaja en el bundle: si el empaquetado lo pierde,
     // este test lo dice antes que la hoja (19-1b).
     expect(ClaudeLogo.image != nil, "hoja: el logo de Claude carga del bundle")
+
+    // La garantia 19-1: los botones de respuesta nunca salen de pantalla.
+    // Un preview alto por saltos de linea scrollea aunque sea corto en
+    // caracteres (review 19-1c).
+    expect(!ApprovalSheet.previewScrolls("corto"), "preview corto abraza su texto")
+    expect(ApprovalSheet.previewScrolls(String(repeating: "a", count: 401)),
+           "preview largo scrollea")
+    expect(ApprovalSheet.previewScrolls(String(repeating: "ln\n", count: 9)),
+           "preview de muchas lineas scrollea aunque sea corto")
 }
