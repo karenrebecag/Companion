@@ -228,3 +228,14 @@ private func expectUnstable(_ executable: URL, _ label: String) throws {
     expectEq(try readJSON(manifestURL(home, "Google/Chrome"))["path"] as? String, resolvedExe,
              "symlink: the manifest holds the target, not the link")
 }
+
+@Test func installRefusesAnExecutableOnAMountedVolume() throws {
+    // A DMG mount disappears after eject; the manifest would outlive it.
+    let mounted = "/Volumes/Macintosh HD/bin/sh"
+    try #require(FileManager.default.isExecutableFile(atPath: mounted))
+    let home = try makeHome(browsers: ["Google/Chrome"])
+    defer { try? FileManager.default.removeItem(at: home) }
+    let installer = NativeHostInstaller(home: home, executable: URL(fileURLWithPath: mounted))
+    #expect(throws: NativeHostInstaller.Failure.unstableExecutablePath) { try installer.install() }
+    #expect(!FileManager.default.fileExists(atPath: manifestURL(home, "Google/Chrome").path))
+}

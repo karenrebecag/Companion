@@ -24,6 +24,7 @@ public struct SettingsView: View {
     var chat: ChatViewModel?
     var welcome: WelcomeModel?
     var memory: (any MemoryBrowsing)?
+    var browser: BrowserSettingsModel?
     let onClose: () -> Void
     @Binding var tab: SettingsTab
     @State private var query = ""
@@ -41,6 +42,7 @@ public struct SettingsView: View {
         updates: UpdateState? = nil,
         welcome: WelcomeModel? = nil,
         memory: (any MemoryBrowsing)? = nil,
+        browser: BrowserSettingsModel? = nil,
         tab: Binding<SettingsTab> = .constant(.general),
         onClose: @escaping () -> Void = {}
     ) {
@@ -48,6 +50,7 @@ public struct SettingsView: View {
         self.chat = chat
         self.welcome = welcome
         self.memory = memory
+        self.browser = browser
         self.updates = updates
         self._tab = tab
         self.onClose = onClose
@@ -110,7 +113,7 @@ public struct SettingsView: View {
         case .you:
             SettingsYouPage()
         case .privacy:
-            SettingsPrivacyPage(chat: chat, welcome: welcome)
+            SettingsPrivacyPage(chat: chat, welcome: welcome, browser: browser)
         case .system:
             SettingsSystemPage(
                 chat: chat, updates: updates, welcome: welcome, storageLabel: storageLabel,

@@ -57,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Wave 17: the local MCP bridge for Claude Code, off unless the setting
     /// is on. Read by `presentWindow` (the status menu's "Detener manos").
     var bridgeHost: BridgeHost?
+    /// Wave 18: the browser link; listens only once a browser was connected.
+    var browserHost: BrowserHost?
 
     /// A net, not a guarantee, and the difference matters: this runs on an
     /// orderly quit and on nothing else. A crash or a Force Quit gives the app
@@ -66,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         holdKey?.stop()
         dictationTap?.stop()
+        browserHost?.stop()
         ProcessRegistry.shared.terminateAll()
     }
 
@@ -128,8 +131,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let windows = AXScreen(
             selfBundleID: Bundle.main.bundleIdentifier ?? "",
             trust: { accessibility.isTrusted() })
+        sensing.browserHost.startIfInstalled()
+        self.browserHost = sensing.browserHost
         let bridgeHost = BridgeHost(
-            tools: sensing.parentTools, approvals: jobs.approvals,
+            // The bridge lends the hands and the browser, not Karen's connected apps.
+            tools: sensing.browserHost.bridgeTools(parent: sensing.parentTools), approvals: jobs.approvals,
             language: { env.configProvider.current.language },
             accessibility: { accessibility.isTrusted() },
             sessionModel: sensing.sessionModel,

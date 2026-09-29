@@ -320,6 +320,9 @@ public enum ParentToolCopy: Sendable {
     public static func status(
         _ name: String, _ outcome: ParentToolOutcome, _ language: AppLanguage
     ) -> String {
+        if let browser = BrowserTool(rawValue: name) {
+            return BrowserCopy.status(browser, outcome, language)
+        }
         guard outcome.ok else { return failed(outcome, language) }
         if let hands = ParentTool(rawValue: name), hands.isHands {
             return handsStatus(hands, outcome, language)

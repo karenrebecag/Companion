@@ -21,6 +21,9 @@ struct SensingAndModel {
     /// both voice modes get. The bridge keeps `parentTools` on purpose:
     /// an MCP client lends the hands, it does not inherit Karen's Slack.
     let conversationTools: any ParentToolExecuting
+    /// Wave 18-3c: the browser's listener, runner and installer. Its tools
+    /// ride in `conversationTools` and, without the apps', in the bridge.
+    let browserHost: BrowserHost
     let appTools: AppToolRunner
     let sensor: SystemContextSensor
     let voicePort: VoicePortBox
@@ -154,7 +157,14 @@ func makeSensingAndModel(
     ) { _ in
         Task.detached(priority: .utility) { await appTools.refresh() }
     }
-    let conversationTools = CompositeParentTools([parentTools, appTools])
+    let browserHost = BrowserHost(
+        directory: BridgePaths.directory,
+        installer: NativeHostInstaller(
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            // No executable path means an unstable one: connecting then asks to move the app.
+            executable: Bundle.main.executableURL ?? URL(fileURLWithPath: "/")),
+        language: { env.configProvider.current.language })
+    let conversationTools = browserHost.conversationTools(parent: parentTools, apps: appTools)
     let model = ChatViewModel(
         chat: providers.chat, secrets: env.secrets, store: providers.store, config: env.config,
         jobSubmitter: jobs.jobRunner,
@@ -173,7 +183,7 @@ func makeSensingAndModel(
     return SensingAndModel(
         attachmentStore: attachmentStore, workspaceOpener: workspaceOpener,
         dictation: dictation, frontmost: frontmost, screenSight: screenSight,
-        parentTools: parentTools, conversationTools: conversationTools,
+        parentTools: parentTools, conversationTools: conversationTools, browserHost: browserHost,
         appTools: appTools, sensor: sensor, voicePort: voicePort,
         sessionModel: sessionModel, model: model)
 }

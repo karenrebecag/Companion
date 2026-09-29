@@ -107,6 +107,7 @@ extension AppDelegate {
                 devices: SystemWelcomeDevices(),
                 keyReady: { [weak model] in model.map { !$0.needsOnboarding } ?? false }),
             memory: env.memoryStore,
+            browser: browserHost.map(makeBrowserSettings),
             apps: AppsModel(
                 secrets: env.secrets, hostSecrets: env.hostSecrets, launchPin: env.appsPin,
                 makeService: { HTTPAppsService(base: $0, key: $1) },

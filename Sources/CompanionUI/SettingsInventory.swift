@@ -68,6 +68,7 @@ public enum SettingsInventory {
         Panel(tab: .memory, titleKey: "settings.memory.header"),
         Panel(tab: .privacy, titleKey: "settings.permissions"),
         Panel(tab: .privacy, titleKey: "settings.keys.header"),
+        Panel(tab: .privacy, titleKey: "settings.browser.header"),
         Panel(tab: .system, titleKey: "settings.app.version"),
         Panel(tab: .system, titleKey: "settings.app.attachments"),
         Panel(tab: .system, titleKey: "settings.welcome.again"),
