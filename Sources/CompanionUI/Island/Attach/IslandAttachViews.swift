@@ -106,17 +106,9 @@ struct IslandStagedRow: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            Button { onRemove(ref) } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: TypeSize.micro, weight: .semibold))
-                    .foregroundStyle(IslandInk.text)
-                    .frame(width: Space.x5, height: Space.x5)
-                    .background(Circle().fill(IslandInk.panel.opacity(0.8)))
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .padding(Space.x1)
-            .accessibilityLabel(String(format: Localized.string("attach.remove"), ref.name))
+            CloseButton(variant: .onMedia,
+                        label: String(format: Localized.string("attach.remove"), ref.name)) { onRemove(ref) }
+                .padding(Space.x1)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(ref.name)
@@ -141,7 +133,7 @@ struct IslandDropZones: View {
     private func tile(_ item: IslandDropZone, lit: Bool) -> some View {
         VStack(spacing: Space.x2) {
             Image(systemName: item == .ask ? "text.bubble" : "dot.radiowaves.left.and.right")
-                .font(.system(size: TypeSize.sectionTitle, weight: .regular))
+                .font(Fonts.geist(TypeSize.sectionTitle))
             Text(Localized.string("island.drop." + item.rawValue))
                 .font(GeistFont.uiCaption)
         }

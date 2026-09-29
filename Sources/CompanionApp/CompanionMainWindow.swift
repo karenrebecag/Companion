@@ -18,7 +18,7 @@ extension AppDelegate {
     /// `applicationDidFinishLaunching`.
     func presentWindow(
         model: ChatViewModel, voice: VoiceViewModel, sessionModel: SessionModel,
-        choice: ExecutorChoice, memoryStore: FileMemoryStore, secrets: CachingSecretStore,
+        memoryStore: FileMemoryStore, secrets: CachingSecretStore,
         openAIMouth: OpenAITTSClient, mouth: MouthRouter, transport: URLSessionChatTransport,
         voicePort: VoicePortBox
     ) {
@@ -102,7 +102,7 @@ extension AppDelegate {
         WindowChrome.configure(window)
         let root = CompanionRootView(
             chat: model, voice: voice,
-            voicePreview: preview, executors: choice,
+            voicePreview: preview,
             updates: updates,
             welcome: WelcomeModel(
                 devices: SystemWelcomeDevices(),

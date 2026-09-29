@@ -17,10 +17,14 @@ public enum ControlState: Sendable, CaseIterable {
 public enum AppButtonKind: Sendable, CaseIterable {
     case primary, secondary, destructive, ghost
     /// Solid ink button: black on light, white on dark. For surfaces that
-    /// must stay clean of the app accent (the onboarding hero sheet).
+    /// must stay clean of the app accent (the welcome sheet).
     case neutral
 }
 
+// The three role enums below are names, not a palette: each case resolves
+// to one Semantic role in AppButton/AppField and nowhere else (audit 16p
+// §1). They stay enums so ControlLook is Equatable and a test can pin a
+// look without comparing SwiftUI colors.
 public enum ControlFill: Sendable, Equatable {
     /// `wash` is Incredible's ghost fill: black 5 % over the surface.
     case destructive, surface, clear, ink, wash

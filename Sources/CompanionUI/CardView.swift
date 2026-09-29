@@ -18,9 +18,8 @@ import SwiftUI
 /// three web searches and said so. It was technically true about the fence and
 /// false about the work, and it undercut data that was right. What Companion
 /// can honestly assert is only what Companion checked.
-/// Metricas de las tarjetas del modelo. Patron de `HeaderMetrics` y
-/// `SettingsOverlayMetrics`: la medida vive nombrada en un sitio, no suelta
-/// en la vista. El alto del mapa y el lado de la miniatura se re-derivan
+/// Metricas de las tarjetas del modelo. Patron de `SettingsOverlayMetrics`:
+/// la medida vive nombrada en un sitio, no suelta en la vista. El alto del mapa y el lado de la miniatura se re-derivan
 /// cuando R-02 aterrice el tier de `Section`.
 enum CardMetrics {
     static let map: CGFloat = 200

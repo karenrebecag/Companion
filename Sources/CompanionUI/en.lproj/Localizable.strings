@@ -31,7 +31,6 @@
 "chat.approval.rememberedDeny" = "Denied, as before: %@.";
 "chat.job.done" = "Job done";
 "chat.job.failed" = "Job failed";
-"job.working" = "The specialist is working";
 
 /* Attachments */
 "chat.attach.done" = "Attached: %@";
@@ -55,19 +54,9 @@
 "voice.fail.accessibilityDenied" = "No Accessibility permission, so I could not type into the field. I sent your words to the chat instead.";
 "voice.preview.failed" = "The sample could not play. Check your connection.";
 
-/* Idle */
-"idle.phrase.1" = "Ready when you are";
-"idle.phrase.2" = "What are we up to today?";
-"idle.phrase.3" = "Tell me what is next";
-"idle.phrase.4" = "Your Mac and I, at your service";
-"idle.phrase.5" = "Say the word and we do it";
-"idle.phrase.6" = "Let's start whenever you like";
-"idle.caption.voice" = "Tap the orb below to start talking";
-"idle.caption.text" = "Type below and press Enter";
-
 /* Settings */
 "settings.title" = "Settings";
-"settings.close" = "Close";
+"action.close" = "Close";
 "settings.tab.general" = "General";
 "settings.tab.voice" = "Voice";
 "settings.tab.vocabulary" = "Vocabulary";
@@ -176,14 +165,8 @@
 "approval.remember" = "Remember for this session";
 "attach.list" = "Attachments";
 "attach.remove" = "Remove %@";
-"attach.open" = "%@. Open";
 "attach.drop.title" = "Drop them here";
 "attach.drop.subtitle" = "Images, PDFs, code: whatever you want it to look at";
-"composer.placeholder" = "Write to Companion";
-"composer.send" = "Send";
-"controlbar.unmute" = "Turn the microphone on";
-"controlbar.mute" = "Mute the microphone";
-"header.settings" = "Settings";
 "header.newConversation" = "New conversation";
 "header.noConversations" = "No conversations yet";
 "header.recent" = "Recent";
@@ -193,48 +176,16 @@
 "menu.window" = "Window";
 "shortcut.newConversation" = "New conversation";
 "shortcut.toggleMute" = "Mute/unmute";
-"thread.queued" = "Queued: %@";
 "thread.untitled" = "Conversation";
-"onboarding.title.l1" = "Talk to your Mac";
-"onboarding.title.l2" = "and let it work.";
-"onboarding.blurb" = "Talk it through, hand it real tasks, and let it remember what matters.";
-"onboarding.key" = "OpenAI key";
-"onboarding.getKey" = "No key yet? Get one here";
-"onboarding.verifying" = "Verifying…";
 "chat.card.locations" = "A map was shown with: %@.";
 "chat.card.gallery" = "A gallery was shown on screen.";
 "chat.job.stopped" = "You stopped the job.";
-"job.stop" = "Stop";
 "chat.job.failed.notice" = "The job could not finish: %@";
 "card.unverified" = "Companion did not verify these places or images.";
-"onboarding.probing" = "Looking for a model on your Mac…";
-"onboarding.base.blurb" = "Your Mac can already talk with you. No account, nothing to set up.";
-"onboarding.local.ollama" = "Start with %@ on your Mac";
-"onboarding.local.apple" = "Start with your Mac's model";
-"onboarding.local.missing" = "I looked, and your Mac has no model of its own yet. Download one in a couple of minutes.";
-"onboarding.key.optional" = "An OpenAI key turns on realtime voice and stronger models.";
-"onboarding.ollama.download" = "Download Ollama";
-"onboarding.ollama.installed" = "Installed it. Look again";
-"onboarding.section.local" = "On your Mac";
-"onboarding.section.key" = "With your OpenAI key";
-"onboarding.choice.local.title" = "On your Mac";
-"onboarding.choice.local.sub" = "Private and free. Works without internet.";
-"onboarding.choice.cloud.title" = "With OpenAI";
-"onboarding.choice.cloud.sub" = "Realtime voice and stronger models.";
-"onboarding.local.ready" = "%@ ready to talk";
-"onboarding.local.none.status" = "No model yet";
-"onboarding.local.apple.short" = "Your Mac's model";
-"onboarding.ollama.what" = "Ollama is a free app that runs AI models on your Mac.";
-"onboarding.ollama.waiting" = "Waiting for the install…";
-"onboarding.cta.probing" = "Looking…";
-"onboarding.continue" = "Connect to OpenAI";
-"status.approvalWaiting" = "The specialist is waiting for your permission";
-"status.escToStop" = "Esc to stop";
 "sources.title" = "Sources";
 "sources.web" = "Web";
 "sources.files" = "Files";
 "map.open" = "Open";
-"shortcut.escToCancel" = "Press Esc to cancel";
 "accent.lime" = "Electric green";
 "voice.sample" = "Hi, I am Companion. This is how I sound.";
 "settings.app.language" = "Language";
@@ -307,7 +258,6 @@
 "island.answer.copy" = "Copy the code";
 "island.answer.fold" = "Fold the code";
 "island.action.keys" = "Open Keys";
-"island.hands" = "Hands: %@";
 "island.hands.stop" = "Stop hands";
 "island.light.amber" = "Needs you";
 "island.light.green" = "Done";
@@ -478,7 +428,6 @@
 "home.ago.minutes" = "%d min ago";
 "home.ago.hours" = "%d h ago";
 "home.ago.days" = "%d d ago";
-"task.close" = "Close";
 "task.next" = "Your next message continues this task.";
 "task.followUp" = "Follow up";
 "task.details" = "Details";

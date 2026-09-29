@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 // 16p-1: ChatViewModel.errorText (persistence, generic chat) used to be read
-// only by ThreadView, which nobody instantiates. It must reach the island as
+// only by the old thread view, which nobody instantiated (retired in 16p-2). It must reach the island as
 // a card with a way out and Home as a banner. Turn failures are the other
 // family (a status line in the thread) and must not be drawn twice.
 

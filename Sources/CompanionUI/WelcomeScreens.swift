@@ -72,25 +72,10 @@ struct WelcomeHello: View {
                         language = choice
                         LanguagePreference.stored = choice
                     }
-                    .buttonStyle(WelcomeChipStyle(selected: language == choice))
+                    .buttonStyle(CapsuleChipStyle(ink: .choice(selected: language == choice), density: .regular))
                 }
             }
         }
-    }
-}
-
-/// Incredible's chips: grey, the chosen one inked.
-struct WelcomeChipStyle: ButtonStyle {
-    let selected: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(GeistFont.uiLabel)
-            .foregroundStyle(selected ? Semantic.primaryForeground : Semantic.foreground)
-            .padding(.horizontal, Space.x4)
-            .padding(.vertical, Space.x2)
-            .background(Capsule().fill(selected ? Semantic.primary : Semantic.muted))
-            .opacity(configuration.isPressed ? 0.8 : 1)
     }
 }
 
@@ -139,7 +124,7 @@ struct WelcomeKeys: View {
                     Button(Localized.string("welcome.keys.verify")) {
                         Task { await chat.submitOnboarding() }
                     }
-                    .buttonStyle(WelcomeChipStyle(selected: true))
+                    .buttonStyle(CapsuleChipStyle(ink: .choice(selected: true), density: .regular))
                     .disabled(chat.onboardingBusy || chat.onboardingKey.isEmpty)
                     if chat.onboardingBusy { ProgressView().controlSize(.small) }
                     Spacer()
@@ -232,29 +217,10 @@ struct WelcomePermissions: View {
                         if !welcome.facts.granted.contains(permission) { openURL(permission.settingsLink) }
                     }
                 }
-                .buttonStyle(WelcomeChipStyle(selected: true))
+                .buttonStyle(CapsuleChipStyle(ink: .choice(selected: true), density: .regular))
             }
         }
         .padding(.vertical, Space.x3)
-    }
-}
-
-/// The key, drawn as a key.
-struct WelcomeKeycap: View {
-    private static let side: CGFloat = 72
-
-    var body: some View {
-        Text(verbatim: "fn")
-            .font(Fonts.mono(TypeSize.title, bold: true))
-            .foregroundStyle(Semantic.foreground)
-            .frame(width: Self.side, height: Self.side)
-            // 16l: Incredible's large keycap — radius 12, a lip, a soft drop.
-            .background(RoundedRectangle(cornerRadius: KeycapSize.large.radius).fill(Semantic.surface))
-            .overlay(
-                RoundedRectangle(cornerRadius: KeycapSize.large.radius)
-                    .strokeBorder(Semantic.borderChrome, lineWidth: Stroke.hairline))
-            .shadow(color: .black.opacity(0.08), radius: 2, y: 2)
-            .accessibilityLabel(Localized.string("welcome.holdKey.cap"))
     }
 }
 
@@ -264,7 +230,8 @@ struct WelcomeHoldKey: View {
 
     var body: some View {
         VStack(spacing: Space.x6) {
-            WelcomeKeycap()
+            Keycap("fn", size: .hero)
+                .accessibilityLabel(Localized.string("welcome.holdKey.cap"))
             WelcomeHeading(
                 title: Localized.string("welcome.holdKey.title"),
                 body_: Localized.string("welcome.holdKey.body"))
@@ -273,7 +240,7 @@ struct WelcomeHoldKey: View {
                     .font(GeistFont.uiCaption).foregroundStyle(Semantic.mutedForeground)
                     .multilineTextAlignment(.center)
                 Button(Localized.string("welcome.holdKey.openKeyboard")) { openURL(Self.keyboard) }
-                    .buttonStyle(WelcomeChipStyle(selected: false))
+                    .buttonStyle(CapsuleChipStyle(ink: .choice(selected: false), density: .regular))
             }
         }
     }
@@ -311,7 +278,8 @@ struct WelcomeYourTurn: View {
 
     var body: some View {
         VStack(spacing: Space.x8) {
-            WelcomeKeycap()
+            Keycap("fn", size: .hero)
+                .accessibilityLabel(Localized.string("welcome.holdKey.cap"))
             WelcomeHeading(
                 title: Localized.string("welcome.yourTurn.title"),
                 body_: Localized.string("welcome.yourTurn.body"))

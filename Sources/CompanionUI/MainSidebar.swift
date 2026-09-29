@@ -89,7 +89,7 @@ struct MainSidebar: View {
                     .lineLimit(1)
                 Spacer(minLength: Space.none)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: SidebarMetrics.chevron * 0.7, weight: .semibold))
+                    .font(Fonts.sans(SidebarMetrics.chevron * 0.7).weight(.semibold))
                     .frame(width: SidebarMetrics.chevron, height: SidebarMetrics.chevron)
                     .foregroundStyle(Semantic.chevron)
             }
@@ -136,7 +136,7 @@ struct SidebarRow: View {
         Button(action: action) {
             HStack(spacing: SidebarMetrics.itemGap) {
                 Image(systemName: symbol)
-                    .font(.system(size: SidebarMetrics.icon * 0.85))
+                    .font(Fonts.sans(SidebarMetrics.icon * 0.85))
                     .frame(width: SidebarMetrics.icon, height: SidebarMetrics.icon)
                     .accessibilityHidden(true)
                 Text(title).font(Fonts.sans(TypeSize.rowTitle).weight(.medium))

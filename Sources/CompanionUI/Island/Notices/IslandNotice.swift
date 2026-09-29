@@ -159,7 +159,9 @@ struct IslandNoticeCard: View {
         .onAppear { AccessibilityNotification.Announcement(IslandNotice.announcement(content)).post() }
     }
 
-    /// The × sits in a ring that empties as the card's time runs out.
+    /// The × sits in a ring that empties as the card's time runs out. Not
+    /// `CloseButton`: the ring is the notice's remaining life, a clock the
+    /// shared × has no place for.
     private func dismiss(_ lifetime: Double) -> some View {
         Button(action: onDismiss) {
             TimelineView(.animation(minimumInterval: IslandInk.ringFrame)) { context in
@@ -222,15 +224,7 @@ struct IslandFollowUpRow: View {
                 .foregroundStyle(IslandInk.text)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Button(action: onDrop) {
-                Image(systemName: "xmark")
-                    .font(GeistFont.uiCaption)
-                    .foregroundStyle(IslandInk.secondary)
-                    .frame(width: IslandInk.slotSide, height: IslandInk.slotSide)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Localized.string("island.task.drop"))
+            CloseButton(variant: .island, label: Localized.string("island.task.drop"), action: onDrop)
         }
     }
 }

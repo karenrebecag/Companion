@@ -44,7 +44,7 @@ public enum MenuMetrics {
     public static let islandRadius: CGFloat = Radius.lg
     public static let islandGap: CGFloat = Space.x1
     public static let enterScale: CGFloat = 0.97
-    public static let duration = 0.2
+    public static let duration = MotionTime.base
 }
 
 /// Incredible's switch: black track when on, 16 % black when off, a white

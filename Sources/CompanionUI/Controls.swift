@@ -148,7 +148,7 @@ public struct AppField: View {
     var error: String? = nil
     var secure = false
     /// Neutral chrome: the focus ring in ink instead of the app accent, for
-    /// surfaces that stay black-and-white (the onboarding sheet).
+    /// surfaces that stay black-and-white (the welcome sheet).
     var neutral = false
     var onSubmit: (() -> Void)? = nil
 

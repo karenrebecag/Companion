@@ -175,6 +175,9 @@ private struct DataCardTitle: View {
     }
 }
 
+/// Not a palette: a delta's sign picks a Semantic role (success, danger,
+/// muted). The sign logic is what lives here, so a test can read it
+/// without rendering.
 enum DataCardInk {
     enum Tone: Equatable { case up, down, flat }
 

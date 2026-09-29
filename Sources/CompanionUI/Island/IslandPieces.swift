@@ -11,6 +11,8 @@ enum IslandInk {
     static var muted: Color { white(IslandAlpha.muted) }
     static var chip: Color { white(IslandAlpha.tile) }
     static var chipPressed: Color { white(IslandAlpha.tileHover) }
+    /// A mark laid over a picture: dark enough to read on any photo.
+    static var media: Color { Neutral.black.color.opacity(0.8) }
     static var field: Color { white(IslandAlpha.tile) }
     /// The composer field and its idle send button, sampled from Incredible.
     static var fieldFill: Color { white(IslandFieldMetrics.fill) }
@@ -104,92 +106,6 @@ struct IslandWaveBars: View {
     }
 }
 
-/// A grey chip, Incredible's secondary control.
-struct IslandChipStyle: ButtonStyle {
-    var tint: Color = IslandInk.text
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(GeistFont.uiCaption)
-            .foregroundStyle(tint)
-            .padding(.horizontal, Space.x3)
-            .padding(.vertical, IslandInk.chipVertical)
-            .background(Capsule().fill(configuration.isPressed ? IslandInk.chipPressed : IslandInk.chip))
-            .contentShape(Capsule())
-    }
-}
-
-/// Wave 17 (spec §3 "Se ve"): the bridge's chip, label plus its own stop
-/// button so "Detener manos" is one tap wherever the client's name shows.
-/// Pulses once per write action — an agent moving the pointer unannounced is
-/// the thing that frightens; the blink is the announcement.
-/// 19-1c dropped its render (Karen: redundant with "No permitir"); remove
-/// this struct, its strings and BridgeUITests' chip cases in 19-4 cleanup.
-struct IslandHandsChip: View {
-    let client: String
-    let pulse: Int
-    let onStop: () -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var pulsing = false
-
-    var body: some View {
-        HStack(spacing: Space.x2) {
-            Text(String(format: Localized.string("island.hands"), client))
-                .font(GeistFont.uiCaption)
-                .foregroundStyle(IslandInk.text)
-                .opacity(pulsing ? IslandHandsMetrics.pulseOpacity : 1)
-                .scaleEffect(pulsing ? IslandHandsMetrics.pulseScale : 1)
-            Button(IslandCopy.action(.stopHands)) { onStop() }
-                .buttonStyle(IslandChipStyle())
-        }
-        .animation(IslandMotionBudget.textSwap.animation(reduceMotion: reduceMotion), value: pulsing)
-        .onChange(of: pulse) { _, _ in
-            guard !reduceMotion else { return }
-            pulsing = true
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(IslandMotionBudget.textSwap.duration))
-                pulsing = false
-            }
-        }
-    }
-}
-
-private enum IslandHandsMetrics {
-    static let pulseOpacity: Double = 0.55
-    static let pulseScale: CGFloat = 1.04
-}
-
-/// One reply as a card: a title, one line, "View →" for the rest.
-struct IslandResultCard: View {
-    let result: IslandResult
-    let onOpen: () -> Void
-
-    var body: some View {
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: Space.x1) {
-                Text(result.title)
-                    .font(Fonts.geist(TypeSize.base).weight(.medium))
-                    .foregroundStyle(IslandInk.text)
-                    .lineLimit(1)
-                if let line = result.line {
-                    Text(line)
-                        .font(GeistFont.uiCaption)
-                        .foregroundStyle(IslandInk.secondary)
-                        .lineLimit(1)
-                }
-                Text(Localized.string("island.result.open"))
-                    .font(GeistFont.uiCaption)
-                    .foregroundStyle(IslandInk.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Space.x3)
-            .background(RoundedRectangle(cornerRadius: IslandInk.cardRadius).fill(IslandInk.field))
-            .contentShape(RoundedRectangle(cornerRadius: IslandInk.cardRadius))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 /// Incredible's field (16n, from the 20:13 screenshot): the orb outside, then
 /// one rounded field that holds the words, the clip and send. Volume and the
 /// menu live in the notch band (`IslandHeaderControls`); their popovers drop
@@ -203,7 +119,6 @@ struct IslandComposer: View {
     @Binding var popover: IslandPopoverKind?
     /// A staged attachment is enough to send, as in the window.
     var staged = false
-    @State private var clipHover = false
 
     var body: some View {
         HStack(spacing: IslandFieldMetrics.orbGap) {
@@ -221,23 +136,14 @@ struct IslandComposer: View {
                 .focused(focused)
                 .onSubmit(onSend)
                 .padding(.leading, IslandFieldMetrics.textInset)
-            Button {
+            IconButton("paperclip", label: Localized.string("island.attach"), size: .island,
+                       tone: .island, active: popover == .attach) {
                 popover = IslandPopoverToggle.next(current: popover, tapped: .attach)
-            } label: {
-                Image(systemName: "paperclip")
-                    .font(.system(size: TypeSize.sectionTitle, weight: .regular))
-                    .foregroundStyle(clipLit ? IslandInk.text : IslandInk.secondary)
-                    .frame(width: IslandFieldMetrics.tool, height: IslandFieldMetrics.tool)
-                    .background(Circle().fill(clipLit ? IslandInk.chipPressed : Color.clear))
-                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
-            .onHover { clipHover = $0 }
             .portal(popover == .attach ? .popover(.attach) : nil)
-            .accessibilityLabel(Localized.string("island.attach"))
             Button(action: onSend) {
                 Image(systemName: "arrow.up")
-                    .font(.system(size: TypeSize.body, weight: .semibold))
+                    .font(Fonts.geist(TypeSize.body).weight(.semibold))
                     .foregroundStyle(ready ? IslandInk.panel : IslandInk.muted)
                     .frame(width: IslandFieldMetrics.send, height: IslandFieldMetrics.send)
                     .background(Circle().fill(ready ? IslandInk.text : IslandInk.sendIdle))
@@ -254,7 +160,6 @@ struct IslandComposer: View {
     }
 
     private var ready: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || staged }
-    private var clipLit: Bool { clipHover || popover == .attach }
 }
 
 /// The destructive entry asks once, inside the panel: a sheet or an alert
@@ -270,86 +175,10 @@ struct IslandClearConfirm: View {
                 .foregroundStyle(IslandInk.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button(Localized.string("island.clear.no"), action: onCancel)
-                .buttonStyle(IslandChipStyle())
+                .buttonStyle(CapsuleChipStyle(ink: .island, density: .compact))
             Button(Localized.string("island.clear.yes"), action: onClear)
-                .buttonStyle(IslandChipStyle(tint: IslandInk.destructive))
+                .buttonStyle(CapsuleChipStyle(ink: .islandDestructive, density: .compact))
         }
-    }
-}
-
-/// The reply as the panel shows it (16f): large plain words, no bubble, the
-/// part that was said. The rest lives in the window.
-enum IslandReplyText {
-    static let maxLength = 240
-
-    static func spoken(from reply: String) -> String {
-        // The panel shows what the voice may say: the same filter, so a JSON
-        // object or an instruction meant for the model never paints here.
-        let paragraph = SpeechFilter.clean(MarkdownSplitter.islandProse(reply))
-            .components(separatedBy: "\n\n")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty } ?? ""
-        // Model text is unbounded and this runs on every streamed token: cut
-        // first, so the cost never depends on the reply (security review 16f).
-        var text = String(paragraph.prefix(maxLength * 4))
-        // [label](url) reads as its label; a "[" that opens no link is
-        // skipped, not the end of the search.
-        var from = text.startIndex
-        while let open = text.range(of: "[", range: from..<text.endIndex) {
-            guard let mid = text.range(of: "](", range: open.upperBound..<text.endIndex),
-                  let close = text.range(of: ")", range: mid.upperBound..<text.endIndex),
-                  !text[open.upperBound..<mid.lowerBound].contains("[")
-            else {
-                from = open.upperBound
-                continue
-            }
-            let label = String(text[open.upperBound..<mid.lowerBound])
-            // Indices do not survive a mutation; the offset does.
-            let resume = text.distance(from: text.startIndex, to: open.lowerBound) + label.count
-            text.replaceSubrange(open.lowerBound..<close.upperBound, with: label)
-            from = text.index(text.startIndex, offsetBy: resume)
-        }
-        text = text.replacingOccurrences(of: "**", with: "")
-            .replacingOccurrences(of: "`", with: "")
-            .replacingOccurrences(of: "\n", with: " ")
-            .split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
-            .trimmingCharacters(in: CharacterSet(charactersIn: "#*- ").union(.whitespaces))
-        return text.count > maxLength ? String(text.prefix(maxLength)) + "…" : text
-    }
-}
-
-struct IslandReply: View {
-    let text: String
-    let startedAt: Date
-    let speaking: Bool
-
-    /// Smooth enough for a 150 ms fade per word, a fraction of a display's rate.
-    private static let frameInterval = 1.0 / 30
-
-    var body: some View {
-        let words = text.split(separator: " ").map(String.init)
-        TimelineView(.animation(minimumInterval: Self.frameInterval, paused: !speaking)) { context in
-            let elapsed = context.date.timeIntervalSince(startedAt)
-            Text(Self.painted(words, elapsed: elapsed, speaking: speaking))
-                .font(Fonts.geist(TypeSize.strong))
-                .lineSpacing(Space.x1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .accessibilityLabel(text)
-    }
-
-    /// Dim words read as the secondary ink on black; each brightens to full
-    /// over its own fade, so the light glides along the line.
-    private static func painted(_ words: [String], elapsed: Double, speaking: Bool) -> AttributedString {
-        var out = AttributedString()
-        for (index, word) in words.enumerated() {
-            let light = IslandReveal.brightness(word: index, elapsed: elapsed, speaking: speaking)
-            var piece = AttributedString(index == 0 ? word : " " + word)
-            piece.foregroundColor = IslandInk.text.opacity(IslandInk.dimWord + (1 - IslandInk.dimWord) * light)
-            out += piece
-        }
-        return out
     }
 }
 

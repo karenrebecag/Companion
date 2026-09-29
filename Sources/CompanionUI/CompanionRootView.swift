@@ -3,11 +3,21 @@ import CompanionCore
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Which screen fills the window. The welcome is the only first-run flow
+/// (spec 16p §4.2): a key that goes missing later routes back to it, never
+/// to a second onboarding.
+enum RootScreen: CaseIterable, Equatable {
+    case welcome, main
+
+    static func pick(welcomeDone: Bool, needsKey: Bool) -> RootScreen {
+        welcomeDone && !needsKey ? .main : .welcome
+    }
+}
+
 public struct CompanionRootView: View {
     var chat: ChatViewModel
     var voice: VoiceViewModel
     private let voicePreview: VoicePreview?
-    private let executors: ExecutorChoice?
     @State private var showSettings = false
     @State private var settingsTab: SettingsTab = .general
     @State private var chromeTick = 0
@@ -26,16 +36,14 @@ public struct CompanionRootView: View {
         chat: ChatViewModel,
         voice: VoiceViewModel,
         voicePreview: VoicePreview? = nil,
-        executors: ExecutorChoice? = nil,
         updates: UpdateState? = nil,
-        welcome: WelcomeModel? = nil,
+        welcome: WelcomeModel,
         memory: (any MemoryBrowsing)? = nil,
         apps: AppsModel? = nil
     ) {
         self.chat = chat
         self.voice = voice
         self.voicePreview = voicePreview
-        self.executors = executors
         self.updates = updates
         self.welcome = welcome
         self.memory = memory
@@ -43,16 +51,14 @@ public struct CompanionRootView: View {
     }
 
     private let updates: UpdateState?
-    private let welcome: WelcomeModel?
+    private let welcome: WelcomeModel
     private let memory: (any MemoryBrowsing)?
     private let apps: AppsModel?
 
     public var body: some View {
         Group {
-            if let welcome, !welcome.done || chat.needsOnboarding {
+            if RootScreen.pick(welcomeDone: welcome.done, needsKey: chat.needsOnboarding) == .welcome {
                 WelcomeView(welcome: welcome, chat: chat)
-            } else if chat.needsOnboarding {
-                OnboardingView(model: chat)
             } else {
                 // Incredible's window (spec 16j §8): an index of what the island
                 // did. Talking, and continuing a task, happen in the island.
@@ -87,31 +93,15 @@ public struct CompanionRootView: View {
         }
         .environment(dropdowns)
         .overlay {
-            if dropdowns.menu == .choice || dropdowns.menu == .history {
+            if dropdowns.menu == .history {
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .overlay(Semantic.scrim)
                     .ignoresSafeArea()
                     .transition(.opacity)
-                    .allowsHitTesting(dropdowns.menu == .history)
                     .onTapGesture {
                         withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
                     }
-            }
-        }
-        .overlay {
-            if dropdowns.blocksRoot {
-                Color.black.opacity(0.001)
-                    .onTapGesture {
-                        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
-                    }
-            }
-        }
-        .overlay(alignment: .topLeading) {
-            if !chat.needsOnboarding, dropdowns.menu == .choice {
-                ChoiceDropdown(executors: executors, host: dropdowns)
-                    .padding(.leading, Space.x4)
-                    .padding(.top, Space.x1 * 25)
             }
         }
         .overlay {
