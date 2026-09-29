@@ -153,7 +153,7 @@ struct HomeTaskRow: View {
                     .monospacedDigit()
                     .foregroundStyle(Semantic.textMuted)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: TaskRowMetrics.chevron * 0.75, weight: .medium))
+                    .font(Fonts.sans(TaskRowMetrics.chevron * 0.75).weight(.medium))
                     .frame(width: TaskRowMetrics.chevron, height: TaskRowMetrics.chevron)
                     .foregroundStyle(hovering ? Semantic.mutedForeground : Semantic.faintForeground)
                     .accessibilityHidden(true)

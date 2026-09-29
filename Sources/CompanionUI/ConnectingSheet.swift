@@ -59,16 +59,7 @@ struct ConnectingSheet: View {
     }
 
     private var closeButton: some View {
-        Button(action: onClose) {
-            Image(systemName: "xmark")
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.foreground)
-                .frame(width: MainWindowMetrics.avatar, height: MainWindowMetrics.avatar)
-                .background(Circle().fill(Semantic.muted))
-                .contentShape(Circle())
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel(Localized.string("task.close"))
+        CloseButton(action: onClose)
     }
 
     private var track: some View {

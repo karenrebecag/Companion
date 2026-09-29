@@ -120,12 +120,7 @@ public struct SettingsView: View {
     }
 
     private var closeButton: some View {
-        RoundIconButton(
-            icon: .cross,
-            foreground: Semantic.foreground,
-            background: Semantic.surface,
-            help: Localized.string("settings.close")
-        ) {
+        CloseButton {
             dropdowns.dismiss()
             withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { onClose() }
         }
@@ -241,6 +236,8 @@ struct SettingsSidebar: View {
         }
         .padding(.horizontal, Space.x3)
         .padding(.vertical, Space.x2)
+        // A text field in a capsule, not a button: CapsuleChipStyle has
+        // nothing to style here.
         .background(Capsule().fill(Semantic.muted))
     }
 

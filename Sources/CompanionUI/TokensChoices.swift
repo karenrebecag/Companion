@@ -221,18 +221,6 @@ public enum IconSize {
     public static let hero: CGFloat = 28
 }
 
-// Onboarding washes: barely-there NEUTRAL fields behind the hero — the first
-// screen stays clean black-and-white, free of the app accent (decision de
-// Karen 2026-08-26). Defined HERE so views never reach for Semantic.x.opacity
-// (the conformance rule).
-public enum Wash {
-    /// The glow behind the hero figure.
-    public static var hero: Color { Neutral.n500.color.opacity(0.14) }
-
-    /// The faint field that tints the top of the sheet.
-    public static var field: Color { Neutral.n500.color.opacity(0.05) }
-}
-
 // Layout container (R-03). OSMO's system is adimensional fractions of the
 // available width; the app adds the one absolute it needs: the centered
 // reading column a full-screen sheet lays on.

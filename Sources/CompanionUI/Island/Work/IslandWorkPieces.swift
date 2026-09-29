@@ -200,13 +200,8 @@ struct IslandChecklist: View {
                     .padding(.horizontal, Space.x2)
                     .padding(.vertical, WorkStateMetrics.stepPaddingX)
                     .background(Capsule().fill(.white.opacity(IslandAlpha.tile)))
-                Button(action: onDismiss) {
-                    Image(systemName: "xmark")
-                        .font(Fonts.geist(WorkStateMetrics.markSize).weight(.semibold))
-                        .foregroundStyle(.white.opacity(IslandAlpha.muted))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Localized.string("island.checklist.dismiss"))
+                CloseButton(variant: .island, label: Localized.string("island.checklist.dismiss"),
+                            action: onDismiss)
             }
             .padding(.bottom, Space.x1)
             let tail = Array(job.steps.enumerated())

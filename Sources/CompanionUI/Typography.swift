@@ -260,7 +260,7 @@ public enum Fonts {
         if let name = FontFallback.sansFamily(for: face, registered: registered) {
             return Font.custom(name, size: s)
         }
-        return Font.system(size: s)
+        return Font.system(size: s)  // token-exempt: the font factory is the one place that calls .system
     }
 
     public static func sample(_ face: AppTypeface, size: CGFloat) -> Font {
@@ -269,9 +269,9 @@ public enum Fonts {
             return Font.custom(name, size: s)
         }
         if face == .serif {
-            return Font.system(size: s, design: .serif)
+            return Font.system(size: s, design: .serif)  // token-exempt: the font factory is the one place that calls .system
         }
-        return Font.system(size: s)
+        return Font.system(size: s)  // token-exempt: the font factory is the one place that calls .system
     }
 
     public static func logo(_ size: CGFloat) -> Font {
@@ -279,7 +279,13 @@ public enum Fonts {
         if let name = FontFallback.logoName(registered: registered) {
             return Font.custom(name, size: s)
         }
-        return Font.system(size: s, weight: .medium)
+        return Font.system(size: s, weight: .medium)  // token-exempt: the font factory is the one place that calls .system
+    }
+
+    /// SF Symbols: the system font at the user's scale, where the symbol's
+    /// weight is honoured.
+    public static func symbol(_ size: CGFloat, weight: Font.Weight) -> Font {
+        Font.system(size: TypeScale.apply(size), weight: weight)  // token-exempt: the font factory is the one place that calls .system
     }
 
     public static func mono(_ size: CGFloat, bold: Bool = false) -> Font {
@@ -287,7 +293,7 @@ public enum Fonts {
         if let name = FontFallback.monoName(bold: bold, registered: registered) {
             return Font.custom(name, size: s)
         }
-        return Font.system(size: s, design: .monospaced)
+        return Font.system(size: s, design: .monospaced)  // token-exempt: the font factory is the one place that calls .system
             .weight(bold ? .bold : .regular)
     }
 }
@@ -311,7 +317,7 @@ extension Font {
     public static var uiSubtitle: Font { Fonts.sans(TypeSize.strong) }
     // Mismo papel con dos nombres; unificarlos es R-04.
     public static var uiTitle: Font { Fonts.sans(TypeSize.title) }
-    /// Onboarding hero title: the one place the sheet speaks at display size.
+    /// Hero title: the one place a sheet speaks at display size.
     public static var uiDisplay: Font { Fonts.sans(TypeSize.display) }
     public static var uiHeading: Font { Fonts.sans(TypeSize.title) }
     public static var uiLogo: Font { Fonts.logo(TypeSize.display) }

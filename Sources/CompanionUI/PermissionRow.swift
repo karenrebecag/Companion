@@ -53,35 +53,3 @@ public struct PermissionRowModel: Equatable {
         }
     }
 }
-
-public struct PermissionRow: View {
-    @Environment(\.openURL) private var openURL
-    var model: PermissionRowModel
-
-    public init(model: PermissionRowModel) {
-        self.model = model
-    }
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            HStack(alignment: .firstTextBaseline, spacing: Space.x2) {
-                Text(model.title)
-                    .font(.uiLabel)
-                    .foregroundStyle(Semantic.foreground)
-                Spacer(minLength: Space.x2)
-                Text(model.status)
-                    .font(.uiCaption)
-                    .foregroundStyle(model.granted ? Semantic.accentText : Semantic.mutedForeground)
-            }
-            Text(model.body)
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
-            if model.showsButton {
-                Button(Localized.string("permission.open")) { openURL(model.link) }
-                    .buttonStyle(.link)
-                    .font(.uiCaption)
-            }
-        }
-    }
-}

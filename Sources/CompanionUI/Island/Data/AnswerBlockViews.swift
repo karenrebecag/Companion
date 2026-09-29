@@ -14,20 +14,14 @@ struct AnswerPopupView: View {
     let onClose: () -> Void
     @State private var contentHeight: CGFloat = 0
 
+    /// Names what it closes: the popup floats apart from the island.
+    static var closeLabel: String { Localized.string("island.answer.close") }
+
     var body: some View {
         AnswerPopup(screenWidth: screenWidth) {
             HStack {
                 Spacer(minLength: Space.none)
-                Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(Fonts.geist(TypeSize.micro).weight(.semibold))
-                        .foregroundStyle(AnswerInk.white(AnswerInk.muted))
-                        .frame(width: AnswerBlockMetrics.closeSide,
-                               height: AnswerBlockMetrics.closeSide)
-                        .background(Circle().fill(AnswerInk.white(AnswerInk.fill)))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Localized.string("island.answer.close"))
+                CloseButton(variant: .island, label: Self.closeLabel, action: onClose)
             }
             // The popup hugs a short answer; the scroll appears only past
             // the cap. A greedy ScrollView made every popup cap-tall (16m

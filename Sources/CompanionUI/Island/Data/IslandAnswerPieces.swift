@@ -149,45 +149,6 @@ struct ReferentChip: View {
     }
 }
 
-/// One choice when the island asks a question: a quiet tile that turns
-/// indigo under the pointer.
-struct AnswerOption: View {
-    let title: String
-    var badge: String? = nil
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: AnswerOptionMetrics.gap) {
-                if let badge {
-                    Text(badge)
-                        .font(Fonts.geist(TypeSize.caption).weight(.semibold))
-                        .foregroundStyle(IslandInk.text)
-                        .frame(width: IconButtonSize.small.side * 0.75, height: IconButtonSize.small.side * 0.75)
-                        .background(RoundedRectangle(cornerRadius: Radius.md)
-                            .fill(hovering ? IslandPalette.indigo.color.opacity(0.42) : IslandInk.chip))
-                }
-                Text(title)
-                    .font(Fonts.geist(TypeSize.body))
-                    .foregroundStyle(IslandInk.text)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.vertical, AnswerOptionMetrics.paddingY)
-            .padding(.horizontal, AnswerOptionMetrics.paddingX)
-            .background(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius)
-                .fill(hovering ? IslandPalette.indigo.color.opacity(0.22) : IslandInk.chip))
-            .overlay(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius)
-                .strokeBorder(hovering ? IslandPalette.indigo.color.opacity(0.4) : IslandInk.hairline,
-                              lineWidth: Stroke.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius))
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(MotionCurve.animation(MotionCurve.standard, MotionTime.fast), value: hovering)
-    }
-}
-
 /// A captured thing waiting to go with the next turn: clipboard text, a
 /// screenshot, a file or a task.
 struct CaptureCard<Content: View>: View {

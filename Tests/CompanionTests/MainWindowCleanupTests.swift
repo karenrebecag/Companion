@@ -14,7 +14,7 @@ import Testing
         ChatMessage(isStatus: true, text: "Encargo: buscar · 1 búsqueda"),
         ChatMessage(role: .assistant, text: "## México\n\npuntos clave"),
     ]
-    let shown = ThreadView.visible(rows)
+    let shown = TaskThread.visible(rows)
     expectEq(shown.map(\.text), ["busca México", "## México\n\npuntos clave"],
              "hilo: solo tus turnos y las respuestas")
 }

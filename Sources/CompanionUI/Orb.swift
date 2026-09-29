@@ -50,13 +50,3 @@ public struct Orb: View {
         }
     }
 }
-
-/// Press feedback lives on the control that owns the orb, so Orb's
-/// (state, levels, accentColor) contract stays put.
-struct OrbPressStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(OrbAppearance.pressScale(configuration.isPressed))
-            .animation(.springPress, value: configuration.isPressed)
-    }
-}

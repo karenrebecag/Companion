@@ -31,7 +31,6 @@
 "chat.approval.rememberedDeny" = "Denegado, como antes: %@.";
 "chat.job.done" = "Encargo listo";
 "chat.job.failed" = "Encargo falló";
-"job.working" = "El especialista está trabajando";
 
 /* Adjuntos */
 "chat.attach.done" = "Adjuntado: %@";
@@ -55,19 +54,9 @@
 "voice.fail.accessibilityDenied" = "Sin permiso de Accesibilidad no pude escribir en el campo. Tus palabras fueron al chat.";
 "voice.preview.failed" = "No se pudo reproducir la muestra. Revisa tu conexión.";
 
-/* Idle */
-"idle.phrase.1" = "Lista cuando tú lo estés";
-"idle.phrase.2" = "¿En qué andamos hoy?";
-"idle.phrase.3" = "Cuéntame qué sigue";
-"idle.phrase.4" = "Tu Mac y yo, a tus órdenes";
-"idle.phrase.5" = "Dime y lo hacemos";
-"idle.phrase.6" = "Empecemos cuando quieras";
-"idle.caption.voice" = "Toca el orb de abajo para empezar a hablar";
-"idle.caption.text" = "Escribe abajo y presiona Enter";
-
 /* Ajustes */
 "settings.title" = "Ajustes";
-"settings.close" = "Cerrar";
+"action.close" = "Cerrar";
 "settings.tab.general" = "General";
 "settings.tab.voice" = "Voz";
 "settings.tab.vocabulary" = "Vocabulario";
@@ -176,14 +165,8 @@
 "approval.remember" = "Recordar durante esta sesión";
 "attach.list" = "Archivos adjuntos";
 "attach.remove" = "Quitar %@";
-"attach.open" = "%@. Abrir";
 "attach.drop.title" = "Suéltalos aquí";
 "attach.drop.subtitle" = "Imágenes, PDFs, código: lo que quieras que mire";
-"composer.placeholder" = "Escríbele a Companion";
-"composer.send" = "Enviar";
-"controlbar.unmute" = "Activar micrófono";
-"controlbar.mute" = "Silenciar micrófono";
-"header.settings" = "Ajustes";
 "header.newConversation" = "Nueva conversación";
 "header.noConversations" = "Todavía no hay conversaciones";
 "header.recent" = "Recientes";
@@ -193,48 +176,16 @@
 "menu.window" = "Ventana";
 "shortcut.newConversation" = "Nueva conversación";
 "shortcut.toggleMute" = "Silenciar/activar sonido";
-"thread.queued" = "En cola: %@";
 "thread.untitled" = "Conversación";
-"onboarding.title.l1" = "Habla con tu Mac";
-"onboarding.title.l2" = "y déjala trabajar.";
-"onboarding.blurb" = "Conversa por voz, encárgale tareas de verdad y deja que recuerde lo que importa.";
-"onboarding.key" = "Clave de OpenAI";
-"onboarding.getKey" = "¿Sin clave? Consíguela aquí";
-"onboarding.verifying" = "Verificando...";
 "chat.card.locations" = "Se mostró un mapa con: %@.";
 "chat.card.gallery" = "Se mostró una galería en pantalla.";
 "chat.job.stopped" = "Paraste el encargo.";
-"job.stop" = "Parar";
 "chat.job.failed.notice" = "El encargo no pudo terminar: %@";
 "card.unverified" = "Companion no verificó estos lugares o imágenes.";
-"onboarding.probing" = "Buscando un modelo en tu Mac…";
-"onboarding.base.blurb" = "Tu Mac ya puede hablar contigo. Sin cuenta y sin configurar nada.";
-"onboarding.local.ollama" = "Empezar con %@ en tu Mac";
-"onboarding.local.apple" = "Empezar con el modelo de tu Mac";
-"onboarding.local.missing" = "Busqué en tu Mac y todavía no tiene su propio modelo. Descárgalo en un par de minutos.";
-"onboarding.key.optional" = "Una clave de OpenAI activa la voz en tiempo real y mejores modelos.";
-"onboarding.ollama.download" = "Descargar Ollama";
-"onboarding.ollama.installed" = "Ya lo instalé. Volver a buscar";
-"onboarding.section.local" = "En tu Mac";
-"onboarding.section.key" = "Con tu clave de OpenAI";
-"onboarding.choice.local.title" = "En tu Mac";
-"onboarding.choice.local.sub" = "Privado y gratis. Funciona sin internet.";
-"onboarding.choice.cloud.title" = "Con OpenAI";
-"onboarding.choice.cloud.sub" = "Voz en tiempo real y mejores modelos.";
-"onboarding.local.ready" = "%@ listo para hablar";
-"onboarding.local.none.status" = "Sin modelo todavía";
-"onboarding.local.apple.short" = "El modelo de tu Mac";
-"onboarding.ollama.what" = "Ollama es una app gratuita que corre modelos de IA en tu Mac.";
-"onboarding.ollama.waiting" = "Esperando la instalación…";
-"onboarding.cta.probing" = "Buscando…";
-"onboarding.continue" = "Conectar con OpenAI";
-"status.approvalWaiting" = "El especialista espera tu permiso";
-"status.escToStop" = "Esc para cortar";
 "sources.title" = "Fuentes";
 "sources.web" = "Web";
 "sources.files" = "Archivos";
 "map.open" = "Abrir";
-"shortcut.escToCancel" = "Presiona Esc para cancelar";
 "accent.lime" = "Verde eléctrico";
 "voice.sample" = "Hola, soy Companion. Así sueno.";
 "settings.app.language" = "Idioma";
@@ -307,7 +258,6 @@
 "island.answer.copy" = "Copiar el código";
 "island.answer.fold" = "Plegar el código";
 "island.action.keys" = "Abrir Claves";
-"island.hands" = "Manos: %@";
 "island.hands.stop" = "Detener manos";
 "island.light.amber" = "Te necesita";
 "island.light.green" = "Terminado";
@@ -478,7 +428,6 @@
 "home.ago.minutes" = "Hace %d min";
 "home.ago.hours" = "Hace %d h";
 "home.ago.days" = "Hace %d d";
-"task.close" = "Cerrar";
 "task.next" = "Tu próximo mensaje continúa esta tarea.";
 "task.followUp" = "Seguir";
 "task.details" = "Detalles";

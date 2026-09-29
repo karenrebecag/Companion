@@ -4,7 +4,7 @@ import SwiftUI
 /// Where `ChatViewModel.errorText` becomes visible (16p-1). The island and
 /// Home each ask this before painting, so the two never disagree.
 enum ChatErrorSurface {
-    /// The sentence to paint, or nil. Onboarding paints its own copy of the
+    /// The sentence to paint, or nil. The welcome paints its own copy of the
     /// error inside the welcome, and a dismissed sentence stays away until a
     /// different one arrives.
     static func visible(errorText: String?, needsOnboarding: Bool, dismissed: String?) -> String? {
@@ -65,14 +65,7 @@ struct HomeErrorBanner: View {
                 .foregroundStyle(Semantic.destructive)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(GeistFont.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(Localized.string("island.notice.dismiss"))
+            CloseButton(label: Localized.string("island.notice.dismiss"), action: onDismiss)
         }
         .padding(Space.x3)
         .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Semantic.destructiveMuted))

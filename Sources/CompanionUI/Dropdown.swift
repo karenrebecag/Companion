@@ -1,7 +1,7 @@
 import SwiftUI
 
 public enum OpenMenu: Equatable, Sendable {
-    case choice, history, settingsPick(String)
+    case history, settingsPick(String)
 }
 
 public struct DropdownItem {
@@ -38,12 +38,6 @@ public final class DropdownHost {
     var onChoose: ((Int) -> Void)?
 
     public init() {}
-
-    /// Choice is a header panel: the root hit-sink covers the rest of the
-    /// window. History is a centered overlay; its blur is the sink.
-    public var blocksRoot: Bool {
-        session.isOpen && menu == .choice
-    }
 
     public func toggle(_ menu: OpenMenu) {
         if self.menu == menu, session.isOpen {

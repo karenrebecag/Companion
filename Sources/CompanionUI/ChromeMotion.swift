@@ -15,3 +15,23 @@ enum ChromeMotion {
         return animation.map { base.animation($0) } ?? base
     }
 }
+
+/// Settings pages swap in place: travel would read as navigation.
+private struct ModeSwapChrome: ViewModifier {
+    var blur: CGFloat
+    var opacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .blur(radius: blur)
+            .opacity(opacity)
+    }
+}
+
+extension AnyTransition {
+    static var modeSwap: AnyTransition {
+        .modifier(
+            active: ModeSwapChrome(blur: 8, opacity: 0),
+            identity: ModeSwapChrome(blur: 0, opacity: 1))
+    }
+}

@@ -18,7 +18,7 @@ struct TaskDetailSheet: View {
                 VStack(alignment: .leading, spacing: Space.x3) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: Space.x3) {
-                            ForEach(ThreadView.visible(messages)) { message in
+                            ForEach(TaskThread.visible(messages)) { message in
                                 bubble(message)
                             }
                         }
@@ -47,16 +47,7 @@ struct TaskDetailSheet: View {
             Text(HomeCopy.ago(task.updatedAt))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.foreground)
-                    .frame(width: MainWindowMetrics.avatar, height: MainWindowMetrics.avatar)
-                    .background(Circle().fill(Semantic.muted))
-                    .contentShape(Circle())
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel(Localized.string("task.close"))
+            CloseButton(action: onClose)
         }
     }
 
@@ -88,6 +79,8 @@ struct TaskDetailSheet: View {
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
             Spacer()
+            // The sheet's one primary action, in the window's face: the
+            // capsule chip speaks Geist and belongs to the island and welcome.
             Button(action: onFollowUp) {
                 Label(Localized.string("task.followUp"), systemImage: "arrowshape.turn.up.left")
                     .font(.uiLabel.weight(.semibold))
@@ -113,7 +106,7 @@ struct TaskDetailSheet: View {
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
             detail(Localized.string("task.updated"), HomeCopy.ago(task.updatedAt))
-            detail(Localized.string("task.messages"), "\(ThreadView.visible(messages).count)")
+            detail(Localized.string("task.messages"), "\(TaskThread.visible(messages).count)")
             Spacer(minLength: Space.none)
         }
         .padding(Space.x4)
@@ -128,5 +121,14 @@ struct TaskDetailSheet: View {
             Text(value).foregroundStyle(Semantic.mutedForeground)
         }
         .font(.uiCaption)
+    }
+}
+
+/// The rows a saved task shows.
+enum TaskThread {
+    /// Status lines are the island's to say (16j-1); the thread keeps the
+    /// user's turns and the replies, as Incredible's conversation does.
+    static func visible(_ messages: [ChatMessage]) -> [ChatMessage] {
+        messages.filter { !$0.isStatus }
     }
 }

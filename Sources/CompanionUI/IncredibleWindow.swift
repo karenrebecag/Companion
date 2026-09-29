@@ -97,6 +97,10 @@ public enum Monogram {
 }
 
 /// The key drawn inside the hero title: white-to-grey face, a darker lip.
+/// The brand variant of `Keycap`, kept apart on purpose: its face is
+/// Incredible's measured hero key (a gradient and a hard drop, sized in em
+/// of the title it sits in), not the component cap the rows and the
+/// welcome use.
 public struct BrandKeycapView: View {
     let text: String
     /// The size of the title it sits in.
@@ -131,7 +135,7 @@ struct TaskChipIcon: View {
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: TaskRowMetrics.icon * 0.5))
+            .font(Fonts.sans(TaskRowMetrics.icon * 0.5))
             .foregroundStyle(Semantic.faintForeground)
             .frame(width: TaskRowMetrics.icon, height: TaskRowMetrics.icon)
             .background(Circle().fill(Semantic.surface))

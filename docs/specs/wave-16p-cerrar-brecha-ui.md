@@ -82,3 +82,16 @@ cada familia nueva; PR final con bitácora por sesión.
   rebasa sobre `feat/ui-gap` antes de su PR.
 - Mermaid (16m-5) es la única dependencia nueva: vendoreada con versión y hash fijados, sin red,
   CSP cerrada, revisión de seguridad propia.
+
+## 8. Seguimiento de 16p-2 (anotado, no bloqueante)
+
+- **Rive sin uso**: `Mascot.swift` era su único consumidor. Quitar `RiveRuntime` y el recurso
+  `Mascot/hello.riv` (501 KB) toca `Package.swift`, que es configuración raíz: decisión de Karen.
+- **`ExecutorChoice` sin lector de UI**: el selector de ejecutor ya era inalcanzable (vivía en
+  `HeaderView`, muerto) y se retiró; App aún construye y refresca `ExecutorChoice` y guarda
+  `CompanionMain.executorChoice`, que nadie lee. El ejecutor real corre por `ExecutorProvider`.
+  Retirarlo toca App, Providers y `ExecutorPicker`: sesión aparte.
+- **`AnswerOption` retirada** por no tener instancias; 16m-6 (pregunta con opciones) la
+  reconstruye desde el historial con su dato.
+- **Pantallas de base local (Ollama / Apple)** se fueron con `OnboardingView`; el camino sin clave
+  sigue vivo en la bienvenida (`acceptLocalBase`, paso de claves).

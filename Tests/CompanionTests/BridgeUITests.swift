@@ -5,7 +5,7 @@ import Testing
 
 // Wave 17-2 (App + UI): the reducer's two new events, what the island decides
 // from them, the "Lend your hands" preference, and the catalog strings the
-// chip and the status menu read.
+// island action and the status menu read.
 
 @Test @MainActor func bridgeUITests() async {
     await pinLanguage {
@@ -111,19 +111,16 @@ import Testing
     expectEq(counter.count, 2, "ajuste: apagarlo también avisa")
 }
 
-/// The chip and the status menu both read "Stop hands" from the catalog,
-/// under different keys (spec §2 vs §4) — both must be non-empty and vary
-/// by language, or the app goes monolingual again silently.
+/// The island action and the status menu both read "Stop hands" from the
+/// catalog, under different keys (spec §2 vs §4) — both must be non-empty
+/// and vary by language, or the app goes monolingual again silently. The
+/// hands chip itself was retired in 16p-2.
 @MainActor func testStopHandsCatalogStrings() async {
     await Localized.scoped(to: .en) {
         expectEq(IslandCopy.action(.stopHands), "Stop hands", "isla: acción Detener manos, en")
-        let enChip = String(format: Localized.string("island.hands"), "Claude Code")
-        expectEq(enChip, "Hands: Claude Code", "isla: el chip formatea el cliente")
     }
     await Localized.scoped(to: .es) {
         expectEq(IslandCopy.action(.stopHands), "Detener manos", "isla: acción Detener manos, es")
-        let esChip = String(format: Localized.string("island.hands"), "Claude Code")
-        expectEq(esChip, "Manos: Claude Code", "isla: el chip formatea el cliente, es")
         expectEq(Localized.string("menu.stopHands"), "Detener manos", "menú: Detener manos, es")
     }
 }
