@@ -53,15 +53,36 @@ public struct BridgePolicy: Sendable, Equatable {
     /// this is only the resolution.
     public static let idleCheckInterval: TimeInterval = 15
 
+    /// Wave 20c D5 (M2b): this many denied approvals inside `denialWindow`
+    /// and the caller is cooled down until the oldest one ages out, so
+    /// nobody can spam requests hoping for a mistaken yes.
+    public static let maxDenials = 3
+    public static let denialWindow: TimeInterval = 10 * 60
+
     public private(set) var state: BridgeState
 
     /// Absolute timestamps of write operations. Pruned to keep only writes
     /// within the current window on each write-tool admit.
     private var writeTimestamps: [Date]
 
+    /// Denied approvals, per PROCESS like the write budget: `disconnected()`
+    /// never clears it, or reconnecting would reset the count.
+    private var denialTimestamps: [Date]
+
     public init() {
         self.state = .idle
         self.writeTimestamps = []
+        self.denialTimestamps = []
+    }
+
+    public mutating func recordDenial(now: Date) {
+        denialTimestamps = denialTimestamps.filter { $0 > now.addingTimeInterval(-Self.denialWindow) }
+        denialTimestamps.append(now)
+    }
+
+    public func isCoolingDown(now: Date) -> Bool {
+        let cutoff = now.addingTimeInterval(-Self.denialWindow)
+        return denialTimestamps.filter { $0 > cutoff }.count >= Self.maxDenials
     }
 
     /// Called when hello is received. Transitions from idle or closed to listed
@@ -74,6 +95,7 @@ public struct BridgePolicy: Sendable, Equatable {
     /// `hello → 30 writes → bye → hello → …` would launder the 30/min cap
     /// on every reconnect.
     public mutating func helloReceived(now: Date) -> BridgeVerdict {
+        if isCoolingDown(now: now) { return .reject(code: BridgeCode.coolingDown) }
         switch state {
         case .idle, .closed:
             state = .listed
@@ -103,6 +125,7 @@ public struct BridgePolicy: Sendable, Equatable {
     /// Called when a tool call arrives. Checks if the session is valid and
     /// if the write budget allows it. Records the timestamp if approved.
     public mutating func admit(tool: String, now: Date) -> BridgeVerdict {
+        if isCoolingDown(now: now) { return .reject(code: BridgeCode.coolingDown) }
         // Check session state
         switch state {
         case .idle:

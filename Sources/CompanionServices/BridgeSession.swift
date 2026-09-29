@@ -236,7 +236,7 @@ public actor BridgeSession {
         switch verdict {
         case .reject(let code):
             Log.bridge("hello rejected: \(code)")
-            return (errorLine(id, code, rejectionMessage(code)), false)
+            return (errorLine(id, code, rejectionMessage(code)), code == BridgeCode.coolingDown)
         case .needsApproval:
             // BridgePolicy.helloReceived never asks for approval (the sheet
             // moves to the first `call`, §9-4); kept for exhaustiveness.
@@ -311,7 +311,12 @@ public actor BridgeSession {
         guard epoch == self.epoch else { return ("", false) }
         guard approved else {
             policy.denied()
+            policy.recordDenial(now: now())
             onState(policy.state)
+            if policy.isCoolingDown(now: now()) {
+                Log.bridge("cooling down after repeated denials")
+                return (errorLine(id, BridgeCode.coolingDown, rejectionMessage(BridgeCode.coolingDown)), true)
+            }
             return (errorLine(id, BridgeCode.deniedByUser, "the user denied the hands"), false)
         }
         // M4 (security review 2026-09-28): the peer may have left (a plain
@@ -350,13 +355,10 @@ public actor BridgeSession {
     /// would have trusted a spoken word for goes to the sheet instead.
     private func performCall(id: Int, call: BridgeCall, epoch: Int) async -> (String, Bool) {
         let ref = ToolCallRef(id: UUID().uuidString, name: call.name, arguments: call.argumentsJSON)
-        let outcome: ParentToolOutcome
-        if let denied = await guardian.check(ref, said: "", language: language(), tools: tools) {
-            outcome = denied
-        } else {
-            guard epoch == self.epoch else { return ("", false) }
-            outcome = await tools.execute(name: call.name, argumentsJSON: call.argumentsJSON)
-        }
+        let denied = await guardian.check(ref, said: "", language: language(), tools: tools)
+        guard epoch == self.epoch else { return ("", false) }
+        if let denied { return denyCall(id: id, denied) }
+        let outcome = await tools.execute(name: call.name, argumentsJSON: call.argumentsJSON)
         if outcome.ok { onCall(call.name) }
         if outcome.ok, BridgePolicy.writeTools.contains(call.name) {
             onAction(call.name)
@@ -365,6 +367,19 @@ public actor BridgeSession {
         Log.bridge("call \(call.name) ok=\(outcome.ok) target=\(outcome.target) "
             + "chars=\(call.argumentsJSON.utf8.count)")
         return (BridgeCodec.encode(.call(id: id, BridgeCallResult(outcome))), false)
+    }
+
+    /// A per-call denial counts toward the cool-down like the session sheet:
+    /// the Nth one shuts the session off and closes the connection.
+    private func denyCall(id: Int, _ outcome: ParentToolOutcome) -> (String, Bool) {
+        policy.recordDenial(now: now())
+        let coolingDown = policy.isCoolingDown(now: now())
+        if coolingDown {
+            Log.bridge("cooling down after repeated denials; session shut off")
+            policy.stop()
+            onState(policy.state)
+        }
+        return (BridgeCodec.encode(.call(id: id, BridgeCallResult(outcome))), coolingDown)
     }
 
     /// Built with `JSONSerialization`, not string interpolation: the client
@@ -408,6 +423,7 @@ public actor BridgeSession {
         case BridgeCode.rateLimited: return "budget exceeded (\(BridgePolicy.budgetPerMinute)/min)"
         case BridgeCode.noSession: return "no active session; send hello first"
         case BridgeCode.sessionClosed: return "session is closed"
+        case BridgeCode.coolingDown: return "too many denied requests; try again later"
         default: return code
         }
     }
