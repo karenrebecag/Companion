@@ -116,6 +116,14 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
             + "\(fresh.reduce(0) { $0 + $1.actions.count }) tool(s)")
     }
 
+    /// The connected apps as `@` candidates: what the last refresh saw, no
+    /// network. Before the first refresh there is nothing to offer.
+    public func connectedMentionCandidates() -> [MentionCandidate] {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache.compactMap { MentionCandidate(id: $0.slug, kind: .app, name: $0.name) }
+    }
+
     private func store(_ fresh: [ConnectedTools], unlisted: Set<String>, expired: [AppMention.Candidate]) {
         lock.lock()
         cache = fresh

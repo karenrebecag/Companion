@@ -14,6 +14,26 @@ public struct ScreenRegionGrabber: RegionGrabbing {
         self.permission = permission
     }
 
+    /// The folder may hold sensitive screen content from a run that never
+    /// got to discard it. Called at launch; only ever empties its own folder,
+    /// and never follows a link out of it.
+    public func purgeLeftovers() {
+        let fm = FileManager.default
+        do {
+            let values = try directory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            guard values.isDirectory == true, values.isSymbolicLink != true else { return }
+        } catch {
+            return
+        }
+        do {
+            for url in try fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
+                try fm.removeItem(at: url)
+            }
+        } catch {
+            Log.app("capture: could not clear the capture folder")
+        }
+    }
+
     public func capture() async -> RegionGrab {
         guard permission.isGranted() else {
             permission.request()

@@ -47,13 +47,6 @@ enum IslandCopy {
         }
     }
 
-    /// A new message in the user's own mail app: no server of ours, no
-    /// address sent anywhere until the user writes and sends it.
-    static var feedbackURL: URL? {
-        URL(string: "mailto:?subject=" + (Localized.string("island.feedback.subject")
-            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Companion"))
-    }
-
     /// The kind of line, not its words: what decides a swap (code review 16f-2).
     static func swapKey(_ line: IslandState.Line) -> String {
         switch line {

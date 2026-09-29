@@ -607,3 +607,40 @@
 "island.signIn" = "Sign in to %@ again";
 "island.signIn.body" = "Its session expired, so I can't use it until you do.";
 "island.signIn.action" = "Sign in";
+
+/* 16m-7: mentions */
+"mention.kind.contact" = "contact";
+"mention.kind.app" = "connected app";
+"mention.kind.file" = "recent file";
+"mention.row" = "%@, %@, %d of %d";
+"mention.hint" = "Arrow keys to move, Return or Tab to choose, Escape to close.";
+"mention.hint.contact" = "Arrow keys to move, Return or Tab to choose, Right arrow to pick an email or phone, Escape to close.";
+"mention.typeToSearch" = "Type a name to search your contacts";
+"mention.nameOnly" = "Name only";
+"mention.list" = "Mention suggestions";
+
+/* 16m-7: feedback modal */
+"feedback.title" = "Send feedback";
+"feedback.mood.title" = "How is it going?";
+"feedback.mood.love" = "Loving it";
+"feedback.mood.good" = "Good";
+"feedback.mood.meh" = "So-so";
+"feedback.mood.bad" = "Not good";
+"feedback.placeholder" = "What would you tell us?";
+"feedback.counter" = "%d left";
+"feedback.counter.over" = "%d over the limit";
+"feedback.capture.add" = "Add a screenshot";
+"feedback.capture.remove" = "Remove screenshot %d";
+"feedback.capture.item" = "Screenshot %d";
+"feedback.send" = "Send";
+"feedback.cancel" = "Cancel";
+"feedback.done" = "Done";
+"feedback.sent" = "Your mail app opened with the message. Nothing leaves until you send it there.";
+"feedback.note.limit" = "That is the most screenshots for one message.";
+"feedback.note.noGrabber" = "Screenshots are not available here.";
+"feedback.note.captureFailed" = "I couldn't take the screenshot.";
+"feedback.note.needsScreen" = "To capture, allow Screen Recording.";
+"feedback.note.noAttach" = "Your mail app opened, but I couldn't attach the screenshots. They are in the temporary captures folder.";
+"feedback.note.deliveryFailed" = "I couldn't open your mail app.";
+"feedback.note.captureAction" = "Screenshots are only taken when you press the button.";
+"feedback.note.truncated" = "Your mail app opened, but the message was too long for a mail link, so the end was cut.";

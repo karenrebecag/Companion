@@ -15,12 +15,24 @@ public final class ChatViewModel: ConversationPresenting {
     struct QueuedMessage: Equatable {
         let text: String
         let origin: MessageOrigin
+        var mentions: [Mention] = []
     }
 
     var queue: [QueuedMessage] = []
     /// What is waiting behind the running turn, in order.
     public var queued: [String] { queue.map(\.text) }
     public internal(set) var pendingAttachments: [AttachmentRef] = []
+    public internal(set) var pendingMentions: [Mention] = []
+    /// The field changed: a mention whose `@name` is no longer in it is gone,
+    /// with its channel, and typing the name again by hand does not bring it back.
+    func syncMentions(with words: String) {
+        pendingMentions = MentionContext.referenced(pendingMentions, in: words)
+    }
+
+    /// A pick from the `@` selector, waiting for the message it belongs to.
+    public func addMention(_ mention: Mention) {
+        pendingMentions.append(mention)
+    }
     public var dropTargeted = false
     public internal(set) var busySince: Date?
     /// The session's state (Wave 12a): kind, job, sheet queue. This model
@@ -197,6 +209,7 @@ public final class ChatViewModel: ConversationPresenting {
         dropParentApprovals()
         queue = []
         pendingAttachments = []
+        pendingMentions = []
         streaming = ""
         onboardingKey = ""
         errorText = nil
@@ -211,7 +224,11 @@ public final class ChatViewModel: ConversationPresenting {
         guard !text.isEmpty || !pendingAttachments.isEmpty else { return }
         draft = ""
         errorText = nil
-        dispatch(text, origin: .typed)
+        // Only the mentions whose @name is still in the words travel; what
+        // she deleted is gone with it.
+        let sent = MentionContext.referenced(pendingMentions, in: text)
+        pendingMentions = []
+        dispatch(text, origin: .typed, mentions: sent)
     }
 
     /// A pick from a question card (16m-6) is a typed message: same guards,
@@ -230,12 +247,12 @@ public final class ChatViewModel: ConversationPresenting {
         return true
     }
 
-    private func dispatch(_ text: String, origin: MessageOrigin) {
+    private func dispatch(_ text: String, origin: MessageOrigin, mentions: [Mention] = []) {
         if busy {
-            queue.append(QueuedMessage(text: text, origin: origin))
+            queue.append(QueuedMessage(text: text, origin: origin, mentions: mentions))
             return
         }
-        startTurn(text, origin: origin)
+        startTurn(text, origin: origin, mentions: mentions)
     }
 
     public func newConversation() {
@@ -243,6 +260,7 @@ public final class ChatViewModel: ConversationPresenting {
         dropParentApprovals()
         queue = []
         pendingAttachments = []
+        pendingMentions = []
         errorText = nil
         persist()
         conversationId = UUID().uuidString

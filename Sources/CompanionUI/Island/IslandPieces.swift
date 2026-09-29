@@ -116,6 +116,8 @@ struct IslandComposer: View {
     @Binding var popover: IslandPopoverKind?
     /// A staged attachment is enough to send, as in the window.
     var staged = false
+    /// The `@` selector: it takes the arrows, Tab and the Return that would send.
+    var mentions: MentionSelectorModel?
 
     var body: some View {
         HStack(spacing: IslandFieldMetrics.orbGap) {
@@ -131,7 +133,14 @@ struct IslandComposer: View {
                 .font(Fonts.geist(TypeSize.rowTitle))
                 .foregroundStyle(IslandInk.text)
                 .focused(focused)
-                .onSubmit(onSend)
+                // Return picks the row while the selector is open; the key
+                // handler below leaves it out so a pick never also sends.
+                .onSubmit { if mentions?.press(.enter) != true { onSend() } }
+                .onKeyPress(keys: [.upArrow, .downArrow, .tab, .rightArrow, .leftArrow], phases: .down) { press in
+                    guard press.modifiers.isEmpty, let key = Self.mentionKey(press.key),
+                          mentions?.press(key) == true else { return .ignored }
+                    return .handled
+                }
                 .padding(.leading, IslandFieldMetrics.textInset)
             IconButton("paperclip", label: Localized.string("island.attach"), size: .island,
                        tone: .island, active: popover == .attach) {
@@ -154,6 +163,17 @@ struct IslandComposer: View {
         .padding(.trailing, IslandFieldMetrics.trailing)
         .frame(height: IslandFieldMetrics.height)
         .background(RoundedRectangle(cornerRadius: IslandFieldMetrics.radius).fill(IslandInk.fieldFill))
+    }
+
+    private static func mentionKey(_ key: KeyEquivalent) -> MentionKeys.Key? {
+        switch key {
+        case .upArrow: .up
+        case .downArrow: .down
+        case .tab: .tab
+        case .rightArrow: .right
+        case .leftArrow: .left
+        default: nil
+        }
     }
 
     private var ready: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || staged }

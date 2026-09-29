@@ -19,6 +19,8 @@ public struct IslandView: View {
     let pickFiles: IslandFilePicker?
     /// The release the checker found (16m-4); absent, the island never offers one.
     let updates: UpdateState?
+    /// The `@` selector's sources (16m-7); absent, `@` is just a character.
+    let mentions: MentionSelectorModel?
     // Members are internal, not private, on purpose: the island's families
     // extend this view from Island/*/IslandView+X.swift, and Swift's private
     // stops at the file.
@@ -63,7 +65,8 @@ public struct IslandView: View {
         onReleaseKey: @escaping () -> Void = {},
         grabber: (any RegionGrabbing)? = nil,
         pickFiles: IslandFilePicker? = nil,
-        updates: UpdateState? = nil
+        updates: UpdateState? = nil,
+        mentions: MentionSources? = nil
     ) {
         self.chat = chat
         self.voice = voice
@@ -75,6 +78,7 @@ public struct IslandView: View {
         self.grabber = grabber
         self.pickFiles = pickFiles
         self.updates = updates
+        self.mentions = mentions.map(MentionSelectorModel.init(sources:))
     }
 
     var state: IslandState {
@@ -175,7 +179,19 @@ public struct IslandView: View {
         }
         .onAppear {
             geometry.onDrop = { urls, zone in attachActions.drop(urls, zone: zone) }
+            // No `self` in the closure: the model lives in this view, and a
+            // closure holding the view would hold the model back.
+            let chat = chat
+            let words = $draft
+            mentions?.onPick = { Self.applyMention($0, chat: chat, draft: words) }
         }
+        .onChange(of: draft) { _, words in
+            chat.syncMentions(with: words)
+            mentions?.update(draft: words)
+        }
+        // The system's Contacts dialog takes the keyboard from the panel; the
+        // island must not fold under it (same rule as the file picker).
+        .onChange(of: mentions?.isRequestingAccess ?? false) { _, asking in geometry.picking = asking }
         .onReceive(NotificationCenter.default.publisher(for: .islandResignedKey)) { _ in
             // Another app took the keyboard: the field is done, the panel rests.
             fieldFocused = false
@@ -251,13 +267,16 @@ public struct IslandView: View {
         VStack(alignment: .leading, spacing: Space.x2) {
             IslandComposer(
                 draft: $draft, focused: $fieldFocused, mark: AnyView(mark),
-                onSend: submit, popover: $popover, staged: !chat.pendingAttachments.isEmpty)
+                onSend: submit, popover: $popover, staged: !chat.pendingAttachments.isEmpty,
+                mentions: mentions)
                 .onExitCommand {
+                    if mentions?.press(.escape) == true { return }
                     switch IslandEscape.action(popoverOpen: popover != nil) {
                     case .closePopover: popover = nil
                     case .dismissField: dismissField()
                     }
                 }
+            if let mentions, mentions.isOpen { MentionSelectorView(model: mentions) }
             attachTray
             if let attachNote {
                 caption(attachNote)
@@ -316,6 +335,15 @@ public struct IslandView: View {
         draft = ""
         attachFailures = []
         dismissField()
+    }
+
+    /// A pick from the selector: the words, the mention that now stands in
+    /// them, and a file when the pick was one. A file that cannot be attached
+    /// leaves neither its `@name` nor a mention behind.
+    static func applyMention(_ pick: MentionPick, chat: ChatViewModel, draft: Binding<String>) {
+        let result = pick.applied(attach: { chat.attach($0) != nil })
+        draft.wrappedValue = result.draft
+        if let mention = result.mention { chat.addMention(mention) }
     }
 
     func dismissField() {

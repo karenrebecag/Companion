@@ -6,7 +6,7 @@ import Foundation
 /// 400-line gate: the model's public surface stays in one file, the mechanics
 /// of a single turn stay in this one.
 extension ChatViewModel {
-    func startTurn(_ text: String, origin: MessageOrigin = .typed) {
+    func startTurn(_ text: String, origin: MessageOrigin = .typed, mentions: [Mention] = []) {
         parentTools?.beginTurn()
         // 16k-3: the words decide which connected app's tools travel this
         // round — specs() is rebuilt per request further down this turn.
@@ -24,7 +24,7 @@ extension ChatViewModel {
         // composer for the message she actually writes.
         let staged = origin == .choice ? [] : pendingAttachments
         if origin == .typed { pendingAttachments = [] }
-        messages.append(ChatMessage(role: .user, text: text, attachments: staged, origin: origin))
+        messages.append(ChatMessage(role: .user, text: text, attachments: staged, origin: origin, mentions: mentions))
         persist()
         busy = true
         busySince = Date()
@@ -57,7 +57,8 @@ extension ChatViewModel {
         messages[messageIndex].recall = recall(text, ctx)
         var history = windowedTurns()
         if let last = history.indices.last, history[last].role == .user {
-            let said = origin == .choice ? ChoiceOrigin.mark(text, language: config.language) : text
+            let marked = origin == .choice ? ChoiceOrigin.mark(text, language: config.language) : text
+            let said = MentionContext.wrap(marked, mentions: messages[messageIndex].mentions, language: config.language)
             history[last].content = ContextBlock.wrap(
                 said, with: ContextBlock.render(ctx, language: config.language))
             // The facts are in the request now: only here are they spent.
@@ -287,7 +288,7 @@ extension ChatViewModel {
     private func drain() {
         guard !needsOnboarding, !queue.isEmpty else { return }
         let next = queue.removeFirst()
-        startTurn(next.text, origin: next.origin)
+        startTurn(next.text, origin: next.origin, mentions: next.mentions)
     }
 
     private func isCurrent(_ id: String) -> Bool {

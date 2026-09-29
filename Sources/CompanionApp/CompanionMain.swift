@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model: sensing.model, voice: pipeline.voice, sessionModel: sensing.sessionModel,
             memoryStore: env.memoryStore, secrets: env.secrets,
             openAIMouth: pipeline.openAIMouth, mouth: pipeline.mouth, transport: env.transport,
-            voicePort: sensing.voicePort)
+            voicePort: sensing.voicePort, appTools: sensing.appTools)
     }
 
     /// The hold lives outside the window (Wave 12b): closing main leaves

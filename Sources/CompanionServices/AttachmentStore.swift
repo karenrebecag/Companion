@@ -13,6 +13,7 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
     }
 
     public func adopt(_ source: URL, conversationId: String) throws -> AttachmentRef {
+        try requireRegularFile(source)
         let size = try byteCount(at: source)
         try checkSize(size)
         let id = UUID()
@@ -199,6 +200,21 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
     private func checkSize(_ size: Int) throws {
         if size <= 0 { throw AttachmentError.unreadable }
         if size > maxBytes { throw AttachmentError.tooLarge }
+    }
+
+    /// A directory measures a few bytes and copies as a whole tree, and a
+    /// symlink is a path that no longer says what is behind it: neither is a
+    /// file she picked. Covers the picker, drops and mentions alike.
+    private func requireRegularFile(_ url: URL) throws {
+        let values: URLResourceValues
+        do {
+            values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+        } catch {
+            throw AttachmentError.unreadable
+        }
+        guard values.isRegularFile == true, values.isSymbolicLink != true else {
+            throw AttachmentError.unreadable
+        }
     }
 
     private func byteCount(at url: URL) throws -> Int {

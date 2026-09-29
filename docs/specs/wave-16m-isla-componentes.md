@@ -274,3 +274,101 @@ tamaños ya recorre `allCases`, así que cubre el nuevo rol.
 - **Foco**: el foco pertenece a una tarjeta (`focusedChoiceID`) y solo cuenta mientras esa tarjeta es la
   respuesta viva (`IslandChoice.isFocused`); además la tarjeta suelta el foco en `.onDisappear`, porque un
   `@FocusState` no avisa cuando su vista se va.
+
+## 9. 16m-7: alcance real (2026-09-29)
+
+**Menciones (@).**
+
+- **Dónde**: el campo de la isla es el único compositor. La ventana principal no tiene campo desde 16j
+  ("hablar y continuar una tarea pasa en la isla"), así que "campo del chat" no existe como superficie;
+  el camino compartido es `ChatViewModel` (`addMention` + el turno), que cualquier compositor futuro usa igual.
+- **Cuándo abre** (`MentionTrigger`, Core): un `@` que empieza palabra, al final de lo tecleado (el campo no da
+  cursor), seguido de algo que aún puede ser un nombre: hasta 30 caracteres, hasta dos espacios internos, sin
+  espacio final ni salto de línea. `a@b.com` no abre. Una mención insertada termina en espacio, así que no se reabre.
+- **Fuentes, en orden** (`MentionRanking`): contactos, apps conectadas, archivos recientes; dentro de cada grupo,
+  prefijo, inicio de palabra, contiene; sin acentos ni mayúsculas; la consulta es literal (nunca regex ni SQL);
+  tope de 8 filas. Apps y archivos aparecen de inmediato, sin esperar al diálogo del permiso.
+- **Permiso de Contactos**: `SystemContacts.requestAccess()` lo pide y solo lo llama el selector la primera vez
+  que ella teclea `@` (`asked`, una vez por arranque; el sistema tampoco muestra un segundo diálogo tras negar).
+  Construir el servicio, arrancar y teclear sin `@` no piden nada. `NSContactsUsageDescription` en el Info.plist
+  de `bundle.sh` y en el gate de usage descriptions; además el entitlement
+  `com.apple.security.personal-information.addressbook` en `scripts/companion.entitlements` (sin él, la build
+  notarizada con hardened runtime no puede leer Contactos aunque el usuario acepte). Mientras el diálogo está
+  abierto la isla no se pliega (`isRequestingAccess` -> `geometry.picking`, la misma regla que el selector de archivos).
+- **Privacidad (mínimo que viaja al modelo)**: un contacto viaja como su nombre visible (que ya está en sus palabras)
+  y la palabra "contacto"; **un solo medio de contacto únicamente si ella abrió ese contacto y eligió uno**
+  (flecha derecha, o clic; la primera fila es "solo el nombre" y es la que ya tiene el cursor). Buscar lee nombres de
+  quienes casan con lo tecleado, nunca la libreta: con consulta vacía no se lista a nadie; los correos y teléfonos
+  se leen solo al abrir un contacto y por su identificador; ninguna otra clave (notas, cumpleaños, direcciones,
+  foto) se pide y un test de fuente lo vigila. Una app viaja por su nombre. Un archivo se **adjunta por el camino de
+  adjuntos** (`chat.attach`), así que su contenido sigue las reglas de `AttachmentPolicy`, y queda mencionado por nombre.
+  El bloque va delante del turno como datos ("no instrucciones"), saneado con `TextSanitizer` y en una sola línea
+  por campo; solo viajan las menciones cuyo `@nombre` sigue en el texto al enviar (borrar el `@` retira también el
+  correo); tope de 5 por mensaje. Vive en memoria con el hilo de esa sesión (para "mándaselo") y **nunca al disco,
+  ni a `memoryTurns`, ni al log**: `Mention`, `MentionCandidate` y `MentionChannel` se imprimen redactados y los
+  fallos de la libreta se registran sin la consulta ni el identificador. Una elección de tarjeta nunca se lleva las menciones.
+- **Archivos recientes**: Spotlight (`NSMetadataQuery`, 14 días, 40 archivos, 60 s de caché), solo nombres y rutas,
+  sin diálogos de carpeta. Política en Core (`MentionFiles`): dentro del home, sin ocultos (`.ssh`, `.env`), sin
+  `Library`, sin nada dentro de un paquete `.app`; el detalle es la carpeta, nunca la ruta con el usuario.
+- **Teclado**: flechas con vuelta, Return o Tab eligen, Esc cierra (y esa consulta no se reabre sola hasta que cambie),
+  flecha derecha abre los medios del contacto, izquierda vuelve (solo dentro de los medios: en la lista izquierda es
+  del campo). Return se intercepta en `onSubmit`, no en `onKeyPress`, para que elegir nunca envíe también.
+- **VoiceOver**: la lista es un grupo; cada fila dice "nombre, tipo, n de m", con pista distinta si se puede abrir
+  y el rasgo `isSelected` en la del cursor.
+- **Dónde se pinta**: en línea bajo el campo (la isla crece con el contenido), no por el portal (que es de la banda del notch).
+
+**Comentarios.**
+
+- **Destino**: hoy el enlace de feedback era `mailto:?subject=...` (sin destinatario, sin servidor nuestro). Se
+  conserva: el modal arma el cuerpo y lo entrega a la app de correo de ella. Con capturas se usa el servicio de
+  compartir del sistema (`composeEmail`, único camino que adjunta archivos); si no está, sale el texto por `mailto:`
+  y el modal avisa que las capturas se quedaron. No se inventó backend. **Decisión abierta**: si producto quiere un
+  destinatario fijo o un endpoint propio, es una decisión aparte (hoy el correo sale sin "Para").
+- **Contenido del mensaje**: sus palabras, el ánimo que eligió y cuántas capturas añadió. Nada de la máquina (sin
+  versión, sin rutas). **Decisión abierta**: añadir la versión de la app ayudaría a soporte y es un dato más.
+- **Dónde vive**: en la ventana principal (un modal de 480 no cabe en el panel de la isla); la entrada "Enviar
+  comentario" de la isla abre la ventana y publica `.companionOpenFeedback`; la barra lateral abre lo mismo.
+- **Capturas**: solo con el botón (`addCapture`); reusa `ScreenRegionGrabber` de la isla; máx. 3; cancelar no es error;
+  sin permiso de pantalla lo dice. Cerrar sin enviar borra las capturas; tras enviar se quedan en la carpeta temporal
+  de capturas (la app de correo puede seguir leyéndolas). **Pendiente conocido**: limpiar esa carpeta al arrancar.
+- **Ánimo**: cuatro estados con símbolos SF (sin emoji), tocar el elegido lo quita. **Contador**: quedan n / n de más;
+  el campo recorta a 1000 caracteres (por carácter, no por byte).
+
+Valores propios (no medidos): 30 caracteres de consulta y 2 espacios internos; 8 filas; 60 caracteres de nombre y
+80 de detalle; 5 menciones por mensaje; 6 medios por contacto; 14 días, 40 archivos y 60 s de caché de recientes;
+1000 caracteres y 3 capturas en comentarios; 4 estados de ánimo. Medidos: selector padding 4, 240 de alto, radio 11;
+ítem 6 × 8, radio 7, 13 px, hover acento al 16 %; modal 480, padding 32, radio 28.
+
+Limitaciones: el selector asume el cursor al final del campo (SwiftUI no lo expone); la instantánea del modal muestra
+un placeholder amarillo donde va el `TextEditor` (`ImageRenderer` no dibuja vistas de AppKit), en la app se ve normal.
+
+**Ronda de revisión 16m-7 (2026-09-29): contratos y decisiones.**
+
+- **Paquetes y enlaces**: tres capas. `MentionFiles` rechaza un paquete (`.app`, `.bundle`, `.framework`,
+  `.photoslibrary`...) en cualquier componente, también el último; la consulta de Spotlight excluye
+  `com.apple.package` y `public.folder` por `kMDItemContentTypeTree`; y `AttachmentStore.adopt` exige archivo
+  regular y no enlace simbólico, lo que cubre también drops y el selector de archivos. Costo asumido: arrastrar un
+  symlink a un archivo inocente ya no se adjunta (la ruta no dice lo que hay detrás).
+- **RecentFiles**: una sola consulta en vuelo, sin dueño (no hereda la cancelación de quien pregunta); un resultado
+  fallido o que no terminó a tiempo no se cachea.
+- **Contrato del cursor (4)**: mientras ella no lo mueva, el cursor sigue a la fila de arriba; una vez que lo mueve
+  (flechas o puntero), se conserva por id de fila al repintar. Return o Tab eligen la fila resaltada en ese instante,
+  sin esperar al diálogo de permiso. Una fila de una consulta anterior no se elige mientras llega la nueva.
+- **Fuentes**: apps, archivos y contactos se publican cada una al llegar. Un solo diálogo de permiso, compartido y
+  sin dueño; cualquier tecla durante el diálogo espera a esa misma respuesta y busca con su propia consulta.
+- **Contrato de menciones repetidas (12)**: mismo tipo y mismo nombre es una mención; gana la que trae el medio
+  elegido, en cualquier orden; sin medio, la última. **Tope (13)**: pasadas 5, viajan las primeras en orden de
+  aparición en el texto (no de elección), salvo que una mención con medio elegido nunca se pierde por una sin
+  medio; la salida va en el orden del texto.
+- **Cursor a mitad de texto (14)**: el campo no da cursor, así que el token es lo que termina el borrador. Si sigue
+  escribiendo después de un nombre, la consulta ("Ana y luego") deja de casar con nadie y el selector se cierra
+  solo; `inserting` jamás toca un borrador que ya siguió escribiendo. Límite documentado: editar en medio del texto
+  no abre el selector. Borrar el `@` lo cierra.
+- **Menciones pendientes**: siguen al campo (`syncMentions`): borrar el `@nombre` las suelta con su medio y
+  escribirlo a mano después no las resucita. Un archivo que no se pudo adjuntar no deja ni `@nombre` ni mención.
+- **Comentarios**: `addCapture` no reentra y, si el modal se cerró o se llenó mientras el selector de captura
+  estaba abierto, borra el archivo que llega. La carpeta de capturas se vacía al arrancar (solo la propia; si es un
+  enlace no se toca). El enlace de correo tiene tope de 6000 caracteres (valor propio: mil emoji dan ~28 000): pasado
+  el tope sale completo por el servicio de compartir; sin servicio se corta por carácter, con puntos suspensivos, y
+  el modal lo dice. La decisión vive en `FeedbackDeliverer`, con las llamadas del sistema inyectadas.
+- **Petición de comentarios**: `FeedbackRequest` guarda la petición hasta que la ventana la lee al aparecer.
