@@ -40,6 +40,27 @@ extension ParentToolRunner {
         }
     }
 
+    /// The same gate as a click, for the item at the end of a menu path:
+    /// same families, same one-shot ticket bound to this exact call.
+    func menuApproval(
+        _ call: ToolCallRef, said: String, hands: ScreenHands, pid: Int32,
+        ticket: ApprovalTickets.Ticket
+    ) -> ApprovalRequest? {
+        let path = HandsGate.menuPath(ToolArguments.parse(call.arguments) ?? [:])
+        guard HandsGate.menuNeedsTicket(path: path) else { return nil }
+        switch HandsGate.menuVerdict(path: path, said: said) {
+        case .act:
+            hands.tickets.issue(ticket)
+            return nil
+        case .refuse:
+            return nil
+        case .ask:
+            let request = HandsGate.menuRequest(call, path: path, app: hands.bundleID(pid) ?? "app")
+            hands.tickets.park(ticket, id: request.requestId)
+            return request
+        }
+    }
+
     static func clickTarget(_ call: ToolCallRef, hands: ScreenHands, pid: Int32) -> ScreenElement? {
         guard let arguments = ToolArguments.parse(call.arguments), let id = intArgument(arguments["id"])
         else { return nil }
@@ -83,7 +104,7 @@ extension ParentToolRunner {
         case .look: return sight.look()
         case .click: return sight.click(call, arguments)
         case .scroll: return sight.scroll(arguments)
-        default: return sight.menu(arguments)
+        default: return sight.menu(call, arguments)
         }
     }
 }
@@ -159,10 +180,13 @@ private struct SightAct {
                                  tool: tool.rawValue)
     }
 
-    func menu(_ arguments: [String: Any]) -> ParentToolOutcome {
-        let path = (arguments["path"] as? String ?? "")
-            .split(separator: ">").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    func menu(_ call: ToolCallRef, _ arguments: [String: Any]) -> ParentToolOutcome {
+        let path = HandsGate.menuPath(arguments)
         guard !path.isEmpty else { return .failed(.invalidArgs("missing path"), tool: tool.rawValue) }
+        if HandsGate.menuNeedsTicket(path: path),
+           !hands.tickets.redeem(.init(name: call.name, arguments: call.arguments, pid: pid)) {
+            return fail("approval_required", "this menu item deletes, pays or sends; it needs approval")
+        }
         guard let item = screen.menu(path: path, pid: pid) else {
             return fail("menu_not_found", "no menu item at that path")
         }

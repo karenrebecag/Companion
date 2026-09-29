@@ -133,6 +133,34 @@ public enum HandsGate {
         isUnlabeled(label) || family(label: label, context: context) != nil
     }
 
+    /// A menu item is a button the model names by path: the item at the end
+    /// is what runs, so it is judged by the same families as a click's label.
+    /// Submenu titles on the way ("Trash > Open") do not act by themselves.
+    public static func menuNeedsTicket(path: [String]) -> Bool {
+        guard let item = path.last else { return false }
+        return family(label: item, context: "") != nil
+    }
+
+    public static func menuVerdict(path: [String], said: String) -> HandsVerdict {
+        guard let item = path.last, let family = family(label: item, context: "") else { return .act }
+        return HandsWords.asks(family: family, in: said) ? .act : .ask
+    }
+
+    /// "Archivo > Exportar" as its parts; empty when the argument is absent.
+    public static func menuPath(_ arguments: [String: Any]) -> [String] {
+        (arguments["path"] as? String ?? "")
+            .split(separator: ">").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    /// The sheet for a destructive menu item names the path and the app.
+    public static func menuRequest(_ call: ToolCallRef, path: [String], app: String) -> ApprovalRequest {
+        let shown = path.joined(separator: " > ")
+        return ApprovalRequest(
+            requestId: UUID().uuidString, toolName: call.name,
+            summary: "menu \(shown) in \(app)",
+            inputJSON: encode(["path": shown, "app": app]))
+    }
+
     private static func isUnlabeled(_ label: String) -> Bool {
         HandsWords.words(label).isEmpty
     }

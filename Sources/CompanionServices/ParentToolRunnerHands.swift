@@ -162,6 +162,9 @@ extension ParentToolRunner {
         if call.name == ParentTool.click.rawValue {
             return clickApproval(call, said: said, hands: hands, pid: pid, ticket: ticket)
         }
+        if call.name == ParentTool.menu.rawValue {
+            return menuApproval(call, said: said, hands: hands, pid: pid, ticket: ticket)
+        }
         switch HandsGate.verdict(call, commandApp: command, said: said) {
         case .refuse:
             return nil
