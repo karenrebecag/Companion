@@ -3,10 +3,10 @@ import CompanionUI
 import Foundation
 import Testing
 
-@Test @MainActor func tokensTests() {
+@Test @MainActor func tokensTests() async {
     testNeutralRamp()
     testAccentColors()
-    testHighlightEnum()
+    await testHighlightEnum()
     testSemanticRoles()
 }
 
@@ -40,7 +40,7 @@ import Testing
     expectEq(Accent.purple.hex, "BF5AF2", "purple es sistema")
 }
 
-@MainActor func testHighlightEnum() {
+@MainActor func testHighlightEnum() async {
     expect(!Highlight.allCases.isEmpty, "Highlight debe tener opciones")
     expect(Highlight.stored == .standard, "Highlight default es standard")
 
@@ -50,7 +50,9 @@ import Testing
     // Test that other colors return NSColor
     let blue = Highlight.blue
     expect(blue.ns != nil, "blue.ns no es nil")
-    expectEq(blue.label, "Azul", "blue label es Azul")
+    await Localized.scoped(to: .es) {
+        expectEq(blue.label, "Azul", "blue label es Azul")
+    }
 
     // Test dark ink colors
     expect(Highlight.yellow.usesDarkInk, "yellow usa dark ink")

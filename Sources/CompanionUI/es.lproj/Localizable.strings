@@ -205,7 +205,7 @@
 "chat.card.gallery" = "Se mostró una galería en pantalla.";
 "chat.job.stopped" = "Paraste el encargo.";
 "job.stop" = "Parar";
-"chat.job.failed" = "El encargo no pudo terminar: %@";
+"chat.job.failed.notice" = "El encargo no pudo terminar: %@";
 "card.unverified" = "Companion no verificó estos lugares o imágenes.";
 "onboarding.probing" = "Buscando un modelo en tu Mac…";
 "onboarding.base.blurb" = "Tu Mac ya puede hablar contigo. Sin cuenta y sin configurar nada.";
@@ -589,3 +589,23 @@
 "island.connectApp" = "Conectar %@";
 "island.connectApp.body" = "Conéctala y Companion podrá usarla por voz.";
 "island.connectApp.action" = "Conectar";
+
+/* Wave 16p-1: labels that used to be literals in code */
+"accent.standard" = "Predeterminado";
+"accent.blue" = "Azul";
+"accent.green" = "Verde";
+"accent.yellow" = "Amarillo";
+"accent.pink" = "Rosa";
+"accent.orange" = "Naranja";
+"accent.purple" = "Morado";
+"accent.white" = "Blanco";
+"shortcut.toggleVoice" = "Iniciar/terminar turno";
+"shortcut.hangUp" = "Terminar llamada";
+"shortcut.settings" = "Abrir ajustes";
+"shortcut.attach" = "Adjuntar archivos";
+"shortcut.history" = "Ver conversaciones";
+"appearance.light" = "Claro";
+"appearance.dark" = "Oscuro";
+"appearance.auto" = "Sistema";
+"island.opening" = "Abriendo";
+"island.reply.open" = "Abre el resultado completo";

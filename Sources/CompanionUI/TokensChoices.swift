@@ -12,14 +12,14 @@ public enum Highlight: String, CaseIterable {
 
     public var label: String {
         switch self {
-        case .standard: "Predeterminado"
-        case .blue:     "Azul"
-        case .green:    "Verde"
-        case .yellow:   "Amarillo"
-        case .pink:     "Rosa"
-        case .orange:   "Naranja"
-        case .purple:   "Morado"
-        case .white:    "Blanco"
+        case .standard: Localized.string("accent.standard")
+        case .blue:     Localized.string("accent.blue")
+        case .green:    Localized.string("accent.green")
+        case .yellow:   Localized.string("accent.yellow")
+        case .pink:     Localized.string("accent.pink")
+        case .orange:   Localized.string("accent.orange")
+        case .purple:   Localized.string("accent.purple")
+        case .white:    Localized.string("accent.white")
         case .lime:     Localized.string("accent.lime")
         }
     }

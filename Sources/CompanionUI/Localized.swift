@@ -54,7 +54,13 @@ public enum Localized {
     }
 
     public static func string(_ key: String) -> String {
-        bundle(for: language())?.localizedString(
+        string(key, language: language())
+    }
+
+    /// For callers that already hold the language they must speak (the
+    /// language picker preview, pure copy functions taking a parameter).
+    public static func string(_ key: String, language: AppLanguage) -> String {
+        bundle(for: language)?.localizedString(
             forKey: key, value: nil, table: nil)
             ?? fallback(key)
     }
