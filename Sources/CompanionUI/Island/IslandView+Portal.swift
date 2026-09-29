@@ -61,7 +61,10 @@ extension IslandView {
         case .openWindow:
             onShowMain()
         case .feedback:
-            if let url = IslandCopy.feedbackURL { openURL(url) }
+            // The modal lives in the main window (16m-7): bring it up and ask.
+            onShowMain()
+            FeedbackRequest.raise()
+            NotificationCenter.default.post(name: .companionOpenFeedback, object: nil)
         case .clearHistory:
             confirmingClear = true
         }

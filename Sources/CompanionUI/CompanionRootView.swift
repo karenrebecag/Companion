@@ -24,6 +24,8 @@ public struct CompanionRootView: View {
     @State private var keyboardMonitor: KeyboardMonitor?
     @State private var dropdowns = DropdownHost()
     @State private var page = MainPage.home
+    /// The comments modal, while it is open (16m-7).
+    @State private var feedback: FeedbackModel?
     /// The task whose detail sheet is open (spec 16j §8).
     @State private var openTask: ConversationMeta?
     /// Read once per opened task: the store is disk, and the body re-runs
@@ -39,7 +41,8 @@ public struct CompanionRootView: View {
         updates: UpdateState? = nil,
         welcome: WelcomeModel,
         memory: (any MemoryBrowsing)? = nil,
-        apps: AppsModel? = nil
+        apps: AppsModel? = nil,
+        grabber: (any RegionGrabbing)? = nil
     ) {
         self.chat = chat
         self.voice = voice
@@ -48,12 +51,15 @@ public struct CompanionRootView: View {
         self.welcome = welcome
         self.memory = memory
         self.apps = apps
+        self.grabber = grabber
     }
 
     private let updates: UpdateState?
     private let welcome: WelcomeModel
     private let memory: (any MemoryBrowsing)?
     private let apps: AppsModel?
+    /// The island's region capture, reused by the feedback modal (16m-7).
+    private let grabber: (any RegionGrabbing)?
 
     public var body: some View {
         Group {
@@ -66,7 +72,7 @@ public struct CompanionRootView: View {
                     MainSidebar(
                         page: $page,
                         onSettings: { openSettings(.general) },
-                        onFeedback: { if let url = IslandCopy.feedbackURL { openURL(url) } })
+                        onFeedback: openFeedback)
                     Rectangle().fill(Semantic.borderChrome).frame(width: Stroke.hairline)
                     if page == .apps, let apps {
                         AppsPage(apps: apps)
@@ -206,6 +212,7 @@ public struct CompanionRootView: View {
             }
         }
         .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: showSettings)
+        .overlay { feedbackLayer }
         .overlay { taskSheet }
         .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: openTask?.id)
         .onChange(of: openTask?.id) { _, id in
@@ -219,6 +226,10 @@ public struct CompanionRootView: View {
             page = .apps
             if let slug = note.object as? String { apps?.focus(slug) }
         }
+        .onReceive(
+            NotificationCenter.default.publisher(for: .companionOpenFeedback)
+        ) { _ in openFeedback() }
+        .onAppear { if FeedbackRequest.consume() { openFeedback() } }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenSettings)
         ) { note in
@@ -288,6 +299,24 @@ public struct CompanionRootView: View {
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
             chat.setFolder(url.path)
+        }
+    }
+
+    private func openFeedback() {
+        _ = FeedbackRequest.consume()
+        guard feedback == nil else { return }
+        feedback = FeedbackModel(grabber: grabber, delivery: SystemFeedbackDelivery())
+    }
+
+    @ViewBuilder
+    private var feedbackLayer: some View {
+        if let model = feedback {
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial).overlay(Semantic.scrim).ignoresSafeArea()
+                FeedbackModal(model: model, onClose: { feedback = nil })
+                    .elevation(.sheet)
+            }
+            .transition(.opacity)
         }
     }
 

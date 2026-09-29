@@ -47,6 +47,7 @@ public struct ChatMessage: Identifiable, Equatable {
     /// message and therefore changes nothing for them.
     public var recall: Recall?
     public var origin: MessageOrigin
+    public var mentions: [Mention] = []
     /// The status line a failed turn leaves: what lets a question that was
     /// answered into a failure be asked again.
     public var isFailure: Bool
@@ -63,6 +64,7 @@ public struct ChatMessage: Identifiable, Equatable {
         card: Card? = nil,
         recall: Recall? = nil,
         origin: MessageOrigin = .typed,
+        mentions: [Mention] = [],
         isFailure: Bool = false,
         restored: Bool = false
     ) {
@@ -73,6 +75,7 @@ public struct ChatMessage: Identifiable, Equatable {
         self.attachments = attachments
         self.card = card
         self.recall = recall
+        self.mentions = mentions
         self.origin = origin
         self.isFailure = isFailure
         self.restored = restored

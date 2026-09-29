@@ -90,6 +90,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>Your city goes with each request while the city switch in Settings is on. macOS only asks for your location when you search for something nearby and Settings has no city. Companion keeps the city, never your coordinates.</string>
     <key>NSLocationUsageDescription</key>
     <string>Your city goes with each request while the city switch in Settings is on. macOS only asks for your location when you search for something nearby and Settings has no city. Companion keeps the city, never your coordinates.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>Companion looks up a contact by name when you type @ in the island, so you can mention them. It reads names as you type and an email or phone only if you choose one, and never uploads your address book.</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>Companion captures the screen when you hold FN so it can see what you are looking at. One snapshot per hold, never a recording, never stored.</string>
 </dict>

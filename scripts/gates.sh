@@ -82,7 +82,7 @@ fi
 
 # TCC no muestra el prompt de microfono/voz sin usage descriptions: si se
 # pierden del bundle, la voz falla en runtime y ningun test lo ve.
-for key in NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSScreenCaptureUsageDescription NSLocationWhenInUseUsageDescription NSLocationUsageDescription; do
+for key in NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSScreenCaptureUsageDescription NSLocationWhenInUseUsageDescription NSLocationUsageDescription NSContactsUsageDescription; do
     if grep -q "$key" "$ROOT/scripts/bundle.sh" 2>/dev/null; then
         pass "bundle declara $key"
     else

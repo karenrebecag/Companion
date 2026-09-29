@@ -20,6 +20,7 @@ enum TypeLeadingLint {
         "Settings": "Settings rows have no measured line height of their own; move to roles when touched",
         "Welcome": "the welcome sheet speaks Geist and has no measured line height of its own",
         "ApprovalSheet.swift": "the approval panel speaks Geist; its leading was never measured",
+        "Feedback/": "the feedback modal speaks Geist like the island; only its frame (480, 32, 28) was measured",
         "OwnMCPSheet.swift": "form sheet reached through Apps; not measured, follow-up",
         "ChatErrorSurface.swift": "error banner, not a measured screen",
         "Controls.swift": "shared control internals, no role of their own",

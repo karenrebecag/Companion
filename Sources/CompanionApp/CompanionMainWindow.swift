@@ -20,7 +20,7 @@ extension AppDelegate {
         model: ChatViewModel, voice: VoiceViewModel, sessionModel: SessionModel,
         memoryStore: FileMemoryStore, secrets: CachingSecretStore,
         openAIMouth: OpenAITTSClient, mouth: MouthRouter, transport: URLSessionChatTransport,
-        voicePort: VoicePortBox
+        voicePort: VoicePortBox, appTools: AppToolRunner
     ) {
         // Wave 12h: FN is an Accessibility HID tap (same permission as
         // dictation). Solo FN is swallowed; Input Monitoring is not used.
@@ -100,6 +100,10 @@ extension AppDelegate {
             defer: false)
         window.title = "Companion"
         WindowChrome.configure(window)
+        let captureGrabber = ScreenRegionGrabber(directory: FileManager.default.temporaryDirectory
+            .appendingPathComponent("companion-captures", isDirectory: true))
+        // Screen content from a run that never cleaned up must not outlive it.
+        captureGrabber.purgeLeftovers()
         let root = CompanionRootView(
             chat: model, voice: voice,
             voicePreview: preview,
@@ -113,7 +117,8 @@ extension AppDelegate {
                 // 16k-4: the Apps page edits the same mcp.json the user
                 // could edit by hand; only this root touches the disk.
                 readMCP: { MCPConfigFile.read() },
-                saveMCP: { try MCPConfigFile.save($0) }))
+                saveMCP: { try MCPConfigFile.save($0) }),
+            grabber: captureGrabber)
         let hosting = NSHostingView(rootView: root)
         WindowChrome.install(hosting, in: window)
         window.center()
@@ -135,6 +140,7 @@ extension AppDelegate {
         // Before the island: at the same level, the later window stays on top.
         screenOverlays = ScreenOverlays(session: sessionModel, onFailure: { Log.app($0) })
         let islandGeometry = IslandGeometry()
+        let recentFiles = RecentFiles()
         let island = IslandPanel(
             content: IslandView(
                 chat: model, voice: voice, hold: holdSettings, geometry: islandGeometry,
@@ -144,10 +150,15 @@ extension AppDelegate {
                     Log.app("island: \(size)")
                 },
                 onReleaseKey: { [weak self] in self?.island?.releaseKey() },
-                grabber: ScreenRegionGrabber(directory: FileManager.default.temporaryDirectory
-                    .appendingPathComponent("companion-captures", isDirectory: true)),
+                grabber: captureGrabber,
                 pickFiles: { await IslandFilePanel.pick() },
-                updates: updates),
+                updates: updates,
+                // 16m-7: the Contacts dialog is asked by the selector, the
+                // first time she types `@`; building this asks nothing.
+                mentions: MentionSources(
+                    contacts: SystemContacts(),
+                    connectedApps: { appTools.connectedMentionCandidates() },
+                    recentFiles: { await recentFiles.candidates() })),
             geometry: islandGeometry,
             onHover: { over in sessionModel.send(over ? .hoverEntered : .hoverLeft) })
         island.onResignKey = {
