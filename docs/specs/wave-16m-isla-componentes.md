@@ -10,9 +10,13 @@ Base: 16l (tinta de la isla, chip de referencia, piezas base).
 
 ## 1. Principio
 
-Cada componente entra **con su dato**, no como maqueta. Lo que no tenga de dónde leer se
-construye solo si otra sesión de esta misma wave le da el dato; si no, se queda fuera y se
-dice. (En 16l quedaron tres piezas sin conectar; esta wave las conecta o las borra.)
+Karen (2026-09-28): "lo quiero exactamente como incredible, con cada uno de sus widgets
+actuales replicados". El alcance pasa de "una selección" al **catálogo completo** de
+`incredible-isla-componentes.md`. El principio del dato se mantiene pero cambia de filtro a
+orden: cada componente entra **con su dato**, y el que no tenga fuente en Companion entra
+igual con su plomería de dato como parte de la sesión (nunca como maqueta). La fidelidad es
+a los VALORES medidos (medidas, tintas, radios) y al comportamiento observado en las
+grabaciones — jamás a su código, que no se lee ni entra al repo.
 
 ## 2. Sesiones
 
@@ -23,13 +27,17 @@ dice. (En 16l quedaron tres piezas sin conectar; esta wave las conecta o las bor
 | 16m-3 | **Adjuntos en la isla**: tarjetas 84 × 102 con vista previa, extensión y quitar; pila de capturas con contador; zona para soltar sobre el notch; el clip adjunta en la isla en vez de abrir la ventana | Los adjuntos del chat (`ChatViewModelAttach`) pasan a compartirse con la isla |
 | 16m-4 | **Dictado y avisos**: tarjeta de resultado de dictado (copiar / ocultar); avisos del sistema con la rejilla de Incredible (permiso, actualización, límite de la clave, diagnóstico) | Dictado 12e; fallos de voz y permisos que ya produce `VoiceFailureMapping` |
 
-Fuera por ahora, con motivo:
-- **Gráficas y diagramas (Mermaid)**: necesitan una librería de dibujo o un motor web; es una
-  dependencia nueva y va en su propia decisión.
-- **Pregunta con opciones** (`AnswerOption` de 16l): Companion no pregunta con opciones. Entra
-  cuando 16h lo decida; si no, se borra la pieza.
-- **Menciones (@) y subida a la nube**: no hay contactos ni subida en Companion.
-- **Comentarios (modal)**: ya existe el enlace de feedback del menú.
+Sesiones nuevas por la orden de catálogo completo (2026-09-28):
+
+| Sesión | Qué | De dónde sale el dato |
+|---|---|---|
+| 16m-5 | **Gráficas y diagramas**: contenedor `visual` (padding 14/16/12, relleno 5 %, borde 7 %, radio 12, herramientas copiar/ver); gráficas en lienzo de 240 (264 para pie, dona, polar y radar); diagramas Mermaid | Gráficas: **Swift Charts** (framework del sistema, cero dependencia) para barras, líneas, área, pie y dona; polar/radar con `Path` propio. Mermaid: **la única dependencia nueva de la wave** — `mermaid.js` vendoreado (sin red) en un `WKWebView` aislado; ver D3 |
+| 16m-6 | **Pregunta con opciones** (`answer-card` 340–440, padding 18 × 20, gap 14) y **avisos con rejilla**: límite de uso (380, 38+resto), actualización (522, 30+resto+acciones), consentimiento (340–440), diagnóstico (mín(420, 86 %)) | La pregunta con opciones necesita que el turno la produzca: entra el bloque en el contrato del turno (16h la usa); los avisos salen de `VoiceFailureMapping`, del updater y de los permisos que ya se detectan |
+| 16m-7 | **Menciones (@)** (selector 240 de alto, ítem 6 × 8, hover acento 16 %) y **comentarios** (modal 480, padding 32, radio 28, ánimo + capturas + contador) | Menciones: primero la fuente — un `Contacts.swift` mínimo (permiso de Contactos del sistema); sin permiso, el selector ofrece apps conectadas y archivos recientes. Comentarios: el enlace de feedback existente se convierte en el modal |
+
+Fuera, ya sin excepciones, solo lo que Incredible tampoco tiene en la isla hoy. La **subida
+a la nube** queda fuera: Companion no tiene backend de archivos y replicarla exigiría uno
+(decisión de producto aparte, no de esta wave).
 
 ## 3. TDD
 
@@ -40,14 +48,34 @@ Incredible en el mismo estado.
 
 ## 4. Riesgos
 
-- 16m-1 es la más grande: la isla crece a un popup de 580 que tapa contenido. Se abre al pedirlo
-  ("Ver") o cuando la respuesta tiene bloques, nunca por una frase corta.
-- 16m-3 cambia un flujo (el clip abre la ventana): decisión de producto, se confirma antes.
-- `IslandView` ya tiene 554 líneas: cada pieza va en su archivo.
+- 16m-1 es la más grande: la isla crece a un popup de 580 que tapa contenido. Se abre SOLO al
+  pedirlo ("Ver") — D2 lo fija por el comportamiento observado.
+- 16m-3 cambia un flujo (el clip abre la ventana): D1 lo fija — adjunta en la isla.
+- 16m-5 mete un `WKWebView` en la isla solo para Mermaid: va aislado (sin red, CSP cerrada) y
+  con revisión de seguridad propia antes del merge.
+- `IslandView` ya tiene 554 líneas: cada pieza va en su archivo. Con 7 sesiones, el riesgo de
+  que la isla se vuelva un dios crece: el layout por familia (datos, estados, adjuntos,
+  dictado, avisos) va en carpetas separadas desde la primera sesión.
 
-## 5. Decisiones para firmar
+## 5. Decisiones — FIRMADAS 2026-09-28
 
-- **D1**: ¿el clip adjunta en la isla (como Incredible) o sigue abriendo la ventana?
-- **D2**: ¿se abre el popup rico solo con "Ver" o también automáticamente si la respuesta trae
-  una tabla, código o lista?
-- **D3**: gráficas y diagramas: ¿las dejamos fuera o abrimos la decisión de dependencia?
+Karen: "Contesta las decisiones directamente auditando [a Incredible]". Respondidas con el
+comportamiento observado en las grabaciones y el CSS medido (nunca su código):
+
+- **D1 — El clip adjunta en la isla. SÍ, como Incredible.** Observado: en su isla "escribir y
+  hablar viven en el mismo sitio" — campo, clip y flecha en el mismo panel
+  (`ux-incredible-vs-companion.md` §isla); las tarjetas de adjunto (84 × 102), la fila de
+  chips, la pila de capturas y la zona para soltar viven todas en el CSS del OVERLAY, no de la
+  ventana (`incredible-isla-componentes.md` §3). `⌥⇧⌫` limpia lo adjunto sin abrir nada. El
+  clip de Companion deja de abrir la ventana: adjunta en la isla (16m-3).
+- **D2 — La tarjeta con resumen sale sola; el popup rico se abre con "Ver".** Observado: sus
+  resultados se apilan debajo como tarjetas con una línea de resumen y botón "Show →"; la voz
+  dice una frase y el detalle espera al click. Nunca se despliega el popup completo sin
+  pedirlo — una frase corta jamás abre popup. Companion replica exactamente eso: tarjeta
+  automática con título + primera línea, popup `ovx` (580 / 76 %) solo al "Ver".
+- **D3 — Gráficas y diagramas ENTRAN (16m-5); la dependencia se decide aquí mismo.** Su isla
+  actual los tiene (lienzos de 240/264 con pie, dona, polar y radar; contenedor `visual` con
+  copiar/ver; diagramas Mermaid). Réplica nativa: **Swift Charts** para las gráficas (framework
+  del sistema — cero dependencia nueva; polar/radar con `Path`); **Mermaid con `mermaid.js`
+  vendoreado** dentro de un `WKWebView` aislado, sin acceso a red, CSP cerrada, solo para
+  pintar — es la única dependencia tercera de la wave y este párrafo es su decisión firmada.
