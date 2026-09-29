@@ -495,6 +495,9 @@ public struct IslandView: View {
                 // ink once the release fixes it.
                 IslandTranscript(text: partial, fixed: state.meter != .mic)
             }
+            if let receipt = state.receipt, state.approval == nil {
+                IslandReceiptRow(receipt: receipt) { chat.session.send(.undoPressed(id: receipt.id)) }
+            }
             let touched = chat.session.projection.touched
             if !touched.isEmpty, state.approval == nil {
                 IslandReel(touched: touched)
@@ -694,6 +697,16 @@ private struct IslandSizeKey: PreferenceKey {
 
 /// Words for the island, ours, from the catalog.
 enum IslandCopy {
+    static func receipt(_ receipt: ActionReceipt) -> String {
+        let key = switch receipt.kind {
+        case .created: "island.receipt.created"
+        case .wrote: "island.receipt.wrote"
+        case .undone: "island.receipt.undone"
+        case .couldNotUndo: "island.receipt.undoFailed"
+        }
+        return String(format: Localized.string(key), receipt.subject)
+    }
+
     static func line(_ line: IslandState.Line) -> String {
         switch line {
         case .none: ""

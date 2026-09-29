@@ -65,6 +65,9 @@ public struct IslandState: Sendable, Equatable {
     /// "Se ve"), independent of `size`/`line` — the chip rides alongside
     /// whatever the chrome is doing.
     public var hands: String?
+    /// Wave 20d B: why it can stay silent before acting is that the way back is
+    /// here for five seconds.
+    public var receipt: ActionReceipt?
     /// The sheet replaced the field: the panel must hand the keyboard back,
     /// or the next Return meant for the draft answers the sheet (security
     /// review 16, critical).
@@ -140,6 +143,12 @@ public struct IslandState: Sendable, Equatable {
                 state.size = .nudge
             }
         }
+        // A receipt rides alongside whatever the chrome is doing, like the
+        // hands chip: the undo must be findable even while a turn speaks.
+        if let receipt = p.receipt {
+            state.receipt = receipt
+            if state.size == .hidden || state.size == .pebble { state.size = .nudge }
+        }
         state.light = light(p)
         state.action = action(state.line)
         return state
@@ -147,6 +156,7 @@ public struct IslandState: Sendable, Equatable {
 
     private static func light(_ p: SessionProjection) -> Light {
         if p.approval != nil { return .amber }
+        if p.receipt != nil { return .green }
         if p.kind == .processing(.completed), p.dictation == nil { return .green }
         return .none
     }

@@ -285,6 +285,10 @@ public protocol ParentToolExecuting: Sendable {
     /// runner can resolve (the workbook a write would land in). Async: it asks
     /// the app. Called between `approval` and the sheet.
     func bound(_ request: ApprovalRequest) async -> ApprovalRequest
+    /// Wave 20d B: the call needed a sheet by name (`approval` is non-nil) but
+    /// the runner has looked at the target and it only adds: no sheet, no
+    /// ticket. Async because it reads the open workbook.
+    func actsWithoutSheet(_ call: ToolCallRef) async -> Bool
     /// The gate reports a yes, from the sheet or the session's memory. A
     /// runner that must not act unapproved (a terminal) acts only after it.
     func granted(_ request: ApprovalRequest)
@@ -305,6 +309,8 @@ extension ParentToolExecuting {
     }
 
     public func bound(_ request: ApprovalRequest) async -> ApprovalRequest { request }
+
+    public func actsWithoutSheet(_ call: ToolCallRef) async -> Bool { false }
 
     public func granted(_ request: ApprovalRequest) {}
 

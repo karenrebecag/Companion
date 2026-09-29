@@ -62,6 +62,7 @@ func makeSensingAndModel(
     // Wave 15g: type, press, raise, read on the app the user was in —
     // the dictation adapter keyed to the sensor's last app that was not
     // us; offered only while Accessibility is trusted.
+    let receipts = ReceiptRelay()
     let pointer = PointerSampler()
     let screenSight = ScreenSight(
         capture: ScreenCapture(
@@ -105,7 +106,8 @@ func makeSensingAndModel(
         // native lane, so the parent carries the deliverables itself.
         workdir: env.config.workdir,
         documents: NativeDocumentRenderer(),
-        sheets: AppleEventSheets())
+        sheets: AppleEventSheets(),
+        onAct: { receipts.send($0) })
     let sensor = SystemContextSensor(
         focused: frontmost,
         // Documents of the app the user was IN, not of Companion.
@@ -118,6 +120,22 @@ func makeSensingAndModel(
     let voicePort = VoicePortBox()
     let sessionModel = SessionModel(
         jobs: jobs.jobRunner, approvals: jobs.approvals, voice: voicePort, log: { Log.app($0) })
+    // Wave 20d B: what ran without the sheet reaches the island with its
+    // undo; the press is the user's alone.
+    receipts.connect { receipt in
+        Task { @MainActor in sessionModel.send(.actionDone(receipt)) }
+    }
+    let undoer = ActionUndoer(sheets: AppleEventSheets())
+    sessionModel.onUndo = { receipt in
+        guard let step = receipt.undo else { return }
+        Task {
+            let undone = await undoer.undo(step)
+            await MainActor.run {
+                sessionModel.send(.actionDone(ActionReceipt(
+                    kind: undone ? .undone : .couldNotUndo, subject: receipt.subject)))
+            }
+        }
+    }
     // 16k-3: the connected apps' tools ride next to the parent's. The
     // service is rebuilt per use from the same two settings the Apps page
     // reads (endpoint in defaults, key in the Keychain); the suggestion

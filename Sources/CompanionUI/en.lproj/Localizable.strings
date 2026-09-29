@@ -309,6 +309,11 @@
 "island.action.keys" = "Open Keys";
 "island.hands" = "Hands: %@";
 "island.hands.stop" = "Stop hands";
+"island.receipt.created" = "Created %@";
+"island.receipt.wrote" = "Wrote %@";
+"island.receipt.undone" = "Undone: %@";
+"island.receipt.undoFailed" = "Could not undo %@";
+"island.receipt.undo" = "Undo";
 "island.light.amber" = "Needs you";
 "island.light.green" = "Done";
 "island.feedback.subject" = "Companion feedback";

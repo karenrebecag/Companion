@@ -183,6 +183,15 @@ public struct SessionMachine: Sendable, Equatable {
             let card = Self.card(for: failure)
             projection.notice = card
             projection.cards = [card]
+        case .actionDone(let receipt):
+            projection.receipt = receipt
+            effects.append(.scheduleReceiptExpiry(id: receipt.id, ActionReceipt.undoWindow))
+        case .receiptExpired(let id):
+            if projection.receipt?.id == id { projection.receipt = nil }
+        case .undoPressed(let id):
+            guard let receipt = projection.receipt, receipt.id == id else { return [] }
+            projection.receipt = nil
+            effects.append(.undo(receipt))
         case .handsLent(let client):
             projection.handsLentTo = client
             if client == nil { projection.handsActing = false; projection.handsTarget = nil }
@@ -336,6 +345,8 @@ public struct SessionMachine: Sendable, Equatable {
 
     private mutating func observe(_ event: JobEvent) -> [SessionEffect] {
         switch event {
+        case .acted(let receipt):
+            return handle(.actionDone(receipt))
         case .started(let goal):
             if projection.job == nil {
                 projection.job = JobTimeline(goal: goal)

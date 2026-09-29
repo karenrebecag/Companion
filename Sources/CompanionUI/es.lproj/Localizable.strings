@@ -309,6 +309,11 @@
 "island.action.keys" = "Abrir Claves";
 "island.hands" = "Manos: %@";
 "island.hands.stop" = "Detener manos";
+"island.receipt.created" = "Creé %@";
+"island.receipt.wrote" = "Escribí %@";
+"island.receipt.undone" = "Deshecho: %@";
+"island.receipt.undoFailed" = "No pude deshacer %@";
+"island.receipt.undo" = "Deshacer";
 "island.light.amber" = "Te necesita";
 "island.light.green" = "Terminado";
 "island.feedback.subject" = "Companion: comentario";

@@ -183,6 +183,14 @@ public struct PathValidator: Sendable {
         }
     }
 
+    /// The working folder only: the app's own folders (skills, memory) are
+    /// writable roots too, but a file there is read back into the prompt, so
+    /// it is never a plain deliverable.
+    public func isInWorkdir(_ resolved: String) -> Bool {
+        guard let workdir else { return false }
+        return Self.contains((workdir as NSString).standardizingPath, resolved)
+    }
+
     /// A trailing slash keeps `/a/b` from claiming `/a/bc`.
     private static func contains(_ root: String, _ path: String) -> Bool {
         if path == root { return true }

@@ -300,6 +300,11 @@ public struct CompositeParentTools: ParentToolExecuting, Sendable {
         return runner.approval(for: call, said: said)
     }
 
+    public func actsWithoutSheet(_ call: ToolCallRef) async -> Bool {
+        guard let runner = runners.first(where: { $0.handles(call.name) }) else { return false }
+        return await runner.actsWithoutSheet(call)
+    }
+
     public func bound(_ request: ApprovalRequest) async -> ApprovalRequest {
         var current = request
         for runner in runners { current = await runner.bound(current) }

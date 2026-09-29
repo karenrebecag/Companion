@@ -93,6 +93,9 @@ public struct SessionProjection: Sendable, Equatable {
     /// it closes. Independent of `kind` — the chip lives alongside whatever
     /// the chrome is doing, not instead of it.
     public var handsLentTo: String?
+    /// Wave 20d B: the last action that ran without the sheet, while its undo
+    /// window lasts. Alongside the turn like `handsLentTo`, not a `kind`.
+    public var receipt: ActionReceipt?
     /// Wave 17: bumped on every successful write action, wrapping at 1000,
     /// so the island can key a one-shot pulse animation off a value that
     /// keeps changing instead of a bare "it happened" flag.
@@ -170,6 +173,11 @@ public enum SessionEvent: Sendable, Equatable {
     /// client. Independent of the turn machinery — a bridge session can sit
     /// open across many idle moments.
     case handsLent(client: String?)
+    /// Wave 20d B: an action ran on its own band; the receipt is the way back.
+    case actionDone(ActionReceipt)
+    case receiptExpired(id: UUID)
+    /// The user pressed Undo on the receipt showing. Only the UI sends it.
+    case undoPressed(id: UUID)
     /// Wave 17: a write action executed through the bridge.
     case handsActed
     /// Wave 20b: any executed bridge call, reads included; the frame is
@@ -186,6 +194,8 @@ public enum SessionEffect: Sendable, Equatable {
     case scheduleCompletedExpiry(TimeInterval)
     case scheduleNoticeExpiry(TimeInterval)
     case scheduleHandsGlowExpiry(TimeInterval)
+    case scheduleReceiptExpiry(id: UUID, TimeInterval)
+    case undo(ActionReceipt)
     case schedulePendingExpiry(TimeInterval)
     /// Open the session if there is none and open the mic.
     case startListening
