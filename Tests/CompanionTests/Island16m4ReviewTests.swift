@@ -198,10 +198,12 @@ final class RecordingSleeper: @unchecked Sendable {
     let lines = LineSink()
     let secret = "palabra secreta"
     await Log.capturing(to: url) {
-        let sleeper = ManualSleeper()
-        let session = SessionModel(jobs: nil, approvals: nil, sleep: sleeper.sleep,
-                                   log: { lines.add($0); Log.app($0) })
         for ending in ["hide", "expire"] {
+            // A session per ending: a cancelled wait of the first round that
+            // registers late must not be mistaken for the second round's clock.
+            let sleeper = ManualSleeper()
+            let session = SessionModel(jobs: nil, approvals: nil, sleep: sleeper.sleep,
+                                       log: { lines.add($0); Log.app($0) })
             session.send(.pressed)
             session.send(.released)
             session.send(.dictated(app: "Slack", text: DictatedText(secret)))
@@ -210,10 +212,15 @@ final class RecordingSleeper: @unchecked Sendable {
             session.send(.dictationCardHover(false))
             if ending == "hide" {
                 session.send(.dictationHidden)
-            } else {
-                await pumpUntil("log: reloj armado") { sleeper.pending >= 1 }
+                // Release the cancelled waits so no continuation is left hanging.
                 sleeper.fire()
-                await pumpUntil("log: caducó") { session.projection.kind == .idle }
+            } else {
+                // fire() only wakes registered waits and is a no-op otherwise, so
+                // firing on every pump lands once the live clock has registered.
+                await pumpUntil("log: caducó") {
+                    sleeper.fire()
+                    return session.projection.kind == .idle
+                }
             }
         }
     }
@@ -276,7 +283,7 @@ final class LineSink: @unchecked Sendable {
     session.send(.released)
     session.send(.dictated(app: "Slack", text: "palabra secreta"))
     session.send(.dictationCardHover(true))
-    await settle(0.05)
+    await pumpUntil("tope: el reloj del tope armado") { sleeper.armed(SessionMachine.dictationHoverCap) == 1 }
     sleeper.fire()
     await pumpUntil("tope: la tarjeta caduca sin hover(false)") { session.projection.kind == .idle }
     expectEq(session.projection.dictatedText, nil, "16m-4: y suelta las palabras")
