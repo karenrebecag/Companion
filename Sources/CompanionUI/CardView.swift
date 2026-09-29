@@ -66,12 +66,24 @@ struct CardView: View {
             case .chart(let block):
                 ChartCard(block: block)
             }
-            if card.source == .model {
+            // Only the cards that claim something about the WORLD carry the
+            // caveat: a place that may not exist, an image that may not be
+            // what it says. Stats, tables and charts restate the answer's
+            // own numbers — captioning those "unverified locations" (16m
+            // snapshot) undercut data that was simply the reply.
+            if card.source == .model, claimsWorld {
                 Text(Localized.string("card.unverified"))
                     .font(.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    var claimsWorld: Bool {
+        switch card.payload {
+        case .locations, .gallery: true
+        case .stats, .table, .chart: false
+        }
     }
 }

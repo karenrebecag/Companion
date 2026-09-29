@@ -206,7 +206,7 @@
 "chat.job.stopped" = "You stopped the job.";
 "job.stop" = "Stop";
 "chat.job.failed" = "The job could not finish: %@";
-"card.unverified" = "Companion did not verify these locations.";
+"card.unverified" = "Companion did not verify these places or images.";
 "onboarding.probing" = "Looking for a model on your Mac…";
 "onboarding.base.blurb" = "Your Mac can already talk with you. No account, nothing to set up.";
 "onboarding.local.ollama" = "Start with %@ on your Mac";
