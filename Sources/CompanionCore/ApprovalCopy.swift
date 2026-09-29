@@ -40,6 +40,7 @@ public enum ApprovalCopy {
 
     public static func display(for request: ApprovalRequest, language: AppLanguage) -> ApprovalDisplay {
         let arguments = ToolArguments.parse(request.inputJSON) ?? [:]
+        if request.isMCP { return mcpTool(request, language) }
         if request.toolName == BridgePolicy.sessionApprovalTool {
             return bridge(arguments, language)
         }
@@ -67,14 +68,29 @@ public enum ApprovalCopy {
             showsRemember: false)
     }
 
+    /// A remote server's tool: its name and arguments are the server's and
+    /// the model's words, and the click is the only authority (20c D2), so
+    /// the sheet shows the name sanitized and EVERY argument, never the one
+    /// key a generic rule happens to know. No remember: `ApprovalKey.from`
+    /// has no rule for MCP, a ticked toggle would promise a memory that
+    /// never happens.
+    private static func mcpTool(_ request: ApprovalRequest, _ language: AppLanguage) -> ApprovalDisplay {
+        let arguments = request.inputJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ApprovalDisplay(
+            mark: .symbol("network"), lead: word(.allow, language),
+            subject: capped(plainPreview(request.toolName, keepingLayout: false)),
+            preview: arguments.isEmpty || arguments == "{}" ? nil : plainPreview(arguments),
+            showsRemember: false)
+    }
+
     /// The arguments came from the model and can quote a page or a chat:
     /// bidi and control scalars could visually reorder what the sheet
     /// shows, and a reordered preview approves something else (F-F,
     /// security review 16k-3). Newlines and tabs stay — they are layout,
-    /// not direction.
-    private static func plainPreview(_ text: String) -> String {
+    /// not direction — unless the text is a one-line title.
+    private static func plainPreview(_ text: String, keepingLayout: Bool = true) -> String {
         String(text.unicodeScalars.filter { scalar in
-            if scalar == "\n" || scalar == "\t" { return true }
+            if scalar == "\n" || scalar == "\t" { return keepingLayout }
             if scalar.properties.generalCategory == .control { return false }
             return !(0x202A...0x202E).contains(scalar.value)
                 && !(0x2066...0x2069).contains(scalar.value)

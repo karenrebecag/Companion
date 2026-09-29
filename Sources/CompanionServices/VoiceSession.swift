@@ -67,6 +67,10 @@ public actor VoiceSession: VoiceControlling {
     /// websocket with the sheet's click, never by `resolve_approval` (20c D2).
     /// Written by VoiceSessionApprovals.
     var pendingMCPApprovals: [String: ApprovalRequest] = [:]
+    /// One auto-deny per open MCP sheet: these requests never enter
+    /// `Approvals`, whose timer is what denies every other permission.
+    var mcpApprovalTimers: [String: Task<Void, Never>] = [:]
+    let mcpApprovalTimeout: TimeInterval
     var lastMic = 0.0
     var lastAgent = 0.0
     var reconnectAttempted = false
@@ -178,8 +182,10 @@ public actor VoiceSession: VoiceControlling {
         now: @escaping @Sendable () -> TimeInterval = {
             Date().timeIntervalSince1970
         },
-        readyTimeout: TimeInterval = 6
+        readyTimeout: TimeInterval = 6,
+        mcpApprovalTimeout: TimeInterval = ApprovalTiming.autoDeny
     ) {
+        self.mcpApprovalTimeout = mcpApprovalTimeout
         self.transport = transport
         self.mic = mic
         self.player = player

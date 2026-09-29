@@ -45,10 +45,8 @@ public enum OwnMCPEdit {
               let host = url.host, !host.isEmpty,
               url.user == nil, url.password == nil
         else { return .failure(.invalidURL) }
-        // No requireApproval on purpose: absent means the product default,
-        // asking before acting (MCPServerConfig's contract). The stored
-        // string is the parsed URL, not the raw text: what was validated
-        // is what persists.
+        // The stored string is the parsed URL, not the raw text: what was
+        // validated is what persists.
         return .success(servers + [MCPServerConfig(label: name, url: url.absoluteString)])
     }
 

@@ -53,7 +53,8 @@ func makeVoiceHarness(
     // tail's own tests pass it explicitly.
     releaseTail: TimeInterval = 0,
     screen: (any ScreenSeeing)? = nil,
-    debugTranscripts: Bool = false
+    debugTranscripts: Bool = false,
+    mcpApprovalTimeout: TimeInterval = ApprovalTiming.autoDeny
 ) -> VoiceHarness {
     let transport = ScriptedVoiceTransport()
     transport.autoEvents = autoEvents
@@ -95,7 +96,8 @@ func makeVoiceHarness(
         micSilenceTimeout: micSilenceTimeout,
         releaseTail: releaseTail,
         now: { clock.now },
-        readyTimeout: readyTimeout)
+        readyTimeout: readyTimeout,
+        mcpApprovalTimeout: mcpApprovalTimeout)
     let watch = SnapWatch(session.snapshots)
     if onJobEvent != nil || sessionModel != nil {
         // Wave 12a: the closure became a stream; the harness keeps its shape.

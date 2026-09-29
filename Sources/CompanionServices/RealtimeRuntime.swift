@@ -274,7 +274,7 @@ final class RealtimeRuntime: @unchecked Sendable {
             // only announces it, and the click answers (Wave 20c D2).
             onMCPApproval?(ApprovalRequest(
                 requestId: id, toolName: "\(server)/\(tool)",
-                summary: tool, inputJSON: args))
+                summary: tool, inputJSON: args, isMCP: true))
             await send(RealtimeCodec.systemItem(
                 MCPServerConfig.approvalPrompt(
                     server: server, tool: tool, language)))

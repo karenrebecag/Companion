@@ -460,10 +460,11 @@ public struct SessionMachine: Sendable, Equatable {
         return projection.approvalQueue.remove(at: index)
     }
 
-    /// The parent's own gates travel the same queue as the specialist's
-    /// requests; only the specialist's are the job's actions.
+    /// The parent's own gates and the user's MCP servers travel the same
+    /// queue as the specialist's requests; only the specialist's are the
+    /// job's actions. An MCP name is server-chosen, so origin decides.
     private static func isJobRequest(_ request: ApprovalRequest) -> Bool {
-        ParentTool(rawValue: request.toolName) == nil
+        !request.isMCP && ParentTool(rawValue: request.toolName) == nil
     }
 
     private static func status(of snapshot: TurnSnapshot) -> VoiceStatus {

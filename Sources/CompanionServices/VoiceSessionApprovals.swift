@@ -11,8 +11,38 @@ extension VoiceSession {
     /// as every other permission: the model reads the request aloud but its
     /// boolean settles nothing (Wave 20c D2).
     func noteMCPApproval(_ request: ApprovalRequest) async {
-        pendingMCPApprovals[request.requestId] = request
+        let id = request.requestId
+        pendingMCPApprovals[id] = request
+        let timeout = mcpApprovalTimeout
+        mcpApprovalTimers[id] = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(timeout))
+            } catch {
+                return
+            }
+            await self?.mcpApprovalExpired(id)
+        }
         eventBox.yield(.job(.approvalRequested(request)))
+    }
+
+    /// Nobody clicked in time. The sheet's own ring empties without closing
+    /// it and these requests never enter `Approvals`, so the deny is driven
+    /// here: OpenAI must not wait for ever, and the sheet must not outlive
+    /// the answer.
+    private func mcpApprovalExpired(_ requestId: String) async {
+        guard pendingMCPApprovals[requestId] != nil else { return }
+        await approvalClosed(requestId, approved: false)
+        eventBox.yield(.approvalDropped(requestId: requestId))
+    }
+
+    /// The session ended: its request ids die with the connection, so a late
+    /// click must find nothing to answer, and no sheet may outlive them.
+    func dropPendingMCPApprovals() {
+        let ids = Array(pendingMCPApprovals.keys)
+        pendingMCPApprovals = [:]
+        for timer in mcpApprovalTimers.values { timer.cancel() }
+        mcpApprovalTimers = [:]
+        for id in ids { eventBox.yield(.approvalDropped(requestId: id)) }
     }
 
     /// The permission the specialist is blocked on. One at a time: the job
@@ -64,6 +94,7 @@ extension VoiceSession {
     /// (dropped, settled elsewhere) is a no, so OpenAI never waits forever.
     public func approvalClosed(_ requestId: String, approved: Bool? = nil) async {
         if pendingApproval?.requestId == requestId { pendingApproval = nil }
+        mcpApprovalTimers.removeValue(forKey: requestId)?.cancel()
         if pendingMCPApprovals.removeValue(forKey: requestId) != nil {
             await realtime.send(RealtimeCodec.mcpApprovalResponse(
                 requestId: requestId, approve: approved ?? false))

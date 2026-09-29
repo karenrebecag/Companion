@@ -8,20 +8,18 @@ public struct MCPServerConfig: Sendable, Equatable, Codable {
     public var label: String
     public var url: String
     public var allowedTools: [String]?
-    /// Still decoded so an old file loads, but ignored on the wire: every
-    /// call asks (Wave 20c D2).
-    public var requireApproval: String?
     /// Bearer token for servers that need one. Lives in the user's 0600
     /// config file. Upgrade trigger: move to the Keychain the day a stored
     /// token is worth stealing.
     public var authorization: String?
 
+    /// An old file's `requireApproval` key is ignored on load and never
+    /// written back: every call asks, the file cannot relax it (20c D2).
     public init(label: String, url: String, allowedTools: [String]? = nil,
-                requireApproval: String? = nil, authorization: String? = nil) {
+                authorization: String? = nil) {
         self.label = label
         self.url = url
         self.allowedTools = allowedTools
-        self.requireApproval = requireApproval
         self.authorization = authorization
     }
 

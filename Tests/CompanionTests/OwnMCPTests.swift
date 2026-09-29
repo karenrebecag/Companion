@@ -18,8 +18,6 @@ import Testing
         expectEq(servers.count, 2, "add: agrega al final")
         expectEq(servers.last?.label, "notas", "add: recorta espacios del nombre")
         expectEq(existing.count, 1, "add: no muta la lista original")
-        expect(servers.last?.requireApproval == nil,
-               "add: sin requireApproval explicito — el default del producto es preguntar")
     case .failure(let error):
         Issue.record("add valido fallo: \(error)")
     }
@@ -72,11 +70,21 @@ import Testing
     let servers = [
         MCPServerConfig(label: "docs", url: "https://mcp.example.dev/mcp"),
         MCPServerConfig(label: "notas", url: "https://notes.dev/mcp",
-                        requireApproval: "never", authorization: "tok"),
+                        authorization: "tok"),
     ]
     try MCPConfigFile.save(servers, root: root)
 
     expectEq(MCPConfigFile.load(root: root), servers, "save: lo guardado recarga identico")
+
+    // An old file's "never" still loads but is never written back: nothing
+    // reads it any more (20c D2), so persisting it would only mislead.
+    try Data(#"[{"label":"a","url":"https://a.dev","requireApproval":"never"}]"#.utf8)
+        .write(to: root.appendingPathComponent("mcp.json"))
+    expectEq(MCPConfigFile.load(root: root).count, 1, "save: un archivo viejo con never carga")
+    try MCPConfigFile.save(MCPConfigFile.load(root: root), root: root)
+    let rewritten = try String(contentsOf: root.appendingPathComponent("mcp.json"), encoding: .utf8)
+    expect(!rewritten.contains("requireApproval"), "save: requireApproval no se reescribe")
+    try MCPConfigFile.save(servers, root: root)
 
     // The file may carry a bearer token: owner-only, like the bridge socket.
     let path = root.appendingPathComponent("mcp.json").path

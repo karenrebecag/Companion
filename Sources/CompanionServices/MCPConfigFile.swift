@@ -5,8 +5,10 @@ import Foundation
 /// folder — same philosophy: user-owned, readable, editable (9j-3).
 ///
 ///   ~/Library/Application Support/Companion/mcp.json
-///   [{"label": "docs", "url": "https://developers.openai.com/mcp",
-///     "requireApproval": "always"}]
+///   [{"label": "docs", "url": "https://developers.openai.com/mcp"}]
+///
+/// Every call asks. An old `requireApproval` key still loads but is ignored
+/// and not written back.
 public enum MCPConfigFile {
     public static func load(
         root: URL = MemoryLocation.directory().deletingLastPathComponent()
