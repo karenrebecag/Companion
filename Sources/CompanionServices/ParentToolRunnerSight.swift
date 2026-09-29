@@ -18,12 +18,12 @@ extension ParentToolRunner {
     /// A click on a delete/pay/send button asks unless the user used a word
     /// of that family; the gate issues the ticket either way it clears.
     func clickApproval(
-        _ call: ToolCallRef, said: String, hands: ScreenHands, pid: Int32,
-        ticket: ApprovalTickets.Ticket
+        _ call: ToolCallRef, said: String, hands: ScreenHands, pid: Int32
     ) -> ApprovalRequest? {
-        guard let element = Self.clickTarget(call, hands: hands, pid: pid),
+        guard let (element, generation) = Self.clickTarget(call, hands: hands, pid: pid),
               HandsGate.clickNeedsTicket(label: element.label, context: element.context)
         else { return nil }
+        let ticket = ApprovalTickets.Ticket.click(call, pid: pid, element: element, generation: generation)
         switch HandsGate.clickVerdict(label: element.label, context: element.context, said: said) {
         case .act:
             hands.tickets.issue(ticket)
@@ -63,10 +63,13 @@ extension ParentToolRunner {
         return request
     }
 
-    static func clickTarget(_ call: ToolCallRef, hands: ScreenHands, pid: Int32) -> ScreenElement? {
-        guard let arguments = ToolArguments.parse(call.arguments), let id = intArgument(arguments["id"])
+    static func clickTarget(
+        _ call: ToolCallRef, hands: ScreenHands, pid: Int32
+    ) -> (element: ScreenElement, generation: Int)? {
+        guard let arguments = ToolArguments.parse(call.arguments), let id = intArgument(arguments["id"]),
+              let scan = hands.scans.scan(for: pid), let element = scan.element(id: id)
         else { return nil }
-        return hands.scans.scan(for: pid)?.element(id: id)
+        return (element, scan.generation)
     }
 
     static func intArgument(_ raw: Any?) -> Int? {
@@ -151,7 +154,7 @@ private struct SightAct {
             return fail("unknown_id", "no control [\(id)] in the latest look; look again")
         }
         if HandsGate.clickNeedsTicket(label: element.label, context: element.context),
-           !hands.tickets.redeem(.init(name: call.name, arguments: call.arguments, pid: pid)) {
+           !hands.tickets.redeem(.click(call, pid: pid, element: element, generation: scan.generation)) {
             return fail("approval_required", "this button deletes, pays or sends; it needs approval")
         }
         switch screen.click(node: element.node, generation: scan.generation, pid: pid, label: element.label) {
