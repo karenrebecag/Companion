@@ -30,9 +30,10 @@ public struct ParentToolGuard: Sendable {
         _ call: ToolCallRef, said: String, language: AppLanguage,
         tools: (any ParentToolExecuting)? = nil
     ) async -> ParentToolOutcome? {
-        let request = tools?.approval(for: call, said: said)
+        let asked = tools?.approval(for: call, said: said)
             ?? ParentToolGate.approval(for: call, said: said)
-        guard let request else { return nil }
+        guard let asked else { return nil }
+        let request = await tools?.bound(asked) ?? asked
         let target = ParentTool.target(of: call)
         let denied = ParentToolOutcome.failed(
             .deniedByUser(language), target: target, tool: call.name)

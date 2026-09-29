@@ -19,12 +19,14 @@ private final class FakeSheets: SpreadsheetDriving, @unchecked Sendable {
     var app: SheetApp? = .numbers
     var written: [[SheetCell]]?
     var failure: SheetError?
+    var workbookPath = "/tmp/libro.numbers"
     func active() async -> SheetApp? { app }
+    func workbook(_ app: SheetApp) async throws -> String { workbookPath }
     func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]] {
         if let failure { throw failure }
         return [["a", "1"]]
     }
-    func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]]) async throws -> SheetWriteReceipt {
+    func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String) async throws -> SheetWriteReceipt {
         if let failure { throw failure }
         written = cells
         return SheetWriteReceipt(backupPath: "/tmp/libro-backup.numbers", readBack: [["a", "1"]])
@@ -117,10 +119,23 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
                                               arguments: ["range": "A1:B1", "values": #"[["a",1]]"#], approved: false)
         expect(!denied.ok && sheets.written == nil, "hoja: sin aprobación no se toca")
         let wrong = try await runner.execute(tool: "sheet_write",
-                                             arguments: ["range": "A1:B2", "values": #"[["a",1]]"#], approved: true)
+                                             arguments: ["range": "A1:B2", "values": #"[["a",1]]"#,
+                                                         "workbook": "/tmp/libro.numbers"], approved: true)
         expect(wrong.output.hasPrefix("invalid_args") && sheets.written == nil, "hoja: forma equivocada no se escribe")
-        let ok = try await runner.execute(tool: "sheet_write",
-                                          arguments: ["range": "A1:B1", "values": #"[["a",1]]"#], approved: true)
+        let unbound = try await runner.execute(tool: "sheet_write",
+                                               arguments: ["range": "A1:B1", "values": #"[["a",1]]"#], approved: true)
+        expect(!unbound.ok && unbound.output.hasPrefix("workbook_changed") && sheets.written == nil,
+               "hoja: una escritura que la hoja no ató a un libro no se hace")
+        sheets.workbookPath = "/tmp/otro.numbers"
+        let swapped = try await runner.execute(
+            tool: "sheet_write",
+            arguments: ["range": "A1:B1", "values": #"[["a",1]]"#, "workbook": "/tmp/libro.numbers"], approved: true)
+        expect(!swapped.ok && swapped.output.hasPrefix("workbook_changed") && sheets.written == nil,
+               "hoja: si el libro de delante cambió entre aprobar y escribir, aborta sin escribir")
+        sheets.workbookPath = "/tmp/libro.numbers"
+        let ok = try await runner.execute(
+            tool: "sheet_write",
+            arguments: ["range": "A1:B1", "values": #"[["a",1]]"#, "workbook": "/tmp/libro.numbers"], approved: true)
         expect(ok.ok, "hoja: se escribe")
         expect(ok.output.contains("Backup") && ok.output.contains("Read back"), "hoja: el recibo trae copia y relectura")
         expectEq(sheets.written?.first, [.text("a"), .number(1)], "hoja: las celdas llegan tipadas")
@@ -142,7 +157,8 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
         expect(perm.output.hasPrefix("needs_permission"), "hoja: sin Automatización dice dónde darla")
         sheets.failure = .unsavedDocument
         let unsaved = try await runner.execute(tool: "sheet_write",
-                                               arguments: ["range": "A1", "values": #"[["x"]]"#], approved: true)
+                                               arguments: ["range": "A1", "values": #"[["x"]]"#,
+                                                           "workbook": "/tmp/libro.numbers"], approved: true)
         expect(unsaved.output.hasPrefix("unsaved_document"), "hoja: sin guardar no hay copia, y lo dice")
     } catch {
         expect(false, "hoja: no debe lanzar (\(error))")

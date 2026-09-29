@@ -152,12 +152,16 @@ public struct NativeExecutor: Executor, Sendable {
 
         let approvalNeeded = riskLevel(tool: toolName) == .requiresApproval
         var approved = !approvalNeeded
+        var runArguments = arguments
         if approvalNeeded {
+            // A sheet write runs the arguments the sheet showed, workbook included.
+            let shown = await toolRunner.approvalArguments(tool: toolName, json: call.arguments)
+            if shown != call.arguments { runArguments = ToolArguments.parse(shown) ?? [:] }
             let approval = ApprovalRequest(
                 requestId: UUID().uuidString,
                 toolName: toolName,
                 summary: "Tool requires user approval",
-                inputJSON: call.arguments)
+                inputJSON: shown)
             // A decision the session already took answers without the sheet
             // (3B.2); otherwise wait (auto-deny per ApprovalTiming).
             if let decision = await approvals.remembered(approval) {
@@ -175,7 +179,7 @@ public struct NativeExecutor: Executor, Sendable {
         let toolResult: ToolResult
         do {
             toolResult = try await executeToolSafely(
-                tool: toolName, arguments: arguments, approved: approved)
+                tool: toolName, arguments: runArguments, approved: approved)
         } catch is CancellationError {
             throw CancellationError()
         } catch {

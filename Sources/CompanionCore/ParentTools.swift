@@ -281,6 +281,10 @@ public protocol ParentToolExecuting: Sendable {
     /// the runner, not `ParentToolGate` directly: only the runner knows the
     /// app it would act on (a terminal makes Return a command, Wave 15g).
     func approval(for call: ToolCallRef, said: String) -> ApprovalRequest?
+    /// The request as the sheet and the memory see it, with what only the
+    /// runner can resolve (the workbook a write would land in). Async: it asks
+    /// the app. Called between `approval` and the sheet.
+    func bound(_ request: ApprovalRequest) async -> ApprovalRequest
     /// The gate reports a yes, from the sheet or the session's memory. A
     /// runner that must not act unapproved (a terminal) acts only after it.
     func granted(_ request: ApprovalRequest)
@@ -299,6 +303,8 @@ extension ParentToolExecuting {
     public func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
         ParentToolGate.approval(for: call, said: said)
     }
+
+    public func bound(_ request: ApprovalRequest) async -> ApprovalRequest { request }
 
     public func granted(_ request: ApprovalRequest) {}
 

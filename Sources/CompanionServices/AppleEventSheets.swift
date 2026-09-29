@@ -29,11 +29,19 @@ public struct AppleEventSheets: SpreadsheetDriving {
         return Self.rows(result, range: range, app: app)
     }
 
-    public func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]]) async throws -> SheetWriteReceipt {
+    public func workbook(_ app: SheetApp) async throws -> String {
         let document = try await run(Self.pathScript(app)).stringValue ?? ""
         // An unsaved workbook has no file to copy; writing without a copy is
         // exactly what the backup rule exists to prevent.
         guard document.hasPrefix("/") else { throw SheetError.unsavedDocument }
+        return document
+    }
+
+    public func write(
+        _ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook approved: String
+    ) async throws -> SheetWriteReceipt {
+        let document = try await workbook(app)
+        guard document == approved else { throw SheetError.workbookChanged }
         let backup = SheetBackup.path(for: document, at: Date())
         do {
             try FileManager.default.copyItem(atPath: document, toPath: backup)

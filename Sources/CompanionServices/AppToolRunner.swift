@@ -300,6 +300,12 @@ public struct CompositeParentTools: ParentToolExecuting, Sendable {
         return runner.approval(for: call, said: said)
     }
 
+    public func bound(_ request: ApprovalRequest) async -> ApprovalRequest {
+        var current = request
+        for runner in runners { current = await runner.bound(current) }
+        return current
+    }
+
     public func granted(_ request: ApprovalRequest) {
         for runner in runners { runner.granted(request) }
     }

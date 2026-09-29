@@ -66,13 +66,32 @@ extension NativeToolRunner {
         }
         guard let app = await sheetApp(arguments, sheets) else { return Self.noSheet }
         do {
-            let receipt = try await sheets.write(app, range: range, cells: cells)
+            // The workbook the sheet named is the only one that may be written;
+            // one that was never named (no sheet bound it) is refused too.
+            guard let approved = SheetApproval.workbook(in: arguments),
+                  try await sheets.workbook(app) == approved else { throw SheetError.workbookChanged }
+            let receipt = try await sheets.write(app, range: range, cells: cells, workbook: approved)
             Log.app("sheets: wrote \(app.rawValue) cells=\(range.rows * range.columns)")
             return ToolResult(ok: true, output: "Wrote \(range.a1) in \(app.rawValue). Backup of the saved "
                 + "workbook: \(receipt.backupPath)\nRead back:\n" + Self.render(receipt.readBack, range: range, app: app))
         } catch {
             return Self.failure(error)
         }
+    }
+
+    /// The arguments as the approval sheet must show them: the workbook and app
+    /// that a write would land in, resolved by the runner now. The same JSON
+    /// is what runs, so approving and writing name one workbook.
+    func approvalArguments(tool: String, json: String) async -> String {
+        guard tool == NativeTool.sheetWrite.rawValue, let sheets, let object = ToolArguments.parse(json),
+              let app = await sheetApp(object, sheets) else { return json }
+        var workbook: String?
+        do {
+            workbook = try await sheets.workbook(app)
+        } catch {
+            Log.app("sheets: workbook not resolved for approval")
+        }
+        return SheetApproval.bind(json, workbook: workbook, app: app)
     }
 
     private func sheetApp(_ arguments: [String: Any], _ sheets: any SpreadsheetDriving) async -> SheetApp? {
@@ -106,6 +125,7 @@ extension NativeToolRunner {
         case .forbiddenFormula?: code = "invalid_args: only plain spreadsheet formulas are allowed: no web fetches, external references or commands"
         case .invalidValues?: code = "invalid_args: values must be JSON rows of text, numbers or null"
         case .noOpenDocument?: code = noSheet.output
+        case .workbookChanged?: code = "workbook_changed: the workbook in front is not the one that was approved; nothing was written"
         case .unsavedDocument?: code = "unsaved_document: ask the user to save the workbook once, so a backup can be made"
         case .needsPermission?: code = "needs_permission: allow Companion to control the app in System Settings > "
             + "Privacy & Security > Automation"

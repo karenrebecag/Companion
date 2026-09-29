@@ -203,6 +203,15 @@ public enum ApprovalCopy {
                 mark: .symbol("square.and.pencil"),
                 lead: word(writes ? .writeFile : .editFile, language),
                 subject: filename(path), preview: path, showsRemember: true)
+        case .sheetWrite:
+            guard let range = value(arguments, "range") else { return nil }
+            // Wave 20c D4: the workbook and every cell, uncut. The workbook
+            // is the runner's (`SheetApproval.bind`), the cells are what runs.
+            let app = value(arguments, "app").map { $0.capitalized + " · " } ?? ""
+            return ApprovalDisplay(
+                mark: .symbol("tablecells"), lead: word(.writeSheet, language),
+                subject: capped(app + range.uppercased()),
+                preview: SheetApproval.preview(arguments, language: language), showsRemember: true)
         default:
             return nil
         }
@@ -275,7 +284,7 @@ public enum ApprovalCopy {
 
     private enum Word {
         case open, openApp, openFile, typeIn, activeField, press, pressKey
-        case chooseMenu, run, writeFile, editFile, allow, someClient
+        case chooseMenu, run, writeFile, editFile, allow, someClient, writeSheet
     }
 
     private static func word(_ word: Word, _ language: AppLanguage) -> String {
@@ -304,6 +313,8 @@ public enum ApprovalCopy {
         case (.editFile, .en): "Edit the file"
         case (.allow, .es): "Permitir"
         case (.allow, .en): "Allow"
+        case (.writeSheet, .es): "Escribir en la hoja"
+        case (.writeSheet, .en): "Write to the sheet"
         case (.someClient, .es): "El cliente"
         case (.someClient, .en): "The client"
         }
