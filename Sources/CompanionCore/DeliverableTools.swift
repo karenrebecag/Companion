@@ -24,7 +24,10 @@ enum DeliverableTools {
                     ToolProperty(name: "path", type: "string",
                                  description: "where to save, ending in .pdf or .xlsx"),
                     ToolProperty(name: "document", type: "string",
-                                 description: "JSON text: {\"title\",\"subtitle\",\"blocks\":[...]}"),
+                                 description: "JSON text: {\"title\",\"subtitle\",\"blocks\":[...]}. For an .xlsx, a table cell "
+                                     + "starting with = is text unless the document also has \"formulas\":true; "
+                                     + "then only plain functions of the sheet's own cells (SUM, IF, VLOOKUP...) "
+                                     + "become live formulas, anything else stays text."),
                 ],
                 required: ["path", "document"])
         case .sheetRead:

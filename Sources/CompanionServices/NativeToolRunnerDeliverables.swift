@@ -112,8 +112,10 @@ extension NativeToolRunner {
     /// that a write would land in, resolved by the runner now. The same JSON
     /// is what runs, so approving and writing name one workbook.
     func approvalArguments(tool: String, json: String) async -> String {
-        guard tool == NativeTool.sheetWrite.rawValue, let sheets, let object = ToolArguments.parse(json),
-              let app = await sheetApp(object, sheets) else { return json }
+        guard tool == NativeTool.sheetWrite.rawValue else { return json }
+        // Whatever cannot be resolved below leaves no model-supplied workbook behind.
+        guard let sheets, let object = ToolArguments.parse(json),
+              let app = await sheetApp(object, sheets) else { return SheetApproval.bind(json, workbook: nil) }
         var workbook: String?
         do {
             workbook = try await sheets.workbook(app)

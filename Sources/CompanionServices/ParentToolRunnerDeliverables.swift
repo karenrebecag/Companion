@@ -32,12 +32,19 @@ extension ParentToolRunner {
     /// The sheet for a write names the workbook the runner sees in front, and
     /// the ticket is re-parked bound to it: a yes covers that workbook only.
     public func bound(_ request: ApprovalRequest) async -> ApprovalRequest {
-        guard request.toolName == NativeTool.sheetWrite.rawValue, let sheets,
-              let app = Self.sheetApp(request.inputJSON) else { return request }
+        guard request.toolName == NativeTool.sheetWrite.rawValue else { return request }
+        guard let sheets, let app = Self.sheetApp(request.inputJSON) else {
+            var unbound = request
+            unbound.inputJSON = SheetApproval.bind(request.inputJSON, workbook: nil)
+            return unbound
+        }
         var workbook: String?
         do {
             workbook = try await sheets.workbook(app)
         } catch {
+            // HACK: an unresolvable workbook (unsaved file) still shows a sheet that
+            // can never succeed. `bound` cannot refuse; give the seam (approval/bound)
+            // a denial channel when that shows up in live use.
             Log.app("parent: workbook not resolved for approval")
         }
         if let workbook {

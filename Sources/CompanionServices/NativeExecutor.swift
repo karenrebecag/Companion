@@ -156,7 +156,10 @@ public struct NativeExecutor: Executor, Sendable {
         if approvalNeeded {
             // A sheet write runs the arguments the sheet showed, workbook included.
             let shown = await toolRunner.approvalArguments(tool: toolName, json: call.arguments)
-            if shown != call.arguments { runArguments = ToolArguments.parse(shown) ?? [:] }
+            guard let bound = Self.boundArguments(shown: shown, original: call.arguments, parsed: arguments) else {
+                return ToolResult(ok: false, output: "denied: the approved arguments could not be read, so nothing ran")
+            }
+            runArguments = bound
             let approval = ApprovalRequest(
                 requestId: UUID().uuidString,
                 toolName: toolName,
@@ -190,6 +193,12 @@ public struct NativeExecutor: Executor, Sendable {
         // model never sees the payload it would otherwise retype.
         if let card = toolResult.card { events.yield(.card(card)) }
         return toolResult
+    }
+
+    /// What runs is what the sheet showed; if that JSON cannot be read there is
+    /// nothing approved to run, so it is a denial and never empty arguments.
+    static func boundArguments(shown: String, original: String, parsed: [String: Any]) -> [String: Any]? {
+        shown == original ? parsed : ToolArguments.parse(shown)
     }
 
     /// Same tool, same arguments once canonicalised (sorted keys, no
