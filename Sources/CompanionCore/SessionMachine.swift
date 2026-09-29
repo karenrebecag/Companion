@@ -171,6 +171,12 @@ public struct SessionMachine: Sendable, Equatable {
             projection.notice = .connectApp(slug: slug, name: name)
             projection.cards = [.connectApp(slug: slug, name: name)]
             effects.append(.scheduleNoticeExpiry(Self.noticeDelay))
+        case .signInAppSuggested(let slug, let name):
+            // Same nudge as connectAppSuggested: the account exists, its
+            // session does not, and the way out is the same Apps page.
+            projection.notice = .signInApp(slug: slug, name: name)
+            projection.cards = [.signInApp(slug: slug, name: name)]
+            effects.append(.scheduleNoticeExpiry(Self.noticeDelay))
         case .noticeExpired:
             if let notice = projection.notice, Self.fades(notice) { projection.notice = nil }
         case .pendingTimedOut:
@@ -329,6 +335,7 @@ public struct SessionMachine: Sendable, Equatable {
 
     private static func fades(_ notice: SessionCard) -> Bool {
         if case .connectApp = notice { return true }
+        if case .signInApp = notice { return true }
         return notice == .couldntHear || notice == .holdHint
     }
 

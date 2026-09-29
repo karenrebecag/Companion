@@ -181,7 +181,7 @@ func testTheWordsLeaveWithTheCard() {
 @Test func updateNoticeProjectionTests() {
     let idle = SessionProjection()
     let offered = IslandState.from(idle, pebbleHidden: false, update: "v0.9.0")
-    expectEq(offered.size, .card, "16m-4: la actualización es una tarjeta")
+    expectEq(offered.size, .wideCard, "16m-6: la actualización es una tarjeta ancha (16m-4 la dejaba en 492)")
     expectEq(offered.line, .updateAvailable(tag: "v0.9.0"), "16m-4: nombra la versión")
     expectEq(offered.action, .openUpdate, "16m-4: y trae su salida")
     expectEq(IslandState.from(idle, pebbleHidden: false).line, .none,

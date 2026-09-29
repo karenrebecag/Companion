@@ -6,19 +6,25 @@ import Foundation
 /// 400-line gate: the model's public surface stays in one file, the mechanics
 /// of a single turn stay in this one.
 extension ChatViewModel {
-    func startTurn(_ text: String) {
+    func startTurn(_ text: String, origin: MessageOrigin = .typed) {
         parentTools?.beginTurn()
         // 16k-3: the words decide which connected app's tools travel this
         // round — specs() is rebuilt per request further down this turn.
-        parentTools?.noteTurn(text)
+        // A pick's label is the model's text, not her words: it must neither
+        // name an app for the tool scope nor stand as consent for a host
+        // (16m-6 security). Typed words still do both.
+        let said = origin == .choice ? "" : text
+        parentTools?.noteTurn(said)
         rolloverIfDue()
         // 15b-9: read before the append below stamps `lastActivity` to
         // now — this turn's own arrival must not report zero seconds since
         // itself.
         let previousInteraction = lastActivity
-        let staged = pendingAttachments
-        pendingAttachments = []
-        messages.append(ChatMessage(role: .user, text: text, attachments: staged))
+        // A pick is not a send of what is staged: the chips stay in the
+        // composer for the message she actually writes.
+        let staged = origin == .choice ? [] : pendingAttachments
+        if origin == .typed { pendingAttachments = [] }
+        messages.append(ChatMessage(role: .user, text: text, attachments: staged, origin: origin))
         persist()
         busy = true
         busySince = Date()
@@ -29,8 +35,8 @@ extension ChatViewModel {
         inFlight = Task { [weak self] in
             guard let self else { return }
             let history = await self.sensedHistory(
-                text, messageIndex: index, previousInteraction: previousInteraction)
-            await self.consume(history: history, conversationId: id, said: text)
+                text, messageIndex: index, previousInteraction: previousInteraction, origin: origin)
+            await self.consume(history: history, conversationId: id, said: said)
         }
     }
 
@@ -38,7 +44,7 @@ extension ChatViewModel {
     /// history carries the compact line. Sensing happens after the message
     /// is on screen, so a slow Accessibility tree never delays the bubble.
     private func sensedHistory(
-        _ text: String, messageIndex: Int, previousInteraction: Date?
+        _ text: String, messageIndex: Int, previousInteraction: Date?, origin: MessageOrigin
     ) async -> [Turn] {
         guard let sensor else { return windowedTurns() }
         var ctx = await sensor.sense(config.contextChannels, budget: config.contextBudget)
@@ -51,8 +57,9 @@ extension ChatViewModel {
         messages[messageIndex].recall = recall(text, ctx)
         var history = windowedTurns()
         if let last = history.indices.last, history[last].role == .user {
+            let said = origin == .choice ? ChoiceOrigin.mark(text, language: config.language) : text
             history[last].content = ContextBlock.wrap(
-                text, with: ContextBlock.render(ctx, language: config.language))
+                said, with: ContextBlock.render(ctx, language: config.language))
         }
         return history
     }
@@ -102,7 +109,7 @@ extension ChatViewModel {
             // The banner alone dies with the next conversation: a turn every
             // provider refused ended looking "completed", question simply
             // unanswered (live 2026-09-28). The thread keeps the record.
-            messages.append(ChatMessage(isStatus: true, text: ChatCopy.error(error)))
+            messages.append(ChatMessage(isStatus: true, text: ChatCopy.error(error), isFailure: true))
             persist()
             endTurn()
             drain()
@@ -271,8 +278,9 @@ extension ChatViewModel {
     }
 
     private func drain() {
-        guard !needsOnboarding, !queued.isEmpty else { return }
-        startTurn(queued.removeFirst())
+        guard !needsOnboarding, !queue.isEmpty else { return }
+        let next = queue.removeFirst()
+        startTurn(next.text, origin: next.origin)
     }
 
     private func isCurrent(_ id: String) -> Bool {

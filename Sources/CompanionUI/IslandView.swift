@@ -45,6 +45,8 @@ public struct IslandView: View {
     @State var attachFailures: [IslandAttachFailure] = []
     /// The message whose rich answer is open under the island (16m-1).
     @State var openAnswer: UUID?
+    /// The reply whose question card holds the keyboard, if any.
+    @State var focusedChoiceID: UUID?
     /// The job whose checklist was waved away (16m-2), keyed by its start.
     @State var dismissedChecklist: Date?
 
@@ -81,7 +83,10 @@ public struct IslandView: View {
             composing: IslandComposing.active(
                 focused: fieldFocused, draft: draft, confirmingClear: confirmingClear,
                 staged: chat.pendingAttachments.count + attachFailures.count,
-                mainInFront: hold.mainInFront, picking: geometry.picking),
+                mainInFront: hold.mainInFront, picking: geometry.picking,
+                choiceFocused: IslandChoice.isFocused(
+                    focusedID: focusedChoiceID,
+                    liveID: latestReply.flatMap { IslandChoice.block(in: $0) == nil ? nil : $0.id })),
             cancelled: cancelled, followUp: chat.followUp, dropping: geometry.dropping,
             errorText: ChatErrorSurface.visible(
                 errorText: chat.errorText, needsOnboarding: chat.needsOnboarding,
@@ -169,6 +174,7 @@ public struct IslandView: View {
         .onReceive(NotificationCenter.default.publisher(for: .islandResignedKey)) { _ in
             // Another app took the keyboard: the field is done, the panel rests.
             fieldFocused = false
+            focusedChoiceID = nil
         }
     }
 
@@ -179,7 +185,7 @@ public struct IslandView: View {
             EmptyView()
         case .nudge:
             shell(state, header: AnyView(IslandHeaderControls(popover: $popover))) { composer(state) }
-        case .bar, .card:
+        case .bar, .card, .wideCard:
             shell(state) { status(state) }
         }
     }
@@ -232,7 +238,7 @@ public struct IslandView: View {
             .frame(height: geometry.notch.height)
             inner()
         }
-        .padding(.horizontal, Space.x4)
+        .padding(.horizontal, IslandChrome.shellMargin)
         .padding(.bottom, Space.x4)
     }
 
@@ -274,6 +280,17 @@ public struct IslandView: View {
                     .accessibilityAddTraits(.isButton)
                     .accessibilityHint(Localized.string("island.reply.open"))
                     .accessibilityAction { openResult(latest.id) }
+            }
+            if let choice = IslandChoice.block(in: latest) {
+                IslandChoiceCard(
+                    block: choice,
+                    resolution: { IslandChoice.resolution(of: choice, messageID: latest.id, in: chat.messages) },
+                    queued: { chat.queued },
+                    onChoose: { chat.choose($0) },
+                    onFocus: { gained in
+                        if gained { focusedChoiceID = latest.id } else if focusedChoiceID == latest.id { focusedChoiceID = nil }
+                    })
+                    .id(latest.id)
             }
         }
     }

@@ -110,6 +110,10 @@ struct AnswerBlockView: View {
             IslandChartVisual(block: chart)
         case .card(let payload):
             CardView(card: Card(payload: payload, source: .model))
+        case .choice:
+            // The question is answered from the island itself (16m-6), where
+            // a pick becomes the next turn; the popup has no reply channel.
+            EmptyView()
         }
     }
 

@@ -83,6 +83,16 @@ enum IslandNotice {
                     action: .openApps(slug: slug),
                     actionTitle: IslandCopy.action(.openApps(slug: slug)),
                     lifetime: SessionMachine.noticeDelay)
+        case .signInApp(let slug, let name):
+            // The account is connected but its session expired: the way back
+            // is the Apps page, and the card leaves on its own like the
+            // connect nudge.
+            Content(grid: .limit, symbol: "person.crop.circle.badge.exclamationmark",
+                    title: String(format: Localized.string("island.signIn"), name),
+                    body: Localized.string("island.signIn.body"),
+                    action: .openApps(slug: slug),
+                    actionTitle: Localized.string("island.signIn.action"),
+                    lifetime: SessionMachine.noticeDelay)
         case .chatError(let text):
             Content(grid: .diagnostic, symbol: "exclamationmark.circle.fill", title: text, body: nil,
                     action: nil, actionTitle: nil, lifetime: SessionMachine.noticeDelay)

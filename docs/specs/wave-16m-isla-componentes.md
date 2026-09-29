@@ -155,3 +155,122 @@ Lo que entra:
 Valores propios (no medidos): 4 anillos, 3:1 de contraste mínimo, teal 5AC8FA en la paleta,
 relleno 18 % (área/radar) y 35 % (cuña polar), donut 0.6, tope de leyenda 12, tope de etiquetas
 de eje 8, ancho de etiqueta radial 64, copiado 1,5 s.
+
+## 8. 16m-6: alcance real (2026-09-29)
+
+**Pregunta con opciones (`answer-card`).**
+
+- **Contrato del modelo**: fence `companion:choice` (misma convención `companion:*`), JSON
+  `{"question", "options": [{"label", "detail"?}]}`; una opción también puede ser una cadena
+  (un modelo chico no siempre sabe hacer objetos). `CardVocabulary` (es/en) enseña la fence y la
+  regla de cuándo usarla: solo cuando la respuesta de la usuaria decide el siguiente paso, nunca
+  para una pregunta retórica, y la pregunta se dice igualmente en una frase.
+- **Parser** (`Core/ChoiceBlock.swift`, por `fenceObject`, saneado con `TextSanitizer`): la pregunta,
+  la etiqueta y el detalle quedan en una línea (una etiqueta con salto enviaría dos líneas).
+  Inválido → `nil` → la fence se ve como código, igual que el resto: pregunta vacía, menos de 2 o
+  más de `maxOptions` opciones, opción que no es texto ni objeto con `label`, etiqueta vacía tras
+  sanear, etiquetas repetidas (sin distinguir mayúsculas), fence de más de `maxFenceBytes`. Pasarse
+  del tope de opciones se rechaza en vez de tirar opciones en silencio (cambiaría la pregunta).
+  Etiqueta, detalle y pregunta largos se recortan (cosmético, no cambian el sentido).
+- **Elegir = teclear**: `ChatViewModel.choose(_:)` comparte guardas, cola (`queued` con un turno en
+  curso) y turno con `send()` (extraído `dispatch`), sin pasar por `draft`, para no pisar lo que ella
+  tuviera a medias en la ventana. La tarjeta jamás ejecuta nada por sí sola.
+- **Estado respondida**: se lee del hilo, no se guarda (`IslandChoice.resolution`): el siguiente
+  mensaje de la usuaria que coincide con una etiqueta marca esa opción; cualquier otro (o un turno
+  solo con adjuntos) cierra la pregunta sin marca. Sobrevive a reiniciar la app. Entre el clic y que
+  el mensaje entre (turno ocupado, va a la cola) la tarjeta recuerda la elección local para que un
+  segundo clic no mande otra respuesta.
+- **Teclado** (`IslandChoiceKeys`): flechas con vuelta, Return elige la enfocada, 1-9 eligen por
+  posición (`maxOptions` = 6 cabe en un dígito). Las teclas solo llegan a la tarjeta cuando tiene el
+  foco (clic sobre ella o Tab); no lo toma al aparecer porque robaría lo que ella teclea en el campo,
+  así que los números nunca chocan con el compositor.
+- **VoiceOver**: grupo con la pregunta como etiqueta y una pista; cada opción dice "etiqueta, n de m"
+  y luego "elegida" o "no disponible"; la elegida lleva el rasgo `isSelected`. La elegida queda
+  nítida y sin respuesta al clic (`.disabled` la atenuaría, y es la que marca la respuesta); las demás
+  quedan deshabilitadas.
+- **Voz**: `SpeechBudget.hasCard` cuenta la pregunta como tarjeta (la voz dice una línea y remite a la
+  isla); una pregunta rota no acorta la voz porque se ve como código.
+- **Dónde se pinta**: bajo la respuesta de la isla (`reply(state)`: campo abierto o respondiendo), no
+  en el popup `ovx` (no tiene canal de respuesta); por eso la pregunta no hace "rico" a un mensaje
+  (`isRich`) ni ocupa lugar en el popup. La ventana de tarea (`MarkdownView`) la muestra como texto
+  (pregunta y opciones numeradas): un hilo guardado no tiene por dónde responder.
+- **`AnswerOption`** reconstruida en `Island/Choice/` (recuperada de `768def8^`, `IslandAnswerPieces`)
+  sobre la tinta de la isla y las medidas 16l que seguían vivas (`AnswerOptionMetrics`, índigo). No
+  duplica nada de 16p-2.
+
+Valores propios (no medidos): 2 a 6 opciones; topes de pregunta 200, etiqueta 80, detalle 160;
+lista con scroll pasado 260 pt (composer + respuesta + pregunta de dos líneas ocupan ~330 de los 592
+que la forma puede crecer); opción no disponible al 45 %; relleno de la opción resaltada 22 %,
+borde 40 %, insignia 42 % (los de 16l); insignia del número en el lado de un slot de la isla (22).
+Medido: 340-440, padding 18 × 20, gap 14 (§5 de la investigación).
+
+**Avisos.**
+
+- **Consentimiento**: no hay fuente nueva que enchufar. Sus dos fuentes reales ya existían y desde
+  16m-4 usan la rejilla de consentimiento: conectar una app que la usuaria nombró (`.connectApp`) y un
+  permiso del sistema rechazado (`.permission`). La hoja de aprobación de herramientas
+  (`ApprovalSheet`) es otro componente (aprobación por llamada, no consentimiento), no se toca.
+- **Iniciar sesión**: fuente real = una cuenta conectada cuyo estado es `reconnect`
+  (`ConnectedAccount.State`, el servicio ya la reporta y la página Apps ya pinta "Reconectar").
+  `AppToolRunner` recuerda esas cuentas al refrescar y, si el turno nombra una, en vez de ofrecer
+  "Conectar" (falso: existe) avisa una vez por arranque (`signIn`), que llega al reductor como
+  `.signInAppSuggested` → `SessionCard.signInApp` → `IslandState.Line.signInApp`. La tarjeta usa la
+  rejilla de límite (380, 38 + resto), se va sola como el aviso de conectar y su botón abre la página
+  Apps en esa app. Sin cuentas cargadas no avisa (mismo motivo que M2: aún no se sabe).
+  Tocó `SessionMachine.swift` (un caso del reductor y `fades`), dentro de la puerta.
+
+**Ancho de la isla para la actualización: HECHO.** Era barato y seguro: el ancho sale de un solo
+sitio (`IslandChrome.width(for:)`, que también alimenta `shapeSize`, y por ahí las tres rutas de
+movimiento y el área de clic). Se añade el rol `IslandState.Size.wideCard`, que solo pide la oferta
+de actualización; el resto de tarjetas sigue en 492. **Valor propio**: la forma mide 554, no 522,
+porque la isla rellena 16 pt a cada lado y el aviso mide 522 (con 522 de forma seguiría en 490); el
+lienzo (620) la aguanta con 33 pt de hombro y sombra por lado. El test de movimiento por pares de
+tamaños ya recorre `allCases`, así que cubre el nuevo rol.
+
+**Ronda de revisión (2026-09-29): reglas nuevas.**
+
+- **Envío**: `choose` devuelve `Bool` (falso sin clave o con etiqueta vacía) y la tarjeta solo marca
+  "pendiente" si salió. La decisión vive en `IslandChoiceState` (código puro): el pendiente cuenta
+  mientras su etiqueta siga en `queued`; si la cola se vacía (cancelar, cambiar de conversación) y el
+  hilo no la tiene, la tarjeta vuelve a abierta. El estado se lee en vivo al hacer clic (no del último
+  render), así un dígito justo tras un clic no manda una segunda respuesta.
+- **Turno fallido**: el mensaje que topa con un estado de fallo (`ChatMessage.isFailure`) no responde
+  la pregunta; vuelve a abierta y el reintento la resuelve. La cola guarda el origen (`QueuedMessage`).
+- **Adjuntos**: una elección nunca se lleva `pendingAttachments`; se quedan en el compositor.
+- **Resolución**: gana el primer mensaje de la usuaria tras la pregunta; la etiqueta se compara exacta
+  (`rápido` en minúsculas cuenta como otra respuesta: solo lo que manda la tarjeta marca una opción);
+  la etiqueta recortada a 80 resuelve con el mensaje recortado; adjuntos sin texto cierran la pregunta.
+- **Obsoleta**: una pregunta de una conversación leída de disco (`ChatMessage.restored`) sin respuesta
+  se muestra sin opciones activas.
+- **Foco**: la tarjeta con foco cuenta como "componiendo" (`IslandComposing.active(choiceFocused:)`)
+  y `islandResignedKey` lo suelta. Al tomar foco el cursor cae en la primera opción (foco visible) y los
+  atajos solo actúan con cursor. Teclas: solo flechas y Return sin modificadores y un dígito ASCII 1-9
+  (`٣`, `½`, `３` y vacío se ignoran).
+- **Origen (seguridad)**: el mensaje de una elección lleva `origin = .choice` y el modelo lo ve como
+  `[card choice]` / `[elección en tarjeta]` delante de la etiqueta (historial y turno vivo, también con
+  contexto sensado; la memoria de sesión guarda la palabra cruda). `CardVocabulary` explica que
+  responde esa pregunta y nunca aprueba permisos ni autoriza sola una acción destructiva, y prohíbe usar
+  una pregunta con opciones para pedir un permiso (van por la hoja). Invariante probado: `choose`
+  no llama a `ApprovalsProvider` ni resuelve una aprobación pendiente, y un escaneo de fuente falla si
+  el camino toca `DecisionGate`, `SpokenConfirmation` o la resolución de aprobaciones.
+- **Aviso de sesión**: el nombre de la app pasa por `TextSanitizer.display(_, maxLength: 40)`; "conectar" e
+  "iniciar sesión" tienen conjuntos de una-vez separados; una cuenta conectada cuyas herramientas
+  fallaron al cargar no recibe "conectar". Sobre el reductor: kind, job, aprobación y hold quedan
+  intactos en toda la tabla de estados, y el aviso nuevo desplaza al anterior (también a un fallo,
+  como ya hacía `connectApp`); el plazo viejo no retira al nuevo porque `SessionModel` cancela el
+  anterior al armar el siguiente.
+- **Popup**: solo queda el `EmptyView` del switch (se quitó el filtro duplicado).
+
+**Segunda ronda de seguridad (2026-09-29).**
+
+- **Compuerta**: la etiqueta de una elección es texto del modelo, no palabras de la usuaria. Con
+  `origin == .choice`, `said` es "" para `ParentToolGate` (`consume` y `gate`, también si la elección sale
+  de la cola) y `noteTurn` recibe "" en vez de la etiqueta: no fija el alcance de apps ni da por dicho un
+  host. Una tarjeta `["Abrir evil.com", …]` ya pide hoja; tecleado, "Abrir evil.com" sigue valiendo como
+  consentimiento. Costo asumido: un turno de elección no ofrece herramientas de apps conectadas (`noteTurn("")`
+  las deja en `.none`); si hace falta, ella nombra la app tecleando.
+- **Persistencia**: `ConversationMessage.fromChoice` (campo `choice` opcional en el JSON, ausente en archivos
+  anteriores) hace que una elección restaurada siga marcada para el modelo.
+- **Foco**: el foco pertenece a una tarjeta (`focusedChoiceID`) y solo cuenta mientras esa tarjeta es la
+  respuesta viva (`IslandChoice.isFocused`); además la tarjeta suelta el foco en `.onDisappear`, porque un
+  `@FocusState` no avisa cuando su vista se va.

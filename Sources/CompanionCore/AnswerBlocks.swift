@@ -28,6 +28,14 @@ public enum AnswerBlock: Sendable, Equatable {
     case table(headers: [String], rows: [[String]])
     case fileChip(String)
     case card(CardPayload)
+    case choice(ChoiceBlock)
+}
+
+public extension AnswerBlock {
+    var isChoice: Bool {
+        if case .choice = self { return true }
+        return false
+    }
 }
 
 public enum AnswerBlocks {
@@ -47,6 +55,8 @@ public enum AnswerBlocks {
         for block in blocks {
             switch block {
             case .paragraph(let text): plain += text.count
+            // Answered from the island itself: it earns no popup.
+            case .choice: continue
             default: return true
             }
         }
@@ -73,6 +83,9 @@ public enum AnswerBlocks {
         case .rule:
             return .rule
         case .code(let language, let body):
+            if language == CompanionBlocks.choiceLanguage, let choice = CompanionBlocks.choice(body) {
+                return .choice(choice)
+            }
             if let payload = fencePayload(language: language, body: body) {
                 return .card(payload)
             }

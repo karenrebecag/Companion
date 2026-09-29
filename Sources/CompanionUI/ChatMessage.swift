@@ -27,6 +27,13 @@ public struct Recall: Sendable, Equatable {
     }
 }
 
+/// Where a user message came from. A pick on a question card is an answer to
+/// that question and nothing more; the model is told so (16m-6 security).
+public enum MessageOrigin: Sendable, Equatable {
+    case typed
+    case choice
+}
+
 public struct ChatMessage: Identifiable, Equatable {
     public let id: UUID
     public var role: TurnRole?
@@ -39,6 +46,13 @@ public struct ChatMessage: Identifiable, Equatable {
     /// nil means "remember me as you read me", which is every ordinary
     /// message and therefore changes nothing for them.
     public var recall: Recall?
+    public var origin: MessageOrigin
+    /// The status line a failed turn leaves: what lets a question that was
+    /// answered into a failure be asked again.
+    public var isFailure: Bool
+    /// Read back from disk, not made in this session: a question card in it
+    /// has no live turn behind it.
+    public var restored: Bool
 
     public init(
         id: UUID = UUID(),
@@ -47,7 +61,10 @@ public struct ChatMessage: Identifiable, Equatable {
         text: String,
         attachments: [AttachmentRef] = [],
         card: Card? = nil,
-        recall: Recall? = nil
+        recall: Recall? = nil,
+        origin: MessageOrigin = .typed,
+        isFailure: Bool = false,
+        restored: Bool = false
     ) {
         self.id = id
         self.role = role
@@ -56,5 +73,8 @@ public struct ChatMessage: Identifiable, Equatable {
         self.attachments = attachments
         self.card = card
         self.recall = recall
+        self.origin = origin
+        self.isFailure = isFailure
+        self.restored = restored
     }
 }

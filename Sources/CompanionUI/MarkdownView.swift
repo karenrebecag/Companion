@@ -77,6 +77,10 @@ public struct MarkdownView: View {
                 } else {
                     codeBlock(body, language: language)
                 }
+            } else if language == CompanionBlocks.choiceLanguage, let choice = CompanionBlocks.choice(body) {
+                // A saved transcript has no reply channel: the question and
+                // its options read as text; answering lives in the island.
+                choiceText(choice)
             } else if let payload = Self.dataCard(language: language, body: body) {
                 CardView(card: Card(payload: payload, source: .model))
             } else {
@@ -149,6 +153,25 @@ public struct MarkdownView: View {
         let head = headers.joined(separator: " | ")
         let body = rows.map { $0.joined(separator: " | ") }.joined(separator: "\n")
         return body.isEmpty ? head : head + "\n" + body
+    }
+
+    /// Layout glyphs, not copy: the number and the dash never localize.
+    nonisolated static func choiceLines(_ choice: ChoiceBlock) -> [String] {
+        [choice.question] + choice.options.enumerated().map { index, option in
+            let line = "\(index + 1). \(option.label)"
+            return option.detail.map { line + " — " + $0 } ?? line
+        }
+    }
+
+    private func choiceText(_ choice: ChoiceBlock) -> some View {
+        VStack(alignment: .leading, spacing: Space.x1) {
+            ForEach(Array(Self.choiceLines(choice).enumerated()), id: \.offset) { index, line in
+                Text(line).fontWeight(index == 0 ? .semibold : .regular)
+            }
+        }
+        .font(Font.uiBody)
+        .foregroundStyle(Semantic.foreground)
+        .textSelection(.enabled)
     }
 
     private func codeBlock(_ body: String, language: String) -> some View {

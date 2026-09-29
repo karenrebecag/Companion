@@ -149,7 +149,8 @@ public final class ConversationStore: ConversationStoring, Sendable {
                 StoredMessage(
                     role: $0.role,
                     text: $0.text,
-                    attachments: $0.attachmentPaths.isEmpty ? nil : $0.attachmentPaths)
+                    attachments: $0.attachmentPaths.isEmpty ? nil : $0.attachmentPaths,
+                    choice: $0.fromChoice ? true : nil)
             })
     }
 
@@ -162,7 +163,8 @@ public final class ConversationStore: ConversationStoring, Sendable {
                 ConversationMessage(
                     role: $0.role,
                     text: $0.text,
-                    attachmentPaths: $0.attachments ?? [])
+                    attachmentPaths: $0.attachments ?? [],
+                    fromChoice: $0.choice ?? false)
             })
     }
 }
@@ -178,4 +180,6 @@ private struct StoredMessage: Codable {
     var role: String
     var text: String
     var attachments: [String]?
+    /// Absent in every file written before 16m-6.
+    var choice: Bool?
 }

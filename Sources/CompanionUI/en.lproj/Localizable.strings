@@ -588,3 +588,12 @@
 "island.chart.copy" = "Copy the chart data";
 "island.chart.copied" = "Chart data copied";
 "island.chart.categories" = "Categories";
+
+/* 16m-6: the question with options */
+"island.choice.option" = "%@, %d of %d";
+"island.choice.selected" = "selected";
+"island.choice.unavailable" = "not available";
+"island.choice.hint" = "Choose one. Arrow keys and Return, or a number from 1 to 9.";
+"island.signIn" = "Sign in to %@ again";
+"island.signIn.body" = "Its session expired, so I can't use it until you do.";
+"island.signIn.action" = "Sign in";

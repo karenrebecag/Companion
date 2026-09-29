@@ -36,9 +36,9 @@ public nonisolated enum IslandNoticeMetrics {
     public static let diagnosticGutter: CGFloat = 38
 
     /// The card's width in the room it is given: the measured width, never
-    /// more than the room. The island's open shape is 492, so the update
-    /// card's 522 is capped by it (16m-4 report: widening the shape is keyed
-    /// by size in four places and is a decision for 16m-6).
+    /// more than the room. The update card asks for the wide shape
+    /// (`IslandState.Size.wideCard`, 16m-6) so its 522 fits; in the plain 492
+    /// shape it would still be capped at 460.
     static func width(_ grid: IslandNotice.Grid, available: CGFloat, ideal: CGFloat? = nil) -> CGFloat {
         switch grid {
         case .limit: min(limitWidth, available)
