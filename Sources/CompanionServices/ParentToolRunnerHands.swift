@@ -158,6 +158,13 @@ final class ApprovalTickets: @unchecked Sendable {
         lock.withLock { granted.append((ticket, now())) }
     }
 
+    func reset() {
+        lock.withLock {
+            pending = nil
+            granted = []
+        }
+    }
+
     func redeem(_ ticket: Ticket) -> Bool {
         lock.withLock {
             let cutoff = now().addingTimeInterval(-Self.lifetime)

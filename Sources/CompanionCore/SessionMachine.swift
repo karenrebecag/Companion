@@ -465,6 +465,7 @@ public struct SessionMachine: Sendable, Equatable {
     /// job's actions. An MCP name is server-chosen, so origin decides.
     private static func isJobRequest(_ request: ApprovalRequest) -> Bool {
         !request.isMCP && ParentTool(rawValue: request.toolName) == nil
+            && BrowserTool(rawValue: request.toolName) == nil
     }
 
     private static func status(of snapshot: TurnSnapshot) -> VoiceStatus {
