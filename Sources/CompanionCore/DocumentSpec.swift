@@ -30,6 +30,13 @@ public struct DocumentSpec: Sendable, Equatable {
     public static let maxBlocks = 200
     public static let maxText = 20_000
     public static let maxBullets = 100
+    /// 200 blocks of 20 000 characters is 4 MB of text; this is that plus
+    /// room for the JSON around it. Parsing more would let one tool call
+    /// hold a large slice of memory.
+    public static let maxDocumentBytes = 4 * 1024 * 1024
+    /// Both languages: Core does not know the reader's, and a chart that
+    /// vanished without a word is worse than one line in the wrong one.
+    public static let omittedChartNote = "Gráfica omitida: datos no válidos / Chart omitted: invalid data"
 
     public var title: String
     public var subtitle: String?
@@ -49,7 +56,8 @@ public struct DocumentSpec: Sendable, Equatable {
     }
 
     public static func parse(_ json: String) -> DocumentSpec? {
-        CompanionBlocks.jsonObject(json).flatMap(parse(dict:))
+        json.utf8.count <= maxDocumentBytes
+            ? CompanionBlocks.jsonObject(json).flatMap(parse(dict:)) : nil
     }
 
     static func parse(dict: [String: Any]) -> DocumentSpec? {
@@ -83,7 +91,7 @@ public struct DocumentSpec: Sendable, Equatable {
             switch CompanionBlocks.chart(from: dict) {
             case .chart(let chart): return .chart(chart)
             case .table(let table): return .table(table)
-            default: return nil
+            default: return .paragraph(omittedChartNote)
             }
         case "callout":
             let tone = (dict["tone"] as? String).flatMap(Tone.init(rawValue:)) ?? .info

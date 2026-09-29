@@ -571,3 +571,20 @@
 "island.notice.update.body" = "Descarga la nueva versión desde su página de lanzamiento.";
 "island.notice.update.action" = "Actualizar";
 "island.notice.update.later" = "Después";
+
+/* Wave 16m-5a: gráficas en la isla */
+"island.chart.kind.bar" = "Gráfica de barras";
+"island.chart.kind.line" = "Gráfica de líneas";
+"island.chart.kind.area" = "Gráfica de área";
+"island.chart.kind.pie" = "Gráfica circular";
+"island.chart.kind.donut" = "Gráfica de dona";
+"island.chart.kind.scatter" = "Gráfica de dispersión";
+"island.chart.kind.polar" = "Gráfica polar";
+"island.chart.kind.radar" = "Gráfica de radar";
+"island.chart.points.one" = "1 punto";
+"island.chart.points.other" = "%d puntos";
+"island.chart.high" = "El máximo es %@ con %@";
+"island.chart.low" = "El mínimo es %@ con %@";
+"island.chart.copy" = "Copiar los datos de la gráfica";
+"island.chart.copied" = "Datos de la gráfica copiados";
+"island.chart.categories" = "Categorías";

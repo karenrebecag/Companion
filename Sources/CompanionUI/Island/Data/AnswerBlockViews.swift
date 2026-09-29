@@ -106,6 +106,8 @@ struct AnswerBlockView: View {
             table(headers: headers, rows: rows)
         case .fileChip(let path):
             fileChip(path)
+        case .card(.chart(let chart)):
+            IslandChartVisual(block: chart)
         case .card(let payload):
             CardView(card: Card(payload: payload, source: .model))
         }

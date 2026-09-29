@@ -143,7 +143,7 @@ public enum CompanionBlocks: Sendable {
 
     /// Nil sends the fence back to a CodeBlock so broken JSON stays visible.
     public static func locations(_ body: String) -> LocationsBlock? {
-        guard let dict = jsonObject(body),
+        guard let dict = fenceObject(body),
               let list = dict["locations"] as? [Any],
               !list.isEmpty
         else { return nil }
@@ -161,7 +161,7 @@ public enum CompanionBlocks: Sendable {
     }
 
     public static func gallery(_ body: String) -> GalleryBlock? {
-        guard let dict = jsonObject(body),
+        guard let dict = fenceObject(body),
               let list = dict["images"] as? [Any]
         else { return nil }
 
@@ -183,6 +183,15 @@ public enum CompanionBlocks: Sendable {
         } catch {
             return nil
         }
+    }
+
+    /// A fence body is one message's card, never a dataset: past this it is
+    /// refused before it is parsed. Documents and tool arguments have their
+    /// own bounds and go through `jsonObject`, uncapped.
+    public static let maxFenceBytes = 256 * 1024
+
+    static func fenceObject(_ body: String) -> [String: Any]? {
+        body.utf8.count <= maxFenceBytes ? jsonObject(body) : nil
     }
 
     static func jsonObject(_ body: String) -> [String: Any]? {

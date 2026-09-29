@@ -117,9 +117,10 @@ public struct MarkdownSplitter: Sendable {
         for part in split(text) {
             guard case .code(let lang, let body) = part.kind,
                   lang.hasPrefix("companion:"),
-                  let title = CompanionBlocks.jsonObject(body)?["title"] as? String
+                  let title = CompanionBlocks.fenceObject(body)?["title"] as? String
             else { continue }
-            let clean = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let clean = TextSanitizer.display(title, maxLength: TextSanitizer.maxLabel)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             if !clean.isEmpty { return clean }
         }
         return nil
