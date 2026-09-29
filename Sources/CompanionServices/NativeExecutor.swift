@@ -152,12 +152,19 @@ public struct NativeExecutor: Executor, Sendable {
 
         let approvalNeeded = riskLevel(tool: toolName) == .requiresApproval
         var approved = !approvalNeeded
+        var runArguments = arguments
         if approvalNeeded {
+            // A sheet write runs the arguments the sheet showed, workbook included.
+            let shown = await toolRunner.approvalArguments(tool: toolName, json: call.arguments)
+            guard let bound = Self.boundArguments(shown: shown, original: call.arguments, parsed: arguments) else {
+                return ToolResult(ok: false, output: "denied: the approved arguments could not be read, so nothing ran")
+            }
+            runArguments = bound
             let approval = ApprovalRequest(
                 requestId: UUID().uuidString,
                 toolName: toolName,
                 summary: "Tool requires user approval",
-                inputJSON: call.arguments)
+                inputJSON: shown)
             // A decision the session already took answers without the sheet
             // (3B.2); otherwise wait (auto-deny per ApprovalTiming).
             if let decision = await approvals.remembered(approval) {
@@ -175,7 +182,7 @@ public struct NativeExecutor: Executor, Sendable {
         let toolResult: ToolResult
         do {
             toolResult = try await executeToolSafely(
-                tool: toolName, arguments: arguments, approved: approved)
+                tool: toolName, arguments: runArguments, approved: approved)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -186,6 +193,12 @@ public struct NativeExecutor: Executor, Sendable {
         // model never sees the payload it would otherwise retype.
         if let card = toolResult.card { events.yield(.card(card)) }
         return toolResult
+    }
+
+    /// What runs is what the sheet showed; if that JSON cannot be read there is
+    /// nothing approved to run, so it is a denial and never empty arguments.
+    static func boundArguments(shown: String, original: String, parsed: [String: Any]) -> [String: Any]? {
+        shown == original ? parsed : ToolArguments.parse(shown)
     }
 
     /// Same tool, same arguments once canonicalised (sorted keys, no

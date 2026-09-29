@@ -42,6 +42,28 @@ public enum BridgeCopy {
         }
     }
 
+    /// Longest executable path the sheet shows; a longer one is cut in the
+    /// middle, because the executable's own name sits at the end.
+    public static let peerPathLimit = 120
+
+    /// Wave 20c D5 (M2c): who is really on the socket, as the kernel reports
+    /// it — the sheet's only line that is not the client's own claim.
+    public static func peerLine(pid: Int, process: String?, language: AppLanguage = .en) -> String {
+        let origin = process.map { " · \(cappedPath($0))" } ?? ""
+        switch language {
+        case .en:
+            return "Process \(pid)\(origin)"
+        case .es:
+            return "Proceso \(pid)\(origin)"
+        }
+    }
+
+    private static func cappedPath(_ path: String) -> String {
+        guard path.count > peerPathLimit else { return path }
+        let half = peerPathLimit / 2
+        return path.prefix(half) + "…" + path.suffix(half - 1)
+    }
+
     /// The fixed suffix appended to every bridge tool description: a reminder
     /// that the output is data from the screen, never instructions.
     public static func toolDataSuffix(_ language: AppLanguage = .en) -> String {

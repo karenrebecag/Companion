@@ -18,10 +18,16 @@ private struct FakeDocuments: DocumentRendering {
 private final class FakeSheets: SpreadsheetDriving, @unchecked Sendable {
     private let lock = NSLock()
     private var _writes = 0
+    private var _path = "/tmp/libro.xlsx"
     var writes: Int { lock.withLock { _writes } }
+    var path: String {
+        get { lock.withLock { _path } }
+        set { lock.withLock { _path = newValue } }
+    }
     func active() async -> SheetApp? { .excel }
+    func workbook(_ app: SheetApp) async throws -> String { path }
     func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]] { [["Mes", "Ventas"]] }
-    func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]]) async throws -> SheetWriteReceipt {
+    func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String) async throws -> SheetWriteReceipt {
         lock.withLock { _writes += 1 }
         return SheetWriteReceipt(backupPath: "/tmp/libro-backup.xlsx", readBack: [["1"]])
     }
@@ -33,6 +39,7 @@ private final class FakeSheets: SpreadsheetDriving, @unchecked Sendable {
     try await testADocumentRunsOnlyWithItsTicket()
     await testASheetWriteRunsOnlyWithItsTicket()
     await testASheetWriteNamesItsApp()
+    await testASheetWriteIsBoundToTheWorkbookItShowed()
     await testTheBridgeNeverSeesTheDeliverables()
     testTheParentOwnsItsDeliverableRequests()
 }
@@ -108,7 +115,8 @@ private func runner(workdir: String? = nil, sheets: FakeSheets = FakeSheets()) -
     expect(!skipped.ok && sheets.writes == 0, "sheet_write: sin hoja no toca el libro")
 
     let call = ToolCallRef(id: "3", name: "sheet_write", arguments: writeArgs)
-    guard let request = r.approval(for: call, said: "") else { return expect(false, "sheet_write: pide la hoja") }
+    guard let asked = r.approval(for: call, said: "") else { return expect(false, "sheet_write: pide la hoja") }
+    let request = await r.bound(asked)
     r.granted(request)
     let other = await r.execute(name: "sheet_write", argumentsJSON: #"{"app":"excel","range":"B9","values":"[[1]]"}"#)
     expect(!other.ok && sheets.writes == 0, "sheet_write: el sí vale para esa escritura exacta, no para otra")
@@ -148,4 +156,34 @@ func testTheParentOwnsItsDeliverableRequests() {
     let out = await r.execute(name: "sheet_write", argumentsJSON: args)
     expect(!out.ok && out.output.hasPrefix("invalid_args") && sheets.writes == 0,
            "sheet_write sin app: se rechaza pidiendo la app, sin tocar el libro")
+}
+
+/// Wave 20c D4 (H4): the sheet names the workbook and what it would write, and
+/// a workbook swapped after the yes never receives the write.
+@MainActor func testASheetWriteIsBoundToTheWorkbookItShowed() async {
+    let sheets = FakeSheets()
+    let r = runner(sheets: sheets)
+    let call = ToolCallRef(id: "5", name: "sheet_write", arguments: writeArgs)
+    guard let asked = r.approval(for: call, said: "") else { return expect(false, "sheet_write: pide la hoja") }
+    let request = await r.bound(asked)
+    let shown = ApprovalCopy.display(for: request, language: .en)
+    expect(shown.preview?.contains("/tmp/libro.xlsx") == true, "sheet_write: la hoja nombra el libro")
+
+    r.granted(request)
+    sheets.path = "/tmp/otro.xlsx"
+    let swapped = await r.execute(name: "sheet_write", argumentsJSON: writeArgs)
+    expect(!swapped.ok && sheets.writes == 0, "sheet_write: libro cambiado tras el sí, no escribe")
+
+    let fresh = FakeSheets()
+    let r2 = runner(sheets: fresh)
+    guard let second = r2.approval(for: call, said: "") else { return expect(false, "sheet_write: hoja otra vez") }
+    r2.granted(second)
+    let unbound = await r2.execute(name: "sheet_write", argumentsJSON: writeArgs)
+    expect(!unbound.ok && fresh.writes == 0, "sheet_write: un sí que la hoja no ató a un libro no escribe")
+
+    let r3 = runner(sheets: fresh)
+    guard let third = r3.approval(for: call, said: "") else { return expect(false, "sheet_write: hoja otra vez") }
+    r3.granted(await r3.bound(third))
+    let done = await r3.execute(name: "sheet_write", argumentsJSON: writeArgs)
+    expect(done.ok && fresh.writes == 1, "sheet_write: el mismo libro de la hoja, escribe")
 }

@@ -62,14 +62,16 @@ public actor Approvals: ApprovalsProvider {
         resolveNow(requestId: requestId, approved: approved, remember: remember)
     }
 
-    private func resolveNow(requestId: String, approved: Bool, remember: Bool) -> Bool {
+    private func resolveNow(
+        requestId: String, approved: Bool, remember: Bool, timedOut: Bool = false
+    ) -> Bool {
         guard let entry = pending.removeValue(forKey: requestId) else { return false }
         entry.timer.cancel()
         if remember, let key = ApprovalKey.from(entry.request) {
             memory = memory.remembering(key, approved: approved)
         }
         entry.continuation.resume(returning: ApprovalResponse(
-            requestId: requestId, approved: approved, remember: remember))
+            requestId: requestId, approved: approved, remember: remember, timedOut: timedOut))
         return true
     }
 
@@ -81,7 +83,7 @@ public actor Approvals: ApprovalsProvider {
     private func autoDeny(_ requestId: String, started: TimeInterval) async {
         guard pending[requestId] != nil else { return }
         Log.app("approvals: auto-denied after \(Int(clock.now() - started))s")
-        _ = await resolve(requestId: requestId, approved: false, remember: false)
+        _ = resolveNow(requestId: requestId, approved: false, remember: false, timedOut: true)
     }
 }
 

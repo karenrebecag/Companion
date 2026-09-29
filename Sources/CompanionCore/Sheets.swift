@@ -90,15 +90,12 @@ public enum SheetError: Error, Sendable, Equatable {
     case invalidValues
     case noOpenDocument
     case unsavedDocument
+    case workbookChanged
     case needsPermission
     case appFailed
 }
 
 public enum SheetValues {
-    /// Anything that can reach the network or run something from a cell.
-    static let forbidden = ["WEBSERVICE", "IMPORTXML", "IMPORTDATA", "IMPORTHTML", "IMPORTFEED",
-                            "IMPORTRANGE", "FILTERXML", "HYPERLINK", "CALL", "REGISTER", "RTD", "SQL.REQUEST"]
-
     /// A 2-D array, sent as JSON text or as a real array, that must match the
     /// range cell for cell: a short write would land shifted.
     public static func parse(any value: Any?, for range: SheetRange) -> Result<[[SheetCell]], SheetError> {
@@ -117,10 +114,12 @@ public enum SheetValues {
             var line: [SheetCell] = []
             for cell in cells {
                 guard let parsed = parse(cell) else { return .failure(.invalidValues) }
-                if case .text(let text) = parsed, looksLikeFormula(text), isForbidden(text) {
+                if case .text(let text) = parsed, looksLikeFormula(text), !FormulaPolicy.isAllowedSigned(text) {
                     return .failure(.forbiddenFormula)
                 }
-                if case .formula(let formula) = parsed, isForbidden(formula) { return .failure(.forbiddenFormula) }
+                if case .formula(let formula) = parsed, !FormulaPolicy.isAllowed(formula) {
+                    return .failure(.forbiddenFormula)
+                }
                 line.append(parsed)
             }
             out.append(line)
@@ -138,18 +137,15 @@ public enum SheetValues {
 
     /// Excel's formula setter, like typing, starts a formula on any of these;
     /// the cell stays text for us but must pass the same list.
-    static func looksLikeFormula(_ text: String) -> Bool {
+    public static func looksLikeFormula(_ text: String) -> Bool {
         guard let first = text.first(where: { !$0.isWhitespace }) else { return false }
-        return "=+-@".contains(first)
+        return "=+-@".contains(foldedSign(first) ?? first)
     }
 
-    /// DDE (`=cmd|...`) and the functions that fetch; case, spacing and
-    /// full-width lookalikes do not hide them.
-    static func isForbidden(_ formula: String) -> Bool {
-        let upper = String(formula.precomposedStringWithCompatibilityMapping.uppercased()
-            .filter { !$0.isWhitespace })
-        if upper.contains("|") { return true }
-        return forbidden.contains { upper.contains($0 + "(") }
+    /// Excel reads fullwidth signs as the ASCII ones; the raw character would
+    /// let `＝IMAGE(...)` skip the gate.
+    static func foldedSign(_ char: Character) -> Character? {
+        String(char).precomposedStringWithCompatibilityMapping.first
     }
 
     /// Numbers reads a range as one flat list.
@@ -171,16 +167,7 @@ public enum SheetValues {
     public static func approvalDetail(_ object: [String: Any]) -> String? {
         guard let range = object["range"] as? String else { return nil }
         let app = (object["app"] as? String).map { $0 + " · " } ?? ""
-        let values: String
-        if let text = object["values"] as? String {
-            values = text
-        } else if let array = object["values"] as? [Any] {
-            values = "\(array)"
-        } else {
-            values = ""
-        }
-        let shown = values.count > 200 ? String(values.prefix(200)) + "…" : values
-        return app + range.uppercased() + (shown.isEmpty ? "" : "\n" + shown)
+        return app + range.uppercased() + "\n" + SheetApproval.preview(object, language: .en)
     }
 }
 
@@ -216,15 +203,29 @@ public enum AppleScriptText {
 }
 
 public enum SheetBackup {
-    /// Next to the workbook, same extension, so it opens the same way.
-    public static func path(for document: String, at date: Date) -> String {
+    /// Next to the workbook, same extension, so it opens the same way. A name
+    /// already taken gets `-2`, `-3`...: two writes in one second must not
+    /// refuse or overwrite each other's copy.
+    public static func path(
+        for document: String, at date: Date,
+        exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) -> String {
         let url = URL(fileURLWithPath: document)
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let name = url.deletingPathExtension().lastPathComponent + "-backup-" + formatter.string(from: date)
-        return url.deletingLastPathComponent().appendingPathComponent(name)
-            .appendingPathExtension(url.pathExtension).path
+        let stem = url.deletingPathExtension().lastPathComponent + "-backup-" + formatter.string(from: date)
+        let folder = url.deletingLastPathComponent()
+        func candidate(_ name: String) -> String {
+            folder.appendingPathComponent(name).appendingPathExtension(url.pathExtension).path
+        }
+        var backup = candidate(stem)
+        var attempt = 2
+        while exists(backup) {
+            backup = candidate(stem + "-\(attempt)")
+            attempt += 1
+        }
+        return backup
     }
 }
 
@@ -232,10 +233,14 @@ public struct SheetWriteReceipt: Sendable, Equatable {
     public var backupPath: String
     /// A sample read back after the write, for the report.
     public var readBack: [[String]]
+    /// The write happened but the workbook in front changed before it could be
+    /// read back: the report must not say "nothing was written".
+    public var readBackUnavailable: Bool
 
-    public init(backupPath: String, readBack: [[String]]) {
+    public init(backupPath: String, readBack: [[String]], readBackUnavailable: Bool = false) {
         self.backupPath = backupPath
         self.readBack = readBack
+        self.readBackUnavailable = readBackUnavailable
     }
 }
 
@@ -244,5 +249,10 @@ public protocol SpreadsheetDriving: Sendable {
     /// The app whose document the user is looking at, if any.
     func active() async -> SheetApp?
     func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]]
-    func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]]) async throws -> SheetWriteReceipt
+    /// The saved file of the workbook in front, resolved once so the sheet, the
+    /// backup and the write all name the same one.
+    func workbook(_ app: SheetApp) async throws -> String
+    /// `workbook` is what the user approved: the write aborts, untouched, if
+    /// the app no longer has that one in front.
+    func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String) async throws -> SheetWriteReceipt
 }

@@ -18,12 +18,12 @@ extension ParentToolRunner {
     /// A click on a delete/pay/send button asks unless the user used a word
     /// of that family; the gate issues the ticket either way it clears.
     func clickApproval(
-        _ call: ToolCallRef, said: String, hands: ScreenHands, pid: Int32,
-        ticket: ApprovalTickets.Ticket
+        _ call: ToolCallRef, said: String, hands: ScreenHands, pid: Int32
     ) -> ApprovalRequest? {
-        guard let element = Self.clickTarget(call, hands: hands, pid: pid),
+        guard let (element, generation) = Self.clickTarget(call, hands: hands, pid: pid),
               HandsGate.clickNeedsTicket(label: element.label, context: element.context)
         else { return nil }
+        let ticket = ApprovalTickets.Ticket.click(call, pid: pid, element: element, generation: generation)
         switch HandsGate.clickVerdict(label: element.label, context: element.context, said: said) {
         case .act:
             hands.tickets.issue(ticket)
@@ -40,10 +40,36 @@ extension ParentToolRunner {
         }
     }
 
-    static func clickTarget(_ call: ToolCallRef, hands: ScreenHands, pid: Int32) -> ScreenElement? {
-        guard let arguments = ToolArguments.parse(call.arguments), let id = intArgument(arguments["id"])
+    /// The same gate as a click, for the item the menu path RESOLVES to: the
+    /// adapter matches partial names, so the ticket is bound to the resolved
+    /// title and the sheet names it. The typed name is judged too, so a
+    /// destructive word the model typed still asks.
+    func menuApproval(
+        _ call: ToolCallRef, said: String, hands: ScreenHands, pid: Int32,
+        ticket: ApprovalTickets.Ticket
+    ) -> ApprovalRequest? {
+        let path = HandsGate.menuPath(ToolArguments.parse(call.arguments) ?? [:])
+        let resolved = hands.screen?.menuTitle(path: path, pid: pid)
+        guard HandsGate.menuNeedsTicket(path: path, resolved: resolved) else { return nil }
+        let bound = ApprovalTickets.Ticket(
+            name: ticket.name, arguments: ticket.arguments, pid: pid, item: resolved ?? path.last ?? "")
+        guard HandsGate.menuVerdict(path: path, resolved: resolved, said: said) == .ask else {
+            hands.tickets.issue(bound)
+            return nil
+        }
+        let request = HandsGate.menuRequest(
+            call, path: path, resolved: resolved, app: hands.bundleID(pid) ?? "app")
+        hands.tickets.park(bound, id: request.requestId)
+        return request
+    }
+
+    static func clickTarget(
+        _ call: ToolCallRef, hands: ScreenHands, pid: Int32
+    ) -> (element: ScreenElement, generation: Int)? {
+        guard let arguments = ToolArguments.parse(call.arguments), let id = intArgument(arguments["id"]),
+              let scan = hands.scans.scan(for: pid), let element = scan.element(id: id)
         else { return nil }
-        return hands.scans.scan(for: pid)?.element(id: id)
+        return (element, scan.generation)
     }
 
     static func intArgument(_ raw: Any?) -> Int? {
@@ -83,7 +109,7 @@ extension ParentToolRunner {
         case .look: return sight.look()
         case .click: return sight.click(call, arguments)
         case .scroll: return sight.scroll(arguments)
-        default: return sight.menu(arguments)
+        default: return sight.menu(call, arguments)
         }
     }
 }
@@ -128,7 +154,7 @@ private struct SightAct {
             return fail("unknown_id", "no control [\(id)] in the latest look; look again")
         }
         if HandsGate.clickNeedsTicket(label: element.label, context: element.context),
-           !hands.tickets.redeem(.init(name: call.name, arguments: call.arguments, pid: pid)) {
+           !hands.tickets.redeem(.click(call, pid: pid, element: element, generation: scan.generation)) {
             return fail("approval_required", "this button deletes, pays or sends; it needs approval")
         }
         switch screen.click(node: element.node, generation: scan.generation, pid: pid, label: element.label) {
@@ -159,12 +185,18 @@ private struct SightAct {
                                  tool: tool.rawValue)
     }
 
-    func menu(_ arguments: [String: Any]) -> ParentToolOutcome {
-        let path = (arguments["path"] as? String ?? "")
-            .split(separator: ">").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    func menu(_ call: ToolCallRef, _ arguments: [String: Any]) -> ParentToolOutcome {
+        let path = HandsGate.menuPath(arguments)
         guard !path.isEmpty else { return .failed(.invalidArgs("missing path"), tool: tool.rawValue) }
-        guard let item = screen.menu(path: path, pid: pid) else {
+        guard let resolved = screen.menuTitle(path: path, pid: pid) else {
             return fail("menu_not_found", "no menu item at that path")
+        }
+        if HandsGate.menuNeedsTicket(path: path, resolved: resolved),
+           !hands.tickets.redeem(.init(name: call.name, arguments: call.arguments, pid: pid, item: resolved)) {
+            return fail("approval_required", "this menu item deletes, pays or sends; it needs approval")
+        }
+        guard let item = screen.menu(path: path, pid: pid, expecting: resolved) else {
+            return fail("menu_not_found", "the menu item is gone or changed since it was read")
         }
         Log.app("sight: menu steps=\(path.count) pid=\(pid) bundle=\(bundle)")
         return ParentToolOutcome(ok: true, output: "chose \(item)", tool: tool.rawValue)

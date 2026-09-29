@@ -270,11 +270,11 @@ final class RealtimeRuntime: @unchecked Sendable {
             return [.agentAudioStopped]
         case .mcpApprovalRequest(let id, let server, let tool, let args):
             // OpenAI runs the tool server-side once approved; the client's
-            // whole job is the user's yes. Park the request for the spoken
-            // resolve_approval and have the model ask out loud.
+            // whole job is the user's yes. It goes to the sheet; the model
+            // only announces it, and the click answers (Wave 20c D2).
             onMCPApproval?(ApprovalRequest(
                 requestId: id, toolName: "\(server)/\(tool)",
-                summary: tool, inputJSON: args))
+                summary: tool, inputJSON: args, isMCP: true))
             await send(RealtimeCodec.systemItem(
                 MCPServerConfig.approvalPrompt(
                     server: server, tool: tool, language)))

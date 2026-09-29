@@ -92,10 +92,10 @@ public struct SessionMachine: Sendable, Equatable {
             effects.append(.resolveApproval(
                 requestId: id, approved: approved, remember: remember && !stops))
             if stops { effects += stop() }
-        case .approvalSpoken(let approved):
-            guard let first = projection.approval else { return [] }
+        case .approvalSpoken(let id, let approved):
+            guard projection.approval?.requestId == id else { return [] }
             return handle(.approvalAnswered(
-                requestId: first.requestId, approved: approved, remember: false))
+                requestId: id, approved: approved, remember: false))
         case .approvalSettled(let id):
             _ = remove(id)
         case .approvalDropped(let id):
@@ -460,10 +460,11 @@ public struct SessionMachine: Sendable, Equatable {
         return projection.approvalQueue.remove(at: index)
     }
 
-    /// The parent's own gates travel the same queue as the specialist's
-    /// requests; only the specialist's are the job's actions.
+    /// The parent's own gates and the user's MCP servers travel the same
+    /// queue as the specialist's requests; only the specialist's are the
+    /// job's actions. An MCP name is server-chosen, so origin decides.
     private static func isJobRequest(_ request: ApprovalRequest) -> Bool {
-        ParentTool(rawValue: request.toolName) == nil
+        !request.isMCP && ParentTool(rawValue: request.toolName) == nil
     }
 
     private static func status(of snapshot: TurnSnapshot) -> VoiceStatus {

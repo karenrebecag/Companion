@@ -1,4 +1,5 @@
 import CompanionCore
+import CompanionUI
 @testable import CompanionServices
 import Foundation
 import Testing
@@ -11,7 +12,16 @@ import Testing
     testSessionUpdateCarriesServers()
     testApprovalRequestParsing()
     testApprovalResponseShape()
-    await testSpokenYesAnswersMCPApproval()
+    testMCPRequestIsHighRisk()
+    await testMCPRequestOpensTheSheetAndModelCannotSettleIt()
+    await testSheetClickAnswersMCPApproval()
+    await testSheetDenyAnswersNo()
+    await testDroppedSheetAnswersNo()
+    await testStaleOrDuplicateCloseSendsNothing()
+    await testQueuedMCPRequestsAnswerInOrder()
+    await testStopWhileMCPQueuedAnswersNo()
+    await testUnansweredMCPRequestTimesOut()
+    await testTeardownClearsPendingMCPApprovals()
 }
 
 func testConfigDecodeAndShape() {
@@ -22,8 +32,8 @@ func testConfigDecodeAndShape() {
     expectEq(obj["type"] as? String, "mcp", "wire: tipo mcp")
     expectEq(obj["server_label"] as? String, "docs", "wire: label")
     expectEq(obj["server_url"] as? String, "https://x/mcp", "wire: url")
-    expectEq(obj["require_approval"] as? String, "never",
-             "wire: el archivo puede relajar la aprobación por servidor")
+    expectEq(obj["require_approval"] as? String, "always",
+             "wire: un never del archivo se ignora, la aprobación no se relaja")
     expectEq(obj["allowed_tools"] as? [String], ["search"], "wire: tool filter")
 
     // Default seguro: este producto pregunta antes de actuar sobre el mundo.
@@ -66,19 +76,134 @@ func testApprovalResponseShape() {
     expect(json.contains("true"), "response: la decisión viaja")
 }
 
-/// El circuito hablado: llega un approval MCP, la usuaria dice «sí», y la
-/// respuesta viaja por el websocket — no por el runner de encargos.
-@MainActor func testSpokenYesAnswersMCPApproval() async {
-    let h = makeVoiceHarness()
+func testMCPRequestIsHighRisk() {
+    expectEq(ApprovalRisk.of(toolName: "docs/search"), .high,
+             "riesgo: server/tool de un MCP propio pide la hoja")
+}
+
+@MainActor private func mcpHarness(
+    timeout: TimeInterval = ApprovalTiming.autoDeny
+) async -> (VoiceHarness, SessionModel) {
+    let model = SessionModel(jobs: nil, approvals: nil)
+    let h = makeVoiceHarness(session: model, mcpApprovalTimeout: timeout)
+    let session = h.session
+    model.onApprovalClosed = { id, approved in
+        Task { await session.approvalClosed(id, approved: approved) }
+    }
     await h.session.start()
     await pumpUntil("mcp: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.mcpApprovalRequest(
         id: "req9", server: "docs", tool: "search", argumentsJSON: "{}"))
-    await settle(0.1)
-    let before = h.transport.sent.count
+    await pumpUntil("mcp: la hoja lo tiene") {
+        model.projection.approval?.requestId == "req9"
+    }
+    return (h, model)
+}
+
+/// (request id, approve) of every mcp_approval_response frame, decoded: a
+/// substring test on the raw frame would pass on the id "true-1".
+private func mcpVerdicts(_ h: VoiceHarness) -> [(id: String, approve: Bool)] {
+    h.transport.sent.compactMap { frame in
+        guard let data = frame.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let item = root["item"] as? [String: Any],
+              item["type"] as? String == "mcp_approval_response",
+              let id = item["approval_request_id"] as? String,
+              let approve = item["approve"] as? Bool
+        else { return nil }
+        return (id, approve)
+    }
+}
+
+/// El booleano del modelo no aprueba un MCP propio: solo la hoja.
+@MainActor func testMCPRequestOpensTheSheetAndModelCannotSettleIt() async {
+    let (h, model) = await mcpHarness()
+    expectEq(model.projection.approval?.toolName, "docs/search",
+             "mcp: la hoja muestra server/tool")
     let landed = await h.session.answerPendingApproval(true)
-    expect(landed, "mcp: el sí hablado aterriza en el approval pendiente")
-    let added = Array(h.transport.sent.dropFirst(before))
-    expect(added.contains { $0.contains("mcp_approval_response") && $0.contains("req9") },
-           "mcp: la aprobación viaja al server con su id")
+    await settle(0.1)
+    expect(!landed, "mcp: resolve_approval no aterriza en un MCP")
+    expect(mcpVerdicts(h).isEmpty, "mcp: el modelo no manda mcp_approval_response")
+    expect(model.projection.approval?.requestId == "req9",
+           "mcp: la hoja sigue esperando el clic")
+}
+
+@MainActor func testSheetClickAnswersMCPApproval() async {
+    let (h, model) = await mcpHarness()
+    model.send(.approvalAnswered(requestId: "req9", approved: true, remember: false))
+    await pumpUntil("mcp: el clic viaja al server") { !mcpVerdicts(h).isEmpty }
+    let sent = mcpVerdicts(h)
+    expectEq(sent.count, 1, "mcp: una sola respuesta")
+    expectEq(sent.first?.id, "req9", "mcp: el clic apunta a su id")
+    expectEq(sent.first?.approve, true, "mcp: el clic aprueba")
+}
+
+@MainActor func testSheetDenyAnswersNo() async {
+    let (h, model) = await mcpHarness()
+    model.send(.approvalAnswered(requestId: "req9", approved: false, remember: false))
+    await pumpUntil("mcp: el no viaja") { !mcpVerdicts(h).isEmpty }
+    expectEq(mcpVerdicts(h).first?.approve, false, "mcp: el clic en No niega")
+}
+
+@MainActor func testDroppedSheetAnswersNo() async {
+    let (h, model) = await mcpHarness()
+    model.send(.approvalDropped(requestId: "req9"))
+    await pumpUntil("mcp: la hoja caida niega") { !mcpVerdicts(h).isEmpty }
+    expectEq(mcpVerdicts(h).first?.approve, false, "mcp: sin clic no se aprueba")
+}
+
+@MainActor func testStaleOrDuplicateCloseSendsNothing() async {
+    let (h, model) = await mcpHarness()
+    model.send(.approvalAnswered(requestId: "req9", approved: true, remember: false))
+    await pumpUntil("mcp: primera respuesta") { mcpVerdicts(h).count == 1 }
+    await h.session.approvalClosed("req9", approved: false)
+    await h.session.approvalClosed("nadie", approved: true)
+    await settle(0.1)
+    expectEq(mcpVerdicts(h).count, 1, "mcp: un segundo cierre del mismo id no manda nada")
+}
+
+@MainActor func testQueuedMCPRequestsAnswerInOrder() async {
+    let (h, model) = await mcpHarness()
+    h.transport.yield(.mcpApprovalRequest(
+        id: "req10", server: "docs", tool: "write", argumentsJSON: "{}"))
+    await pumpUntil("mcp: la segunda queda en cola") { model.projection.approvalQueue.count == 2 }
+    model.send(.approvalAnswered(requestId: "req9", approved: true, remember: false))
+    await pumpUntil("mcp: la segunda pasa al frente") {
+        model.projection.approval?.requestId == "req10"
+    }
+    model.send(.approvalAnswered(requestId: "req10", approved: false, remember: false))
+    await pumpUntil("mcp: ambas contestadas") { mcpVerdicts(h).count == 2 }
+    let sent = mcpVerdicts(h)
+    expectEq(sent.map(\.id), ["req9", "req10"], "mcp: en orden y con su id")
+    expectEq(sent.map(\.approve), [true, false], "mcp: cada una con su verdad")
+}
+
+@MainActor func testStopWhileMCPQueuedAnswersNo() async {
+    let (h, model) = await mcpHarness()
+    // The harness does not pump snapshots into the model; Stop is a no-op at
+    // idle, and the live app is never idle with a session open.
+    model.send(.voice(h.watch.latest))
+    model.send(.stop)
+    await pumpUntil("mcp: Stop niega lo encolado") { !mcpVerdicts(h).isEmpty }
+    expectEq(mcpVerdicts(h).first?.id, "req9", "mcp: Stop niega ese id")
+    expectEq(mcpVerdicts(h).first?.approve, false, "mcp: Stop es un no")
+}
+
+@MainActor func testUnansweredMCPRequestTimesOut() async {
+    let (h, model) = await mcpHarness(timeout: 0.05)
+    await pumpUntil("mcp: sin clic, el plazo niega") { !mcpVerdicts(h).isEmpty }
+    expectEq(mcpVerdicts(h).first?.approve, false, "mcp: vencer es un no")
+    await pumpUntil("mcp: la hoja se cierra") { model.projection.approval == nil }
+    await settle(0.1)
+    expectEq(mcpVerdicts(h).count, 1, "mcp: el plazo y el cierre no duplican la respuesta")
+}
+
+@MainActor func testTeardownClearsPendingMCPApprovals() async {
+    let (h, model) = await mcpHarness()
+    await h.session.hangUp()
+    await pumpUntil("mcp: colgar cierra la hoja") { model.projection.approval == nil }
+    await h.session.approvalClosed("req9", approved: true)
+    await settle(0.1)
+    expect(!mcpVerdicts(h).contains { $0.approve },
+           "mcp: tras colgar, un clic tardio no aprueba nada")
 }

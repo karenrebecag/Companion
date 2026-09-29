@@ -29,7 +29,7 @@ import Security
 /// no-sync half happens to hold — the file keychain does not sync — but by
 /// accident, not by that flag. A security comment that overstates is worse
 /// than none: it stops the next person from checking.
-public final class KeychainSecretStore: SecretStore, @unchecked Sendable {
+public final class KeychainSecretStore: SecretStore, HostSecretStore, @unchecked Sendable {
     public static let service = "Companion"
 
     /// Account for the single bundle item. Versioned so a future shape
@@ -65,28 +65,61 @@ public final class KeychainSecretStore: SecretStore, @unchecked Sendable {
     }
 
     public func read(_ key: SecretKey) throws -> String? {
-        lock.lock()
-        defer { lock.unlock() }
-        return try lockedBundle()[key.rawValue]
+        try readEntry(key.rawValue)
     }
 
     public func write(_ key: SecretKey, value: String) throws {
+        try writeEntry(key.rawValue, value: value)
+    }
+
+    public func delete(_ key: SecretKey) throws {
+        try deleteEntry(key.rawValue)
+    }
+
+    // MARK: - Host-bound secrets (20c D6, M5)
+
+    /// The bundle entry name carries the host, so the same item holds them
+    /// (one dialog per launch) and a read for another host cannot match.
+    private static func hostEntry(_ kind: HostSecretKind, _ host: String) throws -> String {
+        guard let normalized = SecretHost.normalized(host) else { throw SecretStoreError.invalidHost }
+        return "\(kind.rawValue)@\(normalized)"
+    }
+
+    private func readEntry(_ name: String) throws -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return try lockedBundle()[name]
+    }
+
+    private func writeEntry(_ name: String, value: String) throws {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty { throw SecretStoreError.emptyValue }
 
         lock.lock()
         defer { lock.unlock() }
         var bundle = try lockedBundle()
-        bundle[key.rawValue] = trimmed
+        bundle[name] = trimmed
         try lockedPersist(bundle)
     }
 
-    public func delete(_ key: SecretKey) throws {
+    private func deleteEntry(_ name: String) throws {
         lock.lock()
         defer { lock.unlock() }
         var bundle = try lockedBundle()
-        guard bundle.removeValue(forKey: key.rawValue) != nil else { return }
+        guard bundle.removeValue(forKey: name) != nil else { return }
         try lockedPersist(bundle)
+    }
+
+    public func read(_ kind: HostSecretKind, host: String) throws -> String? {
+        try readEntry(Self.hostEntry(kind, host))
+    }
+
+    public func write(_ kind: HostSecretKind, host: String, value: String) throws {
+        try writeEntry(Self.hostEntry(kind, host), value: value)
+    }
+
+    public func delete(_ kind: HostSecretKind, host: String) throws {
+        try deleteEntry(Self.hostEntry(kind, host))
     }
 
     // MARK: - Bundle cache

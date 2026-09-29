@@ -23,8 +23,8 @@ public enum BridgeVerdict: Sendable, Equatable {
     case reject(code: String)
 }
 
-/// Pure policy for session authorization and rate limiting. The write budget
-/// counts towards a sliding window; read tools bypass it entirely.
+/// Pure policy for session authorization and rate limiting. The write and read
+/// budgets each count towards their own sliding window.
 public struct BridgePolicy: Sendable, Equatable {
     /// The tool name the session-grant approval carries. Not an executable
     /// tool: it exists so the reducer and the sheet can tell the bridge's
@@ -42,8 +42,62 @@ public struct BridgePolicy: Sendable, Equatable {
         "open_file"
     ]
 
+    /// Every allowlisted tool that draws from the read budget. Explicit on
+    /// purpose: a bucket that is "whatever is not a write" lets a new tool
+    /// slip into the looser budget unnoticed; `unbucketed` and its test make
+    /// adding a tool to `BridgeScope.bridgeTools` force a choice here.
+    ///
+    /// `focus_window` is deliberately a read: it only raises a window
+    /// Companion was already allowed to see, changes no content, and an agent
+    /// calls it between reads. It stays out of `writeTools`, so it is neither
+    /// counted against the action budget nor reported as an action.
+    public static let readTools: Set<String> = [
+        "list_apps",
+        "read_skill",
+        "find_places",
+        "focus_window",
+        "read_focused",
+        "look",
+        "see"
+    ]
+
+    /// Allowlisted tools that sit in neither bucket.
+    public static func unbucketed(_ allowed: Set<String>) -> Set<String> {
+        allowed.subtracting(writeTools).subtracting(readTools)
+    }
+
     public static let budgetPerMinute = 30
+    /// Wave 20c D6 (M8b): reads (`look`, `see`, `read_focused`...) draw from
+    /// their own allowance. They used to be free, so a peer could hammer the
+    /// screen capture and the vision model; and they must not share the
+    /// action allowance, or either flood would starve the other. Looser than
+    /// the actions: an agent re-reads the screen after every step.
+    public static let readBudgetPerMinute = 60
     public static let window: TimeInterval = 60
+
+    /// Wave 20c D5 (M2a): a connection with no traffic for this long loses
+    /// the hands. Long enough for a slow agent step, short enough that a
+    /// forgotten client does not hold them for the rest of the day.
+    public static let idleTimeout: TimeInterval = 10 * 60
+    /// How often the session looks at the clock; the timeout is the ceiling,
+    /// this is only the resolution.
+    public static let idleCheckInterval: TimeInterval = 15
+
+    /// Wave 20c D5 (M2b): this many denied approvals inside `denialWindow`
+    /// and the caller is cooled down until the oldest one ages out, so
+    /// nobody can spam requests hoping for a mistaken yes.
+    public static let maxDenials = 3
+    public static let denialWindow: TimeInterval = 10 * 60
+
+    /// Wave 20c D5 (review F1): approval SHEETS shown per `sheetWindow`,
+    /// whatever their outcome. Withdrawn and timed-out sheets are not denials
+    /// (they must not lock the hands), so without this a token-holding peer
+    /// could raise fresh sheets forever by reconnecting. A real session is one
+    /// session sheet plus a per-call sheet for each destructive click or
+    /// `type_text`; 20 in ten minutes is far past what a person answers, and
+    /// still stops a loop.
+    public static let maxSheetsPerWindow = 20
+    public static let sheetWindow: TimeInterval = denialWindow
 
     public private(set) var state: BridgeState
 
@@ -51,9 +105,28 @@ public struct BridgePolicy: Sendable, Equatable {
     /// within the current window on each write-tool admit.
     private var writeTimestamps: [Date]
 
+    /// Same, for reads, kept apart from `writeTimestamps` on purpose.
+    private var readTimestamps: [Date]
+
+    /// Denied approvals, per PROCESS like the write budget: `disconnected()`
+    /// never clears it, or reconnecting would reset the count.
+    private var denialTimestamps: [Date]
+
     public init() {
         self.state = .idle
         self.writeTimestamps = []
+        self.readTimestamps = []
+        self.denialTimestamps = []
+    }
+
+    public mutating func recordDenial(now: Date) {
+        denialTimestamps = denialTimestamps.filter { $0 > now.addingTimeInterval(-Self.denialWindow) }
+        denialTimestamps.append(now)
+    }
+
+    public func isCoolingDown(now: Date) -> Bool {
+        let cutoff = now.addingTimeInterval(-Self.denialWindow)
+        return denialTimestamps.filter { $0 > cutoff }.count >= Self.maxDenials
     }
 
     /// Called when hello is received. Transitions from idle or closed to listed
@@ -66,6 +139,7 @@ public struct BridgePolicy: Sendable, Equatable {
     /// `hello → 30 writes → bye → hello → …` would launder the 30/min cap
     /// on every reconnect.
     public mutating func helloReceived(now: Date) -> BridgeVerdict {
+        if isCoolingDown(now: now) { return .reject(code: BridgeCode.coolingDown) }
         switch state {
         case .idle, .closed:
             state = .listed
@@ -95,6 +169,7 @@ public struct BridgePolicy: Sendable, Equatable {
     /// Called when a tool call arrives. Checks if the session is valid and
     /// if the write budget allows it. Records the timestamp if approved.
     public mutating func admit(tool: String, now: Date) -> BridgeVerdict {
+        if isCoolingDown(now: now) { return .reject(code: BridgeCode.coolingDown) }
         // Check session state
         switch state {
         case .idle:
@@ -118,22 +193,23 @@ public struct BridgePolicy: Sendable, Equatable {
             }
         }
 
-        // Read tools bypass the budget entirely
-        if !Self.writeTools.contains(tool) {
-            return .proceed
-        }
-
-        // Write tool: check and update budget with sliding window (absolute timestamps)
         let cutoff = now.addingTimeInterval(-Self.window)
-        writeTimestamps = writeTimestamps.filter { $0 > cutoff }
-
-        if writeTimestamps.count >= Self.budgetPerMinute {
-            return .reject(code: BridgeCode.rateLimited)
+        // Only a named read gets the looser budget; anything else is held to
+        // the action one, so a tool nobody bucketed fails safe.
+        if Self.readTools.contains(tool) {
+            return Self.spend(&readTimestamps, limit: Self.readBudgetPerMinute, cutoff: cutoff, now: now)
         }
+        return Self.spend(&writeTimestamps, limit: Self.budgetPerMinute, cutoff: cutoff, now: now)
+    }
 
-        // Record this write
-        writeTimestamps.append(now)
-
+    /// One sliding window over absolute timestamps: prunes, then records
+    /// `now` if there is room.
+    private static func spend(
+        _ timestamps: inout [Date], limit: Int, cutoff: Date, now: Date
+    ) -> BridgeVerdict {
+        timestamps = timestamps.filter { $0 > cutoff }
+        guard timestamps.count < limit else { return .reject(code: BridgeCode.rateLimited) }
+        timestamps.append(now)
         return .proceed
     }
 
@@ -177,5 +253,23 @@ public struct BridgePolicy: Sendable, Equatable {
     public var isListed: Bool {
         if case .listed = state { return true }
         return false
+    }
+}
+
+/// Sliding window over the sheets a bridge has shown. Separate from the
+/// denial cool-down on purpose: that one counts refusals only, this one
+/// counts every sheet whatever became of it. Per process, never reset.
+public struct BridgeSheetLimit: Sendable, Equatable {
+    private var shown: [Date] = []
+
+    public init() {}
+
+    /// True and records the sheet when one more may be shown at `now`.
+    public mutating func admit(now: Date) -> Bool {
+        let cutoff = now.addingTimeInterval(-BridgePolicy.sheetWindow)
+        shown = shown.filter { $0 > cutoff }
+        guard shown.count < BridgePolicy.maxSheetsPerWindow else { return false }
+        shown.append(now)
+        return true
     }
 }

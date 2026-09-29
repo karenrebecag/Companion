@@ -250,14 +250,14 @@ private func request(_ id: String) -> ApprovalRequest {
     await pumpUntil("stream: el encargo se anuncia") {
         seen.events.contains { if case .job(.started(let goal)) = $0 { goal == "limpiar build" } else { false } }
     }
-    jobs.askApproval(request("r7"))
+    jobs.askApproval(ApprovalRequest(requestId: "r7", toolName: "find_places", summary: "ls", inputJSON: "{}"))
     await pumpUntil("stream: la petición viaja") {
         seen.events.contains { if case .job(.approvalRequested(let r)) = $0 { r.requestId == "r7" } else { false } }
     }
     h.transport.yield(.functionCall(
         name: "resolve_approval", arguments: #"{"approved":true}"#, callId: "c2"))
     await pumpUntil("stream: el sí hablado viaja al reductor") {
-        seen.events.contains { $0 == .approvalSpoken(approved: true) }
+        seen.events.contains { $0 == .approvalSpoken(requestId: "r7", approved: true) }
     }
 }
 

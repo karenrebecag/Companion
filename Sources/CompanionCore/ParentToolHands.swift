@@ -133,6 +133,44 @@ public enum HandsGate {
         isUnlabeled(label) || family(label: label, context: context) != nil
     }
 
+    /// A menu item is a button the model names by path: the item at the end
+    /// is what runs, so it is judged by the same families as a click's label.
+    /// Submenu titles on the way ("Trash > Open") do not act by themselves.
+    /// `resolved` is the title the adapter would really press: a partial
+    /// name ("Empty") matches "Empty Trash…", so the typed name alone can
+    /// never clear an item.
+    public static func menuNeedsTicket(path: [String], resolved: String? = nil) -> Bool {
+        !menuFamilies(path: path, resolved: resolved).isEmpty
+    }
+
+    public static func menuVerdict(path: [String], resolved: String? = nil, said: String) -> HandsVerdict {
+        let families = menuFamilies(path: path, resolved: resolved)
+        return families.allSatisfy { HandsWords.asks(family: $0, in: said) } ? .act : .ask
+    }
+
+    private static func menuFamilies(path: [String], resolved: String?) -> [Int] {
+        let families = [path.last, resolved].compactMap { $0 }.compactMap { family(label: $0, context: "") }
+        return Array(Set(families))
+    }
+
+    /// "Archivo > Exportar" as its parts; empty when the argument is absent.
+    public static func menuPath(_ arguments: [String: Any]) -> [String] {
+        (arguments["path"] as? String ?? "")
+            .split(separator: ">").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    /// The sheet for a destructive menu item names the path and the app,
+    /// with the item that would really be pressed, not the model's partial.
+    public static func menuRequest(
+        _ call: ToolCallRef, path: [String], resolved: String? = nil, app: String
+    ) -> ApprovalRequest {
+        let shown = (path.dropLast() + [resolved ?? path.last].compactMap { $0 }).joined(separator: " > ")
+        return ApprovalRequest(
+            requestId: UUID().uuidString, toolName: call.name,
+            summary: "menu \(shown) in \(app)",
+            inputJSON: encode(["path": shown, "app": app]))
+    }
+
     private static func isUnlabeled(_ label: String) -> Bool {
         HandsWords.words(label).isEmpty
     }

@@ -127,7 +127,9 @@ public final class BridgeListener: @unchecked Sendable {
                 continue
             }
             let connection = BridgeConnection(fd: clientFD)
-            connection.onClosed = { [weak self] in self?.clearActiveConnection() }
+            connection.onClosed = { [weak self, weak connection] in
+                if let connection { self?.clearActiveConnection(connection) }
+            }
             setActiveConnection(connection)
             onConnection(connection)
         }
@@ -160,8 +162,12 @@ public final class BridgeListener: @unchecked Sendable {
         lock.lock(); activeConnection = connection; lock.unlock()
     }
 
-    private func clearActiveConnection() {
-        lock.lock(); activeConnection = nil; lock.unlock()
+    /// Only the connection that owns the slot may free it: a late close of
+    /// an earlier one must not evict the connection that replaced it.
+    private func clearActiveConnection(_ connection: BridgeConnection) {
+        lock.lock()
+        if activeConnection === connection { activeConnection = nil }
+        lock.unlock()
     }
 
     // MARK: - filesystem
@@ -237,15 +243,28 @@ public final class BridgeConnection: @unchecked Sendable {
     private var closed = false
     private let continuation: AsyncStream<String>.Continuation
     public let lines: AsyncStream<String>
+    /// Yields nothing and finishes when the connection closes, for whoever
+    /// is parked on something else (a sheet) while `lines` is being read.
+    let closure: AsyncStream<Void>
+    private let closureContinuation: AsyncStream<Void>.Continuation
+    /// Read once at accept: the peer can exit, but the pid and path the
+    /// sheet showed are the ones that asked.
+    public let peer: BridgePeer?
     /// Set by `BridgeListener` before handing the connection to
     /// `onConnection`, so it can free the "one active connection" slot.
     var onClosed: (@Sendable () -> Void)?
+    private var slotHeld = false
+    private var slotFreed = false
 
     init(fd: Int32) {
         self.fd = fd
+        self.peer = BridgePeer.of(fd: fd)
         var pendingContinuation: AsyncStream<String>.Continuation?
         self.lines = AsyncStream<String> { continuation in pendingContinuation = continuation }
         self.continuation = pendingContinuation!
+        var pendingClosure: AsyncStream<Void>.Continuation?
+        self.closure = AsyncStream<Void> { continuation in pendingClosure = continuation }
+        self.closureContinuation = pendingClosure!
         let thread = Thread { [weak self] in self?.readLoop() }
         thread.name = "bridge-connection"
         thread.start()
@@ -263,11 +282,39 @@ public final class BridgeConnection: @unchecked Sendable {
         lock.lock()
         guard !closed else { lock.unlock(); return }
         closed = true
+        let freeSlot = takeSlotRelease()
         lock.unlock()
         Darwin.shutdown(fd, SHUT_RDWR)
         Darwin.close(fd)
         continuation.finish()
-        onClosed?()
+        closureContinuation.finish()
+        if freeSlot { onClosed?() }
+    }
+
+    /// Wave 20c D5 (M1): the session takes the slot's release into its own
+    /// hands, so the listener cannot accept a replacement while the previous
+    /// connection's authorization is still standing. Opt-in: a connection
+    /// nobody serves frees the slot the moment it closes, as before.
+    func holdSlotUntilServed() {
+        lock.lock(); defer { lock.unlock() }
+        if !slotFreed { slotHeld = true }
+    }
+
+    /// Called once the session has reset its state for this connection.
+    func releaseSlot() {
+        lock.lock()
+        slotHeld = false
+        let freeSlot = takeSlotRelease()
+        lock.unlock()
+        if freeSlot { onClosed?() }
+    }
+
+    /// Under `lock`. True exactly once: when the connection is closed and
+    /// nobody is holding the slot.
+    private func takeSlotRelease() -> Bool {
+        guard closed, !slotHeld, !slotFreed else { return false }
+        slotFreed = true
+        return true
     }
 
     /// M4 (security review 2026-09-28): lets `BridgeSession` check, after

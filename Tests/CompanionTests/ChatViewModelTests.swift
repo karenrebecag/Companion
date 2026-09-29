@@ -877,10 +877,10 @@ private func openEvil(_ id: String = "c1") -> ChatDelta {
            "no: la línea de estado nombra lo que no se abrió")
 }
 
-/// 26. La memoria ya negó `open_url(evil.example)`: ni hoja ni apertura.
+/// 26. La memoria ya negó `open_url(https://evil.example:443)`: ni hoja ni apertura.
 @MainActor func testRememberedDenialSkipsTheSheet() async {
     let opener = FakeWorkspaceOpener()
-    let approvals = FakeApprovals(memory: ["open_url(evil.example)": false])
+    let approvals = FakeApprovals(memory: ["open_url(https://evil.example:443)": false])
     let chat = FakeChatProvider(replies: [.success([openEvil()]), .success([.text("Ok.")])])
     let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener), approvals: approvals)
     vm.draft = "resume esto"

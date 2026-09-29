@@ -40,6 +40,7 @@ public enum ApprovalCopy {
 
     public static func display(for request: ApprovalRequest, language: AppLanguage) -> ApprovalDisplay {
         let arguments = ToolArguments.parse(request.inputJSON) ?? [:]
+        if request.isMCP { return mcpTool(request, language) }
         if request.toolName == BridgePolicy.sessionApprovalTool {
             return bridge(arguments, language)
         }
@@ -67,18 +68,36 @@ public enum ApprovalCopy {
             showsRemember: false)
     }
 
+    /// A remote server's tool: its name and arguments are the server's and
+    /// the model's words, and the click is the only authority (20c D2), so
+    /// the sheet shows the name sanitized and EVERY argument, never the one
+    /// key a generic rule happens to know. No remember: `ApprovalKey.from`
+    /// has no rule for MCP, a ticked toggle would promise a memory that
+    /// never happens.
+    private static func mcpTool(_ request: ApprovalRequest, _ language: AppLanguage) -> ApprovalDisplay {
+        let arguments = request.inputJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ApprovalDisplay(
+            mark: .symbol("network"), lead: word(.allow, language),
+            subject: capped(plainPreview(request.toolName, keepingLayout: false)),
+            preview: arguments.isEmpty || arguments == "{}" ? nil : plainPreview(arguments),
+            showsRemember: false)
+    }
+
+    private static let hiddenCategories: Set<Unicode.GeneralCategory> = [
+        .control, .format, .lineSeparator, .paragraphSeparator,
+    ]
+
     /// The arguments came from the model and can quote a page or a chat:
     /// bidi and control scalars could visually reorder what the sheet
     /// shows, and a reordered preview approves something else (F-F,
-    /// security review 16k-3). Newlines and tabs stay — they are layout,
-    /// not direction.
-    private static func plainPreview(_ text: String) -> String {
+    /// security review 16k-3). Every format scalar (zero-width, joiners,
+    /// BOM, soft hyphen) and the Unicode line/paragraph separators go too:
+    /// they hide or forge text the same way. Newlines and tabs stay — they
+    /// are layout, not direction — unless the text is a one-line title.
+    public static func plainPreview(_ text: String, keepingLayout: Bool = true) -> String {
         String(text.unicodeScalars.filter { scalar in
-            if scalar == "\n" || scalar == "\t" { return true }
-            if scalar.properties.generalCategory == .control { return false }
-            return !(0x202A...0x202E).contains(scalar.value)
-                && !(0x2066...0x2069).contains(scalar.value)
-                && scalar.value != 0x200E && scalar.value != 0x200F
+            if scalar == "\n" || scalar == "\t" { return keepingLayout }
+            return !Self.hiddenCategories.contains(scalar.properties.generalCategory)
         }.map(Character.init))
     }
 
@@ -187,6 +206,15 @@ public enum ApprovalCopy {
                 mark: .symbol("square.and.pencil"),
                 lead: word(writes ? .writeFile : .editFile, language),
                 subject: filename(path), preview: path, showsRemember: true)
+        case .sheetWrite:
+            guard let range = value(arguments, "range") else { return nil }
+            // Wave 20c D4: the workbook and every cell, uncut. The workbook
+            // is the runner's (`SheetApproval.bind`), the cells are what runs.
+            let app = value(arguments, "app").map { $0.capitalized + " · " } ?? ""
+            return ApprovalDisplay(
+                mark: .symbol("tablecells"), lead: word(.writeSheet, language),
+                subject: capped(app + range.uppercased()),
+                preview: SheetApproval.preview(arguments, language: language), showsRemember: true)
         default:
             return nil
         }
@@ -218,8 +246,16 @@ public enum ApprovalCopy {
             mark: mark, lead: nil,
             subject: safe.isEmpty ? word(.someClient, language) : safe,
             trail: BridgeCopy.sheetTitle(language),
-            preview: nil,
+            preview: peerPreview(arguments, language),
             showsRemember: false)
+    }
+
+    /// 20c D5 (M2c): the kernel's view of the peer (pid, executable), the one
+    /// line that is not the client's own claim. Nothing known, no box.
+    private static func peerPreview(_ arguments: [String: Any], _ language: AppLanguage) -> String? {
+        guard let pid = (arguments["pid"] as? NSNumber)?.intValue else { return nil }
+        let process = value(arguments, "process").map { plainPreview($0, keepingLayout: false) }
+        return BridgeCopy.peerLine(pid: pid, process: process, language: language)
     }
 
     /// A tool without a rule keeps its id in the visible title: the hover
@@ -259,7 +295,7 @@ public enum ApprovalCopy {
 
     private enum Word {
         case open, openApp, openFile, typeIn, activeField, press, pressKey
-        case chooseMenu, run, writeFile, editFile, allow, someClient
+        case chooseMenu, run, writeFile, editFile, allow, someClient, writeSheet
     }
 
     private static func word(_ word: Word, _ language: AppLanguage) -> String {
@@ -288,6 +324,8 @@ public enum ApprovalCopy {
         case (.editFile, .en): "Edit the file"
         case (.allow, .es): "Permitir"
         case (.allow, .en): "Allow"
+        case (.writeSheet, .es): "Escribir en la hoja"
+        case (.writeSheet, .en): "Write to the sheet"
         case (.someClient, .es): "El cliente"
         case (.someClient, .en): "The client"
         }

@@ -19,6 +19,8 @@ public enum ChatError: Error, Sendable, Equatable {
 
 public enum SecretStoreError: Error, Sendable, Equatable {
     case emptyValue, denied, notAvailable
+    /// A host-bound secret was asked for with no usable host (20c D6).
+    case invalidHost
     case unexpected(Int)
 }
 

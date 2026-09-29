@@ -72,6 +72,10 @@ public final class AppsModel {
     private var connectEpoch = 0
 
     private let secrets: any SecretStore
+    /// 20c D6: the function's key lives here, bound to the endpoint's host;
+    /// `secrets` is only where an older build left it.
+    private let hostSecrets: any HostSecretStore
+    private let launchPin: AppsLaunchPin
     private let defaults: UserDefaults
     private let makeService: @Sendable (URL, String) -> any AppsService
     /// Wave 16k-2b: the same injected-sleep seam `SessionModel` uses, so the
@@ -86,9 +90,14 @@ public final class AppsModel {
     /// the UI layer never reads the disk itself. nil hides the section.
     private let readMCP: (@Sendable () -> MCPFileRead)?
     private let saveMCP: (@Sendable ([MCPServerConfig]) throws -> Void)?
+    /// The UI layer has no logger of its own; the credential moves report
+    /// their non-fatal failures through the composition root's.
+    private let log: @Sendable (String) -> Void
 
     public init(
         secrets: any SecretStore,
+        hostSecrets: any HostSecretStore,
+        launchPin: AppsLaunchPin = .unobserved,
         defaults: UserDefaults = .standard,
         makeService: @escaping @Sendable (URL, String) -> any AppsService,
         sleep: @escaping @Sendable (TimeInterval) async throws -> Void = {
@@ -97,9 +106,12 @@ public final class AppsModel {
         now: @escaping @Sendable () -> TimeInterval = { Date().timeIntervalSince1970 },
         openBrowser: @escaping @Sendable (URL) -> Void = { NSWorkspace.shared.open($0) },
         readMCP: (@Sendable () -> MCPFileRead)? = nil,
-        saveMCP: (@Sendable ([MCPServerConfig]) throws -> Void)? = nil
+        saveMCP: (@Sendable ([MCPServerConfig]) throws -> Void)? = nil,
+        log: @escaping @Sendable (String) -> Void = { _ in }
     ) {
         self.secrets = secrets
+        self.hostSecrets = hostSecrets
+        self.launchPin = launchPin
         self.defaults = defaults
         self.makeService = makeService
         self.sleep = sleep
@@ -107,6 +119,7 @@ public final class AppsModel {
         self.openBrowser = openBrowser
         self.readMCP = readMCP
         self.saveMCP = saveMCP
+        self.log = log
     }
 
     // 16k-4 "Añádelo aquí": the user's own MCP servers, shown and edited
@@ -205,8 +218,11 @@ public final class AppsModel {
     public func configure(endpoint text: String, key: String) -> Bool {
         let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = AppsEndpoint.validated(text), trimmedKey.count >= Self.minimumKeyLength else { return false }
+        guard let host = SecretHost.of(url: url.absoluteString) else { return false }
         do {
-            try secrets.write(.companionApps, value: trimmedKey)
+            try AppsCredentials.save(
+                trimmedKey, host: host, previousHost: SecretHost.of(url: endpoint),
+                legacy: secrets, bound: hostSecrets, log: log)
         } catch {
             return false
         }
@@ -521,14 +537,14 @@ public final class AppsModel {
 
     private func currentService() -> (any AppsService)? {
         if let service { return service }
-        guard let url = AppsEndpoint.validated(endpoint) else { return nil }
-        let key: String?
+        let found: (url: URL, key: String?)?
         do {
-            key = try secrets.read(.companionApps)
+            found = try AppsCredentials.currentKey(
+                endpoint: endpoint, legacy: secrets, bound: hostSecrets, pin: launchPin, log: log)
         } catch {
             return nil
         }
-        guard let key, key.count >= Self.minimumKeyLength else { return nil }
+        guard let url = found?.url, let key = found?.key, key.count >= Self.minimumKeyLength else { return nil }
         let made = makeService(url, key)
         service = made
         return made

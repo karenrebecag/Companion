@@ -102,6 +102,35 @@ final class ApprovalTickets: @unchecked Sendable {
         let name: String
         let arguments: String
         let pid: Int32
+        /// The concrete thing approved when the call's own arguments name it
+        /// only loosely (a menu item found by partial name).
+        let item: String
+        /// A click's ids expire on the next look, so its ticket carries the
+        /// node the id pointed at and the scan generation that numbered it:
+        /// the bare `{"id":N}` would match whatever a later look put at N.
+        let node: Int?
+        let generation: Int?
+
+        init(
+            name: String, arguments: String, pid: Int32, item: String = "",
+            node: Int? = nil, generation: Int? = nil
+        ) {
+            self.name = name
+            self.arguments = arguments
+            self.pid = pid
+            self.item = item
+            self.node = node
+            self.generation = generation
+        }
+
+        /// Bound to the element AND the scan it was read from, label included
+        /// so a control that changed its text under the same node is refused.
+        static func click(
+            _ call: ToolCallRef, pid: Int32, element: ScreenElement, generation: Int
+        ) -> Ticket {
+            Ticket(name: call.name, arguments: call.arguments, pid: pid, item: element.label,
+                   node: element.node, generation: generation)
+        }
     }
 
     private let lock = NSLock()
@@ -158,9 +187,12 @@ extension ParentToolRunner {
         }
         let bundle = hands.bundleID(pid)
         let command = CommandApps.isCommandApp(bundleID: bundle)
-        let ticket = ApprovalTickets.Ticket(name: call.name, arguments: call.arguments, pid: pid)
         if call.name == ParentTool.click.rawValue {
-            return clickApproval(call, said: said, hands: hands, pid: pid, ticket: ticket)
+            return clickApproval(call, said: said, hands: hands, pid: pid)
+        }
+        let ticket = ApprovalTickets.Ticket(name: call.name, arguments: call.arguments, pid: pid)
+        if call.name == ParentTool.menu.rawValue {
+            return menuApproval(call, said: said, hands: hands, pid: pid, ticket: ticket)
         }
         switch HandsGate.verdict(call, commandApp: command, said: said) {
         case .refuse:

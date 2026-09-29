@@ -167,6 +167,9 @@ public enum BridgeCode {
     public static let sessionClosed = "session_closed"
     public static let busy = "busy"
     public static let rateLimited = "rate_limited"
+    /// Too many denied approvals in a row: the caller is refused without a
+    /// sheet until the window passes (Wave 20c D5).
+    public static let coolingDown = "cooling_down"
     public static let unknownTool = "unknown_tool"
     public static let invalidArgs = "invalid_args"
     public static let targetChanged = "target_changed"
@@ -183,6 +186,8 @@ public enum BridgeCode {
     public static let unknownMethod = "unknown_method"
     public static let badFrame = "bad_frame"
     public static let frameTooLarge = "frame_too_large"
+    /// A repeated request id whose first answer was too big to keep.
+    public static let replyTooLarge = "reply_too_large"
 }
 
 // MARK: - Codec
