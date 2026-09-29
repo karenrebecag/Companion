@@ -20,6 +20,7 @@ public struct CompanionRootView: View {
     /// on every streamed token (code review 16j-2).
     @State private var openTaskMessages: [ChatMessage] = []
     @Environment(\.openURL) private var openURL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(
         chat: ChatViewModel,
@@ -65,7 +66,7 @@ public struct CompanionRootView: View {
                         AppsPage(apps: apps)
                     } else {
                         HomePage(chat: chat, onOpen: { task in
-                            withAnimation(.springSheet) { openTask = task }
+                            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { openTask = task }
                         }, onSettings: openSettings)
                     }
                 }
@@ -94,7 +95,7 @@ public struct CompanionRootView: View {
                     .transition(.opacity)
                     .allowsHitTesting(dropdowns.menu == .history)
                     .onTapGesture {
-                        withAnimation(.springSheet) { dropdowns.dismiss() }
+                        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
                     }
             }
         }
@@ -102,7 +103,7 @@ public struct CompanionRootView: View {
             if dropdowns.blocksRoot {
                 Color.black.opacity(0.001)
                     .onTapGesture {
-                        withAnimation(.springSheet) { dropdowns.dismiss() }
+                        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
                     }
             }
         }
@@ -132,16 +133,16 @@ public struct CompanionRootView: View {
             }
         }
         .dropdownPortal(host: dropdowns)
-        .animation(.springSheet, value: dropdowns.menu)
+        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: dropdowns.menu)
         .onExitCommand {
             if chat.session.projection.approval != nil {
                 chat.answerApproval(false)
             } else if showSettings, dropdowns.session.isOpen {
-                withAnimation(.springSheet) { dropdowns.dismiss() }
+                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
             } else if showSettings {
-                withAnimation(.springSheet) { showSettings = false }
+                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
             } else if dropdowns.session.isOpen {
-                withAnimation(.springSheet) { dropdowns.dismiss() }
+                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
             } else if voice.isActive {
                 voice.hangUp()
             }
@@ -165,14 +166,14 @@ public struct CompanionRootView: View {
                 case .hangUp:
                     voice.hangUp()
                 case .settings:
-                    withAnimation(.springSheet) { showSettings = true }
+                    withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = true }
                 case .newConversation:
                     voice.hangUp()
                     chat.newConversation()
                 case .attach:
                     pickAttachments()
                 case .history:
-                    withAnimation(.springSheet) { dropdowns.toggle(.history) }
+                    withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.toggle(.history) }
                 }
             }
             monitor.start()
@@ -187,7 +188,7 @@ public struct CompanionRootView: View {
                         .ignoresSafeArea()
                         .onTapGesture {
                             dropdowns.dismiss()
-                            withAnimation(.springSheet) { showSettings = false }
+                            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
                         }
                     GeometryReader { geo in
                         let w = min(
@@ -204,7 +205,7 @@ public struct CompanionRootView: View {
                             memory: memory,
                             tab: $settingsTab,
                             onClose: {
-                                withAnimation(.springSheet) { showSettings = false }
+                                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
                             })
                         .environment(dropdowns)
                         .frame(width: w, height: h)
@@ -214,9 +215,9 @@ public struct CompanionRootView: View {
                 .transition(.opacity)
             }
         }
-        .animation(.springSheet, value: showSettings)
+        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: showSettings)
         .overlay { taskSheet }
-        .animation(.springSheet, value: openTask?.id)
+        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: openTask?.id)
         .onChange(of: openTask?.id) { _, id in
             openTaskMessages = id.map(chat.transcript) ?? []
         }
@@ -234,7 +235,7 @@ public struct CompanionRootView: View {
             // The island names the page it means: keys live in privacy, the
             // shortcuts in general; the menu opens at the top.
             settingsTab = (note.object as? String).flatMap(SettingsTab.init(rawValue:)) ?? .general
-            withAnimation(.springSheet) { showSettings = true }
+            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = true }
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionChromeDidChange)
@@ -253,14 +254,14 @@ public struct CompanionRootView: View {
             for url in urls { adoptFile(url) }
             return true
         } isTargeted: { over in
-            withAnimation(.expoOut(MotionTime.fast)) {
+            withAnimation(ChromeMotion.animation(.expoOut(MotionTime.fast), reduceMotion: reduceMotion)) {
                 chat.dropTargeted = over
             }
         }
         .overlay {
             if chat.dropTargeted { DropVeil() }
         }
-        .animation(.springSheet, value: chat.pendingAttachments)
+        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: chat.pendingAttachments)
         .overlay {
             if let request = chat.session.projection.approval {
                 ZStack {
@@ -286,7 +287,7 @@ public struct CompanionRootView: View {
                 .transition(.opacity)
             }
         }
-        .animation(.springSheet, value: chat.session.projection.approval != nil)
+        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: chat.session.projection.approval != nil)
     }
 
     private func pickWorkdir() {
@@ -302,7 +303,7 @@ public struct CompanionRootView: View {
 
     private func openSettings(_ tab: SettingsTab) {
         settingsTab = tab
-        withAnimation(.springSheet) { showSettings = true }
+        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = true }
     }
 
     @ViewBuilder
