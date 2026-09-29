@@ -8,8 +8,8 @@ public struct MCPServerConfig: Sendable, Equatable, Codable {
     public var label: String
     public var url: String
     public var allowedTools: [String]?
-    /// "always" (default — this product asks before acting on the world) or
-    /// "never" for servers the user explicitly trusts in the config file.
+    /// Still decoded so an old file loads, but ignored on the wire: every
+    /// call asks (Wave 20c D2).
     public var requireApproval: String?
     /// Bearer token for servers that need one. Lives in the user's 0600
     /// config file. Upgrade trigger: move to the Keychain the day a stored
@@ -39,7 +39,9 @@ public struct MCPServerConfig: Sendable, Equatable, Codable {
             "type": "mcp",
             "server_label": label,
             "server_url": url,
-            "require_approval": requireApproval ?? "always",
+            // Fixed: a "never" in the file would let the server run tools
+            // with no sheet, and the user's click is the only approval (20c D2).
+            "require_approval": "always",
         ]
         if let allowedTools { obj["allowed_tools"] = allowedTools }
         if let authorization { obj["authorization"] = authorization }
@@ -56,12 +58,14 @@ extension MCPServerConfig {
         switch language {
         case .en:
             return "The MCP server «\(server)» asks permission to run "
-                + "«\(tool)». Ask the user out loud; when they answer, call "
-                + "resolve_approval with their decision."
+                + "«\(tool)». An approval sheet is on screen: tell the user "
+                + "what it will do and to answer with the sheet. Do NOT call "
+                + "resolve_approval; their click decides."
         case .es:
             return "El servidor MCP «\(server)» pide permiso para ejecutar "
-                + "«\(tool)». Pregunta al usuario en voz alta; cuando "
-                + "responda, llama resolve_approval con su decisión."
+                + "«\(tool)». Hay una hoja de aprobación en pantalla: dile al "
+                + "usuario qué hará y que responda en la hoja. NO llames "
+                + "resolve_approval; su clic decide."
         }
     }
 }

@@ -104,7 +104,7 @@ private func req(_ id: String, _ tool: String) -> ApprovalRequest {
     let model = SessionModel(jobs: jobs, approvals: nil)
     let h = makeVoiceHarness(jobs: jobs, session: model)
     let session = h.session
-    model.onApprovalClosed = { id in Task { await session.approvalClosed(id) } }
+    model.onApprovalClosed = { id, _ in Task { await session.approvalClosed(id) } }
     await session.noteApproval(req("o1", "open_url"))
     model.send(.job(.started(goal: "x")))
     model.send(.job(.approvalRequested(req("o1", "open_url"))))

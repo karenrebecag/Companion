@@ -2,13 +2,17 @@ import CompanionCore
 import Foundation
 
 /// The two permission channels a live session answers into: a job's
-/// approval and an MCP tool's. Split out of VoiceSession when it crossed the
+/// approval and an MCP tool's (both close on the sheet's click). Split out of VoiceSession when it crossed the
 /// 400-line gate. What they touch is not `private` any more but still
 /// actor-isolated: the actor, not the access level, is what keeps this
 /// state single-threaded.
 extension VoiceSession {
+    /// The user's own MCP server asks to run a tool. It joins the same sheet
+    /// as every other permission: the model reads the request aloud but its
+    /// boolean settles nothing (Wave 20c D2).
     func noteMCPApproval(_ request: ApprovalRequest) async {
-        pendingMCPApproval = request
+        pendingMCPApprovals[request.requestId] = request
+        eventBox.yield(.job(.approvalRequested(request)))
     }
 
     /// The permission the specialist is blocked on. One at a time: the job
@@ -26,15 +30,6 @@ extension VoiceSession {
     /// pending means the sheet already answered it (or the model invented the
     /// call): resolving anyway would grant a permission nobody asked about.
     func answerPendingApproval(_ approved: Bool) async -> Bool {
-        // An MCP approval outranks a job approval: it arrived through the
-        // live session the user is answering into.
-        if let mcp = pendingMCPApproval {
-            pendingMCPApproval = nil
-            await realtime.send(RealtimeCodec.mcpApprovalResponse(
-                requestId: mcp.requestId, approve: approved))
-            await realtime.requestResponse()
-            return true
-        }
         guard let pending = pendingApproval else {
             Log.app("voice: approval answered with nothing pending")
             return false
@@ -64,7 +59,15 @@ extension VoiceSession {
 
     /// The sheet closed this request (click, drop, settled elsewhere): a note
     /// for it must not be answerable any more.
-    public func approvalClosed(_ requestId: String) {
+    ///
+    /// An MCP request is answered here, with the sheet's verdict: no verdict
+    /// (dropped, settled elsewhere) is a no, so OpenAI never waits forever.
+    public func approvalClosed(_ requestId: String, approved: Bool? = nil) async {
         if pendingApproval?.requestId == requestId { pendingApproval = nil }
+        if pendingMCPApprovals.removeValue(forKey: requestId) != nil {
+            await realtime.send(RealtimeCodec.mcpApprovalResponse(
+                requestId: requestId, approve: approved ?? false))
+            await realtime.requestResponse()
+        }
     }
 }

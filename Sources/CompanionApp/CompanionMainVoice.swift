@@ -166,8 +166,8 @@ func makeVoicePipeline(
         }
     }
     sensing.voicePort.session = session
-    sensing.sessionModel.onApprovalClosed = { id in
-        Task { await session.approvalClosed(id) }
+    sensing.sessionModel.onApprovalClosed = { id, approved in
+        Task { await session.approvalClosed(id, approved: approved) }
     }
     let voice = VoiceViewModel(
         voice: session, thread: sensing.model,

@@ -30,8 +30,10 @@ public final class SessionModel {
     public var onKindChange: (@MainActor (SessionKind) -> Void)?
     /// A request left the sheet by any road (click, spoken, dropped, settled
     /// elsewhere). The voice session drops its note for it, so a later
-    /// injected yes has nothing stale to answer (Wave 20c D1).
-    public var onApprovalClosed: (@MainActor (String) -> Void)?
+    /// injected yes has nothing stale to answer (Wave 20c D1). The Bool is
+    /// the sheet's own verdict, nil when it closed without one; the voice
+    /// session needs it to answer an MCP request with the click (20c D2).
+    public var onApprovalClosed: (@MainActor (String, Bool?) -> Void)?
 
     public init(
         jobs: (any JobSubmitter)?,
@@ -81,8 +83,10 @@ public final class SessionModel {
     }
 
     private func notifyClosedApprovals(_ event: SessionEvent, _ effects: [SessionEffect]) {
-        for case .resolveApproval(let id, _, _) in effects { onApprovalClosed?(id) }
-        if case .approvalSettled(let id) = event { onApprovalClosed?(id) }
+        for case .resolveApproval(let id, let approved, _) in effects {
+            onApprovalClosed?(id, approved)
+        }
+        if case .approvalSettled(let id) = event { onApprovalClosed?(id, nil) }
     }
 
     private func perform(_ effect: SessionEffect) {

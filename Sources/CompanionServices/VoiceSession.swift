@@ -63,10 +63,10 @@ public actor VoiceSession: VoiceControlling {
     var pendingAnnouncements: [String] = []
     /// Written by VoiceSessionApprovals.
     var pendingApproval: ApprovalRequest?
-    /// A remote MCP tool waiting for the user's spoken yes (9j-3). Answered
-    /// over the websocket, not through the job runner. Written by
-    /// VoiceSessionApprovals.
-    var pendingMCPApproval: ApprovalRequest?
+    /// Remote MCP tools whose sheet is open, by request id. Answered over the
+    /// websocket with the sheet's click, never by `resolve_approval` (20c D2).
+    /// Written by VoiceSessionApprovals.
+    var pendingMCPApprovals: [String: ApprovalRequest] = [:]
     var lastMic = 0.0
     var lastAgent = 0.0
     var reconnectAttempted = false
