@@ -17,7 +17,11 @@ import Testing
         for scheme in [ColorScheme.light, .dark] {
             let tag = scheme == .light ? "light" : "dark"
             for (name, view) in await islandStates() {
-                try save(view, scheme: scheme, size: CGSize(width: 520, height: 420), to: out, "island-\(name)-\(tag)")
+                // The island is born closed and opens through move()'s async
+                // animation; a one-pass ImageRenderer photographs frame zero
+                // (just the notch). It needs a live host that settles first.
+                try await saveLive(view, scheme: scheme, size: CGSize(width: 640, height: 420),
+                                   to: out, "island-\(name)-\(tag)")
             }
             for step in WelcomeStep.allCases {
                 try save(await welcome(step), scheme: scheme, size: CGSize(width: 720, height: 640), to: out,
@@ -129,6 +133,51 @@ private struct SnapMemory: MemoryBrowsing {
          MemoryEntry(id: "notes/b.md", kind: .note, day: "2026-09-01", text: "prefiere respuestas cortas")]
     }
     func forget(_ id: String) throws {}
+}
+
+/// Hosts the view in an offscreen window so the full runtime runs — the
+/// island's onChange fires, move()'s task opens the shape, contentVisible
+/// lands — then captures the settled frame. ImageRenderer cannot do this:
+/// it takes one synchronous pass and the island opens asynchronously.
+@MainActor private func saveLive(
+    _ view: AnyView, scheme: ColorScheme, size: CGSize, to dir: URL, _ name: String
+) async throws {
+    let framed = view
+        .frame(width: size.width, height: size.height)
+        .background(scheme == .dark ? Color(white: 0.12) : Color(white: 0.94))
+        .environment(\.colorScheme, scheme)
+    // The hosting view's body evaluates on the run loop, outside this
+    // task's Localized.scoped pin (review 16m: the first live captures came
+    // out in English). The process-wide default is what those evaluations
+    // read, so it is pinned for the capture and restored after.
+    let previous = Localized.language
+    Localized.language = { .es }
+    defer { Localized.language = previous }
+    let host = NSHostingView(rootView: framed)
+    host.frame = NSRect(origin: .zero, size: size)
+    let window = NSWindow(contentRect: host.frame, styleMask: [.borderless],
+                          backing: .buffered, defer: false)
+    window.contentView = host
+    // Far outside every screen: hosted (so SwiftUI attaches and animates)
+    // without ever being visible.
+    window.setFrameOrigin(NSPoint(x: -20000, y: -20000))
+    window.orderBack(nil)
+    defer { window.orderOut(nil) }
+    host.layoutSubtreeIfNeeded()
+    // The open choreography finishes well under a second; the margin is
+    // for the content fade that starts after the last shape step.
+    try await Task.sleep(for: .seconds(1.5))
+    window.displayIfNeeded()
+    guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+        expect(false, "16c snapshot: \(name) no rindió un bitmap")
+        return
+    }
+    host.cacheDisplay(in: host.bounds, to: rep)
+    guard let png = rep.representation(using: .png, properties: [:]) else {
+        expect(false, "16c snapshot: \(name) no rindió PNG")
+        return
+    }
+    try png.write(to: dir.appendingPathComponent(name + ".png"))
 }
 
 @MainActor private func save(
