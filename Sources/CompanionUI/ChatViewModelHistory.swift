@@ -15,7 +15,9 @@ extension ChatViewModel {
             // one, which is how the delegate call survives in the history.
             if let recall = message.recall {
                 return Turn(
-                    role: recall.role, content: recall.content,
+                    role: recall.role,
+                    content: message.origin == .choice
+                        ? ChoiceOrigin.mark(recall.content, language: config.language) : recall.content,
                     attachments: message.attachments,
                     toolCalls: recall.toolCalls,
                     toolCallID: recall.toolCallID)
@@ -29,7 +31,9 @@ extension ChatViewModel {
                 ? ConversationMemory.recall(message.text)
                 : message.text
             return Turn(
-                role: role, content: content,
+                role: role,
+                content: message.origin == .choice
+                    ? ChoiceOrigin.mark(content, language: config.language) : content,
                 attachments: message.attachments)
         }
         let window = max(0, config.chat.historyWindow)

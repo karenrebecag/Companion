@@ -4,7 +4,12 @@ import Foundation
 /// the decision is testable without a window. Sizes are roles, not points:
 /// the UI maps them to its own tokens.
 public struct IslandState: Sendable, Equatable {
-    public enum Size: Sendable, Equatable, CaseIterable { case hidden, pebble, nudge, bar, card }
+    public enum Size: Sendable, Equatable, CaseIterable {
+        case hidden, pebble, nudge, bar, card
+        /// 16m-6: the update offer's card measures 522, wider than the 492 of
+        /// every other card; only that one line asks for it.
+        case wideCard
+    }
     public enum Meter: Sendable, Equatable { case none, mic, agent }
     public enum Line: Sendable, Equatable {
         case none
@@ -39,6 +44,8 @@ public struct IslandState: Sendable, Equatable {
         case dropZones
         /// 16k-3: the turn named an app that is not connected yet.
         case connectApp(slug: String, name: String)
+        /// 16m-6: the app is connected but its session expired.
+        case signInApp(slug: String, name: String)
         /// 16p-1: a chat-level error (persistence, generic chat) that no turn
         /// failure line covers; the sentence rides along.
         case chatError(String)
@@ -127,7 +134,7 @@ public struct IslandState: Sendable, Equatable {
         // main window is in front (it would say it twice).
         case .idle where update != nil && p.notice == nil && p.approval == nil
             && !mainInFront && !(pebbleHidden && p.voice == .off):
-            state = IslandState(size: .card, line: .updateAvailable(tag: update ?? ""))
+            state = IslandState(size: .wideCard, line: .updateAvailable(tag: update ?? ""))
         case .idle:
             state = atRest(p, pebbleHidden: pebbleHidden)
         case .hover:
@@ -174,7 +181,7 @@ public struct IslandState: Sendable, Equatable {
         switch line {
         case .permission(let failure): .openPermission(failure)
         case .failure(.noProviders), .failure(.quotaExceeded): .openKeys
-        case .connectApp(let slug, _): .openApps(slug: slug)
+        case .connectApp(let slug, _), .signInApp(let slug, _): .openApps(slug: slug)
         case .updateAvailable: .openUpdate
         default: nil
         }
@@ -206,6 +213,8 @@ public struct IslandState: Sendable, Equatable {
         case .couldntHear: IslandState(size: .card, line: .couldntHear)
         case .connectApp(let slug, let name):
             IslandState(size: .card, line: .connectApp(slug: slug, name: name))
+        case .signInApp(let slug, let name):
+            IslandState(size: .card, line: .signInApp(slug: slug, name: name))
         case .permission(let failure): IslandState(size: .card, line: .permission(failure))
         case .failure(let failure): IslandState(size: .card, line: .failure(failure))
         // While the voice session lives the microphone is taken: the pebble

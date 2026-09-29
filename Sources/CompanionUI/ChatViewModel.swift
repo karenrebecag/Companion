@@ -12,7 +12,14 @@ public final class ChatViewModel: ConversationPresenting {
     public internal(set) var messages: [ChatMessage] = []
     public internal(set) var streaming = ""
     public internal(set) var busy = false
-    public internal(set) var queued: [String] = []
+    struct QueuedMessage: Equatable {
+        let text: String
+        let origin: MessageOrigin
+    }
+
+    var queue: [QueuedMessage] = []
+    /// What is waiting behind the running turn, in order.
+    public var queued: [String] { queue.map(\.text) }
     public internal(set) var pendingAttachments: [AttachmentRef] = []
     public var dropTargeted = false
     public internal(set) var busySince: Date?
@@ -188,7 +195,7 @@ public final class ChatViewModel: ConversationPresenting {
     public func changeKey() {
         abandonTurn()
         dropParentApprovals()
-        queued = []
+        queue = []
         pendingAttachments = []
         streaming = ""
         onboardingKey = ""
@@ -204,17 +211,37 @@ public final class ChatViewModel: ConversationPresenting {
         guard !text.isEmpty || !pendingAttachments.isEmpty else { return }
         draft = ""
         errorText = nil
+        dispatch(text, origin: .typed)
+    }
+
+    /// A pick from a question card (16m-6) is a typed message: same guards,
+    /// same queue, same turn. Not through `draft`: whatever she had half
+    /// written in the composer stays.
+    /// False when nothing was sent (no key yet, empty label): the card must
+    /// not show an answer that never left. The message is marked as a card
+    /// pick and never takes the staged attachments.
+    @discardableResult
+    public func choose(_ label: String) -> Bool {
+        guard !needsOnboarding else { return false }
+        let text = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return false }
+        errorText = nil
+        dispatch(text, origin: .choice)
+        return true
+    }
+
+    private func dispatch(_ text: String, origin: MessageOrigin) {
         if busy {
-            queued.append(text)
+            queue.append(QueuedMessage(text: text, origin: origin))
             return
         }
-        startTurn(text)
+        startTurn(text, origin: origin)
     }
 
     public func newConversation() {
         abandonTurn()
         dropParentApprovals()
-        queued = []
+        queue = []
         pendingAttachments = []
         errorText = nil
         persist()
@@ -228,7 +255,7 @@ public final class ChatViewModel: ConversationPresenting {
         guard id != conversationId else { return }
         abandonTurn()
         dropParentApprovals()
-        queued = []
+        queue = []
         errorText = nil
         persist()
         do {

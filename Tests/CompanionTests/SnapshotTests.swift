@@ -105,6 +105,8 @@ import Testing
     updates.found(.init(tag: "v0.9.0", pageURL: URL(fileURLWithPath: "/tmp/release")))
     states.append(("notice-update", island(chat(), updates: updates)))
 
+    states += await choiceStates()
+
     let asking = chat()
     asking.session.send(.job(.started(goal: "ordenar Descargas")))
     asking.session.send(.job(.approvalRequested(ApprovalRequest(
@@ -221,4 +223,65 @@ private struct SnapMemory: MemoryBrowsing {
           let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
     else { return }
     try png.write(to: dir.appendingPathComponent(name + ".png"))
+}
+
+/// 16m-6: the question card open, answered and answered by typing; the two
+/// notices with their own grid (consent, sign in); the longest question the
+/// caps allow.
+@MainActor private func choiceStates() async -> [(String, AnyView)] {
+    let fence = """
+    ¿Cómo prefieres que lo prepare?
+
+    ```companion:choice
+    {"question":"¿Cómo prefieres que lo prepare?","options":[{"label":"Resumen rápido","detail":"Cinco líneas, listo en un minuto"},{"label":"Informe completo","detail":"Con tablas y fuentes"},{"label":"Solo los números"}]}
+    ```
+    """
+    let six = """
+    Tengo seis rutas.
+
+    ```companion:choice
+    {"question":"¿Qué ruta tomamos para llegar a la oficina de Ana esta tarde, considerando el tráfico de la avenida y la lluvia?","options":[{"label":"Metro línea 1 hasta Insurgentes y caminar los últimos diez minutos por la calle principal","detail":"La más barata, pero con el tramo final a pie y bajo la lluvia"},"Taxi por la avenida","Bicicleta compartida","Autobús 214","Caminar",{"label":"Llamar a Ana y pedirle que baje"}]}
+    ```
+    """
+    var states: [(String, AnyView)] = []
+    let open = chat()
+    await open.appendAssistant(fence)
+    open.session.send(.hoverEntered)
+    states.append(("choice-open", island(open)))
+
+    let picked = chat()
+    await picked.appendAssistant(fence)
+    await picked.appendUser("Informe completo")
+    picked.session.send(.hoverEntered)
+    states.append(("choice-picked", island(picked)))
+
+    let typed = chat()
+    await typed.appendAssistant(fence)
+    await typed.appendUser("mejor otra cosa")
+    typed.session.send(.hoverEntered)
+    states.append(("choice-passed", island(typed)))
+
+    let crowded = chat()
+    await crowded.appendAssistant(six)
+    crowded.session.send(.hoverEntered)
+    states.append(("choice-six", island(crowded)))
+
+    // The whole gallery is built before the first picture is taken (~1 min),
+    // so a notice that fades on its own must have a clock that never fires.
+    func steady() -> ChatViewModel {
+        ChatViewModel(
+            chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+            store: MemoryConversationStore(), config: Config(),
+            session: SessionModel(jobs: nil, approvals: nil, sleep: { _ in
+                try await Task.sleep(for: .seconds(3600))
+            }))
+    }
+    let connect = steady()
+    connect.session.send(.connectAppSuggested(slug: "notion", name: "Notion"))
+    states.append(("notice-consent", island(connect)))
+
+    let signIn = steady()
+    signIn.session.send(.signInAppSuggested(slug: "gmail", name: "Gmail"))
+    states.append(("notice-signin", island(signIn)))
+    return states
 }

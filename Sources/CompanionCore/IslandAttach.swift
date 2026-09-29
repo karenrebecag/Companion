@@ -138,9 +138,9 @@ public enum IslandComposing {
     /// activating the app brought the window forward (16m-3).
     public static func active(
         focused: Bool, draft: String, confirmingClear: Bool, staged: Int, mainInFront: Bool,
-        picking: Bool = false
+        picking: Bool = false, choiceFocused: Bool = false
     ) -> Bool {
-        focused || !draft.isEmpty || confirmingClear || picking || (staged > 0 && !mainInFront)
+        focused || choiceFocused || !draft.isEmpty || confirmingClear || picking || (staged > 0 && !mainInFront)
     }
 }
 

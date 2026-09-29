@@ -30,6 +30,8 @@ enum IslandCopy {
         case .dropZones: Localized.string("island.drop.title")
         case .connectApp(_, let name):
             String(format: Localized.string("island.connectApp"), name)
+        case .signInApp(_, let name):
+            String(format: Localized.string("island.signIn"), name)
         case .chatError(let text): text
         }
     }

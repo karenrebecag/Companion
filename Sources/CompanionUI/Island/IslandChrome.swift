@@ -15,6 +15,10 @@ public enum IslandChrome {
     /// The open panel, measured at 492 pt in the recording.
     public static let nudgeWidth: CGFloat = 492
     public static let cardWidth: CGFloat = 492
+    /// 16m-6: the update notice measures 522 and the shell pads each side by
+    /// `shellMargin`, so its shape is 554. Only `.wideCard` uses it.
+    public static let shellMargin: CGFloat = Space.x4
+    public static let wideCardWidth: CGFloat = IslandNoticeMetrics.updateWidth + shellMargin + shellMargin
     /// Room for the widest panel, its shoulders and its shadow.
     /// 620, not the 560 of 16f: the rich answer popup is 580 wide (16m-1)
     /// and the canvas must hold it with margin. Clicks still pass through
@@ -30,6 +34,7 @@ public enum IslandChrome {
         case .nudge: nudgeWidth
         case .bar: barWidth
         case .card: cardWidth
+        case .wideCard: wideCardWidth
         }
     }
 

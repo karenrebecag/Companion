@@ -40,8 +40,9 @@ public struct SpeechBudget: Sendable, Equatable {
     public static func hasCard(in text: String) -> Bool {
         guard text.contains("```companion:") else { return false }
         return AnswerBlocks.blocks(from: text).contains {
+            // A question with options is a card the voice must not read out.
             if case .card = $0 { return true }
-            return false
+            return $0.isChoice
         }
     }
 

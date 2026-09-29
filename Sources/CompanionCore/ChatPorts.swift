@@ -83,11 +83,15 @@ public struct ConversationMessage: Sendable, Equatable {
     public var role: String
     public var text: String
     public var attachmentPaths: [String]
+    /// The message was a pick on a question card: it stays marked for the
+    /// model after a restart (16m-6).
+    public var fromChoice: Bool
 
-    public init(role: String, text: String, attachmentPaths: [String] = []) {
+    public init(role: String, text: String, attachmentPaths: [String] = [], fromChoice: Bool = false) {
         self.role = role
         self.text = text
         self.attachmentPaths = attachmentPaths
+        self.fromChoice = fromChoice
     }
 }
 

@@ -588,3 +588,12 @@
 "island.chart.copy" = "Copiar los datos de la gráfica";
 "island.chart.copied" = "Datos de la gráfica copiados";
 "island.chart.categories" = "Categorías";
+
+/* 16m-6: la pregunta con opciones */
+"island.choice.option" = "%@, %d de %d";
+"island.choice.selected" = "elegida";
+"island.choice.unavailable" = "no disponible";
+"island.choice.hint" = "Elige una. Flechas y Return, o un número del 1 al 9.";
+"island.signIn" = "Vuelve a iniciar sesión en %@";
+"island.signIn.body" = "Su sesión caducó, así que no puedo usarla hasta que lo hagas.";
+"island.signIn.action" = "Iniciar sesión";

@@ -145,6 +145,11 @@ func makeSensingAndModel(
             Task { @MainActor in
                 _ = sessionModel.send(.connectAppSuggested(slug: slug, name: name))
             }
+        },
+        signIn: { slug, name in
+            Task { @MainActor in
+                _ = sessionModel.send(.signInAppSuggested(slug: slug, name: name))
+            }
         })
     Task.detached(priority: .utility) { await appTools.refresh() }
     // The Apps page says when an account changed; the TTL is only the
