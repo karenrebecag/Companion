@@ -376,3 +376,32 @@ camino gratis falla en silencio antes de empezar.
   salida juntos, leido del SDK) obliga a un presupuesto de historia propio para
   ese proveedor. Si no da para una conversacion util, el adapter no se escribe:
   es la puerta de evidencia de la pieza 9b-2.
+
+---
+
+## ADR 007 — Manifiesto de host nativo en la carpeta del navegador
+
+**Fecha:** 2026-09-29 · **Estado:** ACEPTADO (spec Wave 18, D5 y D7)
+
+**Contexto.** Para que la extension hable con la app, Chrome exige un
+manifiesto `com.karen.companion.browser.json` dentro de
+`NativeMessagingHosts/` del propio navegador (Chrome y Comet). No hay otro
+camino: es escribir en la config de otra app, justo lo que ADR 004 prohibe.
+
+**Decision.** Excepcion explicita y acotada a ADR 004. `NativeHostInstaller`
+escribe el manifiesto solo cuando Karen pulsa *Conectar navegador* en Ajustes;
+*Quitar* lo borra; sin pulsar el boton no se escribe nada, ni al arrancar ni
+al actualizar. Solo toca navegadores detectados (existe su carpeta de soporte),
+escribe de forma atomica con modo 0644, se niega si el destino es un symlink y
+`Quitar` solo borra un archivo cuyo campo `name` es el nuestro.
+
+**Modelo de amenaza.** El candado 1 (`argv[1]` = origen de extension fijado)
+es defensa en profundidad y nada mas: cualquier proceso del mismo usuario puede
+lanzar el binario con ese argumento. Los candados reales son el token por
+lanzamiento y `getpeereid` en el socket del puente. El atacante del mismo uid
+queda aceptado, como en la wave 17. No hay puerto TCP ni secreto de larga vida.
+
+**Consecuencia.** El estado "conectado" es la existencia de un manifiesto
+nuestro, no un flag guardado. Disparador de mejora: con cuenta de Apple
+Developer, pasar el secreto al Keychain con acceso restringido por firma y
+revisar este ADR.
