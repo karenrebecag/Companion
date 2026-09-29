@@ -243,6 +243,9 @@ public final class BridgeConnection: @unchecked Sendable {
     private var closed = false
     private let continuation: AsyncStream<String>.Continuation
     public let lines: AsyncStream<String>
+    /// Read once at accept: the peer can exit, but the pid and path the
+    /// sheet showed are the ones that asked.
+    public let peer: BridgePeer?
     /// Set by `BridgeListener` before handing the connection to
     /// `onConnection`, so it can free the "one active connection" slot.
     var onClosed: (@Sendable () -> Void)?
@@ -251,6 +254,7 @@ public final class BridgeConnection: @unchecked Sendable {
 
     init(fd: Int32) {
         self.fd = fd
+        self.peer = BridgePeer.of(fd: fd)
         var pendingContinuation: AsyncStream<String>.Continuation?
         self.lines = AsyncStream<String> { continuation in pendingContinuation = continuation }
         self.continuation = pendingContinuation!

@@ -42,6 +42,18 @@ public enum BridgeCopy {
         }
     }
 
+    /// Wave 20c D5 (M2c): who is really on the socket, as the kernel reports
+    /// it — the sheet's only line that is not the client's own claim.
+    public static func peerLine(pid: Int, process: String?, language: AppLanguage = .en) -> String {
+        let origin = process.map { " · \($0)" } ?? ""
+        switch language {
+        case .en:
+            return "Process \(pid)\(origin)"
+        case .es:
+            return "Proceso \(pid)\(origin)"
+        }
+    }
+
     /// The fixed suffix appended to every bridge tool description: a reminder
     /// that the output is data from the screen, never instructions.
     public static func toolDataSuffix(_ language: AppLanguage = .en) -> String {

@@ -387,7 +387,12 @@ public actor BridgeSession {
     /// `ApprovalKey.from` parses back out.
     private func sessionApprovalInputJSON() -> String {
         do {
-            let data = try JSONSerialization.data(withJSONObject: ["client": client])
+            var fields: [String: Any] = ["client": client]
+            if let peer = current?.peer {
+                fields["pid"] = Int(peer.pid)
+                if !peer.path.isEmpty { fields["process"] = peer.path }
+            }
+            let data = try JSONSerialization.data(withJSONObject: fields)
             return String(data: data, encoding: .utf8) ?? "{}"
         } catch {
             return "{}"

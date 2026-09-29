@@ -243,8 +243,16 @@ public enum ApprovalCopy {
             mark: mark, lead: nil,
             subject: safe.isEmpty ? word(.someClient, language) : safe,
             trail: BridgeCopy.sheetTitle(language),
-            preview: nil,
+            preview: peerPreview(arguments, language),
             showsRemember: false)
+    }
+
+    /// 20c D5 (M2c): the kernel's view of the peer (pid, executable), the one
+    /// line that is not the client's own claim. Nothing known, no box.
+    private static func peerPreview(_ arguments: [String: Any], _ language: AppLanguage) -> String? {
+        guard let pid = (arguments["pid"] as? NSNumber)?.intValue else { return nil }
+        let process = value(arguments, "process").map { plainPreview($0, keepingLayout: false) }
+        return BridgeCopy.peerLine(pid: pid, process: process, language: language)
     }
 
     /// A tool without a rule keeps its id in the visible title: the hover
