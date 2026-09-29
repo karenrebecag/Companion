@@ -162,7 +162,12 @@ su propio ADR; si alguna vez son varios, este ADR se revisa entero.
 
 ## ADR 003 — Rive para la mascota (revisa y REVIERTE la version original)
 
-**Fecha:** 2026-08-21 · **Estado:** aceptada (sustituye a la version previa)
+**Fecha:** 2026-08-21 · **Estado:** RETIRADA 2026-09-29 (16p-2)
+
+> **Retirada.** La mascota dejó de mostrarse en la reconstrucción de la UI (16c–16n: la
+> identidad pasó al orbe) y `Mascot.swift` quedó sin instancias. 16p-2 la borró y Karen pidió
+> quitar Rive (2026-09-29): sin binario tercero en el bundle. Lo que sigue es el registro de por
+> qué entró; volver a meter un binario exige una ADR nueva.
 
 ### Que decia la version original
 

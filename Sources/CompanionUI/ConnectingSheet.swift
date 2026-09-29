@@ -96,9 +96,8 @@ struct ConnectingSheet: View {
     }
 }
 
-/// The Companion side of the track. A plain glyph in a rounded tile — the
-/// mascot (`Mascot.swift`) pulls in Rive for a full animation this modal
-/// does not need.
+/// The Companion side of the track. A plain glyph in a rounded tile: the
+/// modal names who connects, it does not need an animated identity.
 private struct CompanionMarkIcon: View {
     var body: some View {
         Image(systemName: "bolt.fill")

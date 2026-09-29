@@ -9,23 +9,10 @@ the system font.
 
 ## Vendored binary
 
-| Path | Project | Version | License |
-|---|---|---|---|
-| `vendor/RiveRuntime.xcframework` | [rive-ios](https://github.com/rive-app/rive-ios) | 6.23.1 (macOS arm64 + x86_64, dSYMs stripped) | MIT |
-
-This is the project's **only** third-party dependency and the only binary
-nobody can audit by reading this repository. ADR 003 in `docs/DECISIONS.md`
-makes that trade explicit and measured; adding a second one takes another
-ADR. Pinning is by content, not by a version string: replacing the
-framework must update this checksum in the same commit.
-
-```
-shasum -a 256 vendor/RiveRuntime.xcframework/macos-arm64_x86_64/RiveRuntime.framework/Versions/A/RiveRuntime
-44da8a76d19e292b04cc7e1768dfc8b2613a7a27b018bc95d230043bf58d3c86
-```
-
-The mascot (`Sources/CompanionUI/Mascot/hello.riv`) comes from the public
-example at [novra.design/ollama](https://www.novra.design/ollama).
+None. RiveRuntime (rive-ios 6.23.1, MIT) shipped for the animated mascot until
+2026-09-29, when the orb replaced the mascot as the app's identity and the
+binary left with it (ADR 003, retired). Adding a binary again takes an ADR
+and an entry here pinned by checksum.
 
 ## Design references (no code copied)
 

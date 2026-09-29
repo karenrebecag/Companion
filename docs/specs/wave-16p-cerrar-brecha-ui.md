@@ -85,12 +85,12 @@ cada familia nueva; PR final con bitácora por sesión.
 
 ## 8. Seguimiento de 16p-2 (anotado, no bloqueante)
 
-- **Rive sin uso**: `Mascot.swift` era su único consumidor. Quitar `RiveRuntime` y el recurso
-  `Mascot/hello.riv` (501 KB) toca `Package.swift`, que es configuración raíz: decisión de Karen.
-- **`ExecutorChoice` sin lector de UI**: el selector de ejecutor ya era inalcanzable (vivía en
-  `HeaderView`, muerto) y se retiró; App aún construye y refresca `ExecutorChoice` y guarda
-  `CompanionMain.executorChoice`, que nadie lee. El ejecutor real corre por `ExecutorProvider`.
-  Retirarlo toca App, Providers y `ExecutorPicker`: sesión aparte.
+- **Rive — HECHO 2026-09-29** (Karen: "quita rive"): fuera el binaryTarget, `vendor/`,
+  `hello.riv` y su paso en `bundle.sh`; `Mascot/` conserva solo `claude.svg` (hoja de
+  aprobación). ADR 003 retirada.
+- **`ExecutorChoice` — HECHO 2026-09-29** (Karen: "retira executor choice"): fuera
+  `ExecutorPicker.swift` y el campo de App. Su `refresh` reescribía la misma selección (no-op);
+  el probe de CLIs al arrancar se conserva porque `WorkRouting` depende de él.
 - **`AnswerOption` retirada** por no tener instancias; 16m-6 (pregunta con opciones) la
   reconstruye desde el historial con su dato.
 - **Pantallas de base local (Ollama / Apple)** se fueron con `OnboardingView`; el camino sin clave
