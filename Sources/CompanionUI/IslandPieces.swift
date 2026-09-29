@@ -283,7 +283,10 @@ enum IslandReplyText {
     static let maxLength = 240
 
     static func spoken(from reply: String) -> String {
-        let paragraph = MarkdownSplitter.islandProse(reply).components(separatedBy: "\n\n")
+        // The panel shows what the voice may say: the same filter, so a JSON
+        // object or an instruction meant for the model never paints here.
+        let paragraph = SpeechFilter.clean(MarkdownSplitter.islandProse(reply))
+            .components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { !$0.isEmpty } ?? ""
         // Model text is unbounded and this runs on every streamed token: cut
@@ -309,6 +312,7 @@ enum IslandReplyText {
         text = text.replacingOccurrences(of: "**", with: "")
             .replacingOccurrences(of: "`", with: "")
             .replacingOccurrences(of: "\n", with: " ")
+            .split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
             .trimmingCharacters(in: CharacterSet(charactersIn: "#*- ").union(.whitespaces))
         return text.count > maxLength ? String(text.prefix(maxLength)) + "…" : text
     }

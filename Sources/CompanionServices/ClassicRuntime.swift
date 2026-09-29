@@ -46,6 +46,16 @@ final class ClassicRuntime: @unchecked Sendable {
     /// the next turn's `<steer>` note (15b-11) so the model knows it was
     /// interrupted instead of repeating itself.
     var steerPending = false
+    /// 16h-1: a tool put a card on screen this turn, so what is still said
+    /// is a line pointing at it (`SpeechBudget`), not the card read aloud.
+    var cardThisTurn = false
+    /// 16h-1: texts `type_text` injected that no `read_focused` has confirmed
+    /// yet; a later read in the same turn turns them into a success line.
+    var unverifiedTyped: [TypedAttempt] = []
+    /// 16h-1: the status line of every call this turn that changed something.
+    /// If the filter swallowed what the model said about them, the app says
+    /// them itself (`sayMissingEffects`).
+    var effectLines: [String] = []
     /// Wave 15b-9: the turn's own clock, injectable so a test can cross the
     /// idle window without sleeping.
     var now: @Sendable () -> Date = { Date() }
@@ -249,6 +259,9 @@ final class ClassicRuntime: @unchecked Sendable {
         // 15g-5: the context is in hand and the first chat request leaves
         // next — `commit→context` is the fan-out's share of the wait.
         await markTimeline?(.contextReady)
+        cardThisTurn = false
+        unverifiedTyped = []
+        effectLines = []
         var mouth = TurnMouth(language: language, recognizer: languageRecognizer, heard: heard)
         for round in 1 ... Self.maxParentRounds {
             var text = ""
@@ -353,6 +366,8 @@ final class ClassicRuntime: @unchecked Sendable {
             }
             await say(rest, &mouth)
         }
+        await flushHeld(&mouth)
+        await sayMissingEffects(&mouth, apply: apply)
         if Task.isCancelled { return await cutTurn() }
         if !mouth.spoken.isEmpty {
             let said = mouth.said
@@ -487,6 +502,7 @@ final class ClassicRuntime: @unchecked Sendable {
     ) async -> [Turn] {
         var turns = [Turn(role: .assistant, content: text, toolCalls: calls)]
         var cards: [Card] = []
+        var runs: [ToolRun] = []
         events?.yield(.parentActing(targets: calls.map { ParentTool.target(of: $0) }))
         defer { events?.yield(.parentActed) }
         for call in calls {
@@ -507,10 +523,27 @@ final class ClassicRuntime: @unchecked Sendable {
                 outcome = await parentTools.execute(
                     name: call.name, argumentsJSON: call.arguments)
             }
-            await thread.appendStatus(ParentToolCopy.status(call.name, outcome, language))
             if let card = outcome.card { cards.append(card) }
             turns.append(Turn(role: .tool, content: outcome.output, toolCallID: call.id))
+            let run = ToolRun(call: call, outcome: outcome, turn: turns.count - 1)
+            runs.append(run)
+            // At once, so a slow next call never holds this line back. Only a
+            // typing waits: whether it was proven depends on a later read.
+            if !Self.isTyping(run) {
+                await thread.appendStatus(ParentToolCopy.status(call.name, outcome, language))
+            }
         }
+        let proof = proving(runs, turns: &turns, language: language)
+        let typings = proof.runs.filter(Self.isTyping)
+            .map { ParentToolCopy.status($0.call.name, $0.outcome, language) }
+        var emitted = Set<String>()
+        for line in proof.late + typings where emitted.insert(line).inserted {
+            await thread.appendStatus(line)
+        }
+        for run in proof.runs where ParentTool(rawValue: run.call.name)?.changesSomething == true {
+            effectLines.append(ParentToolCopy.status(run.call.name, run.outcome, language))
+        }
+        if !cards.isEmpty { cardThisTurn = true }
         for card in cards { events?.yield(.job(.card(card))) }
         return turns
     }

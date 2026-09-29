@@ -12,6 +12,7 @@ extension ClassicRuntime {
         await synthesizer.begin()
         // The fixed line is in the app language, so it is also the gate's
         // evidence for the summary that follows.
+        cardThisTurn = announcement.hasCard
         var mouth = TurnMouth(
             language: language, recognizer: languageRecognizer, heard: announcement.spokenLine)
         await say(announcement.spokenLine, &mouth)
@@ -20,6 +21,7 @@ extension ClassicRuntime {
         }
         if Task.isCancelled { return }
         if let rest = mouth.buffer.drain() { await say(rest, &mouth) }
+        await flushHeld(&mouth)
         await synthesizer.finish()
     }
 

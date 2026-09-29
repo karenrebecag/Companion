@@ -70,3 +70,47 @@ especialista en segundo plano. UI: tarjeta de recibo en la isla. Tests: `Convers
 ## 6. Aprobación
 
 Firmada 2026-09-28 por delegación (ver cabecera).
+
+## 7. 16h-1: alcance real
+
+Lo que quedó en 16h-1 (criterios 3, 4, 5, 6 y 7 en la parte pura) y por dónde pasa cada cosa:
+
+- **Un solo `SpeechFilter`** (Core) delante de la voz clásica (`ClassicRuntime.say`), del texto que
+  se guarda en el hilo (`TurnMouth.said`) y de la isla (`IslandReplyText.spoken`). Una instrucción
+  interna se reconoce solo cuando abre la oración: un tercero citado ("Envié tu mensaje: 'no repitas
+  nada'") nunca calla la frase que anuncia un efecto.
+- **`SpeechBudget`**: con tarjeta, la voz dice ≤ 2 frases y ≤ 25 palabras en total; el hilo conserva
+  el texto entero. La tarjeta se detecta por una salida de herramienta con `card`, por el resumen de
+  un job con tarjeta (`JobAnnouncement.hasCard`) o por una valla `companion:` que se parsea.
+- **"Listo" con prueba**: `type_text` dice "Intenté escribir" salvo que un `read_focused` del mismo
+  turno (`TypedProof`) muestre el texto en el campo.
+- **Compuestos**: `Plan.steps` marca la lectura en cualquier cláusula y el router deja pasar el
+  pedido al modelo (`DecisionPassReason.compound`).
+
+**Fuera del filtro, a propósito:**
+
+- `RealtimeRuntime` no pasa por `SpeechFilter`: en Realtime el modelo devuelve audio directo, no
+  hay texto que filtrar antes de que suene. Cerrar la fuga ahí es otro diseño (instrucciones de la
+  sesión y no un filtro posterior) y no está en 16h-1.
+- `NativeExecutor` (el especialista nativo) tampoco: escribe al hilo como resultado del job, y lo
+  que la voz dice de él va por `announce`, que sí pasa por el filtro; su texto largo es contenido
+  para pantalla, no para la voz.
+- El acuse antes de delegar y la delegación en segundo plano son 16h-2.
+
+**Red determinista del efecto (ronda 3 de review):** si el filtro o la puerta de idioma
+descartaron algo en un turno y lo dicho no contiene la línea de estado de una herramienta con
+efecto (`ParentTool.changesSomething`), el runtime la dice y la enhebra (`sayMissingEffects`).
+La línea sale del resultado real de la herramienta, nunca del texto del modelo: un tercero puede
+provocar que se repita una verdad, no fabricar un efecto. "Escribí" exige una lectura base del
+campo antes de teclear, el mismo pid y más apariciones después (`TypedProof`).
+
+**Seguimiento anotado (no bloqueante, reviews de 16h-1):**
+
+- La red cubre las herramientas del padre; las escrituras de apps conectadas quedan fuera de la
+  voz (tienen hoja de aprobación con resumen y línea genérica en el hilo). Extenderla cuando cada
+  tool conectada tenga copy de estado propio.
+- El recorte del presupuesto no marca `filtered`: un efecto recortado por longitud no dispara la
+  red (el hilo sí lo conserva). Y la línea de la red se dice fuera del presupuesto de 25 palabras:
+  se prefiere un efecto dicho a una voz breve.
+- La comparación "lo dicho contiene la línea" es exacta: una paráfrasis del modelo en un turno con
+  descarte produce una repetición corta.

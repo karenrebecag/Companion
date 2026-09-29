@@ -19,8 +19,13 @@ enum VoiceJobBridge {
         language: AppLanguage = .en
     ) async {
         let (stream, sink) = AsyncStream<JobEvent>.makeStream()
-        let pump = Task {
-            for await event in stream { onEvent?(.job(event)) }
+        let pump = Task { () -> Bool in
+            var card = false
+            for await event in stream {
+                if case .card = event { card = true }
+                onEvent?(.job(event))
+            }
+            return card
         }
         defer { pump.cancel() }
         // Named up front: the runner says it too, but a submitter that does
@@ -56,8 +61,13 @@ enum VoiceJobBridge {
                 // (realtime) or says a short summary through the mouth's
                 // guards (classic, code review 2026-09-25 HIGH-B).
                 await thread.appendAssistant(result.output)
+                // The stream ended with the job, so the pump finishes now and
+                // says whether a card was painted: a card carries the detail
+                // and the voice keeps to a line (16h-1 H2).
+                let sawCard = await pump.value
                 await announce?(JobAnnouncement(
-                    goal: handoff.goal, outcome: .done(result: result.output), language: language))
+                    goal: handoff.goal, outcome: .done(result: result.output), language: language,
+                    hasCard: sawCard || SpeechBudget.hasCard(in: result.output)))
             }
         } catch {
             sink.finish()

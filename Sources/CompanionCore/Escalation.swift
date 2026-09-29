@@ -106,11 +106,14 @@ public struct JobAnnouncement: Sendable, Equatable {
     public var goal: String
     public var outcome: Outcome
     public var language: AppLanguage
+    /// The result also travels as a card, so the voice says a line, not it.
+    public var hasCard: Bool
 
-    public init(goal: String, outcome: Outcome, language: AppLanguage) {
+    public init(goal: String, outcome: Outcome, language: AppLanguage, hasCard: Bool = false) {
         self.goal = goal
         self.outcome = outcome
         self.language = language
+        self.hasCard = hasCard
     }
 
     public var instruction: String {
