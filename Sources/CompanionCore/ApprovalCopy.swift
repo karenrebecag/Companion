@@ -83,18 +83,21 @@ public enum ApprovalCopy {
             showsRemember: false)
     }
 
+    private static let hiddenCategories: Set<Unicode.GeneralCategory> = [
+        .control, .format, .lineSeparator, .paragraphSeparator,
+    ]
+
     /// The arguments came from the model and can quote a page or a chat:
     /// bidi and control scalars could visually reorder what the sheet
     /// shows, and a reordered preview approves something else (F-F,
-    /// security review 16k-3). Newlines and tabs stay — they are layout,
-    /// not direction — unless the text is a one-line title.
+    /// security review 16k-3). Every format scalar (zero-width, joiners,
+    /// BOM, soft hyphen) and the Unicode line/paragraph separators go too:
+    /// they hide or forge text the same way. Newlines and tabs stay — they
+    /// are layout, not direction — unless the text is a one-line title.
     private static func plainPreview(_ text: String, keepingLayout: Bool = true) -> String {
         String(text.unicodeScalars.filter { scalar in
             if scalar == "\n" || scalar == "\t" { return keepingLayout }
-            if scalar.properties.generalCategory == .control { return false }
-            return !(0x202A...0x202E).contains(scalar.value)
-                && !(0x2066...0x2069).contains(scalar.value)
-                && scalar.value != 0x200E && scalar.value != 0x200F
+            return !Self.hiddenCategories.contains(scalar.properties.generalCategory)
         }.map(Character.init))
     }
 

@@ -13,6 +13,8 @@ import Testing
     testTheSheetShowsThePeerPidAndProcess()
     testTheSheetHasNoDetailWhenThePeerIsUnknown()
     testThePeerLineIsCleanedOfControlAndBidiCharacters()
+    testThePeerLineDropsZeroWidthFormatAndLineSeparatorScalars()
+    testAHugePeerPathIsCappedKeepingItsTail()
     testAConnectionKnowsItsPeerPidAndExecutable()
     await testTheSessionSheetCarriesThePeer()
 }
@@ -43,6 +45,20 @@ private func bridgeDisplay(_ json: String, _ language: AppLanguage = .en) -> App
     let display = bridgeDisplay("{\"client\":\"x\",\"pid\":7,\"process\":\"/tmp/a\\nb\\u202Ec\"}")
     let preview = display.preview ?? ""
     expect(!preview.contains("\n") && !preview.contains("\u{202E}"), "M2c: el path no forja lineas ni invierte texto")
+}
+
+@MainActor func testThePeerLineDropsZeroWidthFormatAndLineSeparatorScalars() {
+    let hidden = "/tmp/a\u{200B}b\u{200D}c\u{2028}d\u{2029}e\u{FEFF}f\u{00AD}g"
+    let display = bridgeDisplay("{\"client\":\"x\",\"pid\":7,\"process\":\"\(hidden)\"}")
+    expect((display.preview ?? "").contains("/tmp/abcdefg"),
+           "M2c: cero-ancho, separadores de linea y formato salen del path: \(display.preview ?? "nil")")
+}
+
+@MainActor func testAHugePeerPathIsCappedKeepingItsTail() {
+    let path = "/" + String(repeating: "a", count: 5000) + "/evil-tail"
+    let line = BridgeCopy.peerLine(pid: 7, process: path)
+    expect(line.count <= BridgeCopy.peerPathLimit + 40, "M2c: el path largo se acorta: \(line.count)")
+    expect(line.hasSuffix("evil-tail"), "M2c: el corte es en el medio, el ejecutable real queda a la vista")
 }
 
 @MainActor func testAConnectionKnowsItsPeerPidAndExecutable() {
