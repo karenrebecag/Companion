@@ -45,7 +45,41 @@ public enum ApprovalCopy {
         }
         if let display = parentTool(request.toolName, arguments, language) { return display }
         if let display = nativeTool(request.toolName, arguments, language) { return display }
+        if request.toolName.hasPrefix(appToolPrefix) { return appTool(request, language) }
         return fallback(request.toolName, arguments, language)
+    }
+
+    /// 16k-3: the runner mints `app:<slug>:<tool>` requests for connected
+    /// apps. The runner already built the human line ("Send Message ·
+    /// Slack") in `summary`; the full arguments are the preview — they are
+    /// what runs, same rule as type_text (15g M1).
+    public static let appToolPrefix = "app:"
+
+    private static func appTool(_ request: ApprovalRequest, _ language: AppLanguage) -> ApprovalDisplay {
+        // No remember on purpose: `ApprovalKey.from` has no rule for app
+        // tools, so a ticked toggle would promise a memory that never
+        // happens. Every write asks, every time, until a key exists.
+        ApprovalDisplay(
+            mark: .symbol("app.connected.to.app.below.fill"),
+            lead: word(.allow, language),
+            subject: capped(request.summary.isEmpty ? request.toolName : request.summary),
+            preview: request.inputJSON == "{}" ? nil : plainPreview(request.inputJSON),
+            showsRemember: false)
+    }
+
+    /// The arguments came from the model and can quote a page or a chat:
+    /// bidi and control scalars could visually reorder what the sheet
+    /// shows, and a reordered preview approves something else (F-F,
+    /// security review 16k-3). Newlines and tabs stay — they are layout,
+    /// not direction.
+    private static func plainPreview(_ text: String) -> String {
+        String(text.unicodeScalars.filter { scalar in
+            if scalar == "\n" || scalar == "\t" { return true }
+            if scalar.properties.generalCategory == .control { return false }
+            return !(0x202A...0x202E).contains(scalar.value)
+                && !(0x2066...0x2069).contains(scalar.value)
+                && scalar.value != 0x200E && scalar.value != 0x200F
+        }.map(Character.init))
     }
 
     /// The chat's "as before" line names what was remembered in words, not

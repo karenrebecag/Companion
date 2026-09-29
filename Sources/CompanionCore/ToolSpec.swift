@@ -17,17 +17,23 @@ public struct ToolSpec: Sendable, Equatable {
     public var description: String
     public var properties: [ToolProperty]
     public var required: [String]
+    /// 16k-3: a connected app's inputSchema, passed through whole. The flat
+    /// `ToolProperty` cannot express nested objects, enums or arrays; when
+    /// this is set and parses, it IS the parameters object on the wire.
+    public var rawParametersJSON: String?
 
     public init(
         name: String,
         description: String,
         properties: [ToolProperty],
-        required: [String]
+        required: [String],
+        rawParametersJSON: String? = nil
     ) {
         self.name = name
         self.description = description
         self.properties = properties
         self.required = required
+        self.rawParametersJSON = rawParametersJSON
     }
 
     /// Names are wire contract and never translate; descriptions are read by
@@ -157,6 +163,19 @@ public struct ToolSpec: Sendable, Equatable {
     }
 
     private func functionBody(strict: Bool) -> [String: Any] {
+        // 16k-3: a raw schema wins whole — nesting the flat shape cannot
+        // say. Strict mode is skipped for it on purpose: rewriting a
+        // server's schema to OpenAI's strict contract would change what
+        // the tool accepts. One that does not parse falls back to the
+        // flat encoding instead of sending garbage.
+        if let raw = rawParametersJSON, let data = raw.data(using: .utf8) {
+            let parsed: [String: Any]?
+            do { parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] }
+            catch { parsed = nil }
+            if let object = parsed {
+                return ["name": name, "description": description, "parameters": object]
+            }
+        }
         var props: [String: Any] = [:]
         for property in properties {
             let optional = !required.contains(property.name)

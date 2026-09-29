@@ -221,6 +221,14 @@ public struct CompanionRootView: View {
             openTaskMessages = id.map(chat.transcript) ?? []
         }
         .onReceive(
+            NotificationCenter.default.publisher(for: .companionOpenApps)
+        ) { note in
+            // 16k-3: the island's "Conectar X" card. The page opens on
+            // Apps with that app's panel up, so Conectar is one tap away.
+            page = .apps
+            if let slug = note.object as? String { apps?.focus(slug) }
+        }
+        .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenSettings)
         ) { note in
             // The island names the page it means: keys live in privacy, the

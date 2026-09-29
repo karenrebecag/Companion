@@ -19,6 +19,20 @@ import Testing
     await testVoiceGrantReachesTheJob()
     await testMalformedDecisionResolvesNothing()
     await testNoVoiceSessionMeansNoAnnouncement()
+    await testSpokenYesNeverApprovesAnAppWrite()
+}
+
+/// 6 (F-D, security review 16k-3): `resolve_approval` la llama el MODELO, y
+/// una lectura de Slack puede plantarle palabras. Un write de app pendiente
+/// solo se aprueba con el click de la hoja, jamás por esta vía.
+@MainActor func testSpokenYesNeverApprovesAnAppWrite() async {
+    let jobs = ApprovingSubmitter()
+    let h = makeVoiceHarness(jobs: jobs)
+    await h.session.noteApproval(ApprovalRequest(
+        requestId: "r7", toolName: "app:slack_v2:slack_v2-send-message",
+        summary: "Send Message · Slack", inputJSON: "{}"))
+    let resolved = await h.session.answerPendingApproval(true)
+    expect(!resolved, "app write: el si hablado no lo resuelve")
 }
 
 /// 1. Sin la tool declarada el modelo no puede contestar aunque quiera.

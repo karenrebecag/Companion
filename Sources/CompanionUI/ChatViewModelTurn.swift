@@ -8,6 +8,9 @@ import Foundation
 extension ChatViewModel {
     func startTurn(_ text: String) {
         parentTools?.beginTurn()
+        // 16k-3: the words decide which connected app's tools travel this
+        // round — specs() is rebuilt per request further down this turn.
+        parentTools?.noteTurn(text)
         rolloverIfDue()
         // 15b-9: read before the append below stamps `lastActivity` to
         // now — this turn's own arrival must not report zero seconds since

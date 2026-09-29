@@ -287,6 +287,10 @@ public protocol ParentToolExecuting: Sendable {
     /// The user started a turn (a hold, a sent message): a runner that acts
     /// on another app pins the app that was in front now.
     func beginTurn()
+    /// 16k-3: the turn's words, for runners whose tool list depends on
+    /// what the user named (the connected apps' runner filters by the app
+    /// the request names — spec §5's context budget rule).
+    func noteTurn(_ said: String)
 }
 
 extension ParentToolExecuting {
@@ -299,6 +303,8 @@ extension ParentToolExecuting {
     public func granted(_ request: ApprovalRequest) {}
 
     public func beginTurn() {}
+
+    public func noteTurn(_ said: String) {}
 }
 
 /// The record of what the app did by itself, in the thread — same idea as

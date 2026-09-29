@@ -77,8 +77,12 @@ public enum BridgeScope {
 
 extension ParentTool {
     /// A pending sheet the parent asked for itself, as opposed to a job's.
+    /// App-tool requests count (F-G, security review 16k-3): a sheet left
+    /// behind by a switched turn must be dropped, not answerable into the
+    /// next conversation.
     public static func ownsRequest(_ toolName: String) -> Bool {
         ParentTool(rawValue: toolName) != nil
+            || toolName.hasPrefix(ApprovalCopy.appToolPrefix)
             || NativeTool.parentDeliverables.contains { $0.rawValue == toolName }
     }
 }

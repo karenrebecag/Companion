@@ -98,6 +98,14 @@ public extension Notification.Name {
     /// same seam as `companionAttach`.
     static let companionStopHands = Notification.Name(
         "companion.stopHands")
+    /// 16k-3: the island's "Conectar X" card opens the window on the Apps
+    /// page with that app front and center; `object` is the slug.
+    static let companionOpenApps = Notification.Name(
+        "companion.openApps")
+    /// 16k-3: an account connected or disconnected — the apps runner
+    /// re-pulls its tool cache without waiting out the TTL.
+    static let companionAppsChanged = Notification.Name(
+        "companion.appsChanged")
     /// Wave 17: the "Lend your hands" toggle changed — the App layer starts
     /// or stops the bridge listener without a relaunch.
     nonisolated static let companionHandsLendingDidChange = Notification.Name(

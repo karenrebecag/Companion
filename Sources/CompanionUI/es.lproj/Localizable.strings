@@ -579,3 +579,8 @@
 "island.drop.ask" = "Pregúntale";
 "island.drop.airDrop" = "AirDrop";
 "island.drop.airDropUnavailable" = "AirDrop no está disponible ahora.";
+
+/* Wave 16k-3: the connect-app card */
+"island.connectApp" = "Conectar %@";
+"island.connectApp.body" = "Conéctala y Companion podrá usarla por voz.";
+"island.connectApp.action" = "Conectar";

@@ -30,7 +30,9 @@ public final class AppsModel {
         case failed(AppsFailure)
     }
 
-    public static let endpointDefault = "companion.apps.endpoint"
+    // nonisolated: the composition root reads it inside the app runner's
+    // Sendable service closure (16k-3), off the MainActor.
+    public nonisolated static let endpointDefault = "companion.apps.endpoint"
     /// `openssl rand -hex 32` gives 64; anything under 32 is not that key.
     static let minimumKeyLength = 32
 
@@ -339,6 +341,7 @@ public final class AppsModel {
         }
         guard panelEpoch == epoch else { return }
         accounts = await accountsSnapshot(service)
+        NotificationCenter.default.post(name: .companionAppsChanged, object: nil)
         guard panelEpoch == epoch else { return }
         disconnectPhase = .idle
     }
@@ -442,7 +445,12 @@ public final class AppsModel {
             // switch, or a same-app retry that landed while this was in
             // flight must discard the answer, not resurrect the modal.
             guard stillConnecting(app, epoch: epoch) else { return }
-            if let match { accounts[app.slug] = match }
+            if let match {
+                accounts[app.slug] = match
+                // 16k-3: the voice runner re-pulls its tool cache now, not
+                // when the TTL happens to expire.
+                NotificationCenter.default.post(name: .companionAppsChanged, object: nil)
+            }
             apply(match != nil ? .accountSeen : .accountMissing)
         }
     }
@@ -490,8 +498,24 @@ public final class AppsModel {
             total = page.total
             next = page.next
             phase = .ready
+            if let slug = pendingFocus, let app = apps.first(where: { $0.slug == slug }) {
+                pendingFocus = nil
+                open(app)
+            }
         } catch {
             phase = .failed(error as? AppsFailure ?? .unexpected)
+        }
+    }
+
+    /// 16k-3: the island's connect card wants this app front and center.
+    /// Before the catalog is in, the wish waits for the next fetch.
+    private var pendingFocus: String?
+
+    public func focus(_ slug: String) {
+        if let app = apps.first(where: { $0.slug == slug }) {
+            open(app)
+        } else {
+            pendingFocus = slug
         }
     }
 

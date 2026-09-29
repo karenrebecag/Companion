@@ -33,6 +33,8 @@ public struct IslandState: Sendable, Equatable {
         case followUp(String)
         /// Spec 16i §4: a file is being dragged over the notch.
         case dropZones
+        /// 16k-3: the turn named an app that is not connected yet.
+        case connectApp(slug: String, name: String)
     }
 
     /// Incredible's status light: amber = it needs you, green = done.
@@ -46,6 +48,8 @@ public struct IslandState: Sendable, Equatable {
         case openPermission(TurnFailure)
         /// Wave 17: "Corte" — closes the bridge session from the chip.
         case stopHands
+        /// 16k-3: the connect card's way to the Apps page.
+        case openApps(slug: String)
     }
 
     public var size: Size
@@ -151,6 +155,7 @@ public struct IslandState: Sendable, Equatable {
         switch line {
         case .permission(let failure): .openPermission(failure)
         case .failure(.noProviders), .failure(.quotaExceeded): .openKeys
+        case .connectApp(let slug, _): .openApps(slug: slug)
         default: nil
         }
     }
@@ -179,6 +184,8 @@ public struct IslandState: Sendable, Equatable {
         case .holdHint: IslandState(size: .bar, line: .holdHint)
         // A notice with a way out is a card, as Incredible draws it (spec 16i §9).
         case .couldntHear: IslandState(size: .card, line: .couldntHear)
+        case .connectApp(let slug, let name):
+            IslandState(size: .card, line: .connectApp(slug: slug, name: name))
         case .permission(let failure): IslandState(size: .card, line: .permission(failure))
         case .failure(let failure): IslandState(size: .card, line: .failure(failure))
         // While the voice session lives the microphone is taken: the pebble

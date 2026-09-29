@@ -47,6 +47,24 @@ public struct HTTPAppsService: AppsService {
         _ = try AppsWire.disconnected(status: status, body: body)
     }
 
+    /// 16k-3: POST /api/call (companion-apps api/call.mjs). The arguments
+    /// travel as the object the model produced; anything else is refused
+    /// here, before the wire.
+    public func call(
+        app: String, tool: String, argumentsJSON: String, approved: Bool
+    ) async throws -> AppCallResult {
+        guard let arguments = ToolArguments.parse(argumentsJSON) else {
+            throw AppsFailure.invalidInput
+        }
+        var payload: [String: Any] = ["app": app, "tool": tool, "arguments": arguments]
+        // Only a literal true crosses the wire: the function's contract is
+        // "the app must say it asked, never be assumed to have".
+        if approved { payload["approved"] = true }
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let (status, data) = try await send("api/call", method: "POST", body: body)
+        return try AppsWire.callResult(status: status, body: data)
+    }
+
     private func send(
         _ path: String, method: String = "GET", query: [String: String] = [:], body: Data? = nil
     ) async throws -> (Int, Data) {
