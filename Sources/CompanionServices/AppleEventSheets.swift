@@ -45,17 +45,22 @@ public struct AppleEventSheets: SpreadsheetDriving {
         // Resolved once: the backup is of the workbook the sheet named, and the
         // write script re-checks that same path in its own Apple Event.
         guard try await workbook(app) == approved else { throw SheetError.workbookChanged }
-        let backup = SheetBackup.path(for: approved, at: Date())
+        let backup: String
         do {
-            try FileManager.default.copyItem(atPath: approved, toPath: backup)
+            backup = try DocumentBackup.copy(of: approved)
         } catch {
             Log.app("sheets: backup copy failed")
             throw SheetError.appFailed
         }
         _ = try await run(Self.writeScript(app, range: range, cells: cells, workbook: approved))
-        let readBack = Self.rows(try await run(Self.readScript(app, range: range, workbook: approved)),
-                                 range: range, app: app)
-        return SheetWriteReceipt(backupPath: backup, readBack: readBack)
+        do {
+            let readBack = Self.rows(try await run(Self.readScript(app, range: range, workbook: approved)),
+                                     range: range, app: app)
+            return SheetWriteReceipt(backupPath: backup, readBack: readBack)
+        } catch SheetError.workbookChanged {
+            // The write already happened: "nothing was written" would be false.
+            return SheetWriteReceipt(backupPath: backup, readBack: [], readBackUnavailable: true)
+        }
     }
 
     // MARK: - Scripts
@@ -81,6 +86,10 @@ public struct AppleEventSheets: SpreadsheetDriving {
         }
     }
 
+    // HACK: the pin covers the workbook, not the tab: switching Excel's active sheet
+    // between approving and writing lands the write on another sheet of the same
+    // workbook. Pin the sheet name (bind, ticket item, preview, in-script check,
+    // SpreadsheetDriving.write) when live use shows tab switches during approval.
     static func target(_ app: SheetApp) -> String {
         switch app {
         case .excel: "active sheet"

@@ -50,16 +50,8 @@ extension NativeToolRunner {
     /// is. Wave 20c D4 (M6).
     private func backUpExisting(_ path: String) -> Backup {
         guard FileManager.default.fileExists(atPath: path) else { return .none }
-        let stamped = URL(fileURLWithPath: SheetBackup.path(for: path, at: Date()))
-        var backup = stamped.path
-        var attempt = 2
-        while FileManager.default.fileExists(atPath: backup) {
-            backup = stamped.deletingPathExtension().path + "-\(attempt)." + stamped.pathExtension
-            attempt += 1
-        }
         do {
-            try FileManager.default.copyItem(atPath: path, toPath: backup)
-            return .kept(backup)
+            return .kept(try DocumentBackup.copy(of: path))
         } catch {
             Log.app("document: backup copy failed")
             return .failed
@@ -101,6 +93,11 @@ extension NativeToolRunner {
                   try await sheets.workbook(app) == approved else { throw SheetError.workbookChanged }
             let receipt = try await sheets.write(app, range: range, cells: cells, workbook: approved)
             Log.app("sheets: wrote \(app.rawValue) cells=\(range.rows * range.columns)")
+            guard !receipt.readBackUnavailable else {
+                return ToolResult(ok: true, output: "Wrote \(range.a1) in \(app.rawValue), but the result could not "
+                    + "be read back: the workbook in front changed right after the write. Check the sheet. "
+                    + "Backup of the saved workbook: \(receipt.backupPath)")
+            }
             return ToolResult(ok: true, output: "Wrote \(range.a1) in \(app.rawValue). Backup of the saved "
                 + "workbook: \(receipt.backupPath)\nRead back:\n" + Self.render(receipt.readBack, range: range, app: app))
         } catch {
