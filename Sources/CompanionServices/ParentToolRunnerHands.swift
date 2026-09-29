@@ -187,10 +187,10 @@ extension ParentToolRunner {
         }
         let bundle = hands.bundleID(pid)
         let command = CommandApps.isCommandApp(bundleID: bundle)
-        let ticket = ApprovalTickets.Ticket(name: call.name, arguments: call.arguments, pid: pid)
         if call.name == ParentTool.click.rawValue {
             return clickApproval(call, said: said, hands: hands, pid: pid)
         }
+        let ticket = ApprovalTickets.Ticket(name: call.name, arguments: call.arguments, pid: pid)
         if call.name == ParentTool.menu.rawValue {
             return menuApproval(call, said: said, hands: hands, pid: pid, ticket: ticket)
         }

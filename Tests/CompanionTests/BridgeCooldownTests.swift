@@ -40,24 +40,39 @@ private let t0 = Date(timeIntervalSince1970: 2_000_000)
     expect(!policy.isCoolingDown(now: now), "M2b: denegaciones espaciadas no enfrian")
 }
 
+/// Real socket connections, one per attempt: the memory must outlive the
+/// connection or reconnecting would launder it.
 @MainActor func testRepeatedSessionDenialsAcrossReconnectsCoolDownWithoutANewSheet() async {
     let tools = FakeParentTools()
     let approvals = ScriptedApprovals(answer: false)
     let session = makeSession(tools, approvals)
     for attempt in 0 ..< BridgePolicy.maxDenials {
-        _ = await session.handle(line: hello(attempt * 10 + 1))
-        let denied = await session.handle(line: call(attempt * 10 + 2))
-        expect(denied.reply.contains(BridgeCode.deniedByUser) || denied.reply.contains(BridgeCode.coolingDown),
-               "M2b: intento \(attempt) denegado")
-        await session.connectionClosed()
+        let pair = BridgePair()
+        let serving = Task.detached { await session.serve(pair.connection) }
+        pair.send(hello(attempt * 10 + 1))
+        _ = pair.readLine()
+        pair.send(call(attempt * 10 + 2))
+        let reply = pair.readLine() ?? "<silence>"
+        let last = attempt == BridgePolicy.maxDenials - 1
+        expect(reply.contains(last ? BridgeCode.coolingDown : BridgeCode.deniedByUser),
+               "M2b: intento \(attempt): \(reply)")
+        if last {
+            await serving.value
+            expect(!pair.connection.isOpen, "M2b: la ultima denegacion cierra la conexion")
+        } else {
+            pair.closeClient()
+            await serving.value
+        }
     }
     expectEq(approvals.requests.count, BridgePolicy.maxDenials, "M2b: una hoja por intento hasta el tope")
 
-    let next = await session.handle(line: hello(100))
-    expect(next.reply.contains(BridgeCode.coolingDown), "M2b: el siguiente hello se enfria")
-    expect(next.close, "M2b: y se cierra la conexion")
-    let late = await session.handle(line: call(101))
-    expect(!late.reply.contains(#""ok":true"#), "M2b: ninguna llamada pasa")
+    let next = BridgePair()
+    let nextServe = Task.detached { await session.serve(next.connection) }
+    next.send(hello(100))
+    let reply = next.readLine() ?? "<silence>"
+    expect(reply.contains(BridgeCode.coolingDown), "M2b: el siguiente hello se enfria: \(reply)")
+    await nextServe.value
+    expect(!next.connection.isOpen, "M2b: y el servidor cierra la conexion")
     expectEq(approvals.requests.count, BridgePolicy.maxDenials, "M2b: el intento N+1 no abre hoja")
     expectEq(tools.executeCalls.count, 0, "M2b: nada ejecutado")
 }

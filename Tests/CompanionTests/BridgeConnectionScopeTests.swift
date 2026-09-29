@@ -77,7 +77,8 @@ func pollUntilTrue(timeout: TimeInterval = 2, _ probe: @escaping @Sendable () ->
 }
 
 @Test @MainActor func bridgeConnectionScopeTests() async {
-    await testASecondConnectionWithoutHelloDoesNotInheritTheOpenSession()
+    await testACallOnANewConnectionWithoutHelloGetsNoSession()
+    await testASecondLiveConnectionIsBusyAndTheFirstStaysIntact()
     await testALateAnswerFromAGoneConnectionCannotOpenTheNewOne()
     testTheSlotIsHeldUntilTheSessionReleasesIt()
     await testServingReleasesTheSlotOnlyAfterTheStateIsReset()
@@ -124,7 +125,11 @@ final class ReleaseCount: @unchecked Sendable {
     expect(await session.state == .idle, "M1: el estado ya estaba en idle cuando se libero")
 }
 
-@MainActor func testASecondConnectionWithoutHelloDoesNotInheritTheOpenSession() async {
+/// Criterion 8 proper: the first connection opens a real session and goes
+/// away; a real second connection that skips `hello` must be told
+/// `no_session`, not run on the hands the first one had opened. A silent or
+/// timed-out server fails this test (it is not an acceptable "no").
+@MainActor func testACallOnANewConnectionWithoutHelloGetsNoSession() async {
     let tools = FakeParentTools()
     let session = makeSession(tools, ScriptedApprovals(answer: true))
     let first = BridgePair()
@@ -132,18 +137,43 @@ final class ReleaseCount: @unchecked Sendable {
     first.send(hello(1))
     _ = first.readLine()
     first.send(call(2))
-    let opened = first.readLine() ?? ""
-    expect(opened.contains(#""ok":true"#), "M1: la primera conexion abre la sesion \(opened)")
+    let opened = first.readLine() ?? "<silence>"
+    expect(opened.contains(#""ok":true"#), "criterion 8: the first connection opens a real session: \(opened)")
+    first.closeClient()
+    await firstServe.value
 
     let second = BridgePair()
     let secondServe = Task.detached { await session.serve(second.connection) }
     second.send(call(3))
-    let reply = second.readLine() ?? ""
-    expect(!reply.contains(#""ok":true"#), "M1: sin hello no hereda la sesion abierta")
-    expectEq(tools.executeCalls.count, 1, "M1: la segunda conexion no manejo las manos")
+    let reply = second.readLine() ?? "<silence>"
+    expect(reply.contains(BridgeCode.noSession), "criterion 8: a call without hello is no_session: \(reply)")
+    expectEq(tools.executeCalls.count, 1, "criterion 8: the second connection never drove the hands")
+    second.closeClient()
+    await secondServe.value
+}
+
+/// Defense in depth, NOT criterion 8: the listener never serves a second
+/// connection while one is live, but if one arrives anyway it gets `busy`
+/// and must leave the first one's session untouched.
+@MainActor func testASecondLiveConnectionIsBusyAndTheFirstStaysIntact() async {
+    let tools = FakeParentTools()
+    let session = makeSession(tools, ScriptedApprovals(answer: true))
+    let first = BridgePair()
+    let firstServe = Task.detached { await session.serve(first.connection) }
+    first.send(hello(1))
+    _ = first.readLine()
+    first.send(call(2))
+    _ = first.readLine()
+
+    let second = BridgePair()
+    let secondServe = Task.detached { await session.serve(second.connection) }
+    second.send(call(3))
+    let reply = second.readLine() ?? "<silence>"
+    expect(reply.contains(BridgeCode.busy), "M1: a second live connection is busy: \(reply)")
+    expectEq(tools.executeCalls.count, 1, "M1: the second connection did not drive the hands")
 
     first.send(call(4))
-    expect((first.readLine() ?? "").contains(#""ok":true"#), "M1: la primera sigue viva e intacta")
+    expect((first.readLine() ?? "").contains(#""ok":true"#), "M1: the first is still alive and intact")
     first.closeClient()
     second.closeClient()
     await firstServe.value
