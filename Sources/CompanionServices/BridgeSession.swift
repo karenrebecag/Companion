@@ -6,6 +6,13 @@ import Foundation
 /// `ParentToolExecuting` calls. One instance per process, reused across
 /// connections one at a time — `BridgeListener` never hands out a second
 /// live connection while one is open.
+///
+/// Wave 20c D5 (M1): the session state belongs to ONE connection. Every
+/// served connection gets a new `epoch`; anything that resumes after an
+/// `await` (a sheet answered late, a gate check) drops its result when the
+/// epoch moved, so a connection that went away cannot authorize the one that
+/// replaced it, and a new connection always starts from `idle` (it must send
+/// its own valid `hello`).
 public actor BridgeSession {
     private let tools: any ParentToolExecuting
     private let guardian: ParentToolGuard
@@ -33,6 +40,7 @@ public actor BridgeSession {
     /// any, so `stop()` ("Corte") can withdraw it instead of leaving it
     /// parked forever.
     private var pendingSheet: ApprovalRequest?
+    private var epoch = 0
 
     public init(
         tools: any ParentToolExecuting,
@@ -61,21 +69,53 @@ public actor BridgeSession {
     /// Reads lines off `connection` until it closes or a reply says to close
     /// it. One call drives one connection start to finish.
     public func serve(_ connection: BridgeConnection) async {
+        connection.holdSlotUntilServed()
+        defer { connection.releaseSlot() }
+        if let live = current, live.isOpen {
+            // The listener never hands out a second live connection; if one
+            // arrives anyway it must not share, or take over, the first's
+            // session.
+            connection.send(line: errorLine(nil, BridgeCode.busy, "another session is active"))
+            connection.close()
+            return
+        }
+        epoch += 1
+        let mine = epoch
+        // Synchronous, before any line of this connection is read: whatever
+        // the previous connection left (an open session, a parked sheet) is
+        // not this connection's.
+        policy.disconnected()
+        client = ""
         current = connection
+        onState(policy.state)
+        await withdrawPendingSheet()
         for await line in connection.lines {
-            let (reply, close) = await handle(line: line)
+            guard mine == epoch else { break }
+            let (reply, close) = await handle(line: line, epoch: mine)
+            guard mine == epoch else { break }
             connection.send(line: reply)
             if close {
                 connection.close()
                 break
             }
         }
+        guard mine == epoch else { return }
         current = nil
         connectionClosed()
     }
 
+    private func withdrawPendingSheet() async {
+        guard let sheet = pendingSheet else { return }
+        pendingSheet = nil
+        await guardian.withdraw(sheet)
+    }
+
     /// Pure enough to test without a socket: one line in, one reply out.
     public func handle(line: String) async -> (reply: String, close: Bool) {
+        await handle(line: line, epoch: epoch)
+    }
+
+    private func handle(line: String, epoch: Int) async -> (reply: String, close: Bool) {
         switch BridgeCodec.decode(line: line) {
         case .failure(let error):
             // Spec §3c: an oversized line closes the connection. The
@@ -86,7 +126,7 @@ public actor BridgeSession {
         case .success(.hello(let id, let hello)):
             return await handleHello(id: id, hello: hello)
         case .success(.call(let id, let call)):
-            return await handleCall(id: id, call: call)
+            return await handleCall(id: id, call: call, epoch: epoch)
         case .success(.bye(let id)):
             policy.disconnected()
             onState(policy.state)
@@ -97,6 +137,7 @@ public actor BridgeSession {
     /// The connection dropped without a `bye` (crash, network loss): reset
     /// to `idle` so the next connection can `hello` again.
     public func connectionClosed() {
+        epoch += 1
         policy.disconnected()
         onState(policy.state)
     }
@@ -170,7 +211,7 @@ public actor BridgeSession {
 
     // MARK: - call
 
-    private func handleCall(id: Int, call: BridgeCall) async -> (String, Bool) {
+    private func handleCall(id: Int, call: BridgeCall, epoch: Int) async -> (String, Bool) {
         // Local-only first: the bridge must not even say such a tool exists.
         guard !BridgeScope.isLocalOnly(call.name) else {
             return (errorLine(id, BridgeCode.unknownTool, "unknown tool: \(call.name)"), false)
@@ -187,9 +228,9 @@ public actor BridgeSession {
         case .reject(let code):
             return (errorLine(id, code, rejectionMessage(code)), false)
         case .proceed:
-            return await performCall(id: id, call: call)
+            return await performCall(id: id, call: call, epoch: epoch)
         case .needsApproval:
-            return await handleSessionApproval(id: id, call: call)
+            return await handleSessionApproval(id: id, call: call, epoch: epoch)
         }
     }
 
@@ -206,7 +247,7 @@ public actor BridgeSession {
     /// `client: "claude-code"` and, if this were ever remembered, inherit
     /// the hands with no sheet. One sheet per connection, every time,
     /// regardless of "remember" on the sheet.
-    private func handleSessionApproval(id: Int, call: BridgeCall) async -> (String, Bool) {
+    private func handleSessionApproval(id: Int, call: BridgeCall, epoch: Int) async -> (String, Bool) {
         let request = ApprovalRequest(
             requestId: UUID().uuidString, toolName: BridgePolicy.sessionApprovalTool,
             summary: BridgeCopy.sheetTitle(language()), inputJSON: sessionApprovalInputJSON())
@@ -217,8 +258,11 @@ public actor BridgeSession {
         // auto-deny apart from a user's "no".
         Log.bridge("session approval requested by \(loggableName(client))")
         let approved = await guardian.ask(request)
-        pendingSheet = nil
+        if pendingSheet?.requestId == request.requestId { pendingSheet = nil }
         Log.bridge("session approval resolved approved=\(approved)")
+        // A newer connection took over while the sheet was up: this answer
+        // belongs to a connection that is gone and must not touch the state.
+        guard epoch == self.epoch else { return ("", false) }
         guard approved else {
             policy.denied()
             onState(policy.state)
@@ -251,19 +295,20 @@ public actor BridgeSession {
         case .needsApproval:
             return (errorLine(id, BridgeCode.busy, "unexpected state"), false)
         case .proceed:
-            return await performCall(id: id, call: call)
+            return await performCall(id: id, call: call, epoch: epoch)
         }
     }
 
     /// The per-call gate (destructive click, Return in a terminal, `type_text`
     /// always) runs with `said: ""`: nothing was spoken, so anything 15g/16
     /// would have trusted a spoken word for goes to the sheet instead.
-    private func performCall(id: Int, call: BridgeCall) async -> (String, Bool) {
+    private func performCall(id: Int, call: BridgeCall, epoch: Int) async -> (String, Bool) {
         let ref = ToolCallRef(id: UUID().uuidString, name: call.name, arguments: call.argumentsJSON)
         let outcome: ParentToolOutcome
         if let denied = await guardian.check(ref, said: "", language: language(), tools: tools) {
             outcome = denied
         } else {
+            guard epoch == self.epoch else { return ("", false) }
             outcome = await tools.execute(name: call.name, argumentsJSON: call.argumentsJSON)
         }
         if outcome.ok { onCall(call.name) }
@@ -297,7 +342,7 @@ public actor BridgeSession {
             .map(Character.init))
     }
 
-    private func errorLine(_ id: Int, _ code: String, _ message: String) -> String {
+    private func errorLine(_ id: Int?, _ code: String, _ message: String) -> String {
         BridgeCodec.encode(.error(id: id, BridgeErrorBody(code: code, message: message)))
     }
 
