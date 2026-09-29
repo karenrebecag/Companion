@@ -24,6 +24,9 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
     let documents: (any DocumentRendering)?
     let sheets: (any SpreadsheetDriving)?
     let deliverableTickets = ApprovalTickets()
+    /// Wave 20d B: told when a deliverable ran without the sheet, so the island
+    /// can show it and offer the way back.
+    let onAct: (@Sendable (ActionReceipt) -> Void)?
 
     public init(
         workspace: any WorkspaceOpening,
@@ -33,8 +36,10 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
         hands: ScreenHands? = nil,
         workdir: String? = nil,
         documents: (any DocumentRendering)? = nil,
-        sheets: (any SpreadsheetDriving)? = nil
+        sheets: (any SpreadsheetDriving)? = nil,
+        onAct: (@Sendable (ActionReceipt) -> Void)? = nil
     ) {
+        self.onAct = onAct
         self.workspace = workspace
         self.home = home
         self.places = places

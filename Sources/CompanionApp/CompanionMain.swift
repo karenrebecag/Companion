@@ -206,6 +206,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// Where the parent's runner reports an action that ran without the sheet
+/// (Wave 20d B): the runner is built before the reducer it reports to.
+nonisolated final class ReceiptRelay: @unchecked Sendable {
+    private let lock = NSLock()
+    private var target: (@Sendable (ActionReceipt) -> Void)?
+
+    func connect(_ target: @escaping @Sendable (ActionReceipt) -> Void) {
+        lock.withLock { self.target = target }
+    }
+
+    func send(_ receipt: ActionReceipt) {
+        lock.withLock { target }?(receipt)
+    }
+}
+
 /// The voice port for the session reducer, filled once the voice session
 /// exists: the reducer is built before the session that obeys it.
 final class VoicePortBox: VoiceControlling, @unchecked Sendable {

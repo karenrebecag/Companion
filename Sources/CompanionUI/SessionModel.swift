@@ -23,6 +23,7 @@ public final class SessionModel {
     private var voiceIdle: Task<Void, Never>?
     private var noticeExpiry: Task<Void, Never>?
     private var handsGlowExpiry: Task<Void, Never>?
+    private var receiptExpiry: Task<Void, Never>?
     /// Wave 17: "the voice wins" — `BridgeHost` pauses the bridge for any
     /// turn of Karen's own and resumes it back at rest. `send(_:)` is the
     /// only place `projection.kind` changes, so it is the only place that
@@ -34,6 +35,9 @@ public final class SessionModel {
     /// the sheet's own verdict, nil when it closed without one; the voice
     /// session needs it to answer an MCP request with the click (20c D2).
     public var onApprovalClosed: (@MainActor (String, Bool?) -> Void)?
+    /// The user pressed Undo on a receipt (Wave 20d B). The composition root
+    /// wires the adapter that takes the action back.
+    public var onUndo: (@MainActor (ActionReceipt) -> Void)?
 
     public init(
         jobs: (any JobSubmitter)?,
@@ -111,6 +115,13 @@ public final class SessionModel {
             // A second "didn't hear you" gets its own six seconds.
             noticeExpiry?.cancel()
             noticeExpiry = timer(delay, then: .noticeExpired)
+        case .scheduleReceiptExpiry(let id, let delay):
+            // The newest receipt owns the window: an older one's undo is gone.
+            receiptExpiry?.cancel()
+            receiptExpiry = timer(delay, then: .receiptExpired(id: id))
+        case .undo(let receipt):
+            receiptExpiry?.cancel()
+            onUndo?(receipt)
         case .scheduleHandsGlowExpiry(let delay):
             // Each call restarts the four seconds: the aura ends after the last one.
             handsGlowExpiry?.cancel()

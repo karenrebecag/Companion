@@ -57,6 +57,11 @@ public struct ParentToolGuard: Sendable {
             ?? ParentToolGate.approval(for: call, said: said)
         guard let asked else { return Verdict(denial: nil, answer: nil) }
         let request = await tools?.bound(asked) ?? asked
+        // A "no" the user asked to remember outranks the shortcut: the same
+        // write must not go through just because the cells are still empty.
+        if let tools, await tools.actsWithoutSheet(call), await approvals?.remembered(request) != false {
+            return Verdict(denial: nil, answer: nil)
+        }
         let target = ParentTool.target(of: call)
         let denied = ParentToolOutcome.failed(
             .deniedByUser(language), target: target, tool: call.name)

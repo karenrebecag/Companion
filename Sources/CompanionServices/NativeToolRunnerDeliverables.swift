@@ -122,7 +122,7 @@ extension NativeToolRunner {
         return SheetApproval.bind(json, workbook: workbook, app: app)
     }
 
-    private func sheetApp(_ arguments: [String: Any], _ sheets: any SpreadsheetDriving) async -> SheetApp? {
+    func sheetApp(_ arguments: [String: Any], _ sheets: any SpreadsheetDriving) async -> SheetApp? {
         if let named = (arguments["app"] as? String)?.lowercased(), let app = SheetApp(rawValue: named) {
             return app
         }

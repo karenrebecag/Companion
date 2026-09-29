@@ -382,3 +382,25 @@ struct IslandSlots: View {
         .accessibilityLabel(Localized.string("island.job"))
     }
 }
+
+/// Wave 20d B: what ran without asking, with the one way back. The line is
+/// the receipt and the button is the only door to the undo; the model has no
+/// call that reaches it.
+struct IslandReceiptRow: View {
+    let receipt: ActionReceipt
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: Space.x2) {
+            Text(IslandCopy.receipt(receipt))
+                .font(GeistFont.uiCaption)
+                .foregroundStyle(IslandInk.text)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            if receipt.undo != nil {
+                Button(Localized.string("island.receipt.undo"), action: onUndo)
+                    .buttonStyle(IslandChipStyle())
+            }
+        }
+    }
+}
