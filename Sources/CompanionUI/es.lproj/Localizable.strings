@@ -594,3 +594,18 @@
 "island.connectApp" = "Conectar %@";
 "island.connectApp.body" = "Conéctala y Companion podrá usarla por voz.";
 "island.connectApp.action" = "Conectar";
+
+/* Wave 18-4b: browser panel */
+"settings.browser.header" = "NAVEGADOR";
+"settings.browser.blurb" = "Deja que Companion lea y opere tus pestañas de Chrome o Comet mediante una extensión que cargas una vez. Cada acción que envía, borra o sale del sitio pregunta antes.";
+"settings.browser.status.connected" = "Conectado a %@";
+"settings.browser.status.disconnected" = "Desconectado: carga la extensión en tu navegador";
+"settings.browser.status.notInstalled" = "No instalado";
+"settings.browser.connect" = "Conectar navegador";
+"settings.browser.remove" = "Quitar";
+"settings.browser.folder" = "Carpeta de la extensión (Cargar descomprimida)";
+"settings.browser.id" = "Id de la extensión";
+"settings.browser.notice.moveApp" = "Mueve Companion a Aplicaciones primero.";
+"settings.browser.notice.noBrowser" = "No encuentro Chrome ni Comet en este Mac.";
+"settings.browser.notice.symlink" = "Hay un enlace en la carpeta del navegador; Companion no escribirá encima.";
+"settings.browser.notice.failed" = "No pude hacerlo. Inténtalo de nuevo.";

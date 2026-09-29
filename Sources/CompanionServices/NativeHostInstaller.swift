@@ -12,6 +12,7 @@ public struct NativeHostInstaller {
 
     static let hostName = "com.karen.companion.browser"
     private static let fileName = hostName + ".json"
+    private static let volumesPrefix = "/Volumes/"
 
     // Order is the order of every returned list.
     private static let supportPaths: [(BrowserKind, String)] = [
@@ -45,8 +46,18 @@ public struct NativeHostInstaller {
         Self.supportPaths.filter { isDirectory(browserDir($0.1)) }.map(\.0)
     }
 
+    /// Manifests that would launch THIS app, exactly as `install` writes
+    /// them. The listener starts on this, so a manifest that only carries our
+    /// name (another build, a dev worktree, widened origins) must not count:
+    /// it would open the socket for a host this app did not put there.
     public func installed() -> [BrowserKind] {
-        Self.supportPaths.filter { isOurs(manifestURL($0.1)) }.map(\.0)
+        let expected: [String: Any]
+        do {
+            expected = try Self.manifestObject(path: try stablePath())
+        } catch {
+            return []
+        }
+        return Self.supportPaths.filter { isCurrent(manifestURL($0.1), expected: expected) }.map(\.0)
     }
 
     public func install() throws -> [BrowserKind] {
@@ -66,15 +77,31 @@ public struct NativeHostInstaller {
     }
 
     public func remove() throws -> [BrowserKind] {
+        let result = removeReporting()
+        if let failure = result.failure { throw failure }
+        return result.removed
+    }
+
+    /// Keeps going past a browser that fails and says what it did remove:
+    /// the caller has to stop its listener for those even if another
+    /// browser's manifest could not be touched. Ours by name is enough to
+    /// remove, unlike `installed`: a stale manifest of ours is what an
+    /// uninstall should clean up.
+    public func removeReporting() -> (removed: [BrowserKind], failure: Error?) {
         var done: [BrowserKind] = []
+        var failure: Error?
         for (kind, relative) in Self.supportPaths {
             let url = manifestURL(relative)
-            try refuseSymlink(url, kind)
-            guard isOurs(url) else { continue }
-            try fileManager.removeItem(at: url)
-            done.append(kind)
+            do {
+                try refuseSymlink(url, kind)
+                guard isOurs(url) else { continue }
+                try fileManager.removeItem(at: url)
+                done.append(kind)
+            } catch {
+                failure = failure ?? error
+            }
         }
-        return done
+        return (done, failure)
     }
 
     // MARK: Helpers
@@ -82,31 +109,35 @@ public struct NativeHostInstaller {
     /// The manifest outlives this launch, and the browser will run whatever it
     /// names. A relative, missing or non-executable path never works, and a
     /// Gatekeeper translocation path (a randomized read-only mount) is gone
-    /// after the next launch, so the UI is told to move the app instead.
+    /// after the next launch, so the UI is told to move the app instead. A
+    /// mounted disk image (/Volumes) goes away on eject, same problem.
     private func stablePath() throws -> String {
         let marker = "/AppTranslocation/"
-        guard executable.path.hasPrefix("/"), !executable.path.contains(marker) else {
-            throw Failure.unstableExecutablePath
-        }
+        guard executable.path.hasPrefix("/"), !executable.path.contains(marker),
+              !executable.path.hasPrefix(Self.volumesPrefix)
+        else { throw Failure.unstableExecutablePath }
         let resolved = executable.resolvingSymlinksInPath().path
         var isDir: ObjCBool = false
-        guard !resolved.contains(marker),
+        guard !resolved.contains(marker), !resolved.hasPrefix(Self.volumesPrefix),
               fileManager.fileExists(atPath: resolved, isDirectory: &isDir), !isDir.boolValue,
               fileManager.isExecutableFile(atPath: resolved)
         else { throw Failure.unstableExecutablePath }
         return resolved
     }
 
-    static func manifestData(path: String) throws -> Data {
-        let manifest: [String: Any] = [
+    static func manifestObject(path: String) throws -> [String: Any] {
+        [
             "name": hostName,
             "description": "Companion",
             "path": path,
             "type": "stdio",
             "allowed_origins": BrowserPolicy.pinnedOrigins.sorted(),
         ]
-        return try JSONSerialization.data(
-            withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys])
+    }
+
+    static func manifestData(path: String) throws -> Data {
+        try JSONSerialization.data(
+            withJSONObject: try manifestObject(path: path), options: [.prettyPrinted, .sortedKeys])
     }
 
     private func isDirectory(_ url: URL) -> Bool {
@@ -131,6 +162,20 @@ public struct NativeHostInstaller {
         do {
             let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             return object?["name"] as? String == Self.hostName
+        } catch {
+            return false
+        }
+    }
+
+    private func isCurrent(_ url: URL, expected: [String: Any]) -> Bool {
+        guard let data = fileManager.contents(atPath: url.path) else { return false }
+        do {
+            guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+            return object["name"] as? String == Self.hostName
+                && object["path"] as? String == expected["path"] as? String
+                && object["type"] as? String == "stdio"
+                && Set(object["allowed_origins"] as? [String] ?? []) == BrowserPolicy.pinnedOrigins
+                && (object["allowed_origins"] as? [String])?.count == BrowserPolicy.pinnedOrigins.count
         } catch {
             return false
         }

@@ -594,3 +594,18 @@
 "island.connectApp" = "Connect %@";
 "island.connectApp.body" = "Connect it and Companion can act on it by voice.";
 "island.connectApp.action" = "Connect";
+
+/* Wave 18-4b: browser panel */
+"settings.browser.header" = "BROWSER";
+"settings.browser.blurb" = "Lets Companion read and operate your Chrome or Comet tabs through an extension you load once. Each action that sends, deletes or leaves the site asks first.";
+"settings.browser.status.connected" = "Connected to %@";
+"settings.browser.status.disconnected" = "Disconnected: load the extension in your browser";
+"settings.browser.status.notInstalled" = "Not installed";
+"settings.browser.connect" = "Connect browser";
+"settings.browser.remove" = "Remove";
+"settings.browser.folder" = "Extension folder (Load unpacked)";
+"settings.browser.id" = "Extension id";
+"settings.browser.notice.moveApp" = "Move Companion to Applications first.";
+"settings.browser.notice.noBrowser" = "Chrome or Comet not found on this Mac.";
+"settings.browser.notice.symlink" = "A link is in the way in the browser folder; Companion will not write over it.";
+"settings.browser.notice.failed" = "Could not do it. Try again.";

@@ -39,7 +39,10 @@ public struct BridgePolicy: Sendable, Equatable {
         "menu",
         "open_app",
         "open_url",
-        "open_file"
+        "open_file",
+        "browser_click",
+        "browser_type",
+        "browser_navigate"
     ]
 
     /// Every allowlisted tool that draws from the read budget. Explicit on
@@ -58,7 +61,9 @@ public struct BridgePolicy: Sendable, Equatable {
         "focus_window",
         "read_focused",
         "look",
-        "see"
+        "see",
+        "browser_tabs",
+        "browser_read"
     ]
 
     /// Allowlisted tools that sit in neither bucket.

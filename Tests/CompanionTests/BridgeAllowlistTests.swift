@@ -37,6 +37,14 @@ private struct NoSheets: SpreadsheetDriving {
         workdir: NSTemporaryDirectory(), documents: NoDocuments(), sheets: NoSheets())
 }
 
+/// Wave 18: the browser runner is a second runner, composed beside the
+/// parent's, so the guard reads both.
+private func connectedBrowser() -> BrowserToolRunner {
+    let presence = BrowserPresence()
+    presence.set(.comet)
+    return BrowserToolRunner(channel: FakeBrowserChannel(), presence: presence)
+}
+
 private func helloLine(_ id: Int) -> String {
     #"{"id":\#(id),"method":"hello","params":{"token":"tok","client":"claude-code","protocol":1}}"#
 }
@@ -56,12 +64,15 @@ private func bridge(_ tools: FakeParentTools) -> BridgeSession {
 /// outside agent may drive it, or in `BridgeScope.localOnly` if not.
 @Test @MainActor func everyToolTheRunnerOffersHasABridgeDecision() {
     let offered = Set(fullRunner().specs(.en).map(\.name))
+        .union(connectedBrowser().specs(.en).map(\.name))
+        .union(BrowserTool.allCases.map(\.rawValue))
         .union(ParentTool.allCases.map(\.rawValue))
         .union(NativeTool.parentDeliverables.map(\.rawValue))
     let undecided = offered.filter { !BridgeScope.decided($0) }
     expect(undecided.isEmpty,
            "tools with no bridge decision (allowlist or local-only): \(undecided.sorted())")
-    expect(Set(fullRunner().specs(.en).map(\.name)).isSuperset(of: BridgeScope.bridgeTools),
+    expect(Set(fullRunner().specs(.en).map(\.name)).union(connectedBrowser().specs(.en).map(\.name))
+            .isSuperset(of: BridgeScope.bridgeTools),
            "a fully backed runner offers every allowlisted tool (the guard is not vacuous)")
 }
 
@@ -76,8 +87,10 @@ private func bridge(_ tools: FakeParentTools) -> BridgeSession {
         "open_app", "open_url", "open_file", "list_apps", "read_skill", "find_places",
         "type_text", "press_key", "focus_window", "read_focused",
         "look", "click", "scroll", "menu", "see",
+        // Wave 18 (X5): added deliberately, with the browser's five tools.
+        "browser_tabs", "browser_read", "browser_click", "browser_type", "browser_navigate",
     ]
-    expectEq(BridgeScope.bridgeTools, expected, "the allowlist is exactly the tools the bridge served")
+    expectEq(BridgeScope.bridgeTools, expected, "the allowlist is exactly the tools the bridge serves")
     for name in expected.sorted() {
         let tools = FakeParentTools(handledNames: [name], specNames: [name])
         let session = bridge(tools)

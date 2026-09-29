@@ -81,3 +81,39 @@ public enum BrowserCopy {
         }
     }
 }
+
+extension BrowserCopy {
+    /// The thread's record of a browser call. A failure names the browser so
+    /// it never reads as `open_app`'s "Could not open ...".
+    public static func status(
+        _ tool: BrowserTool, _ outcome: ParentToolOutcome, _ language: AppLanguage
+    ) -> String {
+        if outcome.ok { return done(tool, language) }
+        if outcome.output.hasPrefix("denied_by_user") {
+            switch language {
+            case .en: return "Did not do it in the browser: you said no."
+            case .es: return "No lo hice en el navegador: dijiste que no."
+            }
+        }
+        let code = outcome.output.split(separator: ":").first.map(String.init) ?? outcome.output
+        switch language {
+        case .en: return "Browser: \(failure(code: code, language))"
+        case .es: return "Navegador: \(failure(code: code, language))"
+        }
+    }
+
+    private static func done(_ tool: BrowserTool, _ language: AppLanguage) -> String {
+        switch (tool, language) {
+        case (.tabs, .en): return "Listed the browser tabs."
+        case (.tabs, .es): return "Listé las pestañas del navegador."
+        case (.read, .en): return "Read a browser tab."
+        case (.read, .es): return "Leí una pestaña del navegador."
+        case (.click, .en): return "Clicked in the browser."
+        case (.click, .es): return "Pulsé en el navegador."
+        case (.type, .en): return "Typed in the browser."
+        case (.type, .es): return "Escribí en el navegador."
+        case (.navigate, .en): return "Navigated the browser."
+        case (.navigate, .es): return "Navegué en el navegador."
+        }
+    }
+}

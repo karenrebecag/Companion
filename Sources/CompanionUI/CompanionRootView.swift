@@ -29,6 +29,7 @@ public struct CompanionRootView: View {
         updates: UpdateState? = nil,
         welcome: WelcomeModel? = nil,
         memory: (any MemoryBrowsing)? = nil,
+        browser: BrowserSettingsModel? = nil,
         apps: AppsModel? = nil
     ) {
         self.chat = chat
@@ -38,12 +39,14 @@ public struct CompanionRootView: View {
         self.updates = updates
         self.welcome = welcome
         self.memory = memory
+        self.browser = browser
         self.apps = apps
     }
 
     private let updates: UpdateState?
     private let welcome: WelcomeModel?
     private let memory: (any MemoryBrowsing)?
+    private let browser: BrowserSettingsModel?
     private let apps: AppsModel?
 
     public var body: some View {
@@ -202,6 +205,7 @@ public struct CompanionRootView: View {
                             updates: updates,
                             welcome: welcome,
                             memory: memory,
+                            browser: browser,
                             tab: $settingsTab,
                             onClose: {
                                 withAnimation(.springSheet) { showSettings = false }

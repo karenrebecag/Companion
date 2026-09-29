@@ -383,6 +383,6 @@ func browserTabsReply(_ id: Int) -> String {
     let log = try String(contentsOf: logURL, encoding: .utf8)
     expect(!log.contains(secret), "logs: page text never reaches the log")
     expect(log.contains("tool=browser_read"), "logs: the tool is named")
-    expect(log.contains("origin=https://bank.example"), "logs: the origin is named")
+    expect(!log.contains("bank.example") && !log.contains("origin="), "logs: neither origin nor host is named")
     expect(log.contains("chars=\(secret.count)"), "logs: only a char count of the text")
 }

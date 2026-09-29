@@ -7,6 +7,7 @@ import Foundation
 public final class BrowserPresence: @unchecked Sendable {
     private let lock = NSLock()
     private var current: BrowserKind?
+    private var counter = 0
 
     public init() {}
 
@@ -14,7 +15,17 @@ public final class BrowserPresence: @unchecked Sendable {
 
     public var connected: Bool { browser != nil }
 
-    func set(_ kind: BrowserKind?) { lock.withLock { current = kind } }
+    /// Changes on every connect and disconnect, so a holder of per-connection
+    /// state (pages read, approvals given) can tell it belongs to a
+    /// connection that is gone.
+    var epoch: Int { lock.withLock { counter } }
+
+    func set(_ kind: BrowserKind?) {
+        lock.withLock {
+            current = kind
+            counter += 1
+        }
+    }
 }
 
 /// Wave 18-2. The app's end of the browser socket: one extension, proven by
@@ -235,15 +246,15 @@ public actor BrowserChannel {
         }
     }
 
-    /// Tool, outcome, origin and a character count: enough to debug a call
-    /// without the log ever holding what the page said.
+    /// Tool, outcome and a character count: enough to debug a call without
+    /// the log ever holding what the page said or which site it was.
     private static func summary(_ command: BrowserCommand, _ result: Result<BrowserInbound, ContractError>) -> String {
         let name = tool(command).rawValue
         switch result {
         case .failure(let error):
             return "tool=\(name) code=\(error.code)"
         case .success(.page(_, let page)):
-            return "tool=\(name) code=ok origin=\(page.origin.prefix(120)) chars=\(page.text.count)"
+            return "tool=\(name) code=ok chars=\(page.text.count)"
         case .success:
             return "tool=\(name) code=ok"
         }

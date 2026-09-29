@@ -70,6 +70,13 @@ if [ -d "$ROOT/Sources/CompanionUI/Fonts" ]; then
         && cp "$ROOT/Sources/CompanionUI/Fonts/OFL.txt" "$APP/Contents/Resources/Fonts/"
 fi
 
+# Loaded unpacked from here, so the path Settings shows survives a rebuild.
+if [ -d "$ROOT/Extensions/browser" ]; then
+    mkdir -p "$APP/Contents/Resources/BrowserExtension"
+    cp -R "$ROOT/Extensions/browser/." "$APP/Contents/Resources/BrowserExtension/"
+    rm -rf "$APP/Contents/Resources/BrowserExtension/test"
+fi
+
 [ -f "$ROOT/assets/AppIcon.icns" ] \
     && cp "$ROOT/assets/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 

@@ -77,6 +77,9 @@ public enum BridgeScope {
         "open_app", "open_url", "open_file", "list_apps", "read_skill", "find_places",
         "type_text", "press_key", "focus_window", "read_focused",
         "look", "click", "scroll", "menu", "see",
+        // Wave 18 (X5): the browser's hand, behind Lend hands and a
+        // connected extension. Tabs and read are reads; the rest are writes.
+        "browser_tabs", "browser_read", "browser_click", "browser_type", "browser_navigate",
     ]
 
     /// Offered to the user by the parent, never lent over the bridge. The
@@ -100,6 +103,7 @@ extension ParentTool {
     /// next conversation.
     public static func ownsRequest(_ toolName: String) -> Bool {
         ParentTool(rawValue: toolName) != nil
+            || BrowserTool(rawValue: toolName) != nil
             || toolName.hasPrefix(ApprovalCopy.appToolPrefix)
             || NativeTool.parentDeliverables.contains { $0.rawValue == toolName }
     }
