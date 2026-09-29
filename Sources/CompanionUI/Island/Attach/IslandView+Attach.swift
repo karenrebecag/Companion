@@ -2,25 +2,47 @@ import CompanionCore
 import SwiftUI
 
 // The clip's actions (16i-2): the picker, the screenshot, the captured text.
+// 16m-3 (D1): the picker runs from the island and never opens the window.
 extension IslandView {
     var attachActions: IslandAttachActions {
-        IslandAttachActions(chat: chat, voice: voice, grabber: grabber, say: sayAttach)
+        IslandAttachActions(chat: chat, voice: voice, grabber: grabber, say: sayAttach,
+                            pickFiles: pickFiles, onFail: { attachFailures.append($0) })
     }
 
-    func pickAttach(_ item: IslandAttachItem) {
+    /// Returns the work it started, so a caller can wait for the pick.
+    @discardableResult
+    func pickAttach(_ item: IslandAttachItem) -> Task<Void, Never>? {
         switch item {
         case .chooseFile:
-            // The picker lives in the window: activating the app is
-            // CompanionMain's call, never the island's (conformance 12d).
-            onShowMain()
-            NotificationCenter.default.post(name: .companionAttach, object: nil)
+            // One panel at a time: a second click while it is up would open
+            // another, and the first to close would fold the island under it.
+            guard !geometry.picking else { return nil }
+            // The field stays open under the picker, whatever the pointer
+            // and the window do while it is up.
+            geometry.picking = true
+            return Task {
+                await attachActions.chooseFiles()
+                geometry.picking = false
+            }
         case .screenshot:
-            Task { await attachActions.screenshot() }
+            return Task { await attachActions.screenshot() }
         case .captureText:
-            Task {
+            return Task {
                 guard let text = await attachActions.captureText() else { return }
                 draft = IslandDraft.appending(text, to: draft)
             }
+        }
+    }
+
+    /// The staged files and captures under the field. With the main window
+    /// in front they are drawn there, not twice.
+    @ViewBuilder
+    var attachTray: some View {
+        if !hold.mainInFront, !chat.pendingAttachments.isEmpty || !attachFailures.isEmpty {
+            IslandAttachTray(
+                staged: chat.pendingAttachments, failed: attachFailures,
+                onRemove: chat.removePending,
+                onDismissFailure: { attachFailures = IslandAttachFailure.removing($0.id, from: attachFailures) })
         }
     }
 

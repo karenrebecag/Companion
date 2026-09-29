@@ -11,8 +11,6 @@ enum IslandInk {
     static var muted: Color { white(IslandAlpha.muted) }
     static var chip: Color { white(IslandAlpha.tile) }
     static var chipPressed: Color { white(IslandAlpha.tileHover) }
-    /// A mark laid over a picture: dark enough to read on any photo.
-    static var media: Color { Neutral.black.color.opacity(0.8) }
     static var field: Color { white(IslandAlpha.tile) }
     /// The composer field and its idle send button, sampled from Incredible.
     static var fieldFill: Color { white(IslandFieldMetrics.fill) }

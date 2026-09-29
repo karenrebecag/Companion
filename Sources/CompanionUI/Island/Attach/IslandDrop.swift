@@ -64,11 +64,13 @@ final class IslandDropTarget {
         return true
     }
 
-    /// Files only: a dragged link or a text selection is not an attachment.
+    /// File URLs only: a dragged web link or a text selection is not an
+    /// attachment. Folders and links pass here and are refused where they
+    /// are staged, so the refusal is shown rather than swallowed.
     static func files(_ info: any NSDraggingInfo) -> [URL] {
         let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
         let read = info.draggingPasteboard.readObjects(forClasses: [NSURL.self], options: options)
-        return regularFiles((read as? [URL]) ?? [])
+        return (read as? [URL]) ?? []
     }
 
     static func regularFiles(_ urls: [URL]) -> [URL] {

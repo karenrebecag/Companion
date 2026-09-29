@@ -529,6 +529,10 @@
 "island.attach.noText" = "No encontré texto en esa zona.";
 "island.attach.captureFailed" = "No pude hacer la captura.";
 "island.attach.needsScreen" = "Para capturar, da el permiso de Grabación de pantalla.";
+"island.attach.captures" = "%d capturas";
+"island.attach.openCaptures" = "Ver las capturas";
+"island.attach.failed" = "No pude adjuntar %@";
+"island.attach.pickerUnavailable" = "No pude abrir el selector de archivos.";
 "island.drop.title" = "Suelta el archivo";
 "island.drop.ask" = "Pregúntale";
 "island.drop.airDrop" = "AirDrop";

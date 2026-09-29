@@ -145,7 +145,8 @@ extension AppDelegate {
                 },
                 onReleaseKey: { [weak self] in self?.island?.releaseKey() },
                 grabber: ScreenRegionGrabber(directory: FileManager.default.temporaryDirectory
-                    .appendingPathComponent("companion-captures", isDirectory: true))),
+                    .appendingPathComponent("companion-captures", isDirectory: true)),
+                pickFiles: { await IslandFilePanel.pick() }),
             geometry: islandGeometry,
             onHover: { over in sessionModel.send(over ? .hoverEntered : .hoverLeft) })
         island.onResignKey = {

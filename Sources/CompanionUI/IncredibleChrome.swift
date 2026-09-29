@@ -41,6 +41,8 @@ public struct IconButtonSize: Sendable, Equatable {
     public static let island = IconButtonSize(side: IslandFieldMetrics.tool, glyph: 18, optical: false)
     /// The island's close: the 22 slot every island mark sits in.
     public static let islandClose = IconButtonSize(side: IslandInk.slotSide, glyph: 14, filled: true)
+    /// `ci-att-card`'s remove: a 24 circle over the card (16m-3).
+    public static let attachmentRemove = IconButtonSize(side: 24, glyph: 14, filled: true)
 
     /// An SF Symbol fills more of its point size than an SVG icon fills its
     /// box; at 80 % the two read the same.
@@ -48,8 +50,8 @@ public struct IconButtonSize: Sendable, Equatable {
 }
 
 /// Which surface an icon button sits on. The island is black in both
-/// appearances, and a close over a thumbnail needs its own dark disc to
-/// stay visible on any picture.
+/// appearances, and a close over a thumbnail needs its own dark disc and rim
+/// to stay visible on any picture.
 public enum IconButtonTone: Sendable {
     case window, island, onMedia
 }
@@ -117,6 +119,7 @@ public struct IconButton: View {
                 .frame(width: size.side, height: size.side)
                 .foregroundStyle(ink)
                 .background(shape.fill(fill))
+                .overlay(shape.strokeBorder(rim, lineWidth: Stroke.hairline))
                 .contentShape(shape)
         }
         .modifier(IconButtonPress(pressable: pressable))
@@ -157,8 +160,14 @@ public struct IconButton: View {
             if active { return IslandInk.chipPressed }
             return size.filled || hovering ? IslandInk.chip : Color.clear
         case .onMedia:
-            return IslandInk.media
+            return IslandAttachMetrics.removeFill.color.opacity(IslandAttachMetrics.removeFillAlpha)
         }
+    }
+
+    /// Only the disc over a picture draws a rim: on a photo its edge is the
+    /// one thing that separates it from what is under it.
+    private var rim: Color {
+        tone == .onMedia ? Neutral.white.color.opacity(IslandAttachMetrics.removeBorder) : .clear
     }
 }
 

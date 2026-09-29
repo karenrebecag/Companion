@@ -104,6 +104,60 @@ import Testing
         IslandTranscript(text: "abre el correo de ana y dime qué", fixed: false)
         IslandTranscript(text: "Abre el correo de Ana y dime qué pide.", fixed: true)
     }.frame(width: 420), to: out, "island-transcript")
+
+    try attachPieces(to: out)
+}
+
+/// 16m-3: the attachment cards, the capture stack and the drop zone. The
+/// pictures are drawn in memory: the loader reads disk, a render cannot wait.
+@MainActor private func attachPieces(to out: URL) throws {
+    guard let sunset = swatchImage(.systemOrange, .systemPink),
+          let screen = swatchImage(.systemTeal, .systemIndigo) else {
+        expect(false, "16m-3 snapshot: no se pudo dibujar la imagen de prueba")
+        return
+    }
+    let photo = AttachmentRef(name: "atardecer.jpg", path: "/nonexistent/atardecer.jpg", kind: .image)
+    let pdf = AttachmentRef(name: "Informe trimestral Q3.pdf", path: "/nonexistent/informe.pdf", kind: .file)
+    let refused = IslandAttachFailure(name: "grabacion-reunion.mov")
+    let island = IslandChrome.nudgeWidth - 32
+    try piece(IslandAttachTray(
+        staged: [photo, pdf], failed: [refused], onRemove: { _ in }, onDismissFailure: { _ in },
+        pictures: [photo.id: sunset])
+        .frame(width: island, alignment: .leading)
+        .background(Color.black), to: out, "island-attach-cards")
+
+    let captures = (1 ... 3).map { _ in
+        AttachmentRef(name: RegionCapture.fileName(id: UUID()), path: "/nonexistent/c.png", kind: .image)
+    }
+    try piece(IslandAttachTray(
+        staged: captures + [pdf], failed: [], onRemove: { _ in }, onDismissFailure: { _ in },
+        pictures: [captures[2].id: screen])
+        .frame(width: island, alignment: .leading)
+        .background(Color.black), to: out, "island-capture-stack")
+
+    try piece(VStack(spacing: 12) {
+        IslandDropZones(zone: nil)
+        IslandDropZones(zone: .ask)
+    }
+    .frame(width: island)
+    .padding(16)
+    .background(Color.black), to: out, "island-drop-zones")
+}
+
+/// A two-tone picture with a bar, enough to see the bleed and the crop.
+@MainActor private func swatchImage(_ top: NSColor, _ bottom: NSColor) -> CGImage? {
+    let size = NSSize(width: 400, height: 300)
+    let image = NSImage(size: size, flipped: false) { rect in
+        bottom.setFill()
+        rect.fill()
+        top.setFill()
+        NSRect(x: 0, y: rect.midY, width: rect.width, height: rect.height / 2).fill()
+        NSColor.white.setFill()
+        NSRect(x: rect.width * 0.1, y: rect.height * 0.45, width: rect.width * 0.8, height: rect.height * 0.1).fill()
+        return true
+    }
+    var proposed = NSRect(origin: .zero, size: size)
+    return image.cgImage(forProposedRect: &proposed, context: nil, hints: nil)
 }
 
 /// One widget on the island's own dark, at 2x, named for the gallery.
