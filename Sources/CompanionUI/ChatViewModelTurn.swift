@@ -69,6 +69,9 @@ extension ChatViewModel {
                 guard isCurrent(id) else { return }
                 streaming = ""
                 guard let parentTools, !calls.isEmpty else {
+                    if preface.isEmpty, handoff == nil {
+                        log("chat: round returned neither text nor calls")
+                    }
                     await commit(preface: preface, handoff: handoff)
                     break
                 }
@@ -96,6 +99,10 @@ extension ChatViewModel {
             guard isCurrent(id) else { return }
             streaming = ""
             errorText = ChatCopy.error(error)
+            // The banner alone dies with the next conversation: a turn every
+            // provider refused ended looking "completed", question simply
+            // unanswered (live 2026-09-28). The thread keeps the record.
+            messages.append(ChatMessage(isStatus: true, text: ChatCopy.error(error)))
             persist()
             endTurn()
             drain()
@@ -137,6 +144,16 @@ extension ChatViewModel {
             case .toolCalls(let round):
                 // Anything the parent cannot do itself is the specialist's
                 // and only ever arrives as a handoff.
+                for call in round where parentTools?.handles(call.name) != true {
+                    // A dropped call is a decision worth a trace: a real
+                    // tool falling here means the runner and the model
+                    // disagree about the list (QA 16k-3). The name is
+                    // model output — capped and stripped of control
+                    // scalars so it cannot forge log lines.
+                    let shown = call.name.unicodeScalars.prefix(64)
+                        .filter { !CharacterSet.controlCharacters.contains($0) }
+                    log("chat: dropped tool call \(String(String.UnicodeScalarView(shown)))")
+                }
                 calls += round.filter { parentTools?.handles($0.name) == true }
             }
         }

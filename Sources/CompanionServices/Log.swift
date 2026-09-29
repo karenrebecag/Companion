@@ -84,6 +84,11 @@ public enum Log: Sendable {
         }
         do {
             try data.write(to: url, options: .atomic)
+            // 0600, not the default 0644: the log now carries provider
+            // error prose (security review 16k-3 QA), and only the owner
+            // reads their own diagnostics.
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o600], ofItemAtPath: url.path)
             return true
         } catch {
             return false

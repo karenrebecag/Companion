@@ -184,6 +184,11 @@ public final class ChatProviderClient: ChatProvider, Sendable {
                         continuation.finish()
                         return
                     case .failed(let error):
+                        // The ladder's misses were invisible: a turn that
+                        // every provider rejected ended "completed" with no
+                        // trace of who refused what (QA 16k-3). The error's
+                        // identity only, never the words.
+                        Log.chat("chat: \(provider.id)/\(provider.model) failed \(error)")
                         lastError = error
                         guard attempt < maxAttempts,
                               RetryPolicy.shouldRetry(error, attempt: attempt)

@@ -112,6 +112,36 @@ enum ChatSSEAttempt {
         default: return .httpStatus(code)
         }
     }
+
+    /// What of a provider's error body may reach the log: the `error`
+    /// object's own message, type, code and param — nothing else. Bodies
+    /// can echo request fragments (`failed_generation`, moderation
+    /// `metadata`, masked keys on a 401), so the raw text never travels
+    /// whole (security review 16k-3 QA), and anything key-shaped inside
+    /// the message is redacted too.
+    static func errorSummary(_ body: String) -> String? {
+        let parsed: [String: Any]?
+        do {
+            parsed = try JSONSerialization.jsonObject(
+                with: Data(body.utf8)) as? [String: Any]
+        } catch {
+            parsed = nil
+        }
+        guard let error = parsed?["error"] as? [String: Any] else { return nil }
+        var parts: [String] = []
+        if let message = error["message"] as? String, !message.isEmpty {
+            let redacted = message.replacingOccurrences(
+                of: #"sk-[A-Za-z0-9_\-*]+"#, with: "sk-…",
+                options: .regularExpression)
+            parts.append(String(redacted.prefix(300)))
+        }
+        for key in ["type", "code", "param"] {
+            if let value = error[key], !(value is NSNull) {
+                parts.append("\(key)=\(String(describing: value).prefix(40))")
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
 }
 
 private func makeBody(
@@ -217,6 +247,23 @@ private func read(
         let (status, lines) = try await transport.lines(for: request)
         await clock.ping()
         guard status == 200 else {
+            // The provider's own words name the offending field; without
+            // them a 400 is unfixable guesswork (QA 16k-3). Bounded read,
+            // then only the error object's fields reach the log.
+            var body = ""
+            do {
+                for try await line in lines {
+                    body += String(line.prefix(2_048 - body.count))
+                    if body.count >= 2_048 { break }
+                }
+            } catch {
+                // A body that dies mid-read still maps by status below.
+            }
+            if let summary = ChatSSEAttempt.errorSummary(body) {
+                Log.chat("chat: provider \(status): \(summary)")
+            } else if !body.isEmpty {
+                Log.chat("chat: provider \(status): unparseable body, \(body.count) chars")
+            }
             return await sink.finish(error: ChatSSEAttempt.mapStatus(status))
         }
         for try await line in lines {

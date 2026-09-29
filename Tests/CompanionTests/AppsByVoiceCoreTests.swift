@@ -97,6 +97,27 @@ private func data(_ json: String) -> Data { Data(json.utf8) }
                           rawParametersJSON: "{not json")
     expect(try parameters(broken)?["type"] as? String == "object",
            "spec: raw roto cae al plano, nunca revienta")
+
+    // Live 2026-09-28: gpt-4o answered 400 to the WHOLE request because a
+    // raw Pipedream schema traveled flagged strict — OpenAI then demands
+    // every property in `required` and the app's server never wrote its
+    // schema to that contract. Strict stays for the flat shapes only.
+    func chatFunction(_ spec: ToolSpec, strict: Bool) throws -> [String: Any]? {
+        let object = try JSONSerialization.jsonObject(
+            with: Data(spec.encodeChat(strict: strict).utf8)) as? [String: Any]
+        return object?["function"] as? [String: Any]
+    }
+    let rawFn = try chatFunction(spec, strict: true)
+    expect(rawFn?["strict"] == nil,
+           "spec: un schema crudo nunca viaja con strict — el provider lo rechaza entero")
+    expect((rawFn?["parameters"] as? [String: Any]) != nil,
+           "spec: el schema crudo sigue viajando entero en chat")
+    let flatFn = try chatFunction(flat, strict: true)
+    expect(flatFn?["strict"] as? Bool == true,
+           "spec: la forma plana propia si cumple el contrato strict y lo conserva")
+    let brokenFn = try chatFunction(broken, strict: true)
+    expect(brokenFn?["strict"] as? Bool == true,
+           "spec: raw roto cae al plano estricto, que si cumple")
 }
 
 @Test func approvalCopyAppToolTests() {

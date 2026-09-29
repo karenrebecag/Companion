@@ -164,7 +164,14 @@ import Testing
     expectEq(vm.errorText, ChatCopy.error(ChatError.timeout), "error: copy")
     expect(!vm.busy, "error: busy false")
     expectEq(vm.streaming, "", "error: sin streaming")
-    expectEq(vm.messages.map(\.role), [.user], "error: no comete parcial")
+    // Live 2026-09-28: a turn every provider refused ended looking
+    // "completed" — the banner is transient and nothing was persisted, so
+    // the user saw a question that simply never got answered. The thread
+    // keeps the record now; no partial assistant text is committed.
+    expectEq(vm.messages.count, 2, "error: el fallo queda en el hilo")
+    expect(vm.messages.last?.isStatus == true, "error: como línea de estado")
+    expectEq(vm.messages.last?.text, ChatCopy.error(ChatError.timeout),
+             "error: el mismo copy del banner")
 }
 
 @MainActor func testQueueDrainsAfterError() async {
