@@ -8,9 +8,9 @@ public struct MCPServerConfig: Sendable, Equatable, Codable {
     public var label: String
     public var url: String
     public var allowedTools: [String]?
-    /// Bearer token for servers that need one. Lives in the user's 0600
-    /// config file. Upgrade trigger: move to the Keychain the day a stored
-    /// token is worth stealing.
+    /// Bearer token for servers that need one. At rest it lives in the
+    /// Keychain bound to the server's host (20c D6); mcp.json only carries
+    /// one a person just typed in, until the next load moves it.
     public var authorization: String?
 
     /// An old file's `requireApproval` key is ignored on load and never

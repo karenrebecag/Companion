@@ -13,6 +13,9 @@ struct LaunchEnvironment {
     let home: URL
     let support: URL
     let secrets: CachingSecretStore
+    /// The same Keychain instance behind `secrets`: two would each cache the
+    /// one bundle item and overwrite each other's writes.
+    let hostSecrets: any HostSecretStore
     let transport: URLSessionChatTransport
     let probe: LiveCapabilityProbe
     let memoryStore: FileMemoryStore
@@ -52,7 +55,8 @@ func makeLaunchEnvironment() -> LaunchEnvironment {
     // proveedor y la voz otra vez al abrir sesion. Sin cache eso son
     // varias lecturas del llavero por mensaje, y cuando el ACL del item no
     // reconoce a la app, cada lectura es un dialogo de contrasena.
-    let secrets = CachingSecretStore(KeychainSecretStore())
+    let keychain = KeychainSecretStore()
+    let secrets = CachingSecretStore(keychain)
     let transport = URLSessionChatTransport()
     let probe = LiveCapabilityProbe(transport: transport)
     // No default reach. Handing over the whole home folder on first launch
@@ -80,11 +84,12 @@ func makeLaunchEnvironment() -> LaunchEnvironment {
     let seeded = skillStore.seed()
     if !seeded.isEmpty { Log.app("skills: seeded \(seeded.joined(separator: ", "))") }
     let configProvider = StoredConfigProvider(
-        workdir: nil, memory: memoryStore, skills: skillStore, location: skillsLocation)
+        workdir: nil, memory: memoryStore, skills: skillStore, location: skillsLocation,
+        hostSecrets: keychain)
     let config = configProvider.current
 
     return LaunchEnvironment(
-        home: home, support: support, secrets: secrets, transport: transport,
+        home: home, support: support, secrets: secrets, hostSecrets: keychain, transport: transport,
         probe: probe, memoryStore: memoryStore, skillsLocation: skillsLocation,
         skillStore: skillStore, configProvider: configProvider, config: config)
 }

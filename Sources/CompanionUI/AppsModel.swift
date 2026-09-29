@@ -72,6 +72,9 @@ public final class AppsModel {
     private var connectEpoch = 0
 
     private let secrets: any SecretStore
+    /// 20c D6: the function's key lives here, bound to the endpoint's host;
+    /// `secrets` is only where an older build left it.
+    private let hostSecrets: any HostSecretStore
     private let defaults: UserDefaults
     private let makeService: @Sendable (URL, String) -> any AppsService
     /// Wave 16k-2b: the same injected-sleep seam `SessionModel` uses, so the
@@ -89,6 +92,7 @@ public final class AppsModel {
 
     public init(
         secrets: any SecretStore,
+        hostSecrets: any HostSecretStore,
         defaults: UserDefaults = .standard,
         makeService: @escaping @Sendable (URL, String) -> any AppsService,
         sleep: @escaping @Sendable (TimeInterval) async throws -> Void = {
@@ -100,6 +104,7 @@ public final class AppsModel {
         saveMCP: (@Sendable ([MCPServerConfig]) throws -> Void)? = nil
     ) {
         self.secrets = secrets
+        self.hostSecrets = hostSecrets
         self.defaults = defaults
         self.makeService = makeService
         self.sleep = sleep
@@ -205,8 +210,11 @@ public final class AppsModel {
     public func configure(endpoint text: String, key: String) -> Bool {
         let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = AppsEndpoint.validated(text), trimmedKey.count >= Self.minimumKeyLength else { return false }
+        guard let host = SecretHost.of(url: url.absoluteString) else { return false }
         do {
-            try secrets.write(.companionApps, value: trimmedKey)
+            try AppsCredentials.save(
+                trimmedKey, host: host, previousHost: SecretHost.of(url: endpoint),
+                legacy: secrets, bound: hostSecrets)
         } catch {
             return false
         }
@@ -522,9 +530,10 @@ public final class AppsModel {
     private func currentService() -> (any AppsService)? {
         if let service { return service }
         guard let url = AppsEndpoint.validated(endpoint) else { return nil }
+        guard let host = SecretHost.of(url: url.absoluteString) else { return nil }
         let key: String?
         do {
-            key = try secrets.read(.companionApps)
+            key = try AppsCredentials.key(host: host, legacy: secrets, bound: hostSecrets)
         } catch {
             return nil
         }

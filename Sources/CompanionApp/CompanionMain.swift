@@ -76,7 +76,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installBridge(environment: env, jobs: jobs, sensing: sensing)
         presentWindow(
             model: sensing.model, voice: pipeline.voice, sessionModel: sensing.sessionModel,
-            choice: jobs.choice, memoryStore: env.memoryStore, secrets: env.secrets,
+            choice: jobs.choice, memoryStore: env.memoryStore, secrets: env.secrets, hostSecrets: env.hostSecrets,
             openAIMouth: pipeline.openAIMouth, mouth: pipeline.mouth, transport: env.transport,
             voicePort: sensing.voicePort)
     }

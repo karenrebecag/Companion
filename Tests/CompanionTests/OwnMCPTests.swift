@@ -65,6 +65,7 @@ import Testing
 @Test func mcpConfigFileSaveTests() throws {
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("own-mcp-\(UUID().uuidString)")
+    let secrets = TestHostSecretStore()
     defer { try? FileManager.default.removeItem(at: root) }
 
     let servers = [
@@ -72,19 +73,19 @@ import Testing
         MCPServerConfig(label: "notas", url: "https://notes.dev/mcp",
                         authorization: "tok"),
     ]
-    try MCPConfigFile.save(servers, root: root)
+    try MCPConfigFile.save(servers, root: root, secrets: secrets)
 
-    expectEq(MCPConfigFile.load(root: root), servers, "save: lo guardado recarga identico")
+    expectEq(MCPConfigFile.load(root: root, secrets: secrets), servers, "save: lo guardado recarga identico")
 
     // An old file's "never" still loads but is never written back: nothing
     // reads it any more (20c D2), so persisting it would only mislead.
     try Data(#"[{"label":"a","url":"https://a.dev","requireApproval":"never"}]"#.utf8)
         .write(to: root.appendingPathComponent("mcp.json"))
-    expectEq(MCPConfigFile.load(root: root).count, 1, "save: un archivo viejo con never carga")
-    try MCPConfigFile.save(MCPConfigFile.load(root: root), root: root)
+    expectEq(MCPConfigFile.load(root: root, secrets: secrets).count, 1, "save: un archivo viejo con never carga")
+    try MCPConfigFile.save(MCPConfigFile.load(root: root, secrets: secrets), root: root, secrets: secrets)
     let rewritten = try String(contentsOf: root.appendingPathComponent("mcp.json"), encoding: .utf8)
     expect(!rewritten.contains("requireApproval"), "save: requireApproval no se reescribe")
-    try MCPConfigFile.save(servers, root: root)
+    try MCPConfigFile.save(servers, root: root, secrets: secrets)
 
     // The file may carry a bearer token: owner-only, like the bridge socket.
     let path = root.appendingPathComponent("mcp.json").path
@@ -92,8 +93,8 @@ import Testing
     expectEq(perms, 0o600, "save: mcp.json queda 0600")
 
     // Saving over an existing file replaces it whole.
-    try MCPConfigFile.save([servers[0]], root: root)
-    expectEq(MCPConfigFile.load(root: root).count, 1, "save: reemplaza, no anexa")
+    try MCPConfigFile.save([servers[0]], root: root, secrets: secrets)
+    expectEq(MCPConfigFile.load(root: root, secrets: secrets).count, 1, "save: reemplaza, no anexa")
 
     // read distingue los tres estados: sin archivo, con servidores, roto.
     switch MCPConfigFile.read(root: root) {
@@ -125,7 +126,7 @@ import Testing
     }
     let disk = Disk()
     let model = AppsModel(
-        secrets: TestSecretStore(),
+        secrets: TestSecretStore(), hostSecrets: TestHostSecretStore(),
         defaults: UserDefaults(suiteName: "own-\(UUID().uuidString)")!,
         makeService: { _, _ in fatalError("unused") },
         readMCP: { disk.contents },
