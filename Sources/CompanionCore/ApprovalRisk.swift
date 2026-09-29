@@ -11,8 +11,9 @@ public enum ApprovalRisk: Sendable, Equatable {
     /// Allowlist, not denylist: a tool nobody classified is `high`, so a new
     /// tool needs the sheet's click until someone decides otherwise.
     private static let lowTools: Set<String> = [
-        // Has its own host gate; the sheet only confirms the destination.
-        ParentTool.openURL.rawValue,
+        // open_url is NOT here: the gate raises its sheet only for a host the
+        // user never said, so a spoken yes there opens an un-said host — the
+        // exfil sink. It takes the click.
         ParentTool.look.rawValue,
         ParentTool.see.rawValue,
         ParentTool.readFocused.rawValue,

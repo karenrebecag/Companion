@@ -22,7 +22,7 @@ private func req(_ id: String, _ tool: String) -> ApprovalRequest {
 }
 
 @MainActor func testRiskIsAnAllowlistOfReadOnlyAndSeparatelyGatedTools() {
-    for tool in ["open_url", "find_places", "look", "see", "read_focused", "list_apps", "read_skill"] {
+    for tool in ["find_places", "look", "see", "read_focused", "list_apps", "read_skill"] {
         expectEq(ApprovalRisk.of(toolName: tool), .low, "riesgo: \(tool) es bajo")
     }
     let high = [
@@ -30,6 +30,9 @@ private func req(_ id: String, _ tool: String) -> ApprovalRequest {
         "sheet_write", "run_shell", "click", "type_text", "press_key", "menu",
         "app:slack_v2:slack_v2-send-message", "bash", "delegate", "", "OPEN_URL",
         "totally_new_tool",
+        // A pending open_url is for a host the user never said (the gate only
+        // asks then), so the model must not settle it: it is the exfil sink.
+        "open_url",
     ]
     for tool in high {
         expectEq(ApprovalRisk.of(toolName: tool), .high, "riesgo: \(tool) es alto")
@@ -65,7 +68,7 @@ private func req(_ id: String, _ tool: String) -> ApprovalRequest {
 
 @MainActor func testAHighRiskRequestIsRefusedAndStaysPending() async {
     let h = makeVoiceHarness(jobs: ApprovingSubmitter())
-    for tool in ["write_file", "sheet_write", BridgePolicy.sessionApprovalTool] {
+    for tool in ["write_file", "sheet_write", "open_url", BridgePolicy.sessionApprovalTool] {
         await h.session.noteApproval(req("r-\(tool)", tool))
         let resolved = await h.session.answerPendingApproval(true)
         expect(!resolved, "alto: \(tool) no se resuelve por voz")
