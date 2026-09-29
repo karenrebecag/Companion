@@ -322,7 +322,7 @@ public actor BridgeSession {
         // auto-deny apart from a user's "no".
         Log.bridge("session approval requested by \(loggableName(client))")
         let parkedSheet = parked
-        let answer = await guardian.answer(request, parked: { parkedSheet.park($0) })
+        let answer = await guardian.answer(request, parked: { parkedSheet.park($0, owner: mine) })
         if answer == .refused { return refuseSheet(id: id) }
         let withdrawn = parked.settle(request)
         let approved = answer == .approved
@@ -380,8 +380,8 @@ public actor BridgeSession {
         let ref = ToolCallRef(id: UUID().uuidString, name: call.name, arguments: call.argumentsJSON)
         let parkedSheet = parked
         let verdict = await guardian.verdict(
-            ref, said: "", language: language(), tools: tools, parked: { parkedSheet.park($0) })
-        let withdrawn = parked.settleCurrent()
+            ref, said: "", language: language(), tools: tools, parked: { parkedSheet.park($0, owner: mine) })
+        let withdrawn = parked.settleCurrent(owner: mine)
         guard mine == epoch else { return ("", false) }
         if verdict.answer == .refused { return refuseSheet(id: id) }
         if let denied = verdict.denial {

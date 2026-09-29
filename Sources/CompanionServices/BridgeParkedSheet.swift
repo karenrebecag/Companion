@@ -9,7 +9,10 @@ import Foundation
 final class BridgeParkedSheet: @unchecked Sendable {
     private let lock = NSLock()
     private var current: ApprovalRequest?
-    private var withdrawn: Set<String> = []
+    private var currentOwner = 0
+    /// Withdrawn request id -> the connection (epoch) that raised it, so a
+    /// late continuation of a gone connection settles only its own.
+    private var withdrawn: [String: Int] = [:]
     private var limit = BridgeSheetLimit()
     private let now: @Sendable () -> Date
 
@@ -19,10 +22,11 @@ final class BridgeParkedSheet: @unchecked Sendable {
 
     /// False when the sheet-shown limit is spent: the caller must not show
     /// the sheet. Counted here, at the one place every sheet passes through.
-    func park(_ request: ApprovalRequest) -> Bool {
+    func park(_ request: ApprovalRequest, owner: Int) -> Bool {
         lock.withLock {
             guard limit.admit(now: now()) else { return false }
             current = request
+            currentOwner = owner
             return true
         }
     }
@@ -33,7 +37,7 @@ final class BridgeParkedSheet: @unchecked Sendable {
         lock.withLock {
             guard let request = current else { return nil }
             current = nil
-            withdrawn.insert(request.requestId)
+            withdrawn[request.requestId] = currentOwner
             return request
         }
     }
@@ -43,19 +47,21 @@ final class BridgeParkedSheet: @unchecked Sendable {
     func settle(_ request: ApprovalRequest) -> Bool {
         lock.withLock {
             if current?.requestId == request.requestId { current = nil }
-            return withdrawn.remove(request.requestId) != nil
+            return withdrawn.removeValue(forKey: request.requestId) != nil
         }
     }
 
     /// `settle` for a sheet whose request the caller never saw (the per-call
-    /// gate builds it inside `check`). Sheets are serial, so "any withdrawn"
-    /// is "this one".
-    func settleCurrent() -> Bool {
+    /// gate builds it inside `check`). Scoped to `owner`: after a connection
+    /// replaced this one, the shared slot may already hold the NEW
+    /// connection's sheet, and this late call must not wipe it or consume a
+    /// withdrawal that is not its own.
+    func settleCurrent(owner: Int) -> Bool {
         lock.withLock {
-            current = nil
-            let wasWithdrawn = !withdrawn.isEmpty
-            withdrawn.removeAll()
-            return wasWithdrawn
+            if currentOwner == owner { current = nil }
+            let mine = withdrawn.filter { $0.value == owner }.keys
+            mine.forEach { withdrawn.removeValue(forKey: $0) }
+            return !mine.isEmpty
         }
     }
 }
