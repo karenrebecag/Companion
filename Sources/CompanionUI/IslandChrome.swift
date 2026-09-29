@@ -16,7 +16,10 @@ public enum IslandChrome {
     public static let nudgeWidth: CGFloat = 492
     public static let cardWidth: CGFloat = 492
     /// Room for the widest panel, its shoulders and its shadow.
-    public static let canvasWidth: CGFloat = 560
+    /// 620, not the 560 of 16f: the rich answer popup is 580 wide (16m-1)
+    /// and the canvas must hold it with margin. Clicks still pass through
+    /// everywhere but the shape, the dropdown and the popup.
+    public static let canvasWidth: CGFloat = 620
     public static let canvasHeight: CGFloat = 620
     /// Below the shape's bottom edge the shadow needs somewhere to fall.
     static let shadowRoom: CGFloat = 28
@@ -59,6 +62,16 @@ public enum IslandChrome {
     /// An open dropdown hangs past the shape (16o-1) and still takes clicks.
     public static func pointerInside(_ point: CGPoint, shape: CGRect, portal: CGRect?) -> Bool {
         pointerInside(point, rect: shape) || portal.map { pointerInside(point, rect: $0) } ?? false
+    }
+
+    /// The rich answer popup hangs below the shape too (16m-1): its frame
+    /// joins the click area by the dropdown's rule, and everywhere else the
+    /// canvas keeps passing clicks to the app behind.
+    public static func pointerInside(
+        _ point: CGPoint, shape: CGRect, portal: CGRect?, answer: CGRect?
+    ) -> Bool {
+        pointerInside(point, shape: shape, portal: portal)
+            || answer.map { pointerInside(point, rect: $0) } ?? false
     }
 
     /// The portal reports in the canvas (origin top-left); the pointer is in
@@ -128,6 +141,8 @@ public final class IslandGeometry {
     public var peeking = false
     /// The open dropdown's frame in the canvas, for the click area (16o-1).
     public var portal: CGRect?
+    /// The open answer popup's frame in the canvas (16m-1), same job.
+    public var answer: CGRect?
     /// A file is being dragged over the shape (16i-2), and the zone under it.
     public var dropping = false
     public var dropZone: IslandDropZone?
@@ -303,7 +318,9 @@ public final class IslandPanel: NSPanel {
     /// if the pointer stays (spec 16i §11).
     func track(_ point: CGPoint) {
         let portal = geometry.portal.map { IslandChrome.portalScreenRect($0, canvas: frame) }
-        let inside = isVisible && IslandChrome.pointerInside(point, shape: shape, portal: portal)
+        let answer = geometry.answer.map { IslandChrome.portalScreenRect($0, canvas: frame) }
+        let inside = isVisible && IslandChrome.pointerInside(
+            point, shape: shape, portal: portal, answer: answer)
         ignoresMouseEvents = IslandChrome.ignoresPointer(inside: inside, isKey: isKeyWindow)
         if inside {
             leaveTask?.cancel()

@@ -24,6 +24,8 @@ public struct SessionMachine: Sendable, Equatable {
     /// their own, as Incredible's card does (spec 16c §2). A permission or
     /// a failure stays: it carries the way out.
     public static let noticeDelay: TimeInterval = 6
+    /// The reel's ceiling per turn (16m-2, security review).
+    public static let touchedCap = 12
 
     private var voice = TurnSnapshot.idle
     private var typedBusy = false
@@ -49,6 +51,7 @@ public struct SessionMachine: Sendable, Equatable {
         case .typedSubmitted:
             typedBusy = true
             begin()
+            projection.touched = []
             projection.kind = .processing(.thinking)
         case .typedReplyStreaming:
             if typedBusy, case .processing = projection.kind {
@@ -60,6 +63,16 @@ public struct SessionMachine: Sendable, Equatable {
         case .parentActing(let targets):
             begin()
             projection.targets = targets
+            // HACK: capped ring, newest wins. A looping turn must not grow
+            // the reel without bound (security review 16m). Upgrade trigger:
+            // the first turn that legitimately touches more apps than the
+            // cap and needs the full history — then it moves to a summary.
+            for target in targets where !projection.touched.contains(target) {
+                projection.touched.append(target)
+                if projection.touched.count > Self.touchedCap {
+                    projection.touched.removeFirst()
+                }
+            }
             projection.kind = .processing(.toolExecuting)
         case .parentActed:
             projection.targets = []
@@ -100,12 +113,14 @@ public struct SessionMachine: Sendable, Equatable {
         case .pressed:
             begin()
             projection.holding = true
+            projection.touched = []
             projection.kind = .listening
             effects.append(.startListening)
         case .pressedProvisionally:
             begin()
             projection.holding = true
             provisional = true
+            projection.touched = []
             projection.kind = .listening
             effects.append(.startProvisionalListening)
         case .holdConfirmed:
@@ -245,6 +260,9 @@ public struct SessionMachine: Sendable, Equatable {
             if projection.kind == .listening { projection.kind = .idle }
         case .listening:
             begin()
+            // Every door into a turn starts the reel fresh (review 16m H1):
+            // typed, hold, provisional hold, and this — the voice runtime.
+            projection.touched = []
             projection.kind = .listening
         case .thinking:
             projection.kind = projection.job != nil
@@ -331,10 +349,19 @@ public struct SessionMachine: Sendable, Equatable {
             projection.kind = .processing(.subAgentRunning)
         case .stepStarted(let tool, let summary):
             append(JobTimeline.step(tool, summary))
-        case .stepFinished:
-            // One row per tool use: the next step starting is what "done"
-            // looks like.
-            break
+        case .stepFinished(let tool, let ok):
+            // The runcard paints each step's fate (16m-2): the OLDEST still
+            // running step of that tool is the one this answers.
+            // HACK: name-only pairing. Parallel runs of one tool that finish
+            // out of order mark the wrong row. Upgrade trigger: the first
+            // executor that reports a tool-use id — carry it through
+            // stepStarted/stepFinished and match on it instead.
+            if let index = projection.job?.steps.firstIndex(where: {
+                $0.tool == tool && !$0.done
+            }) {
+                projection.job?.steps[index].done = true
+                projection.job?.steps[index].failed = !ok
+            }
         case .thought(let text):
             append(JobStepInfo(tool: JobSteps.Thinking.tool, label: text))
         case .approvalRequested(let request):

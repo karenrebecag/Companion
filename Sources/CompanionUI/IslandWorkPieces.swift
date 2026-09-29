@@ -1,0 +1,246 @@
+import CompanionCore
+import SwiftUI
+
+// Wave 16m-2: the working states, measured on Incredible's overlay CSS
+// (docs/research/incredible-isla-componentes.md §2) — the live transcript's
+// two inks, the reel of touched apps, the runcard with its steps, the
+// checklist for long jobs and the sub-agent bars.
+
+public enum WorkStateMetrics {
+    /// wf-runcard: 320–420 wide, 14/16/12 padding, radius 20 over #16161b.
+    public static let runMinWidth: CGFloat = 320
+    public static let runMaxWidth: CGFloat = 420
+    public static let runPaddingTop: CGFloat = 14
+    public static let runPaddingX: CGFloat = 16
+    public static let runPaddingBottom: CGFloat = 12
+    public static let runRadius: CGFloat = 20
+    public static let runShadowAlpha = 0.32
+    public static let runShadowRadius: CGFloat = 48 / 2
+    public static let runShadowY: CGFloat = 18
+    /// wf-runstep: 5 × 2 padding, gap 2.
+    public static let stepPaddingY: CGFloat = 5
+    public static let stepPaddingX: CGFloat = 2
+    public static let stepGap: CGFloat = 2
+    /// wf-checklist: 320 wide, 18/20/12 padding.
+    public static let checklistWidth: CGFloat = 320
+    public static let checklistPaddingTop: CGFloat = 18
+    public static let checklistPaddingX: CGFloat = 20
+    public static let checklistPaddingBottom: CGFloat = 12
+    /// Past this many steps the runcard reads as a checklist.
+    public static let checklistAt = 5
+    /// The reel of touched apps is a 26-pt band.
+    public static let reelHeight: CGFloat = 26
+    /// Live transcription: 14/500 at 72 %, settling to 94 % once fixed.
+    public static let transcriptSize: CGFloat = 14
+    public static let transcriptLeading: CGFloat = 1.5
+    public static let transcriptLive = 0.72
+    public static let transcriptFixed = 0.94
+    /// The tiny fate marks (check / x) beside a step.
+    public static let markSize: CGFloat = 9
+    /// The checklist paints a window on long jobs, not the whole scroll.
+    public static let checklistVisibleSteps = 12
+
+    /// sub-agent-bars: one bar per live agent, gap 10.
+    public static let agentGap: CGFloat = 10
+
+    public static let runSurface = Color(
+        red: 0x16 / 255, green: 0x16 / 255, blue: 0x1B / 255)
+
+    /// The steps a runcard shows are the tail: the card is a window on the
+    /// work, the window's timeline keeps the whole story.
+    public static let runVisibleSteps = 4
+
+    /// The live sub-agents: Task steps that have not come back yet.
+    public static func agents(_ steps: [JobStepInfo]) -> [JobStepInfo] {
+        steps.filter { ($0.tool == "Task" || $0.tool == "Agent") && !$0.done }
+    }
+}
+
+/// What the ear hears, in its own voice: quieter while it can still change,
+/// full ink the moment it is fixed.
+struct IslandTranscript: View {
+    let text: String
+    let fixed: Bool
+
+    var body: some View {
+        Text(text)
+            .font(Fonts.geist(WorkStateMetrics.transcriptSize).weight(.medium))
+            .lineSpacing(AnswerBlockMetrics.lineSpacing(
+                size: WorkStateMetrics.transcriptSize,
+                leading: WorkStateMetrics.transcriptLeading))
+            .foregroundStyle(.white.opacity(
+                fixed ? WorkStateMetrics.transcriptFixed : WorkStateMetrics.transcriptLive))
+            .lineLimit(2)
+            .truncationMode(.head)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .animation(.expoOut(MotionTime.fast), value: fixed)
+    }
+}
+
+/// The apps this turn has touched so far, oldest first: a quiet band under
+/// the status line, one small chip per app.
+struct IslandReel: View {
+    let touched: [String]
+
+    var body: some View {
+        HStack(spacing: Space.x1) {
+            ForEach(touched, id: \.self) { ReferentChip(text: $0) }
+            Spacer(minLength: Space.none)
+        }
+        .frame(height: WorkStateMetrics.reelHeight)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Localized.string("island.reel"))
+    }
+}
+
+/// One step row: the tool's glyph, its words, and its fate on the right.
+private struct WorkStepRow: View {
+    let step: JobStepInfo
+    let running: Bool
+
+    var body: some View {
+        HStack(spacing: Space.x2) {
+            Image(systemName: JobSteps.icon(for: step.tool))
+                .font(GeistFont.uiMicro)
+                .foregroundStyle(.white.opacity(IslandAlpha.muted))
+                .frame(width: AnswerBlockMetrics.glyphWidth)
+            Text(step.label)
+                .font(Fonts.geist(TypeSize.caption))
+                .foregroundStyle(.white.opacity(
+                    step.done ? IslandAlpha.secondary : IslandAlpha.text))
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: Space.none)
+            if step.failed {
+                Image(systemName: "xmark")
+                    .font(Fonts.geist(WorkStateMetrics.markSize).weight(.semibold))
+                    .foregroundStyle(IslandPalette.error.color)
+            } else if step.done {
+                Image(systemName: "checkmark")
+                    .font(Fonts.geist(WorkStateMetrics.markSize).weight(.semibold))
+                    .foregroundStyle(.white.opacity(IslandAlpha.secondary))
+            } else if running {
+                ProgressView().controlSize(.mini)
+            }
+        }
+        .padding(.vertical, WorkStateMetrics.stepPaddingY)
+        .padding(.horizontal, WorkStateMetrics.stepPaddingX)
+    }
+}
+
+/// The dark work surface both cards share.
+private struct WorkSurface: ViewModifier {
+    var width: CGFloat?
+
+    func body(content: Content) -> some View {
+        content
+            .frame(minWidth: width ?? WorkStateMetrics.runMinWidth,
+                   maxWidth: width ?? WorkStateMetrics.runMaxWidth,
+                   alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: WorkStateMetrics.runRadius)
+                .fill(WorkStateMetrics.runSurface))
+            .overlay(RoundedRectangle(cornerRadius: WorkStateMetrics.runRadius)
+                .strokeBorder(.white.opacity(IslandAlpha.border), lineWidth: Stroke.hairline))
+            .shadow(color: .black.opacity(WorkStateMetrics.runShadowAlpha),
+                    radius: WorkStateMetrics.runShadowRadius, y: WorkStateMetrics.runShadowY)
+    }
+}
+
+/// The execution card: the goal, then the last few steps with their fate.
+struct IslandRunCard: View {
+    let job: JobTimeline
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: WorkStateMetrics.stepGap) {
+            if let goal = job.goal, !goal.isEmpty {
+                Text(goal)
+                    .font(Fonts.geist(TypeSize.body).weight(.medium))
+                    .foregroundStyle(.white.opacity(IslandAlpha.text))
+                    .lineLimit(1)
+                    .padding(.bottom, Space.x1)
+            }
+            // Absolute indices: a growing tail must not re-key every row
+            // (review 16m — the spinner jumped identity on each append).
+            let tail = Array(job.steps.enumerated())
+                .suffix(WorkStateMetrics.runVisibleSteps)
+            ForEach(tail, id: \.offset) { index, step in
+                WorkStepRow(step: step, running: index == job.steps.count - 1 && !step.done)
+            }
+        }
+        .padding(.top, WorkStateMetrics.runPaddingTop)
+        .padding(.horizontal, WorkStateMetrics.runPaddingX)
+        .padding(.bottom, WorkStateMetrics.runPaddingBottom)
+        .modifier(WorkSurface())
+    }
+}
+
+/// The long job's checklist: a done-count badge, every step, a dismiss.
+struct IslandChecklist: View {
+    let job: JobTimeline
+    let onDismiss: () -> Void
+
+    /// "3/7": counts, not copy — the fraction reads the same everywhere.
+    private static func badge(_ steps: [JobStepInfo]) -> String {
+        "\(steps.filter(\.done).count)/\(steps.count)"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: WorkStateMetrics.stepGap) {
+            HStack(spacing: Space.x2) {
+                if let goal = job.goal, !goal.isEmpty {
+                    Text(goal)
+                        .font(Fonts.geist(TypeSize.body).weight(.medium))
+                        .foregroundStyle(.white.opacity(IslandAlpha.text))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: Space.none)
+                Text(Self.badge(job.steps))
+                    .font(Fonts.geist(TypeSize.micro).weight(.semibold))
+                    .foregroundStyle(.white.opacity(IslandAlpha.secondary))
+                    .padding(.horizontal, Space.x2)
+                    .padding(.vertical, WorkStateMetrics.stepPaddingX)
+                    .background(Capsule().fill(.white.opacity(IslandAlpha.tile)))
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(Fonts.geist(WorkStateMetrics.markSize).weight(.semibold))
+                        .foregroundStyle(.white.opacity(IslandAlpha.muted))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Localized.string("island.checklist.dismiss"))
+            }
+            .padding(.bottom, Space.x1)
+            let tail = Array(job.steps.enumerated())
+                .suffix(WorkStateMetrics.checklistVisibleSteps)
+            ForEach(tail, id: \.offset) { index, step in
+                WorkStepRow(step: step, running: index == job.steps.count - 1 && !step.done)
+            }
+        }
+        .padding(.top, WorkStateMetrics.checklistPaddingTop)
+        .padding(.horizontal, WorkStateMetrics.checklistPaddingX)
+        .padding(.bottom, WorkStateMetrics.checklistPaddingBottom)
+        .modifier(WorkSurface(width: WorkStateMetrics.checklistWidth))
+    }
+}
+
+/// One quiet bar per sub-agent still out working.
+struct IslandAgentBars: View {
+    let agents: [JobStepInfo]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: WorkStateMetrics.agentGap) {
+            ForEach(Array(agents.enumerated()), id: \.offset) { _, agent in
+                HStack(spacing: Space.x2) {
+                    Image(systemName: "person.2")
+                        .font(GeistFont.uiMicro)
+                        .foregroundStyle(.white.opacity(IslandAlpha.muted))
+                    Text(agent.label)
+                        .font(Fonts.geist(TypeSize.caption))
+                        .foregroundStyle(.white.opacity(IslandAlpha.secondary))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    ProgressView().controlSize(.mini)
+                }
+            }
+        }
+    }
+}

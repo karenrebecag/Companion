@@ -301,6 +301,11 @@
 "island.clear.yes" = "Clear";
 "island.clear.no" = "Cancel";
 "island.result.open" = "View →";
+"island.reel" = "Apps touched this turn";
+"island.checklist.dismiss" = "Hide the list";
+"island.answer.close" = "Close the answer";
+"island.answer.copy" = "Copy the code";
+"island.answer.fold" = "Fold the code";
 "island.action.keys" = "Open Keys";
 "island.hands" = "Hands: %@";
 "island.hands.stop" = "Stop hands";
