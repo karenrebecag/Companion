@@ -146,7 +146,7 @@ public enum XLSXWriter {
 
     private static func cell(_ value: String, allowFormulas: Bool, ref: String, header: Bool) -> String {
         let style = header ? " s=\"1\"" : ""
-        if !header, allowFormulas, value.hasPrefix("="), !SheetValues.isForbidden(value, strictNames: true) {
+        if !header, allowFormulas, value.hasPrefix("="), FormulaPolicy.isAllowed(value) {
             return "<c r=\"\(ref)\"\(style)><f>\(xml(String(value.dropFirst())))</f></c>"
         }
         if !header, isPlainNumber(value) {

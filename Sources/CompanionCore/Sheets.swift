@@ -114,10 +114,10 @@ public enum SheetValues {
             var line: [SheetCell] = []
             for cell in cells {
                 guard let parsed = parse(cell) else { return .failure(.invalidValues) }
-                if case .text(let text) = parsed, looksLikeFormula(text), isForbidden(text) {
+                if case .text(let text) = parsed, looksLikeFormula(text), !FormulaPolicy.isAllowedSigned(text) {
                     return .failure(.forbiddenFormula)
                 }
-                if case .formula(let formula) = parsed, isForbidden(formula, strictNames: true) {
+                if case .formula(let formula) = parsed, !FormulaPolicy.isAllowed(formula) {
                     return .failure(.forbiddenFormula)
                 }
                 line.append(parsed)
@@ -137,15 +137,9 @@ public enum SheetValues {
 
     /// Excel's formula setter, like typing, starts a formula on any of these;
     /// the cell stays text for us but must pass the same list.
-    static func looksLikeFormula(_ text: String) -> Bool {
+    public static func looksLikeFormula(_ text: String) -> Bool {
         guard let first = text.first(where: { !$0.isWhitespace }) else { return false }
         return "=+-@".contains(first)
-    }
-
-    /// Everything outside `FormulaPolicy`'s allowlist; case, spacing and
-    /// full-width lookalikes do not hide it.
-    static func isForbidden(_ formula: String, strictNames: Bool = false) -> Bool {
-        !FormulaPolicy.isAllowed(formula, strictNames: strictNames)
     }
 
     /// Numbers reads a range as one flat list.

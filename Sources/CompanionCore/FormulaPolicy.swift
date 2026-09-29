@@ -28,27 +28,73 @@ public enum FormulaPolicy {
     /// path, or in DDE; refused wherever they sit, even inside a string.
     private static let forbiddenCharacters = CharacterSet(charactersIn: "[]!'\\|")
 
-    /// `strictNames`: a leading `=` is a formula for sure, so every word in it
-    /// must be a function, a cell reference or a boolean. A leading `+`, `-` or
-    /// `@` may just be text ("-12 grados"): only calls and reference syntax count.
-    static func isAllowed(_ text: String, strictNames: Bool) -> Bool {
-        let normalized = String(text.precomposedStringWithCompatibilityMapping.uppercased()
-            .filter { !$0.isWhitespace })
+    /// A `=` cell is a formula for sure: every word in it must be a function,
+    /// a cell reference or a boolean, and it must be well formed.
+    static func isAllowed(_ text: String) -> Bool {
+        guard !hasInvisibleCharacter(text) else { return false }
+        let normalized = normalize(text)
         guard normalized.unicodeScalars.allSatisfy({ !forbiddenCharacters.contains($0) }) else { return false }
         // Literals out first: a word inside quotes is text, and an unbalanced
         // quote leaves one behind and fails below.
         let code = normalized.replacingOccurrences(of: #""(?:[^"]|"")*""#, with: "0", options: .regularExpression)
-        guard !code.contains("\"") else { return false }
+        guard !code.contains("\""), isWellFormed(code) else { return false }
         for match in matches(#"[A-Z][A-Z0-9._]*(?=\()"#, in: code) where !allowedFunctions.contains(match) {
             return false
         }
-        guard strictNames else { return true }
+        // Anchored so `TRUEA1` does not shrink to `TRUE`; replaced by a space so
+        // two removed tokens cannot fuse into a word that passes.
+        let boundary = #"(?<![A-Z0-9_.$])"#
         let words = code
-            .replacingOccurrences(of: #"[A-Z][A-Z0-9._]*(?=\()"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"\$?[A-Z]{1,3}\$?[0-9]+"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"\$?[A-Z]{1,3}:\$?[A-Z]{1,3}"#, with: "", options: .regularExpression)
-            .replacingOccurrences(of: #"[0-9.]+E[+-]?[0-9]+"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: #"[A-Z][A-Z0-9._]*(?=\()"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: boundary + #"\$?[A-Z]{1,3}\$?[0-9]+(?![A-Z0-9_.])"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: boundary + #"\$?[A-Z]{1,3}:\$?[A-Z]{1,3}(?![A-Z0-9_.])"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: boundary + #"[0-9.]+E[+-]?[0-9]+(?![A-Z0-9_.])"#, with: " ", options: .regularExpression)
         return matches(#"[A-Z_][A-Z0-9_.]*"#, in: words).allSatisfy { $0 == "TRUE" || $0 == "FALSE" }
+    }
+
+    /// Text that starts with `+`, `-` or `@`: Excel's formula setter starts a
+    /// formula on any of them. Prose ("- Total (MXN)", "-12 grados") is a
+    /// literal cell and the writer stores it as text; whatever is shaped like
+    /// a formula gets the same strict check as a `=` cell.
+    static func isAllowedSigned(_ text: String) -> Bool {
+        // DDE and external references are refused even inside what reads as prose.
+        guard !hasInvisibleCharacter(text), text.unicodeScalars.allSatisfy({ !forbiddenCharacters.contains($0) }) else {
+            return false
+        }
+        guard let sign = text.first(where: { !$0.isWhitespace }), "+-@".contains(sign) else { return isAllowed(text) }
+        return isProse(text, sign: sign) || isAllowed(String(text.drop(while: { $0.isWhitespace }).dropFirst()))
+    }
+
+    /// Zero-width and other format characters split a function name for the
+    /// regexes below while Excel still reads it (U+2060, U+200B, U+00AD, U+FEFF).
+    private static func hasInvisibleCharacter(_ text: String) -> Bool {
+        text.unicodeScalars.contains { [.format, .control].contains($0.properties.generalCategory) }
+    }
+
+    private static func normalize(_ text: String) -> String {
+        String(text.precomposedStringWithCompatibilityMapping.uppercased().filter { !$0.isWhitespace })
+    }
+
+    /// Nothing to evaluate, or a shape Excel refuses: reject rather than let
+    /// the app decide what half a formula means.
+    private static func isWellFormed(_ code: String) -> Bool {
+        guard let last = code.last, !"+-*/^&=<>,:".contains(last) else { return false }
+        var depth = 0
+        for char in code {
+            if char == "(" { depth += 1 }
+            if char == ")" { depth -= 1 }
+            if depth < 0 { return false }
+        }
+        return depth == 0
+    }
+
+    /// A word next to a word, or a word next to a call's parenthesis, is
+    /// language; a formula has an operator between them.
+    private static func isProse(_ text: String, sign: Character) -> Bool {
+        let unquoted = text.replacingOccurrences(of: #""(?:[^"]|"")*""#, with: "0", options: .regularExpression)
+        let body = unquoted.drop(while: { $0.isWhitespace }).dropFirst()
+        if sign == "@", !body.contains("(") { return true }
+        return String(body).range(of: #"[\p{L}\p{N}_)]\s+[\p{L}\p{N}_(]"#, options: .regularExpression) != nil
     }
 
     private static func matches(_ pattern: String, in text: String) -> [String] {

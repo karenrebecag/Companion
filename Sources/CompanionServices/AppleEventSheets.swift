@@ -110,7 +110,7 @@ public struct AppleEventSheets: SpreadsheetDriving {
         case .excel:
             return tell(app, workbook: workbook,
                         "set formula of range \(AppleScriptText.literal(range.a1)) of \(target(app)) to "
-                            + AppleScriptText.matrix(cells))
+                            + AppleScriptText.matrix(cells.map { $0.map(Self.literalText) }))
         case .numbers:
             var lines = ["tell \(target(app))"]
             for (r, row) in cells.enumerated() {
@@ -122,6 +122,13 @@ public struct AppleEventSheets: SpreadsheetDriving {
             lines.append("end tell")
             return tell(app, workbook: workbook, lines.joined(separator: "\n"))
         }
+    }
+
+    /// The apostrophe is Excel's own "this is text" prefix: without it a cell
+    /// of prose that starts with + - or @ is read as a formula by the setter.
+    static func literalText(_ cell: SheetCell) -> SheetCell {
+        if case .text(let text) = cell, SheetValues.looksLikeFormula(text) { return .text("'" + text) }
+        return cell
     }
 
     // MARK: - Running
