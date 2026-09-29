@@ -26,7 +26,8 @@ final class BridgeHost {
         language: @escaping @Sendable () -> AppLanguage,
         accessibility: @escaping @Sendable () -> Bool,
         sessionModel: SessionModel,
-        targetFrame: @escaping @Sendable () -> CGRect?
+        targetFrame: @escaping @Sendable () -> CGRect?,
+        onSessionBoundary: @escaping @Sendable () -> Void = {}
     ) {
         let directory = BridgePaths.directory
         let parentGuard = ParentToolGuard(
@@ -70,7 +71,8 @@ final class BridgeHost {
                     let frame = targetFrame()
                     await MainActor.run { sessionModel.send(.handsWorking(target: frame)) }
                 }
-            })
+            },
+            onSessionBoundary: onSessionBoundary)
         sessionBox.value = session
         self.listener = listener
         self.session = session

@@ -78,31 +78,51 @@ private struct NoTools: ParentToolExecuting {
     }
 }
 
+/// The bridge takes the tab with its sheet, as it must; the chat let go of it
+/// first, so what is under test is the runners' tickets and caches, not the lease.
+private func handOverToTheBridge(
+    _ conversation: CompositeParentTools, _ bridge: CompositeParentTools
+) async {
+    let tab = #"{"tab":12}"#
+    _ = await conversation.execute(name: "browser_release", argumentsJSON: tab)
+    let take = ToolCallRef(id: "t", name: "browser_take", arguments: tab)
+    if let sheet = bridge.approval(for: take, said: "") { bridge.granted(sheet) }
+    let taken = await bridge.execute(name: "browser_take", argumentsJSON: tab)
+    expect(taken.ok, "the bridge owns the tab before anything is asserted")
+    let read = await bridge.execute(name: "browser_read", argumentsJSON: tab)
+    expect(read.ok, "and has read it, so a missing ticket is what stops the click")
+}
+
 @Test func aTicketGrantedInConversationCannotBeRedeemedByTheBridge() async throws {
     let (host, channel) = try hostWithFakeChannel()
     let conversation = host.conversationTools(parent: NoTools(), apps: NoTools())
     let bridge = host.bridgeTools(parent: NoTools())
     let read = #"{"tab":12}"#
+    _ = await conversation.execute(name: "browser_take", argumentsJSON: read)
     _ = await conversation.execute(name: "browser_read", argumentsJSON: read)
-    _ = await bridge.execute(name: "browser_read", argumentsJSON: read)
     let arguments = #"{"tab":12,"element":2}"#
     let call = ToolCallRef(id: "c", name: "browser_click", arguments: arguments)
     guard let request = conversation.approval(for: call, said: "") else { Issue.record("no sheet"); return }
     conversation.granted(request)
+    await handOverToTheBridge(conversation, bridge)
     let out = await bridge.execute(name: "browser_click", argumentsJSON: arguments)
-    expect(!out.ok && out.output.contains("approval_required"), "the peer finds no ticket")
+    expect(!out.ok && out.output.contains("approval_required"), "the owning bridge finds no ticket of its own")
     expect(channel.writes.isEmpty, "zero frames sent")
-    let own = await conversation.execute(name: "browser_click", argumentsJSON: arguments)
-    expect(own.ok, "the conversation still spends its own yes")
 }
 
 @Test func theBridgeDoesNotSeeAPageOnlyTheConversationRead() async throws {
     let (host, channel) = try hostWithFakeChannel()
     let conversation = host.conversationTools(parent: NoTools(), apps: NoTools())
     let bridge = host.bridgeTools(parent: NoTools())
+    _ = await conversation.execute(name: "browser_take", argumentsJSON: #"{"tab":12}"#)
     _ = await conversation.execute(name: "browser_read", argumentsJSON: #"{"tab":12}"#)
+    _ = await conversation.execute(name: "browser_release", argumentsJSON: #"{"tab":12}"#)
+    let take = ToolCallRef(id: "t", name: "browser_take", arguments: #"{"tab":12}"#)
+    if let sheet = bridge.approval(for: take, said: "") { bridge.granted(sheet) }
+    let taken = await bridge.execute(name: "browser_take", argumentsJSON: #"{"tab":12}"#)
+    expect(taken.ok, "the bridge owns the tab")
     let out = await bridge.execute(name: "browser_click", argumentsJSON: #"{"tab":12,"element":1}"#)
-    expect(!out.ok && out.output.contains(BridgeCode.staleId), "no shared page cache")
+    expect(!out.ok && out.output.contains(BridgeCode.staleId), "the bridge has no cache of the chat's read")
     expect(channel.writes.isEmpty, "zero frames")
 }
 
@@ -113,6 +133,7 @@ private struct NoTools: ParentToolExecuting {
     await rig.read()
     rig.presence.set(nil)
     rig.presence.set(.comet)
+    _ = await rig.run("browser_take", #"{"tab":12}"#)
     let out = await rig.run("browser_click", #"{"tab":12,"element":1}"#)
     expect(!out.ok && out.output.contains(BridgeCode.staleId), "the old page is gone: read again")
     expect(rig.channel.writes.isEmpty, "zero frames")
@@ -125,6 +146,7 @@ private struct NoTools: ParentToolExecuting {
     if let request = rig.runner.approval(for: rig.call("browser_click", arguments), said: "") { rig.runner.granted(request) }
     rig.presence.set(nil)
     rig.presence.set(.comet)
+    _ = await rig.run("browser_take", #"{"tab":12}"#)
     await rig.read()
     let out = await rig.runner.execute(name: "browser_click", argumentsJSON: arguments)
     expect(!out.ok && out.output.contains("approval_required"), "a yes does not outlive its connection")

@@ -168,7 +168,7 @@ public actor BrowserChannel {
 
     private func route(_ inbound: BrowserInbound, on connection: BridgeConnection) {
         switch inbound {
-        case .tabs(let id, _), .page(let id, _), .done(let id, _):
+        case .tabs(let id, _), .opened(let id, _), .page(let id, _), .done(let id, _):
             resolve(id, .success(inbound))
         case .error(let id, let body):
             guard let id else {
@@ -229,6 +229,9 @@ public actor BrowserChannel {
         case .click: return .click
         case .type: return .type
         case .navigate: return .navigate
+        case .open: return .open
+        case .take: return .take
+        case .release: return .release
         }
     }
 
@@ -239,7 +242,8 @@ public actor BrowserChannel {
     ) -> Result<BrowserInbound, ContractError> {
         guard case .success(let inbound) = result else { return result }
         switch (command, inbound) {
-        case (.tabs, .tabs), (.read, .page), (.click, .done), (.type, .done), (.navigate, .done):
+        case (.tabs, .tabs), (.read, .page), (.click, .done), (.type, .done), (.navigate, .done),
+             (.open, .opened), (.take, .done), (.release, .done):
             return result
         default:
             return .failure(error(BridgeCode.badFrame, "Unexpected reply for \(tool(command).rawValue)"))

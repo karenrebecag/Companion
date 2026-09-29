@@ -71,6 +71,10 @@ public enum BrowserCodec {
             guard tabs.count == raw.count else { return fail(BridgeCode.badFrame, "Invalid tab") }
             return .success(.tabs(id: id, tabs))
         }
+        if let raw = result["tab"] as? [String: Any] {
+            guard let opened = tab(raw) else { return fail(BridgeCode.badFrame, "Invalid tab") }
+            return .success(.opened(id: id, opened))
+        }
         if let done = result["done"] as? String { return .success(.done(id: id, message: BrowserSanitize.done(done))) }
         return fail(BridgeCode.badFrame, "Unknown result")
     }
@@ -78,7 +82,10 @@ public enum BrowserCodec {
     private static func tab(_ raw: [String: Any]) -> BrowserTab? {
         guard let id = integer(raw["id"]) else { return nil }
         return BrowserTab(id: id, title: raw["title"] as? String ?? "", url: raw["url"] as? String ?? "",
-                          active: raw["active"] as? Bool ?? false)
+                          active: raw["active"] as? Bool ?? false,
+                          controlled: raw["controlled"] as? Bool ?? false,
+                          opener: integer(raw["opener"]),
+                          createdAt: (raw["createdAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) })
     }
 
     private static func page(_ raw: [String: Any]) -> BrowserPage? {
@@ -143,6 +150,12 @@ public enum BrowserCodec {
                     ["tab": tab, "generation": generation, "element": element, "text": text])
         case .navigate(let tab, let url):
             return (BrowserTool.navigate.rawValue, ["tab": tab, "url": url.absoluteString])
+        case .open(let url):
+            return (BrowserTool.open.rawValue, ["url": url.absoluteString])
+        case .take(let tab):
+            return (BrowserTool.take.rawValue, ["tab": tab])
+        case .release(let tab):
+            return (BrowserTool.release.rawValue, ["tab": tab])
         }
     }
 }

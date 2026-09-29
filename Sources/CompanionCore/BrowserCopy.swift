@@ -20,15 +20,17 @@ public enum BrowserCopy {
     public static func description(_ tool: BrowserTool, _ language: AppLanguage) -> String {
         switch (tool, language) {
         case (.tabs, .en):
-            return "List the open browser tabs with their id, title and address, without changing the active one."
+            return "List the open browser tabs with their id, title and address, without changing the active one. "
+                + "Only to find the tab the user named: reading or using a tab needs control of it."
         case (.tabs, .es):
-            return "Lista las pestañas abiertas del navegador con su id, título y dirección, sin cambiar la activa."
+            return "Lista las pestañas abiertas del navegador con su id, título y dirección, sin cambiar la activa. "
+                + "Solo para localizar la pestaña que el usuario nombró: leer o usar una pestaña exige controlarla."
         case (.read, .en):
-            return "Read a browser tab, also one in the background: its text and its numbered elements. "
-                + "The numbers expire on the next read of that tab."
+            return "Read a browser tab you control (take it with browser_take or open it with browser_open): "
+                + "its text and its numbered elements. The numbers expire on the next read of that tab."
         case (.read, .es):
-            return "Lee una pestaña del navegador, también una de fondo: su texto y sus elementos numerados. "
-                + "Los números caducan en la siguiente lectura de esa pestaña."
+            return "Lee una pestaña del navegador que controlas (tómala con browser_take o ábrela con browser_open): "
+                + "su texto y sus elementos numerados. Los números caducan en la siguiente lectura de esa pestaña."
         case (.click, .en):
             return "Click an element numbered by the last browser_read of that tab. Deleting or sending asks first."
         case (.click, .es):
@@ -38,9 +40,25 @@ public enum BrowserCopy {
         case (.type, .es):
             return "Escribe texto en un elemento numerado por la última browser_read. Nunca en contraseñas ni tarjetas."
         case (.navigate, .en):
-            return "Open an http or https address in a tab. Going to another site than the one shown asks first."
+            return "Open an http or https address in a tab you control. Going to another site than the one shown asks first."
         case (.navigate, .es):
-            return "Abre una dirección http o https en una pestaña. Ir a un sitio distinto del que se ve pregunta antes."
+            return "Abre una dirección http o https en una pestaña que controlas. Ir a un sitio distinto del que se ve pregunta antes."
+        case (.open, .en):
+            return "Open an http or https address in a NEW background tab that you then control, "
+                + "and read it right away. Prefer it over taking the user's tabs."
+        case (.open, .es):
+            return "Abre una dirección http o https en una pestaña NUEVA de fondo que pasas a controlar, "
+                + "y léela enseguida. Úsala antes que tomar las pestañas del usuario."
+        case (.take, .en):
+            return "Take control of an existing tab so it can be read and used; it moves into the Companion group. "
+                + "Only for a tab the user named. Give it back with browser_release."
+        case (.take, .es):
+            return "Toma el control de una pestaña existente para poder leerla y usarla; pasa al grupo Companion. "
+                + "Solo para una pestaña que el usuario nombró. Devuélvela con browser_release."
+        case (.release, .en):
+            return "Give a tab back to the user when the task is done; it returns to its place."
+        case (.release, .es):
+            return "Devuelve una pestaña al usuario al terminar la tarea; vuelve a su sitio."
         }
     }
 
@@ -72,8 +90,10 @@ public enum BrowserCopy {
         case (BridgeCode.secureField, .es): return "Ese campo es sensible (contraseña, tarjeta o código): escríbelo tú."
         case (BridgeCode.timeout, .en): return "The browser did not answer in time."
         case (BridgeCode.timeout, .es): return "El navegador no respondió a tiempo."
-        case (BridgeCode.busy, .en): return "Another browser is already connected."
-        case (BridgeCode.busy, .es): return "Ya hay otro navegador conectado."
+        case (BridgeCode.busy, .en): return "Busy: another browser is connected, or another agent controls that tab."
+        case (BridgeCode.busy, .es): return "Ocupado: hay otro navegador conectado, u otro agente controla esa pestaña."
+        case (BridgeCode.notControlled, .en): return "That tab is not controlled: take it with browser_take or open it with browser_open."
+        case (BridgeCode.notControlled, .es): return "Esa pestaña no está bajo control: tómala con browser_take o ábrela con browser_open."
         case (BridgeCode.invalidArgs, .en): return "The browser call had invalid arguments."
         case (BridgeCode.invalidArgs, .es): return "La llamada al navegador tenía argumentos inválidos."
         case (_, .en): return "The browser failed: \(code)."
@@ -114,6 +134,41 @@ extension BrowserCopy {
         case (.type, .es): return "Escribí en el navegador."
         case (.navigate, .en): return "Navigated the browser."
         case (.navigate, .es): return "Navegué en el navegador."
+        case (.open, .en): return "Opened a background tab."
+        case (.open, .es): return "Abrí una pestaña de fondo."
+        case (.take, .en): return "Took control of a browser tab."
+        case (.take, .es): return "Tomé el control de una pestaña."
+        case (.release, .en): return "Gave a browser tab back."
+        case (.release, .es): return "Devolví una pestaña del navegador."
+        }
+    }
+}
+
+extension BrowserCopy {
+    /// What the model reads when a tab is not its to use, in Incredible's
+    /// words: the reason and the two ways out.
+    public static func leaseDenial(_ denial: BrowserLease.Denial, tab: Int, _ language: AppLanguage) -> String {
+        switch (denial, language) {
+        case (.notControlled, .en):
+            return "Tab \(tab) is not controlled by you right now. If the user named it, claim it with browser_take; "
+                + "otherwise open the address in a fresh tab with browser_open."
+        case (.notControlled, .es):
+            return "La pestaña \(tab) no está bajo tu control ahora. Si el usuario la nombró, tómala con browser_take; "
+                + "si no, abre la dirección en una pestaña nueva con browser_open."
+        case (.busy, .en):
+            return "Tab \(tab) is being used by another agent. Do not wait for it: open the address in a fresh "
+                + "tab with browser_open."
+        case (.busy, .es):
+            return "La pestaña \(tab) la está usando otro agente. No la esperes: abre la dirección en una "
+                + "pestaña nueva con browser_open."
+        }
+    }
+
+    /// The sheet a bridge agent's `browser_take` raises.
+    public static func takeSummary(title: String, _ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "An outside agent wants to control the tab \u{AB}\(title)\u{BB}"
+        case .es: return "Un agente externo quiere controlar la pestaña \u{AB}\(title)\u{BB}"
         }
     }
 }

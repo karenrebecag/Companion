@@ -7,107 +7,6 @@ import Testing
 // against a fake channel that records every command it is asked to send: a
 // denied call must leave that record without a write in it.
 
-final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
-    private let lock = NSLock()
-    private var log: [(command: BrowserCommand, timeout: Duration)] = []
-    private var pages: [Int: BrowserPage] = [:]
-    private var tabList: [BrowserTab] = []
-    private var failure: ContractError?
-
-    init(pages: [BrowserPage] = [], tabs: [BrowserTab] = [], failure: ContractError? = nil) {
-        self.pages = Dictionary(uniqueKeysWithValues: pages.map { ($0.tab, $0) })
-        self.tabList = tabs
-        self.failure = failure
-    }
-
-    var sent: [(command: BrowserCommand, timeout: Duration)] { lock.withLock { log } }
-    var writes: [BrowserCommand] {
-        sent.map(\.command).filter {
-            if case .click = $0 { return true }
-            if case .type = $0 { return true }
-            if case .navigate = $0 { return true }
-            return false
-        }
-    }
-
-    private var writeFailure: ContractError?
-    func failWrites(with error: ContractError) { lock.withLock { writeFailure = error } }
-
-    func setTabs(_ tabs: [BrowserTab]) { lock.withLock { tabList = tabs } }
-    func setPage(_ page: BrowserPage) { lock.withLock { pages[page.tab] = page } }
-
-    func send(_ command: BrowserCommand, timeout: Duration) async -> Result<BrowserInbound, ContractError> {
-        lock.withLock {
-            log.append((command, timeout))
-            if let failure { return .failure(failure) }
-            switch command {
-            case .tabs: return .success(.tabs(id: 1, tabList))
-            case .read(let tab, _):
-                guard let page = pages[tab] else { return .failure(ContractError(code: BridgeCode.invalidArgs, message: "no tab")) }
-                return .success(.page(id: 1, page))
-            case .click, .type, .navigate:
-                if let writeFailure { return .failure(writeFailure) }
-                return .success(.done(id: 1, message: "ok"))
-            }
-        }
-    }
-}
-
-let crm = "https://crm.example"
-
-func webElement(
-    _ id: Int, _ role: String = "button", _ label: String, context: String = "",
-    inputType: String? = nil, autocomplete: String? = nil, value: String? = nil,
-    frameOrigin: String? = nil, href: String? = nil
-) -> BrowserElement {
-    BrowserElement(
-        id: id, frame: 0, role: role, label: label, context: context, inputType: inputType,
-        autocomplete: autocomplete, value: value, frameOrigin: frameOrigin, href: href)
-}
-
-func crmPage(generation: Int = 3, text: String = "Hola") -> BrowserPage {
-    BrowserPage(
-        tab: 12, origin: crm, url: crm + "/a", title: "CRM", text: text, generation: generation,
-        elements: [
-            webElement(1, "button", "Guardar"),
-            webElement(2, "button", "Eliminar"),
-            webElement(3, "link", "Docs", href: "https://other.example/x"),
-            webElement(4, "input", "Clave", inputType: "password", value: "hunter2"),
-            webElement(5, "input", "Nombre", inputType: "text"),
-            webElement(6, "button", "Guardar", frameOrigin: "https://ads.example"),
-            webElement(7, "link", "Ayuda", href: crm + "/help"),
-        ], truncated: false)
-}
-
-struct BrowserToolRig {
-    let runner: BrowserToolRunner
-    let channel: FakeBrowserChannel
-    let presence: BrowserPresence
-}
-
-func makeToolRig(connected: Bool = true, page: BrowserPage = crmPage(), tabs: [BrowserTab]? = nil) -> BrowserToolRig {
-    let presence = BrowserPresence()
-    if connected { presence.set(.comet) }
-    let channel = FakeBrowserChannel(
-        pages: [page], tabs: tabs ?? [BrowserTab(id: 12, title: "CRM", url: page.url, active: false)])
-    return BrowserToolRig(runner: BrowserToolRunner(channel: channel, presence: presence), channel: channel, presence: presence)
-}
-
-extension BrowserToolRig {
-    func call(_ name: String, _ arguments: String) -> ToolCallRef { ToolCallRef(id: "c", name: name, arguments: arguments) }
-
-    func read() async {
-        _ = await runner.execute(name: "browser_read", argumentsJSON: #"{"tab":12}"#)
-    }
-
-    /// The path every runtime takes: ask the gate, answer the sheet, run.
-    func run(_ name: String, _ arguments: String, said: String = "", approve: Bool? = nil) async -> ParentToolOutcome {
-        if let request = runner.approval(for: call(name, arguments), said: said), approve == true {
-            runner.granted(request)
-        }
-        return await runner.execute(name: name, argumentsJSON: arguments)
-    }
-}
 
 // MARK: - criterion 6
 
@@ -118,11 +17,12 @@ extension BrowserToolRig {
     expectEq(rig.runner.unavailability(for: "browser_read"), BridgeCode.notConnected, "criterio 6: dice por que")
 }
 
-@Test func aConnectedExtensionOffersTheFiveTools() {
+@Test func aConnectedExtensionOffersTheEightTools() {
     let rig = makeToolRig()
     expectEq(rig.runner.specs(.en).map(\.name),
-             ["browser_tabs", "browser_read", "browser_click", "browser_type", "browser_navigate"], "cinco tools")
-    expectEq(rig.runner.specs(.es).count, 5, "tambien en espanol")
+             ["browser_tabs", "browser_read", "browser_click", "browser_type", "browser_navigate",
+              "browser_open", "browser_take", "browser_release"], "ocho tools (18b anade open, take, release)")
+    expectEq(rig.runner.specs(.es).count, 8, "tambien en espanol")
     expect(rig.runner.handles("browser_click"), "atiende sus tools")
     expect(!rig.runner.handles("look"), "y solo las suyas")
     expect(!rig.runner.handles("click"), "click de Accesibilidad no es suyo")
@@ -173,7 +73,9 @@ extension BrowserToolRig {
     let presence = BrowserPresence()
     presence.set(.chrome)
     let channel = FakeBrowserChannel(failure: ContractError(code: BridgeCode.timeout, message: "slow"))
-    let runner = BrowserToolRunner(channel: channel, presence: presence)
+    let leases = BrowserLeases(epoch: presence.epoch)
+    leases.acquire(tab: 1, caller: "chat")
+    let runner = BrowserToolRunner(channel: channel, presence: presence, leases: leases, caller: "chat")
     let out = await runner.execute(name: "browser_read", argumentsJSON: #"{"tab":1}"#)
     expect(!out.ok && out.output.contains(BridgeCode.timeout), "el codigo llega al modelo")
 }

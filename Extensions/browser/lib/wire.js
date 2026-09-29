@@ -42,6 +42,9 @@ const SHAPES = {
   browser_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
   browser_type: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.text === 'string',
   browser_navigate: (a) => isInt(a.tab) && isHttpURL(a.url),
+  browser_open: (a) => isHttpURL(a.url),
+  browser_take: (a) => isInt(a.tab),
+  browser_release: (a) => isInt(a.tab),
 };
 
 export function validateCall(params) {
@@ -96,7 +99,7 @@ export function trimMessage(message, budget = MAX_BYTES) {
 }
 
 // A tab url can carry tokens in its query or fragment, and browser_tabs lists every tab, not just the one in use.
-export function sanitizeTab(tab) {
+export function sanitizeTab(tab, { controlled = false, createdAt = null } = {}) {
   let url = '';
   try {
     const u = new URL(tab?.url ?? '');
@@ -108,7 +111,15 @@ export function sanitizeTab(tab) {
   } catch {
     url = '';
   }
-  return { id: tab?.id, title: clipPoints(tab?.title, FIELD_MAX), url, active: Boolean(tab?.active) };
+  return {
+    id: tab?.id,
+    title: clipPoints(tab?.title, FIELD_MAX),
+    url,
+    active: Boolean(tab?.active),
+    controlled: controlled === true,
+    opener: isInt(tab?.openerTabId) ? tab.openerTabId : null,
+    createdAt: isInt(createdAt) ? createdAt : null,
+  };
 }
 
 const originOf = (url) => {

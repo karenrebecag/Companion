@@ -142,7 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             targetFrame: {
                 guard let pid = sensing.frontmost.lastOtherPID else { return nil }
                 return windows.windowFrame(pid: pid)
-            })
+            },
+            onSessionBoundary: { [browserHost = sensing.browserHost] in browserHost.bridgeSessionChanged() })
         bridgeHost.apply(enabled: HandsLendingPreference.enabled)
         self.bridgeHost = bridgeHost
         NotificationCenter.default.addObserver(

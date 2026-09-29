@@ -7,7 +7,9 @@ import Testing
 // by an explicit decision, budgets them, and the approval queue does not
 // mistake their sheets for a job's.
 
-private let browserWrites: Set<String> = ["browser_click", "browser_type", "browser_navigate"]
+private let browserWrites: Set<String> = [
+    "browser_click", "browser_type", "browser_navigate", "browser_open", "browser_take", "browser_release",
+]
 private let browserReads: Set<String> = ["browser_tabs", "browser_read"]
 
 @Test func theBridgeAllowlistNamesTheBrowserTools() {

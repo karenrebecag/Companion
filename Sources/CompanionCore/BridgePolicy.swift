@@ -42,7 +42,10 @@ public struct BridgePolicy: Sendable, Equatable {
         "open_file",
         "browser_click",
         "browser_type",
-        "browser_navigate"
+        "browser_navigate",
+        "browser_open",
+        "browser_take",
+        "browser_release"
     ]
 
     /// Every allowlisted tool that draws from the read budget. Explicit on
