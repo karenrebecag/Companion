@@ -15,6 +15,41 @@ import Testing
     testPromptProfileBlock()
     testPromptParentToolsActRule()
     testPromptCarriesSkills()
+    testPromptSpeaksUserTerms()
+}
+
+// La respuesta del PDF (captura 2026-09-29) dijo la ruta absoluta y la
+// herramienta interna. La regla vive en grounding para que el chat escrito
+// y la voz la compartan: términos de la usuaria, nunca rutas ni tripas.
+@MainActor func testPromptSpeaksUserTerms() {
+    for voice in [false, true] {
+        let es = ChatPrompt.system(ownerFirstName: "", delegateEnabled: true,
+                                   language: .es, voice: voice)
+        expect(es.contains("nunca una ruta absoluta"),
+               "prompt es voz=\(voice): prohíbe rutas absolutas")
+        expect(es.contains("por su lugar visible"),
+               "prompt es voz=\(voice): nombra archivos por su lugar")
+        expect(es.contains("cómo lo hiciste por dentro"),
+               "prompt es voz=\(voice): sin detalles de implementación")
+        let en = ChatPrompt.system(ownerFirstName: "", delegateEnabled: true,
+                                   language: .en, voice: voice)
+        expect(en.contains("never an absolute path"),
+               "prompt en voz=\(voice): prohíbe rutas absolutas")
+    }
+    // Security review: hiding the mechanism must never hide the effect. The
+    // rule says so itself, and actRule's "say what you did" still stands.
+    let acting = ChatPrompt.system(ownerFirstName: "", delegateEnabled: true,
+                                   parentToolsEnabled: true, language: .es)
+    expect(acting.contains("El efecto se dice siempre"),
+           "prompt: el efecto nunca se calla")
+    expect(acting.contains("di qué hiciste"),
+           "prompt: la regla nueva no borra el actRule")
+    let actingEn = ChatPrompt.system(ownerFirstName: "", delegateEnabled: true,
+                                     parentToolsEnabled: true, language: .en)
+    expect(actingEn.contains("The effect is always stated"),
+           "prompt en: el efecto nunca se calla")
+    expect(actingEn.contains("say what you did"),
+           "prompt en: la regla nueva no borra el actRule")
 }
 
 @MainActor func testPromptEmptyOwner() {
