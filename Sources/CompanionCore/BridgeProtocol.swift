@@ -180,6 +180,8 @@ public enum BridgeCode {
     public static let notAvailable = "not_available"
     /// Wave 18: no browser extension is attached, or it went away mid-call.
     public static let notConnected = "not_connected"
+    /// Wave 18b: the tab exists but this caller does not control it.
+    public static let notControlled = "not_controlled"
     /// Wave 18: the extension did not answer within the call's deadline.
     public static let timeout = "timeout"
     /// The tool exists but Companion's own window is in front, so there is no

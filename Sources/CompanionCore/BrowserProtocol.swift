@@ -168,12 +168,25 @@ public struct BrowserTab: Sendable, Equatable {
     public var title: String
     public var url: String
     public var active: Bool
+    /// Wave 18b: in the extension's "Companion" group. Ownership itself lives
+    /// in the app (`BrowserLease`); this is only what the strip shows.
+    public var controlled: Bool
+    /// The tab that opened this one, and when this one was born; both nil
+    /// when the worker did not see it being created.
+    public var opener: Int?
+    public var createdAt: Date?
 
-    public init(id: Int, title: String, url: String, active: Bool) {
+    public init(
+        id: Int, title: String, url: String, active: Bool,
+        controlled: Bool = false, opener: Int? = nil, createdAt: Date? = nil
+    ) {
         self.id = id
         self.title = title
         self.url = url
         self.active = active
+        self.controlled = controlled
+        self.opener = opener
+        self.createdAt = createdAt
     }
 }
 
@@ -183,11 +196,17 @@ public enum BrowserCommand: Sendable, Equatable {
     case click(tab: Int, generation: Int, element: Int)
     case type(tab: Int, generation: Int, element: Int, text: String)
     case navigate(tab: Int, url: URL)
+    case open(url: URL)
+    case take(tab: Int)
+    case release(tab: Int)
 }
 
 public enum BrowserInbound: Sendable, Equatable {
     case hello(id: Int, BrowserHello)
     case tabs(id: Int, [BrowserTab])
+    /// The answer to `open`: one tab, not a list, so a reply to `tabs` and a
+    /// reply to `open` can never be mistaken for each other.
+    case opened(id: Int, BrowserTab)
     case page(id: Int, BrowserPage)
     case done(id: Int, message: String)
     case error(id: Int?, BridgeErrorBody)

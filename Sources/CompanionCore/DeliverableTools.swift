@@ -80,6 +80,7 @@ public enum BridgeScope {
         // Wave 18 (X5): the browser's hand, behind Lend hands and a
         // connected extension. Tabs and read are reads; the rest are writes.
         "browser_tabs", "browser_read", "browser_click", "browser_type", "browser_navigate",
+        "browser_open", "browser_take", "browser_release",
     ]
 
     /// Offered to the user by the parent, never lent over the bridge. The

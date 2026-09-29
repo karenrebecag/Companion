@@ -12,8 +12,16 @@ extension BrowserToolRunner {
 
     public func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
         guard let tool = BrowserTool(rawValue: call.name), tool.isWrite,
-              let arguments = ToolArguments.parse(call.arguments), let tab = Self.tab(arguments)
+              let arguments = ToolArguments.parse(call.arguments)
         else { return nil }
+        syncEpoch()
+        // Open names no tab: it is judged by the address alone.
+        if tool == .open { return openApproval(call, arguments: arguments, said: said) }
+        guard let tab = Self.tab(arguments) else { return nil }
+        if tool == .take { return takeApproval(call, tab: tab) }
+        // Release never asks; the rest only for a tab this caller controls,
+        // or the refusal in `execute` would find a ticket waiting.
+        guard tool != .release, mayAct(tab) else { return nil }
         if tool == .navigate { return navigateApproval(call, tab: tab, arguments: arguments, said: said) }
         return elementApproval(call, tool: tool, tab: tab, arguments: arguments, said: said)
     }
@@ -82,12 +90,22 @@ extension BrowserToolRunner {
         guard let tab = Self.tab(arguments) else {
             return fail(tool, BridgeCode.invalidArgs, "missing or invalid tab")
         }
-        if tool == .navigate { return await navigate(tab: tab, arguments: arguments, raw: raw) }
-        return await act(tool, tab: tab, arguments: arguments, raw: raw)
+        let wasControlled = controls(tab)
+        if let denied = await requireControl(tool, tab) { return denied }
+        // A child adopted by this very call was never judged by the gate.
+        let adopted = !wasControlled
+        if tool == .navigate { return await navigate(tab: tab, arguments: arguments, raw: raw, adopted: adopted) }
+        return await act(tool, tab: tab, arguments: arguments, raw: raw, adopted: adopted)
+    }
+
+    private func needsApproval(_ tool: BrowserTool, adopted: Bool) -> ParentToolOutcome {
+        fail(tool, "approval_required", adopted
+            ? "tab is yours now (opened by a page you control); call again so it can be approved"
+            : "this action needs approval before it runs")
     }
 
     private func act(
-        _ tool: BrowserTool, tab: Int, arguments: [String: Any], raw: String
+        _ tool: BrowserTool, tab: Int, arguments: [String: Any], raw: String, adopted: Bool
     ) async -> ParentToolOutcome {
         guard let id = ParentToolRunner.intArgument(arguments["element"]) else {
             return fail(tool, BridgeCode.invalidArgs, "missing or invalid element")
@@ -106,7 +124,7 @@ extension BrowserToolRunner {
             return fail(tool, BridgeCode.secureField, BrowserCopy.failure(code: BridgeCode.secureField, language()))
         }
         guard tickets.redeem(Self.ticket(tool.rawValue, raw, tab: tab, element: element, page: page)) else {
-            return fail(tool, "approval_required", "this action needs approval before it runs")
+            return needsApproval(tool, adopted: adopted)
         }
         guard await tabIsStillAt(tab, origin: page.origin) else { return leftItsOrigin(tool, tab) }
         let command: BrowserCommand = tool == .click
@@ -124,7 +142,9 @@ extension BrowserToolRunner {
         }
     }
 
-    private func navigate(tab: Int, arguments: [String: Any], raw: String) async -> ParentToolOutcome {
+    private func navigate(
+        tab: Int, arguments: [String: Any], raw: String, adopted: Bool
+    ) async -> ParentToolOutcome {
         let tool = BrowserTool.navigate
         guard let address = arguments["url"] as? String else {
             return fail(tool, BridgeCode.invalidArgs, "missing url")
@@ -138,7 +158,7 @@ extension BrowserToolRunner {
         }
         let origin = cachedPage(tab)?.origin
         guard tickets.redeem(Self.navigateTicket(raw, tab: tab, origin: origin)) else {
-            return fail(tool, "approval_required", "this action needs approval before it runs")
+            return needsApproval(tool, adopted: adopted)
         }
         // Security finding M4: the verdict was reached against the origin the
         // tab had when it was last read. The tab's live address decides.
@@ -157,9 +177,12 @@ extension BrowserToolRunner {
     /// Fails closed: a tab that cannot be found, or an origin that cannot be
     /// compared, is not a tab that stayed where it was read.
     private func tabIsStillAt(_ tab: Int, origin: String) async -> Bool {
-        guard !origin.isEmpty,
-              case .success(.tabs(_, let tabs)) = await channel.send(.tabs, timeout: Self.actTimeout),
-              let current = tabs.first(where: { $0.id == tab }), !current.url.isEmpty
+        guard !origin.isEmpty else { return false }
+        let asOf = leases.sequence
+        guard case .success(.tabs(_, let tabs)) = await channel.send(.tabs, timeout: Self.actTimeout)
+        else { return false }
+        leases.noteListing(tabs, asOf: asOf)
+        guard let current = tabs.first(where: { $0.id == tab }), !current.url.isEmpty
         else { return false }
         return BrowserPolicy.sameOrigin(current.url, origin)
     }

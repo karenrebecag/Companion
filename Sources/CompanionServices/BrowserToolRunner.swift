@@ -29,18 +29,36 @@ public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
     let channel: any BrowserCommanding
     let language: @Sendable () -> AppLanguage
     let tickets = ApprovalTickets()
+    let leases: BrowserLeases
+    let caller: String
+    static let titleLimit = 120
     private let presence: BrowserPresence
     private let lock = NSLock()
     private var pages: [Int: BrowserPage] = [:]
     private var seenEpoch: Int
 
-    public init(
+    /// Alone, a runner has its own lease and is the conversation's.
+    public convenience init(
         channel: any BrowserCommanding, presence: BrowserPresence,
         language: @escaping @Sendable () -> AppLanguage = { .en }
+    ) {
+        self.init(
+            channel: channel, presence: presence, language: language,
+            leases: BrowserLeases(epoch: presence.epoch), caller: Self.chatCaller)
+    }
+
+    /// The host builds one lease and hands it to both runners, each with its
+    /// own caller id.
+    init(
+        channel: any BrowserCommanding, presence: BrowserPresence,
+        language: @escaping @Sendable () -> AppLanguage = { .en },
+        leases: BrowserLeases, caller: String
     ) {
         self.channel = channel
         self.presence = presence
         self.language = language
+        self.leases = leases
+        self.caller = caller
         self.seenEpoch = presence.epoch
     }
 
@@ -68,6 +86,9 @@ public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
         case .tabs: return await tabs()
         case .read: return await read(arguments)
         case .click, .type, .navigate: return await write(tool, arguments, argumentsJSON)
+        case .open: return await open(arguments)
+        case .take: return await take(arguments, raw: argumentsJSON)
+        case .release: return await release(arguments)
         }
     }
 
@@ -79,12 +100,15 @@ public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
     // MARK: - reads
 
     private func tabs() async -> ParentToolOutcome {
+        let asOf = leases.sequence
         switch await channel.send(.tabs, timeout: Self.actTimeout) {
         case .failure(let error):
             return failed(.tabs, error)
         case .success(.tabs(_, let tabs)):
+            leases.noteListing(tabs, asOf: asOf)
             let lines = tabs.map {
                 "[\($0.id)] \(Self.oneLine($0.title)) — \(Self.oneLine($0.url))" + ($0.active ? " (active)" : "")
+                    + ownership(of: $0.id)
             }
             let body = lines.isEmpty ? "no open tabs" : lines.joined(separator: "\n")
             return ParentToolOutcome(ok: true, output: withDataNote(body), tool: BrowserTool.tabs.rawValue)
@@ -97,6 +121,7 @@ public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
         guard let tab = Self.tab(arguments) else {
             return fail(.read, BridgeCode.invalidArgs, "missing or invalid tab")
         }
+        if let denied = await requireControl(.read, tab) { return denied }
         var selector: String?
         if let raw = arguments["selector"], !(raw is NSNull) {
             guard let text = raw as? String else {
@@ -108,6 +133,7 @@ public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
         let epoch = presence.epoch
         switch await channel.send(.read(tab: tab, selector: selector), timeout: Self.readTimeout) {
         case .failure(let error):
+            if error.code == BridgeCode.staleId { lost(tab) }
             return failed(.read, error)
         case .success(.page(_, let page)) where page.tab == tab:
             let clean = BrowserPolicy.scrub(page)
@@ -120,6 +146,15 @@ public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
         }
     }
 
+    /// Only says who holds a tab, never why: the listing is for locating.
+    private func ownership(of tab: Int) -> String {
+        switch leases.owner(of: tab) {
+        case nil: return ""
+        case caller?: return " (yours)"
+        default: return " (another agent)"
+        }
+    }
+
     // MARK: - shared
 
     func cachedPage(_ tab: Int) -> BrowserPage? {
@@ -129,11 +164,18 @@ public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
 
     func forget(_ tab: Int) { lock.withLock { pages[tab] = nil } }
 
+    /// The extension says the tab is gone: nobody owns it any more.
+    func lost(_ tab: Int) {
+        leases.release(tab: tab)
+        forget(tab)
+    }
+
     /// Pages and approvals belong to the connection that produced them: ids
     /// and generations mean nothing to a reconnected extension, and a yes
     /// given for the old session must not be spendable in the new one.
-    private func syncEpoch() {
+    func syncEpoch() {
         let current = presence.epoch
+        leases.sync(epoch: current)
         // WHY the reset is inside the lock: outside it, a redeem racing the
         // transition could spend an old-session yes after the pages were
         // already cleared. Tickets take their own lock and never call back.

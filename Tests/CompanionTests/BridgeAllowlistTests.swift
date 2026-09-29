@@ -87,8 +87,10 @@ private func bridge(_ tools: FakeParentTools) -> BridgeSession {
         "open_app", "open_url", "open_file", "list_apps", "read_skill", "find_places",
         "type_text", "press_key", "focus_window", "read_focused",
         "look", "click", "scroll", "menu", "see",
-        // Wave 18 (X5): added deliberately, with the browser's five tools.
+        // Wave 18 (X5): added deliberately, with the browser's five tools;
+        // 18b adds open, take and release (take asks a sheet on the bridge).
         "browser_tabs", "browser_read", "browser_click", "browser_type", "browser_navigate",
+        "browser_open", "browser_take", "browser_release",
     ]
     expectEq(BridgeScope.bridgeTools, expected, "the allowlist is exactly the tools the bridge serves")
     for name in expected.sorted() {

@@ -21,6 +21,9 @@ public actor BridgeSession {
     private let accessibility: @Sendable () -> Bool
     let now: @Sendable () -> Date
     let onState: @Sendable (BridgeState) -> Void
+    /// Fires when a session starts and when it ends, so state tied to "the
+    /// bridge" (browser tab leases) never outlives the client that made it.
+    let onSessionBoundary: @Sendable () -> Void
     /// 17-2's island chip blinks on this: fired after a successful write
     /// action (§3 "cada acción de escritura lo hace parpadear").
     let onAction: @Sendable (String) -> Void
@@ -61,6 +64,7 @@ public actor BridgeSession {
         onState: @escaping @Sendable (BridgeState) -> Void = { _ in },
         onAction: @escaping @Sendable (String) -> Void = { _ in },
         onCall: @escaping @Sendable (String) -> Void = { _ in },
+        onSessionBoundary: @escaping @Sendable () -> Void = {},
         idleTimeout: TimeInterval = BridgePolicy.idleTimeout,
         idleCheckInterval: TimeInterval = BridgePolicy.idleCheckInterval
     ) {
@@ -77,6 +81,7 @@ public actor BridgeSession {
         self.onState = onState
         self.onAction = onAction
         self.onCall = onCall
+        self.onSessionBoundary = onSessionBoundary
     }
 
     public var state: BridgeState { policy.state }
@@ -104,6 +109,7 @@ public actor BridgeSession {
         client = ""
         current = connection
         lastActivity = now()
+        onSessionBoundary()
         onState(policy.state)
         let watchdog = Task { await self.watchIdle(mine: mine) }
         // `handle` can sit on a sheet while the peer hangs up; nothing reads
@@ -126,6 +132,7 @@ public actor BridgeSession {
         }
         guard mine == epoch else { return }
         current = nil
+        onSessionBoundary()
         connectionClosed()
     }
 

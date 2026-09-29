@@ -14,6 +14,13 @@ public final class BrowserHost: @unchecked Sendable {
     /// bridge peer (and the peer's calls never spend the user's).
     private let conversationRunner: BrowserToolRunner
     private let bridgeRunner: BrowserToolRunner
+    /// One lease for both runners: a tab is one, so whoever holds it, the other
+    /// caller must see it held.
+    private let leases: BrowserLeases
+    private static let bridgeCaller = "bridge"
+    private let commander: any BrowserCommanding
+    private var sweeper: Task<Void, Never>?
+    private let sweepEvery: Duration
     private let listener: BridgeListener
     private let installer: NativeHostInstaller
     private let lock = NSLock()
@@ -22,8 +29,11 @@ public final class BrowserHost: @unchecked Sendable {
     public init(
         directory: URL, installer: NativeHostInstaller,
         language: @escaping @Sendable () -> AppLanguage,
-        commanding: (any BrowserCommanding)? = nil
+        commanding: (any BrowserCommanding)? = nil,
+        sweepEvery: Duration = .seconds(30),
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
+        self.sweepEvery = sweepEvery
         self.installer = installer
         let box = ChannelBox()
         let listener = BridgeListener(
@@ -36,8 +46,17 @@ public final class BrowserHost: @unchecked Sendable {
         box.value = channel
         self.listener = listener
         let commander: any BrowserCommanding = commanding ?? channel
-        self.conversationRunner = BrowserToolRunner(channel: commander, presence: presence, language: language)
-        self.bridgeRunner = BrowserToolRunner(channel: commander, presence: presence, language: language)
+        let leases = BrowserLeases(epoch: presence.epoch, now: now)
+        self.leases = leases
+        self.commander = commander
+        self.conversationRunner = BrowserToolRunner(
+            channel: commander, presence: presence, language: language,
+            leases: leases, caller: BrowserToolRunner.chatCaller)
+        // HACK: the bridge serves one session at a time, so one id covers it.
+        // Per-connection ids when the bridge admits several agents at once.
+        self.bridgeRunner = BrowserToolRunner(
+            channel: commander, presence: presence, language: language,
+            leases: leases, caller: Self.bridgeCaller)
     }
 
     // MARK: Lifecycle
@@ -54,6 +73,8 @@ public final class BrowserHost: @unchecked Sendable {
         lock.withLock {
             guard started else { return }
             listener.stop()
+            sweeper?.cancel()
+            sweeper = nil
             started = false
         }
     }
@@ -98,6 +119,17 @@ public final class BrowserHost: @unchecked Sendable {
         return .disconnected
     }
 
+    /// The bridge's caller id is shared by every session, so a session that
+    /// ends (or a new one that starts) must not leave its tabs to the next
+    /// client, which would skip the take sheet. The leases clear before this
+    /// returns; the returned task finishes telling the extension.
+    @discardableResult
+    public func bridgeSessionChanged() -> Task<Void, Never> {
+        let tabs = leases.releaseAll(owner: Self.bridgeCaller)
+        let leases = leases, commander = commander
+        return Task.detached { await leases.giveBack(tabs, channel: commander) }
+    }
+
     // MARK: Tool lists
 
     /// Chat and both voice modes: the parent's tools, the connected apps' and
@@ -120,10 +152,30 @@ public final class BrowserHost: @unchecked Sendable {
             do {
                 try listener.start()
                 started = true
+                startSweeper()
             } catch {
                 Log.browser("listener: could not start")
             }
             return started
+        }
+    }
+}
+
+extension BrowserHost {
+    /// Gives idle tabs back on a clock, not only when someone calls a tool.
+    /// Called with `lock` held.
+    fileprivate func startSweeper() {
+        guard sweeper == nil else { return }
+        let leases = leases, commander = commander, presence = presence, every = sweepEvery
+        sweeper = Task.detached {
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: every)
+                } catch {
+                    return
+                }
+                await leases.sweep(channel: commander, epoch: presence.epoch)
+            }
         }
     }
 }
