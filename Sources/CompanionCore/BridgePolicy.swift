@@ -45,6 +45,14 @@ public struct BridgePolicy: Sendable, Equatable {
     public static let budgetPerMinute = 30
     public static let window: TimeInterval = 60
 
+    /// Wave 20c D5 (M2a): a connection with no traffic for this long loses
+    /// the hands. Long enough for a slow agent step, short enough that a
+    /// forgotten client does not hold them for the rest of the day.
+    public static let idleTimeout: TimeInterval = 10 * 60
+    /// How often the session looks at the clock; the timeout is the ceiling,
+    /// this is only the resolution.
+    public static let idleCheckInterval: TimeInterval = 15
+
     public private(set) var state: BridgeState
 
     /// Absolute timestamps of write operations. Pruned to keep only writes

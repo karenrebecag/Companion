@@ -41,6 +41,12 @@ public actor BridgeSession {
     /// parked forever.
     private var pendingSheet: ApprovalRequest?
     private var epoch = 0
+    private let idleTimeout: TimeInterval
+    private let idleCheckInterval: TimeInterval
+    private var lastActivity: Date
+    /// Calls and sheets being awaited right now: a session working for the
+    /// peer is not idle, the sheet has its own timeout.
+    private var inFlight = 0
 
     public init(
         tools: any ParentToolExecuting,
@@ -51,8 +57,13 @@ public actor BridgeSession {
         now: @escaping @Sendable () -> Date = { Date() },
         onState: @escaping @Sendable (BridgeState) -> Void = { _ in },
         onAction: @escaping @Sendable (String) -> Void = { _ in },
-        onCall: @escaping @Sendable (String) -> Void = { _ in }
+        onCall: @escaping @Sendable (String) -> Void = { _ in },
+        idleTimeout: TimeInterval = BridgePolicy.idleTimeout,
+        idleCheckInterval: TimeInterval = BridgePolicy.idleCheckInterval
     ) {
+        self.idleTimeout = idleTimeout
+        self.idleCheckInterval = idleCheckInterval
+        self.lastActivity = now()
         self.tools = tools
         self.guardian = parentGuard
         self.token = token
@@ -87,7 +98,10 @@ public actor BridgeSession {
         policy.disconnected()
         client = ""
         current = connection
+        lastActivity = now()
         onState(policy.state)
+        let watchdog = Task { await self.watchIdle(epoch: mine) }
+        defer { watchdog.cancel() }
         await withdrawPendingSheet()
         for await line in connection.lines {
             guard mine == epoch else { break }
@@ -104,6 +118,32 @@ public actor BridgeSession {
         connectionClosed()
     }
 
+    /// Closes the live connection once it has been quiet for `idleTimeout`:
+    /// the session is closed (a fresh hello and sheet are needed) and the
+    /// peer sees EOF. True when it acted.
+    @discardableResult
+    public func expireIfIdle() -> Bool {
+        guard current != nil, inFlight == 0,
+              now().timeIntervalSince(lastActivity) >= idleTimeout
+        else { return false }
+        Log.bridge("idle timeout; session closed")
+        policy.stop()
+        onState(policy.state)
+        current?.close()
+        return true
+    }
+
+    private func watchIdle(epoch mine: Int) async {
+        while !Task.isCancelled, mine == epoch {
+            do {
+                try await Task.sleep(nanoseconds: UInt64(idleCheckInterval * 1_000_000_000))
+            } catch {
+                return
+            }
+            if mine == epoch, expireIfIdle() { return }
+        }
+    }
+
     private func withdrawPendingSheet() async {
         guard let sheet = pendingSheet else { return }
         pendingSheet = nil
@@ -116,6 +156,12 @@ public actor BridgeSession {
     }
 
     private func handle(line: String, epoch: Int) async -> (reply: String, close: Bool) {
+        inFlight += 1
+        lastActivity = now()
+        defer {
+            inFlight -= 1
+            lastActivity = now()
+        }
         switch BridgeCodec.decode(line: line) {
         case .failure(let error):
             // Spec §3c: an oversized line closes the connection. The
