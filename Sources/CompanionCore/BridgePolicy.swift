@@ -59,6 +59,16 @@ public struct BridgePolicy: Sendable, Equatable {
     public static let maxDenials = 3
     public static let denialWindow: TimeInterval = 10 * 60
 
+    /// Wave 20c D5 (review F1): approval SHEETS shown per `sheetWindow`,
+    /// whatever their outcome. Withdrawn and timed-out sheets are not denials
+    /// (they must not lock the hands), so without this a token-holding peer
+    /// could raise fresh sheets forever by reconnecting. A real session is one
+    /// session sheet plus a per-call sheet for each destructive click or
+    /// `type_text`; 20 in ten minutes is far past what a person answers, and
+    /// still stops a loop.
+    public static let maxSheetsPerWindow = 20
+    public static let sheetWindow: TimeInterval = denialWindow
+
     public private(set) var state: BridgeState
 
     /// Absolute timestamps of write operations. Pruned to keep only writes
@@ -208,5 +218,23 @@ public struct BridgePolicy: Sendable, Equatable {
     public var isListed: Bool {
         if case .listed = state { return true }
         return false
+    }
+}
+
+/// Sliding window over the sheets a bridge has shown. Separate from the
+/// denial cool-down on purpose: that one counts refusals only, this one
+/// counts every sheet whatever became of it. Per process, never reset.
+public struct BridgeSheetLimit: Sendable, Equatable {
+    private var shown: [Date] = []
+
+    public init() {}
+
+    /// True and records the sheet when one more may be shown at `now`.
+    public mutating func admit(now: Date) -> Bool {
+        let cutoff = now.addingTimeInterval(-BridgePolicy.sheetWindow)
+        shown = shown.filter { $0 > cutoff }
+        guard shown.count < BridgePolicy.maxSheetsPerWindow else { return false }
+        shown.append(now)
+        return true
     }
 }

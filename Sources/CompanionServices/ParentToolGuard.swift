@@ -30,6 +30,8 @@ public struct ParentToolGuard: Sendable {
     /// silence, and callers that count refusals must tell them apart.
     enum SheetAnswer: Sendable, Equatable {
         case approved, denied, timedOut
+        /// No sheet was shown: the bridge's sheets-per-window limit is spent.
+        case refused
     }
 
     /// `check`'s answer plus how the sheet ended, for callers that count
@@ -49,7 +51,7 @@ public struct ParentToolGuard: Sendable {
     func verdict(
         _ call: ToolCallRef, said: String, language: AppLanguage,
         tools: (any ParentToolExecuting)? = nil,
-        parked: (@Sendable (ApprovalRequest) -> Void)?
+        parked: (@Sendable (ApprovalRequest) -> Bool)?
     ) async -> Verdict {
         let asked = tools?.approval(for: call, said: said)
             ?? ParentToolGate.approval(for: call, said: said)
@@ -72,16 +74,17 @@ public struct ParentToolGuard: Sendable {
     }
 
     /// `parked` runs right before the sheet is shown, so a caller that must
-    /// withdraw it later already knows which one it is.
+    /// withdraw it later already knows which one it is; returning false
+    /// vetoes the sheet.
     func answer(
-        _ request: ApprovalRequest, parked: (@Sendable (ApprovalRequest) -> Void)?
+        _ request: ApprovalRequest, parked: (@Sendable (ApprovalRequest) -> Bool)?
     ) async -> SheetAnswer {
         guard let approvals else { return .denied }
         if let decision = await approvals.remembered(request) {
             await onRemembered?(request.toolName, decision)
             return decision ? .approved : .denied
         }
-        parked?(request)
+        if let parked, !parked(request) { return .refused }
         onRequest?(request)
         let response = await approvals.request(request)
         if response.approved { return .approved }

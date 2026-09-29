@@ -10,9 +10,21 @@ final class BridgeParkedSheet: @unchecked Sendable {
     private let lock = NSLock()
     private var current: ApprovalRequest?
     private var withdrawn: Set<String> = []
+    private var limit = BridgeSheetLimit()
+    private let now: @Sendable () -> Date
 
-    func park(_ request: ApprovalRequest) {
-        lock.withLock { current = request }
+    init(now: @escaping @Sendable () -> Date = { Date() }) {
+        self.now = now
+    }
+
+    /// False when the sheet-shown limit is spent: the caller must not show
+    /// the sheet. Counted here, at the one place every sheet passes through.
+    func park(_ request: ApprovalRequest) -> Bool {
+        lock.withLock {
+            guard limit.admit(now: now()) else { return false }
+            current = request
+            return true
+        }
     }
 
     /// Takes the sheet to withdraw it and remembers that WE did, so the

@@ -39,7 +39,7 @@ public actor BridgeSession {
     /// The sheet (session-open or per-call) the current call is waiting on,
     /// so `stop()` ("Corte"), the peer leaving, or a replacing connection can
     /// withdraw it instead of leaving it on screen and the slot held.
-    private let parked = BridgeParkedSheet()
+    private let parked: BridgeParkedSheet
     private var epoch = 0
     private let idleTimeout: TimeInterval
     private let idleCheckInterval: TimeInterval
@@ -70,6 +70,7 @@ public actor BridgeSession {
         self.language = language
         self.accessibility = accessibility
         self.now = now
+        self.parked = BridgeParkedSheet(now: now)
         self.onState = onState
         self.onAction = onAction
         self.onCall = onCall
@@ -322,6 +323,7 @@ public actor BridgeSession {
         Log.bridge("session approval requested by \(loggableName(client))")
         let parkedSheet = parked
         let answer = await guardian.answer(request, parked: { parkedSheet.park($0) })
+        if answer == .refused { return refuseSheet(id: id) }
         let withdrawn = parked.settle(request)
         let approved = answer == .approved
         Log.bridge("session approval resolved approved=\(approved) withdrawn=\(withdrawn)")
@@ -381,6 +383,7 @@ public actor BridgeSession {
             ref, said: "", language: language(), tools: tools, parked: { parkedSheet.park($0) })
         let withdrawn = parked.settleCurrent()
         guard mine == epoch else { return ("", false) }
+        if verdict.answer == .refused { return refuseSheet(id: id) }
         if let denied = verdict.denial {
             let counts = verdict.answer.map { countsAsDenial($0, withdrawn: withdrawn) } ?? true
             return denyCall(id: id, denied, counts: counts)
@@ -400,6 +403,15 @@ public actor BridgeSession {
         Log.bridge("call \(call.name) ok=\(outcome.ok) target=\(outcome.target) "
             + "chars=\(call.argumentsJSON.utf8.count)")
         return (BridgeCodec.encode(.call(id: id, BridgeCallResult(outcome))), false)
+    }
+
+    /// The sheets-per-window limit is spent: no sheet was shown and the
+    /// session is shut off, with the same code and close as the cool-down.
+    private func refuseSheet(id: Int) -> (String, Bool) {
+        Log.bridge("sheet limit reached; session shut off")
+        policy.stop()
+        onState(policy.state)
+        return (errorLine(id, BridgeCode.coolingDown, rejectionMessage(BridgeCode.coolingDown)), true)
     }
 
     /// Only the user refusing counts: "Corte" (withdrawn by us) and a sheet
