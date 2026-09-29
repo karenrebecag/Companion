@@ -26,20 +26,41 @@ public struct ParentToolGuard: Sendable {
         self.onRemembered = onRemembered
     }
 
+    /// How a sheet ended. Only `denied` is the user refusing: a deadline is
+    /// silence, and callers that count refusals must tell them apart.
+    enum SheetAnswer: Sendable, Equatable {
+        case approved, denied, timedOut
+    }
+
+    /// `check`'s answer plus how the sheet ended, for callers that count
+    /// refusals (the bridge's cool-down).
+    struct Verdict: Sendable {
+        let denial: ParentToolOutcome?
+        let answer: SheetAnswer?
+    }
+
     func check(
         _ call: ToolCallRef, said: String, language: AppLanguage,
         tools: (any ParentToolExecuting)? = nil
     ) async -> ParentToolOutcome? {
+        await verdict(call, said: said, language: language, tools: tools, parked: nil).denial
+    }
+
+    func verdict(
+        _ call: ToolCallRef, said: String, language: AppLanguage,
+        tools: (any ParentToolExecuting)? = nil,
+        parked: (@Sendable (ApprovalRequest) -> Void)?
+    ) async -> Verdict {
         let asked = tools?.approval(for: call, said: said)
             ?? ParentToolGate.approval(for: call, said: said)
-        guard let asked else { return nil }
+        guard let asked else { return Verdict(denial: nil, answer: nil) }
         let request = await tools?.bound(asked) ?? asked
         let target = ParentTool.target(of: call)
         let denied = ParentToolOutcome.failed(
             .deniedByUser(language), target: target, tool: call.name)
-        let approved = await ask(request)
-        if approved { tools?.granted(request) }
-        return approved ? nil : denied
+        let answer = await answer(request, parked: parked)
+        if answer == .approved { tools?.granted(request) }
+        return Verdict(denial: answer == .approved ? nil : denied, answer: answer)
     }
 
     /// The remembered/onRequest/request dance on its own, without a
@@ -47,13 +68,24 @@ public struct ParentToolGuard: Sendable {
     /// ("wants to use your hands", spec §9-5) has no tool call behind it,
     /// just this `ApprovalRequest`.
     func ask(_ request: ApprovalRequest) async -> Bool {
-        guard let approvals else { return false }
+        await answer(request, parked: nil) == .approved
+    }
+
+    /// `parked` runs right before the sheet is shown, so a caller that must
+    /// withdraw it later already knows which one it is.
+    func answer(
+        _ request: ApprovalRequest, parked: (@Sendable (ApprovalRequest) -> Void)?
+    ) async -> SheetAnswer {
+        guard let approvals else { return .denied }
         if let decision = await approvals.remembered(request) {
             await onRemembered?(request.toolName, decision)
-            return decision
+            return decision ? .approved : .denied
         }
+        parked?(request)
         onRequest?(request)
-        return await approvals.request(request).approved
+        let response = await approvals.request(request)
+        if response.approved { return .approved }
+        return response.timedOut ? .timedOut : .denied
     }
 
     /// "Stop hands" (spec §3 "Corte"): resolves a sheet the caller is still

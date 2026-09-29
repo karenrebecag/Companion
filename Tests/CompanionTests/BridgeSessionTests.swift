@@ -506,6 +506,8 @@ final class ScriptedApprovals: ApprovalsProvider, @unchecked Sendable {
     private var answersByTool: [String: Bool] = [:]
     private var rememberedAnswer: Bool?
     private var park: Bool
+    private var parkedTools: Set<String> = []
+    private var timedOutIds: Set<String> = []
     private var pending: [String: CheckedContinuation<Bool, Never>] = [:]
     private var _requests: [ApprovalRequest] = []
     private var _resolutions: [(requestId: String, approved: Bool)] = []
@@ -519,14 +521,25 @@ final class ScriptedApprovals: ApprovalsProvider, @unchecked Sendable {
     func request(_ approval: ApprovalRequest) async -> ApprovalResponse {
         lock.withLock { _requests.append(approval) }
         let approved: Bool
-        if park {
+        if park || lock.withLock({ parkedTools.contains(approval.toolName) }) {
             approved = await withCheckedContinuation { continuation in
                 lock.withLock { pending[approval.requestId] = continuation }
             }
         } else {
             approved = lock.withLock { answersByTool[approval.toolName] ?? defaultAnswer }
         }
-        return ApprovalResponse(requestId: approval.requestId, approved: approved)
+        let timedOut = lock.withLock { timedOutIds.contains(approval.requestId) }
+        return ApprovalResponse(requestId: approval.requestId, approved: approved, timedOut: timedOut)
+    }
+
+    /// The real `Approvals` deadline: a denial nobody typed.
+    func timeOut(requestId: String) async -> Bool {
+        lock.withLock { _ = timedOutIds.insert(requestId) }
+        return await resolve(requestId: requestId, approved: false)
+    }
+
+    func setPark(forTool tool: String) {
+        lock.withLock { _ = parkedTools.insert(tool) }
     }
 
     func resolve(requestId: String, approved: Bool) async -> Bool {

@@ -36,10 +36,10 @@ public actor BridgeSession {
     /// and `stop()` alone (just closing the session in `policy`) left the
     /// live connection open with nothing to ever tell it to reconnect.
     private var current: BridgeConnection?
-    /// The session-open sheet `handleSessionApproval` is waiting on, if
-    /// any, so `stop()` ("Corte") can withdraw it instead of leaving it
-    /// parked forever.
-    private var pendingSheet: ApprovalRequest?
+    /// The sheet (session-open or per-call) the current call is waiting on,
+    /// so `stop()` ("Corte"), the peer leaving, or a replacing connection can
+    /// withdraw it instead of leaving it on screen and the slot held.
+    private let parked = BridgeParkedSheet()
     private var epoch = 0
     private let idleTimeout: TimeInterval
     private let idleCheckInterval: TimeInterval
@@ -100,12 +100,18 @@ public actor BridgeSession {
         current = connection
         lastActivity = now()
         onState(policy.state)
-        let watchdog = Task { await self.watchIdle(epoch: mine) }
-        defer { watchdog.cancel() }
+        let watchdog = Task { await self.watchIdle(mine: mine) }
+        // `handle` can sit on a sheet while the peer hangs up; nothing reads
+        // `lines` then, so the close has to be noticed from the side.
+        let leaving = Task { await self.withdrawWhenClosed(connection, mine: mine) }
+        defer {
+            watchdog.cancel()
+            leaving.cancel()
+        }
         await withdrawPendingSheet()
         for await line in connection.lines {
             guard mine == epoch else { break }
-            let (reply, close) = await handle(line: line, epoch: mine)
+            let (reply, close) = await handle(line: line, mine: mine)
             guard mine == epoch else { break }
             connection.send(line: reply)
             if close {
@@ -133,10 +139,17 @@ public actor BridgeSession {
         return true
     }
 
-    private func watchIdle(epoch mine: Int) async {
+    /// A negative, NaN or infinite interval would trap in the conversion.
+    private var idleCheckNanoseconds: UInt64 {
+        let nanoseconds = idleCheckInterval * 1_000_000_000
+        guard nanoseconds.isFinite else { return 0 }
+        return UInt64(max(0, min(nanoseconds, Double(UInt64.max / 2))))
+    }
+
+    private func watchIdle(mine: Int) async {
         while !Task.isCancelled, mine == epoch {
             do {
-                try await Task.sleep(nanoseconds: UInt64(idleCheckInterval * 1_000_000_000))
+                try await Task.sleep(nanoseconds: idleCheckNanoseconds)
             } catch {
                 return
             }
@@ -144,24 +157,31 @@ public actor BridgeSession {
         }
     }
 
+    private func withdrawWhenClosed(_ connection: BridgeConnection, mine: Int) async {
+        for await _ in connection.closure {}
+        guard !Task.isCancelled, mine == epoch else { return }
+        await withdrawPendingSheet()
+    }
+
     private func withdrawPendingSheet() async {
-        guard let sheet = pendingSheet else { return }
-        pendingSheet = nil
+        guard let sheet = parked.takeForWithdrawal() else { return }
         await guardian.withdraw(sheet)
+    }
+
+    /// Only a real hello or an admitted call is activity: a peer that sends
+    /// junk, a bad token or rejected calls must not hold the slot forever.
+    private func markActive() {
+        lastActivity = now()
     }
 
     /// Pure enough to test without a socket: one line in, one reply out.
     public func handle(line: String) async -> (reply: String, close: Bool) {
-        await handle(line: line, epoch: epoch)
+        await handle(line: line, mine: epoch)
     }
 
-    private func handle(line: String, epoch: Int) async -> (reply: String, close: Bool) {
+    private func handle(line: String, mine: Int) async -> (reply: String, close: Bool) {
         inFlight += 1
-        lastActivity = now()
-        defer {
-            inFlight -= 1
-            lastActivity = now()
-        }
+        defer { inFlight -= 1 }
         switch BridgeCodec.decode(line: line) {
         case .failure(let error):
             // Spec §3c: an oversized line closes the connection. The
@@ -172,7 +192,7 @@ public actor BridgeSession {
         case .success(.hello(let id, let hello)):
             return await handleHello(id: id, hello: hello)
         case .success(.call(let id, let call)):
-            return await handleCall(id: id, call: call, epoch: epoch)
+            return await handleCall(id: id, call: call, mine: mine)
         case .success(.bye(let id)):
             policy.disconnected()
             onState(policy.state)
@@ -215,10 +235,7 @@ public actor BridgeSession {
         Log.bridge("stop requested by user")
         policy.stop()
         onState(policy.state)
-        if let pendingSheet {
-            await guardian.withdraw(pendingSheet)
-            self.pendingSheet = nil
-        }
+        await withdrawPendingSheet()
         current?.close()
     }
 
@@ -242,6 +259,7 @@ public actor BridgeSession {
             // moves to the first `call`, §9-4); kept for exhaustiveness.
             return (errorLine(id, BridgeCode.busy, "unexpected state"), false)
         case .proceed:
+            markActive()
             client = hello.client
             Log.bridge("hello client=\(loggableName(client)); tools listed")
             let result = BridgeHelloResult(
@@ -257,7 +275,7 @@ public actor BridgeSession {
 
     // MARK: - call
 
-    private func handleCall(id: Int, call: BridgeCall, epoch: Int) async -> (String, Bool) {
+    private func handleCall(id: Int, call: BridgeCall, mine: Int) async -> (String, Bool) {
         // Local-only first: the bridge must not even say such a tool exists.
         guard !BridgeScope.isLocalOnly(call.name) else {
             return (errorLine(id, BridgeCode.unknownTool, "unknown tool: \(call.name)"), false)
@@ -274,9 +292,9 @@ public actor BridgeSession {
         case .reject(let code):
             return (errorLine(id, code, rejectionMessage(code)), false)
         case .proceed:
-            return await performCall(id: id, call: call, epoch: epoch)
+            return await performCall(id: id, call: call, mine: mine)
         case .needsApproval:
-            return await handleSessionApproval(id: id, call: call, epoch: epoch)
+            return await handleSessionApproval(id: id, call: call, mine: mine)
         }
     }
 
@@ -293,25 +311,26 @@ public actor BridgeSession {
     /// `client: "claude-code"` and, if this were ever remembered, inherit
     /// the hands with no sheet. One sheet per connection, every time,
     /// regardless of "remember" on the sheet.
-    private func handleSessionApproval(id: Int, call: BridgeCall, epoch: Int) async -> (String, Bool) {
+    private func handleSessionApproval(id: Int, call: BridgeCall, mine: Int) async -> (String, Bool) {
         let request = ApprovalRequest(
             requestId: UUID().uuidString, toolName: BridgePolicy.sessionApprovalTool,
             summary: BridgeCopy.sheetTitle(language()), inputJSON: sessionApprovalInputJSON())
-        pendingSheet = request
         // Seen live 2026-09-28: this whole round trip resolved with no
         // trace, and only the shim's error said anything happened. The
         // request and its resolution are the two lines that tell a silent
         // auto-deny apart from a user's "no".
         Log.bridge("session approval requested by \(loggableName(client))")
-        let approved = await guardian.ask(request)
-        if pendingSheet?.requestId == request.requestId { pendingSheet = nil }
-        Log.bridge("session approval resolved approved=\(approved)")
+        let parkedSheet = parked
+        let answer = await guardian.answer(request, parked: { parkedSheet.park($0) })
+        let withdrawn = parked.settle(request)
+        let approved = answer == .approved
+        Log.bridge("session approval resolved approved=\(approved) withdrawn=\(withdrawn)")
         // A newer connection took over while the sheet was up: this answer
         // belongs to a connection that is gone and must not touch the state.
-        guard epoch == self.epoch else { return ("", false) }
+        guard mine == epoch else { return ("", false) }
         guard approved else {
             policy.denied()
-            policy.recordDenial(now: now())
+            if countsAsDenial(answer, withdrawn: withdrawn) { policy.recordDenial(now: now()) }
             onState(policy.state)
             if policy.isCoolingDown(now: now()) {
                 Log.bridge("cooling down after repeated denials")
@@ -346,18 +365,32 @@ public actor BridgeSession {
         case .needsApproval:
             return (errorLine(id, BridgeCode.busy, "unexpected state"), false)
         case .proceed:
-            return await performCall(id: id, call: call, epoch: epoch)
+            return await performCall(id: id, call: call, mine: mine)
         }
     }
 
     /// The per-call gate (destructive click, Return in a terminal, `type_text`
     /// always) runs with `said: ""`: nothing was spoken, so anything 15g/16
     /// would have trusted a spoken word for goes to the sheet instead.
-    private func performCall(id: Int, call: BridgeCall, epoch: Int) async -> (String, Bool) {
+    private func performCall(id: Int, call: BridgeCall, mine: Int) async -> (String, Bool) {
+        markActive()
+        defer { markActive() }
         let ref = ToolCallRef(id: UUID().uuidString, name: call.name, arguments: call.argumentsJSON)
-        let denied = await guardian.check(ref, said: "", language: language(), tools: tools)
-        guard epoch == self.epoch else { return ("", false) }
-        if let denied { return denyCall(id: id, denied) }
+        let parkedSheet = parked
+        let verdict = await guardian.verdict(
+            ref, said: "", language: language(), tools: tools, parked: { parkedSheet.park($0) })
+        let withdrawn = parked.settleCurrent()
+        guard mine == epoch else { return ("", false) }
+        if let denied = verdict.denial {
+            let counts = verdict.answer.map { countsAsDenial($0, withdrawn: withdrawn) } ?? true
+            return denyCall(id: id, denied, counts: counts)
+        }
+        // Same M4 guard as the session sheet: the yes may have landed after
+        // the peer left, and there is nobody to answer or to act for.
+        guard current?.isOpen ?? true else {
+            Log.bridge("call approved after the client left; nothing executed")
+            return ("", false)
+        }
         let outcome = await tools.execute(name: call.name, argumentsJSON: call.argumentsJSON)
         if outcome.ok { onCall(call.name) }
         if outcome.ok, BridgePolicy.writeTools.contains(call.name) {
@@ -369,10 +402,17 @@ public actor BridgeSession {
         return (BridgeCodec.encode(.call(id: id, BridgeCallResult(outcome))), false)
     }
 
+    /// Only the user refusing counts: "Corte" (withdrawn by us) and a sheet
+    /// nobody answered before its deadline are not refusals, and counting
+    /// them would lock the hands for minutes after three quiet timeouts.
+    private func countsAsDenial(_ answer: ParentToolGuard.SheetAnswer, withdrawn: Bool) -> Bool {
+        answer == .denied && !withdrawn
+    }
+
     /// A per-call denial counts toward the cool-down like the session sheet:
     /// the Nth one shuts the session off and closes the connection.
-    private func denyCall(id: Int, _ outcome: ParentToolOutcome) -> (String, Bool) {
-        policy.recordDenial(now: now())
+    private func denyCall(id: Int, _ outcome: ParentToolOutcome, counts: Bool) -> (String, Bool) {
+        if counts { policy.recordDenial(now: now()) }
         let coolingDown = policy.isCoolingDown(now: now())
         if coolingDown {
             Log.bridge("cooling down after repeated denials; session shut off")
@@ -395,6 +435,7 @@ public actor BridgeSession {
             let data = try JSONSerialization.data(withJSONObject: fields)
             return String(data: data, encoding: .utf8) ?? "{}"
         } catch {
+            Log.bridge("session sheet input could not be serialized: \(error.localizedDescription)")
             return "{}"
         }
     }

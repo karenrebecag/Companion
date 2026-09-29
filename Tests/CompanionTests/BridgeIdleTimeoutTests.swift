@@ -21,7 +21,7 @@ final class IdleClock: @unchecked Sendable {
     await testTheWatchdogClosesAQuietConnectionOnItsOwn()
 }
 
-private func idleSession(
+func idleSession(
     _ tools: FakeParentTools, _ approvals: ScriptedApprovals, clock: IdleClock,
     timeout: TimeInterval = 60, interval: TimeInterval = 3600
 ) -> BridgeSession {
@@ -31,7 +31,7 @@ private func idleSession(
         now: { clock.now }, idleTimeout: timeout, idleCheckInterval: interval)
 }
 
-private func openSession(_ session: BridgeSession, _ pair: BridgePair) async -> Task<Void, Never> {
+func openSession(_ session: BridgeSession, _ pair: BridgePair) async -> Task<Void, Never> {
     let serving = Task.detached { await session.serve(pair.connection) }
     pair.send(hello(1))
     _ = pair.readLine()

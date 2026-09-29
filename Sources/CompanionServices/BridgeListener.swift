@@ -243,6 +243,10 @@ public final class BridgeConnection: @unchecked Sendable {
     private var closed = false
     private let continuation: AsyncStream<String>.Continuation
     public let lines: AsyncStream<String>
+    /// Yields nothing and finishes when the connection closes, for whoever
+    /// is parked on something else (a sheet) while `lines` is being read.
+    let closure: AsyncStream<Void>
+    private let closureContinuation: AsyncStream<Void>.Continuation
     /// Read once at accept: the peer can exit, but the pid and path the
     /// sheet showed are the ones that asked.
     public let peer: BridgePeer?
@@ -258,6 +262,9 @@ public final class BridgeConnection: @unchecked Sendable {
         var pendingContinuation: AsyncStream<String>.Continuation?
         self.lines = AsyncStream<String> { continuation in pendingContinuation = continuation }
         self.continuation = pendingContinuation!
+        var pendingClosure: AsyncStream<Void>.Continuation?
+        self.closure = AsyncStream<Void> { continuation in pendingClosure = continuation }
+        self.closureContinuation = pendingClosure!
         let thread = Thread { [weak self] in self?.readLoop() }
         thread.name = "bridge-connection"
         thread.start()
@@ -280,6 +287,7 @@ public final class BridgeConnection: @unchecked Sendable {
         Darwin.shutdown(fd, SHUT_RDWR)
         Darwin.close(fd)
         continuation.finish()
+        closureContinuation.finish()
         if freeSlot { onClosed?() }
     }
 
