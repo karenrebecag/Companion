@@ -562,3 +562,12 @@
 "appearance.auto" = "Sistema";
 "island.opening" = "Abriendo";
 "island.reply.open" = "Abre el resultado completo";
+
+"island.dictation.copy" = "Copiar dictado";
+"island.dictation.copied" = "Copiado";
+"island.dictation.hide" = "Ocultar dictado";
+"island.notice.limit.title" = "Límite de uso alcanzado";
+"island.notice.update.title" = "Companion %@ está disponible";
+"island.notice.update.body" = "Descarga la nueva versión desde su página de lanzamiento.";
+"island.notice.update.action" = "Actualizar";
+"island.notice.update.later" = "Después";

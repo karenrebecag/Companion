@@ -18,6 +18,15 @@ public final class UpdateState {
 
     public private(set) var available: Available?
     public private(set) var checking = false
+    /// The island's offer is waved away per version, for this session.
+    private var dismissedTag: String?
+    public var noticeTag: String? {
+        IslandUpdate.visibleTag(available: available, dismissed: dismissedTag)
+    }
+
+    public func dismissNotice() {
+        dismissedTag = available?.tag
+    }
 
     private let checkNow: () async -> Available?
 

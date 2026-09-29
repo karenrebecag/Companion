@@ -79,3 +79,24 @@ comportamiento observado en las grabaciones y el CSS medido (nunca su código):
   del sistema — cero dependencia nueva; polar/radar con `Path`); **Mermaid con `mermaid.js`
   vendoreado** dentro de un `WKWebView` aislado, sin acceso a red, CSP cerrada, solo para
   pintar — es la única dependencia tercera de la wave y este párrafo es su decisión firmada.
+
+## 6. 16m-4 — valores propios y reversión de 12e (2026-09-29)
+
+Valores que Incredible no mide y que fijó esta sesión (cambiarlos es decisión de producto, no de CSS):
+
+| Valor | Elegido | Dónde |
+|---|---|---|
+| Plazo de la tarjeta de dictado | 12 s, con el puntero encima no caduca; al salir o al copiar se rearma | `SessionMachine.dictationCardDelay` |
+| Líneas visibles del texto dictado | 6 (copiar siempre toma el texto entero) | `IslandDictationMetrics.maxLines` |
+| "Copiado" en el botón | 1,5 s, y se anuncia por VoiceOver | `IslandDictationMetrics.copiedFor` |
+| Rejilla del permiso | la de consentimiento (340–440, gap 10, ancho recortado a lo que pide el texto); la investigación no le da fila propia | `IslandNoticeMetrics` |
+| Padding y gaps del diagnóstico y la actualización | los del límite (18 × 20; 10 × 12) | `IslandNoticeMetrics` |
+| Ancho de la actualización | 522 medido, pero la forma de la isla es 492 y se fija por tamaño en cuatro sitios: la tarjeta se recorta a lo que hay (460). Ensanchar la forma queda para 16m-6 | `IslandNoticeMetrics.width` |
+
+**Reversión de 12e §7.** 12e decía "Popup de resultado: no; la isla ya lo dice". 16m-4 lo revierte:
+el resultado del dictado es una tarjeta con copiar / ocultar. La puerta `dictation-never-logged`
+se reformula: lo dictado va al campo enfocado y, en memoria, a esa tarjeta hasta que se oculta
+o caduca; nunca al log, al historial ni a la conversación. Las palabras viajan como `DictatedText`,
+que se imprime redactado, y salen de la proyección por cualquier puerta que deje Completed.
+La oferta de actualización no aparece con la isla oculta por la usuaria ni con la ventana
+principal delante, y la página de release solo se acepta si es de `github.com/karenrebecag/Companion/releases`.

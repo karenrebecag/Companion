@@ -236,7 +236,7 @@ App: `CompanionMain` cablea `AXTextInjector(selfBundleID:)`.
   primero medir cuánto corrige el oído nativo.
 - Historial de dictado (`dictation-history.json`): no (privacidad; el
   texto ya está donde el usuario lo puso).
-- Popup de resultado: no; la island ya lo dice.
+- Popup de resultado: no; la island ya lo dice. (REVERTIDO en 16m-4: hay tarjeta de resultado con copiar / ocultar; ver wave-16m §6.)
 - Dictado en el pipeline clásico (sin clave): otra wave si hace falta.
 - Dictado en el campo de Companion (`chat_input_dictation_*`): el hilo ya
   lo permite con la manos libres.

@@ -17,6 +17,8 @@ public struct IslandView: View {
     let grabber: (any RegionGrabbing)?
     /// The clip's file picker (16m-3); absent, "Choose file…" says so.
     let pickFiles: IslandFilePicker?
+    /// The release the checker found (16m-4); absent, the island never offers one.
+    let updates: UpdateState?
     // Members are internal, not private, on purpose: the island's families
     // extend this view from Island/*/IslandView+X.swift, and Swift's private
     // stops at the file.
@@ -56,7 +58,8 @@ public struct IslandView: View {
         onSize: @escaping (IslandState.Size, CGFloat) -> Void,
         onReleaseKey: @escaping () -> Void = {},
         grabber: (any RegionGrabbing)? = nil,
-        pickFiles: IslandFilePicker? = nil
+        pickFiles: IslandFilePicker? = nil,
+        updates: UpdateState? = nil
     ) {
         self.chat = chat
         self.voice = voice
@@ -67,6 +70,7 @@ public struct IslandView: View {
         self.onReleaseKey = onReleaseKey
         self.grabber = grabber
         self.pickFiles = pickFiles
+        self.updates = updates
     }
 
     var state: IslandState {
@@ -81,7 +85,8 @@ public struct IslandView: View {
             cancelled: cancelled, followUp: chat.followUp, dropping: geometry.dropping,
             errorText: ChatErrorSurface.visible(
                 errorText: chat.errorText, needsOnboarding: chat.needsOnboarding,
-                dismissed: chat.dismissedIslandError))
+                dismissed: chat.dismissedIslandError),
+            update: updates?.noticeTag)
     }
 
     /// Newest first, the replies of this conversation only, each keyed by

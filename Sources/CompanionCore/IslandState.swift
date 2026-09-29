@@ -24,6 +24,10 @@ public struct IslandState: Sendable, Equatable {
         case dictating(String)
         case pasting
         case dictated(String)
+        /// 16m-4: what the hold pasted, offered back as a card (copy / hide).
+        case dictationResult(app: String, text: DictatedText)
+        /// 16m-4: a newer release exists; the card offers its page.
+        case updateAvailable(tag: String)
         /// Spec 15d §5: the hold's words are being written to disk.
         case transcriptsDebug
         /// Spec 16i §2: the user stopped the voice; said once, briefly.
@@ -53,6 +57,8 @@ public struct IslandState: Sendable, Equatable {
         case stopHands
         /// 16k-3: the connect card's way to the Apps page.
         case openApps(slug: String)
+        /// 16m-4: the update card's way to the release page.
+        case openUpdate
     }
 
     public var size: Size
@@ -97,7 +103,7 @@ public struct IslandState: Sendable, Equatable {
         _ p: SessionProjection, pebbleHidden: Bool, mainInFront: Bool = false,
         holdLearned: Bool = false, keyListening: Bool = true, debugTranscripts: Bool = false,
         composing: Bool = false, cancelled: Bool = false, followUp: String? = nil,
-        dropping: Bool = false, errorText: String? = nil
+        dropping: Bool = false, errorText: String? = nil, update: String? = nil
     ) -> IslandState {
         var state: IslandState
         switch p.kind {
@@ -115,6 +121,13 @@ public struct IslandState: Sendable, Equatable {
             state = IslandState(size: .bar, line: .cancelled)
         case .idle where followUp != nil && p.notice == nil:
             state = IslandState(size: .bar, line: .followUp(followUp ?? ""))
+        // Last of the resting cards: an offer, never in front of something
+        // that needs the user (a notice, an error, a hold), never on an
+        // island the user hid (it would surface it) and never while the
+        // main window is in front (it would say it twice).
+        case .idle where update != nil && p.notice == nil && p.approval == nil
+            && !mainInFront && !(pebbleHidden && p.voice == .off):
+            state = IslandState(size: .card, line: .updateAvailable(tag: update ?? ""))
         case .idle:
             state = atRest(p, pebbleHidden: pebbleHidden)
         case .hover:
@@ -162,6 +175,7 @@ public struct IslandState: Sendable, Equatable {
         case .permission(let failure): .openPermission(failure)
         case .failure(.noProviders), .failure(.quotaExceeded): .openKeys
         case .connectApp(let slug, _): .openApps(slug: slug)
+        case .updateAvailable: .openUpdate
         default: nil
         }
     }
@@ -220,7 +234,12 @@ public struct IslandState: Sendable, Equatable {
                 line: .job(goal: job?.goal, step: job?.steps.last?.label, steps: job?.steps.count ?? 0),
                 showsStop: true)
         case .completed:
-            return IslandState(size: .bar, line: p.dictation.map { .dictated($0) } ?? .completed)
+            guard let app = p.dictation else { return IslandState(size: .bar, line: .completed) }
+            // The words are the card; without them the bar only says where.
+            guard let text = p.dictatedText, !text.value.isEmpty else {
+                return IslandState(size: .bar, line: .dictated(app))
+            }
+            return IslandState(size: .card, line: .dictationResult(app: app, text: text))
         }
     }
 }

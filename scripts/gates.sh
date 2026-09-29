@@ -112,11 +112,12 @@ check_imports CompanionUI       "AVFoundation|WebKit" \
     "UI no importa AVFoundation/WebKit"
 
 # Revision 16h-2 ronda 3: la proyeccion de sesion tiene un solo escritor, el
-# reductor (SessionMachine.swift + SessionMachineJobs.swift). Fuera de Core
+# reductor (SessionMachine.swift + SessionMachineJobs.swift + SessionMachineDictation.swift).
+# Fuera de Core
 # solo se copia su salida entera (SessionModel: `= machine.projection`).
 proj_write='(^|[^[:alnum:]_])projection(\??\.[[:alnum:]_?.]+|\[[^]]*\])*[[:space:]]*([-+]?=[^=]|\.(append|remove[[:alnum:]]*|insert)\()'
 proj_hits=$(grep -rnE "$proj_write" "$SRC" --include='*.swift' 2>/dev/null \
-    | grep -vE '/CompanionCore/SessionMachine(Jobs)?\.swift:' \
+    | grep -vE '/CompanionCore/SessionMachine(Jobs|Dictation)?\.swift:' \
     | grep -vE '(let|var)[[:space:]]+projection[[:space:]:=]|= machine\.projection$' || true)
 if [ -n "$proj_hits" ]; then
     fail "escritura de la proyeccion fuera del reductor:"
@@ -128,9 +129,9 @@ fi
 # `projection` y esquivaria el chequeo de arriba.
 ext_hits=$(grep -rnE '^[[:space:]]*(public[[:space:]]+|internal[[:space:]]+)?extension[[:space:]]+SessionMachine([^[:alnum:]_]|$)' \
         "$SRC" --include='*.swift' 2>/dev/null \
-    | grep -vE '/CompanionCore/SessionMachine(Jobs)?\.swift:' || true)
+    | grep -vE '/CompanionCore/SessionMachine(Jobs|Dictation)?\.swift:' || true)
 if [ -n "$ext_hits" ]; then
-    fail "extension SessionMachine fuera de SessionMachine(Jobs).swift:"
+    fail "extension SessionMachine fuera de SessionMachine(Jobs|Dictation).swift:"
     echo "$ext_hits"
 else
     pass "SessionMachine solo se extiende en su propio archivo"

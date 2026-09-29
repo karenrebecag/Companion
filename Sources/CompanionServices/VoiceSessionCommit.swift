@@ -74,7 +74,9 @@ extension VoiceSession {
         case .injected(let count, let route):
             commitTimeline()
             Log.app("dictation: pasted \(count) chars into \(field.app) via \(route.rawValue)")
-            eventBox.yield(.dictated(app: field.app))
+            // The words ride the event for the island's result card only;
+            // the log above stays at the count (dictation-never-logged).
+            eventBox.yield(.dictated(app: field.app, text: DictatedText(text)))
             return true
         case .failed(let reason):
             Log.app("dictation: \(reason) in \(field.app); the words go to Companion")
