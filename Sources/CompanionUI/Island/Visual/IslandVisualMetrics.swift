@@ -43,6 +43,12 @@ public enum IslandVisualMetrics {
     /// A round chart's axis label: the widest a name gets before it truncates.
     public static let radialLabelWidth: CGFloat = 64
 
+    /// The width the diagram is laid out at: the popup's 580 less its own
+    /// side padding (2 x 22) and the container's (2 x 16). Narrower than that
+    /// the container scrolls sideways; the picture is never shrunk.
+    public static let diagramWidth = AnswerPopupMetrics.maxWidth
+        - 2 * AnswerPopupMetrics.paddingX - 2 * paddingX
+
     public static func canvasHeight(for kind: ChartBlock.Kind) -> CGFloat {
         switch kind {
         case .pie, .donut, .polar, .radar: radialCanvas

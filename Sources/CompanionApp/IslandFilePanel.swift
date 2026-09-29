@@ -40,7 +40,7 @@ enum IslandFilePanel {
         return urls
     }
 
-    private static func handBack(to previous: NSRunningApplication?) {
+    static func handBack(to previous: NSRunningApplication?) {
         guard let previous else { return }
         let current = NSRunningApplication.current
         guard IslandPickerFocus.handsBack(

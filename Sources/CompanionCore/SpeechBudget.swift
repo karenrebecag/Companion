@@ -42,6 +42,7 @@ public struct SpeechBudget: Sendable, Equatable {
         return AnswerBlocks.blocks(from: text).contains {
             // A question with options is a card the voice must not read out.
             if case .card = $0 { return true }
+            if case .diagram = $0 { return true }
             return $0.isChoice
         }
     }

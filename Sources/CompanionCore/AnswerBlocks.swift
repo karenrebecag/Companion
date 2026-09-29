@@ -29,6 +29,7 @@ public enum AnswerBlock: Sendable, Equatable {
     case fileChip(String)
     case card(CardPayload)
     case choice(ChoiceBlock)
+    case diagram(DiagramBlock)
 }
 
 public extension AnswerBlock {
@@ -44,7 +45,11 @@ public enum AnswerBlocks {
     static let plainCap = 240
 
     public static func blocks(from markdown: String) -> [AnswerBlock] {
-        MarkdownSplitter.split(markdown).map { block(of: $0.kind) }
+        let parts = MarkdownSplitter.split(markdown)
+        let cut = MarkdownSplitter.endsInsideFence(markdown)
+        return parts.enumerated().map { index, part in
+            block(of: part.kind, settled: !(cut && index == parts.count - 1))
+        }
     }
 
     /// True when the answer holds more than the result card can say: any
@@ -63,7 +68,9 @@ public enum AnswerBlocks {
         return plain > plainCap
     }
 
-    private static func block(of kind: MarkdownSplitter.Kind) -> AnswerBlock {
+    /// `settled` is false for a fence the text ended inside: a diagram that
+    /// is still arriving (or was cut) is drawn as code, not sent to a renderer.
+    private static func block(of kind: MarkdownSplitter.Kind, settled: Bool) -> AnswerBlock {
         switch kind {
         case .heading(let level, let text):
             switch level {
@@ -85,6 +92,9 @@ public enum AnswerBlocks {
         case .code(let language, let body):
             if language == CompanionBlocks.choiceLanguage, let choice = CompanionBlocks.choice(body) {
                 return .choice(choice)
+            }
+            if settled, language == CompanionBlocks.diagramLanguage, let diagram = CompanionBlocks.diagram(body) {
+                return .diagram(diagram)
             }
             if let payload = fencePayload(language: language, body: body) {
                 return .card(payload)

@@ -141,6 +141,7 @@ extension AppDelegate {
         screenOverlays = ScreenOverlays(session: sessionModel, onFailure: { Log.app($0) })
         let islandGeometry = IslandGeometry()
         let recentFiles = RecentFiles()
+        let diagramRenderer = WebKitDiagramRenderer()
         let island = IslandPanel(
             content: IslandView(
                 chat: model, voice: voice, hold: holdSettings, geometry: islandGeometry,
@@ -158,7 +159,10 @@ extension AppDelegate {
                 mentions: MentionSources(
                     contacts: SystemContacts(),
                     connectedApps: { appTools.connectedMentionCandidates() },
-                    recentFiles: { await recentFiles.candidates() })),
+                    recentFiles: { await recentFiles.candidates() }),
+                // 16m-5b: the only WebKit in the app, drawing Mermaid with no network.
+                diagrams: diagramRenderer,
+                saveFile: { data, name in await IslandSavePanel.save(data, suggestedName: name) }),
             geometry: islandGeometry,
             onHover: { over in sessionModel.send(over ? .hoverEntered : .hoverLeft) })
         island.onResignKey = {
