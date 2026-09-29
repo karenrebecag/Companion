@@ -43,14 +43,25 @@ public struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
             }
             return ApprovalKey(tool: request.toolName, pattern: "\(first) *")
         case NativeTool.sheetWrite.rawValue:
-            // Wave 20: the exact rectangle, never the app: "yes to Excel"
-            // would be every future write to any open workbook.
+            // Wave 20c D4: a remembered yes covers the identical write only:
+            // the workbook and a hash of the cells are in the key, so it is
+            // never a blank cheque over a range or a workbook.
             guard let range = (arguments["range"] as? String).flatMap(SheetRange.init(a1:)) else { return nil }
             // Without an app the target is whatever is in front when it runs,
             // which is not what the user approved.
-            guard let app = (arguments["app"] as? String)?.lowercased() else { return nil }
-            return ApprovalKey(tool: request.toolName, pattern: "\(app) \(range.a1)")
-        case NativeTool.writeFile.rawValue, NativeTool.editFile.rawValue, NativeTool.createDocument.rawValue:
+            guard let app = (arguments["app"] as? String)?.lowercased(),
+                  let workbook = SheetApproval.workbook(in: arguments),
+                  case .success(let cells) = SheetValues.parse(any: arguments["values"], for: range)
+            else { return nil }
+            return ApprovalKey(
+                tool: request.toolName,
+                pattern: "\(app) \(range.a1) \(workbook) #\(SheetApproval.fingerprint(cells))")
+        case NativeTool.createDocument.rawValue:
+            // The file, not its folder: one yes must not cover every
+            // deliverable a folder holds (20c D4, M6).
+            guard let path = arguments["path"] as? String, !path.isEmpty, !path.hasSuffix("/") else { return nil }
+            return ApprovalKey(tool: request.toolName, pattern: path)
+        case NativeTool.writeFile.rawValue, NativeTool.editFile.rawValue:
             guard let path = arguments["path"] as? String, !path.isEmpty else { return nil }
             var directory = (path as NSString).deletingLastPathComponent
             if directory.isEmpty { directory = "." }

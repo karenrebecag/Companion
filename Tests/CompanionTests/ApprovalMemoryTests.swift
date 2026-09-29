@@ -13,6 +13,8 @@ import Testing
     testCompoundShellCommandsAreNeverRemembered()
     testEveryRiskyToolHasAKeyAndUnknownToolsHaveNone()
     testBridgeSessionIsNeverRemembered()
+    testARememberedSheetWriteCoversOnlyTheIdenticalWrite()
+    testARememberedDocumentNamesTheFileNotTheFolder()
 }
 
 private func request(_ tool: String, _ json: String) -> ApprovalRequest {
@@ -97,14 +99,12 @@ private func request(_ tool: String, _ json: String) -> ApprovalRequest {
         .editFile: #"{"path":"~/a.md","old_string":"a","new_string":"b"}"#,
         .runShell: #"{"command":"ls"}"#,
         .createDocument: #"{"path":"~/informes/q3.pdf","document":"{}"}"#,
-        .sheetWrite: #"{"range":"B2:C3","values":"[[1,2],[3,4]]","app":"excel"}"#,
+        .sheetWrite: #"{"range":"B2:C3","values":"[[1,2],[3,4]]","app":"excel","workbook":"/tmp/a.xlsx"}"#,
     ]
     for tool in NativeTool.allCases where tool.riskLevel == .requiresApproval {
         expect(ApprovalKey.from(request(tool.rawValue, samples[tool] ?? "{}")) != nil,
                "cobertura: \(tool.rawValue) tiene clave")
     }
-    expectEq(ApprovalKey.from(request("sheet_write", #"{"range":"b2:c3","values":"[]","app":"Excel"}"#))?.description,
-             "sheet_write(excel B2:C3)", "hoja: se recuerda el rectángulo exacto, nunca la app entera")
     // Code review 20 (HIGH): without an app the target is whatever is in
     // front when it runs; "active B2:C3" would approve another workbook later.
     expect(ApprovalKey.from(request("sheet_write", #"{"range":"B2:C3","values":"[]"}"#)) == nil,
@@ -126,4 +126,39 @@ private func request(_ tool: String, _ json: String) -> ApprovalRequest {
            "bridge_session: never a key for an empty client name either")
     expect(ApprovalKey.from(request("bridge_session", "{}")) == nil,
            "bridge_session: never a key without a client field")
+}
+
+/// Wave 20c D4 (H4): "recordar" was a blank cheque over a range, whatever the
+/// values and whichever workbook. The key now carries both.
+@MainActor func testARememberedSheetWriteCoversOnlyTheIdenticalWrite() {
+    func write(_ values: String, workbook: String? = "/Users/k/Ventas.xlsx", app: String = "excel",
+               range: String = "B2:C3") -> ApprovalKey? {
+        let book = workbook.map { #","workbook":"\#($0)""# } ?? ""
+        return ApprovalKey.from(request(
+            "sheet_write", #"{"range":"\#(range)","app":"\#(app)","values":"\#(values)"\#(book)}"#))
+    }
+    let base = write("[[1,2],[3,4]]")
+    expect(base != nil, "hoja: una escritura atada a un libro tiene clave")
+    expectEq(base, write("[[1,2],[3,4]]"), "hoja: la misma escritura, la misma clave")
+    expect(base != write("[[1,2],[3,5]]"), "hoja: otros valores, otra clave")
+    expect(base != write("[[1,2],[3,4]]", workbook: "/Users/k/Otro.xlsx"), "hoja: otro libro, otra clave")
+    expect(base != write("[[1,2],[3,4]]", app: "numbers"), "hoja: otra app, otra clave")
+    expect(base != write("[[1,2],[3,4]]", range: "B2:C4"), "hoja: otro rango, otra clave")
+    expect(base?.description.contains("/Users/k/Ventas.xlsx") == true, "hoja: la clave nombra el libro")
+    expect(write("[[1,2],[3,4]]", workbook: nil) == nil, "hoja: sin libro atado no se recuerda")
+    expect(write("[[1,2]") == nil, "hoja: valores que no se pueden leer no se recuerdan")
+    expect(write("[[\\\"=WEBSERVICE(1)\\\",2],[3,4]]") == nil, "hoja: una fórmula rechazada no se recuerda")
+    let memory = ApprovalMemory().remembering(base ?? ApprovalKey(tool: "x", pattern: "x"), approved: true)
+    expectEq(write("[[1,2],[3,5]]").flatMap(memory.decision(for:)), nil, "hoja: lo recordado no aprueba otros valores")
+    expectEq(write("[[1,2],[3,4]]").flatMap(memory.decision(for:)), true, "hoja: sí aprueba la idéntica")
+}
+
+/// 20c D4 (M6): `dir/*` let one yes overwrite any deliverable in the folder.
+@MainActor func testARememberedDocumentNamesTheFileNotTheFolder() {
+    let a = ApprovalKey.from(request("create_document", #"{"path":"~/informes/q3.pdf","document":"{}"}"#))
+    let b = ApprovalKey.from(request("create_document", #"{"path":"~/informes/q4.pdf","document":"{}"}"#))
+    expect(a != nil && a != b, "documento: dos archivos de la misma carpeta, dos claves")
+    expectEq(a?.description, "create_document(~/informes/q3.pdf)", "documento: la clave es el archivo")
+    expect(ApprovalKey.from(request("create_document", #"{"path":"~/informes/","document":"{}"}"#)) == nil,
+           "documento: una carpeta no es un archivo, no se recuerda")
 }
