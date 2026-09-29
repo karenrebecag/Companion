@@ -301,6 +301,11 @@
 "island.clear.yes" = "Borrar";
 "island.clear.no" = "Cancelar";
 "island.result.open" = "Ver →";
+"island.reel" = "Apps tocadas en este turno";
+"island.checklist.dismiss" = "Ocultar la lista";
+"island.answer.close" = "Cerrar la respuesta";
+"island.answer.copy" = "Copiar el código";
+"island.answer.fold" = "Plegar el código";
 "island.action.keys" = "Abrir Claves";
 "island.hands" = "Manos: %@";
 "island.hands.stop" = "Detener manos";

@@ -7,10 +7,17 @@ public struct JobStepInfo: Sendable, Equatable, Codable {
     public let tool: String
     /// The step in human words ("WebSearch: vuelos a Lima").
     public let label: String
+    /// 16m-2: the runcard shows each step's fate, so `stepFinished` can no
+    /// longer be dropped on the floor. Nothing persists steps today, so
+    /// the synthesized Codable is enough (review 16m).
+    public var done: Bool
+    public var failed: Bool
 
-    public init(tool: String, label: String) {
+    public init(tool: String, label: String, done: Bool = false, failed: Bool = false) {
         self.tool = tool
         self.label = label
+        self.done = done
+        self.failed = failed
     }
 }
 

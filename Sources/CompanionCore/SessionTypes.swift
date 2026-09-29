@@ -71,6 +71,9 @@ public struct SessionProjection: Sendable, Equatable {
     public var cards: [SessionCard] = []
     /// What the parent's hands are on right now ("Safari", a URL).
     public var targets: [String] = []
+    /// Every app this TURN has touched, in order of first touch (16m-2):
+    /// the reel outlives `parentActed`, and a new turn starts it fresh.
+    public var touched: [String] = []
     /// Kept until the session leaves Idle again, so a Settings link outlives
     /// the step that produced it.
     public var interruption: InterruptReason?

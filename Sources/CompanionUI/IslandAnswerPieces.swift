@@ -75,6 +75,18 @@ public enum AnswerPopupMetrics {
     public static func width(screen: CGFloat) -> CGFloat {
         min(maxWidth, (screen * screenFraction).rounded())
     }
+
+    /// The gap between the close row and the first block.
+    public static let closeGap: CGFloat = 12
+    /// The air between the island's shape and the popup below it.
+    public static let dropGap: CGFloat = 8
+
+    /// What the popup adds OUTSIDE its scroll: top padding, the close row,
+    /// the gap under it, bottom padding. The scroll's cap subtracts this or
+    /// a tall answer clips at the panel's edge (review 16m H2).
+    public static var chrome: CGFloat {
+        paddingTop + AnswerBlockMetrics.closeSide + closeGap + paddingBottom
+    }
 }
 
 /// "Abriendo Safari, Notas…" as a verb and one chip per target.
@@ -197,6 +209,8 @@ struct CaptureCard<Content: View>: View {
 }
 
 /// The rich answer surface: headings, lists, tables and code live inside it.
+/// 16m-1 moves it to the ovx skin — rgb(14,14,16) under a 12 % rim at radius
+/// 20 — which is NOT the popover's n800: the popup reads as its own layer.
 struct AnswerPopup<Content: View>: View {
     let screenWidth: CGFloat
     @ViewBuilder let content: () -> Content
@@ -207,7 +221,11 @@ struct AnswerPopup<Content: View>: View {
             .padding(.horizontal, AnswerPopupMetrics.paddingX)
             .padding(.bottom, AnswerPopupMetrics.paddingBottom)
             .frame(width: AnswerPopupMetrics.width(screen: screenWidth), alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: Radius.lg).fill(IslandInk.popover))
+            .background(RoundedRectangle(cornerRadius: AnswerBlockMetrics.surfaceRadius)
+                .fill(AnswerInk.surface))
+            .overlay(RoundedRectangle(cornerRadius: AnswerBlockMetrics.surfaceRadius)
+                .strokeBorder(AnswerInk.white(AnswerBlockMetrics.surfaceBorder),
+                              lineWidth: Stroke.hairline))
             .elevation(.sheet)
     }
 }

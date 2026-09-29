@@ -34,6 +34,10 @@ public struct IslandView: View {
     @State private var cancelledTask: Task<Void, Never>?
     @State private var attachNote: String?
     @State private var attachNoteTask: Task<Void, Never>?
+    /// The message whose rich answer is open under the island (16m-1).
+    @State private var openAnswer: UUID?
+    /// The job whose checklist was waved away (16m-2), keyed by its start.
+    @State private var dismissedChecklist: Date?
 
     /// Incredible stacks the latest few; more is the window's job.
     static let maxResults = 3
@@ -102,6 +106,8 @@ public struct IslandView: View {
                 .clipShape(NotchShape(width: shown.width, height: shown.height, radius: radius(notch)))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .coordinateSpace(name: "islandCanvas")
+        .overlay(alignment: .top) { answerLayer }
         .overlayPreferenceValue(IslandPortalKey.self) { items in
             GeometryReader { proxy in portalLayer(items, in: proxy) }
         }
@@ -140,6 +146,60 @@ public struct IslandView: View {
             // Another app took the keyboard: the field is done, the panel rests.
             fieldFocused = false
         }
+    }
+
+    /// The rich answer under the shape (16m-1): a card's "Ver" opens it, ×
+    /// or Escape closes it, and its frame joins the click area the way the
+    /// dropdown's does. It dies with its message and with the island's rest.
+    @ViewBuilder
+    private var answerLayer: some View {
+        if let id = openAnswer,
+           let message = chat.messages.first(where: { $0.id == id })
+        {
+            let blocks = AnswerBlocks.blocks(from: message.text)
+            AnswerPopupView(
+                blocks: blocks,
+                // The notch sits centered on its screen, so twice its midX
+                // IS the screen width the 76 % cap wants.
+                screenWidth: geometry.notch.midX * 2,
+                maxHeight: IslandChrome.canvasHeight - shown.height
+                    - AnswerPopupMetrics.dropGap - IslandChrome.shadowRoom
+                    - AnswerPopupMetrics.chrome,
+                onClose: closeAnswer)
+                .offset(y: shown.height + AnswerPopupMetrics.dropGap)
+                .onGeometryChange(for: CGRect.self, of: { proxy in
+                    proxy.frame(in: .named("islandCanvas"))
+                }, action: { frame in
+                    // A report landing during the close fade must not
+                    // resurrect the click area (security review 16m).
+                    guard openAnswer != nil else { return }
+                    geometry.answer = frame.intersection(CGRect(
+                        x: 0, y: 0, width: IslandChrome.canvasWidth,
+                        height: IslandChrome.canvasHeight))
+                })
+                .onDisappear { geometry.answer = nil }
+                .transition(.islandPopover(anchor: .top, reduceMotion: reduceMotion))
+        }
+    }
+
+    private func closeAnswer() {
+        withAnimation(.expoOut(IslandMotionBudget.popover.openDuration)) { openAnswer = nil }
+        // Not waiting for the fade, same rule as the dropdown: the click
+        // area shrinks with the decision.
+        geometry.answer = nil
+    }
+
+    /// "Ver" earns a popup only when the reply holds more than the card
+    /// already says (D2, spec 16m §5); a short answer keeps opening the
+    /// window, which shows the same thing bigger.
+    private func openResult(_ id: UUID) {
+        guard let message = chat.messages.first(where: { $0.id == id }),
+              AnswerBlocks.isRich(AnswerBlocks.blocks(from: message.text))
+        else {
+            onShowMain()
+            return
+        }
+        withAnimation(.expoOut(IslandMotionBudget.popover.openDuration)) { openAnswer = id }
     }
 
     /// Tooltips and dropdowns over the clip (16o-1), kept off the notch band.
@@ -243,6 +303,9 @@ public struct IslandView: View {
             popover = nil
             // Not waiting for the fade: the click area shrinks with the decision.
             geometry.portal = nil
+            // The rich answer dies with the island's rest by the same rule.
+            openAnswer = nil
+            geometry.answer = nil
         }
         if reopens || IslandMotion.rests(to) {
             withAnimation(reduceMotion ? nil : .expoOut(IslandMotion.closeFade)) {
@@ -364,7 +427,7 @@ public struct IslandView: View {
             }
             reply(state)
             ForEach(Array(results.dropFirst().enumerated()), id: \.element.id) { index, row in
-                IslandResultCard(result: row.result, onOpen: onShowMain)
+                IslandResultCard(result: row.result, onOpen: { openResult(row.id) })
                     .modifier(IslandLineReveal(index: index))
             }
         }
@@ -376,7 +439,7 @@ public struct IslandView: View {
             let text = IslandReplyText.spoken(from: latest.text)
             if !text.isEmpty {
                 IslandReply(text: text, startedAt: replyStart, speaking: state.meter == .agent)
-                    .onTapGesture(perform: onShowMain)
+                    .onTapGesture { openResult(latest.id) }
             }
         }
     }
@@ -428,10 +491,28 @@ public struct IslandView: View {
                 IslandLight(light: state.light)
             }
             if let partial = state.partial, !partial.isEmpty {
-                caption(partial).truncationMode(.head)
+                // 16m-2: quieter while the ear can still change it, full
+                // ink once the release fixes it.
+                IslandTranscript(text: partial, fixed: state.meter != .mic)
             }
-            if case .job(_, let step, let steps) = state.line, steps > 0 {
-                caption(step ?? "").lineLimit(1)
+            let touched = chat.session.projection.touched
+            if !touched.isEmpty, state.approval == nil {
+                IslandReel(touched: touched)
+            }
+            if case .job = state.line, let job = chat.session.projection.job {
+                // Waving the checklist away falls back to the small
+                // runcard, never to silence (review 16m).
+                if job.steps.count > WorkStateMetrics.checklistAt,
+                   dismissedChecklist != job.startedAt
+                {
+                    IslandChecklist(job: job, onDismiss: { dismissedChecklist = job.startedAt })
+                } else {
+                    IslandRunCard(job: job)
+                }
+                let agents = WorkStateMetrics.agents(job.steps)
+                if !agents.isEmpty {
+                    IslandAgentBars(agents: agents)
+                }
             }
             if state.meter == .agent || (state.light == .green && state.line == .completed) {
                 reply(state)
