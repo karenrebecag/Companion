@@ -63,6 +63,12 @@ public struct UserLocationSource: Sendable {
         self.system = system
     }
 
+    /// What Settings holds, and nothing from the system: for callers whose
+    /// "Tu ciudad" switch is off.
+    public func typedCity() -> UserLocation? {
+        UserLocation(typed: manualCity())
+    }
+
     public func current(prompting: Bool) async -> UserLocation? {
         if let typed = UserLocation(typed: manualCity()) { return typed }
         return await system?.current(prompting: prompting)

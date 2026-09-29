@@ -175,9 +175,26 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
                 lock.unlock()
             }
         }
-        if stale {
-            Task.detached(priority: .utility) { [weak self] in await self?.refresh() }
-        }
+        refreshInBackground(ifStale: stale)
+    }
+
+    /// Off the turn's path: a slow catalog never delays the request.
+    private func refreshInBackground(ifStale stale: Bool) {
+        guard stale else { return }
+        Task.detached(priority: .utility) { [weak self] in await self?.refresh() }
+    }
+
+    /// A card answer names no app, so the words cannot narrow the set; the
+    /// agent keeps every connector, and each write still asks its own sheet.
+    /// Grants die and a stale cache refreshes here as they do for a typed
+    /// turn, but there are no words to match, so no suggestion is raised.
+    public func noteChoiceTurn() {
+        lock.lock()
+        grants.removeAll()
+        scope = .allConnected
+        let stale = now() - lastRefresh > Self.refreshTTL
+        lock.unlock()
+        refreshInBackground(ifStale: stale)
     }
 
     public func specs(_ language: AppLanguage) -> [ToolSpec] {
@@ -346,6 +363,10 @@ public struct CompositeParentTools: ParentToolExecuting, Sendable {
 
     public func noteTurn(_ said: String) {
         for runner in runners { runner.noteTurn(said) }
+    }
+
+    public func noteChoiceTurn() {
+        for runner in runners { runner.noteChoiceTurn() }
     }
 
     public func unavailability(for name: String) -> String? {

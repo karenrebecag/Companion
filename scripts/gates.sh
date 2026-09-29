@@ -137,6 +137,28 @@ else
     pass "SessionMachine solo se extiende en su propio archivo"
 fi
 
+# 16q-2: el interruptor "Tu ciudad" llega a las herramientas desde la raiz de
+# composicion. El default de los runners es apagado (fail closed), asi que una
+# constante o un cableado perdido aqui dejaria "cerca de mi" sin ciudad, o
+# la abriria sin permiso del usuario; App no tiene test, se fija por texto.
+# Sin comentarios (// y /* */), exactamente un `locationChannelOn:` y dentro de la
+# llamada ParentToolRunner(; el patron vive en conformance/location-wiring.regex
+# y lo lee tambien Parity16q2RoundTests.
+if python3 - "$SRC/CompanionApp/CompanionMainSensing.swift" "$ROOT/conformance/location-wiring.regex" <<'PY' 2>/dev/null
+import re, sys
+src = open(sys.argv[1]).read()
+pattern = open(sys.argv[2]).read().strip()
+bare = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+bare = re.sub(r"//[^\n]*", "", bare)
+ok = bare.count("locationChannelOn:") == 1 and re.search(pattern, bare, flags=re.S) is not None
+sys.exit(0 if ok else 1)
+PY
+then
+    pass "la raiz cablea ContextPreference.locationChannelOn dentro de ParentToolRunner("
+else
+    fail "CompanionMainSensing no cablea locationChannelOn: { ContextPreference.locationChannelOn } dentro de ParentToolRunner( (comentarios no cuentan)"
+fi
+
 # Literales de padding/spacing/cornerRadius: un solo sistema de tokens.
 # Valvula: // token-exempt:  (WHY en el mismo comentario)
 spacing_hits=$(grep -rnE \

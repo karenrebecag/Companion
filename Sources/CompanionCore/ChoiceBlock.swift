@@ -20,6 +20,8 @@ public struct ChoiceBlock: Sendable, Equatable {
     public enum Resolution: Sendable, Equatable {
         case open
         case chosen(Int)
+        /// A multiple-choice card answered with several options.
+        case chosenMany([Int])
         /// Answered some other way (she typed something else).
         case passed
     }
@@ -33,24 +35,54 @@ public struct ChoiceBlock: Sendable, Equatable {
     public static let maxLabel = 80
     public static let maxDetail = 160
 
+    /// The free answer is a message too: capped so it stays a reply.
+    public static let maxAnswer = 500
+
     public var question: String
     public var options: [Option]
+    /// The fence asked for several picks (`"multiple": true`).
+    public var multiple: Bool
+    /// The fence allows an answer in her own words (`"allowText": true`).
+    public var allowText: Bool
 
-    public init(question: String, options: [Option]) {
+    public init(question: String, options: [Option], multiple: Bool = false, allowText: Bool = false) {
         self.question = question
         self.options = options
+        self.multiple = multiple
+        self.allowText = allowText
     }
+
+    /// The message a set of picks sends: labels in option order.
+    public func reply(for picked: [Int]) -> String {
+        options.indices.filter(picked.contains).map { options[$0].label }.joined(separator: Self.separator)
+    }
+
+    static let separator = ", "
 
     /// `reply` is the user's next message after the question, if any.
     public func resolution(reply: String?) -> Resolution {
-        let said = Self.oneLine(reply ?? "", maxLength: Self.maxLabel * 4)
+        let said = Self.oneLine(reply ?? "", maxLength: max(Self.maxLabel, Self.maxAnswer) * 4)
         guard !said.isEmpty else { return .open }
-        let sent = options.firstIndex { $0.label == said }
-        return sent.map(Resolution.chosen) ?? .passed
+        if let sent = options.firstIndex(where: { $0.label == said }) { return .chosen(sent) }
+        if multiple, let picked = pickedSet(matching: said) { return .chosenMany(picked) }
+        return .passed
+    }
+
+    /// The subset of options whose labels, in option order, read exactly as
+    /// `said`. Tried by subsets rather than split on the separator: a label
+    /// may contain a comma, and at most six options make 63 candidates.
+    private func pickedSet(matching said: String) -> [Int]? {
+        let count = options.count
+        guard count >= 2 else { return nil }
+        for mask in 1 ..< (1 << count) where mask.nonzeroBitCount >= 2 {
+            let picked = (0 ..< count).filter { mask & (1 << $0) != 0 }
+            if reply(for: picked) == said { return picked }
+        }
+        return nil
     }
 
     /// Sanitized, one line, trimmed: a newline in a label would send two lines.
-    static func oneLine(_ text: String, maxLength: Int) -> String {
+    public static func oneLine(_ text: String, maxLength: Int) -> String {
         TextSanitizer.display(text, maxLength: maxLength)
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
@@ -79,7 +111,11 @@ extension CompanionBlocks {
             else { return nil }
             options.append(option)
         }
-        return ChoiceBlock(question: question, options: options)
+        // A flag of another type is a model slip, not a broken question.
+        return ChoiceBlock(
+            question: question, options: options,
+            multiple: dict["multiple"] as? Bool ?? false,
+            allowText: dict["allowText"] as? Bool ?? false)
     }
 
     private static func choiceOption(from raw: Any) -> ChoiceBlock.Option? {

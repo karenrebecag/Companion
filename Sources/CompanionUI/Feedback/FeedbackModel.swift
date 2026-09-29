@@ -9,6 +9,27 @@ public protocol FeedbackDelivering: Sendable {
     func deliver(_ draft: FeedbackDraft, captures: [URL]) -> FeedbackDelivery
 }
 
+/// What reading the clipboard's image came to: nothing there, too big to
+/// keep (nothing written), a write that failed, or the file.
+public enum PastedImage: Sendable, Equatable {
+    case empty, tooBig, failed, image(URL)
+}
+
+/// Where the screenshots that are not region grabs come from (16q-2): a file
+/// picker and the clipboard. A port so the model is tested without AppKit.
+public protocol FeedbackAttaching: Sendable {
+    /// The images she chose in the picker (empty when she cancelled).
+    @MainActor func chooseImages() async -> [URL]
+    /// The clipboard's image written to a private temporary file.
+    @MainActor func pastedImage() -> PastedImage
+    /// A regular file, not a symlink, folder or package.
+    func isRegularFile(_ url: URL) -> Bool
+    func byteSize(of url: URL) -> Int?
+    func isImage(_ url: URL) -> Bool
+    /// Removes a file `pastedImage()` wrote. Never called for a chosen file.
+    func discard(_ url: URL)
+}
+
 /// Incredible's comments modal (docs/research/incredible-isla-componentes.md
 /// §5): 480 wide, padding 32, radius 28. Pinned in Feedback16m7Tests.
 enum FeedbackMetrics {
@@ -28,6 +49,7 @@ extension FeedbackMood {
     /// SF Symbols, not emoji: they follow the text color and scale.
     var symbol: String {
         switch self {
+        case .upset: "exclamationmark.circle"
         case .love: "heart"
         case .good: "face.smiling"
         case .meh: "minus.circle"
@@ -36,6 +58,10 @@ extension FeedbackMood {
     }
 
     var title: String { Localized.string("feedback.mood." + rawValue) }
+}
+
+extension FeedbackTopic {
+    var title: String { Localized.string("feedback.topic." + rawValue) }
 }
 
 /// The modal's state. A capture is taken only when `addCapture()` is called,
@@ -51,16 +77,32 @@ final class FeedbackModel {
     private(set) var note: String?
     private(set) var phase = Phase.composing
     private var isCapturing = false
+    /// Who wrote each capture's file, so only that owner ever deletes it: a
+    /// file she chose from her disk is hers and is never touched.
+    private enum Origin { case region, pasted, chosen }
+    private var origins: [URL: Origin] = [:]
+
+    private(set) var topics: [FeedbackTopic] = []
 
     private let grabber: (any RegionGrabbing)?
     private let delivery: any FeedbackDelivering
+    private let attachments: (any FeedbackAttaching)?
 
-    init(grabber: (any RegionGrabbing)?, delivery: any FeedbackDelivering) {
+    init(grabber: (any RegionGrabbing)?, delivery: any FeedbackDelivering,
+         attachments: (any FeedbackAttaching)? = nil) {
         self.grabber = grabber
         self.delivery = delivery
+        self.attachments = attachments
     }
 
-    var draft: FeedbackDraft { FeedbackDraft(mood: mood, text: text, captureCount: captures.count) }
+    var draft: FeedbackDraft {
+        FeedbackDraft(mood: mood, text: text, captureCount: captures.count, topics: topics)
+    }
+
+    func toggleTopic(_ topic: FeedbackTopic) {
+        if topics.contains(topic) { topics.removeAll { $0 == topic } } else { topics.append(topic) }
+        topics = FeedbackTopic.allCases.filter(topics.contains)
+    }
     var canSend: Bool { phase == .composing && draft.canSend }
 
     func setText(_ value: String) {
@@ -88,6 +130,7 @@ final class FeedbackModel {
                 return
             }
             captures.append(url)
+            origins[url] = .region
             note = nil
         case .cancelled:
             break
@@ -98,10 +141,91 @@ final class FeedbackModel {
         }
     }
 
+    /// The picker: images from her disk, up to the room left. Guarded like
+    /// the region capture: a second press while it is up opens no second one.
+    func addFiles() async {
+        guard !isCapturing else { return }
+        guard captures.count < FeedbackDraft.maxCaptures else {
+            note = Localized.string("feedback.note.limit")
+            return
+        }
+        guard let attachments else {
+            note = Localized.string("feedback.note.noFiles")
+            return
+        }
+        isCapturing = true
+        defer { isCapturing = false }
+        let chosen = await attachments.chooseImages()
+        // The modal may have closed while the picker was up.
+        guard phase == .composing else { return }
+        var skipped = false
+        var lastRefusal: String?
+        for url in chosen {
+            if captures.contains(url) { continue }
+            guard captures.count < FeedbackDraft.maxCaptures else { skipped = true; break }
+            if let why = refusal(for: url, using: attachments) { lastRefusal = why; continue }
+            captures.append(url)
+            origins[url] = .chosen
+        }
+        note = lastRefusal ?? (skipped ? Localized.string("feedback.note.limit") : nil)
+    }
+
+    /// The clipboard's image, if it holds one. Full: the clipboard is not
+    /// even read, so nothing is written to disk for a screenshot that cannot
+    /// be kept.
+    func addPasted() {
+        guard phase == .composing else { return }
+        guard captures.count < FeedbackDraft.maxCaptures else {
+            note = Localized.string("feedback.note.limit")
+            return
+        }
+        guard let attachments else {
+            note = Localized.string("feedback.note.noFiles")
+            return
+        }
+        let url: URL
+        switch attachments.pastedImage() {
+        case .image(let written): url = written
+        case .empty:
+            note = Localized.string("feedback.note.noPaste")
+            return
+        case .failed:
+            note = Localized.string("feedback.note.pasteFailed")
+            return
+        case .tooBig:
+            note = Localized.string("feedback.note.tooBig")
+            return
+        }
+        if let why = refusal(for: url, using: attachments) {
+            attachments.discard(url)
+            note = why
+            return
+        }
+        captures.append(url)
+        origins[url] = .pasted
+        note = nil
+    }
+
+    private func refusal(for url: URL, using attachments: any FeedbackAttaching) -> String? {
+        guard attachments.isRegularFile(url) else { return Localized.string("feedback.note.unreadable") }
+        guard attachments.isImage(url) else { return Localized.string("feedback.note.notImage") }
+        guard let size = attachments.byteSize(of: url) else { return Localized.string("feedback.note.unreadable") }
+        guard size <= FeedbackDraft.maxCaptureBytes else { return Localized.string("feedback.note.tooBig") }
+        return nil
+    }
+
     func removeCapture(_ url: URL) {
         guard captures.contains(url) else { return }
         captures.removeAll { $0 == url }
-        grabber?.discard(url)
+        discard(url)
+    }
+
+    private func discard(_ url: URL) {
+        switch origins.removeValue(forKey: url) {
+        case .region: grabber?.discard(url)
+        case .pasted: attachments?.discard(url)
+        case .chosen, nil: break
+        }
     }
 
     func send() {
@@ -124,8 +248,9 @@ final class FeedbackModel {
     /// Closing without sending leaves nothing behind. After a send the files
     /// stay: the mail app may still be reading them.
     func cancel() {
-        if phase != .sent { for url in captures { grabber?.discard(url) } }
+        if phase != .sent { for url in captures { discard(url) } }
         captures = []
+        origins = [:]
         phase = .closed
     }
 }

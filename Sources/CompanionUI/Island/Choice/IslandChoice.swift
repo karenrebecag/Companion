@@ -30,15 +30,18 @@ public nonisolated enum IslandChoiceMetrics {
     static let unbounded: CGFloat = 10_000
 }
 
-/// The keys of an open question: arrows walk the options, Return picks the
-/// one under the cursor, 1-9 pick by position. The card only sees keys while
-/// it holds the keyboard, so the digits never collide with the composer.
+/// The keys of an open question: arrows walk the options, Space and 1-9
+/// select by cursor or position, Return selects the cursor's option and, once
+/// something is selected, confirms. Nothing but Return-with-a-selection sends
+/// (16q-2; the digits are a deliberate extra over Incredible, for keyboard
+/// users, and they only select). The card only sees keys while it holds the
+/// keyboard, so the digits never collide with the composer.
 nonisolated enum IslandChoiceKeys {
-    enum Key: Equatable { case up, down, enter, digit(Int) }
-    enum Named: Equatable { case up, down, enter, other }
-    enum Outcome: Equatable { case none, focus(Int), choose(Int) }
+    enum Key: Equatable { case up, down, enter, space, digit(Int) }
+    enum Named: Equatable { case up, down, enter, space, other }
+    enum Outcome: Equatable { case none, focus(Int), select(Int), confirm }
 
-    /// Only what the card understands: a bare arrow, Return, or one ASCII
+    /// Only what the card understands: a bare arrow, Return, Space, or one ASCII
     /// digit 1-9. Anything with a modifier, and every other script's digits,
     /// stays out ("٣", "½" and "３" are digits to Swift, not shortcuts).
     static func key(_ named: Named, characters: String, hasModifiers: Bool) -> Key? {
@@ -47,6 +50,7 @@ nonisolated enum IslandChoiceKeys {
         case .up: return .up
         case .down: return .down
         case .enter: return .enter
+        case .space: return .space
         case .other:
             let scalars = Array(characters.unicodeScalars)
             guard scalars.count == 1, (0x31 ... 0x39).contains(scalars[0].value) else { return nil }
@@ -54,7 +58,7 @@ nonisolated enum IslandChoiceKeys {
         }
     }
 
-    static func outcome(for key: Key, focused: Int?, count: Int) -> Outcome {
+    static func outcome(for key: Key, focused: Int?, count: Int, hasSelection: Bool = false) -> Outcome {
         guard count > 0 else { return .none }
         switch key {
         case .down:
@@ -62,10 +66,15 @@ nonisolated enum IslandChoiceKeys {
         case .up:
             return .focus(focused.map { ($0 + count - 1) % count } ?? count - 1)
         case .enter:
+            // Second Return sends what the first one selected.
+            if hasSelection { return .confirm }
             guard let focused, (0 ..< count).contains(focused) else { return .none }
-            return .choose(focused)
+            return .select(focused)
+        case .space:
+            guard let focused, (0 ..< count).contains(focused) else { return .none }
+            return .select(focused)
         case .digit(let number):
-            return (1 ... count).contains(number) ? .choose(number - 1) : .none
+            return (1 ... count).contains(number) ? .select(number - 1) : .none
         }
     }
 }
@@ -73,14 +82,17 @@ nonisolated enum IslandChoiceKeys {
 enum IslandChoiceCopy {
     /// "Rápido, 2 of 3", then whether it is the pick or no longer available.
     static func optionAccessibility(
-        index: Int, count: Int, label: String, resolution: ChoiceBlock.Resolution
+        index: Int, count: Int, label: String, resolution: ChoiceBlock.Resolution, selected: Bool = false
     ) -> String {
         let position = String(format: Localized.string("island.choice.option"), label, index + 1, count)
         switch resolution {
-        case .open: return position
+        case .open:
+            return selected ? position + ", " + Localized.string("island.choice.selected") : position
         case .chosen(let picked) where picked == index:
             return position + ", " + Localized.string("island.choice.selected")
-        case .chosen, .passed:
+        case .chosenMany(let picked) where picked.contains(index):
+            return position + ", " + Localized.string("island.choice.selected")
+        case .chosen, .chosenMany, .passed:
             return position + ", " + Localized.string("island.choice.unavailable")
         }
     }
@@ -131,9 +143,23 @@ enum IslandChoice {
 }
 
 extension IslandChoice {
-    enum Tile: Equatable { case idle, cursor, picked, unavailable }
+    /// What the card shows besides the options; pure so a flipped condition
+    /// in the view is a failing test.
+    struct Controls: Equatable {
+        let showsOwnAnswer: Bool
+        let showsConfirm: Bool
+        let confirmEnabled: Bool
+    }
+
+    static func controls(block: ChoiceBlock, resolution: ChoiceBlock.Resolution, canConfirm: Bool) -> Controls {
+        let open = resolution == .open
+        return Controls(
+            showsOwnAnswer: open && block.allowText, showsConfirm: open, confirmEnabled: open && canConfirm)
+    }
+
+    enum Tile: Equatable { case idle, cursor, selected, picked, unavailable }
     struct Pending: Equatable {
-        let index: Int
+        let resolution: ChoiceBlock.Resolution
         let label: String
     }
 }
@@ -149,31 +175,83 @@ struct IslandChoiceState: Equatable {
     func effective(resolution: ChoiceBlock.Resolution, queued: [String]) -> ChoiceBlock.Resolution {
         if resolution != .open { return resolution }
         guard let pending, queued.contains(pending.label) else { return .open }
-        return .chosen(pending.index)
+        return pending.resolution
     }
 
-    static func tile(index: Int, resolution: ChoiceBlock.Resolution, cursor: Int?) -> IslandChoice.Tile {
+    static func tile(
+        index: Int, resolution: ChoiceBlock.Resolution, cursor: Int?, selection: [Int] = []
+    ) -> IslandChoice.Tile {
         switch resolution {
-        case .open: cursor == index ? .cursor : .idle
+        case .open: selection.contains(index) ? .selected : (cursor == index ? .cursor : .idle)
         case .chosen(let picked): picked == index ? .picked : .unavailable
+        case .chosenMany(let picked): picked.contains(index) ? .picked : .unavailable
         case .passed: .unavailable
         }
     }
 
-    /// True when the label was sent. `resolution` and `queued` are read live
-    /// by the caller at click time, not from the last render: a digit right
-    /// after a click must see the click.
+    /// What she has picked and not yet sent, in option order.
+    var selection: [Int] = []
+    /// Her own answer, an alternative to the picks (never both at once).
+    var text = ""
+
+    private func isOpen(_ resolution: ChoiceBlock.Resolution, _ queued: [String]) -> Bool {
+        effective(resolution: resolution, queued: queued) == .open
+    }
+
+    /// A click or a key only marks the option; nothing leaves until `confirm`.
+    mutating func select(_ index: Int, block: ChoiceBlock, resolution: ChoiceBlock.Resolution, queued: [String]) {
+        guard isOpen(resolution, queued), block.options.indices.contains(index) else { return }
+        text = ""
+        if !block.multiple {
+            selection = [index]
+        } else if let at = selection.firstIndex(of: index) {
+            selection.remove(at: at)
+        } else {
+            selection = (selection + [index]).sorted()
+        }
+    }
+
+    mutating func setText(_ value: String, block: ChoiceBlock, resolution: ChoiceBlock.Resolution, queued: [String]) {
+        guard block.allowText, isOpen(resolution, queued) else { return }
+        // Sanitized and capped as stored, but not collapsed: squeezing spaces
+        // while she types would eat the one between two words. `answer` does
+        // the collapsing at send time.
+        text = TextSanitizer.display(value, maxLength: ChoiceBlock.maxAnswer)
+        if !answer.isEmpty { selection = [] }
+    }
+
+    /// The free answer as it would be sent: one line, capped, no invisibles.
+    private var answer: String {
+        ChoiceBlock.oneLine(text, maxLength: ChoiceBlock.maxAnswer)
+    }
+
+    func canConfirm(block: ChoiceBlock) -> Bool {
+        !selection.isEmpty || (block.allowText && !answer.isEmpty)
+    }
+
+    /// True when the reply was sent. `resolution` and `queued` are read live
+    /// by the caller at click time, not from the last render: a second
+    /// Confirm right after the first must see it.
     @discardableResult
-    mutating func pick(
-        _ index: Int, block: ChoiceBlock, resolution: ChoiceBlock.Resolution, queued: [String],
-        send: (String) -> Bool
+    mutating func confirm(
+        block: ChoiceBlock, resolution: ChoiceBlock.Resolution, queued: [String], send: (String) -> Bool
     ) -> Bool {
-        guard effective(resolution: resolution, queued: queued) == .open,
-              block.options.indices.contains(index)
-        else { return false }
-        let label = block.options[index].label
+        guard isOpen(resolution, queued) else { return false }
+        let label: String
+        let outcome: ChoiceBlock.Resolution
+        if block.allowText, !answer.isEmpty {
+            label = answer
+            outcome = .passed
+        } else if !selection.isEmpty {
+            let picked = selection.filter(block.options.indices.contains)
+            guard !picked.isEmpty else { return false }
+            label = block.reply(for: picked)
+            outcome = picked.count == 1 ? .chosen(picked[0]) : .chosenMany(picked)
+        } else {
+            return false
+        }
         guard send(label) else { return false }
-        pending = IslandChoice.Pending(index: index, label: label)
+        pending = IslandChoice.Pending(resolution: outcome, label: label)
         return true
     }
 }

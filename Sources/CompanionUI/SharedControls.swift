@@ -42,6 +42,12 @@ struct ChipInk {
         ChipInk(text: IslandInk.text, fill: IslandInk.chip, pressed: IslandInk.chipPressed)
     }
 
+    /// The question card's Confirm: indigo, the island's one accent.
+    static var choiceConfirm: ChipInk {
+        ChipInk(text: IslandInk.text, fill: IslandPalette.indigo.color.opacity(0.6),
+                pressed: IslandPalette.indigo.color.opacity(0.85))
+    }
+
     static var islandDestructive: ChipInk {
         ChipInk(text: IslandInk.destructive, fill: IslandInk.chip, pressed: IslandInk.chipPressed)
     }

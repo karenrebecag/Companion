@@ -213,7 +213,7 @@
 "settings.context.documents" = "Open documents";
 "settings.context.documents.subtitle" = "The titles of open windows travel with your words, and the title of the window in front travels with the name of the app in front.";
 "settings.context.location" = "Your city";
-"settings.context.location.subtitle" = "Your city travels with every request while this is on. Off, it stops travelling, but a search for something nearby can still ask macOS for your location or use the city in Settings › You. macOS only asks then, and only if that city is empty.";
+"settings.context.location.subtitle" = "Your city travels with every request while this is on. Off, it stops travelling and macOS never asks for your location: a search for something nearby uses the city in Settings › You, and if that is empty it asks which city to search in.";
 "settings.context.clipboard" = "Clipboard";
 "settings.context.clipboard.subtitle" = "Off by default. What you copied travels to the model on that turn, up to 400 characters. macOS may show a notice each time it is read.";
 "settings.context.screen" = "What is on screen";
@@ -603,7 +603,11 @@
 "island.choice.option" = "%@, %d of %d";
 "island.choice.selected" = "selected";
 "island.choice.unavailable" = "not available";
-"island.choice.hint" = "Choose one. Arrow keys and Return, or a number from 1 to 9.";
+"island.choice.hint" = "Select one with a click, the arrow keys and Space, or a number from 1 to 9. Return or Confirm sends it.";
+"island.choice.hint.multiple" = "Select as many as you like with a click, the arrow keys and Space, or numbers from 1 to 9. Return or Confirm sends them.";
+"island.choice.confirm" = "Confirm";
+"island.choice.confirm.hint" = "Sends what you selected.";
+"island.choice.other" = "Something else? Write it here";
 "island.signIn" = "Sign in to %@ again";
 "island.signIn.body" = "Its session expired, so I can't use it until you do.";
 "island.signIn.action" = "Sign in";
@@ -623,6 +627,14 @@
 "feedback.title" = "Send feedback";
 "feedback.mood.title" = "How is it going?";
 "feedback.mood.love" = "Loving it";
+"feedback.mood.upset" = "At my limit";
+"feedback.topics.title" = "What is it about?";
+"feedback.topic.voice" = "Voice and chat";
+"feedback.topic.screen" = "Screen and browser";
+"feedback.topic.apps" = "Connected apps";
+"feedback.topic.errands" = "Errands";
+"feedback.topic.dictation" = "Dictation";
+"feedback.topic.other" = "Anything else";
 "feedback.mood.good" = "Good";
 "feedback.mood.meh" = "So-so";
 "feedback.mood.bad" = "Not good";
@@ -630,6 +642,8 @@
 "feedback.counter" = "%d left";
 "feedback.counter.over" = "%d over the limit";
 "feedback.capture.add" = "Add a screenshot";
+"feedback.capture.file" = "Choose an image";
+"feedback.capture.paste" = "Paste an image";
 "feedback.capture.remove" = "Remove screenshot %d";
 "feedback.capture.item" = "Screenshot %d";
 "feedback.send" = "Send";
@@ -644,3 +658,9 @@
 "feedback.note.deliveryFailed" = "I couldn't open your mail app.";
 "feedback.note.captureAction" = "Screenshots are only taken when you press the button.";
 "feedback.note.truncated" = "Your mail app opened, but the message was too long for a mail link, so the end was cut.";
+"feedback.note.noFiles" = "Adding images is not available here.";
+"feedback.note.noPaste" = "There is no image on the clipboard.";
+"feedback.note.notImage" = "That file is not an image.";
+"feedback.note.unreadable" = "I couldn't read that file.";
+"feedback.note.tooBig" = "Each screenshot can be up to 4 MB.";
+"feedback.note.pasteFailed" = "I couldn't save the pasted image.";

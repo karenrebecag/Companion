@@ -10,11 +10,13 @@ extension ChatViewModel {
         parentTools?.beginTurn()
         // 16k-3: the words decide which connected app's tools travel this
         // round — specs() is rebuilt per request further down this turn.
-        // A pick's label is the model's text, not her words: it must neither
+        // A pick's label is the model's text, not her words: it must not
         // name an app for the tool scope nor stand as consent for a host
         // (16m-6 security). Typed words still do both.
         let said = origin == .choice ? "" : text
-        parentTools?.noteTurn(said)
+        // 16q-2: a card turn reaches every connected app like any turn, but
+        // through its own entry so the label can never be passed as words.
+        if origin == .choice { parentTools?.noteChoiceTurn() } else { parentTools?.noteTurn(said) }
         rolloverIfDue()
         // 15b-9: read before the append below stamps `lastActivity` to
         // now — this turn's own arrival must not report zero seconds since

@@ -1,9 +1,10 @@
 import CompanionCore
 import SwiftUI
 
-/// The question card (16m-6): the question, then one tile per option. A pick
-/// only calls `onChoose` with the label; the chat sends it like a typed
-/// message, so the card can never do more than she could by typing.
+/// The question card (16m-6, two steps since 16q-2): the question, one tile
+/// per option, then Confirm. A click or a key only selects; Confirm calls
+/// `onChoose` with the reply, and the chat sends it like a typed message, so
+/// the card can never do more than she could by typing.
 struct IslandChoiceCard: View {
     let block: ChoiceBlock
     /// Read live (never captured): the thread's verdict and what waits
@@ -19,9 +20,14 @@ struct IslandChoiceCard: View {
     @State private var cursor: Int?
     @State private var listHeight: CGFloat = 0
     @FocusState private var focused: Bool
+    @FocusState private var writing: Bool
 
     private var effective: ChoiceBlock.Resolution {
         choice.effective(resolution: resolution(), queued: queued())
+    }
+
+    private var controls: IslandChoice.Controls {
+        IslandChoice.controls(block: block, resolution: effective, canConfirm: choice.canConfirm(block: block))
     }
 
     var body: some View {
@@ -32,6 +38,8 @@ struct IslandChoiceCard: View {
                     .foregroundStyle(IslandInk.text)
                     .fixedSize(horizontal: false, vertical: true)
                 optionList
+                if controls.showsOwnAnswer { ownAnswer }
+                if controls.showsConfirm { confirmRow }
             }
             .padding(.vertical, IslandChoiceMetrics.paddingY)
             .padding(.horizontal, IslandChoiceMetrics.paddingX)
@@ -40,7 +48,7 @@ struct IslandChoiceCard: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(block.question)
-        .accessibilityHint(Localized.string("island.choice.hint"))
+        .accessibilityHint(Localized.string(block.multiple ? "island.choice.hint.multiple" : "island.choice.hint"))
         .focusable(effective == .open)
         .focusEffectDisabled()
         .focused($focused)
@@ -48,12 +56,15 @@ struct IslandChoiceCard: View {
         // the card takes the keyboard, and the digits only act while it shows.
         .onChange(of: focused) { _, now in
             cursor = now ? (cursor ?? 0) : nil
-            onFocus(now)
+            onFocus(now || writing)
         }
+        // Typing her own answer holds the island open just like the cards.
+        .onChange(of: writing) { _, now in onFocus(now || focused) }
         // Leaving the screen with the keyboard sends no focus change.
         .onDisappear { onFocus(false) }
         .onReceive(NotificationCenter.default.publisher(for: .islandResignedKey)) { _ in
             focused = false
+            writing = false
         }
         .onKeyPress(phases: .down) { press in keyPressed(press) }
         // The card takes the keyboard only when she asks (a click on it or
@@ -80,10 +91,12 @@ struct IslandChoiceCard: View {
             ForEach(Array(block.options.enumerated()), id: \.offset) { index, option in
                 AnswerOption(
                     index: index, title: option.label, detail: option.detail,
-                    state: IslandChoiceState.tile(index: index, resolution: now, cursor: cursor),
+                    state: IslandChoiceState.tile(
+                        index: index, resolution: now, cursor: cursor, selection: choice.selection),
                     accessibility: IslandChoiceCopy.optionAccessibility(
                         index: index, count: block.options.count,
-                        label: option.label, resolution: now),
+                        label: option.label, resolution: now,
+                        selected: choice.selection.contains(index)),
                     action: { pick(index) })
             }
         }
@@ -91,17 +104,52 @@ struct IslandChoiceCard: View {
     }
 
     private func pick(_ index: Int) {
-        choice.pick(index, block: block, resolution: resolution(), queued: queued(), send: onChoose)
+        choice.select(index, block: block, resolution: resolution(), queued: queued())
+    }
+
+    private func confirm() {
+        choice.confirm(block: block, resolution: resolution(), queued: queued(), send: onChoose)
+    }
+
+    private var ownAnswer: some View {
+        TextField(Localized.string("island.choice.other"), text: Binding(
+            get: { choice.text },
+            set: { choice.setText($0, block: block, resolution: resolution(), queued: queued()) }))
+            .textFieldStyle(.plain)
+            .font(GeistFont.uiLabel)
+            .foregroundStyle(IslandInk.text)
+            .focused($writing)
+            .onSubmit { confirm() }
+            .padding(.vertical, AnswerOptionMetrics.paddingY)
+            .padding(.horizontal, AnswerOptionMetrics.paddingX)
+            .background(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius).fill(IslandInk.chip))
+            .accessibilityLabel(Localized.string("island.choice.other"))
+    }
+
+    private var confirmRow: some View {
+        let ready = controls.confirmEnabled
+        return HStack {
+            Spacer(minLength: Space.none)
+            Button(action: confirm) {
+                Text(Localized.string("island.choice.confirm"))
+            }
+            .buttonStyle(CapsuleChipStyle(ink: ready ? .choiceConfirm : .island, density: .compact))
+            .disabled(!ready)
+            .opacity(ready ? 1 : IslandChoiceMetrics.unavailableAlpha)
+            .accessibilityHint(Localized.string("island.choice.confirm.hint"))
+        }
     }
 
     private func keyPressed(_ press: KeyPress) -> KeyPress.Result {
         guard effective == .open, cursor != nil,
               let key = Self.key(of: press)
         else { return .ignored }
-        switch IslandChoiceKeys.outcome(for: key, focused: cursor, count: block.options.count) {
+        switch IslandChoiceKeys.outcome(
+            for: key, focused: cursor, count: block.options.count, hasSelection: choice.canConfirm(block: block)) {
         case .none: return .ignored
         case .focus(let index): cursor = index
-        case .choose(let index): pick(index)
+        case .select(let index): pick(index)
+        case .confirm: confirm()
         }
         return .handled
     }
@@ -111,6 +159,7 @@ struct IslandChoiceCard: View {
         case .upArrow: .up
         case .downArrow: .down
         case .return: .enter
+        case .space: .space
         default: .other
         }
         return IslandChoiceKeys.key(named, characters: press.characters, hasModifiers: !press.modifiers.isEmpty)
@@ -129,7 +178,7 @@ struct AnswerOption: View {
     let action: () -> Void
     @State private var hovering = false
 
-    private var lit: Bool { state == .picked || state == .cursor || (hovering && state == .idle) }
+    private var lit: Bool { state == .picked || state == .selected || state == .cursor || (hovering && state == .idle) }
 
     var body: some View {
         Button(action: action) {
@@ -168,12 +217,12 @@ struct AnswerOption: View {
         .animation(MotionCurve.animation(MotionCurve.standard, MotionTime.fast), value: lit)
         .accessibilityLabel(accessibility)
         .accessibilityValue(detail ?? "")
-        .accessibilityAddTraits(state == .picked ? .isSelected : [])
+        .accessibilityAddTraits(state == .picked || state == .selected ? .isSelected : [])
     }
 
     private var badge: some View {
         ZStack {
-            if state == .picked {
+            if state == .picked || state == .selected {
                 Image(systemName: "checkmark")
             } else {
                 Text(String(index + 1))

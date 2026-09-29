@@ -16,6 +16,9 @@ public enum ContextPreference {
         set { write(newValue, to: store) }
     }
 
+    /// The "Tu ciudad" switch as the composition root reads it.
+    nonisolated public static var locationChannelOn: Bool { channels.contains(.location) }
+
     nonisolated static func read(from store: UserDefaults) -> ContextChannels {
         guard let raw = store.object(forKey: key) as? Int else { return .default }
         var channels = ContextChannels(rawValue: raw)

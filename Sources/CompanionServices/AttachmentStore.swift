@@ -206,15 +206,7 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
     /// symlink is a path that no longer says what is behind it: neither is a
     /// file she picked. Covers the picker, drops and mentions alike.
     private func requireRegularFile(_ url: URL) throws {
-        let values: URLResourceValues
-        do {
-            values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-        } catch {
-            throw AttachmentError.unreadable
-        }
-        guard values.isRegularFile == true, values.isSymbolicLink != true else {
-            throw AttachmentError.unreadable
-        }
+        guard RegularFile.isRegular(url) else { throw AttachmentError.unreadable }
     }
 
     private func byteCount(at url: URL) throws -> Int {

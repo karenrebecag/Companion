@@ -112,7 +112,9 @@ func makeSensingAndModel(
         workdir: env.config.workdir,
         documents: NativeDocumentRenderer(),
         sheets: AppleEventSheets(),
-        location: location)
+        location: location,
+        // 16q-2: the same switch the turn's context reads (pinned by a test and Gate 3).
+        locationChannelOn: { ContextPreference.locationChannelOn })
     // 16h-3: what the island did (cards shown, closed, ignored, a stop) waits
     // here for the next turn, voice or chat.
     let islandEvents = IslandEventBuffer()

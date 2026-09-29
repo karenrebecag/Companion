@@ -305,7 +305,8 @@ public struct CompanionRootView: View {
     private func openFeedback() {
         _ = FeedbackRequest.consume()
         guard feedback == nil else { return }
-        feedback = FeedbackModel(grabber: grabber, delivery: SystemFeedbackDelivery())
+        feedback = FeedbackModel(
+            grabber: grabber, delivery: SystemFeedbackDelivery(), attachments: SystemFeedbackAttachments())
     }
 
     @ViewBuilder
