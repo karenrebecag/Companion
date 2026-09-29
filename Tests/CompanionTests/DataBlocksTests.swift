@@ -63,7 +63,7 @@ func testAChartNeedsOneValuePerLabel() {
 }
 
 func testAnUnknownChartKindFallsBackToATable() {
-    let body = #"{"kind":"radar","labels":["a","b"],"series":[{"name":"s","values":[1,2]}]}"#
+    let body = #"{"kind":"sankey","labels":["a","b"],"series":[{"name":"s","values":[1,2]}]}"#
     guard case .table(let table)? = CompanionBlocks.chart(body) else {
         return expect(false, "gráfica desconocida: cae a tabla, nunca a nada")
     }
@@ -72,16 +72,16 @@ func testAnUnknownChartKindFallsBackToATable() {
 }
 
 func testChartsAreBounded() {
-    let labels = (0..<600).map { "\"l\($0)\"" }.joined(separator: ",")
-    let values = (0..<600).map { "\($0)" }.joined(separator: ",")
+    // 16m-5a: over the cap is refused whole (the fence shows as code), no
+    // longer cut to the cap. Charts16m5Tests pins the boundary both sides.
+    let labels = (0..<ChartBlock.maxPoints).map { "\"l\($0)\"" }.joined(separator: ",")
+    let values = (0..<ChartBlock.maxPoints).map { "\($0)" }.joined(separator: ",")
     let body = #"{"kind":"line","labels":[\#(labels)],"series":[{"values":[\#(values)]}]}"#
     guard case .chart(let chart)? = CompanionBlocks.chart(body) else { return expect(false, "gráfica larga: parsea") }
-    expectEq(chart.labels.count, ChartBlock.maxPoints, "gráfica: 500 puntos como mucho")
-    expectEq(chart.series[0].values.count, ChartBlock.maxPoints, "gráfica: la serie se recorta igual")
+    expectEq(chart.labels.count, ChartBlock.maxPoints, "gráfica: el tope entra entero")
     let series = (0..<12).map { _ in #"{"values":[1]}"# }.joined(separator: ",")
-    guard case .chart(let wide)? = CompanionBlocks.chart(#"{"kind":"bar","labels":["a"],"series":[\#(series)]}"#)
-    else { return expect(false, "muchas series: parsea") }
-    expectEq(wide.series.count, ChartBlock.maxSeries, "gráfica: 8 series como mucho")
+    expect(CompanionBlocks.chart(#"{"kind":"bar","labels":["a"],"series":[\#(series)]}"#) == nil,
+           "gráfica: más de 8 series se rechaza")
 }
 
 func testBrokenFencesStayNil() {

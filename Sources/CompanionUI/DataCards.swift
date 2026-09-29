@@ -50,6 +50,16 @@ struct StatsCard: View {
 struct TableCard: View {
     let block: TableBlock
 
+    /// A table born from a chart can carry 500 rows, which the grid would
+    /// lay out whole; the card shows the same first rows a fence table does.
+    static func visibleRows(_ block: TableBlock) -> [[String]] {
+        Array(block.rows.prefix(TableBlock.maxRows))
+    }
+
+    static func isCut(_ block: TableBlock) -> Bool {
+        block.truncated || block.rows.count > TableBlock.maxRows
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
             DataCardTitle(title: block.title)
@@ -63,7 +73,7 @@ struct TableCard: View {
                         }
                     }
                     Divider()
-                    ForEach(Array(block.rows.enumerated()), id: \.offset) { _, row in
+                    ForEach(Array(Self.visibleRows(block).enumerated()), id: \.offset) { _, row in
                         GridRow {
                             ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
                                 Text(cell)
@@ -76,7 +86,7 @@ struct TableCard: View {
                 }
             }
             .frame(maxHeight: CardMetrics.tableMax)
-            if block.truncated {
+            if Self.isCut(block) {
                 Text(String(format: Localized.string("card.table.truncated"), TableBlock.maxRows))
                     .font(.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
@@ -91,7 +101,18 @@ struct TableCard: View {
 struct ChartCard: View {
     let block: ChartBlock
 
+    @ViewBuilder
     var body: some View {
+        // Polar and radar are painted by the island only; here the same
+        // numbers read as a table, not as bars under another name.
+        if block.kind.isIslandOnly {
+            TableCard(block: block.asTable)
+        } else {
+            card
+        }
+    }
+
+    private var card: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
             DataCardTitle(title: block.title, unit: block.unit)
             chart

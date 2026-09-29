@@ -95,6 +95,10 @@ public enum SheetError: Error, Sendable, Equatable {
 }
 
 public enum SheetValues {
+    /// A range holds at most `SheetRange.maxCells` (5 000) cells; 1 MiB is
+    /// about 200 bytes a cell, room for long text and formulas and nothing
+    /// like the memory a hostile array could ask for.
+    public static let maxSheetBytes = 1024 * 1024
     /// Anything that can reach the network or run something from a cell.
     static let forbidden = ["WEBSERVICE", "IMPORTXML", "IMPORTDATA", "IMPORTHTML", "IMPORTFEED",
                             "IMPORTRANGE", "FILTERXML", "HYPERLINK", "CALL", "REGISTER", "RTD", "SQL.REQUEST"]
@@ -104,6 +108,7 @@ public enum SheetValues {
     public static func parse(any value: Any?, for range: SheetRange) -> Result<[[SheetCell]], SheetError> {
         let raw: Any?
         if let text = value as? String {
+            guard text.utf8.count <= maxSheetBytes else { return .failure(.invalidValues) }
             raw = CompanionBlocks.jsonArray(text)
         } else {
             raw = value

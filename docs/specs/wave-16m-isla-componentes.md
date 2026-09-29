@@ -100,3 +100,58 @@ o caduca; nunca al log, al historial ni a la conversación. Las palabras viajan 
 que se imprime redactado, y salen de la proyección por cualquier puerta que deje Completed.
 La oferta de actualización no aparece con la isla oculta por la usuaria ni con la ventana
 principal delante, y la página de release solo se acepta si es de `github.com/karenrebecag/Companion/releases`.
+
+## 7. 16m-5a — gráficas, alcance real (2026-09-29)
+
+Mermaid queda fuera de esta entrega: **16m-5b (Mermaid / WKWebView / mermaid.js) sigue
+pendiente de la aprobación explícita de la dependencia** por Karen. No hay plomería a medias
+para él.
+
+Lo que entra:
+
+- **Fuente del dato**: ya existía la fence `companion:chart` (wave 20, `CardVocabulary` se la
+  enseña al modelo). 16m-5a la extiende con `polar` y `radar` y le añade la regla de cuándo
+  usarla; no se creó otra convención.
+- **Regla de la frontera** (wave 20: los números no se tiran; la misma en popup, ventana y
+  documento):
+  - *Datos válidos que no se pueden dibujar* pasan a **tabla** (`asTable`): radar con menos de 3
+    ejes, pie/donut/polar con negativos, todo cero o varias series, radar de más de
+    `ChartBlock.maxRadarAxes` (20; a 24 pisaba las etiquetas de los polos en el snapshot) ejes, pie/donut/polar de más de `maxSlices` (12) rebanadas.
+    Tipo desconocido también va a tabla.
+  - *Datos estructuralmente rotos* devuelven nil: JSON inválido, valores no numéricos o no finitos,
+    |valor| > `maxMagnitude` (1e12), series de largo distinto a las etiquetas, más de
+    `maxPoints` (500) puntos u `maxSeries` (8) series, fence de más de `maxFenceBytes`
+    (256 KiB, solo el cuerpo del fence; el documento entero no lo lleva). En el popup se pintan
+    como código; en `DocumentSpec` dejan una nota visible (`omittedChartNote`, bilingüe), nunca
+    desaparecen en silencio.
+  - Cambia respecto a wave 20: antes se recortaba al tope.
+  - Más de 500 puntos u 8 series siguen siendo dato roto (nil): es demasiado grande hasta para
+    una tabla legible, así que se queda como código.
+  - Una magnitud finita mayor que `maxMagnitude` (1e12) es dato válido: va a **tabla**, no a
+    código (los números no se tiran). NaN, inf y no numéricos siguen rotos.
+  - Presupuesto cartesiano: barra, línea, área y dispersión con etiquetas x series >
+    `maxCartesianPoints` (1000) van a tabla (HACK: número redondo sin medir; se mueve cuando una
+    gráfica de ese tamaño se sienta lenta). La tabla de la isla (`TableCard`) pinta como mucho
+    `TableBlock.maxRows` filas y avisa cuando corta.
+- **Texto del modelo**: `TextSanitizer.display` quita controles de dirección y C0/C1 (salvo
+  salto y tabulador) y recorta a 120; se aplica una vez a etiquetas, título, unidad y series.
+  Descarta también todo carácter de formato Unicode (espacios de ancho cero, BOM, guion blando,
+  controles bidi), los separadores de línea y párrafo y las etiquetas Unicode, salvo ZWJ y ZWNJ
+  (familias de emoji y escrituras que los necesitan); acota a 4 escalares por carácter contra
+  el apilado de marcas. Se aplica también a stats, table y al título que muestra la isla
+  (celda de tabla: 500). El CSV defusa `= + - @ tab CR LF | %` sobre el primer carácter y el
+  primer no blanco, después de quitar los invisibles. Costo cosmético conocido: una etiqueta
+  legítima como "% de cambio" sale con un `'` delante en el CSV copiado.
+- **Topes de bytes**: cuerpo de fence 256 KiB (`maxFenceBytes`), documento entero 4 MiB
+  (`maxDocumentBytes`), escritura de hoja 1 MiB (`maxSheetBytes`, ~200 bytes por celda de las
+  5 000 que admite un rango). Un test falla si alguien parsea JSON del modelo con
+  `CompanionBlocks.jsonObject` fuera de `DocumentSpec.parse` y `fenceObject`.
+- **Vista** (`Island/Visual/`): contenedor `visual` (14/16/12, 5 %, 7 %, radio 12), lienzo 240 y
+  264 (pie, dona, polar, radar); Swift Charts para barra, línea, área, dispersión, pie y dona;
+  `Path` para polar y radar. Copiar = CSV. La herramienta "Ver" se quitó (código muerto: ninguna superficie la usa);
+  **vuelve cuando exista la tarjeta con resumen en la isla** (D2).
+- Polar y radar solo los pinta la isla: la tarjeta de la ventana y el PDF los muestran como tabla.
+
+Valores propios (no medidos): 4 anillos, 3:1 de contraste mínimo, teal 5AC8FA en la paleta,
+relleno 18 % (área/radar) y 35 % (cuña polar), donut 0.6, tope de leyenda 12, tope de etiquetas
+de eje 8, ancho de etiqueta radial 64, copiado 1,5 s.

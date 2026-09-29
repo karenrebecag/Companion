@@ -47,4 +47,5 @@ public enum Accent {
     public static let pink   = Swatch("FF375F")
     public static let orange = Swatch("FF9F0A")
     public static let purple = Swatch("BF5AF2")
+    public static let teal = Swatch("5AC8FA")
 }

@@ -36,6 +36,8 @@ public enum DocumentHTML {
             }.joined() + "</div>"
         case .table(let table):
             return title(table.title) + tableHTML(table)
+        case .chart(let chart) where chart.kind.isIslandOnly:
+            return title(chart.title, unit: chart.unit) + tableHTML(chart.asTable)
         case .chart(let chart):
             return "<figure>" + title(chart.title, unit: chart.unit) + ChartSVG.render(chart) + "</figure>"
         case .callout(let text, let tone):
