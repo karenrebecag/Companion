@@ -95,10 +95,6 @@ public enum SheetError: Error, Sendable, Equatable {
 }
 
 public enum SheetValues {
-    /// Anything that can reach the network or run something from a cell.
-    static let forbidden = ["WEBSERVICE", "IMPORTXML", "IMPORTDATA", "IMPORTHTML", "IMPORTFEED",
-                            "IMPORTRANGE", "FILTERXML", "HYPERLINK", "CALL", "REGISTER", "RTD", "SQL.REQUEST"]
-
     /// A 2-D array, sent as JSON text or as a real array, that must match the
     /// range cell for cell: a short write would land shifted.
     public static func parse(any value: Any?, for range: SheetRange) -> Result<[[SheetCell]], SheetError> {
@@ -120,7 +116,9 @@ public enum SheetValues {
                 if case .text(let text) = parsed, looksLikeFormula(text), isForbidden(text) {
                     return .failure(.forbiddenFormula)
                 }
-                if case .formula(let formula) = parsed, isForbidden(formula) { return .failure(.forbiddenFormula) }
+                if case .formula(let formula) = parsed, isForbidden(formula, strictNames: true) {
+                    return .failure(.forbiddenFormula)
+                }
                 line.append(parsed)
             }
             out.append(line)
@@ -143,13 +141,10 @@ public enum SheetValues {
         return "=+-@".contains(first)
     }
 
-    /// DDE (`=cmd|...`) and the functions that fetch; case, spacing and
-    /// full-width lookalikes do not hide them.
-    static func isForbidden(_ formula: String) -> Bool {
-        let upper = String(formula.precomposedStringWithCompatibilityMapping.uppercased()
-            .filter { !$0.isWhitespace })
-        if upper.contains("|") { return true }
-        return forbidden.contains { upper.contains($0 + "(") }
+    /// Everything outside `FormulaPolicy`'s allowlist; case, spacing and
+    /// full-width lookalikes do not hide it.
+    static func isForbidden(_ formula: String, strictNames: Bool = false) -> Bool {
+        !FormulaPolicy.isAllowed(formula, strictNames: strictNames)
     }
 
     /// Numbers reads a range as one flat list.

@@ -43,7 +43,7 @@ enum DeliverableTools {
                 name: "sheet_write",
                 description: "Write values or formulas into the spreadsheet open in Excel or Numbers, "
                     + "in one rectangle. A copy of the saved workbook is made first and the cells are "
-                    + "read back after. Formulas start with =; nothing that fetches from the web.",
+                    + "read back after. Formulas start with =; only plain functions over the sheet's own cells, no web fetches or external references.",
                 properties: [
                     ToolProperty(name: "range", type: "string", description: "A1 range, e.g. B2:D4"),
                     ToolProperty(name: "values", type: "string",

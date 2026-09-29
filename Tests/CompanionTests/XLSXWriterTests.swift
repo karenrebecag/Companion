@@ -37,7 +37,7 @@ func testEveryTableBecomesASheet() {
 }
 
 func testCellsKeepTheirType() {
-    let xml = XLSXWriter.sheetXML(XLSXWriter.sheets(spec)[1])
+    let xml = XLSXWriter.sheetXML(XLSXWriter.sheets(spec)[1], allowFormulas: true)
     expect(xml.contains("<f>B2*2</f>"), "xlsx: una fórmula va sin el = en <f>")
     expect(xml.contains("<v>7.5</v>"), "xlsx: un número puro va como número")
     expect(xml.contains("t=\"inlineStr\"><is><t>MX</t>"), "xlsx: el texto va en línea")

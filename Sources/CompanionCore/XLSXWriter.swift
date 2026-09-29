@@ -94,7 +94,8 @@ public enum XLSXWriter {
             ("xl/styles.xml", Data(styles.utf8)),
         ]
         for (index, sheet) in sheets.enumerated() {
-            entries.append(("xl/worksheets/sheet\(index + 1).xml", Data(sheetXML(sheet).utf8)))
+            entries.append(("xl/worksheets/sheet\(index + 1).xml",
+                            Data(sheetXML(sheet, allowFormulas: spec.allowFormulas).utf8)))
         }
         return ZipWriter.archive(entries)
     }
@@ -117,7 +118,7 @@ public enum XLSXWriter {
         }
     }
 
-    public static func sheetXML(_ sheet: Sheet) -> String {
+    public static func sheetXML(_ sheet: Sheet, allowFormulas: Bool = false) -> String {
         let columnCount = sheet.rows.map(\.count).max() ?? 0
         let widths: [Int] = (0..<columnCount).map { column in
             let longest: Int = sheet.rows.map { column < $0.count ? $0[column].count : 0 }.max() ?? 0
@@ -136,16 +137,16 @@ public enum XLSXWriter {
         for (r, row) in sheet.rows.enumerated() {
             xml += "<row r=\"\(r + 1)\">"
             for (c, value) in row.enumerated() where !value.isEmpty {
-                xml += cell(value, ref: SheetRange.name(c + 1) + "\(r + 1)", header: r == 0)
+                xml += cell(value, allowFormulas: allowFormulas, ref: SheetRange.name(c + 1) + "\(r + 1)", header: r == 0)
             }
             xml += "</row>"
         }
         return xml + "</sheetData></worksheet>"
     }
 
-    private static func cell(_ value: String, ref: String, header: Bool) -> String {
+    private static func cell(_ value: String, allowFormulas: Bool, ref: String, header: Bool) -> String {
         let style = header ? " s=\"1\"" : ""
-        if !header, value.hasPrefix("="), !SheetValues.isForbidden(value) {
+        if !header, allowFormulas, value.hasPrefix("="), !SheetValues.isForbidden(value, strictNames: true) {
             return "<c r=\"\(ref)\"\(style)><f>\(xml(String(value.dropFirst())))</f></c>"
         }
         if !header, isPlainNumber(value) {

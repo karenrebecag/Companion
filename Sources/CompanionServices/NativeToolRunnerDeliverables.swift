@@ -103,7 +103,7 @@ extension NativeToolRunner {
         switch error as? SheetError {
         case .invalidRange?: code = "invalid_args: range"
         case .shapeMismatch?: code = "invalid_args: values must have exactly the rows and columns of the range"
-        case .forbiddenFormula?: code = "invalid_args: formulas that fetch from the web or run commands are not allowed"
+        case .forbiddenFormula?: code = "invalid_args: only plain spreadsheet formulas are allowed: no web fetches, external references or commands"
         case .invalidValues?: code = "invalid_args: values must be JSON rows of text, numbers or null"
         case .noOpenDocument?: code = noSheet.output
         case .unsavedDocument?: code = "unsaved_document: ask the user to save the workbook once, so a backup can be made"
