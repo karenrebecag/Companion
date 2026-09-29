@@ -69,4 +69,4 @@ especialista en segundo plano. UI: tarjeta de recibo en la isla. Tests: `Convers
 
 ## 6. Aprobación
 
-Pendiente de Karen.
+Firmada 2026-09-28 por delegación (ver cabecera).
