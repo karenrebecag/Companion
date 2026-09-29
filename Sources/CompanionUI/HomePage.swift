@@ -62,8 +62,7 @@ struct HomePage: View {
             .tracking(Tracking.title, at: TypeSize.bannerTitle)
             .foregroundStyle(Neutral.white.color)
             Text(Localized.string("home.hero.body"))
-                .font(Fonts.sans(TypeSize.heroBody))
-                .lineSpacing(Leading.spacing(Leading.body, at: TypeScale.apply(TypeSize.heroBody)))
+                .typeRole(.heroBody)
                 .foregroundStyle(Neutral.white.color.opacity(HeroMetrics.bodyAlpha))
                 .frame(maxWidth: HeroMetrics.bodyWidth, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -204,7 +203,7 @@ struct HomeStartCard: View {
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text(title).font(.uiLabel).foregroundStyle(Semantic.foreground)
                 Text(body)
-                    .font(.uiCaption)
+                    .typeRole(.micro)
                     .foregroundStyle(Semantic.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
             }

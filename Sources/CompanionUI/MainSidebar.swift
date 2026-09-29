@@ -10,15 +10,14 @@ public enum MainPage: Hashable {
     case apps
 }
 
+/// Only what the window's sheets size themselves by. The sidebar and avatar
+/// live in `SidebarMetrics` (248 and 28, measured); a second copy here read
+/// 220 and nothing used it. The detail sheet's 860 x 620 and its 220 side
+/// column are Companion's own: Incredible's task detail was never measured.
 public enum MainWindowMetrics {
-    public static let sidebar: CGFloat = 220
-    public static let heroHeight: CGFloat = 150
-    public static let startWidth: CGFloat = 250
-    public static let pageMaxWidth: CGFloat = 720
     public static let detailMaxWidth: CGFloat = 860
     public static let detailMaxHeight: CGFloat = 620
     public static let detailSide: CGFloat = 220
-    public static let avatar: CGFloat = 28
 }
 
 public extension Notification.Name {
