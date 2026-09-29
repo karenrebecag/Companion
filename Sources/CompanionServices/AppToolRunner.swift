@@ -68,7 +68,10 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
     /// turn's path: at launch, when the Apps page changes something, and
     /// by TTL — `specs` and `execute` only ever read the cache.
     public func refresh() async {
-        guard let service = service() else { return }
+        guard let service = service() else {
+            Log.app("apps: runner has no service (endpoint or key missing)")
+            return
+        }
         let accounts: [ConnectedAccount]
         do {
             accounts = try await service.accounts()
@@ -91,6 +94,10 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
             }
         }
         store(fresh)
+        // Counts only, never content: enough to tell "cache empty" from
+        // "cache loaded" when a live turn misbehaves (QA 16k-3).
+        Log.app("apps: runner cached \(fresh.count) app(s), "
+            + "\(fresh.reduce(0) { $0 + $1.actions.count }) tool(s)")
     }
 
     private func store(_ fresh: [ConnectedTools]) {

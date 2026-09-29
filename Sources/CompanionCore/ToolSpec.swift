@@ -149,7 +149,11 @@ public struct ToolSpec: Sendable, Equatable {
     /// for providers that take the field; the rest get the plain shape.
     public func encodeChat(strict: Bool = false) -> String {
         var function = functionBody(strict: strict)
-        if strict { function["strict"] = true }
+        // Never on a raw schema: the app's server did not write it to the
+        // strict contract, and OpenAI answers the flag by rejecting the
+        // WHOLE request — one connected app silenced every typed turn
+        // (live 2026-09-28, QA 16k-3).
+        if strict, rawParametersObject() == nil { function["strict"] = true }
         return encodeJSON([
             "type": "function",
             "function": function,
@@ -162,19 +166,24 @@ public struct ToolSpec: Sendable, Equatable {
         return obj
     }
 
+    /// The parsed raw schema, or nil when absent or unparseable. Shared by
+    /// the body and by `encodeChat`'s strict decision so the two can never
+    /// disagree about which path a spec took.
+    private func rawParametersObject() -> [String: Any]? {
+        guard let raw = rawParametersJSON, let data = raw.data(using: .utf8)
+        else { return nil }
+        do { return try JSONSerialization.jsonObject(with: data) as? [String: Any] }
+        catch { return nil }
+    }
+
     private func functionBody(strict: Bool) -> [String: Any] {
         // 16k-3: a raw schema wins whole — nesting the flat shape cannot
         // say. Strict mode is skipped for it on purpose: rewriting a
         // server's schema to OpenAI's strict contract would change what
         // the tool accepts. One that does not parse falls back to the
         // flat encoding instead of sending garbage.
-        if let raw = rawParametersJSON, let data = raw.data(using: .utf8) {
-            let parsed: [String: Any]?
-            do { parsed = try JSONSerialization.jsonObject(with: data) as? [String: Any] }
-            catch { parsed = nil }
-            if let object = parsed {
-                return ["name": name, "description": description, "parameters": object]
-            }
+        if let object = rawParametersObject() {
+            return ["name": name, "description": description, "parameters": object]
         }
         var props: [String: Any] = [:]
         for property in properties {
