@@ -124,20 +124,18 @@ func makeSensingAndModel(
     // callback raises the island's "Conectar X" card through the reducer.
     let appTools = AppToolRunner(
         service: { [secrets = env.secrets, hostSecrets = env.hostSecrets, pin = env.appsPin] in
-            guard let raw = UserDefaults.standard.string(forKey: AppsModel.endpointDefault),
-                  let url = AppsEndpoint.validated(raw) else { return nil }
-            guard let host = SecretHost.of(url: url.absoluteString) else { return nil }
-            let key: String?
+            let found: (url: URL, key: String?)?
             do {
-                key = try AppsCredentials.key(
-                    host: host, legacy: secrets, bound: hostSecrets, pin: pin, log: { Log.app($0) })
+                found = try AppsCredentials.currentKey(
+                    endpoint: UserDefaults.standard.string(forKey: AppsModel.endpointDefault),
+                    legacy: secrets, bound: hostSecrets, pin: pin, log: { Log.app($0) })
             } catch {
                 // Distinguishable in the log: a Keychain failure is not
                 // "not configured" (review 16k-3 L2).
                 Log.app("apps: keychain read failed for the runner")
-                key = nil
+                return nil
             }
-            guard let key, key.count >= 32 else { return nil }
+            guard let url = found?.url, let key = found?.key, key.count >= 32 else { return nil }
             return HTTPAppsService(base: url, key: key)
         },
         catalog: CatalogSeed.apps(language: .en).map {

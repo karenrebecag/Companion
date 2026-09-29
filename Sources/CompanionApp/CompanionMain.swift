@@ -76,10 +76,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installBridge(environment: env, jobs: jobs, sensing: sensing)
         presentWindow(
             model: sensing.model, voice: pipeline.voice, sessionModel: sensing.sessionModel,
-            choice: jobs.choice, memoryStore: env.memoryStore, secrets: env.secrets, hostSecrets: env.hostSecrets,
-            appsPin: env.appsPin,
-            openAIMouth: pipeline.openAIMouth, mouth: pipeline.mouth, transport: env.transport,
-            voicePort: sensing.voicePort)
+            choice: jobs.choice, env: env,
+            openAIMouth: pipeline.openAIMouth, mouth: pipeline.mouth, voicePort: sensing.voicePort)
     }
 
     /// The hold lives outside the window (Wave 12b): closing main leaves

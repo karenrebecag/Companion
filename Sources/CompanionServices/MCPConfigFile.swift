@@ -59,14 +59,14 @@ public enum MCPConfigFile {
                 }
             } else {
                 do {
-                    copy.authorization = try migration.token(for: server, secrets: secrets)
+                    copy.authorization = try migration.resolve(for: server, secrets: secrets)
                 } catch {
                     Log.app("mcp: keychain read failed for a server token")
                 }
             }
             resolved.append(copy)
         }
-        migration.retireServed(secrets: secrets)
+        migration.retire(migration.served, secrets: secrets)
         if inFile, moved {
             do {
                 try write(resolved.map { stripped($0) }, root: root)
@@ -84,10 +84,10 @@ public enum MCPConfigFile {
     /// retire a host-only token the other would have kept: a host with a
     /// stuck move keeps its host-only copy, the only one there is.
     private struct HostOnlyMigration {
-        private var served = Set<String>()
+        private(set) var served = Set<String>()
         private var stuck = Set<String>()
 
-        mutating func token(for server: MCPServerConfig, secrets: any HostSecretStore) throws -> String? {
+        mutating func resolve(for server: MCPServerConfig, secrets: any HostSecretStore) throws -> String? {
             guard let key = SecretHost.serverKey(of: server.url),
                   let host = SecretHost.of(url: server.url)
             else { return nil }
@@ -102,8 +102,6 @@ public enum MCPConfigFile {
             }
             return old
         }
-
-        func retireServed(secrets: any HostSecretStore) { retire(served, secrets: secrets) }
 
         /// Dropped once every server of the host has its own copy, so a
         /// server added later on that host does not inherit it. A failed
@@ -172,7 +170,7 @@ public enum MCPConfigFile {
                 continue
             }
             if token.isEmpty {
-                _ = try migration.token(for: server, secrets: secrets)
+                _ = try migration.resolve(for: server, secrets: secrets)
             } else {
                 try secrets.write(.mcpToken, host: key, value: token)
             }

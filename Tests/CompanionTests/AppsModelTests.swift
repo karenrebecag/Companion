@@ -228,6 +228,24 @@ private final class AppsManualSleeper: @unchecked Sendable {
     #expect((try? secrets.read(.companionApps)) == nil, "la plana se retira")
 }
 
+/// 20c D6 (M5): an endpoint that appeared after launch (the pin saw none)
+/// must not be handed the flat key, and the page must not move it either.
+@Test @MainActor func appsPageNeverServesTheFlatKeyToAnEndpointTheLaunchDidNotSee() async {
+    let fake = FakeApps()
+    fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
+    fake.accountsResult = .success([])
+    let key = String(repeating: "k", count: 64)
+    let secrets = TestSecretStore([.companionApps: key])
+    let hostSecrets = TestHostSecretStore()
+    let (apps, defaults) = model(fake, secrets: secrets, hostSecrets: hostSecrets, launchPin: .unobserved)
+    defaults.set("https://swapped.example", forKey: AppsModel.endpointDefault)
+    await apps.load()
+    #expect(apps.phase != .ready, "el endpoint que el arranque no vio no recibe la clave")
+    #expect((try? secrets.read(.companionApps)) == key, "la plana queda intacta")
+    #expect((try? hostSecrets.read(.appsKey, host: "swapped.example")) == nil, "y no se ligó al host nuevo")
+    #expect(fake.queries.isEmpty, "nadie llamó al servicio")
+}
+
 @Test @MainActor func appsPageSaysWhatFailed() async {
     let fake = FakeApps()
     fake.catalogFailure = .notConfigured(["PIPEDREAM_CLIENT_ID"])

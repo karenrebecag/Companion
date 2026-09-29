@@ -94,7 +94,7 @@ public enum ApprovalCopy {
     /// BOM, soft hyphen) and the Unicode line/paragraph separators go too:
     /// they hide or forge text the same way. Newlines and tabs stay — they
     /// are layout, not direction — unless the text is a one-line title.
-    private static func plainPreview(_ text: String, keepingLayout: Bool = true) -> String {
+    public static func plainPreview(_ text: String, keepingLayout: Bool = true) -> String {
         String(text.unicodeScalars.filter { scalar in
             if scalar == "\n" || scalar == "\t" { return keepingLayout }
             return !Self.hiddenCategories.contains(scalar.properties.generalCategory)

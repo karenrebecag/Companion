@@ -18,10 +18,8 @@ extension AppDelegate {
     /// `applicationDidFinishLaunching`.
     func presentWindow(
         model: ChatViewModel, voice: VoiceViewModel, sessionModel: SessionModel,
-        choice: ExecutorChoice, memoryStore: FileMemoryStore, secrets: CachingSecretStore, hostSecrets: any HostSecretStore,
-        appsPin: AppsLaunchPin,
-        openAIMouth: OpenAITTSClient, mouth: MouthRouter, transport: URLSessionChatTransport,
-        voicePort: VoicePortBox
+        choice: ExecutorChoice, env: LaunchEnvironment,
+        openAIMouth: OpenAITTSClient, mouth: MouthRouter, voicePort: VoicePortBox
     ) {
         // Wave 12h: FN is an Accessibility HID tap (same permission as
         // dictation). Solo FN is swallowed; Input Monitoring is not used.
@@ -81,7 +79,7 @@ extension AppDelegate {
 
         // Update check: once per day, after launch settles; a hit shows the
         // W3 toast and lights the Settings row. Silence on any failure.
-        let checker = UpdateChecker(transport: transport)
+        let checker = UpdateChecker(transport: env.transport)
         let updates = UpdateState(checkNow: {
             guard let info = await checker.checkNow() else { return nil }
             return .init(tag: info.tag, pageURL: info.pageURL)
@@ -108,13 +106,14 @@ extension AppDelegate {
             welcome: WelcomeModel(
                 devices: SystemWelcomeDevices(),
                 keyReady: { [weak model] in model.map { !$0.needsOnboarding } ?? false }),
-            memory: memoryStore,
+            memory: env.memoryStore,
             apps: AppsModel(
-                secrets: secrets, hostSecrets: hostSecrets, launchPin: appsPin, makeService: { HTTPAppsService(base: $0, key: $1) },
+                secrets: env.secrets, hostSecrets: env.hostSecrets, launchPin: env.appsPin,
+                makeService: { HTTPAppsService(base: $0, key: $1) },
                 // 16k-4: the Apps page edits the same mcp.json the user
                 // could edit by hand; only this root touches the disk.
                 readMCP: { MCPConfigFile.read() },
-                saveMCP: { try MCPConfigFile.save($0, secrets: hostSecrets) },
+                saveMCP: { try MCPConfigFile.save($0, secrets: env.hostSecrets) },
                 log: { Log.app($0) }))
         let hosting = NSHostingView(rootView: root)
         WindowChrome.install(hosting, in: window)

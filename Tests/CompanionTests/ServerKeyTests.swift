@@ -26,7 +26,8 @@ import Testing
 }
 
 @Test func serverKeyIsLowercasedAndTrimmed() {
-    expectEq(SecretHost.serverKey(of: "  https://H.DEV/Docs  "), "h.dev/docs", "host and path share the Keychain casing")
+    expectEq(SecretHost.serverKey(of: "  https://H.DEV/Docs  "), "h.dev/docs",
+             "host and path share the Keychain casing")
 }
 
 /// Review D6 (code MEDIUM): a bearer token must never go out in the clear,
@@ -48,7 +49,8 @@ import Testing
 /// could ride a request the fetcher sends to the other.
 
 @Test func serverKeyRejectsABackslashHostConfusion() {
-    expectEq(SecretHost.serverKey(of: "https://evil.com\\@good.com/"), nil, "Foundation says good.com, WHATWG says evil.com")
+    expectEq(SecretHost.serverKey(of: "https://evil.com\\@good.com/"), nil,
+             "Foundation says good.com, WHATWG says evil.com")
 }
 
 @Test func serverKeyRejectsABackslashAnywhere() {
@@ -79,4 +81,26 @@ import Testing
     for bad in ["//a.com/p", "a.com/p", "https:a.com/p", "https:///a.com/p", "https://a b/p"] {
         expectEq(SecretHost.serverKey(of: bad), nil, "\(bad) has no key")
     }
+}
+
+/// Review D6 follow-up: control scalars, escaped separators and lookalike
+/// hosts. Each case pins the outcome the parsers actually give.
+@Test func serverKeyRejectsControlScalarsInTheAuthority() {
+    expectEq(SecretHost.serverKey(of: "https://a\t.com/p"), nil, "tab in the host")
+    expectEq(SecretHost.serverKey(of: "https://a.com\n.evil.com/p"), nil, "newline in the host")
+    expectEq(SecretHost.serverKey(of: "https://a%00.com/p"), nil, "an encoded NUL in the host")
+}
+
+@Test func serverKeyKeepsAnEncodedBackslashInThePathInert() {
+    expectEq(SecretHost.serverKey(of: "https://h.com/a%5Cb"), "h.com/a%5cb",
+             "%5C stays literal in the name (Keychain lowercases it) and is never decoded to a separator")
+}
+
+@Test func serverKeyHandlesATrailingDotHostAndPunycodeFailingClosed() {
+    expectEq(SecretHost.serverKey(of: "https://h.com./p"), "h.com./p",
+             "a trailing-dot host is its own name, never folded into h.com")
+    expect(SecretHost.serverKey(of: "https://h.com./p") != SecretHost.serverKey(of: "https://h.com/p"),
+           "so a token saved for h.com does not follow it")
+    expectEq(SecretHost.serverKey(of: "https://xn--80ak6aa92e.com/p"), nil,
+             "punycode: Foundation decodes it to Unicode, the wire keeps it encoded, so it fails closed")
 }

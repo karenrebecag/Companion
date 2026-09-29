@@ -45,7 +45,7 @@ public struct BridgePolicy: Sendable, Equatable {
     /// Every allowlisted tool that draws from the read budget. Explicit on
     /// purpose: a bucket that is "whatever is not a write" lets a new tool
     /// slip into the looser budget unnoticed; `unbucketed` and its test make
-    /// adding a tool to `BridgeScope.allowedTools` force a choice here.
+    /// adding a tool to `BridgeScope.bridgeTools` force a choice here.
     ///
     /// `focus_window` is deliberately a read: it only raises a window
     /// Companion was already allowed to see, changes no content, and an agent

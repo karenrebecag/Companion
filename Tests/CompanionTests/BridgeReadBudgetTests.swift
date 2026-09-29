@@ -65,16 +65,16 @@ private func rejectionCode(_ verdict: BridgeVerdict) -> String? {
 /// tool must sit in exactly one explicit bucket, so adding one forces the
 /// decision.
 @Test func everyAllowlistedBridgeToolIsInExactlyOneBudgetBucket() {
-    expect(BridgePolicy.unbucketed(BridgeScope.allowedTools).isEmpty,
-           "allowlisted tools with no budget bucket: \(BridgePolicy.unbucketed(BridgeScope.allowedTools).sorted())")
+    expect(BridgePolicy.unbucketed(BridgeScope.bridgeTools).isEmpty,
+           "allowlisted tools with no budget bucket: \(BridgePolicy.unbucketed(BridgeScope.bridgeTools).sorted())")
     let both = BridgePolicy.writeTools.intersection(BridgePolicy.readTools)
     expect(both.isEmpty, "a tool draws from one budget, not both: \(both.sorted())")
-    expect(BridgeScope.allowedTools.isSuperset(of: BridgePolicy.writeTools.union(BridgePolicy.readTools)),
+    expect(BridgeScope.bridgeTools.isSuperset(of: BridgePolicy.writeTools.union(BridgePolicy.readTools)),
            "a bucket names only allowlisted tools")
 }
 
 @Test func aToolInNeitherBucketFailsTheGuardAndDrawsFromTheStricterBudget() {
-    expectEq(BridgePolicy.unbucketed(BridgeScope.allowedTools.union(["brand_new_tool"])), ["brand_new_tool"],
+    expectEq(BridgePolicy.unbucketed(BridgeScope.bridgeTools.union(["brand_new_tool"])), ["brand_new_tool"],
              "a tool allowlisted but in neither bucket is reported")
     let now = Date()
     var policy = openPolicy(now)

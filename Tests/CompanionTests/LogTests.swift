@@ -20,6 +20,36 @@ import Testing
     expect(!readFile(other).contains(sentinel), "captura: nunca al sink global")
 }
 
+/// 20c D7: wire and error text reaches the log; a control or bidi scalar in
+/// it must not start a fake line or reorder what the reader sees.
+@Test func aLoggedMessageCannotForgeLinesOrSpoofWithHiddenScalars() async {
+    let url = uniqueLogURL()
+    await Log.capturing(to: url) {
+        Log.bridge("call evil\n2099-01-01T00:00:00Z [bridge] approved\r\u{202E}gnp.exe\u{200B}\u{0000}end")
+    }
+    let text = readFile(url)
+    expectEq(text.split(separator: "\n").count, 1, "log: un mensaje es una sola línea")
+    expect(!text.contains("\u{202E}") && !text.contains("\u{200B}") && !text.contains("\u{0000}"),
+           "log: bidi, zero-width y NUL se quitan")
+    expect(text.contains("call evil"), "log: el resto del texto sigue")
+}
+
+/// 20c D7: the app log is a plain file that only ever grew.
+@Test func theLogFileIsCappedByRotatingTheOldOne() async {
+    let url = uniqueLogURL()
+    let rotated = URL(fileURLWithPath: url.path + ".1")
+    do {
+        try Data(String(repeating: "x", count: Log.maxFileBytes + 1).utf8).write(to: url)
+    } catch {
+        expect(false, "log: no pudo sembrar el archivo grande \(error)")
+        return
+    }
+    await Log.capturing(to: url) { Log.app("after-cap") }
+    expect(readFile(url).contains("after-cap"), "tope: la línea nueva va al archivo fresco")
+    expect(readFile(url).utf8.count < Log.maxFileBytes, "tope: el archivo vivo vuelve a ser chico")
+    expectEq(readFile(rotated).utf8.count, Log.maxFileBytes + 1, "tope: el viejo se conserva como .1")
+}
+
 // The only suite that points the process-wide sink anywhere: every other
 // test reads its lines through `Log.capturing`.
 @Test @MainActor func logTests() async {

@@ -537,16 +537,14 @@ public final class AppsModel {
 
     private func currentService() -> (any AppsService)? {
         if let service { return service }
-        guard let url = AppsEndpoint.validated(endpoint) else { return nil }
-        guard let host = SecretHost.of(url: url.absoluteString) else { return nil }
-        let key: String?
+        let found: (url: URL, key: String?)?
         do {
-            key = try AppsCredentials.key(
-                host: host, legacy: secrets, bound: hostSecrets, pin: launchPin, log: log)
+            found = try AppsCredentials.currentKey(
+                endpoint: endpoint, legacy: secrets, bound: hostSecrets, pin: launchPin, log: log)
         } catch {
             return nil
         }
-        guard let key, key.count >= Self.minimumKeyLength else { return nil }
+        guard let url = found?.url, let key = found?.key, key.count >= Self.minimumKeyLength else { return nil }
         let made = makeService(url, key)
         service = made
         return made

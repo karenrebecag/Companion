@@ -52,7 +52,7 @@ private func bridge(_ tools: FakeParentTools) -> BridgeSession {
 }
 
 /// The guard. When it fails, a tool was added to the runner without a
-/// decision about the bridge: put it in `BridgeScope.allowedTools` if an
+/// decision about the bridge: put it in `BridgeScope.bridgeTools` if an
 /// outside agent may drive it, or in `BridgeScope.localOnly` if not.
 @Test @MainActor func everyToolTheRunnerOffersHasABridgeDecision() {
     let offered = Set(fullRunner().specs(.en).map(\.name))
@@ -61,12 +61,12 @@ private func bridge(_ tools: FakeParentTools) -> BridgeSession {
     let undecided = offered.filter { !BridgeScope.decided($0) }
     expect(undecided.isEmpty,
            "tools with no bridge decision (allowlist or local-only): \(undecided.sorted())")
-    expect(Set(fullRunner().specs(.en).map(\.name)).isSuperset(of: BridgeScope.allowedTools),
+    expect(Set(fullRunner().specs(.en).map(\.name)).isSuperset(of: BridgeScope.bridgeTools),
            "a fully backed runner offers every allowlisted tool (the guard is not vacuous)")
 }
 
 @Test func theAllowlistAndTheLocalOnlySetNeverOverlap() {
-    let both = BridgeScope.allowedTools.filter { BridgeScope.isLocalOnly($0) }
+    let both = BridgeScope.bridgeTools.filter { BridgeScope.isLocalOnly($0) }
     expect(both.isEmpty, "a tool is either driven over the bridge or local only: \(both.sorted())")
 }
 
@@ -77,7 +77,7 @@ private func bridge(_ tools: FakeParentTools) -> BridgeSession {
         "type_text", "press_key", "focus_window", "read_focused",
         "look", "click", "scroll", "menu", "see",
     ]
-    expectEq(BridgeScope.allowedTools, expected, "the allowlist is exactly the tools the bridge served")
+    expectEq(BridgeScope.bridgeTools, expected, "the allowlist is exactly the tools the bridge served")
     for name in expected.sorted() {
         let tools = FakeParentTools(handledNames: [name], specNames: [name])
         let session = bridge(tools)
@@ -90,7 +90,7 @@ private func bridge(_ tools: FakeParentTools) -> BridgeSession {
 }
 
 @Test @MainActor func aNewRunnerToolIsNotOfferedOrRunnableOverTheBridge() async {
-    let names = Array(BridgeScope.allowedTools) + ["brand_new_tool"]
+    let names = Array(BridgeScope.bridgeTools) + ["brand_new_tool"]
     let tools = FakeParentTools(handledNames: Set(names), specNames: names)
     let session = bridge(tools)
     let hello = await session.handle(line: helloLine(1))

@@ -101,7 +101,7 @@ func makeLaunchEnvironment() -> LaunchEnvironment {
     let config = configProvider.current
 
     return LaunchEnvironment(
-        home: home, support: support, secrets: secrets, hostSecrets: keychain, appsPin: appsPin, transport: transport,
-        probe: probe, memoryStore: memoryStore, skillsLocation: skillsLocation,
+        home: home, support: support, secrets: secrets, hostSecrets: keychain, appsPin: appsPin,
+        transport: transport, probe: probe, memoryStore: memoryStore, skillsLocation: skillsLocation,
         skillStore: skillStore, configProvider: configProvider, config: config)
 }

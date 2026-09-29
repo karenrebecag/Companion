@@ -70,8 +70,11 @@ public struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
             guard let raw = arguments["url"] as? String else { return nil }
             do {
                 let url = try ParentToolPolicy.httpURL(raw)
-                guard let host = url.host else { return nil }
-                return ApprovalKey(tool: request.toolName, pattern: host)
+                guard let host = url.host, let scheme = url.scheme else { return nil }
+                // Scheme and port are part of the origin: a yes for
+                // https://h must not open http://h or h on another port.
+                let port = url.port ?? (scheme == "https" ? 443 : 80)
+                return ApprovalKey(tool: request.toolName, pattern: "\(scheme)://\(host):\(port)")
             } catch {
                 return nil
             }

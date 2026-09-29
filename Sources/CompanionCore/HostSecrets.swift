@@ -56,11 +56,17 @@ public enum SecretHost {
     /// or slash-bearing host. Such a URL has no key, so no token.
     public static func serverKey(of url: String) -> String? {
         let text = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A WHATWG parser reads `\` as `/`, Foundation does not: two hosts.
         guard !text.contains("\\"),
               let parts = URLComponents(string: text),
+              // Only https: a bearer token never rides plain http.
               parts.scheme?.lowercased() == "https",
+              // `https://good@evil/` names evil to one parser, good to another.
               parts.user == nil, parts.password == nil,
               let decoded = parts.host, let encoded = parts.percentEncodedHost,
+              // An escaped host (`%2F`, `%40`) that one parser decodes and
+              // the other keeps literal; the `%` and `/` checks are
+              // defensive for a form that survives the equality.
               decoded == encoded, !decoded.contains("%"), !decoded.contains("/"),
               let host = normalized(decoded)
         else { return nil }
@@ -124,6 +130,20 @@ public enum AppsCredentials {
         if recorded == nil, pin.host != host { return nil }
         bind(old, to: host, recorded: recorded != nil, legacy: legacy, bound: bound, log: log)
         return old
+    }
+
+    /// Read-time entry for every caller: the endpoint as stored, validated,
+    /// its host, and the key for it under the launch pin. One path, so a
+    /// caller cannot skip the pin or the log. Nil when the endpoint is unset
+    /// or invalid; the key is nil when none is stored. A Keychain failure
+    /// throws, so callers can tell it from "not configured".
+    public static func currentKey(
+        endpoint: String?, legacy: any SecretStore, bound: any HostSecretStore, pin: AppsLaunchPin,
+        log: @Sendable (String) -> Void = { _ in }
+    ) throws -> (url: URL, key: String?)? {
+        guard let url = endpoint.flatMap(AppsEndpoint.validated),
+              let host = SecretHost.of(url: url.absoluteString) else { return nil }
+        return (url, try key(host: host, legacy: legacy, bound: bound, pin: pin, log: log))
     }
 
     /// The launch step: the endpoint as the user typed it, validated like the

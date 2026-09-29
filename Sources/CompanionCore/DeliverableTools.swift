@@ -73,7 +73,7 @@ extension NativeTool {
 /// exposing a capability to an outside agent is always a deliberate edit,
 /// and `BridgeAllowlistTests` fails on a runner tool with no decision.
 public enum BridgeScope {
-    public static let allowedTools: Set<String> = [
+    public static let bridgeTools: Set<String> = [
         "open_app", "open_url", "open_file", "list_apps", "read_skill", "find_places",
         "type_text", "press_key", "focus_window", "read_focused",
         "look", "click", "scroll", "menu", "see",
@@ -87,7 +87,7 @@ public enum BridgeScope {
         NativeTool.parentDeliverables.contains { $0.rawValue == name }
     }
 
-    public static func allows(_ name: String) -> Bool { allowedTools.contains(name) }
+    public static func allows(_ name: String) -> Bool { bridgeTools.contains(name) }
 
     /// True when a person has decided this tool's bridge exposure.
     public static func decided(_ name: String) -> Bool { allows(name) || isLocalOnly(name) }

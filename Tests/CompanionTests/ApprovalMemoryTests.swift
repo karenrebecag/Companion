@@ -8,7 +8,8 @@ import Testing
 @Test @MainActor func approvalMemoryTests() {
     testWriteKeyIsTheDirectory()
     testShellKeyIsTheCommandWord()
-    testOpenURLKeyIsTheHost()
+    testOpenURLKeyIsSchemeHostAndPort()
+    testOpenURLRememberedApprovalDoesNotCoverAnotherOrigin()
     testMemoryRemembersAndDenyWins()
     testCompoundShellCommandsAreNeverRemembered()
     testEveryRiskyToolHasAKeyAndUnknownToolsHaveNone()
@@ -49,14 +50,28 @@ private func request(_ tool: String, _ json: String) -> ApprovalRequest {
     expect(ApprovalKey.from(request("run_shell", #"{"command":"   "}"#)) == nil, "shell: vacío no tiene clave")
 }
 
-/// 3D. `open_url` se recuerda por host.
-@MainActor func testOpenURLKeyIsTheHost() {
+/// 3D + 20c D7. `open_url` se recuerda por esquema, host y puerto.
+@MainActor func testOpenURLKeyIsSchemeHostAndPort() {
     let a = ApprovalKey.from(request("open_url", #"{"url":"https://evil.example/?q=1"}"#))
-    let b = ApprovalKey.from(request("open_url", #"{"url":"HTTPS://EVIL.example/other"}"#))
-    expectEq(a, b, "url: mismo host, misma clave")
-    expectEq(a?.description, "open_url(evil.example)", "url: el patrón es el host")
+    let b = ApprovalKey.from(request("open_url", #"{"url":"HTTPS://EVIL.example:443/other"}"#))
+    expectEq(a, b, "url: mismo origen (puerto por defecto explícito), misma clave")
+    expectEq(a?.description, "open_url(https://evil.example:443)", "url: el patrón es esquema, host y puerto")
+    expectEq(ApprovalKey.from(request("open_url", #"{"url":"http://evil.example"}"#))?.description,
+             "open_url(http://evil.example:80)", "url: http lleva su puerto por defecto")
     expect(ApprovalKey.from(request("open_url", #"{"url":"javascript:alert(1)"}"#)) == nil,
            "url: lo que la política niega no tiene clave")
+}
+
+@MainActor func testOpenURLRememberedApprovalDoesNotCoverAnotherOrigin() {
+    let https = ApprovalKey.from(request("open_url", #"{"url":"https://h.example/x"}"#))
+    let http = ApprovalKey.from(request("open_url", #"{"url":"http://h.example/x"}"#))
+    let port = ApprovalKey.from(request("open_url", #"{"url":"https://h.example:8443/x"}"#))
+    expect(https != nil && http != nil && port != nil, "origen: los tres tienen clave")
+    guard let https, let http, let port else { return }
+    let memory = ApprovalMemory().remembering(https, approved: true)
+    expectEq(memory.decision(for: https), true, "origen: el mismo origen sí se recuerda")
+    expect(memory.decision(for: http) == nil, "origen: http no hereda el sí de https")
+    expect(memory.decision(for: port) == nil, "origen: otro puerto no hereda el sí")
 }
 
 @MainActor func testMemoryRemembersAndDenyWins() {

@@ -188,7 +188,8 @@ private final class Landed: @unchecked Sendable {
     let repeated = Landed()
     let repeat2 = Task { repeated.set(await bridge.handle(line: callLine(2, "look")).reply) }
     await pollUntilTrue(timeout: 1) { repeated.value != nil || approvals.requests.count > 2 }
-    expect(repeated.value?.contains(BridgeCode.busy) == true, "GOT \(repeated.value ?? "nil") \(approvals.requests.count)")
+    expect(repeated.value?.contains(BridgeCode.busy) == true,
+           "a re-sent id 2 on the new connection is answered busy, without a third sheet")
     // The ledger's own busy, not the policy's "another session is active"
     // that a freed id would meet on its way to a second sheet.
     expect(repeated.value?.contains("request 2 is already running") == true,
