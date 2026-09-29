@@ -35,6 +35,9 @@ public struct IslandState: Sendable, Equatable {
         case dropZones
         /// 16k-3: the turn named an app that is not connected yet.
         case connectApp(slug: String, name: String)
+        /// 16p-1: a chat-level error (persistence, generic chat) that no turn
+        /// failure line covers; the sentence rides along.
+        case chatError(String)
     }
 
     /// Incredible's status light: amber = it needs you, green = done.
@@ -94,7 +97,7 @@ public struct IslandState: Sendable, Equatable {
         _ p: SessionProjection, pebbleHidden: Bool, mainInFront: Bool = false,
         holdLearned: Bool = false, keyListening: Bool = true, debugTranscripts: Bool = false,
         composing: Bool = false, cancelled: Bool = false, followUp: String? = nil,
-        dropping: Bool = false
+        dropping: Bool = false, errorText: String? = nil
     ) -> IslandState {
         var state: IslandState
         switch p.kind {
@@ -105,6 +108,9 @@ public struct IslandState: Sendable, Equatable {
         case .idle where composing:
             // A draft or a focused field outlives the pointer (16e).
             state = IslandState(size: .nudge)
+        // A session notice carries its own way out and outranks this one.
+        case .idle where !(errorText ?? "").isEmpty && p.notice == nil:
+            state = IslandState(size: .card, line: .chatError(errorText ?? ""))
         case .idle where cancelled && p.notice == nil:
             state = IslandState(size: .bar, line: .cancelled)
         case .idle where followUp != nil && p.notice == nil:

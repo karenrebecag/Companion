@@ -68,7 +68,10 @@ public struct IslandView: View {
             composing: IslandComposing.active(
                 focused: fieldFocused, draft: draft, confirmingClear: confirmingClear,
                 staged: chat.pendingAttachments.count, mainInFront: hold.mainInFront),
-            cancelled: cancelled, followUp: chat.followUp, dropping: geometry.dropping)
+            cancelled: cancelled, followUp: chat.followUp, dropping: geometry.dropping,
+            errorText: ChatErrorSurface.visible(
+                errorText: chat.errorText, needsOnboarding: chat.needsOnboarding,
+                dismissed: chat.dismissedIslandError))
     }
 
     /// Newest first, the replies of this conversation only, each keyed by
@@ -126,6 +129,12 @@ public struct IslandView: View {
             move(from: old == size ? .pebble : old, to: size)
         }
         .onChange(of: geometry.notch) { _, _ in move(from: state.size, to: state.size) }
+        .onChange(of: chat.session.projection.notice, initial: true) { _, notice in
+            chat.supersedeIslandError(notice: notice)
+        }
+        .onChange(of: chat.errorText) { _, _ in
+            chat.supersedeIslandError(notice: chat.session.projection.notice)
+        }
         .onChange(of: geometry.peeking) { _, _ in peek(state) }
         .onChange(of: latestReply?.id) { _, _ in replyStart = Date() }
         .onChange(of: state.approval?.requestId, initial: true) { _, id in
@@ -440,6 +449,9 @@ public struct IslandView: View {
             if !text.isEmpty {
                 IslandReply(text: text, startedAt: replyStart, speaking: state.meter == .agent)
                     .onTapGesture { openResult(latest.id) }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint(Localized.string("island.reply.open"))
+                    .accessibilityAction { openResult(latest.id) }
             }
         }
     }
@@ -452,7 +464,12 @@ public struct IslandView: View {
             IslandFollowUpRow(title: title, onDrop: { chat.followUp = nil })
         } else if let notice = IslandNotice.content(for: state.line) {
             IslandNoticeCard(content: notice, onAction: perform,
-                             onDismiss: { chat.session.send(.noticeExpired) })
+                             onDismiss: { chat.dismissIslandNotice(state.line) })
+                .task(id: IslandNotice.expiringChatError(state.line)) {
+                    if let text = IslandNotice.expiringChatError(state.line) {
+                        await chat.expireIslandError(text)
+                    }
+                }
         } else {
             statusRows(state)
         }
@@ -689,71 +706,5 @@ private struct IslandSizeKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = max(value, nextValue())
-    }
-}
-
-/// Words for the island, ours, from the catalog.
-enum IslandCopy {
-    static func line(_ line: IslandState.Line) -> String {
-        switch line {
-        case .none: ""
-        case .holdHint: Localized.string("island.hint")
-        case .keyBlocked: Localized.string("island.keyBlocked")
-        case .pending: Localized.string("island.pending")
-        case .thinking: Localized.string("island.thinking")
-        case .acting(let targets): ParentToolCopy.acting(targets, Localized.language())
-        case .speaking: Localized.string("island.speaking")
-        case .job(let goal, _, let steps):
-            // "0 steps" is noise: the count appears once there is one.
-            (goal ?? Localized.string("island.job")) + (steps == 0 ? "" : " · "
-                + String(format: Localized.string(steps == 1 ? "island.job.step" : "island.job.steps"), steps))
-        case .completed: Localized.string("island.completed")
-        case .couldntHear: Localized.string("island.couldntHear")
-        case .permission(let failure), .failure(let failure): VoiceCopy.failure(failure)
-        case .dictating(let app): String(format: Localized.string("island.dictating"), app)
-        case .pasting: Localized.string("island.pasting")
-        case .dictated(let app): String(format: Localized.string("island.dictated"), app)
-        case .transcriptsDebug: Localized.string("debug.transcriptsOn")
-        case .cancelled: Localized.string("island.cancelled")
-        case .followUp(let title): title
-        case .dropZones: Localized.string("island.drop.title")
-        case .connectApp(_, let name):
-            String(format: Localized.string("island.connectApp"), name)
-        }
-    }
-
-    static func action(_ action: IslandState.Action) -> String {
-        switch action {
-        case .openKeys: Localized.string("island.action.keys")
-        case .openPermission: Localized.string("permission.open")
-        case .stopHands: Localized.string("island.hands.stop")
-        case .openApps: Localized.string("island.connectApp.action")
-        }
-    }
-
-    /// A new message in the user's own mail app: no server of ours, no
-    /// address sent anywhere until the user writes and sends it.
-    static var feedbackURL: URL? {
-        URL(string: "mailto:?subject=" + (Localized.string("island.feedback.subject")
-            .addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "Companion"))
-    }
-
-    /// The kind of line, not its words: what decides a swap (code review 16f-2).
-    static func swapKey(_ line: IslandState.Line) -> String {
-        switch line {
-        case .permission(let failure), .failure(let failure): "failure-\(failure)"
-        case .job: "job"
-        case .acting: "acting"
-        case .dictating: "dictating"
-        case .dictated: "dictated"
-        default: "\(line)"
-        }
-    }
-
-    static func shimmers(_ line: IslandState.Line) -> Bool {
-        switch line {
-        case .pending, .thinking, .acting, .pasting: true
-        default: false
-        }
     }
 }

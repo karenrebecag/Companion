@@ -59,7 +59,13 @@ public final class ChatViewModel: ConversationPresenting {
     /// The task Follow up handed to the island (spec 16j §8); the next turn
     /// continues it.
     public var followUp: String?
-    public internal(set) var errorText: String?
+    public internal(set) var errorText: String? {
+        // A cleared error re-arms the island for the next identical one.
+        didSet { if errorText == nil { dismissedIslandError = nil } }
+    }
+    /// The chat error the island already showed or was outranked on; it
+    /// lives here so a recreated view cannot resurrect it. Home keeps its own.
+    public internal(set) var dismissedIslandError: String?
     public var draft = ""
     public var onboardingKey = ""
     public private(set) var onboardingBusy = false
@@ -138,6 +144,10 @@ public final class ChatViewModel: ConversationPresenting {
         self.log = log
         self.folderName = WorkdirPreference.label
             ?? config.workdir.map { URL(fileURLWithPath: $0).lastPathComponent }
+    }
+
+    public func dismissError() {
+        errorText = nil
     }
 
     public func toast(_ text: String, level: NoticeLevel = .info) {

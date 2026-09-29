@@ -21,6 +21,11 @@ struct HomePage: View {
                     .frame(height: HomeMetrics.headHeight, alignment: .center)
                 HStack(alignment: .top, spacing: HomeMetrics.columnGap) {
                     VStack(alignment: .leading, spacing: HomeMetrics.tasksTop) {
+                        if let error = ChatErrorSurface.visible(
+                            errorText: chat.errorText, needsOnboarding: chat.needsOnboarding, dismissed: nil)
+                        {
+                            HomeErrorBanner(text: error, onDismiss: chat.dismissError)
+                        }
                         hero
                         tasks
                     }
