@@ -80,6 +80,10 @@ public final class AppsModel {
     /// directly, the same as `SourcesCard`/`GalleryCard` — the model has no
     /// SwiftUI environment to borrow `openURL` from.
     private let openBrowser: @Sendable (URL) -> Void
+    /// 16k-4: the mcp.json seam, injected by the composition root because
+    /// the UI layer never reads the disk itself. nil hides the section.
+    private let readMCP: (@Sendable () -> MCPFileRead)?
+    private let saveMCP: (@Sendable ([MCPServerConfig]) throws -> Void)?
 
     public init(
         secrets: any SecretStore,
@@ -89,7 +93,9 @@ public final class AppsModel {
             try await Task.sleep(for: .seconds($0))
         },
         now: @escaping @Sendable () -> TimeInterval = { Date().timeIntervalSince1970 },
-        openBrowser: @escaping @Sendable (URL) -> Void = { NSWorkspace.shared.open($0) }
+        openBrowser: @escaping @Sendable (URL) -> Void = { NSWorkspace.shared.open($0) },
+        readMCP: (@Sendable () -> MCPFileRead)? = nil,
+        saveMCP: (@Sendable ([MCPServerConfig]) throws -> Void)? = nil
     ) {
         self.secrets = secrets
         self.defaults = defaults
@@ -97,6 +103,77 @@ public final class AppsModel {
         self.sleep = sleep
         self.now = now
         self.openBrowser = openBrowser
+        self.readMCP = readMCP
+        self.saveMCP = saveMCP
+    }
+
+    // 16k-4 "Añádelo aquí": the user's own MCP servers, shown and edited
+    // from this page. The list edits are pure (OwnMCPEdit); this model
+    // sequences read-fresh → edit → persist → publish. Every edit re-reads
+    // the disk so a hand edit made while the sheet is open survives (M1),
+    // a failed save never shows a list the disk does not hold, and a file
+    // that no longer parses blocks editing instead of being wiped by the
+    // next save (H1, review 16k-4).
+    public private(set) var ownServers: [MCPServerConfig] = []
+    public private(set) var ownError: OwnMCPEdit.EditError?
+    public private(set) var ownSaveFailed = false
+    public private(set) var ownFileBroken = false
+    public var ownEnabled: Bool { readMCP != nil && saveMCP != nil }
+
+    public func loadOwn() {
+        clearOwnReports()
+        if let fresh = freshOwn() { ownServers = fresh }
+    }
+
+    /// True when the server was added AND saved — the form clears on true.
+    public func addOwn(label: String, url: String) -> Bool {
+        clearOwnReports()
+        guard let fresh = freshOwn() else { return false }
+        switch OwnMCPEdit.add(fresh, label: label, url: url) {
+        case .failure(let error):
+            ownError = error
+            return false
+        case .success(let servers):
+            return persistOwn(servers)
+        }
+    }
+
+    public func removeOwn(label: String) {
+        clearOwnReports()
+        guard let fresh = freshOwn() else { return }
+        _ = persistOwn(OwnMCPEdit.remove(fresh, label: label))
+    }
+
+    /// Each action reports only its own outcome (review 16k-4: a stale
+    /// disk failure must not mask a new validation error).
+    private func clearOwnReports() {
+        ownError = nil
+        ownSaveFailed = false
+        ownFileBroken = false
+    }
+
+    /// The disk's current list, or nil when the file cannot be trusted.
+    private func freshOwn() -> [MCPServerConfig]? {
+        switch readMCP?() {
+        case .servers(let servers): return servers
+        case .absent: return []
+        case .unreadable:
+            ownFileBroken = true
+            return nil
+        case nil: return nil
+        }
+    }
+
+    private func persistOwn(_ servers: [MCPServerConfig]) -> Bool {
+        guard let saveMCP else { return false }
+        do {
+            try saveMCP(servers)
+        } catch {
+            ownSaveFailed = true
+            return false
+        }
+        ownServers = servers
+        return true
     }
 
     public var hasMore: Bool { next != nil }

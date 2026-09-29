@@ -33,6 +33,7 @@ struct AppsPage: View {
     var apps: AppsModel
     @State private var searchText: String
     @State private var editing = false
+    @State private var showingOwn = false
 
     /// The model outlives the page; seeding from it keeps a revisit from
     /// throwing away the last search (code review 16k-1).
@@ -46,6 +47,7 @@ struct AppsPage: View {
             VStack(alignment: .leading, spacing: Space.x6) {
                 header
                 content
+                if apps.ownEnabled { ownFooter }
             }
             .frame(maxWidth: HomeMetrics.maxWidth, alignment: .leading)
             .padding(.top, HomeMetrics.tasksTop)
@@ -67,8 +69,10 @@ struct AppsPage: View {
         }
         .overlay { panelSheet }
         .overlay { connectingSheet }
+        .overlay { ownSheet }
         .animation(.springSheet, value: apps.selected?.id)
         .animation(.springSheet, value: apps.connecting?.id)
+        .animation(.springSheet, value: showingOwn)
     }
 
     // Mirrors TaskDetailSheet's presentation idiom (spec 16j §8): a scrim
@@ -293,6 +297,42 @@ struct AppsPage: View {
 
     private var listTitle: String {
         Localized.string(apps.query.isEmpty ? "apps.featured" : "apps.results")
+    }
+
+    /// Spec 16k §2.2: the page's last line, same as Incredible's — a
+    /// question and a link into the own-servers sheet.
+    private var ownFooter: some View {
+        HStack(spacing: Space.x2) {
+            Text(Localized.string("apps.own.prompt"))
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+            AppButton(Localized.string("apps.own.add"), kind: .ghost) {
+                apps.loadOwn()
+                showingOwn = true
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    // Same scrim idiom as the panel and the connecting modal: a sheet over
+    // this page's own content, never a navigation.
+    @ViewBuilder
+    private var ownSheet: some View {
+        if showingOwn {
+            ZStack {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Semantic.scrim)
+                    .ignoresSafeArea()
+                    .onTapGesture { showingOwn = false }
+                GeometryReader { geo in
+                    OwnMCPSheet(apps: apps, onClose: { showingOwn = false })
+                        .frame(width: min(AppsMetrics.formWidth, geo.size.width - Space.x6))
+                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
+                }
+            }
+            .transition(.opacity)
+        }
     }
 }
 

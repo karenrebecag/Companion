@@ -545,6 +545,24 @@
 "apps.seed.total" = "1,700+ apps";
 "apps.seed.configure" = "Configurar";
 
+/* Wave 16k-4: your own MCP servers */
+"apps.own.prompt" = "¿Tienes tu propio servidor MCP?";
+"apps.own.add" = "Añádelo aquí";
+"apps.own.title" = "Tus servidores MCP";
+"apps.own.note" = "Sus herramientas corren en las sesiones de voz en tiempo real, ejecutadas por el servidor de OpenAI. Companion pregunta antes de que cualquiera actúe.";
+"apps.own.none" = "Aún no hay servidores.";
+"apps.own.name" = "Nombre";
+"apps.own.url" = "https://…";
+"apps.own.submit" = "Añadir";
+"apps.own.remove" = "Quitar";
+"apps.own.confirmRemove" = "¿Quitar?";
+"apps.own.error.name" = "Ponle un nombre.";
+"apps.own.error.duplicate" = "Ese nombre ya existe.";
+"apps.own.error.url" = "La URL debe empezar con https:// y nombrar un host.";
+"apps.own.error.save" = "No se pudo guardar mcp.json.";
+"apps.own.error.nameCharset" = "Solo letras, números, - y _ (máx. 64).";
+"apps.own.error.broken" = "mcp.json tiene un error de sintaxis. Corrígelo a mano — nada de aquí lo va a sobreescribir.";
+
 /* Wave 20: data cards */
 "card.table.truncated" = "Se muestran las primeras %d filas.";
 "card.chart" = "Gráfica";
