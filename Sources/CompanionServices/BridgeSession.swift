@@ -27,6 +27,9 @@ public actor BridgeSession {
     private let onCall: @Sendable (String) -> Void
 
     private var policy = BridgePolicy()
+    /// The request ids this connection has used (20c D6, M8a). Replaced with
+    /// a fresh ledger wherever the connection's state is reset.
+    private var ledger = BridgeRequestLedger()
     /// The client name from `hello` ("claude-code"), carried into the
     /// session-open sheet's `inputJSON` so the sheet can name who is
     /// asking. Display only — never a memory key (see `handleSessionApproval`).
@@ -97,6 +100,7 @@ public actor BridgeSession {
         // the previous connection left (an open session, a parked sheet) is
         // not this connection's.
         policy.disconnected()
+        ledger = BridgeRequestLedger()
         client = ""
         current = connection
         lastActivity = now()
@@ -193,9 +197,10 @@ public actor BridgeSession {
         case .success(.hello(let id, let hello)):
             return await handleHello(id: id, hello: hello)
         case .success(.call(let id, let call)):
-            return await handleCall(id: id, call: call, mine: mine)
+            return await handleDeduplicated(id: id, call: call, mine: mine)
         case .success(.bye(let id)):
             policy.disconnected()
+            ledger = BridgeRequestLedger()
             onState(policy.state)
             return (BridgeCodec.encode(.bye(id: id)), true)
         }
@@ -206,6 +211,7 @@ public actor BridgeSession {
     public func connectionClosed() {
         epoch += 1
         policy.disconnected()
+        ledger = BridgeRequestLedger()
         onState(policy.state)
     }
 
@@ -275,6 +281,32 @@ public actor BridgeSession {
     }
 
     // MARK: - call
+
+    /// M8a: an id already used on this connection never runs a second time,
+    /// whatever the tool: it gets the first answer back, or `busy` while the
+    /// first is still running. Only a call that reached its tool is
+    /// remembered: one refused up front (no session, over budget, unknown
+    /// tool) did nothing, so the same id may be sent again once that is fixed.
+    private func handleDeduplicated(id: Int, call: BridgeCall, mine: Int) async -> (String, Bool) {
+        switch ledger.begin(id) {
+        case .replay(let reply):
+            Log.bridge("call id \(id) repeated; first answer sent again, nothing executed")
+            return (reply, false)
+        case .inFlight:
+            return (errorLine(id, BridgeCode.busy, "request \(id) is already running"), false)
+        case .fresh:
+            break
+        }
+        let (reply, close) = await handleCall(id: id, call: call, mine: mine)
+        // A newer connection owns the ledger now; this one is not its to edit.
+        guard mine == epoch else { return (reply, close) }
+        if reply.isEmpty || BridgeCodec.isErrorLine(reply) {
+            ledger.abandon(id)
+        } else {
+            ledger.finish(id, reply: reply)
+        }
+        return (reply, close)
+    }
 
     private func handleCall(id: Int, call: BridgeCall, mine: Int) async -> (String, Bool) {
         // Local-only first: the bridge must not even say such a tool exists.
@@ -478,7 +510,8 @@ public actor BridgeSession {
     private func rejectionMessage(_ code: String) -> String {
         switch code {
         case BridgeCode.busy: return "another session is active"
-        case BridgeCode.rateLimited: return "budget exceeded (\(BridgePolicy.budgetPerMinute)/min)"
+        case BridgeCode.rateLimited:
+            return "budget exceeded (\(BridgePolicy.budgetPerMinute) actions, \(BridgePolicy.readBudgetPerMinute) reads per minute)"
         case BridgeCode.noSession: return "no active session; send hello first"
         case BridgeCode.sessionClosed: return "session is closed"
         case BridgeCode.coolingDown: return "too many denied requests; try again later"

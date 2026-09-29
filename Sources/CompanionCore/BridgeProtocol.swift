@@ -287,6 +287,18 @@ public enum BridgeCodec {
         }
     }
 
+    /// True when an encoded reply is an envelope-level error (refused before
+    /// any tool ran), as opposed to a result, whether the tool succeeded or not.
+    public static func isErrorLine(_ line: String) -> Bool {
+        guard let data = line.data(using: .utf8) else { return false }
+        do {
+            let envelope = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            return envelope?["error"] != nil
+        } catch {
+            return false
+        }
+    }
+
     /// Encode a response to a single line (no trailing newline).
     public static func encode(_ response: BridgeResponse) -> String {
         let envelope: [String: Any]

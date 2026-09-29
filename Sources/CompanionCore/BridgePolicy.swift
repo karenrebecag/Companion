@@ -23,8 +23,8 @@ public enum BridgeVerdict: Sendable, Equatable {
     case reject(code: String)
 }
 
-/// Pure policy for session authorization and rate limiting. The write budget
-/// counts towards a sliding window; read tools bypass it entirely.
+/// Pure policy for session authorization and rate limiting. The write and read
+/// budgets each count towards their own sliding window.
 public struct BridgePolicy: Sendable, Equatable {
     /// The tool name the session-grant approval carries. Not an executable
     /// tool: it exists so the reducer and the sheet can tell the bridge's
@@ -43,6 +43,12 @@ public struct BridgePolicy: Sendable, Equatable {
     ]
 
     public static let budgetPerMinute = 30
+    /// Wave 20c D6 (M8b): reads (`look`, `see`, `read_focused`...) draw from
+    /// their own allowance. They used to be free, so a peer could hammer the
+    /// screen capture and the vision model; and they must not share the
+    /// action allowance, or either flood would starve the other. Looser than
+    /// the actions: an agent re-reads the screen after every step.
+    public static let readBudgetPerMinute = 60
     public static let window: TimeInterval = 60
 
     /// Wave 20c D5 (M2a): a connection with no traffic for this long loses
@@ -75,6 +81,9 @@ public struct BridgePolicy: Sendable, Equatable {
     /// within the current window on each write-tool admit.
     private var writeTimestamps: [Date]
 
+    /// Same, for reads, kept apart from `writeTimestamps` on purpose.
+    private var readTimestamps: [Date]
+
     /// Denied approvals, per PROCESS like the write budget: `disconnected()`
     /// never clears it, or reconnecting would reset the count.
     private var denialTimestamps: [Date]
@@ -82,6 +91,7 @@ public struct BridgePolicy: Sendable, Equatable {
     public init() {
         self.state = .idle
         self.writeTimestamps = []
+        self.readTimestamps = []
         self.denialTimestamps = []
     }
 
@@ -159,22 +169,21 @@ public struct BridgePolicy: Sendable, Equatable {
             }
         }
 
-        // Read tools bypass the budget entirely
-        if !Self.writeTools.contains(tool) {
-            return .proceed
-        }
-
-        // Write tool: check and update budget with sliding window (absolute timestamps)
         let cutoff = now.addingTimeInterval(-Self.window)
-        writeTimestamps = writeTimestamps.filter { $0 > cutoff }
-
-        if writeTimestamps.count >= Self.budgetPerMinute {
-            return .reject(code: BridgeCode.rateLimited)
+        if Self.writeTools.contains(tool) {
+            return Self.spend(&writeTimestamps, limit: Self.budgetPerMinute, cutoff: cutoff, now: now)
         }
+        return Self.spend(&readTimestamps, limit: Self.readBudgetPerMinute, cutoff: cutoff, now: now)
+    }
 
-        // Record this write
-        writeTimestamps.append(now)
-
+    /// One sliding window over absolute timestamps: prunes, then records
+    /// `now` if there is room.
+    private static func spend(
+        _ timestamps: inout [Date], limit: Int, cutoff: Date, now: Date
+    ) -> BridgeVerdict {
+        timestamps = timestamps.filter { $0 > cutoff }
+        guard timestamps.count < limit else { return .reject(code: BridgeCode.rateLimited) }
+        timestamps.append(now)
         return .proceed
     }
 
