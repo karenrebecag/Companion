@@ -38,10 +38,12 @@ private final class FakeSheets: SpreadsheetDriving, @unchecked Sendable {
     await testADocumentAsksFirstAndStaysInTheFolder()
     await testADocumentIsVerifiedAndReported()
     await testABadDocumentIsExplained()
+    await testADocumentNeverOverwritesInSilence()
     await testASheetWriteAsksAndFitsTheRange()
     await testSheetFailuresNameTheWayOut()
     testTheSheetApprovalShowsTheCells()
     testTheAppleEventScriptsCarryOnlyLiterals()
+    testTheScriptsAreGuardedByTheApprovedWorkbook()
     testThePrintedPaletteIsTheUIPalette()
 }
 
@@ -174,11 +176,11 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
 @MainActor func testTheAppleEventScriptsCarryOnlyLiterals() {
     guard let range = SheetRange(a1: "A1:B1") else { return expect(false, "rango") }
     let hostile: [[SheetCell]] = [[.text("\" & (do shell script \"x\") & \""), .number(2)]]
-    let excel = AppleEventSheets.writeScript(.excel, range: range, cells: hostile)
+    let excel = AppleEventSheets.writeScript(.excel, range: range, cells: hostile, workbook: "/tmp/libro.xlsx")
     expect(excel.contains("set formula of range \"A1:B1\""), "Excel: un solo set sobre el rango")
     expect(excel.contains(#"{{"\" & (do shell script \"x\") & \"", 2}}"#),
            "Excel: el texto hostil viaja entero dentro de un literal escapado")
-    let numbers = AppleEventSheets.writeScript(.numbers, range: range, cells: hostile)
+    let numbers = AppleEventSheets.writeScript(.numbers, range: range, cells: hostile, workbook: "/tmp/libro.numbers")
     expectEq(numbers.components(separatedBy: "set value of cell").count - 1, 2, "Numbers: una línea por celda")
     expect(numbers.contains("workbooks") == false && excel.contains("workbooks"),
            "Excel cuenta workbooks; Numbers cuenta documents")
@@ -193,4 +195,55 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
     expectEq(DocumentTheme.warning, Palette.statusOrange.hex, "PDF: naranja")
     expectEq(DocumentTheme.danger, Palette.statusRed.hex, "PDF: rojo")
     expectEq(DocumentTheme.link, Palette.link.hex, "PDF: azul")
+}
+
+/// Wave 20c D4 (M6): create_document over an existing file keeps the original.
+@MainActor func testADocumentNeverOverwritesInSilence() async {
+    let dir = folder()
+    let runner = NativeToolRunner(workdir: dir, places: nil, documents: FakeDocuments())
+    let file = dir + "/q3.pdf"
+    do {
+        let fresh = try await runner.execute(tool: "create_document",
+                                             arguments: ["path": "q3.pdf", "document": doc], approved: true)
+        expect(fresh.ok && !fresh.output.contains("Backup"), "documento: uno nuevo no necesita copia")
+        try Data("ORIGINAL".utf8).write(to: URL(fileURLWithPath: file))
+        let again = try await runner.execute(tool: "create_document",
+                                             arguments: ["path": "q3.pdf", "document": doc], approved: true)
+        expect(again.ok && again.output.contains("Backup"), "documento: sobre uno existente, el recibo dice la copia")
+        let backups = try FileManager.default.contentsOfDirectory(atPath: dir).filter { $0.contains("-backup-") }
+        expectEq(backups.count, 1, "documento: queda una copia junto al original")
+        let kept = try backups.first.map { try String(contentsOfFile: dir + "/" + $0, encoding: .utf8) }
+        expectEq(kept, "ORIGINAL", "documento: la copia es el original, intacto")
+        expectEq(try String(contentsOfFile: file, encoding: .utf8), "%PDF-fake", "documento: el archivo tiene lo nuevo")
+    } catch {
+        expect(false, "documento: no debe lanzar (\(error))")
+    }
+}
+
+/// Wave 20c D4 (M7): the check and the write are one Apple Event, so the
+/// workbook cannot change between them; the guard aborts with 9002.
+/// Verifiable only against a live Excel/Numbers: that the app reports the
+/// same path from `full name` / `file of front document` at both moments.
+@MainActor func testTheScriptsAreGuardedByTheApprovedWorkbook() {
+    guard let range = SheetRange(a1: "A1") else { return expect(false, "rango") }
+    let path = "/tmp/Ventas \"Q3\".xlsx"
+    let write = AppleEventSheets.writeScript(.excel, range: range, cells: [[.number(1)]], workbook: path)
+    let guardLine = "if (full name of active workbook) is not \(AppleScriptText.literal(path)) then error number 9002"
+    expect(write.contains(guardLine), "Excel: la escritura comprueba el libro dentro del mismo script")
+    if let check = write.range(of: guardLine), let set = write.range(of: "set formula") {
+        expect(check.lowerBound < set.lowerBound, "Excel: la comprobación va antes de escribir")
+    } else {
+        expect(false, "Excel: hay comprobación y escritura")
+    }
+    let numbers = AppleEventSheets.writeScript(.numbers, range: range, cells: [[.number(1)]], workbook: "/tmp/v.numbers")
+    expect(numbers.contains("(POSIX path of ((file of front document) as alias)) is not \"/tmp/v.numbers\" then error number 9002"),
+           "Numbers: la misma comprobación")
+    let read = AppleEventSheets.readScript(.excel, range: range, workbook: path)
+    expect(read.contains(guardLine), "relectura: también atada al libro")
+    expect(!AppleEventSheets.readScript(.excel, range: range).contains("error number 9002"),
+           "lectura suelta: no ata nada")
+    expectEq(AppleEventSheets.sheetError(forCode: 9002), .workbookChanged, "9002 es libro cambiado")
+    expectEq(AppleEventSheets.sheetError(forCode: -1743), .needsPermission, "permiso")
+    expectEq(AppleEventSheets.sheetError(forCode: 9001), .noOpenDocument, "sin libro")
+    expectEq(AppleEventSheets.sheetError(forCode: 5), .appFailed, "lo demás")
 }
