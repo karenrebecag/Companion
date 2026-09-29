@@ -68,6 +68,13 @@
 "settings.you.blurb" = "Companion uses this to know you. It saves itself, and applies from your next message.";
 "settings.you.name" = "What I call you";
 "settings.you.name.placeholder" = "Your name";
+"settings.you.city" = "Your city";
+"settings.you.city.placeholder" = "City, Country";
+"settings.you.city.subtitle" = "What \"near me\" means. Left empty, Companion asks your Mac for the city, and only when you ask for something nearby.";
+"island.receipt.title" = "Done";
+"island.receipt.dismiss" = "Dismiss the receipt";
+"island.receipt.check" = "Done and verified";
+"island.receipt.done" = "Done";
 "settings.you.about" = "About you";
 "settings.you.about.placeholder" = "What you work on, how you like to be spoken to…";
 "settings.you.instructions" = "How to answer";
@@ -204,6 +211,9 @@
 "settings.context.blurb" = "When you talk to it, Companion looks at the app in front, open documents, and — with Screen Recording — a snapshot of what is on screen. A short description travels with your words. The image is not saved.";
 "settings.context.app" = "App in front";
 "settings.context.documents" = "Open documents";
+"settings.context.documents.subtitle" = "The titles of open windows travel with your words, and the title of the window in front travels with the name of the app in front.";
+"settings.context.location" = "Your city";
+"settings.context.location.subtitle" = "Your city travels with every request while this is on. Off, it stops travelling, but a search for something nearby can still ask macOS for your location or use the city in Settings › You. macOS only asks then, and only if that city is empty.";
 "settings.context.clipboard" = "Clipboard";
 "settings.context.clipboard.subtitle" = "Off by default. What you copied travels to the model on that turn, up to 400 characters. macOS may show a notice each time it is read.";
 "settings.context.screen" = "What is on screen";

@@ -82,7 +82,7 @@ fi
 
 # TCC no muestra el prompt de microfono/voz sin usage descriptions: si se
 # pierden del bundle, la voz falla en runtime y ningun test lo ve.
-for key in NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSScreenCaptureUsageDescription; do
+for key in NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSScreenCaptureUsageDescription NSLocationWhenInUseUsageDescription NSLocationUsageDescription; do
     if grep -q "$key" "$ROOT/scripts/bundle.sh" 2>/dev/null; then
         pass "bundle declara $key"
     else
@@ -104,8 +104,8 @@ check_imports() {
         pass "$label"
     fi
 }
-check_imports CompanionCore     "SwiftUI|AppKit|AVFoundation|WebKit|Combine" \
-    "Core es puro (sin SwiftUI/AppKit/AVFoundation/WebKit/Combine)"
+check_imports CompanionCore     "SwiftUI|AppKit|AVFoundation|WebKit|Combine|CoreLocation|MapKit" \
+    "Core es puro (sin SwiftUI/AppKit/AVFoundation/WebKit/Combine/CoreLocation/MapKit)"
 check_imports CompanionServices "SwiftUI" \
     "Services no importa SwiftUI"
 check_imports CompanionUI       "AVFoundation|WebKit" \

@@ -23,7 +23,7 @@ import Testing
     expectEq(machine.projection.kind, kind, "16m-6 sesión: es un aviso, no una transición del turno")
     expect(effects.contains(.scheduleNoticeExpiry(SessionMachine.noticeDelay)),
            "16m-6 sesión: se va sola, como el aviso de conectar")
-    _ = machine.handle(.noticeExpired)
+    _ = machine.handle(.noticeExpired(.signInApp(slug: "gmail", name: "Gmail")))
     expect(machine.projection.notice == nil, "16m-6 sesión: expira")
 
     var projection = SessionProjection()

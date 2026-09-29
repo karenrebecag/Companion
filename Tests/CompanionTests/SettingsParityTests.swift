@@ -28,7 +28,14 @@ private func words(_ text: String) -> [String] {
     let options = SettingsInventory.options
     // Wave 17: sixteen now — "Prestar las manos a otros agentes" (spec §3
     // "Ajuste") is the one addition since the fifteen-option line was drawn.
-    expect(options.count <= 16, "ajustes: \(options.count) opciones, máximo 16")
+    // 16h-3: eighteen — "Tu ciudad" in Tú (spec 16h criterion 8) and its
+    // context switch in Privacidad are the two additions to the line.
+    expect(options.count <= 18, "ajustes: \(options.count) opciones, máximo 18")
+    // The two 16h-3 additions the ceiling was raised for: naming them keeps
+    // a later addition from riding on their headroom.
+    for added in ["settings.you.city", "settings.context.location"] {
+        expect(options.contains { $0.titleKey == added }, "ajustes: la opción de 16h-3 \(added) sigue en el inventario")
+    }
     expectEq(Set(options.map(\.titleKey)).count, options.count, "ajustes: sin opciones repetidas")
     for gone in ["settings.voice.speed", "settings.voice.turnEnd", "settings.voice.tone",
                  "settings.voice.aec", "settings.voice.eagerness", "settings.voice.patience",

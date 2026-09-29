@@ -43,6 +43,11 @@ public struct SessionMachine: Sendable, Equatable {
     var finishedJobs: [JobID] = []
     /// Which job asked each queued request; untagged requests have none.
     var approvalOwners: [String: JobID] = [:]
+    /// 16h-3: what the TURN has done and proved so far. Rounds of hands add to
+    /// it; only a new turn (`openTurn`) drops it. Published as a notice when
+    /// the chrome reaches rest, never mid-step.
+    var turnReceipt: ActionReceipt?
+    var receiptPublished = false
 
     public init() {}
 
@@ -164,6 +169,9 @@ public struct SessionMachine: Sendable, Equatable {
             projection.cards = [.couldntHear]
             projection.kind = restingKind()
             effects.append(.scheduleNoticeExpiry(Self.noticeDelay))
+        case .receipt(let receipt):
+            turnReceipt = turnReceipt?.merging(receipt) ?? receipt
+            receiptPublished = false
         case .connectAppSuggested(let slug, let name):
             // A nudge, not a transition: whatever the turn is doing keeps
             // the kind; the card offers the way to the Apps page and
@@ -177,8 +185,19 @@ public struct SessionMachine: Sendable, Equatable {
             projection.notice = .signInApp(slug: slug, name: name)
             projection.cards = [.signInApp(slug: slug, name: name)]
             effects.append(.scheduleNoticeExpiry(Self.noticeDelay))
-        case .noticeExpired:
-            if let notice = projection.notice, Self.fades(notice) { projection.notice = nil }
+        case .noticeExpired(let armedFor):
+            // A clock armed for a notice that is gone or replaced does nothing.
+            if let notice = projection.notice, Self.fades(notice), armedFor == notice {
+                projection.notice = nil
+                seen(notice)
+                if let kind = notice.islandKind { effects.append(.islandEvent(.ignored(kind))) }
+            }
+        case .noticeDismissed:
+            if let notice = projection.notice, Self.fades(notice) {
+                projection.notice = nil
+                seen(notice)
+                if let kind = notice.islandKind { effects.append(.islandEvent(.closed(kind))) }
+            }
         case .pendingTimedOut:
             if projection.kind == .processing(.pending) { projection.kind = restingKind() }
         case .voiceIdleExpired:
@@ -241,6 +260,7 @@ public struct SessionMachine: Sendable, Equatable {
                 effects.append(.stopListening(commit: false))
             }
             provisional = false
+            effects.append(.islandEvent(.interrupted))
             effects += stop()
         }
         // The partial belongs to the hold and to the wait for its words;
@@ -258,6 +278,10 @@ public struct SessionMachine: Sendable, Equatable {
         }
         if restingWarm, !wasRestingWarm {
             effects.append(.scheduleVoiceIdleExpiry(Self.voiceIdleTimeout))
+        }
+        effects += publishReceipt()
+        for card in projection.cards {
+            if let kind = card.islandKind { effects.append(.islandEvent(.shown(kind))) }
         }
         if projection.kind != before {
             effects.append(.logTransition(from: before, to: projection.kind))
@@ -336,6 +360,7 @@ public struct SessionMachine: Sendable, Equatable {
     private static func fades(_ notice: SessionCard) -> Bool {
         if case .connectApp = notice { return true }
         if case .signInApp = notice { return true }
+        if case .receipt = notice { return true }
         return notice == .couldntHear || notice == .holdHint
     }
 
@@ -343,6 +368,7 @@ public struct SessionMachine: Sendable, Equatable {
     /// listening): a job already running goes behind it.
     private mutating func openTurn() {
         begin()
+        turnReceipt = nil
         projection.job?.behindTurn = true
     }
 
@@ -350,7 +376,15 @@ public struct SessionMachine: Sendable, Equatable {
     /// over.
     mutating func begin() {
         projection.interruption = nil
+        // At Idle the turn is over: lines held behind a permanent notice belong
+        // to it, not to whatever starts now (a job, a bridge step).
+        var clearsReceipt = false
+        if case .receipt? = projection.notice { clearsReceipt = true }
+        if projection.kind == .idle, !clearsReceipt { turnReceipt = nil }
         projection.notice = nil
+        // Whatever receipt was on screen is gone with it; the turn's lines
+        // survive and come back at the next rest.
+        receiptPublished = false
         projection.partial = nil
         projection.dictation = nil
         projection.dictatedText = nil

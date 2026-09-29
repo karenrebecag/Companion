@@ -49,6 +49,8 @@ public struct IslandState: Sendable, Equatable {
         /// 16p-1: a chat-level error (persistence, generic chat) that no turn
         /// failure line covers; the sentence rides along.
         case chatError(String)
+        /// 16h-3: what the turn did and could prove.
+        case receipt(ActionReceipt)
     }
 
     /// Incredible's status light: amber = it needs you, green = done.
@@ -217,6 +219,7 @@ public struct IslandState: Sendable, Equatable {
             IslandState(size: .card, line: .signInApp(slug: slug, name: name))
         case .permission(let failure): IslandState(size: .card, line: .permission(failure))
         case .failure(let failure): IslandState(size: .card, line: .failure(failure))
+        case .receipt(let receipt): IslandState(size: .card, line: .receipt(receipt))
         // While the voice session lives the microphone is taken: the pebble
         // is the one mark of ours that says so, and it cannot be hidden
         // (security review 2026-09-06).

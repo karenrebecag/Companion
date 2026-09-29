@@ -48,6 +48,7 @@ public enum ChatPrompt: Sendable {
             about: about, instructions: instructions, language: language) {
             prompt += " " + block
         }
+        prompt += " " + whereRule(language)
         // Hands before the specialist: what the turn can do itself comes
         // first, so "open Safari" is an action and not an errand (Wave 10b).
         if parentToolsEnabled {
@@ -79,6 +80,25 @@ public enum ChatPrompt: Sendable {
             prompt += "\n\n" + skills
         }
         return prompt
+    }
+
+    /// 16h-3: every request is marked with the app and window in front and,
+    /// when known, the city. "Nearby" is that city, never the search
+    /// provider's guess; without it the model asks (a wrong city is worse
+    /// than one more question).
+    private static func whereRule(_ language: AppLanguage) -> String {
+        switch language {
+        case .en:
+            return "Where the user is: <focused_app> and <focused_window> inside <context> are the "
+                + "app and window in front of them; \"this\", \"here\" and \"that\" mean those. "
+                + "\"Near me\" means the city in <user_location>: never assume another one, and "
+                + "when it is absent, ask which city before searching."
+        case .es:
+            return "Dónde está la usuaria: <focused_app> y <focused_window> dentro de <context> son "
+                + "la app y la ventana que tiene delante; «esto», «aquí» y «eso» se refieren a "
+                + "ellas. «Cerca de mí» es la ciudad de <user_location>: nunca supongas otra, y "
+                + "si falta, pregunta en qué ciudad antes de buscar."
+        }
     }
 
     /// The parent has no read_file; read_skill is its equivalent (11a §3.3).

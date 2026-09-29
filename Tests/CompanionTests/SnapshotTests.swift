@@ -35,13 +35,13 @@ import Testing
     }
 }
 
-@MainActor private func chat() -> ChatViewModel {
+@MainActor func chat() -> ChatViewModel {
     ChatViewModel(
         chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
         store: MemoryConversationStore(), config: Config())
 }
 
-@MainActor private func island(
+@MainActor func island(
     _ chat: ChatViewModel, composing: Bool = false, updates: UpdateState? = nil
 ) -> AnyView {
     let voice = VoiceViewModel(voice: RecordingVoice(), thread: FakePresenter())
@@ -169,7 +169,7 @@ private struct SnapMemory: MemoryBrowsing {
 /// island's onChange fires, move()'s task opens the shape, contentVisible
 /// lands — then captures the settled frame. ImageRenderer cannot do this:
 /// it takes one synchronous pass and the island opens asynchronously.
-@MainActor private func saveLive(
+@MainActor func saveLive(
     _ view: AnyView, scheme: ColorScheme, size: CGSize, to dir: URL, _ name: String
 ) async throws {
     let framed = view

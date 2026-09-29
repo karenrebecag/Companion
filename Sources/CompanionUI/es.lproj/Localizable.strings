@@ -68,6 +68,13 @@
 "settings.you.blurb" = "Companion usa esto para conocerte. Se guarda solo, y aplica desde tu siguiente mensaje.";
 "settings.you.name" = "Cómo te llamo";
 "settings.you.name.placeholder" = "Tu nombre";
+"settings.you.city" = "Tu ciudad";
+"settings.you.city.placeholder" = "Ciudad, País";
+"settings.you.city.subtitle" = "Lo que significa «cerca de mí». Si lo dejas vacío, Companion le pregunta la ciudad a tu Mac, y solo cuando pides algo cercano.";
+"island.receipt.title" = "Hecho";
+"island.receipt.dismiss" = "Cerrar el recibo";
+"island.receipt.check" = "Hecho y comprobado";
+"island.receipt.done" = "Hecho";
 "settings.you.about" = "Sobre ti";
 "settings.you.about.placeholder" = "En qué trabajas, cómo te gusta que te hablen…";
 "settings.you.instructions" = "Cómo responder";
@@ -204,6 +211,9 @@
 "settings.context.blurb" = "Cuando le hablas, Companion mira la app enfrente, los documentos abiertos y — con Grabación de pantalla — una foto de lo que se ve. Una descripción corta viaja con tus palabras. La imagen no se guarda.";
 "settings.context.app" = "App enfrente";
 "settings.context.documents" = "Documentos abiertos";
+"settings.context.documents.subtitle" = "Los títulos de las ventanas abiertas viajan con tus palabras, y el título de la ventana de delante viaja con el nombre de la app de delante.";
+"settings.context.location" = "Tu ciudad";
+"settings.context.location.subtitle" = "Tu ciudad acompaña cada pedido mientras esto esté encendido. Apagado, deja de acompañarlos, pero una búsqueda de algo cerca todavía puede pedirle la ubicación a macOS o usar la ciudad de Ajustes › Tú. macOS solo pregunta entonces, y solo si esa ciudad está vacía.";
 "settings.context.clipboard" = "Portapapeles";
 "settings.context.clipboard.subtitle" = "Apagado por defecto. Lo que copiaste viaja al modelo en ese turno, hasta 400 caracteres. macOS puede mostrar un aviso cada vez que se lee.";
 "settings.context.screen" = "Lo que se ve";

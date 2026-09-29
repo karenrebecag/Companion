@@ -251,6 +251,8 @@ final class ClassicRuntime: @unchecked Sendable {
         // see — only the request does. It sits right before the words, after
         // the block: screen text in another language must not come between.
         let block = context.map { ContextBlock.render($0, language: language) } ?? ""
+        // The facts are in the prompt now: only here are they spent.
+        if let context { sensor?.acknowledgeIslandEvents(through: context.islandEventsThrough) }
         if let last = history.indices.last, history[last].role == .user {
             let spoken = ContextBlock.languageInstruction(language) + "\n\n" + heard
             history[last].content = ContextBlock.wrap(spoken, with: block)

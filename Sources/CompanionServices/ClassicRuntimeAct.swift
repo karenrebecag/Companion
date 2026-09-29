@@ -89,6 +89,14 @@ extension ClassicRuntime {
             .filter { ParentTool(rawValue: $0.call.name)?.changesSomething == true }
             .map { ParentToolCopy.status($0.call.name, $0.outcome, language) }
         for card in cards { events?.yield(.job(.card(card))) }
+        // The island's receipt is the effect lines that HAVE proof; an
+        // unread typing is an attempt and gets no check (16h-3).
+        // `late` are typings an earlier round left waiting and a read here
+        // confirmed: proven, and read back.
+        let proven = proof.runs.compactMap {
+            ReceiptProof.entry(tool: $0.call.name, outcome: $0.outcome, language: language)
+        } + proof.late.map { ReceiptLine(text: $0, verified: true) }
+        if let receipt = ActionReceipt(entries: proven) { events?.yield(.receipt(receipt)) }
         return ActedRound(
             turns: turns, effectLines: effects, sawCard: !cards.isEmpty, unverified: proof.unverified)
     }

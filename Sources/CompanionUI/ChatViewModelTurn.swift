@@ -60,6 +60,8 @@ extension ChatViewModel {
             let said = origin == .choice ? ChoiceOrigin.mark(text, language: config.language) : text
             history[last].content = ContextBlock.wrap(
                 said, with: ContextBlock.render(ctx, language: config.language))
+            // The facts are in the request now: only here are they spent.
+            sensor.acknowledgeIslandEvents(through: ctx.islandEventsThrough)
         }
         return history
     }
@@ -191,6 +193,7 @@ extension ChatViewModel {
         // the answers to one assistant turn arrive together, and an assistant
         // turn wedged between them is a rejected request.
         var cards: [Card] = []
+        var proven: [ReceiptLine] = []
         for call in calls {
             // A turn that stopped being current must not keep opening things.
             guard !Task.isCancelled else { break }
@@ -210,7 +213,11 @@ extension ChatViewModel {
                 text: ParentToolCopy.status(call.name, outcome, config.language),
                 recall: Recall(role: .tool, content: outcome.output, toolCallID: call.id)))
             if let card = outcome.card { cards.append(card) }
+            if let line = ReceiptProof.entry(tool: call.name, outcome: outcome, language: config.language) {
+                proven.append(line)
+            }
         }
+        if let receipt = ActionReceipt(entries: proven) { session.send(.receipt(receipt)) }
         for card in cards {
             messages.append(ChatMessage(
                 role: .assistant, text: "", card: card,
