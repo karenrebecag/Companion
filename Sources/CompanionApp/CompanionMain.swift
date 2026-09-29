@@ -77,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         presentWindow(
             model: sensing.model, voice: pipeline.voice, sessionModel: sensing.sessionModel,
             choice: jobs.choice, memoryStore: env.memoryStore, secrets: env.secrets, hostSecrets: env.hostSecrets,
+            appsPin: env.appsPin,
             openAIMouth: pipeline.openAIMouth, mouth: pipeline.mouth, transport: env.transport,
             voicePort: sensing.voicePort)
     }

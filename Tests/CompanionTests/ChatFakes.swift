@@ -5,6 +5,7 @@ import Testing
 
 final class TestSecretStore: SecretStore, @unchecked Sendable {
     private var values: [SecretKey: String]
+    var failDeletes = false
 
     init(_ values: [SecretKey: String] = [:]) {
         self.values = values
@@ -17,6 +18,7 @@ final class TestSecretStore: SecretStore, @unchecked Sendable {
     }
 
     func delete(_ key: SecretKey) throws {
+        if failDeletes { throw SecretStoreError.denied }
         values.removeValue(forKey: key)
     }
 }

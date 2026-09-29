@@ -19,6 +19,7 @@ extension AppDelegate {
     func presentWindow(
         model: ChatViewModel, voice: VoiceViewModel, sessionModel: SessionModel,
         choice: ExecutorChoice, memoryStore: FileMemoryStore, secrets: CachingSecretStore, hostSecrets: any HostSecretStore,
+        appsPin: AppsLaunchPin,
         openAIMouth: OpenAITTSClient, mouth: MouthRouter, transport: URLSessionChatTransport,
         voicePort: VoicePortBox
     ) {
@@ -109,11 +110,12 @@ extension AppDelegate {
                 keyReady: { [weak model] in model.map { !$0.needsOnboarding } ?? false }),
             memory: memoryStore,
             apps: AppsModel(
-                secrets: secrets, hostSecrets: hostSecrets, makeService: { HTTPAppsService(base: $0, key: $1) },
+                secrets: secrets, hostSecrets: hostSecrets, launchPin: appsPin, makeService: { HTTPAppsService(base: $0, key: $1) },
                 // 16k-4: the Apps page edits the same mcp.json the user
                 // could edit by hand; only this root touches the disk.
                 readMCP: { MCPConfigFile.read() },
-                saveMCP: { try MCPConfigFile.save($0, secrets: hostSecrets) }))
+                saveMCP: { try MCPConfigFile.save($0, secrets: hostSecrets) },
+                log: { Log.app($0) }))
         let hosting = NSHostingView(rootView: root)
         WindowChrome.install(hosting, in: window)
         window.center()

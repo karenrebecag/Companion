@@ -42,6 +42,30 @@ public struct BridgePolicy: Sendable, Equatable {
         "open_file"
     ]
 
+    /// Every allowlisted tool that draws from the read budget. Explicit on
+    /// purpose: a bucket that is "whatever is not a write" lets a new tool
+    /// slip into the looser budget unnoticed; `unbucketed` and its test make
+    /// adding a tool to `BridgeScope.allowedTools` force a choice here.
+    ///
+    /// `focus_window` is deliberately a read: it only raises a window
+    /// Companion was already allowed to see, changes no content, and an agent
+    /// calls it between reads. It stays out of `writeTools`, so it is neither
+    /// counted against the action budget nor reported as an action.
+    public static let readTools: Set<String> = [
+        "list_apps",
+        "read_skill",
+        "find_places",
+        "focus_window",
+        "read_focused",
+        "look",
+        "see"
+    ]
+
+    /// Allowlisted tools that sit in neither bucket.
+    public static func unbucketed(_ allowed: Set<String>) -> Set<String> {
+        allowed.subtracting(writeTools).subtracting(readTools)
+    }
+
     public static let budgetPerMinute = 30
     /// Wave 20c D6 (M8b): reads (`look`, `see`, `read_focused`...) draw from
     /// their own allowance. They used to be free, so a peer could hammer the
@@ -170,10 +194,12 @@ public struct BridgePolicy: Sendable, Equatable {
         }
 
         let cutoff = now.addingTimeInterval(-Self.window)
-        if Self.writeTools.contains(tool) {
-            return Self.spend(&writeTimestamps, limit: Self.budgetPerMinute, cutoff: cutoff, now: now)
+        // Only a named read gets the looser budget; anything else is held to
+        // the action one, so a tool nobody bucketed fails safe.
+        if Self.readTools.contains(tool) {
+            return Self.spend(&readTimestamps, limit: Self.readBudgetPerMinute, cutoff: cutoff, now: now)
         }
-        return Self.spend(&readTimestamps, limit: Self.readBudgetPerMinute, cutoff: cutoff, now: now)
+        return Self.spend(&writeTimestamps, limit: Self.budgetPerMinute, cutoff: cutoff, now: now)
     }
 
     /// One sliding window over absolute timestamps: prunes, then records

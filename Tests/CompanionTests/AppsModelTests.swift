@@ -116,13 +116,15 @@ private func app(_ slug: String) -> CatalogApp {
 @MainActor
 private func model(
     _ fake: FakeApps, secrets: TestSecretStore = TestSecretStore(), hostSecrets: TestHostSecretStore = TestHostSecretStore(),
+    launchPin: AppsLaunchPin = .unobserved,
     sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { try await Task.sleep(for: .seconds($0)) },
     now: @escaping @Sendable () -> TimeInterval = { Date().timeIntervalSince1970 },
     openBrowser: @escaping @Sendable (URL) -> Void = { _ in }
 ) -> (AppsModel, UserDefaults) {
     let defaults = UserDefaults(suiteName: "apps-\(UUID().uuidString)")!
     return (AppsModel(
-        secrets: secrets, hostSecrets: hostSecrets, defaults: defaults, makeService: { _, _ in fake },
+        secrets: secrets, hostSecrets: hostSecrets, launchPin: launchPin, defaults: defaults,
+        makeService: { _, _ in fake },
         sleep: sleep, now: now, openBrowser: openBrowser), defaults)
 }
 
@@ -217,7 +219,8 @@ private final class AppsManualSleeper: @unchecked Sendable {
     let key = String(repeating: "k", count: 64)
     let secrets = TestSecretStore([.companionApps: key])
     let hostSecrets = TestHostSecretStore()
-    let (apps, defaults) = model(fake, secrets: secrets, hostSecrets: hostSecrets)
+    let (apps, defaults) = model(
+        fake, secrets: secrets, hostSecrets: hostSecrets, launchPin: .observed("x.vercel.app"))
     defaults.set("https://x.vercel.app", forKey: AppsModel.endpointDefault)
     await apps.load()
     #expect(apps.phase == .ready, "la config vieja sigue funcionando")

@@ -80,7 +80,7 @@ private func makeSession(_ tools: FakeParentTools) -> BridgeSession {
     var ledger = BridgeRequestLedger()
     for id in 0 ..< (BridgeRequestLedger.capacity + 10) {
         _ = ledger.begin(id)
-        ledger.finish(id, reply: "r\(id)")
+        ledger.finish(id, outcome: .answered("r\(id)"))
     }
     expectEq(ledger.count, BridgeRequestLedger.capacity, "the ledger keeps a bounded window")
     if case .replay(let reply) = ledger.begin(BridgeRequestLedger.capacity + 9) {

@@ -282,6 +282,24 @@ public actor BridgeSession {
 
     // MARK: - call
 
+    /// A call's reply with what it means to the ledger, decided where the
+    /// reply is built rather than guessed from its text.
+    private struct Handled {
+        let reply: String
+        let close: Bool
+        let outcome: BridgeRequestLedger.Outcome
+
+        static func answered(_ line: String, close: Bool = false) -> Handled {
+            Handled(reply: line, close: close, outcome: .answered(line))
+        }
+
+        static func refused(_ line: String, close: Bool = false) -> Handled {
+            Handled(reply: line, close: close, outcome: .refused)
+        }
+
+        static let dropped = Handled(reply: "", close: false, outcome: .dropped)
+    }
+
     /// M8a: an id already used on this connection never runs a second time,
     /// whatever the tool: it gets the first answer back, or `busy` while the
     /// first is still running. Only a call that reached its tool is
@@ -292,39 +310,39 @@ public actor BridgeSession {
         case .replay(let reply):
             Log.bridge("call id \(id) repeated; first answer sent again, nothing executed")
             return (reply, false)
+        case .tooLargeToReplay:
+            Log.bridge("call id \(id) repeated; its first answer was too large to keep, nothing executed")
+            let line = errorLine(id, BridgeCode.replyTooLarge, "the answer to request \(id) was too large to send again")
+            return (line, false)
         case .inFlight:
             return (errorLine(id, BridgeCode.busy, "request \(id) is already running"), false)
         case .fresh:
             break
         }
-        let (reply, close) = await handleCall(id: id, call: call, mine: mine)
+        let handled = await handleCall(id: id, call: call, mine: mine)
         // A newer connection owns the ledger now; this one is not its to edit.
-        guard mine == epoch else { return (reply, close) }
-        if reply.isEmpty || BridgeCodec.isErrorLine(reply) {
-            ledger.abandon(id)
-        } else {
-            ledger.finish(id, reply: reply)
-        }
-        return (reply, close)
+        guard mine == epoch else { return (handled.reply, handled.close) }
+        ledger.finish(id, outcome: handled.outcome)
+        return (handled.reply, handled.close)
     }
 
-    private func handleCall(id: Int, call: BridgeCall, mine: Int) async -> (String, Bool) {
+    private func handleCall(id: Int, call: BridgeCall, mine: Int) async -> Handled {
         // Allowlist first: a tool nobody named for the bridge must not even
         // be admitted to exist, whatever the runner behind it can do.
         guard BridgeScope.allows(call.name) else {
-            return (errorLine(id, BridgeCode.unknownTool, "unknown tool: \(call.name)"), false)
+            return .refused(errorLine(id, BridgeCode.unknownTool, "unknown tool: \(call.name)"))
         }
         guard tools.handles(call.name) else {
             if let reason = tools.unavailability(for: call.name) {
-                return (errorLine(id, reason, unavailableMessage(reason, tool: call.name)), false)
+                return .refused(errorLine(id, reason, unavailableMessage(reason, tool: call.name)))
             }
-            return (errorLine(id, BridgeCode.unknownTool, "unknown tool: \(call.name)"), false)
+            return .refused(errorLine(id, BridgeCode.unknownTool, "unknown tool: \(call.name)"))
         }
         let verdict = policy.admit(tool: call.name, now: now())
         onState(policy.state)
         switch verdict {
         case .reject(let code):
-            return (errorLine(id, code, rejectionMessage(code)), false)
+            return .refused(errorLine(id, code, rejectionMessage(code)))
         case .proceed:
             return await performCall(id: id, call: call, mine: mine)
         case .needsApproval:
@@ -345,7 +363,7 @@ public actor BridgeSession {
     /// `client: "claude-code"` and, if this were ever remembered, inherit
     /// the hands with no sheet. One sheet per connection, every time,
     /// regardless of "remember" on the sheet.
-    private func handleSessionApproval(id: Int, call: BridgeCall, mine: Int) async -> (String, Bool) {
+    private func handleSessionApproval(id: Int, call: BridgeCall, mine: Int) async -> Handled {
         let request = ApprovalRequest(
             requestId: UUID().uuidString, toolName: BridgePolicy.sessionApprovalTool,
             summary: BridgeCopy.sheetTitle(language()), inputJSON: sessionApprovalInputJSON())
@@ -362,16 +380,16 @@ public actor BridgeSession {
         Log.bridge("session approval resolved approved=\(approved) withdrawn=\(withdrawn)")
         // A newer connection took over while the sheet was up: this answer
         // belongs to a connection that is gone and must not touch the state.
-        guard mine == epoch else { return ("", false) }
+        guard mine == epoch else { return .dropped }
         guard approved else {
             policy.denied()
             if countsAsDenial(answer, withdrawn: withdrawn) { policy.recordDenial(now: now()) }
             onState(policy.state)
             if policy.isCoolingDown(now: now()) {
                 Log.bridge("cooling down after repeated denials")
-                return (errorLine(id, BridgeCode.coolingDown, rejectionMessage(BridgeCode.coolingDown)), true)
+                return .refused(errorLine(id, BridgeCode.coolingDown, rejectionMessage(BridgeCode.coolingDown)), close: true)
             }
-            return (errorLine(id, BridgeCode.deniedByUser, "the user denied the hands"), false)
+            return .refused(errorLine(id, BridgeCode.deniedByUser, "the user denied the hands"))
         }
         // M4 (security review 2026-09-28): the peer may have left (a plain
         // EOF, not "Stop hands") while `guardian.ask` was awaiting the
@@ -386,7 +404,7 @@ public actor BridgeSession {
             policy.disconnected()
             onState(policy.state)
             Log.bridge("session approved after the client left; nothing executed")
-            return ("", false)
+            return .dropped
         }
         policy.approved(until: nil, now: now())
         onState(policy.state)
@@ -396,9 +414,9 @@ public actor BridgeSession {
         onState(policy.state)
         switch verdict {
         case .reject(let code):
-            return (errorLine(id, code, rejectionMessage(code)), false)
+            return .refused(errorLine(id, code, rejectionMessage(code)))
         case .needsApproval:
-            return (errorLine(id, BridgeCode.busy, "unexpected state"), false)
+            return .refused(errorLine(id, BridgeCode.busy, "unexpected state"))
         case .proceed:
             return await performCall(id: id, call: call, mine: mine)
         }
@@ -407,7 +425,7 @@ public actor BridgeSession {
     /// The per-call gate (destructive click, Return in a terminal, `type_text`
     /// always) runs with `said: ""`: nothing was spoken, so anything 15g/16
     /// would have trusted a spoken word for goes to the sheet instead.
-    private func performCall(id: Int, call: BridgeCall, mine: Int) async -> (String, Bool) {
+    private func performCall(id: Int, call: BridgeCall, mine: Int) async -> Handled {
         markActive()
         defer { markActive() }
         let ref = ToolCallRef(id: UUID().uuidString, name: call.name, arguments: call.argumentsJSON)
@@ -415,7 +433,7 @@ public actor BridgeSession {
         let verdict = await guardian.verdict(
             ref, said: "", language: language(), tools: tools, parked: { parkedSheet.park($0, owner: mine) })
         let withdrawn = parked.settleCurrent(owner: mine)
-        guard mine == epoch else { return ("", false) }
+        guard mine == epoch else { return .dropped }
         if verdict.answer == .refused { return refuseSheet(id: id) }
         if let denied = verdict.denial {
             let counts = verdict.answer.map { countsAsDenial($0, withdrawn: withdrawn) } ?? true
@@ -425,7 +443,7 @@ public actor BridgeSession {
         // the peer left, and there is nobody to answer or to act for.
         guard current?.isOpen ?? true else {
             Log.bridge("call approved after the client left; nothing executed")
-            return ("", false)
+            return .dropped
         }
         let outcome = await tools.execute(name: call.name, argumentsJSON: call.argumentsJSON)
         if outcome.ok { onCall(call.name) }
@@ -435,16 +453,16 @@ public actor BridgeSession {
         // Never the arguments or the output — name, outcome, target, size.
         Log.bridge("call \(call.name) ok=\(outcome.ok) target=\(outcome.target) "
             + "chars=\(call.argumentsJSON.utf8.count)")
-        return (BridgeCodec.encode(.call(id: id, BridgeCallResult(outcome))), false)
+        return .answered(BridgeCodec.encode(.call(id: id, BridgeCallResult(outcome))))
     }
 
     /// The sheets-per-window limit is spent: no sheet was shown and the
     /// session is shut off, with the same code and close as the cool-down.
-    private func refuseSheet(id: Int) -> (String, Bool) {
+    private func refuseSheet(id: Int) -> Handled {
         Log.bridge("sheet limit reached; session shut off")
         policy.stop()
         onState(policy.state)
-        return (errorLine(id, BridgeCode.coolingDown, rejectionMessage(BridgeCode.coolingDown)), true)
+        return .refused(errorLine(id, BridgeCode.coolingDown, rejectionMessage(BridgeCode.coolingDown)), close: true)
     }
 
     /// Only the user refusing counts: "Corte" (withdrawn by us) and a sheet
@@ -456,7 +474,7 @@ public actor BridgeSession {
 
     /// A per-call denial counts toward the cool-down like the session sheet:
     /// the Nth one shuts the session off and closes the connection.
-    private func denyCall(id: Int, _ outcome: ParentToolOutcome, counts: Bool) -> (String, Bool) {
+    private func denyCall(id: Int, _ outcome: ParentToolOutcome, counts: Bool) -> Handled {
         if counts { policy.recordDenial(now: now()) }
         let coolingDown = policy.isCoolingDown(now: now())
         if coolingDown {
@@ -464,7 +482,7 @@ public actor BridgeSession {
             policy.stop()
             onState(policy.state)
         }
-        return (BridgeCodec.encode(.call(id: id, BridgeCallResult(outcome))), coolingDown)
+        return .answered(BridgeCodec.encode(.call(id: id, BridgeCallResult(outcome))), close: coolingDown)
     }
 
     /// Built with `JSONSerialization`, not string interpolation: the client

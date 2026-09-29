@@ -59,3 +59,28 @@ private func rejectionCode(_ verdict: BridgeVerdict) -> String? {
     expectEq(rejectionCode(policy.admit(tool: "look", now: now)), BridgeCode.rateLimited,
              "reconnecting does not launder the read budget")
 }
+
+/// Review D6 (code MEDIUM): a tool put on the allowlist but forgotten in
+/// `writeTools` used to fall silently into the read budget. Every allowlisted
+/// tool must sit in exactly one explicit bucket, so adding one forces the
+/// decision.
+@Test func everyAllowlistedBridgeToolIsInExactlyOneBudgetBucket() {
+    expect(BridgePolicy.unbucketed(BridgeScope.allowedTools).isEmpty,
+           "allowlisted tools with no budget bucket: \(BridgePolicy.unbucketed(BridgeScope.allowedTools).sorted())")
+    let both = BridgePolicy.writeTools.intersection(BridgePolicy.readTools)
+    expect(both.isEmpty, "a tool draws from one budget, not both: \(both.sorted())")
+    expect(BridgeScope.allowedTools.isSuperset(of: BridgePolicy.writeTools.union(BridgePolicy.readTools)),
+           "a bucket names only allowlisted tools")
+}
+
+@Test func aToolInNeitherBucketFailsTheGuardAndDrawsFromTheStricterBudget() {
+    expectEq(BridgePolicy.unbucketed(BridgeScope.allowedTools.union(["brand_new_tool"])), ["brand_new_tool"],
+             "a tool allowlisted but in neither bucket is reported")
+    let now = Date()
+    var policy = openPolicy(now)
+    for i in 0 ..< BridgePolicy.budgetPerMinute {
+        expectEq(policy.admit(tool: "brand_new_tool", now: now), .proceed, "call \(i) inside the action budget")
+    }
+    expectEq(rejectionCode(policy.admit(tool: "brand_new_tool", now: now)), BridgeCode.rateLimited,
+             "an unbucketed tool is held to the action budget, not the looser read one")
+}

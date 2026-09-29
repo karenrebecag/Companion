@@ -186,6 +186,8 @@ public enum BridgeCode {
     public static let unknownMethod = "unknown_method"
     public static let badFrame = "bad_frame"
     public static let frameTooLarge = "frame_too_large"
+    /// A repeated request id whose first answer was too big to keep.
+    public static let replyTooLarge = "reply_too_large"
 }
 
 // MARK: - Codec
@@ -284,18 +286,6 @@ public enum BridgeCodec {
         } catch {
             return .failure(BridgeErrorBody(code: BridgeCode.badFrame,
                                              message: error.localizedDescription))
-        }
-    }
-
-    /// True when an encoded reply is an envelope-level error (refused before
-    /// any tool ran), as opposed to a result, whether the tool succeeded or not.
-    public static func isErrorLine(_ line: String) -> Bool {
-        guard let data = line.data(using: .utf8) else { return false }
-        do {
-            let envelope = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-            return envelope?["error"] != nil
-        } catch {
-            return false
         }
     }
 

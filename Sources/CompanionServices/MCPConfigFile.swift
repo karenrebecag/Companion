@@ -10,8 +10,8 @@ import Foundation
 /// Every call asks. An old `requireApproval` key still loads but is ignored
 /// and not written back.
 public enum MCPConfigFile {
-    /// Bearer tokens live in the Keychain, bound to the server's host (20c
-    /// D6, M5). A token still written in the file is moved there on load and
+    /// Bearer tokens live in the Keychain, bound to the server (host, port
+    /// and path; 20c D6, M5). A token still written in the file is moved there on load and
     /// the file rewritten without it, only after the Keychain took it; if
     /// the Keychain refuses, the file is left as it was and the token keeps
     /// serving from it for this run (nothing lost, nothing newly plaintext).
@@ -38,32 +38,35 @@ public enum MCPConfigFile {
     ) -> [MCPServerConfig] {
         let inFile = servers.contains { !($0.authorization ?? "").isEmpty }
         var moved = inFile
+        var migration = HostOnlyMigration()
         var resolved: [MCPServerConfig] = []
         for server in servers {
             var copy = server
             if let token = server.authorization, !token.isEmpty {
-                if let host = SecretHost.of(url: server.url) {
+                if let key = SecretHost.serverKey(of: server.url) {
                     do {
-                        try secrets.write(.mcpToken, host: host, value: token)
+                        try secrets.write(.mcpToken, host: key, value: token)
                     } catch {
                         moved = false
                         Log.app("mcp: a token could not move to the keychain; mcp.json left as it was")
                     }
                 } else {
-                    // Nothing to bind it to, so it is not sent anywhere.
+                    // Nothing safe to bind it to (no host, or not https), so
+                    // it is not sent anywhere.
                     moved = false
                     copy.authorization = nil
-                    Log.app("mcp: a token has no valid host; left in mcp.json, not used")
+                    Log.app("mcp: a token has no valid https host; left in mcp.json, not used")
                 }
-            } else if let host = SecretHost.of(url: server.url) {
+            } else {
                 do {
-                    copy.authorization = try secrets.read(.mcpToken, host: host)
+                    copy.authorization = try migration.token(for: server, secrets: secrets)
                 } catch {
                     Log.app("mcp: keychain read failed for a server token")
                 }
             }
             resolved.append(copy)
         }
+        migration.retireServed(secrets: secrets)
         if inFile, moved {
             do {
                 try write(resolved.map { stripped($0) }, root: root)
@@ -72,6 +75,48 @@ public enum MCPConfigFile {
             }
         }
         return resolved
+    }
+
+    /// A server with no token of its own gets the one saved under its name;
+    /// else the host-only one from before tokens were bound per server, copied
+    /// to the server's name so it is not stranded (a copy the Keychain refuses
+    /// still serves this run). One place for `load` and `save`, so neither can
+    /// retire a host-only token the other would have kept: a host with a
+    /// stuck move keeps its host-only copy, the only one there is.
+    private struct HostOnlyMigration {
+        private var served = Set<String>()
+        private var stuck = Set<String>()
+
+        mutating func token(for server: MCPServerConfig, secrets: any HostSecretStore) throws -> String? {
+            guard let key = SecretHost.serverKey(of: server.url),
+                  let host = SecretHost.of(url: server.url)
+            else { return nil }
+            if let own = try secrets.read(.mcpToken, host: key) { return own }
+            guard let old = try secrets.read(.mcpToken, host: host) else { return nil }
+            served.insert(host)
+            do {
+                try secrets.write(.mcpToken, host: key, value: old)
+            } catch {
+                stuck.insert(host)
+                Log.app("mcp: a host-only token could not move to its server; kept as it was")
+            }
+            return old
+        }
+
+        func retireServed(secrets: any HostSecretStore) { retire(served, secrets: secrets) }
+
+        /// Dropped once every server of the host has its own copy, so a
+        /// server added later on that host does not inherit it. A failed
+        /// delete only leaves a host-bound copy that the next load retires.
+        func retire(_ hosts: Set<String>, secrets: any HostSecretStore) {
+            for host in hosts.subtracting(stuck) {
+                do {
+                    try secrets.delete(.mcpToken, host: host)
+                } catch {
+                    Log.app("mcp: a host-only token could not be retired; retried on the next load")
+                }
+            }
+        }
     }
 
     private static func stripped(_ server: MCPServerConfig) -> MCPServerConfig {
@@ -100,38 +145,65 @@ public enum MCPConfigFile {
     }
 
     /// 16k-4: the Apps page edits the same file the user could edit by
-    /// hand. Tokens go to the Keychain, bound to the host, and never into
+    /// hand. Tokens go to the Keychain, bound to the server, and never into
     /// the file: a Keychain that refuses fails the save with the file
     /// untouched, rather than writing a secret in the clear (D6, M5). A
-    /// server that left the list takes its token with it, so re-adding that
-    /// host later does not silently resurrect it.
+    /// server that left the list takes its token with it, so re-adding it
+    /// later does not silently resurrect it.
+    ///
+    /// A server with no `authorization` keeps the token it has in the
+    /// Keychain (`read` hands the editor stripped servers, so nil cannot
+    /// mean "clear"). The Apps page has no token field, so nothing there
+    /// needs to clear one: removing the server does, and so does hand-editing
+    /// a new token into mcp.json, which replaces it on the next load.
     public static func save(
         _ servers: [MCPServerConfig],
         root: URL = MemoryLocation.directory().deletingLastPathComponent(),
         secrets: any HostSecretStore
     ) throws {
-        let previous = savedHosts(root: root)
+        let previous = savedIdentities(root: root)
+        var migration = HostOnlyMigration()
         for server in servers {
-            guard let token = server.authorization, !token.isEmpty else { continue }
-            guard let host = SecretHost.of(url: server.url) else { throw SecretStoreError.invalidHost }
-            try secrets.write(.mcpToken, host: host, value: token)
+            let token = server.authorization ?? ""
+            guard let key = SecretHost.serverKey(of: server.url),
+                  let host = SecretHost.of(url: server.url)
+            else {
+                if !token.isEmpty { throw SecretStoreError.invalidHost }
+                continue
+            }
+            if token.isEmpty {
+                _ = try migration.token(for: server, secrets: secrets)
+            } else {
+                try secrets.write(.mcpToken, host: key, value: token)
+            }
         }
         try write(servers.map { stripped($0) }, root: root)
-        let kept = Set(servers.compactMap { SecretHost.of(url: $0.url) })
-        for host in previous.subtracting(kept) {
-            try secrets.delete(.mcpToken, host: host)
+        let kept = Set(servers.compactMap { SecretHost.serverKey(of: $0.url) })
+        for key in Set(previous.keys).subtracting(kept) {
+            try secrets.delete(.mcpToken, host: key)
         }
+        let hosts = Set(previous.values).union(servers.compactMap {
+            SecretHost.serverKey(of: $0.url) == nil ? nil : SecretHost.of(url: $0.url)
+        })
+        migration.retire(hosts, secrets: secrets)
     }
 
-    /// Hosts the file names now; an absent or broken file names none.
-    private static func savedHosts(root: URL) -> Set<String> {
+    /// Server key -> host of what the file names now; an absent or broken
+    /// file names none.
+    private static func savedIdentities(root: URL) -> [String: String] {
         let data: Data
         do {
             data = try Data(contentsOf: root.appendingPathComponent("mcp.json"))
         } catch {
-            return []
+            return [:]
         }
-        return Set(MCPServerConfig.load(fromJSON: data).compactMap { SecretHost.of(url: $0.url) })
+        var found: [String: String] = [:]
+        for server in MCPServerConfig.load(fromJSON: data) {
+            if let key = SecretHost.serverKey(of: server.url), let host = SecretHost.of(url: server.url) {
+                found[key] = host
+            }
+        }
+        return found
     }
 
     /// Whole-file replace via a temp file that is 0600 from birth — the
