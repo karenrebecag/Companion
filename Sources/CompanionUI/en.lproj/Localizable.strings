@@ -529,6 +529,10 @@
 "island.attach.noText" = "I found no text in that area.";
 "island.attach.captureFailed" = "I couldn't take the capture.";
 "island.attach.needsScreen" = "To capture, allow Screen Recording.";
+"island.attach.captures" = "%d screenshots";
+"island.attach.openCaptures" = "Show the screenshots";
+"island.attach.failed" = "I couldn't attach %@";
+"island.attach.pickerUnavailable" = "I couldn't open the file picker.";
 "island.drop.title" = "Drop the file";
 "island.drop.ask" = "Ask about it";
 "island.drop.airDrop" = "AirDrop";

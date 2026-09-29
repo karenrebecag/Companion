@@ -74,7 +74,11 @@ enum CloseButtonVariant {
     case window, island, onMedia
 
     var size: IconButtonSize {
-        self == .window ? .close : .islandClose
+        switch self {
+        case .window: .close
+        case .island: .islandClose
+        case .onMedia: .attachmentRemove
+        }
     }
 
     /// Every × gave under the finger before it was shared (PressableStyle).

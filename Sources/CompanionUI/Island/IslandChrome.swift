@@ -146,6 +146,9 @@ public final class IslandGeometry {
     /// A file is being dragged over the shape (16i-2), and the zone under it.
     public var dropping = false
     public var dropZone: IslandDropZone?
+    /// The clip's file picker is up (16m-3). Shared, not view state, so a
+    /// second click sees the first and does not open another panel.
+    public var picking = false
     /// Where a dropped file goes; the view installs it.
     @ObservationIgnored public var onDrop: (([URL], IslandDropZone) -> Void)?
 
@@ -207,6 +210,10 @@ public final class IslandPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         hidesOnDeactivate = false
+        // Visible to screen sharing and recordings on purpose (decided in
+        // review 16m-3): the island is the app, as Incredible's is, and
+        // `.none` would also blank it from Karen's recordings and live checks.
+        // Only the clear drag catcher is hidden, since it draws nothing.
         isMovableByWindowBackground = false
         becomesKeyOnlyIfNeeded = true
         isReleasedWhenClosed = false

@@ -48,8 +48,10 @@ import Testing
     expect(IconButtonSize.close.filled, "cerrar ventana: fondo 5 % siempre")
     expectEq(CloseButtonVariant.island.size.side, IslandInk.slotSide, "cerrar isla: 22, el hueco de la isla")
     expect(CloseButtonVariant.island.size.filled, "cerrar isla: con fondo, como el del popup")
-    expectEq(CloseButtonVariant.onMedia.size, CloseButtonVariant.island.size,
-             "cerrar sobre imagen: misma medida, solo cambia la tinta")
+    // 16m-3: the only × over a picture is ci-att-card's remove, measured
+    // at 24 (incredible-isla-componentes.md §3); it no longer borrows the 22.
+    expectEq(CloseButtonVariant.onMedia.size, IconButtonSize.attachmentRemove,
+             "cerrar sobre imagen: el quitar de la tarjeta de adjunto, 24 medido")
     expectEq(CloseButtonVariant.window.tone, .window, "cerrar ventana: tinta de ventana")
     expectEq(CloseButtonVariant.island.tone, .island, "cerrar isla: tinta de isla")
     expectEq(CloseButtonVariant.onMedia.tone, .onMedia, "cerrar sobre imagen: disco oscuro")

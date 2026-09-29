@@ -15,6 +15,8 @@ public struct IslandView: View {
     let onReleaseKey: () -> Void
     /// The clip's captures (16i-2); absent, the two capture rows say so.
     let grabber: (any RegionGrabbing)?
+    /// The clip's file picker (16m-3); absent, "Choose file…" says so.
+    let pickFiles: IslandFilePicker?
     // Members are internal, not private, on purpose: the island's families
     // extend this view from Island/*/IslandView+X.swift, and Swift's private
     // stops at the file.
@@ -37,6 +39,8 @@ public struct IslandView: View {
     @State var cancelledTask: Task<Void, Never>?
     @State var attachNote: String?
     @State var attachNoteTask: Task<Void, Never>?
+    /// Files the chat refused from the island, shown as cards in error (16m-3).
+    @State var attachFailures: [IslandAttachFailure] = []
     /// The message whose rich answer is open under the island (16m-1).
     @State var openAnswer: UUID?
     /// The job whose checklist was waved away (16m-2), keyed by its start.
@@ -51,7 +55,8 @@ public struct IslandView: View {
         onShowMain: @escaping () -> Void,
         onSize: @escaping (IslandState.Size, CGFloat) -> Void,
         onReleaseKey: @escaping () -> Void = {},
-        grabber: (any RegionGrabbing)? = nil
+        grabber: (any RegionGrabbing)? = nil,
+        pickFiles: IslandFilePicker? = nil
     ) {
         self.chat = chat
         self.voice = voice
@@ -61,6 +66,7 @@ public struct IslandView: View {
         self.onSize = onSize
         self.onReleaseKey = onReleaseKey
         self.grabber = grabber
+        self.pickFiles = pickFiles
     }
 
     var state: IslandState {
@@ -70,7 +76,8 @@ public struct IslandView: View {
             keyListening: hold.granted, debugTranscripts: chat.debugTranscripts,
             composing: IslandComposing.active(
                 focused: fieldFocused, draft: draft, confirmingClear: confirmingClear,
-                staged: chat.pendingAttachments.count, mainInFront: hold.mainInFront),
+                staged: chat.pendingAttachments.count + attachFailures.count,
+                mainInFront: hold.mainInFront, picking: geometry.picking),
             cancelled: cancelled, followUp: chat.followUp, dropping: geometry.dropping,
             errorText: ChatErrorSurface.visible(
                 errorText: chat.errorText, needsOnboarding: chat.needsOnboarding,
@@ -235,9 +242,7 @@ public struct IslandView: View {
                     case .dismissField: dismissField()
                     }
                 }
-            if !chat.pendingAttachments.isEmpty, !hold.mainInFront {
-                IslandStagedRow(refs: chat.pendingAttachments, onRemove: chat.removePending)
-            }
+            attachTray
             if let attachNote {
                 caption(attachNote)
             } else if case .none = state.line {} else {
@@ -282,6 +287,7 @@ public struct IslandView: View {
         chat.draft = text
         chat.send()
         draft = ""
+        attachFailures = []
         dismissField()
     }
 

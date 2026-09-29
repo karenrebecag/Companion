@@ -19,7 +19,22 @@ public enum RegionCapture {
 
     /// PNG: lossless, so the text recognizer reads what was on screen.
     public static func fileName(id: UUID) -> String {
-        "captura-\(id.uuidString.prefix(8).lowercased()).png"
+        "\(prefix)\(id.uuidString.prefix(8).lowercased()).png"
+    }
+
+    static let prefix = "captura-"
+    static let suffix = ".png"
+    static let idLength = 8
+
+    /// A capture is told apart by the exact name `fileName` gives it —
+    /// eight lowercase hex digits — so a user's own `captura-final.png`
+    /// stays a file (review 16m-3). The stored copy keeps the name, and
+    /// nothing else about a PNG says where it came from.
+    public static func isCapture(name: String) -> Bool {
+        guard name.hasPrefix(prefix), name.hasSuffix(suffix),
+              name.count == prefix.count + idLength + suffix.count else { return false }
+        let id = name.dropFirst(prefix.count).dropLast(suffix.count)
+        return id.allSatisfy { $0.isHexDigit && !$0.isUppercase }
     }
 
     /// Escape exits 0 and writes nothing: a change of mind, not an error.
@@ -118,11 +133,14 @@ public enum IslandDropCatch {
 
 public enum IslandComposing {
     /// The field stays open while there is something to send. With the main
-    /// window in front the staged chips are drawn there, not twice.
+    /// window in front the staged chips are drawn there, not twice. While the
+    /// clip's picker is up the island must not fold away under it, even if
+    /// activating the app brought the window forward (16m-3).
     public static func active(
-        focused: Bool, draft: String, confirmingClear: Bool, staged: Int, mainInFront: Bool
+        focused: Bool, draft: String, confirmingClear: Bool, staged: Int, mainInFront: Bool,
+        picking: Bool = false
     ) -> Bool {
-        focused || !draft.isEmpty || confirmingClear || (staged > 0 && !mainInFront)
+        focused || !draft.isEmpty || confirmingClear || picking || (staged > 0 && !mainInFront)
     }
 }
 
@@ -141,4 +159,13 @@ public protocol RegionGrabbing: Sendable {
     func capture() async -> RegionGrab
     func recognizeText(at url: URL) async -> String?
     func discard(_ url: URL)
+}
+
+/// Where the keyboard goes when the clip's picker closes (review 16m-3).
+public enum IslandPickerFocus {
+    /// Back to the app that had it — unless that was Companion, the app is
+    /// gone, or the user already moved to another app while the panel was up.
+    public static func handsBack(previousIsCompanion: Bool, previousRunning: Bool, frontIsCompanion: Bool) -> Bool {
+        !previousIsCompanion && previousRunning && frontIsCompanion
+    }
 }
