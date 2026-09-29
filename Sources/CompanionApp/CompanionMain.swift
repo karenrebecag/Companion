@@ -27,7 +27,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var voice: VoiceViewModel?
     /// Set by `presentWindow`.
     var voicePreview: VoicePreview?
-    private var executorChoice: ExecutorChoice?
     /// Set by `presentWindow`.
     var updates: UpdateState?
     /// Set by `presentWindow`, read by its own closures.
@@ -67,7 +66,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let env = makeLaunchEnvironment()
         let providers = makeChatProviders(environment: env)
         let jobs = makeJobInfrastructure(environment: env, chat: providers.chat)
-        self.executorChoice = jobs.choice
         let sensing = makeSensingAndModel(environment: env, providers: providers, jobs: jobs)
         self.model = sensing.model
         let pipeline = makeVoicePipeline(
