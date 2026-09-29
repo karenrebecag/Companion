@@ -213,7 +213,7 @@
 "settings.context.documents" = "Documentos abiertos";
 "settings.context.documents.subtitle" = "Los títulos de las ventanas abiertas viajan con tus palabras, y el título de la ventana de delante viaja con el nombre de la app de delante.";
 "settings.context.location" = "Tu ciudad";
-"settings.context.location.subtitle" = "Tu ciudad acompaña cada pedido mientras esto esté encendido. Apagado, deja de acompañarlos, pero una búsqueda de algo cerca todavía puede pedirle la ubicación a macOS o usar la ciudad de Ajustes › Tú. macOS solo pregunta entonces, y solo si esa ciudad está vacía.";
+"settings.context.location.subtitle" = "Tu ciudad acompaña cada pedido mientras esto esté encendido. Apagado, deja de acompañarlos y macOS nunca te pregunta por tu ubicación: una búsqueda de algo cerca usa la ciudad de Ajustes › Tú, y si está vacía te pregunta en qué ciudad buscar.";
 "settings.context.clipboard" = "Portapapeles";
 "settings.context.clipboard.subtitle" = "Apagado por defecto. Lo que copiaste viaja al modelo en ese turno, hasta 400 caracteres. macOS puede mostrar un aviso cada vez que se lee.";
 "settings.context.screen" = "Lo que se ve";
@@ -603,7 +603,11 @@
 "island.choice.option" = "%@, %d de %d";
 "island.choice.selected" = "elegida";
 "island.choice.unavailable" = "no disponible";
-"island.choice.hint" = "Elige una. Flechas y Return, o un número del 1 al 9.";
+"island.choice.hint" = "Selecciona una con un clic, las flechas y Espacio, o un número del 1 al 9. Return o Confirmar la envía.";
+"island.choice.hint.multiple" = "Selecciona las que quieras con un clic, las flechas y Espacio, o números del 1 al 9. Return o Confirmar las envía.";
+"island.choice.confirm" = "Confirmar";
+"island.choice.confirm.hint" = "Envía lo que seleccionaste.";
+"island.choice.other" = "¿Otra cosa? Escríbela aquí";
 "island.signIn" = "Vuelve a iniciar sesión en %@";
 "island.signIn.body" = "Su sesión caducó, así que no puedo usarla hasta que lo hagas.";
 "island.signIn.action" = "Iniciar sesión";
@@ -623,6 +627,14 @@
 "feedback.title" = "Enviar comentario";
 "feedback.mood.title" = "¿Cómo va?";
 "feedback.mood.love" = "Me encanta";
+"feedback.mood.upset" = "Al límite";
+"feedback.topics.title" = "¿Sobre qué es?";
+"feedback.topic.voice" = "Voz y chat";
+"feedback.topic.screen" = "Pantalla y navegador";
+"feedback.topic.apps" = "Apps conectadas";
+"feedback.topic.errands" = "Encargos";
+"feedback.topic.dictation" = "Dictado";
+"feedback.topic.other" = "Otra cosa";
 "feedback.mood.good" = "Bien";
 "feedback.mood.meh" = "Regular";
 "feedback.mood.bad" = "Mal";
@@ -630,6 +642,8 @@
 "feedback.counter" = "Quedan %d";
 "feedback.counter.over" = "%d de más";
 "feedback.capture.add" = "Agregar una captura";
+"feedback.capture.file" = "Elegir una imagen";
+"feedback.capture.paste" = "Pegar una imagen";
 "feedback.capture.remove" = "Quitar la captura %d";
 "feedback.capture.item" = "Captura %d";
 "feedback.send" = "Enviar";
@@ -644,3 +658,9 @@
 "feedback.note.deliveryFailed" = "No pude abrir tu app de correo.";
 "feedback.note.captureAction" = "Las capturas solo se toman cuando pulsas el botón.";
 "feedback.note.truncated" = "Se abrió tu app de correo, pero el mensaje era demasiado largo para un enlace de correo y se cortó el final.";
+"feedback.note.noFiles" = "Aquí no se pueden añadir imágenes.";
+"feedback.note.noPaste" = "No hay ninguna imagen en el portapapeles.";
+"feedback.note.notImage" = "Ese archivo no es una imagen.";
+"feedback.note.unreadable" = "No pude leer ese archivo.";
+"feedback.note.tooBig" = "Cada captura puede pesar hasta 4 MB.";
+"feedback.note.pasteFailed" = "No pude guardar la imagen pegada.";

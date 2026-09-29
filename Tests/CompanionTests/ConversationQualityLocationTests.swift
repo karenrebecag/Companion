@@ -300,7 +300,8 @@ private func findPlaces(
     _ arguments: [String: Any], places: RecordingPlaces, location: UserLocationSource?
 ) async -> ToolResult {
     let runner = NativeToolRunner(
-        workdir: NSTemporaryDirectory(), places: places, location: location)
+        workdir: NSTemporaryDirectory(), places: places, location: location,
+        locationChannelOn: { true })
     do {
         return try await runner.execute(tool: "find_places", arguments: arguments, approved: false)
     } catch {
@@ -515,12 +516,15 @@ private final class CountingSource: UserLocating, @unchecked Sendable {
     let off = ["es": Localized.string("settings.context.location.subtitle", language: .es).lowercased(),
                "en": Localized.string("settings.context.location.subtitle", language: .en).lowercased()]
     expect(off["es"]?.contains("apagado") == true && off["es"]?.contains("ajustes") == true,
-           "ajustes (es): apagado deja de acompañar, pero 'cerca' puede pedir permiso o usar la ciudad de Ajustes")
+           "ajustes (es): apagado deja de acompañar y 'cerca' usa la ciudad de Ajustes")
     expect(off["en"]?.contains("off") == true && off["en"]?.contains("settings") == true,
            "ajustes (en): lo mismo")
     let es = Localized.string("settings.context.location.subtitle", language: .es).lowercased()
-    expect(es.contains("cada pedido") && es.contains("solo") && es.contains("cerca"),
-           "ajustes: dice que la ciudad acompaña cada pedido y que el permiso solo se pide al buscar algo cerca")
+    expect(es.contains("cada pedido") && es.contains("nunca") && es.contains("cerca"),
+           "ajustes (16q-2): dice que la ciudad acompaña cada pedido y que apagado macOS nunca pregunta, ni al buscar algo cerca")
+    let en = Localized.string("settings.context.location.subtitle", language: .en).lowercased()
+    expect(en.contains("every request") && en.contains("never") && en.contains("nearby"),
+           "ajustes (16q-2, en): lo mismo")
     let windows = Localized.string("settings.context.documents.subtitle", language: .es).lowercased()
     expect(windows.contains("ventana"), "ajustes: dice que el título de la ventana viaja")
 }

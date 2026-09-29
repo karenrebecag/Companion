@@ -14,6 +14,7 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
     private let places: (any PlacesSearching)?
     /// 16h-3: the user's city for "nearby" lookups.
     private let location: UserLocationSource?
+    private let locationChannelOn: @Sendable () -> Bool
     /// The catalog behind read_skill (Wave 11a). Without it the tool is not
     /// offered: an unbacked tool captures the intent and dies.
     private let skills: (any SkillReading)?
@@ -36,9 +37,12 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
         workdir: String? = nil,
         documents: (any DocumentRendering)? = nil,
         sheets: (any SpreadsheetDriving)? = nil,
-        location: UserLocationSource? = nil
+        location: UserLocationSource? = nil,
+        // Fail closed: a caller that forgets to wire the switch gets "off".
+        locationChannelOn: @escaping @Sendable () -> Bool = { false }
     ) {
         self.location = location
+        self.locationChannelOn = locationChannelOn
         self.workspace = workspace
         self.home = home
         self.places = places
@@ -257,7 +261,8 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
     /// Reuses the native runner's lookup and card verbatim: `find_places` is
     /// `.safe`, so the approval gate it passes through is a no-op.
     private func findPlaces(_ arguments: [String: Any]) async -> ParentToolOutcome {
-        let native = NativeToolRunner(workdir: nil, places: places, webSearch: nil, location: location)
+        let native = NativeToolRunner(workdir: nil, places: places, webSearch: nil, location: location,
+                                       locationChannelOn: locationChannelOn)
         let query = arguments["query"] as? String ?? ""
         do {
             let result = try await native.execute(

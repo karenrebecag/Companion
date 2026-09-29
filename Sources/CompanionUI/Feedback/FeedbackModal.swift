@@ -38,6 +38,7 @@ struct FeedbackModal: View {
     private var form: some View {
         VStack(alignment: .leading, spacing: Space.x4) {
             moods
+            topics
             field
             captures
             if let note = model.note {
@@ -85,6 +86,7 @@ struct FeedbackModal: View {
                         VStack(spacing: Space.x1) {
                             Image(systemName: mood.symbol)
                             Text(mood.title).font(GeistFont.uiCaption)
+                                .multilineTextAlignment(.center).lineLimit(2)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, Space.x2_5)
@@ -95,6 +97,25 @@ struct FeedbackModal: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(mood.title)
+                    .accessibilityAddTraits(picked ? .isSelected : [])
+                }
+            }
+        }
+    }
+
+    /// Six chips, any number on: what the comment is about.
+    private var topics: some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            Text(Localized.string("feedback.topics.title"))
+                .font(GeistFont.uiCaption).foregroundStyle(Semantic.mutedForeground)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: Space.x2), count: 3),
+                      alignment: .leading, spacing: Space.x2) {
+                ForEach(FeedbackTopic.allCases, id: \.self) { topic in
+                    let picked = model.topics.contains(topic)
+                    Button { model.toggleTopic(topic) } label: {
+                        Text(topic.title).lineLimit(2).multilineTextAlignment(.center).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(CapsuleChipStyle(ink: .choice(selected: picked), density: .compact))
                     .accessibilityAddTraits(picked ? .isSelected : [])
                 }
             }
@@ -127,29 +148,38 @@ struct FeedbackModal: View {
     }
 
     private var captures: some View {
-        HStack(spacing: Space.x2) {
-            ForEach(Array(model.captures.enumerated()), id: \.element) { index, url in
-                ZStack(alignment: .topTrailing) {
-                    Thumbnail(url: url)
-                        .accessibilityLabel(String(format: Localized.string("feedback.capture.item"), index + 1))
-                    CloseButton(variant: .onMedia,
-                                label: String(format: Localized.string("feedback.capture.remove"), index + 1)) {
-                        model.removeCapture(url)
+        VStack(alignment: .leading, spacing: Space.x2) {
+            if !model.captures.isEmpty {
+                HStack(spacing: Space.x2) {
+                    ForEach(Array(model.captures.enumerated()), id: \.element) { index, url in
+                        ZStack(alignment: .topTrailing) {
+                            Thumbnail(url: url)
+                                .accessibilityLabel(String(format: Localized.string("feedback.capture.item"), index + 1))
+                            CloseButton(variant: .onMedia,
+                                        label: String(format: Localized.string("feedback.capture.remove"), index + 1)) {
+                                model.removeCapture(url)
+                            }
+                        }
                     }
+                    Spacer(minLength: Space.none)
                 }
             }
             if model.captures.count < FeedbackDraft.maxCaptures {
-                // The only way a capture starts: this button.
-                Button {
-                    Task { await model.addCapture() }
-                } label: {
-                    Label(Localized.string("feedback.capture.add"), systemImage: "camera.viewfinder")
+                HStack(spacing: Space.x2) {
+                    // The region grab starts only from this button.
+                    chip("feedback.capture.add", "camera.viewfinder") { Task { await model.addCapture() } }
+                        .accessibilityHint(Localized.string("feedback.note.captureAction"))
+                    chip("feedback.capture.file", "photo") { Task { await model.addFiles() } }
+                    chip("feedback.capture.paste", "doc.on.clipboard") { model.addPasted() }
+                    Spacer(minLength: Space.none)
                 }
-                .buttonStyle(CapsuleChipStyle(ink: .choice(selected: false), density: .compact))
-                .accessibilityHint(Localized.string("feedback.note.captureAction"))
             }
-            Spacer(minLength: Space.none)
         }
+    }
+
+    private func chip(_ key: String, _ symbol: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { Label(Localized.string(key), systemImage: symbol) }
+            .buttonStyle(CapsuleChipStyle(ink: .choice(selected: false), density: .compact))
     }
 }
 

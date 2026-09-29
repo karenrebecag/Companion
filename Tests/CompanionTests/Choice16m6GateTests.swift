@@ -26,6 +26,8 @@ private final class NoteTap: ParentToolExecuting, @unchecked Sendable {
     func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? { inner.approval(for: call, said: said) }
     func beginTurn() { inner.beginTurn() }
     func noteTurn(_ said: String) { lock.withLock { noted.append(said) } }
+    /// 16q-2: a card turn has its own entry; it must never carry her words.
+    func noteChoiceTurn() { lock.withLock { noted.append("<card>") } }
 }
 
 @Test @MainActor func choiceLabelNeverAuthorizesAHostTests() async {
@@ -75,7 +77,7 @@ private final class NoteTap: ParentToolExecuting, @unchecked Sendable {
     vm.draft = "Gmail"
     vm.send()
     await pumpUntil("16m-6 gate: t2") { !vm.busy }
-    expectEq(tap.noted, ["", "Gmail"], "16m-6 gate: la elección no nombra app; lo tecleado sí")
+    expectEq(tap.noted, ["<card>", "Gmail"], "16m-6 gate: la elección no nombra app; lo tecleado sí")
 
     let tapQueued = NoteTap(ParentToolRunner(workspace: FakeWorkspaceOpener()))
     let queued = primed(chat: FakeChatProvider(replies: [.success([.text("a")]), .success([.text("b")])]), parentTools: tapQueued)
@@ -83,7 +85,7 @@ private final class NoteTap: ParentToolExecuting, @unchecked Sendable {
     queued.send()
     queued.choose("Slack")
     await pumpUntil("16m-6 gate: cola") { !queued.busy && queued.queued.isEmpty }
-    expectEq(tapQueued.noted, ["uno", ""], "16m-6 gate: desde la cola tampoco")
+    expectEq(tapQueued.noted, ["uno", "<card>"], "16m-6 gate: desde la cola tampoco")
 }
 
 @Test @MainActor func choiceOriginSurvivesARestartTests() async {

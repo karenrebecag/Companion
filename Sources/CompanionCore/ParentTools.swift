@@ -312,6 +312,10 @@ public protocol ParentToolExecuting: Sendable {
     /// what the user named (the connected apps' runner filters by the app
     /// the request names — spec §5's context budget rule).
     func noteTurn(_ said: String)
+    /// 16q-2: the turn is an answer on a question card. Its words are the
+    /// model's, not hers, so they never name an app or stand as consent; but
+    /// the connected apps stay reachable, as in any turn.
+    func noteChoiceTurn()
 }
 
 extension ParentToolExecuting {
@@ -326,6 +330,8 @@ extension ParentToolExecuting {
     public func beginTurn() {}
 
     public func noteTurn(_ said: String) {}
+
+    public func noteChoiceTurn() { noteTurn("") }
 }
 
 /// The record of what the app did by itself, in the thread — same idea as

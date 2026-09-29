@@ -26,6 +26,9 @@ public struct NativeToolRunner: Sendable {
     private let webSearch: (any WebSearching)?
     /// 16h-3: where "nearby" means. Absent, the lookup runs as it always did.
     private let location: UserLocationSource?
+    /// 16q-2: the "Tu ciudad" switch. Read per call, since it can flip while
+    /// the app runs.
+    private let locationChannelOn: @Sendable () -> Bool
     private let timeout: TimeInterval
     /// The denial is copy a model reads; it follows the user's language.
     private let language: AppLanguage
@@ -55,8 +58,11 @@ public struct NativeToolRunner: Sendable {
         skills: SkillsLocation? = nil,
         documents: (any DocumentRendering)? = nil,
         sheets: (any SpreadsheetDriving)? = nil,
-        location: UserLocationSource? = nil
+        location: UserLocationSource? = nil,
+        // Fail closed: a caller that forgets to wire the switch gets "off".
+        locationChannelOn: @escaping @Sendable () -> Bool = { false }
     ) {
+        self.locationChannelOn = locationChannelOn
         self.workdir = workdir
         self.pathValidator = PathValidator(workdir: workdir, extraRoots: skills?.roots ?? [])
         self.timeout = shellTimeout
@@ -324,9 +330,14 @@ public struct NativeToolRunner: Sendable {
         }
         var near = arguments["near"] as? String
         if let location, NearMe.isNearby(query: query, near: near) {
-            // The lookup the user asked for is where the Location dialog may
-            // appear; a turn's context sensing never asks.
-            guard let city = await location.current(prompting: true) else {
+            // Switch on: the lookup the user asked for is where the Location
+            // dialog may appear (a turn's context sensing never asks). Switch
+            // off: only the city typed in Settings, so it never asks and never
+            // reads the system's city either.
+            let city = locationChannelOn()
+                ? await location.current(prompting: true)
+                : location.typedCity()
+            guard let city else {
                 return ToolResult(ok: false, output: NearMe.needsCity(language))
             }
             near = city.label

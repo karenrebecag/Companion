@@ -68,6 +68,18 @@ private let sampleFence = "```companion:choice\n"
     expect(ChatViewModel.messages(of: record).allSatisfy(\.restored), "16m-6 fix: lo leído de disco se marca restaurado")
 }
 
+/// The two steps the card takes now (16q-2): a click selects, Confirm sends.
+/// The old one-step tests keep their subject (pending, queue, refusals) by
+/// walking both.
+@MainActor @discardableResult
+private func sendPick(
+    _ state: inout IslandChoiceState, _ index: Int, block: ChoiceBlock,
+    resolution: ChoiceBlock.Resolution, queued: [String], send: (String) -> Bool
+) -> Bool {
+    state.select(index, block: block, resolution: resolution, queued: queued)
+    return state.confirm(block: block, resolution: resolution, queued: queued, send: send)
+}
+
 // MARK: - Pending and picking
 
 @Test @MainActor func islandChoiceStateTests() {
@@ -75,9 +87,9 @@ private let sampleFence = "```companion:choice\n"
     var sent: [String] = []
     var state = IslandChoiceState()
 
-    let first = state.pick(0, block: block, resolution: .open, queued: [], send: { sent.append($0); return true })
+    let first = sendPick(&state, 0, block: block, resolution: .open, queued: [], send: { sent.append($0); return true })
     expect(first, "16m-6 fix: el primer pick sale")
-    let second = state.pick(2, block: block, resolution: .open, queued: ["Rápido"], send: { sent.append($0); return true })
+    let second = sendPick(&state, 2, block: block, resolution: .open, queued: ["Rápido"], send: { sent.append($0); return true })
     expect(!second, "16m-6 fix: clic y luego dígito no mandan dos respuestas")
     expectEq(sent, ["Rápido"], "16m-6 fix: un solo envío con la primera etiqueta")
 
@@ -89,18 +101,18 @@ private let sampleFence = "```companion:choice\n"
 
     var refused = IslandChoiceState()
     var attempts = 0
-    let none = refused.pick(1, block: block, resolution: .open, queued: [], send: { _ in attempts += 1; return false })
+    let none = sendPick(&refused, 1, block: block, resolution: .open, queued: [], send: { _ in attempts += 1; return false })
     expect(!none && refused.pending == nil, "16m-6 fix: si choose no aceptó, no queda pendiente")
     expectEq(refused.effective(resolution: .open, queued: []), .open, "16m-6 fix: y la tarjeta sigue abierta")
-    _ = refused.pick(1, block: block, resolution: .open, queued: [], send: { _ in attempts += 1; return true })
+    _ = sendPick(&refused, 1, block: block, resolution: .open, queued: [], send: { _ in attempts += 1; return true })
     expectEq(attempts, 2, "16m-6 fix: se puede volver a intentar")
 
     var answered = IslandChoiceState()
     var calls = 0
-    _ = answered.pick(0, block: block, resolution: .chosen(1), queued: [], send: { _ in calls += 1; return true })
-    _ = answered.pick(0, block: block, resolution: .passed, queued: [], send: { _ in calls += 1; return true })
-    _ = answered.pick(7, block: block, resolution: .open, queued: [], send: { _ in calls += 1; return true })
-    _ = answered.pick(-1, block: block, resolution: .open, queued: [], send: { _ in calls += 1; return true })
+    _ = sendPick(&answered, 0, block: block, resolution: .chosen(1), queued: [], send: { _ in calls += 1; return true })
+    _ = sendPick(&answered, 0, block: block, resolution: .passed, queued: [], send: { _ in calls += 1; return true })
+    _ = sendPick(&answered, 7, block: block, resolution: .open, queued: [], send: { _ in calls += 1; return true })
+    _ = sendPick(&answered, -1, block: block, resolution: .open, queued: [], send: { _ in calls += 1; return true })
     expectEq(calls, 0, "16m-6 fix: un pick tras responder o fuera de rango se ignora")
 
     typealias S = IslandChoiceState
@@ -148,7 +160,7 @@ private let sampleFence = "```companion:choice\n"
     expectEq(keyless.messages.count, 0, "16m-6 fix: y no queda mensaje")
     expectEq(keyless.queued, [], "16m-6 fix: ni cola")
     var state = IslandChoiceState()
-    _ = state.pick(0, block: threeOptions(), resolution: .open, queued: keyless.queued, send: { keyless.choose($0) })
+    _ = sendPick(&state, 0, block: threeOptions(), resolution: .open, queued: keyless.queued, send: { keyless.choose($0) })
     expectEq(state.effective(resolution: .open, queued: keyless.queued), .open,
              "16m-6 fix: la tarjeta sigue abierta si no salió")
 
@@ -274,7 +286,7 @@ private let sampleFence = "```companion:choice\n"
     vm.messages.append(ask)
     let block = threeOptions()
     var state = IslandChoiceState()
-    _ = state.pick(1, block: block, resolution: .open, queued: vm.queued, send: { vm.choose($0) })
+    _ = sendPick(&state, 1, block: block, resolution: .open, queued: vm.queued, send: { vm.choose($0) })
     expectEq(vm.queued, ["Completo"], "16m-6 fix: con turno en curso sale a la cola")
     expectEq(state.effective(resolution: IslandChoice.resolution(of: block, messageID: ask.id, in: vm.messages),
                              queued: vm.queued), .chosen(1), "16m-6 fix: en la cola cuenta")
