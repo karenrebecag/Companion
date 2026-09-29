@@ -22,6 +22,8 @@ enum IslandCopy {
         case .dictating(let app): String(format: Localized.string("island.dictating"), app)
         case .pasting: Localized.string("island.pasting")
         case .dictated(let app): String(format: Localized.string("island.dictated"), app)
+        case .dictationResult(let app, _): String(format: Localized.string("island.dictated"), app)
+        case .updateAvailable(let tag): String(format: Localized.string("island.notice.update.title"), tag)
         case .transcriptsDebug: Localized.string("debug.transcriptsOn")
         case .cancelled: Localized.string("island.cancelled")
         case .followUp(let title): title
@@ -38,6 +40,7 @@ enum IslandCopy {
         case .openPermission: Localized.string("permission.open")
         case .stopHands: Localized.string("island.hands.stop")
         case .openApps: Localized.string("island.connectApp.action")
+        case .openUpdate: Localized.string("island.notice.update.action")
         }
     }
 
@@ -56,6 +59,8 @@ enum IslandCopy {
         case .acting: "acting"
         case .dictating: "dictating"
         case .dictated: "dictated"
+        case .dictationResult: "dictationResult"
+        case .updateAvailable: "updateAvailable"
         default: "\(line)"
         }
     }

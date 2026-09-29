@@ -10,9 +10,11 @@ extension IslandView {
             IslandDropZones(zone: geometry.dropZone)
         } else if case .followUp(let title) = state.line {
             IslandFollowUpRow(title: title, onDrop: { chat.followUp = nil })
+        } else if case .dictationResult(let app, let text) = state.line {
+            dictationCard(app: app, text: text)
         } else if let notice = IslandNotice.content(for: state.line) {
             IslandNoticeCard(content: notice, onAction: perform,
-                             onDismiss: { chat.dismissIslandNotice(state.line) })
+                             onDismiss: { dismissNotice(state.line) })
                 .task(id: IslandNotice.expiringChatError(state.line)) {
                     if let text = IslandNotice.expiringChatError(state.line) {
                         await chat.expireIslandError(text)

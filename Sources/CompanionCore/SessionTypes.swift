@@ -92,6 +92,10 @@ public struct SessionProjection: Sendable, Equatable {
     /// Wave 12e: the app this hold dictates into, while it lasts (Listening,
     /// Pending, Completed). Nil when the hold talks to Companion.
     public var dictation: String?
+    /// 16m-4: the words that landed in that field, kept in memory only for the
+    /// result card (copy / hide). They leave with the card and never reach the
+    /// log or the conversation.
+    public var dictatedText: DictatedText?
     /// Wave 17: the bridge's client name while a session is open, nil once
     /// it closes. Independent of `kind` — the chip lives alongside whatever
     /// the chrome is doing, not instead of it.
@@ -168,8 +172,16 @@ public enum SessionEvent: Sendable, Equatable {
     case partialTranscript(String)
     /// Wave 12e: the hold will dictate into this app (decided at press).
     case dictating(app: String)
-    /// The words landed in the field; nothing else happens.
-    case dictated(app: String)
+    /// The words landed in the field. `text` is what the result card offers to
+    /// copy; without it the island only says where they went.
+    case dictated(app: String, text: DictatedText? = nil)
+    /// The user waved the result card away.
+    case dictationHidden
+    /// The pointer entered (`true`) or left (`false`) the result card: while
+    /// it is over the card the card does not expire.
+    case dictationCardHover(Bool)
+    /// The card's words were copied: the user is still reading it.
+    case dictationCardCopied
     /// The hold wanted to dictate and could not; the words went to Companion.
     case dictationFailed(DictationFailure)
     /// Wave 17: the bridge's session opened (or closed, `nil`) for this

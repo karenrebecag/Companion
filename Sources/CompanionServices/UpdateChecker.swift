@@ -83,11 +83,36 @@ public struct UpdateChecker: Sendable {
               let tag = object["tag_name"] as? String,
               let page = object["html_url"] as? String,
               let pageURL = URL(string: page),
-              pageURL.scheme == "https",
+              isOurReleasePage(pageURL),
               let remote = SemanticVersion(tag),
               let local = SemanticVersion(current),
               remote > local
         else { return nil }
         return UpdateInfo(version: remote, tag: tag, pageURL: pageURL)
+    }
+
+    /// The page opens in the user's browser from a network answer, so it must
+    /// be a release page of the repository `releaseAPI` names, on github.com:
+    /// anything else in a hostile payload would be a phishing link one click
+    /// from the island. Derived from the API URL so one literal owns the repo.
+    static let releasePathPrefix: String = {
+        // /repos/<owner>/<repo>/releases/latest -> /<owner>/<repo>/releases
+        let parts = releaseAPI.pathComponents.filter { $0 != "/" }
+        guard parts.count >= 4, parts[0] == "repos" else { return "" }
+        return "/" + [parts[1], parts[2], "releases"].joined(separator: "/")
+    }()
+
+    static func isOurReleasePage(_ url: URL) -> Bool {
+        guard url.scheme == "https", url.host?.lowercased() == "github.com",
+              url.user == nil, url.password == nil, url.port == nil,
+              !releasePathPrefix.isEmpty
+        else { return false }
+        // Traversal in any spelling: the check runs on the raw path, so an
+        // encoded dot cannot slip past a decoded prefix match.
+        let raw = url.path(percentEncoded: true).lowercased()
+        guard !raw.contains(".."), !raw.contains("%2e") else { return false }
+        let path = url.path.lowercased()
+        let prefix = releasePathPrefix.lowercased()
+        return path == prefix || path.hasPrefix(prefix + "/")
     }
 }

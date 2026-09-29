@@ -25,7 +25,7 @@ import Testing
 }
 
 @MainActor func testParseFixtures() {
-    func fixture(tag: String, url: String = "https://github.com/x/releases/1") -> Data {
+    func fixture(tag: String, url: String = "https://github.com/karenrebecag/Companion/releases/tag/v1") -> Data {
         try! JSONSerialization.data(withJSONObject: ["tag_name": tag, "html_url": url])
     }
     expectEq(UpdateChecker.parse(fixture(tag: "v0.8.0"), current: "0.7.0")?.tag,
@@ -92,7 +92,7 @@ private final class CountingTransport: ChatTransport, @unchecked Sendable {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         lock.withLock { count += 1 }
         let body = try JSONSerialization.data(withJSONObject: [
-            "tag_name": tag, "html_url": "https://github.com/x/releases/1",
+            "tag_name": tag, "html_url": "https://github.com/karenrebecag/Companion/releases/tag/v1",
         ])
         let response = HTTPURLResponse(
             url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!

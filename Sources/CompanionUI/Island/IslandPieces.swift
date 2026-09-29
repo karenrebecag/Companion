@@ -41,7 +41,6 @@ enum IslandInk {
     static var stop: Color { Swatch("FF453A").color }
 
     private static func white(_ alpha: Double) -> Color { Neutral.white.color.opacity(alpha) }
-    static let noticeTile: CGFloat = 40
     /// The countdown ring moves a few pixels a second; more frames buy nothing.
     static let ringFrame: Double = 1.0 / 15
 }

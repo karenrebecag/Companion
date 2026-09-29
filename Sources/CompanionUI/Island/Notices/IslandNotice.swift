@@ -31,38 +31,67 @@ enum IslandVolume {
 }
 
 /// A notice with a way out, drawn as Incredible's card (spec 16i §9): what
-/// happened, how to fix it, and the button that does.
+/// happened, how to fix it, and the button that does. 16m-4: each family sits
+/// on the grid Incredible measures for it.
 enum IslandNotice {
+    /// Which measured grid a notice sits on (`IslandNoticeMetrics`).
+    nonisolated enum Grid: Equatable { case limit, update, permission, diagnostic }
+
     struct Content: Equatable {
+        let grid: Grid
         let symbol: String
         let title: String
         let body: String?
         let action: IslandState.Action?
+        /// The button's own word: a notice's action says what it does, not
+        /// what the last notice with a countdown said.
+        let actionTitle: String?
         /// Set when the notice leaves on its own; the ring counts it down.
         let lifetime: Double?
+        /// An offer (no countdown) is waved away with its own word.
+        var dismissTitle: String?
     }
 
     static func content(for line: IslandState.Line) -> Content? {
         switch line {
         case .couldntHear:
-            Content(symbol: "mic.slash.fill", title: Localized.string("island.notice.couldntHear.title"),
+            Content(grid: .diagnostic, symbol: "mic.slash.fill",
+                    title: Localized.string("island.notice.couldntHear.title"),
                     body: Localized.string("island.notice.couldntHear.body"),
-                    action: .openPermission(.micDenied), lifetime: SessionMachine.noticeDelay)
+                    action: .openPermission(.micDenied),
+                    actionTitle: Localized.string("island.notice.checkMic"),
+                    lifetime: SessionMachine.noticeDelay)
         case .permission(let failure):
-            Content(symbol: "lock.fill", title: VoiceCopy.failure(failure), body: nil,
-                    action: .openPermission(failure), lifetime: nil)
+            Content(grid: .permission, symbol: "lock.fill", title: VoiceCopy.failure(failure), body: nil,
+                    action: .openPermission(failure),
+                    actionTitle: IslandCopy.action(.openPermission(failure)), lifetime: nil)
+        case .failure(.quotaExceeded):
+            Content(grid: .limit, symbol: "key.fill",
+                    title: Localized.string("island.notice.limit.title"),
+                    body: VoiceCopy.failure(.quotaExceeded),
+                    action: .openKeys, actionTitle: IslandCopy.action(.openKeys), lifetime: nil)
         case .failure(let failure):
-            Content(symbol: symbol(failure), title: VoiceCopy.failure(failure), body: nil,
-                    action: keysAction(failure), lifetime: nil)
+            Content(grid: .diagnostic, symbol: symbol(failure), title: VoiceCopy.failure(failure), body: nil,
+                    action: keysAction(failure),
+                    actionTitle: keysAction(failure).map(IslandCopy.action), lifetime: nil)
         case .connectApp(let slug, let name):
             // 16k-3: the way to the Apps page rides the card; it leaves on
             // its own so an unanswered nudge never squats the island.
-            Content(symbol: "app.badge", title: String(format: Localized.string("island.connectApp"), name),
+            Content(grid: .permission, symbol: "app.badge",
+                    title: String(format: Localized.string("island.connectApp"), name),
                     body: Localized.string("island.connectApp.body"),
-                    action: .openApps(slug: slug), lifetime: SessionMachine.noticeDelay)
+                    action: .openApps(slug: slug),
+                    actionTitle: IslandCopy.action(.openApps(slug: slug)),
+                    lifetime: SessionMachine.noticeDelay)
         case .chatError(let text):
-            Content(symbol: "exclamationmark.circle.fill", title: text, body: nil,
-                    action: nil, lifetime: SessionMachine.noticeDelay)
+            Content(grid: .diagnostic, symbol: "exclamationmark.circle.fill", title: text, body: nil,
+                    action: nil, actionTitle: nil, lifetime: SessionMachine.noticeDelay)
+        case .updateAvailable(let tag):
+            Content(grid: .update, symbol: "arrow.down.circle.fill",
+                    title: String(format: Localized.string("island.notice.update.title"), tag),
+                    body: Localized.string("island.notice.update.body"),
+                    action: .openUpdate, actionTitle: IslandCopy.action(.openUpdate), lifetime: nil,
+                    dismissTitle: Localized.string("island.notice.update.later"))
         default:
             nil
         }
@@ -85,12 +114,6 @@ enum IslandNotice {
         return min(max(1 - elapsed / lifetime, 0), 1)
     }
 
-    static func actionTitle(_ content: Content) -> String? {
-        guard let action = content.action else { return nil }
-        if content.lifetime != nil { return Localized.string("island.notice.checkMic") }
-        return IslandCopy.action(action)
-    }
-
     private static func symbol(_ failure: TurnFailure) -> String {
         switch failure {
         case .noProviders, .quotaExceeded: "key.fill"
@@ -105,84 +128,6 @@ enum IslandNotice {
         case .noProviders, .quotaExceeded: .openKeys
         default: nil
         }
-    }
-}
-
-struct IslandNoticeCard: View {
-    let content: IslandNotice.Content
-    let onAction: (IslandState.Action) -> Void
-    let onDismiss: () -> Void
-    @State private var shownAt = Date()
-
-    var body: some View {
-        VStack(alignment: .trailing, spacing: Space.x3) {
-            HStack(alignment: .top, spacing: Space.x3) {
-                Image(systemName: content.symbol)
-                    .font(GeistFont.uiLabel)
-                    .foregroundStyle(IslandInk.blue)
-                    .frame(width: IslandInk.noticeTile, height: IslandInk.noticeTile)
-                    .background(RoundedRectangle(cornerRadius: Radius.lg).fill(IslandInk.blueTile))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: Space.x1) {
-                    Text(content.title)
-                        .font(GeistFont.uiLabel.weight(.semibold))
-                        .foregroundStyle(IslandInk.text)
-                        .fixedSize(horizontal: false, vertical: true)
-                    if let body = content.body {
-                        Text(body)
-                            .font(GeistFont.uiCaption)
-                            .foregroundStyle(IslandInk.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if let lifetime = content.lifetime {
-                    dismiss(lifetime)
-                }
-            }
-            if let action = content.action, let title = IslandNotice.actionTitle(content) {
-                Button { onAction(action) } label: {
-                    Text(title + " →")
-                        .font(GeistFont.uiCaption.weight(.semibold))
-                        .foregroundStyle(IslandInk.panel)
-                        .padding(.horizontal, Space.x3)
-                        .padding(.vertical, IslandInk.chipVertical)
-                        .background(Capsule().fill(IslandInk.text))
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(PressableStyle())
-            }
-        }
-        .padding(Space.x3)
-        .background(RoundedRectangle(cornerRadius: IslandInk.cardRadius).fill(IslandInk.field))
-        .accessibilityElement(children: .contain)
-        .onAppear { AccessibilityNotification.Announcement(IslandNotice.announcement(content)).post() }
-    }
-
-    /// The × sits in a ring that empties as the card's time runs out. Not
-    /// `CloseButton`: the ring is the notice's remaining life, a clock the
-    /// shared × has no place for.
-    private func dismiss(_ lifetime: Double) -> some View {
-        Button(action: onDismiss) {
-            TimelineView(.animation(minimumInterval: IslandInk.ringFrame)) { context in
-                let left = IslandNotice.remaining(
-                    elapsed: context.date.timeIntervalSince(shownAt), lifetime: lifetime)
-                ZStack {
-                    Circle().stroke(IslandInk.hairline, lineWidth: Stroke.thin)
-                    Circle()
-                        .trim(from: 0, to: left)
-                        .stroke(IslandInk.secondary, style: StrokeStyle(lineWidth: Stroke.thin, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    Image(systemName: "xmark")
-                        .font(GeistFont.uiCaption)
-                        .foregroundStyle(IslandInk.secondary)
-                }
-            }
-            .frame(width: IslandInk.slotSide, height: IslandInk.slotSide)
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(Localized.string("island.notice.dismiss"))
     }
 }
 

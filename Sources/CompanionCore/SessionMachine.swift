@@ -24,9 +24,15 @@ public struct SessionMachine: Sendable, Equatable {
     /// their own, as Incredible's card does (spec 16c §2). A permission or
     /// a failure stays: it carries the way out.
     public static let noticeDelay: TimeInterval = 6
+    /// Seconds the dictation result card waits for a click on copy before
+    /// leaving. Not measured (Incredible's card has a hide button and no
+    /// visible clock): long enough to read a sentence and reach the button.
+    public static let dictationCardDelay: TimeInterval = 12
     /// The reel's ceiling per turn (16m-2, security review).
     public static let touchedCap = 12
 
+    /// The pointer is over the dictation card (16m-4): it does not expire.
+    var dictationHeld = false
     var voice = TurnSnapshot.idle
     var typedBusy = false
     /// The key is down but still under the tap threshold: the mic is open
@@ -112,6 +118,7 @@ public struct SessionMachine: Sendable, Equatable {
             if projection.kind == .processing(.completed) {
                 projection.kind = .idle
                 projection.dictation = nil
+                projection.dictatedText = nil
             }
         case .pressed:
             openTurn()
@@ -179,12 +186,21 @@ public struct SessionMachine: Sendable, Equatable {
             if projection.kind == .listening { projection.partial = text }
         case .dictating(let app):
             if projection.kind == .listening { projection.dictation = app }
-        case .dictated(let app):
+        case .dictated(let app, let text):
             guard projection.kind == .processing(.pending) else { return [] }
             projection.holding = false
             projection.dictation = app
+            let words = (text?.value ?? "").isEmpty ? nil : text
+            projection.dictatedText = words
             projection.kind = .processing(.completed)
-            effects.append(.scheduleCompletedExpiry(Self.completedDelay))
+            dictationHeld = false
+            effects += completedExpiry()
+        case .dictationCardHover, .dictationCardCopied:
+            return dictationCardEffects(event)
+        case .dictationHidden:
+            guard projection.kind == .processing(.completed), projection.dictatedText != nil
+            else { return [] }
+            projection.kind = .idle
         case .dictationFailed(let failure):
             // A notice, not a transition: the words are already on their
             // way to Companion and its turn owns the kind.
@@ -230,7 +246,9 @@ public struct SessionMachine: Sendable, Equatable {
         // listening, the paste while pending, the app's name in Completed.
         switch projection.kind {
         case .listening, .processing(.pending), .processing(.completed): break
-        default: projection.dictation = nil
+        default:
+            projection.dictation = nil
+            projection.dictatedText = nil
         }
         if restingWarm, !wasRestingWarm {
             effects.append(.scheduleVoiceIdleExpiry(Self.voiceIdleTimeout))
@@ -328,6 +346,7 @@ public struct SessionMachine: Sendable, Equatable {
         projection.notice = nil
         projection.partial = nil
         projection.dictation = nil
+        projection.dictatedText = nil
     }
 
     /// Released, and the voice has not moved past listening yet.
@@ -382,7 +401,7 @@ public struct SessionMachine: Sendable, Equatable {
                 return []
             }
             projection.kind = .processing(.completed)
-            return [.scheduleCompletedExpiry(Self.completedDelay)]
+            return completedExpiry()
         }
         return []
     }

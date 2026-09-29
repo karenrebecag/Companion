@@ -41,11 +41,14 @@ import Testing
         store: MemoryConversationStore(), config: Config())
 }
 
-@MainActor private func island(_ chat: ChatViewModel, composing: Bool = false) -> AnyView {
+@MainActor private func island(
+    _ chat: ChatViewModel, composing: Bool = false, updates: UpdateState? = nil
+) -> AnyView {
     let voice = VoiceViewModel(voice: RecordingVoice(), thread: FakePresenter())
     let hold = HoldSettingsModel(permission: FakeAccessibility(trusted: true))
     hold.holdLearned = true
-    return AnyView(IslandView(chat: chat, voice: voice, hold: hold, onShowMain: {}, onSize: { _, _ in }))
+    return AnyView(IslandView(
+        chat: chat, voice: voice, hold: hold, onShowMain: {}, onSize: { _, _ in }, updates: updates))
 }
 
 @MainActor private func islandStates() async -> [(String, AnyView)] {
@@ -76,6 +79,31 @@ import Testing
     let keyless = chat()
     keyless.session.send(.voice(TurnSnapshot(state: .error, failure: .noProviders)))
     states.append(("error", island(keyless)))
+
+    // 16m-4: the dictation result and the four system notices.
+    let dictation = chat()
+    dictation.session.send(.pressed)
+    dictation.session.send(.dictating(app: "Slack"))
+    dictation.session.send(.released)
+    dictation.session.send(.dictated(
+        app: "Slack", text: "Te mando el resumen en cuanto termine la revisión, sin cambios de última hora."))
+    states.append(("dictation", island(dictation)))
+
+    let limit = chat()
+    limit.session.send(.voice(TurnSnapshot(state: .error, failure: .quotaExceeded)))
+    states.append(("notice-limit", island(limit)))
+
+    let permission = chat()
+    permission.session.send(.voice(TurnSnapshot(state: .error, failure: .micDenied)))
+    states.append(("notice-permission", island(permission)))
+
+    let diagnostic = chat()
+    diagnostic.session.send(.voice(TurnSnapshot(state: .error, failure: .networkUnavailable)))
+    states.append(("notice-diagnostic", island(diagnostic)))
+
+    let updates = UpdateState(checkNow: { nil })
+    updates.found(.init(tag: "v0.9.0", pageURL: URL(fileURLWithPath: "/tmp/release")))
+    states.append(("notice-update", island(chat(), updates: updates)))
 
     let asking = chat()
     asking.session.send(.job(.started(goal: "ordenar Descargas")))

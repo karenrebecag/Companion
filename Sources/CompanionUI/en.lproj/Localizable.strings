@@ -562,3 +562,12 @@
 "appearance.auto" = "System";
 "island.opening" = "Opening";
 "island.reply.open" = "Opens the full result";
+
+"island.dictation.copy" = "Copy dictation";
+"island.dictation.copied" = "Copied";
+"island.dictation.hide" = "Hide dictation";
+"island.notice.limit.title" = "Usage limit reached";
+"island.notice.update.title" = "Companion %@ is available";
+"island.notice.update.body" = "Download the new version from its release page.";
+"island.notice.update.action" = "Update";
+"island.notice.update.later" = "Later";

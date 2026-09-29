@@ -18,6 +18,16 @@ extension IslandView {
             // the island only names the page and the app it means.
             onShowMain()
             NotificationCenter.default.post(name: .companionOpenApps, object: slug)
+        case .openUpdate:
+            if let url = updates?.available?.pageURL { openURL(url) }
+            // Going to the page is answering the offer.
+            updates?.dismissNotice()
         }
+    }
+
+    /// The card's own exit: an offer is waved away for the session, every
+    /// other notice by the chat's rule.
+    func dismissNotice(_ line: IslandState.Line) {
+        if case .updateAvailable = line { updates?.dismissNotice() } else { chat.dismissIslandNotice(line) }
     }
 }
