@@ -32,6 +32,7 @@ struct MainSidebar: View {
     let onSettings: () -> Void
     let onFeedback: () -> Void
     @State private var avatarImage = UserProfile.avatarImage
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // 16n: Incredible's sidebar — a #f9f9f9 panel with a #eee edge, the
     // wordmark row, 38 pt rows in a 42 pt band, the account at the bottom.
@@ -70,7 +71,7 @@ struct MainSidebar: View {
 
     private func row(_ target: MainPage, symbol: String, title: String) -> some View {
         SidebarRow(symbol: symbol, title: title, selected: page == target) {
-            withAnimation(.springSelect) { page = target }
+            withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { page = target }
         }
     }
 

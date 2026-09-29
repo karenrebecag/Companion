@@ -85,9 +85,9 @@ public enum AppearancePreference: String, CaseIterable, Equatable {
 
     public var label: String {
         switch self {
-        case .light: "Claro"
-        case .dark: "Oscuro"
-        case .auto: "Sistema"
+        case .light: Localized.string("appearance.light")
+        case .dark: Localized.string("appearance.dark")
+        case .auto: Localized.string("appearance.auto")
         }
     }
 

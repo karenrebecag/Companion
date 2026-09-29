@@ -44,8 +44,8 @@ import Testing
     Highlight.stored = .standard
 }
 
-@Test @MainActor func settingsModuleTests() {
-    testAppearancePreferenceRoundTrip()
+@Test @MainActor func settingsModuleTests() async {
+    await testAppearancePreferenceRoundTrip()
     testAppearanceAutoLeavesWindowToSystem()
     testTypeScaleClampAndNudge()
     testProfileFieldsRoundTrip()
@@ -69,7 +69,7 @@ import Testing
     expect(!DecisionPreference.enabled, "decisión: round-trip apaga")
 }
 
-@MainActor func testAppearancePreferenceRoundTrip() {
+@MainActor func testAppearancePreferenceRoundTrip() async {
     let previous = AppearancePreference.stored
     defer { AppearancePreference.stored = previous }
     for pref in AppearancePreference.allCases {
@@ -77,9 +77,11 @@ import Testing
         expectEq(AppearancePreference.stored, pref,
                  "tema: \(pref.rawValue) round-trip")
     }
-    expectEq(AppearancePreference.light.label, "Claro", "tema: claro")
-    expectEq(AppearancePreference.dark.label, "Oscuro", "tema: oscuro")
-    expectEq(AppearancePreference.auto.label, "Sistema", "tema: sistema")
+    await Localized.scoped(to: .es) {
+        expectEq(AppearancePreference.light.label, "Claro", "tema: claro")
+        expectEq(AppearancePreference.dark.label, "Oscuro", "tema: oscuro")
+        expectEq(AppearancePreference.auto.label, "Sistema", "tema: sistema")
+    }
 }
 
 @MainActor func testAppearanceAutoLeavesWindowToSystem() {

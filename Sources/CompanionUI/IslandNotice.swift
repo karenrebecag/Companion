@@ -60,9 +60,23 @@ enum IslandNotice {
             Content(symbol: "app.badge", title: String(format: Localized.string("island.connectApp"), name),
                     body: Localized.string("island.connectApp.body"),
                     action: .openApps(slug: slug), lifetime: SessionMachine.noticeDelay)
+        case .chatError(let text):
+            Content(symbol: "exclamationmark.circle.fill", title: text, body: nil,
+                    action: nil, lifetime: SessionMachine.noticeDelay)
         default:
             nil
         }
+    }
+
+    /// The text whose 6 s clock runs, only while the card is drawn.
+    static func expiringChatError(_ line: IslandState.Line) -> String? {
+        if case .chatError(let text) = line { return text }
+        return nil
+    }
+
+    /// What VoiceOver says when the card appears.
+    static func announcement(_ content: Content) -> String {
+        [content.title, content.body].compactMap { $0 }.joined(separator: ". ")
     }
 
     /// 1 when the card appears, 0 when it leaves.
@@ -141,6 +155,8 @@ struct IslandNoticeCard: View {
         }
         .padding(Space.x3)
         .background(RoundedRectangle(cornerRadius: IslandInk.cardRadius).fill(IslandInk.field))
+        .accessibilityElement(children: .contain)
+        .onAppear { AccessibilityNotification.Announcement(IslandNotice.announcement(content)).post() }
     }
 
     /// The × sits in a ring that empties as the card's time runs out.

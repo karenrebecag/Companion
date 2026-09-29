@@ -98,11 +98,7 @@ public enum ReferentLine {
         guard !referents.isEmpty else {
             return (ParentToolCopy.acting([], language), [])
         }
-        let verb = switch language {
-        case .en: "Opening"
-        case .es: "Abriendo"
-        }
-        return (verb, referents)
+        return (Localized.string("island.opening", language: language), referents)
     }
 }
 
