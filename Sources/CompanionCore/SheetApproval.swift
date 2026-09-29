@@ -62,16 +62,38 @@ public enum SheetApproval {
         if case .success(let cells) = SheetValues.parse(any: arguments["values"], for: range) {
             lines += cells.map { $0.map(shown).joined(separator: " | ") }
         } else if let text = arguments["values"] as? String {
-            lines.append(text)
+            lines.append(escaped(text))
         } else if let raw = arguments["values"] {
-            lines.append("\(raw)")
+            lines.append(escaped("\(raw)"))
         }
         return lines.joined(separator: "\n")
     }
 
+    /// A row is one line and a cell has no bare `|`, so a value cannot forge
+    /// rows or cells; invisible characters (bidi overrides) are spelled out.
+    private static func escaped(_ text: String) -> String {
+        var out = ""
+        for scalar in text.unicodeScalars {
+            switch scalar {
+            case "\\": out += "\\\\"
+            case "|": out += "\\|"
+            case "\n": out += "\\n"
+            case "\r": out += "\\r"
+            case "\t": out += "\\t"
+            default:
+                if [.format, .control, .lineSeparator, .paragraphSeparator].contains(scalar.properties.generalCategory) {
+                    out += "\\u{" + String(scalar.value, radix: 16, uppercase: true) + "}"
+                } else {
+                    out.unicodeScalars.append(scalar)
+                }
+            }
+        }
+        return out
+    }
+
     private static func shown(_ cell: SheetCell) -> String {
         switch cell {
-        case .text(let text), .formula(let text): text
+        case .text(let text), .formula(let text): escaped(text)
         case .number(let number): DataCells.number(number)
         case .empty: ""
         }

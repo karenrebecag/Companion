@@ -9,6 +9,7 @@ import Testing
     testTheFingerprintFollowsTheValues()
     testTheWorkbookIsBoundByTheRunnerNeverTheModel()
     testTheLegacyDetailShowsTheWorkbookAndTheWholeValues()
+    testAHostileCellCannotForgeRowsOrCells()
 }
 
 private func request(_ object: [String: Any]) -> ApprovalRequest {
@@ -60,4 +61,17 @@ func testTheLegacyDetailShowsTheWorkbookAndTheWholeValues() {
                                              "values": longValues(last: "ULTIMA-CELDA")])
     expect(detail?.contains("/Users/k/V.xlsx") == true, "detalle: el libro")
     expect(detail?.contains("ULTIMA-CELDA") == true, "detalle: sin cortar a 200")
+}
+
+func testAHostileCellCannotForgeRowsOrCells() {
+    let hostile = "ok\n99 | Total | 1000000\u{202E}|x\\y"
+    let preview = SheetApproval.preview(
+        ["app": "excel", "range": "A1:B1", "workbook": "/w.xlsx", "values": [[hostile, "b"]]], language: .en)
+    let lines = preview.split(separator: "\n", omittingEmptySubsequences: false)
+    expectEq(lines.count, 3, "vista: una fila es una línea, sin importar el texto de la celda")
+    let row = String(lines.last ?? "")
+    expectEq(row.components(separatedBy: " | ").count, 2, "vista: una barra dentro de la celda no crea otra celda")
+    expect(row.contains("ok\\n99"), "vista: el salto de línea se ve como \\n")
+    expect(row.contains("\\|") && row.contains("\\\\y"), "vista: barra y contrabarra visibles")
+    expect(!row.unicodeScalars.contains("\u{202E}"), "vista: el control bidireccional no se cuela")
 }
