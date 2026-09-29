@@ -35,6 +35,9 @@ public enum HandsWords {
         // send
         ["enviar", "envia", "envialo", "enviala", "manda", "mandalo", "mandar", "send", "submit",
          "senden", "envoyer", "invia"],
+        // sign out: phrases fused into one token by `tokens`, since "cerrar",
+        // "sesion" and "out" alone are ordinary words
+        ["signout", "logout"],
         // publish
         ["publicar", "publica", "publicalo", "publish", "post", "veroffentlichen", "publier"],
     ]
@@ -53,12 +56,12 @@ public enum HandsWords {
 
     /// The family a button label belongs to, if any.
     public static func destructiveFamily(of label: String) -> Int? {
-        let tokens = Set(words(label).split(separator: " ").map(String.init))
+        let tokens = tokens(label)
         return destructiveFamilies.firstIndex { !$0.isDisjoint(with: tokens) }
     }
 
     public static func asks(family: Int, in said: String) -> Bool {
-        let tokens = Set(words(said).split(separator: " ").map(String.init))
+        let tokens = tokens(said)
         return !destructiveFamilies[family].isDisjoint(with: tokens)
     }
 
@@ -97,6 +100,15 @@ public enum HandsWords {
 
     public static func hasControl(_ text: String, format: Bool) -> Bool {
         text.unicodeScalars.contains { isControl($0, format: format) }
+    }
+
+    /// Words of a text, with the sign-out phrases fused into one token so
+    /// "Cerrar ventana" or "Sesión nueva" never land in the family.
+    static func tokens(_ text: String) -> Set<String> {
+        let fused = words(text).replacingOccurrences(
+            of: #"\b(?:(?:cerrar|cierra|cierro) (?:la )?sesion|log out|sign out)\b"#,
+            with: "signout", options: .regularExpression)
+        return Set(fused.split(separator: " ").map(String.init))
     }
 
     static func words(_ text: String) -> String {

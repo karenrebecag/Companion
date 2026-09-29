@@ -10,6 +10,8 @@ import Testing
 
 @Test @MainActor func menuGateTests() async {
     testMenuClassifiesItsLastComponentWithClicksClassifier()
+    testSigningOutAsksFromClickAndMenuButClosingDoesNot()
+    testTheSheetForSigningOutNamesTheItem()
     await testADestructiveMenuRunsOnlyThroughTheGate()
     await testANavigationMenuRunsWithoutTheSheet()
     await testTheBridgeCannotRunADestructiveMenuWithoutTheSheet()
@@ -113,4 +115,45 @@ private let destructivePaths = [
     let done = await approved.handle(line: line)
     expect(done.reply.contains(#""ok":true"#), "puente: con el clic corre")
     expectEq(okScreen.menus.count, 1, "puente: una invocación")
+}
+
+private let signOutLabels = [
+    "Cerrar sesión", "cerrar sesion", "Log Out", "Log out", "Logout", "Sign Out", "Sign out", "Signout",
+]
+private let notSignOutLabels = [
+    "Cerrar", "Cerrar ventana", "Cerrar pestaña", "Cerrar todas las pestañas", "Close", "Close Window",
+    "Close Tab", "Sesión nueva", "Nueva sesión",
+]
+
+// Wave 20c F3 criterion 4: signing out is destructive from any surface, so
+// the family lives in the shared classifier and click and menu agree on it.
+@MainActor func testSigningOutAsksFromClickAndMenuButClosingDoesNot() {
+    for label in signOutLabels {
+        expect(HandsGate.menuNeedsTicket(path: ["Cuenta", label]), "menu pide hoja: \(label)")
+        expect(HandsGate.clickNeedsTicket(label: label, context: ""), "click pide hoja: \(label)")
+        expectEq(HandsGate.menuVerdict(path: [label], said: ""), .ask, "menu sin pedirlo: \(label)")
+        expectEq(HandsGate.clickVerdict(label: label, context: "", said: ""), .ask, "click sin pedirlo: \(label)")
+        expectEq(HandsGate.menuVerdict(path: [label], said: "cierra la sesión"), .act,
+                 "pedido con la frase: \(label)")
+        expectEq(HandsGate.menuVerdict(path: [label], said: "cierra la ventana"), .ask,
+                 "cerrar otra cosa no autoriza: \(label)")
+    }
+    for label in notSignOutLabels {
+        expect(!HandsGate.menuNeedsTicket(path: ["Archivo", label]), "menu sin hoja: \(label)")
+        expect(!HandsGate.clickNeedsTicket(label: label, context: ""), "click sin hoja: \(label)")
+    }
+    for label in signOutLabels + notSignOutLabels {
+        expectEq(HandsGate.menuNeedsTicket(path: [label]),
+                 HandsGate.clickNeedsTicket(label: label, context: ""), "misma familia: \(label)")
+    }
+}
+
+@MainActor func testTheSheetForSigningOutNamesTheItem() {
+    for label in signOutLabels {
+        let runner = menuRunner(FakeScreen([]))
+        let request = runner.approval(for: menuCall("Cuenta > \(label)"), said: "")
+        expectEq(request?.toolName, "menu", "hoja para \(label)")
+        expect(request.map { ChatCopy.approvalDetail(tool: $0.toolName, inputJSON: $0.inputJSON) }?
+            .contains(label) == true, "la hoja nombra el ítem: \(label)")
+    }
 }
