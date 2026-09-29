@@ -121,11 +121,18 @@ import Testing
 final class ManualSleeper: @unchecked Sendable {
     private let lock = NSLock()
     private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var armedDelays: [TimeInterval] = []
     var pending: Int { lock.withLock { waiters.count } }
+
+    /// How many waits of this length have registered. `SessionModel` starts its
+    /// timers as tasks that hop off the main actor, so `send` returning does not
+    /// mean the wait exists yet: `fire()` only wakes registered waiters, and a
+    /// fire that runs first is lost for good. Wait on this before firing.
+    func armed(_ seconds: TimeInterval) -> Int { lock.withLock { armedDelays.filter { $0 == seconds }.count } }
 
     func sleep(_ seconds: TimeInterval) async throws {
         await withCheckedContinuation { continuation in
-            lock.withLock { waiters.append(continuation) }
+            lock.withLock { armedDelays.append(seconds); waiters.append(continuation) }
         }
         try Task.checkCancellation()
     }
