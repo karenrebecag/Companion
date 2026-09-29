@@ -274,7 +274,7 @@ public actor BridgeSession {
                 language: language(),
                 accessibility: accessibility(),
                 tools: tools.specs(language())
-                    .filter { !BridgeScope.isLocalOnly($0.name) }
+                    .filter { BridgeScope.allows($0.name) }
                     .map(BridgeToolSpec.init))
             return (BridgeCodec.encode(.hello(id: id, result)), false)
         }
@@ -309,8 +309,9 @@ public actor BridgeSession {
     }
 
     private func handleCall(id: Int, call: BridgeCall, mine: Int) async -> (String, Bool) {
-        // Local-only first: the bridge must not even say such a tool exists.
-        guard !BridgeScope.isLocalOnly(call.name) else {
+        // Allowlist first: a tool nobody named for the bridge must not even
+        // be admitted to exist, whatever the runner behind it can do.
+        guard BridgeScope.allows(call.name) else {
             return (errorLine(id, BridgeCode.unknownTool, "unknown tool: \(call.name)"), false)
         }
         guard tools.handles(call.name) else {

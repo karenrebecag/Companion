@@ -68,14 +68,29 @@ extension NativeTool {
     public static let parentDeliverables: [NativeTool] = [.createDocument, .sheetRead, .sheetWrite]
 }
 
-/// Tools the parent offers the user but never lends over the MCP bridge. The
-/// approval memory is process-wide, so a "remember" given in the chat would
-/// wave an agent's workbook writes through; and sheet_read, being safe, would
-/// give it every open workbook without a sheet.
+/// What the MCP bridge may drive (20c D6, M9). An ALLOWLIST: a tool the
+/// runner gains later is out of the bridge until it is named here, so
+/// exposing a capability to an outside agent is always a deliberate edit,
+/// and `BridgeAllowlistTests` fails on a runner tool with no decision.
 public enum BridgeScope {
+    public static let allowedTools: Set<String> = [
+        "open_app", "open_url", "open_file", "list_apps", "read_skill", "find_places",
+        "type_text", "press_key", "focus_window", "read_focused",
+        "look", "click", "scroll", "menu", "see",
+    ]
+
+    /// Offered to the user by the parent, never lent over the bridge. The
+    /// approval memory is process-wide, so a "remember" given in the chat
+    /// would wave an agent's workbook writes through; and sheet_read, being
+    /// safe, would give it every open workbook without a sheet.
     public static func isLocalOnly(_ name: String) -> Bool {
         NativeTool.parentDeliverables.contains { $0.rawValue == name }
     }
+
+    public static func allows(_ name: String) -> Bool { allowedTools.contains(name) }
+
+    /// True when a person has decided this tool's bridge exposure.
+    public static func decided(_ name: String) -> Bool { allows(name) || isLocalOnly(name) }
 }
 
 extension ParentTool {

@@ -414,21 +414,22 @@ final class FakeParentTools: ParentToolExecuting, @unchecked Sendable {
     private var _saidSeen: [String] = []
     private var unavailable: [String: String]
 
+    private let specNames: [String]
+
     init(
         handledNames: Set<String> = ["look", "click", "type_text", "open_app"],
+        specNames: [String] = ["look", "click"],
         unavailable: [String: String] = [:],
         scriptedOutcome: ParentToolOutcome = ParentToolOutcome(ok: true, output: "ok", target: "Safari")
     ) {
         self.handledNames = handledNames
+        self.specNames = specNames
         self.unavailable = unavailable
         self.scriptedOutcome = scriptedOutcome
     }
 
     func specs(_ language: AppLanguage) -> [ToolSpec] {
-        [
-            ToolSpec(name: "look", description: "look", properties: [], required: []),
-            ToolSpec(name: "click", description: "click", properties: [], required: []),
-        ]
+        specNames.map { ToolSpec(name: $0, description: $0, properties: [], required: []) }
     }
 
     func handles(_ name: String) -> Bool {
