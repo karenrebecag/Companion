@@ -106,7 +106,7 @@ public enum HandsWords {
     /// "Cerrar ventana" or "Sesión nueva" never land in the family.
     static func tokens(_ text: String) -> Set<String> {
         let fused = words(text).replacingOccurrences(
-            of: #"\b(?:(?:cerrar|cierra|cierro) (?:la )?sesion|log out|sign out)\b"#,
+            of: #"\b(?:(?:cerrar|cierra|cierro) (?:(?:la|mi|tu|su|de) )?sesion|cierre de sesion|log ?out|log ?off|sign out|sign off)\b"#,
             with: "signout", options: .regularExpression)
         return Set(fused.split(separator: " ").map(String.init))
     }

@@ -15,6 +15,11 @@ import Testing
     await testADestructiveMenuRunsOnlyThroughTheGate()
     await testANavigationMenuRunsWithoutTheSheet()
     await testTheBridgeCannotRunADestructiveMenuWithoutTheSheet()
+    testMenuPathParsing()
+    await testAPartialNameForADestructiveItemNeverPressesWithoutApproval()
+    await testTheSheetNamesTheResolvedItemAndPressesItOnce()
+    await testABenignPartialNameStillRuns()
+    await testATicketIsBoundToTheResolvedItem()
 }
 
 private func menuRunner(_ screen: FakeScreen, bundle: String = "com.apple.finder") -> ParentToolRunner {
@@ -37,9 +42,9 @@ private let destructivePaths = [
 
 @MainActor func testMenuClassifiesItsLastComponentWithClicksClassifier() {
     for path in destructivePaths {
-        let last = path.split(separator: ">").last.map { String($0).trimmingCharacters(in: .whitespaces) } ?? ""
-        expect(HandsGate.menuNeedsTicket(path: path.split(separator: ">").map { $0.trimmingCharacters(in: .whitespaces) }),
-               "menu destructivo: \(path)")
+        let parts = HandsGate.menuPath(["path": path])
+        let last = parts.last ?? ""
+        expect(HandsGate.menuNeedsTicket(path: parts), "menu destructivo: \(path)")
         // Same words as a click on that label: the two cannot drift apart.
         expectEq(HandsGate.menuNeedsTicket(path: [last]),
                  HandsGate.clickNeedsTicket(label: last, context: ""), "misma familia que click: \(last)")
@@ -64,7 +69,7 @@ private let destructivePaths = [
         let request = runner.approval(for: menuCall(path), said: "")
         expectEq(request?.toolName, "menu", "hoja para \(path)")
         expect(request.map { ChatCopy.approvalDetail(tool: $0.toolName, inputJSON: $0.inputJSON) }?
-            .contains(path.split(separator: ">").last.map { String($0).trimmingCharacters(in: .whitespaces) } ?? "?") == true,
+            .contains(HandsGate.menuPath(["path": path]).last ?? "?") == true,
                "la hoja nombra el ítem: \(path)")
         let unasked = await runner.execute(name: "menu", argumentsJSON: arguments)
         expect(unasked.output.hasPrefix("approval_required:"), "sin el clic: no corre \(path)")
@@ -119,10 +124,13 @@ private let destructivePaths = [
 
 private let signOutLabels = [
     "Cerrar sesión", "cerrar sesion", "Log Out", "Log out", "Logout", "Sign Out", "Sign out", "Signout",
+    "Cierra la sesión", "Cierro la sesión", "Cerrar mi sesión", "Cerrar tu sesión", "Cerrar su sesión",
+    "Cierre de sesión", "Log off", "Logoff", "Sign off", "Log Off…",
 ]
 private let notSignOutLabels = [
     "Cerrar", "Cerrar ventana", "Cerrar pestaña", "Cerrar todas las pestañas", "Close", "Close Window",
-    "Close Tab", "Sesión nueva", "Nueva sesión",
+    "Close Tab", "Sesión nueva", "Nueva sesión", "Salir", "Desconectar", "Sesión", "Sesiones abiertas",
+    "Cerrar sesiones abiertas",
 ]
 
 // Wave 20c F3 criterion 4: signing out is destructive from any surface, so
@@ -156,4 +164,82 @@ private let notSignOutLabels = [
         expect(request.map { ChatCopy.approvalDetail(tool: $0.toolName, inputJSON: $0.inputJSON) }?
             .contains(label) == true, "la hoja nombra el ítem: \(label)")
     }
+}
+
+@MainActor func testMenuPathParsing() {
+    expectEq(HandsGate.menuPath([:]), [], "sin argumento")
+    expectEq(HandsGate.menuPath(["path": ""]), [], "vacía")
+    expectEq(HandsGate.menuPath(["path": " > > "]), [], "solo separadores")
+    expectEq(HandsGate.menuPath(["path": 7]), [], "tipo inválido")
+    expectEq(HandsGate.menuPath(["path": "Archivo"]), ["Archivo"], "un componente")
+    expectEq(HandsGate.menuPath(["path": "Archivo > Exportar >"]), ["Archivo", "Exportar"], "separador final")
+    expectEq(HandsGate.menuPath(["path": "  Edición>Pegar  "]), ["Edición", "Pegar"], "espacios y sin espacios")
+    expectEq(HandsGate.menuPath(["path": "Ver > 😀 ; DROP"]), ["Ver", "😀 ; DROP"], "unicode y metacaracteres")
+}
+
+private let fuzzyDestructive: [(query: String, item: String)] = [
+    ("Finder > Empty", "Empty Trash…"), ("File > Move", "Move to Trash"),
+    ("Cuenta > Sesión", "Cerrar sesión"), ("Cuenta > Sesion", "Cerrar sesión"),
+    ("Mensaje > Env", "Enviar"), ("Tienda > Pag", "Pagar"),
+    ("Cuenta > Log", "Log Out…"), ("Cuenta > Sign", "Sign Out…"),
+]
+
+// H-1: the item pressed is the item classified, not the string the model typed.
+@MainActor func testAPartialNameForADestructiveItemNeverPressesWithoutApproval() async {
+    for (query, item) in fuzzyDestructive {
+        let screen = FakeScreen([])
+        screen.menuTitles = [item]
+        let runner = menuRunner(screen)
+        let arguments = #"{"path":"\#(query)"}"#
+        let out = await runner.execute(name: "menu", argumentsJSON: arguments)
+        expect(out.output.hasPrefix("approval_required:"), "sin hoja no corre: \(query) -> \(item)")
+        expect(screen.menus.isEmpty, "el ítem destructivo no se presiona: \(query) -> \(item)")
+    }
+}
+
+@MainActor func testTheSheetNamesTheResolvedItemAndPressesItOnce() async {
+    for (query, item) in fuzzyDestructive {
+        let screen = FakeScreen([])
+        screen.menuTitles = [item]
+        let runner = menuRunner(screen)
+        let request = runner.approval(for: menuCall(query), said: "")
+        expectEq(request?.toolName, "menu", "hoja para la ruta parcial: \(query)")
+        expect(request.map { ChatCopy.approvalDetail(tool: $0.toolName, inputJSON: $0.inputJSON) }?
+            .contains(item) == true, "la hoja nombra lo que se presionaría: \(item)")
+        if let request { runner.granted(request) }
+        let approved = await runner.execute(name: "menu", argumentsJSON: #"{"path":"\#(query)"}"#)
+        expect(approved.ok, "aprobado corre: \(query)")
+        expectEq(screen.pressedTitles, [item], "presiona exactamente lo aprobado: \(query)")
+    }
+    let exact = FakeScreen([])
+    exact.menuTitles = ["Empty Trash…", "Empty"]
+    let runner = menuRunner(exact)
+    let request = runner.approval(for: menuCall("Finder > Empty Trash…"), said: "")
+    expectEq(request?.toolName, "menu", "nombre exacto: hoja")
+    if let request { runner.granted(request) }
+    _ = await runner.execute(name: "menu", argumentsJSON: #"{"path":"Finder > Empty Trash…"}"#)
+    expectEq(exact.pressedTitles, ["Empty Trash…"], "nombre exacto: una vez")
+}
+
+@MainActor func testABenignPartialNameStillRuns() async {
+    let screen = FakeScreen([])
+    screen.menuTitles = ["Sort By", "Group By"]
+    let runner = menuRunner(screen)
+    expect(runner.approval(for: menuCall("View > Sort"), said: "") == nil, "sin hoja")
+    let out = await runner.execute(name: "menu", argumentsJSON: #"{"path":"View > Sort"}"#)
+    expect(out.ok, "corre")
+    expectEq(screen.pressedTitles, ["Sort By"], "presiona el ítem resuelto")
+}
+
+@MainActor func testATicketIsBoundToTheResolvedItem() async {
+    let screen = FakeScreen([])
+    screen.menuTitles = ["Empty Trash…"]
+    let runner = menuRunner(screen)
+    let request = runner.approval(for: menuCall("Finder > Empty"), said: "")
+    if let request { runner.granted(request) }
+    // The menu changed between the sheet and the press.
+    screen.menuTitles = ["Empty Cache and Delete History…"]
+    let swapped = await runner.execute(name: "menu", argumentsJSON: #"{"path":"Finder > Empty"}"#)
+    expect(swapped.output.hasPrefix("approval_required:"), "otro ítem resuelto: el ticket no vale")
+    expect(screen.menus.isEmpty, "otro ítem resuelto: no se presiona")
 }

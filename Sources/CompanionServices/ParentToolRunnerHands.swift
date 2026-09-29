@@ -102,6 +102,16 @@ final class ApprovalTickets: @unchecked Sendable {
         let name: String
         let arguments: String
         let pid: Int32
+        /// The concrete thing approved when the call's own arguments name it
+        /// only loosely (a menu item found by partial name).
+        let item: String
+
+        init(name: String, arguments: String, pid: Int32, item: String = "") {
+            self.name = name
+            self.arguments = arguments
+            self.pid = pid
+            self.item = item
+        }
     }
 
     private let lock = NSLock()

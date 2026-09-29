@@ -28,6 +28,10 @@ final class FakeScreen: ScreenActing, @unchecked Sendable {
     private(set) var clicks: [(node: Int, pid: Int32)] = []
     private(set) var scrolls: [(node: Int?, direction: ScrollDirection)] = []
     private(set) var menus: [[String]] = []
+    private(set) var pressedTitles: [String] = []
+    /// The titles the last path step can match, resolved like the adapter
+    /// does (`WindowTitles.bestMatch`); nil means the path is exact.
+    var menuTitles: [String]?
 
     init(_ nodes: [ScanNode]) { self.nodes = nodes }
 
@@ -51,9 +55,21 @@ final class FakeScreen: ScreenActing, @unchecked Sendable {
         return true
     }
 
-    func menu(path: [String], pid: Int32) -> String? {
-        lock.withLock { menus.append(path) }
-        return path.last
+    func menuTitle(path: [String], pid: Int32) -> String? {
+        lock.withLock {
+            guard let last = path.last else { return nil }
+            guard let titles = menuTitles else { return last }
+            return WindowTitles.bestMatch(titles, for: last).map { titles[$0] }
+        }
+    }
+
+    func menu(path: [String], pid: Int32, expecting: String) -> String? {
+        guard menuTitle(path: path, pid: pid) == expecting else { return nil }
+        lock.withLock {
+            menus.append(path)
+            pressedTitles.append(expecting)
+        }
+        return expecting
     }
 }
 

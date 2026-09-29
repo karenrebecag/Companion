@@ -309,7 +309,21 @@ public final class AXScreen: ScreenActing, @unchecked Sendable {
         return nil
     }
 
-    public func menu(path: [String], pid: Int32) -> String? {
+    public func menuTitle(path: [String], pid: Int32) -> String? {
+        resolveMenu(path: path, pid: pid)?.title
+    }
+
+    public func menu(path: [String], pid: Int32, expecting: String) -> String? {
+        // Resolved again at press time: the menu may have changed since the
+        // gate classified `expecting`, and only that title was approved.
+        guard let target = resolveMenu(path: path, pid: pid), target.title == expecting,
+              AXUIElementPerformAction(target.item, kAXPressAction as CFString) == .success
+        else { return nil }
+        return target.title
+    }
+
+    /// Walks the path without invoking anything; only the final press acts.
+    private func resolveMenu(path: [String], pid: Int32) -> (item: AXUIElement, title: String)? {
         guard trust(), actable(pid) != nil, !path.isEmpty else { return nil }
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
@@ -319,10 +333,7 @@ public final class AXScreen: ScreenActing, @unchecked Sendable {
             let titles = items.map { AXRead.string(kAXTitleAttribute, of: $0) }
             guard let match = WindowTitles.bestMatch(titles, for: step) else { return nil }
             let item = items[match]
-            if index == path.count - 1 {
-                return AXUIElementPerformAction(item, kAXPressAction as CFString) == .success
-                    ? titles[match] : nil
-            }
+            if index == path.count - 1 { return (item, titles[match]) }
             // A menu-bar item or a submenu item holds its menu as the only child.
             guard let submenu = AXRead.elements(kAXChildrenAttribute, of: item)?.first else { return nil }
             level = submenu
