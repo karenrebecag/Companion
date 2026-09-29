@@ -45,6 +45,10 @@ public enum Log: Sendable {
     /// arguments or `output` — only name, outcome, target and a char count.
     public static func bridge(_ message: String) { write(tag: "bridge", message: message) }
 
+    /// Wave 18: the browser channel. Tool, code, origin and `chars=N` only,
+    /// never page text or typed values.
+    public static func browser(_ message: String) { write(tag: "browser", message: message) }
+
     /// Wire and error text reaches here: a newline would start a forged
     /// line, and bidi/zero-width scalars would spoof what the reader sees.
     private static func oneLine(_ message: String) -> String {

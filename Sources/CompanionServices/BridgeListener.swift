@@ -10,6 +10,8 @@ import Foundation
 /// executor would starve every other task on it.
 public final class BridgeListener: @unchecked Sendable {
     private let directory: URL
+    private let socketName: String
+    private let tokenName: String
     private let onConnection: @Sendable (BridgeConnection) -> Void
     private let lock = NSLock()
     private var listenFD: Int32 = -1
@@ -19,8 +21,15 @@ public final class BridgeListener: @unchecked Sendable {
     private var tokenPath = ""
     private var _token = ""
 
-    public init(directory: URL, onConnection: @escaping @Sendable (BridgeConnection) -> Void) {
+    /// Wave 18: the browser relay gets its own listener (`browser.sock` /
+    /// `browser.token`) in the same directory; the defaults keep wave 17.
+    public init(
+        directory: URL, socketName: String = "bridge.sock", tokenName: String = "bridge.token",
+        onConnection: @escaping @Sendable (BridgeConnection) -> Void
+    ) {
         self.directory = directory
+        self.socketName = socketName
+        self.tokenName = tokenName
         self.onConnection = onConnection
     }
 
@@ -35,15 +44,15 @@ public final class BridgeListener: @unchecked Sendable {
     /// never chmod'd after the fact.
     public func start() throws {
         try prepareDirectory()
-        let socketURL = directory.appendingPathComponent("bridge.sock")
-        let tokenURL = directory.appendingPathComponent("bridge.token")
+        let socketURL = directory.appendingPathComponent(socketName)
+        let tokenURL = directory.appendingPathComponent(tokenName)
         removeStaleSocket(at: socketURL)
 
         let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw BridgeListenerError.systemCall("socket", errno) }
 
         do {
-            try bind(fd: fd, path: socketURL.path)
+            try BridgeSocket.bind(fd: fd, path: socketURL.path)
             guard Darwin.listen(fd, 4) == 0 else {
                 throw BridgeListenerError.systemCall("listen", errno)
             }
@@ -55,7 +64,7 @@ public final class BridgeListener: @unchecked Sendable {
             throw error
         }
 
-        let tokenString = Self.generateToken()
+        let tokenString = BridgeSocket.generateToken()
         guard FileManager.default.createFile(
             atPath: tokenURL.path, contents: Data(tokenString.utf8),
             attributes: [.posixPermissions: 0o600])
@@ -116,7 +125,14 @@ public final class BridgeListener: @unchecked Sendable {
                 if isRunning() { continue }
                 return
             }
-            guard peerIsSameUser(clientFD) else {
+            // A peer that vanishes mid-write must be an EPIPE, not a signal
+            // that kills the app (also covers the raw busy reply below).
+            guard BridgeSocket.suppressSigpipe(on: clientFD) else {
+                Log.bridge("peer left before accept")
+                Darwin.close(clientFD)
+                continue
+            }
+            guard BridgeSocket.peerIsSameUser(clientFD) else {
                 Log.bridge("rejected peer uid")
                 Darwin.close(clientFD)
                 continue
@@ -133,13 +149,6 @@ public final class BridgeListener: @unchecked Sendable {
             setActiveConnection(connection)
             onConnection(connection)
         }
-    }
-
-    private func peerIsSameUser(_ fd: Int32) -> Bool {
-        var euid: uid_t = 0
-        var egid: gid_t = 0
-        guard Darwin.getpeereid(fd, &euid, &egid) == 0 else { return false }
-        return euid == getuid()
     }
 
     private func sendBusy(to fd: Int32) {
@@ -200,30 +209,6 @@ public final class BridgeListener: @unchecked Sendable {
         } catch {
             Log.bridge("stop: could not remove a bridge file")
         }
-    }
-
-    private func bind(fd: Int32, path: String) throws {
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        let pathBytes = Array(path.utf8) + [0]
-        guard pathBytes.count <= MemoryLayout.size(ofValue: addr.sun_path) else {
-            throw BridgeListenerError.pathTooLong
-        }
-        withUnsafeMutableBytes(of: &addr.sun_path) { raw in raw.copyBytes(from: pathBytes) }
-        let bound = withUnsafePointer(to: &addr) { ptr -> Int32 in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-                Darwin.bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
-            }
-        }
-        guard bound == 0 else { throw BridgeListenerError.systemCall("bind", errno) }
-    }
-
-    private static func generateToken() -> String {
-        var generator = SystemRandomNumberGenerator()
-        var bytes = [UInt8]()
-        bytes.reserveCapacity(32)
-        for _ in 0 ..< 32 { bytes.append(UInt8.random(in: 0 ... 255, using: &generator)) }
-        return bytes.map { String(format: "%02x", $0) }.joined()
     }
 }
 
@@ -323,6 +308,10 @@ public final class BridgeConnection: @unchecked Sendable {
     public var isOpen: Bool {
         lock.lock(); defer { lock.unlock() }; return !closed
     }
+
+    /// A closed peer cannot be provoked deterministically (the read loop
+    /// closes this end first), so tests read the protection back instead.
+    var suppressesSigpipe: Bool { BridgeSocket.sigpipeIsSuppressed(on: fd) }
 
     private func isClosed() -> Bool {
         lock.lock(); defer { lock.unlock() }; return closed

@@ -8,6 +8,17 @@ import SwiftUI
 @main
 enum CompanionMain {
     static func main() {
+        // Chrome launches this same binary as the native host; the fork comes
+        // before AppKit, Config or the Keychain so a host launch never opens
+        // UI or prompts for anything (wave 18, X1/R5).
+        switch BrowserPolicy.launch(arguments: CommandLine.arguments) {
+        case .nativeHost(let origin):
+            exit(BrowserHostRelay.run(origin: origin, directory: BridgePaths.directory))
+        case .rejected:
+            exit(BrowserHostRelay.rejectedExitCode)
+        case .app:
+            break
+        }
         let delegate = AppDelegate()
         let app = NSApplication.shared
         app.delegate = delegate
