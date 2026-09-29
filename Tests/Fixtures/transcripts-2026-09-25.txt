@@ -1,0 +1,11 @@
+# Karen's turns of 2026-09-25, one per line, no assistant text, no keys, no personal data.
+# ~/Library/Logs/Companion-transcripts.log was not on this Mac when the fixture was built,
+# so every line is a literal quoted by docs/specs/wave-16h-conversacion-como-incredible.md
+# (section 1 and 3) or by an existing test that copies a real utterance.
+# Format: <kind>|<utterance>. kind = compound (an action plus a question to answer),
+# place (a "nearby" search), slow (a turn that stalled the voice for 32 s).
+compound|abre Notas y dime qué hay en la primera nota
+compound|abre el correo de Ana y dime qué pide
+compound|open Safari and tell me what the page says
+place|restaurantes cercanos
+slow|búscalo en Safari

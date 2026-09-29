@@ -270,10 +270,17 @@ private struct HandsAct {
         case .success(let found): target = found
         }
         guard !moved else { return fail("target_changed", "the app in front changed") }
+        // What the field holds before typing, read the way `read_focused`
+        // reads it: the proof is that the text shows up MORE times after.
+        let before = hands.reader.read(pid: pid).map {
+            TypedProof.occurrences(of: text, in: FocusedText.clip($0))
+        }
         switch await hands.injector.inject(text, into: target) {
         case .injected(let count, let route):
             Log.app("hands: type_text typed chars=\(count) via=\(route.rawValue) pid=\(pid)")
-            return ParentToolOutcome(ok: true, output: "typed \(count) chars", tool: tool.rawValue)
+            return ParentToolOutcome(
+                ok: true, output: "typed \(count) chars" + TypedProof.unverifiedNote,
+                tool: tool.rawValue, fieldPID: pid, typedBefore: before)
         case .failed(.needsAccessibility):
             return fail("needs_accessibility", "Accessibility is not granted")
         case .failed(.fieldGone):
@@ -321,6 +328,6 @@ private struct HandsAct {
         }
         let clipped = FocusedText.clip(text)
         Log.app("hands: read_focused chars=\(clipped.count) pid=\(pid) bundle=\(bundle)")
-        return ParentToolOutcome(ok: true, output: clipped, tool: tool.rawValue)
+        return ParentToolOutcome(ok: true, output: clipped, tool: tool.rawValue, fieldPID: pid)
     }
 }

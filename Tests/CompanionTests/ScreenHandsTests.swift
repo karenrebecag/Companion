@@ -37,7 +37,7 @@ private func call(_ name: String, _ json: String) -> ToolCallRef {
     expectEq(hands.injected.map(\.text), ["hola mundo"], "type_text: el texto tal cual")
     expectEq(hands.injected.map(\.pid), [7], "type_text: al pid de la app de delante")
     expect(hands.pressed.isEmpty, "type_text: sin Return implícito")
-    expectEq(out.output, "typed 10 chars", "type_text: el cerebro lo puede decir")
+    expectEq(out.output, "typed 10 chars (not read back)", "type_text: el cerebro sabe que nadie lo comprobó")
     expectEq(ParentTool.target(of: call("type_text", #"{"text":"secreto"}"#)), "",
              "type_text: la línea de estado nunca muestra el texto")
     expect(!ParentToolCopy.status("type_text", out, .es).contains("hola"),

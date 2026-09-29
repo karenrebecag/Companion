@@ -21,6 +21,9 @@ public enum DecisionPassReason: String, Sendable, Equatable {
     /// picks the tool by commit and N1's own cascade never won a hold once
     /// it did (wave-15c §1), so `DecisionGate` is not even called.
     case fastBrain
+    /// 16h-1: "open X and tell me Y" — the router can only do the first
+    /// half, so the whole request goes to the model that can also read.
+    case compound
 }
 
 /// What N1's cascade routes a turn to, before anything runs. `execute` and
@@ -59,6 +62,7 @@ public enum DecisionRoute {
         case .ignore:
             return .passThrough(.ignored)
         case .act:
+            if plan.steps.contains(.read) { return .passThrough(.compound) }
             return actStep(for: plan, systemSupports: systemSupports)
         case .confirm:
             // Never ask by voice about something nothing can execute.
