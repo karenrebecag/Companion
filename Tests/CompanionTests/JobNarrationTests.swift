@@ -98,9 +98,9 @@ import Testing
 /// la tarjeta (Wave 8).
 @MainActor func testTheJobLeavesARecordInTheThread() async {
     let model = primed(chat: FakeChatProvider())
-    model.startJob(goal: "create test.md")
-    model.receiveJobEvent(.stepStarted(tool: "WebSearch", summary: "x"))
-    await model.appendAssistant("# Hecho\nel archivo quedó")
+    let id = model.startJob(goal: "create test.md")
+    model.receiveJobEvent(.stepStarted(tool: "WebSearch", summary: "x"), from: id)
+    model.finishJob(ok: true, id: id)
 
     expect(model.job == nil, "registro: la tarjeta viva se apaga")
     let statuses = model.messages.filter { $0.isStatus }.map(\.text)
@@ -114,10 +114,12 @@ import Testing
 /// por la misma costura o el registro queda anónimo.
 @MainActor func testVoiceJobsRecordTheirGoalToo() async {
     let model = primed(chat: FakeChatProvider())
-    model.receiveJobEvent(.started(goal: "buscar vuelos"))
+    let voice = JobID("voz")
+    model.receive(.job(.started(goal: "buscar vuelos"), from: voice))
     expectEq(model.job?.goal, "buscar vuelos",
              "costura: el goal del encargo por voz llega al hilo")
-    await model.appendAssistant("listo")
+    // Review 16h-2 round 3: its own end records it, not a reply landing.
+    model.receive(.jobFinished(ok: true, from: voice))
     expect(model.messages.contains { $0.isStatus && $0.text.contains("buscar vuelos") },
            "costura: y queda registrado al cerrar")
 }

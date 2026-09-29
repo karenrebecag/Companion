@@ -8,6 +8,7 @@ import Foundation
 /// state single-threaded.
 extension VoiceSession {
     func flushAnnouncements() async {
+        flushParkedAnnouncement()
         guard machine.snapshot.pipeline == .realtime,
               machine.snapshot.state == .listening,
               !pendingAnnouncements.isEmpty else { return }
@@ -35,6 +36,11 @@ extension VoiceSession {
         }
         snapBox.yield(machine.snapshot)
         await perform(effects)
+        if machine.snapshot.state == .error, before != .error {
+            // A failed voice says nothing more on its own (review 16h-2 M3).
+            voiceClosed = true
+            await silenceAnnouncements(reason: "error")
+        }
         await flushAnnouncements()
     }
 
@@ -53,6 +59,9 @@ extension VoiceSession {
             case .closeRealtime:
                 await closeRealtime()
             case .stopClassicIO:
+                // Every stop of ours ends a notice too: a stopped synthesizer
+                // never reports `.finished`, and the lock would stay (S1).
+                await cutAnnouncement()
                 await classic.stopIO(mic: mic)
             case .submitUtterance:
                 startClassicTurn(config: configProvider.current)

@@ -216,6 +216,26 @@ extension Escalation {
         }
     }
 
+    /// 16h-2 (security M1), to the realtime model: say the sheet waits.
+    public static func approvalNeedsClick(_ language: AppLanguage = .en) -> String {
+        switch language {
+        case .en:
+            return "The permission is on screen and needs the user's click. Say so in one "
+                + "sentence. Do not say you authorised anything."
+        case .es:
+            return "El permiso está en pantalla y necesita el clic del usuario. Dilo en una "
+                + "frase. No digas que autorizaste nada."
+        }
+    }
+
+    /// 16h-2 (security M1): a spoken yes that the sheet did not take.
+    public static func approvalNeedsClickSpoken(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "That permission is on screen; it needs your click."
+        case .es: return "Ese permiso está en pantalla; necesita tu clic."
+        }
+    }
+
     public static func jobQueuedSpoken(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "It is queued; I will do it right after this one."

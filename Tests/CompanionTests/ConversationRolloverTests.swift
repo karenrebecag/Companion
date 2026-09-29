@@ -188,13 +188,16 @@ final class RolloverClock: @unchecked Sendable {
     let clock = RolloverClock(Date(timeIntervalSince1970: 1_800_000_000))
     let vm = rolloverPrimed(clock: clock)
     await vm.appendUser("first")
-    vm.session.send(.job(.started(goal: "buscar algo")))
+    let job = JobID("j")
+    vm.session.send(.job(.started(goal: "buscar algo"), from: job))
 
     clock.advance(by: 360)
     let midJobTurns = await vm.historyTurns()
     expect(!midJobTurns.isEmpty, "rollover10: con encargo corriendo no hay rollover")
     expectEq(vm.messages.map(\.text), ["first"], "rollover10: el hilo sigue siendo el mismo")
 
+    // Review 16h-2 round 3: the job ends by its own tagged end.
+    vm.session.send(.jobFinished(ok: true, from: job))
     await vm.appendAssistant("resultado")
     let idAfterResult = vm.conversationId
 

@@ -60,6 +60,7 @@ extension VoiceSession {
 
     private func beginHold(dictate: Bool, provisional: Bool, pressedAt: TimeInterval) async {
         await cutAnnouncement()
+        voiceClosed = false
         deferredHold = nil
         owedHoldWork = nil
         holdGeneration += 1

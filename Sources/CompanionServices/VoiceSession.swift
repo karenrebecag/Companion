@@ -61,6 +61,20 @@ public actor VoiceSession: VoiceControlling {
     /// Job outcomes waiting for a listening gap; the voice must never be
     /// talked over by its own announcement.
     var pendingAnnouncements: [String] = []
+    /// 16h-2: a job's end for the classic voice, parked until the turn in
+    /// flight (or the hold being made) is over. `AnnouncementGap` decides.
+    var parkedAnnouncements: [ParkedAnnouncement] = []
+    /// 16h-2 (M3): the user closed the voice (or it failed): a job's end is
+    /// dropped instead of speaking into a voice she turned off. A new hold
+    /// or start opens it again.
+    var voiceClosed = false
+    /// What the reducer was last told about notices (S2).
+    var publishedAnnouncing = false
+    /// When and in which hold the pending approval appeared (security M1).
+    var pendingApprovalSeen: ApprovalSighting?
+    /// Notices dropped unsaid (voice closed, error, stop, too old): the
+    /// log counts them, and a test can wait on something that happened.
+    var droppedAnnouncements = 0
     /// Written by VoiceSessionApprovals.
     var pendingApproval: ApprovalRequest?
     /// A remote MCP tool waiting for the user's spoken yes (9j-3). Answered
@@ -248,7 +262,7 @@ public actor VoiceSession: VoiceControlling {
                         // their hands full has to reach the ear too.
                         onEvent: { [weak self] event in
                             eventBox.yield(event)
-                            guard case .job(.approvalRequested(let request)) = event
+                            guard case .job(.approvalRequested(let request), _) = event
                             else { return }
                             Task { [weak self] in
                                 await self?.noteApproval(request)
@@ -262,7 +276,7 @@ public actor VoiceSession: VoiceControlling {
             }
             classic.onDelegate = realtime.onDelegate
             realtime.onResolveApproval = { [weak self] approved in
-                await self?.answerPendingApproval(approved) ?? false
+                await self?.answerPendingApproval(approved) ?? .nothingPending
             }
             classic.onResolveApproval = realtime.onResolveApproval
         }
@@ -300,6 +314,7 @@ public actor VoiceSession: VoiceControlling {
     }
 
     public func start() async {
+        voiceClosed = false
         await apply(.startVoice(preferRealtime: openAIKey() != nil))
     }
 
@@ -309,6 +324,8 @@ public actor VoiceSession: VoiceControlling {
 
     public func hangUp() async {
         screen?.cancel()
+        voiceClosed = true
+        await silenceAnnouncements(reason: "voice-closed")
         await apply(.hangUp)
     }
 
@@ -318,7 +335,10 @@ public actor VoiceSession: VoiceControlling {
         Log.app("voice: mic \(machine.snapshot.muted ? "muted" : "unmuted")")
     }
 
+    /// Esc, the Stop button, a spoken "para": a job's end still talking, or
+    /// waiting to, goes quiet with everything else (review 16h-2 S2).
     public func interrupt() async {
+        await silenceAnnouncements(reason: "stopped")
         await apply(.interrupt)
     }
 }

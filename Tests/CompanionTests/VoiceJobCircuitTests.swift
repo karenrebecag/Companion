@@ -19,6 +19,7 @@ import Testing
     await testTheArtifactStaysInTheThreadNotInTheVoice()
     await testBridgeHumanizesFailure()
     await testBridgeForwardsEvents()
+    await testTheEndTravelsAfterTheLastStep()
     await testAnnouncementFlowsWhenListening()
     await testAnnouncementWaitsForListening()
 }
@@ -86,9 +87,28 @@ import Testing
         onEvent: { seen.append($0) })
 
     expect(seen.all.contains {
-        if case .job(.stepStarted) = $0 { return true }
+        if case .job(.stepStarted, _) = $0 { return true }
         return false
     }, "circuito: los pasos del especialista llegan a quien pinta")
+}
+
+/// Review 16h-2 round 3 (SHOULD 2): the pump drains before the end goes
+/// out. A step still in flight behind the end opened an orphan row.
+@MainActor func testTheEndTravelsAfterTheLastStep() async {
+    for jobs in [FixedSteppingSubmitter(throwing: false), FixedSteppingSubmitter(throwing: true)] {
+        let seen = EventTextBox()
+        await VoiceJobBridge.run(
+            Handoff(goal: "leer algo", context: ""), jobs: jobs, thread: ScriptedThread(),
+            onEvent: { event in
+                // A slow reader of the step: the end must still wait for it.
+                if case .job(.stepStarted, _) = event { Thread.sleep(forTimeInterval: 0.05) }
+                seen.append(event)
+            })
+        let last = seen.all.last
+        var isEnd = false
+        if case .jobFinished = last { isEnd = true }
+        expect(isEnd, "fin: el fin sale después del último paso (throwing=\(jobs.throwing), \(seen.all))")
+    }
 }
 
 /// Encargo termina con la sesión escuchando: el anuncio sale de inmediato
@@ -188,6 +208,21 @@ struct SteppingSubmitter: JobSubmitter {
         events.yield(.stepFinished(tool: "read_file", ok: true))
         // El puente drena en paralelo; un respiro para que le lleguen.
         try? await Task.sleep(for: .milliseconds(10))
+        return JobResult(output: "ok", isError: false)
+    }
+    func cancel() async {}
+    func resolveApproval(requestId: String, approved: Bool) async {}
+    var isBusy: Bool { get async { false } }
+}
+
+/// One step and an immediate end, or an immediate throw.
+struct FixedSteppingSubmitter: JobSubmitter {
+    let throwing: Bool
+    func submit(
+        _ handoff: Handoff, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        events.yield(.stepStarted(tool: "read_file", summary: "leyendo"))
+        if throwing { throw ChatError.unreachable }
         return JobResult(output: "ok", isError: false)
     }
     func cancel() async {}

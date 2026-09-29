@@ -30,6 +30,7 @@ extension VoiceSession {
     func cancelClassicTurn() async {
         classicTurnTask?.cancel()
         classicTurnTask = nil
+        await cutAnnouncement()
         await synthesizer.stop()
         screen?.cancel()
     }

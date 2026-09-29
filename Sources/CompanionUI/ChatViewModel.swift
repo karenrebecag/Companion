@@ -22,6 +22,9 @@ public final class ChatViewModel: ConversationPresenting {
     /// Set by the brake so the job's own ending knows it was stopped rather
     /// than broken.
     var cancelledJob = false
+    /// 16h-2: the id of the chat's own job, so its events never land on a
+    /// voice-born job's row (or the other way round).
+    var chatJobID: JobID?
 
     public var folderName: String?
 
@@ -313,16 +316,14 @@ public final class ChatViewModel: ConversationPresenting {
                content: ContextBlock.compact(ctx, language: config.language) + " " + text)
     }
 
+    /// Not a job's end: the voice's replies land here too, and every job
+    /// sends its own tagged end (review 16h-2 round 3).
     public func appendAssistant(_ text: String) async {
-        // A result landing means the job is over: a live card left running
-        // under the report is the app lying about what it is doing.
-        finishJob()
         messages.append(ChatMessage(role: .assistant, text: text))
         persist()
     }
 
     public func appendStatus(_ text: String) async {
-        finishJob()
         messages.append(ChatMessage(isStatus: true, text: text))
         persist()
     }

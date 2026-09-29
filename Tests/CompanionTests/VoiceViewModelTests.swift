@@ -213,32 +213,44 @@ import Testing
     expectEq(voice.hungUp, 2, "race: ambos hangUp llegan")
 }
 
+/// Every port call arrives on a Task of its own; the counters sit behind a
+/// lock so two calls in a row never lose one (a lost `+= 1` read as a flake).
 final class RecordingVoice: VoiceControlling, @unchecked Sendable {
-    private(set) var speeds: [Double] = []
-    func setSpeed(_ speed: Double) async { speeds.append(speed) }
+    private let lock = NSLock()
+    private var _speeds: [Double] = []
+    var speeds: [Double] { lock.withLock { _speeds } }
+    func setSpeed(_ speed: Double) async { lock.withLock { _speeds.append(speed) } }
     func setVolume(_ volume: Double) async {}
 
-    var started = 0, advanced = 0, hungUp = 0, muteToggles = 0
-    var muted = false
+    private var counts = (started: 0, advanced: 0, hungUp: 0, muteToggles: 0)
+    private var _muted = false
+    var started: Int { lock.withLock { counts.started } }
+    var advanced: Int { lock.withLock { counts.advanced } }
+    var hungUp: Int { lock.withLock { counts.hungUp } }
+    var muteToggles: Int { lock.withLock { counts.muteToggles } }
+    var muted: Bool { lock.withLock { _muted } }
     private let snapBox = StreamBox<TurnSnapshot>()
     private let levelBox = StreamBox<VoiceLevels>()
     var snapshots: AsyncStream<TurnSnapshot> { snapBox.stream }
     var levels: AsyncStream<VoiceLevels> { levelBox.stream }
 
-    func start() async { started += 1 }
-    func advance() async { advanced += 1 }
-    func hangUp() async { hungUp += 1 }
-    func toggleMute() async { muteToggles += 1; muted.toggle() }
-    func push(attachment: AttachmentRef) async { pushed.append(attachment) }
-    var pushed: [AttachmentRef] = []
+    func start() async { lock.withLock { counts.started += 1 } }
+    func advance() async { lock.withLock { counts.advanced += 1 } }
+    func hangUp() async { lock.withLock { counts.hungUp += 1 } }
+    func toggleMute() async { lock.withLock { counts.muteToggles += 1; _muted.toggle() } }
+    private var _pushed: [AttachmentRef] = []
+    var pushed: [AttachmentRef] { lock.withLock { _pushed } }
+    func push(attachment: AttachmentRef) async { lock.withLock { _pushed.append(attachment) } }
     /// Wave 12b: the hold port, in call order.
-    private(set) var calls: [String] = []
-    func hold() async { calls.append("hold") }
-    func holdProvisionally() async { calls.append("holdProvisionally") }
-    func confirmHold() async { calls.append("confirmHold") }
-    func release() async { calls.append("release") }
-    func discard() async { calls.append("discard") }
-    func interrupt() async { calls.append("interrupt") }
+    private var _calls: [String] = []
+    var calls: [String] { lock.withLock { _calls } }
+    private func record(_ call: String) { lock.withLock { _calls.append(call) } }
+    func hold() async { record("hold") }
+    func holdProvisionally() async { record("holdProvisionally") }
+    func confirmHold() async { record("confirmHold") }
+    func release() async { record("release") }
+    func discard() async { record("discard") }
+    func interrupt() async { record("interrupt") }
     func yieldSnapshot(_ snapshot: TurnSnapshot) { snapBox.yield(snapshot) }
     func yieldLevels(_ value: VoiceLevels) { levelBox.yield(value) }
     func finish() { snapBox.finish(); levelBox.finish() }

@@ -23,15 +23,20 @@ public struct JobResult: Sendable, Equatable {
     public var output: String
     public var isError: Bool
     public var sessionId: String?
+    /// 16h-2: someone stopped it (the island, the menu, "para"). Not a
+    /// failure to announce: the user already knows, she asked for it.
+    public var cancelled: Bool
 
     public init(
         output: String,
         isError: Bool,
-        sessionId: String? = nil
+        sessionId: String? = nil,
+        cancelled: Bool = false
     ) {
         self.output = output
         self.isError = isError
         self.sessionId = sessionId
+        self.cancelled = cancelled
     }
 }
 

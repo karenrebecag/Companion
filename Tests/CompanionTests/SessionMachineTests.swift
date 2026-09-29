@@ -220,20 +220,23 @@ private func parentRequest(_ id: String) -> ApprovalRequest {
     ApprovalRequest(requestId: id, toolName: "open_url", summary: "", inputJSON: #"{"url":"https://evil.example"}"#)
 }
 
+/// Every job speaks with its id (16h-2); an untagged request is nobody's.
+private let owned = JobID("j")
+
 /// Security review 2026-09-06 (crítico): una petición del padre (`open_url`)
 /// contestada mientras corre un encargo no es "la primera acción del
 /// encargo". Ni aprobarla desarma la regla, ni negarla para el encargo.
 @MainActor func testAParentsApprovalDoesNotCountForTheJob() {
     var m = SessionMachine()
-    _ = m.handle(.job(.started(goal: "limpiar Descargas")))
+    _ = m.handle(.job(.started(goal: "limpiar Descargas"), from: owned))
     _ = m.handle(.job(.approvalRequested(parentRequest("p1"))))
     _ = m.handle(.approvalAnswered(requestId: "p1", approved: true, remember: false))
-    _ = m.handle(.job(.approvalRequested(request("a1"))))
+    _ = m.handle(.job(.approvalRequested(request("a1")), from: owned))
     let fx = m.handle(.approvalAnswered(requestId: "a1", approved: false, remember: false))
     expect(fx.contains(.cancelJob), "padre: aprobar open_url no desarma «negar el primer paso»")
 
     var other = SessionMachine()
-    _ = other.handle(.job(.started(goal: "x")))
+    _ = other.handle(.job(.started(goal: "x"), from: owned))
     _ = other.handle(.job(.approvalRequested(parentRequest("p2"))))
     let denied = other.handle(.approvalAnswered(requestId: "p2", approved: false, remember: false))
     expect(!denied.contains(.cancelJob), "padre: negar open_url no para el encargo")
@@ -245,8 +248,8 @@ private func parentRequest(_ id: String) -> ApprovalRequest {
 /// las mismas reglas. Sin nada pendiente no resuelve nada.
 @MainActor func testTheSpokenAnswerGoesToTheSheetsFirst() {
     var m = SessionMachine()
-    _ = m.handle(.job(.started(goal: "x")))
-    _ = m.handle(.job(.approvalRequested(request("a1"))))
+    _ = m.handle(.job(.started(goal: "x"), from: owned))
+    _ = m.handle(.job(.approvalRequested(request("a1")), from: owned))
     _ = m.handle(.job(.approvalRequested(parentRequest("p1"))))
     let fx = m.handle(.approvalSpoken(approved: true))
     expect(fx.contains(.resolveApproval(requestId: "a1", approved: true, remember: false)),
@@ -254,8 +257,8 @@ private func parentRequest(_ id: String) -> ApprovalRequest {
     expectEq(m.projection.approval?.requestId, "p1", "hablado: la siguiente pasa al frente")
 
     var first = SessionMachine()
-    _ = first.handle(.job(.started(goal: "x")))
-    _ = first.handle(.job(.approvalRequested(request("a1"))))
+    _ = first.handle(.job(.started(goal: "x"), from: owned))
+    _ = first.handle(.job(.approvalRequested(request("a1")), from: owned))
     let no = first.handle(.approvalSpoken(approved: false))
     expect(no.contains(.cancelJob), "hablado: negar el primer paso por voz también para el encargo")
 
@@ -268,9 +271,9 @@ private func parentRequest(_ id: String) -> ApprovalRequest {
 /// de Stop, del encargo que acabas de parar, no reabre la cola: se niega.
 @MainActor func testALateRequestAfterStopIsDenied() {
     var m = SessionMachine()
-    _ = m.handle(.job(.started(goal: "x")))
+    _ = m.handle(.job(.started(goal: "x"), from: owned))
     _ = m.handle(.stop)
-    let fx = m.handle(.job(.approvalRequested(request("late"))))
+    let fx = m.handle(.job(.approvalRequested(request("late")), from: owned))
     expect(m.projection.approvalQueue.isEmpty, "tardía: no entra en la cola")
     expect(fx.contains(.resolveApproval(requestId: "late", approved: false, remember: false)),
            "tardía: se niega sola")
@@ -497,8 +500,8 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
 /// posterior solo la niega. Un no que para no se recuerda.
 @MainActor func testDenyingTheFirstActionStopsTheJob() {
     var m = SessionMachine()
-    _ = m.handle(.job(.started(goal: "revisar el disco")))
-    _ = m.handle(.job(.approvalRequested(request("a1"))))
+    _ = m.handle(.job(.started(goal: "revisar el disco"), from: owned))
+    _ = m.handle(.job(.approvalRequested(request("a1")), from: owned))
     let fx = m.handle(.approvalAnswered(requestId: "a1", approved: false, remember: true))
     expect(fx.contains(.resolveApproval(requestId: "a1", approved: false, remember: false)),
            "negar 1º: se resuelve sin recordar")
@@ -508,10 +511,10 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     expect(m.projection.job == nil, "negar 1º: sin tarjeta")
 
     var later = SessionMachine()
-    _ = later.handle(.job(.started(goal: "x")))
-    _ = later.handle(.job(.approvalRequested(request("a1"))))
+    _ = later.handle(.job(.started(goal: "x"), from: owned))
+    _ = later.handle(.job(.approvalRequested(request("a1")), from: owned))
     _ = later.handle(.approvalAnswered(requestId: "a1", approved: true, remember: false))
-    _ = later.handle(.job(.approvalRequested(request("a2"))))
+    _ = later.handle(.job(.approvalRequested(request("a2")), from: owned))
     let fx2 = later.handle(.approvalAnswered(requestId: "a2", approved: false, remember: true))
     expectEq(kinds(fx2), [.resolveApproval(requestId: "a2", approved: false, remember: true)],
              "negar 2º: solo esa acción, y se recuerda")
@@ -754,7 +757,7 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
 /// turno) y toda petición `bridge_session` se negaba sola, sin hoja.
 @MainActor func testBridgeAskReachesTheSheetAtRest() {
     var m = SessionMachine()
-    _ = m.handle(.job(.started(goal: "x")))
+    _ = m.handle(.job(.started(goal: "x"), from: owned))
     _ = m.handle(.stop)
     expectEq(m.projection.interruption, .userStopped, "previo: el reposo envenenado")
 
@@ -769,9 +772,9 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
 
     // La protección original sigue: una petición del encargo parado muere.
     var late = SessionMachine()
-    _ = late.handle(.job(.started(goal: "x")))
+    _ = late.handle(.job(.started(goal: "x"), from: owned))
     _ = late.handle(.stop)
-    let fx2 = late.handle(.job(.approvalRequested(request("r9"))))
+    let fx2 = late.handle(.job(.approvalRequested(request("r9")), from: owned))
     expect(fx2.contains(.resolveApproval(requestId: "r9", approved: false, remember: false)),
            "encargo parado: la tardía sigue muriendo")
     expect(late.projection.approvalQueue.isEmpty, "encargo parado: nada en cola")

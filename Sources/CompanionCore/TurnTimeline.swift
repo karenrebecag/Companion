@@ -7,7 +7,7 @@ import Foundation
 /// the code takes to run it (Wave DM0). Pure; the session marks, the log reads.
 public struct TurnTimeline: Sendable, Equatable {
     public enum Point: Sendable, Equatable, CaseIterable {
-        case pressed, micReady, earReady, sessionReady, firstPartial, released, committed, contextReady, toolCallSeen, toolDone, firstAudio, decision, firstToken, earFinal, firstCut, ttsRequest, firstByte
+        case pressed, micReady, earReady, sessionReady, firstPartial, released, committed, contextReady, toolCallSeen, toolDone, firstAudio, decision, firstToken, earFinal, firstCut, ttsRequest, firstByte, acknowledged
     }
 
     public var pressed: TimeInterval?
@@ -36,6 +36,9 @@ public struct TurnTimeline: Sendable, Equatable {
     public var firstCut: TimeInterval?
     public var ttsRequest: TimeInterval?
     public var firstByte: TimeInterval?
+    /// Wave 16h-2: the turn's own acknowledgement was queued, before the
+    /// slow work it announces — criterion 1 reads `commit→ack` < 2 s.
+    public var acknowledged: TimeInterval?
 
     public init() {}
 
@@ -59,6 +62,7 @@ public struct TurnTimeline: Sendable, Equatable {
         case .firstCut: if firstCut == nil { firstCut = time }
         case .ttsRequest: if ttsRequest == nil { ttsRequest = time }
         case .firstByte: if firstByte == nil { firstByte = time }
+        case .acknowledged: if acknowledged == nil { acknowledged = time }
         }
     }
 
@@ -82,6 +86,7 @@ public struct TurnTimeline: Sendable, Equatable {
             "firstCut→ttsRequest \(Self.gap(firstCut, ttsRequest))",
             "ttsRequest→firstByte \(Self.gap(ttsRequest, firstByte))",
             "firstByte→audible \(Self.gap(firstByte, firstAudio))",
+            "commit→ack \(Self.gap(committed, acknowledged))",
             "commit→audio \(Self.gap(committed, firstAudio))",
             // 15g-5: the context fan-out's share, before the model starts.
             "commit→context \(Self.gap(committed, contextReady))",
