@@ -49,6 +49,10 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
   assert.equal(validateCall({ name: 'browser_click', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_type', arguments: { tab: 1, generation: 3, element: 2, text: '' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_navigate', arguments: { tab: 1, url: 'https://a.b/' } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'https://a.b/' } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'http://a.b/x?y=1' } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_take', arguments: { tab: 4 } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_release', arguments: { tab: 4 } }).ok, true);
   for (const bad of [
     null, {}, { name: 'browser_nope', arguments: {} },
     { name: 'browser_read', arguments: { tab: '12' } },
@@ -59,6 +63,17 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
     { name: 'browser_navigate', arguments: { tab: 1, url: 'javascript:alert(1)' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'file:///etc/passwd' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'not a url' } },
+    { name: 'browser_open', arguments: {} },
+    { name: 'browser_open', arguments: { url: 5 } },
+    { name: 'browser_open', arguments: { url: 'javascript:alert(1)' } },
+    { name: 'browser_open', arguments: { url: 'file:///etc/passwd' } },
+    { name: 'browser_open', arguments: { url: 'chrome://settings' } },
+    { name: 'browser_open', arguments: { url: 'data:text/html,x' } },
+    { name: 'browser_take', arguments: {} },
+    { name: 'browser_take', arguments: { tab: '4' } },
+    { name: 'browser_take', arguments: { tab: 1.5 } },
+    { name: 'browser_release', arguments: { tab: null } },
+    { name: 'browser_release', arguments: { tab: 'x' } },
   ]) {
     const r = validateCall(bad);
     assert.equal(r.ok, false, JSON.stringify(bad));
@@ -182,4 +197,16 @@ test('buildPage clips title and url and surfaces a selector error', () => {
   assert.ok(Array.from(page.title).length <= 500 && Array.from(page.url).length <= 500);
   const bad = buildPage({ title: '', url: 'https://x/' }, 1, 1, 'a', [{ frameId: 0, result: { error: { code: 'invalid_args', message: 'm' } } }]);
   assert.equal(bad.error.code, 'invalid_args');
+});
+
+test('sanitizeTab adds controlled, opener and createdAt with safe defaults', () => {
+  assert.deepEqual(sanitizeTab({ id: 1, title: 'T', url: 'https://x.test/', active: false }), {
+    id: 1, title: 'T', url: 'https://x.test/', active: false, controlled: false, opener: null, createdAt: null,
+  });
+  const t = sanitizeTab({ id: 2, url: 'https://x.test/', openerTabId: 7 }, { controlled: true, createdAt: 1700000000000 });
+  assert.equal(t.controlled, true);
+  assert.equal(t.opener, 7);
+  assert.equal(t.createdAt, 1700000000000);
+  assert.equal(sanitizeTab({ id: 3, openerTabId: 'x' }, { controlled: 'yes', createdAt: 'x' }).opener, null);
+  assert.equal(sanitizeTab({ id: 3 }, { controlled: 'yes', createdAt: 'x' }).createdAt, null);
 });

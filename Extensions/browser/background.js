@@ -2,6 +2,7 @@ import {
   trimMessage, detectBrowser, validateCall, errorReply, reconnectPlan, classifyInbound,
   nextGeneration, makeReplyGuard, sanitizeTab, buildPage,
 } from './lib/wire.js';
+import { GROUP_TITLE, groupPlan, releasePlan, cleanupPlan, recordCreated } from './lib/groups.js';
 
 const HOST = 'com.karen.companion.browser';
 const PROTOCOL = 1;
@@ -18,6 +19,17 @@ let reconnectTimer = null;
 const tabState = new Map();
 let generationCounter = 0;
 const replies = makeReplyGuard();
+const GROUPS_KEY = 'companionGroups';
+// Where each taken tab was before we grouped it. Memory only: after a worker restart release simply ungroups.
+const taken = new Map();
+let createdAt = new Map();
+// Group changes read then write Chrome state; running two at once could create two Companion groups.
+let groupChain = Promise.resolve();
+const serial = (fn) => {
+  const run = groupChain.then(fn, fn);
+  groupChain = run.catch(() => {});
+  return run;
+};
 
 function send(message) {
   if (!port) return;
@@ -48,6 +60,8 @@ function connect() {
     // Reading lastError is required or Chrome logs an unchecked-error warning.
     void chrome.runtime.lastError;
     if (port === mine) port = null;
+    // With no app on the other end nobody is steering these tabs, so hand them back to the user.
+    dissolveOurGroups();
     scheduleReconnect();
   });
   // The native relay adds the token; the extension never holds a secret.
@@ -100,13 +114,115 @@ function dispatch(name, args) {
     case 'browser_click': return act(args, (g, id) => globalThis.__companionPage.click(g, id), []);
     case 'browser_type': return act(args, (g, id, text) => globalThis.__companionPage.type(g, id, text), [args.text]);
     case 'browser_navigate': return navigate(args.tab, args.url);
+    case 'browser_open': return serial(() => openTab(args.url));
+    case 'browser_take': return serial(() => takeTab(args.tab));
+    case 'browser_release': return serial(() => releaseTab(args.tab));
     default: return Promise.resolve({ error: { code: 'invalid_args', message: 'unknown tool' } });
   }
 }
 
 async function tabs() {
   const all = await chrome.tabs.query({});
-  return { tabs: all.filter((t) => Number.isInteger(t.id)).map(sanitizeTab) };
+  const groupIds = await ourGroupIds();
+  return {
+    tabs: all
+      .filter((t) => Number.isInteger(t.id))
+      .map((t) => sanitizeTab(t, { controlled: groupIds.includes(t.groupId), createdAt: createdAt.get(t.id) ?? null })),
+  };
+}
+
+// Storage says which groups we made; the live title check drops ids Chrome has since removed or reused.
+async function ourGroupIds(windowId) {
+  const stored = (await chrome.storage.session.get(GROUPS_KEY))[GROUPS_KEY];
+  const groups = await chrome.tabGroups.query(windowId === undefined ? {} : { windowId });
+  return cleanupPlan({ stored, groups });
+}
+
+async function rememberGroup(groupId) {
+  const stored = (await chrome.storage.session.get(GROUPS_KEY))[GROUPS_KEY];
+  const known = Array.isArray(stored) ? stored : [];
+  if (!known.includes(groupId)) await chrome.storage.session.set({ [GROUPS_KEY]: [...known, groupId] });
+}
+
+const staleTab = { error: { code: 'stale_id', message: 'no such tab' } };
+
+async function putInGroup(tab) {
+  const plan = groupPlan({ tab, ourGroupIds: await ourGroupIds(tab.windowId) });
+  if (plan.noop) return;
+  taken.set(tab.id, plan.record);
+  try {
+    if (plan.target !== null) {
+      await chrome.tabs.group({ groupId: plan.target, tabIds: [tab.id] });
+      return;
+    }
+    const groupId = await chrome.tabs.group({ tabIds: [tab.id], createProperties: { windowId: tab.windowId } });
+    await rememberGroup(groupId);
+    await chrome.tabGroups.update(groupId, { title: GROUP_TITLE, color: 'blue', collapsed: false });
+    // Pinned tabs can make index 0 unavailable; the group is still ours and usable where it landed.
+    await chrome.tabGroups.move(groupId, { index: 0 }).catch(() => {});
+  } catch (error) {
+    taken.delete(tab.id);
+    throw error;
+  }
+}
+
+async function takeTab(tabId) {
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (!tab) return staleTab;
+  await putInGroup(tab);
+  return { done: 'taken' };
+}
+
+async function openTab(url) {
+  const created = await chrome.tabs.create({ url, active: false });
+  try {
+    await putInGroup(created);
+  } catch (error) {
+    // An ungrouped tab would sit in the user's window with no owner to ever release it.
+    await chrome.tabs.remove(created.id).catch(() => {});
+    throw error;
+  }
+  const { id, title, url: shown, active } = sanitizeTab({ ...created, url: created.url || created.pendingUrl || url });
+  return { tab: { id, title, url: shown, active } };
+}
+
+async function releaseTab(tabId) {
+  const tab = await chrome.tabs.get(tabId).catch(() => null);
+  if (!tab) return staleTab;
+  const record = taken.get(tabId) ?? null;
+  taken.delete(tabId);
+  const inWindow = new Set((await chrome.tabGroups.query({ windowId: tab.windowId })).map((g) => g.id));
+  const plan = releasePlan({ record, tab, ourGroupIds: await ourGroupIds(tab.windowId), groupExists: (id) => inWindow.has(id) });
+  if (!plan.act) return { done: 'released' };
+  // Ungrouping the last tab removes the group, so there is no separate dissolve step here.
+  await chrome.tabs.ungroup([tabId]);
+  if (plan.regroup !== null) {
+    try {
+      await chrome.tabs.group({ groupId: plan.regroup, tabIds: [tabId] });
+    } catch {
+      // The user's group vanished meanwhile: the tab is already ours to give back, so put it where it was.
+      if (record?.index !== undefined) await chrome.tabs.move(tabId, { index: record.index }).catch(() => {});
+    }
+  } else if (plan.moveTo !== null) await chrome.tabs.move(tabId, { index: plan.moveTo });
+  return { done: 'released' };
+}
+
+function dissolveOurGroups() {
+  taken.clear();
+  return serial(async () => {
+    try {
+      const stored = (await chrome.storage.session.get(GROUPS_KEY))[GROUPS_KEY];
+      const ids = cleanupPlan({ stored, groups: await chrome.tabGroups.query({}) });
+      for (const groupId of ids) {
+        const members = await chrome.tabs.query({ groupId });
+        const tabIds = members.map((t) => t.id).filter(Number.isInteger);
+        if (tabIds.length > 0) await chrome.tabs.ungroup(tabIds);
+      }
+      await chrome.storage.session.set({ [GROUPS_KEY]: [] });
+    } catch (error) {
+      console.warn('companion: could not dissolve groups', error?.message);
+    }
+  });
 }
 
 async function inject(target) {
@@ -162,7 +278,13 @@ async function navigate(tabId, url) {
   return { done: 'navigated' };
 }
 
-chrome.tabs.onRemoved.addListener((tabId) => tabState.delete(tabId));
+chrome.tabs.onRemoved.addListener((tabId) => {
+  tabState.delete(tabId);
+  taken.delete(tabId);
+  createdAt = new Map([...createdAt].filter(([id]) => id !== tabId));
+});
+// Chrome does not expose a tab's creation time, so stamp it here; tabs made before this worker started stay null.
+chrome.tabs.onCreated.addListener((tab) => { createdAt = recordCreated(createdAt, tab, Date.now()); });
 
 // An alarm wakes a sleeping worker; reconnecting here is what keeps the link alive across MV3 suspends.
 chrome.alarms.create('companion-keepalive', { periodInMinutes: 1 });
@@ -170,6 +292,7 @@ chrome.alarms.onAlarm.addListener(() => {
   reconnect = reconnectPlan(reconnect, 'tick');
   connect();
 });
+dissolveOurGroups();
 chrome.runtime.onStartup.addListener(connect);
 chrome.runtime.onInstalled.addListener(connect);
 connect();
