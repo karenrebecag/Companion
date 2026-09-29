@@ -108,12 +108,19 @@ public enum HandsGate {
                 let single = !text.contains(where: \.isNewline)
                 return single && HandsWords.said(text, in: said) ? .act : .ask
             }
-            let clean = stripped(text)
-            return HandsWords.looksLikeAddress(clean) && !HandsWords.said(clean, in: said)
-                ? .ask : .act
+            return typeVerdict(text: text, said: said)
         default:
             return .act
         }
+    }
+
+    /// Outside a command app, typed text that reads as an address or flag
+    /// asks unless the user said it. Shared with the browser's `type` so the
+    /// rule has one home.
+    public static func typeVerdict(text: String, said: String) -> HandsVerdict {
+        let clean = stripped(text)
+        return HandsWords.looksLikeAddress(clean) && !HandsWords.said(clean, in: said)
+            ? .ask : .act
     }
 
     /// Wave 16a: a click acts, unless its button deletes, pays or sends and

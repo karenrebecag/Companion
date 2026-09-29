@@ -28,9 +28,7 @@ final class BridgeHost {
         sessionModel: SessionModel,
         targetFrame: @escaping @Sendable () -> CGRect?
     ) {
-        let directory = FileManager.default.urls(
-            for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Companion/bridge")
+        let directory = BridgePaths.directory
         let parentGuard = ParentToolGuard(
             approvals: approvals,
             onRequest: { request in
