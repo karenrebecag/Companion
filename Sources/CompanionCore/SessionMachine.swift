@@ -92,10 +92,10 @@ public struct SessionMachine: Sendable, Equatable {
             effects.append(.resolveApproval(
                 requestId: id, approved: approved, remember: remember && !stops))
             if stops { effects += stop() }
-        case .approvalSpoken(let approved):
-            guard let first = projection.approval else { return [] }
+        case .approvalSpoken(let id, let approved):
+            guard projection.approval?.requestId == id else { return [] }
             return handle(.approvalAnswered(
-                requestId: first.requestId, approved: approved, remember: false))
+                requestId: id, approved: approved, remember: false))
         case .approvalSettled(let id):
             _ = remove(id)
         case .approvalDropped(let id):

@@ -123,10 +123,11 @@ public enum SessionEvent: Sendable, Equatable {
     case jobFinished(ok: Bool)
     /// The sheet answered.
     case approvalAnswered(requestId: String, approved: Bool, remember: Bool)
-    /// The user answered out loud. The model carries no request id, so the
-    /// answer goes to what the sheet shows: the first of the queue. Same
-    /// road, same rules as the sheet (security review 2026-09-06).
-    case approvalSpoken(approved: Bool)
+    /// The user answered out loud, for the request the voice session noted.
+    /// It resolves only if that request is the one the sheet shows: a
+    /// blind "first of the queue" let a yes noted for one request grant
+    /// another (Wave 20c D1). Same road, same rules as the sheet.
+    case approvalSpoken(requestId: String, approved: Bool)
     /// Answered somewhere else (the spoken "yes", the actor returning): out
     /// of the queue, nothing to resolve.
     case approvalSettled(requestId: String)

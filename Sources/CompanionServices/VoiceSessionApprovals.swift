@@ -39,21 +39,32 @@ extension VoiceSession {
             Log.app("voice: approval answered with nothing pending")
             return false
         }
-        // F-D (security review 16k-3): `resolve_approval` is a call the
-        // MODEL makes — and a connected app's read output is words an
-        // attacker can plant in front of that model. An app write approved
-        // by a "spoken yes" the user never spoke would be the injection's
-        // whole payoff, so app writes take the sheet's click, always.
-        if pending.toolName.hasPrefix(ApprovalCopy.appToolPrefix) {
-            Log.app("voice: app write approvals need the sheet, not resolve_approval")
+        // Wave 20c D1 (supersedes F-D's `app:` prefix denylist): the model
+        // makes this call and any text it reads can plant the yes, so only
+        // low-risk requests are its to settle. Everything else, the
+        // bridge's hands included, waits for the sheet's click.
+        guard ApprovalRisk.of(toolName: pending.toolName) == .low else {
+            Log.app("voice: \(pending.toolName) needs the sheet, not resolve_approval")
             return false
         }
+        // HACK: the model's boolean is trusted for low-risk requests; the
+        // heard words (`SpokenConfirmation.reading`) are not compared to it
+        // because the transcript arrives on a different path than the tool
+        // call and may lag it. Upgrade trigger: the first low-risk tool that
+        // spends money or leaves the Mac, or the transcript reaching this
+        // actor with the call.
         pendingApproval = nil
-        // Not resolved here: the answer goes to the session reducer, which
-        // resolves what the sheet shows (the first of its queue) with the
-        // sheet's rules. Two notions of "pending" let a spoken yes grant a
-        // request nobody was looking at (security review 2026-09-06).
-        eventBox.yield(.approvalSpoken(approved: approved))
+        // Not resolved here: the reducer resolves this exact request only if
+        // the sheet is showing it, with the sheet's rules. Two notions of
+        // "pending" let a spoken yes grant a request nobody was looking at
+        // (security review 2026-09-06).
+        eventBox.yield(.approvalSpoken(requestId: pending.requestId, approved: approved))
         return true
+    }
+
+    /// The sheet closed this request (click, drop, settled elsewhere): a note
+    /// for it must not be answerable any more.
+    public func approvalClosed(_ requestId: String) {
+        if pendingApproval?.requestId == requestId { pendingApproval = nil }
     }
 }

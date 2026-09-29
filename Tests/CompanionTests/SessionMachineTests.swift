@@ -248,7 +248,7 @@ private func parentRequest(_ id: String) -> ApprovalRequest {
     _ = m.handle(.job(.started(goal: "x")))
     _ = m.handle(.job(.approvalRequested(request("a1"))))
     _ = m.handle(.job(.approvalRequested(parentRequest("p1"))))
-    let fx = m.handle(.approvalSpoken(approved: true))
+    let fx = m.handle(.approvalSpoken(requestId: "a1", approved: true))
     expect(fx.contains(.resolveApproval(requestId: "a1", approved: true, remember: false)),
            "hablado: resuelve la primera, la que la hoja enseña")
     expectEq(m.projection.approval?.requestId, "p1", "hablado: la siguiente pasa al frente")
@@ -256,11 +256,11 @@ private func parentRequest(_ id: String) -> ApprovalRequest {
     var first = SessionMachine()
     _ = first.handle(.job(.started(goal: "x")))
     _ = first.handle(.job(.approvalRequested(request("a1"))))
-    let no = first.handle(.approvalSpoken(approved: false))
+    let no = first.handle(.approvalSpoken(requestId: "a1", approved: false))
     expect(no.contains(.cancelJob), "hablado: negar el primer paso por voz también para el encargo")
 
     var empty = SessionMachine()
-    let none = empty.handle(.approvalSpoken(approved: true))
+    let none = empty.handle(.approvalSpoken(requestId: "a1", approved: true))
     expect(none.isEmpty, "hablado: sin nada pendiente no concede nada")
 }
 

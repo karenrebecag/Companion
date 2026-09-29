@@ -99,7 +99,7 @@ import Testing
         h.transport.sent.contains { $0.contains("function_call_output") }
     }
     jobs.askApproval(ApprovalRequest(
-        requestId: "r7", toolName: "bash", summary: "borrar build",
+        requestId: "r7", toolName: "find_places", summary: "cines cerca",
         inputJSON: "{}"))
     h.transport.yield(.responseDone)
     await pumpUntil("concede: vuelve a escuchar") {
@@ -135,7 +135,7 @@ import Testing
         h.transport.sent.contains { $0.contains("function_call_output") }
     }
     jobs.askApproval(ApprovalRequest(
-        requestId: "r9", toolName: "bash", summary: "algo delicado",
+        requestId: "r9", toolName: "find_places", summary: "algo delicado",
         inputJSON: "{}"))
     h.transport.yield(.responseDone)
     await pumpUntil("roto: vuelve a escuchar") {

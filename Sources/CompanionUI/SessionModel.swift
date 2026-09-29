@@ -28,6 +28,10 @@ public final class SessionModel {
     /// only place `projection.kind` changes, so it is the only place that
     /// needs to notice.
     public var onKindChange: (@MainActor (SessionKind) -> Void)?
+    /// A request left the sheet by any road (click, spoken, dropped, settled
+    /// elsewhere). The voice session drops its note for it, so a later
+    /// injected yes has nothing stale to answer (Wave 20c D1).
+    public var onApprovalClosed: (@MainActor (String) -> Void)?
 
     public init(
         jobs: (any JobSubmitter)?,
@@ -72,7 +76,13 @@ public final class SessionModel {
             voiceIdle = nil
         }
         for effect in effects { perform(effect) }
+        notifyClosedApprovals(event, effects)
         return effects
+    }
+
+    private func notifyClosedApprovals(_ event: SessionEvent, _ effects: [SessionEffect]) {
+        for case .resolveApproval(let id, _, _) in effects { onApprovalClosed?(id) }
+        if case .approvalSettled(let id) = event { onApprovalClosed?(id) }
     }
 
     private func perform(_ effect: SessionEffect) {
