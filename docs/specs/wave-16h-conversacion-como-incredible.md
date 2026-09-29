@@ -1,6 +1,7 @@
 # Wave 16h — Conversación al nivel de Incredible
 
-**Estado: BORRADOR (2026-09-25).** Karen: "la calidad de incredible es excelente". Evidencia: los
+**Estado: APROBADO (2026-09-28).** Firmado por delegación de Karen ("firma el resto cuando
+finalicemos", al cierre del QA en vivo de 16k). Karen: "la calidad de incredible es excelente". Evidencia: los
 transcripts de Companion del 2026-09-25 (`~/Library/Logs/Companion-transcripts.log`) y la sesión de
 Incredible de las 17:23–17:25 (`~/.incredible/conversation.json`, solo tiempos y forma de los turnos;
 nada de sus prompts).

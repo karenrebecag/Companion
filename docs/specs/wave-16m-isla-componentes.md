@@ -1,6 +1,7 @@
 # Wave 16m — Los componentes de la isla como Incredible
 
-**Estado: BORRADOR (2026-09-25), esperando aprobación.** Karen: "que hay de los componentes de la
+**Estado: APROBADO (2026-09-28).** Firmado por delegación de Karen ("firma el resto cuando
+finalicemos", al cierre del QA en vivo de 16k). Karen: "que hay de los componentes de la
 ui de notch? nos faltan muchos componentes, sobretodo de display de datos, estados, archivos
 adjuntos, etc".
 
