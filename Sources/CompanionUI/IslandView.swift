@@ -49,6 +49,8 @@ public struct IslandView: View {
     @State var focusedChoiceID: UUID?
     /// The job whose checklist was waved away (16m-2), keyed by its start.
     @State var dismissedChecklist: Date?
+    /// Whether the latest result card was ever opened, for the model (16h-3).
+    @State var resultAttention = IslandResultAttention()
 
     /// Incredible stacks the latest few; more is the window's job.
     static let maxResults = 3
@@ -156,7 +158,10 @@ public struct IslandView: View {
             chat.supersedeIslandError(notice: chat.session.projection.notice)
         }
         .onChange(of: geometry.peeking) { _, _ in peek(state) }
-        .onChange(of: latestReply?.id) { _, _ in replyStart = Date() }
+        .onChange(of: latestReply?.id) { _, id in
+            replyStart = Date()
+            reportReplyShown(id)
+        }
         .onChange(of: state.approval?.requestId, initial: true) { _, id in
             clickGuard = id == nil ? nil : ApprovalClickGuard(shownAt: Date().timeIntervalSince1970)
             if state.yieldsKeyboard { dismissField() }

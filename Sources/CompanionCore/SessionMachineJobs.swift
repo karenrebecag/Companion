@@ -5,12 +5,37 @@ import Foundation
 /// event belongs to, and the one rule for whether a job or her turn is in
 /// front of the chrome.
 extension SessionMachine {
+    /// 16h-3: own value, not measured (Incredible's receipts were not
+    /// captured): long enough to read four lines, short of squatting the
+    /// island. Counted from the moment the turn rests.
+    public static let receiptDelay: TimeInterval = 8
+
     /// How many stopped (and, apart, finished) jobs are remembered.
     // HACK: capped list, oldest out. A job stopped this many stops ago that
     // still speaks would reopen its row. Upgrade trigger: the executor
     // reports its own end after cancel, and the list becomes "until its
     // end arrives" instead of a count.
     static let stoppedCap = 32
+
+    /// A receipt is read once the turn is over: when the chrome is at Idle
+    /// with lines nobody has seen yet, they become the notice and its clock
+    /// starts. Dismissing or expiring it does not bring it back.
+    mutating func publishReceipt() -> [SessionEffect] {
+        // Never over a notice: a failure or a way to the Apps page outranks it,
+        // and the receipt comes out when that notice leaves.
+        guard let receipt = turnReceipt, !receiptPublished, projection.kind == .idle,
+              projection.notice == nil else { return [] }
+        receiptPublished = true
+        projection.notice = .receipt(receipt)
+        projection.cards = [.receipt(receipt)]
+        return [.scheduleNoticeExpiry(Self.receiptDelay)]
+    }
+
+    /// A receipt the user saw (closed, or left on its own) is spent: nothing
+    /// that starts later (a bridge step, a background job) shows it again.
+    mutating func seen(_ notice: SessionCard) {
+        if case .receipt = notice { turnReceipt = nil }
+    }
 
     /// The single rule (review 16h-2 B2): a running job shows its row unless
     /// a turn of the user's own is in front of it. Read by every place that

@@ -8,6 +8,8 @@ extension IslandView {
     func status(_ state: IslandState) -> some View {
         if state.line == .dropZones {
             IslandDropZones(zone: geometry.dropZone)
+        } else if case .receipt(let receipt) = state.line {
+            receiptCard(receipt)
         } else if case .followUp(let title) = state.line {
             IslandFollowUpRow(title: title, onDrop: { chat.followUp = nil })
         } else if case .dictationResult(let app, let text) = state.line {

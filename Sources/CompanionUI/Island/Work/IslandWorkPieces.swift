@@ -129,7 +129,7 @@ private struct WorkStepRow: View {
 }
 
 /// The dark work surface both cards share.
-private struct WorkSurface: ViewModifier {
+struct WorkSurface: ViewModifier {
     var width: CGFloat?
 
     func body(content: Content) -> some View {

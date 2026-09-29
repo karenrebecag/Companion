@@ -18,7 +18,7 @@ extension VoiceSession {
             earSegment = nil
             audit.consume()
             commitTimeline()
-            await realtime.commitWithText(segment, context: await senseVoice())
+            await commitToRealtime(segment)
             return
         }
         // Let the last native partial settle before reading it. A cancel here
@@ -59,7 +59,7 @@ extension VoiceSession {
         if target != nil { screen?.cancel() }
         if let target, await dictate(text, into: target) { return }
         commitTimeline()
-        await realtime.commitWithText(text, context: await senseVoice())
+        await commitToRealtime(text)
         if notice == .needsAccessibility {
             eventBox.yield(.dictationFailed(.needsAccessibility))
         }
@@ -85,6 +85,14 @@ extension VoiceSession {
             }
             return false
         }
+    }
+
+    /// Sense, send, and only then spend the island's facts: the block that
+    /// carries them is rendered inside `commitWithText`.
+    private func commitToRealtime(_ text: String) async {
+        let context = await senseVoice()
+        await realtime.commitWithText(text, context: context)
+        if let context { sensor?.acknowledgeIslandEvents(through: context.islandEventsThrough) }
     }
 
     /// Sensed per spoken turn, within the budget; the source is voice.

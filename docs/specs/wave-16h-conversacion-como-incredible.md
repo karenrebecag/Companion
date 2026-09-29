@@ -252,3 +252,100 @@ hold nuevo ─ listening ─ thinking(propio) ─ speaking ─ … ─ fin del e
 - **Decisión abierta para Karen** — aprobaciones MCP en realtime: hoja propia o "no" explícito;
   mientras tanto conservan el camino hablado previo.
 - Tarjeta de recibo, ubicación y eventos isla→modelo: 16h-3.
+
+## 9. 16h-3: alcance real
+
+Criterios 8 y 9 y la tarjeta de recibo del criterio 3. Incluye la ronda de fixes de review (arquitectura,
+código, seguridad).
+
+**Dónde estás (criterio 8).** Todo pedido, de voz o de chat, pasa por `SystemContextSensor.sense`, que
+añade al `TurnContext` `<focused_window>` (título de la ventana de delante, `FocusedWindowSensor`, misma
+confianza de Accesibilidad y mismo pid que el sensor de documentos; **viaja con el canal de la app**),
+`<user_location>` e `<island_events>`. Todo campo no confiable (app, ventana, documentos) pasa por
+`TextHygiene.oneLine`: se quitan los escalares de formato (etiquetas U+E0000-E007F, bidi, ancho cero) y
+los saltos y controles pasan a espacio. Se comprueba por categoría porque `CharacterSet.controlCharacters`
+no cubre el bloque de etiquetas del plano 14.
+- **Ubicación como canal** (`ContextChannels.location`, interruptor "Tu ciudad" en Ajustes › Privacidad,
+  encendido por defecto. Migración: quien guardó canales antes de que existiera lo recibe encendido hasta su
+  primer guardado, **salvo que hubiera apagado todos** (ningún canal conocido encendido: un bit que ningún
+  canal conoce no cuenta): encender un sentido a espaldas de "todo apagado" sería lo contrario de su
+  decisión. Desde el primer guardado solo manda el interruptor). El sensor solo consulta `location.current` con el canal activo. La ciudad sale de
+  `UserLocationSource`: lo que dice Ajustes › Tú (`Config.ownerCity`) gana; si está vacío, la del sistema
+  (`CoreLocationCityLocator`, `CachedCityLocator`: una consulta por tipo de llamada —con y sin permiso—,
+  solo la propia tarea libera su hueco, la ciudad se guarda en memoria y un fallo no se guarda).
+  `UserLocation` solo tiene ciudad y país y se acota por Character y luego por escalares. Los logs dicen
+  que hubo una consulta y el tipo de error, nunca dónde. En macOS el permiso When In Use vuelve como
+  `.authorizedAlways` (no existe `.authorizedWhenInUse`), y solo ese estado admite leer.
+- **Texto veraz**: la ciudad acompaña cada pedido mientras el canal esté encendido; el permiso del sistema
+  solo se pide cuando `find_places` recibe "cerca" y Ajustes no tiene ciudad. Un turno nunca abre el
+  diálogo (`prompting: false`). El interruptor apagado no impide que la búsqueda explícita pregunte.
+- **`NearMe`** casa por palabra, no por subcadena: cuentan "cerca" (y "cercano/a/os/as"), "cerca de mí",
+  "cerca de aquí", "por aquí/acá", "near me", "nearby", "close by". "cerca de/del/al <lugar>" es un ancla
+  y se busca tal cual; "acerca", "cercado", "cercanía" nunca cuentan; un `near` explícito jamás se
+  sobrescribe (incluido "Cerca de Polanco"). Sin ciudad ni permiso, la herramienta manda preguntar y no
+  busca.
+- Regla en el prompt (`ChatPrompt.whereRule`, también Realtime). Info.plist con
+  `NSLocationWhenInUseUsageDescription` y `NSLocationUsageDescription` (ambas en el gate), entitlement
+  `personal-information.location`. El gate prohíbe `CoreLocation` y `MapKit` en Core.
+
+**La isla habla con el modelo (criterio 9).** Los hechos los decide el reductor: `SessionEffect.islandEvent`
+(mostrada, cerrada por la usuaria, ignorada, interrumpida); `SessionModel` solo los reenvía al buzón. Lo que
+solo la vista sabe (popup cerrado, resultado nunca abierto: `IslandResultAttention`) entra por
+`SessionModel.report(_:)`. `.noticeExpired` lleva el aviso para el que se armó el reloj y solo lo retira si
+coincide (un reloj viejo ni borra un aviso nuevo ni cuenta como "ignorado"); `SessionModel` cancela el reloj
+cuando ya no hay aviso. `.noticeDismissed` separa "la cerró" de "se fue sola". La pista del hold no cuenta.
+- **Entrega en dos fases**: `IslandEventSource.pending()` mira sin consumir y `acknowledge(through:)` gasta;
+  acusa quien arma el prompt (`ClassicRuntime`, chat, `VoiceSession` para Realtime), no el sensor. Una
+  pulsación cancelada, un turno que responde el router o un sense descartado no consumen nada. El buzón y el
+  bloque tienen el mismo tope (`IslandEventLog.capacity` = `Caps.islandEvents` = 4).
+- **Dos señales de interrupción**: `<steer>` (la usuaria pulsó a mitad de una respuesta: sigue desde lo que
+  dice ahora) y `island_events: la usuaria interrumpió` (Esc / botón Stop: cortó la respuesta o el trabajo).
+  No son lo mismo y pueden llegar juntas.
+- `IslandResultAttention` sigue siendo `@State` de `IslandView` (decidirlo en el buzón exigiría que este
+  conozca los mensajes del chat); cambiar de conversación cuenta como "tarjeta mostrada".
+
+**Recibo (criterio 3).** `ReceiptProof.entry`: una línea existe solo si la herramienta cambia algo
+(`ParentTool.changesSomething`), salió bien y, si es `type_text`, hubo lectura posterior (`verified`,
+`TypedProof`). Invariante: el recibo es un **subconjunto de las líneas probadas** que la voz puede afirmar
+(`sayMissingEffects`); el tope de 4 se queda con las últimas, así que no todo lo probado cabe, pero nada sin
+prueba entra. Solo la línea con lectura posterior se llama "Hecho y comprobado" (`ReceiptLine.verified`,
+también en VoiceOver); las demás dicen "Hecho". Una URL se muestra como host y ruta, sin query, fragmento ni
+credenciales; todo pasa por `TextHygiene` antes del tope de 120.
+- **El recibo es del turno, no de la ronda**: la máquina guarda `turnReceipt`; las rondas (`parentActing` →
+  `receipt` → `parentActed`) lo acumulan (máx 4) y se publica como aviso al llegar a reposo. `parentActing`
+  empieza un paso (su `begin()` retira lo que hubiera en pantalla pero no las líneas del turno);
+  `openTurn` de un turno NUEVO lo descarta. Cerrarlo o que caduque no lo publica de nuevo. Su reloj
+  (`SessionMachine.receiptDelay`) arranca al publicarse.
+- Vive en `Island/Receipt/` sobre la superficie medida de la tarjeta de ejecución; textos es/en y VoiceOver.
+- **Realtime no emite recibo** (limitación aceptada): las herramientas del padre corren en `RealtimeRuntime`
+  y el modelo acusa con su propia voz. En chat, `type_text` nunca da recibo (no lee de vuelta).
+
+**Valores propios, no medidos** (Incredible no tiene recibos capturados en `docs/research`): duración 8 s
+(`receiptDelay`), máximo 4 líneas y 120 caracteres por línea, glifo de 12 pt, 4 eventos al modelo, 60
+caracteres por campo de ciudad. Medidos y reutilizados: ancho 320-420, relleno 14/16/12, radio 20 y fondo
+`#16161b` (`wf-runcard`), eyebrow 11 px/600 al 42 % (`ov-card`) y verde `#8cdc96` (aviso de éxito).
+
+**Re-review (recibo y eventos):** el recibo no pisa un aviso: si al llegar a reposo hay uno (fallo,
+conectar app, "no te oí"), espera y sale cuando ese aviso se va (un fallo que no caduca lo retiene hasta el
+turno siguiente). Un recibo visto (cerrado o caducado) se gasta: ni un paso del puente ni un encargo en
+segundo plano lo reabren. `.noticeExpired` exige el aviso exacto (sin comodín). Los eventos de la isla nunca
+se recortan en `ContextBlock.render` (el turno acusa todos los que recibe). `IslandEventLog.record` solo
+pliega sobre hechos que nadie ha leído. `TextHygiene` conserva ZWJ y ZWNJ. Cualquier URL con esquema pierde
+query, fragmento y credenciales en el recibo.
+
+**Lo que no quedó:**
+- Turnos de voz y chat solapados pueden entregar el mismo hecho dos veces (cada uno acusa lo que leyó):
+  limitación aceptada.
+- "Cerca de mi casa" cuenta como "mi ubicación" (`cerca de mí` por palabra): limitación aceptada.
+- El especialista nativo (`NativeExecutor`) no recibe `UserLocationSource`: su `find_places` no usa la ciudad.
+- La ciudad del sistema se cachea hasta reiniciar la app (HACK con disparador en `CityLocator.swift`).
+- La geocodificación inversa la hace MapKit del sistema (las coordenadas van a Apple, no al modelo ni al
+  proveedor de búsqueda), con plazo de 10 s.
+- `CoreLocationCityLocator` se prueba con fakes (`CityLocatorTests`): el manager va detrás de
+  `LocationManaging` y el reloj se inyecta. Cubre denegado/restringido sin colgarse ni pedir posición,
+  plazos de permiso, posición y geocodificación (esta última es una carrera, no una cancelación que la
+  consulta pueda ignorar), respuestas tardías y que los logs no lleven ciudad ni coordenadas. El diálogo
+  real del sistema solo se prueba en vivo.
+- `ReceiptSnapshotTests` es una galería opt-in (`COMPANION_SNAPSHOTS`), reportada como omitida si no se
+  pide; el contenido de la tarjeta (etiquetas por línea, anuncio de 4 líneas, URL larga que no crece) lo
+  comprueban tests aparte.

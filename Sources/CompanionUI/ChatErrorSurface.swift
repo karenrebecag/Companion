@@ -49,7 +49,7 @@ extension ChatViewModel {
     }
 
     func dismissIslandNotice(_ line: IslandState.Line) {
-        if case .chatError = line { dismissIslandError() } else { session.send(.noticeExpired) }
+        if case .chatError = line { dismissIslandError() } else { session.send(.noticeDismissed) }
     }
 }
 

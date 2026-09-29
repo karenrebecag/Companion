@@ -23,6 +23,8 @@ public final class SessionModel {
     private var voiceIdle: Task<Void, Never>?
     private var noticeExpiry: Task<Void, Never>?
     private var handsGlowExpiry: Task<Void, Never>?
+    /// 16h-3: where the island's events wait for the next turn.
+    public var islandEvents: (any IslandEventSink)?
     /// Wave 17: "the voice wins" — `BridgeHost` pauses the bridge for any
     /// turn of Karen's own and resumes it back at rest. `send(_:)` is the
     /// only place `projection.kind` changes, so it is the only place that
@@ -71,8 +73,18 @@ public final class SessionModel {
             voiceIdle?.cancel()
             voiceIdle = nil
         }
+        if projection.notice == nil {
+            noticeExpiry?.cancel()
+            noticeExpiry = nil
+        }
         for effect in effects { perform(effect) }
         return effects
+    }
+
+    /// What only the view knows (a card the user closed, a result nobody
+    /// opened) reaches the model through here.
+    public func report(_ event: IslandEvent) {
+        islandEvents?.record(event)
     }
 
     private func perform(_ effect: SessionEffect) {
@@ -96,7 +108,9 @@ public final class SessionModel {
         case .scheduleNoticeExpiry(let delay):
             // A second "didn't hear you" gets its own six seconds.
             noticeExpiry?.cancel()
-            noticeExpiry = timer(delay, then: .noticeExpired)
+            // Armed for THIS notice: if another took its place, the late
+            // clock finds it changed and does nothing.
+            noticeExpiry = timer(delay, then: projection.notice.map { .noticeExpired($0) } ?? .noticeDismissed)
         case .scheduleHandsGlowExpiry(let delay):
             // Each call restarts the four seconds: the aura ends after the last one.
             handsGlowExpiry?.cancel()
@@ -125,6 +139,8 @@ public final class SessionModel {
         case .cancelVoiceOutput:
             guard let voice else { return }
             Task { await voice.interrupt() }
+        case .islandEvent(let fact):
+            islandEvents?.record(fact)
         case .logTransition(let from, let to):
             log("session: \(Self.name(from)) -> \(Self.name(to))")
         }

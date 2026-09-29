@@ -47,6 +47,15 @@ public struct TurnContext: Sendable, Equatable {
     public var interrupted: Bool
     /// Wave 16o-3: what the cursor rested on while the user spoke.
     public var pointed: [PointedElement]
+    /// Wave 16h-3: the window in front of the app in front, and the city the
+    /// user is in. Sensed per turn, never persisted.
+    public var focusedWindow: String?
+    public var location: UserLocation?
+    /// Wave 16h-3: what happened on the island since the last turn.
+    public var islandEvents: [IslandEvent]
+    /// The last fact in `islandEvents`, for the acknowledgement that follows
+    /// building the prompt.
+    public var islandEventsThrough: Int
 
     public init(
         source: TurnSource,
@@ -60,7 +69,11 @@ public struct TurnContext: Sendable, Equatable {
         screenPending: Bool = false,
         screenStale: Bool = false,
         interrupted: Bool = false,
-        pointed: [PointedElement] = []
+        pointed: [PointedElement] = [],
+        focusedWindow: String? = nil,
+        location: UserLocation? = nil,
+        islandEvents: [IslandEvent] = [],
+        islandEventsThrough: Int = 0
     ) {
         self.source = source
         self.timestamp = timestamp
@@ -74,6 +87,10 @@ public struct TurnContext: Sendable, Equatable {
         self.screenStale = screenStale
         self.interrupted = interrupted
         self.pointed = pointed
+        self.focusedWindow = focusedWindow
+        self.location = location
+        self.islandEvents = islandEvents
+        self.islandEventsThrough = islandEventsThrough
     }
 }
 
@@ -182,9 +199,12 @@ public struct ContextChannels: OptionSet, Sendable, Equatable {
     public static let openDocuments = ContextChannels(rawValue: 1 << 1)
     public static let clipboard = ContextChannels(rawValue: 1 << 2)
     public static let screen = ContextChannels(rawValue: 1 << 3)
+    /// 16h-3: the city rides with every request. The system permission is
+    /// asked only by a nearby search, never by this channel.
+    public static let location = ContextChannels(rawValue: 1 << 4)
 
-    public static let `default`: ContextChannels = [.focusedApp, .openDocuments, .screen]
-    public static let all: ContextChannels = [.focusedApp, .openDocuments, .clipboard, .screen]
+    public static let `default`: ContextChannels = [.focusedApp, .openDocuments, .screen, .location]
+    public static let all: ContextChannels = [.focusedApp, .openDocuments, .clipboard, .screen, .location]
 }
 
 /// The perception port. Never throws: a channel that is off, unpermitted or
@@ -192,4 +212,11 @@ public struct ContextChannels: OptionSet, Sendable, Equatable {
 /// the turn cannot wait for the Accessibility tree of a busy app.
 public protocol ContextSensing: Sendable {
     func sense(_ channels: ContextChannels, budget: Duration) async -> TurnContext
+    /// Whoever builds the prompt calls this after it carried `ctx`'s island
+    /// events; sensing alone never consumes them.
+    func acknowledgeIslandEvents(through: Int)
+}
+
+extension ContextSensing {
+    public func acknowledgeIslandEvents(through: Int) {}
 }

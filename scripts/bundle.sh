@@ -86,6 +86,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>Companion transcribes your voice on this Mac to understand you.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Companion reads and writes the spreadsheet you have open in Excel or Numbers when you ask it to. Every write asks first and keeps a copy of the workbook.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Your city goes with each request while the city switch in Settings is on. macOS only asks for your location when you search for something nearby and Settings has no city. Companion keeps the city, never your coordinates.</string>
+    <key>NSLocationUsageDescription</key>
+    <string>Your city goes with each request while the city switch in Settings is on. macOS only asks for your location when you search for something nearby and Settings has no city. Companion keeps the city, never your coordinates.</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>Companion captures the screen when you hold FN so it can see what you are looking at. One snapshot per hold, never a recording, never stored.</string>
 </dict>

@@ -183,7 +183,7 @@ private func data(_ json: String) -> Data { Data(json.utf8) }
              "card: el evento levanta la tarjeta")
     expect(effects.contains(.scheduleNoticeExpiry(SessionMachine.noticeDelay)),
            "card: la tarjeta se va sola, como couldntHear")
-    _ = machine.handle(.noticeExpired)
+    _ = machine.handle(.noticeExpired(.connectApp(slug: "notion", name: "Notion")))
     expect(machine.projection.notice == nil, "card: expira")
 
     var projection = SessionProjection()

@@ -37,7 +37,16 @@ extension IslandView {
         }
     }
 
+    /// A reply landing under the island is a result card shown; the model
+    /// hears it, and later whether it was opened or left alone (16h-3).
+    func reportReplyShown(_ id: UUID?) {
+        guard let id else { return }
+        for event in resultAttention.replyShown(id) { chat.session.report(event) }
+    }
+
     func closeAnswer() {
+        resultAttention.attended()
+        chat.session.report(.closed(.answer))
         withAnimation(.expoOut(IslandMotionBudget.popover.openDuration)) { openAnswer = nil }
         // Not waiting for the fade, same rule as the dropdown: the click
         // area shrinks with the decision.
@@ -48,6 +57,7 @@ extension IslandView {
     /// already says (D2, spec 16m §5); a short answer keeps opening the
     /// window, which shows the same thing bigger.
     func openResult(_ id: UUID) {
+        resultAttention.attended()
         guard let message = chat.messages.first(where: { $0.id == id }),
               AnswerBlocks.isRich(AnswerBlocks.blocks(from: message.text))
         else {

@@ -317,7 +317,13 @@ private func request(_ id: String) -> ApprovalRequest {
 }
 
 private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
-    effects.filter { if case .logTransition = $0 { false } else { true } }
+    // Island facts are the model's business (ConversationQualityIslandTests).
+    effects.filter {
+        switch $0 {
+        case .logTransition, .islandEvent: false
+        default: true
+        }
+    }
 }
 
 /// 1. Nace en reposo, sin voz, sin encargo, sin cola.

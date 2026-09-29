@@ -53,6 +53,9 @@ public enum SessionCard: Sendable, Equatable {
     case connectApp(slug: String, name: String)
     /// 16m-6: the turn named an app whose account needs signing in again.
     case signInApp(slug: String, name: String)
+    /// 16h-3: what the turn did and could prove. A notice, so a new turn
+    /// clears it and it leaves on its own.
+    case receipt(ActionReceipt)
 }
 
 /// The voice port's own status, distinct from the kind: a session can be
@@ -150,11 +153,18 @@ public enum SessionEvent: Sendable, Equatable {
     case hoverLeft
     case completedTimerExpired
     /// A fading notice's six seconds are up (16e).
-    case noticeExpired
+    /// The notice the clock was armed for. A late clock for a notice that is
+    /// gone (or replaced) does nothing: there is no "whichever is up".
+    case noticeExpired(SessionCard)
+    /// 16h-3: the user closed the notice (the x); same effect as expiring,
+    /// but the model hears it was closed rather than ignored.
+    case noticeDismissed
     /// 16k-3: the turn named an app that is not connected (AppMention).
     case connectAppSuggested(slug: String, name: String)
     /// 16m-6: the turn named an app whose connected account expired.
     case signInAppSuggested(slug: String, name: String)
+    /// 16h-3: a round of the parent's hands finished with proven effects.
+    case receipt(ActionReceipt)
     /// The hold key went down (or the pointer pressed the island).
     case pressed
     case pressedProvisionally
@@ -209,6 +219,8 @@ public enum SessionEffect: Sendable, Equatable {
     case resolveApproval(requestId: String, approved: Bool, remember: Bool)
     case scheduleCompletedExpiry(TimeInterval)
     case scheduleNoticeExpiry(TimeInterval)
+    /// 16h-3: a fact about the island for the model, decided by the reducer.
+    case islandEvent(IslandEvent)
     case scheduleHandsGlowExpiry(TimeInterval)
     case schedulePendingExpiry(TimeInterval)
     /// Open the session if there is none and open the mic.
