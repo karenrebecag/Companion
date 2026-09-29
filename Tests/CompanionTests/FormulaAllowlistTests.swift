@@ -13,6 +13,9 @@ import Testing
 @Test func signedProseIsText() { testSignedProseIsStoredAsText() }
 @Test func malformedFormulasAreRejected() { testMalformedFormulasAreRejected() }
 @Test func namesThatStartLikeABooleanAreRejected() { testNamesThatStartLikeABooleanAreRejected() }
+@Test func nonASCIINamesAreRejected() { testNonASCIINamesAreRejected() }
+@Test func whitespaceCannotHideOrFuseAName() { testWhitespaceCannotHideOrFuseAName() }
+@Test func fullwidthSignsAreNotSilentFormulas() { testFullwidthSignsAreNotSilentFormulas() }
 @Test func everyAllowedFunctionIsAccepted() { testEveryAllowedFunctionIsAccepted() }
 @Test func xlsxFormulasNeedARequestAndTheAllowlist() { testXLSXWritesFormulasOnlyWhenRequestedAndAllowed() }
 @Test func theDocumentSpecCarriesTheFormulaRequest() { testTheDocumentSpecCarriesTheFormulaRequest() }
@@ -124,4 +127,36 @@ func testTheDocumentSpecCarriesTheFormulaRequest() {
     expectEq(DocumentSpec.parse(json + #","formulas":true}"#)?.allowFormulas, true, "spec: formulas:true las pide")
     let live = DocumentSpec.parse(json + #","formulas":true}"#).flatMap(XLSXWriter.package)
     expect(live != nil, "spec: el paquete se arma")
+}
+
+func testNonASCIINamesAreRejected() {
+    for name in ["=売上", "+売上", "=Ñ+1", "=1+売上(A1)", "-売上", "=SUM(A1)+Ñ", "=SUM(Ñ)", "=売上[列]"] {
+        guard case .failure(let error) = parse(name) else { return expect(false, "allowlist: aceptada \(name)") }
+        expectEq(error, .forbiddenFormula, "allowlist: rechazada \(name)")
+    }
+    for fine in [#"=IF(A1="売上","ñ","é")"#, "=SUM(A1:A2)", "={1,2,3}", "=@A1"] {
+        guard case .success = parse(fine) else { return expect(false, "allowlist: rechazada \(fine)") }
+    }
+}
+
+func testWhitespaceCannotHideOrFuseAName() {
+    for hostile in ["=TR UE", "=SUM(A1) TRUE", "=TRUE TRUE", "=A1 A1", "=SUM(A1)\tFALSE", "=IM AGE(A1)"] {
+        guard case .failure(let error) = parse(hostile) else { return expect(false, "allowlist: aceptada \(hostile)") }
+        expectEq(error, .forbiddenFormula, "allowlist: rechazada \(hostile)")
+    }
+    for fine in ["=SUM(A1:A2)", "=IF(A1>0, 1, 2)", "= SUM(A1) ", "=A1 + B1", "=VLOOKUP(A1, B1:C9, 2, FALSE)"] {
+        guard case .success = parse(fine) else { return expect(false, "allowlist: rechazada \(fine)") }
+    }
+}
+
+func testFullwidthSignsAreNotSilentFormulas() {
+    for sign in ["\u{FF1D}", "\u{FF0B}", "\u{FF20}"] {
+        expect(SheetValues.looksLikeFormula(sign + "SUM(A1)"), "fullwidth \(sign.debugDescription) se detecta")
+    }
+    for hostile in ["\u{FF1D}IMAGE(\"http://evil/x\")", "\u{FF0B}売上", "\u{FF0B}IMAGE(A1)", "\u{FF20}STOCKHISTORY(\"M\")"] {
+        guard case .failure(let error) = parse(hostile) else { return expect(false, "allowlist: aceptada \(hostile)") }
+        expectEq(error, .forbiddenFormula, "allowlist: rechazada \(hostile)")
+    }
+    guard case .success(let cells) = parse("\u{FF0B}52 55 1234") else { return expect(false, "prosa fullwidth rechazada") }
+    expectEq(cells[0][0], .text("\u{FF0B}52 55 1234"), "prosa fullwidth queda como texto")
 }

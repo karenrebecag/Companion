@@ -139,7 +139,13 @@ public enum SheetValues {
     /// the cell stays text for us but must pass the same list.
     public static func looksLikeFormula(_ text: String) -> Bool {
         guard let first = text.first(where: { !$0.isWhitespace }) else { return false }
-        return "=+-@".contains(first)
+        return "=+-@".contains(foldedSign(first) ?? first)
+    }
+
+    /// Excel reads fullwidth signs as the ASCII ones; the raw character would
+    /// let `＝IMAGE(...)` skip the gate.
+    static func foldedSign(_ char: Character) -> Character? {
+        String(char).precomposedStringWithCompatibilityMapping.first
     }
 
     /// Numbers reads a range as one flat list.

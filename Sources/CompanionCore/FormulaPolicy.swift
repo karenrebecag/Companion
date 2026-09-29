@@ -37,7 +37,7 @@ public enum FormulaPolicy {
         // Literals out first: a word inside quotes is text, and an unbalanced
         // quote leaves one behind and fails below.
         let code = normalized.replacingOccurrences(of: #""(?:[^"]|"")*""#, with: "0", options: .regularExpression)
-        guard !code.contains("\""), isWellFormed(code) else { return false }
+        guard !code.contains("\""), isWellFormed(code), !hasAdjacentOperands(code) else { return false }
         for match in matches(#"[A-Z][A-Z0-9._]*(?=\()"#, in: code) where !allowedFunctions.contains(match) {
             return false
         }
@@ -49,8 +49,15 @@ public enum FormulaPolicy {
             .replacingOccurrences(of: boundary + #"\$?[A-Z]{1,3}\$?[0-9]+(?![A-Z0-9_.])"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: boundary + #"\$?[A-Z]{1,3}:\$?[A-Z]{1,3}(?![A-Z0-9_.])"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: boundary + #"[0-9.]+E[+-]?[0-9]+(?![A-Z0-9_.])"#, with: " ", options: .regularExpression)
-        return matches(#"[A-Z_][A-Z0-9_.]*"#, in: words).allSatisfy { $0 == "TRUE" || $0 == "FALSE" }
+        guard matches(#"[A-Z_][A-Z0-9_.]*"#, in: words).allSatisfy({ $0 == "TRUE" || $0 == "FALSE" }) else { return false }
+        // The word regexes are ASCII-only, so a name made of other letters is
+        // invisible to them; allow by character instead of denying by shape.
+        return words.unicodeScalars.allSatisfy { safeCharacters.contains($0) }
     }
+
+    /// What is left of a formula once functions, references and numbers are
+    /// gone: booleans, operators, separators, array and spill syntax.
+    private static let safeCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$.,:;()+-*/^&=<>%{}#@ ")
 
     /// Text that starts with `+`, `-` or `@`: Excel's formula setter starts a
     /// formula on any of them. Prose ("- Total (MXN)", "-12 grados") is a
@@ -61,7 +68,8 @@ public enum FormulaPolicy {
         guard !hasInvisibleCharacter(text), text.unicodeScalars.allSatisfy({ !forbiddenCharacters.contains($0) }) else {
             return false
         }
-        guard let sign = text.first(where: { !$0.isWhitespace }), "+-@".contains(sign) else { return isAllowed(text) }
+        guard let sign = text.first(where: { !$0.isWhitespace }).flatMap(SheetValues.foldedSign),
+              "+-@".contains(sign) else { return isAllowed(text) }
         return isProse(text, sign: sign) || isAllowed(String(text.drop(while: { $0.isWhitespace }).dropFirst()))
     }
 
@@ -72,7 +80,15 @@ public enum FormulaPolicy {
     }
 
     private static func normalize(_ text: String) -> String {
-        String(text.precomposedStringWithCompatibilityMapping.uppercased().filter { !$0.isWhitespace })
+        let folded = text.precomposedStringWithCompatibilityMapping.uppercased()
+        return String(folded.map { $0.isWhitespace ? " " : $0 }).trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Whitespace is kept as a separator, not deleted: Excel reads the raw
+    /// text, so `TR UE` must not collapse into a word the check accepts, and a
+    /// bare word after a call (`SUM(A1) TRUE`) is not an operand of anything.
+    private static func hasAdjacentOperands(_ code: String) -> Bool {
+        code.range(of: #"[A-Z0-9_.$)]\s+[A-Z0-9_.$(]"#, options: .regularExpression) != nil
     }
 
     /// Nothing to evaluate, or a shape Excel refuses: reject rather than let
