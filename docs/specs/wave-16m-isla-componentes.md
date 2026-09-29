@@ -103,9 +103,8 @@ principal delante, y la página de release solo se acepta si es de `github.com/k
 
 ## 7. 16m-5a — gráficas, alcance real (2026-09-29)
 
-Mermaid queda fuera de esta entrega: **16m-5b (Mermaid / WKWebView / mermaid.js) sigue
-pendiente de la aprobación explícita de la dependencia** por Karen. No hay plomería a medias
-para él.
+Mermaid quedó fuera de esta entrega y entró en 16m-5b (§10), con la dependencia aprobada por Karen el
+2026-09-29.
 
 Lo que entra:
 
@@ -372,3 +371,158 @@ un placeholder amarillo donde va el `TextEditor` (`ImageRenderer` no dibuja vist
   el tope sale completo por el servicio de compartir; sin servicio se corta por carácter, con puntos suspensivos, y
   el modal lo dice. La decisión vive en `FeedbackDeliverer`, con las llamadas del sistema inyectadas.
 - **Petición de comentarios**: `FeedbackRequest` guarda la petición hasta que la ventana la lee al aparecer.
+
+## 10. 16m-5b: alcance real (2026-09-29)
+
+**Diagramas Mermaid en la isla.** Dependencia aprobada por Karen el 2026-09-29 ("install de mermaid"); es la
+única nueva de la wave y no es una dependencia de SwiftPM: es un archivo vendoreado.
+
+- **Fence** (`companion:diagram`, misma convención que `companion:chart`): el cuerpo es el **texto de Mermaid**,
+  sin JSON. `CardVocabulary` (en y es) lo enseña con la regla de cuándo: solo cuando las conexiones son lo que
+  importa (flujo, secuencia entre partes, estados, clases/ER, línea de tiempo), nunca para lo que una lista o una
+  tabla dice igual; sin directivas `%%{`, sin líneas `click`, sin HTML en etiquetas. Llega como
+  `AnswerBlock.diagram(DiagramBlock)`; abre el popup (`isRich`); la voz no lo lee (`SpeechBudget.hasCard`).
+- **Topes**: 16 KiB de bytes del cuerpo (`DiagramBlock.maxSourceBytes`; más es nil, nunca se recorta; cuenta bytes,
+  no caracteres). Más el tope de 256 KiB de la fence, que ya existía. Vacío tras sanear es nil.
+- **Saneado** (`TextSanitizer` + `DiagramSource`): controles bidi, invisibles y C0/C1 fuera (como toda tarjeta);
+  se quitan las directivas `%%{ ... }%%` (una o varias líneas), el frontmatter `---` cerrado y las líneas `click`,
+  porque el tema y el nivel de seguridad los fija la página, no el modelo. El HTML del modelo **no se quita**:
+  viaja como texto y la CSP más `strict` lo neutralizan. Una fence rota o vacía sigue visible como código.
+- **Vendor** (`Sources/CompanionServices/Diagram/`): `mermaid.min.js` **11.17.2** (la de Incredible; la última
+  mayor, 12, no se adoptó), SHA-256 `581ed7d74bd9048d0e3a91363927d72ef22942d7722546b27f7cc29e35390eb8`,
+  3 572 661 bytes (bundle IIFE con todos los diagramas), `LICENSE` MIT y `VENDOR.md` con cómo se obtuvo
+  (`npm pack mermaid@11.17.2`). El renderer **se niega a cargar** un script cuyo hash no sea el fijado;
+  `diagramVendorTests` falla si el archivo, `VENDOR.md` y `DiagramPage.mermaidSHA256` discrepan. `Package.swift`
+  solo suma `.copy("Diagram")` al recurso de Services.
+- **Aislamiento** (`DiagramPage` en Core, puro y probado; `WebKitDiagramRenderer` en Services es el único WebKit de
+  la app y la UI lo consume por el puerto `DiagramRendering`):
+  1. `loadHTMLString(_, baseURL: nil)`, sin esquema propio ni archivo: no hay origen que servir.
+  2. CSP: `default-src 'none'`; `script-src` solo por hash de los dos scripts en línea (vendor y arranque), sin
+     `unsafe-inline` ni `unsafe-eval` en scripts (un `onerror` del modelo no corre); `style-src 'unsafe-inline'`
+     porque Mermaid pone estilos en el SVG; `connect/img/font/media/object/frame/worker/form-action/base-uri`
+     en `'none'`.
+  3. Regla de contenido de WebKit que bloquea toda URL con esquema y `//`; si no compila, el renderer falla
+     cerrado (`unavailable`). Dos capas independientes; el test real prueba cada una **sola** (ver abajo).
+  4. Navegación: solo `about:blank` (la carga inicial); ventanas nuevas, nunca. Almacén no persistente, JS sin
+     abrir ventanas, sin medios, sin selección, sin scripts inyectados.
+  5. El texto entra como el **argumento** `source` de `callAsyncJavaScript`, jamás interpolado en script ni en
+     HTML; `mermaid.parse` antes de `render`; `securityLevel: 'strict'`; `suppressErrorRendering` (valor propio).
+  6. Un web view nuevo por diagrama, descartado después; un diagrama a la vez; caché de 8 dibujos por texto y ancho.
+- **Fallo, tiempo y "sin error mudo"**: `DiagramOutcome` = imagen o `failed(invalid | timeout | unavailable)`.
+  Tope de **10 s** (`DiagramPage.renderTimeout`; `DiagramTimeout` deja de esperar aunque el JS ni siquiera
+  se cancele, y descarta la respuesta tardía). En cualquier fallo el popup muestra una nota ("No pude dibujar
+  este diagrama. Aquí está su texto." / "...tardó demasiado...") y **el mismo texto como bloque de código**; sin
+  renderer inyectado, igual. El mensaje de error de Mermaid no va al log (puede citar el texto del modelo).
+- **Vista** (`Island/Visual/`): mismo contenedor `visual` que las gráficas (extraído a `islandVisualSurface()` y
+  `IslandVisualCopyButton`, compartidos): padding 14/16/12, relleno 5 %, borde 7 %, radio 12. La imagen se muestra
+  como PDF (nítido) de 504 de ancho (580 - 2x22 del popup - 2x16 del contenedor), **a su tamaño**: por debajo de 580
+  el contenedor hace **scroll horizontal** en lugar de encogerla, y no hay tope de alto (el popup ya hace scroll
+  vertical). VoiceOver: etiqueta "Diagrama" y el texto de Mermaid como valor.
+- **Herramientas, iguales a las de Incredible** (auditoría de decisiones, decisión 7): **copiar imagen** y **descargar
+  PNG**, cada una **con fondo o sin fondo**, a **2x**; hay además un interruptor de fondo que vale para las dos
+  (nace con fondo). No hay "ver" ni zoom (Incredible no los tiene). El copiar-texto de la primera versión se quitó: el
+  fallback a código conserva su propio botón de copiar.
+  - El renderer entrega en el mismo dibujo el PDF de pantalla y los dos PNG (`DiagramImage.png`, `.pngTransparent`),
+    a 1008 px de ancho en sRGB. El PNG con fondo es una captura de la misma página; el transparente se hace por
+    **matting de diferencia** (la página sobre blanco y sobre negro: alfa = 1 - (blanco - negro)/255, color
+    premultiplicado = el negro), porque la captura pública de WebKit no tiene alfa y la alternativa era una clave
+    privada por KVC. Exacto en bordes suavizados. Si un PNG falla, solo esa herramienta deja de ofrecerse.
+  - Copiar deja PNG y TIFF en el portapapeles (ambos con alfa). Descargar abre un **panel de guardar del sistema**
+    (`IslandSavePanel` en App, con la misma activación y devolución de teclado que el selector de archivos; la isla
+    no activa y un panel desde una app inactiva se abre detrás), por lo que no hace falta el permiso de la carpeta
+    Descargas. Cancelar el panel no es descarga.
+
+**Valores tomados de Incredible** (solo valores, del frontend extraído en el scratchpad de la sesión
+`inc16k/firstRun-*.js`, la llamada `mermaid.initialize`; nada de código ni de textos): versión 11.17.2 (cadena de
+versión en `mermaid.core-*.js`); `securityLevel: "strict"`; `theme: "base"`; `startOnLoad: false`; `fontFamily`
+(pila del sistema); `flowchart {curve: "basis", padding: 14, useMaxWidth: true}`; `sequence {useMaxWidth: true,
+mirrorActors: false}`; `themeVariables`: darkMode true, background transparent, fontSize 13px, primaryColor
+#1e1e26, secondaryColor #191920, tertiaryColor #15151b, bordes blancos al 18/12/10 %, primaryTextColor 94 %,
+textColor 82 %, lineColor 32 %, edgeLabelBackground #14141a, cluster 3 % / 10 %, notas #23232c (texto 90 %, borde
+14 %), primaryColorAccent #4a9cff, pie1-8 (#4a9cff #8b80ff #4cc2b4 #f0a93b #f06b9b #56c596 #c08bff #ffd166),
+pieStroke #14141a 2px, textos de pie 94 % / 96 %. Del CSS: el SVG a `max-width: 100%` con alto automático y centrado
+(`.ovx-mermaid-body`); contenedor `.ovx-visual` ya medido en §7.
+
+**Valores propios (no medidos)**: 16 KiB de tope de texto; 10 s de tope de dibujo; 504 de ancho; 8000 de alto
+máximo del SVG antes de hacer imagen; caché de 8; 3 timeouts seguidos apagan el renderer; 2x en los PNG; `suppressErrorRendering`; relleno de página `rgb(26, 26, 28)` (WebKit pinta el PDF sobre blanco
+y el tema es de tinta clara, así que la página pinta el relleno del contenedor, 5 % de blanco sobre el popup
+rgb(14,14,16); un test lo ata a los valores de la UI). Consecuencia: la imagen es opaca y solo se funde con
+el contenedor mientras la superficie de la isla siga siendo la misma (hoy oscura en ambas apariencias).
+
+**Limitaciones conocidas**
+- Solo la isla pinta el diagrama: la ventana principal y el PDF lo muestran como código (`MarkdownView` no
+  conoce `companion:diagram`).
+- Con las `themeVariables` de Incredible (que no tocan todos los tipos) `mindmap` y `gantt` salen menos pulidos
+  que flowchart o sequence (mindmap con nodos negros; gantt con etiquetas de eje que se pisan a este ancho).
+- El diagrama es imagen: no hay selección de texto dentro de él.
+- Un `ImageRenderer` no pinta el contenido de un `ScrollView`: la instantánea estrecha (380) sale con el lienzo vacío; el
+  scroll horizontal solo se ve en la app.
+- Si el JS de una página se cuelga, el timeout deja de esperar y suelta el web view, pero el proceso de contenido
+  de WebKit puede tardar en morir.
+- Una fence ```` ```mermaid ```` plana (sin `companion:`) sigue siendo código, como cualquier fence con lenguaje.
+
+**Pruebas**: `Diagram16m5bTests` (fence, topes, saneado, CSP, configuración de Mermaid, navegación, reglas de red,
+argumento vs código, timeout, vendor y hash, configuración del web view, modelo, copiar, textos en en/es, medidas) y
+`Diagram16m5bSnapshotTests` (real, con `COMPANION_SNAPSHOTS`): diez diagramas en claro y oscuro, fallback por
+sintaxis rota y por timeout, caché, texto hostil directo a la página, y **la prueba de que nada sale**: un
+`NWListener` en loopback cuenta conexiones; una página permisiva **sí** las produce (control) y la página real,
+la CSP sola y las reglas solas producen cero con fetch, XHR, `Image`, `img`/`script`/`link`/`iframe` dinámicos,
+`sendBeacon` y `WebSocket`.
+
+**Prueba en vivo para Karen** (`./scripts/bundle.sh release`, con la app cerrada antes):
+1. Pídele a Companion "hazme un diagrama de flujo de cómo decides si automatizar una tarea". Esperado: una tarjeta
+   automática y, al "Ver", el popup con el diagrama dentro del contenedor "Diagrama", con copiar arriba a la derecha.
+2. Pide una secuencia (tú, Companion, un servicio) y un diagrama de estados: deben dibujarse en menos de un par de
+   segundos (el primero tarda más: carga los 3,6 MB).
+3. Copiar: pega en Notas o en un chat y debe ser la imagen. Alterna el fondo (primer botón) y vuelve a copiar; en un
+   editor con fondo claro se nota la diferencia. Descargar: elige dónde guardar; el PNG sale a 2x.
+4. Con la red apagada, todo igual (no hay red en el dibujo).
+5. Pídele un diagrama con sintaxis inválida a propósito ("escribe un flowchart con una flecha rota"): el popup debe
+   decir que no pudo dibujarlo y mostrar el texto como código, sin espacio en blanco mudo.
+6. Un diagrama enorme (más de 16 KiB de texto) debe salir como código.
+
+**Decisiones abiertas**
+1. Aceptar también ```` ```mermaid ```` plano (los modelos lo escriben de forma natural): hoy solo `companion:diagram`
+   para no romper la regla "solo `companion:*` es interfaz" de `ConversationMemory`.
+2. Pintar diagramas también en la ventana principal (hoy código) y en el PDF (imagen desde el mismo renderer).
+3. `themeVariables` por tipo (mindmap, gantt) más allá de los valores de Incredible.
+4. Subir a Mermaid 12 (mayor) cuando se decida; el cambio es la versión, el hash y `VENDOR.md`.
+5. Ancho del renderer: 504 fijo; si el popup baja de 580 (pantalla chica) hay scroll horizontal, no se re-dibuja.
+
+**Ronda de revisión 16m-5b (2026-09-29): contratos.**
+
+- **Cola** (`DiagramScheduler`, Core, con dibujo inyectable para probarla sin web view): un dibujo a la vez; dos
+  peticiones idénticas en vuelo comparten un dibujo; quien se va (cerrar el popup, cambiar de bloque) cancela el
+  dibujo **solo si nadie más lo espera**, y lo cancelado en cola nunca dibuja; el plazo (`DiagramTimeout`, ahora
+  también sensible a la cancelación de quien espera) corta aunque el JS no se pueda cancelar; 3 timeouts seguidos
+  apagan el renderer (`unavailable`; sin enfriamiento, HACK) y un éxito reinicia la cuenta. Se cachean imágenes y
+  `.invalid` (determinista), nunca timeout ni unavailable.
+- **Streaming**: un mensaje llega al historial entero (el texto en curso vive en `chat.streaming`, que el popup no
+  lee). Aun así, una fence en la que el texto **termina** (corte del modelo) es código, no diagrama
+  (`MarkdownSplitter.endsInsideFence`), y el render se lanza por bloque terminado.
+- **Página**: se suelta por `webView` (nunca por un local) para que `tearDown` libere una página colgada; el proceso
+  de contenido caído es `.unavailable`, no `.invalid`; los fallos de navegación se registran sin datos del modelo; un
+  SVG de más de 8000 de alto se rechaza antes de `pdf()`.
+- **Saneado**: CR y CRLF se normalizan antes de sanear (un CR suelto pegaba las líneas); `click` tras `;`, y
+  `link`/`links` de secuencia y `link`/`callback` de clases, se quitan o, si van tras `;`, la fence se rechaza
+  entera (queda como código, visible); un nodo llamado `link` no se toca; `%%{` sin cerrar rechaza la fence en lugar de
+  borrar el resto del diagrama en silencio.
+- **Pruebas**: el aislamiento del render real se prueba por `WebKitDiagramRenderer.render` con un script de
+  sustitución (sin los 3,6 MB) y el `Beacon` de loopback, siempre (no solo con la galería): render completo, solo las
+  reglas (página sin CSP) y la configuración y el delegado de la página real. Los tests con esperas propias corren
+  bajo `watched`, que convierte un cuelgue en un rojo con nombre.
+
+**Ronda 3 (2026-09-29).**
+
+- **Cola**: un llamador cancelado nunca cuenta como timeout ni para el apagado (tres popups cerrados a mitad de
+  dibujo ya no apagan los diagramas); un flight cancelado que termina tarde no borra al flight nuevo de la misma
+  clave (limpieza por identidad); los flights ya encolados vuelven a mirar el apagado antes de dibujar.
+- **Matting fuera del MainActor** y con aritmética directa por píxel: 1008 x 6000 (un diagrama de 3000 de alto) pasó
+  de 5,8 s bloqueando el hilo principal (build de debug) a 0,07 s en un hilo aparte, con el hilo principal sin
+  pausas de más de 6 ms (medido en la galería; la prueba siempre activa fija solo que el bucle corre fuera del
+  hilo principal, porque el de 3000 de alto, corriendo con toda la suite, hacía fallar tests de tiempo ajenos).
+- **Descargar** distingue `saved | cancelled | failed`; un fallo muestra una nota (es/en) bajo el diagrama y el log
+  lleva dominio y código del error, nunca la ruta (`DiagramFileWriter`).
+- **Saneado**: un nodo llamado `click` (`click --> B`) ya no se borra: `click` se trata como `link`, con un nombre
+  después.
+

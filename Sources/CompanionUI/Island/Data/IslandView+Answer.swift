@@ -21,6 +21,8 @@ extension IslandView {
                     - AnswerPopupMetrics.dropGap - IslandChrome.shadowRoom
                     - AnswerPopupMetrics.chrome,
                 onClose: closeAnswer)
+                .environment(\.diagramRenderer, diagrams)
+                .environment(\.fileSaver, saveFile)
                 .offset(y: shown.height + AnswerPopupMetrics.dropGap)
                 .onGeometryChange(for: CGRect.self, of: { proxy in
                     proxy.frame(in: .named("islandCanvas"))

@@ -598,6 +598,16 @@
 "island.chart.copy" = "Copy the chart data";
 "island.chart.copied" = "Chart data copied";
 "island.chart.categories" = "Categories";
+"island.diagram.label" = "Diagram";
+"island.diagram.copy" = "Copy the diagram as an image";
+"island.diagram.copied" = "Diagram image copied";
+"island.diagram.failed" = "I could not draw this diagram. Here is its text.";
+"island.diagram.timeout" = "Drawing this diagram took too long. Here is its text.";
+"island.diagram.loading" = "Drawing the diagram";
+"island.diagram.download" = "Download the diagram as PNG";
+"island.diagram.background.on" = "Copy and download with the background. Tap for transparent";
+"island.diagram.background.off" = "Copy and download without the background. Tap to add it";
+"island.diagram.save.failed" = "I could not save the PNG. Try another folder.";
 
 /* 16m-6: the question with options */
 "island.choice.option" = "%@, %d of %d";

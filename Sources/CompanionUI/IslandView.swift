@@ -21,6 +21,10 @@ public struct IslandView: View {
     let updates: UpdateState?
     /// The `@` selector's sources (16m-7); absent, `@` is just a character.
     let mentions: MentionSelectorModel?
+    /// Draws the popup's Mermaid diagrams (16m-5b); absent, they show as code.
+    let diagrams: (any DiagramRendering)?
+    /// Saves a diagram's PNG through the system's panel (16m-5b); absent, no download tool.
+    let saveFile: IslandFileSaver?
     // Members are internal, not private, on purpose: the island's families
     // extend this view from Island/*/IslandView+X.swift, and Swift's private
     // stops at the file.
@@ -66,7 +70,9 @@ public struct IslandView: View {
         grabber: (any RegionGrabbing)? = nil,
         pickFiles: IslandFilePicker? = nil,
         updates: UpdateState? = nil,
-        mentions: MentionSources? = nil
+        mentions: MentionSources? = nil,
+        diagrams: (any DiagramRendering)? = nil,
+        saveFile: IslandFileSaver? = nil
     ) {
         self.chat = chat
         self.voice = voice
@@ -79,6 +85,8 @@ public struct IslandView: View {
         self.pickFiles = pickFiles
         self.updates = updates
         self.mentions = mentions.map(MentionSelectorModel.init(sources:))
+        self.diagrams = diagrams
+        self.saveFile = saveFile
     }
 
     var state: IslandState {

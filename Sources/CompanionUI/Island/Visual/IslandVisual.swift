@@ -7,7 +7,6 @@ import SwiftUI
 
 struct IslandChartVisual: View {
     let block: ChartBlock
-    @State private var copied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
@@ -19,18 +18,7 @@ struct IslandChartVisual: View {
                 .accessibilityChartDescriptor(IslandChartDescriptor(block: block))
             IslandChartLegend(entries: IslandChartData.legend(block))
         }
-        .padding(.top, IslandVisualMetrics.paddingTop)
-        .padding(.horizontal, IslandVisualMetrics.paddingX)
-        .padding(.bottom, IslandVisualMetrics.paddingBottom)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: IslandVisualMetrics.radius)
-            .fill(AnswerInk.white(IslandVisualMetrics.fill)))
-        .overlay(RoundedRectangle(cornerRadius: IslandVisualMetrics.radius)
-            .strokeBorder(AnswerInk.white(IslandVisualMetrics.border), lineWidth: Stroke.hairline))
-        // The island's surface is dark in both appearances; axis and legend
-        // text read the environment, so pin it or light mode paints black
-        // labels on it.
-        .environment(\.colorScheme, .dark)
+        .islandVisualSurface()
     }
 
     private var header: some View {
@@ -48,22 +36,58 @@ struct IslandChartVisual: View {
                     .lineLimit(1)
             }
             Spacer(minLength: Space.none)
-            IconButton(copied ? "checkmark" : "doc.on.doc",
-                       label: Localized.string(copied ? "island.chart.copied" : "island.chart.copy"),
-                       size: .islandClose, tone: .island, pressable: true, action: copy)
+            IslandVisualCopyButton(copyLabel: "island.chart.copy", copiedLabel: "island.chart.copied") {
+                IslandVisualTools.copy(block)
+            }
         }
-        // Tied to the view: it is cancelled when the chart goes away, so a
+    }
+}
+
+/// The `visual` container of Incredible (padding 14/16/12, 5 % fill, 7 %
+/// border, radius 12), shared by charts and diagrams.
+struct IslandVisualSurface: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(.top, IslandVisualMetrics.paddingTop)
+            .padding(.horizontal, IslandVisualMetrics.paddingX)
+            .padding(.bottom, IslandVisualMetrics.paddingBottom)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: IslandVisualMetrics.radius)
+                .fill(AnswerInk.white(IslandVisualMetrics.fill)))
+            .overlay(RoundedRectangle(cornerRadius: IslandVisualMetrics.radius)
+                .strokeBorder(AnswerInk.white(IslandVisualMetrics.border), lineWidth: Stroke.hairline))
+            // The island's surface is dark in both appearances; axis and legend
+            // text read the environment, so pin it or light mode paints black
+            // labels on it.
+            .environment(\.colorScheme, .dark)
+    }
+}
+
+extension View {
+    func islandVisualSurface() -> some View { modifier(IslandVisualSurface()) }
+}
+
+/// The copy tool: the icon flips to a check for a beat.
+struct IslandVisualCopyButton: View {
+    let copyLabel: String
+    let copiedLabel: String
+    let action: () -> Void
+    @State private var copied = false
+
+    var body: some View {
+        IconButton(copied ? "checkmark" : "doc.on.doc",
+                   label: Localized.string(copied ? copiedLabel : copyLabel),
+                   size: .islandClose, tone: .island, pressable: true) {
+            action()
+            copied = true
+        }
+        // Tied to the view: it is cancelled when the visual goes away, so a
         // closed popup never writes state back.
         .task(id: copied) {
             guard copied else { return }
             do { try await Task.sleep(for: .seconds(IslandVisualMetrics.copiedFor)) } catch { return }
             copied = false
         }
-    }
-
-    private func copy() {
-        IslandVisualTools.copy(block)
-        copied = true
     }
 }
 

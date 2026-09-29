@@ -20,10 +20,12 @@ let package = Package(
         // Implementan los puertos (protocolos) que Core define.
         // Skills/<name>/SKILL.md: the system skills (Wave 11a), copied as-is
         // and seeded onto disk at launch so the user can open them.
+        // Diagram/: the vendored mermaid.js the isolated web view draws with
+        // (16m-5b); a file, not a SwiftPM dependency. VENDOR.md pins it.
         .target(
             name: "CompanionServices",
             dependencies: ["CompanionCore"],
-            resources: [.copy("Skills")]
+            resources: [.copy("Skills"), .copy("Diagram")]
         ),
 
         // SwiftUI + tokens de diseño. MainActor por default: el compilador

@@ -598,6 +598,16 @@
 "island.chart.copy" = "Copiar los datos de la gráfica";
 "island.chart.copied" = "Datos de la gráfica copiados";
 "island.chart.categories" = "Categorías";
+"island.diagram.label" = "Diagrama";
+"island.diagram.copy" = "Copiar el diagrama como imagen";
+"island.diagram.copied" = "Imagen del diagrama copiada";
+"island.diagram.failed" = "No pude dibujar este diagrama. Aquí está su texto.";
+"island.diagram.timeout" = "Dibujar este diagrama tardó demasiado. Aquí está su texto.";
+"island.diagram.loading" = "Dibujando el diagrama";
+"island.diagram.download" = "Descargar el diagrama como PNG";
+"island.diagram.background.on" = "Copiar y descargar con fondo. Toca para dejarlo transparente";
+"island.diagram.background.off" = "Copiar y descargar sin fondo. Toca para añadirlo";
+"island.diagram.save.failed" = "No pude guardar el PNG. Prueba con otra carpeta.";
 
 /* 16m-6: la pregunta con opciones */
 "island.choice.option" = "%@, %d de %d";
