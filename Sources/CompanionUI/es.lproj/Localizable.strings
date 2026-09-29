@@ -206,7 +206,7 @@
 "chat.job.stopped" = "Paraste el encargo.";
 "job.stop" = "Parar";
 "chat.job.failed" = "El encargo no pudo terminar: %@";
-"card.unverified" = "Companion no verificó estas ubicaciones.";
+"card.unverified" = "Companion no verificó estos lugares o imágenes.";
 "onboarding.probing" = "Buscando un modelo en tu Mac…";
 "onboarding.base.blurb" = "Tu Mac ya puede hablar contigo. Sin cuenta y sin configurar nada.";
 "onboarding.local.ollama" = "Empezar con %@ en tu Mac";

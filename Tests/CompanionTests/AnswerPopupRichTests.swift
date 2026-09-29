@@ -1,4 +1,5 @@
-import CompanionUI
+import CompanionCore
+@testable import CompanionUI
 import Foundation
 import Testing
 
@@ -12,6 +13,25 @@ import Testing
     testBlockMeasuresMatchOvx()
     testPopupSurfaceMatchesOvx()
     testCanvasHoldsThePopup()
+    testCaveatOnlyOnWorldClaims()
+}
+
+// The "unverified" caveat undercut numbers that were simply the reply (16m
+// snapshot). Only payloads that claim something about the WORLD carry it.
+@MainActor func testCaveatOnlyOnWorldClaims() {
+    func card(_ payload: CardPayload) -> CardView {
+        CardView(card: Card(payload: payload, source: .model))
+    }
+    expect(card(.locations(LocationsBlock(locations: []))).claimsWorld,
+           "16m: un lugar afirma el mundo")
+    expect(card(.gallery(GalleryBlock(images: []))).claimsWorld,
+           "16m: una imagen afirma el mundo")
+    expect(!card(.stats(StatsBlock(items: []))).claimsWorld,
+           "16m: las cifras son la respuesta misma")
+    expect(!card(.table(TableBlock(columns: [], rows: []))).claimsWorld,
+           "16m: la tabla es la respuesta misma")
+    expect(!card(.chart(ChartBlock(kind: .bar, labels: [], series: []))).claimsWorld,
+           "16m: la gráfica es la respuesta misma")
 }
 
 @MainActor func testAnswerInkMatchesOvx() {
