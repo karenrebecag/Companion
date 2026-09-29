@@ -50,13 +50,13 @@ import Testing
     t.mark(.committed, at: 13.26)
     t.mark(.firstAudio, at: 14.14)
     expectEq(t.line(),
-             "voice timeline: press→mic 82 · press→ear 610 · press→ready 940 · press→partial 1420 · release→commit 260 · release→earFinal — · release→audio 1140 · firstToken→audio — · firstCut→ttsRequest — · ttsRequest→firstByte — · firstByte→audible — · commit→audio 880 · commit→context — · commit→firstToken — · commit→decision — · commit→tool — · tool→done —",
+             "voice timeline: press→mic 82 · press→ear 610 · press→ready 940 · press→partial 1420 · release→commit 260 · release→earFinal — · release→audio 1140 · firstToken→audio — · firstCut→ttsRequest — · ttsRequest→firstByte — · firstByte→audible — · commit→ack — · commit→audio 880 · commit→context — · commit→firstToken — · commit→decision — · commit→tool — · tool→done —",
              "tiempos: la línea entera")
     var gaps = TurnTimeline()
     gaps.mark(.pressed, at: 1)
     gaps.mark(.released, at: 1.5)
     expectEq(gaps.line(),
-             "voice timeline: press→mic — · press→ear — · press→ready — · press→partial — · release→commit — · release→earFinal — · release→audio — · firstToken→audio — · firstCut→ttsRequest — · ttsRequest→firstByte — · firstByte→audible — · commit→audio — · commit→context — · commit→firstToken — · commit→decision — · commit→tool — · tool→done —",
+             "voice timeline: press→mic — · press→ear — · press→ready — · press→partial — · release→commit — · release→earFinal — · release→audio — · firstToken→audio — · firstCut→ttsRequest — · ttsRequest→firstByte — · firstByte→audible — · commit→ack — · commit→audio — · commit→context — · commit→firstToken — · commit→decision — · commit→tool — · tool→done —",
              "tiempos: los huecos se ven")
     expect(TurnTimeline() == TurnTimeline(), "tiempos: igualable")
 }

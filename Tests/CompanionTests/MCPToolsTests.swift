@@ -11,7 +11,7 @@ import Testing
     testSessionUpdateCarriesServers()
     testApprovalRequestParsing()
     testApprovalResponseShape()
-    await testSpokenYesAnswersMCPApproval()
+    await testMCPApprovalsKeepTheirPreviousSpokenPathUntilTheyHaveASheet()
 }
 
 func testConfigDecodeAndShape() {
@@ -66,19 +66,21 @@ func testApprovalResponseShape() {
     expect(json.contains("true"), "response: la decisión viaja")
 }
 
-/// El circuito hablado: llega un approval MCP, la usuaria dice «sí», y la
-/// respuesta viaja por el websocket — no por el runner de encargos.
-@MainActor func testSpokenYesAnswersMCPApproval() async {
+/// Provisional (review 16h-2, final adjustment): an MCP approval only exists
+/// in realtime, where there is no sheet for it. Until Karen chooses between
+/// a sheet of its own and an explicit "no", it keeps the spoken path it had
+/// before 16h-2: the yes resolves it and travels to the server.
+@MainActor func testMCPApprovalsKeepTheirPreviousSpokenPathUntilTheyHaveASheet() async {
     let h = makeVoiceHarness()
     await h.session.start()
     await pumpUntil("mcp: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.mcpApprovalRequest(
         id: "req9", server: "docs", tool: "search", argumentsJSON: "{}"))
-    await settle(0.1)
+    await pumpUntilAsync("mcp: la sesión la tiene") { await h.session.pendingMCPApproval != nil }
     let before = h.transport.sent.count
     let landed = await h.session.answerPendingApproval(true)
-    expect(landed, "mcp: el sí hablado aterriza en el approval pendiente")
+    expectEq(landed, .resolved, "mcp (provisional): el sí hablado la resuelve como antes de 16h-2")
     let added = Array(h.transport.sent.dropFirst(before))
     expect(added.contains { $0.contains("mcp_approval_response") && $0.contains("req9") },
-           "mcp: la aprobación viaja al server con su id")
+           "mcp (provisional): la aprobación viaja al server con su id")
 }

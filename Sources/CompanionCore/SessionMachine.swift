@@ -6,7 +6,7 @@ import Foundation
 /// into chrome and adds what the voice cannot see: typed turns, the parent's
 /// hands, the specialist's job and the sheet.
 public struct SessionMachine: Sendable, Equatable {
-    public private(set) var projection = SessionProjection()
+    public internal(set) var projection = SessionProjection()
     /// Seconds Completed stays on screen before Idle.
     public static let completedDelay: TimeInterval = 1.5
     /// How long the hands aura outlives the last executed bridge call: long
@@ -27,16 +27,16 @@ public struct SessionMachine: Sendable, Equatable {
     /// The reel's ceiling per turn (16m-2, security review).
     public static let touchedCap = 12
 
-    private var voice = TurnSnapshot.idle
-    private var typedBusy = false
-    /// A job whose FIRST action you refuse is stopped whole (10c 3B.4).
-    /// Counted on the job's own requests only: the parent's `open_url`
-    /// gate shares the queue but is not the job's action (security review
-    /// 2026-09-06).
-    private var jobApprovedOnce = false
+    var voice = TurnSnapshot.idle
+    var typedBusy = false
     /// The key is down but still under the tap threshold: the mic is open
     /// locally, nothing has left the machine and no reply has been cut.
     private var provisional = false
+    /// 16h-2: the jobs the user stopped. Anything they still say is late.
+    var stoppedJobs: [JobID] = []
+    var finishedJobs: [JobID] = []
+    /// Which job asked each queued request; untagged requests have none.
+    var approvalOwners: [String: JobID] = [:]
 
     public init() {}
 
@@ -50,7 +50,7 @@ public struct SessionMachine: Sendable, Equatable {
             effects += observe(snapshot)
         case .typedSubmitted:
             typedBusy = true
-            begin()
+            openTurn()
             projection.touched = []
             projection.kind = .processing(.thinking)
         case .typedReplyStreaming:
@@ -59,6 +59,7 @@ public struct SessionMachine: Sendable, Equatable {
             }
         case .typedReplyFinished:
             typedBusy = false
+            turnOver()
             effects += rest()
         case .parentActing(let targets):
             begin()
@@ -77,18 +78,20 @@ public struct SessionMachine: Sendable, Equatable {
         case .parentActed:
             projection.targets = []
             effects += rest()
-        case .job(let jobEvent):
-            effects += observe(jobEvent)
-        case .jobFinished:
-            guard projection.job != nil else { return [] }
-            projection.job = nil
-            jobApprovedOnce = false
+        case .job(let jobEvent, let id):
+            effects += observe(jobEvent, from: id)
+        case .jobFinished(_, let id):
+            effects += dropApprovals(of: id)
+            guard finish(id) else { return effects }
             effects += rest()
         case .approvalAnswered(let id, let approved, let remember):
+            let owner = approvalOwners[id]
             guard let request = remove(id) else { return [] }
-            let ofJob = Self.isJobRequest(request) && projection.job != nil
-            let stops = !approved && ofJob && !jobApprovedOnce
-            if approved, ofJob { jobApprovedOnce = true }
+            // A job whose FIRST action you refuse is stopped whole (10c
+            // 3B.4). Counted on the running job's own requests only.
+            let ofJob = isActiveJobs(request, owner: owner)
+            let stops = !approved && ofJob && projection.job?.approvedOnce != true
+            if approved, ofJob { projection.job?.approvedOnce = true }
             effects.append(.resolveApproval(
                 requestId: id, approved: approved, remember: remember && !stops))
             if stops { effects += stop() }
@@ -111,13 +114,13 @@ public struct SessionMachine: Sendable, Equatable {
                 projection.dictation = nil
             }
         case .pressed:
-            begin()
+            openTurn()
             projection.holding = true
             projection.touched = []
             projection.kind = .listening
             effects.append(.startListening)
         case .pressedProvisionally:
-            begin()
+            openTurn()
             projection.holding = true
             provisional = true
             projection.touched = []
@@ -166,7 +169,12 @@ public struct SessionMachine: Sendable, Equatable {
         case .pendingTimedOut:
             if projection.kind == .processing(.pending) { projection.kind = restingKind() }
         case .voiceIdleExpired:
-            if restingWarm { effects.append(.hangUpVoice) }
+            // A notice still sounding keeps the warm session: hanging up
+            // would cut it mid-sentence (review 16h-2 S1). It tries again.
+            if restingWarm {
+                effects.append(projection.announcing
+                    ? .scheduleVoiceIdleExpiry(Self.voiceIdleTimeout) : .hangUpVoice)
+            }
         case .partialTranscript(let text):
             if projection.kind == .listening { projection.partial = text }
         case .dictating(let app):
@@ -197,9 +205,12 @@ public struct SessionMachine: Sendable, Equatable {
         case .handsGlowExpired:
             projection.handsActing = false
             projection.handsTarget = nil
+        case .announcing(let on):
+            projection.announcing = on
         case .stop:
-            guard projection.kind != .idle else { return [] }
-            if voice.state == .thinking || voice.state == .speaking {
+            // At rest a job's end may still be talking: Esc silences it.
+            guard projection.kind != .idle || projection.announcing else { return [] }
+            if voice.state == .thinking || voice.state == .speaking || projection.announcing {
                 effects.append(.cancelVoiceOutput)
             }
             // Inside the release tail the voice still listens: the commit
@@ -254,19 +265,19 @@ public struct SessionMachine: Sendable, Equatable {
             // while Pending waits for the text just sent, or while a press
             // is still being served.
             if projection.kind == .processing(.pending) || projection.holding { break }
+            turnOver()
             if case .processing = projection.kind {
                 return rest()
             }
             if projection.kind == .listening { projection.kind = .idle }
         case .listening:
-            begin()
+            openTurn()
             // Every door into a turn starts the reel fresh (review 16m H1):
             // typed, hold, provisional hold, and this — the voice runtime.
             projection.touched = []
             projection.kind = .listening
         case .thinking:
-            projection.kind = projection.job != nil
-                ? .processing(.subAgentRunning) : .processing(.thinking)
+            projection.kind = jobInFront ? .processing(.subAgentRunning) : .processing(.thinking)
         case .speaking:
             projection.kind = .processing(.speaking)
         case .idle:
@@ -274,6 +285,7 @@ public struct SessionMachine: Sendable, Equatable {
             // Clearing holding here dropped FN-up (live 2026-09-07).
             if projection.holding { break }
             projection.holding = false
+            turnOver()
             if projection.job != nil {
                 projection.kind = .processing(.subAgentRunning)
             } else if !typedBusy, projection.kind != .processing(.completed) {
@@ -284,6 +296,7 @@ public struct SessionMachine: Sendable, Equatable {
             // sit in its own error state, the chrome goes back to rest.
             let failure = snapshot.failure ?? .sessionDropped
             projection.holding = false
+            turnOver()
             projection.interruption = .failure(failure)
             projection.notice = Self.card(for: failure)
             projection.cards = [Self.card(for: failure)]
@@ -301,9 +314,16 @@ public struct SessionMachine: Sendable, Equatable {
         return notice == .couldntHear || notice == .holdHint
     }
 
+    /// The user's own door into a turn (a press, a sent chat, the voice
+    /// listening): a job already running goes behind it.
+    private mutating func openTurn() {
+        begin()
+        projection.job?.behindTurn = true
+    }
+
     /// Something new started: whatever the resting chrome was showing is
     /// over.
-    private mutating func begin() {
+    mutating func begin() {
         projection.interruption = nil
         projection.notice = nil
         projection.partial = nil
@@ -319,97 +339,27 @@ public struct SessionMachine: Sendable, Equatable {
     /// A press cancelled under the threshold never cut the reply, so the
     /// chrome goes back to it instead of painting Idle over a voice that
     /// is still talking.
-    private func replyOrRestingKind() -> SessionKind {
-        guard projection.job == nil else { return .processing(.subAgentRunning) }
+    private mutating func replyOrRestingKind() -> SessionKind {
+        guard !jobInFront else { return .processing(.subAgentRunning) }
         switch voice.state {
         case .thinking: return .processing(.thinking)
         case .speaking: return .processing(.speaking)
-        default: return .idle
+        default: return restingKind()
         }
     }
 
     /// Where a hold that produced nothing lands: the job's row if one runs,
     /// otherwise Idle straight away (no Completed for nothing).
-    private func restingKind() -> SessionKind {
-        projection.job != nil ? .processing(.subAgentRunning) : .idle
-    }
-
-    private mutating func observe(_ event: JobEvent) -> [SessionEffect] {
-        switch event {
-        case .started(let goal):
-            if projection.job == nil {
-                projection.job = JobTimeline(goal: goal)
-                jobApprovedOnce = false
-            } else {
-                // A second announcement only names the job; its approvals
-                // so far still count.
-                projection.job?.goal = goal
-            }
-            begin()
-            projection.kind = .processing(.subAgentRunning)
-        case .stepStarted(let tool, let summary):
-            append(JobTimeline.step(tool, summary))
-        case .stepFinished(let tool, let ok):
-            // The runcard paints each step's fate (16m-2): the OLDEST still
-            // running step of that tool is the one this answers.
-            // HACK: name-only pairing. Parallel runs of one tool that finish
-            // out of order mark the wrong row. Upgrade trigger: the first
-            // executor that reports a tool-use id — carry it through
-            // stepStarted/stepFinished and match on it instead.
-            if let index = projection.job?.steps.firstIndex(where: {
-                $0.tool == tool && !$0.done
-            }) {
-                projection.job?.steps[index].done = true
-                projection.job?.steps[index].failed = !ok
-            }
-        case .thought(let text):
-            append(JobStepInfo(tool: JobSteps.Thinking.tool, label: text))
-        case .approvalRequested(let request):
-            // After a Stop, and before anything new starts, a request can
-            // only come from the job that was just stopped: it dies with it
-            // instead of reopening the sheet (security review 2026-09-06).
-            // The bridge's session grant is the one exception: it comes from
-            // a NEW connection, never from the stopped child, and Stop's
-            // stale `userStopped` (cleared only when a turn opens) was
-            // silently denying every grant at rest — no sheet, no user
-            // (seen live 2026-09-28). Surfacing it keeps the user, not the
-            // ghost of the last Stop, as the authority. The exemption leans
-            // on a convention: this name is minted only in
-            // `BridgeSession.handleSessionApproval` — every job-side path
-            // either auto-denies stream approvals before they reach here
-            // (`ClaudeCodeExecutor`) or cannot produce the name.
-            if projection.interruption == .userStopped, projection.job == nil,
-               request.toolName != BridgePolicy.sessionApprovalTool {
-                return [.resolveApproval(
-                    requestId: request.requestId, approved: false, remember: false)]
-            }
-            projection.approvalQueue.append(request)
-            projection.cards = [.approval(request)]
-        case .card(let card):
-            projection.cards = [.answer(card)]
-        case .approvalDenied(let tool):
-            projection.cards = [.approvalAnswered(tool: tool, approved: false, remembered: false)]
-        case .approvalRemembered(let tool, let approved):
-            projection.cards = [.approvalAnswered(tool: tool, approved: approved, remembered: true)]
-        }
-        return []
-    }
-
-    /// A voice-born job only exists as events: a step before its name still
-    /// opens the card, nameless rather than not at all.
-    private mutating func append(_ step: JobStepInfo) {
-        if projection.job == nil {
-            projection.job = JobTimeline(goal: nil)
-            projection.kind = .processing(.subAgentRunning)
-        }
-        projection.job?.steps.append(step)
+    private mutating func restingKind() -> SessionKind {
+        turnOver()
+        return projection.job != nil ? .processing(.subAgentRunning) : .idle
     }
 
     /// Where the chrome goes when a piece of work ends: the job's row if one
     /// runs, the typed turn if one is open, the voice if it is live, and
     /// otherwise Completed with its timer.
-    private mutating func rest() -> [SessionEffect] {
-        if projection.job != nil {
+    mutating func rest() -> [SessionEffect] {
+        if jobInFront {
             projection.kind = .processing(.subAgentRunning)
             return []
         }
@@ -425,6 +375,12 @@ public struct SessionMachine: Sendable, Equatable {
         case .speaking:
             projection.kind = .processing(.speaking)
         case .idle, .connecting, .error, .listening:
+            // Her turn is over: a job still running takes the row back.
+            guard projection.job == nil else {
+                turnOver()
+                projection.kind = .processing(.subAgentRunning)
+                return []
+            }
             projection.kind = .processing(.completed)
             return [.scheduleCompletedExpiry(Self.completedDelay)]
         }
@@ -433,16 +389,16 @@ public struct SessionMachine: Sendable, Equatable {
 
     private mutating func stop() -> [SessionEffect] {
         var effects: [SessionEffect] = []
-        if projection.job != nil {
+        if projection.job != nil || !projection.queued.isEmpty {
             effects.append(.cancelJob)
-            projection.job = nil
+            noteStopped()
         }
         for request in projection.approvalQueue {
             effects.append(.resolveApproval(
                 requestId: request.requestId, approved: false, remember: false))
         }
         projection.approvalQueue = []
-        jobApprovedOnce = false
+        approvalOwners = [:]
         // A typed turn in flight is abandoned too; a flag left true kept the
         // chrome painting the voice's last phase for ever (code review
         // 2026-09-06).
@@ -457,13 +413,8 @@ public struct SessionMachine: Sendable, Equatable {
     private mutating func remove(_ requestId: String) -> ApprovalRequest? {
         guard let index = projection.approvalQueue.firstIndex(where: { $0.requestId == requestId })
         else { return nil }
+        approvalOwners[requestId] = nil
         return projection.approvalQueue.remove(at: index)
-    }
-
-    /// The parent's own gates travel the same queue as the specialist's
-    /// requests; only the specialist's are the job's actions.
-    private static func isJobRequest(_ request: ApprovalRequest) -> Bool {
-        ParentTool(rawValue: request.toolName) == nil
     }
 
     private static func status(of snapshot: TurnSnapshot) -> VoiceStatus {

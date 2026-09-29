@@ -14,7 +14,7 @@ extension ClassicRuntime {
     }
 
     /// A typing no read has confirmed yet.
-    struct TypedAttempt: Equatable {
+    struct TypedAttempt: Equatable, Sendable {
         let text: String
         let pid: Int32?
         let before: Int?
@@ -22,14 +22,16 @@ extension ClassicRuntime {
 
     /// The round's runs with the proven typings marked, and the lines owed to
     /// the thread for typings from EARLIER rounds that a read here confirmed.
-    /// Typings still unproven wait for a later read.
+    /// Typings still unproven wait for a later read: they come back in
+    /// `unverified` rather than being written here (16h-2 S3).
     func proving(
-        _ runs: [ToolRun], turns: inout [Turn], language: AppLanguage
-    ) -> (runs: [ToolRun], late: [String]) {
+        _ runs: [ToolRun], turns: inout [Turn], unverified: [TypedAttempt], language: AppLanguage
+    ) -> (runs: [ToolRun], late: [String], unverified: [TypedAttempt]) {
         var runs = runs
+        var unverified = unverified
         let reads = runs.filter { $0.call.name == ParentTool.readFocused.rawValue && $0.outcome.ok }
-        let confirmed = unverifiedTyped.filter { attempt in reads.contains { Self.confirms($0.outcome, attempt) } }
-        unverifiedTyped.removeAll { confirmed.contains($0) }
+        let confirmed = unverified.filter { attempt in reads.contains { Self.confirms($0.outcome, attempt) } }
+        unverified.removeAll { confirmed.contains($0) }
         let proven = ParentToolOutcome(ok: true, output: "", tool: ParentTool.typeText.rawValue, verified: true)
         let late = confirmed.isEmpty ? [] : [ParentToolCopy.status(ParentTool.typeText.rawValue, proven, language)]
         for index in runs.indices where Self.isTyping(runs[index]) {
@@ -39,7 +41,7 @@ extension ClassicRuntime {
                     && Self.confirms(run.outcome, attempt)
             }
             guard later else {
-                unverifiedTyped.append(attempt)
+                unverified.append(attempt)
                 continue
             }
             runs[index].outcome.verified = true
@@ -47,7 +49,7 @@ extension ClassicRuntime {
                 of: TypedProof.unverifiedNote, with: TypedProof.verifiedNote)
             turns[runs[index].turn].content = runs[index].outcome.output
         }
-        return (runs, late)
+        return (runs, late, unverified)
     }
 
     static func isTyping(_ run: ToolRun) -> Bool {

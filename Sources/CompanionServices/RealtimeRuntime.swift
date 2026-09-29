@@ -36,7 +36,7 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// The user answered a pending permission out loud. Returns whether the
     /// answer landed on a real request: the ack must not tell the model a
     /// permission was granted when there was nothing left to grant.
-    var onResolveApproval: (@Sendable (Bool) async -> Bool)?
+    var onResolveApproval: (@Sendable (Bool) async -> SpokenApproval)?
     /// A remote MCP tool waits for the user's yes (9j-3); the session parks
     /// it so the spoken resolve_approval can answer it.
     var onMCPApproval: (@Sendable (ApprovalRequest) -> Void)?
@@ -373,8 +373,10 @@ final class RealtimeRuntime: @unchecked Sendable {
         let decision = RealtimeCodec.approvalDecision(fromArguments: arguments)
         var output = Escalation.approvalNothingPending(language)
         if let decision, let onResolveApproval {
-            if await onResolveApproval(decision) {
-                output = Escalation.approvalAck(approved: decision, language)
+            switch await onResolveApproval(decision) {
+            case .resolved: output = Escalation.approvalAck(approved: decision, language)
+            case .needsClick: output = Escalation.approvalNeedsClick(language)
+            case .nothingPending: break
             }
         } else if decision == nil {
             Log.app("voice: resolve_approval with no usable decision")

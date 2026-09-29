@@ -121,7 +121,7 @@ import Testing
     expect(h.thread.turns.contains { $0.role == .assistant && $0.content == "Opened Safari." },
            "decision on: el hilo lleva la respuesta completa")
     expect(
-        !seen.events.contains { if case .job(.approvalRequested) = $0 { true } else { false } },
+        !seen.events.contains { if case .job(.approvalRequested, _) = $0 { true } else { false } },
         "decision on: sin hoja")
     await pumpUntil("decision on: parentActing") {
         seen.events.contains { if case .parentActing = $0 { true } else { false } }
@@ -235,7 +235,7 @@ import Testing
     await pumpUntil("confirm: pregunta") { h.synth.queue.contains("¿Vacío la papelera?") }
     expectEq(system.actCount, 0, "confirm: nada corre mientras se pregunta")
     expect(
-        !seen.events.contains { if case .job(.approvalRequested) = $0 { true } else { false } },
+        !seen.events.contains { if case .job(.approvalRequested, _) = $0 { true } else { false } },
         "confirm: sin hoja")
 
     h.transcriber.stoppedText = "si"

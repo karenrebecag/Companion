@@ -19,7 +19,10 @@ final class ClassicRuntime: @unchecked Sendable {
     /// Wave 14b: the hold's specialist. Nil means do not advertise `delegate`.
     var onDelegate: (@Sendable (Handoff) -> Void)?
     var onStopJob: (@Sendable () async -> Void)?
-    var onResolveApproval: (@Sendable (Bool) async -> Bool)?
+    var onResolveApproval: (@Sendable (Bool) async -> SpokenApproval)?
+    /// 16h-2 (security M1): our own lines this turn owes the user, said
+    /// after the reply (a spoken yes the sheet did not take).
+    var owedLines: [String] = []
     var screen: (any ScreenSeeing)?
     /// Wave 15b-5: `sensor.sense(...)` started at press (`VoiceSessionFanOut`),
     /// so `senseVoice` reads an already-finished Task at commit instead of
@@ -75,6 +78,11 @@ final class ClassicRuntime: @unchecked Sendable {
     var transcripts: TranscriptDebugLog?
     private var turnTranscripts: TranscriptDebugLog?
     var firstCutWait: @Sendable () async -> Void = ClassicRuntime.defaultFirstCutWait
+    /// 16h-2: how long a parent tool may run before the turn acknowledges
+    /// it; injectable so a test decides when a tool counts as slow. An
+    /// injected wait MUST return when its task is cancelled: the round ends
+    /// by cancelling it, and a wait that ignores that holds the turn open.
+    var slowToolWait: @Sendable () async -> Void = ClassicRuntime.defaultSlowToolWait
     /// 15f-2: judges each sentence's language before the mouth says it;
     /// injectable so tests do not depend on the system's model.
     var languageRecognizer: any LanguageRecognizing = NaturalLanguageRecognizer()
@@ -262,6 +270,7 @@ final class ClassicRuntime: @unchecked Sendable {
         cardThisTurn = false
         unverifiedTyped = []
         effectLines = []
+        owedLines = []
         var mouth = TurnMouth(language: language, recognizer: languageRecognizer, heard: heard)
         for round in 1 ... Self.maxParentRounds {
             var text = ""
@@ -287,7 +296,7 @@ final class ClassicRuntime: @unchecked Sendable {
                         if mouth.buffer.awaitsFirstCut { armFirstCut() }
                     case .toolCalls(let roundCalls):
                         for call in roundCalls {
-                            await handleJobTool(call)
+                            await handleJobTool(call, language: language)
                             if parentTools?.handles(call.name) == true {
                                 calls.append(call)
                             }
@@ -315,9 +324,9 @@ final class ClassicRuntime: @unchecked Sendable {
             if handoff == nil, let found = fromContent {
                 if let fragment = mouth.buffer.drain() { await say(fragment, &mouth) }
                 if !calls.isEmpty, let parentTools {
-                    history += await act(
+                    history += await actAcknowledging(
                         calls, said: mouth.saidPart(of: text), heard: heard, using: parentTools,
-                        language: language)
+                        language: language, &mouth, apply: apply)
                 }
                 if Task.isCancelled { return await cutTurn() }
                 // Tool results are perceived input too: a page `web_fetch`
@@ -332,13 +341,18 @@ final class ClassicRuntime: @unchecked Sendable {
             if let handoff {
                 if let fragment = mouth.buffer.drain() { await say(fragment, &mouth) }
                 if !calls.isEmpty, let parentTools {
-                    history += await act(
+                    history += await actAcknowledging(
                         calls, said: mouth.saidPart(of: text), heard: heard, using: parentTools,
-                        language: language)
+                        language: language, &mouth, apply: apply)
                 }
                 // A cut here still leaves the handoff undelivered: nothing
                 // was promised to the user yet, so no errand starts on their
                 // behalf without them hearing it (spec 15b-10 §3-D).
+                if Task.isCancelled { return await cutTurn() }
+                // 16h-2: the user hears the line before the job exists, so a
+                // slow specialist never decides when the turn first sounds;
+                // a press over the line still keeps the errand from starting.
+                await acknowledge(Acknowledgement.delegating(language), &mouth, apply: apply)
                 if Task.isCancelled { return await cutTurn() }
                 onDelegate?(handoff)
                 break
@@ -347,8 +361,9 @@ final class ClassicRuntime: @unchecked Sendable {
             // What was said before acting is said whole, not glued to the
             // next round's first word.
             if let fragment = mouth.buffer.drain() { await say(fragment, &mouth) }
-            history += await act(
-                calls, said: mouth.saidPart(of: text), heard: heard, using: parentTools, language: language)
+            history += await actAcknowledging(
+                calls, said: mouth.saidPart(of: text), heard: heard, using: parentTools,
+                language: language, &mouth, apply: apply)
             // Code review 2026-09-23 (bajo): the only checkpoint this loop
             // was missing — a press landing mid-`act()` (a non-handoff tool
             // round) used to fall through into the next round's
@@ -368,6 +383,7 @@ final class ClassicRuntime: @unchecked Sendable {
         }
         await flushHeld(&mouth)
         await sayMissingEffects(&mouth, apply: apply)
+        for line in owedLines { await sayOwn(line, &mouth, apply: apply) }
         if Task.isCancelled { return await cutTurn() }
         if !mouth.spoken.isEmpty {
             let said = mouth.said
@@ -424,13 +440,20 @@ final class ClassicRuntime: @unchecked Sendable {
         case .declined:
             spoken = DecisionCopy.declined(language)
             threaded = spoken
-        case .delegate(let handoff):
-            onDelegate?(handoff)
-            spoken = DecisionCopy.delegated(language)
+        case .delegate:
+            spoken = Acknowledgement.delegating(language)
             threaded = spoken
         }
         await apply(.firstSentence)
+        // 16h-2: the line is queued before the job starts, same order as
+        // the model path, and measured as the turn's acknowledgement.
+        if case .delegate = outcome { await markTimeline?(.acknowledged) }
+        // A press cut the router's turn (code review L2): nothing more is
+        // said, and no errand starts behind the new hold.
+        if Task.isCancelled { return await cutTurn() }
         await synthesizer.enqueue(spoken)
+        if Task.isCancelled { return await cutTurn() }
+        if case .delegate(let handoff) = outcome { onDelegate?(handoff) }
         turnTranscripts?.said(spoken)
         await thread.appendAssistant(threaded)
         await thread.finishStream()
@@ -469,13 +492,14 @@ final class ClassicRuntime: @unchecked Sendable {
         return ctx
     }
 
-    private func handleJobTool(_ call: ToolCallRef) async {
+    private func handleJobTool(_ call: ToolCallRef, language: AppLanguage) async {
         switch call.name {
         case "stop_job":
             await onStopJob?()
         case "resolve_approval":
-            if let approved = Self.approved(from: call.arguments) {
-                _ = await onResolveApproval?(approved)
+            if let approved = Self.approved(from: call.arguments),
+               await onResolveApproval?(approved) == .needsClick {
+                owedLines.append(Escalation.approvalNeedsClickSpoken(language))
             }
         default:
             break
@@ -491,60 +515,5 @@ final class ClassicRuntime: @unchecked Sendable {
             return nil
         }
         return (obj as? [String: Any])?["approved"] as? Bool
-    }
-
-    /// Runs the round's parent calls and returns the turns the next round
-    /// needs: one assistant turn with every call, one answer per call — or
-    /// the model repeats the action it does not know it took.
-    func act(
-        _ calls: [ToolCallRef], said text: String, heard: String,
-        using parentTools: any ParentToolExecuting, language: AppLanguage
-    ) async -> [Turn] {
-        var turns = [Turn(role: .assistant, content: text, toolCalls: calls)]
-        var cards: [Card] = []
-        var runs: [ToolRun] = []
-        events?.yield(.parentActing(targets: calls.map { ParentTool.target(of: $0) }))
-        defer { events?.yield(.parentActed) }
-        for call in calls {
-            // A press cut the turn: type_text may have run, but Return after
-            // it must not (review 2026-09-25). Every call still gets an
-            // answer, or the round is malformed.
-            if Task.isCancelled {
-                turns.append(Turn(
-                    role: .tool, content: "cancelled: the user interrupted", toolCallID: call.id))
-                continue
-            }
-            // A URL the user did not say waits for the sheet (10c 3D).
-            let outcome: ParentToolOutcome
-            if let denied = await parentGuard.check(
-                call, said: heard, language: language, tools: parentTools) {
-                outcome = denied
-            } else {
-                outcome = await parentTools.execute(
-                    name: call.name, argumentsJSON: call.arguments)
-            }
-            if let card = outcome.card { cards.append(card) }
-            turns.append(Turn(role: .tool, content: outcome.output, toolCallID: call.id))
-            let run = ToolRun(call: call, outcome: outcome, turn: turns.count - 1)
-            runs.append(run)
-            // At once, so a slow next call never holds this line back. Only a
-            // typing waits: whether it was proven depends on a later read.
-            if !Self.isTyping(run) {
-                await thread.appendStatus(ParentToolCopy.status(call.name, outcome, language))
-            }
-        }
-        let proof = proving(runs, turns: &turns, language: language)
-        let typings = proof.runs.filter(Self.isTyping)
-            .map { ParentToolCopy.status($0.call.name, $0.outcome, language) }
-        var emitted = Set<String>()
-        for line in proof.late + typings where emitted.insert(line).inserted {
-            await thread.appendStatus(line)
-        }
-        for run in proof.runs where ParentTool(rawValue: run.call.name)?.changesSomething == true {
-            effectLines.append(ParentToolCopy.status(run.call.name, run.outcome, language))
-        }
-        if !cards.isEmpty { cardThisTurn = true }
-        for card in cards { events?.yield(.job(.card(card))) }
-        return turns
     }
 }

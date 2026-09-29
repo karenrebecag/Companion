@@ -206,12 +206,12 @@ private func request(_ id: String) -> ApprovalRequest {
 /// proyección. El registro del hilo sigue saliendo al terminar.
 @MainActor func testChatViewModelProjectsTheJob() async {
     let vm = primed(chat: FakeChatProvider())
-    vm.receiveJobEvent(.started(goal: "buscar vuelos"))
-    vm.receiveJobEvent(.stepStarted(tool: "WebSearch", summary: "x"))
+    let id = vm.startJob(goal: "buscar vuelos")
+    vm.receiveJobEvent(.stepStarted(tool: "WebSearch", summary: "x"), from: id)
     expectEq(vm.session.projection.kind, .processing(.subAgentRunning), "chat: el kind sale de la sesión")
     expectEq(vm.job?.goal, "buscar vuelos", "chat: job es la proyección")
     expectEq(vm.session.projection.job?.steps.count, 1, "chat: los pasos también")
-    await vm.appendAssistant("listo")
+    vm.finishJob(ok: true, id: id)
     expect(vm.job == nil, "chat: el resultado cierra la tarjeta")
     expect(vm.messages.contains { $0.isStatus && $0.text.contains("buscar vuelos") },
            "chat: y deja el registro")
@@ -231,7 +231,7 @@ private func request(_ id: String) -> ApprovalRequest {
             submitter: submitter)
     }
     await pumpUntil("niega: arranca") { vm.job != nil }
-    vm.receiveJobEvent(.approvalRequested(request("a1")))
+    vm.receiveJobEvent(.approvalRequested(request("a1")), from: vm.chatJobID)
     vm.answerApproval(false)
     await pumpUntil("niega: para") { submitter.cancelled }
     expectEq(vm.session.projection.kind, .idle, "niega: idle")
@@ -248,17 +248,23 @@ private func request(_ id: String) -> ApprovalRequest {
     h.transport.yield(.functionCall(
         name: "delegate", arguments: #"{"goal":"limpiar build"}"#, callId: "c1"))
     await pumpUntil("stream: el encargo se anuncia") {
-        seen.events.contains { if case .job(.started(let goal)) = $0 { goal == "limpiar build" } else { false } }
+        seen.events.contains { if case .job(.started(let goal), _) = $0 { goal == "limpiar build" } else { false } }
     }
     jobs.askApproval(request("r7"))
     await pumpUntil("stream: la petición viaja") {
-        seen.events.contains { if case .job(.approvalRequested(let r)) = $0 { r.requestId == "r7" } else { false } }
+        seen.events.contains { if case .job(.approvalRequested(let r), _) = $0 { r.requestId == "r7" } else { false } }
     }
+    // Review 16h-2 round 3 (HIGH): realtime has no hold to tie a yes to, so
+    // the spoken one asks for the click and never reaches the reducer.
+    await pumpUntilAsync("la sesión vio la hoja") { await h.session.pendingApproval != nil }
+    h.clock.now += ApprovalClickGuard.dwell + 0.1
     h.transport.yield(.functionCall(
         name: "resolve_approval", arguments: #"{"approved":true}"#, callId: "c2"))
-    await pumpUntil("stream: el sí hablado viaja al reductor") {
-        seen.events.contains { $0 == .approvalSpoken(approved: true) }
+    await pumpUntil("stream: el sí hablado recibe su salida") {
+        h.transport.sent.contains { $0.contains("function_call_output") && $0.contains("c2") }
     }
+    expect(!seen.events.contains { $0 == .approvalSpoken(approved: true) },
+           "stream: en realtime el sí hablado no llega al reductor")
 }
 
 /// 27b. Las manos del padre en voz: `parentActing` / `parentActed` salen

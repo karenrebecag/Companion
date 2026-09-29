@@ -64,6 +64,9 @@ public struct SessionProjection: Sendable, Equatable {
     public var voice: VoiceStatus = .off
     public var pipeline: VoicePipeline?
     public var job: JobTimeline?
+    /// 16h-2: jobs submitted while `job` runs, in arrival order. Each keeps
+    /// its own name and steps until it takes the row.
+    public var queued: [JobTimeline] = []
     /// Requests waiting for the sheet, in arrival order. The sheet shows the
     /// first; a voice-born job's and the chat's own gate can overlap.
     public var approvalQueue: [ApprovalRequest] = []
@@ -104,6 +107,9 @@ public struct SessionProjection: Sendable, Equatable {
     /// Where the last call acted, in Accessibility's global top-left space.
     /// Nil when the target app exposed no window; the aura then follows the cursor.
     public var handsTarget: CGRect?
+    /// 16h-2 (S2): a job's end is sounding or waiting for its gap, so a Stop
+    /// at rest has something to silence.
+    public var announcing: Bool = false
 
     public var approval: ApprovalRequest? { approvalQueue.first }
 
@@ -119,8 +125,9 @@ public enum SessionEvent: Sendable, Equatable {
     /// The parent's hands, one round.
     case parentActing(targets: [String])
     case parentActed
-    case job(JobEvent)
-    case jobFinished(ok: Bool)
+    /// `from` names the job (16h-2); nil for untagged producers.
+    case job(JobEvent, from: JobID? = nil)
+    case jobFinished(ok: Bool, from: JobID? = nil)
     /// The sheet answered.
     case approvalAnswered(requestId: String, approved: Bool, remember: Bool)
     /// The user answered out loud. The model carries no request id, so the
@@ -177,6 +184,8 @@ public enum SessionEvent: Sendable, Equatable {
     case handsGlowExpired
     /// The user: Esc, the Stop button, "stop".
     case stop
+    /// 16h-2 (S2): the voice session has a job's end sounding or waiting.
+    case announcing(Bool)
 }
 
 public enum SessionEffect: Sendable, Equatable {
