@@ -12,6 +12,7 @@ struct AnswerPopupView: View {
     let screenWidth: CGFloat
     let maxHeight: CGFloat
     let onClose: () -> Void
+    @State private var contentHeight: CGFloat = 0
 
     var body: some View {
         AnswerPopup(screenWidth: screenWidth) {
@@ -28,14 +29,34 @@ struct AnswerPopupView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(Localized.string("island.answer.close"))
             }
-            ScrollView(.vertical) {
-                AnswerBlockList(blocks: blocks)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            // The popup hugs a short answer; the scroll appears only past
+            // the cap. A greedy ScrollView made every popup cap-tall (16m
+            // snapshot), and ImageRenderer skips scroll content besides.
+            // The branches swap only on the opening frames (blocks are a
+            // finished message, so contentHeight settles once), before any
+            // fold/copy state exists to lose.
+            if contentHeight > maxHeight {
+                ScrollView(.vertical) { list }
+                    .scrollIndicators(.never)
+                    .frame(height: maxHeight, alignment: .top)
+            } else {
+                // Unmeasured first frame: the clamp keeps an over-tall list
+                // from painting past the cap or over-reporting the island's
+                // click area before the measure lands (review 16m).
+                list
+                    .frame(maxHeight: maxHeight, alignment: .top)
+                    .clipped()
             }
-            .scrollIndicators(.never)
-            .frame(maxHeight: maxHeight, alignment: .top)
         }
         .onExitCommand(perform: onClose)
+    }
+
+    private var list: some View {
+        AnswerBlockList(blocks: blocks)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) {
+                contentHeight = $0
+            }
     }
 }
 
