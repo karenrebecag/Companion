@@ -102,6 +102,11 @@ private final class FakeApps: AppsService, @unchecked Sendable {
         }
         try disconnectResult.get()
     }
+
+    // 16k-3: the page never calls tools; the voice runner has its own fake.
+    func call(app: String, tool: String, argumentsJSON: String, approved: Bool) async throws -> AppCallResult {
+        throw AppsFailure.unexpected
+    }
 }
 
 private func app(_ slug: String) -> CatalogApp {

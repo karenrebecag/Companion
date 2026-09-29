@@ -54,6 +54,12 @@ enum IslandNotice {
         case .failure(let failure):
             Content(symbol: symbol(failure), title: VoiceCopy.failure(failure), body: nil,
                     action: keysAction(failure), lifetime: nil)
+        case .connectApp(let slug, let name):
+            // 16k-3: the way to the Apps page rides the card; it leaves on
+            // its own so an unanswered nudge never squats the island.
+            Content(symbol: "app.badge", title: String(format: Localized.string("island.connectApp"), name),
+                    body: Localized.string("island.connectApp.body"),
+                    action: .openApps(slug: slug), lifetime: SessionMachine.noticeDelay)
         default:
             nil
         }

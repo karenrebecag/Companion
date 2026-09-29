@@ -128,7 +128,10 @@ func makeVoicePipeline(
             // The Settings knob drives the server's VAD (9j-1).
             turnDetection: { env.configProvider.current.voice.turnDetection }),
         memoryStore: env.memoryStore,
-        parentTools: sensing.parentTools,
+        // 16k-3: voice gets the composite — parent tools plus the
+        // connected apps'. The decision gate above keeps the plain runner:
+        // it only routes open_app/open_url and must not grow surface.
+        parentTools: sensing.conversationTools,
         sensor: sensing.sensor,
         approvals: jobs.approvals,
         // Wave 12e: a hold with a text field in front dictates into it.

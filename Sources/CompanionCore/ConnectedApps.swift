@@ -62,13 +62,19 @@ public struct AppAction: Sendable, Equatable, Identifiable {
     public let name: String
     public let description: String
     public let group: Group
+    /// 16k-3: the tool's inputSchema as the wire sent it, re-serialized.
+    /// Kept raw because the flat ToolProperty cannot express nesting; nil
+    /// when the server declared none.
+    public let schemaJSON: String?
     public var id: String { slug }
 
-    public init(slug: String, name: String, description: String, group: Group) {
+    public init(slug: String, name: String, description: String, group: Group,
+                schemaJSON: String? = nil) {
         self.slug = slug
         self.name = name
         self.description = description
         self.group = group
+        self.schemaJSON = schemaJSON
     }
 
     /// Server-declared read wins Leer; a destructive flag wins Borrar even
@@ -98,6 +104,18 @@ public enum AppsFailure: Error, Sendable, Equatable {
     case unexpected
 }
 
+/// What POST /api/call answers: the tool's own text, or its own error text
+/// — either way words for the model, never a crash.
+public struct AppCallResult: Sendable, Equatable {
+    public let isError: Bool
+    public let text: String
+
+    public init(isError: Bool, text: String) {
+        self.isError = isError
+        self.text = text
+    }
+}
+
 public protocol AppsService: Sendable {
     func catalog(query: String, after: String?) async throws -> CatalogPage
     func accounts() async throws -> [ConnectedAccount]
@@ -105,6 +123,9 @@ public protocol AppsService: Sendable {
     func tools(app: String) async throws -> [AppAction]
     /// `account` is the `ConnectedAccount.id`, not the app slug (spec §9.2.4).
     func disconnect(account: String) async throws
+    /// 16k-3: runs one tool of a connected app. `approved` says the sheet
+    /// was answered; the function refuses an unapproved write on its own.
+    func call(app: String, tool: String, argumentsJSON: String, approved: Bool) async throws -> AppCallResult
 }
 
 /// The function's address, as the user types it in.
@@ -178,6 +199,19 @@ public enum AppsWire {
         return Array(sorted.prefix(maxTools))
     }
 
+    /// The server cuts at 20k (lib/mcp.mjs MAX_RESULT_CHARS); the same cap
+    /// here means a misbehaving server still cannot flood the model.
+    static let maxCallResult = 20_000
+
+    /// POST /api/call (companion-apps api/call.mjs) answers `{isError,
+    /// text}`: the tool's words either way, cut server-side and re-cut here.
+    public static func callResult(status: Int, body: Data) throws -> AppCallResult {
+        let data = try payload(status: status, body: body)
+        guard let text = data["text"] as? String else { throw AppsFailure.unexpected }
+        return AppCallResult(isError: data["isError"] as? Bool ?? false,
+                             text: String(text.prefix(maxCallResult)))
+    }
+
     /// DELETE /api/accounts?id=... (companion-apps api/accounts.mjs DELETE
     /// handler) answers `{ disconnected: id }`; returns that id so a caller
     /// can confirm it matches what it asked to remove.
@@ -229,18 +263,42 @@ public enum AppsWire {
                           icon: icon(item["icon"] as? String))
     }
 
-    /// Icons load from Pipedream's own https host only, checked again here
-    /// although the function already filters them.
+    /// Icons load from Pipedream's own https hosts only, checked again here
+    /// although the function already filters them. assets.pipedream.net is
+    /// where the real catalog serves them from (seen live 2026-09-28).
+    private static let iconHosts: Set<String> = ["pipedream.com", "assets.pipedream.net"]
+
     private static func icon(_ text: String?) -> URL? {
-        guard let text, let url = URL(string: text), url.scheme == "https", url.host == "pipedream.com"
+        guard let text, let url = URL(string: text), url.scheme == "https",
+              let host = url.host, iconHosts.contains(host)
         else { return nil }
         return url
     }
 
+    /// The function's own rule (companion-apps lib/validate.mjs TOOL),
+    /// checked again here: a name outside it never becomes a spec, an
+    /// approval key or a sheet subject (F-A, security review 16k-3).
+    private static let toolName = "^[a-z0-9_]+-[a-z0-9_-]{1,120}$"
+
     private static func action(_ item: [String: Any]) -> AppAction? {
-        guard let slug = item["name"] as? String, !slug.isEmpty else { return nil }
+        guard let slug = item["name"] as? String,
+              slug.range(of: toolName, options: .regularExpression) != nil
+        else { return nil }
         let group = AppAction.classify(kind: item["kind"] as? String, destructive: item["destructive"] as? Bool ?? false)
-        return AppAction(slug: slug, name: humanize(slug), description: item["description"] as? String ?? "", group: group)
+        return AppAction(slug: slug, name: humanize(slug), description: item["description"] as? String ?? "", group: group,
+                         schemaJSON: schema(item["inputSchema"]))
+    }
+
+    /// The inputSchema back to JSON, verbatim: the model reads it as its
+    /// function parameters. Not valid JSON object → nil, never garbage.
+    private static func schema(_ value: Any?) -> String? {
+        guard let object = value as? [String: Any] else { return nil }
+        do {
+            let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+            return String(data: data, encoding: .utf8)
+        } catch {
+            return nil
+        }
     }
 
     /// "slack-send-message" -> "Slack Send Message": the wire has no

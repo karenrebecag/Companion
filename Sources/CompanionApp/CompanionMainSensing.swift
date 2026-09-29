@@ -17,6 +17,11 @@ struct SensingAndModel {
     let frontmost: FrontmostAppSensor
     let screenSight: ScreenSight
     let parentTools: ParentToolRunner
+    /// 16k-3: parent tools PLUS the connected apps' tools — what chat and
+    /// both voice modes get. The bridge keeps `parentTools` on purpose:
+    /// an MCP client lends the hands, it does not inherit Karen's Slack.
+    let conversationTools: any ParentToolExecuting
+    let appTools: AppToolRunner
     let sensor: SystemContextSensor
     let voicePort: VoicePortBox
     let sessionModel: SessionModel
@@ -113,13 +118,50 @@ func makeSensingAndModel(
     let voicePort = VoicePortBox()
     let sessionModel = SessionModel(
         jobs: jobs.jobRunner, approvals: jobs.approvals, voice: voicePort, log: { Log.app($0) })
+    // 16k-3: the connected apps' tools ride next to the parent's. The
+    // service is rebuilt per use from the same two settings the Apps page
+    // reads (endpoint in defaults, key in the Keychain); the suggestion
+    // callback raises the island's "Conectar X" card through the reducer.
+    let appTools = AppToolRunner(
+        service: { [secrets = env.secrets] in
+            guard let raw = UserDefaults.standard.string(forKey: AppsModel.endpointDefault),
+                  let url = AppsEndpoint.validated(raw) else { return nil }
+            let key: String?
+            do {
+                key = try secrets.read(.companionApps)
+            } catch {
+                // Distinguishable in the log: a Keychain failure is not
+                // "not configured" (review 16k-3 L2).
+                Log.app("apps: keychain read failed for the runner")
+                key = nil
+            }
+            guard let key, key.count >= 32 else { return nil }
+            return HTTPAppsService(base: url, key: key)
+        },
+        catalog: CatalogSeed.apps(language: .en).map {
+            AppMention.Candidate(slug: $0.slug, name: $0.name)
+        },
+        suggest: { slug, name in
+            Task { @MainActor in
+                _ = sessionModel.send(.connectAppSuggested(slug: slug, name: name))
+            }
+        })
+    Task.detached(priority: .utility) { await appTools.refresh() }
+    // The Apps page says when an account changed; the TTL is only the
+    // fallback for changes made outside this app.
+    NotificationCenter.default.addObserver(
+        forName: .companionAppsChanged, object: nil, queue: nil
+    ) { _ in
+        Task.detached(priority: .utility) { await appTools.refresh() }
+    }
+    let conversationTools = CompositeParentTools([parentTools, appTools])
     let model = ChatViewModel(
         chat: providers.chat, secrets: env.secrets, store: providers.store, config: env.config,
         jobSubmitter: jobs.jobRunner,
         notices: NoticeCenter(sound: sound),
         attachments: attachmentStore,
         startupProbe: providers.localCatalog,
-        parentTools: parentTools,
+        parentTools: conversationTools,
         sensor: sensor,
         accessibility: accessibility,
         screenRecording: ScreenRecordingPermission(),
@@ -131,6 +173,7 @@ func makeSensingAndModel(
     return SensingAndModel(
         attachmentStore: attachmentStore, workspaceOpener: workspaceOpener,
         dictation: dictation, frontmost: frontmost, screenSight: screenSight,
-        parentTools: parentTools, sensor: sensor, voicePort: voicePort,
+        parentTools: parentTools, conversationTools: conversationTools,
+        appTools: appTools, sensor: sensor, voicePort: voicePort,
         sessionModel: sessionModel, model: model)
 }

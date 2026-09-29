@@ -139,6 +139,13 @@ public struct SessionMachine: Sendable, Equatable {
             projection.cards = [.couldntHear]
             projection.kind = restingKind()
             effects.append(.scheduleNoticeExpiry(Self.noticeDelay))
+        case .connectAppSuggested(let slug, let name):
+            // A nudge, not a transition: whatever the turn is doing keeps
+            // the kind; the card offers the way to the Apps page and
+            // leaves on its own like couldntHear.
+            projection.notice = .connectApp(slug: slug, name: name)
+            projection.cards = [.connectApp(slug: slug, name: name)]
+            effects.append(.scheduleNoticeExpiry(Self.noticeDelay))
         case .noticeExpired:
             if let notice = projection.notice, Self.fades(notice) { projection.notice = nil }
         case .pendingTimedOut:
@@ -272,7 +279,8 @@ public struct SessionMachine: Sendable, Equatable {
     }
 
     private static func fades(_ notice: SessionCard) -> Bool {
-        notice == .couldntHear || notice == .holdHint
+        if case .connectApp = notice { return true }
+        return notice == .couldntHear || notice == .holdHint
     }
 
     /// Something new started: whatever the resting chrome was showing is

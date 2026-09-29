@@ -48,6 +48,9 @@ public enum SessionCard: Sendable, Equatable {
     case answer(Card)
     /// Teach the hold: a tap, or the pointer resting on the island.
     case holdHint
+    /// 16k-3: the turn named an app that is not connected; the card is the
+    /// way to the Apps page (spec §2.5).
+    case connectApp(slug: String, name: String)
 }
 
 /// The voice port's own status, distinct from the kind: a session can be
@@ -132,6 +135,8 @@ public enum SessionEvent: Sendable, Equatable {
     case completedTimerExpired
     /// A fading notice's six seconds are up (16e).
     case noticeExpired
+    /// 16k-3: the turn named an app that is not connected (AppMention).
+    case connectAppSuggested(slug: String, name: String)
     /// The hold key went down (or the pointer pressed the island).
     case pressed
     case pressedProvisionally

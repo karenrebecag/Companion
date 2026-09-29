@@ -237,6 +237,9 @@ final class ClassicRuntime: @unchecked Sendable {
             let spoken = ContextBlock.languageInstruction(language) + "\n\n" + heard
             history[last].content = ContextBlock.wrap(spoken, with: block)
         }
+        // 16k-3: the words decide which connected app's tools travel this
+        // turn, before the list below is assembled.
+        parentTools?.noteTurn(heard)
         var tools = parentTools?.specs(language) ?? []
         if onDelegate != nil {
             tools.append(.delegate(language))

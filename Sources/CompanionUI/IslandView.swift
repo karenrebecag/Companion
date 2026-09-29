@@ -566,6 +566,11 @@ public struct IslandView: View {
             if let link = VoiceCopy.settingsLink(for: failure) { openURL(link) }
         case .stopHands:
             NotificationCenter.default.post(name: .companionStopHands, object: nil)
+        case .openApps(let slug):
+            // Same road as .openKeys: the window is the main's to raise,
+            // the island only names the page and the app it means.
+            onShowMain()
+            NotificationCenter.default.post(name: .companionOpenApps, object: slug)
         }
     }
 
@@ -631,6 +636,8 @@ enum IslandCopy {
         case .cancelled: Localized.string("island.cancelled")
         case .followUp(let title): title
         case .dropZones: Localized.string("island.drop.title")
+        case .connectApp(_, let name):
+            String(format: Localized.string("island.connectApp"), name)
         }
     }
 
@@ -639,6 +646,7 @@ enum IslandCopy {
         case .openKeys: Localized.string("island.action.keys")
         case .openPermission: Localized.string("permission.open")
         case .stopHands: Localized.string("island.hands.stop")
+        case .openApps: Localized.string("island.connectApp.action")
         }
     }
 

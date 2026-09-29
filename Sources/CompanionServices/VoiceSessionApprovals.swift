@@ -35,8 +35,17 @@ extension VoiceSession {
             await realtime.requestResponse()
             return true
         }
-        guard pendingApproval != nil else {
+        guard let pending = pendingApproval else {
             Log.app("voice: approval answered with nothing pending")
+            return false
+        }
+        // F-D (security review 16k-3): `resolve_approval` is a call the
+        // MODEL makes — and a connected app's read output is words an
+        // attacker can plant in front of that model. An app write approved
+        // by a "spoken yes" the user never spoke would be the injection's
+        // whole payoff, so app writes take the sheet's click, always.
+        if pending.toolName.hasPrefix(ApprovalCopy.appToolPrefix) {
+            Log.app("voice: app write approvals need the sheet, not resolve_approval")
             return false
         }
         pendingApproval = nil
