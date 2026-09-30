@@ -9,7 +9,12 @@ import Foundation
 extension VoiceSession {
     func startPumps() {
         if eventTask == nil {
-            eventTask = Task { [weak self] in await self?.pumpEvents() }
+            // A new pump is a new session: a reconnect still in flight from
+            // the previous one sees the bump and stands down.
+            realtimeGeneration += 1
+            reconnectTimes = []
+            let generation = realtimeGeneration
+            eventTask = Task { [weak self] in await self?.pumpEvents(generation: generation) }
         }
         startFramePump()
         let pipeline = machine.snapshot.pipeline
@@ -116,53 +121,96 @@ extension VoiceSession {
         }
     }
 
-    func pumpEvents() async {
-        for await event in transport.events() {
-            if Task.isCancelled { return }
-            if event == .sessionUpdated, !realtime.didBecomeReady {
-                await apply(.realtimeSessionReady)
-                realtime.didBecomeReady = true
+    func pumpEvents(generation: Int) async {
+        var events = transport.events()
+        while true {
+            for await event in events {
+                if Task.isCancelled || generation != realtimeGeneration { return }
+                if event == .sessionUpdated, !realtime.didBecomeReady {
+                    await apply(.realtimeSessionReady)
+                    realtime.didBecomeReady = true
+                    // The retry is earned by a connection that got ready;
+                    // one that dies first must not be reopened in a loop.
+                    reconnectAttempted = false
+                }
+                let follow = await realtime.handle(
+                    event, state: machine.snapshot.state)
+                for next in follow { await apply(next) }
             }
-            let follow = await realtime.handle(
-                event, state: machine.snapshot.state)
-            for next in follow { await apply(next) }
-        }
-        // Stream ended unexpectedly while session was active.
-        // FIX 2: Detect when stream ends without explicit close.
-        // FIX 3: Attempt reconnect once if network available.
-        // Only handle stream end if still in active realtime states (not already failed/idle).
-        let state = machine.snapshot.state
-        if state == .listening || state == .speaking {
+            // Stream ended unexpectedly while session was active.
+            // Only handle stream end if still in active realtime states (not already failed/idle).
+            let state = machine.snapshot.state
+            guard isCurrent(generation), state == .listening || state == .speaking else { return }
             let online = await reachability.isOnline
-            if online && !reconnectAttempted {
-                reconnectAttempted = true
-                Log.app("voice: reconnect attempt after stream ended")
-                await reconnectRealtimeSession()
-            } else {
+            // A hang-up can land while we ask: failing a closed session would
+            // paint an error over the idle one the user just chose.
+            guard isCurrent(generation) else { return }
+            guard online, !reconnectAttempted, reconnectBudgetLeft() else {
                 await apply(.turnFailed(.sessionDropped))
+                return
             }
+            reconnectAttempted = true
+            reconnectTimes.append(now())
+            Log.app("voice: reconnect attempt after stream ended")
+            // The reconnect runs inside this very task, so startPumps would
+            // see eventTask != nil and never start a reader: read the new
+            // stream from here.
+            guard await reconnectRealtimeSession(generation: generation) else { return }
+            events = transport.events()
         }
     }
 
-    func reconnectRealtimeSession() async {
-        guard let key = openAIKey() else {
+    /// Whether this pump still belongs to the live session. A closed session
+    /// can be reopened (`start()` clears `voiceClosed`), so the generation is
+    /// what tells the old pump from the new one.
+    private func isCurrent(_ generation: Int) -> Bool {
+        !Task.isCancelled && generation == realtimeGeneration && !voiceClosed
+    }
+
+    /// Readiness earns a retry, but a server that accepts and then drops,
+    /// over and over, would still loop: this caps reconnects per window.
+    private func reconnectBudgetLeft() -> Bool {
+        let cutoff = now() - Self.reconnectWindow
+        reconnectTimes = reconnectTimes.filter { $0 > cutoff }
+        return reconnectTimes.count < Self.reconnectBudget
+    }
+
+    /// Reopens the socket as a NEW server session: it starts on the server's
+    /// defaults, so the config goes out again before anything else.
+    func reconnectRealtimeSession(generation: Int) async -> Bool {
+        guard let key = openAIKey(), let url = RealtimeCodec.url() else {
             await apply(.turnFailed(.sessionDropped))
-            return
+            return false
         }
-        guard let url = RealtimeCodec.url() else {
-            await apply(.turnFailed(.sessionDropped))
-            return
-        }
+        // Read before the socket opens: after `open` nothing may suspend
+        // until the config is on its way, or a send could beat it.
+        let history = await classic.thread.historyTurns()
+        guard isCurrent(generation) else { return false }
         do {
             try await transport.open(key: key, url: url)
-            // Reconnection succeeded: reset flag and resume pumps.
-            reconnectAttempted = false
-            startPumps()
         } catch {
-            // Reconnection failed: degrade to error state.
+            guard isCurrent(generation), !(error is CancellationError) else { return false }
             Log.app("voice: reconnect failed")
             await apply(.turnFailed(.sessionDropped))
+            return false
         }
+        guard isCurrent(generation) else {
+            // Nobody is left to use this socket. If a new session took over
+            // the transport it owns it; closing would cut that one off.
+            if voiceClosed { await transport.close() }
+            return false
+        }
+        // Reset first, then prepare: `prepareSessionUpdate` reads `voiceSent`.
+        // Both stay after the open so a send that failed on the dead socket
+        // cannot leave the runtime paused for the new one.
+        realtime.resetConnection()
+        realtime.prepareSessionUpdate(
+            config: configProvider.current, history: history,
+            canDelegate: jobs != nil)
+        await realtime.flushPendingUpdate()
+        if realtime.transportDown { Log.app("voice: reconnect config not delivered") }
+        await dropPendingMCPApprovals()
+        return true
     }
 
     func pumpFrames() async {

@@ -3,6 +3,13 @@ import Foundation
 
 /// Port protocols (VoiceTransport, PCMPlaying, ConversationPresenting) may not
 /// conform to Sendable but are safely isolated by exclusive access in VoiceSession.
+/// Every async method is `nonisolated(nonsending)`: it runs on the caller's
+/// actor (VoiceSession), so that exclusive access is enforced by the executor
+/// and not only by convention. A caller outside the actor loses it.
+/// Still `@unchecked Sendable`: dropping it makes VoiceSession.init fail
+/// ("cannot access property 'realtime' here in nonisolated initializer"),
+/// because init wires callbacks onto the stored runtime. Fixing that means
+/// building it in locals before the actor owns it, a change to init.
 final class RealtimeRuntime: @unchecked Sendable {
     /// Told to the model, not to the user: it keeps talking while the
     /// specialist works. Model-facing copy follows the answer language, or
@@ -61,7 +68,7 @@ final class RealtimeRuntime: @unchecked Sendable {
     var micEnabled = true
     var didBecomeReady = false
     private(set) var pendingUpdate: String?
-    private var voiceSent = false
+    private(set) var voiceSent = false
     private var backchannel = BackchannelGate()
     /// The server's response lifecycle, tracked from ITS events — the turn
     /// machine tracks audio playback, and the gap between "audio drained" and
@@ -69,7 +76,7 @@ final class RealtimeRuntime: @unchecked Sendable {
     private(set) var responseActive = false
     /// A non-preempting response request that arrived mid-response; sent when
     /// the active one finishes.
-    private var pendingResponse = false
+    private(set) var pendingResponse = false
     /// What the agent is saying in the CURRENT response — the reference for
     /// text-level echo discrimination (9j-6a): on speakers the mic hears the
     /// agent, so a heard segment overlapping these words is echo, not the
@@ -78,7 +85,7 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// Whatever the session was opened with: the tools, the instructions and
     /// every model-facing line have to agree on one language.
     private(set) var language: AppLanguage = .en
-    private var transportDown = false
+    private(set) var transportDown = false
 
     init(
         transport: any VoiceTransport,
@@ -90,12 +97,27 @@ final class RealtimeRuntime: @unchecked Sendable {
         self.thread = thread
     }
 
+    /// A whole new session: also re-opens the mic, which only the turn
+    /// machine's mute may close.
     func reset() {
         micEnabled = true
+        resetConnection()
+    }
+
+    /// What dies with a socket. `micEnabled` is NOT here: it mirrors the
+    /// user's mute, and a reconnect must not un-mute anybody.
+    func resetConnection() {
         didBecomeReady = false
         pendingUpdate = nil
         voiceSent = false
         transportDown = false
+        dropInFlightResponse()
+    }
+
+    /// The server's response died with the connection. Kept apart on purpose:
+    /// what to do when the drop lands mid-speech is still open, and this is
+    /// the one place that decision will change.
+    private func dropInFlightResponse() {
         responseActive = false
         pendingResponse = false
         agentSpeech = ""
@@ -105,7 +127,7 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// ONE response at a time; five call sites used to race it blind. A user
     /// turn preempts (their voice outranks whatever the agent was saying);
     /// everything else waits its turn.
-    func requestResponse(preempting: Bool = false) async {
+    nonisolated(nonsending) func requestResponse(preempting: Bool = false) async {
         guard responseActive else {
             await send(RealtimeCodec.responseCreate())
             return
@@ -152,14 +174,14 @@ final class RealtimeRuntime: @unchecked Sendable {
             mcpServers: config.mcpServers)
     }
 
-    func flushPendingUpdate() async {
+    nonisolated(nonsending) func flushPendingUpdate() async {
         guard let json = pendingUpdate else { return }
         pendingUpdate = nil
         voiceSent = true
         await send(json)
     }
 
-    func send(_ json: String) async {
+    nonisolated(nonsending) func send(_ json: String) async {
         // One dead socket used to produce a log line per audio frame — ten per
         // second of pure noise. Once the transport is down, stop pushing until
         // a new session resets this.
@@ -172,14 +194,14 @@ final class RealtimeRuntime: @unchecked Sendable {
         }
     }
 
-    func append(_ frame: MicFrame) async {
+    nonisolated(nonsending) func append(_ frame: MicFrame) async {
         await send(RealtimeCodec.appendAudio(frame.pcm16le24k))
     }
 
     /// Wave 9i: arm the turn from the ear's transcript — the mic never
     /// reaches the conversation model, so the accurate text IS the turn. The
     /// user's turn preempts whatever the agent was still saying.
-    func commitWithText(_ text: String, context: TurnContext? = nil) async {
+    nonisolated(nonsending) func commitWithText(_ text: String, context: TurnContext? = nil) async {
         lastUserText = text
         await thread.appendUser(text, context: context)
         Log.app("voice: turn from native text \(text.count) chars")
@@ -192,16 +214,16 @@ final class RealtimeRuntime: @unchecked Sendable {
         await requestResponse(preempting: true)
     }
 
-    func clearInputAudio() async {
+    nonisolated(nonsending) func clearInputAudio() async {
         await send(RealtimeCodec.clearAudio())
     }
 
-    func cancelAgent() async {
+    nonisolated(nonsending) func cancelAgent() async {
         await send(RealtimeCodec.responseCancel())
         await player.flush()
     }
 
-    func close(mic: any MicCapturing) async {
+    nonisolated(nonsending) func close(mic: any MicCapturing) async {
         reset()
         await transport.close()
         await player.stop()
@@ -226,7 +248,7 @@ final class RealtimeRuntime: @unchecked Sendable {
         return backchannel.allowsWhileSpeaking(rms: frame.rms)
     }
 
-    func handle(
+    nonisolated(nonsending) func handle(
         _ event: RealtimeEvent,
         state: TurnState
     ) async -> [TurnEvent] {
@@ -370,7 +392,7 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// boolean: anything else (truncated arguments, `1`, a missing field)
     /// resolves nothing and leaves the request alive for the sheet or a
     /// second try. Granting a permission by accident is unrecoverable.
-    private func resolveApproval(arguments: String, callId: String) async {
+    private nonisolated(nonsending) func resolveApproval(arguments: String, callId: String) async {
         let decision = RealtimeCodec.approvalDecision(fromArguments: arguments)
         var output = Escalation.approvalNothingPending(language)
         if let decision, let onResolveApproval {
