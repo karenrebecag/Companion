@@ -12,6 +12,10 @@ citado es el tag swift-6.3.3-RELEASE (commit 5f6969f5b083b4415632114d4897c6f8207
 <!-- Reutilizado 2026-09-30 en 21c S2 (rama fix/21c-smoke): el probe de recursos y el smoke de
 empaquetado implementan §7, §8 y §10 de este brief; no hay pregunta nueva. -->
 
+<!-- Reutilizado 2026-09-30 en 21c S3 (rama fix/21c-release): release.sh vuelve a correr el smoke
+de §8 sobre la app re-firmada y los tests de scripts se anclan a lineas ejecutables; la politica
+de dirty (D7) sale de la spec 21c, no de este brief. No hay pregunta nueva. -->
+
 ## 1. Pregunta y decisiones abiertas
 
 Pregunta de Karen para la spec 21c: "Como debe resolver companion-next sus recursos empaquetados (fuentes, skills, diagramas, localizacion) para que funcionen de forma robusta en todos los builds? Hoy se usa Bundle.module; queremos saber si esa es la estrategia correcta o si hay que cambiarla, y que estandar seguir."
