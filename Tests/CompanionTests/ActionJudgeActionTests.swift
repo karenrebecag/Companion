@@ -64,7 +64,7 @@ private func mcp(_ tool: String, _ json: String = #"{"path":"a.txt"}"#) -> Propo
 @Test func publicInitsCannotBypassTheSanitising() throws {
     let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    let source = try String(contentsOf: root.appendingPathComponent("Sources/CompanionCore/ActionJudging.swift"),
+    let source = try String(contentsOf: root.appendingPathComponent("Sources/CompanionCore/Decision/ActionJudging.swift"),
                             encoding: .utf8)
     expect(!source.contains("public init(values:"), "16q-3a init: ActionSummary no se construye desde fuera")
     expect(!source.contains("public init(kind:"), "16q-3a init: ProposedAction tampoco")
