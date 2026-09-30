@@ -41,6 +41,7 @@ public struct CompanionRootView: View {
         updates: UpdateState? = nil,
         welcome: WelcomeModel,
         memory: (any MemoryBrowsing)? = nil,
+        browser: BrowserSettingsModel? = nil,
         apps: AppsModel? = nil,
         grabber: (any RegionGrabbing)? = nil
     ) {
@@ -50,6 +51,7 @@ public struct CompanionRootView: View {
         self.updates = updates
         self.welcome = welcome
         self.memory = memory
+        self.browser = browser
         self.apps = apps
         self.grabber = grabber
     }
@@ -57,6 +59,7 @@ public struct CompanionRootView: View {
     private let updates: UpdateState?
     private let welcome: WelcomeModel
     private let memory: (any MemoryBrowsing)?
+    private let browser: BrowserSettingsModel?
     private let apps: AppsModel?
     /// The island's region capture, reused by the feedback modal (16m-7).
     private let grabber: (any RegionGrabbing)?
@@ -199,6 +202,7 @@ public struct CompanionRootView: View {
                             updates: updates,
                             welcome: welcome,
                             memory: memory,
+                            browser: browser,
                             tab: $settingsTab,
                             onClose: {
                                 withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }

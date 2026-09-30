@@ -21,6 +21,9 @@ struct SensingAndModel {
     /// both voice modes get. The bridge keeps `parentTools` on purpose:
     /// an MCP client lends the hands, it does not inherit Karen's Slack.
     let conversationTools: any ParentToolExecuting
+    /// Wave 18-3c: the browser's listener, runner and installer. Its tools
+    /// ride in `conversationTools` and, without the apps', in the bridge.
+    let browserHost: BrowserHost
     let appTools: AppToolRunner
     let sensor: SystemContextSensor
     let voicePort: VoicePortBox
@@ -62,6 +65,7 @@ func makeSensingAndModel(
     // Wave 15g: type, press, raise, read on the app the user was in —
     // the dictation adapter keyed to the sensor's last app that was not
     // us; offered only while Accessibility is trusted.
+    let receipts = ReceiptRelay()
     let pointer = PointerSampler()
     let screenSight = ScreenSight(
         capture: ScreenCapture(
@@ -112,6 +116,7 @@ func makeSensingAndModel(
         workdir: env.config.workdir,
         documents: NativeDocumentRenderer(),
         sheets: AppleEventSheets(),
+        onAct: { receipts.send($0) },
         location: location,
         // 16q-2: the same switch the turn's context reads (pinned by a test and Gate 3).
         locationChannelOn: { ContextPreference.locationChannelOn })
@@ -134,24 +139,40 @@ func makeSensingAndModel(
     let sessionModel = SessionModel(
         jobs: jobs.jobRunner, approvals: jobs.approvals, voice: voicePort, log: { Log.app($0) })
     sessionModel.islandEvents = islandEvents
+    // Wave 20d B: what ran without the sheet reaches the island with its
+    // undo; the press is the user's alone.
+    receipts.connect { receipt in
+        Task { @MainActor in sessionModel.send(.actionDone(receipt)) }
+    }
+    let undoer = ActionUndoer(sheets: AppleEventSheets())
+    sessionModel.onUndo = { receipt in
+        guard let step = receipt.undo else { return }
+        Task {
+            let undone = await undoer.undo(step)
+            await MainActor.run {
+                sessionModel.send(.actionDone(UndoReceipt(
+                    kind: undone ? .undone : .couldNotUndo, subject: receipt.subject)))
+            }
+        }
+    }
     // 16k-3: the connected apps' tools ride next to the parent's. The
     // service is rebuilt per use from the same two settings the Apps page
     // reads (endpoint in defaults, key in the Keychain); the suggestion
     // callback raises the island's "Conectar X" card through the reducer.
     let appTools = AppToolRunner(
-        service: { [secrets = env.secrets] in
-            guard let raw = UserDefaults.standard.string(forKey: AppsModel.endpointDefault),
-                  let url = AppsEndpoint.validated(raw) else { return nil }
-            let key: String?
+        service: { [secrets = env.secrets, hostSecrets = env.hostSecrets, pin = env.appsPin] in
+            let found: (url: URL, key: String?)?
             do {
-                key = try secrets.read(.companionApps)
+                found = try AppsCredentials.currentKey(
+                    endpoint: UserDefaults.standard.string(forKey: AppsModel.endpointDefault),
+                    legacy: secrets, bound: hostSecrets, pin: pin, log: { Log.app($0) })
             } catch {
                 // Distinguishable in the log: a Keychain failure is not
                 // "not configured" (review 16k-3 L2).
                 Log.app("apps: keychain read failed for the runner")
-                key = nil
+                return nil
             }
-            guard let key, key.count >= 32 else { return nil }
+            guard let url = found?.url, let key = found?.key, key.count >= 32 else { return nil }
             return HTTPAppsService(base: url, key: key)
         },
         catalog: CatalogSeed.apps(language: .en).map {
@@ -175,7 +196,14 @@ func makeSensingAndModel(
     ) { _ in
         Task.detached(priority: .utility) { await appTools.refresh() }
     }
-    let conversationTools = CompositeParentTools([parentTools, appTools])
+    let browserHost = BrowserHost(
+        directory: BridgePaths.directory,
+        installer: NativeHostInstaller(
+            home: FileManager.default.homeDirectoryForCurrentUser,
+            // No executable path means an unstable one: connecting then asks to move the app.
+            executable: Bundle.main.executableURL ?? URL(fileURLWithPath: "/")),
+        language: { env.configProvider.current.language })
+    let conversationTools = browserHost.conversationTools(parent: parentTools, apps: appTools)
     let model = ChatViewModel(
         chat: providers.chat, secrets: env.secrets, store: providers.store, config: env.config,
         jobSubmitter: jobs.jobRunner,
@@ -194,7 +222,7 @@ func makeSensingAndModel(
     return SensingAndModel(
         attachmentStore: attachmentStore, workspaceOpener: workspaceOpener,
         dictation: dictation, frontmost: frontmost, screenSight: screenSight,
-        parentTools: parentTools, conversationTools: conversationTools,
+        parentTools: parentTools, conversationTools: conversationTools, browserHost: browserHost,
         appTools: appTools, sensor: sensor, voicePort: voicePort,
         sessionModel: sessionModel, model: model)
 }

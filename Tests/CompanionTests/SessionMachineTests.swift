@@ -318,10 +318,11 @@ private func request(_ id: String) -> ApprovalRequest {
 
 private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     // Island facts are the model's business (ConversationQualityIslandTests);
-    // `approvalClosed` is the voice session's bookkeeping (StopParity16qTests).
+    // `approvalClosed` and `approvalFront` are the voice session's bookkeeping
+    // (StopParity16qTests, SpokenAnswerFrontTests).
     effects.filter {
         switch $0 {
-        case .logTransition, .islandEvent, .approvalClosed: false
+        case .logTransition, .islandEvent, .approvalClosed, .approvalFront: false
         default: true
         }
     }

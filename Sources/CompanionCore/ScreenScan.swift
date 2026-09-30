@@ -204,7 +204,12 @@ public protocol ScreenActing: Sendable {
     /// changed since the look is stale, never pressed.
     func click(node: Int, generation: Int, pid: Int32, label: String) -> ClickOutcome
     func scroll(node: Int?, generation: Int, direction: ScrollDirection, pid: Int32) -> Bool
-    /// Presses the menu item at `path` ("Archivo", "Exportar como PDF…");
-    /// the item's title, or nil when a step did not match.
-    func menu(path: [String], pid: Int32) -> String?
+    /// The title of the item `path` resolves to, read-only: walking a menu
+    /// never invokes anything. A step matches by prefix or substring, so this
+    /// is what a press WOULD hit, and what the gate must classify.
+    func menuTitle(path: [String], pid: Int32) -> String?
+    /// Presses the item at `path` only if it still resolves to `expecting`
+    /// (the title the gate classified); nil when a step did not match, the
+    /// menu changed, or the press failed.
+    func menu(path: [String], pid: Int32, expecting: String) -> String?
 }

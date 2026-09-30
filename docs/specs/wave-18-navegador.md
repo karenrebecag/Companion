@@ -103,6 +103,31 @@ Ningún puerto TCP; socket 0600 en carpeta 0700 con `getpeereid` y token por lan
 - **R4** Casos nuevos en `ParentTool` rompen `switch` exhaustivos (`isHands`, `isSight`) → el compilador los señala en 18-3.
 - **R5** Lanzar el binario de la app como host podría inicializar AppKit → bifurcar antes de `NSApplication` + test del modo host.
 
-## 11. Fuera de alcance
+## 11. Desviaciones del kickoff (planner + architect, 2026-09-29, contra `c316a33`)
+
+**D1 cumplido.** La sesión de QA del 2026-09-29 sobre Salesforce en Comet mostró el fallo de §1: `type_text` en campos Lightning → `no_focused_field`; Enter en la barra de direcciones no navega (hubo que usar `open_url`); `see` inventa datos que `look` no tiene.
+
+Se registran sin re-aprobar (la intención de cada decisión se conserva):
+
+- **X1 (D2)** Un manifiesto de `NativeMessagingHosts` no lleva argumentos: Chrome lanza `path chrome-extension://<id>/`. El modo host se entra solo con el origen fijado en `argv[1]`; un `--native-host` suelto se rechaza y los tests llaman a `BrowserHostRelay.run` directamente. Mismo binario, bifurcación antes de `NSApplication`, sin escribir en stdout nada que no sea un frame, y `exit` antes de tocar `Config`, Keychain o AppKit.
+- **X2 (§6)** El token lo inyecta el relé en el `hello` del primer frame; la extensión nunca lo ve. `hello` lleva `token`.
+- **X3 (§6)** El resultado viaja estructurado (`BrowserPage` con elementos: rol, etiqueta, contexto, tipo, autocomplete, valor, frame, `generation`) y Core renderiza el texto. Con un texto ya hecho, Core no podría volver a filtrar (criterio 2) ni gatear clics por etiqueta.
+- **X4 (§5, R4)** Nada de casos nuevos en `ParentTool`: `BrowserTool` en Core y `BrowserToolRunner: ParentToolExecuting` en Services, compuestos con `CompositeParentTools`. La conversación usa `[parentTools, appTools, browserTools]`; el puente `[parentTools, browserTools]` (no hereda el Slack de Karen). `ParentTool.ownsRequest` y `SessionMachine.isJobRequest` reconocen `BrowserTool`.
+- **X5 (§5)** El puente no publica solo: `BridgeScope.bridgeTools` es lista explícita (20c D6) y `BridgePolicy.readTools` también; ambas suman las `browser_*`. `DeliverableTools.swift` entra en 18-3.
+- **X6 (§5)** `HandsGate.verdict` cae en `default: .act` para nombres ajenos a `ParentTool`: la regla de direcciones se extrae como `HandsGate.typeVerdict(text:said:)`. La puerta de navegación vive en `BrowserPolicy` (mismo módulo que `ParentToolGate.saidIt`). `approval(for:said:)` es síncrono: las puertas leen la última `BrowserPage` filtrada en caché por pestaña; los tickets se atan a (tab, generation, element, label). El runner tiene su propia instancia de `ApprovalTickets`.
+- **X7 (§6)** 64 KB de punta a punta: la extensión recorta a ~56 KB UTF-8 (`TextEncoder`); el relé aplica el tope nativo de 1 MB y rechaza con `frame_too_large` (con el id del frame) todo lo que re-codificado pase de 64 KB, porque `BridgeListener` cierra la conexión en una línea larga.
+- **X8 (D6)** El manifiesto de la extensión lleva `key` (id estable aunque se mueva la carpeta) y `externally_connectable: {"ids": []}`; sin `onMessageExternal` ni listener de `window.message`. Permisos: `nativeMessaging`, `scripting`, `alarms` y `<all_urls>`; sin `tabs` ni `debugger`. La clave privada no se commitea.
+- **X9 (18-1)** Lectura con `chrome.scripting.executeScript` a demanda (`allFrames`, mundo aislado) en vez de `content_scripts` declarados: sin listener en cada página y funciona en pestañas de fondo. `>>>` atraviesa shadow roots abiertos y frames del mismo origen; los frames de otro origen se cubren con `browser_read` sin selector (ids etiquetados por frame). Escritura: `execCommand('insertText')` con respaldo del setter nativo + `input`/`change`. Clic: secuencia pointer/mouse completa con `composed: true`.
+- **X10 (§5)** Filtro sensible ampliado: `current-password`/`new-password`; los `hidden` no se listan.
+- **X11 (seguridad)** `SO_NOSIGPIPE` en los fds aceptados por `BridgeListener` (arregla también 17: escribir a un relé que Chrome mató tumbaba la app) y `SIGPIPE` ignorado en el relé. La cerradura 1 (`argv[1]`) es defensa en profundidad: las reales son token + `getpeereid` (se dice en ADR 007).
+- **X12 (18-4)** No existe pestaña «Navegador»: es un `Panel` en la pestaña de privacidad. El listener del navegador arranca al lanzar la app solo si hay un manifiesto instalado, independiente de prestar las manos. ADR 007 es el siguiente libre.
+- **X13 (D5)** Rutas verificadas en esta Mac: `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/` y `~/Library/Application Support/Comet/NativeMessagingHosts/`. El puerto 37423 de Incredible sí existe (WebSocket local tras el intercambio de secreto), no se copia.
+- **X14 (gates)** `gates.sh` corre `node --test` sobre la extensión si hay `node`; sin `node`, aviso, no fallo.
+
+**Abierto para Karen (no bloquea construir):** criterio 5 publica las `browser_*` por el puente de 17, y `browser_read` de cualquier pestaña de fondo va más allá de `look`. Se construye como dice el criterio (detrás de *Prestar las manos* y de *Conectar navegador*); si prefiere solo escrituras o un interruptor aparte, es un cambio de una línea en `BridgeScope`. **D8 (CDP/`debugger`)** sigue fuera: los sitios que exigen `isTrusted` caen al `type_text` de Accesibilidad.
+
+**Riesgos nuevos:** el renderizado en pestañas de fondo se pausa (un picklist puede no pintarse tras un clic); la sesión realtime y Claude Code fijan su lista de tools al abrir, así que si arrancaron antes que la extensión no ven las `browser_*`.
+
+## 12. Fuera de alcance
 
 `read_pdf`, `watch`/PiP, varios perfiles a la vez, Safari por extensión, Chrome Web Store, JXA, escribir sin hoja, cualquier backend o telemetría.

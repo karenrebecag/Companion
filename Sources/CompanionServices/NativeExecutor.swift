@@ -150,14 +150,37 @@ public struct NativeExecutor: Executor, Sendable {
         }
         events.yield(.stepStarted(tool: toolName, summary: "Executing \(toolName)"))
 
-        let approvalNeeded = riskLevel(tool: toolName) == .requiresApproval
+        let risky = riskLevel(tool: toolName) == .requiresApproval
+        // Wave 20d B: a step that only adds (a new file in the working folder,
+        // cells that were empty) acts without the sheet; the band is read from
+        // the disk and the workbook, never from the model's words.
+        var acts = false
+        if risky { acts = await toolRunner.actionBand(tool: toolName, arguments: arguments) == .act }
+        var approvalNeeded = risky && !acts
         var approved = !approvalNeeded
+        var runArguments = arguments
+        var shown = call.arguments
+        if risky {
+            // A sheet write runs the arguments the sheet showed, workbook included.
+            shown = await toolRunner.approvalArguments(tool: toolName, json: call.arguments)
+            guard let bound = Self.boundArguments(shown: shown, original: call.arguments, parsed: arguments) else {
+                return ToolResult(ok: false, output: "denied: the approved arguments could not be read, so nothing ran")
+            }
+            runArguments = bound
+        }
+        let approval = ApprovalRequest(
+            requestId: UUID().uuidString,
+            toolName: toolName,
+            summary: "Tool requires user approval",
+            inputJSON: shown)
+        // A remembered "no" outranks the shortcut: the same write must not go
+        // through because the target is still free.
+        if acts, await approvals.remembered(approval) == false {
+            approvalNeeded = true
+            approved = false
+            acts = false
+        }
         if approvalNeeded {
-            let approval = ApprovalRequest(
-                requestId: UUID().uuidString,
-                toolName: toolName,
-                summary: "Tool requires user approval",
-                inputJSON: call.arguments)
             // A decision the session already took answers without the sheet
             // (3B.2); otherwise wait (auto-deny per ApprovalTiming).
             if let decision = await approvals.remembered(approval) {
@@ -175,17 +198,26 @@ public struct NativeExecutor: Executor, Sendable {
         let toolResult: ToolResult
         do {
             toolResult = try await executeToolSafely(
-                tool: toolName, arguments: arguments, approved: approved)
+                tool: toolName, arguments: runArguments, approved: approved)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
             toolResult = ToolResult(ok: false, output: "tool failed: \(error)")
         }
         events.yield(.stepFinished(tool: toolName, ok: toolResult.ok))
+        if acts, toolResult.ok, let receipt = await toolRunner.receipt(tool: toolName, arguments: runArguments) {
+            events.yield(.acted(receipt))
+        }
         // Straight to the interface. It is not appended to the turn, so the
         // model never sees the payload it would otherwise retype.
         if let card = toolResult.card { events.yield(.card(card)) }
         return toolResult
+    }
+
+    /// What runs is what the sheet showed; if that JSON cannot be read there is
+    /// nothing approved to run, so it is a denial and never empty arguments.
+    static func boundArguments(shown: String, original: String, parsed: [String: Any]) -> [String: Any]? {
+        shown == original ? parsed : ToolArguments.parse(shown)
     }
 
     /// Same tool, same arguments once canonicalised (sorted keys, no

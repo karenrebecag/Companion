@@ -26,19 +26,48 @@ public struct ParentToolGuard: Sendable {
         self.onRemembered = onRemembered
     }
 
+    /// How a sheet ended. Only `denied` is the user refusing: a deadline is
+    /// silence, and callers that count refusals must tell them apart.
+    enum SheetAnswer: Sendable, Equatable {
+        case approved, denied, timedOut
+        /// No sheet was shown: the bridge's sheets-per-window limit is spent.
+        case refused
+    }
+
+    /// `check`'s answer plus how the sheet ended, for callers that count
+    /// refusals (the bridge's cool-down).
+    struct Verdict: Sendable {
+        let denial: ParentToolOutcome?
+        let answer: SheetAnswer?
+    }
+
     func check(
         _ call: ToolCallRef, said: String, language: AppLanguage,
         tools: (any ParentToolExecuting)? = nil
     ) async -> ParentToolOutcome? {
-        let request = tools?.approval(for: call, said: said)
+        await verdict(call, said: said, language: language, tools: tools, parked: nil).denial
+    }
+
+    func verdict(
+        _ call: ToolCallRef, said: String, language: AppLanguage,
+        tools: (any ParentToolExecuting)? = nil,
+        parked: (@Sendable (ApprovalRequest) -> Bool)?
+    ) async -> Verdict {
+        let asked = tools?.approval(for: call, said: said)
             ?? ParentToolGate.approval(for: call, said: said)
-        guard let request else { return nil }
+        guard let asked else { return Verdict(denial: nil, answer: nil) }
+        let request = await tools?.bound(asked) ?? asked
+        // A "no" the user asked to remember outranks the shortcut: the same
+        // write must not go through just because the cells are still empty.
+        if let tools, await tools.actsWithoutSheet(call), await approvals?.remembered(request) != false {
+            return Verdict(denial: nil, answer: nil)
+        }
         let target = ParentTool.target(of: call)
         let denied = ParentToolOutcome.failed(
             .deniedByUser(language), target: target, tool: call.name)
-        let approved = await ask(request)
-        if approved { tools?.granted(request) }
-        return approved ? nil : denied
+        let answer = await answer(request, parked: parked)
+        if answer == .approved { tools?.granted(request) }
+        return Verdict(denial: answer == .approved ? nil : denied, answer: answer)
     }
 
     /// The remembered/onRequest/request dance on its own, without a
@@ -46,28 +75,47 @@ public struct ParentToolGuard: Sendable {
     /// ("wants to use your hands", spec §9-5) has no tool call behind it,
     /// just this `ApprovalRequest`.
     func ask(_ request: ApprovalRequest) async -> Bool {
-        await decide(request).approved
+        await answer(request, parked: nil) == .approved
     }
 
-    /// The one point every sheet-backed decision goes through (16q-1: the
-    /// realtime MCP request too), returning the whole response so whatever
-    /// judges a request later has a single place to stand.
+    /// The one point every sheet-backed decision without a tool call behind
+    /// it goes through (16q-1: the realtime MCP request too), returning the
+    /// whole response so whatever judges a request later has a single place
+    /// to stand. Same road as `answer`: nothing here decides on its own.
     func decide(_ request: ApprovalRequest) async -> ApprovalResponse {
-        guard let approvals else {
-            return ApprovalResponse(requestId: request.requestId, approved: false)
-        }
-        if let decision = await approvals.remembered(request) {
+        let sheet = await answer(request, parked: nil)
+        return ApprovalResponse(
+            requestId: request.requestId, approved: sheet == .approved,
+            timedOut: sheet == .timedOut)
+    }
+
+    /// `parked` runs right before the sheet is shown, so a caller that must
+    /// withdraw it later already knows which one it is; returning false
+    /// vetoes the sheet.
+    func answer(
+        _ request: ApprovalRequest, parked: (@Sendable (ApprovalRequest) -> Bool)?
+    ) async -> SheetAnswer {
+        guard let approvals else { return .denied }
+        // Defense in depth over `ApprovalKey.from`: a provider with another
+        // memory must still never answer an MCP request without its sheet.
+        if !request.isMCP, let decision = await approvals.remembered(request) {
             await onRemembered?(request.toolName, decision)
-            return ApprovalResponse(requestId: request.requestId, approved: decision)
+            return decision ? .approved : .denied
         }
+        if let parked, !parked(request) { return .refused }
         onRequest?(request)
-        return await approvals.request(request)
+        let response = await approvals.request(request)
+        if response.approved { return .approved }
+        return response.timedOut ? .timedOut : .denied
     }
 
     /// "Stop hands" (spec §3 "Corte"): resolves a sheet the caller is still
     /// parked on, as a denial — without the caller reaching into
     /// `approvals` itself, which stays private to this struct.
-    func withdraw(_ request: ApprovalRequest) async {
-        _ = await approvals?.resolve(requestId: request.requestId, approved: false)
+    /// False when nothing was parked under that id: a caller that reports
+    /// the refusal as applied must know it was not.
+    @discardableResult
+    func withdraw(_ request: ApprovalRequest) async -> Bool {
+        await approvals?.resolve(requestId: request.requestId, approved: false) ?? false
     }
 }

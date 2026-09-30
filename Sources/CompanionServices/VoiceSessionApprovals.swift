@@ -1,8 +1,14 @@
 import CompanionCore
 import Foundation
 
+/// What the sheet shows first, as the reducer reported it; `requestId` nil
+/// means the sheet is empty.
+struct SheetFront: Sendable, Equatable {
+    let requestId: String?
+}
+
 /// The two permission channels a live session answers into: a job's
-/// approval and an MCP tool's. Split out of VoiceSession when it crossed the
+/// approval and an MCP tool's (both close on the sheet's click). Split out of VoiceSession when it crossed the
 /// 400-line gate. What they touch is not `private` any more but still
 /// actor-isolated: the actor, not the access level, is what keeps this
 /// state single-threaded.
@@ -11,7 +17,8 @@ extension VoiceSession {
     /// gates: Allow / Deny, the auto-deny of `ApprovalTiming`, and the
     /// server hears the answer only once the user gave it. A spoken "yes"
     /// never approves it (`answerPendingApproval`): Incredible accepts one
-    /// because a judge model checks the word, and Companion has no judge.
+    /// because a judge model checks the word, and Companion has no judge;
+    /// and the model's boolean settles nothing here (20c D2).
     func noteMCPApproval(_ request: ApprovalRequest) async {
         // The id is the server's: one already waiting means a repeat or a
         // forgery. Fail closed: the original is refused (its own flow tells
@@ -23,13 +30,27 @@ extension VoiceSession {
         }
         pendingMCPApprovals.append(request)
         let decision = await mcpGuard.decide(request)
+        // Dropped with its session (20c D2): the id died with the connection,
+        // so nothing is sent; the sheet only has to let go of it.
+        let live = pendingMCPApprovals.contains { $0.requestId == request.requestId }
         pendingMCPApprovals.removeAll { $0.requestId == request.requestId }
         // Answered by a click, the auto-deny or a "no": whichever it was, the
         // sheet must not keep a request the server already heard about.
         eventBox.yield(.approvalSettled(requestId: request.requestId))
+        guard live else { return }
         await realtime.send(RealtimeCodec.mcpApprovalResponse(
             requestId: request.requestId, approve: decision.approved))
         await realtime.requestResponse()
+    }
+
+    /// The session ended: its MCP request ids die with the connection, so a
+    /// late click must find nothing to answer, and no sheet may outlive them
+    /// (20c D2). Refused where the sheet's own answer would be, so the one
+    /// decision point still closes each of them once.
+    func dropPendingMCPApprovals() async {
+        let dropped = pendingMCPApprovals
+        pendingMCPApprovals = []
+        for request in dropped { await mcpGuard.withdraw(request) }
     }
 
     /// The words the user said in the hold that just ended, as the ear heard
@@ -65,6 +86,12 @@ extension VoiceSession {
             pendingApproval = nil
             pendingApprovalSeen = nil
         }
+    }
+
+    /// The reducer's report of what the sheet shows (C2): a spoken answer
+    /// for any other request would be dropped there.
+    public func approvalFront(requestId: String?) async {
+        sheetFront = SheetFront(requestId: requestId)
     }
 
     /// The pending job request, unless it died on the actor's deadline: the
@@ -148,20 +175,32 @@ extension VoiceSession {
             // where the sheet's own answer would be: the actor wakes
             // `noteMCPApproval`, which tells the server and clears the sheet.
             // Any older one stays on the sheet for its own click.
-            await mcpGuard.withdraw(mcp)
+            // It is listed before the actor parks it: a "no" in that window
+            // refused nothing, and the model must not say it did.
+            guard await mcpGuard.withdraw(mcp) else {
+                Log.app("voice: spoken no for an MCP request not parked yet; needs the sheet")
+                return .needsClick
+            }
             return .resolved
         }
         guard let pending = livePendingApproval else {
             Log.app("voice: approval answered with nothing pending")
             return .nothingPending
         }
+        // C2: the reducer drops an answer for a request the sheet is not
+        // showing. Yes or no, it takes the click; the request stays armed
+        // for when it reaches the front.
+        if let front = sheetFront, front.requestId != pending.requestId {
+            Log.app("voice: spoken answer for a request the sheet is not showing; needs the click")
+            return .needsClick
+        }
         // Refusing is the safe direction: a spoken "no" resolves without a
         // click, whoever asked. Only a "yes" has to prove it is the user's.
         if approved { guard admitsSpokenYes(to: pending) else { return .needsClick } }
         pendingApproval = nil
         // Not resolved here: the answer goes to the session reducer, which
-        // resolves what the sheet shows (the first of its queue) with the
-        // sheet's rules. Two notions of "pending" let a spoken yes grant a
+        // resolves this exact request, only while the sheet shows it, with
+        // the sheet's rules. Two notions of "pending" let a spoken yes grant a
         // request nobody was looking at (security review 2026-09-06).
         eventBox.yield(.approvalSpoken(requestId: pending.requestId, approved: approved))
         return .resolved
@@ -175,6 +214,13 @@ extension VoiceSession {
         // whole payoff, so app writes take the sheet's click, always.
         if pending.toolName.hasPrefix(ApprovalCopy.appToolPrefix) {
             Log.app("voice: app write approvals need the sheet, not resolve_approval")
+            return false
+        }
+        // 20c D1: only a request whose worst case is small is the voice's to
+        // settle, whatever was said. Allowlist: a tool nobody classified, the
+        // bridge's hands, a write or a browser action takes the click.
+        guard ApprovalRisk.of(toolName: pending.toolName) == .low, !pending.isMCP else {
+            Log.app("voice: a request above low risk needs the sheet, not resolve_approval")
             return false
         }
         // 16h-2 (security M1, round 3): with the voice free while a job

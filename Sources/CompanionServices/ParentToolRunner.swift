@@ -27,6 +27,9 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
     let documents: (any DocumentRendering)?
     let sheets: (any SpreadsheetDriving)?
     let deliverableTickets = ApprovalTickets()
+    /// Wave 20d B: told when a deliverable ran without the sheet, so the island
+    /// can show it and offer the way back.
+    let onAct: (@Sendable (UndoReceipt) -> Void)?
 
     public init(
         workspace: any WorkspaceOpening,
@@ -37,12 +40,15 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
         workdir: String? = nil,
         documents: (any DocumentRendering)? = nil,
         sheets: (any SpreadsheetDriving)? = nil,
+        onAct: (@Sendable (UndoReceipt) -> Void)? = nil,
         location: UserLocationSource? = nil,
         // Fail closed: a caller that forgets to wire the switch gets "off".
+        // Last on purpose: the gate's wiring check reads it as the call's end.
         locationChannelOn: @escaping @Sendable () -> Bool = { false }
     ) {
         self.location = location
         self.locationChannelOn = locationChannelOn
+        self.onAct = onAct
         self.workspace = workspace
         self.home = home
         self.places = places

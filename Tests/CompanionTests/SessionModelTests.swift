@@ -257,7 +257,7 @@ private func request(_ id: String) -> ApprovalRequest {
     await pumpUntil("stream: el encargo se anuncia") {
         seen.events.contains { if case .job(.started(let goal), _) = $0 { goal == "limpiar build" } else { false } }
     }
-    jobs.askApproval(request("r7"))
+    jobs.askApproval(ApprovalRequest(requestId: "r7", toolName: "find_places", summary: "ls", inputJSON: "{}"))
     await pumpUntil("stream: la petición viaja") {
         seen.events.contains { if case .job(.approvalRequested(let r), _) = $0 { r.requestId == "r7" } else { false } }
     }

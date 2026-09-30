@@ -8,6 +8,17 @@ import SwiftUI
 @main
 enum CompanionMain {
     static func main() {
+        // Chrome launches this same binary as the native host; the fork comes
+        // before AppKit, Config or the Keychain so a host launch never opens
+        // UI or prompts for anything (wave 18, X1/R5).
+        switch BrowserPolicy.launch(arguments: CommandLine.arguments) {
+        case .nativeHost(let origin):
+            exit(BrowserHostRelay.run(origin: origin, directory: BridgePaths.directory))
+        case .rejected:
+            exit(BrowserHostRelay.rejectedExitCode)
+        case .app:
+            break
+        }
         let delegate = AppDelegate()
         let app = NSApplication.shared
         app.delegate = delegate
@@ -45,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Wave 17: the local MCP bridge for Claude Code, off unless the setting
     /// is on. Read by `presentWindow` (the status menu's "Detener manos").
     var bridgeHost: BridgeHost?
+    /// Wave 18: the browser link; listens only once a browser was connected.
+    var browserHost: BrowserHost?
 
     /// A net, not a guarantee, and the difference matters: this runs on an
     /// orderly quit and on nothing else. A crash or a Force Quit gives the app
@@ -54,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         holdKey?.stop()
         dictationTap?.stop()
+        browserHost?.stop()
         ProcessRegistry.shared.terminateAll()
     }
 
@@ -74,9 +88,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installBridge(environment: env, jobs: jobs, sensing: sensing)
         presentWindow(
             model: sensing.model, voice: pipeline.voice, sessionModel: sensing.sessionModel,
-            memoryStore: env.memoryStore, secrets: env.secrets,
-            openAIMouth: pipeline.openAIMouth, mouth: pipeline.mouth, transport: env.transport,
-            voicePort: sensing.voicePort, appTools: sensing.appTools)
+            env: env,
+            openAIMouth: pipeline.openAIMouth, mouth: pipeline.mouth, voicePort: sensing.voicePort,
+            appTools: sensing.appTools)
     }
 
     /// The hold lives outside the window (Wave 12b): closing main leaves
@@ -116,15 +130,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let windows = AXScreen(
             selfBundleID: Bundle.main.bundleIdentifier ?? "",
             trust: { accessibility.isTrusted() })
+        sensing.browserHost.startIfInstalled()
+        self.browserHost = sensing.browserHost
         let bridgeHost = BridgeHost(
-            tools: sensing.parentTools, approvals: jobs.approvals,
+            // The bridge lends the hands and the browser, not Karen's connected apps.
+            tools: sensing.browserHost.bridgeTools(parent: sensing.parentTools), approvals: jobs.approvals,
             language: { env.configProvider.current.language },
             accessibility: { accessibility.isTrusted() },
             sessionModel: sensing.sessionModel,
             targetFrame: {
                 guard let pid = sensing.frontmost.lastOtherPID else { return nil }
                 return windows.windowFrame(pid: pid)
-            })
+            },
+            onSessionBoundary: { [browserHost = sensing.browserHost] in browserHost.bridgeSessionChanged() })
         bridgeHost.apply(enabled: HandsLendingPreference.enabled)
         self.bridgeHost = bridgeHost
         NotificationCenter.default.addObserver(
@@ -205,6 +223,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// Where the parent's runner reports an action that ran without the sheet
+/// (Wave 20d B): the runner is built before the reducer it reports to.
+nonisolated final class ReceiptRelay: @unchecked Sendable {
+    private let lock = NSLock()
+    private var target: (@Sendable (UndoReceipt) -> Void)?
+
+    func connect(_ target: @escaping @Sendable (UndoReceipt) -> Void) {
+        lock.withLock { self.target = target }
+    }
+
+    func send(_ receipt: UndoReceipt) {
+        lock.withLock { target }?(receipt)
+    }
+}
+
 /// The voice port for the session reducer, filled once the voice session
 /// exists: the reducer is built before the session that obeys it.
 final class VoicePortBox: VoiceControlling, @unchecked Sendable {
@@ -236,6 +269,7 @@ final class VoicePortBox: VoiceControlling, @unchecked Sendable {
     func discard() async { await session?.discard() }
     func interrupt() async { await session?.interrupt() }
     func approvalClosed(requestId: String) async { await session?.approvalClosed(requestId: requestId) }
+    func approvalFront(requestId: String?) async { await session?.approvalFront(requestId: requestId) }
     var snapshots: AsyncStream<TurnSnapshot> { session?.snapshots ?? AsyncStream { $0.finish() } }
     var levels: AsyncStream<VoiceLevels> { session?.levels ?? AsyncStream { $0.finish() } }
 }

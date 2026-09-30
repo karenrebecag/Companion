@@ -1,3 +1,4 @@
+import CompanionCore
 import Foundation
 
 public enum Log: Sendable {
@@ -9,6 +10,8 @@ public enum Log: Sendable {
     }
 
     private static let sink = Sink()
+
+    public static let maxFileBytes = 1_000_000
 
     /// Code review 2026-09-24 (medio): tests run in parallel and each one
     /// that pointed the process-wide sink at its own file could lose its
@@ -42,8 +45,21 @@ public enum Log: Sendable {
     /// arguments or `output` — only name, outcome, target and a char count.
     public static func bridge(_ message: String) { write(tag: "bridge", message: message) }
 
+    /// Wave 18: the browser channel. Tool, code, origin and `chars=N` only,
+    /// never page text or typed values.
+    public static func browser(_ message: String) { write(tag: "browser", message: message) }
+
+    /// Wire and error text reaches here: a newline would start a forged
+    /// line, and bidi/zero-width scalars would spoof what the reader sees.
+    private static func oneLine(_ message: String) -> String {
+        let flat = String(message.unicodeScalars.map { scalar in
+            scalar == "\n" || scalar == "\r" || scalar == "\t" ? " " : Character(scalar)
+        })
+        return ApprovalCopy.plainPreview(flat, keepingLayout: false)
+    }
+
     private static func write(tag: String, message: String) {
-        let line = "\(timestamp()) [\(tag)] \(message)\n"
+        let line = "\(timestamp()) [\(tag)] \(oneLine(message))\n"
         sink.lock.lock()
         defer { sink.lock.unlock() }
         if let captured = capture {
@@ -67,6 +83,7 @@ public enum Log: Sendable {
             return false
         }
 
+        rotateIfFull(url)
         let data = Data(line.utf8)
         if FileManager.default.fileExists(atPath: url.path) {
             do {
@@ -92,6 +109,23 @@ public enum Log: Sendable {
             return true
         } catch {
             return false
+        }
+    }
+
+    /// One previous generation is enough for diagnostics and bounds the
+    /// disk use at about twice the cap. Best effort: a failed move only
+    /// means the file keeps growing until the next line retries.
+    private static func rotateIfFull(_ url: URL) {
+        let previous = URL(fileURLWithPath: url.path + ".1")
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            guard let size = attributes[.size] as? Int, size >= maxFileBytes else { return }
+            if FileManager.default.fileExists(atPath: previous.path) {
+                try FileManager.default.removeItem(at: previous)
+            }
+            try FileManager.default.moveItem(at: url, to: previous)
+        } catch {
+            return
         }
     }
 

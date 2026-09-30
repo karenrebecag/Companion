@@ -302,6 +302,14 @@ public protocol ParentToolExecuting: Sendable {
     /// the runner, not `ParentToolGate` directly: only the runner knows the
     /// app it would act on (a terminal makes Return a command, Wave 15g).
     func approval(for call: ToolCallRef, said: String) -> ApprovalRequest?
+    /// The request as the sheet and the memory see it, with what only the
+    /// runner can resolve (the workbook a write would land in). Async: it asks
+    /// the app. Called between `approval` and the sheet.
+    func bound(_ request: ApprovalRequest) async -> ApprovalRequest
+    /// Wave 20d B: the call needed a sheet by name (`approval` is non-nil) but
+    /// the runner has looked at the target and it only adds: no sheet, no
+    /// ticket. Async because it reads the open workbook.
+    func actsWithoutSheet(_ call: ToolCallRef) async -> Bool
     /// The gate reports a yes, from the sheet or the session's memory. A
     /// runner that must not act unapproved (a terminal) acts only after it.
     func granted(_ request: ApprovalRequest)
@@ -325,6 +333,10 @@ extension ParentToolExecuting {
         ParentToolGate.approval(for: call, said: said)
     }
 
+    public func bound(_ request: ApprovalRequest) async -> ApprovalRequest { request }
+
+    public func actsWithoutSheet(_ call: ToolCallRef) async -> Bool { false }
+
     public func granted(_ request: ApprovalRequest) {}
 
     public func beginTurn() {}
@@ -341,6 +353,9 @@ public enum ParentToolCopy: Sendable {
     public static func status(
         _ name: String, _ outcome: ParentToolOutcome, _ language: AppLanguage
     ) -> String {
+        if let browser = BrowserTool(rawValue: name) {
+            return BrowserCopy.status(browser, outcome, language)
+        }
         guard outcome.ok else { return failed(outcome, language) }
         if let hands = ParentTool(rawValue: name), hands.isHands {
             return handsStatus(hands, outcome, language)

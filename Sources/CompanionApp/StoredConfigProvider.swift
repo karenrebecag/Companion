@@ -16,13 +16,16 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
     /// this turn is listed in the next prompt.
     private let skills: SkillStore?
     private let location: SkillsLocation
+    private let hostSecrets: any HostSecretStore
 
     init(workdir: String? = nil, memory: (any MemoryStore)? = nil,
-         skills: SkillStore? = nil, location: SkillsLocation = .standard()) {
+         skills: SkillStore? = nil, location: SkillsLocation = .standard(),
+         hostSecrets: any HostSecretStore) {
         self.workdir = workdir
         self.memory = memory
         self.skills = skills
         self.location = location
+        self.hostSecrets = hostSecrets
     }
 
     /// Only the city, for the sensor that reads it every turn: the whole
@@ -56,7 +59,7 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
                     knowledgeDirectory: location.knowledge.path)
             } ?? "",
             skills: skills?.rendered(language: LanguagePreference.current) ?? "",
-            mcpServers: MCPConfigFile.load(),
+            mcpServers: MCPConfigFile.load(secrets: hostSecrets),
             contextChannels: ContextPreference.channels,
             // DM1c-3: the stored toggle wins when on; `COMPANION_DECISION=1`
             // (DecisionSettings' own default) stays the override for a

@@ -240,6 +240,9 @@ final class RecordingVoice: VoiceControlling, @unchecked Sendable {
     private var _closed: [String] = []
     var closedRequests: [String] { lock.withLock { _closed } }
     func approvalClosed(requestId: String) async { lock.withLock { _closed.append(requestId) } }
+    private var _fronts: [String?] = []
+    var fronts: [String?] { lock.withLock { _fronts } }
+    func approvalFront(requestId: String?) async { lock.withLock { _fronts.append(requestId) } }
     func toggleMute() async { lock.withLock { counts.muteToggles += 1; _muted.toggle() } }
     private var _pushed: [AttachmentRef] = []
     var pushed: [AttachmentRef] { lock.withLock { _pushed } }

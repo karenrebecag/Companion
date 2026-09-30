@@ -10,6 +10,8 @@ public struct AppleEventSheets: SpreadsheetDriving {
     static let notPermitted = -1743
     /// Ours: the app is open with no document.
     static let noDocument = 9001
+    /// Ours: the workbook in front is not the one the write was approved for.
+    static let workbookMoved = 9002
 
     public init() {}
 
@@ -29,32 +31,65 @@ public struct AppleEventSheets: SpreadsheetDriving {
         return Self.rows(result, range: range, app: app)
     }
 
-    public func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]]) async throws -> SheetWriteReceipt {
+    public func workbook(_ app: SheetApp) async throws -> String {
         let document = try await run(Self.pathScript(app)).stringValue ?? ""
         // An unsaved workbook has no file to copy; writing without a copy is
         // exactly what the backup rule exists to prevent.
         guard document.hasPrefix("/") else { throw SheetError.unsavedDocument }
-        let backup = SheetBackup.path(for: document, at: Date())
+        return document
+    }
+
+    public func write(
+        _ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook approved: String
+    ) async throws -> SheetWriteReceipt {
+        // Resolved once: the backup is of the workbook the sheet named, and the
+        // write script re-checks that same path in its own Apple Event.
+        guard try await workbook(app) == approved else { throw SheetError.workbookChanged }
+        let backup: String
         do {
-            try FileManager.default.copyItem(atPath: document, toPath: backup)
+            backup = try DocumentBackup.copy(of: approved)
         } catch {
             Log.app("sheets: backup copy failed")
             throw SheetError.appFailed
         }
-        _ = try await run(Self.writeScript(app, range: range, cells: cells))
-        let readBack = try await read(app, range: range)
-        return SheetWriteReceipt(backupPath: backup, readBack: readBack)
+        _ = try await run(Self.writeScript(app, range: range, cells: cells, workbook: approved))
+        do {
+            let readBack = Self.rows(try await run(Self.readScript(app, range: range, workbook: approved)),
+                                     range: range, app: app)
+            return SheetWriteReceipt(backupPath: backup, readBack: readBack)
+        } catch SheetError.workbookChanged {
+            // The write already happened: "nothing was written" would be false.
+            return SheetWriteReceipt(backupPath: backup, readBack: [], readBackUnavailable: true)
+        }
     }
 
     // MARK: - Scripts
 
-    static func tell(_ app: SheetApp, _ body: String) -> String {
+    /// `workbook`: the check runs in the same script as `body`, so no other
+    /// Apple Event can change the front workbook between them (M7).
+    static func tell(_ app: SheetApp, workbook: String? = nil, _ body: String) -> String {
         // Excel calls its documents workbooks.
         let documents = app == .excel ? "workbooks" : "documents"
+        var pin = ""
+        if let workbook {
+            pin = "\nif (\(pathExpression(app))) is not \(AppleScriptText.literal(workbook)) "
+                + "then error number \(workbookMoved)"
+        }
         return "tell application id \(AppleScriptText.literal(app.bundleID))\n"
-            + "if (count of \(documents)) is 0 then error number \(noDocument)\n" + body + "\nend tell"
+            + "if (count of \(documents)) is 0 then error number \(noDocument)" + pin + "\n" + body + "\nend tell"
     }
 
+    private static func pathExpression(_ app: SheetApp) -> String {
+        switch app {
+        case .excel: "full name of active workbook"
+        case .numbers: "POSIX path of ((file of front document) as alias)"
+        }
+    }
+
+    // HACK: the pin covers the workbook, not the tab: switching Excel's active sheet
+    // between approving and writing lands the write on another sheet of the same
+    // workbook. Pin the sheet name (bind, ticket item, preview, in-script check,
+    // SpreadsheetDriving.write) when live use shows tab switches during approval.
     static func target(_ app: SheetApp) -> String {
         switch app {
         case .excel: "active sheet"
@@ -64,26 +99,27 @@ public struct AppleEventSheets: SpreadsheetDriving {
 
     static func pathScript(_ app: SheetApp) -> String {
         switch app {
-        case .excel: tell(app, "return full name of active workbook")
-        case .numbers: tell(app, "return POSIX path of ((file of front document) as alias)")
+        case .excel: tell(app, "return \(pathExpression(app))")
+        case .numbers: tell(app, "return \(pathExpression(app))")
         }
     }
 
-    static func readScript(_ app: SheetApp, range: SheetRange) -> String {
+    static func readScript(_ app: SheetApp, range: SheetRange, workbook: String? = nil) -> String {
         let name = AppleScriptText.literal(range.a1)
         switch app {
-        case .excel: return tell(app, "return value of range \(name) of \(target(app))")
-        case .numbers: return tell(app, "return value of cells of range \(name) of \(target(app))")
+        case .excel: return tell(app, workbook: workbook, "return value of range \(name) of \(target(app))")
+        case .numbers: return tell(app, workbook: workbook, "return value of cells of range \(name) of \(target(app))")
         }
     }
 
     /// Excel takes the whole rectangle in one event; Numbers has no range
     /// setter, so it gets one statement per cell inside a single script.
-    static func writeScript(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]]) -> String {
+    static func writeScript(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String) -> String {
         switch app {
         case .excel:
-            return tell(app, "set formula of range \(AppleScriptText.literal(range.a1)) of \(target(app)) to "
-                + AppleScriptText.matrix(cells))
+            return tell(app, workbook: workbook,
+                        "set formula of range \(AppleScriptText.literal(range.a1)) of \(target(app)) to "
+                            + AppleScriptText.matrix(cells.map { $0.map(Self.literalText) }))
         case .numbers:
             var lines = ["tell \(target(app))"]
             for (r, row) in cells.enumerated() {
@@ -93,11 +129,27 @@ public struct AppleEventSheets: SpreadsheetDriving {
                 }
             }
             lines.append("end tell")
-            return tell(app, lines.joined(separator: "\n"))
+            return tell(app, workbook: workbook, lines.joined(separator: "\n"))
         }
     }
 
+    /// The apostrophe is Excel's own "this is text" prefix: without it a cell
+    /// of prose that starts with + - or @ is read as a formula by the setter.
+    static func literalText(_ cell: SheetCell) -> SheetCell {
+        if case .text(let text) = cell, SheetValues.looksLikeFormula(text) { return .text("'" + text) }
+        return cell
+    }
+
     // MARK: - Running
+
+    static func sheetError(forCode code: Int) -> SheetError {
+        switch code {
+        case notPermitted: .needsPermission
+        case noDocument: .noOpenDocument
+        case workbookMoved: .workbookChanged
+        default: .appFailed
+        }
+    }
 
     @MainActor
     private static func execute(_ source: String) throws -> NSAppleEventDescriptor {
@@ -107,11 +159,7 @@ public struct AppleEventSheets: SpreadsheetDriving {
         if let error {
             let code = (error[NSAppleScript.errorNumber] as? NSNumber)?.intValue ?? 0
             Log.app("sheets: apple event failed \(code)")
-            switch code {
-            case notPermitted: throw SheetError.needsPermission
-            case noDocument: throw SheetError.noOpenDocument
-            default: throw SheetError.appFailed
-            }
+            throw sheetError(forCode: code)
         }
         return result
     }

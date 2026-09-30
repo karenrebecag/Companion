@@ -5,6 +5,7 @@ import Testing
 
 final class TestSecretStore: SecretStore, @unchecked Sendable {
     private var values: [SecretKey: String]
+    var failDeletes = false
 
     init(_ values: [SecretKey: String] = [:]) {
         self.values = values
@@ -17,8 +18,41 @@ final class TestSecretStore: SecretStore, @unchecked Sendable {
     }
 
     func delete(_ key: SecretKey) throws {
+        if failDeletes { throw SecretStoreError.denied }
         values.removeValue(forKey: key)
     }
+}
+
+/// In-memory `HostSecretStore` with switches for the failure paths a real
+/// Keychain has (denied, locked) so migration can be tested without one.
+final class TestHostSecretStore: HostSecretStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String: String] = [:]
+    var failWrites = false
+    var failReads = false
+    var failDeletes = false
+
+    private func name(_ kind: HostSecretKind, _ host: String) -> String { "\(kind.rawValue)@\(host)" }
+
+    func read(_ kind: HostSecretKind, host: String) throws -> String? {
+        lock.lock(); defer { lock.unlock() }
+        if failReads { throw SecretStoreError.denied }
+        return values[name(kind, host)]
+    }
+
+    func write(_ kind: HostSecretKind, host: String, value: String) throws {
+        lock.lock(); defer { lock.unlock() }
+        if failWrites { throw SecretStoreError.denied }
+        values[name(kind, host)] = value
+    }
+
+    func delete(_ kind: HostSecretKind, host: String) throws {
+        lock.lock(); defer { lock.unlock() }
+        if failDeletes { throw SecretStoreError.denied }
+        values.removeValue(forKey: name(kind, host))
+    }
+
+    var count: Int { lock.lock(); defer { lock.unlock() }; return values.count }
 }
 
 struct TestProbe: CapabilityProbe {

@@ -12,6 +12,7 @@ extension VoiceSession {
         pendingAnnouncements.removeAll()
         voiceClosed = true
         await silenceAnnouncements(reason: "session-closed")
+        await dropPendingMCPApprovals()
         micSilenceTask?.cancel()
         micSilenceTask = nil
         eventTask?.cancel()

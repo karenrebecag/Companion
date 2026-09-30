@@ -13,7 +13,7 @@ Companion talks to Excel and Numbers directly, on the sheet the user is looking 
 ## Steps
 
 1. `sheet_read` the area first (A1 range, e.g. `A1:F30`). Never write into cells you have not read.
-2. `sheet_write` one rectangle at a time: the `values` argument is JSON rows that match the range exactly. Formulas start with `=`; nothing that fetches from the web or runs commands.
+2. `sheet_write` one rectangle at a time: the `values` argument is JSON rows that match the range exactly. Formulas start with `=`; only plain functions over the sheet's own cells (no web fetches, external references or commands).
 3. Every write asks the user once, copies the saved workbook next to itself (`-backup-<time>`), and reads the cells back. Report what was written and the backup path.
 4. A new workbook from scratch is `create_document` with a path ending in `.xlsx` (see premium-documents).
 

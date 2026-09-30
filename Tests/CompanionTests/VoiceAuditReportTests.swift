@@ -3,17 +3,13 @@ import Foundation
 import Testing
 
 // La lógica del microscopio de voz, pura. La pregunta que responde: cuando el
-// modelo se traga parte de una instrucción ("en el escritorio"), ¿el audio
-// llegó a OpenAI o se cortó antes? El veredicto se juzga contra lo que OpenAI
-// de verdad recibió (frames reenviados vs filtrados).
+// modelo se traga parte de una instrucción, ¿el audio llegó a OpenAI o se
+// cortó antes? La línea cuenta frames reenviados vs filtrados, nunca palabras.
 
 @Test func voiceAuditReportTests() {
     testTallyCounts()
     testGateReasonMapsEachBranch()
     testTurnLineCarriesBothSidesAndCounts()
-    testVerdictFullUtterance()
-    testVerdictClippedBeforeOpenAI()
-    testVerdictOpenAIDroppedIt()
 }
 
 func testTallyCounts() {
@@ -64,37 +60,4 @@ func testTurnLineCarriesBothSidesAndCounts() {
            "línea: filtrados, con razón")
     expect(line.contains("goal=13 chars"), "línea: el goal, contado")
     expect(!line.contains("crear archivo"), "línea: el goal nunca en claro")
-}
-
-func testVerdictFullUtterance() {
-    var tally = FrameTally()
-    for _ in 0..<100 { tally.add(forwarded: true, reason: nil) }
-    let v = VoiceAuditReport.verdict(
-        native: "crea prueba en el escritorio",
-        openAI: "crea prueba en el escritorio", tally: tally)
-    expect(v.contains("full utterance"),
-           "veredicto: OpenAI recibió todo — nada que investigar")
-}
-
-func testVerdictClippedBeforeOpenAI() {
-    var tally = FrameTally()
-    for _ in 0..<100 { tally.add(forwarded: true, reason: nil) }
-    for _ in 0..<40 { tally.add(forwarded: false, reason: .noAEC) }
-    let v = VoiceAuditReport.verdict(
-        native: "crea prueba en el escritorio",
-        openAI: "crea prueba", tally: tally)
-    expect(v.contains("CLIPPED before OpenAI"),
-           "veredicto: mucho audio filtrado — se cortó antes de OpenAI")
-    expect(v.contains("escritorio"), "veredicto: nombra lo que faltó")
-}
-
-func testVerdictOpenAIDroppedIt() {
-    var tally = FrameTally()
-    for _ in 0..<100 { tally.add(forwarded: true, reason: nil) }
-    let v = VoiceAuditReport.verdict(
-        native: "crea prueba en el escritorio",
-        openAI: "crea prueba", tally: tally)
-    expect(v.contains("OpenAI GOT the audio"),
-           "veredicto: OpenAI recibió el audio pero su transcript/modelo lo soltó")
-    expect(v.contains("escritorio"), "veredicto: nombra la palabra perdida")
 }

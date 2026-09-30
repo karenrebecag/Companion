@@ -160,6 +160,9 @@ public protocol VoiceControlling: Sendable {
     /// defaulted: a default silently won the overload against the actor's own
     /// method and the call did nothing.
     func approvalClosed(requestId: String) async
+    /// The request the sheet shows now, nil when empty. Not defaulted, for
+    /// the same reason as `approvalClosed`.
+    func approvalFront(requestId: String?) async
     var snapshots: AsyncStream<TurnSnapshot> { get }
     var levels: AsyncStream<VoiceLevels> { get }
 }

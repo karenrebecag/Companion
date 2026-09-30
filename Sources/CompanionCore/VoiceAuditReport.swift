@@ -46,8 +46,7 @@ public enum RealtimeGate {
 }
 
 /// Turns one turn's evidence into log lines. Pure: no audio, no I/O — just the
-/// native ground truth, what OpenAI transcribed, the frame counts, and a
-/// verdict on WHERE an instruction was lost.
+/// native ground truth, what OpenAI transcribed and the frame counts.
 public enum VoiceAuditReport {
     public static func turnLine(
         native: String, openAI: String, tally: FrameTally, goal: String?
@@ -60,33 +59,5 @@ public enum VoiceAuditReport {
         return "audit turn: native=\(native.count) chars openai=\(openAI.count) chars "
             + "frames fwd=\(tally.forwarded) gated=\(tally.gatedTotal)"
             + (gates.isEmpty ? "" : " (\(gates))") + goalPart
-    }
-
-    /// The point of the whole layer: judged against what OpenAI actually
-    /// received, where did the missing words go?
-    public static func verdict(
-        native: String, openAI: String, tally: FrameTally
-    ) -> String {
-        let missing = words(native).subtracting(words(openAI))
-        if missing.isEmpty {
-            return "audit verdict: OpenAI received the full utterance "
-                + "(fwd=\(tally.forwarded), gated=\(tally.gatedTotal))"
-        }
-        let lost = missing.sorted().joined(separator: " ")
-        // A meaningful share of the audio never left the machine.
-        if tally.gatedTotal > 0, tally.gatedTotal * 4 >= tally.forwarded {
-            return "audit verdict: CLIPPED before OpenAI — \(tally.gatedTotal) "
-                + "frames gated vs \(tally.forwarded) sent; missing: \(lost)"
-        }
-        return "audit verdict: OpenAI GOT the audio (fwd=\(tally.forwarded), "
-            + "gated=\(tally.gatedTotal)) but its transcript/model dropped: \(lost)"
-    }
-
-    /// Content words, lowercased, short stopwords dropped so "en"/"el" don't
-    /// count as heard. Punctuation split so «desktop.» matches "desktop".
-    static func words(_ text: String) -> Set<String> {
-        Set(text.lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { $0.count > 2 })
     }
 }

@@ -53,6 +53,8 @@ extension SessionMachine {
 
     mutating func observe(_ event: JobEvent, from id: JobID?) -> [SessionEffect] {
         switch event {
+        case .acted(let receipt):
+            return reduce(.actionDone(receipt))
         case .approvalRequested(let request):
             return ask(request, from: id)
         case .card(let card):
@@ -185,10 +187,13 @@ extension SessionMachine {
     /// Whether answering `request` answers the job in the row. By owner
     /// (review 16h-2 round 3): "a job is running" is not "this is its
     /// request" once a grant, a gate or a finished job's leftover shares the
-    /// queue.
+    /// queue. The parent's gates, the user's MCP servers and the browser's
+    /// tools are never the job's actions; an MCP name is server-chosen, so
+    /// origin decides (20c D2).
     func isActiveJobs(_ request: ApprovalRequest, owner: JobID?) -> Bool {
         guard let owner, let job = projection.job else { return false }
-        return owner == job.id && ParentTool(rawValue: request.toolName) == nil
+        return owner == job.id && !request.isMCP && ParentTool(rawValue: request.toolName) == nil
+            && BrowserTool(rawValue: request.toolName) == nil
     }
 
     private mutating func start(_ goal: String, _ id: JobID?) {

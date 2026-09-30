@@ -167,6 +167,9 @@ public enum BridgeCode {
     public static let sessionClosed = "session_closed"
     public static let busy = "busy"
     public static let rateLimited = "rate_limited"
+    /// Too many denied approvals in a row: the caller is refused without a
+    /// sheet until the window passes (Wave 20c D5).
+    public static let coolingDown = "cooling_down"
     public static let unknownTool = "unknown_tool"
     public static let invalidArgs = "invalid_args"
     public static let targetChanged = "target_changed"
@@ -175,6 +178,12 @@ public enum BridgeCode {
     public static let deniedByUser = "denied_by_user"
     public static let approvalTimeout = "approval_timeout"
     public static let notAvailable = "not_available"
+    /// Wave 18: no browser extension is attached, or it went away mid-call.
+    public static let notConnected = "not_connected"
+    /// Wave 18b: the tab exists but this caller does not control it.
+    public static let notControlled = "not_controlled"
+    /// Wave 18: the extension did not answer within the call's deadline.
+    public static let timeout = "timeout"
     /// The tool exists but Companion's own window is in front, so there is no
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
     public static let selfInFront = "self_in_front"
@@ -183,6 +192,8 @@ public enum BridgeCode {
     public static let unknownMethod = "unknown_method"
     public static let badFrame = "bad_frame"
     public static let frameTooLarge = "frame_too_large"
+    /// A repeated request id whose first answer was too big to keep.
+    public static let replyTooLarge = "reply_too_large"
 }
 
 // MARK: - Codec

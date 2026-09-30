@@ -97,7 +97,7 @@ extension ChatViewModel {
     /// keeps what deserves a line; the session keeps the state.
     public func receiveJobEvent(_ event: JobEvent, from id: JobID?) {
         switch event {
-        case .started, .stepStarted, .stepFinished, .thought:
+        case .started, .stepStarted, .stepFinished, .thought, .acted:
             break
         case .approvalRequested:
             // Surface it: a request that only prints text ends in the

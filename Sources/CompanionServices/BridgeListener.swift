@@ -10,6 +10,8 @@ import Foundation
 /// executor would starve every other task on it.
 public final class BridgeListener: @unchecked Sendable {
     private let directory: URL
+    private let socketName: String
+    private let tokenName: String
     private let onConnection: @Sendable (BridgeConnection) -> Void
     private let lock = NSLock()
     private var listenFD: Int32 = -1
@@ -19,8 +21,15 @@ public final class BridgeListener: @unchecked Sendable {
     private var tokenPath = ""
     private var _token = ""
 
-    public init(directory: URL, onConnection: @escaping @Sendable (BridgeConnection) -> Void) {
+    /// Wave 18: the browser relay gets its own listener (`browser.sock` /
+    /// `browser.token`) in the same directory; the defaults keep wave 17.
+    public init(
+        directory: URL, socketName: String = "bridge.sock", tokenName: String = "bridge.token",
+        onConnection: @escaping @Sendable (BridgeConnection) -> Void
+    ) {
         self.directory = directory
+        self.socketName = socketName
+        self.tokenName = tokenName
         self.onConnection = onConnection
     }
 
@@ -35,15 +44,15 @@ public final class BridgeListener: @unchecked Sendable {
     /// never chmod'd after the fact.
     public func start() throws {
         try prepareDirectory()
-        let socketURL = directory.appendingPathComponent("bridge.sock")
-        let tokenURL = directory.appendingPathComponent("bridge.token")
+        let socketURL = directory.appendingPathComponent(socketName)
+        let tokenURL = directory.appendingPathComponent(tokenName)
         removeStaleSocket(at: socketURL)
 
         let fd = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { throw BridgeListenerError.systemCall("socket", errno) }
 
         do {
-            try bind(fd: fd, path: socketURL.path)
+            try BridgeSocket.bind(fd: fd, path: socketURL.path)
             guard Darwin.listen(fd, 4) == 0 else {
                 throw BridgeListenerError.systemCall("listen", errno)
             }
@@ -55,7 +64,7 @@ public final class BridgeListener: @unchecked Sendable {
             throw error
         }
 
-        let tokenString = Self.generateToken()
+        let tokenString = BridgeSocket.generateToken()
         guard FileManager.default.createFile(
             atPath: tokenURL.path, contents: Data(tokenString.utf8),
             attributes: [.posixPermissions: 0o600])
@@ -116,7 +125,14 @@ public final class BridgeListener: @unchecked Sendable {
                 if isRunning() { continue }
                 return
             }
-            guard peerIsSameUser(clientFD) else {
+            // A peer that vanishes mid-write must be an EPIPE, not a signal
+            // that kills the app (also covers the raw busy reply below).
+            guard BridgeSocket.suppressSigpipe(on: clientFD) else {
+                Log.bridge("peer left before accept")
+                Darwin.close(clientFD)
+                continue
+            }
+            guard BridgeSocket.peerIsSameUser(clientFD) else {
                 Log.bridge("rejected peer uid")
                 Darwin.close(clientFD)
                 continue
@@ -127,17 +143,12 @@ public final class BridgeListener: @unchecked Sendable {
                 continue
             }
             let connection = BridgeConnection(fd: clientFD)
-            connection.onClosed = { [weak self] in self?.clearActiveConnection() }
+            connection.onClosed = { [weak self, weak connection] in
+                if let connection { self?.clearActiveConnection(connection) }
+            }
             setActiveConnection(connection)
             onConnection(connection)
         }
-    }
-
-    private func peerIsSameUser(_ fd: Int32) -> Bool {
-        var euid: uid_t = 0
-        var egid: gid_t = 0
-        guard Darwin.getpeereid(fd, &euid, &egid) == 0 else { return false }
-        return euid == getuid()
     }
 
     private func sendBusy(to fd: Int32) {
@@ -160,8 +171,12 @@ public final class BridgeListener: @unchecked Sendable {
         lock.lock(); activeConnection = connection; lock.unlock()
     }
 
-    private func clearActiveConnection() {
-        lock.lock(); activeConnection = nil; lock.unlock()
+    /// Only the connection that owns the slot may free it: a late close of
+    /// an earlier one must not evict the connection that replaced it.
+    private func clearActiveConnection(_ connection: BridgeConnection) {
+        lock.lock()
+        if activeConnection === connection { activeConnection = nil }
+        lock.unlock()
     }
 
     // MARK: - filesystem
@@ -195,30 +210,6 @@ public final class BridgeListener: @unchecked Sendable {
             Log.bridge("stop: could not remove a bridge file")
         }
     }
-
-    private func bind(fd: Int32, path: String) throws {
-        var addr = sockaddr_un()
-        addr.sun_family = sa_family_t(AF_UNIX)
-        let pathBytes = Array(path.utf8) + [0]
-        guard pathBytes.count <= MemoryLayout.size(ofValue: addr.sun_path) else {
-            throw BridgeListenerError.pathTooLong
-        }
-        withUnsafeMutableBytes(of: &addr.sun_path) { raw in raw.copyBytes(from: pathBytes) }
-        let bound = withUnsafePointer(to: &addr) { ptr -> Int32 in
-            ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockPtr in
-                Darwin.bind(fd, sockPtr, socklen_t(MemoryLayout<sockaddr_un>.size))
-            }
-        }
-        guard bound == 0 else { throw BridgeListenerError.systemCall("bind", errno) }
-    }
-
-    private static func generateToken() -> String {
-        var generator = SystemRandomNumberGenerator()
-        var bytes = [UInt8]()
-        bytes.reserveCapacity(32)
-        for _ in 0 ..< 32 { bytes.append(UInt8.random(in: 0 ... 255, using: &generator)) }
-        return bytes.map { String(format: "%02x", $0) }.joined()
-    }
 }
 
 public enum BridgeListenerError: Error, Sendable, Equatable {
@@ -237,15 +228,28 @@ public final class BridgeConnection: @unchecked Sendable {
     private var closed = false
     private let continuation: AsyncStream<String>.Continuation
     public let lines: AsyncStream<String>
+    /// Yields nothing and finishes when the connection closes, for whoever
+    /// is parked on something else (a sheet) while `lines` is being read.
+    let closure: AsyncStream<Void>
+    private let closureContinuation: AsyncStream<Void>.Continuation
+    /// Read once at accept: the peer can exit, but the pid and path the
+    /// sheet showed are the ones that asked.
+    public let peer: BridgePeer?
     /// Set by `BridgeListener` before handing the connection to
     /// `onConnection`, so it can free the "one active connection" slot.
     var onClosed: (@Sendable () -> Void)?
+    private var slotHeld = false
+    private var slotFreed = false
 
     init(fd: Int32) {
         self.fd = fd
+        self.peer = BridgePeer.of(fd: fd)
         var pendingContinuation: AsyncStream<String>.Continuation?
         self.lines = AsyncStream<String> { continuation in pendingContinuation = continuation }
         self.continuation = pendingContinuation!
+        var pendingClosure: AsyncStream<Void>.Continuation?
+        self.closure = AsyncStream<Void> { continuation in pendingClosure = continuation }
+        self.closureContinuation = pendingClosure!
         let thread = Thread { [weak self] in self?.readLoop() }
         thread.name = "bridge-connection"
         thread.start()
@@ -263,11 +267,39 @@ public final class BridgeConnection: @unchecked Sendable {
         lock.lock()
         guard !closed else { lock.unlock(); return }
         closed = true
+        let freeSlot = takeSlotRelease()
         lock.unlock()
         Darwin.shutdown(fd, SHUT_RDWR)
         Darwin.close(fd)
         continuation.finish()
-        onClosed?()
+        closureContinuation.finish()
+        if freeSlot { onClosed?() }
+    }
+
+    /// Wave 20c D5 (M1): the session takes the slot's release into its own
+    /// hands, so the listener cannot accept a replacement while the previous
+    /// connection's authorization is still standing. Opt-in: a connection
+    /// nobody serves frees the slot the moment it closes, as before.
+    func holdSlotUntilServed() {
+        lock.lock(); defer { lock.unlock() }
+        if !slotFreed { slotHeld = true }
+    }
+
+    /// Called once the session has reset its state for this connection.
+    func releaseSlot() {
+        lock.lock()
+        slotHeld = false
+        let freeSlot = takeSlotRelease()
+        lock.unlock()
+        if freeSlot { onClosed?() }
+    }
+
+    /// Under `lock`. True exactly once: when the connection is closed and
+    /// nobody is holding the slot.
+    private func takeSlotRelease() -> Bool {
+        guard closed, !slotHeld, !slotFreed else { return false }
+        slotFreed = true
+        return true
     }
 
     /// M4 (security review 2026-09-28): lets `BridgeSession` check, after
@@ -276,6 +308,10 @@ public final class BridgeConnection: @unchecked Sendable {
     public var isOpen: Bool {
         lock.lock(); defer { lock.unlock() }; return !closed
     }
+
+    /// A closed peer cannot be provoked deterministically (the read loop
+    /// closes this end first), so tests read the protection back instead.
+    var suppressesSigpipe: Bool { BridgeSocket.sigpipeIsSuppressed(on: fd) }
 
     private func isClosed() -> Bool {
         lock.lock(); defer { lock.unlock() }; return closed

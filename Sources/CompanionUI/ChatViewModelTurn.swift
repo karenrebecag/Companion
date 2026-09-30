@@ -235,7 +235,10 @@ extension ChatViewModel {
     private func gate(
         _ call: ToolCallRef, said: String, tools: any ParentToolExecuting
     ) async -> ParentToolOutcome? {
-        guard let request = tools.approval(for: call, said: said) else { return nil }
+        guard let asked = tools.approval(for: call, said: said) else { return nil }
+        let request = await tools.bound(asked)
+        // A remembered "no" outranks the shortcut (see ParentToolGuard).
+        if await tools.actsWithoutSheet(call), await approvals?.remembered(request) != false { return nil }
         let denied = ParentToolOutcome.failed(
             .deniedByUser(config.language), target: ParentTool.target(of: call),
             tool: call.name)

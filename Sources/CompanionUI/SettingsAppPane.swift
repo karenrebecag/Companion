@@ -7,6 +7,7 @@ import SwiftUI
 struct SettingsPrivacyPage: View {
     var chat: ChatViewModel?
     var welcome: WelcomeModel?
+    var browser: BrowserSettingsModel?
     @State private var context = ContextSettingsModel()
     /// Wave 15c-6: reads the Keychain only from `.onAppear`, never at boot.
     @State private var keys = KeysSettingsModel()
@@ -60,6 +61,7 @@ struct SettingsPrivacyPage: View {
                     }
                 }
             }
+            if let browser { SettingsBrowserCard(model: browser) }
             SettingsCard(label: Localized.string("settings.keys.label")) {
                 keysBlock.padding(Space.x4)
             }
@@ -76,6 +78,7 @@ struct SettingsPrivacyPage: View {
             // Rows answer a change made in System Settings while this is open.
             while !Task.isCancelled {
                 await welcome?.refresh()
+                browser?.refresh()
                 do { try await Task.sleep(for: .seconds(1)) } catch { return }
             }
         }

@@ -20,8 +20,8 @@ public struct ToolResult: Sendable {
 /// Single entry point for tool execution: enforces approval gate for risky tools
 /// and applies double-barrier path validation (lexical + symlink resolution).
 public struct NativeToolRunner: Sendable {
-    private let workdir: String?
-    private let pathValidator: PathValidator
+    let workdir: String?
+    let pathValidator: PathValidator
     private let places: (any PlacesSearching)?
     private let webSearch: (any WebSearching)?
     /// 16h-3: where "nearby" means. Absent, the lookup runs as it always did.
@@ -34,7 +34,7 @@ public struct NativeToolRunner: Sendable {
     private let language: AppLanguage
     /// The app's own folders (Wave 11a): readable beyond the workdir, and
     /// the place where a write earns a sync line.
-    private let skills: SkillsLocation?
+    let skills: SkillsLocation?
     /// Wave 20: absent, the tool is not offered (a tool without a backing
     /// captures the intent and then dies).
     let documents: (any DocumentRendering)?
@@ -565,7 +565,17 @@ public struct NativeToolRunner: Sendable {
             ? path
             : ((workdir ?? ".") as NSString).appendingPathComponent(path)
 
-        // Use resolvingSymlinksInPath to follow symlinks
-        return (absolutePath as NSString).resolvingSymlinksInPath
+        // A path that does not exist yet is not resolved by
+        // resolvingSymlinksInPath, so `link/new.txt` would pass as inside the
+        // folder while `link` points out of it: resolve the nearest ancestor
+        // that exists and keep the missing tail.
+        var existing = absolutePath as NSString
+        var tail: [String] = []
+        while !FileManager.default.fileExists(atPath: existing.resolvingSymlinksInPath),
+              existing.length > 1, existing as String != "/" {
+            tail.insert(existing.lastPathComponent, at: 0)
+            existing = existing.deletingLastPathComponent as NSString
+        }
+        return tail.reduce(existing.resolvingSymlinksInPath) { ($0 as NSString).appendingPathComponent($1) }
     }
 }

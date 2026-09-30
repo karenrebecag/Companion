@@ -393,7 +393,8 @@ func testAnUntaggedRequestAfterAStopIsNotDenied() {
     var m = running(jobA, "vuelos")
     _ = m.handle(.stop)
     let fx = m.handle(.job(.approvalRequested(ask("u1"))))
-    expectEq(fx, [], "sin dueño: tras parar no se niega solo")
+    // Only the sheet's new front is reported to the voice (C2): nothing denies.
+    expectEq(fx, [.approvalFront(requestId: "u1")], "sin dueño: tras parar no se niega solo")
     expectEq(m.projection.approval?.requestId, "u1", "sin dueño: abre la hoja")
 }
 

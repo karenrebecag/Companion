@@ -86,6 +86,11 @@ public actor VoiceSession: VoiceControlling {
     /// answering is the hold that said it (round 2, S2). Written by
     /// VoiceSessionApprovals.
     var heardThisHold: HeardInHold?
+    /// The request the sheet shows, as the reducer last reported it (C2).
+    /// Nil until a sheet reports at all: a session without one (headless,
+    /// tests) keeps answering, and the reducer still drops what it must.
+    /// Written by VoiceSessionApprovals.
+    var sheetFront: SheetFront?
     /// Requests that already left the sheet, newest last: a task that lost the
     /// race with `approvalClosed` must not re-arm or announce them. Bounded.
     // HACK: a FIFO of the last 64 ids. Ids are unique per request, so a

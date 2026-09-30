@@ -212,7 +212,8 @@ private func appWrite(_ id: String) -> ApprovalRequest {
 /// Once the voice asks a job's permission (16q-1), a spoken yes admitted for
 /// THAT request must not land on whatever the sheet shows first: an app
 /// write of the chat would be approved by a word said about something else
-/// (F-D). The reducer resolves exactly the request the voice named.
+/// (F-D). The reducer resolves exactly the request the voice named, and
+/// (20c D1) only while the sheet shows it: here neither resolves.
 @MainActor func testASpokenYesResolvesExactlyTheRequestItNames() {
     var m = SessionMachine()
     _ = m.handle(.job(.approvalRequested(appWrite("chat-app"))))
@@ -220,12 +221,16 @@ private func appWrite(_ id: String) -> ApprovalRequest {
     _ = m.handle(.job(.approvalRequested(request("job-1")), from: alpha))
     expectEq(m.projection.approval?.requestId, "chat-app", "previo: la del chat esta primera en la hoja")
     let fx = m.handle(.approvalSpoken(requestId: "job-1", approved: true))
-    expect(has(fx, .resolveApproval(requestId: "job-1", approved: true, remember: false)),
-           "hablado: resuelve la que la voz nombro")
+    expect(!has(fx, .resolveApproval(requestId: "job-1", approved: true, remember: false)),
+           "hablado: la que la voz nombro no esta en la hoja; espera su clic (20c D1)")
     expect(!has(fx, .resolveApproval(requestId: "chat-app", approved: true, remember: false)),
            "hablado: la escritura app: NO se aprueba")
-    expectEq(m.projection.approvalQueue.map(\.requestId), ["chat-app"],
+    expectEq(m.projection.approvalQueue.map(\.requestId), ["chat-app", "job-1"],
              "hablado: la escritura app: sigue pendiente y pide el clic")
+    _ = m.handle(.approvalAnswered(requestId: "chat-app", approved: false, remember: false))
+    let shown = m.handle(.approvalSpoken(requestId: "job-1", approved: true))
+    expect(has(shown, .resolveApproval(requestId: "job-1", approved: true, remember: false)),
+           "hablado: ya en la hoja, resuelve la que la voz nombro")
 }
 
 @MainActor func testASpokenAnswerForARequestNoLongerPendingResolvesNothing() {

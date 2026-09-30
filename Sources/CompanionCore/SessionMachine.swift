@@ -59,10 +59,14 @@ public struct SessionMachine: Sendable, Equatable {
         var effects = reduce(event)
         let still = Set(projection.approvalQueue.map(\.requestId))
         effects += queued.filter { !still.contains($0) }.map { .approvalClosed(requestId: $0) }
+        // C2: a spoken answer lands only on the front; the voice is told
+        // which one that is so it never reports an answer that went nowhere.
+        let front = projection.approval?.requestId
+        if front != queued.first { effects.append(.approvalFront(requestId: front)) }
         return effects
     }
 
-    private mutating func reduce(_ event: SessionEvent) -> [SessionEffect] {
+    mutating func reduce(_ event: SessionEvent) -> [SessionEffect] {
         let before = projection.kind
         let wasRestingWarm = restingWarm
         projection.cards = []
@@ -118,7 +122,10 @@ public struct SessionMachine: Sendable, Equatable {
                 requestId: id, approved: approved, remember: remember && !stops))
             if stops, let owner { effects += stopJob(owner) }
         case .approvalSpoken(let id, let approved):
-            guard projection.approvalQueue.contains(where: { $0.requestId == id }) else { return [] }
+            // Named (16q-1) AND the one the sheet shows (20c D1): a yes admitted
+            // for one request never reaches another, and never one the user
+            // cannot see while she answers.
+            guard projection.approval?.requestId == id else { return [] }
             return reduce(.approvalAnswered(requestId: id, approved: approved, remember: false))
         case .approvalSettled(let id):
             _ = remove(id)
@@ -242,6 +249,15 @@ public struct SessionMachine: Sendable, Equatable {
             let card = Self.card(for: failure)
             projection.notice = card
             projection.cards = [card]
+        case .actionDone(let receipt):
+            projection.receipt = receipt
+            effects.append(.scheduleReceiptExpiry(id: receipt.id, UndoReceipt.undoWindow))
+        case .receiptExpired(let id):
+            if projection.receipt?.id == id { projection.receipt = nil }
+        case .undoPressed(let id):
+            guard let receipt = projection.receipt, receipt.id == id else { return [] }
+            projection.receipt = nil
+            effects.append(.undo(receipt))
         case .handsLent(let client):
             projection.handsLentTo = client
             if client == nil { projection.handsActing = false; projection.handsTarget = nil }

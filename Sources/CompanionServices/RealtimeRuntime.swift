@@ -275,7 +275,7 @@ final class RealtimeRuntime: @unchecked Sendable {
             // sentence, that a card waits: it never approves.
             onMCPApproval?(ApprovalRequest(
                 requestId: id, toolName: "\(server)/\(tool)",
-                summary: tool, inputJSON: args))
+                summary: tool, inputJSON: args, isMCP: true))
             await send(RealtimeCodec.systemItem(
                 MCPServerConfig.approvalPrompt(
                     server: server, tool: tool, language)))

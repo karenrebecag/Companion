@@ -269,6 +269,11 @@
 "island.answer.fold" = "Plegar el código";
 "island.action.keys" = "Abrir Claves";
 "island.hands.stop" = "Detener manos";
+"island.receipt.created" = "Creé %@";
+"island.receipt.wrote" = "Escribí %@";
+"island.receipt.undone" = "Deshecho: %@";
+"island.receipt.undoFailed" = "No pude deshacer %@";
+"island.receipt.undo" = "Deshacer";
 "island.light.amber" = "Te necesita";
 "island.light.green" = "Terminado";
 "island.feedback.subject" = "Companion: comentario";
@@ -674,3 +679,18 @@
 "feedback.note.unreadable" = "No pude leer ese archivo.";
 "feedback.note.tooBig" = "Cada captura puede pesar hasta 4 MB.";
 "feedback.note.pasteFailed" = "No pude guardar la imagen pegada.";
+
+/* Wave 18-4b: browser panel */
+"settings.browser.header" = "NAVEGADOR";
+"settings.browser.blurb" = "Deja que Companion lea y opere tus pestañas de Chrome o Comet mediante una extensión que cargas una vez. Cada acción que envía, borra o sale del sitio pregunta antes.";
+"settings.browser.status.connected" = "Conectado a %@";
+"settings.browser.status.disconnected" = "Desconectado: carga la extensión en tu navegador";
+"settings.browser.status.notInstalled" = "No instalado";
+"settings.browser.connect" = "Conectar navegador";
+"settings.browser.remove" = "Quitar";
+"settings.browser.folder" = "Carpeta de la extensión (Cargar descomprimida)";
+"settings.browser.id" = "Id de la extensión";
+"settings.browser.notice.moveApp" = "Mueve Companion a Aplicaciones primero.";
+"settings.browser.notice.noBrowser" = "No encuentro Chrome ni Comet en este Mac.";
+"settings.browser.notice.symlink" = "Hay un enlace en la carpeta del navegador; Companion no escribirá encima.";
+"settings.browser.notice.failed" = "No pude hacerlo. Inténtalo de nuevo.";

@@ -16,8 +16,9 @@ import Testing
     await testAnAnnouncedSheetIsAnsweredInALaterHold()
 }
 
+// Low risk (20c D1): a Bash request takes the click whatever the timing.
 private let sheet = ApprovalRequest(
-    requestId: "r1", toolName: "Bash", summary: "rm -rf build", inputJSON: "{}")
+    requestId: "r1", toolName: "find_places", summary: "cines cerca", inputJSON: "{}")
 
 @MainActor private func holding(_ h: VoiceHarness) async {
     await h.session.hold()

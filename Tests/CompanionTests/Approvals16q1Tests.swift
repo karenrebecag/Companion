@@ -259,7 +259,8 @@ private final class IDRecordingSubmitter: JobSubmitter, @unchecked Sendable {
 
 private let flights = Handoff(goal: "busca vuelos en Safari", context: "")
 
-private func sheetRequest(_ id: String, tool: String = "run_shell") -> ApprovalRequest {
+// Low risk (20c D1), so the spoken yes is judged on hold, words and naming alone.
+private func sheetRequest(_ id: String, tool: String = "find_places") -> ApprovalRequest {
     ApprovalRequest(requestId: id, toolName: tool, summary: "borrar build", inputJSON: "{}")
 }
 
@@ -345,7 +346,9 @@ private func sheetRequest(_ id: String, tool: String = "run_shell") -> ApprovalR
 
 /// The hole the 16q-3 spec found: the yes is admitted for the job's request
 /// (the one the voice asked), but the sheet shows the chat's app write
-/// first. The answer must land on the request it names.
+/// first. The answer must never land on the app write. Merged with 20c D1,
+/// it lands only on the request the sheet shows: here it lands on nothing,
+/// and both requests wait for their click.
 @MainActor func testASpokenYesNeverTouchesAnAppWriteThatIsFirstOnTheSheet() async {
     let jobs = GatedJob()
     let model = SessionModel(jobs: jobs, approvals: nil)
@@ -368,10 +371,11 @@ private func sheetRequest(_ id: String, tool: String = "run_shell") -> ApprovalR
     await heldKey(h)
     await h.session.noteHeard("sí", pressed: await h.session.timeline.pressed)
     let answer = await h.session.answerPendingApproval(true)
-    expectEq(answer, .resolved, "primera: el si hablado contesta al encargo")
-    await pumpUntil("primera: llega al reductor") { model.projection.approvalQueue.map(\.requestId) == ["chat-app"] }
-    await pumpUntil("primera: la resolucion llega al encargo") { jobs.resolutions == [true] }
-    expectEq(jobs.resolutions, [true], "primera: solo se resolvio una peticion, la del encargo")
+    expectEq(answer, .resolved, "primera: la voz admite el si para el encargo")
+    await settle(0.2)
+    expectEq(model.projection.approvalQueue.map(\.requestId), ["chat-app", "job-1"],
+             "primera: la hoja no muestra la del encargo, asi que el si no resuelve nada (20c D1)")
+    expect(jobs.resolutions.isEmpty, "primera: ninguna peticion se resolvio por voz")
     expectEq(model.projection.approval?.requestId, "chat-app", "primera: la escritura app: sigue esperando el clic")
     jobs.open()
     await h.session.hangUp()

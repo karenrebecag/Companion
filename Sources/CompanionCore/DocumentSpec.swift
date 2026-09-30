@@ -41,11 +41,15 @@ public struct DocumentSpec: Sendable, Equatable {
     public var title: String
     public var subtitle: String?
     public var blocks: [Block]
+    /// Only an explicit request turns "=..." table cells into live formulas
+    /// in an .xlsx; otherwise they are literal text.
+    public var allowFormulas: Bool
 
-    public init(title: String, subtitle: String? = nil, blocks: [Block]) {
+    public init(title: String, subtitle: String? = nil, blocks: [Block], allowFormulas: Bool = false) {
         self.title = title
         self.subtitle = subtitle
         self.blocks = blocks
+        self.allowFormulas = allowFormulas
     }
 
     /// Providers send a nested argument either as JSON text or as an object.
@@ -68,7 +72,8 @@ public struct DocumentSpec: Sendable, Equatable {
         let blocks = raw.compactMap { ($0 as? [String: Any]).flatMap(block(from:)) }
             .prefix(maxBlocks)
         guard !blocks.isEmpty else { return nil }
-        return DocumentSpec(title: title, subtitle: text(dict["subtitle"]), blocks: Array(blocks))
+        return DocumentSpec(title: title, subtitle: text(dict["subtitle"]), blocks: Array(blocks),
+                            allowFormulas: dict["formulas"] as? Bool == true)
     }
 
     private static func block(from dict: [String: Any]) -> Block? {

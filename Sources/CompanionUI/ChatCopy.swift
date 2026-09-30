@@ -86,7 +86,7 @@ public enum ChatCopy {
             return Localized.string("chat.secret.denied")
         case .emptyValue:
             return emptyKey
-        case .notAvailable, .unexpected:
+        case .notAvailable, .unexpected, .invalidHost:
             return Localized.string("chat.secret.failed")
         }
     }

@@ -9,7 +9,9 @@ import Testing
 
 let q1Flights = Handoff(goal: "busca vuelos en Safari", context: "")
 
-func q1Req(_ id: String, tool: String = "run_shell") -> ApprovalRequest {
+// A low-risk tool (20c D1): the spoken yes these suites exercise is only the
+// voice's to give for one; run_shell would take the click whatever was said.
+func q1Req(_ id: String, tool: String = "find_places") -> ApprovalRequest {
     ApprovalRequest(requestId: id, toolName: tool, summary: "borrar build", inputJSON: "{}")
 }
 
@@ -28,6 +30,7 @@ final class Q1SessionVoiceBox: VoiceControlling, @unchecked Sendable {
     func push(attachment: AttachmentRef) async {}
     func interrupt() async { await session?.interrupt() }
     func approvalClosed(requestId: String) async { await session?.approvalClosed(requestId: requestId) }
+    func approvalFront(requestId: String?) async { await session?.approvalFront(requestId: requestId) }
     var snapshots: AsyncStream<TurnSnapshot> { AsyncStream { $0.finish() } }
     var levels: AsyncStream<VoiceLevels> { AsyncStream { $0.finish() } }
 }
@@ -50,10 +53,12 @@ final class Q1SessionVoiceBox: VoiceControlling, @unchecked Sendable {
 /// The job asks; the voice says the question and it finishes sounding. A
 /// second call counts its own question, not one an earlier request left in
 /// the synthesizer's queue.
-@MainActor func q1AskedAndSaid(_ h: VoiceHarness, _ jobs: GatedJob, _ id: String = "r1") async {
+@MainActor func q1AskedAndSaid(
+    _ h: VoiceHarness, _ jobs: GatedJob, _ id: String = "r1", tool: String = "find_places"
+) async {
     let question = Escalation.approvalAskedSpoken(.es)
     let before = h.synth.queue.filter { $0 == question }.count
-    jobs.ask(q1Req(id))
+    jobs.ask(q1Req(id, tool: tool))
     await pumpUntil("rig: la voz dice la pregunta") {
         h.synth.queue.filter { $0 == question }.count > before
     }

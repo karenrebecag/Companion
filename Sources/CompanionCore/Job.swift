@@ -61,6 +61,8 @@ public enum JobEvent: Sendable, Equatable {
     /// Answered from the session's memory, without the sheet: "allowed, as
     /// before" / "denied, as before".
     case approvalRemembered(tool: String, approved: Bool)
+    /// Wave 20d B: a step ran on its own band (no sheet); the way back.
+    case acted(UndoReceipt)
 }
 
 public protocol Executor: Sendable {

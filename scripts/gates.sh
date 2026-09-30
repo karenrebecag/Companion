@@ -240,6 +240,25 @@ else
     echo "$out" | grep -E '✘|↳|Issue recorded|Expectation failed'
 fi
 
+# Wave 18 (X14): la extension del navegador trae su propio arnes, sin
+# dependencias. Cada archivo se pasa por ruta: en Node 22 un directorio como
+# argumento de `node --test` falla. Sin node es un aviso, no un fallo: la
+# extension no es parte del build de la app.
+ext_files=("$ROOT"/Extensions/browser/test/*.test.js)
+if [ -e "${ext_files[0]}" ]; then
+    if command -v node >/dev/null 2>&1; then
+        ext_out=$(cd "$ROOT" && node --test "${ext_files[@]}" 2>&1)
+        if [ $? -eq 0 ]; then
+            pass "node --test de la extension verde — $(echo "$ext_out" | grep -E '^# pass ' | tail -1 | sed 's/^# pass /pass /') en ${#ext_files[@]} archivos"
+        else
+            fail "node --test de la extension fallo:"
+            echo "$ext_out" | grep -E '^not ok|^# (pass|fail) |Error|expected|actual' | head -20
+        fi
+    else
+        warn "node no esta instalado: tests de la extension omitidos"
+    fi
+fi
+
 # ------------------------------------------------------------------- Resumen
 echo
 echo "$fails fallos, $warns avisos"

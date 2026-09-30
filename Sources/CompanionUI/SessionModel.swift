@@ -23,6 +23,7 @@ public final class SessionModel {
     private var voiceIdle: Task<Void, Never>?
     private var noticeExpiry: Task<Void, Never>?
     private var handsGlowExpiry: Task<Void, Never>?
+    private var receiptExpiry: Task<Void, Never>?
     /// 16h-3: where the island's events wait for the next turn.
     public var islandEvents: (any IslandEventSink)?
     /// Wave 17: "the voice wins" — `BridgeHost` pauses the bridge for any
@@ -30,6 +31,9 @@ public final class SessionModel {
     /// only place `projection.kind` changes, so it is the only place that
     /// needs to notice.
     public var onKindChange: (@MainActor (SessionKind) -> Void)?
+    /// The user pressed Undo on a receipt (Wave 20d B). The composition root
+    /// wires the adapter that takes the action back.
+    public var onUndo: (@MainActor (UndoReceipt) -> Void)?
 
     public init(
         jobs: (any JobSubmitter)?,
@@ -95,6 +99,9 @@ public final class SessionModel {
         case .approvalClosed(let id):
             guard let voice else { return }
             Task { await voice.approvalClosed(requestId: id) }
+        case .approvalFront(let id):
+            guard let voice else { return }
+            Task { await voice.approvalFront(requestId: id) }
         case .cancelJobByID(let id):
             guard let jobs else { return }
             Task { await jobs.cancel(job: id) }
@@ -117,6 +124,13 @@ public final class SessionModel {
             // Armed for THIS notice: if another took its place, the late
             // clock finds it changed and does nothing.
             noticeExpiry = timer(delay, then: projection.notice.map { .noticeExpired($0) } ?? .noticeDismissed)
+        case .scheduleReceiptExpiry(let id, let delay):
+            // The newest receipt owns the window: an older one's undo is gone.
+            receiptExpiry?.cancel()
+            receiptExpiry = timer(delay, then: .receiptExpired(id: id))
+        case .undo(let receipt):
+            receiptExpiry?.cancel()
+            onUndo?(receipt)
         case .scheduleHandsGlowExpiry(let delay):
             // Each call restarts the four seconds: the aura ends after the last one.
             handsGlowExpiry?.cancel()

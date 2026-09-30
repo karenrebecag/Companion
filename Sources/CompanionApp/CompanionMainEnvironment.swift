@@ -13,6 +13,11 @@ struct LaunchEnvironment {
     let home: URL
     let support: URL
     let secrets: CachingSecretStore
+    /// The same Keychain instance behind `secrets`: two would each cache the
+    /// one bundle item and overwrite each other's writes.
+    let hostSecrets: any HostSecretStore
+    /// The apps endpoint this launch saw; the flat key follows no other.
+    let appsPin: AppsLaunchPin
     let transport: URLSessionChatTransport
     let probe: LiveCapabilityProbe
     let memoryStore: FileMemoryStore
@@ -52,7 +57,8 @@ func makeLaunchEnvironment() -> LaunchEnvironment {
     // proveedor y la voz otra vez al abrir sesion. Sin cache eso son
     // varias lecturas del llavero por mensaje, y cuando el ACL del item no
     // reconoce a la app, cada lectura es un dialogo de contrasena.
-    let secrets = CachingSecretStore(KeychainSecretStore())
+    let keychain = KeychainSecretStore()
+    let secrets = CachingSecretStore(keychain)
     let transport = URLSessionChatTransport()
     let probe = LiveCapabilityProbe(transport: transport)
     // No default reach. Handing over the whole home folder on first launch
@@ -79,12 +85,23 @@ func makeLaunchEnvironment() -> LaunchEnvironment {
     let skillStore = SkillStore(location: skillsLocation, bundled: bundledSkills)
     let seeded = skillStore.seed()
     if !seeded.isEmpty { Log.app("skills: seeded \(seeded.joined(separator: ", "))") }
+    // MANUAL-VERIFIED: the flat apps key moves to its host here, not on some
+    // later read, and the pin it returns gates every later read. The logic is
+    // unit-tested (`AppsCredentials.launch`); that THIS call runs against the
+    // defaults endpoint at launch needs one hand check on an install that still
+    // holds a flat key: after first launch it is gone from the Keychain and the
+    // Apps page still loads. Dropping the call leaves the tests green but the
+    // page unable to use an unmigrated key.
+    let appsPin = AppsCredentials.launch(
+        endpoint: UserDefaults.standard.string(forKey: AppsModel.endpointDefault),
+        legacy: secrets, bound: keychain, log: { Log.app($0) })
     let configProvider = StoredConfigProvider(
-        workdir: nil, memory: memoryStore, skills: skillStore, location: skillsLocation)
+        workdir: nil, memory: memoryStore, skills: skillStore, location: skillsLocation,
+        hostSecrets: keychain)
     let config = configProvider.current
 
     return LaunchEnvironment(
-        home: home, support: support, secrets: secrets, transport: transport,
-        probe: probe, memoryStore: memoryStore, skillsLocation: skillsLocation,
+        home: home, support: support, secrets: secrets, hostSecrets: keychain, appsPin: appsPin,
+        transport: transport, probe: probe, memoryStore: memoryStore, skillsLocation: skillsLocation,
         skillStore: skillStore, configProvider: configProvider, config: config)
 }

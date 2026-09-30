@@ -13,11 +13,15 @@ public struct ApprovalResponse: Sendable, Equatable {
     public var requestId: String
     public var approved: Bool
     public var remember: Bool
+    /// The deadline denied it, nobody answered: a caller that counts refusals
+    /// (the bridge's cool-down) must not count silence as one.
+    public var timedOut: Bool
 
-    public init(requestId: String, approved: Bool, remember: Bool = false) {
+    public init(requestId: String, approved: Bool, remember: Bool = false, timedOut: Bool = false) {
         self.requestId = requestId
         self.approved = approved
         self.remember = remember
+        self.timedOut = timedOut
     }
 }
 

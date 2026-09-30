@@ -3,6 +3,16 @@ import Foundation
 
 /// Words for the island, ours, from the catalog.
 enum IslandCopy {
+    static func receipt(_ receipt: UndoReceipt) -> String {
+        let key = switch receipt.kind {
+        case .created: "island.receipt.created"
+        case .wrote: "island.receipt.wrote"
+        case .undone: "island.receipt.undone"
+        case .couldNotUndo: "island.receipt.undoFailed"
+        }
+        return String(format: Localized.string(key), receipt.subject)
+    }
+
     static func line(_ line: IslandState.Line) -> String {
         switch line {
         case .none: ""

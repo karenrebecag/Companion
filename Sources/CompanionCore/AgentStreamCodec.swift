@@ -5,8 +5,16 @@ public struct ApprovalRequest: Sendable, Equatable {
     public var toolName: String
     public var summary: String
     public var inputJSON: String
+    /// Minted by the realtime session for the user's own MCP servers. An
+    /// explicit origin, not a name shape: the sheet, the job-deny rule and
+    /// the remember toggle all branch on it (20c D2 review).
+    public var isMCP: Bool
 
-    public init(requestId: String, toolName: String, summary: String, inputJSON: String) {
+    public init(
+        requestId: String, toolName: String, summary: String, inputJSON: String,
+        isMCP: Bool = false
+    ) {
+        self.isMCP = isMCP
         self.requestId = requestId
         self.toolName = toolName
         self.summary = summary

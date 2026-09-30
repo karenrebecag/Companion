@@ -28,6 +28,7 @@ Always deliver a file the user can open. `create_document` writes it natively: n
 - Numbers in tables and stats, not in prose.
 - Sources at the end when the web was used.
 - For an .xlsx, every stats, table and chart block becomes its own sheet; name them with `title`.
+- A table cell that starts with `=` stays text in an .xlsx. Add `"formulas":true` to the document to make it a live formula; only plain functions of the sheet's own cells (SUM, IF, VLOOKUP...) qualify, never fetches or other files.
 
 ## What Companion cannot do yet
 

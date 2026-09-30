@@ -64,6 +64,9 @@ extension IslandView {
                 // ink once the release fixes it.
                 IslandTranscript(text: partial, fixed: state.meter != .mic)
             }
+            if let receipt = state.receipt, state.approval == nil {
+                IslandReceiptRow(receipt: receipt) { chat.session.send(.undoPressed(id: receipt.id)) }
+            }
             let touched = chat.session.projection.touched
             if !touched.isEmpty, state.approval == nil {
                 IslandReel(touched: touched)
