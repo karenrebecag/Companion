@@ -60,20 +60,25 @@ package enum Localized {
     /// For callers that already hold the language they must speak (the
     /// language picker preview, pure copy functions taking a parameter).
     package static func string(_ key: String, language: AppLanguage) -> String {
-        bundle(for: language)?.localizedString(
+        string(key, language: language, in: UIResourceBundle.bundle)
+    }
+
+    /// `resources` nil (bundle not found, 21c) paints the raw key.
+    static func string(_ key: String, language: AppLanguage, in resources: Bundle?) -> String {
+        bundle(for: language, in: resources)?.localizedString(
             forKey: key, value: nil, table: nil)
-            ?? fallback(key)
+            ?? fallback(key, in: resources)
     }
 
     /// Missing translation must never paint a blank: English is the source,
     /// so it is always the last thing standing before the raw key.
-    private static func fallback(_ key: String) -> String {
-        bundle(for: .en)?.localizedString(forKey: key, value: nil, table: nil)
+    private static func fallback(_ key: String, in resources: Bundle?) -> String {
+        bundle(for: .en, in: resources)?.localizedString(forKey: key, value: nil, table: nil)
             ?? key
     }
 
-    private static func bundle(for language: AppLanguage) -> Bundle? {
-        Bundle.module.path(forResource: language.rawValue, ofType: "lproj")
+    private static func bundle(for language: AppLanguage, in resources: Bundle?) -> Bundle? {
+        resources?.path(forResource: language.rawValue, ofType: "lproj")
             .flatMap(Bundle.init(path:))
     }
 }
