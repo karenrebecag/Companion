@@ -314,6 +314,41 @@ public struct DecisionSettings: Sendable, Equatable {
     public static let `default` = DecisionSettings()
 }
 
+/// 16q-3: the action coverage judge. It only ever shadows: it judges and
+/// records, and no approval reads its verdict. `enforce` is read as `shadow`
+/// (invariant 8) and flagged so the composition root can log that it was asked.
+public struct ActionJudgeSettings: Sendable, Equatable {
+    public enum Mode: String, Sendable, Equatable { case off, shadow }
+
+    public static let defaultMaxActions = 8
+
+    public var mode: Mode
+    /// Wall-clock budget for one judgment; one attempt, no retries.
+    public var timeout: TimeInterval
+    public var maxActions: Int
+    public var enforceRequested: Bool
+
+    public init(mode: Mode = .shadow, timeout: TimeInterval = 2.5,
+                maxActions: Int = ActionJudgeSettings.defaultMaxActions, enforceRequested: Bool = false) {
+        self.mode = mode
+        self.timeout = timeout
+        self.maxActions = maxActions
+        self.enforceRequested = enforceRequested
+    }
+
+    /// Shadow is on unless `COMPANION_ACTION_JUDGE` says off (`off`, `0`,
+    /// `false`, any case, trimmed): an app launched from /Applications reads no
+    /// shell variables, and without it there is no metric.
+    public init(environment: [String: String]) {
+        let value = (environment["COMPANION_ACTION_JUDGE"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        self.init(mode: ["off", "0", "false"].contains(value) ? .off : .shadow,
+                  enforceRequested: value == "enforce")
+    }
+
+    public static let `default` = ActionJudgeSettings()
+}
+
 /// Port for reading the current configuration at runtime.
 /// Implementations read from persistent storage (UserPreferences) and
 /// construct the effective Config, allowing voice session preferences to
@@ -352,6 +387,8 @@ public struct Config: Sendable, Equatable {
     public var contextBudget: Duration
     /// DM1c-2: the local router in front of the classic hold. Off by default.
     public var decision: DecisionSettings
+    /// 16q-3: the action coverage judge, shadow only.
+    public var judge: ActionJudgeSettings
     public var debugTranscripts: Bool
     /// Wave 15f-7a: the ElevenLabs voice the hold speaks with. Empty means
     /// none chosen, and the mouth stays OpenAI's even with the key saved.
@@ -373,6 +410,7 @@ public struct Config: Sendable, Equatable {
         contextChannels: ContextChannels = .default,
         contextBudget: Duration = .milliseconds(150),
         decision: DecisionSettings = DecisionSettings(),
+        judge: ActionJudgeSettings = ActionJudgeSettings(environment: ProcessInfo.processInfo.environment),
         debugTranscripts: Bool = Config.debugTranscriptsEnabled(),
         elevenLabsVoiceID: String = Config.defaultElevenLabsVoiceID
     ) {
@@ -391,6 +429,7 @@ public struct Config: Sendable, Equatable {
         self.contextChannels = contextChannels
         self.contextBudget = contextBudget
         self.decision = decision
+        self.judge = judge
         self.debugTranscripts = debugTranscripts
         self.elevenLabsVoiceID = elevenLabsVoiceID
     }
