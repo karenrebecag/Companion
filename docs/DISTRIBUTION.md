@@ -9,7 +9,7 @@ How a build reaches someone else's Mac.
 | Release (`bundle.sh release`) | `com.karen.companion` | Companion.app | `~/Library/Logs/Companion.log` |
 | Development (`bundle.sh`) | `com.karen.companion.next` | Companion Next.app | `~/Library/Logs/CompanionNext.log` |
 
-The strings live in `Sources/CompanionCore/ProductIdentity.swift`; a test
+The strings live in `Sources/CompanionCore/Platform/ProductIdentity.swift`; a test
 compares them against this script, because a plist written by bash that
 drifts installs an app whose own code does not recognise it.
 

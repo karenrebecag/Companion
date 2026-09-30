@@ -17,6 +17,20 @@ Dependencies only point downward. The compiler enforces this: a forbidden
 import is a build error, not a review comment. `scripts/gates.sh` adds the
 framework-level rules SPM can't express.
 
+## Folders inside a target
+
+Each target groups its files by domain (`Voice/`, `Chat/`, `Browser/`,
+`Bridge/`, `Tools/`, `Deliverables/`...), and a domain keeps the same name in
+every target it spans: `CompanionCore/Browser` holds the ports and policy,
+`CompanionServices/Browser` the adapters, `CompanionUI/Settings` the view.
+The pairing is what would let a domain become its own module later
+(interface + live implementation) without renaming anything.
+
+A file that only extends a type is named `Type+Concern.swift`
+(`VoiceSession+Pumps.swift`), so the type it belongs to reads from the
+name. `Skills`, `Diagram`, `Fonts` and `Mascot` are copied resources in
+`Package.swift`: no source folder may take those names.
+
 ## Pattern: ports & adapters around a pure core
 
 - **Core defines ports** — protocols like `VoiceTransport`, `ChatProvider`,

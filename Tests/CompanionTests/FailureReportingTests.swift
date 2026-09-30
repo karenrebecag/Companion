@@ -35,10 +35,17 @@ import Testing
     // que sobrevive es el que pasa por el catalogo de idiomas.
     let services = Bundle.main  // ancla: el test mira el codigo, no el bundle
     _ = services
-    let source = try? String(
-        contentsOfFile: "Sources/CompanionServices/ClassicRuntime.swift",
-        encoding: .utf8)
-    guard let source else { return }  // fuera del repo: nada que vigilar
+    guard let root = Conformance.repoRoot() else {
+        print("  nota  [failureReporting] fuera del checkout: no hay que escanear")
+        return
+    }
+    // Un archivo ausente o vacio daria "no contiene" trivialmente: el ancla
+    // obliga a que el escaneo haya leido el runtime de verdad.
+    let path = "Sources/CompanionServices/Voice/Classic/ClassicRuntime.swift"
+    let source = (try? String(
+        contentsOf: root.appendingPathComponent(path), encoding: .utf8)) ?? ""
+    expect(source.contains("final class ClassicRuntime"), "\(path) se lee y declara ClassicRuntime")
+    guard !source.isEmpty else { return }
     expect(!source.contains("Verifica tu red"),
            "Services no vuelve a llevar copy de usuario cableado")
     expect(!source.contains("No te escuché"),

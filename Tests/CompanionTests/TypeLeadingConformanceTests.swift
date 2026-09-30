@@ -10,20 +10,19 @@ import Testing
 enum TypeLeadingLint {
     /// Files that own the rule. Everything else either has no multi-line Text
     /// or must be listed in `exempt` with its reason.
-    static let covered = ["AppsPage.swift", "AppPanel.swift", "ConnectingSheet.swift", "HomePage.swift"]
+    static let covered = ["Apps/AppsPage.swift", "Apps/AppPanel.swift", "Apps/ConnectingSheet.swift", "Window/HomePage.swift"]
 
     /// Not brought under the rule yet, on purpose. Path prefixes relative to
     /// Sources/CompanionUI.
     static let exempt: [String: String] = [
         "Island/": "the island reads its own leading from AnswerBlockMetrics (measured 1.45-1.62 per block)",
-        "IslandView.swift": "island composition, same leading source as Island/",
-        "Settings": "Settings rows have no measured line height of their own; move to roles when touched",
-        "Welcome": "the welcome sheet speaks Geist and has no measured line height of its own",
-        "ApprovalSheet.swift": "the approval panel speaks Geist; its leading was never measured",
+        "Settings/Settings": "Settings rows have no measured line height of their own; move to roles when touched",
+        "Welcome/": "the welcome sheet speaks Geist and has no measured line height of its own",
+        "Voice/ApprovalSheet.swift": "the approval panel speaks Geist; its leading was never measured",
         "Feedback/": "the feedback modal speaks Geist like the island; only its frame (480, 32, 28) was measured",
-        "OwnMCPSheet.swift": "form sheet reached through Apps; not measured, follow-up",
-        "ChatErrorSurface.swift": "error banner, not a measured screen",
-        "Controls.swift": "shared control internals, no role of their own",
+        "Apps/OwnMCPSheet.swift": "form sheet reached through Apps; not measured, follow-up",
+        "Chat/ChatErrorSurface.swift": "error banner, not a measured screen",
+        "DesignSystem/Controls.swift": "shared control internals, no role of their own",
     ]
 
     static let fontRole: [String: String] = [
@@ -85,7 +84,14 @@ enum TypeLeadingLint {
 @Test func multiLineTextsCarryTheirRoleTests() throws {
     guard let root = Conformance.repoRoot() else { return }
     let base = root.appendingPathComponent("Sources/CompanionUI")
-    for file in Conformance.swiftFiles(in: base).sorted(by: { $0.path < $1.path }) {
+    let all = Conformance.swiftFiles(in: base).sorted(by: { $0.path < $1.path })
+    // Un arbol movido o una ruta cubierta obsoleta desarmaria el lint en silencio.
+    expect(!all.isEmpty, "Sources/CompanionUI tiene fuentes que escanear")
+    for rel in TypeLeadingLint.covered {
+        expect(FileManager.default.fileExists(atPath: base.appendingPathComponent(rel).path),
+               "covered: \(rel) existe bajo Sources/CompanionUI")
+    }
+    for file in all {
         let rel = file.path.replacingOccurrences(of: base.path + "/", with: "")
         let src = try String(contentsOf: file, encoding: .utf8)
         let hasMultiLine = TypeLeadingLint.textChains(in: src).contains { $0.contains(".fixedSize(horizontal: false") }

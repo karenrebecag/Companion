@@ -14,10 +14,18 @@ import Testing
     // --permission-prompt-tool en batch): no puede tocar disco, asi que
     // responde "no encontre nada" a preguntas que si tienen respuesta.
     // El prototipo SI llevaba estas banderas en su batch.
-    let source = try? String(
-        contentsOfFile: "Sources/CompanionServices/ClaudeCodeExecutor.swift",
-        encoding: .utf8)
-    guard let source else { return }  // fuera del repo: nada que vigilar
+    guard let root = Conformance.repoRoot() else {
+        print("  nota  [batchFallbackArgs] fuera del checkout: no hay que escanear")
+        return
+    }
+    // Dentro del repo un archivo ausente o vacio es un fallo, no un pase en
+    // vacio: si el fuente se mueve, el test debe gritar en vez de desarmarse.
+    let path = "Sources/CompanionServices/Delegation/ClaudeCodeExecutor.swift"
+    let source = (try? String(
+        contentsOf: root.appendingPathComponent(path), encoding: .utf8)) ?? ""
+    expect(source.contains("private func fallbackToBatch"),
+           "\(path) se lee y trae el respaldo en batch")
+    guard !source.isEmpty else { return }
     guard let start = source.range(of: "private func fallbackToBatch") else {
         expect(false, "el respaldo en batch sigue existiendo")
         return
