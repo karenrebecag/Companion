@@ -15,7 +15,10 @@ private final class FakeContacts: ContactsProviding, @unchecked Sendable {
     var book: [MentionCandidate] = []
     var channelBook: [String: [MentionChannel]] = [:]
     var searchDelay: [String: Duration] = [:]
-    var requestDelay: Duration?
+    // The permission dialog stays open until the test answers it: a fixed
+    // delay closed it before a loaded machine had looked at the open state.
+    private var holding = false
+    private var dialog: CheckedContinuation<Void, Never>?
     private(set) var requests = 0
     private(set) var searches: [String] = []
     private(set) var channelCalls: [String] = []
@@ -24,8 +27,26 @@ private final class FakeContacts: ContactsProviding, @unchecked Sendable {
 
     func access() -> ContactsAccess { lock.withLock { state } }
 
+    func holdDialog() { lock.withLock { holding = true } }
+
+    func answerDialog() {
+        let waiting = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            holding = false
+            defer { dialog = nil }
+            return dialog
+        }
+        waiting?.resume()
+    }
+
     func requestAccess() async -> Bool {
-        if let requestDelay { try? await Task.sleep(for: requestDelay) }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let now = lock.withLock { () -> Bool in
+                guard holding else { return true }
+                dialog = continuation
+                return false
+            }
+            if now { continuation.resume() }
+        }
         return lock.withLock {
             requests += 1
             state = grants ? .granted : .denied
@@ -110,10 +131,11 @@ private let phone = MentionChannel(kind: .phone, label: nil, value: "+52 55 0000
 
 @Test @MainActor func mentionSelectorClosedDialogHoldsTheIslandTests() async {
     let contacts = FakeContacts(.notDetermined)
-    contacts.requestDelay = .milliseconds(150)
+    contacts.holdDialog()
     let selector = model(contacts)
     selector.update(draft: "@")
     await pumpUntil("16m-7: mientras el diálogo está abierto lo dice, para que la isla no se pliegue") { selector.isRequestingAccess }
+    contacts.answerDialog()
     await pumpUntil("16m-7: fin del diálogo") { !selector.isRequestingAccess }
 }
 
@@ -246,7 +268,7 @@ private let phone = MentionChannel(kind: .phone, label: nil, value: "+52 55 0000
 @Test @MainActor func mentionSelectorTabDuringDialogTests() async {
     let contacts = FakeContacts(.notDetermined)
     contacts.book = [ana]
-    contacts.requestDelay = .milliseconds(250)
+    contacts.holdDialog()
     let selector = model(contacts)
     var picks: [MentionPick] = []
     selector.onPick = { picks.append($0) }
@@ -258,60 +280,75 @@ private let phone = MentionChannel(kind: .phone, label: nil, value: "+52 55 0000
     expectEq(picks.count, 1, "16m-7 review: elegir no espera al diálogo")
     expectEq(picks.first?.mention?.name, "Ana notas.md", "16m-7 review: elige la fila que ella había resaltado, no otra")
     expectEq(picks.first?.draft, "hola @Ana notas.md ", "16m-7 review: y el texto queda con esa")
+    contacts.answerDialog()
 }
 
 @Test @MainActor func mentionSelectorCursorFollowsItsRowTests() async {
     let contacts = FakeContacts(.notDetermined)
     contacts.book = [ana]
-    contacts.requestDelay = .milliseconds(200)
+    contacts.holdDialog()
     let moved = model(contacts)
     moved.update(draft: "@a")
     await pumpUntil("16m-7 review: fase 1") { moved.rows.count == 2 }
     _ = moved.press(.down)
     let title = moved.cursor.map { moved.rows[$0].title }
+    contacts.answerDialog()
     await pumpUntil("16m-7 review: llegan los contactos") { moved.rows.count == 3 }
     expectEq(moved.cursor.map { moved.rows[$0].title }, title, "16m-7 review: una vez que ella movió el cursor, sigue en su fila aunque lleguen otras por encima")
 
     let still = FakeContacts(.notDetermined)
     still.book = [ana]
-    still.requestDelay = .milliseconds(200)
+    still.holdDialog()
     let untouched = model(still)
     untouched.update(draft: "@a")
     await pumpUntil("16m-7 review: fase 1 b") { untouched.rows.count == 2 }
+    still.answerDialog()
     await pumpUntil("16m-7 review: llegan los contactos b") { untouched.rows.count == 3 }
     expectEq(untouched.cursor.map { untouched.rows[$0].title }, "Ana García", "16m-7 review: sin haberlo movido, el cursor sigue a la fila de arriba")
 }
 
 @Test @MainActor func mentionSelectorSourcesArriveIndependentlyTests() async {
+    // The slow source parks on a gate the test opens, not on a timer: a timer
+    // can expire while a loaded main actor is stalled, so the intermediate
+    // state would never be observable.
+    let spotlight = TestGate()
     let slow = MentionSelectorModel(sources: MentionSources(
         contacts: nil, connectedApps: { [cand(.app, "Slack")] },
         recentFiles: {
-            try? await Task.sleep(for: .milliseconds(400))
+            await spotlight.wait()
             return [cand(.file, "Plan.pdf", id: "/tmp/Plan.pdf")]
         }))
     slow.update(draft: "@")
     await pumpUntil("16m-7 review: las apps no esperan a Spotlight") { slow.rows.map(\.title) == ["Slack"] }
+    spotlight.open()
     await pumpUntil("16m-7 review: y los archivos llegan al terminar") { slow.rows.map(\.title) == ["Slack", "Plan.pdf"] }
 
     let contacts = FakeContacts(.granted)
     contacts.book = [ana]
+    let peopleSpotlight = TestGate()
     let people = MentionSelectorModel(sources: MentionSources(
         contacts: contacts, connectedApps: { [] },
         recentFiles: {
-            try? await Task.sleep(for: .milliseconds(400))
+            await peopleSpotlight.wait()
             return [cand(.file, "Ana.pdf", id: "/tmp/Ana.pdf")]
         }))
     people.update(draft: "@an")
     await pumpUntil("16m-7 review: los contactos tampoco esperan a Spotlight") { people.rows.map(\.title) == ["Ana García"] }
+    peopleSpotlight.open()
+    await pumpUntil("16m-7 review: y el archivo llega tras los contactos") { people.rows.map(\.title) == ["Ana García", "Ana.pdf"] }
 }
 
 @Test @MainActor func mentionSelectorPermissionRacesTests() async {
     let contacts = FakeContacts(.notDetermined)
     contacts.book = [ana]
-    contacts.requestDelay = .milliseconds(200)
+    contacts.holdDialog()
     let selector = model(contacts, apps: [], files: [])
     selector.update(draft: "@a")
+    // The dialog is only held once the first search is asking; answering before
+    // that would make the second key race an already-closed dialog.
+    await pumpUntil("16m-7 review: el diálogo está abierto") { selector.isRequestingAccess }
     selector.update(draft: "@an")
+    contacts.answerDialog()
     await pumpUntil("16m-7 review: tras conceder, los contactos aparecen para la última consulta") { selector.rows.map(\.title) == ["Ana García"] }
     expectEq(contacts.requests, 1, "16m-7 review: dos teclas durante el diálogo, un solo diálogo")
 
