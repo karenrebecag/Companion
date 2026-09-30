@@ -289,41 +289,57 @@ package enum Fonts {
     ]
     private static var registered: Set<String> = []
 
-    package static func register() {
-        var dirs: [URL] = []
-        if let bundled = Bundle.module.resourceURL?
-            .appendingPathComponent("Fonts")
-        {
-            dirs.append(bundled)
-        }
-        if let main = Bundle.main.resourceURL?
-            .appendingPathComponent("Fonts")
-        {
-            dirs.append(main)
-        }
+    /// A nil `bundle` (not found, 21c) only drops that folder: the other
+    /// folders still register and anything missing falls back to the system.
+    package static func register(bundle: Bundle? = UIResourceBundle.bundle) {
+        let bundled = bundledDirectories(bundle: bundle, mainResourceURL: Bundle.main.resourceURL)
         let support = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Companion/Fonts")
-        dirs.append(support)
-        dirs.append(FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Fonts"))
-        for dir in dirs { registerDirectory(dir) }
+        let library = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Fonts")
+        for url in filesToRegister(bundled: bundled, user: [support, library]) {
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
         refreshRegistered()
     }
 
-    private static func registerDirectory(_ dir: URL) {
-        let files: [URL]
-        do {
-            files = try FileManager.default.contentsOfDirectory(
-                at: dir, includingPropertiesForKeys: nil)
-        } catch {
-            return
+    /// Only the two bundled copies are deduped against each other: a user
+    /// font that shares a bundled file name is the user's override and registered
+    /// as it was before 21c.
+    static func filesToRegister(bundled: [URL], user: [URL]) -> [URL] {
+        fontFiles(in: bundled) + user.flatMap { fontFiles(in: [$0]) }
+    }
+
+    /// HACK: two copies of the bundled fonts, the SwiftPM bundle and the one
+    /// bundle.sh copies to `Contents/Resources/Fonts`. Drop the second read
+    /// once bundle.sh stops copying (21c, next session).
+    static func bundledDirectories(bundle: Bundle?, mainResourceURL: URL?) -> [URL] {
+        [bundle?.resourceURL, mainResourceURL].compactMap { $0?.appendingPathComponent("Fonts") }
+    }
+
+    /// Font files across `dirs`, one per file name, first folder wins.
+    /// CoreText rejects the same path twice (error 105) but registers a copy
+    /// at another path as a second face, which is what the two bundled
+    /// copies would be (checked 2026-09-30, macOS 26).
+    static func fontFiles(in dirs: [URL]) -> [URL] {
+        var seen: Set<String> = []
+        var files: [URL] = []
+        for dir in dirs {
+            let entries: [URL]
+            do {
+                entries = try FileManager.default.contentsOfDirectory(
+                    at: dir, includingPropertiesForKeys: nil)
+            } catch {
+                continue
+            }
+            for url in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
+                let ext = url.pathExtension.lowercased()
+                guard ext == "otf" || ext == "ttf", seen.insert(url.lastPathComponent).inserted else { continue }
+                files.append(url)
+            }
         }
-        for url in files {
-            let ext = url.pathExtension.lowercased()
-            guard ext == "otf" || ext == "ttf" else { continue }
-            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
-        }
+        return files
     }
 
     private static func refreshRegistered() {

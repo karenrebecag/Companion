@@ -261,9 +261,23 @@ Descubiertas en prueba manual de Wave 3; ningun test las vio.
 - **`read_skill`** solo por nombre del catálogo; una ruta no es un nombre
   válido → `not_found` sin mirar el disco. Se anuncia solo si hay store.
 - **`default/` se regenera desde el bundle** en cada arranque cuando difiere
-  (también lo editado a mano). `Bundle.module` de Services requiere
-  `resources: [.copy("Skills")]` en `Package.swift`; `bundle.sh` ya copia
-  los `.bundle` de SPM.
+  (también lo editado a mano). El bundle de Services requiere
+  `resources: [.copy("Skills")]` en `Package.swift`; `bundle.sh` copia
+  los `.bundle` de SPM a `Contents/Resources`, y se leen por
+  `ServicesResourceBundle`, no por `Bundle.module` (cicatriz de abajo).
+- **Cicatriz (21c): `Bundle.module` hace trap en la app empaquetada.** El
+  accessor que genera `swift build` nativo (Swift 6.3.3) busca el bundle en
+  la RAÍZ de la `.app` y en la ruta absoluta del `.build` del checkout, y si
+  no, `Swift.fatalError`: nunca mira `Contents/Resources`, que es donde lo
+  deja `bundle.sh`, y ningún `do/catch` lo atrapa. La app instalada
+  funcionaba solo porque el `.build` existía en esta Mac; un DMG en otra
+  Mac moría en `Fonts.register()`. Ahora cada módulo con recursos pasa por
+  su resolver (`UIResourceBundle`, `ServicesResourceBundle`, orden en
+  `ResourceBundleLocator`): `Contents/Resources` → junto al ejecutable →
+  `Bundle.module` solo si su bundle de build existe → `nil`, y el recurso
+  degrada. Un test de escaneo falla si `.module` aparece fuera de los
+  resolvers. Fuente: `docs/research/recursos-empaquetados-bundle-module.md`
+  §2, §7, §8.
 - **Cicatriz**: la memoria nunca llegaba al chat tecleado (`makeRequest` no
   la reenviaba a `makeBody`). Cualquier cosa nueva que entre al system
   prompt por `ChatSSEAttempt` necesita el test de request, no solo el de

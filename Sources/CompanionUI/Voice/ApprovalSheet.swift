@@ -189,11 +189,14 @@ extension ApprovalSheet {
 /// mascot; NSImage reads it natively and the template mode keeps only its
 /// alpha, so the sheet tints it like any glyph.
 enum ClaudeLogo {
-    static let image: NSImage? = {
-        guard let url = Bundle.module.url(
+    static let image: NSImage? = load(from: UIResourceBundle.bundle)
+
+    /// Nil bundle (not found, 21c): no image, and the tile shows no mark.
+    static func load(from bundle: Bundle?) -> NSImage? {
+        guard let url = bundle?.url(
             forResource: "claude", withExtension: "svg", subdirectory: "Mascot"),
             let image = NSImage(contentsOf: url) else { return nil }
         image.isTemplate = true
         return image
-    }()
+    }
 }

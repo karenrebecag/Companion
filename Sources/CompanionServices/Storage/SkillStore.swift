@@ -20,11 +20,15 @@ package enum SkillStoreError: Error, Sendable, Equatable {
 }
 
 package enum BundledSkills {
-    /// `Skills/<name>/SKILL.md` inside the module's resource bundle. The
-    /// module bundle is internal to Swift; a nil argument means "this one".
-    package static func load(from bundle: Bundle? = nil) throws -> [BundledSkill] {
-        let bundle = bundle ?? Bundle.module
-        guard let root = bundle.url(forResource: "Skills", withExtension: nil) else {
+    /// `Skills/<name>/SKILL.md` inside this module's resource bundle.
+    package static func load() throws -> [BundledSkill] {
+        try load(from: ServicesResourceBundle.bundle)
+    }
+
+    /// A nil bundle (not found, 21c) throws `bundleMissing`, which the
+    /// launch's do/catch already turns into "no system skills".
+    package static func load(from bundle: Bundle?) throws -> [BundledSkill] {
+        guard let root = bundle?.url(forResource: "Skills", withExtension: nil) else {
             throw SkillStoreError.bundleMissing
         }
         let folders: [URL]

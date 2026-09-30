@@ -61,7 +61,13 @@ package final class WebKitDiagramRenderer: DiagramRendering {
     /// The vendored script, only if it is byte for byte the pinned one.
     static func vendoredScript() -> String? {
         if let script { return script }
-        guard let url = Bundle.module.url(forResource: "mermaid.min", withExtension: "js", subdirectory: "Diagram") else {
+        script = vendoredScript(from: ServicesResourceBundle.bundle)
+        return script
+    }
+
+    /// Nil `bundle` (not found, 21c) is nil here and `.unavailable` upstream.
+    static func vendoredScript(from bundle: Bundle?) -> String? {
+        guard let url = bundle?.url(forResource: "mermaid.min", withExtension: "js", subdirectory: "Diagram") else {
             Log.app("diagram: mermaid.min.js is not in the bundle")
             return nil
         }
@@ -70,8 +76,7 @@ package final class WebKitDiagramRenderer: DiagramRendering {
             Log.app("diagram: mermaid.min.js unreadable: \(error.localizedDescription)")
             return nil
         }
-        script = verified(data)
-        return script
+        return verified(data)
     }
 
     static func verified(_ data: Data) -> String? {
