@@ -120,6 +120,12 @@ enum IslandChoice {
         return nil
     }
 
+    /// Equal once trimmed and with every run of whitespace read as one space.
+    static func sameWords(_ lhs: String, _ rhs: String) -> Bool {
+        func normal(_ text: String) -> [Substring] { text.split(whereSeparator: \.isWhitespace) }
+        return !normal(lhs).isEmpty && normal(lhs) == normal(rhs)
+    }
+
     /// The user's next message answers the question: the label she sent
     /// marks the pick, anything else closes it without a mark. A message
     /// that ran into a failed turn answers nothing (she can ask again), and a

@@ -165,21 +165,13 @@ struct FeedbackModal: View {
                 }
             }
             if model.captures.count < FeedbackDraft.maxCaptures {
-                HStack(spacing: Space.x2) {
-                    // The region grab starts only from this button.
-                    chip("feedback.capture.add", "camera.viewfinder") { Task { await model.addCapture() } }
-                        .accessibilityHint(Localized.string("feedback.note.captureAction"))
-                    chip("feedback.capture.file", "photo") { Task { await model.addFiles() } }
-                    chip("feedback.capture.paste", "doc.on.clipboard") { model.addPasted() }
-                    Spacer(minLength: Space.none)
-                }
+                // The region grab starts only from its button.
+                FeedbackAttachRow(
+                    onRegion: { Task { await model.addCapture() } },
+                    onFile: { Task { await model.addFiles() } },
+                    onPaste: { model.addPasted() })
             }
         }
-    }
-
-    private func chip(_ key: String, _ symbol: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { Label(Localized.string(key), systemImage: symbol) }
-            .buttonStyle(CapsuleChipStyle(ink: .choice(selected: false), density: .compact))
     }
 }
 

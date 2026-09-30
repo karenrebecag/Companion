@@ -30,12 +30,44 @@ private struct NoMail: FeedbackDelivering {
     func deliver(_ draft: FeedbackDraft, captures: [URL]) -> FeedbackDelivery { .opened }
 }
 
+private struct SnapshotFiles: FeedbackAttaching {
+    let files: [URL]
+    init(_ files: [URL]) { self.files = files }
+    @MainActor func chooseImages() async -> [URL] { files }
+    @MainActor func pastedImage() -> PastedImage { .empty }
+    func isRegularFile(_ url: URL) -> Bool { true }
+    func byteSize(of url: URL) -> Int? { 100 }
+    func isImage(_ url: URL) -> Bool { true }
+    func discard(_ url: URL) {}
+}
+
 @MainActor private func write<V: View>(_ view: V, _ name: String, to dir: URL) throws {
     let renderer = ImageRenderer(content: view)
     renderer.scale = 2
     guard let tiff = renderer.nsImage?.tiffRepresentation,
           let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
     else { expect(false, "16m-7 snapshot: \(name) no rindió"); return }
+    try png.write(to: dir.appendingPathComponent(name + ".png"))
+}
+
+/// ImageRenderer paints a placeholder (yellow with a prohibition sign) for
+/// AppKit-backed controls such as the modal's text editor, so a view that has
+/// one is drawn from a real hosting view instead.
+@MainActor private func writeHosted<V: View>(_ view: V, _ name: String, to dir: URL) throws {
+    let hosting = NSHostingView(rootView: view)
+    hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)
+    let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+    // Closing would release a window ARC already owns.
+    window.isReleasedWhenClosed = false
+    window.contentView = hosting
+    defer { window.close() }
+    hosting.layoutSubtreeIfNeeded()
+    guard let rep = hosting.bitmapImageRepForCachingDisplay(in: hosting.bounds),
+          hosting.bounds.width > 0
+    else { expect(false, "16m-7 snapshot: \(name) no rindio"); return }
+    hosting.cacheDisplay(in: hosting.bounds, to: rep)
+    guard let png = rep.representation(using: .png, properties: [:])
+    else { expect(false, "16m-7 snapshot: \(name) no codifico"); return }
     try png.write(to: dir.appendingPathComponent(name + ".png"))
 }
 
@@ -62,11 +94,25 @@ private struct NoMail: FeedbackDelivering {
             .environment(\.colorScheme, .dark), "mention-\(name)", to: out)
     }
 
-    let feedback = FeedbackModel(grabber: NoGrab(), delivery: NoMail())
+    let shots = try [0, 1].map { index -> URL in
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("feedback-snapshot-\(index).png")
+        let image = NSImage(size: NSSize(width: 1600, height: 1000), flipped: false) { rect in
+            (index == 0 ? NSColor.systemTeal : NSColor.systemIndigo).setFill()
+            rect.fill()
+            return true
+        }
+        guard let tiff = image.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
+        else { throw CocoaError(.fileWriteUnknown) }
+        try png.write(to: url)
+        return url
+    }
+    let feedback = FeedbackModel(grabber: NoGrab(), delivery: NoMail(), attachments: SnapshotFiles(shots))
+    await feedback.addFiles()
     feedback.mood = .good
     feedback.setText("La isla se pliega cuando escribo una @ y aparece el diálogo de contactos.")
     for scheme in [ColorScheme.dark, .light] {
-        try write(FeedbackModal(model: feedback, onClose: {}).padding(20).background(Color.gray)
+        try writeHosted(FeedbackModal(model: feedback, onClose: {}).padding(20).background(Color.gray)
             .environment(\.colorScheme, scheme), "feedback-\(scheme == .dark ? "dark" : "light")", to: out)
     }
 }
