@@ -142,11 +142,14 @@ package final class BridgeListener: @unchecked Sendable {
                 Darwin.close(clientFD)
                 continue
             }
-            let connection = BridgeConnection(fd: clientFD)
-            connection.onClosed = { [weak self, weak connection] in
-                if let connection { self?.clearActiveConnection(connection) }
+            let connection = BridgeConnection(fd: clientFD) { [weak self] connection in
+                self?.clearActiveConnection(connection)
             }
+            // Active before the reader runs: a peer already gone closes the
+            // connection from its own thread, and that close must find both
+            // the callback and the slot it is meant to free.
             setActiveConnection(connection)
+            connection.start()
             onConnection(connection)
         }
     }
@@ -226,6 +229,7 @@ package final class BridgeConnection: @unchecked Sendable {
     private let fd: Int32
     private let lock = NSLock()
     private var closed = false
+    private var started = false
     private let continuation: AsyncStream<String>.Continuation
     package let lines: AsyncStream<String>
     /// Yields nothing and finishes when the connection closes, for whoever
@@ -235,14 +239,16 @@ package final class BridgeConnection: @unchecked Sendable {
     /// Read once at accept: the peer can exit, but the pid and path the
     /// sheet showed are the ones that asked.
     package let peer: BridgePeer?
-    /// Set by `BridgeListener` before handing the connection to
-    /// `onConnection`, so it can free the "one active connection" slot.
-    var onClosed: (@Sendable () -> Void)?
+    /// Fixed at construction so no reader can close before it exists: a
+    /// late assignment would lose the one-shot slot release. The listener
+    /// uses it to free the "one active connection" slot.
+    private let onClosed: @Sendable (BridgeConnection) -> Void
     private var slotHeld = false
     private var slotFreed = false
 
-    init(fd: Int32) {
+    init(fd: Int32, onClosed: @escaping @Sendable (BridgeConnection) -> Void) {
         self.fd = fd
+        self.onClosed = onClosed
         self.peer = BridgePeer.of(fd: fd)
         var pendingContinuation: AsyncStream<String>.Continuation?
         self.lines = AsyncStream<String> { continuation in pendingContinuation = continuation }
@@ -250,6 +256,17 @@ package final class BridgeConnection: @unchecked Sendable {
         var pendingClosure: AsyncStream<Void>.Continuation?
         self.closure = AsyncStream<Void> { continuation in pendingClosure = continuation }
         self.closureContinuation = pendingClosure!
+    }
+
+    /// Separate from `init` so the owner can mark the connection active
+    /// first: a reader that started inside `init` could close on a vanished
+    /// peer before the listener tracked it, and the slot it frees would be
+    /// taken afterwards by a dead connection.
+    func start() {
+        lock.lock()
+        guard !started, !closed else { lock.unlock(); return }
+        started = true
+        lock.unlock()
         let thread = Thread { [weak self] in self?.readLoop() }
         thread.name = "bridge-connection"
         thread.start()
@@ -273,7 +290,7 @@ package final class BridgeConnection: @unchecked Sendable {
         Darwin.close(fd)
         continuation.finish()
         closureContinuation.finish()
-        if freeSlot { onClosed?() }
+        if freeSlot { onClosed(self) }
     }
 
     /// Wave 20c D5 (M1): the session takes the slot's release into its own
@@ -291,7 +308,7 @@ package final class BridgeConnection: @unchecked Sendable {
         slotHeld = false
         let freeSlot = takeSlotRelease()
         lock.unlock()
-        if freeSlot { onClosed?() }
+        if freeSlot { onClosed(self) }
     }
 
     /// Under `lock`. True exactly once: when the connection is closed and

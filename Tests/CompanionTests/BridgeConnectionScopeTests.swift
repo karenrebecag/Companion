@@ -18,10 +18,11 @@ final class BridgePair: @unchecked Sendable {
     private let clientFD: Int32
     private var buffer = Data()
 
-    init() {
+    init(onClosed: @escaping @Sendable () -> Void = {}) {
         var fds: [Int32] = [0, 0]
         precondition(Darwin.socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0, "socketpair")
-        connection = BridgeConnection(fd: fds[0])
+        connection = BridgeConnection(fd: fds[0]) { _ in onClosed() }
+        connection.start()
         clientFD = fds[1]
     }
 
@@ -82,6 +83,31 @@ func pollUntilTrue(timeout: TimeInterval = 2, _ probe: @escaping @Sendable () ->
     await testALateAnswerFromAGoneConnectionCannotOpenTheNewOne()
     testTheSlotIsHeldUntilTheSessionReleasesIt()
     await testServingReleasesTheSlotOnlyAfterTheStateIsReset()
+    await testACloseBeforeTheCallbackIsWiredIsNeverLost()
+    await testStartingTwiceRunsOneReader()
+    await testACloseBeforeStartNeverRunsAReader()
+    await testHoldingAfterTheReaderClosedReleasesOnce()
+}
+
+/// races-produccion 1: the peer is gone before the connection exists, so its
+/// read loop hits EOF and closes at once. The slot release is one-shot, so the
+/// callback has to be in place before the reader can run: guarded by passing
+/// it at construction and starting the reader only in `start()`.
+@MainActor func testACloseBeforeTheCallbackIsWiredIsNeverLost() async {
+    var lost = 0
+    for _ in 0 ..< 500 {
+        var fds: [Int32] = [0, 0]
+        precondition(Darwin.socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0, "socketpair")
+        Darwin.close(fds[1])
+        let released = ReleaseCount()
+        let connection = BridgeConnection(fd: fds[0]) { _ in released.bump() }
+        connection.start()
+        await pollUntilTrue { released.value > 0 }
+        connection.close()
+        // After the explicit close too: the reader's close and ours must add up to one.
+        if released.value != 1 { lost += 1 }
+    }
+    expectEq(lost, 0, "races 1: el cierre avisa exactamente una vez aunque el cliente ya se hubiera ido")
 }
 
 final class ReleaseCount: @unchecked Sendable {
@@ -95,9 +121,8 @@ final class ReleaseCount: @unchecked Sendable {
 /// session reset its state, a fast reconnect could be accepted while the old
 /// authorization was still standing.
 @MainActor func testTheSlotIsHeldUntilTheSessionReleasesIt() {
-    let pair = BridgePair()
     let released = ReleaseCount()
-    pair.connection.onClosed = { released.bump() }
+    let pair = BridgePair(onClosed: { released.bump() })
     pair.connection.holdSlotUntilServed()
     pair.connection.close()
     expectEq(released.value, 0, "M1: cerrada pero el slot sigue tomado")
@@ -110,9 +135,8 @@ final class ReleaseCount: @unchecked Sendable {
 @MainActor func testServingReleasesTheSlotOnlyAfterTheStateIsReset() async {
     let tools = FakeParentTools()
     let session = makeSession(tools, ScriptedApprovals(answer: true))
-    let pair = BridgePair()
     let released = ReleaseCount()
-    pair.connection.onClosed = { released.bump() }
+    let pair = BridgePair(onClosed: { released.bump() })
     let serving = Task.detached { await session.serve(pair.connection) }
     pair.send(hello(1))
     _ = pair.readLine()
@@ -208,4 +232,50 @@ final class ReleaseCount: @unchecked Sendable {
     expect(await session.state == .listed, "M1: la conexion nueva sigue en listed, sin sesion abierta")
     second.closeClient()
     await secondServe.value
+}
+
+/// A second `start()` must not spawn a second reader on the same fd: two
+/// readers would split the bytes between them and garble the lines.
+@MainActor func testStartingTwiceRunsOneReader() async {
+    let pair = BridgePair()
+    pair.connection.start()
+    pair.send("uno")
+    pair.send("dos")
+    pair.closeClient()
+    var got: [String] = []
+    for await line in pair.connection.lines { got.append(line) }
+    expectEq(got, ["uno", "dos"], "races 1: start dos veces, un solo lector y las lineas enteras")
+}
+
+/// `stop()` can close a connection the listener built but had not started:
+/// the slot is released once and no reader ever touches the closed fd.
+@MainActor func testACloseBeforeStartNeverRunsAReader() async {
+    var fds: [Int32] = [0, 0]
+    precondition(Darwin.socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0, "socketpair")
+    defer { Darwin.close(fds[1]) }
+    let released = ReleaseCount()
+    let connection = BridgeConnection(fd: fds[0]) { _ in released.bump() }
+    connection.close()
+    connection.start()
+    var lines = 0
+    for await _ in connection.lines { lines += 1 }
+    expectEq(released.value, 1, "races 1: cerrar antes de arrancar libera el slot una vez")
+    expectEq(lines, 0, "races 1: y ningun lector corre sobre el fd cerrado")
+    var byte: UInt8 = 0
+    expectEq(Darwin.read(fds[1], &byte, 1), 0, "races 1: el otro extremo ve el cierre")
+}
+
+/// The peer vanished and the reader already freed the slot before the
+/// session got to hold it: holding and releasing afterwards adds nothing.
+@MainActor func testHoldingAfterTheReaderClosedReleasesOnce() async {
+    var fds: [Int32] = [0, 0]
+    precondition(Darwin.socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0, "socketpair")
+    Darwin.close(fds[1])
+    let released = ReleaseCount()
+    let connection = BridgeConnection(fd: fds[0]) { _ in released.bump() }
+    connection.start()
+    await pollUntilTrue { released.value > 0 }
+    connection.holdSlotUntilServed()
+    connection.releaseSlot()
+    expectEq(released.value, 1, "races 1: retener tras el cierre del lector no libera dos veces")
 }
