@@ -8,8 +8,8 @@ import Observation
 /// the first `load()` and never before (§8: no Keychain reads at boot).
 @Observable
 @MainActor
-public final class AppsModel {
-    public enum Phase: Equatable {
+package final class AppsModel {
+    package enum Phase: Equatable {
         case setup, loading, ready
         case failed(AppsFailure)
     }
@@ -17,7 +17,7 @@ public final class AppsModel {
     /// Wave 16k-2a: the panel's own list, kept apart from `phase` — closing
     /// the panel or opening a different app must never paint over it with a
     /// stale answer (mirrors the connectError-is-per-card lesson of 16k-1).
-    public enum ActionsPhase: Equatable {
+    package enum ActionsPhase: Equatable {
         case idle, loading, ready([AppAction])
         case failed(AppsFailure)
     }
@@ -25,31 +25,31 @@ public final class AppsModel {
     /// Wave 16k-2c: the panel's "Desconectar" flow (spec §9.2.4). Kept apart
     /// from `actionsPhase` for the same reason that one is kept apart from
     /// `phase` — a stale answer must never repaint a panel nobody has open.
-    public enum DisconnectPhase: Equatable {
+    package enum DisconnectPhase: Equatable {
         case idle, confirming, disconnecting
         case failed(AppsFailure)
     }
 
     // nonisolated: the composition root reads it inside the app runner's
     // Sendable service closure (16k-3), off the MainActor.
-    public nonisolated static let endpointDefault = "companion.apps.endpoint"
+    package nonisolated static let endpointDefault = "companion.apps.endpoint"
     /// `openssl rand -hex 32` gives 64; anything under 32 is not that key.
     static let minimumKeyLength = 32
 
-    public private(set) var phase: Phase = .setup
-    public private(set) var apps: [CatalogApp] = []
-    public private(set) var total = 0
-    public private(set) var query = ""
+    package private(set) var phase: Phase = .setup
+    package private(set) var apps: [CatalogApp] = []
+    package private(set) var total = 0
+    package private(set) var query = ""
     /// A failed Connect belongs to one card, not to the page (code review 16k-1).
-    public private(set) var connectError: AppsFailure?
-    public private(set) var fetchingMore = false
+    package private(set) var connectError: AppsFailure?
+    package private(set) var fetchingMore = false
     /// The app whose panel is open, or nil.
-    public private(set) var selected: CatalogApp?
-    public private(set) var actionsPhase: ActionsPhase = .idle
-    public private(set) var disconnectPhase: DisconnectPhase = .idle
+    package private(set) var selected: CatalogApp?
+    package private(set) var actionsPhase: ActionsPhase = .idle
+    package private(set) var disconnectPhase: DisconnectPhase = .idle
     /// Wave 16k-2b: the app the connecting modal is open for, or nil.
-    public private(set) var connecting: CatalogApp?
-    public private(set) var connectPhase: ConnectPoll.Phase = .initiating
+    package private(set) var connecting: CatalogApp?
+    package private(set) var connectPhase: ConnectPoll.Phase = .initiating
     private var next: String?
     /// The full account, not just its state: disconnect(account:) needs the
     /// id, which the slug alone does not carry.
@@ -94,7 +94,7 @@ public final class AppsModel {
     /// their non-fatal failures through the composition root's.
     private let log: @Sendable (String) -> Void
 
-    public init(
+    package init(
         secrets: any SecretStore,
         hostSecrets: any HostSecretStore,
         launchPin: AppsLaunchPin = .unobserved,
@@ -129,19 +129,19 @@ public final class AppsModel {
     // a failed save never shows a list the disk does not hold, and a file
     // that no longer parses blocks editing instead of being wiped by the
     // next save (H1, review 16k-4).
-    public private(set) var ownServers: [MCPServerConfig] = []
-    public private(set) var ownError: OwnMCPEdit.EditError?
-    public private(set) var ownSaveFailed = false
-    public private(set) var ownFileBroken = false
-    public var ownEnabled: Bool { readMCP != nil && saveMCP != nil }
+    package private(set) var ownServers: [MCPServerConfig] = []
+    package private(set) var ownError: OwnMCPEdit.EditError?
+    package private(set) var ownSaveFailed = false
+    package private(set) var ownFileBroken = false
+    package var ownEnabled: Bool { readMCP != nil && saveMCP != nil }
 
-    public func loadOwn() {
+    package func loadOwn() {
         clearOwnReports()
         if let fresh = freshOwn() { ownServers = fresh }
     }
 
     /// True when the server was added AND saved — the form clears on true.
-    public func addOwn(label: String, url: String) -> Bool {
+    package func addOwn(label: String, url: String) -> Bool {
         clearOwnReports()
         guard let fresh = freshOwn() else { return false }
         switch OwnMCPEdit.add(fresh, label: label, url: url) {
@@ -153,7 +153,7 @@ public final class AppsModel {
         }
     }
 
-    public func removeOwn(label: String) {
+    package func removeOwn(label: String) {
         clearOwnReports()
         guard let fresh = freshOwn() else { return }
         _ = persistOwn(OwnMCPEdit.remove(fresh, label: label))
@@ -191,31 +191,31 @@ public final class AppsModel {
         return true
     }
 
-    public var hasMore: Bool { next != nil }
-    public var remaining: Int { max(0, total - apps.count) }
-    public var endpoint: String { defaults.string(forKey: Self.endpointDefault) ?? "" }
+    package var hasMore: Bool { next != nil }
+    package var remaining: Int { max(0, total - apps.count) }
+    package var endpoint: String { defaults.string(forKey: Self.endpointDefault) ?? "" }
     /// Audit §9.6: the "still waiting on the browser" hint, after several attempts.
-    public var connectShowsHint: Bool { connectPoll?.showsStillWaitingHint ?? false }
+    package var connectShowsHint: Bool { connectPoll?.showsStillWaitingHint ?? false }
 
-    public func state(of slug: String) -> ConnectedAccount.State? { accounts[slug]?.state }
-    public func accountName(of slug: String) -> String? { accounts[slug]?.name }
+    package func state(of slug: String) -> ConnectedAccount.State? { accounts[slug]?.state }
+    package func accountName(of slug: String) -> String? { accounts[slug]?.name }
 
     /// "Tus apps" (spec §9.2.3): connected first, then reconnect-needed, in
     /// the order the catalog already has them — never re-sorted here.
-    public var connectedSection: [CatalogApp] {
+    package var connectedSection: [CatalogApp] {
         apps.filter { accounts[$0.slug]?.state == .connected }
             + apps.filter { accounts[$0.slug]?.state == .reconnect }
     }
 
     /// The featured grid below "Tus apps", with those same apps removed so
     /// nothing repeats between the two sections.
-    public var catalogSection: [CatalogApp] {
+    package var catalogSection: [CatalogApp] {
         apps.filter { accounts[$0.slug] == nil }
     }
 
     /// Saves the function's address and key; false when either is not one.
     @discardableResult
-    public func configure(endpoint text: String, key: String) -> Bool {
+    package func configure(endpoint text: String, key: String) -> Bool {
         let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = AppsEndpoint.validated(text), trimmedKey.count >= Self.minimumKeyLength else { return false }
         guard let host = SecretHost.of(url: url.absoluteString) else { return false }
@@ -237,7 +237,7 @@ public final class AppsModel {
     /// the earlier sequential await let a tap in that gap ask `actions(of:)`
     /// about an app the accounts dict did not know about yet, with nothing
     /// to retry the fetch once it did.
-    public func load() async {
+    package func load() async {
         guard let service = currentService() else {
             phase = .setup
             return
@@ -260,13 +260,13 @@ public final class AppsModel {
         }
     }
 
-    public func search(_ text: String) async {
+    package func search(_ text: String) async {
         query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let service = currentService() else { return }
         await fetch(service, query: query, after: nil)
     }
 
-    public func more() async {
+    package func more() async {
         // A second tap while the page is on its way would append it twice.
         guard !fetchingMore, let service = currentService(), let next else { return }
         fetchingMore = true
@@ -275,7 +275,7 @@ public final class AppsModel {
     }
 
     /// The Connect Link for the browser, or nil with the failure shown.
-    public func connect(_ slug: String) async -> URL? {
+    package func connect(_ slug: String) async -> URL? {
         guard let service = currentService() else { return nil }
         do {
             let url = try await service.connectLink(app: slug)
@@ -290,14 +290,14 @@ public final class AppsModel {
     /// Opens the app's panel. Loading is the view's job (`.task(id:)`,
     /// mirroring the search debounce), not this call's — a tap must never
     /// block on the network before the sheet appears.
-    public func open(_ app: CatalogApp) {
+    package func open(_ app: CatalogApp) {
         panelEpoch += 1
         selected = app
         actionsPhase = .idle
         disconnectPhase = .idle
     }
 
-    public func closePanel() {
+    package func closePanel() {
         panelEpoch += 1
         selected = nil
         actionsPhase = .idle
@@ -307,7 +307,7 @@ public final class AppsModel {
     /// The function's `/api/tools` requires a connected account; Companion
     /// mirrors Incredible and never calls it for one that is not (audit
     /// §9.6: "Connect X to see everything it can do" is the whole panel).
-    public func actions(of app: CatalogApp) async {
+    package func actions(of app: CatalogApp) async {
         guard state(of: app.slug) == .connected, let service = currentService() else { return }
         actionsPhase = .loading
         do {
@@ -323,12 +323,12 @@ public final class AppsModel {
     // MARK: - Wave 16k-2c: disconnect
 
     /// "Desconectar" in the panel: opens the inline confirmation, no call yet.
-    public func confirmDisconnect() {
+    package func confirmDisconnect() {
         disconnectPhase = .confirming
     }
 
     /// Backing out of the confirmation.
-    public func cancelDisconnect() {
+    package func cancelDisconnect() {
         disconnectPhase = .idle
     }
 
@@ -336,7 +336,7 @@ public final class AppsModel {
     /// `DELETE /api/accounts`, then refreshes accounts so the panel/cards
     /// flip to not-connected on the server's own word, not a local guess.
     /// The panel itself stays open (Incredible: "you can reconnect anytime").
-    public func disconnect() async {
+    package func disconnect() async {
         // Security review 16k-2c (MEDIUM): a fast double-tap on the confirm
         // button spawns two Tasks; both start on the MainActor and this
         // guard runs before either awaits, so the first Task's synchronous
@@ -367,7 +367,7 @@ public final class AppsModel {
     /// "+ Conectar" (card or panel): opens the modal and starts a fresh
     /// attempt. Fire-and-forget on purpose — the view reads `connectPhase`
     /// as it moves, the same idiom `open(_:)` uses for the panel.
-    public func start(_ app: CatalogApp) {
+    package func start(_ app: CatalogApp) {
         connectTask?.cancel()
         connectEpoch += 1
         let epoch = connectEpoch
@@ -380,14 +380,14 @@ public final class AppsModel {
 
     /// "Abrir de nuevo": the same link, not a new `connectLink` call — a
     /// fresh request would be wasted (the current one is still good for 4 h).
-    public func openAgain() {
+    package func openAgain() {
         guard let connectURL else { return }
         openBrowser(connectURL)
     }
 
     /// "Reintentar" (only offered once timed out or failed): the old link
     /// may be spent, so this asks the function for a new one.
-    public func retryConnecting() {
+    package func retryConnecting() {
         guard let app = connecting else { return }
         connectTask?.cancel()
         connectEpoch += 1
@@ -401,7 +401,7 @@ public final class AppsModel {
     /// loop, no leaked task. `accounts` was already updated the instant the
     /// poll saw the account (below), so the panel/cards are already correct
     /// by the time this runs — this just tears the modal down.
-    public func finishConnecting() {
+    package func finishConnecting() {
         connectTask?.cancel()
         connectTask = nil
         connectEpoch += 1
@@ -527,7 +527,7 @@ public final class AppsModel {
     /// Before the catalog is in, the wish waits for the next fetch.
     private var pendingFocus: String?
 
-    public func focus(_ slug: String) {
+    package func focus(_ slug: String) {
         if let app = apps.first(where: { $0.slug == slug }) {
             open(app)
         } else {

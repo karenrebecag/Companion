@@ -1,10 +1,10 @@
 import Foundation
 
 /// WCAG contrast on hex swatches. Dynamic NSColor is unstable under swift test.
-public enum Contrast: Sendable {
-    public static let aaNormal = 4.5
+package enum Contrast: Sendable {
+    package static let aaNormal = 4.5
 
-    public static func ratio(hex a: String, hex b: String) -> Double {
+    package static func ratio(hex a: String, hex b: String) -> Double {
         let la = luminance(rgb(a))
         let lb = luminance(rgb(b))
         let lighter = max(la, lb)
@@ -12,7 +12,7 @@ public enum Contrast: Sendable {
         return (lighter + 0.05) / (darker + 0.05)
     }
 
-    public static func passesAA(hex a: String, hex b: String) -> Bool {
+    package static func passesAA(hex a: String, hex b: String) -> Bool {
         ratio(hex: a, hex: b) >= aaNormal
     }
 

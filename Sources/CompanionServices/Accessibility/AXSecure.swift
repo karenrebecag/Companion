@@ -8,10 +8,10 @@ import Foundation
 /// misses the modern shape entirely — a real `NSSecureTextField` never
 /// matched (security review C1, 2026-09-25). Every caller routes through
 /// this one check.
-public enum AXSecure {
+package enum AXSecure {
     static let marker = "AXSecureTextField"
 
-    public static func isSecure(role: String, subrole: String) -> Bool {
+    package static func isSecure(role: String, subrole: String) -> Bool {
         role == marker || subrole == marker
     }
 

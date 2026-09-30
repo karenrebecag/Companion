@@ -1,18 +1,18 @@
 import CompanionCore
 import Foundation
 
-public struct ShellOutcome: Sendable {
+package struct ShellOutcome: Sendable {
     /// nil when the group was killed rather than allowed to exit.
-    public var exitCode: Int32?
-    public var stdout: String
-    public var stderr: String
-    public var timedOut: Bool
-    public var pid: pid_t
+    package var exitCode: Int32?
+    package var stdout: String
+    package var stderr: String
+    package var timedOut: Bool
+    package var pid: pid_t
     /// True when nothing ran: the concurrency ceiling was full. Distinct from
     /// a failure, because the command never got its chance.
-    public var refusedByCap: Bool
+    package var refusedByCap: Bool
 
-    public init(
+    package init(
         exitCode: Int32?, stdout: String, stderr: String,
         timedOut: Bool, pid: pid_t, refusedByCap: Bool = false
     ) {
@@ -34,12 +34,12 @@ public struct ShellOutcome: Sendable {
 /// how a machine ends up with a week of stray daemons. macOS has no
 /// `PR_SET_PDEATHSIG`, so the group is the mechanism, and reaching it needs
 /// `posix_spawn` with `POSIX_SPAWN_SETPGROUP`.
-public enum ProcessGroupRunner: Sendable {
+package enum ProcessGroupRunner: Sendable {
     /// How long SIGTERM gets to work before SIGKILL. Short on purpose: this
     /// only runs after the command already overstayed its timeout.
     static let graceSeconds: TimeInterval = 0.25
 
-    public static func run(
+    package static func run(
         executable: String,
         arguments: [String],
         cwd: String?,
@@ -203,10 +203,10 @@ public enum ProcessGroupRunner: Sendable {
 /// for a specialist session, which can outlive several turns and can start
 /// helpers of its own. Those helpers are the ones that end up adopted by
 /// launchd when only the direct child gets signalled.
-public final class GroupProcess: @unchecked Sendable {
-    public let pid: pid_t
-    public let stdin: Pipe
-    public let stdout: Pipe
+package final class GroupProcess: @unchecked Sendable {
+    package let pid: pid_t
+    package let stdin: Pipe
+    package let stdout: Pipe
 
     private let registry: ProcessRegistry
     private let lock = NSLock()
@@ -222,7 +222,7 @@ public final class GroupProcess: @unchecked Sendable {
     /// Reaps as it asks: an exited child stays a zombie until someone collects
     /// it, and a zombie still answers `kill(pid, 0)`, so asking that alone
     /// would report a dead process as running forever.
-    public var isRunning: Bool {
+    package var isRunning: Bool {
         lock.lock()
         defer { lock.unlock() }
         if dead { return false }
@@ -234,7 +234,7 @@ public final class GroupProcess: @unchecked Sendable {
         return false
     }
 
-    public func terminate() {
+    package func terminate() {
         lock.lock()
         let alreadyDead = dead
         dead = true
@@ -250,7 +250,7 @@ extension ProcessGroupRunner {
     /// Spawns a group with stdin attached, for sessions that stay open.
     /// Returns nil when the concurrency ceiling is full — the caller must say
     /// so rather than pretend the launch merely failed.
-    public static func spawnSession(
+    package static func spawnSession(
         executable: String,
         arguments: [String],
         cwd: String?,

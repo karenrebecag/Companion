@@ -5,10 +5,10 @@ import Foundation
 /// required frontmatter keys, a markdown body. The prompt carries a catalog
 /// line per skill; the body is read on demand (corpus spec 12, "bodies stay
 /// on disk"). Knowledge (spec 13) uses the same shape with `KNOWLEDGE.md`.
-public enum SkillKind: String, Sendable, Equatable {
+package enum SkillKind: String, Sendable, Equatable {
     case skill, knowledge
 
-    public var fileName: String {
+    package var fileName: String {
         switch self {
         case .skill: "SKILL.md"
         case .knowledge: "KNOWLEDGE.md"
@@ -18,22 +18,22 @@ public enum SkillKind: String, Sendable, Equatable {
 
 /// `system` ships with the app and is read-only to the model; `custom` is
 /// the user's, written by the model with approval.
-public enum SkillOrigin: Sendable, Equatable {
+package enum SkillOrigin: Sendable, Equatable {
     case system, custom
 }
 
-public struct SkillCard: Sendable, Equatable, Identifiable {
-    public var name: String
-    public var description: String
-    public var path: String
-    public var kind: SkillKind
-    public var origin: SkillOrigin
+package struct SkillCard: Sendable, Equatable, Identifiable {
+    package var name: String
+    package var description: String
+    package var path: String
+    package var kind: SkillKind
+    package var origin: SkillOrigin
     /// Parsed for the record, not applied yet (11c).
-    public var allowedTools: [String]
+    package var allowedTools: [String]
 
-    public var id: String { "\(kind.rawValue):\(name)" }
+    package var id: String { "\(kind.rawValue):\(name)" }
 
-    public init(name: String, description: String, path: String,
+    package init(name: String, description: String, path: String,
                 kind: SkillKind, origin: SkillOrigin, allowedTools: [String] = []) {
         self.name = name
         self.description = description
@@ -46,7 +46,7 @@ public struct SkillCard: Sendable, Equatable, Identifiable {
 
 /// Every reason a file is not a skill, in words the model can act on: the
 /// sync line carries `why`, and the model rewrites (validator → fix loop).
-public enum SkillError: Error, Sendable, Equatable {
+package enum SkillError: Error, Sendable, Equatable {
     case missingFrontmatter
     case missingName
     case invalidName(String)
@@ -56,7 +56,7 @@ public enum SkillError: Error, Sendable, Equatable {
     case descriptionTooLong(Int)
     case xmlTags(String)
 
-    public var why: String {
+    package var why: String {
         switch self {
         case .missingFrontmatter:
             return "the file must start with a --- frontmatter block holding name and description"
@@ -79,25 +79,25 @@ public enum SkillError: Error, Sendable, Equatable {
     }
 }
 
-public struct SkillFrontmatter: Sendable, Equatable {
-    public static let nameLimit = 64
-    public static let descriptionLimit = 1_024
+package struct SkillFrontmatter: Sendable, Equatable {
+    package static let nameLimit = 64
+    package static let descriptionLimit = 1_024
     /// Anthropic's authoring rules; a skill named so is refused by Claude
     /// Code, and the user's custom folder should not learn that the hard way.
     static let reservedWords = ["anthropic", "claude"]
 
-    public var name: String
-    public var description: String
-    public var license: String?
-    public var compatibility: String?
-    public var allowedTools: [String]
-    public var body: String
+    package var name: String
+    package var description: String
+    package var license: String?
+    package var compatibility: String?
+    package var allowedTools: [String]
+    package var body: String
 
-    public static func hasFrontmatter(_ text: String) -> Bool {
+    package static func hasFrontmatter(_ text: String) -> Bool {
         text.hasPrefix("---\n") || text.hasPrefix("---\r\n")
     }
 
-    public static func isValidName(_ name: String) -> Bool {
+    package static func isValidName(_ name: String) -> Bool {
         guard !name.isEmpty, name.unicodeScalars.count <= nameLimit else { return false }
         guard name.range(of: #"^[a-z0-9]+(-[a-z0-9]+)*$"#, options: .regularExpression) != nil
         else { return false }
@@ -107,7 +107,7 @@ public struct SkillFrontmatter: Sendable, Equatable {
     /// A plain `key: value` reader for the six keys the standard names.
     /// Nested blocks (`metadata:`) and unknown keys are skipped, not errors:
     /// the format says clients ignore what they do not define.
-    public static func parse(_ text: String, folder: String) throws(SkillError) -> SkillFrontmatter {
+    package static func parse(_ text: String, folder: String) throws(SkillError) -> SkillFrontmatter {
         guard hasFrontmatter(text) else { throw .missingFrontmatter }
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
             .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\r")) }
@@ -178,17 +178,17 @@ public struct SkillFrontmatter: Sendable, Equatable {
 /// The catalog block: one line per entry, name — description — path, framed
 /// as data with the same rules as the context block (10a): escaped, capped
 /// in Unicode scalars, structure always whole.
-public enum SkillCatalog {
-    public enum Caps {
-        public static let description = 240
-        public static let entries = 32
-        public static let block = 6_000
+package enum SkillCatalog {
+    package enum Caps {
+        package static let description = 240
+        package static let entries = 32
+        package static let block = 6_000
         /// A skill is a few hundred lines. Anything past this is not read
         /// (the catalog scans every turn) and not written to a catalog path.
-        public static let fileBytes = 1_000_000
+        package static let fileBytes = 1_000_000
     }
 
-    public static func render(_ cards: [SkillCard], language: AppLanguage) -> String {
+    package static func render(_ cards: [SkillCard], language: AppLanguage) -> String {
         let skills = block(
             tag: "active_skills", frame: skillsFrame(language),
             cards: cards.filter { $0.kind == .skill }, language: language)
@@ -269,14 +269,14 @@ public enum SkillCatalog {
 /// The line the app appends to a `write_file` / `edit_file` result on a
 /// catalog file (corpus spec 12, observed tokens; "reached the account"
 /// becomes "in the catalog" because there is no account).
-public enum SkillSync {
-    public enum Outcome: Sendable, Equatable {
+package enum SkillSync {
+    package enum Outcome: Sendable, Equatable {
         case saved(String)
         case failed(String)
         case upToDate
     }
 
-    public static func line(_ kind: SkillKind, _ outcome: Outcome) -> String {
+    package static func line(_ kind: SkillKind, _ outcome: Outcome) -> String {
         let label = kind == .skill ? "Skill sync" : "Knowledge sync"
         switch outcome {
         case .saved(let name): return "\(label): saved — \"\(name)\" is now in the catalog"
@@ -289,26 +289,26 @@ public enum SkillSync {
 /// Where everything the user can open lives, side by side: memory (9j-2),
 /// knowledge and skills (11a). One root so a person finds all of it in
 /// Finder, and one list of validator roots so the specialist reaches it.
-public struct SkillsLocation: Sendable, Equatable {
-    public var root: URL
+package struct SkillsLocation: Sendable, Equatable {
+    package var root: URL
 
-    public init(root: URL) {
+    package init(root: URL) {
         self.root = root
     }
 
-    public static func standard(
+    package static func standard(
         appSupport: URL = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
     ) -> SkillsLocation {
         SkillsLocation(root: appSupport.appendingPathComponent("Companion", isDirectory: true))
     }
 
-    public var systemSkills: URL { root.appendingPathComponent("skills/default", isDirectory: true) }
-    public var customSkills: URL { root.appendingPathComponent("skills/custom", isDirectory: true) }
-    public var knowledge: URL { root.appendingPathComponent("knowledge", isDirectory: true) }
-    public var memory: URL { root.appendingPathComponent("memory", isDirectory: true) }
+    package var systemSkills: URL { root.appendingPathComponent("skills/default", isDirectory: true) }
+    package var customSkills: URL { root.appendingPathComponent("skills/custom", isDirectory: true) }
+    package var knowledge: URL { root.appendingPathComponent("knowledge", isDirectory: true) }
+    package var memory: URL { root.appendingPathComponent("memory", isDirectory: true) }
 
-    public var roots: [PathValidator.Root] {
+    package var roots: [PathValidator.Root] {
         [
             PathValidator.Root(path: systemSkills.path, writable: false),
             PathValidator.Root(path: customSkills.path, writable: true),
@@ -317,15 +317,15 @@ public struct SkillsLocation: Sendable, Equatable {
         ]
     }
 
-    public struct Classified: Sendable, Equatable {
-        public var kind: SkillKind
-        public var origin: SkillOrigin
-        public var name: String
+    package struct Classified: Sendable, Equatable {
+        package var kind: SkillKind
+        package var origin: SkillOrigin
+        package var name: String
     }
 
     /// Which catalog file a path is, if any: exactly `<root>/<name>/SKILL.md`
     /// (or `KNOWLEDGE.md`), one folder deep. Anything else is a plain file.
-    public func classify(_ path: String) -> Classified? {
+    package func classify(_ path: String) -> Classified? {
         let normalized = (path as NSString).standardizingPath
         let candidates: [(URL, SkillKind, SkillOrigin)] = [
             (systemSkills, .skill, .system),
@@ -345,7 +345,7 @@ public struct SkillsLocation: Sendable, Equatable {
 
 /// The read side the parent's `read_skill` and the prompt use. File-backed
 /// in Services; a fake in tests.
-public protocol SkillReading: Sendable {
+package protocol SkillReading: Sendable {
     func catalog() -> [SkillCard]
     /// The body of a catalog entry, or nil when the name is not listed.
     func body(named name: String) -> String?

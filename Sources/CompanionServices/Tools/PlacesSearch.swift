@@ -2,13 +2,13 @@ import CompanionCore
 import Foundation
 import MapKit
 
-public struct FoundPlace: Sendable, Equatable {
-    public var name: String
-    public var address: String
-    public var lat: Double
-    public var lng: Double
+package struct FoundPlace: Sendable, Equatable {
+    package var name: String
+    package var address: String
+    package var lat: Double
+    package var lng: Double
 
-    public init(name: String, address: String, lat: Double, lng: Double) {
+    package init(name: String, address: String, lat: Double, lng: Double) {
         self.name = name
         self.address = address
         self.lat = lat
@@ -17,23 +17,23 @@ public struct FoundPlace: Sendable, Equatable {
 }
 
 /// Port so a test never goes out to the network for a museum.
-public protocol PlacesSearching: Sendable {
+package protocol PlacesSearching: Sendable {
     func search(_ query: String, near: String?) async -> [FoundPlace]
 }
 
 /// The trusted source for a map card. Native and key-free — the project
 /// already draws with MapKit, so this adds no dependency, only a direction:
 /// coordinates come from a lookup, never from a model's memory.
-public struct MapKitPlacesSearch: PlacesSearching {
+package struct MapKitPlacesSearch: PlacesSearching {
     /// Enough to answer "where is it"; more pins than this is a list, not a
     /// map, and the model can ask again with a narrower query.
     private let limit: Int
 
-    public init(limit: Int = 8) {
+    package init(limit: Int = 8) {
         self.limit = limit
     }
 
-    public func search(_ query: String, near: String?) async -> [FoundPlace] {
+    package func search(_ query: String, near: String?) async -> [FoundPlace] {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = [near, query]
             .compactMap { $0 }

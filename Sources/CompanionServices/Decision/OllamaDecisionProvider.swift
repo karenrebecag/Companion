@@ -6,7 +6,7 @@ import Foundation
 /// experiments/probe_logprobs.py`). The model never generates an argument:
 /// it is forced to one letter and the logprobs of that single token become
 /// the distribution over the offered ids, jev-style.
-public struct OllamaDecisionProvider: DecisionProvider, Sendable {
+package struct OllamaDecisionProvider: DecisionProvider, Sendable {
     /// A-Z: the ceiling on how many ids a single question may offer.
     static let letters = (UInt8(ascii: "A")...UInt8(ascii: "Z"))
         .map { String(UnicodeScalar($0)) }
@@ -16,7 +16,7 @@ public struct OllamaDecisionProvider: DecisionProvider, Sendable {
     private let timeout: TimeInterval
     private let transport: any ChatTransport
 
-    public init(
+    package init(
         baseURL: URL = URL(string: "http://localhost:11434")!,
         model: String = "qwen3:4b",
         timeout: TimeInterval = 4,
@@ -28,7 +28,7 @@ public struct OllamaDecisionProvider: DecisionProvider, Sendable {
         self.transport = transport
     }
 
-    public func answer(_ question: DecisionQuestion) async -> DecisionAnswer? {
+    package func answer(_ question: DecisionQuestion) async -> DecisionAnswer? {
         let ids = question.offeredIds
         guard !ids.isEmpty, ids.count <= Self.letters.count else { return nil }
         let labeled = Self.label(question: question, ids: ids)
@@ -73,7 +73,7 @@ public struct OllamaDecisionProvider: DecisionProvider, Sendable {
     /// is enough for Ollama to load and hold the model (`keep_alive`); no
     /// answer is read, so a failure here is never more than a slower first
     /// decision turn, never a thrown error.
-    public func warm() async {
+    package func warm() async {
         guard let url = URL(string: baseURL.absoluteString + "/api/chat") else { return }
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.httpMethod = "POST"

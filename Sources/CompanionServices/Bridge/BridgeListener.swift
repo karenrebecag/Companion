@@ -8,7 +8,7 @@ import Foundation
 /// The accept loop and each connection's read loop run on their own
 /// `Thread`, never an actor: a blocking `read`/`accept` on an actor's
 /// executor would starve every other task on it.
-public final class BridgeListener: @unchecked Sendable {
+package final class BridgeListener: @unchecked Sendable {
     private let directory: URL
     private let socketName: String
     private let tokenName: String
@@ -23,7 +23,7 @@ public final class BridgeListener: @unchecked Sendable {
 
     /// Wave 18: the browser relay gets its own listener (`browser.sock` /
     /// `browser.token`) in the same directory; the defaults keep wave 17.
-    public init(
+    package init(
         directory: URL, socketName: String = "bridge.sock", tokenName: String = "bridge.token",
         onConnection: @escaping @Sendable (BridgeConnection) -> Void
     ) {
@@ -33,7 +33,7 @@ public final class BridgeListener: @unchecked Sendable {
         self.onConnection = onConnection
     }
 
-    public var token: String {
+    package var token: String {
         lock.lock(); defer { lock.unlock() }
         return _token
     }
@@ -42,7 +42,7 @@ public final class BridgeListener: @unchecked Sendable {
     /// so it excludes other users on its own; the socket gets 0600 right
     /// after `listen`, and the token file is created with 0600 already set,
     /// never chmod'd after the fact.
-    public func start() throws {
+    package func start() throws {
         try prepareDirectory()
         let socketURL = directory.appendingPathComponent(socketName)
         let tokenURL = directory.appendingPathComponent(tokenName)
@@ -91,7 +91,7 @@ public final class BridgeListener: @unchecked Sendable {
     /// Closes the listening socket (unblocking a thread parked in `accept`),
     /// closes the active connection if any, and removes both files so a
     /// stale socket never outlives the process that owned it.
-    public func stop() {
+    package func stop() {
         lock.lock()
         running = false
         let fd = listenFD
@@ -212,7 +212,7 @@ public final class BridgeListener: @unchecked Sendable {
     }
 }
 
-public enum BridgeListenerError: Error, Sendable, Equatable {
+package enum BridgeListenerError: Error, Sendable, Equatable {
     case pathTooLong
     case tokenWrite
     case systemCall(String, Int32)
@@ -222,19 +222,19 @@ public enum BridgeListenerError: Error, Sendable, Equatable {
 /// (`lines`, one per `\n`) and whole lines out (`send`). The read loop runs
 /// on its own thread; `AsyncStream`'s continuation is how it hands data back
 /// to Swift concurrency without an actor ever blocking on `read`.
-public final class BridgeConnection: @unchecked Sendable {
+package final class BridgeConnection: @unchecked Sendable {
     private let fd: Int32
     private let lock = NSLock()
     private var closed = false
     private let continuation: AsyncStream<String>.Continuation
-    public let lines: AsyncStream<String>
+    package let lines: AsyncStream<String>
     /// Yields nothing and finishes when the connection closes, for whoever
     /// is parked on something else (a sheet) while `lines` is being read.
     let closure: AsyncStream<Void>
     private let closureContinuation: AsyncStream<Void>.Continuation
     /// Read once at accept: the peer can exit, but the pid and path the
     /// sheet showed are the ones that asked.
-    public let peer: BridgePeer?
+    package let peer: BridgePeer?
     /// Set by `BridgeListener` before handing the connection to
     /// `onConnection`, so it can free the "one active connection" slot.
     var onClosed: (@Sendable () -> Void)?
@@ -258,12 +258,12 @@ public final class BridgeConnection: @unchecked Sendable {
     /// Appends the line terminator and writes the whole line, retrying on a
     /// partial write (a blocking socket should not see `EAGAIN`, but the
     /// retry costs nothing and protects against a future non-blocking fd).
-    public func send(line: String) {
+    package func send(line: String) {
         guard !isClosed() else { return }
         _ = writeAll(Data((line + "\n").utf8))
     }
 
-    public func close() {
+    package func close() {
         lock.lock()
         guard !closed else { lock.unlock(); return }
         closed = true
@@ -305,7 +305,7 @@ public final class BridgeConnection: @unchecked Sendable {
     /// M4 (security review 2026-09-28): lets `BridgeSession` check, after
     /// an `await` on a parked sheet, whether the peer it would reply to is
     /// even still there before acting on its answer.
-    public var isOpen: Bool {
+    package var isOpen: Bool {
         lock.lock(); defer { lock.unlock() }; return !closed
     }
 

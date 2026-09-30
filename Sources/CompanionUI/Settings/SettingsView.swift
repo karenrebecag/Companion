@@ -2,24 +2,24 @@ import AppKit
 import CompanionCore
 import SwiftUI
 
-public enum SettingsOverlayMetrics {
+package enum SettingsOverlayMetrics {
     /// The history overlay still uses the old square bound.
-    public static let maxSide: CGFloat = 560
+    package static let maxSide: CGFloat = 560
     /// 16g: the sidebar widens the sheet; the height stays a sheet's.
-    public static let maxWidth: CGFloat = 780
-    public static let maxHeight: CGFloat = 620
-    public static let sidebar: CGFloat = 200
-    public static let cardHeight: CGFloat = 68
-    public static let avatar: CGFloat = Space.x8 + Space.x1
-    public static let bigAvatar: CGFloat = 56
-    public static let stepHit: CGFloat = Space.x8
+    package static let maxWidth: CGFloat = 780
+    package static let maxHeight: CGFloat = 620
+    package static let sidebar: CGFloat = 200
+    package static let cardHeight: CGFloat = 68
+    package static let avatar: CGFloat = Space.x8 + Space.x1
+    package static let bigAvatar: CGFloat = 56
+    package static let stepHit: CGFloat = Space.x8
     /// How long a row stays lit after a search lands on it.
-    public static let highlightSeconds: Double = 1.6
+    package static let highlightSeconds: Double = 1.6
 }
 
 /// Settings (Wave 16g): a sheet with a sidebar and a search, one page at a
 /// time. Each page owns its state; this view owns only where you are.
-public struct SettingsView: View {
+package struct SettingsView: View {
     private let preview: VoicePreview?
     var chat: ChatViewModel?
     var welcome: WelcomeModel?
@@ -37,7 +37,7 @@ public struct SettingsView: View {
     @Environment(DropdownHost.self) private var dropdowns
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(
+    package init(
         preview: VoicePreview? = nil,
         chat: ChatViewModel? = nil,
         updates: UpdateState? = nil,
@@ -59,7 +59,7 @@ public struct SettingsView: View {
 
     private let updates: UpdateState?
 
-    public var body: some View {
+    package var body: some View {
         HStack(spacing: Space.none) {
             SettingsSidebar(tab: $tab, query: $query, onPick: jump)
                 .frame(width: SettingsOverlayMetrics.sidebar)

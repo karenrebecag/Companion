@@ -3,41 +3,41 @@ import Foundation
 /// The error as contract (corpus LAYERING §3): a stable `code` the model
 /// recovers by — `denied_path` means "ask for another path", never "give up
 /// and delegate around it" — and a message the human reads.
-public struct ContractError: Error, Sendable, Equatable {
-    public var code: String
-    public var message: String
+package struct ContractError: Error, Sendable, Equatable {
+    package var code: String
+    package var message: String
 
-    public init(code: String, message: String) {
+    package init(code: String, message: String) {
         self.code = code
         self.message = message
     }
 
-    public static func deniedURL(_ message: String) -> ContractError {
+    package static func deniedURL(_ message: String) -> ContractError {
         ContractError(code: "denied_url", message: message)
     }
 
-    public static func deniedPath(_ message: String) -> ContractError {
+    package static func deniedPath(_ message: String) -> ContractError {
         ContractError(code: "denied_path", message: message)
     }
 
-    public static func invalidArgs(_ message: String) -> ContractError {
+    package static func invalidArgs(_ message: String) -> ContractError {
         ContractError(code: "invalid_args", message: message)
     }
 
-    public static func notFound(_ message: String) -> ContractError {
+    package static func notFound(_ message: String) -> ContractError {
         ContractError(code: "not_found", message: message)
     }
 
     /// The user said no (Wave 10c 3B.4): an instruction not to retry or
     /// route around, with the code first so the model can act on it.
     /// One shape for the sheet's denial in Services and in UI (12d).
-    public static func deniedByUser(_ language: AppLanguage = .en) -> ContractError {
+    package static func deniedByUser(_ language: AppLanguage = .en) -> ContractError {
         ContractError(code: "denied_by_user", message: Escalation.deniedByUserMessage(language))
     }
 
     /// Code first, so a model parsing the result finds it without reading
     /// prose. Changing this shape changes the model's API.
-    public var wire: String { "\(code): \(message)" }
+    package var wire: String { "\(code): \(message)" }
 }
 
 /// What the conversational turn can do by itself. Opening and looking are
@@ -45,7 +45,7 @@ public struct ContractError: Error, Sendable, Equatable {
 /// its sandbox (corpus spec 24 §5, PRODUCT-DECISIONS §7). None of these asks
 /// permission: the user just said it out loud, and the risk — an invented URL
 /// or path — is the validator's to catch, not a sheet's.
-public enum ParentTool: String, CaseIterable, Sendable, Equatable {
+package enum ParentTool: String, CaseIterable, Sendable, Equatable {
     case openApp = "open_app"
     case openURL = "open_url"
     case openFile = "open_file"
@@ -68,7 +68,7 @@ public enum ParentTool: String, CaseIterable, Sendable, Equatable {
     /// Pixels, on demand (16a-3): a capture described by the vision model.
     case see
 
-    public var isHands: Bool {
+    package var isHands: Bool {
         switch self {
         case .typeText, .pressKey, .focusWindow, .readFocused: true
         case .look, .click, .scroll, .menu, .see: true
@@ -78,7 +78,7 @@ public enum ParentTool: String, CaseIterable, Sendable, Equatable {
 
     /// The call changes something (opens, types, presses, clicks) as opposed
     /// to reading. Its status line is what the voice owes the user.
-    public var changesSomething: Bool {
+    package var changesSomething: Bool {
         switch self {
         case .openApp, .openURL, .openFile, .typeText, .pressKey, .focusWindow, .click, .menu: true
         case .listApps, .readSkill, .readFocused, .look, .scroll, .see: false
@@ -86,7 +86,7 @@ public enum ParentTool: String, CaseIterable, Sendable, Equatable {
     }
 
     /// Offered only when the runner has a screen adapter behind them.
-    public var isSight: Bool {
+    package var isSight: Bool {
         switch self {
         case .look, .click, .scroll, .menu: true
         default: false
@@ -96,14 +96,14 @@ public enum ParentTool: String, CaseIterable, Sendable, Equatable {
     /// The argument the status line names. `list_apps` has none.
     /// What the call is about ("Safari", a URL), for the line shown before
     /// it runs and for the session's `parentActing`. Empty when unreadable.
-    public static func target(of call: ToolCallRef) -> String {
+    package static func target(of call: ToolCallRef) -> String {
         guard let key = ParentTool(rawValue: call.name)?.targetKey,
               let object = ToolArguments.parse(call.arguments)
         else { return "" }
         return (object[key] as? String) ?? ""
     }
 
-    public var targetKey: String? {
+    package var targetKey: String? {
         switch self {
         case .openApp: "name"
         case .openURL: "url"
@@ -121,11 +121,11 @@ public enum ParentTool: String, CaseIterable, Sendable, Equatable {
 
     /// The tools every runner offers. The hands are not here: they exist
     /// only with Accessibility granted (`handsSpecs`).
-    public static func specs(_ language: AppLanguage) -> [ToolSpec] {
+    package static func specs(_ language: AppLanguage) -> [ToolSpec] {
         allCases.filter { !$0.isHands }.map { $0.spec(language) }
     }
 
-    public static func handsSpecs(
+    package static func handsSpecs(
         _ language: AppLanguage, sight: Bool = false, see: Bool = false
     ) -> [ToolSpec] {
         allCases.filter { tool in
@@ -137,7 +137,7 @@ public enum ParentTool: String, CaseIterable, Sendable, Equatable {
 
     /// Names are wire contract; descriptions follow the answer language, as
     /// the delegate spec does.
-    public func spec(_ language: AppLanguage) -> ToolSpec {
+    package func spec(_ language: AppLanguage) -> ToolSpec {
         switch (self, language) {
         case (.openApp, .en):
             return ToolSpec(
@@ -242,7 +242,7 @@ public enum ParentTool: String, CaseIterable, Sendable, Equatable {
 
 /// The parent's only way to touch the system. No `Process`, no `open -a`,
 /// no PATH: an adapter over NSWorkspace, or a fake that opens nothing.
-public protocol WorkspaceOpening: Sendable {
+package protocol WorkspaceOpening: Sendable {
     func openApplication(named name: String) async throws(ContractError)
     /// http(s) or file://. Validated before it gets here.
     func open(_ url: URL) async throws(ContractError)
@@ -253,23 +253,23 @@ public protocol WorkspaceOpening: Sendable {
 /// What a parent tool produced: `output` is what the model reads, `target`
 /// what the status line names, `card` what the interface paints on its own
 /// channel. Lives in Core because the chat layer cannot see Services.
-public struct ParentToolOutcome: Sendable, Equatable {
-    public var ok: Bool
-    public var output: String
-    public var target: String
-    public var card: Card?
+package struct ParentToolOutcome: Sendable, Equatable {
+    package var ok: Bool
+    package var output: String
+    package var target: String
+    package var card: Card?
     /// Which tool produced it, when the copy needs to know (11a).
-    public var tool: String?
+    package var tool: String?
     /// Wave 16h-1: something read back proves the change (the field holds the
     /// text). Without it, copy says what was tried, never that it worked.
-    public var verified: Bool
+    package var verified: Bool
     /// The app the hands acted on, so a read from another window proves nothing.
-    public var fieldPID: Int32?
+    package var fieldPID: Int32?
     /// For `type_text`: how many times the text was already in the field
     /// before it was typed. Nil when the field could not be read.
-    public var typedBefore: Int?
+    package var typedBefore: Int?
 
-    public init(ok: Bool, output: String, target: String = "", card: Card? = nil,
+    package init(ok: Bool, output: String, target: String = "", card: Card? = nil,
                 tool: String? = nil, verified: Bool = false,
                 fieldPID: Int32? = nil, typedBefore: Int? = nil) {
         self.fieldPID = fieldPID
@@ -282,7 +282,7 @@ public struct ParentToolOutcome: Sendable, Equatable {
         self.verified = verified
     }
 
-    public static func failed(_ error: ContractError, target: String = "",
+    package static func failed(_ error: ContractError, target: String = "",
                               tool: String? = nil) -> ParentToolOutcome {
         ParentToolOutcome(ok: false, output: error.wire, target: target, tool: tool)
     }
@@ -290,7 +290,7 @@ public struct ParentToolOutcome: Sendable, Equatable {
 
 /// The seam the three paths (chat, realtime, classic) call. A tool the
 /// runner does not back is not in `specs`, and `handles` says no.
-public protocol ParentToolExecuting: Sendable {
+package protocol ParentToolExecuting: Sendable {
     func specs(_ language: AppLanguage) -> [ToolSpec]
     func handles(_ name: String) -> Bool
     /// Why a tool that exists is not served right now (`self_in_front`,
@@ -327,30 +327,30 @@ public protocol ParentToolExecuting: Sendable {
 }
 
 extension ParentToolExecuting {
-    public func unavailability(for name: String) -> String? { nil }
+    package func unavailability(for name: String) -> String? { nil }
 
-    public func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
+    package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
         ParentToolGate.approval(for: call, said: said)
     }
 
-    public func bound(_ request: ApprovalRequest) async -> ApprovalRequest { request }
+    package func bound(_ request: ApprovalRequest) async -> ApprovalRequest { request }
 
-    public func actsWithoutSheet(_ call: ToolCallRef) async -> Bool { false }
+    package func actsWithoutSheet(_ call: ToolCallRef) async -> Bool { false }
 
-    public func granted(_ request: ApprovalRequest) {}
+    package func granted(_ request: ApprovalRequest) {}
 
-    public func beginTurn() {}
+    package func beginTurn() {}
 
-    public func noteTurn(_ said: String) {}
+    package func noteTurn(_ said: String) {}
 
-    public func noteChoiceTurn() { noteTurn("") }
+    package func noteChoiceTurn() { noteTurn("") }
 }
 
 /// The record of what the app did by itself, in the thread — same idea as
 /// the job's record (9-0). Model-facing copy lives here, like `Escalation`,
 /// because Services emits these lines too and cannot reach the catalog.
-public enum ParentToolCopy: Sendable {
-    public static func status(
+package enum ParentToolCopy: Sendable {
+    package static func status(
         _ name: String, _ outcome: ParentToolOutcome, _ language: AppLanguage
     ) -> String {
         if let browser = BrowserTool(rawValue: name) {
@@ -402,7 +402,7 @@ public enum ParentToolCopy: Sendable {
     }
 
     /// Answered from the session's memory (Wave 10c 3D), no sheet shown.
-    public static func remembered(_ name: String, approved: Bool, _ language: AppLanguage) -> String {
+    package static func remembered(_ name: String, approved: Bool, _ language: AppLanguage) -> String {
         switch (language, approved) {
         case (.en, true): "Allowed, as before: \(name)."
         case (.en, false): "Denied, as before: \(name)."
@@ -413,7 +413,7 @@ public enum ParentToolCopy: Sendable {
 
     /// Shown with the assistant's call when it said nothing before acting:
     /// the status line is the record of WHAT was asked, as the job's is.
-    public static func acting(_ targets: [String], _ language: AppLanguage) -> String {
+    package static func acting(_ targets: [String], _ language: AppLanguage) -> String {
         let list = targets.filter { !$0.isEmpty }.joined(separator: ", ")
         switch language {
         case .en: return list.isEmpty ? "Acting…" : "Opening \(list)…"
@@ -424,9 +424,9 @@ public enum ParentToolCopy: Sendable {
     /// The round cap is a safety, not a goal; reaching it is recorded.
     /// A safety, not a goal. Wave 16a: look → click → look → type is four
     /// rounds before the answer; three only ever fit opening apps.
-    public static let maxRounds = 8
+    package static let maxRounds = 8
 
-    public static func roundCap(_ language: AppLanguage) -> String {
+    package static func roundCap(_ language: AppLanguage) -> String {
         switch language {
         case .en: "Stopped after \(maxRounds) actions in a row."
         case .es: "Me detuve tras \(maxRounds) acciones seguidas."

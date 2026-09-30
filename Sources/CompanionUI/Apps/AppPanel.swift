@@ -5,13 +5,13 @@ import SwiftUI
 /// is icon/name/description/connect state; right column is the actions,
 /// grouped Leer / Crear y cambiar / Borrar, with a search field. Connecting
 /// is 16k-2b; Desconectar (16k-2c) lives in `connectState` below.
-public enum AppPanelMetrics {
+package enum AppPanelMetrics {
     // Audited from Incredible's connector dialog (spec 16k §9.5 D1), not
     // from docs/research: max 1000 x 700, a 430 left column, a 44 icon.
-    public static let maxWidth: CGFloat = 1000
-    public static let maxHeight: CGFloat = 700
-    public static let leftWidth: CGFloat = 430
-    public static let icon: CGFloat = 44
+    package static let maxWidth: CGFloat = 1000
+    package static let maxHeight: CGFloat = 700
+    package static let leftWidth: CGFloat = 430
+    package static let icon: CGFloat = 44
 }
 
 struct AppPanel: View {

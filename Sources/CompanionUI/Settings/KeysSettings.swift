@@ -10,8 +10,8 @@ import Observation
 /// field and only a mask survives.
 @Observable
 @MainActor
-public final class KeysSettingsModel {
-    public enum Provider: Sendable, Equatable, Hashable, CaseIterable {
+package final class KeysSettingsModel {
+    package enum Provider: Sendable, Equatable, Hashable, CaseIterable {
         case openAI, cerebras, elevenLabs
 
         var secretKey: SecretKey {
@@ -23,32 +23,32 @@ public final class KeysSettingsModel {
         }
     }
 
-    public var secrets: (any SecretStore)?
-    public var openAIField = ""
-    public var cerebrasField = ""
-    public var elevenLabsField = ""
+    package var secrets: (any SecretStore)?
+    package var openAIField = ""
+    package var cerebrasField = ""
+    package var elevenLabsField = ""
     /// 15c-7: a blank field after saving read as "nothing happened" (Karen);
     /// the row shows which key is in without ever holding the key itself.
-    public private(set) var masked: [Provider: String] = [:]
-    public var errorText: String?
+    package private(set) var masked: [Provider: String] = [:]
+    package var errorText: String?
 
-    public var openAISaved: Bool { masked[.openAI] != nil }
-    public var cerebrasSaved: Bool { masked[.cerebras] != nil }
-    public var elevenLabsSaved: Bool { masked[.elevenLabs] != nil }
+    package var openAISaved: Bool { masked[.openAI] != nil }
+    package var cerebrasSaved: Bool { masked[.cerebras] != nil }
+    package var elevenLabsSaved: Bool { masked[.elevenLabs] != nil }
 
-    public init(secrets: (any SecretStore)? = nil) {
+    package init(secrets: (any SecretStore)? = nil) {
         self.secrets = secrets
     }
 
     /// Never more than the first and last four characters, and nothing at
     /// all for a key too short to hide its middle.
-    public static func mask(_ value: String) -> String {
+    package static func mask(_ value: String) -> String {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 12 else { return "••••" }
         return "\(trimmed.prefix(4))••••\(trimmed.suffix(4))"
     }
 
-    public func refresh() {
+    package func refresh() {
         var next: [Provider: String] = [:]
         for provider in Provider.allCases {
             if let value = storedValue(provider.secretKey) {
@@ -58,7 +58,7 @@ public final class KeysSettingsModel {
         masked = next
     }
 
-    public func save(_ provider: Provider) {
+    package func save(_ provider: Provider) {
         guard let secrets else { return }
         let trimmed = field(provider).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -76,7 +76,7 @@ public final class KeysSettingsModel {
         masked[provider] = Self.mask(trimmed)
     }
 
-    public func delete(_ provider: Provider) {
+    package func delete(_ provider: Provider) {
         guard let secrets else { return }
         do {
             // A key that was never written deletes without throwing, so

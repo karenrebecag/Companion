@@ -5,17 +5,17 @@ import SwiftUI
 /// search, the featured grid in two columns and "Show more". Until the
 /// function is set up the page asks for it instead of showing buttons that
 /// do nothing.
-public enum AppsMetrics {
+package enum AppsMetrics {
     // None of these are in docs/research: Incredible's Apps grid was read for
     // its structure, not its pixels. Own values, pinned in Pins16p3Tests so a
     // later capture overrules them on purpose.
-    public static let icon: CGFloat = 40
-    public static let iconRadius: CGFloat = Radius.md
-    public static let cardMinHeight: CGFloat = 132
-    public static let gridGap: CGFloat = Space.x4
-    public static let formWidth: CGFloat = 460
+    package static let icon: CGFloat = 40
+    package static let iconRadius: CGFloat = Radius.md
+    package static let cardMinHeight: CGFloat = 132
+    package static let gridGap: CGFloat = Space.x4
+    package static let formWidth: CGFloat = 460
     /// Typing pause before a search goes out; not motion, a request budget.
-    public static let searchPause = 0.3
+    package static let searchPause = 0.3
 }
 
 enum AppsCopy {

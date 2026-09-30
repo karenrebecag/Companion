@@ -2,22 +2,22 @@ import CompanionCore
 import Foundation
 import Observation
 
-public enum FeedbackDelivery: Sendable, Equatable { case opened, openedWithoutCaptures, openedTruncated, failed }
+package enum FeedbackDelivery: Sendable, Equatable { case opened, openedWithoutCaptures, openedTruncated, failed }
 
 /// How the composed message leaves. The live one opens the user's mail app.
-public protocol FeedbackDelivering: Sendable {
+package protocol FeedbackDelivering: Sendable {
     func deliver(_ draft: FeedbackDraft, captures: [URL]) -> FeedbackDelivery
 }
 
 /// What reading the clipboard's image came to: nothing there, too big to
 /// keep (nothing written), a write that failed, or the file.
-public enum PastedImage: Sendable, Equatable {
+package enum PastedImage: Sendable, Equatable {
     case empty, tooBig, failed, image(URL)
 }
 
 /// Where the screenshots that are not region grabs come from (16q-2): a file
 /// picker and the clipboard. A port so the model is tested without AppKit.
-public protocol FeedbackAttaching: Sendable {
+package protocol FeedbackAttaching: Sendable {
     /// The images she chose in the picker (empty when she cancelled).
     @MainActor func chooseImages() async -> [URL]
     /// The clipboard's image written to a private temporary file.

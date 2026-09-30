@@ -7,7 +7,7 @@ import Foundation
 /// text covers the gap when it does not. `pending` reflects vision only:
 /// the AX walk is bounded and always resolves inside the hold, never a
 /// second "still coming".
-public final class ScreenSight: ScreenSeeing, @unchecked Sendable {
+package final class ScreenSight: ScreenSeeing, @unchecked Sendable {
     private let capture: ScreenCapture
     private let vision: ScreenVision
     /// The AX walk, behind a closure so tests never need real Accessibility
@@ -43,7 +43,7 @@ public final class ScreenSight: ScreenSeeing, @unchecked Sendable {
     private let pointerStart: @Sendable () -> Void
     private let pointerStop: @Sendable () -> [PointedElement]
 
-    public init(
+    package init(
         capture: ScreenCapture,
         vision: ScreenVision,
         axHarvest: @escaping @Sendable (pid_t) -> [String] = { _ in [] },
@@ -65,7 +65,7 @@ public final class ScreenSight: ScreenSeeing, @unchecked Sendable {
         self.now = now
     }
 
-    public func begin(app: String?) {
+    package func begin(app: String?) {
         let name = app ?? appName()
         let target = pid()
         lock.lock()
@@ -90,13 +90,13 @@ public final class ScreenSight: ScreenSeeing, @unchecked Sendable {
         lock.unlock()
     }
 
-    public func beginPointing() {
+    package func beginPointing() {
         pointerStart()
     }
 
     /// One capture and one vision call, now: the `see` tool, for a question
     /// about what the screen looks like. Nil without a capture grant or a key.
-    public func see(_ request: SeeRequest) async -> ScreenBrief? {
+    package func see(_ request: SeeRequest) async -> ScreenBrief? {
         guard let jpeg = await capture.jpeg(pid: request.pid, maxSide: ScreenCapture.seeMaxSide) else {
             Log.app("screen: see skipped (no grant or capture failed)")
             return nil
@@ -107,7 +107,7 @@ public final class ScreenSight: ScreenSeeing, @unchecked Sendable {
         return brief
     }
 
-    public func cancel() {
+    package func cancel() {
         _ = pointerStop()
         lock.lock()
         generation += 1
@@ -126,12 +126,12 @@ public final class ScreenSight: ScreenSeeing, @unchecked Sendable {
     /// The AX harvest for the hold in flight, awaited without touching
     /// vision's own task — `ClassicRuntime` calls this before `finish` to
     /// decide `hasText` without paying vision's wait for it (spec 15b-7b).
-    public func axSnippets() async -> [ScreenSnippet] {
+    package func axSnippets() async -> [ScreenSnippet] {
         let task = lock.withLock { axWork }
         return await axSnippets(task)
     }
 
-    public func finish(wait: Duration) async -> ScreenBrief {
+    package func finish(wait: Duration) async -> ScreenBrief {
         // Sampling ends at commit, before waiting on vision: the pointing
         // belongs to what was said, not to how long the answer took.
         let pointed = pointerStop()

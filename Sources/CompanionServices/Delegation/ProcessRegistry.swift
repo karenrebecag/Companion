@@ -8,23 +8,23 @@ import Foundation
 /// sweep at quit — a net, never a guarantee: a crash or a Force Quit gives the
 /// app no chance to run anything, and macOS has no `PR_SET_PDEATHSIG` to fall
 /// back on. What survives a crash survives; that limit is real and stated.
-public final class ProcessRegistry: @unchecked Sendable {
+package final class ProcessRegistry: @unchecked Sendable {
     /// Generous enough for parallel jobs, low enough that a runaway loop hits
     /// a wall instead of the scheduler.
-    public static let defaultCap = 8
+    package static let defaultCap = 8
 
-    public static let shared = ProcessRegistry()
+    package static let shared = ProcessRegistry()
 
     private let lock = NSLock()
     private var live: Set<pid_t> = []
     private var pending = 0
     private let cap: Int
 
-    public init(cap: Int = ProcessRegistry.defaultCap) {
+    package init(cap: Int = ProcessRegistry.defaultCap) {
         self.cap = cap
     }
 
-    public var liveCount: Int {
+    package var liveCount: Int {
         lock.lock()
         defer { lock.unlock() }
         return live.count
@@ -63,7 +63,7 @@ public final class ProcessRegistry: @unchecked Sendable {
     }
 
     /// Kills every group still standing. Called from the app delegate on quit.
-    public func terminateAll() {
+    package func terminateAll() {
         let doomed = drain()
         for pid in doomed {
             ProcessGroupRunner.terminateGroup(pid)

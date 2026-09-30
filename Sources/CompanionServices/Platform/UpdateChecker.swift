@@ -1,18 +1,18 @@
 import CompanionCore
 import Foundation
 
-public struct UpdateInfo: Sendable, Equatable {
-    public let version: SemanticVersion
-    public let tag: String
-    public let pageURL: URL
+package struct UpdateInfo: Sendable, Equatable {
+    package let version: SemanticVersion
+    package let tag: String
+    package let pageURL: URL
 }
 
 /// ADR 002: no update framework. Ask GitHub for the latest release, compare
 /// against the built version, and point the user at the release page. Any
 /// failure — no network, hostile payload, API change — is absolute silence:
 /// an update check must never produce an error the user has to deal with.
-public struct UpdateChecker: Sendable {
-    public static let releaseAPI =
+package struct UpdateChecker: Sendable {
+    package static let releaseAPI =
         URL(string: "https://api.github.com/repos/karenrebecag/Companion/releases/latest")!
 
     private let transport: any ChatTransport
@@ -21,7 +21,7 @@ public struct UpdateChecker: Sendable {
     private let lastCheck: @Sendable () -> Date?
     private let recordCheck: @Sendable (Date) -> Void
 
-    public init(
+    package init(
         transport: any ChatTransport,
         currentVersion: String = Build.version,
         now: @escaping @Sendable () -> Date = { Date() },
@@ -39,10 +39,10 @@ public struct UpdateChecker: Sendable {
         self.recordCheck = recordCheck
     }
 
-    public static let cacheKey = "companion.lastUpdateCheck"
+    package static let cacheKey = "companion.lastUpdateCheck"
 
     /// Launch path: at most one network hit per calendar day.
-    public func checkIfDue() async -> UpdateInfo? {
+    package func checkIfDue() async -> UpdateInfo? {
         if let last = lastCheck(),
            Calendar.current.isDate(last, inSameDayAs: now()) {
             return nil
@@ -51,7 +51,7 @@ public struct UpdateChecker: Sendable {
     }
 
     /// Settings path: the user asked, so the cache does not apply.
-    public func checkNow() async -> UpdateInfo? {
+    package func checkNow() async -> UpdateInfo? {
         recordCheck(now())
         guard EndpointPolicy.isAcceptable(Self.releaseAPI) else { return nil }
         var request = URLRequest(url: Self.releaseAPI, timeoutInterval: 10)

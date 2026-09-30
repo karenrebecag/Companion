@@ -4,16 +4,16 @@ import SwiftUI
 /// Wave 16k-2b (spec §9.2.2, D1 layout, D2/§9.6 audited phases): the
 /// "Connecting Slack" modal. Renders `AppsModel`'s own `connectPhase` — no
 /// timer lives here; the 3 s poll runs in the model, this view only paints.
-public enum ConnectingSheetMetrics {
+package enum ConnectingSheetMetrics {
     // 16k-2d: Incredible's real modal (captured live 2026-09-28) is a
     // centered composition — big title, 72pt icon lockup, one centered
     // action — not a leading-aligned card.
-    public static let maxWidth: CGFloat = 520
+    package static let maxWidth: CGFloat = 520
     // Only the 72 icon was read off the capture; the sheet width, track and dot
     // are Companion's own.
-    public static let icon: CGFloat = 72
-    public static let trackWidth: CGFloat = 120
-    public static let dot: CGFloat = 8
+    package static let icon: CGFloat = 72
+    package static let trackWidth: CGFloat = 120
+    package static let dot: CGFloat = 8
 }
 
 struct ConnectingSheet: View {

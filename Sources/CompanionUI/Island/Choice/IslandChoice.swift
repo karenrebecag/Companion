@@ -8,18 +8,18 @@ import SwiftUI
 
 /// `answer-card` (docs/research/incredible-isla-componentes.md §5): 340-440
 /// wide, padding 18 × 20, gap 14. The option tile is the one 16l measured.
-public nonisolated enum IslandChoiceMetrics {
-    public static let minWidth: CGFloat = 340
-    public static let maxWidth: CGFloat = 440
-    public static let paddingY: CGFloat = 18
-    public static let paddingX: CGFloat = 20
-    public static let gap: CGFloat = 14
+package nonisolated enum IslandChoiceMetrics {
+    package static let minWidth: CGFloat = 340
+    package static let maxWidth: CGFloat = 440
+    package static let paddingY: CGFloat = 18
+    package static let paddingX: CGFloat = 20
+    package static let gap: CGFloat = 14
     /// Own value (not measured): an option that can no longer be picked.
-    public static let unavailableAlpha = 0.45
+    package static let unavailableAlpha = 0.45
     /// Own value: composer, reply and a two-line question take ~330 of the
     /// 592 pt the shape can grow to, so past this the list scrolls inside the
     /// card instead of pushing the field off the canvas.
-    public static let listMaxHeight: CGFloat = 260
+    package static let listMaxHeight: CGFloat = 260
 
     /// 340-440 is a clamp on what the words ask for, capped by the room.
     static func width(available: CGFloat, ideal: CGFloat) -> CGFloat {

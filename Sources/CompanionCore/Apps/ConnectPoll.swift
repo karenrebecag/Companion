@@ -4,8 +4,8 @@ import Foundation
 /// §9.6): the connect attempt's own state machine. Pure — no I/O, no Task,
 /// no `Date()` — the same reducer shape `TurnMachine` uses: the caller
 /// (`AppsModel`'s async loop) supplies every event and `now`.
-public struct ConnectPoll: Sendable, Equatable {
-    public enum Phase: Sendable, Equatable {
+package struct ConnectPoll: Sendable, Equatable {
+    package enum Phase: Sendable, Equatable {
         case initiating
         case waiting(attempts: Int)
         case complete
@@ -13,7 +13,7 @@ public struct ConnectPoll: Sendable, Equatable {
         case failed(message: String)
     }
 
-    public enum Event: Sendable, Equatable {
+    package enum Event: Sendable, Equatable {
         /// The function returned the Pipedream Connect Link. Polling has not
         /// started yet — the browser has not shown the page (audit §9.6:
         /// `initiating` shows "Opening your browser…" up to this point).
@@ -32,35 +32,35 @@ public struct ConnectPoll: Sendable, Equatable {
     /// Audited constants (spec §9.5 D2): 3 s between checks, 40 attempts
     /// (~2 min), and a global timeout that runs from `initiating`, not from
     /// the first `waiting` tick.
-    public static let interval: TimeInterval = 3
-    public static let maxAttempts = 40
-    public static let overallTimeout: TimeInterval = 150
+    package static let interval: TimeInterval = 3
+    package static let maxAttempts = 40
+    package static let overallTimeout: TimeInterval = 150
     /// Audit §9.6: the "still waiting on the browser" hint shows after
     /// several attempts, not on the first one.
-    public static let hintThreshold = 5
+    package static let hintThreshold = 5
 
-    public private(set) var phase: Phase = .initiating
+    package private(set) var phase: Phase = .initiating
     private var startedAt: TimeInterval
 
-    public init(startedAt: TimeInterval) {
+    package init(startedAt: TimeInterval) {
         self.startedAt = startedAt
     }
 
     /// Whether the driving loop should still be scheduling `/api/accounts`
     /// checks — true only in `waiting`, never in `initiating` (that leg is
     /// one awaited call, not a timer) nor any terminal phase.
-    public var isWaiting: Bool {
+    package var isWaiting: Bool {
         if case .waiting = phase { return true }
         return false
     }
 
-    public var showsStillWaitingHint: Bool {
+    package var showsStillWaitingHint: Bool {
         if case .waiting(let attempts) = phase { return attempts >= Self.hintThreshold }
         return false
     }
 
     @discardableResult
-    public mutating func handle(_ event: Event, at now: TimeInterval) -> Phase {
+    package mutating func handle(_ event: Event, at now: TimeInterval) -> Phase {
         if case .retry = event {
             phase = .initiating
             startedAt = now

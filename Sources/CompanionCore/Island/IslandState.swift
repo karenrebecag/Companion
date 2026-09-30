@@ -3,15 +3,15 @@ import Foundation
 /// What the island paints, decided from the projection in one pure place so
 /// the decision is testable without a window. Sizes are roles, not points:
 /// the UI maps them to its own tokens.
-public struct IslandState: Sendable, Equatable {
-    public enum Size: Sendable, Equatable, CaseIterable {
+package struct IslandState: Sendable, Equatable {
+    package enum Size: Sendable, Equatable, CaseIterable {
         case hidden, pebble, nudge, bar, card
         /// 16m-6: the update offer's card measures 522, wider than the 492 of
         /// every other card; only that one line asks for it.
         case wideCard
     }
-    public enum Meter: Sendable, Equatable { case none, mic, agent }
-    public enum Line: Sendable, Equatable {
+    package enum Meter: Sendable, Equatable { case none, mic, agent }
+    package enum Line: Sendable, Equatable {
         case none
         case holdHint
         /// Input Monitoring is missing: FN is not being heard at all (12e).
@@ -54,12 +54,12 @@ public struct IslandState: Sendable, Equatable {
     }
 
     /// Incredible's status light: amber = it needs you, green = done.
-    public enum Light: Sendable, Equatable { case none, amber, green }
+    package enum Light: Sendable, Equatable { case none, amber, green }
 
     /// The one way out an error line carries (spec 16c §2: a full sentence
     /// and an exit, never a code). A dropped network has none: the next hold
     /// reconnects, and a button that does nothing would be a lie.
-    public enum Action: Sendable, Equatable {
+    package enum Action: Sendable, Equatable {
         case openKeys
         case openPermission(TurnFailure)
         /// Wave 17: "Corte" — closes the bridge session from the chip.
@@ -70,28 +70,28 @@ public struct IslandState: Sendable, Equatable {
         case openUpdate
     }
 
-    public var size: Size
-    public var meter: Meter
-    public var line: Line
-    public var showsStop: Bool
-    public var approval: ApprovalRequest?
+    package var size: Size
+    package var meter: Meter
+    package var line: Line
+    package var showsStop: Bool
+    package var approval: ApprovalRequest?
     /// The hold's words so far, under the line (Wave 12c).
-    public var partial: String?
-    public var light: Light = .none
-    public var action: Action?
+    package var partial: String?
+    package var light: Light = .none
+    package var action: Action?
     /// Wave 17: the bridge's client name while a session is open (spec §3
     /// "Se ve"), independent of `size`/`line` — the chip rides alongside
     /// whatever the chrome is doing.
-    public var hands: String?
+    package var hands: String?
     /// Wave 20d B: why it can stay silent before acting is that the way back is
     /// here for five seconds.
-    public var receipt: UndoReceipt?
+    package var receipt: UndoReceipt?
     /// The sheet replaced the field: the panel must hand the keyboard back,
     /// or the next Return meant for the draft answers the sheet (security
     /// review 16, critical).
-    public var yieldsKeyboard: Bool { approval != nil }
+    package var yieldsKeyboard: Bool { approval != nil }
 
-    public init(
+    package init(
         size: Size, meter: Meter = .none, line: Line = .none,
         showsStop: Bool = false, approval: ApprovalRequest? = nil,
         partial: String? = nil
@@ -111,7 +111,7 @@ public struct IslandState: Sendable, Equatable {
     /// `keyListening`: the FN tap is installed. Without Input Monitoring it
     /// is not, and teaching a key that cannot answer is a lie (seen live
     /// 2026-09-06: the hint showed, FN did nothing, the pointer did the work).
-    public static func from(
+    package static func from(
         _ p: SessionProjection, pebbleHidden: Bool, mainInFront: Bool = false,
         holdLearned: Bool = false, keyListening: Bool = true, debugTranscripts: Bool = false,
         composing: Bool = false, cancelled: Bool = false, followUp: String? = nil,
@@ -204,7 +204,7 @@ public struct IslandState: Sendable, Equatable {
     /// dropping the gesture then would lose the release and leave the hold
     /// listening forever (seen live 2026-09-06). Since 16e the hover panel
     /// holds a text field, so at rest only the mark starts a hold.
-    public static func acceptsPointer(size: Size, pointerDown: Bool) -> Bool {
+    package static func acceptsPointer(size: Size, pointerDown: Bool) -> Bool {
         size != .hidden && pointerDown
     }
 
@@ -268,21 +268,21 @@ public struct IslandState: Sendable, Equatable {
 
 /// The sheet can appear over any app, under the pointer: a click already
 /// on its way must not answer it (security review 2026-09-06).
-public struct ApprovalClickGuard: Sendable, Equatable {
+package struct ApprovalClickGuard: Sendable, Equatable {
     /// Seconds the sheet ignores clicks after appearing.
-    public static let dwell: TimeInterval = 0.6
-    public let shownAt: TimeInterval
+    package static let dwell: TimeInterval = 0.6
+    package let shownAt: TimeInterval
 
-    public init(shownAt: TimeInterval) {
+    package init(shownAt: TimeInterval) {
         self.shownAt = shownAt
     }
 
-    public func accepts(at now: TimeInterval) -> Bool {
+    package func accepts(at now: TimeInterval) -> Bool {
         now - shownAt >= Self.dwell
     }
 
     /// A guard never set means not yet safe, never always safe.
-    public static func accepts(_ guard: ApprovalClickGuard?, at now: TimeInterval) -> Bool {
+    package static func accepts(_ guard: ApprovalClickGuard?, at now: TimeInterval) -> Bool {
         `guard`?.accepts(at: now) ?? false
     }
 }

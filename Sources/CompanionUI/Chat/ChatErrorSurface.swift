@@ -20,7 +20,7 @@ extension ChatErrorSurface {
 @MainActor
 extension ChatViewModel {
     /// The island's own exit for what it shows; Home keeps its copy.
-    public func dismissIslandError() {
+    package func dismissIslandError() {
         dismissedIslandError = errorText
     }
 

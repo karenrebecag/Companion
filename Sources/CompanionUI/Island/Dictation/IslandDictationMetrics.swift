@@ -6,23 +6,23 @@ import SwiftUI
 // Island16m4Tests: a value changes here and in the research together, or not
 // at all.
 
-public enum IslandDictationMetrics {
+package enum IslandDictationMetrics {
     /// The card: 320-424 wide, padding 16 / 18 / 14, gap 10.
-    public static let minWidth: CGFloat = 320
-    public static let maxWidth: CGFloat = 424
-    public static let paddingTop: CGFloat = 16
-    public static let paddingX: CGFloat = 18
-    public static let paddingBottom: CGFloat = 14
-    public static let gap: CGFloat = 10
+    package static let minWidth: CGFloat = 320
+    package static let maxWidth: CGFloat = 424
+    package static let paddingTop: CGFloat = 16
+    package static let paddingX: CGFloat = 18
+    package static let paddingBottom: CGFloat = 14
+    package static let gap: CGFloat = 10
     /// The words: 15 / 500 (drawn `.medium`), line 1.38, -0.01em.
-    public static let textSize: CGFloat = 15
-    public static let textLeading: CGFloat = 1.38
-    public static let textTracking: CGFloat = -0.01
+    package static let textSize: CGFloat = 15
+    package static let textLeading: CGFloat = 1.38
+    package static let textTracking: CGFloat = -0.01
     /// Not measured: a long dictation would otherwise push the island past
     /// its canvas. Copy always takes the whole text; only the drawing clips.
-    public static let maxLines = 6
+    package static let maxLines = 6
     /// How long "Copied" stays on the button. Not measured.
-    public static let copiedFor: Double = 1.5
+    package static let copiedFor: Double = 1.5
 }
 
 /// What the card's buttons do that is not a session event.

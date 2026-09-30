@@ -4,7 +4,7 @@ import Foundation
 /// Wave 15d-6: the hold's words, written only when Karen turns debugging on
 /// (`Config.debugTranscripts`). A sink of its own, never `Log`: the main log
 /// is shared in bug reports and must stay free of anything said.
-public final class TranscriptDebugLog: @unchecked Sendable {
+package final class TranscriptDebugLog: @unchecked Sendable {
     /// Key prefixes of the providers the app holds keys for; a key read
     /// aloud or echoed by the model must not land in a plain-text file.
     /// `sk_` is ElevenLabs (security review 2026-09-25).
@@ -14,21 +14,21 @@ public final class TranscriptDebugLog: @unchecked Sendable {
     private let fileURL: URL
     private let lock = NSLock()
 
-    public init(fileURL: URL) {
+    package init(fileURL: URL) {
         self.fileURL = fileURL
     }
 
-    public static func standard(home: URL) -> TranscriptDebugLog {
+    package static func standard(home: URL) -> TranscriptDebugLog {
         TranscriptDebugLog(
             fileURL: home.appendingPathComponent("Library/Logs/Companion-transcripts.log"))
     }
 
-    public func heard(_ text: String) { write(tag: "heard", text) }
+    package func heard(_ text: String) { write(tag: "heard", text) }
 
-    public func said(_ text: String) { write(tag: "said", text) }
+    package func said(_ text: String) { write(tag: "said", text) }
 
     /// Debugging off: yesterday's words do not stay on disk (spec 15d §6.4).
-    public func discard() {
+    package func discard() {
         lock.withLock {
             guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
             do {
@@ -120,7 +120,7 @@ public final class TranscriptDebugLog: @unchecked Sendable {
 extension VoiceSession {
     /// Composition-root call, once, like `attachDecision`: the runtime
     /// still checks `Config.debugTranscripts` per turn before writing.
-    public func attachTranscriptLog(_ log: TranscriptDebugLog) {
+    package func attachTranscriptLog(_ log: TranscriptDebugLog) {
         classic.transcripts = log
     }
 }

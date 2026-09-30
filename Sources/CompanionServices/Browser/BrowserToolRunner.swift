@@ -4,7 +4,7 @@ import Foundation
 /// What the runner needs from the extension's channel: one call, one answer.
 /// A seam so the gates can be tested against a channel that records what it
 /// was asked to send.
-public protocol BrowserCommanding: Sendable {
+package protocol BrowserCommanding: Sendable {
     func send(_ command: BrowserCommand, timeout: Duration) async -> Result<BrowserInbound, ContractError>
 }
 
@@ -16,7 +16,7 @@ extension BrowserChannel: BrowserCommanding {}
 /// the two things the gates need: the last scrubbed page read from each tab,
 /// which the synchronous `approval(for:said:)` judges against, and its own
 /// tickets, so a yes cannot be spent by another runner's call.
-public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
+package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
     static let readBytes = 48_000
     static let readTimeout: Duration = .seconds(15)
     static let navigateTimeout: Duration = .seconds(30)
@@ -38,7 +38,7 @@ public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
     private var seenEpoch: Int
 
     /// Alone, a runner has its own lease and is the conversation's.
-    public convenience init(
+    package convenience init(
         channel: any BrowserCommanding, presence: BrowserPresence,
         language: @escaping @Sendable () -> AppLanguage = { .en }
     ) {
@@ -62,19 +62,19 @@ public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
         self.seenEpoch = presence.epoch
     }
 
-    public func specs(_ language: AppLanguage) -> [ToolSpec] {
+    package func specs(_ language: AppLanguage) -> [ToolSpec] {
         presence.connected ? BrowserTool.allCases.map { $0.spec(language) } : []
     }
 
-    public func handles(_ name: String) -> Bool {
+    package func handles(_ name: String) -> Bool {
         BrowserTool(rawValue: name) != nil && presence.connected
     }
 
-    public func unavailability(for name: String) -> String? {
+    package func unavailability(for name: String) -> String? {
         BrowserTool(rawValue: name) != nil && !presence.connected ? BridgeCode.notConnected : nil
     }
 
-    public func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
+    package func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
         guard let tool = BrowserTool(rawValue: name) else {
             return .failed(.notFound("unknown tool: \(name)"))
         }
@@ -92,7 +92,7 @@ public final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable {
         }
     }
 
-    public func granted(_ request: ApprovalRequest) {
+    package func granted(_ request: ApprovalRequest) {
         syncEpoch()
         tickets.grant(id: request.requestId)
     }

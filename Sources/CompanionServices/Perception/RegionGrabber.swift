@@ -5,11 +5,11 @@ import Vision
 /// The clip's captures (spec 16i §2): `screencapture -i` into a private
 /// temporary folder, and Vision's on-device text recognizer. Nothing leaves
 /// the Mac; the caller adopts the file and then discards it here.
-public struct ScreenRegionGrabber: RegionGrabbing {
+package struct ScreenRegionGrabber: RegionGrabbing {
     private let directory: URL
     private let permission: any ScreenRecordingChecking
 
-    public init(directory: URL, permission: any ScreenRecordingChecking = ScreenRecordingPermission()) {
+    package init(directory: URL, permission: any ScreenRecordingChecking = ScreenRecordingPermission()) {
         self.directory = directory.standardizedFileURL
         self.permission = permission
     }
@@ -17,7 +17,7 @@ public struct ScreenRegionGrabber: RegionGrabbing {
     /// The folder may hold sensitive screen content from a run that never
     /// got to discard it. Called at launch; only ever empties its own folder,
     /// and never follows a link out of it.
-    public func purgeLeftovers() {
+    package func purgeLeftovers() {
         let fm = FileManager.default
         do {
             let values = try directory.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
@@ -34,7 +34,7 @@ public struct ScreenRegionGrabber: RegionGrabbing {
         }
     }
 
-    public func capture() async -> RegionGrab {
+    package func capture() async -> RegionGrab {
         guard permission.isGranted() else {
             permission.request()
             return .needsPermission
@@ -62,11 +62,11 @@ public struct ScreenRegionGrabber: RegionGrabbing {
         }
     }
 
-    public func recognizeText(at url: URL) async -> String? {
+    package func recognizeText(at url: URL) async -> String? {
         await Task.detached(priority: .userInitiated) { Self.recognize(url) }.value
     }
 
-    public func discard(_ url: URL) {
+    package func discard(_ url: URL) {
         let target = url.standardizedFileURL
         // Only what this grabber wrote: the caller's own files are not ours to delete.
         guard target.path.hasPrefix(directory.path + "/"),

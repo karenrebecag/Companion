@@ -4,9 +4,9 @@ import SwiftUI
 // The recent conversations, the root window's one menu over everything. It
 // outlived the header it was born in (retired in 16p-2), so it lives alone.
 
-public enum HistoryOverlayMetrics {
-    public static let maxSide: CGFloat = SettingsOverlayMetrics.maxSide
-    public static let minWidth: CGFloat = 300
+package enum HistoryOverlayMetrics {
+    package static let maxSide: CGFloat = SettingsOverlayMetrics.maxSide
+    package static let minWidth: CGFloat = 300
 }
 
 struct HistoryOverlay: View {

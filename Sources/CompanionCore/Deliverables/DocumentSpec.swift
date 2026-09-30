@@ -4,18 +4,18 @@ import Foundation
 // the template owns the look, as Incredible's Doc()/Deck() do. The model
 // never writes HTML, so nothing it says can become markup or script.
 
-public enum DocumentFormat: String, Sendable, Equatable {
+package enum DocumentFormat: String, Sendable, Equatable {
     case pdf, xlsx
 
-    public init?(path: String) {
+    package init?(path: String) {
         self.init(rawValue: URL(fileURLWithPath: path).pathExtension.lowercased())
     }
 }
 
-public struct DocumentSpec: Sendable, Equatable {
-    public enum Tone: String, Sendable, Equatable { case info, success, warning, danger }
+package struct DocumentSpec: Sendable, Equatable {
+    package enum Tone: String, Sendable, Equatable { case info, success, warning, danger }
 
-    public enum Block: Sendable, Equatable {
+    package enum Block: Sendable, Equatable {
         case cover(title: String, subtitle: String?, date: String?)
         case heading(String, level: Int)
         case paragraph(String)
@@ -27,25 +27,25 @@ public struct DocumentSpec: Sendable, Equatable {
         case divider
     }
 
-    public static let maxBlocks = 200
-    public static let maxText = 20_000
-    public static let maxBullets = 100
+    package static let maxBlocks = 200
+    package static let maxText = 20_000
+    package static let maxBullets = 100
     /// 200 blocks of 20 000 characters is 4 MB of text; this is that plus
     /// room for the JSON around it. Parsing more would let one tool call
     /// hold a large slice of memory.
-    public static let maxDocumentBytes = 4 * 1024 * 1024
+    package static let maxDocumentBytes = 4 * 1024 * 1024
     /// Both languages: Core does not know the reader's, and a chart that
     /// vanished without a word is worse than one line in the wrong one.
-    public static let omittedChartNote = "Gráfica omitida: datos no válidos / Chart omitted: invalid data"
+    package static let omittedChartNote = "Gráfica omitida: datos no válidos / Chart omitted: invalid data"
 
-    public var title: String
-    public var subtitle: String?
-    public var blocks: [Block]
+    package var title: String
+    package var subtitle: String?
+    package var blocks: [Block]
     /// Only an explicit request turns "=..." table cells into live formulas
     /// in an .xlsx; otherwise they are literal text.
-    public var allowFormulas: Bool
+    package var allowFormulas: Bool
 
-    public init(title: String, subtitle: String? = nil, blocks: [Block], allowFormulas: Bool = false) {
+    package init(title: String, subtitle: String? = nil, blocks: [Block], allowFormulas: Bool = false) {
         self.title = title
         self.subtitle = subtitle
         self.blocks = blocks
@@ -53,13 +53,13 @@ public struct DocumentSpec: Sendable, Equatable {
     }
 
     /// Providers send a nested argument either as JSON text or as an object.
-    public static func parse(any value: Any?) -> DocumentSpec? {
+    package static func parse(any value: Any?) -> DocumentSpec? {
         if let text = value as? String { return parse(text) }
         if let dict = value as? [String: Any] { return parse(dict: dict) }
         return nil
     }
 
-    public static func parse(_ json: String) -> DocumentSpec? {
+    package static func parse(_ json: String) -> DocumentSpec? {
         json.utf8.count <= maxDocumentBytes
             ? CompanionBlocks.jsonObject(json).flatMap(parse(dict:)) : nil
     }
@@ -117,17 +117,17 @@ public struct DocumentSpec: Sendable, Equatable {
 
 /// What a finished document is, for the receipt: the model hears the path
 /// and the size; the file itself never enters its context.
-public struct DocumentReceipt: Sendable, Equatable {
-    public var pages: Int?
-    public var bytes: Int
+package struct DocumentReceipt: Sendable, Equatable {
+    package var pages: Int?
+    package var bytes: Int
 
-    public init(pages: Int?, bytes: Int) {
+    package init(pages: Int?, bytes: Int) {
         self.pages = pages
         self.bytes = bytes
     }
 }
 
-public enum DocumentError: Error, Sendable, Equatable {
+package enum DocumentError: Error, Sendable, Equatable {
     case unsupportedFormat
     case renderFailed
     case timedOut
@@ -135,6 +135,6 @@ public enum DocumentError: Error, Sendable, Equatable {
 
 /// Port for `create_document` (spec 20-2): the template and the printer live
 /// in Services; Core only says what to draw.
-public protocol DocumentRendering: Sendable {
+package protocol DocumentRendering: Sendable {
     func render(_ spec: DocumentSpec, format: DocumentFormat, to url: URL) async throws -> DocumentReceipt
 }

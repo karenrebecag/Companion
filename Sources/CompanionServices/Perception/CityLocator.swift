@@ -9,17 +9,17 @@ import Foundation
 // HACK: the city is cached for the life of the process. Upgrade trigger: a
 // user reports a stale city after travelling — re-resolve on a timer or on
 // a significant location change.
-public final class CachedCityLocator: UserLocating, @unchecked Sendable {
+package final class CachedCityLocator: UserLocating, @unchecked Sendable {
     private let inner: any UserLocating
     private let lock = NSLock()
     private var cached: UserLocation?
     private var inflight: [Bool: Task<UserLocation?, Never>] = [:]
 
-    public init(_ inner: any UserLocating) {
+    package init(_ inner: any UserLocating) {
         self.inner = inner
     }
 
-    public func current(prompting: Bool) async -> UserLocation? {
+    package func current(prompting: Bool) async -> UserLocation? {
         let task: Task<UserLocation?, Never> = lock.withLock {
             if let cached { return Task { cached } }
             if let running = inflight[prompting] { return running }

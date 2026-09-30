@@ -3,16 +3,16 @@ import Foundation
 /// Wave 18b. Who may use which tab, as Incredible's ownership.js decides it:
 /// a tab is used only by the caller that owns it, and an owner that went
 /// quiet loses it. Pure value; the clock is always passed in.
-public struct BrowserLease: Sendable, Equatable {
+package struct BrowserLease: Sendable, Equatable {
     /// Another caller may take a tab whose owner has not acted for this long.
-    public static let takeoverAfter: TimeInterval = 120
+    package static let takeoverAfter: TimeInterval = 120
     /// A tab nobody used for this long goes back to the user.
-    public static let idleRelease: TimeInterval = 600
+    package static let idleRelease: TimeInterval = 600
     /// A tab opened by a controlled page is the page owner's if it was born
     /// within this long after that owner last acted.
-    public static let spawnWindow: TimeInterval = 10
+    package static let spawnWindow: TimeInterval = 10
 
-    public enum Denial: Sendable, Equatable {
+    package enum Denial: Sendable, Equatable {
         case notControlled
         case busy
     }
@@ -26,18 +26,18 @@ public struct BrowserLease: Sendable, Equatable {
     private var entries: [Int: Entry] = [:]
     /// Counts acquisitions. A tab listing is stamped with it when asked for, so
     /// a reply that was true before a tab was acquired cannot drop that tab.
-    public private(set) var sequence = 0
+    package private(set) var sequence = 0
 
-    public init() {}
+    package init() {}
 
     /// The live owner: an entry idle past `idleRelease` counts as absent even
     /// before the sweep clears it, or a stale owner would skip the take sheet.
-    public func owner(of tab: Int, now: Date) -> String? { live(tab, now: now)?.owner }
+    package func owner(of tab: Int, now: Date) -> String? { live(tab, now: now)?.owner }
 
     /// Nil means the caller may proceed. `allowTake` is for `browser_take`
     /// only: it lets an unowned or long-idle tab be claimed, never one whose
     /// owner is still active.
-    public func authorize(tab: Int, caller: String, now: Date, allowTake: Bool) -> Denial? {
+    package func authorize(tab: Int, caller: String, now: Date, allowTake: Bool) -> Denial? {
         // WHY an expired entry counts as absent here: the sweep that clears it
         // runs on a timer, and a stale owner must not keep a tab in between.
         guard let entry = live(tab, now: now) else { return allowTake ? nil : .notControlled }
@@ -46,25 +46,25 @@ public struct BrowserLease: Sendable, Equatable {
         return allowTake && idle >= Self.takeoverAfter ? nil : .busy
     }
 
-    public mutating func acquire(tab: Int, caller: String, now: Date) {
+    package mutating func acquire(tab: Int, caller: String, now: Date) {
         sequence += 1
         entries[tab] = Entry(owner: caller, lastActed: now, sequence: sequence)
     }
 
     /// Only the owner's own act keeps the tab warm; a denied caller's does not.
-    public mutating func touch(tab: Int, caller: String, now: Date) {
+    package mutating func touch(tab: Int, caller: String, now: Date) {
         guard var entry = entries[tab], entry.owner == caller else { return }
         entry.lastActed = now
         entries[tab] = entry
     }
 
-    public mutating func release(tab: Int) { entries[tab] = nil }
+    package mutating func release(tab: Int) { entries[tab] = nil }
 
-    public mutating func releaseAll() { entries.removeAll() }
+    package mutating func releaseAll() { entries.removeAll() }
 
     /// Drops what one caller holds and returns the tabs so the extension can
     /// be told; used when a bridge session ends and the next is a stranger.
-    public mutating func releaseAll(owner: String) -> [Int] {
+    package mutating func releaseAll(owner: String) -> [Int] {
         let held = entries.filter { $0.value.owner == owner }.keys.sorted()
         for tab in held { entries[tab] = nil }
         return held
@@ -74,13 +74,13 @@ public struct BrowserLease: Sendable, Equatable {
     /// reused by nothing, but the entry would keep a caller's claim alive.
     /// `asOf` is `sequence` when the listing was requested: a tab acquired
     /// after that is one the listing could not know, so it stays.
-    public mutating func prune(keeping present: Set<Int>, asOf: Int) {
+    package mutating func prune(keeping present: Set<Int>, asOf: Int) {
         entries = entries.filter { present.contains($0.key) || $0.value.sequence > asOf }
     }
 
     /// Drops every tab idle for `idleRelease` and returns them so the caller
     /// can tell the extension to give them back.
-    public mutating func expire(now: Date) -> [Int] {
+    package mutating func expire(now: Date) -> [Int] {
         let stale = entries.filter { now.timeIntervalSince($0.value.lastActed) >= Self.idleRelease }.keys.sorted()
         for tab in stale { entries[tab] = nil }
         return stale
@@ -90,7 +90,7 @@ public struct BrowserLease: Sendable, Equatable {
     /// for a browser-internal or new-tab page: those are the user's. Never for
     /// another origin either: a controlled page can `window.open` any site, and
     /// adopting it would hand the agent that site's session without consent.
-    public func spawnOwner(of tab: BrowserTab, openerURL: String, now: Date) -> String? {
+    package func spawnOwner(of tab: BrowserTab, openerURL: String, now: Date) -> String? {
         guard entries[tab.id] == nil, let opener = tab.opener, let created = tab.createdAt,
               let parent = live(opener, now: now), !Self.isInternal(tab.url),
               !openerURL.isEmpty, BrowserPolicy.sameOrigin(tab.url, openerURL)

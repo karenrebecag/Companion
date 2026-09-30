@@ -11,72 +11,72 @@ import ImageIO
 /// A file the island tried to stage and could not (too large, unreadable).
 /// It stays as a card in error until taken back or sent past, because the
 /// window's toast is not on screen when the island did the attaching.
-public struct IslandAttachFailure: Sendable, Equatable, Identifiable {
-    public let id: UUID
-    public let name: String
+package struct IslandAttachFailure: Sendable, Equatable, Identifiable {
+    package let id: UUID
+    package let name: String
 
     /// Named the way a staged file is: no path, no direction controls.
-    public init(name: String, id: UUID = UUID()) {
+    package init(name: String, id: UUID = UUID()) {
         self.id = id
         self.name = AttachmentPolicy.sanitizedFileName(name)
     }
 
-    public static func removing(_ id: UUID, from failures: [IslandAttachFailure]) -> [IslandAttachFailure] {
+    package static func removing(_ id: UUID, from failures: [IslandAttachFailure]) -> [IslandAttachFailure] {
         failures.filter { $0.id != id }
     }
 }
 
 /// One card in the chip row.
-public enum IslandAttachCardItem: Sendable, Equatable, Identifiable {
+package enum IslandAttachCardItem: Sendable, Equatable, Identifiable {
     case staged(AttachmentRef)
     case failed(IslandAttachFailure)
 
-    public var id: UUID {
+    package var id: UUID {
         switch self {
         case .staged(let ref): ref.id
         case .failed(let failure): failure.id
         }
     }
 
-    public var name: String {
+    package var name: String {
         switch self {
         case .staged(let ref): ref.name
         case .failed(let failure): failure.name
         }
     }
 
-    public var isError: Bool {
+    package var isError: Bool {
         if case .failed = self { return true }
         return false
     }
 }
 
 /// The captures folded into one tile: the newest on top.
-public struct IslandCaptureStackModel: Sendable, Equatable {
-    public let top: AttachmentRef
-    public let count: Int
+package struct IslandCaptureStackModel: Sendable, Equatable {
+    package let top: AttachmentRef
+    package let count: Int
 
     /// Incredible counts only when there is more than the one on view.
-    public var badge: String? { count > 1 ? String(count) : nil }
+    package var badge: String? { count > 1 ? String(count) : nil }
 
     /// The cards peeking out under the top one.
-    public var layers: Int { min(count - 1, IslandAttachMetrics.stackLayers) }
+    package var layers: Int { min(count - 1, IslandAttachMetrics.stackLayers) }
 
     /// The tile plus the room its peeking layers take to the side.
-    public var width: CGFloat {
+    package var width: CGFloat {
         IslandAttachMetrics.stackWidth + CGFloat(layers) * IslandAttachMetrics.stackOffset
     }
 }
 
-public struct IslandAttachTrayModel: Sendable, Equatable {
-    public let stack: IslandCaptureStackModel?
+package struct IslandAttachTrayModel: Sendable, Equatable {
+    package let stack: IslandCaptureStackModel?
     /// The captures laid out one by one once the stack is opened.
-    public let strip: [AttachmentRef]
-    public let cards: [IslandAttachCardItem]
+    package let strip: [AttachmentRef]
+    package let cards: [IslandAttachCardItem]
 
-    public var isEmpty: Bool { stack == nil && strip.isEmpty && cards.isEmpty }
+    package var isEmpty: Bool { stack == nil && strip.isEmpty && cards.isEmpty }
 
-    public static func project(
+    package static func project(
         staged: [AttachmentRef], failed: [IslandAttachFailure], expanded: Bool
     ) -> IslandAttachTrayModel {
         let captures = staged.filter { RegionCapture.isCapture(name: $0.name) }.reversed().map { $0 }
@@ -89,7 +89,7 @@ public struct IslandAttachTrayModel: Sendable, Equatable {
 
     /// The chip row's natural width: the stack, the cards, the gaps between
     /// them and the measured trailing padding.
-    public var rowWidth: CGFloat {
+    package var rowWidth: CGFloat {
         let widths = (stack.map { [$0.width] } ?? [])
             + cards.map { _ in IslandAttachMetrics.cardWidth }
         guard !widths.isEmpty else { return 0 }
@@ -99,14 +99,14 @@ public struct IslandAttachTrayModel: Sendable, Equatable {
 
     /// Only a row that runs past the island fades at its end; a short one
     /// would lose its last card's edge for nothing.
-    public func overflows(available: CGFloat) -> Bool {
+    package func overflows(available: CGFloat) -> Bool {
         rowWidth > available
     }
 }
 
-public enum IslandAttachLabel {
+package enum IslandAttachLabel {
     /// The extension badge: the file's type in capitals, or none at all.
-    public static func ext(_ name: String) -> String? {
+    package static func ext(_ name: String) -> String? {
         let ext = URL(fileURLWithPath: name).pathExtension
         return ext.isEmpty ? nil : ext.uppercased()
     }
@@ -116,8 +116,8 @@ public enum IslandAttachLabel {
 /// copy, downsampled to what the card draws: never a network read, never a
 /// Quick Look plug-in parsing an arbitrary file, never a full decode of a
 /// photo just to show 84 points of it.
-public enum IslandAttachThumbnail {
-    nonisolated public static func make(
+package enum IslandAttachThumbnail {
+    nonisolated package static func make(
         path: String, maxPixel: CGFloat, maxSourcePixels: CGFloat = IslandAttachMetrics.maxSourcePixels
     ) -> CGImage? {
         guard path.hasPrefix("/") else { return nil }
@@ -149,8 +149,8 @@ public enum IslandAttachThumbnail {
 /// One decode per attachment. SwiftUI rebuilds a card whenever the tray
 /// changes; without this every rebuild decoded its picture again (review
 /// 16m-3). A failed decode is remembered too, or it would be retried as often.
-nonisolated public final class IslandThumbnailCache: @unchecked Sendable {
-    public static let shared = IslandThumbnailCache(decode: { path, pixels in
+nonisolated package final class IslandThumbnailCache: @unchecked Sendable {
+    package static let shared = IslandThumbnailCache(decode: { path, pixels in
         IslandAttachThumbnail.make(path: path, maxPixel: pixels)
     })
 
@@ -163,12 +163,12 @@ nonisolated public final class IslandThumbnailCache: @unchecked Sendable {
     private let cache = NSCache<NSUUID, Entry>()
     private let decode: @Sendable (String, CGFloat) -> CGImage?
 
-    public init(decode: @escaping @Sendable (String, CGFloat) -> CGImage?) {
+    package init(decode: @escaping @Sendable (String, CGFloat) -> CGImage?) {
         self.decode = decode
         cache.countLimit = IslandAttachMetrics.thumbnailCacheLimit
     }
 
-    public func image(id: UUID, path: String) -> CGImage? {
+    package func image(id: UUID, path: String) -> CGImage? {
         if let hit = cache.object(forKey: id as NSUUID) { return hit.image }
         let image = decode(path, IslandAttachMetrics.thumbnailPixels)
         cache.setObject(Entry(image), forKey: id as NSUUID)
@@ -178,10 +178,10 @@ nonisolated public final class IslandThumbnailCache: @unchecked Sendable {
 
 /// What a picture tile shows: nothing while it loads, the picture, or the
 /// file's icon when it could not be read — never an empty hole.
-public enum IslandPictureState: Equatable {
+package enum IslandPictureState: Equatable {
     case loading, picture, fallback
 
-    public static func of(image: CGImage?, loaded: Bool) -> IslandPictureState {
+    package static func of(image: CGImage?, loaded: Bool) -> IslandPictureState {
         if image != nil { return .picture }
         return loaded ? .fallback : .loading
     }

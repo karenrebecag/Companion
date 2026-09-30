@@ -1,7 +1,7 @@
 import Foundation
 
-public enum SSECodec: Sendable {
-    public static func delta(fromSSE line: String) -> String? {
+package enum SSECodec: Sendable {
+    package static func delta(fromSSE line: String) -> String? {
         guard let payload = ssePayload(line),
               let obj = jsonObject(from: payload),
               let choices = obj["choices"] as? [[String: Any]],
@@ -15,7 +15,7 @@ public enum SSECodec: Sendable {
     /// OpenAI marks required. A fragment without it cannot be stitched and
     /// is dropped. Two calls in one reply arrive interleaved (0, 1, 0, 1):
     /// reading `first` fused them into `"read_filewrite_file"` (10c-A).
-    public static func toolDeltas(fromSSE line: String) -> [RawToolCallDelta] {
+    package static func toolDeltas(fromSSE line: String) -> [RawToolCallDelta] {
         guard let payload = ssePayload(line),
               let obj = jsonObject(from: payload),
               let choices = obj["choices"] as? [[String: Any]],
@@ -33,7 +33,7 @@ public enum SSECodec: Sendable {
         }
     }
 
-    public static func handoff(name: String, arguments: String) -> Handoff? {
+    package static func handoff(name: String, arguments: String) -> Handoff? {
         Handoff.parse(toolName: name, arguments: arguments)
     }
 }
@@ -41,13 +41,13 @@ public enum SSECodec: Sendable {
 /// spec 07 `RawToolCallDelta { index; id?; function?.arguments? }`. `name`
 /// is not in the corpus dump; OpenAI sends it in the first fragment and
 /// nothing works without it, so it is added.
-public struct RawToolCallDelta: Sendable, Equatable {
-    public var index: Int
-    public var id: String?
-    public var name: String?
-    public var arguments: String?
+package struct RawToolCallDelta: Sendable, Equatable {
+    package var index: Int
+    package var id: String?
+    package var name: String?
+    package var arguments: String?
 
-    public init(index: Int, id: String? = nil, name: String? = nil, arguments: String? = nil) {
+    package init(index: Int, id: String? = nil, name: String? = nil, arguments: String? = nil) {
         self.index = index
         self.id = id
         self.name = name
@@ -58,7 +58,7 @@ public struct RawToolCallDelta: Sendable, Equatable {
 /// `tool_call_ids.rs` (spec 24 §5): stitch fragments by index into whole
 /// calls. The provider's id is kept; one is invented only when none came
 /// (Ollama and some compatibles), and it stays the same for the round.
-public struct ToolCallBuilder: Sendable, Equatable {
+package struct ToolCallBuilder: Sendable, Equatable {
     private struct Partial: Sendable, Equatable {
         var id: String?
         var invented: String
@@ -68,16 +68,16 @@ public struct ToolCallBuilder: Sendable, Equatable {
 
     private var partials: [Int: Partial] = [:]
 
-    public init() {}
+    package init() {}
 
     /// Some fragment carried a name or arguments. An empty name with empty
     /// arguments (a provider clearing the field) does not count.
-    public var started: Bool {
+    package var started: Bool {
         partials.values.contains { !$0.name.isEmpty || !$0.arguments.isEmpty }
     }
 
     /// In index order, with the id the model must get back on the result.
-    public var calls: [ToolCallRef] {
+    package var calls: [ToolCallRef] {
         partials.keys.sorted().compactMap { index in
             guard let partial = partials[index],
                   !partial.name.isEmpty || !partial.arguments.isEmpty
@@ -88,7 +88,7 @@ public struct ToolCallBuilder: Sendable, Equatable {
         }
     }
 
-    public mutating func feed(fromSSE line: String) {
+    package mutating func feed(fromSSE line: String) {
         for fragment in SSECodec.toolDeltas(fromSSE: line) {
             var partial = partials[fragment.index]
                 ?? Partial(invented: "call_\(fragment.index)_\(UUID().uuidString.prefix(8))")

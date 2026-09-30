@@ -1,14 +1,14 @@
 import CompanionCore
 import SwiftUI
 
-public struct MarkdownView: View {
-    public let text: String
+package struct MarkdownView: View {
+    package let text: String
 
-    public init(text: String) {
+    package init(text: String) {
         self.text = text
     }
 
-    public var body: some View {
+    package var body: some View {
         // Sources leave the prose and become links: extractSources returns the
         // remaining parts precisely so the section is not rendered twice.
         let split = MarkdownSplitter.extractSources(MarkdownSplitter.split(text))

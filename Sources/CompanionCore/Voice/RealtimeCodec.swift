@@ -1,6 +1,6 @@
 import Foundation
 
-public enum RealtimeEvent: Sendable, Equatable {
+package enum RealtimeEvent: Sendable, Equatable {
     case sessionCreated, sessionUpdated
     case speechStarted, speechStopped
     case userTranscript(String)
@@ -20,16 +20,16 @@ public enum RealtimeEvent: Sendable, Equatable {
     case ignored
 }
 
-public enum RealtimeCodec: Sendable {
-    public static let model = "gpt-realtime"
-    public static let seedTurns = 6
-    public static let seedChars = 200
+package enum RealtimeCodec: Sendable {
+    package static let model = "gpt-realtime"
+    package static let seedTurns = 6
+    package static let seedChars = 200
 
-    public static func url(model: String = model) -> URL? {
+    package static func url(model: String = model) -> URL? {
         URL(string: "wss://api.openai.com/v1/realtime?model=\(model)")
     }
 
-    public static func parse(_ text: String) -> RealtimeEvent {
+    package static func parse(_ text: String) -> RealtimeEvent {
         guard let obj = jsonObject(from: text),
               let type = obj["type"] as? String
         else { return .ignored }
@@ -81,7 +81,7 @@ public enum RealtimeCodec: Sendable {
         }
     }
 
-    public static func sessionUpdate(
+    package static func sessionUpdate(
         instructions: String,
         tools: [ToolSpec],
         voice: VoiceID?,
@@ -127,7 +127,7 @@ public enum RealtimeCodec: Sendable {
         return encodeJSON(["type": "session.update", "session": session])
     }
 
-    public static func seed(from history: [Turn], turns: Int = seedTurns) -> String? {
+    package static func seed(from history: [Turn], turns: Int = seedTurns) -> String? {
         guard !history.isEmpty else { return nil }
         return history.suffix(turns).map { turn in
             let who = turn.role == .user ? "Usuario" : "Companion"
@@ -135,7 +135,7 @@ public enum RealtimeCodec: Sendable {
         }.joined(separator: "\n")
     }
 
-    public static func systemItem(_ text: String) -> String {
+    package static func systemItem(_ text: String) -> String {
         encodeJSON([
             "type": "conversation.item.create",
             "item": [
@@ -148,7 +148,7 @@ public enum RealtimeCodec: Sendable {
 
     /// The user's turn as TEXT — the native (Apple) transcript — so the model
     /// reasons over what was actually said, not what it guessed from the audio.
-    public static func userTextItem(_ text: String) -> String {
+    package static func userTextItem(_ text: String) -> String {
         encodeJSON([
             "type": "conversation.item.create",
             "item": [
@@ -163,7 +163,7 @@ public enum RealtimeCodec: Sendable {
     /// to enter as its own conversation item. Wired in 6c-3.
     /// Speed is the one output knob the server accepts mid-session (the voice
     /// is locked after the first audio frame): a minimal update touches only it.
-    public static func speedUpdate(_ speed: Double) -> String {
+    package static func speedUpdate(_ speed: Double) -> String {
         let payload: [String: Any] = [
             "type": "session.update",
             "session": [
@@ -174,7 +174,7 @@ public enum RealtimeCodec: Sendable {
         return encodeJSON(payload)
     }
 
-    public static func imageItem(dataURL: String, caption: String) -> String {
+    package static func imageItem(dataURL: String, caption: String) -> String {
         encodeJSON([
             "type": "conversation.item.create",
             "item": [
@@ -188,43 +188,43 @@ public enum RealtimeCodec: Sendable {
         ])
     }
 
-    public static func approvalToolJSON(
+    package static func approvalToolJSON(
         _ language: AppLanguage = .en
     ) -> String {
         ToolSpec.resolveApproval(language).encodeRealtime()
     }
 
     /// Only a JSON boolean counts — a spoken "sí" must not grant a permission.
-    public static func approvalDecision(fromArguments args: String) -> Bool? {
+    package static func approvalDecision(fromArguments args: String) -> Bool? {
         guard let obj = jsonObject(from: args) else { return nil }
         return jsonBool(obj["approved"])
     }
 
-    public static func appendAudio(_ pcm16le24k: Data) -> String {
+    package static func appendAudio(_ pcm16le24k: Data) -> String {
         encodeJSON([
             "type": "input_audio_buffer.append",
             "audio": pcm16le24k.base64EncodedString(),
         ])
     }
 
-    public static func commitAudio() -> String {
+    package static func commitAudio() -> String {
         encodeJSON(["type": "input_audio_buffer.commit"])
     }
 
-    public static func clearAudio() -> String {
+    package static func clearAudio() -> String {
         encodeJSON(["type": "input_audio_buffer.clear"])
     }
 
-    public static func responseCreate() -> String {
+    package static func responseCreate() -> String {
         encodeJSON(["type": "response.create"])
     }
 
-    public static func responseCancel() -> String {
+    package static func responseCancel() -> String {
         encodeJSON(["type": "response.cancel"])
     }
 
     /// The user's decision on a remote MCP tool call (9j-3).
-    public static func mcpApprovalResponse(
+    package static func mcpApprovalResponse(
         requestId: String, approve: Bool
     ) -> String {
         encodeJSON([
@@ -237,7 +237,7 @@ public enum RealtimeCodec: Sendable {
         ])
     }
 
-    public static func functionOutput(callId: String, output: String) -> String {
+    package static func functionOutput(callId: String, output: String) -> String {
         encodeJSON([
             "type": "conversation.item.create",
             "item": [
@@ -251,7 +251,7 @@ public enum RealtimeCodec: Sendable {
 
 extension RealtimeEvent {
     /// Short label for the turn trace; never includes transcripts or audio.
-    public var traceName: String {
+    package var traceName: String {
         switch self {
         case .sessionCreated: "session.created"
         case .sessionUpdated: "session.updated"

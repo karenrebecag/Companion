@@ -4,18 +4,18 @@ import Foundation
 /// server connects to it and EXECUTES its tools server-side — the client only
 /// declares the server and answers approvals. Remote HTTP only; local stdio
 /// servers are not reachable from OpenAI's side.
-public struct MCPServerConfig: Sendable, Equatable, Codable {
-    public var label: String
-    public var url: String
-    public var allowedTools: [String]?
+package struct MCPServerConfig: Sendable, Equatable, Codable {
+    package var label: String
+    package var url: String
+    package var allowedTools: [String]?
     /// Bearer token for servers that need one. At rest it lives in the
     /// Keychain bound to the server's host (20c D6); mcp.json only carries
     /// one a person just typed in, until the next load moves it.
-    public var authorization: String?
+    package var authorization: String?
 
     /// An old file's `requireApproval` key is ignored on load and never
     /// written back: every call asks, the file cannot relax it (20c D2).
-    public init(label: String, url: String, allowedTools: [String]? = nil,
+    package init(label: String, url: String, allowedTools: [String]? = nil,
                 authorization: String? = nil) {
         self.label = label
         self.url = url
@@ -24,7 +24,7 @@ public struct MCPServerConfig: Sendable, Equatable, Codable {
     }
 
     /// Tolerant decode: a malformed file yields no servers, never a crash.
-    public static func load(fromJSON data: Data) -> [MCPServerConfig] {
+    package static func load(fromJSON data: Data) -> [MCPServerConfig] {
         do {
             return try JSONDecoder().decode([MCPServerConfig].self, from: data)
         } catch {
@@ -32,7 +32,7 @@ public struct MCPServerConfig: Sendable, Equatable, Codable {
         }
     }
 
-    public func realtimeObject() -> [String: Any] {
+    package func realtimeObject() -> [String: Any] {
         var obj: [String: Any] = [
             "type": "mcp",
             "server_label": label,
@@ -52,7 +52,7 @@ extension MCPServerConfig {
     /// is a card on screen with Allow and Deny: the model says so in one
     /// short sentence and keeps the detail off its voice. It never approves:
     /// a spoken yes does not, only the click does; a spoken no may refuse.
-    public static func approvalPrompt(
+    package static func approvalPrompt(
         server: String, tool: String, _ language: AppLanguage
     ) -> String {
         switch language {

@@ -36,7 +36,7 @@ extension ParentToolRunner {
     // HACK: the read and the write are two Apple Events, so a cell typed in
     // that gap is overwritten (the saved-workbook backup is the net). Upgrade
     // trigger: an "only if empty" flag on `SpreadsheetDriving.write`.
-    public func actsWithoutSheet(_ call: ToolCallRef) async -> Bool {
+    package func actsWithoutSheet(_ call: ToolCallRef) async -> Bool {
         guard let arguments = ToolArguments.parse(call.arguments) else { return false }
         switch call.name {
         case NativeTool.createDocument.rawValue:
@@ -58,7 +58,7 @@ extension ParentToolRunner {
 
     /// The sheet for a write names the workbook the runner sees in front, and
     /// the ticket is re-parked bound to it: a yes covers that workbook only.
-    public func bound(_ request: ApprovalRequest) async -> ApprovalRequest {
+    package func bound(_ request: ApprovalRequest) async -> ApprovalRequest {
         guard request.toolName == NativeTool.sheetWrite.rawValue else { return request }
         guard let sheets, let app = Self.sheetApp(request.inputJSON) else {
             var unbound = request

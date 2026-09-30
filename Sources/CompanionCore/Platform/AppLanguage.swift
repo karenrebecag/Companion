@@ -4,14 +4,14 @@ import Foundation
 /// string is written in it first and Spanish follows as a translation, so
 /// anything the app cannot speak falls back to English rather than to a
 /// half-translated screen.
-public enum AppLanguage: String, Sendable, CaseIterable, Codable {
+package enum AppLanguage: String, Sendable, CaseIterable, Codable {
     case en
     case es
 
     /// The locale the system speech recogniser listens in. Regional on
     /// purpose: with a bare language code SFSpeechRecognizer loses the
     /// on-device model it has for the regional variant.
-    public var speechLocaleIdentifier: String {
+    package var speechLocaleIdentifier: String {
         switch self {
         case .en: "en-US"
         case .es: "es-MX"
@@ -22,7 +22,7 @@ public enum AppLanguage: String, Sendable, CaseIterable, Codable {
     /// speaks, in the order the system prefers them. Pure on purpose: the
     /// identifiers come from the composition root, because nothing in Core
     /// reads the environment (see Config).
-    public static func resolved(
+    package static func resolved(
         preferred: AppLanguage? = nil, system: [String]
     ) -> AppLanguage {
         if let preferred { return preferred }

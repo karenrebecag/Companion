@@ -7,7 +7,7 @@ import SwiftUI
 /// until the app closes — five files, one question.
 /// 19-1b: compact on Karen's live feedback — one title line, the auto-deny
 /// as a counting ring instead of a sentence, glyphs on the answers.
-public struct ApprovalSheet: View {
+package struct ApprovalSheet: View {
     private let request: ApprovalRequest
     private let answer: (Bool, Bool) -> Void
     @State private var remember = false
@@ -15,7 +15,7 @@ public struct ApprovalSheet: View {
     /// deadline the `Approvals` actor denies on (`ApprovalTiming`).
     @State private var shownAt = Date()
 
-    public init(request: ApprovalRequest, answer: @escaping (Bool, Bool) -> Void) {
+    package init(request: ApprovalRequest, answer: @escaping (Bool, Bool) -> Void) {
         self.request = request
         self.answer = answer
     }
@@ -24,7 +24,7 @@ public struct ApprovalSheet: View {
         ApprovalCopy.display(for: request, language: Localized.language())
     }
 
-    public var body: some View {
+    package var body: some View {
         let display = self.display
         VStack(alignment: .leading, spacing: Space.x3) {
             HStack(alignment: .center, spacing: Space.x3) {

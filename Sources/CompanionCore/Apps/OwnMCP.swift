@@ -3,7 +3,7 @@ import Foundation
 /// What a read of mcp.json found. Three states on purpose: a broken file
 /// must be distinguishable from an absent one, or the next save silently
 /// replaces a hand-edited file — tokens included (H1, review 16k-4).
-public enum MCPFileRead: Sendable, Equatable {
+package enum MCPFileRead: Sendable, Equatable {
     case absent
     case servers([MCPServerConfig])
     case unreadable
@@ -13,8 +13,8 @@ public enum MCPFileRead: Sendable, Equatable {
 /// Apps page instead of by hand in mcp.json. The edits are pure list
 /// operations; reading and writing the file stays in Services
 /// (MCPConfigFile), so the rules are testable without a disk.
-public enum OwnMCPEdit {
-    public enum EditError: Error, Equatable {
+package enum OwnMCPEdit {
+    package enum EditError: Error, Equatable {
         case emptyName, invalidName, duplicateName, invalidURL
     }
 
@@ -26,7 +26,7 @@ public enum OwnMCPEdit {
     /// the config can carry a bearer token, OpenAI reaches the server from
     /// outside this Mac, and userinfo in the URL would travel in clear
     /// without ever showing in the UI (review 16k-4 M3).
-    public static func add(
+    package static func add(
         _ servers: [MCPServerConfig], label: String, url raw: String
     ) -> Result<[MCPServerConfig], EditError> {
         let name = label.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -51,14 +51,14 @@ public enum OwnMCPEdit {
     }
 
     /// Removes by label; an unknown label removes nothing.
-    public static func remove(_ servers: [MCPServerConfig], label: String) -> [MCPServerConfig] {
+    package static func remove(_ servers: [MCPServerConfig], label: String) -> [MCPServerConfig] {
         servers.filter { $0.label != label }
     }
 
     /// What the row shows next to the name: the server's host, or the raw
     /// string when it does not parse — the error is the display, never a
     /// prettier guess.
-    public static func host(of server: MCPServerConfig) -> String {
+    package static func host(of server: MCPServerConfig) -> String {
         URL(string: server.url)?.host ?? server.url
     }
 }

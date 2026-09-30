@@ -3,7 +3,7 @@ import Foundation
 
 /// N2's port, narrowed to what the gate needs. `ArbiterClient`'s own type is
 /// unchanged; this is the seam a fake substitutes in tests.
-public protocol Arbitrating: Sendable {
+package protocol Arbitrating: Sendable {
     func arbitrate(
         utterance: String, shortlist: ArbitrationShortlist
     ) async -> (entry: ShortlistEntry, confidence: Double)?
@@ -16,7 +16,7 @@ extension ArbiterClient: Arbitrating {}
 /// trash`, `quit_app`, `send_message`/`enter`, a submitted `type_text`. Nil
 /// today — every one of those dispositions passes through to the model's own
 /// path unchanged, exactly as wave-dm1-router.md §8 requires for DM1c-1.
-public protocol SystemActing: Sendable {
+package protocol SystemActing: Sendable {
     func supports(_ plan: Plan) -> Bool
     func act(_ plan: Plan) async -> Bool
 }
@@ -24,16 +24,16 @@ public protocol SystemActing: Sendable {
 /// A `.confirm(plan)` step, held open until the next hold turn answers it.
 /// `attemptId` is the `MutationLedger` scope: every "sí" heard for THIS
 /// question is one attempt, however many times it is repeated.
-public struct PendingConfirmation: Sendable, Equatable {
-    public var plan: Plan
-    public var attemptId: String
-    public var createdAt: Date
+package struct PendingConfirmation: Sendable, Equatable {
+    package var plan: Plan
+    package var attemptId: String
+    package var createdAt: Date
 }
 
 /// What `DecisionGate.run` produced. `declined` and the pending side of
 /// `confirm` are DM1c-4 (`ApprovalMemory`-style session state); this delivery
 /// only asks the question and hands back its text.
-public enum DecisionOutcome: Sendable, Equatable {
+package enum DecisionOutcome: Sendable, Equatable {
     case passThrough(DecisionPassReason)
     case acted(ParentToolOutcome, ToolCallRef)
     case confirm(String)
@@ -45,7 +45,7 @@ public enum DecisionOutcome: Sendable, Equatable {
 /// decides, `run` acts through the SAME runner the model would have used, so
 /// `ParentToolPolicy` and the `open_url` said-it gate never see a shortcut.
 /// DM1c-1 only: nothing here is called from `VoiceSession` yet.
-public actor DecisionGate {
+package actor DecisionGate {
     private let provider: any DecisionProvider
     private let arbiter: any Arbitrating
     private let tools: any ParentToolExecuting
@@ -68,7 +68,7 @@ public actor DecisionGate {
     private var confirmedOutcome: DecisionOutcome?
     private static let confirmationTTL: TimeInterval = 60
 
-    public init(
+    package init(
         provider: any DecisionProvider,
         arbiter: any Arbitrating,
         tools: any ParentToolExecuting,
@@ -90,7 +90,7 @@ public actor DecisionGate {
     /// against `budget`; a slower provider never blocks the turn — it just
     /// loses the race and today's path takes over. No side effects: nothing
     /// is executed here.
-    public func plan(_ utterance: String, canDelegate: Bool) async -> DecisionStep {
+    package func plan(_ utterance: String, canDelegate: Bool) async -> DecisionStep {
         let world = worldProvider()
         let supports = systemSupports
         let provider = self.provider
@@ -109,7 +109,7 @@ public actor DecisionGate {
     /// anything opens. A forged closed-set id or `type_text` span is refused
     /// at the door (`DecisionRoute.validClosedSet`), same as a forged path is
     /// refused by `ParentToolPolicy`.
-    public func run(
+    package func run(
         _ step: DecisionStep, utterance: String, language: AppLanguage
     ) async -> DecisionOutcome {
         log(step)
@@ -145,7 +145,7 @@ public actor DecisionGate {
     /// words heard were not a yes/no to it — and the caller routes
     /// `utterance` through `plan`/`run` exactly as any other turn, the same
     /// one that was just heard.
-    public func answerConfirmation(_ utterance: String) async -> DecisionOutcome? {
+    package func answerConfirmation(_ utterance: String) async -> DecisionOutcome? {
         guard let confirmation = pending else { return nil }
         guard now().timeIntervalSince(confirmation.createdAt) < Self.confirmationTTL else {
             Log.chat("decision: confirmation expired")

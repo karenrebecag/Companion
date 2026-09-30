@@ -4,8 +4,8 @@ import Foundation
 /// Serial job runner: one specialist works at a time, each with a time budget
 /// and a way to be cancelled. The budget races the work itself, so a job that
 /// hangs without emitting a single event still dies on schedule.
-public actor JobQueue {
-    public enum QueueError: Error, Sendable, Equatable {
+package actor JobQueue {
+    package enum QueueError: Error, Sendable, Equatable {
         case budgetExhausted
         case cancelled
         /// 16h-2 (L2): the user's own brake, told apart from a teardown or
@@ -44,18 +44,18 @@ public actor JobQueue {
         afterHandover = hook
     }
 
-    public init(budget: TimeInterval = 15 * 60) {
+    package init(budget: TimeInterval = 15 * 60) {
         self.budget = budget
     }
 
-    public var isBusy: Bool { busy }
-    public var runningJobID: String? { currentJobID }
+    package var isBusy: Bool { busy }
+    package var runningJobID: String? { currentJobID }
     /// Jobs waiting their turn behind the running one.
-    public var waitingCount: Int { waiters.count }
+    package var waitingCount: Int { waiters.count }
 
     /// Awaits its turn, runs the executor under the budget, then lets the next
     /// job through. Events flow straight to the caller's continuation.
-    public func submit(
+    package func submit(
         _ job: JobRequest,
         to executor: any Executor,
         events: AsyncStream<JobEvent>.Continuation
@@ -95,7 +95,7 @@ public actor JobQueue {
     /// 16q-1: one job's own stop. The one in flight is cancelled and its end
     /// is the user's; one still in line leaves without ever running; the
     /// rest of the line keeps its place and the total brake is untouched.
-    public func cancel(job id: String) {
+    package func cancel(job id: String) {
         stoppedIDs.append(id)
         if stoppedIDs.count > Self.stoppedCap { stoppedIDs.removeFirst(stoppedIDs.count - Self.stoppedCap) }
         if currentJobID == id {
@@ -107,14 +107,14 @@ public actor JobQueue {
     }
 
     /// Cancels the job in flight; queued callers keep their place in line.
-    public func cancelCurrent() {
+    package func cancelCurrent() {
         currentWork?.cancel()
     }
 
     /// The user's stop (16h-2 B1): the job in flight AND every job still in
     /// line. A waiter learns it was stopped and never runs, so nothing it
     /// would have done — steps, approvals — ever starts.
-    public func cancelAll() {
+    package func cancelAll() {
         stopEpoch += 1
         let line = waiters
         waiters = []

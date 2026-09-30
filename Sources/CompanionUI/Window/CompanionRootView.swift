@@ -14,7 +14,7 @@ enum RootScreen: CaseIterable, Equatable {
     }
 }
 
-public struct CompanionRootView: View {
+package struct CompanionRootView: View {
     var chat: ChatViewModel
     var voice: VoiceViewModel
     private let voicePreview: VoicePreview?
@@ -34,7 +34,7 @@ public struct CompanionRootView: View {
     @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(
+    package init(
         chat: ChatViewModel,
         voice: VoiceViewModel,
         voicePreview: VoicePreview? = nil,
@@ -64,7 +64,7 @@ public struct CompanionRootView: View {
     /// The island's region capture, reused by the feedback modal (16m-7).
     private let grabber: (any RegionGrabbing)?
 
-    public var body: some View {
+    package var body: some View {
         Group {
             if RootScreen.pick(welcomeDone: welcome.done, needsKey: chat.needsOnboarding) == .welcome {
                 WelcomeView(welcome: welcome, chat: chat)

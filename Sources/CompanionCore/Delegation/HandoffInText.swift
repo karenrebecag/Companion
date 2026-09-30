@@ -12,19 +12,19 @@ import Foundation
 /// `maxObjectChars`). Any other `{` is prose ("llaves { }"), so a brace in a
 /// sentence is still said. A `{` right after an uncommitted `{` takes over
 /// as the candidate start, so a doubled brace never lets the object through.
-public struct HandoffInText: Sendable, Equatable {
+package struct HandoffInText: Sendable, Equatable {
     /// Past this, an open candidate is not a tool call the model meant to
     /// write; it stops being stored (memory stays bounded) but keeps being
     /// counted and swallowed until it closes.
-    public static let maxObjectChars = 2000
+    package static let maxObjectChars = 2000
 
-    public struct Step: Sendable, Equatable {
-        public var speakable = ""
-        public var handoff: Handoff?
-        public var handoffChars = 0
-        public var droppedChars = 0
+    package struct Step: Sendable, Equatable {
+        package var speakable = ""
+        package var handoff: Handoff?
+        package var handoffChars = 0
+        package var droppedChars = 0
 
-        public init() {}
+        package init() {}
     }
 
     private var held = ""
@@ -35,9 +35,9 @@ public struct HandoffInText: Sendable, Equatable {
     private var escaped = false
     private var overflow = false
 
-    public init() {}
+    package init() {}
 
-    public mutating func feed(_ piece: String) -> Step {
+    package mutating func feed(_ piece: String) -> Step {
         var step = Step()
         for char in piece {
             if depth == 0 {
@@ -70,7 +70,7 @@ public struct HandoffInText: Sendable, Equatable {
 
     /// End of the stream: a candidate still open was cut off and is dropped;
     /// a lone brace with only blanks after it was prose.
-    public mutating func finish() -> Step {
+    package mutating func finish() -> Step {
         var step = Step()
         guard depth > 0 else { return step }
         if committed {

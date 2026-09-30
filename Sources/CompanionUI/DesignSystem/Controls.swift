@@ -2,11 +2,11 @@ import SwiftUI
 
 /// 16l: every Incredible button is a pill. `standard` is its md button
 /// (40 high); `pill` is the welcome button (46 high, 15 pt).
-public enum AppButtonShape: Sendable {
+package enum AppButtonShape: Sendable {
     case standard, pill
 }
 
-public struct AppButton: View {
+package struct AppButton: View {
     let title: String
     var kind: AppButtonKind = .primary
     var shape: AppButtonShape = .standard
@@ -19,7 +19,7 @@ public struct AppButton: View {
     @State private var hovering = false
     @FocusState private var focused: Bool
 
-    public init(
+    package init(
         _ title: String,
         kind: AppButtonKind = .primary,
         shape: AppButtonShape = .standard,
@@ -37,7 +37,7 @@ public struct AppButton: View {
         self.action = action
     }
 
-    public var body: some View {
+    package var body: some View {
         Button(action: action) {
             // The welcome button speaks Geist like the rest of that sheet.
             HStack(spacing: Space.x1) {
@@ -141,7 +141,7 @@ private struct AppButtonStyle: ButtonStyle {
     }
 }
 
-public struct AppField: View {
+package struct AppField: View {
     var title: String?
     var placeholder: String
     @Binding var text: String
@@ -155,7 +155,7 @@ public struct AppField: View {
     @FocusState private var focused: Bool
     @State private var hovering = false
 
-    public init(
+    package init(
         title: String? = nil,
         placeholder: String,
         text: Binding<String>,
@@ -173,7 +173,7 @@ public struct AppField: View {
         self.onSubmit = onSubmit
     }
 
-    public var body: some View {
+    package var body: some View {
         let state = ControlState.resolve(
             enabled: true, hovering: hovering,
             pressed: false, focused: focused)

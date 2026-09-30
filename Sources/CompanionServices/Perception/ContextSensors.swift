@@ -5,26 +5,26 @@ import Foundation
 
 // MARK: - Channel ports
 
-public protocol FocusedAppSensing: Sendable {
+package protocol FocusedAppSensing: Sendable {
     func focusedApp() async -> String?
 }
 
 /// Wave 16h-3: the title of the window in front, next to the app's name.
-public protocol FocusedWindowSensing: Sendable {
+package protocol FocusedWindowSensing: Sendable {
     func focusedWindow() async -> String?
 }
 
-public protocol OpenDocumentsSensing: Sendable {
+package protocol OpenDocumentsSensing: Sendable {
     func openDocuments() async -> [String]
 }
 
-public protocol ClipboardSensing: Sendable {
+package protocol ClipboardSensing: Sendable {
     func clipboard() async -> ClipboardSummary?
 }
 
 /// What `ClipboardSensor` reads, behind a port so a test never touches the
 /// real board (macOS 15.4+ may show a system alert per programmatic read).
-public protocol PasteboardReading: Sendable {
+package protocol PasteboardReading: Sendable {
     var changeCount: Int { get }
     var string: String? { get }
     var fileURLs: [URL] { get }
@@ -42,7 +42,7 @@ public protocol PasteboardReading: Sendable {
 /// channel reads run detached; the wait races them against the deadline and
 /// walks away from whatever did not arrive — a blocking Accessibility call
 /// on a busy app must not hold the turn.
-public final class SystemContextSensor: ContextSensing, @unchecked Sendable {
+package final class SystemContextSensor: ContextSensing, @unchecked Sendable {
     private let focused: any FocusedAppSensing
     private let documents: any OpenDocumentsSensing
     private let clipboardSensor: any ClipboardSensing
@@ -53,7 +53,7 @@ public final class SystemContextSensor: ContextSensing, @unchecked Sendable {
     private let lock = NSLock()
     private var lastSense: Date?
 
-    public init(
+    package init(
         focused: any FocusedAppSensing,
         documents: any OpenDocumentsSensing,
         clipboard: any ClipboardSensing,
@@ -71,7 +71,7 @@ public final class SystemContextSensor: ContextSensing, @unchecked Sendable {
         self.now = now
     }
 
-    public func sense(_ channels: ContextChannels, budget: Duration) async -> TurnContext {
+    package func sense(_ channels: ContextChannels, budget: Duration) async -> TurnContext {
         let stamp = now()
         var ctx = TurnContext(source: .typed, timestamp: stamp, sinceLastTurn: since(stamp))
         // HACK: the detached reads are not cancelled at the deadline — an
@@ -125,7 +125,7 @@ public final class SystemContextSensor: ContextSensing, @unchecked Sendable {
         return ctx
     }
 
-    public func acknowledgeIslandEvents(through: Int) {
+    package func acknowledgeIslandEvents(through: Int) {
         islandEvents?.acknowledge(through: through)
     }
 
@@ -209,7 +209,7 @@ public final class SystemContextSensor: ContextSensing, @unchecked Sendable {
 /// Talking to Companion means bringing its window up, so "frontmost" would
 /// always be us (spec 10a §7): activations are watched and the last one
 /// that was not ours is what gets reported.
-public final class FrontmostAppSensor: FocusedAppSensing, @unchecked Sendable {
+package final class FrontmostAppSensor: FocusedAppSensing, @unchecked Sendable {
     private let selfBundleID: String
     private let lock = NSLock()
     private var lastOther: String?
@@ -217,7 +217,7 @@ public final class FrontmostAppSensor: FocusedAppSensing, @unchecked Sendable {
     private var ownInFront = false
     /// Wave 16a: told of every app that comes to the front, so the sight can
     /// prime its Accessibility tree before the user speaks about it.
-    public var onActivate: (@Sendable (pid_t, String) -> Void)? {
+    package var onActivate: (@Sendable (pid_t, String) -> Void)? {
         get { lock.withLock { activationHook } }
         set { lock.withLock { activationHook = newValue } }
     }
@@ -226,19 +226,19 @@ public final class FrontmostAppSensor: FocusedAppSensing, @unchecked Sendable {
 
     /// The process the document sensor should read: the last app in front
     /// that was not us. Nil until one has been seen — never our own.
-    public var lastOtherPID: pid_t? {
+    package var lastOtherPID: pid_t? {
         lock.lock()
         defer { lock.unlock() }
         return lastOtherProcess
     }
 
-    public var lastOtherName: String? {
+    package var lastOtherName: String? {
         lock.lock()
         defer { lock.unlock() }
         return lastOther
     }
 
-    public init(selfBundleID: String, watch: Bool = false) {
+    package init(selfBundleID: String, watch: Bool = false) {
         self.selfBundleID = selfBundleID
         if let current = NSWorkspace.shared.frontmostApplication, watch {
             noteActivation(
@@ -262,13 +262,13 @@ public final class FrontmostAppSensor: FocusedAppSensing, @unchecked Sendable {
     }
 
     /// True while Companion's own window is the active app — the typed chat.
-    public var selfInFront: Bool {
+    package var selfInFront: Bool {
         lock.lock()
         defer { lock.unlock() }
         return ownInFront
     }
 
-    public func noteActivation(name: String, bundleID: String, pid: pid_t = 0) {
+    package func noteActivation(name: String, bundleID: String, pid: pid_t = 0) {
         lock.lock()
         ownInFront = bundleID == selfBundleID
         lock.unlock()
@@ -280,7 +280,7 @@ public final class FrontmostAppSensor: FocusedAppSensing, @unchecked Sendable {
         lock.unlock()
     }
 
-    public func focusedApp() async -> String? {
+    package func focusedApp() async -> String? {
         current()
     }
 
@@ -295,7 +295,7 @@ public final class FrontmostAppSensor: FocusedAppSensing, @unchecked Sendable {
 /// Accessibility tree. Trust is read on EVERY call, never cached: the grant
 /// can appear or vanish (a re-sign drops it) while the app runs. Never asks
 /// for the permission — that is the Settings row's job, once, with words.
-public final class OpenDocumentsSensor: OpenDocumentsSensing, @unchecked Sendable {
+package final class OpenDocumentsSensor: OpenDocumentsSensing, @unchecked Sendable {
     private let trusted: @Sendable () -> Bool
     private let pid: @Sendable () -> pid_t?
     private let windows: @Sendable (pid_t) -> [String]
@@ -303,7 +303,7 @@ public final class OpenDocumentsSensor: OpenDocumentsSensing, @unchecked Sendabl
     /// `pid` is the app to read — the last one in front that was not us,
     /// from `FrontmostAppSensor` — never `frontmostApplication`, which is
     /// Companion itself whenever the user is talking to it.
-    public init(
+    package init(
         trusted: @escaping @Sendable () -> Bool = { AXIsProcessTrusted() },
         pid: @escaping @Sendable () -> pid_t?,
         windows: @escaping @Sendable (pid_t) -> [String] = { OpenDocumentsSensor.windows(of: $0) }
@@ -313,7 +313,7 @@ public final class OpenDocumentsSensor: OpenDocumentsSensing, @unchecked Sendabl
         self.windows = windows
     }
 
-    public func openDocuments() async -> [String] {
+    package func openDocuments() async -> [String] {
         // HACK: the pid was captured at activation; if that process exited
         // and macOS handed the number to another one before this read, the
         // titles come from the wrong app (read-only, same AX trust). No
@@ -326,7 +326,7 @@ public final class OpenDocumentsSensor: OpenDocumentsSensing, @unchecked Sendabl
     /// `kAXDocumentAttribute` is a file URL when the app is document-based;
     /// otherwise the title is the best summary there is (spec 09: summaries,
     /// not an AX dump).
-    public static func windows(of pid: pid_t) -> [String] {
+    package static func windows(of pid: pid_t) -> [String] {
         let element = AXUIElementCreateApplication(pid)
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &value) == .success,
@@ -352,12 +352,12 @@ public final class OpenDocumentsSensor: OpenDocumentsSensing, @unchecked Sendabl
 
 /// The title of the window in front of the app in front (16h-3), through the
 /// same Accessibility trust and the same pid as the documents sensor.
-public final class FocusedWindowSensor: FocusedWindowSensing, @unchecked Sendable {
+package final class FocusedWindowSensor: FocusedWindowSensing, @unchecked Sendable {
     private let trusted: @Sendable () -> Bool
     private let pid: @Sendable () -> pid_t?
     private let title: @Sendable (pid_t) -> String?
 
-    public init(
+    package init(
         trusted: @escaping @Sendable () -> Bool = { AXIsProcessTrusted() },
         pid: @escaping @Sendable () -> pid_t?,
         title: @escaping @Sendable (pid_t) -> String? = { FocusedWindowSensor.title(of: $0) }
@@ -367,12 +367,12 @@ public final class FocusedWindowSensor: FocusedWindowSensing, @unchecked Sendabl
         self.title = title
     }
 
-    public func focusedWindow() async -> String? {
+    package func focusedWindow() async -> String? {
         guard trusted(), let pid = pid() else { return nil }
         return title(pid)
     }
 
-    public static func title(of pid: pid_t) -> String? {
+    package static func title(of pid: pid_t) -> String? {
         let app = AXUIElementCreateApplication(pid)
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
@@ -386,16 +386,16 @@ public final class FocusedWindowSensor: FocusedWindowSensing, @unchecked Sendabl
 /// Reads the board only when it changed since the last look: what the user
 /// copied an hour ago is not context for this turn, and every programmatic
 /// read is one macOS may warn about.
-public final class ClipboardSensor: ClipboardSensing, @unchecked Sendable {
+package final class ClipboardSensor: ClipboardSensing, @unchecked Sendable {
     private let pasteboard: any PasteboardReading
     fileprivate let lock = NSLock()
     fileprivate var lastSeen: Int?
 
-    public init(pasteboard: any PasteboardReading = SystemPasteboard()) {
+    package init(pasteboard: any PasteboardReading = SystemPasteboard()) {
         self.pasteboard = pasteboard
     }
 
-    public func clipboard() async -> ClipboardSummary? {
+    package func clipboard() async -> ClipboardSummary? {
         guard noteChange(pasteboard.changeCount) else { return nil }
         guard !pasteboard.concealed else {
             Log.app("clipboard: concealed, skipped")
@@ -428,18 +428,18 @@ extension ClipboardSensor {
     }
 }
 
-public struct SystemPasteboard: PasteboardReading {
-    public init() {}
-    public var changeCount: Int { NSPasteboard.general.changeCount }
-    public var string: String? { NSPasteboard.general.string(forType: .string) }
-    public var fileURLs: [URL] {
+package struct SystemPasteboard: PasteboardReading {
+    package init() {}
+    package var changeCount: Int { NSPasteboard.general.changeCount }
+    package var string: String? { NSPasteboard.general.string(forType: .string) }
+    package var fileURLs: [URL] {
         (NSPasteboard.general.readObjects(forClasses: [NSURL.self]) as? [URL] ?? [])
             .filter(\.isFileURL)
     }
-    public var hasImage: Bool {
+    package var hasImage: Bool {
         NSPasteboard.general.canReadObject(forClasses: [NSImage.self])
     }
-    public var concealed: Bool {
+    package var concealed: Bool {
         let marked: Set<NSPasteboard.PasteboardType> = [
             .init("org.nspasteboard.ConcealedType"), .init("org.nspasteboard.TransientType"),
         ]

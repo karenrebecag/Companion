@@ -2,19 +2,19 @@
 // runtime in Services interprets the effects.
 import Foundation
 
-public struct TurnMachine: Sendable, Equatable {
-    public static let echoGuardDuration: TimeInterval = 0.35
-    public private(set) var snapshot: TurnSnapshot
+package struct TurnMachine: Sendable, Equatable {
+    package static let echoGuardDuration: TimeInterval = 0.35
+    package private(set) var snapshot: TurnSnapshot
 
-    public init(snapshot: TurnSnapshot = .idle) {
+    package init(snapshot: TurnSnapshot = .idle) {
         self.snapshot = snapshot
     }
 
-    public func isEchoGuarded(at now: TimeInterval) -> Bool {
+    package func isEchoGuarded(at now: TimeInterval) -> Bool {
         snapshot.echoGuardUntil > 0 && now < snapshot.echoGuardUntil
     }
 
-    public mutating func handle(_ event: TurnEvent, at now: TimeInterval) -> [TurnEffect] {
+    package mutating func handle(_ event: TurnEvent, at now: TimeInterval) -> [TurnEffect] {
         switch event {
         case .startVoice(let preferRealtime): return startVoice(preferRealtime)
         case .advance(let hasSpeech): return advance(hasSpeech)

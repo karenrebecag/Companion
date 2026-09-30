@@ -1,13 +1,13 @@
 import Foundation
 
-public enum EchoGuard: Sendable {
-    public static func words(_ s: String) -> [String] {
+package enum EchoGuard: Sendable {
+    package static func words(_ s: String) -> [String] {
         s.lowercased()
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { $0.count >= 2 }
     }
 
-    public static func isEcho(heard: String, agentSaying: String) -> Bool {
+    package static func isEcho(heard: String, agentSaying: String) -> Bool {
         let heardWords = words(heard)
         // No tokens means nothing to barge in with — treat as echo, not speech.
         guard !heardWords.isEmpty else { return true }
@@ -17,7 +17,7 @@ public enum EchoGuard: Sendable {
         return Double(hits) / Double(heardWords.count) >= 0.6
     }
 
-    public static func isRealInterruption(heard: String, agentSaying: String) -> Bool {
+    package static func isRealInterruption(heard: String, agentSaying: String) -> Bool {
         words(heard).count >= 2 && !isEcho(heard: heard, agentSaying: agentSaying)
     }
 
@@ -26,7 +26,7 @@ public enum EchoGuard: Sendable {
     /// leading run of words that belong to the agent's utterance (three or
     /// more, so a user who also opens with "hola" is not robbed) and return
     /// what the user actually said. Everything echoed → empty → drop it.
-    public static func scrub(heard: String, agentSaying: String) -> String {
+    package static func scrub(heard: String, agentSaying: String) -> String {
         let agentWords = Set(words(agentSaying))
         guard !agentWords.isEmpty else { return heard }
         let heardWords = words(heard)
@@ -40,8 +40,8 @@ public enum EchoGuard: Sendable {
     }
 }
 
-public enum SpeechCues: Sendable {
-    public static let continuations: Set<String> = [
+package enum SpeechCues: Sendable {
+    package static let continuations: Set<String> = [
         "y", "e", "o", "u", "ni", "pero", "sino", "porque", "pues", "que",
         "de", "del", "en", "con", "sin", "por", "para", "a", "al", "desde",
         "hasta", "sobre", "entre", "hacia", "según",
@@ -52,7 +52,7 @@ public enum SpeechCues: Sendable {
         "más", "muy", "también", "tampoco", "no", "sí",
     ]
 
-    public static func isIncomplete(_ text: String) -> Bool {
+    package static func isIncomplete(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let last = trimmed.last else { return true }
         if ",;:—-".contains(last) { return true }
@@ -63,17 +63,17 @@ public enum SpeechCues: Sendable {
     }
 }
 
-public struct TranscriptEndpointer: Sendable {
-    public struct Config: Sendable, Equatable {
-        public var minDelay: TimeInterval = 0.6
-        public var maxDelay: TimeInterval = 2.6
-        public var quietClose: TimeInterval = 12
-        public var maxUtterance: TimeInterval = 45
-        public var voiceFloor: Double = 0.06
-        public init() {}
+package struct TranscriptEndpointer: Sendable {
+    package struct Config: Sendable, Equatable {
+        package var minDelay: TimeInterval = 0.6
+        package var maxDelay: TimeInterval = 2.6
+        package var quietClose: TimeInterval = 12
+        package var maxUtterance: TimeInterval = 45
+        package var voiceFloor: Double = 0.06
+        package init() {}
     }
 
-    public enum Verdict: Sendable, Equatable {
+    package enum Verdict: Sendable, Equatable {
         case listening, finished, timedOut
     }
 
@@ -83,14 +83,14 @@ public struct TranscriptEndpointer: Sendable {
     private var text = ""
     private var lastGrowth: TimeInterval?
     private var terminal: Verdict?
-    public private(set) var hasSpeech = false
+    package private(set) var hasSpeech = false
 
-    public init(config: Config = Config(), start: TimeInterval) {
+    package init(config: Config = Config(), start: TimeInterval) {
         self.config = config
         self.start = start
     }
 
-    public mutating func feed(text incoming: String, level: Double,
+    package mutating func feed(text incoming: String, level: Double,
                               at t: TimeInterval) -> Verdict {
         if let terminal { return terminal }
         if t - start > config.maxUtterance {
@@ -127,18 +127,18 @@ public struct TranscriptEndpointer: Sendable {
     }
 }
 
-public struct Endpointer: Sendable {
-    public struct Config: Sendable, Equatable {
-        public var calibration: TimeInterval = 0.4
-        public var margin: Double = 0.045
-        public var minSpeech: TimeInterval = 0.25
-        public var silenceHold: TimeInterval = 1.2
-        public var maxUtterance: TimeInterval = 30
-        public var quietClose: TimeInterval = 12
-        public init() {}
+package struct Endpointer: Sendable {
+    package struct Config: Sendable, Equatable {
+        package var calibration: TimeInterval = 0.4
+        package var margin: Double = 0.045
+        package var minSpeech: TimeInterval = 0.25
+        package var silenceHold: TimeInterval = 1.2
+        package var maxUtterance: TimeInterval = 30
+        package var quietClose: TimeInterval = 12
+        package init() {}
     }
 
-    public enum Verdict: Sendable, Equatable {
+    package enum Verdict: Sendable, Equatable {
         case listening, speechStarted, finished, timedOut
     }
 
@@ -149,14 +149,14 @@ public struct Endpointer: Sendable {
     private var lastT: TimeInterval?
     private var silenceSince: TimeInterval?
     private var terminal: Verdict?
-    public private(set) var hasSpeech = false
+    package private(set) var hasSpeech = false
 
-    public init(config: Config = Config(), start: TimeInterval) {
+    package init(config: Config = Config(), start: TimeInterval) {
         self.config = config
         self.start = start
     }
 
-    public mutating func feed(rms: Double, at t: TimeInterval) -> Verdict {
+    package mutating func feed(rms: Double, at t: TimeInterval) -> Verdict {
         if let terminal { return terminal }
         let elapsed = t - start
         if elapsed > config.maxUtterance

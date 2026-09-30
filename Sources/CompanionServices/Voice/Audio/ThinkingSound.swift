@@ -6,14 +6,14 @@ import Foundation
 /// envelope while the model thinks. Synthesized in memory — no assets — on
 /// its OWN engine: the shared mic engine belongs to the echo canceller when
 /// AEC is live (ledger, Audio/AEC) and must never be borrowed for this.
-public final class ThinkingSound: ThinkingSounding, @unchecked Sendable {
+package final class ThinkingSound: ThinkingSounding, @unchecked Sendable {
     private let lock = NSLock()
     private var engine: AVAudioEngine?
     private var player: AVAudioPlayerNode?
 
-    public init() {}
+    package init() {}
 
-    public func start() {
+    package func start() {
         lock.lock()
         defer { lock.unlock() }
         guard engine == nil else { return }
@@ -40,7 +40,7 @@ public final class ThinkingSound: ThinkingSounding, @unchecked Sendable {
         ramp(engine, to: 0.12, over: 0.6)
     }
 
-    public func stop() {
+    package func stop() {
         lock.lock()
         let engine = self.engine
         let player = self.player

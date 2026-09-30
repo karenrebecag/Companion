@@ -5,57 +5,57 @@ import SwiftUI
 // it, measured in its overlay CSS (docs/research/incredible-componentes.md).
 
 /// White over the black island, as Incredible's `--ci-*` alphas.
-public enum IslandAlpha {
-    public static let text = 0.95
-    public static let secondary = 0.64
-    public static let muted = 0.42
-    public static let tile = 0.06
-    public static let tileHover = 0.12
-    public static let border = 0.09
-    public static let divider = 0.07
+package enum IslandAlpha {
+    package static let text = 0.95
+    package static let secondary = 0.64
+    package static let muted = 0.42
+    package static let tile = 0.06
+    package static let tileHover = 0.12
+    package static let border = 0.09
+    package static let divider = 0.07
 }
 
-public enum IslandPalette {
-    public static let accent = Swatch("78AAFF")
-    public static let error = Swatch("FF7A64")
+package enum IslandPalette {
+    package static let accent = Swatch("78AAFF")
+    package static let error = Swatch("FF7A64")
     /// The answer option's hover.
-    public static let indigo = Swatch("8184F8")
+    package static let indigo = Swatch("8184F8")
 }
 
-public enum IslandMetrics {
-    public static let sendSide: CGFloat = 30
-    public static let openRadius: CGFloat = Radius.panel
+package enum IslandMetrics {
+    package static let sendSide: CGFloat = 30
+    package static let openRadius: CGFloat = Radius.panel
     /// The open island's edge: `--color-border-default` on the overlay.
-    public static let rimAlpha = 0.12
+    package static let rimAlpha = 0.12
 }
 
-public enum AnswerOptionMetrics {
-    public static let paddingY: CGFloat = 11
-    public static let paddingX: CGFloat = Space.x3
-    public static let radius: CGFloat = 12
-    public static let gap: CGFloat = 11
+package enum AnswerOptionMetrics {
+    package static let paddingY: CGFloat = 11
+    package static let paddingX: CGFloat = Space.x3
+    package static let radius: CGFloat = 12
+    package static let gap: CGFloat = 11
 }
 
-public enum ReferentChipMetrics {
-    public static let radius: CGFloat = 7
-    public static let paddingLeading: CGFloat = 5
-    public static let paddingTrailing: CGFloat = 7
-    public static let paddingY: CGFloat = 1
-    public static let size: CGFloat = 12.5
-    public static let maxWidth: CGFloat = 230
-    public static let fill = 0.13
-    public static let stroke = 0.24
+package enum ReferentChipMetrics {
+    package static let radius: CGFloat = 7
+    package static let paddingLeading: CGFloat = 5
+    package static let paddingTrailing: CGFloat = 7
+    package static let paddingY: CGFloat = 1
+    package static let size: CGFloat = 12.5
+    package static let maxWidth: CGFloat = 230
+    package static let fill = 0.13
+    package static let stroke = 0.24
 }
 
-public enum CaptureCardMetrics {
-    public static let height: CGFloat = 64
-    public static let radius: CGFloat = Radius.md
+package enum CaptureCardMetrics {
+    package static let height: CGFloat = 64
+    package static let radius: CGFloat = Radius.md
 }
 
-public enum CaptureKind: CaseIterable, Sendable {
+package enum CaptureKind: CaseIterable, Sendable {
     case text, screenshot, file, task
 
-    public var width: CGFloat {
+    package var width: CGFloat {
         switch self {
         case .text, .file: 120
         case .screenshot: 96
@@ -64,34 +64,34 @@ public enum CaptureKind: CaseIterable, Sendable {
     }
 }
 
-public enum AnswerPopupMetrics {
-    public static let maxWidth: CGFloat = 580
-    public static let screenFraction: CGFloat = 0.76
-    public static let paddingTop: CGFloat = 18
-    public static let paddingX: CGFloat = 22
-    public static let paddingBottom: CGFloat = Space.x4
+package enum AnswerPopupMetrics {
+    package static let maxWidth: CGFloat = 580
+    package static let screenFraction: CGFloat = 0.76
+    package static let paddingTop: CGFloat = 18
+    package static let paddingX: CGFloat = 22
+    package static let paddingBottom: CGFloat = Space.x4
 
     /// min(580, 76 % of the screen), as Incredible's `min(580px, 76vw)`.
-    public static func width(screen: CGFloat) -> CGFloat {
+    package static func width(screen: CGFloat) -> CGFloat {
         min(maxWidth, (screen * screenFraction).rounded())
     }
 
     /// The gap between the close row and the first block.
-    public static let closeGap: CGFloat = 12
+    package static let closeGap: CGFloat = 12
     /// The air between the island's shape and the popup below it.
-    public static let dropGap: CGFloat = 8
+    package static let dropGap: CGFloat = 8
 
     /// What the popup adds OUTSIDE its scroll: top padding, the close row,
     /// the gap under it, bottom padding. The scroll's cap subtracts this or
     /// a tall answer clips at the panel's edge (review 16m H2).
-    public static var chrome: CGFloat {
+    package static var chrome: CGFloat {
         paddingTop + AnswerBlockMetrics.closeSide + closeGap + paddingBottom
     }
 }
 
 /// "Abriendo Safari, Notas…" as a verb and one chip per target.
-public enum ReferentLine {
-    public static func parts(_ targets: [String], language: AppLanguage)
+package enum ReferentLine {
+    package static func parts(_ targets: [String], language: AppLanguage)
         -> (verb: String, referents: [String])
     {
         let referents = targets.filter { !$0.isEmpty }

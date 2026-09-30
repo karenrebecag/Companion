@@ -5,19 +5,19 @@ import Foundation
 /// then workdir so no separator can be confused with a path component.
 /// A store that cannot be read is an empty store: a corrupt file must cost a
 /// fresh thread, never a job.
-public final class FileExecutorSessionStore: ExecutorSessionStoring, @unchecked Sendable {
+package final class FileExecutorSessionStore: ExecutorSessionStoring, @unchecked Sendable {
     private let fileURL: URL
     private let lock = NSLock()
 
-    public init(fileURL: URL) {
+    package init(fileURL: URL) {
         self.fileURL = fileURL
     }
 
-    public func session(for key: ExecutorSessionKey) -> String? {
+    package func session(for key: ExecutorSessionKey) -> String? {
         lock.withLock { load()[key.executor.rawValue]?[key.workdir] }
     }
 
-    public func set(_ id: String?, for key: ExecutorSessionKey) {
+    package func set(_ id: String?, for key: ExecutorSessionKey) {
         lock.withLock {
             var all = load()
             var byWorkdir = all[key.executor.rawValue] ?? [:]

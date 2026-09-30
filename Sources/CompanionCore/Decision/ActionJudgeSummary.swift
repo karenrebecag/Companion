@@ -26,7 +26,7 @@ extension ActionSummary {
     /// rate from incompleteness exceeds 10%, or a false cover hides behind a
     /// prose placeholder. Whatever the metric says, before 16q-4 enforce this
     /// becomes a keyed allowlist of body fields (body, text, message).
-    public static func make(argumentsJSON: String) -> ActionSummary {
+    package static func make(argumentsJSON: String) -> ActionSummary {
         guard argumentsJSON.utf8.count <= maxArgumentBytes,
               case .object(let object)? = JSONValue.parse(Data(argumentsJSON.utf8))
         else {

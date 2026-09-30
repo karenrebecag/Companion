@@ -2,7 +2,7 @@
 import CompanionCore
 import Foundation
 
-public actor RealtimePlayer: PCMPlaying {
+package actor RealtimePlayer: PCMPlaying {
     private static let format = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
         sampleRate: 24_000,
@@ -16,15 +16,15 @@ public actor RealtimePlayer: PCMPlaying {
     private let drainBox: AudioStreamBox<Void>
     private let levelBox: AudioStreamBox<Double>
 
-    public nonisolated let drained: AsyncStream<Void>
-    public nonisolated let levels: AsyncStream<Double>
+    package nonisolated let drained: AsyncStream<Void>
+    package nonisolated let levels: AsyncStream<Double>
 
     private let graph = PlayerGraph()
     private var started = false
     private var pending = 0
     private var epoch = 0
 
-    public init(
+    package init(
         makeEngine: @escaping () -> AVAudioEngine = { AVAudioEngine() },
         sharedEngine: @escaping () -> AVAudioEngine? = { nil },
         startsEngine: Bool = true,
@@ -44,7 +44,7 @@ public actor RealtimePlayer: PCMPlaying {
 
     /// Composition-root entry point: keeps AVAudioEngine inside Services, so
     /// the app layer never handles a non-Sendable audio type.
-    public init(sharedWith mic: MicCapture, volume: Double) {
+    package init(sharedWith mic: MicCapture, volume: Double) {
         self.init(
             sharedEngine: { [weak mic] in mic?.playbackEngine },
             volume: volume)
@@ -55,14 +55,14 @@ public actor RealtimePlayer: PCMPlaying {
         levelBox.finish()
     }
 
-    public var hasPending: Bool { pending > 0 }
+    package var hasPending: Bool { pending > 0 }
 
-    public func setVolume(_ volume: Double) async {
+    package func setVolume(_ volume: Double) async {
         self.volume = Float(min(max(volume, 0), 1))
         graph.node?.volume = self.volume
     }
 
-    public func start(sharedEngine: Bool) async throws {
+    package func start(sharedEngine: Bool) async throws {
         epoch += 1
         pending = 0
         started = false
@@ -117,7 +117,7 @@ public actor RealtimePlayer: PCMPlaying {
         started = true
     }
 
-    public func play(_ pcm16le24k: Data) async {
+    package func play(_ pcm16le24k: Data) async {
         guard started, let node = graph.node else { return }
         let frames = pcm16le24k.count / 2
         guard frames > 0,
@@ -145,7 +145,7 @@ public actor RealtimePlayer: PCMPlaying {
         })
     }
 
-    public func flush() async {
+    package func flush() async {
         guard started, let node = graph.node else { return }
         epoch += 1
         pending = 0
@@ -155,7 +155,7 @@ public actor RealtimePlayer: PCMPlaying {
         drainBox.yield(())
     }
 
-    public func stop() async {
+    package func stop() async {
         epoch += 1
         pending = 0
         started = false

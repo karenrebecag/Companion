@@ -6,8 +6,8 @@ import Foundation
 /// conversación); solo se rearma si murió. El rol viaja una vez, al lanzar.
 /// final + @unchecked: el estado del handle lo toca un solo encargo a la vez
 /// porque JobQueue serializa; el lock cubre el borde con cancelaciones.
-public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
-    public let descriptor: ExecutorDescriptor
+package final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
+    package let descriptor: ExecutorDescriptor
 
     private let workdir: String
     private let executablePath: String
@@ -29,7 +29,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
     private var resumedFromStore = false
     private var sawInitialized = false
 
-    public init(
+    package init(
         workdir: String,
         executablePath: String,
         processLauncher: any ProcessLauncher,
@@ -56,7 +56,7 @@ public final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         )
     }
 
-    public func run(
+    package func run(
         _ job: JobRequest,
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {

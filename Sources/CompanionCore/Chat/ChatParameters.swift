@@ -6,7 +6,7 @@ import Foundation
 /// `unsupported_value` ("Only the default (1) value is supported"). Inside the
 /// provider ladder that reads as one more dead provider, so the user is told
 /// there is nothing to talk to when the real problem is one field in the body.
-public enum ChatParameters: Sendable {
+package enum ChatParameters: Sendable {
     /// HACK: matched by model name. The honest test is the provider's own
     /// error body, which this codebase does not read yet — `ChatSSEAttempt`
     /// maps a status code and discards the body. Upgrade trigger: the first
@@ -14,7 +14,7 @@ public enum ChatParameters: Sendable {
     /// error and let the provider answer instead of guessing from a string.
     private static let reasoningPrefixes = ["o1", "o3", "o4", "gpt-5", "gpt-oss"]
 
-    public static func acceptsTemperature(_ model: String) -> Bool {
+    package static func acceptsTemperature(_ model: String) -> Bool {
         let name = family(of: model)
         return !reasoningPrefixes.contains { prefix in
             // Prefix, then a boundary: `o3` and `o3-mini` are reasoning models,

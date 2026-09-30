@@ -2,14 +2,14 @@ import Foundation
 
 /// The search at the top of Settings (Wave 16g). Matches what the user reads,
 /// already localized, so the same query works in whichever language is on.
-public enum SettingsSearch {
-    public struct Entry: Sendable, Equatable {
-        public let id: String
-        public let page: String
-        public let title: String
-        public let subtitle: String
+package enum SettingsSearch {
+    package struct Entry: Sendable, Equatable {
+        package let id: String
+        package let page: String
+        package let title: String
+        package let subtitle: String
 
-        public init(id: String, page: String, title: String, subtitle: String) {
+        package init(id: String, page: String, title: String, subtitle: String) {
             self.id = id
             self.page = page
             self.title = title
@@ -19,7 +19,7 @@ public enum SettingsSearch {
 
     /// Every word of the query has to appear; typing "tamano" without the
     /// tilde is the common case, not the edge case.
-    public static func match(_ query: String, in entries: [Entry]) -> [Entry] {
+    package static func match(_ query: String, in entries: [Entry]) -> [Entry] {
         let words = normalize(query).split(separator: " ").map(String.init)
         guard !words.isEmpty else { return [] }
         let found = entries.compactMap { entry -> (Entry, Bool)? in

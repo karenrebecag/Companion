@@ -6,12 +6,12 @@ import Foundation
 /// native frames (uint32 LE + JSON) on stdio, JSONL on `browser.sock`. It
 /// holds the only copy of the token the extension never sees, and it is the
 /// only writer to stdout, so nothing but frames may ever go there.
-public enum BrowserHostRelay {
+package enum BrowserHostRelay {
     /// Distinct from the relay's own failures (1) so a caller can tell an
     /// unrecognised launch from a working one that hit a problem.
-    public static let rejectedExitCode: Int32 = 2
+    package static let rejectedExitCode: Int32 = 2
 
-    public static func run(
+    package static func run(
         origin: String, directory: URL,
         input: FileHandle = .standardInput, output: FileHandle = .standardOutput,
         ignoreSIGPIPE: Bool = true

@@ -4,12 +4,12 @@ import Foundation
 /// `answer-card`. The model writes it in a `companion:choice` fence; picking
 /// an option only ever sends its label as the user's next message, so nothing
 /// runs from a click that a typed reply could not have started.
-public struct ChoiceBlock: Sendable, Equatable {
-    public struct Option: Sendable, Equatable {
-        public var label: String
-        public var detail: String?
+package struct ChoiceBlock: Sendable, Equatable {
+    package struct Option: Sendable, Equatable {
+        package var label: String
+        package var detail: String?
 
-        public init(label: String, detail: String? = nil) {
+        package init(label: String, detail: String? = nil) {
             self.label = label
             self.detail = detail
         }
@@ -17,7 +17,7 @@ public struct ChoiceBlock: Sendable, Equatable {
 
     /// Where the question stands, read off the transcript (never stored): a
     /// card that outlives a restart still knows what was picked.
-    public enum Resolution: Sendable, Equatable {
+    package enum Resolution: Sendable, Equatable {
         case open
         case chosen(Int)
         /// A multiple-choice card answered with several options.
@@ -26,26 +26,26 @@ public struct ChoiceBlock: Sendable, Equatable {
         case passed
     }
 
-    public static let minOptions = 2
+    package static let minOptions = 2
     /// Every option is a one-key shortcut (1-9) and the card lives in a panel
     /// 620 tall: past six it is a list, not a question.
-    public static let maxOptions = 6
-    public static let maxQuestion = 200
+    package static let maxOptions = 6
+    package static let maxQuestion = 200
     /// The label is also the message that gets sent, so it stays a phrase.
-    public static let maxLabel = 80
-    public static let maxDetail = 160
+    package static let maxLabel = 80
+    package static let maxDetail = 160
 
     /// The free answer is a message too: capped so it stays a reply.
-    public static let maxAnswer = 500
+    package static let maxAnswer = 500
 
-    public var question: String
-    public var options: [Option]
+    package var question: String
+    package var options: [Option]
     /// The fence asked for several picks (`"multiple": true`).
-    public var multiple: Bool
+    package var multiple: Bool
     /// The fence allows an answer in her own words (`"allowText": true`).
-    public var allowText: Bool
+    package var allowText: Bool
 
-    public init(question: String, options: [Option], multiple: Bool = false, allowText: Bool = false) {
+    package init(question: String, options: [Option], multiple: Bool = false, allowText: Bool = false) {
         self.question = question
         self.options = options
         self.multiple = multiple
@@ -53,14 +53,14 @@ public struct ChoiceBlock: Sendable, Equatable {
     }
 
     /// The message a set of picks sends: labels in option order.
-    public func reply(for picked: [Int]) -> String {
+    package func reply(for picked: [Int]) -> String {
         options.indices.filter(picked.contains).map { options[$0].label }.joined(separator: Self.separator)
     }
 
     static let separator = ", "
 
     /// `reply` is the user's next message after the question, if any.
-    public func resolution(reply: String?) -> Resolution {
+    package func resolution(reply: String?) -> Resolution {
         let said = Self.oneLine(reply ?? "", maxLength: max(Self.maxLabel, Self.maxAnswer) * 4)
         guard !said.isEmpty else { return .open }
         if let sent = options.firstIndex(where: { $0.label == said }) { return .chosen(sent) }
@@ -82,7 +82,7 @@ public struct ChoiceBlock: Sendable, Equatable {
     }
 
     /// Sanitized, one line, trimmed: a newline in a label would send two lines.
-    public static func oneLine(_ text: String, maxLength: Int) -> String {
+    package static func oneLine(_ text: String, maxLength: Int) -> String {
         TextSanitizer.display(text, maxLength: maxLength)
             .split(whereSeparator: \.isWhitespace)
             .joined(separator: " ")
@@ -90,12 +90,12 @@ public struct ChoiceBlock: Sendable, Equatable {
 }
 
 extension CompanionBlocks {
-    public static let choiceLanguage = "companion:choice"
+    package static let choiceLanguage = "companion:choice"
 
     /// Nil sends the fence back to a code block, visible: a question the
     /// client cannot draw honestly is never drawn half-way (no options are
     /// dropped in silence, no label is left empty or ambiguous).
-    public static func choice(_ body: String) -> ChoiceBlock? {
+    package static func choice(_ body: String) -> ChoiceBlock? {
         guard let dict = fenceObject(body),
               let rawQuestion = dict["question"] as? String,
               let rawOptions = dict["options"] as? [Any],
@@ -137,12 +137,12 @@ extension CompanionBlocks {
 }
 
 /// What the model is told about a message that came from a question card.
-public enum ChoiceOrigin {
-    public static func marker(_ language: AppLanguage) -> String {
+package enum ChoiceOrigin {
+    package static func marker(_ language: AppLanguage) -> String {
         language == .es ? "[elección en tarjeta]" : "[card choice]"
     }
 
-    public static func mark(_ text: String, language: AppLanguage) -> String {
+    package static func mark(_ text: String, language: AppLanguage) -> String {
         marker(language) + " " + text
     }
 }

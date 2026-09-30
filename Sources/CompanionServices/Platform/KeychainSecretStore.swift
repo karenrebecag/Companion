@@ -29,8 +29,8 @@ import Security
 /// no-sync half happens to hold — the file keychain does not sync — but by
 /// accident, not by that flag. A security comment that overstates is worse
 /// than none: it stops the next person from checking.
-public final class KeychainSecretStore: SecretStore, HostSecretStore, @unchecked Sendable {
-    public static let service = "Companion"
+package final class KeychainSecretStore: SecretStore, HostSecretStore, @unchecked Sendable {
+    package static let service = "Companion"
 
     /// Account for the single bundle item. Versioned so a future shape
     /// change can migrate forward instead of guessing what an old blob is.
@@ -55,7 +55,7 @@ public final class KeychainSecretStore: SecretStore, HostSecretStore, @unchecked
     /// cacheable answer once it has actually been fetched.
     private var cache: [String: String]?
 
-    public convenience init() {
+    package convenience init() {
         self.init(backend: LiveKeychainOperations())
     }
 
@@ -64,15 +64,15 @@ public final class KeychainSecretStore: SecretStore, HostSecretStore, @unchecked
         self.backend = backend
     }
 
-    public func read(_ key: SecretKey) throws -> String? {
+    package func read(_ key: SecretKey) throws -> String? {
         try readEntry(key.rawValue)
     }
 
-    public func write(_ key: SecretKey, value: String) throws {
+    package func write(_ key: SecretKey, value: String) throws {
         try writeEntry(key.rawValue, value: value)
     }
 
-    public func delete(_ key: SecretKey) throws {
+    package func delete(_ key: SecretKey) throws {
         try deleteEntry(key.rawValue)
     }
 
@@ -110,15 +110,15 @@ public final class KeychainSecretStore: SecretStore, HostSecretStore, @unchecked
         try lockedPersist(bundle)
     }
 
-    public func read(_ kind: HostSecretKind, host: String) throws -> String? {
+    package func read(_ kind: HostSecretKind, host: String) throws -> String? {
         try readEntry(Self.hostEntry(kind, host))
     }
 
-    public func write(_ kind: HostSecretKind, host: String, value: String) throws {
+    package func write(_ kind: HostSecretKind, host: String, value: String) throws {
         try writeEntry(Self.hostEntry(kind, host), value: value)
     }
 
-    public func delete(_ kind: HostSecretKind, host: String) throws {
+    package func delete(_ kind: HostSecretKind, host: String) throws {
         try deleteEntry(Self.hostEntry(kind, host))
     }
 

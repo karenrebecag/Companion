@@ -6,7 +6,7 @@ import Foundation
 
 // MARK: - Message Structure
 
-public enum BridgeMethod: String, Codable, Sendable {
+package enum BridgeMethod: String, Codable, Sendable {
     case hello
     case call
     case bye
@@ -15,12 +15,12 @@ public enum BridgeMethod: String, Codable, Sendable {
 /// First message: the token and protocol version. The shim reads the token
 /// from bridge.token (0600 file) and sends it here; if it does not match or
 /// the file does not exist, Companion closes without a sheet.
-public struct BridgeHello: Codable, Sendable, Equatable {
-    public var token: String
-    public var client: String
-    public var protocolVersion: Int
+package struct BridgeHello: Codable, Sendable, Equatable {
+    package var token: String
+    package var client: String
+    package var protocolVersion: Int
 
-    public init(token: String, client: String = "claude-code", protocolVersion: Int = 1) {
+    package init(token: String, client: String = "claude-code", protocolVersion: Int = 1) {
         self.token = token
         self.client = client
         self.protocolVersion = protocolVersion
@@ -35,11 +35,11 @@ public struct BridgeHello: Codable, Sendable, Equatable {
 
 /// A tool call: name and arguments as a JSON object on the wire.
 /// The codec compacts arguments to a string for `ParentToolRunner.execute`.
-public struct BridgeCall: Sendable, Equatable {
-    public var name: String
-    public var argumentsJSON: String
+package struct BridgeCall: Sendable, Equatable {
+    package var name: String
+    package var argumentsJSON: String
 
-    public init(name: String, argumentsJSON: String) {
+    package init(name: String, argumentsJSON: String) {
         self.name = name
         self.argumentsJSON = argumentsJSON
     }
@@ -47,7 +47,7 @@ public struct BridgeCall: Sendable, Equatable {
 
 /// Inbound messages: hello, call, or bye. The id is stable across the
 /// lifetime of a session to let the shim correlate responses.
-public enum BridgeRequest: Sendable, Equatable {
+package enum BridgeRequest: Sendable, Equatable {
     case hello(id: Int, BridgeHello)
     case call(id: Int, BridgeCall)
     case bye(id: Int)
@@ -57,13 +57,13 @@ public enum BridgeRequest: Sendable, Equatable {
 
 /// A Codable mirror of ToolSpec so the shim can build JSON Schema
 /// and register tools from the hello result without duplicating schema logic.
-public struct BridgeToolSpec: Codable, Sendable, Equatable {
-    public var name: String
-    public var description: String
-    public var properties: [BridgeToolProperty]
-    public var required: [String]
+package struct BridgeToolSpec: Codable, Sendable, Equatable {
+    package var name: String
+    package var description: String
+    package var properties: [BridgeToolProperty]
+    package var required: [String]
 
-    public init(_ spec: ToolSpec) {
+    package init(_ spec: ToolSpec) {
         self.name = spec.name
         self.description = spec.description
         self.properties = spec.properties.map { BridgeToolProperty($0) }
@@ -78,12 +78,12 @@ public struct BridgeToolSpec: Codable, Sendable, Equatable {
     }
 }
 
-public struct BridgeToolProperty: Codable, Sendable, Equatable {
-    public var name: String
-    public var type: String
-    public var description: String
+package struct BridgeToolProperty: Codable, Sendable, Equatable {
+    package var name: String
+    package var type: String
+    package var description: String
 
-    public init(_ property: ToolProperty) {
+    package init(_ property: ToolProperty) {
         self.name = property.name
         self.type = property.type
         self.description = property.description
@@ -100,13 +100,13 @@ public struct BridgeToolProperty: Codable, Sendable, Equatable {
 
 /// The hello response: session ID, language, accessibility status, and
 /// the tools Companion announces.
-public struct BridgeHelloResult: Codable, Sendable, Equatable {
-    public var session: String
-    public var language: AppLanguage
-    public var accessibility: Bool
-    public var tools: [BridgeToolSpec]
+package struct BridgeHelloResult: Codable, Sendable, Equatable {
+    package var session: String
+    package var language: AppLanguage
+    package var accessibility: Bool
+    package var tools: [BridgeToolSpec]
 
-    public init(session: String, language: AppLanguage, accessibility: Bool, tools: [BridgeToolSpec]) {
+    package init(session: String, language: AppLanguage, accessibility: Bool, tools: [BridgeToolSpec]) {
         self.session = session
         self.language = language
         self.accessibility = accessibility
@@ -117,20 +117,20 @@ public struct BridgeHelloResult: Codable, Sendable, Equatable {
 /// The result of a tool call: success flag, output, target app name, and
 /// the tool that produced it. The card (UI state) is dropped here because
 /// the shim has no canvas to paint it on.
-public struct BridgeCallResult: Codable, Sendable, Equatable {
-    public var ok: Bool
-    public var output: String
-    public var target: String
-    public var tool: String?
+package struct BridgeCallResult: Codable, Sendable, Equatable {
+    package var ok: Bool
+    package var output: String
+    package var target: String
+    package var tool: String?
 
-    public init(_ outcome: ParentToolOutcome) {
+    package init(_ outcome: ParentToolOutcome) {
         self.ok = outcome.ok
         self.output = outcome.output
         self.target = outcome.target
         self.tool = outcome.tool
     }
 
-    public init(ok: Bool, output: String, target: String, tool: String? = nil) {
+    package init(ok: Bool, output: String, target: String, tool: String? = nil) {
         self.ok = ok
         self.output = output
         self.target = target
@@ -139,11 +139,11 @@ public struct BridgeCallResult: Codable, Sendable, Equatable {
 }
 
 /// The shape of an error response on the wire.
-public struct BridgeErrorBody: Error, Codable, Sendable, Equatable {
-    public var code: String
-    public var message: String
+package struct BridgeErrorBody: Error, Codable, Sendable, Equatable {
+    package var code: String
+    package var message: String
 
-    public init(code: String, message: String) {
+    package init(code: String, message: String) {
         self.code = code
         self.message = message
     }
@@ -151,7 +151,7 @@ public struct BridgeErrorBody: Error, Codable, Sendable, Equatable {
 
 /// Outbound messages: success or error, correlated by id. The bye response
 /// has no data.
-public enum BridgeResponse: Sendable, Equatable {
+package enum BridgeResponse: Sendable, Equatable {
     case hello(id: Int, BridgeHelloResult)
     case call(id: Int, BridgeCallResult)
     case bye(id: Int)
@@ -161,51 +161,51 @@ public enum BridgeResponse: Sendable, Equatable {
 // MARK: - Error Codes
 
 /// Stable error codes the model recovers by. All listed in spec §3c.
-public enum BridgeCode {
-    public static let badToken = "bad_token"
-    public static let noSession = "no_session"
-    public static let sessionClosed = "session_closed"
-    public static let busy = "busy"
-    public static let rateLimited = "rate_limited"
+package enum BridgeCode {
+    package static let badToken = "bad_token"
+    package static let noSession = "no_session"
+    package static let sessionClosed = "session_closed"
+    package static let busy = "busy"
+    package static let rateLimited = "rate_limited"
     /// Too many denied approvals in a row: the caller is refused without a
     /// sheet until the window passes (Wave 20c D5).
-    public static let coolingDown = "cooling_down"
-    public static let unknownTool = "unknown_tool"
-    public static let invalidArgs = "invalid_args"
-    public static let targetChanged = "target_changed"
-    public static let staleId = "stale_id"
-    public static let secureField = "secure_field"
-    public static let deniedByUser = "denied_by_user"
-    public static let approvalTimeout = "approval_timeout"
-    public static let notAvailable = "not_available"
+    package static let coolingDown = "cooling_down"
+    package static let unknownTool = "unknown_tool"
+    package static let invalidArgs = "invalid_args"
+    package static let targetChanged = "target_changed"
+    package static let staleId = "stale_id"
+    package static let secureField = "secure_field"
+    package static let deniedByUser = "denied_by_user"
+    package static let approvalTimeout = "approval_timeout"
+    package static let notAvailable = "not_available"
     /// Wave 18: no browser extension is attached, or it went away mid-call.
-    public static let notConnected = "not_connected"
+    package static let notConnected = "not_connected"
     /// Wave 18b: the tab exists but this caller does not control it.
-    public static let notControlled = "not_controlled"
+    package static let notControlled = "not_controlled"
     /// Wave 18: the extension did not answer within the call's deadline.
-    public static let timeout = "timeout"
+    package static let timeout = "timeout"
     /// The tool exists but Companion's own window is in front, so there is no
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
-    public static let selfInFront = "self_in_front"
-    public static let needsAccessibility = "needs_accessibility"
+    package static let selfInFront = "self_in_front"
+    package static let needsAccessibility = "needs_accessibility"
     // Framing errors
-    public static let unknownMethod = "unknown_method"
-    public static let badFrame = "bad_frame"
-    public static let frameTooLarge = "frame_too_large"
+    package static let unknownMethod = "unknown_method"
+    package static let badFrame = "bad_frame"
+    package static let frameTooLarge = "frame_too_large"
     /// A repeated request id whose first answer was too big to keep.
-    public static let replyTooLarge = "reply_too_large"
+    package static let replyTooLarge = "reply_too_large"
 }
 
 // MARK: - Codec
 
 /// Encoder and decoder for the JSON Lines protocol. One line per message,
 /// no trailing newline (the transport adds it).
-public enum BridgeCodec {
-    public static let maxLineBytes = 65_536
+package enum BridgeCodec {
+    package static let maxLineBytes = 65_536
 
     /// Decode a line into a request or an error. The id is preserved when
     /// parseable so the shim can correlate responses.
-    public static func decode(line: String) -> Result<BridgeRequest, BridgeErrorBody> {
+    package static func decode(line: String) -> Result<BridgeRequest, BridgeErrorBody> {
         let bytes = line.utf8.count
         guard bytes <= maxLineBytes else {
             return .failure(BridgeErrorBody(code: BridgeCode.frameTooLarge,
@@ -296,7 +296,7 @@ public enum BridgeCodec {
     }
 
     /// Encode a response to a single line (no trailing newline).
-    public static func encode(_ response: BridgeResponse) -> String {
+    package static func encode(_ response: BridgeResponse) -> String {
         let envelope: [String: Any]
 
         switch response {

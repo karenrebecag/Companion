@@ -6,11 +6,11 @@ import Foundation
 /// proveedores que hermes ya tiene configurados en su propio cache. Sin
 /// binarios el catálogo queda vacío y el proveedor solo ofrece el nativo
 /// (ADR 001) — nada se asume, todo se detecta.
-public struct CLIExecutorProbe: Sendable {
+package struct CLIExecutorProbe: Sendable {
     private let locator: CLIBinaryLocator
     private let hermesProviders: @Sendable () -> [String]
 
-    public init(
+    package init(
         locator: CLIBinaryLocator = CLIBinaryLocator(),
         hermesProviders: (@Sendable () -> [String])? = nil
     ) {
@@ -30,7 +30,7 @@ public struct CLIExecutorProbe: Sendable {
     ]
 
     /// Descriptores de los CLI presentes, en orden estable.
-    public func detectAvailable() async -> [ExecutorDescriptor] {
+    package func detectAvailable() async -> [ExecutorDescriptor] {
         var detected: [ExecutorDescriptor] = []
         if locator.locate("claude") != nil {
             for tier in Self.claudeTiers {
@@ -65,7 +65,7 @@ public struct CLIExecutorProbe: Sendable {
     }
 
     /// Ruta real para lanzar el ejecutor elegido; nil si ya no está.
-    public func executablePath(for id: ExecutorID) -> String? {
+    package func executablePath(for id: ExecutorID) -> String? {
         if id.rawValue.hasPrefix("claude-code") { return locator.locate("claude") }
         if id.rawValue.hasPrefix("hermes") { return locator.locate("hermes") }
         return nil

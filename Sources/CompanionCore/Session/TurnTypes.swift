@@ -2,13 +2,13 @@
 // and what the runtime must do about it. The rule lives in TurnMachine.swift.
 import Foundation
 
-public enum TurnState: Sendable, Equatable {
+package enum TurnState: Sendable, Equatable {
     case idle, connecting, listening, thinking, speaking, error
 }
 
-public enum VoicePipeline: Sendable, Equatable { case classic, realtime }
+package enum VoicePipeline: Sendable, Equatable { case classic, realtime }
 
-public enum TurnFailure: Sendable, Equatable {
+package enum TurnFailure: Sendable, Equatable {
     case micDenied, micUnavailable, micSilent, notHeard, speechEngine, noProviders, sessionDropped, networkUnavailable
     /// The key works; the account has no credit left. Must not read as "no
     /// network" or the user debugs the wrong thing (seen live 2026-09-06).
@@ -22,29 +22,29 @@ public enum TurnFailure: Sendable, Equatable {
     case accessibilityDenied
 }
 
-public struct TurnSnapshot: Sendable, Equatable {
-    public var state: TurnState
-    public var pipeline: VoicePipeline?
-    public var muted: Bool
-    public var inConversation: Bool
-    public var typedTurn: Bool
-    public var streamingStarted: Bool
-    public var speechOpen: Bool
-    public var awaitingExecutor: Bool
-    public var interruptionPending: Bool
-    public var echoGuardUntil: TimeInterval
+package struct TurnSnapshot: Sendable, Equatable {
+    package var state: TurnState
+    package var pipeline: VoicePipeline?
+    package var muted: Bool
+    package var inConversation: Bool
+    package var typedTurn: Bool
+    package var streamingStarted: Bool
+    package var speechOpen: Bool
+    package var awaitingExecutor: Bool
+    package var interruptionPending: Bool
+    package var echoGuardUntil: TimeInterval
     /// Classic start stays idle until the mic is granted; hang-up must
     /// cancel that pending arm (no generation counter).
-    public var classicListenPending: Bool
+    package var classicListenPending: Bool
     /// The reason for entering the error state. Cleared when leaving error
     /// or starting a new voice session.
-    public var failure: TurnFailure?
+    package var failure: TurnFailure?
     /// A hold opened this session and is still down (Wave 12b). Only the
     /// connecting → ready race reads it: a release before ready leaves the
     /// mic closed and sends nothing.
-    public var holdArmed: Bool
+    package var holdArmed: Bool
 
-    public init(
+    package init(
         state: TurnState = .idle,
         pipeline: VoicePipeline? = nil,
         muted: Bool = false,
@@ -74,10 +74,10 @@ public struct TurnSnapshot: Sendable, Equatable {
         self.holdArmed = holdArmed
     }
 
-    public static let idle = TurnSnapshot()
+    package static let idle = TurnSnapshot()
 }
 
-public enum TurnEvent: Sendable, Equatable {
+package enum TurnEvent: Sendable, Equatable {
     case startVoice(preferRealtime: Bool)
     case advance(hasSpeech: Bool)
     case typedSubmit
@@ -114,7 +114,7 @@ public enum TurnEvent: Sendable, Equatable {
     case interrupt
 }
 
-public enum TurnEffect: Sendable, Equatable {
+package enum TurnEffect: Sendable, Equatable {
     case openRealtimeSession
     case requestClassicListen
     case closeRealtime

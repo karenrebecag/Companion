@@ -13,7 +13,7 @@ import Foundation
 /// `pcm_24000` is S16LE 16-bit mono per
 /// https://elevenlabs.io/docs/overview/capabilities/text-to-speech — the
 /// exact bytes `DataSpeechPlayback` already plays for OpenAI.
-public struct ElevenLabsTTSClient: TTSFetching, Sendable {
+package struct ElevenLabsTTSClient: TTSFetching, Sendable {
     private static let host = "https://api.elevenlabs.io"
     private static let outputFormat = "pcm_24000"
 
@@ -24,7 +24,7 @@ public struct ElevenLabsTTSClient: TTSFetching, Sendable {
     /// change must reach the next sentence without rebuilding the mouth.
     private let voiceID: @Sendable () -> String
 
-    public init(
+    package init(
         secrets: any SecretStore, transport: any ChatTransport,
         language: AppLanguage, voiceID: @escaping @Sendable () -> String
     ) {
@@ -36,11 +36,11 @@ public struct ElevenLabsTTSClient: TTSFetching, Sendable {
 
     /// The OpenAI `VoiceID` is ignored on purpose: ElevenLabs speaks with
     /// its own voice id, and that is what keys the audio apart.
-    public func cacheVariant(voice: VoiceID) -> String {
+    package func cacheVariant(voice: VoiceID) -> String {
         "elevenlabs/\(ElevenLabsMouth.model)/\(Self.trimmed(voiceID()))"
     }
 
-    public func fetch(_ text: String, voice: VoiceID) async throws -> Data {
+    package func fetch(_ text: String, voice: VoiceID) async throws -> Data {
         let request = try makeRequest(text)
         let (data, response) = try await transport.data(for: request)
         guard response.statusCode == 200, !data.isEmpty else {
@@ -49,7 +49,7 @@ public struct ElevenLabsTTSClient: TTSFetching, Sendable {
         return data
     }
 
-    public func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
+    package func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -71,7 +71,7 @@ public struct ElevenLabsTTSClient: TTSFetching, Sendable {
     /// Same reasoning as `OpenAITTSClient.warm`: a connection probe with no
     /// key and no body, so the handshake is paid at press without reading
     /// the Keychain. The unauthenticated answer is expected and ignored.
-    public func warm() async {
+    package func warm() async {
         guard let url = URL(string: Self.host + "/v1/models"),
               EndpointPolicy.isAcceptable(url)
         else { return }
@@ -120,7 +120,7 @@ extension ElevenLabsTTSClient {
     /// Security review 2026-09-25 (LOW-1): the voice id is spliced into the
     /// URL path, so it is refused unless it is what ElevenLabs issues —
     /// never escaped into shape.
-    public struct InvalidVoiceID: Error, Equatable {}
+    package struct InvalidVoiceID: Error, Equatable {}
 
     /// `^[A-Za-z0-9]{1,64}$` after trimming the ends; the rule itself is
     /// `ElevenLabsMouth.isValidVoiceID`, shared with Settings.

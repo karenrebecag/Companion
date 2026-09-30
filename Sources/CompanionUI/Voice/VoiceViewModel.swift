@@ -3,16 +3,16 @@ import Observation
 
 @Observable
 @MainActor
-public final class VoiceViewModel {
-    public private(set) var snapshot: TurnSnapshot = .idle
-    public private(set) var levels = VoiceLevels(mic: 0, agent: 0)
-    public private(set) var statusText: String?
+package final class VoiceViewModel {
+    package private(set) var snapshot: TurnSnapshot = .idle
+    package private(set) var levels = VoiceLevels(mic: 0, agent: 0)
+    package private(set) var statusText: String?
     /// Adapts the controls: button to interrupt on speakers, clean flow on
     /// headphones. Defaults to tapOnly until the route watcher reports.
-    public private(set) var interruptCapability: InterruptCapability = .tapOnly
-    public private(set) var echoFreeOutput = false
+    package private(set) var interruptCapability: InterruptCapability = .tapOnly
+    package private(set) var echoFreeOutput = false
 
-    public var isActive: Bool {
+    package var isActive: Bool {
         switch snapshot.state {
         case .connecting, .listening, .thinking, .speaking: true
         case .idle, .error: false
@@ -26,7 +26,7 @@ public final class VoiceViewModel {
     private let session: SessionModel?
     private let tasks = Tasks()
 
-    public init(
+    package init(
         voice: any VoiceControlling,
         thread: any ConversationPresenting,
         outputRoute: (any OutputRouteObserving)? = nil,
@@ -46,35 +46,35 @@ public final class VoiceViewModel {
 
     private let outputRoute: (any OutputRouteObserving)?
 
-    public func start() {
+    package func start() {
         Task { await voice.start() }
     }
 
-    public func advance() {
+    package func advance() {
         Task { await voice.advance() }
     }
 
-    public func hangUp() {
+    package func hangUp() {
         Task { await voice.hangUp() }
     }
 
-    public func setVolume(_ volume: Double) {
+    package func setVolume(_ volume: Double) {
         Task { await voice.setVolume(volume) }
     }
 
-    public func setSpeed(_ speed: Double) {
+    package func setSpeed(_ speed: Double) {
         Task { await voice.setSpeed(speed) }
     }
 
-    public func toggleMute() {
+    package func toggleMute() {
         Task { await voice.toggleMute() }
     }
 
-    public func push(_ attachment: AttachmentRef) {
+    package func push(_ attachment: AttachmentRef) {
         Task { await voice.push(attachment: attachment) }
     }
 
-    public func onAppear() {
+    package func onAppear() {
         guard tasks.snapshots == nil else { return }
         if let outputRoute {
             tasks.route = Task { [weak self] in

@@ -151,10 +151,10 @@ final class PDFRenderer: NSObject, WKNavigationDelegate {
 }
 
 /// The document port: PDF through WebKit, XLSX through `XLSXWriter`.
-public struct NativeDocumentRenderer: DocumentRendering {
-    public init() {}
+package struct NativeDocumentRenderer: DocumentRendering {
+    package init() {}
 
-    public func render(_ spec: DocumentSpec, format: DocumentFormat, to url: URL) async throws -> DocumentReceipt {
+    package func render(_ spec: DocumentSpec, format: DocumentFormat, to url: URL) async throws -> DocumentReceipt {
         switch format {
         case .pdf:
             let html = DocumentHTML.render(spec)

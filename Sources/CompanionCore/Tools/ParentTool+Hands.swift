@@ -87,14 +87,14 @@ extension ParentTool {
 /// user said runs without the sheet, and Return always asks. Elsewhere an
 /// address nobody said asks, and Return asks unless the user asked to send.
 /// Pure: the runner says which app is the target.
-public enum HandsVerdict: Equatable, Sendable {
+package enum HandsVerdict: Equatable, Sendable {
     case act
     case ask
     case refuse(String)
 }
 
-public enum HandsGate {
-    public static func verdict(_ call: ToolCallRef, commandApp: Bool, said: String) -> HandsVerdict {
+package enum HandsGate {
+    package static func verdict(_ call: ToolCallRef, commandApp: Bool, said: String) -> HandsVerdict {
         guard let arguments = ToolArguments.parse(call.arguments) else { return .act }
         switch ParentTool(rawValue: call.name) {
         case .pressKey:
@@ -117,7 +117,7 @@ public enum HandsGate {
     /// Outside a command app, typed text that reads as an address or flag
     /// asks unless the user said it. Shared with the browser's `type` so the
     /// rule has one home.
-    public static func typeVerdict(text: String, said: String) -> HandsVerdict {
+    package static func typeVerdict(text: String, said: String) -> HandsVerdict {
         let clean = stripped(text)
         return HandsWords.looksLikeAddress(clean) && !HandsWords.said(clean, in: said)
             ? .ask : .act
@@ -128,7 +128,7 @@ public enum HandsGate {
     /// Security review 16: an unlabeled control (an icon) always asks — the
     /// model cannot know it is not the trash can — and a neutral "Sí"/"OK"
     /// is judged by the dialog it sits in.
-    public static func clickVerdict(label: String, context: String, said: String) -> HandsVerdict {
+    package static func clickVerdict(label: String, context: String, said: String) -> HandsVerdict {
         guard !isUnlabeled(label) else { return .ask }
         guard let family = family(label: label, context: context) else { return .act }
         return HandsWords.asks(family: family, in: said) ? .act : .ask
@@ -136,7 +136,7 @@ public enum HandsGate {
 
     /// The runner's own check for a click, without the user's words: a
     /// destructive or unlabeled button spends a ticket only the gate issues.
-    public static func clickNeedsTicket(label: String, context: String) -> Bool {
+    package static func clickNeedsTicket(label: String, context: String) -> Bool {
         isUnlabeled(label) || family(label: label, context: context) != nil
     }
 
@@ -146,11 +146,11 @@ public enum HandsGate {
     /// `resolved` is the title the adapter would really press: a partial
     /// name ("Empty") matches "Empty Trash…", so the typed name alone can
     /// never clear an item.
-    public static func menuNeedsTicket(path: [String], resolved: String? = nil) -> Bool {
+    package static func menuNeedsTicket(path: [String], resolved: String? = nil) -> Bool {
         !menuFamilies(path: path, resolved: resolved).isEmpty
     }
 
-    public static func menuVerdict(path: [String], resolved: String? = nil, said: String) -> HandsVerdict {
+    package static func menuVerdict(path: [String], resolved: String? = nil, said: String) -> HandsVerdict {
         let families = menuFamilies(path: path, resolved: resolved)
         return families.allSatisfy { HandsWords.asks(family: $0, in: said) } ? .act : .ask
     }
@@ -161,14 +161,14 @@ public enum HandsGate {
     }
 
     /// "Archivo > Exportar" as its parts; empty when the argument is absent.
-    public static func menuPath(_ arguments: [String: Any]) -> [String] {
+    package static func menuPath(_ arguments: [String: Any]) -> [String] {
         (arguments["path"] as? String ?? "")
             .split(separator: ">").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
     /// The sheet for a destructive menu item names the path and the app,
     /// with the item that would really be pressed, not the model's partial.
-    public static func menuRequest(
+    package static func menuRequest(
         _ call: ToolCallRef, path: [String], resolved: String? = nil, app: String
     ) -> ApprovalRequest {
         let shown = (path.dropLast() + [resolved ?? path.last].compactMap { $0 }).joined(separator: " > ")
@@ -191,7 +191,7 @@ public enum HandsGate {
     /// The runner's own check, without the user's words: in a command app
     /// typing and Return spend a ticket that only the gate can issue, so a
     /// path that skipped the gate fails closed.
-    public static func needsTicket(_ call: ToolCallRef, commandApp: Bool) -> Bool {
+    package static func needsTicket(_ call: ToolCallRef, commandApp: Bool) -> Bool {
         guard commandApp, let arguments = ToolArguments.parse(call.arguments) else { return false }
         switch ParentTool(rawValue: call.name) {
         case .pressKey: return isReturn(arguments["key"] as? String)
@@ -202,7 +202,7 @@ public enum HandsGate {
 
     /// Outside a command app a stray escape or control byte is noise, not
     /// intent; line breaks and tabs are text.
-    public static func stripped(_ text: String) -> String {
+    package static func stripped(_ text: String) -> String {
         String(String.UnicodeScalarView(text.unicodeScalars.filter {
             !HandsWords.isControl($0, format: false)
         }))
@@ -221,7 +221,7 @@ public enum HandsGate {
     /// The sheet shows what the user has to judge: the whole text that
     /// would be typed, or the key with the app that receives it and — in a
     /// command app — the line Return would run (`line`, read by the runner).
-    public static func request(
+    package static func request(
         _ call: ToolCallRef, app: String, commandApp: Bool, line: String? = nil
     ) -> ApprovalRequest {
         let arguments = ToolArguments.parse(call.arguments) ?? [:]
@@ -243,7 +243,7 @@ public enum HandsGate {
     }
 
     /// The sheet for a destructive click names the button and the app.
-    public static func clickRequest(_ call: ToolCallRef, label: String, app: String) -> ApprovalRequest {
+    package static func clickRequest(_ call: ToolCallRef, label: String, app: String) -> ApprovalRequest {
         ApprovalRequest(
             requestId: UUID().uuidString, toolName: call.name,
             summary: "click \(label) in \(app)",

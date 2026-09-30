@@ -1,7 +1,7 @@
 import Foundation
 import CompanionCore
 
-public protocol Clock: Sendable {
+package protocol Clock: Sendable {
     func now() -> TimeInterval
 }
 
@@ -10,7 +10,7 @@ public protocol Clock: Sendable {
 /// the deadline. No polling — ARCHITECTURE.md's rule. The session's memory
 /// of remembered decisions lives here too, because this is the actor that
 /// receives `remember`.
-public actor Approvals: ApprovalsProvider {
+package actor Approvals: ApprovalsProvider {
     private struct Pending {
         let request: ApprovalRequest
         let continuation: CheckedContinuation<ApprovalResponse, Never>
@@ -22,14 +22,14 @@ public actor Approvals: ApprovalsProvider {
     private let clock: Clock
     private let timeout: TimeInterval
 
-    public init(clock: Clock, timeout: TimeInterval = ApprovalTiming.autoDeny) {
+    package init(clock: Clock, timeout: TimeInterval = ApprovalTiming.autoDeny) {
         self.clock = clock
         self.timeout = timeout
     }
 
     /// Suspends until `resolve`, the deadline, or the caller's cancellation:
     /// a turn that was switched away must not stay parked on the sheet.
-    public func request(_ approval: ApprovalRequest) async -> ApprovalResponse {
+    package func request(_ approval: ApprovalRequest) async -> ApprovalResponse {
         let id = approval.requestId
         let started = clock.now()
         let timeout = self.timeout
@@ -61,11 +61,11 @@ public actor Approvals: ApprovalsProvider {
         }
     }
 
-    public func resolve(requestId: String, approved: Bool) async -> Bool {
+    package func resolve(requestId: String, approved: Bool) async -> Bool {
         await resolve(requestId: requestId, approved: approved, remember: false)
     }
 
-    public func resolve(requestId: String, approved: Bool, remember: Bool) async -> Bool {
+    package func resolve(requestId: String, approved: Bool, remember: Bool) async -> Bool {
         resolveNow(requestId: requestId, approved: approved, remember: remember)
     }
 
@@ -84,7 +84,7 @@ public actor Approvals: ApprovalsProvider {
         return true
     }
 
-    public func remembered(_ approval: ApprovalRequest) async -> Bool? {
+    package func remembered(_ approval: ApprovalRequest) async -> Bool? {
         guard let key = ApprovalKey.from(approval) else { return nil }
         return memory.decision(for: key)
     }
@@ -96,10 +96,10 @@ public actor Approvals: ApprovalsProvider {
     }
 }
 
-public final class RealtimeClock: Clock, Sendable {
-    public init() {}
+package final class RealtimeClock: Clock, Sendable {
+    package init() {}
 
-    nonisolated public func now() -> TimeInterval {
+    nonisolated package func now() -> TimeInterval {
         Date().timeIntervalSince1970
     }
 }

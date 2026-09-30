@@ -5,20 +5,20 @@ import Foundation
 // keeps the writer free of a compression dependency.
 
 /// A minimal zip: stored entries, CRC-32, one central directory.
-public enum ZipWriter {
+package enum ZipWriter {
     static let table: [UInt32] = (0..<256).map { n -> UInt32 in
         var c = UInt32(n)
         for _ in 0..<8 { c = c & 1 != 0 ? 0xEDB8_8320 ^ (c >> 1) : c >> 1 }
         return c
     }
 
-    public static func crc32(_ data: Data) -> UInt32 {
+    package static func crc32(_ data: Data) -> UInt32 {
         var crc: UInt32 = 0xFFFF_FFFF
         for byte in data { crc = table[Int((crc ^ UInt32(byte)) & 0xFF)] ^ (crc >> 8) }
         return crc ^ 0xFFFF_FFFF
     }
 
-    public static func archive(_ entries: [(name: String, data: Data)]) -> Data {
+    package static func archive(_ entries: [(name: String, data: Data)]) -> Data {
         var out = Data()
         var central = Data()
         // 1980-01-01 00:00: a fixed stamp keeps the output reproducible.
@@ -55,15 +55,15 @@ extension Data {
     }
 }
 
-public enum XLSXWriter {
-    public struct Sheet: Sendable, Equatable {
-        public var name: String
+package enum XLSXWriter {
+    package struct Sheet: Sendable, Equatable {
+        package var name: String
         /// The first row is the header.
-        public var rows: [[String]]
+        package var rows: [[String]]
     }
 
     /// Stats, tables and charts, each as its own sheet, in document order.
-    public static func sheets(_ spec: DocumentSpec) -> [Sheet] {
+    package static func sheets(_ spec: DocumentSpec) -> [Sheet] {
         var raw: [(title: String?, rows: [[String]])] = []
         for block in spec.blocks {
             switch block {
@@ -83,7 +83,7 @@ public enum XLSXWriter {
         return zip(names, raw).map { Sheet(name: $0, rows: $1.rows) }
     }
 
-    public static func package(_ spec: DocumentSpec) -> Data? {
+    package static func package(_ spec: DocumentSpec) -> Data? {
         let sheets = sheets(spec)
         guard !sheets.isEmpty else { return nil }
         var entries: [(name: String, data: Data)] = [
@@ -101,7 +101,7 @@ public enum XLSXWriter {
     }
 
     /// Excel's rules: 31 characters, none of : \ / ? * [ ], unique.
-    public static func uniqueNames(_ titles: [String]) -> [String] {
+    package static func uniqueNames(_ titles: [String]) -> [String] {
         var used = Set<String>()
         return titles.enumerated().map { index, title in
             let cleaned = String(title.filter { !":\\/?*[]".contains($0) }
@@ -118,7 +118,7 @@ public enum XLSXWriter {
         }
     }
 
-    public static func sheetXML(_ sheet: Sheet, allowFormulas: Bool = false) -> String {
+    package static func sheetXML(_ sheet: Sheet, allowFormulas: Bool = false) -> String {
         let columnCount = sheet.rows.map(\.count).max() ?? 0
         let widths: [Int] = (0..<columnCount).map { column in
             let longest: Int = sheet.rows.map { column < $0.count ? $0[column].count : 0 }.max() ?? 0
@@ -161,7 +161,7 @@ public enum XLSXWriter {
     }
 
     /// Escaped, and without the control characters XML 1.0 forbids.
-    public static func xml(_ text: String) -> String {
+    package static func xml(_ text: String) -> String {
         DocumentHTML.escape(String(text.unicodeScalars.filter {
             $0.value >= 0x20 || $0 == "\t" || $0 == "\n" || $0 == "\r"
         }.map(Character.init)))

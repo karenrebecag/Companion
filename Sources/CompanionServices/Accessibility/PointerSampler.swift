@@ -6,8 +6,8 @@ import Foundation
 /// Wave 16o-3: every 100 ms from press to commit, the Accessibility element
 /// under the cursor. In memory only; `stop` hands it to the turn and forgets.
 /// Samples arrive on a private queue: an AX call on a busy app can block.
-public final class PointerSampler: @unchecked Sendable {
-    public static let interval: TimeInterval = 0.1
+package final class PointerSampler: @unchecked Sendable {
+    package static let interval: TimeInterval = 0.1
     private let probe: @Sendable (CGPoint) -> PointedElement?
     private let location: @Sendable () -> CGPoint
     private let ownsPoint: @Sendable (CGPoint) -> Bool
@@ -19,7 +19,7 @@ public final class PointerSampler: @unchecked Sendable {
     private var samples: [PointedElement] = []
     private var timer: DispatchSourceTimer?
 
-    public init(
+    package init(
         probe: @escaping @Sendable (CGPoint) -> PointedElement? = AXPointerProbe.element(at:),
         location: @escaping @Sendable () -> CGPoint = AXPointerProbe.cursor,
         ownsPoint: @escaping @Sendable (CGPoint) -> Bool = AXPointerProbe.ownWindowCovers,
@@ -33,7 +33,7 @@ public final class PointerSampler: @unchecked Sendable {
         self.ticks = ticks
     }
 
-    public func start() {
+    package func start() {
         lock.withLock {
             timer?.cancel()
             startedAt = now()
@@ -49,7 +49,7 @@ public final class PointerSampler: @unchecked Sendable {
 
     /// One reading, kept only if it is a new referent (collapsed as it goes,
     /// so a long hold never grows the buffer past `PointerTrace.maxItems`).
-    public func sample() {
+    package func sample() {
         guard let started = lock.withLock({ startedAt }) else { return }
         let point = location()
         // Over our own window the AX hit test is answered in-process, on this
@@ -62,7 +62,7 @@ public final class PointerSampler: @unchecked Sendable {
         }
     }
 
-    public func stop() -> [PointedElement] {
+    package func stop() -> [PointedElement] {
         lock.withLock {
             timer?.cancel()
             timer = nil
@@ -73,13 +73,13 @@ public final class PointerSampler: @unchecked Sendable {
     }
 }
 
-public enum AXPointerProbe {
+package enum AXPointerProbe {
     /// Longest wait for one app's answer: past it the sample is skipped.
     static let messagingTimeout: Float = 0.05
     static let maxText = 120
 
     /// Global coordinates, origin top-left, as Accessibility wants them.
-    public static func cursor() -> CGPoint {
+    package static func cursor() -> CGPoint {
         CGEvent(source: nil)?.location ?? .zero
     }
 
@@ -89,7 +89,7 @@ public enum AXPointerProbe {
     /// Click-through windows (the glow, the resting island) are skipped: the
     /// window server skips them too when it hit-tests. A window of ours hidden
     /// behind another app's reads as covering, which only skips a sample.
-    public static func ownWindowCovers(_ point: CGPoint) -> Bool {
+    package static func ownWindowCovers(_ point: CGPoint) -> Bool {
         let check: @Sendable () -> Bool = {
             MainActor.assumeIsolated {
                 // Accessibility's origin is the primary screen's top-left.
@@ -105,7 +105,7 @@ public enum AXPointerProbe {
         return Thread.isMainThread ? check() : DispatchQueue.main.sync(execute: check)
     }
 
-    public static func element(at point: CGPoint) -> PointedElement? {
+    package static func element(at point: CGPoint) -> PointedElement? {
         guard AXIsProcessTrusted() else { return nil }
         let system = AXUIElementCreateSystemWide()
         AXUIElementSetMessagingTimeout(system, messagingTimeout)

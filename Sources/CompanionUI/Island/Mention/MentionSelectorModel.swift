@@ -4,11 +4,11 @@ import Observation
 
 /// What a pick hands back to the field: the new words, the mention that now
 /// stands in them, and a file to attach when the pick was one.
-public struct MentionPick: Equatable {
-    public let draft: String
-    public let fallbackDraft: String
-    public let mention: Mention?
-    public let attach: URL?
+package struct MentionPick: Equatable {
+    package let draft: String
+    package let fallbackDraft: String
+    package let mention: Mention?
+    package let attach: URL?
 
     /// A file pick that could not be attached leaves no trace: not the
     /// `@name` in the words and not a mention that promises a file.

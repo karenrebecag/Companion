@@ -1,16 +1,16 @@
 import Foundation
 
-public struct ApprovalRequest: Sendable, Equatable {
-    public var requestId: String
-    public var toolName: String
-    public var summary: String
-    public var inputJSON: String
+package struct ApprovalRequest: Sendable, Equatable {
+    package var requestId: String
+    package var toolName: String
+    package var summary: String
+    package var inputJSON: String
     /// Minted by the realtime session for the user's own MCP servers. An
     /// explicit origin, not a name shape: the sheet, the job-deny rule and
     /// the remember toggle all branch on it (20c D2 review).
-    public var isMCP: Bool
+    package var isMCP: Bool
 
-    public init(
+    package init(
         requestId: String, toolName: String, summary: String, inputJSON: String,
         isMCP: Bool = false
     ) {
@@ -22,7 +22,7 @@ public struct ApprovalRequest: Sendable, Equatable {
     }
 }
 
-public enum AgentStreamEvent: Sendable, Equatable {
+package enum AgentStreamEvent: Sendable, Equatable {
     case initialized(sessionId: String)
     case result(text: String, isError: Bool)
     case approval(ApprovalRequest)
@@ -31,8 +31,8 @@ public enum AgentStreamEvent: Sendable, Equatable {
     case ignored
 }
 
-public enum AgentStreamCodec: Sendable {
-    public static func userTurn(_ text: String) -> String? {
+package enum AgentStreamCodec: Sendable {
+    package static func userTurn(_ text: String) -> String? {
         let obj: [String: Any] = [
             "type": "user",
             "message": [
@@ -45,7 +45,7 @@ public enum AgentStreamCodec: Sendable {
 
     /// init/result/control_request and assistant tool/thinking blocks matter;
     /// hooks, rate limits and plain assistant text are noise on the wire.
-    public static func parse(_ line: String) -> AgentStreamEvent {
+    package static func parse(_ line: String) -> AgentStreamEvent {
         guard let obj = jsonObject(from: line),
               let type = obj["type"] as? String
         else { return .ignored }
@@ -68,7 +68,7 @@ public enum AgentStreamCodec: Sendable {
         }
     }
 
-    public static func controlResponse(
+    package static func controlResponse(
         requestId: String, allow: Bool, inputJSON: String, message: String
     ) -> String? {
         var inner: [String: Any] = ["behavior": allow ? "allow" : "deny"]
@@ -88,13 +88,13 @@ public enum AgentStreamCodec: Sendable {
         return encodeLine(obj)
     }
 
-    public static func toolDetail(fromInputJSON json: String) -> String {
+    package static func toolDetail(fromInputJSON json: String) -> String {
         guard let input = jsonObject(from: json) else { return "" }
         return toolDetail(from: input)
     }
 
     /// Technical tool names are opaque in a glanceable timeline.
-    public static func stepLabel(
+    package static func stepLabel(
         _ tool: String, _ detail: String, _ language: AppLanguage = .en
     ) -> String {
         let english = language == .en

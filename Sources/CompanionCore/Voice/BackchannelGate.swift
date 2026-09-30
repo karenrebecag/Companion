@@ -9,17 +9,17 @@ import Foundation
 /// Rule: while the agent speaks, the user must sustain voice for a moment
 /// before their audio is forwarded. A backchannel is short; a real
 /// interruption keeps going.
-public struct BackchannelGate: Sendable, Equatable {
+package struct BackchannelGate: Sendable, Equatable {
     /// Frames of ~85 ms at 24 kHz: six of them are roughly half a second.
-    public static let defaultRequiredFrames = 6
-    public static let defaultThreshold = 0.08
+    package static let defaultRequiredFrames = 6
+    package static let defaultThreshold = 0.08
 
     private let requiredFrames: Int
     private let threshold: Double
     private var voiced = 0
     private var open = false
 
-    public init(
+    package init(
         requiredFrames: Int = defaultRequiredFrames,
         threshold: Double = defaultThreshold
     ) {
@@ -28,7 +28,7 @@ public struct BackchannelGate: Sendable, Equatable {
     }
 
     /// Called per mic frame while the agent is speaking.
-    public mutating func allowsWhileSpeaking(rms: Double) -> Bool {
+    package mutating func allowsWhileSpeaking(rms: Double) -> Bool {
         if open { return true }
         if rms >= threshold {
             voiced += 1
@@ -46,7 +46,7 @@ public struct BackchannelGate: Sendable, Equatable {
     }
 
     /// The agent stopped (or the turn ended): next reply starts guarded again.
-    public mutating func reset() {
+    package mutating func reset() {
         voiced = 0
         open = false
     }

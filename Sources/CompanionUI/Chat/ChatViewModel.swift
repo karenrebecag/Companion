@@ -4,14 +4,14 @@ import Observation
 
 @Observable
 @MainActor
-public final class ChatViewModel: ConversationPresenting {
-    public internal(set) var needsOnboarding = true
+package final class ChatViewModel: ConversationPresenting {
+    package internal(set) var needsOnboarding = true
     /// How the launch resolved. `needsOnboarding` stays true until this
     /// settles, so the root never paints the thread and takes it back.
-    public internal(set) var startup: StartupState = .probing
-    public internal(set) var messages: [ChatMessage] = []
-    public internal(set) var streaming = ""
-    public internal(set) var busy = false
+    package internal(set) var startup: StartupState = .probing
+    package internal(set) var messages: [ChatMessage] = []
+    package internal(set) var streaming = ""
+    package internal(set) var busy = false
     struct QueuedMessage: Equatable {
         let text: String
         let origin: MessageOrigin
@@ -20,9 +20,9 @@ public final class ChatViewModel: ConversationPresenting {
 
     var queue: [QueuedMessage] = []
     /// What is waiting behind the running turn, in order.
-    public var queued: [String] { queue.map(\.text) }
-    public internal(set) var pendingAttachments: [AttachmentRef] = []
-    public internal(set) var pendingMentions: [Mention] = []
+    package var queued: [String] { queue.map(\.text) }
+    package internal(set) var pendingAttachments: [AttachmentRef] = []
+    package internal(set) var pendingMentions: [Mention] = []
     /// The field changed: a mention whose `@name` is no longer in it is gone,
     /// with its channel, and typing the name again by hand does not bring it back.
     func syncMentions(with words: String) {
@@ -30,14 +30,14 @@ public final class ChatViewModel: ConversationPresenting {
     }
 
     /// A pick from the `@` selector, waiting for the message it belongs to.
-    public func addMention(_ mention: Mention) {
+    package func addMention(_ mention: Mention) {
         pendingMentions.append(mention)
     }
-    public var dropTargeted = false
-    public internal(set) var busySince: Date?
+    package var dropTargeted = false
+    package internal(set) var busySince: Date?
     /// The session's state (Wave 12a): kind, job, sheet queue. This model
     /// sends events into it and paints from it; it never writes it.
-    public let session: SessionModel
+    package let session: SessionModel
     /// Set by the brake so the job's own ending knows it was stopped rather
     /// than broken.
     var cancelledJob = false
@@ -45,15 +45,15 @@ public final class ChatViewModel: ConversationPresenting {
     /// voice-born job's row (or the other way round).
     var chatJobID: JobID?
 
-    public var folderName: String?
+    package var folderName: String?
 
-    public var folderLabel: String? {
+    package var folderLabel: String? {
         folderName
             ?? WorkdirPreference.label
             ?? config.workdir.map { URL(fileURLWithPath: $0).lastPathComponent }
     }
 
-    public func setFolder(_ path: String) {
+    package func setFolder(_ path: String) {
         guard WorkdirPreference.isAllowed(path) else { return }
         WorkdirPreference.stored = path
         folderName = WorkdirPreference.label
@@ -61,11 +61,11 @@ public final class ChatViewModel: ConversationPresenting {
 
     /// Asked instead of comparing the label: a translated string deciding
     /// whether a button is enabled breaks the moment the language changes.
-    public var hasStoredAttachments: Bool {
+    package var hasStoredAttachments: Bool {
         (attachments?.storedBytes() ?? 0) > 0
     }
 
-    public var attachmentsStorageLabel: String {
+    package var attachmentsStorageLabel: String {
         let bytes = attachments?.storedBytes() ?? 0
         if bytes <= 0 { return Localized.string("settings.storage.empty") }
         let formatter = ByteCountFormatter()
@@ -73,24 +73,24 @@ public final class ChatViewModel: ConversationPresenting {
         return formatter.string(fromByteCount: Int64(bytes))
     }
 
-    public func purgeStoredAttachments() {
+    package func purgeStoredAttachments() {
         attachments?.purge()
         pendingAttachments = []
     }
-    public internal(set) var recents: [ConversationMeta] = []
+    package internal(set) var recents: [ConversationMeta] = []
     /// The task Follow up handed to the island (spec 16j §8); the next turn
     /// continues it.
-    public var followUp: String?
-    public internal(set) var errorText: String? {
+    package var followUp: String?
+    package internal(set) var errorText: String? {
         // A cleared error re-arms the island for the next identical one.
         didSet { if errorText == nil { dismissedIslandError = nil } }
     }
     /// The chat error the island already showed or was outranked on; it
     /// lives here so a recreated view cannot resurrect it. Home keeps its own.
-    public internal(set) var dismissedIslandError: String?
-    public var draft = ""
-    public var onboardingKey = ""
-    public private(set) var onboardingBusy = false
+    package internal(set) var dismissedIslandError: String?
+    package var draft = ""
+    package var onboardingKey = ""
+    package private(set) var onboardingBusy = false
 
     let chat: any ChatProvider
     let secrets: any SecretStore
@@ -98,7 +98,7 @@ public final class ChatViewModel: ConversationPresenting {
     let config: Config
     /// Spec 15d §5: while the user's words are written to disk, the window
     /// and the island say so.
-    public var debugTranscripts: Bool { config.debugTranscripts }
+    package var debugTranscripts: Bool { config.debugTranscripts }
     let startupProbe: (any StartupProbing)?
     /// The local path this user accepted, held in memory so a stale
     /// preference can never unlock the app on its own: it only counts once
@@ -106,7 +106,7 @@ public final class ChatViewModel: ConversationPresenting {
     var acceptedLocal: LocalPath?
     var probeTask: Task<Void, Never>?
     let jobSubmitter: (any JobSubmitter)?
-    public let notices: NoticeCenter
+    package let notices: NoticeCenter
     let attachments: (any AttachmentStoring)?
     /// The parent's hands (Wave 10b): what the turn does itself, no job.
     let parentTools: (any ParentToolExecuting)?
@@ -114,8 +114,8 @@ public final class ChatViewModel: ConversationPresenting {
     /// current turn only; the thread never shows it, the store never keeps it.
     let sensor: (any ContextSensing)?
     /// Probed at launch and shown in Settings; the sensor reads it per turn.
-    public let accessibility: (any AccessibilityChecking)?
-    public let screenRecording: (any ScreenRecordingChecking)?
+    package let accessibility: (any AccessibilityChecking)?
+    package let screenRecording: (any ScreenRecordingChecking)?
     /// Where `open_url` waits for the sheet (Wave 10c 3D): the same actor
     /// the specialist's permissions go through.
     let approvals: (any ApprovalsProvider)?
@@ -130,7 +130,7 @@ public final class ChatViewModel: ConversationPresenting {
     let now: @Sendable () -> Date
     let log: @Sendable (String) -> Void
 
-    public init(
+    package init(
         chat: any ChatProvider,
         secrets: any SecretStore,
         store: any ConversationStoring,
@@ -168,15 +168,15 @@ public final class ChatViewModel: ConversationPresenting {
             ?? config.workdir.map { URL(fileURLWithPath: $0).lastPathComponent }
     }
 
-    public func dismissError() {
+    package func dismissError() {
         errorText = nil
     }
 
-    public func toast(_ text: String, level: NoticeLevel = .info) {
+    package func toast(_ text: String, level: NoticeLevel = .info) {
         notices.toast(text, level: level)
     }
 
-    public func submitOnboarding() async {
+    package func submitOnboarding() async {
         guard !onboardingBusy else { return }
         let key = onboardingKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if key.isEmpty {
@@ -204,7 +204,7 @@ public final class ChatViewModel: ConversationPresenting {
         }
     }
 
-    public func changeKey() {
+    package func changeKey() {
         abandonTurn()
         dropParentApprovals()
         queue = []
@@ -218,7 +218,7 @@ public final class ChatViewModel: ConversationPresenting {
         if acceptedLocal == nil { needsOnboarding = true }
     }
 
-    public func send() {
+    package func send() {
         guard !needsOnboarding else { return }
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || !pendingAttachments.isEmpty else { return }
@@ -238,7 +238,7 @@ public final class ChatViewModel: ConversationPresenting {
     /// not show an answer that never left. The message is marked as a card
     /// pick and never takes the staged attachments.
     @discardableResult
-    public func choose(_ label: String) -> Bool {
+    package func choose(_ label: String) -> Bool {
         guard !needsOnboarding else { return false }
         let text = label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return false }
@@ -255,7 +255,7 @@ public final class ChatViewModel: ConversationPresenting {
         startTurn(text, origin: origin, mentions: mentions)
     }
 
-    public func newConversation() {
+    package func newConversation() {
         abandonTurn()
         dropParentApprovals()
         queue = []
@@ -269,7 +269,7 @@ public final class ChatViewModel: ConversationPresenting {
         draft = ""
     }
 
-    public func openConversation(_ id: String) {
+    package func openConversation(_ id: String) {
         guard id != conversationId else { return }
         abandonTurn()
         dropParentApprovals()
@@ -289,7 +289,7 @@ public final class ChatViewModel: ConversationPresenting {
 
     /// A task's conversation for its detail sheet, read without switching
     /// away from the one in progress.
-    public func transcript(_ id: String) -> [ChatMessage] {
+    package func transcript(_ id: String) -> [ChatMessage] {
         guard id != conversationId else { return messages }
         do {
             return try store.load(id).map { Self.messages(of: $0) } ?? []
@@ -301,20 +301,20 @@ public final class ChatViewModel: ConversationPresenting {
 
     /// Switching conversations abandons the turn in progress; Follow up
     /// waits for it instead of dropping it (code review 16j-2).
-    public var canFollowUp: Bool {
+    package var canFollowUp: Bool {
         !busy && session.projection.job == nil
     }
 
     /// Follow up: the task becomes the conversation, and the island carries it.
     @discardableResult
-    public func followUp(_ task: ConversationMeta) -> Bool {
+    package func followUp(_ task: ConversationMeta) -> Bool {
         guard canFollowUp else { return false }
         openConversation(task.id)
         followUp = task.title
         return true
     }
 
-    public func historyTurns() async -> [Turn] {
+    package func historyTurns() async -> [Turn] {
         rolloverIfDue()
         return windowedTurns()
     }
@@ -323,13 +323,13 @@ public final class ChatViewModel: ConversationPresenting {
     /// thread, and nil when a rollover is due — read before it actually
     /// happens, so the stale thread's clock never appears as a tag on the
     /// fresh one about to replace it.
-    public func lastInteraction() async -> Date? {
+    package func lastInteraction() async -> Date? {
         ConversationRollover.shouldRollover(activity(), now: now()) ? nil : lastActivity
     }
 
     /// Raw words only, in order, no status lines: the session note must not
     /// learn which app was in front (security review 2026-09-05).
-    public func memoryTurns() async -> [Turn] {
+    package func memoryTurns() async -> [Turn] {
         messages.compactMap { message in
             guard !message.isStatus, let role = message.role, !message.text.isEmpty
             else { return nil }
@@ -343,11 +343,11 @@ public final class ChatViewModel: ConversationPresenting {
         }
     }
 
-    public func appendUser(_ text: String) async {
+    package func appendUser(_ text: String) async {
         await appendUser(text, context: nil)
     }
 
-    public func appendUser(_ text: String, context: TurnContext?) async {
+    package func appendUser(_ text: String, context: TurnContext?) async {
         rolloverIfDue()
         messages.append(ChatMessage(
             role: .user, text: text, recall: context.map { recall(text, $0) }))
@@ -363,21 +363,21 @@ public final class ChatViewModel: ConversationPresenting {
 
     /// Not a job's end: the voice's replies land here too, and every job
     /// sends its own tagged end (review 16h-2 round 3).
-    public func appendAssistant(_ text: String) async {
+    package func appendAssistant(_ text: String) async {
         messages.append(ChatMessage(role: .assistant, text: text))
         persist()
     }
 
-    public func appendStatus(_ text: String) async {
+    package func appendStatus(_ text: String) async {
         messages.append(ChatMessage(isStatus: true, text: text))
         persist()
     }
 
-    public func showStream(_ text: String) async {
+    package func showStream(_ text: String) async {
         streaming = text
     }
 
-    public func finishStream() async {
+    package func finishStream() async {
         streaming = ""
     }
 }

@@ -5,7 +5,7 @@ import Foundation
 /// Coordinator that routes handoffs to executors via JobQueue.
 /// Converts a Handoff into a JobRequest, selects an executor,
 /// submits to the queue, and exposes events to the UI.
-public struct JobRunner: Sendable, JobSubmitter {
+package struct JobRunner: Sendable, JobSubmitter {
     private let executorProvider: ExecutorProviderProtocol
     private let queue: JobQueue
     private let approvals: any ApprovalsProvider
@@ -13,7 +13,7 @@ public struct JobRunner: Sendable, JobSubmitter {
     /// language they picked a minute ago, not the one at construction time.
     private let language: @Sendable () -> AppLanguage
 
-    public init(
+    package init(
         executorProvider: ExecutorProviderProtocol,
         queue: JobQueue,
         approvals: any ApprovalsProvider,
@@ -27,7 +27,7 @@ public struct JobRunner: Sendable, JobSubmitter {
 
     /// Convert a Handoff into a JobRequest with a unique ID. `id` is the one
     /// its owner minted (16q-1): the queue stops a job by it.
-    public func handoffToRequest(_ handoff: Handoff, id: JobID = .mint()) async -> JobRequest {
+    package func handoffToRequest(_ handoff: Handoff, id: JobID = .mint()) async -> JobRequest {
         JobRequest(
             id: id.raw,
             goal: handoff.goal,
@@ -37,7 +37,7 @@ public struct JobRunner: Sendable, JobSubmitter {
 
     /// Submit a handoff for execution: select executor, queue the job,
     /// return the result.
-    public func submit(
+    package func submit(
         _ handoff: Handoff,
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {
@@ -45,7 +45,7 @@ public struct JobRunner: Sendable, JobSubmitter {
     }
 
     /// Same, under the id its owner named, so `cancel(job:)` can find it.
-    public func submit(
+    package func submit(
         _ handoff: Handoff,
         as id: JobID,
         events: AsyncStream<JobEvent>.Continuation
@@ -99,27 +99,27 @@ public struct JobRunner: Sendable, JobSubmitter {
         }
     }
 
-    public func resolveApproval(requestId: String, approved: Bool) async {
+    package func resolveApproval(requestId: String, approved: Bool) async {
         await resolveApproval(requestId: requestId, approved: approved, remember: false)
     }
 
-    public func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
+    package func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
         _ = await approvals.resolve(requestId: requestId, approved: approved, remember: remember)
     }
 
     /// One job's own stop (16q-1): the rest of the line keeps its place.
-    public func cancel(job id: JobID) async {
+    package func cancel(job id: JobID) async {
         await queue.cancel(job: id.raw)
     }
 
     /// Every caller of this is the user's brake (the island, the menu, the
     /// sheet's refusal, a spoken "para"): running and queued jobs alike.
-    public func cancel() async {
+    package func cancel() async {
         await queue.cancelAll()
     }
 
     /// Query if the queue is busy.
-    public var isBusy: Bool {
+    package var isBusy: Bool {
         get async {
             await queue.isBusy
         }
@@ -127,19 +127,19 @@ public struct JobRunner: Sendable, JobSubmitter {
 }
 
 /// Abstraction for selecting an executor based on a Handoff.
-public protocol ExecutorProviderProtocol: Sendable {
+package protocol ExecutorProviderProtocol: Sendable {
     func selectExecutor(for handoff: Handoff) -> any Executor
 }
 
 /// Default implementation: always selects the native executor.
-public struct DefaultExecutorProvider: ExecutorProviderProtocol {
+package struct DefaultExecutorProvider: ExecutorProviderProtocol {
     private let nativeExecutor: any Executor
 
-    public init(nativeExecutor: any Executor) {
+    package init(nativeExecutor: any Executor) {
         self.nativeExecutor = nativeExecutor
     }
 
-    public func selectExecutor(for _: Handoff) -> any Executor {
+    package func selectExecutor(for _: Handoff) -> any Executor {
         nativeExecutor
     }
 }

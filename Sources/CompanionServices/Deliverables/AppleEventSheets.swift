@@ -5,7 +5,7 @@ import Foundation
 /// Excel and Numbers through Apple Events (spec 20 D5), from the app itself:
 /// `osascript` stays banned for the specialist. Every value reaches the
 /// script through `AppleScriptText`, never by string pasting.
-public struct AppleEventSheets: SpreadsheetDriving {
+package struct AppleEventSheets: SpreadsheetDriving {
     /// The system's "not allowed to send Apple Events" answer.
     static let notPermitted = -1743
     /// Ours: the app is open with no document.
@@ -13,9 +13,9 @@ public struct AppleEventSheets: SpreadsheetDriving {
     /// Ours: the workbook in front is not the one the write was approved for.
     static let workbookMoved = 9002
 
-    public init() {}
+    package init() {}
 
-    public func active() async -> SheetApp? {
+    package func active() async -> SheetApp? {
         await MainActor.run {
             let running = NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
             if let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
@@ -26,12 +26,12 @@ public struct AppleEventSheets: SpreadsheetDriving {
         }
     }
 
-    public func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]] {
+    package func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]] {
         let result = try await run(Self.readScript(app, range: range))
         return Self.rows(result, range: range, app: app)
     }
 
-    public func workbook(_ app: SheetApp) async throws -> String {
+    package func workbook(_ app: SheetApp) async throws -> String {
         let document = try await run(Self.pathScript(app)).stringValue ?? ""
         // An unsaved workbook has no file to copy; writing without a copy is
         // exactly what the backup rule exists to prevent.
@@ -39,7 +39,7 @@ public struct AppleEventSheets: SpreadsheetDriving {
         return document
     }
 
-    public func write(
+    package func write(
         _ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook approved: String
     ) async throws -> SheetWriteReceipt {
         // Resolved once: the backup is of the workbook the sheet named, and the

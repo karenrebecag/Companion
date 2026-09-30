@@ -1,11 +1,11 @@
 import Foundation
 
-public enum RiskLevel: Sendable, Equatable {
+package enum RiskLevel: Sendable, Equatable {
     case safe
     case requiresApproval
 }
 
-public enum NativeTool: String, CaseIterable, Sendable, Equatable {
+package enum NativeTool: String, CaseIterable, Sendable, Equatable {
     case findPlaces = "find_places"
     case listDirectory = "list_directory"
     case readFile = "read_file"
@@ -19,7 +19,7 @@ public enum NativeTool: String, CaseIterable, Sendable, Equatable {
     case sheetRead = "sheet_read"
     case sheetWrite = "sheet_write"
 
-    public var riskLevel: RiskLevel {
+    package var riskLevel: RiskLevel {
         switch self {
         case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch, .sheetRead:
             return .safe
@@ -28,7 +28,7 @@ public enum NativeTool: String, CaseIterable, Sendable, Equatable {
         }
     }
 
-    public var spec: ToolSpec {
+    package var spec: ToolSpec {
         switch self {
         case .findPlaces:
             return ToolSpec(
@@ -141,25 +141,25 @@ public enum NativeTool: String, CaseIterable, Sendable, Equatable {
 /// Where the specialist may read and where it may write. The working folder
 /// is one root; the app's own folders (skills, knowledge, memory) are others,
 /// and the system skills are readable but never writable (Wave 11a).
-public struct PathValidator: Sendable {
-    public struct Root: Sendable, Equatable {
-        public var path: String
-        public var writable: Bool
+package struct PathValidator: Sendable {
+    package struct Root: Sendable, Equatable {
+        package var path: String
+        package var writable: Bool
 
-        public init(path: String, writable: Bool) {
+        package init(path: String, writable: Bool) {
             self.path = (path as NSString).standardizingPath
             self.writable = writable
         }
     }
 
-    public var workdir: String?
-    public var roots: [Root]
+    package var workdir: String?
+    package var roots: [Root]
 
-    public init(workdir: String?) {
+    package init(workdir: String?) {
         self.init(workdir: workdir, extraRoots: [])
     }
 
-    public init(workdir: String?, extraRoots: [Root]) {
+    package init(workdir: String?, extraRoots: [Root]) {
         self.workdir = workdir
         var roots = extraRoots
         if let workdir { roots.insert(Root(path: workdir, writable: true), at: 0) }
@@ -168,7 +168,7 @@ public struct PathValidator: Sendable {
 
     /// Normalizes `.` and `..` first; a relative path resolves against the
     /// working folder and has nowhere to go without one.
-    public func isAllowed(_ path: String, forWrite: Bool = false) -> Bool {
+    package func isAllowed(_ path: String, forWrite: Bool = false) -> Bool {
         let normalizedPath: String
         if path.hasPrefix("/") {
             normalizedPath = (path as NSString).standardizingPath
@@ -186,7 +186,7 @@ public struct PathValidator: Sendable {
     /// The working folder only: the app's own folders (skills, memory) are
     /// writable roots too, but a file there is read back into the prompt, so
     /// it is never a plain deliverable.
-    public func isInWorkdir(_ resolved: String) -> Bool {
+    package func isInWorkdir(_ resolved: String) -> Bool {
         guard let workdir else { return false }
         return Self.contains((workdir as NSString).standardizingPath, resolved)
     }

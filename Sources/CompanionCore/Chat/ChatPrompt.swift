@@ -1,9 +1,9 @@
 import Foundation
 
-public enum ChatPrompt: Sendable {
+package enum ChatPrompt: Sendable {
     /// Personality always applies. The original concatenated it only on the
     /// named-owner branch because `+` binds tighter than `?:`.
-    public static func profileBlock(
+    package static func profileBlock(
         about: String, instructions: String, language: AppLanguage = .en
     ) -> String? {
         let about = about.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -27,7 +27,7 @@ public enum ChatPrompt: Sendable {
         return out.isEmpty ? nil : out
     }
 
-    public static func system(
+    package static func system(
         ownerFirstName: String,
         delegateEnabled: Bool,
         parentToolsEnabled: Bool = false,

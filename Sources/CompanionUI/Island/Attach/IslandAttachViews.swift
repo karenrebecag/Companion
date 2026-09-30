@@ -9,7 +9,7 @@ import SwiftUI
 /// The clip's file picker. The composition root owns it because showing a
 /// picker that takes the keyboard means activating the app, which the UI
 /// never does (conformance `main-activation`). Empty is a cancel.
-public typealias IslandFilePicker = @MainActor () async -> [URL]
+package typealias IslandFilePicker = @MainActor () async -> [URL]
 
 /// The three ways in and the drop, acting on the chat the window also uses:
 /// a file staged here is the same pending attachment the window shows.

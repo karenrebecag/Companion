@@ -3,7 +3,7 @@ import Foundation
 /// What the hold key did. The pointer and FN fire `pressed` on the way
 /// down (latency, 15d-1); the dictation key waits for `confirm` so typing a
 /// symbol with its modifier never opens the mic.
-public enum HoldKeyEvent: Sendable, Equatable {
+package enum HoldKeyEvent: Sendable, Equatable {
     case pressed, released, tapped
     /// 15d-1: the key came up as a tap, or chorded, after the mic already
     /// opened on the way down — drop the audio, say nothing.
@@ -14,8 +14,8 @@ public enum HoldKeyEvent: Sendable, Equatable {
 }
 
 /// Tap versus hold, by duration. Pure; the event tap feeds it timestamps.
-public struct HoldKeyClassifier: Sendable, Equatable {
-    public var tapThreshold: TimeInterval
+package struct HoldKeyClassifier: Sendable, Equatable {
+    package var tapThreshold: TimeInterval
     private var downAt: TimeInterval?
     private var armed = false
     private var chorded = false
@@ -24,15 +24,15 @@ public struct HoldKeyClassifier: Sendable, Equatable {
     /// `.confirmed` is said once per press.
     private var confirmedOnDown = false
 
-    public init(tapThreshold: TimeInterval = 0.25) {
+    package init(tapThreshold: TimeInterval = 0.25) {
         self.tapThreshold = tapThreshold
     }
 
     /// The pointer or key is held right now.
-    public var isDown: Bool { downAt != nil }
+    package var isDown: Bool { downAt != nil }
 
     /// Pointer path: press fires on the way down.
-    public mutating func down(at now: TimeInterval) -> HoldKeyEvent? {
+    package mutating func down(at now: TimeInterval) -> HoldKeyEvent? {
         guard downAt == nil else { return nil }
         downAt = now
         armed = true
@@ -42,7 +42,7 @@ public struct HoldKeyClassifier: Sendable, Equatable {
     }
 
     /// Keyboard path, 15d-1: the mic opens on the way down.
-    public mutating func press(at now: TimeInterval) -> HoldKeyEvent? {
+    package mutating func press(at now: TimeInterval) -> HoldKeyEvent? {
         guard downAt == nil else { return nil }
         downAt = now
         armed = true
@@ -53,7 +53,7 @@ public struct HoldKeyClassifier: Sendable, Equatable {
     }
 
     /// Keyboard path: remember the down, do not arm the mic yet.
-    public mutating func begin(at now: TimeInterval) -> HoldKeyEvent? {
+    package mutating func begin(at now: TimeInterval) -> HoldKeyEvent? {
         guard downAt == nil else { return nil }
         downAt = now
         armed = false
@@ -65,7 +65,7 @@ public struct HoldKeyClassifier: Sendable, Equatable {
     /// Keyboard path: past the tap threshold with the key still alone.
     /// Armed on the way down, the mic is already open and this only says
     /// the press is a hold now; otherwise this is what arms it.
-    public mutating func confirm(at now: TimeInterval) -> HoldKeyEvent? {
+    package mutating func confirm(at now: TimeInterval) -> HoldKeyEvent? {
         guard let start = downAt, !chorded, now - start >= tapThreshold else { return nil }
         if armedOnDown {
             guard !confirmedOnDown else { return nil }
@@ -80,7 +80,7 @@ public struct HoldKeyClassifier: Sendable, Equatable {
     /// FN+another key is a shortcut, not a hold. Drops an unarmed begin.
     /// If the mic was already armed, returns `.tapped` so the session
     /// stops without committing.
-    public mutating func chord() -> HoldKeyEvent? {
+    package mutating func chord() -> HoldKeyEvent? {
         guard downAt != nil else { return nil }
         if !armed {
             downAt = nil
@@ -94,7 +94,7 @@ public struct HoldKeyClassifier: Sendable, Equatable {
     }
 
     /// Nil without a matching down. A chord that never armed is silence.
-    public mutating func up(at now: TimeInterval) -> HoldKeyEvent? {
+    package mutating func up(at now: TimeInterval) -> HoldKeyEvent? {
         guard let start = downAt else { return nil }
         let wasChorded = chorded
         let wasArmed = armed

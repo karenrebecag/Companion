@@ -5,7 +5,7 @@ import Foundation
 /// `WorkspaceOpening` over NSWorkspace. No subprocess, no `open -a`, no PATH
 /// lookup: the app by name is found in the standard application folders and
 /// among what is running, and the URL goes to whatever the user's default is.
-public struct NSWorkspaceOpener: WorkspaceOpening {
+package struct NSWorkspaceOpener: WorkspaceOpening {
     private static var roots: [URL] {
         [
             URL(fileURLWithPath: "/Applications"),
@@ -19,9 +19,9 @@ public struct NSWorkspaceOpener: WorkspaceOpening {
         ]
     }
 
-    public init() {}
+    package init() {}
 
-    public func openApplication(named name: String) async throws(ContractError) {
+    package func openApplication(named name: String) async throws(ContractError) {
         if let bundle = Self.bundles().first(where: { Self.name(of: $0) == name }) {
             do {
                 _ = try await NSWorkspace.shared.openApplication(
@@ -47,7 +47,7 @@ public struct NSWorkspaceOpener: WorkspaceOpening {
     // resolves it again here, and a symlink swapped in between wins the race.
     // NSWorkspace has no fd- or bookmark-based open. Upgrade trigger: an API
     // that opens what was validated, not a path that names it.
-    public func open(_ url: URL) async throws(ContractError) {
+    package func open(_ url: URL) async throws(ContractError) {
         guard NSWorkspace.shared.open(url) else {
             throw .notFound("could not open \(url.isFileURL ? url.path : url.absoluteString)")
         }
@@ -55,13 +55,13 @@ public struct NSWorkspaceOpener: WorkspaceOpening {
 
     /// Only what the user would call an app: menu-bar agents and helpers
     /// (`.accessory`, `.prohibited`) are not something to "open".
-    public func runningApplications() -> [String] {
+    package func runningApplications() -> [String] {
         NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular }
             .compactMap(\.localizedName)
     }
 
-    public func installedApplications() -> [String] {
+    package func installedApplications() -> [String] {
         Self.bundles().map(Self.name(of:))
     }
 

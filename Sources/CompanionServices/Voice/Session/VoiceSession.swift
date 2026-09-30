@@ -1,13 +1,13 @@
 import CompanionCore
 import Foundation
 
-public actor VoiceSession: VoiceControlling {
-    public nonisolated let snapshots: AsyncStream<TurnSnapshot>
-    public nonisolated let levels: AsyncStream<VoiceLevels>
+package actor VoiceSession: VoiceControlling {
+    package nonisolated let snapshots: AsyncStream<TurnSnapshot>
+    package nonisolated let levels: AsyncStream<VoiceLevels>
     /// Everything the session reports outward (Wave 12a): the specialist's
     /// events, the parent's hands, a permission settled by voice. One stream
     /// where there were six closures; the session reducer reads it.
-    public nonisolated let events: AsyncStream<SessionEvent>
+    package nonisolated let events: AsyncStream<SessionEvent>
 
     var machine = TurnMachine()
     let transport: any VoiceTransport
@@ -152,11 +152,11 @@ public actor VoiceSession: VoiceControlling {
     /// Wave 12c: the hold's clock, and the last one that finished.
     var timeline = TurnTimeline()
     /// Setter module-wide: VoiceSessionTimeline writes it on flush (DM0 split).
-    public internal(set) var lastTimeline: TurnTimeline?
+    package internal(set) var lastTimeline: TurnTimeline?
     /// Wave 14a: product roles for this hold. Named here; the tube still
     /// follows the OpenAI key until 14b. Setter is module-wide so the
     /// pumps extension can write it (private(set) is file-private).
-    public internal(set) var lastStack: VoiceStack?
+    package internal(set) var lastStack: VoiceStack?
     var lastPartial = ""
     var partialTask: Task<Void, Never>?
     /// Which ear the running partial pump reads; it picks once, so a hold
@@ -176,7 +176,7 @@ public actor VoiceSession: VoiceControlling {
     /// Wave 13a: screenshot + vision sidecar, started on press.
     let screen: (any ScreenSeeing)?
 
-    public init(
+    package init(
         transport: any VoiceTransport,
         mic: any MicCapturing,
         player: any PCMPlaying,
@@ -330,7 +330,7 @@ public actor VoiceSession: VoiceControlling {
         classic.parentGuard = parentGuard
     }
 
-    public func setSpeed(_ speed: Double) async {
+    package func setSpeed(_ speed: Double) async {
         // Only a live realtime session has anywhere to send this; otherwise the
         // next session picks the persisted value up through the provider.
         guard machine.snapshot.pipeline == .realtime,
@@ -339,27 +339,27 @@ public actor VoiceSession: VoiceControlling {
         await realtime.send(RealtimeCodec.speedUpdate(speed))
     }
 
-    public func setVolume(_ volume: Double) async {
+    package func setVolume(_ volume: Double) async {
         await player.setVolume(volume)
     }
 
-    public func start() async {
+    package func start() async {
         voiceClosed = false
         await apply(.startVoice(preferRealtime: openAIKey() != nil))
     }
 
-    public func advance() async {
+    package func advance() async {
         await apply(.advance(hasSpeech: await mic.receivedBuffer))
     }
 
-    public func hangUp() async {
+    package func hangUp() async {
         screen?.cancel()
         voiceClosed = true
         await silenceAnnouncements(reason: "voice-closed")
         await apply(.hangUp)
     }
 
-    public func toggleMute() async {
+    package func toggleMute() async {
         await apply(.toggleMute(hasPendingAudio: await player.hasPending))
         // A muted mic is the most invisible way to "not be heard": trace it.
         Log.app("voice: mic \(machine.snapshot.muted ? "muted" : "unmuted")")
@@ -367,7 +367,7 @@ public actor VoiceSession: VoiceControlling {
 
     /// Esc, the Stop button, a spoken "para": a job's end still talking, or
     /// waiting to, goes quiet with everything else (review 16h-2 S2).
-    public func interrupt() async {
+    package func interrupt() async {
         await silenceAnnouncements(reason: "stopped")
         await apply(.interrupt)
     }

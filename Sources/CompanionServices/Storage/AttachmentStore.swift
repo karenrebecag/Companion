@@ -3,16 +3,16 @@ import CoreGraphics
 import Foundation
 import ImageIO
 
-public final class AttachmentStore: AttachmentStoring, Sendable {
+package final class AttachmentStore: AttachmentStoring, Sendable {
     private let root: URL
     private let maxBytes: Int
 
-    public init(root: URL, maxBytes: Int = AttachmentPolicy.maxBytes) {
+    package init(root: URL, maxBytes: Int = AttachmentPolicy.maxBytes) {
         self.root = root
         self.maxBytes = maxBytes
     }
 
-    public func adopt(_ source: URL, conversationId: String) throws -> AttachmentRef {
+    package func adopt(_ source: URL, conversationId: String) throws -> AttachmentRef {
         try requireRegularFile(source)
         let size = try byteCount(at: source)
         try checkSize(size)
@@ -31,7 +31,7 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
             id: id)
     }
 
-    public func adopt(imageData: Data, name: String, conversationId: String) throws -> AttachmentRef {
+    package func adopt(imageData: Data, name: String, conversationId: String) throws -> AttachmentRef {
         try checkSize(imageData.count)
         let id = UUID()
         let dest = try destination(id: id, name: name, conversationId: conversationId)
@@ -48,7 +48,7 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
             id: id)
     }
 
-    public func restore(path: String) -> AttachmentRef? {
+    package func restore(path: String) -> AttachmentRef? {
         let url = URL(fileURLWithPath: path).standardizedFileURL
         guard isUnderRoot(url) else { return nil }
         var isDir: ObjCBool = false
@@ -69,7 +69,7 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
             byteCount: size)
     }
 
-    public func discard(_ ref: AttachmentRef) {
+    package func discard(_ ref: AttachmentRef) {
         let url = URL(fileURLWithPath: ref.path).standardizedFileURL
         guard isUnderRoot(url) else { return }
         do {
@@ -79,7 +79,7 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
         }
     }
 
-    public func payload(for ref: AttachmentRef) -> AttachmentPayload? {
+    package func payload(for ref: AttachmentRef) -> AttachmentPayload? {
         switch AttachmentPolicy.delivery(for: ref) {
         case .imageDataURL:
             return imagePayload(ref)
@@ -90,7 +90,7 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
         }
     }
 
-    public func storedBytes() -> Int {
+    package func storedBytes() -> Int {
         var total = 0
         guard let enumerator = FileManager.default.enumerator(
             at: root,
@@ -110,7 +110,7 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
         return total
     }
 
-    public func storedLabel() -> String {
+    package func storedLabel() -> String {
         let bytes = storedBytes()
         if bytes <= 0 { return "Nada guardado" }
         let formatter = ByteCountFormatter()
@@ -118,7 +118,7 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
         return formatter.string(fromByteCount: Int64(bytes))
     }
 
-    public func purge() {
+    package func purge() {
         let contents: [URL]
         do {
             contents = try FileManager.default.contentsOfDirectory(
@@ -136,7 +136,7 @@ public final class AttachmentStore: AttachmentStoring, Sendable {
         }
     }
 
-    public func thumbnailData(for ref: AttachmentRef) -> Data? {
+    package func thumbnailData(for ref: AttachmentRef) -> Data? {
         guard ref.kind == .image else { return nil }
         return jpegData(
             from: URL(fileURLWithPath: ref.path),

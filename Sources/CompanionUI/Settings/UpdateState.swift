@@ -6,41 +6,41 @@ import SwiftUI
 /// composition feeds results in and handles the on-demand check.
 @Observable
 @MainActor
-public final class UpdateState {
-    public struct Available: Equatable {
-        public let tag: String
-        public let pageURL: URL
-        public init(tag: String, pageURL: URL) {
+package final class UpdateState {
+    package struct Available: Equatable {
+        package let tag: String
+        package let pageURL: URL
+        package init(tag: String, pageURL: URL) {
             self.tag = tag
             self.pageURL = pageURL
         }
     }
 
-    public private(set) var available: Available?
-    public private(set) var checking = false
+    package private(set) var available: Available?
+    package private(set) var checking = false
     /// The island's offer is waved away per version, for this session.
     private var dismissedTag: String?
-    public var noticeTag: String? {
+    package var noticeTag: String? {
         IslandUpdate.visibleTag(available: available, dismissed: dismissedTag)
     }
 
-    public func dismissNotice() {
+    package func dismissNotice() {
         dismissedTag = available?.tag
     }
 
     private let checkNow: () async -> Available?
 
-    public init(checkNow: @escaping () async -> Available?) {
+    package init(checkNow: @escaping () async -> Available?) {
         self.checkNow = checkNow
     }
 
-    public func found(_ update: Available) {
+    package func found(_ update: Available) {
         available = update
     }
 
     /// Settings button: explicit check, spinner while it runs, and an honest
     /// "estás al día" is simply the row staying as it was.
-    public func requestCheck() {
+    package func requestCheck() {
         guard !checking else { return }
         checking = true
         Task {

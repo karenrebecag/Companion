@@ -4,14 +4,14 @@ import Foundation
 /// Un pipe entrega bloques arbitrarios: una línea puede llegar partida en
 /// varios reads o varias líneas pegadas en uno — tratarlos como líneas era
 /// el bug que rompía el parser del especialista.
-public struct LineBuffer: Sendable {
+package struct LineBuffer: Sendable {
     private var buffer = Data()
 
-    public init() {}
+    package init() {}
 
     /// Suma un bloque y devuelve las líneas que se completaron con él.
     /// Las vacías se descartan: no significan nada en NDJSON.
-    public mutating func feed(_ data: Data) -> [String] {
+    package mutating func feed(_ data: Data) -> [String] {
         buffer.append(data)
         var lines: [String] = []
         while let newline = buffer.firstIndex(of: 0x0A) {
@@ -25,7 +25,7 @@ public struct LineBuffer: Sendable {
     }
 
     /// En EOF: lo que quedó sin salto final también cuenta como línea.
-    public mutating func flush() -> String? {
+    package mutating func flush() -> String? {
         defer { buffer.removeAll() }
         guard !buffer.isEmpty,
               let line = String(data: buffer, encoding: .utf8),

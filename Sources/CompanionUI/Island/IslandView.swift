@@ -4,7 +4,7 @@ import SwiftUI
 /// The island (Wave 12b), Incredible's notch bar since 16e: the app lives
 /// here — ask, see what it heard, see the results. Paints `IslandState`;
 /// never decides the kind.
-public struct IslandView: View {
+package struct IslandView: View {
     var chat: ChatViewModel
     var voice: VoiceViewModel
     var hold: HoldSettingsModel
@@ -61,7 +61,7 @@ public struct IslandView: View {
     /// Incredible stacks the latest few; more is the window's job.
     static let maxResults = 3
 
-    public init(
+    package init(
         chat: ChatViewModel, voice: VoiceViewModel, hold: HoldSettingsModel,
         geometry: IslandGeometry = IslandGeometry(),
         onShowMain: @escaping () -> Void,
@@ -138,7 +138,7 @@ public struct IslandView: View {
         chat.messages.last { $0.role == .assistant && !$0.isStatus }
     }
 
-    public var body: some View {
+    package var body: some View {
         let state = self.state
         let notch = geometry.notch
         ZStack(alignment: .top) {
@@ -371,7 +371,7 @@ public struct IslandView: View {
     }
 }
 
-public extension Notification.Name {
+package extension Notification.Name {
     /// The island panel resigned key (Code review 16, HIGH).
     static let islandResignedKey = Notification.Name("companion.islandResignedKey")
 }

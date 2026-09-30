@@ -6,18 +6,18 @@ import Foundation
 /// nobody else is waiting for it; a draw that never answers costs its
 /// deadline and no more; and a run of timeouts turns the renderer off.
 @MainActor
-public final class DiagramScheduler: DiagramRendering {
-    public typealias Draw = @MainActor (DiagramBlock, Double) async -> DiagramOutcome
+package final class DiagramScheduler: DiagramRendering {
+    package typealias Draw = @MainActor (DiagramBlock, Double) async -> DiagramOutcome
 
     /// Most drawings kept; the popup can be reopened without a second render.
-    public static let cacheLimit = 8
+    package static let cacheLimit = 8
     /// A page that times out this many times in a row is not going to work
     /// this session; the popup shows code at once instead of waiting 10 s each.
     // HACK: never turns back on until the app restarts. Add a cool-down when
     // a real slow start (cold WebKit) is seen to trip it.
-    public static let timeoutsBeforeShutdown = 3
+    package static let timeoutsBeforeShutdown = 3
 
-    public var timeout: Duration
+    package var timeout: Duration
     private let draw: Draw
     private var cache: [(key: String, outcome: DiagramOutcome)] = []
     private var flights: [String: Flight] = [:]
@@ -29,12 +29,12 @@ public final class DiagramScheduler: DiagramRendering {
         var waiters = 1
     }
 
-    public init(timeout: Duration = DiagramPage.renderTimeout, draw: @escaping Draw) {
+    package init(timeout: Duration = DiagramPage.renderTimeout, draw: @escaping Draw) {
         self.timeout = timeout
         self.draw = draw
     }
 
-    public func render(_ block: DiagramBlock, width: Double) async -> DiagramOutcome {
+    package func render(_ block: DiagramBlock, width: Double) async -> DiagramOutcome {
         let key = "\(Int(width))|\(block.source)"
         if let hit = cache.first(where: { $0.key == key }) { return hit.outcome }
         guard consecutiveTimeouts < Self.timeoutsBeforeShutdown else { return .failed(.unavailable) }

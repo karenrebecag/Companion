@@ -2,11 +2,11 @@
 import CompanionCore
 import Foundation
 
-public struct OpenAITTSClient: TTSFetching, Sendable {
+package struct OpenAITTSClient: TTSFetching, Sendable {
     private static let model = "gpt-4o-mini-tts"
     /// Wave 15f-5 (spec §2): brisker than the API's 1.0, what Incredible's
     /// mouth runs at. Injectable: the voice bench confirms the final value.
-    public static let defaultSpeed = 1.1
+    package static let defaultSpeed = 1.1
 
     private let secrets: any SecretStore
     private let transport: any ChatTransport
@@ -15,7 +15,7 @@ public struct OpenAITTSClient: TTSFetching, Sendable {
 
     /// No default language on purpose, as `AVSpeechFallback`: a call site
     /// that forgot it would speak Spanish style notes to an English reply.
-    public init(
+    package init(
         secrets: any SecretStore, transport: any ChatTransport,
         language: AppLanguage, speed: Double = OpenAITTSClient.defaultSpeed,
         instructions: String? = nil
@@ -26,7 +26,7 @@ public struct OpenAITTSClient: TTSFetching, Sendable {
         self.instructions = instructions ?? Self.defaultInstructions(language)
     }
 
-    public static func defaultInstructions(_ language: AppLanguage) -> String {
+    package static func defaultInstructions(_ language: AppLanguage) -> String {
         switch language {
         case .es:
             "Habla en español de México, conversacional, ágil y natural, sin pausas teatrales."
@@ -38,14 +38,14 @@ public struct OpenAITTSClient: TTSFetching, Sendable {
     /// Audio cached under one style must never be replayed under another,
     /// so the key carries everything that changes the sound. Instructions
     /// go in hashed: the key names a file on disk.
-    public func cacheVariant(voice: VoiceID) -> String {
+    package func cacheVariant(voice: VoiceID) -> String {
         "\(Self.model)|\(voice.rawValue)|\(speed)|\(PhraseCache.fnv1a(instructions))"
     }
 
     /// Non-streaming: only `prewarm` calls this, in the background, never on
     /// the turn the user is waiting on — no reason to pay the extra plumbing
     /// a live hold needs (see `stream` below).
-    public func fetch(_ text: String, voice: VoiceID) async throws -> Data {
+    package func fetch(_ text: String, voice: VoiceID) async throws -> Data {
         let request = try makeRequest(text, voice: voice)
         let (data, response) = try await transport.data(for: request)
         guard response.statusCode == 200, !data.isEmpty else {
@@ -57,7 +57,7 @@ public struct OpenAITTSClient: TTSFetching, Sendable {
     /// Wave 15c-5: the same audio as `fetch`, delivered as PCM chunks as
     /// they arrive — `SpeechSynthesis` schedules each one instead of
     /// waiting for the whole sentence to download.
-    public func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
+    package func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -106,7 +106,7 @@ public struct OpenAITTSClient: TTSFetching, Sendable {
     /// probe, not a request: reading the Keychain here would defeat the
     /// constraint that the key is only ever read at press (`hold()` already
     /// does that), and the models endpoint needs no credential to answer.
-    public func warm() async {
+    package func warm() async {
         guard let url = URL(string: "https://api.openai.com/v1/models"),
               EndpointPolicy.isAcceptable(url)
         else { return }
@@ -130,7 +130,7 @@ public struct OpenAITTSClient: TTSFetching, Sendable {
 /// must not fight AEC for the graph. One instance lives for the app's whole
 /// session (wired once in `CompanionMain`), so the engine is built once and
 /// just re-armed between sentences.
-public actor DataSpeechPlayback: SpeechPlayback {
+package actor DataSpeechPlayback: SpeechPlayback {
     private static let format = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
         sampleRate: 24_000,
@@ -148,16 +148,16 @@ public actor DataSpeechPlayback: SpeechPlayback {
     /// assembled elsewhere.
     private var consumer: Task<Data, Error>?
 
-    public init() {}
+    package init() {}
 
-    public func play(_ data: Data) async throws {
+    package func play(_ data: Data) async throws {
         _ = try await play(Self.oneShot(data))
     }
 
     /// Returns everything actually scheduled — a `stop()` mid-stream leaves
     /// this short of the full sentence, which is exactly the signal
     /// `SpeechSynthesis` needs to skip caching a partial.
-    public func play(_ chunks: AsyncThrowingStream<Data, Error>) async throws -> Data {
+    package func play(_ chunks: AsyncThrowingStream<Data, Error>) async throws -> Data {
         stopped = false
         epoch += 1
         let myEpoch = epoch
@@ -186,7 +186,7 @@ public actor DataSpeechPlayback: SpeechPlayback {
         return assembled
     }
 
-    public func stop() async {
+    package func stop() async {
         stopped = true
         epoch += 1
         pendingBuffers = 0
@@ -268,21 +268,21 @@ private final class StreamGraph: @unchecked Sendable {
     }
 }
 
-public struct AVSpeechFallback: SystemSpeechFallback, Sendable {
+package struct AVSpeechFallback: SystemSpeechFallback, Sendable {
     /// No default on purpose: this voice only speaks when the network is
     /// gone, so a call site that forgets the language would be discovered by
     /// the one user who can least afford it.
     private let language: AppLanguage
 
-    public init(language: AppLanguage) {
+    package init(language: AppLanguage) {
         self.language = language
     }
 
-    public var voiceLocaleIdentifier: String {
+    package var voiceLocaleIdentifier: String {
         language.speechLocaleIdentifier
     }
 
-    public func speak(_ text: String) async throws {
+    package func speak(_ text: String) async throws {
         try await SpeechGate.speak(
             text, localeIdentifier: voiceLocaleIdentifier)
     }

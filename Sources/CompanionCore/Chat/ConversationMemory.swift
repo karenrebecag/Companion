@@ -14,10 +14,10 @@ import Foundation
 /// documents for what a subagent should hand back — roughly 4,000 characters.
 /// Deliberately not the prototype's 160, which bought agility at the price of
 /// never being able to answer a follow-up without delegating again.
-public enum ConversationMemory: Sendable {
-    public static let defaultBudget = 4000
+package enum ConversationMemory: Sendable {
+    package static let defaultBudget = 4000
 
-    public static func recall(
+    package static func recall(
         _ text: String, budget: Int = defaultBudget
     ) -> String {
         let text = withoutCards(text)
@@ -54,7 +54,7 @@ public enum ConversationMemory: Sendable {
     /// happened after it, which is the part that gives the rest its meaning.
     /// Upgrade trigger: the first time someone has to repeat something this
     /// note should have carried, pay for the call.
-    public static func compaction(
+    package static func compaction(
         of dropped: [Turn], language: AppLanguage = .en
     ) -> Turn? {
         guard !dropped.isEmpty else { return nil }

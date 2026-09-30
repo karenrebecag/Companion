@@ -4,7 +4,7 @@ import SwiftUI
 /// Incredible's dropdowns (spec 16i §2): one dark surface anchored under its
 /// button, drawn inside the island. A native `Menu` opens a system window in
 /// the system's colors, outside the shape and outside its motion.
-public enum IslandPopoverKind: Equatable, Sendable {
+package enum IslandPopoverKind: Equatable, Sendable {
     case menu
     case volume
     /// The clip's "Add files" (16i-2).
@@ -13,24 +13,24 @@ public enum IslandPopoverKind: Equatable, Sendable {
 
 /// A header icon opens its popover, a second click closes it, another icon
 /// switches to its own.
-public enum IslandPopoverToggle {
-    public static func next(current: IslandPopoverKind?, tapped: IslandPopoverKind) -> IslandPopoverKind? {
+package enum IslandPopoverToggle {
+    package static func next(current: IslandPopoverKind?, tapped: IslandPopoverKind) -> IslandPopoverKind? {
         current == tapped ? nil : tapped
     }
 
     /// The header that opens it exists only in `.nudge`: any other size
     /// closes it at once, so its click area never outlives it (security
     /// review 16o).
-    public static func survives(size: IslandState.Size) -> Bool {
+    package static func survives(size: IslandState.Size) -> Bool {
         size == .nudge
     }
 }
 
 /// Escape closes the popover first, as a menu does; then it lets go of the field.
-public enum IslandEscape: Equatable, Sendable {
+package enum IslandEscape: Equatable, Sendable {
     case closePopover, dismissField
 
-    public static func action(popoverOpen: Bool) -> IslandEscape {
+    package static func action(popoverOpen: Bool) -> IslandEscape {
         popoverOpen ? .closePopover : .dismissField
     }
 }

@@ -6,8 +6,8 @@ import Foundation
 /// replay cannot double an action, and a read or state tool is covered the
 /// same as a write. Pure and per connection: the session starts a new one
 /// whenever a connection starts or ends.
-public struct BridgeRequestLedger: Sendable, Equatable {
-    public enum Begin: Sendable, Equatable {
+package struct BridgeRequestLedger: Sendable, Equatable {
+    package enum Begin: Sendable, Equatable {
         case fresh
         /// Already answered: the reply to send again.
         case replay(String)
@@ -20,7 +20,7 @@ public struct BridgeRequestLedger: Sendable, Equatable {
 
     /// What became of a request `begin` accepted. Typed by the caller, which
     /// knows what it built, instead of read back out of the reply text.
-    public enum Outcome: Sendable, Equatable {
+    package enum Outcome: Sendable, Equatable {
         /// The call reached its tool (or its gate) and this is the answer.
         case answered(String)
         /// Refused before anything ran: the id stays free.
@@ -32,13 +32,13 @@ public struct BridgeRequestLedger: Sendable, Equatable {
     /// The largest answer kept for replay. `see` and `look` frames are the
     /// big ones; a repeat of one of those costs an error line, not memory
     /// held for the life of the connection.
-    public static let maxReplayBytes = 16 * 1024
+    package static let maxReplayBytes = 16 * 1024
 
     /// HACK: a bounded window, not every id ever seen. A peer that has
     /// burned this many ids since can reuse the oldest one; the rate
     /// budgets cap how fast that can happen. Upgrade trigger: ids proven
     /// to be non-monotonic and long-lived, then keep a high-water mark.
-    public static let capacity = 256
+    package static let capacity = 256
 
     private enum Entry: Sendable, Equatable {
         case running
@@ -49,12 +49,12 @@ public struct BridgeRequestLedger: Sendable, Equatable {
     private var entries: [Int: Entry] = [:]
     private var order: [Int] = []
 
-    public init() {}
+    package init() {}
 
-    public var count: Int { entries.count }
+    package var count: Int { entries.count }
 
     /// Bytes of replies currently held.
-    public var retainedBytes: Int {
+    package var retainedBytes: Int {
         entries.values.reduce(0) { total, entry in
             if case .done(let reply) = entry { return total + reply.utf8.count }
             return total
@@ -62,7 +62,7 @@ public struct BridgeRequestLedger: Sendable, Equatable {
     }
 
     /// Marks `id` as running when it is new; otherwise says what it was.
-    public mutating func begin(_ id: Int) -> Begin {
+    package mutating func begin(_ id: Int) -> Begin {
         switch entries[id] {
         case .some(.done(let reply)): return .replay(reply)
         case .some(.running): return .inFlight
@@ -76,7 +76,7 @@ public struct BridgeRequestLedger: Sendable, Equatable {
     }
 
     /// Records what became of a request `begin` accepted.
-    public mutating func finish(_ id: Int, outcome: Outcome) {
+    package mutating func finish(_ id: Int, outcome: Outcome) {
         guard entries[id] != nil else { return }
         switch outcome {
         case .answered(let reply):

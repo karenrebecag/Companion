@@ -5,14 +5,14 @@ import Foundation
 
 /// The welcome's machine (Wave 16c): the four permissions, a level meter
 /// that sends nothing anywhere, and the system voice for the greeting.
-public struct SystemWelcomeDevices: WelcomeDevices {
+package struct SystemWelcomeDevices: WelcomeDevices {
     private let accessibility = AccessibilityPermission()
     private let screen = ScreenRecordingPermission()
     private let voice = WelcomeVoice()
 
-    public init() {}
+    package init() {}
 
-    public func granted(_ permission: WelcomePermission) async -> Bool {
+    package func granted(_ permission: WelcomePermission) async -> Bool {
         switch permission {
         case .microphone: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         case .accessibility: accessibility.isTrusted()
@@ -21,7 +21,7 @@ public struct SystemWelcomeDevices: WelcomeDevices {
         }
     }
 
-    public func request(_ permission: WelcomePermission) async -> Bool {
+    package func request(_ permission: WelcomePermission) async -> Bool {
         switch permission {
         case .microphone:
             return await AVCaptureDevice.requestAccess(for: .audio)
@@ -38,7 +38,7 @@ public struct SystemWelcomeDevices: WelcomeDevices {
         }
     }
 
-    public func micLevels() -> AsyncStream<Double> {
+    package func micLevels() -> AsyncStream<Double> {
         AsyncStream { continuation in
             let meter = LevelMeter()
             guard meter.start(continuation) else {
@@ -49,7 +49,7 @@ public struct SystemWelcomeDevices: WelcomeDevices {
         }
     }
 
-    public func greet(_ text: String, language: AppLanguage) async {
+    package func greet(_ text: String, language: AppLanguage) async {
         await voice.say(text, language: language)
     }
 }

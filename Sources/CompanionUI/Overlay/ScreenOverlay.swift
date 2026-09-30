@@ -34,12 +34,12 @@ final class ScreenOverlayPanel: NSPanel {
 
 /// The overlays for every connected display, rebuilt when displays change.
 @MainActor
-public final class ScreenOverlays {
+package final class ScreenOverlays {
     private var panels: [ScreenOverlayPanel] = []
     private var observer: NSObjectProtocol?
     private let makeContent: (CGRect) -> AnyView
 
-    public init(session: SessionModel, onFailure: @escaping (String) -> Void) {
+    package init(session: SessionModel, onFailure: @escaping (String) -> Void) {
         makeContent = { frame in
             AnyView(ScreenOverlayView(session: session, screenFrame: frame, onFailure: onFailure))
         }

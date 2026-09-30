@@ -1,28 +1,28 @@
 import Foundation
 
-public struct ToolProperty: Sendable, Equatable {
-    public var name: String
-    public var type: String
-    public var description: String
+package struct ToolProperty: Sendable, Equatable {
+    package var name: String
+    package var type: String
+    package var description: String
 
-    public init(name: String, type: String, description: String) {
+    package init(name: String, type: String, description: String) {
         self.name = name
         self.type = type
         self.description = description
     }
 }
 
-public struct ToolSpec: Sendable, Equatable {
-    public var name: String
-    public var description: String
-    public var properties: [ToolProperty]
-    public var required: [String]
+package struct ToolSpec: Sendable, Equatable {
+    package var name: String
+    package var description: String
+    package var properties: [ToolProperty]
+    package var required: [String]
     /// 16k-3: a connected app's inputSchema, passed through whole. The flat
     /// `ToolProperty` cannot express nested objects, enums or arrays; when
     /// this is set and parses, it IS the parameters object on the wire.
-    public var rawParametersJSON: String?
+    package var rawParametersJSON: String?
 
-    public init(
+    package init(
         name: String,
         description: String,
         properties: [ToolProperty],
@@ -39,7 +39,7 @@ public struct ToolSpec: Sendable, Equatable {
     /// Names are wire contract and never translate; descriptions are read by
     /// the model and must match the language it answers in, or it reasons in
     /// one language and speaks another.
-    public static func delegate(_ language: AppLanguage = .en) -> ToolSpec {
+    package static func delegate(_ language: AppLanguage = .en) -> ToolSpec {
         switch language {
         case .en:
             return ToolSpec(
@@ -79,7 +79,7 @@ public struct ToolSpec: Sendable, Equatable {
     /// asked for was the button — and someone talking to their Mac is not
     /// looking at it. Denying a permission was never a stop: it refused one
     /// command and the job carried on.
-    public static func stopJob(_ language: AppLanguage = .en) -> ToolSpec {
+    package static func stopJob(_ language: AppLanguage = .en) -> ToolSpec {
         switch language {
         case .en:
             return ToolSpec(
@@ -107,7 +107,7 @@ public struct ToolSpec: Sendable, Equatable {
         }
     }
 
-    public static func resolveApproval(
+    package static func resolveApproval(
         _ language: AppLanguage = .en
     ) -> ToolSpec {
         switch language {
@@ -139,7 +139,7 @@ public struct ToolSpec: Sendable, Equatable {
     }
 
     /// Realtime is flat (`name` at the top); chat completions nest under `function`.
-    public func encodeRealtime() -> String {
+    package func encodeRealtime() -> String {
         encodeJSON(realtimeObject())
     }
 
@@ -147,7 +147,7 @@ public struct ToolSpec: Sendable, Equatable {
     /// 10c 3A.4, layer 1). Its contract: `additionalProperties: false`,
     /// every property in `required`, and the optional ones nullable. Only
     /// for providers that take the field; the rest get the plain shape.
-    public func encodeChat(strict: Bool = false) -> String {
+    package func encodeChat(strict: Bool = false) -> String {
         var function = functionBody(strict: strict)
         // Never on a raw schema: the app's server did not write it to the
         // strict contract, and OpenAI answers the flag by rejecting the

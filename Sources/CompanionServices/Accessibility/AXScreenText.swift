@@ -7,23 +7,23 @@ import Foundation
 /// macos, 378-442 ms). Roles that carry prose: static text, text areas,
 /// non-secure text fields, and heading titles. Never `AXSecureTextField` —
 /// the same promise dictation already makes (12e, `AXTextInjector`).
-public struct AXScreenText: Sendable {
+package struct AXScreenText: Sendable {
     static let textRoles: Set<String> = [kAXStaticTextRole, kAXTextAreaRole, kAXTextFieldRole]
     static let headingRole = kAXHeadingRole
     /// A busy app (a live-updating table, an IDE) can have thousands of
     /// static-text children; the walk must not pay for all of them (spec
     /// 15b §9 "AX lento en apps pesadas").
-    public static let maxNodes = 300
-    public static let maxChars = 600
+    package static let maxNodes = 300
+    package static let maxChars = 600
     /// A single Accessibility round trip to a busy app must not hold the
     /// walk hostage — same bound as dictation's own probe.
     static let messagingTimeout: Float = 0.25
-    public static let budget: Duration = .milliseconds(450)
+    package static let budget: Duration = .milliseconds(450)
 
     private let trusted: @Sendable () -> Bool
     private let selfPID: pid_t?
 
-    public init(
+    package init(
         trusted: @escaping @Sendable () -> Bool = { AXIsProcessTrusted() },
         selfPID: pid_t? = ProcessInfo.processInfo.processIdentifier
     ) {
@@ -35,7 +35,7 @@ public struct AXScreenText: Sendable {
     /// and tags them. Empty without AX trust, without a real pid, or on
     /// Companion's own process: reading our own window is not "the screen"
     /// (spec 15b §8).
-    public func harvest(pid: pid_t) -> [String] {
+    package func harvest(pid: pid_t) -> [String] {
         guard trusted(), pid > 0, pid != selfPID else { return [] }
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)

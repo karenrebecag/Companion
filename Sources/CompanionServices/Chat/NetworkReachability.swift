@@ -4,12 +4,12 @@ import Network
 
 /// Optimistic by default: a false "no internet" is worse than one failed
 /// attempt, so the probe only reports offline once the path monitor says so.
-public final class NetworkReachability: ReachabilityProbing, @unchecked Sendable {
+package final class NetworkReachability: ReachabilityProbing, @unchecked Sendable {
     private let monitor = NWPathMonitor()
     private let lock = NSLock()
     private var online = true
 
-    public init() {
+    package init() {
         monitor.pathUpdateHandler = { [weak self] path in
             guard let self else { return }
             lock.withLock { online = path.status == .satisfied }
@@ -19,7 +19,7 @@ public final class NetworkReachability: ReachabilityProbing, @unchecked Sendable
 
     deinit { monitor.cancel() }
 
-    public var isOnline: Bool {
+    package var isOnline: Bool {
         get async { current() }
     }
 
@@ -30,7 +30,7 @@ public final class NetworkReachability: ReachabilityProbing, @unchecked Sendable
 }
 
 /// For composition roots and tests that never go to the network.
-public struct AssumeOnline: ReachabilityProbing {
-    public init() {}
-    public var isOnline: Bool { get async { true } }
+package struct AssumeOnline: ReachabilityProbing {
+    package init() {}
+    package var isOnline: Bool { get async { true } }
 }

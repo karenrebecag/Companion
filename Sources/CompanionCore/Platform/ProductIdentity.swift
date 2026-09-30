@@ -8,18 +8,18 @@ import Foundation
 /// The strings live here and `scripts/bundle.sh` is checked against them: a
 /// plist written by bash that drifts from the source installs an app whose
 /// own code does not recognise it.
-public enum ProductIdentity: Sendable, Equatable, CaseIterable {
+package enum ProductIdentity: Sendable, Equatable, CaseIterable {
     case release
     case development
 
-    public var bundleID: String {
+    package var bundleID: String {
         switch self {
         case .release: "com.karen.companion"
         case .development: "com.karen.companion.next"
         }
     }
 
-    public var displayName: String {
+    package var displayName: String {
         switch self {
         case .release: "Companion"
         case .development: "Companion Next"
@@ -28,7 +28,7 @@ public enum ProductIdentity: Sendable, Equatable, CaseIterable {
 
     /// Separate files on purpose: debugging a voice turn is unreadable when
     /// two builds interleave their lines.
-    public var logFileName: String {
+    package var logFileName: String {
         switch self {
         case .release: "Companion.log"
         case .development: "CompanionNext.log"
@@ -37,7 +37,7 @@ public enum ProductIdentity: Sendable, Equatable, CaseIterable {
 
     /// An unknown id (or none, as with `swift run`) is development: the
     /// product identity is claimed, never assumed.
-    public static func of(bundleID: String?) -> ProductIdentity {
+    package static func of(bundleID: String?) -> ProductIdentity {
         bundleID == release.bundleID ? .release : .development
     }
 }

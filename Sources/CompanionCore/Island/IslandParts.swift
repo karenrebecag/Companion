@@ -1,23 +1,23 @@
 import Foundation
 
 /// The island's menu (spec 16c §2): Incredible's five, in its order.
-public enum IslandMenuItem: String, Sendable, Equatable, CaseIterable {
+package enum IslandMenuItem: String, Sendable, Equatable, CaseIterable {
     case settings, openWindow, shortcuts, feedback, clearHistory
 
     /// Painted red: the one entry that loses something.
-    public var destructive: Bool { self == .clearHistory }
+    package var destructive: Bool { self == .clearHistory }
 }
 
 /// A reply as the island shows it: a title and one line, "Ver →" for the
 /// rest. The voice points here instead of reading the list aloud.
-public struct IslandResult: Sendable, Equatable {
-    public static let maxTitle = 60
-    public static let maxLine = 120
+package struct IslandResult: Sendable, Equatable {
+    package static let maxTitle = 60
+    package static let maxLine = 120
 
-    public let title: String
-    public let line: String?
+    package let title: String
+    package let line: String?
 
-    public init?(reply: String) {
+    package init?(reply: String) {
         let prose = MarkdownSplitter.islandProse(reply)
         // A card-only reply still has a title to show, never its JSON.
         let source = prose.isEmpty

@@ -1,6 +1,6 @@
 import Foundation
 
-public protocol ChatTransport: Sendable {
+package protocol ChatTransport: Sendable {
     func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse)
     func lines(for request: URLRequest) async throws -> (
         status: Int, lines: AsyncThrowingStream<String, Error>
@@ -18,7 +18,7 @@ extension ChatTransport {
     /// transport in the test suite; only `URLSessionChatTransport` needs the
     /// real per-packet granularity, so it is the only conformer that
     /// overrides this.
-    public func bytes(for request: URLRequest) async throws -> (
+    package func bytes(for request: URLRequest) async throws -> (
         status: Int, bytes: AsyncThrowingStream<Data, Error>
     ) {
         let (data, response) = try await self.data(for: request)
@@ -30,14 +30,14 @@ extension ChatTransport {
     }
 }
 
-public struct URLSessionChatTransport: ChatTransport, Sendable {
+package struct URLSessionChatTransport: ChatTransport, Sendable {
     let session: URLSession
 
     /// Security review 2026-09-25 (CRITICAL-1): the session is always built
     /// here from `NoStoreSession.configuration()`; a caller-supplied session
     /// (e.g. `.shared`) would bring the default disk cache back, so the
     /// parameter only exists for source compatibility and is ignored.
-    public init(session: URLSession = .shared) {
+    package init(session: URLSession = .shared) {
         self.init(protocolClasses: nil)
     }
 
@@ -52,7 +52,7 @@ public struct URLSessionChatTransport: ChatTransport, Sendable {
             configuration: config, delegate: RedirectValidatingDelegate(), delegateQueue: nil)
     }
 
-    public func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    package func data(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw URLError(.badServerResponse)
@@ -60,7 +60,7 @@ public struct URLSessionChatTransport: ChatTransport, Sendable {
         return (data, http)
     }
 
-    public func lines(for request: URLRequest) async throws -> (
+    package func lines(for request: URLRequest) async throws -> (
         status: Int, lines: AsyncThrowingStream<String, Error>
     ) {
         let (bytes, response) = try await session.bytes(for: request)
@@ -91,7 +91,7 @@ public struct URLSessionChatTransport: ChatTransport, Sendable {
     // start playback well under the wave's latency budget (wave-15c-tubo-
     // rapido.md §3). Move to a URLSessionDataDelegate reporting each
     // `didReceive data:` if 4 KB ever proves coarser than perceived.
-    public func bytes(for request: URLRequest) async throws -> (
+    package func bytes(for request: URLRequest) async throws -> (
         status: Int, bytes: AsyncThrowingStream<Data, Error>
     ) {
         let (byteStream, response) = try await session.bytes(for: request)
@@ -153,8 +153,8 @@ private class RedirectValidatingDelegate: NSObject, URLSessionTaskDelegate, @unc
 /// the default configuration persisted both to ~/Library/Caches/<bundle>/
 /// Cache.db. Every URLSession in Sources is built from this configuration;
 /// scripts/gates.sh fails on any other.
-public enum NoStoreSession {
-    public static func configuration() -> URLSessionConfiguration {
+package enum NoStoreSession {
+    package static func configuration() -> URLSessionConfiguration {
         let config = URLSessionConfiguration.ephemeral
         config.urlCache = nil
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -166,5 +166,5 @@ public enum NoStoreSession {
 
     /// For the paths that need no per-session delegate (the transcriber
     /// websocket, `web_fetch`).
-    public static let shared = URLSession(configuration: configuration())
+    package static let shared = URLSession(configuration: configuration())
 }

@@ -6,13 +6,13 @@ import Foundation
 /// Wave 15e-0: `TranscriberEngine` over Apple's `SpeechAnalyzer` +
 /// `SpeechTranscriber` (macOS 26). Only framework plumbing lives here; the
 /// hold's rules are in `AnalyzerTranscriber`, where a fake can drive them.
-public struct AppleSpeechEngine: TranscriberEngine {
+package struct AppleSpeechEngine: TranscriberEngine {
     private let locales = SupportedLocaleCache()
 
-    public init() {}
+    package init() {}
 
     /// The Speech framework's own gate still covers the analyzer.
-    public func requestAuthorization() async -> Bool {
+    package func requestAuthorization() async -> Bool {
         await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
                 continuation.resume(returning: status == .authorized)
@@ -20,11 +20,11 @@ public struct AppleSpeechEngine: TranscriberEngine {
         }
     }
 
-    public var isAuthorized: Bool {
+    package var isAuthorized: Bool {
         get async { SFSpeechRecognizer.authorizationStatus() == .authorized }
     }
 
-    public func assets(localeIdentifier: String) async -> TranscriberAssets {
+    package func assets(localeIdentifier: String) async -> TranscriberAssets {
         guard let locale = await supported(localeIdentifier) else {
             return TranscriberAssets(
                 status: "unsupportedLocale", nothingToInstall: false, localeInstalled: false)
@@ -47,7 +47,7 @@ public struct AppleSpeechEngine: TranscriberEngine {
             localeInstalled: installed)
     }
 
-    public func installAssets(localeIdentifier: String) async throws {
+    package func installAssets(localeIdentifier: String) async throws {
         guard let locale = await supported(localeIdentifier) else {
             throw VoiceTransportError.unreachable
         }
@@ -56,7 +56,7 @@ public struct AppleSpeechEngine: TranscriberEngine {
         try await request?.downloadAndInstall()
     }
 
-    public func begin(
+    package func begin(
         localeIdentifier: String, contextualStrings: [String]
     ) async throws -> any TranscriberEngineRun {
         guard let locale = await supported(localeIdentifier) else {

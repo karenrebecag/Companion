@@ -56,7 +56,7 @@ final class IslandDiagramModel {
 /// The composition root's save panel: the PNG's bytes and a suggested name;
 /// false when she cancels it. The island is a non-activating panel, so the
 /// system's own panel cannot be opened from here (same reason as the file picker).
-public typealias IslandFileSaver = @MainActor (Data, String) async -> DiagramSaveResult
+package typealias IslandFileSaver = @MainActor (Data, String) async -> DiagramSaveResult
 
 extension EnvironmentValues {
     @Entry var fileSaver: IslandFileSaver?

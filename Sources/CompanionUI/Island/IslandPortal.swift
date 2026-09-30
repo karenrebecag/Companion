@@ -6,19 +6,19 @@ import SwiftUI
 // camera. Triggers publish their bounds instead, and one layer above the clip
 // draws them anywhere in the canvas, as Incredible's DOM portal does.
 
-public enum PortalSide: Equatable, Sendable { case above, below }
-public enum PortalAlign: Equatable, Sendable { case center, leading }
+package enum PortalSide: Equatable, Sendable { case above, below }
+package enum PortalAlign: Equatable, Sendable { case center, leading }
 
-public enum PortalPlacement {
+package enum PortalPlacement {
     /// Incredible: tooltips 4 px above their trigger, 6 px when below.
-    public static let gapAbove: CGFloat = Space.x1
-    public static let gapBelow: CGFloat = Space.x1_5
+    package static let gapAbove: CGFloat = Space.x1
+    package static let gapBelow: CGFloat = Space.x1_5
     /// Nothing is drawn closer than this to the canvas edge.
-    public static let edgeInset: CGFloat = Space.x2
+    package static let edgeInset: CGFloat = Space.x2
 
     /// Canvas coordinates, origin top-left. `forbidden` is the notch band:
     /// whatever lands there sits under the camera housing.
-    public static func place(
+    package static func place(
         anchor: CGRect, size: CGSize, canvas: CGSize, forbidden: CGRect?,
         prefers: PortalSide = .above, align: PortalAlign = .center
     ) -> (origin: CGPoint, side: PortalSide) {
@@ -39,8 +39,8 @@ public enum PortalPlacement {
 
 /// Who owns the click area: a popover leaving (its removal transition ends
 /// after the next one opened) must not erase or move the newcomer's frame.
-public enum PortalFrame {
-    public static func next(
+package enum PortalFrame {
+    package static func next(
         current: CGRect?, report: CGRect?, from kind: IslandPopoverKind, active: IslandPopoverKind?
     ) -> CGRect? {
         if kind == active { return report }

@@ -5,9 +5,9 @@ import SwiftUI
 // Pure functions that map voice state and audio levels to orb visual properties.
 // All logic here is testable without instantiating views.
 
-public enum OrbAppearance {
+package enum OrbAppearance {
     /// Which semantic color to use based on turn state.
-    nonisolated public static func baseColor(for state: TurnState) -> String {
+    nonisolated package static func baseColor(for state: TurnState) -> String {
         switch state {
         case .idle, .connecting, .listening, .thinking, .speaking:
             return "accent"
@@ -18,7 +18,7 @@ public enum OrbAppearance {
 
     /// Core glow intensity: how bright the pulsing center gets.
     /// Increases during active listening and thinking; dims on error.
-    nonisolated public static func coreGlowIntensity(for state: TurnState) -> Double {
+    nonisolated package static func coreGlowIntensity(for state: TurnState) -> Double {
         switch state {
         case .idle:
             return 0.7
@@ -37,7 +37,7 @@ public enum OrbAppearance {
 
     /// Animation speed of the blob shapes. Base unit is 60 RPM-equivalent.
     /// Higher speed conveys urgency or activity; lower speed suggests rest.
-    nonisolated public static func animationSpeed(for state: TurnState) -> Double {
+    nonisolated package static func animationSpeed(for state: TurnState) -> Double {
         switch state {
         case .idle:
             return 26
@@ -57,18 +57,18 @@ public enum OrbAppearance {
     /// Scale multiplier driven by live audio level (mic or agent).
     /// Level is 0...1; maps to 1.0 (no scale) to ~1.11 (11% growth).
     /// Values outside 0...1 are clamped. Reacts quickly for tactile feedback.
-    nonisolated public static func scaleFromLevel(_ level: Double) -> Double {
+    nonisolated package static func scaleFromLevel(_ level: Double) -> Double {
         let clamped = max(0, min(1, level))
         return 1 + clamped * 0.11
     }
 
     /// Opacity of the orb. Idle state dims it subtly; all other states are full.
-    nonisolated public static func opacity(for state: TurnState) -> Double {
+    nonisolated package static func opacity(for state: TurnState) -> Double {
         state == .idle ? 0.82 : 1
     }
 
     /// Animation speed adjusted for accessibility: disabled if reduce-motion is on.
-    nonisolated public static func effectiveAnimationSpeed(
+    nonisolated package static func effectiveAnimationSpeed(
         for state: TurnState,
         reduceMotion: Bool
     ) -> Double {
@@ -77,7 +77,7 @@ public enum OrbAppearance {
 
     /// Whether the outer shimmer shell should animate.
     /// Only animates during listening and thinking; always off if reduce-motion.
-    nonisolated public static func shouldAnimateShell(
+    nonisolated package static func shouldAnimateShell(
         for state: TurnState,
         reduceMotion: Bool
     ) -> Bool {
@@ -91,7 +91,7 @@ public enum OrbAppearance {
     }
 
     /// Opacity of the rotating glow overlay. Active turns read brighter.
-    nonisolated public static func glowOpacity(for state: TurnState) -> Double {
+    nonisolated package static func glowOpacity(for state: TurnState) -> Double {
         switch state {
         case .idle: 0.35
         case .connecting: 0.45
@@ -103,7 +103,7 @@ public enum OrbAppearance {
     }
 
     /// SpriteKit birth count. Idle/connecting/error have none, matching VoiceState.orb.
-    nonisolated public static func particleCount(
+    nonisolated package static func particleCount(
         for state: TurnState, reduceMotion: Bool
     ) -> Int {
         if reduceMotion { return 0 }
@@ -119,7 +119,7 @@ public enum OrbAppearance {
     /// (accent + white) flattened the orb into a single-hue blob — the blob,
     /// glow and particles all read as one shape. Three distinct hues is what
     /// makes the layers visible against each other.
-    public static var voiceInk: [Color] {
+    package static var voiceInk: [Color] {
         [
             Color(nsColor: NSColor.fromHex("F383BB")),
             Color(nsColor: NSColor.fromHex("43D5DC")),
@@ -127,7 +127,7 @@ public enum OrbAppearance {
         ]
     }
 
-    public static func configuration(
+    package static func configuration(
         for state: TurnState,
         accent: Color,
         reduceMotion: Bool
@@ -153,7 +153,7 @@ public enum OrbAppearance {
     }
 
     /// Press shrinks the orb; spring lives on the button style, not here.
-    nonisolated public static func pressScale(_ pressed: Bool) -> Double {
+    nonisolated package static func pressScale(_ pressed: Bool) -> Double {
         pressed ? 0.92 : 1
     }
 }

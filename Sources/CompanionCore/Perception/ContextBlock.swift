@@ -5,24 +5,24 @@ import Foundation
 /// like the memory's (`MemoryPrompt`): context for what the user said, never
 /// instructions. Every value is escaped — a window title is untrusted input
 /// and must not be able to close a tag and open another.
-public enum ContextBlock {
+package enum ContextBlock {
     /// One place for every cap, with the reason: the block informs the turn,
     /// it never IS the turn (PRODUCT-DECISIONS §3, "do not dump the computer
     /// into the prompt"). ~600 characters is ~150 tokens.
-    public enum Caps {
-        public static let app = 80
-        public static let window = 120
-        public static let location = 120
-        public static let islandEvents = IslandEventLog.capacity
-        public static let documents = 8
-        public static let document = 120
-        public static let clipboard = 400
-        public static let screenSummary = 400
-        public static let screenSnippets = 12
-        public static let screenSnippet = 80
-        public static let pointed = PointerTrace.maxItems
-        public static let pointedText = 80
-        public static let block = 1_600
+    package enum Caps {
+        package static let app = 80
+        package static let window = 120
+        package static let location = 120
+        package static let islandEvents = IslandEventLog.capacity
+        package static let documents = 8
+        package static let document = 120
+        package static let clipboard = 400
+        package static let screenSummary = 400
+        package static let screenSnippets = 12
+        package static let screenSnippet = 80
+        package static let pointed = PointerTrace.maxItems
+        package static let pointedText = 80
+        package static let block = 1_600
     }
 
     /// Island events are never a degrade target: the turn acknowledges every
@@ -34,7 +34,7 @@ public enum ContextBlock {
     /// interaction>`, `<now>`) is never a degrade target: it costs a fixed,
     /// small number of characters and the turn needs it more than a
     /// twelfth open document.
-    public static func render(
+    package static func render(
         _ ctx: TurnContext, language: AppLanguage, timeZone: TimeZone = .current
     ) -> String {
         var trimmed = ctx
@@ -151,7 +151,7 @@ public enum ContextBlock {
 
     /// One line for the history: that there WAS context, and of what kind.
     /// Never the clipboard's content — the compact line is what gets saved.
-    public static func compact(_ ctx: TurnContext, language: AppLanguage) -> String {
+    package static func compact(_ ctx: TurnContext, language: AppLanguage) -> String {
         var parts = [sourceWord(ctx.source, language)]
         if let app = ctx.focusedApp, !app.isEmpty { parts.append(cut(escape(app), Caps.app)) }
         if !ctx.openDocuments.isEmpty { parts.append("\(ctx.openDocuments.count) docs") }
@@ -165,7 +165,7 @@ public enum ContextBlock {
     /// Wave 15d-7: said right before the transcript, as Incredible does; the
     /// system prompt alone lost to English text on screen and to earlier
     /// turns in the other language.
-    public static func languageInstruction(_ language: AppLanguage) -> String {
+    package static func languageInstruction(_ language: AppLanguage) -> String {
         switch language {
         case .es:
             return "(Responde solo en español, sin importar el idioma de la pantalla "
@@ -176,13 +176,13 @@ public enum ContextBlock {
         }
     }
 
-    public static func wrap(_ text: String, with block: String) -> String {
+    package static func wrap(_ text: String, with block: String) -> String {
         block.isEmpty ? text : block + "\n\n" + text
     }
 
     /// The corpus's `<how_to_reply>`: a paragraph read aloud is unbearable.
     /// Typed turns get nothing; the system prompt already says how to talk.
-    public static func replyHint(_ source: TurnSource, language: AppLanguage) -> String? {
+    package static func replyHint(_ source: TurnSource, language: AppLanguage) -> String? {
         guard source == .voice else { return nil }
         switch language {
         case .en: return "Answer in at most 2 sentences, in English, no markdown."
@@ -277,7 +277,7 @@ public enum ContextBlock {
     /// Every cap counts Unicode scalars, never `Character`s: one grapheme can
     /// carry thousands of combining marks and would walk through a
     /// `count`-based cap with 100 KB (security review 2026-09-05).
-    public static func size(_ text: String) -> Int {
+    package static func size(_ text: String) -> Int {
         text.unicodeScalars.count
     }
 
@@ -285,7 +285,7 @@ public enum ContextBlock {
     /// Applied AFTER escaping: the cap counts what travels, and `&` grows
     /// five-fold once escaped. A cut can land inside an entity; the tail
     /// is dropped back to the last `&` so no half-entity survives.
-    public static func cut(_ text: String, _ limit: Int) -> String {
+    package static func cut(_ text: String, _ limit: Int) -> String {
         let flat = flatten(text)
         guard size(flat) > limit else { return flat }
         var head = String(String.UnicodeScalarView(flat.unicodeScalars.prefix(limit)))
@@ -305,7 +305,7 @@ public enum ContextBlock {
         escape(text).replacingOccurrences(of: "\"", with: "&quot;")
     }
 
-    public static func escape(_ text: String) -> String {
+    package static func escape(_ text: String) -> String {
         text.replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")

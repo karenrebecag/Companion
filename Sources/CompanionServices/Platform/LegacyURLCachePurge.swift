@@ -4,9 +4,9 @@ import Foundation
 /// session left API keys and request bodies in the bundle's URL cache. This
 /// removes that file set and nothing else — the app cleaning its own
 /// Caches folder, never a path outside it.
-public enum LegacyURLCachePurge {
-    public struct Refusal: Error, Equatable {
-        public let reason: String
+package enum LegacyURLCachePurge {
+    package struct Refusal: Error, Equatable {
+        package let reason: String
     }
 
     static let legacyNames = ["Cache.db", "Cache.db-wal", "Cache.db-shm", "fsCachedData"]
@@ -14,7 +14,7 @@ public enum LegacyURLCachePurge {
     /// Returns how many legacy items were removed. A bundle id that is not a
     /// single plain path component is refused: it could point the removal
     /// outside the bundle's own folder.
-    public static func purge(
+    package static func purge(
         cachesDirectory: URL, bundleID: String,
         fileManager: FileManager = .default
     ) throws -> Int {
@@ -38,7 +38,7 @@ public enum LegacyURLCachePurge {
     /// Launch hook: empties the in-process shared cache, swaps it for one
     /// that can hold nothing (so no stray `URLCache.shared` use can write
     /// again), then removes the files on disk.
-    public static func runAtLaunch(bundleID: String?) {
+    package static func runAtLaunch(bundleID: String?) {
         URLCache.shared.removeAllCachedResponses()
         URLCache.shared = URLCache(memoryCapacity: 0, diskCapacity: 0, directory: nil)
         guard let bundleID,

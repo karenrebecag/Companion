@@ -1,8 +1,8 @@
 import CompanionCore
 import SwiftUI
 
-public enum ShimmerMotion {
-    public static func phase(
+package enum ShimmerMotion {
+    package static func phase(
         elapsed: TimeInterval, period: TimeInterval, delay: TimeInterval
     ) -> Double {
         guard elapsed >= delay, period > 0 else { return 0 }
@@ -10,22 +10,22 @@ public enum ShimmerMotion {
         return t.truncatingRemainder(dividingBy: period) / period
     }
 
-    public static func isActive(for state: TurnState) -> Bool {
+    package static func isActive(for state: TurnState) -> Bool {
         state == .thinking || state == .connecting
     }
 }
 
-public enum ShimmerRingMotion {
-    public static let listeningDuration: TimeInterval = 1.15
-    public static let thinkingDuration: TimeInterval = 2.0
-    public static let listeningBand: CGFloat = 0.38
-    public static let thinkingBand: CGFloat = 0.5
+package enum ShimmerRingMotion {
+    package static let listeningDuration: TimeInterval = 1.15
+    package static let thinkingDuration: TimeInterval = 2.0
+    package static let listeningBand: CGFloat = 0.38
+    package static let thinkingBand: CGFloat = 0.5
 
-    public static func duration(thinking: Bool) -> TimeInterval {
+    package static func duration(thinking: Bool) -> TimeInterval {
         thinking ? thinkingDuration : listeningDuration
     }
 
-    public static func bandSize(thinking: Bool) -> CGFloat {
+    package static func bandSize(thinking: Bool) -> CGFloat {
         thinking ? thinkingBand : listeningBand
     }
 }

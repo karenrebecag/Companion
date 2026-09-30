@@ -4,11 +4,11 @@ import Foundation
 /// island: what happened and the one mechanical way back. The undo is data
 /// the runner filled from the target it just changed; the model never sees or
 /// presses it.
-public struct UndoReceipt: Sendable, Equatable, Identifiable {
+package struct UndoReceipt: Sendable, Equatable, Identifiable {
     /// Seconds the way back stays offered.
-    public static let undoWindow: TimeInterval = 5
+    package static let undoWindow: TimeInterval = 5
 
-    public enum Undo: Sendable, Equatable {
+    package enum Undo: Sendable, Equatable {
         /// A file the action created: it goes to the Trash, never `rm`. Size and
         /// date are what it was when the action finished; a file that changed
         /// since is the user's now and stays.
@@ -20,18 +20,18 @@ public struct UndoReceipt: Sendable, Equatable, Identifiable {
 
     /// The UI words it (a receipt in Services has no language): what was done
     /// to `subject`, a file name or a range.
-    public enum Kind: Sendable, Equatable {
+    package enum Kind: Sendable, Equatable {
         case created, wrote, undone, couldNotUndo
     }
 
     /// One receipt at a time: a newer action replaces the offer to undo the
     /// older one, which is the safe direction for a five-second window.
-    public let id: UUID
-    public let kind: Kind
-    public let subject: String
-    public let undo: Undo?
+    package let id: UUID
+    package let kind: Kind
+    package let subject: String
+    package let undo: Undo?
 
-    public init(id: UUID = UUID(), kind: Kind, subject: String, undo: Undo? = nil) {
+    package init(id: UUID = UUID(), kind: Kind, subject: String, undo: Undo? = nil) {
         self.id = id
         self.kind = kind
         self.subject = subject

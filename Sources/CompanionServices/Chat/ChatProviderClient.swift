@@ -1,7 +1,7 @@
 import CompanionCore
 import Foundation
 
-public final class ChatProviderClient: ChatProvider, Sendable {
+package final class ChatProviderClient: ChatProvider, Sendable {
     private let secrets: any SecretStore
     private let probe: any CapabilityProbe
     private let transport: any ChatTransport
@@ -40,7 +40,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
     /// chat's client keeps the default and its prompt stays as it was.
     private let voice: Bool
 
-    public init(
+    package init(
         secrets: any SecretStore,
         probe: any CapabilityProbe,
         transport: any ChatTransport,
@@ -80,7 +80,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         }
     }
 
-    public func stream(_ history: [Turn], tools: [ToolSpec])
+    package func stream(_ history: [Turn], tools: [ToolSpec])
         -> AsyncThrowingStream<ChatDelta, Error>
     {
         AsyncThrowingStream { continuation in
@@ -92,7 +92,7 @@ public final class ChatProviderClient: ChatProvider, Sendable {
         }
     }
 
-    public func verify(_ key: String, provider: ProviderDescriptor) async throws {
+    package func verify(_ key: String, provider: ProviderDescriptor) async throws {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw ChatError.invalidKey }
         guard let url = URL(string: provider.baseURL.absoluteString + "/models")

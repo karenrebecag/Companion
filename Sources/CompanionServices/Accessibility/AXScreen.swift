@@ -8,7 +8,7 @@ import Foundation
 /// id with the element's own action, then focus, then a mouse click posted
 /// to the process. Keeps the handles of its latest walk only: an id from an
 /// older walk is stale, never guessed.
-public final class AXScreen: ScreenActing, @unchecked Sendable {
+package final class AXScreen: ScreenActing, @unchecked Sendable {
     /// A web page can have thousands of nodes; the walk stops on time or
     /// count and the scan says it is partial.
     static let budget: Duration = .milliseconds(600)
@@ -35,14 +35,14 @@ public final class AXScreen: ScreenActing, @unchecked Sendable {
     private var handles: (pid: Int32, generation: Int, elements: [AXUIElement])?
     private var primed: Set<Int32> = []
 
-    public init(selfBundleID: String, trust: @escaping @Sendable () -> Bool) {
+    package init(selfBundleID: String, trust: @escaping @Sendable () -> Bool) {
         self.selfBundleID = selfBundleID
         self.trust = trust
     }
 
     /// Where the app's front window is, in AX's global top-left space: what
     /// the hands aura uses to pick a display. Nil without trust or a window.
-    public func windowFrame(pid: Int32) -> CGRect? {
+    package func windowFrame(pid: Int32) -> CGRect? {
         guard trust() else { return nil }
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
@@ -55,7 +55,7 @@ public final class AXScreen: ScreenActing, @unchecked Sendable {
 
     // MARK: - Walk
 
-    public func walk(pid: Int32) -> ScreenWalk? {
+    package func walk(pid: Int32) -> ScreenWalk? {
         guard trust(), let app = actable(pid) else { return nil }
         // The clock starts before priming: the settle is part of the budget
         // the walk promises, not a hidden extra (code review 16, HIGH).
@@ -197,7 +197,7 @@ public final class AXScreen: ScreenActing, @unchecked Sendable {
     }
 
     /// For the activation hook: prime the app that just came to the front.
-    public func prime(pid: Int32, bundle: String?) {
+    package func prime(pid: Int32, bundle: String?) {
         guard trust(), actable(pid) != nil else { return }
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
@@ -207,7 +207,7 @@ public final class AXScreen: ScreenActing, @unchecked Sendable {
     /// True the first time an app is primed: its tree needs a moment.
     /// Setting the flags on an app that ignores them is harmless.
     @discardableResult
-    public func prime(_ application: AXUIElement, pid: Int32, bundle: String?) -> Bool {
+    package func prime(_ application: AXUIElement, pid: Int32, bundle: String?) -> Bool {
         guard lock.withLock({ primed.insert(pid).inserted }) else { return false }
         AXUIElementSetAttributeValue(application, "AXManualAccessibility" as CFString, kCFBooleanTrue)
         if let bundle, Self.chromiumBrowsers.contains(bundle) {
@@ -229,7 +229,7 @@ public final class AXScreen: ScreenActing, @unchecked Sendable {
         }
     }
 
-    public func click(node: Int, generation: Int, pid: Int32, label: String) -> ClickOutcome {
+    package func click(node: Int, generation: Int, pid: Int32, label: String) -> ClickOutcome {
         guard trust(), actable(pid) != nil else { return .refused }
         guard let element = handle(node: node, generation: generation, pid: pid) else { return .stale }
         // The sheet approved a label; a page that swapped what sits behind
@@ -269,7 +269,7 @@ public final class AXScreen: ScreenActing, @unchecked Sendable {
         return true
     }
 
-    public func scroll(node: Int?, generation: Int, direction: ScrollDirection, pid: Int32) -> Bool {
+    package func scroll(node: Int?, generation: Int, direction: ScrollDirection, pid: Int32) -> Bool {
         guard trust(), actable(pid) != nil else { return false }
         let start = node.flatMap { handle(node: $0, generation: generation, pid: pid) }
         guard let area = start.flatMap(scrollArea(above:)) ?? firstScrollArea(pid: pid) else { return false }
@@ -309,11 +309,11 @@ public final class AXScreen: ScreenActing, @unchecked Sendable {
         return nil
     }
 
-    public func menuTitle(path: [String], pid: Int32) -> String? {
+    package func menuTitle(path: [String], pid: Int32) -> String? {
         resolveMenu(path: path, pid: pid)?.title
     }
 
-    public func menu(path: [String], pid: Int32, expecting: String) -> String? {
+    package func menu(path: [String], pid: Int32, expecting: String) -> String? {
         // Resolved again at press time: the menu may have changed since the
         // gate classified `expecting`, and only that title was approved.
         guard let target = resolveMenu(path: path, pid: pid), target.title == expecting,

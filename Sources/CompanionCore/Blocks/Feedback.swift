@@ -2,14 +2,14 @@ import Foundation
 
 /// Five moods, worst to best (16q-2; four before). Own names; the meaning
 /// is the usual five-step scale.
-public enum FeedbackMood: String, Sendable, CaseIterable, Equatable {
+package enum FeedbackMood: String, Sendable, CaseIterable, Equatable {
     case upset, bad, meh, good, love
 }
 
 /// What the comment is about (16q-2), six chips. Own names for what the
 /// product does: talking, working on the screen, connected apps, errands,
 /// dictation, and everything else.
-public enum FeedbackTopic: String, Sendable, CaseIterable, Equatable {
+package enum FeedbackTopic: String, Sendable, CaseIterable, Equatable {
     case voice, screen, apps, errands, dictation, other
 }
 
@@ -17,46 +17,46 @@ public enum FeedbackTopic: String, Sendable, CaseIterable, Equatable {
 /// user's own mail app through `mailto:`, no server of ours and no address
 /// until she writes it. The message carries her words, the mood she picked
 /// and how many screenshots she chose to add; nothing about the machine.
-public struct FeedbackDraft: Sendable, Equatable {
+package struct FeedbackDraft: Sendable, Equatable {
     /// Own values: a comment is a few paragraphs, and three screenshots show a
     /// bug. 5000 since 16q-2 (1000 before); past what a mail link holds the
     /// message goes whole through the share service, or is cut and reported.
-    public static let maxCharacters = 5000
-    public static let maxCaptures = 3
+    package static let maxCharacters = 5000
+    package static let maxCaptures = 3
     /// A screenshot added from a file or the clipboard: mail apps refuse
     /// bigger attachments long before a screen needs them.
-    public static let maxCaptureBytes = 4 * 1024 * 1024
+    package static let maxCaptureBytes = 4 * 1024 * 1024
     /// Own value: mail links past a few thousand characters are cut or
     /// refused by clients (browsers stop near 2000); a thousand emoji encode
     /// to about 28 000. Anything over this goes through the share service or
     /// is cut, and the cut is reported.
-    public static let maxMailtoLength = 6000
+    package static let maxMailtoLength = 6000
 
-    public let mood: FeedbackMood?
-    public let text: String
-    public let captureCount: Int
+    package let mood: FeedbackMood?
+    package let text: String
+    package let captureCount: Int
     /// In `FeedbackTopic` order, no repeats, whatever order they were given.
-    public let topics: [FeedbackTopic]
+    package let topics: [FeedbackTopic]
 
-    public init(mood: FeedbackMood?, text: String, captureCount: Int, topics: [FeedbackTopic] = []) {
+    package init(mood: FeedbackMood?, text: String, captureCount: Int, topics: [FeedbackTopic] = []) {
         self.mood = mood
         self.text = text
         self.captureCount = captureCount
         self.topics = FeedbackTopic.allCases.filter(topics.contains)
     }
 
-    public var canSend: Bool {
+    package var canSend: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && remaining >= 0
     }
 
-    public var remaining: Int { Self.maxCharacters - text.count }
+    package var remaining: Int { Self.maxCharacters - text.count }
 
     /// Characters, not bytes: an emoji family is one.
-    public static func clipped(_ text: String) -> String {
+    package static func clipped(_ text: String) -> String {
         String(text.prefix(maxCharacters))
     }
 
-    public func body(language: AppLanguage) -> String {
+    package func body(language: AppLanguage) -> String {
         var parts: [String] = []
         if let mood { parts.append(Self.moodLine(mood, language)) }
         if !topics.isEmpty { parts.append(Self.topicsLine(topics, language)) }
@@ -67,14 +67,14 @@ public struct FeedbackDraft: Sendable, Equatable {
     }
 
     /// The whole message as a link, however long.
-    public func mailtoURL(subject: String, language: AppLanguage) -> URL? {
+    package func mailtoURL(subject: String, language: AppLanguage) -> URL? {
         Self.link(subject: subject, body: body(language: language))
     }
 
     /// The message as a link that fits `maxMailtoLength`: the words are cut
     /// (by character, never inside an emoji) with an ellipsis, and `truncated`
     /// says so. Nil only when even an empty message does not fit.
-    public func mailto(subject: String, language: AppLanguage) -> (url: URL, truncated: Bool)? {
+    package func mailto(subject: String, language: AppLanguage) -> (url: URL, truncated: Bool)? {
         if let whole = mailtoURL(subject: subject, language: language),
            whole.absoluteString.count <= Self.maxMailtoLength { return (whole, false) }
         func cut(_ count: Int) -> URL? {

@@ -7,11 +7,11 @@ import Foundation
 /// The app's language: the system's unless the user picked one. Stored as
 /// the raw code so an unknown value (a downgrade, a hand-edited default)
 /// resolves to the source language instead of crashing.
-public enum LanguagePreference {
+package enum LanguagePreference {
     nonisolated private static let key = "companion.language"
 
     /// nil means "follow the system", which is not the same as English.
-    nonisolated public static var stored: AppLanguage? {
+    nonisolated package static var stored: AppLanguage? {
         get {
             UserDefaults.standard.string(forKey: key)
                 .flatMap(AppLanguage.init(rawValue:))
@@ -19,54 +19,54 @@ public enum LanguagePreference {
         set { UserDefaults.standard.set(newValue?.rawValue, forKey: key) }
     }
 
-    nonisolated public static var current: AppLanguage {
+    nonisolated package static var current: AppLanguage {
         AppLanguage.resolved(
             preferred: stored, system: Locale.preferredLanguages)
     }
 }
 
-public enum UserProfile {
+package enum UserProfile {
     nonisolated private static let nameKey = "companion.ownerName"
     nonisolated private static let aboutKey = "companion.ownerAbout"
     nonisolated private static let instructionsKey = "companion.ownerInstructions"
     nonisolated private static let cityKey = "companion.ownerCity"
 
-    nonisolated public static var ownerName: String {
+    nonisolated package static var ownerName: String {
         get { UserDefaults.standard.string(forKey: nameKey) ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: nameKey) }
     }
 
-    nonisolated public static var about: String {
+    nonisolated package static var about: String {
         get { UserDefaults.standard.string(forKey: aboutKey) ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: aboutKey) }
     }
 
-    nonisolated public static var instructions: String {
+    nonisolated package static var instructions: String {
         get { UserDefaults.standard.string(forKey: instructionsKey) ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: instructionsKey) }
     }
 
     /// 16h-3: where "nearby" means. Empty defers to the system's city.
-    nonisolated public static var city: String {
+    nonisolated package static var city: String {
         get { UserDefaults.standard.string(forKey: cityKey) ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: cityKey) }
     }
 
-    public static var avatarURL: URL {
+    package static var avatarURL: URL {
         FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Companion/avatar.png")
     }
 
     @MainActor
-    public static var avatarImage: NSImage? {
+    package static var avatarImage: NSImage? {
         let url = avatarURL
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         return NSImage(contentsOf: url)
     }
 
     @MainActor
-    public static func setAvatar(from source: URL) -> Bool {
+    package static func setAvatar(from source: URL) -> Bool {
         let dest = avatarURL
         do {
             try FileManager.default.createDirectory(
@@ -85,12 +85,12 @@ public enum UserProfile {
     }
 }
 
-public enum AppearancePreference: String, CaseIterable, Equatable {
+package enum AppearancePreference: String, CaseIterable, Equatable {
     case light, dark, auto
 
-    public static let key = "companionAppearance"
+    package static let key = "companionAppearance"
 
-    public var label: String {
+    package var label: String {
         switch self {
         case .light: Localized.string("appearance.light")
         case .dark: Localized.string("appearance.dark")
@@ -98,7 +98,7 @@ public enum AppearancePreference: String, CaseIterable, Equatable {
         }
     }
 
-    public var symbol: String {
+    package var symbol: String {
         switch self {
         case .light: "sun.max"
         case .dark: "moon"
@@ -106,7 +106,7 @@ public enum AppearancePreference: String, CaseIterable, Equatable {
         }
     }
 
-    public static var stored: AppearancePreference {
+    package static var stored: AppearancePreference {
         get {
             AppearancePreference(rawValue:
                 UserDefaults.standard.string(forKey: key) ?? "") ?? .auto
@@ -119,10 +119,10 @@ public enum AppearancePreference: String, CaseIterable, Equatable {
     }
 }
 
-public enum WorkdirPreference {
-    nonisolated public static let key = "companionWorkdir"
+package enum WorkdirPreference {
+    nonisolated package static let key = "companionWorkdir"
 
-    nonisolated public static var stored: String? {
+    nonisolated package static var stored: String? {
         get {
             let value = UserDefaults.standard.string(forKey: key)
             return value.flatMap { isAllowed($0) ? $0 : nil }
@@ -151,7 +151,7 @@ public enum WorkdirPreference {
         return URL(fileURLWithPath: path).resolvingSymlinksInPath().path == home
     }
 
-    nonisolated public static var validated: String? {
+    nonisolated package static var validated: String? {
         guard let stored, isAllowed(stored) else { return nil }
         return URL(fileURLWithPath: stored).resolvingSymlinksInPath().path
     }
@@ -163,17 +163,17 @@ public enum WorkdirPreference {
     /// scopes the work in the conversation, not a standing sandbox. `acceptEdits`
     /// still auto-accepts only edits, and commands still ask through the voice
     /// sheet — reach is wide, the permission gate stays.
-    nonisolated public static var effective: String {
+    nonisolated package static var effective: String {
         validated ?? FileManager.default.homeDirectoryForCurrentUser
             .resolvingSymlinksInPath().path
     }
 
-    nonisolated public static var label: String? {
+    nonisolated package static var label: String? {
         validated.map { URL(fileURLWithPath: $0).lastPathComponent }
     }
 
     /// File tools treat workdir as the sandbox. The whole disk is not a folder.
-    nonisolated public static func isAllowed(
+    nonisolated package static func isAllowed(
         _ path: String,
         home: String = FileManager.default.homeDirectoryForCurrentUser.path
     ) -> Bool {
@@ -190,7 +190,7 @@ public enum WorkdirPreference {
     }
 }
 
-public enum VoiceProfile {
+package enum VoiceProfile {
     nonisolated private static let voiceKey = "companion.voice"
     nonisolated private static let speedKey = "companion.voice.speed"
     nonisolated private static let volumeKey = "companion.voice.volume"
@@ -203,7 +203,7 @@ public enum VoiceProfile {
     /// 15b-2: the dictation key setting (§4 API `DictationKey`).
     nonisolated private static let dictationKeyKey = "companion.voice.dictationKey"
 
-    nonisolated public static var stored: VoiceID {
+    nonisolated package static var stored: VoiceID {
         get {
             guard let raw = UserDefaults.standard.string(forKey: voiceKey),
                   let voice = VoiceID(rawValue: raw)
@@ -215,7 +215,7 @@ public enum VoiceProfile {
 
     /// Full voice settings persisted to UserDefaults. Used by ConfigProvider
     /// to construct the effective Config on each session open.
-    nonisolated public static var settings: VoiceSettings {
+    nonisolated package static var settings: VoiceSettings {
         get {
             let voice = stored
             let speed = Double(UserDefaults.standard.double(forKey: speedKey))
@@ -292,16 +292,16 @@ public enum VoiceProfile {
     }
 }
 
-public extension VoiceID {
+package extension VoiceID {
     /// Capitalised for display; the raw values are the API's own names.
     var displayName: String { rawValue.prefix(1).uppercased() + rawValue.dropFirst() }
 }
 
-public enum InterfaceSound {
+package enum InterfaceSound {
     nonisolated private static let key = "companion.interfaceSounds"
 
     /// Default on: missing key means the user never turned them off.
-    nonisolated public static var enabled: Bool {
+    nonisolated package static var enabled: Bool {
         get {
             if UserDefaults.standard.object(forKey: key) == nil { return true }
             return UserDefaults.standard.bool(forKey: key)
@@ -315,10 +315,10 @@ public enum InterfaceSound {
 /// socket nobody asked for. Posts on every real change so `CompanionMain`
 /// can start or stop the bridge listener without a relaunch, the same shape
 /// `companionDictationKeyDidChange` already uses for the FN tap.
-public enum HandsLendingPreference {
+package enum HandsLendingPreference {
     nonisolated private static let key = "companion.lendHands"
 
-    nonisolated public static var enabled: Bool {
+    nonisolated package static var enabled: Bool {
         get { UserDefaults.standard.bool(forKey: key) }
         set {
             guard newValue != enabled else { return }
@@ -329,22 +329,22 @@ public enum HandsLendingPreference {
 }
 
 /// Wave 16d: the words the ear should get right, as the user typed them.
-public enum VocabularyPreference {
+package enum VocabularyPreference {
     nonisolated private static let key = "companion.vocabulary"
 
-    nonisolated public static var text: String {
+    nonisolated package static var text: String {
         get { UserDefaults.standard.string(forKey: key) ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
 
-    nonisolated public static var words: [String] { Vocabulary.parse(text) }
+    nonisolated package static var words: [String] { Vocabulary.parse(text) }
 }
 
 /// Whether the thinking phase carries its background chord.
-public enum ThinkingSoundPref {
+package enum ThinkingSoundPref {
     nonisolated private static let key = "companion.thinkingSound"
 
-    nonisolated public static var enabled: Bool {
+    nonisolated package static var enabled: Bool {
         get { UserDefaults.standard.object(forKey: key) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
@@ -355,12 +355,12 @@ public enum ThinkingSoundPref {
 /// who has never seen the switch. `StoredConfigProvider` ORs this with the
 /// `COMPANION_DECISION` env override, which stays the escape hatch for a
 /// headless run with no Settings pane to click.
-public enum DecisionPreference {
+package enum DecisionPreference {
     nonisolated private static let key = "companion.decision.enabled"
     /// Swappable so a test writes into its own suite, never the user's.
-    nonisolated(unsafe) public static var store: UserDefaults = .standard
+    nonisolated(unsafe) package static var store: UserDefaults = .standard
 
-    nonisolated public static var enabled: Bool {
+    nonisolated package static var enabled: Bool {
         get { store.object(forKey: key) as? Bool ?? false }
         set { store.set(newValue, forKey: key) }
     }
@@ -370,7 +370,7 @@ public enum DecisionPreference {
 /// Stored apart from the key: choosing Ollama is a preference, not a secret,
 /// and it has to survive a relaunch or "use the model on my Mac" is a click
 /// the user repeats every morning.
-public enum ProviderPreference {
+package enum ProviderPreference {
     nonisolated private static let nameKey = "companion.provider"
     nonisolated private static let modelKey = "companion.provider.model"
     nonisolated private static let orderKey = "companion.provider.order"
@@ -401,7 +401,7 @@ public enum ProviderPreference {
     /// Test seam: binds every read/write this task tree makes (including
     /// the non-detached `Task` `onAppear`'s probe spawns) to `defaults`
     /// instead of the process-wide store.
-    public static func scoped<R>(
+    package static func scoped<R>(
         to defaults: UserDefaults,
         isolation: isolated (any Actor)? = #isolation,
         _ body: () async throws -> R
@@ -410,12 +410,12 @@ public enum ProviderPreference {
             DefaultsBox(defaults: defaults), operation: body, isolation: isolation)
     }
 
-    nonisolated public static var name: String? {
+    nonisolated package static var name: String? {
         get { store.string(forKey: nameKey) }
         set { store.set(newValue, forKey: nameKey) }
     }
 
-    nonisolated public static var localModel: String? {
+    nonisolated package static var localModel: String? {
         get { store.string(forKey: modelKey) }
         set { store.set(newValue, forKey: modelKey) }
     }
@@ -423,7 +423,7 @@ public enum ProviderPreference {
     /// Provider ids, best first. Stored as ids and not display names because
     /// the name is copy — it can be translated or reworded, and a preference
     /// keyed by copy breaks the day someone edits a string.
-    nonisolated public static var order: [String] {
+    nonisolated package static var order: [String] {
         get { store.stringArray(forKey: orderKey) ?? [] }
         set { store.set(newValue, forKey: orderKey) }
     }
@@ -431,7 +431,7 @@ public enum ProviderPreference {
     /// Rebuilt rather than stored as one blob: a half-written pair (a name
     /// with no tag) must read as "nothing chosen", not as a path that will
     /// fail on the first message.
-    nonisolated public static var acceptedPath: LocalPath? {
+    nonisolated package static var acceptedPath: LocalPath? {
         switch name {
         case LocalPath.appleFM.providerName:
             return .appleFM
@@ -445,7 +445,7 @@ public enum ProviderPreference {
 
     /// Accepting a local path is also an opinion about the ladder: someone who
     /// chose to talk to their own Mac wants that first, not as a fallback.
-    nonisolated public static func accept(_ path: LocalPath) {
+    nonisolated package static func accept(_ path: LocalPath) {
         name = path.providerName
         localModel = path.model
         var next = order.filter { $0 != path.providerId }
@@ -453,7 +453,7 @@ public enum ProviderPreference {
         order = next
     }
 
-    nonisolated public static func forget() {
+    nonisolated package static func forget() {
         store.removeObject(forKey: nameKey)
         store.removeObject(forKey: modelKey)
         store.removeObject(forKey: orderKey)

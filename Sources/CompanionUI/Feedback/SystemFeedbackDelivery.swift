@@ -4,7 +4,7 @@ import Foundation
 import os
 import UniformTypeIdentifiers
 
-public extension Notification.Name {
+package extension Notification.Name {
     /// The island's "Send feedback" entry: the modal lives in the main window.
     static let companionOpenFeedback = Notification.Name("companion.openFeedback")
 }

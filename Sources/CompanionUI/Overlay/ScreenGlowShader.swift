@@ -8,10 +8,10 @@ import SwiftUI
 // The Metal toolchain that would build a .metallib is not installed here, and
 // Metal.framework's runtime compiler needs nothing extra.
 
-public enum ScreenGlowShader {
+package enum ScreenGlowShader {
     /// Compiles the source and builds the pipeline; the error text when it
     /// cannot, nil when it can. Nil too with no Metal device (CI).
-    public static func compileError() -> String? {
+    package static func compileError() -> String? {
         guard let device = MTLCreateSystemDefaultDevice() else { return nil }
         do {
             _ = try ScreenGlowRenderer(device: device, pixelFormat: .bgra8Unorm)

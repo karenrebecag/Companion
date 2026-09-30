@@ -2,52 +2,52 @@ import Foundation
 
 /// Heads the cascade asks. The id is the wire name of one question; an
 /// adapter never invents a head Core did not ask for.
-public enum DecisionHead {
-    public static let action = "action"
-    public static let app = "app"
-    public static let site = "site"
-    public static let file = "file"
-    public static let skill = "skill"
-    public static let query = "query"
-    public static let text = "text"
-    public static let goal = "goal"
-    public static let submit = "submit"
-    public static let volume = "volume"
-    public static let shortcut = "shortcut"
-    public static let media = "media"
-    public static let system = "system"
-    public static let scrollDirection = "scroll_dir"
-    public static let scrollAmount = "scroll_amount"
+package enum DecisionHead {
+    package static let action = "action"
+    package static let app = "app"
+    package static let site = "site"
+    package static let file = "file"
+    package static let skill = "skill"
+    package static let query = "query"
+    package static let text = "text"
+    package static let goal = "goal"
+    package static let submit = "submit"
+    package static let volume = "volume"
+    package static let shortcut = "shortcut"
+    package static let media = "media"
+    package static let system = "system"
+    package static let scrollDirection = "scroll_dir"
+    package static let scrollAmount = "scroll_amount"
 }
 
 /// The three shapes on Jev's wire, so a TypeSafe adapter can sit behind
 /// this port later without a Core change. The cascade itself asks `choice`:
 /// a 4B's yes/no head is not a gate.
-public enum DecisionQuestionKind: String, Sendable, Equatable {
+package enum DecisionQuestionKind: String, Sendable, Equatable {
     case choice
     case yesNo
     case score
 }
 
-public struct DecisionOption: Sendable, Equatable {
-    public var id: String
-    public var detail: String
+package struct DecisionOption: Sendable, Equatable {
+    package var id: String
+    package var detail: String
 
-    public init(id: String, detail: String = "") {
+    package init(id: String, detail: String = "") {
         self.id = id
         self.detail = detail
     }
 }
 
-public struct DecisionQuestion: Sendable, Equatable {
-    public var id: String
-    public var kind: DecisionQuestionKind
-    public var instructions: String
-    public var options: [DecisionOption]
+package struct DecisionQuestion: Sendable, Equatable {
+    package var id: String
+    package var kind: DecisionQuestionKind
+    package var instructions: String
+    package var options: [DecisionOption]
     /// Score questions only. Clamped to 2...10 when the ids are read.
-    public var levels: Int
+    package var levels: Int
 
-    public init(
+    package init(
         id: String,
         kind: DecisionQuestionKind,
         instructions: String,
@@ -63,7 +63,7 @@ public struct DecisionQuestion: Sendable, Equatable {
 
     /// The only ids a valid answer may name. Score and yes/no do not trust
     /// a caller-supplied option list: the wire shape fixes the set.
-    public var offeredIds: [String] {
+    package var offeredIds: [String] {
         switch kind {
         case .yesNo:
             return ["yes", "no"]
@@ -82,25 +82,25 @@ public struct DecisionQuestion: Sendable, Equatable {
     }
 }
 
-public struct DecisionAnswer: Sendable, Equatable {
-    public var choice: String?
-    public var distribution: [String: Double]
-    public var confidence: Double
+package struct DecisionAnswer: Sendable, Equatable {
+    package var choice: String?
+    package var distribution: [String: Double]
+    package var confidence: Double
 
-    public init(choice: String?, distribution: [String: Double], confidence: Double) {
+    package init(choice: String?, distribution: [String: Double], confidence: Double) {
         self.choice = choice
         self.distribution = distribution
         self.confidence = confidence
     }
 
-    public func validated(for question: DecisionQuestion) -> DecisionAnswer? {
+    package func validated(for question: DecisionQuestion) -> DecisionAnswer? {
         validated(against: question.offeredIds)
     }
 
     /// Jev's `validate_choice`: the named id is one that was offered, the
     /// distribution covers exactly that set and sums to 1, and the name is
     /// a mode of the distribution. Anything else is not an action.
-    public func validated(against ids: [String]) -> DecisionAnswer? {
+    package func validated(against ids: [String]) -> DecisionAnswer? {
         guard !ids.isEmpty, Set(ids).count == ids.count else { return nil }
         guard let choice, ids.contains(choice) else { return nil }
         guard Set(distribution.keys) == Set(ids) else { return nil }
@@ -120,10 +120,10 @@ public struct DecisionAnswer: Sendable, Equatable {
     }
 }
 
-public enum DecisionMath {
+package enum DecisionMath {
     /// `(n · pMax − 1) / (n − 1)`. A flat distribution is 0; a point mass is 1.
     /// One claimed confidence cannot outvote the mass.
-    public static func sharpness(_ distribution: [String: Double]) -> Double {
+    package static func sharpness(_ distribution: [String: Double]) -> Double {
         let n = distribution.count
         guard n > 1, let peak = distribution.values.max(), peak.isFinite else {
             return n == 1 ? 1 : 0
@@ -135,7 +135,7 @@ public enum DecisionMath {
     /// Two option orders, blended into one distribution. Split out of
     /// `average` so a tie — no single winner — still hands back the masses:
     /// that is exactly the input `ArbitrationShortlist.build` needs.
-    public static func blend(
+    package static func blend(
         _ first: DecisionAnswer, _ second: DecisionAnswer, ids: [String]
     ) -> [String: Double]? {
         guard !ids.isEmpty, Set(ids).count == ids.count else { return nil }
@@ -156,7 +156,7 @@ public enum DecisionMath {
 
     /// Two option orders, averaged. A tie is nil: position bias is not
     /// broken by picking a side. Discovery E6.
-    public static func average(
+    package static func average(
         _ first: DecisionAnswer, _ second: DecisionAnswer, ids: [String]
     ) -> DecisionAnswer? {
         guard let merged = blend(first, second, ids: ids) else { return nil }
@@ -171,6 +171,6 @@ public enum DecisionMath {
 
 /// One question in, one distribution out. Nil is a failed judgement, and a
 /// failed judgement never becomes an action.
-public protocol DecisionProvider: Sendable {
+package protocol DecisionProvider: Sendable {
     func answer(_ question: DecisionQuestion) async -> DecisionAnswer?
 }

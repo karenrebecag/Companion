@@ -8,9 +8,9 @@ import Foundation
 /// HACK: pid and executable path only; the code signature of the peer is not
 /// checked. Upgrade trigger: a shim that ships signed (Developer ID), so the
 /// sheet can say "signed by Anthropic" instead of just where the binary lives.
-public struct BridgePeer: Sendable, Equatable {
-    public let pid: Int32
-    public let path: String
+package struct BridgePeer: Sendable, Equatable {
+    package let pid: Int32
+    package let path: String
 
     /// Nil when the kernel will not say (a peer that already exited).
     static func of(fd: Int32) -> BridgePeer? {

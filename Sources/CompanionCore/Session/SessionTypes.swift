@@ -4,7 +4,7 @@
 // lives in SessionMachine.swift.
 import Foundation
 
-public enum SessionKind: Sendable, Equatable {
+package enum SessionKind: Sendable, Equatable {
     case idle, hover, listening
     case processing(SessionPhase)
 
@@ -13,7 +13,7 @@ public enum SessionKind: Sendable, Equatable {
     /// `.hover` — the pointer resting on the island — is rest, same as
     /// `.idle`: it must not pause the bridge just because the mouse passed
     /// over the notch.
-    public var isUsersTurn: Bool {
+    package var isUsersTurn: Bool {
         switch self {
         case .listening, .processing: true
         case .idle, .hover: false
@@ -21,21 +21,21 @@ public enum SessionKind: Sendable, Equatable {
     }
 }
 
-public enum SessionPhase: Sendable, Equatable {
+package enum SessionPhase: Sendable, Equatable {
     case pending, thinking, speaking, toolExecuting, subAgentRunning, completed
 }
 
 /// Why the session left Processing without finishing. A reason on the way
 /// back to Idle, never a kind of its own: a "cancelled" or "error" mode is
 /// the state the chrome gets stuck in.
-public enum InterruptReason: Sendable, Equatable {
+package enum InterruptReason: Sendable, Equatable {
     case userStopped
     case userSteered
     case failure(TurnFailure)
 }
 
 /// What the chrome can paint besides the kind. Intent names, ours.
-public enum SessionCard: Sendable, Equatable {
+package enum SessionCard: Sendable, Equatable {
     case couldntHear
     /// A refused input permission: the card carries a way to Settings.
     case permission(TurnFailure)
@@ -60,75 +60,75 @@ public enum SessionCard: Sendable, Equatable {
 
 /// The voice port's own status, distinct from the kind: a session can be
 /// Idle while the socket is still opening.
-public enum VoiceStatus: Sendable, Equatable {
+package enum VoiceStatus: Sendable, Equatable {
     case off, connecting, live, muted
 }
 
-public struct SessionProjection: Sendable, Equatable {
-    public var kind: SessionKind = .idle
-    public var voice: VoiceStatus = .off
-    public var pipeline: VoicePipeline?
-    public var job: JobTimeline?
+package struct SessionProjection: Sendable, Equatable {
+    package var kind: SessionKind = .idle
+    package var voice: VoiceStatus = .off
+    package var pipeline: VoicePipeline?
+    package var job: JobTimeline?
     /// 16h-2: jobs submitted while `job` runs, in arrival order. Each keeps
     /// its own name and steps until it takes the row.
-    public var queued: [JobTimeline] = []
+    package var queued: [JobTimeline] = []
     /// Requests waiting for the sheet, in arrival order. The sheet shows the
     /// first; a voice-born job's and the chat's own gate can overlap.
-    public var approvalQueue: [ApprovalRequest] = []
+    package var approvalQueue: [ApprovalRequest] = []
     /// The cards of THIS step only. A view that keeps one copies it.
-    public var cards: [SessionCard] = []
+    package var cards: [SessionCard] = []
     /// What the parent's hands are on right now ("Safari", a URL).
-    public var targets: [String] = []
+    package var targets: [String] = []
     /// Every app this TURN has touched, in order of first touch (16m-2):
     /// the reel outlives `parentActed`, and a new turn starts it fresh.
-    public var touched: [String] = []
+    package var touched: [String] = []
     /// Kept until the session leaves Idle again, so a Settings link outlives
     /// the step that produced it.
-    public var interruption: InterruptReason?
+    package var interruption: InterruptReason?
     /// The card the resting chrome keeps showing (a hint, "could not hear",
     /// a refused permission) until something new starts. Cards are one
     /// step; this one outlives the snapshot that follows a release.
-    public var notice: SessionCard?
+    package var notice: SessionCard?
     /// The key (or the pointer on the island) is down.
-    public var holding: Bool = false
+    package var holding: Bool = false
     /// What the ear has heard of the hold so far (Wave 12c). Written in
     /// Listening, kept through Pending, gone when the phase moves on.
-    public var partial: String?
+    package var partial: String?
     /// Wave 12e: the app this hold dictates into, while it lasts (Listening,
     /// Pending, Completed). Nil when the hold talks to Companion.
-    public var dictation: String?
+    package var dictation: String?
     /// 16m-4: the words that landed in that field, kept in memory only for the
     /// result card (copy / hide). They leave with the card and never reach the
     /// log or the conversation.
-    public var dictatedText: DictatedText?
+    package var dictatedText: DictatedText?
     /// Wave 17: the bridge's client name while a session is open, nil once
     /// it closes. Independent of `kind` — the chip lives alongside whatever
     /// the chrome is doing, not instead of it.
-    public var handsLentTo: String?
+    package var handsLentTo: String?
     /// Wave 20d B: the last action that ran without the sheet, while its undo
     /// window lasts. Alongside the turn like `handsLentTo`, not a `kind`.
-    public var receipt: UndoReceipt?
+    package var receipt: UndoReceipt?
     /// Wave 17: bumped on every successful write action, wrapping at 1000,
     /// so the island can key a one-shot pulse animation off a value that
     /// keeps changing instead of a bare "it happened" flag.
-    public var handsPulse: Int = 0
+    package var handsPulse: Int = 0
     /// Wave 20b: an executed bridge call happened within the linger. Drives
     /// the screen aura; `handsLentTo` (the chip) is the permission, this is
     /// the activity.
-    public var handsActing: Bool = false
+    package var handsActing: Bool = false
     /// Where the last call acted, in Accessibility's global top-left space.
     /// Nil when the target app exposed no window; the aura then follows the cursor.
-    public var handsTarget: CGRect?
+    package var handsTarget: CGRect?
     /// 16h-2 (S2): a job's end is sounding or waiting for its gap, so a Stop
     /// at rest has something to silence.
-    public var announcing: Bool = false
+    package var announcing: Bool = false
 
-    public var approval: ApprovalRequest? { approvalQueue.first }
+    package var approval: ApprovalRequest? { approvalQueue.first }
 
-    public init() {}
+    package init() {}
 }
 
-public enum SessionEvent: Sendable, Equatable {
+package enum SessionEvent: Sendable, Equatable {
     /// The voice machine moved.
     case voice(TurnSnapshot)
     case typedSubmitted
@@ -233,7 +233,7 @@ public enum SessionEvent: Sendable, Equatable {
     case announcing(Bool)
 }
 
-public enum SessionEffect: Sendable, Equatable {
+package enum SessionEffect: Sendable, Equatable {
     case cancelJob
     /// 16q-1: stop this job only; the rest of the line keeps its place.
     case cancelJobByID(JobID)

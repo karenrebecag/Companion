@@ -5,11 +5,11 @@ import Foundation
 /// `core.md` is the stable profile, `sessions/` holds one short summary per
 /// session, `notes/` holds what the specialist was asked to remember. No
 /// vectors, no database — files are debuggable and honest (9j-2).
-public final class FileMemoryStore: MemoryStore, MemoryBrowsing, @unchecked Sendable {
+package final class FileMemoryStore: MemoryStore, MemoryBrowsing, @unchecked Sendable {
     private let root: URL
     private let recentSessions: Int
 
-    public init(
+    package init(
         root: URL = MemoryLocation.directory(),
         recentSessions: Int = 3
     ) {
@@ -19,7 +19,7 @@ public final class FileMemoryStore: MemoryStore, MemoryBrowsing, @unchecked Send
 
     /// First run: the profile the user already wrote in Settings becomes the
     /// starting core, so memory begins knowing what Companion already knew.
-    public func ensureCore(seed: String) {
+    package func ensureCore(seed: String) {
         let core = root.appendingPathComponent("core.md")
         guard !FileManager.default.fileExists(atPath: core.path) else { return }
         ensureDirectories()
@@ -35,7 +35,7 @@ public final class FileMemoryStore: MemoryStore, MemoryBrowsing, @unchecked Send
         }
     }
 
-    public func load() -> MemoryPack {
+    package func load() -> MemoryPack {
         let core = readFile(root.appendingPathComponent("core.md"))
         return MemoryPack(
             core: core.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -43,7 +43,7 @@ public final class FileMemoryStore: MemoryStore, MemoryBrowsing, @unchecked Send
             notes: recentFiles(in: "notes", limit: 5))
     }
 
-    public func appendSession(_ summary: String) throws {
+    package func appendSession(_ summary: String) throws {
         ensureDirectories()
         let stamp = Self.stamp()
         let file = root.appendingPathComponent("sessions/\(stamp).md")
@@ -52,7 +52,7 @@ public final class FileMemoryStore: MemoryStore, MemoryBrowsing, @unchecked Send
 
     // MARK: - Settings › Memoria (16g)
 
-    public func entries() -> [MemoryEntry] {
+    package func entries() -> [MemoryEntry] {
         let listed = [("sessions", MemoryEntry.Kind.session), ("notes", .note)].flatMap { folder, kind in
             names(in: folder).map { name in
                 MemoryEntry(
@@ -70,7 +70,7 @@ public final class FileMemoryStore: MemoryStore, MemoryBrowsing, @unchecked Send
     /// Only an id this store listed can be forgotten: the id arrives from a
     /// view, so it is matched against the folder, never joined into a path
     /// on its own (a "../core.md" would otherwise reach the profile).
-    public func forget(_ id: String) throws {
+    package func forget(_ id: String) throws {
         // Safe only because entries() lists nothing readFile refused: a link
         // reads as empty and is filtered out before it can be matched here.
         guard let entry = entries().first(where: { $0.id == id }) else {

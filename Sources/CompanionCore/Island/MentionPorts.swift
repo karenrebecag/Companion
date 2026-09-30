@@ -1,13 +1,13 @@
 import Foundation
 
 /// The system's answer about the address book, without asking anything.
-public enum ContactsAccess: Sendable, Equatable {
+package enum ContactsAccess: Sendable, Equatable {
     case notDetermined, granted, denied
 }
 
 /// The address book as the selector needs it: search by name, and the ways
 /// to reach ONE contact once she asks. Nothing lists the book.
-public protocol ContactsProviding: Sendable {
+package protocol ContactsProviding: Sendable {
     func access() -> ContactsAccess
     /// Shows the system dialog when the answer is still open; the only call
     /// that can. Returns whether the book may be read afterwards.
@@ -20,12 +20,12 @@ public protocol ContactsProviding: Sendable {
 
 /// Everything the selector can offer. Contacts are optional (no permission
 /// entry, no book); apps and files never need one.
-public struct MentionSources: Sendable {
-    public let contacts: (any ContactsProviding)?
-    public let connectedApps: @Sendable () async -> [MentionCandidate]
-    public let recentFiles: @Sendable () async -> [MentionCandidate]
+package struct MentionSources: Sendable {
+    package let contacts: (any ContactsProviding)?
+    package let connectedApps: @Sendable () async -> [MentionCandidate]
+    package let recentFiles: @Sendable () async -> [MentionCandidate]
 
-    public init(
+    package init(
         contacts: (any ContactsProviding)?,
         connectedApps: @escaping @Sendable () async -> [MentionCandidate],
         recentFiles: @escaping @Sendable () async -> [MentionCandidate]
@@ -40,7 +40,7 @@ public struct MentionSources: Sendable {
 /// home that are not hidden, not in Library and not inside a package: a
 /// mention attaches the file, so what is offered must be something she
 /// would attach by hand.
-public enum MentionFiles {
+package enum MentionFiles {
     /// Directories that Finder shows as one file. A mention attaches by
     /// copying, so none of them is ever offered.
     static let packageExtensions: Set<String> = [
@@ -53,7 +53,7 @@ public enum MentionFiles {
         return packageExtensions.contains(component[component.index(after: dot)...].lowercased())
     }
 
-    public static func candidate(path: String, home: String) -> MentionCandidate? {
+    package static func candidate(path: String, home: String) -> MentionCandidate? {
         let prefix = home.hasSuffix("/") ? home : home + "/"
         guard path.hasPrefix(prefix), !path.hasSuffix("/") else { return nil }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false).map(String.init)

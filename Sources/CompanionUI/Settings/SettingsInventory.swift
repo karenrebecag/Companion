@@ -3,15 +3,15 @@ import Foundation
 
 /// The sidebar's pages (Wave 16g). The raw value is an identifier: the island
 /// and the menus name a page with it, so it never follows the language.
-public enum SettingsTab: String, CaseIterable, Equatable {
+package enum SettingsTab: String, CaseIterable, Equatable {
     case general, voice, vocabulary, memory
     case you, privacy, system
 
-    public var title: String {
+    package var title: String {
         Localized.string("settings.tab.\(rawValue)")
     }
 
-    public var symbol: String {
+    package var symbol: String {
         switch self {
         case .general: "gearshape"
         case .voice: "waveform"
@@ -24,26 +24,26 @@ public enum SettingsTab: String, CaseIterable, Equatable {
     }
 
     /// Where the sidebar draws its gap: what it does above, whose it is below.
-    public static let firstGroup: [SettingsTab] = [.general, .voice, .vocabulary, .memory]
-    public static let secondGroup: [SettingsTab] = [.you, .privacy, .system]
+    package static let firstGroup: [SettingsTab] = [.general, .voice, .vocabulary, .memory]
+    package static let secondGroup: [SettingsTab] = [.you, .privacy, .system]
 }
 
 /// What Settings shows (Wave 16d), declared once so a test can hold the line
 /// at fifteen: an option changes a preference; a panel shows a status or
 /// runs an action (permissions, keys, updates, memory) and is not an option.
-public enum SettingsInventory {
-    public struct Option: Sendable, Equatable {
-        public let tab: SettingsTab
-        public let titleKey: String
-        public let subtitleKey: String?
+package enum SettingsInventory {
+    package struct Option: Sendable, Equatable {
+        package let tab: SettingsTab
+        package let titleKey: String
+        package let subtitleKey: String?
     }
 
-    public struct Panel: Sendable, Equatable {
-        public let tab: SettingsTab
-        public let titleKey: String
+    package struct Panel: Sendable, Equatable {
+        package let tab: SettingsTab
+        package let titleKey: String
     }
 
-    public static let options: [Option] = [
+    package static let options: [Option] = [
         Option(tab: .general, titleKey: "settings.app.talk.hold", subtitleKey: "settings.app.talk.hold.subtitle"),
         Option(tab: .general, titleKey: "settings.app.talk.dictationKey",
                subtitleKey: "settings.app.talk.dictationKey.subtitle"),
@@ -68,7 +68,7 @@ public enum SettingsInventory {
                subtitleKey: "settings.privacy.lendHands.subtitle"),
     ]
 
-    public static let panels: [Panel] = [
+    package static let panels: [Panel] = [
         Panel(tab: .memory, titleKey: "settings.memory.header"),
         Panel(tab: .privacy, titleKey: "settings.permissions"),
         Panel(tab: .privacy, titleKey: "settings.keys.header"),
@@ -78,17 +78,17 @@ public enum SettingsInventory {
         Panel(tab: .system, titleKey: "settings.welcome.again"),
     ]
 
-    public static var panelKeys: [String] { panels.map(\.titleKey) }
+    package static var panelKeys: [String] { panels.map(\.titleKey) }
 
     /// Every label a user can read in Settings: titles, subtitles, panels, pages.
-    public static var visibleKeys: [String] {
+    package static var visibleKeys: [String] {
         options.flatMap { [$0.titleKey, $0.subtitleKey].compactMap { $0 } }
             + panelKeys + SettingsTab.allCases.map { "settings.tab.\($0.rawValue)" }
     }
 
     /// What the search reads, in the language on screen now. A page's own
     /// name finds the page, so "memoria" lands somewhere even with no row.
-    @MainActor public static var searchEntries: [SettingsSearch.Entry] {
+    @MainActor package static var searchEntries: [SettingsSearch.Entry] {
         options.map {
             SettingsSearch.Entry(
                 id: $0.titleKey, page: $0.tab.rawValue, title: Localized.string($0.titleKey),

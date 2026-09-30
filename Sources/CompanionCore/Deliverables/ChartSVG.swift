@@ -4,27 +4,27 @@ import Foundation
 /// compares them), kept here because Core cannot see the UI target.
 // HACK: a hand-kept mirror guarded by a parity test. Generate both from one
 // token file when the palette grows past these few colors.
-public enum DocumentTheme {
-    public static let ink = "1C1C1E"
-    public static let muted = "6C6C70"
-    public static let border = "E5E5EA"
-    public static let surface = "F9F9F9"
-    public static let success = "34C759"
-    public static let warning = "FF9500"
-    public static let danger = "FF3B30"
-    public static let link = "007AFF"
+package enum DocumentTheme {
+    package static let ink = "1C1C1E"
+    package static let muted = "6C6C70"
+    package static let border = "E5E5EA"
+    package static let surface = "F9F9F9"
+    package static let success = "34C759"
+    package static let warning = "FF9500"
+    package static let danger = "FF3B30"
+    package static let link = "007AFF"
     /// Series colours, in order; the first is the ink, as on the cards.
-    public static let series = ["1C1C1E", "007AFF", "34C759", "FF9500", "AF52DE", "FF3B30", "5AC8FA", "8E8E93"]
+    package static let series = ["1C1C1E", "007AFF", "34C759", "FF9500", "AF52DE", "FF3B30", "5AC8FA", "8E8E93"]
 }
 
 /// A chart as inline SVG for the PDF (spec 20 D3): no script, no remote
 /// reference, and the same data the card draws. Every coordinate is finite.
-public enum ChartSVG {
+package enum ChartSVG {
     static let width = 640.0
     static let height = 280.0
     static let pad = (left: 48.0, right: 16.0, top: 16.0, bottom: 36.0)
 
-    public static func render(_ block: ChartBlock) -> String {
+    package static func render(_ block: ChartBlock) -> String {
         let body: String
         switch block.kind {
         case .pie, .donut: body = pie(block)

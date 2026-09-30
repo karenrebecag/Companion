@@ -4,7 +4,7 @@ import Foundation
 /// the MODEL makes, and any text the model reads (a page, a Slack message)
 /// can plant the words that make it call it: so an approval is answered by
 /// the user, and the model only gets the requests whose worst case is small.
-public enum ApprovalRisk: Sendable, Equatable {
+package enum ApprovalRisk: Sendable, Equatable {
     case low
     case high
 
@@ -22,7 +22,7 @@ public enum ApprovalRisk: Sendable, Equatable {
         NativeTool.findPlaces.rawValue,
     ]
 
-    public static func of(toolName: String) -> ApprovalRisk {
+    package static func of(toolName: String) -> ApprovalRisk {
         lowTools.contains(toolName) ? .low : .high
     }
 }

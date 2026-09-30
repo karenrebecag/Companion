@@ -1,42 +1,42 @@
 import Foundation
 
 /// Native is always present; CLI adapters are detected later (ADR 001).
-public struct ExecutorID: RawRepresentable, Hashable, Sendable {
-    public var rawValue: String
+package struct ExecutorID: RawRepresentable, Hashable, Sendable {
+    package var rawValue: String
 
-    public init(rawValue: String) {
+    package init(rawValue: String) {
         self.rawValue = rawValue
     }
 
-    public static let native = ExecutorID(rawValue: "native")
+    package static let native = ExecutorID(rawValue: "native")
     /// Prefix, not equality: each claude tier is its own row
     /// (claude-code:opus), and routing only cares about the family.
-    public static let claudeCode = ExecutorID(rawValue: "claude-code")
-    public static let hermes = ExecutorID(rawValue: "hermes")
+    package static let claudeCode = ExecutorID(rawValue: "claude-code")
+    package static let hermes = ExecutorID(rawValue: "hermes")
 }
 
 /// What a lane can actually do. Declared so a job can be sent where the
 /// capability lives instead of failing in the lane that happened to be
 /// selected — which is how a request for cinemas died in the native lane while
 /// an installed Claude Code sat next to it with web search included.
-public enum ExecutorCapability: String, Sendable, CaseIterable {
+package enum ExecutorCapability: String, Sendable, CaseIterable {
     case files, shell, web, places
 }
 
-public struct ExecutorDescriptor: Sendable, Equatable, Identifiable {
-    public var id: ExecutorID
-    public var shortName: String
-    public var title: String
-    public var kind: Kind
-    public var modelArgs: [String]
-    public var capabilities: Set<ExecutorCapability>
+package struct ExecutorDescriptor: Sendable, Equatable, Identifiable {
+    package var id: ExecutorID
+    package var shortName: String
+    package var title: String
+    package var kind: Kind
+    package var modelArgs: [String]
+    package var capabilities: Set<ExecutorCapability>
 
-    public enum Kind: Sendable, Equatable {
+    package enum Kind: Sendable, Equatable {
         case native
         case detectedCLI
     }
 
-    public init(
+    package init(
         id: ExecutorID,
         shortName: String,
         title: String,
@@ -57,7 +57,7 @@ extension ExecutorCapability {
     /// What a detected CLI specialist brings. Claude Code ships WebSearch and
     /// WebFetch as built-in tools — both this repo and the prototype already
     /// pass them in `--allowedTools` — and hermes carries its own toolset.
-    public static let cli: Set<ExecutorCapability> = [.files, .shell, .web]
+    package static let cli: Set<ExecutorCapability> = [.files, .shell, .web]
 }
 
 /// Which lane does the WORK, which is not the same question as which lane you
@@ -66,7 +66,7 @@ extension ExecutorCapability {
 /// Ported from the prototype, where the rule was hardcoded to claude
 /// (`workExecutor(claudeInstalled:)`). Generalised here: a job goes to a lane
 /// that has what it needs, and the selected one wins whenever it qualifies.
-public enum WorkRouting: Sendable {
+package enum WorkRouting: Sendable {
     /// The work goes to the most capable installed lane, with the selected one
     /// winning every tie.
     ///
@@ -75,7 +75,7 @@ public enum WorkRouting: Sendable {
     /// already, marked as a HACK. The prototype did not guess either — it sent
     /// the work to claude whenever claude was installed. This is that rule
     /// with the specific vendor taken out of it.
-    public static func executor(
+    package static func executor(
         selected: ExecutorID,
         installed: [ExecutorDescriptor]
     ) -> ExecutorID {
@@ -96,15 +96,15 @@ public enum WorkRouting: Sendable {
     /// True when the work left the lane the user picked. The prototype said so
     /// in the status line; a routing nobody can see is the app deciding behind
     /// your back.
-    public static func overrides(
+    package static func overrides(
         selected: ExecutorID, chosen: ExecutorID
     ) -> Bool {
         selected != chosen
     }
 }
 
-public enum ExecutorCatalog: Sendable {
-    public static let native = ExecutorDescriptor(
+package enum ExecutorCatalog: Sendable {
+    package static let native = ExecutorDescriptor(
         id: .native,
         shortName: "native",
         title: "Nativo",
@@ -117,7 +117,7 @@ public enum ExecutorCatalog: Sendable {
 
     /// Native first; later detections append. Duplicate ids are skipped so
     /// a probe cannot hide or double the built-in executor.
-    public static func list(detected: [ExecutorDescriptor]) -> [ExecutorDescriptor] {
+    package static func list(detected: [ExecutorDescriptor]) -> [ExecutorDescriptor] {
         var seen: Set<ExecutorID> = [native.id]
         var result = [native]
         for descriptor in detected where seen.insert(descriptor.id).inserted {

@@ -4,16 +4,16 @@ import Observation
 import SwiftUI
 
 /// The idle pebble's visibility, and whether a hold was ever completed.
-public enum IslandPreference {
+package enum IslandPreference {
     static let key = "companion.island.pebbleHidden"
     static let learnedKey = "companion.island.holdLearned"
 
-    public static var pebbleHidden: Bool {
+    package static var pebbleHidden: Bool {
         get { UserDefaults.standard.bool(forKey: key) }
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
 
-    public static var holdLearned: Bool {
+    package static var holdLearned: Bool {
         get { UserDefaults.standard.bool(forKey: learnedKey) }
         set { UserDefaults.standard.set(newValue, forKey: learnedKey) }
     }
@@ -23,41 +23,41 @@ public enum IslandPreference {
 /// the FN tap is allowed to listen, and whether the idle mark shows.
 @Observable
 @MainActor
-public final class HoldSettingsModel {
-    public private(set) var granted = false
+package final class HoldSettingsModel {
+    package private(set) var granted = false
     /// Main is key: it paints the sheet, the island does not.
-    public var mainInFront = false
-    public var pebbleHidden: Bool {
+    package var mainInFront = false
+    package var pebbleHidden: Bool {
         didSet { IslandPreference.pebbleHidden = pebbleHidden }
     }
     /// A hold has produced a turn once: hover stops teaching it (12c).
-    public var holdLearned: Bool {
+    package var holdLearned: Bool {
         didSet { IslandPreference.holdLearned = holdLearned }
     }
     /// Called after the user answers the system prompt, so the tap can start.
-    public var onPermissionChanged: (() -> Void)?
+    package var onPermissionChanged: (() -> Void)?
     private let permission: (any AccessibilityChecking)?
 
-    public init(permission: (any AccessibilityChecking)? = nil) {
+    package init(permission: (any AccessibilityChecking)? = nil) {
         self.permission = permission
         self.pebbleHidden = IslandPreference.pebbleHidden
         self.holdLearned = IslandPreference.holdLearned
         refresh()
     }
 
-    public func refresh() {
+    package func refresh() {
         granted = permission?.isTrusted() ?? false
     }
 
     /// The system prompt, once; after a deny it returns false with no UI,
     /// which is why the row also offers the deep link.
-    public func request() {
+    package func request() {
         guard let permission else { return }
         granted = permission.request()
         onPermissionChanged?()
     }
 
-    public var row: PermissionRowModel {
+    package var row: PermissionRowModel {
         PermissionRowModel(kind: .accessibility, granted: granted)
     }
 }

@@ -141,7 +141,7 @@ extension BrowserToolRunner {
     }
 
     /// The sheet names the tab by its title, which only the extension knows.
-    public func bound(_ request: ApprovalRequest) async -> ApprovalRequest {
+    package func bound(_ request: ApprovalRequest) async -> ApprovalRequest {
         guard request.toolName == BrowserTool.take.rawValue,
               let arguments = ToolArguments.parse(request.inputJSON), let tab = Self.tab(arguments),
               case .success(.tabs(_, let tabs)) = await channel.send(.tabs, timeout: Self.actTimeout),

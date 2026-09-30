@@ -23,21 +23,21 @@ import Foundation
 /// `holdCap` characters, dropped if the close arrives, and given back if not
 /// (`flush` at the end of the turn). A page or message quoted by the model
 /// can carry a literal `<steer>` and must never eat what follows it.
-public struct SpeechFilter: Sendable, Equatable {
+package struct SpeechFilter: Sendable, Equatable {
     private var swallowing = false
     private var openTag: String?
     private var held = ""
 
-    public init() {}
+    package init() {}
 
-    public static func clean(_ text: String) -> String {
+    package static func clean(_ text: String) -> String {
         var filter = SpeechFilter()
         let head = filter.admit(text)
         let tail = filter.flush()
         return [head, tail].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
-    public mutating func admit(_ text: String) -> String {
+    package mutating func admit(_ text: String) -> String {
         guard !text.isEmpty else { return "" }
         var input = text
         if let tag = openTag {
@@ -60,7 +60,7 @@ public struct SpeechFilter: Sendable, Equatable {
 
     /// What an element left open at the end of the turn was holding back: it
     /// never closed, so it was not internal after all.
-    public mutating func flush() -> String {
+    package mutating func flush() -> String {
         guard openTag != nil else { return "" }
         let rest = held
         openTag = nil
@@ -79,7 +79,7 @@ public struct SpeechFilter: Sendable, Equatable {
     /// mouth cuts at a break and trims it, and a cut that lost its break looks
     /// like an unfinished sentence: the filter would then take the next line
     /// for its continuation.
-    public static func stoppingLines(_ piece: String, after said: String) -> String {
+    package static func stoppingLines(_ piece: String, after said: String) -> String {
         guard piece.contains(where: \.isNewline) else { return piece }
         var last = said.last { !$0.isWhitespace }
         var out = ""
@@ -101,7 +101,7 @@ public struct SpeechFilter: Sendable, Equatable {
     /// it ("afternoon." + "Keeping"), nothing otherwise. "atomchat." + "io"
     /// and "3." + "200" are one token split by streaming, so only a capital
     /// or an opening mark after a prose word counts.
-    public static func joiner(after said: String, before next: String) -> String {
+    package static func joiner(after said: String, before next: String) -> String {
         guard let last = said.last, let first = next.first,
               terminators.contains(last), isOpener(first) else { return "" }
         let word = said.reversed().drop(while: terminators.contains).prefix { $0.isLetter }
@@ -249,7 +249,7 @@ public struct SpeechFilter: Sendable, Equatable {
     }
 
     /// The sentences of a text, trimmed, for callers that budget them.
-    public static func sentences(of text: String) -> [String] {
+    package static func sentences(of text: String) -> [String] {
         segments(text)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }

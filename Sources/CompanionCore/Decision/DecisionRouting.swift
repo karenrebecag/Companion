@@ -3,7 +3,7 @@ import Foundation
 /// Why a turn fell through to today's path instead of the router acting.
 /// Never the utterance text (privacy, DM1c-1 §8): only the shape of what
 /// happened.
-public enum DecisionPassReason: String, Sendable, Equatable {
+package enum DecisionPassReason: String, Sendable, Equatable {
     /// The "Decidir en local" toggle is off (DM1c-3); reserved here so the
     /// wire shape does not change when that toggle lands.
     case disabled
@@ -29,7 +29,7 @@ public enum DecisionPassReason: String, Sendable, Equatable {
 /// What N1's cascade routes a turn to, before anything runs. `execute` and
 /// `system` carry the wire shape their executor needs; `passThrough` means
 /// today's model-in-the-loop path handles the turn, unchanged.
-public enum DecisionStep: Sendable, Equatable {
+package enum DecisionStep: Sendable, Equatable {
     /// `open_app` / `open_url` / `open_file`, already shaped as the parent
     /// tool's own call — `DecisionGate` runs it through `ParentToolRunner`,
     /// never around it.
@@ -49,10 +49,10 @@ public enum DecisionStep: Sendable, Equatable {
 /// N1's routing table (wave-dm1-router.md §2, §8): a pure function from a
 /// composed `Plan` to what should happen next. Never touches the network or
 /// the filesystem — `DecisionGate` is the only thing that acts.
-public enum DecisionRoute {
+package enum DecisionRoute {
     /// `systemSupports` answers for a single plan, not a whole action class:
     /// DM1d's trust-by-app can refuse a plan the class as a whole supports.
-    public static func step(
+    package static func step(
         for plan: Plan,
         world: DecisionWorld,
         canDelegate: Bool,
@@ -104,7 +104,7 @@ public enum DecisionRoute {
     /// exactly as `ParentTool` and `ParentToolRunner` expect them, so
     /// `DecisionGate` executes through the runner unchanged and
     /// `ParentToolPolicy` still re-validates every field.
-    public static func parentCall(for plan: Plan) -> ToolCallRef? {
+    package static func parentCall(for plan: Plan) -> ToolCallRef? {
         let tool: ParentTool
         let object: [String: String]
         switch plan.action {
@@ -139,7 +139,7 @@ public enum DecisionRoute {
     /// execute — the same rule that built the option in the first place,
     /// checked again so a `Plan` built by hand (a test, N2's own output)
     /// cannot skip it.
-    public static func validClosedSet(_ plan: Plan) -> Bool {
+    package static func validClosedSet(_ plan: Plan) -> Bool {
         switch plan.action {
         case .volume:
             return contains(CandidateSets.volumeOps, textArg(plan, "op"))
@@ -175,11 +175,11 @@ public enum DecisionRoute {
 /// forced token. A leading "sí"/"no" decides; silence, a fresh order, or
 /// both words at once is not an answer to the question asked — `nil` says
 /// "ask again", never "no".
-public enum SpokenConfirmation: Sendable {
+package enum SpokenConfirmation: Sendable {
     private static let affirmative: Set<String> = ["si", "dale", "yes", "hazlo"]
     private static let negative: Set<String> = ["no", "cancela"]
 
-    public static func reading(_ said: String) -> Bool? {
+    package static func reading(_ said: String) -> Bool? {
         let folded = CandidateSets.fold(said).trimmingCharacters(in: .whitespaces)
         guard !folded.isEmpty else { return nil }
         // Only the first clause answers; whatever follows the comma is the
@@ -194,16 +194,16 @@ public enum SpokenConfirmation: Sendable {
 }
 
 /// Spoken copy for what the router itself said or did — never a sheet.
-public enum DecisionCopy: Sendable {
+package enum DecisionCopy: Sendable {
     /// Reuses `ParentToolCopy`'s own wording (open_app/url/file): the router
     /// and the model-in-the-loop path must read identically to the user.
-    public static func acted(
+    package static func acted(
         _ outcome: ParentToolOutcome, tool: String, _ language: AppLanguage
     ) -> String {
         ParentToolCopy.status(tool, outcome, language)
     }
 
-    public static func question(for plan: Plan, _ language: AppLanguage) -> String {
+    package static func question(for plan: Plan, _ language: AppLanguage) -> String {
         let what = irreversibleVerb(plan, language)
         switch language {
         case .en: return "\(what)?"
@@ -211,14 +211,14 @@ public enum DecisionCopy: Sendable {
         }
     }
 
-    public static func declined(_ language: AppLanguage) -> String {
+    package static func declined(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "Okay, not doing it."
         case .es: return "Bien, no lo hago."
         }
     }
 
-    public static func delegated(_ language: AppLanguage) -> String {
+    package static func delegated(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "Passing this to the specialist…"
         case .es: return "Se lo paso al especialista…"
@@ -228,7 +228,7 @@ public enum DecisionCopy: Sendable {
     /// The generic acknowledgement `AckPolicy` falls back to while the
     /// specific reply is not yet on disk (wave-15b §3C): short enough that
     /// it is always inside `PhraseCache`'s own 80-char limit.
-    public static func quickAck(_ language: AppLanguage) -> String {
+    package static func quickAck(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "Done."
         case .es: return "Listo."
@@ -241,7 +241,7 @@ public enum DecisionCopy: Sendable {
     /// confirmations §3B and DM1c-4 already know the shape of). Never a
     /// phrase built from what the user said — that is the specific text
     /// `AckPolicy` warms per-hold, not this closed set.
-    public static func prewarmSet(_ language: AppLanguage) -> [String] {
+    package static func prewarmSet(_ language: AppLanguage) -> [String] {
         let confirmations: [Plan] = [
             Plan(utterance: "", action: .system, args: ["op": .text("empty_trash")],
                  confidence: 1, risk: .irreversible, disposition: .confirm),
@@ -279,7 +279,7 @@ public enum DecisionCopy: Sendable {
 /// to catch up on a slow reply — so it speaks from the closed set of what is
 /// already on disk (wave-15b §3C) and warms the specific phrase for next
 /// time instead of paying a cold fetch on the turn the user is waiting on.
-public enum AckPolicy: Sendable {
+package enum AckPolicy: Sendable {
     /// Matches `PhraseCache`'s own 80-char limit (Services): warming a
     /// phrase that limit will never store is a wasted fetch, not a future hit.
     private static let maxCacheable = 80
@@ -287,7 +287,7 @@ public enum AckPolicy: Sendable {
     /// `speak` is what goes to the synthesizer now; `warm`, when present, is
     /// the phrase to fetch and cache in the background for the next time
     /// this exact reply comes up.
-    public static func choose(
+    package static func choose(
         specific: String, specificCached: Bool, language: AppLanguage
     ) -> (speak: String, warm: String?) {
         if specificCached { return (specific, nil) }

@@ -4,10 +4,10 @@ import Foundation
 /// Screen copy for the chat surface. The wording lives in the catalogs
 /// (en.lproj is the source); this stays the seam every view goes through, so
 /// a new string cannot enter the app monolingual by accident.
-public enum ChatCopy {
-    public static var emptyKey: String { Localized.string("chat.key.empty") }
+package enum ChatCopy {
+    package static var emptyKey: String { Localized.string("chat.key.empty") }
 
-    public static func error(_ error: Error) -> String {
+    package static func error(_ error: Error) -> String {
         if let chat = error as? ChatError {
             return chatCopy(chat)
         }
@@ -20,13 +20,13 @@ public enum ChatCopy {
         return Localized.string("chat.error.generic")
     }
 
-    public static var malformedKey: String {
+    package static var malformedKey: String {
         Localized.string("chat.key.malformed")
     }
 
     /// What the model is told a card showed. Names, never coordinates: the
     /// point of the card channel is that the payload does not reach it.
-    public static func cardShown(_ card: Card) -> String {
+    package static func cardShown(_ card: Card) -> String {
         switch card.payload {
         case .locations(let block):
             let names = block.locations.map(\.name).joined(separator: ", ")
@@ -39,24 +39,24 @@ public enum ChatCopy {
         }
     }
 
-    public static var jobStopped: String {
+    package static var jobStopped: String {
         Localized.string("chat.job.stopped")
     }
 
     /// The reason goes through `error(_:)`, so only catalog copy reaches the
     /// thread: a job's raw description can carry paths and internal detail.
-    public static func jobFailedNotice(_ error: Error) -> String {
+    package static func jobFailedNotice(_ error: Error) -> String {
         String(format: Localized.string("chat.job.failed.notice"), Self.error(error))
     }
 
     /// The specialist IS running. Used to mark what was delegated.
-    public static func handoff(_ h: Handoff) -> String {
+    package static func handoff(_ h: Handoff) -> String {
         String(format: Localized.string("chat.handoff.started"), h.goal)
     }
 
     /// Only when there is no runner wired at all — tests, and a composition
     /// with the specialist left out.
-    public static func handoffUnavailable(_ h: Handoff) -> String {
+    package static func handoffUnavailable(_ h: Handoff) -> String {
         String(format: Localized.string("chat.handoff.pending"), h.goal)
     }
 
@@ -93,47 +93,47 @@ public enum ChatCopy {
 
     /// Tool names are wire identifiers, not copy: they stay as the specialist
     /// reports them so a step can be matched to a log line.
-    public static func step(_ tool: String, _ summary: String) -> String {
+    package static func step(_ tool: String, _ summary: String) -> String {
         summary.isEmpty ? tool : "\(tool): \(summary)"
     }
 
-    public static func stepDone(_ tool: String, ok: Bool) -> String {
+    package static func stepDone(_ tool: String, ok: Bool) -> String {
         String(
             format: Localized.string(ok ? "chat.step.done" : "chat.step.failed"),
             tool)
     }
 
-    public static var approvalPending: String {
+    package static var approvalPending: String {
         Localized.string("chat.approval.pending")
     }
 
-    public static func approvalAnswer(_ approved: Bool) -> String {
+    package static func approvalAnswer(_ approved: Bool) -> String {
         Localized.string(
             approved ? "chat.approval.granted" : "chat.approval.denied")
     }
 
     /// The user's "no", painted as a decision (Wave 10c 3B.4).
-    public static func approvalDeniedTool(_ tool: String) -> String {
+    package static func approvalDeniedTool(_ tool: String) -> String {
         String(format: Localized.string("chat.approval.deniedTool"), tool)
     }
 
     /// Answered from the session's memory, no sheet (Wave 10c 3B.2).
     /// 19-1: the line names what was remembered in words ("abrir enlaces"),
     /// not in tool ids; an unknown tool still shows its id — never nothing.
-    public static func approvalRemembered(_ tool: String, approved: Bool) -> String {
+    package static func approvalRemembered(_ tool: String, approved: Bool) -> String {
         String(format: Localized.string(
             approved ? "chat.approval.rememberedAllow" : "chat.approval.rememberedDeny"),
             ApprovalCopy.toolLabel(tool, language: Localized.language()))
     }
 
-    public static var jobDone: String { Localized.string("chat.job.done") }
-    public static var jobFailed: String { Localized.string("chat.job.failed") }
+    package static var jobDone: String { Localized.string("chat.job.done") }
+    package static var jobFailed: String { Localized.string("chat.job.failed") }
 
-    public static func attached(_ name: String) -> String {
+    package static func attached(_ name: String) -> String {
         String(format: Localized.string("chat.attach.done"), name)
     }
 
-    public static func attachFailed(_ error: AttachmentError) -> String {
+    package static func attachFailed(_ error: AttachmentError) -> String {
         switch error {
         case .tooLarge: return Localized.string("chat.attach.tooLarge")
         case .unreadable: return Localized.string("chat.attach.unreadable")
@@ -145,7 +145,7 @@ public enum ChatCopy {
     /// Nothing to translate — it is the specialist's own input echoed back.
     /// 19-1: the sheet now reads `ApprovalCopy` (Core); this stays TEST-ONLY
     /// until 19-4 migrates its six dependent test files and removes it.
-    public static func approvalDetail(
+    package static func approvalDetail(
         tool: String, inputJSON: String
     ) -> String {
         // Parsed the way the executor parses (repair included): the sheet

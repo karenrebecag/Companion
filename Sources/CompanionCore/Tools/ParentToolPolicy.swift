@@ -4,10 +4,10 @@ import Foundation
 /// with the two fixes its review found: `home` is canonicalized once (a home
 /// on a network volume used to deny everything) and hidden components are
 /// checked again after symlinks resolve (`~/dotfiles → ~/.config`).
-public enum ParentToolPolicy {
-    public static let maxAppNameLength = 64
+package enum ParentToolPolicy {
+    package static let maxAppNameLength = 64
     /// PATH_MAX. Checked before any parsing or disk walk.
-    public static let maxInputLength = 4096
+    package static let maxInputLength = 4096
     /// What LaunchServices EXECUTES rather than displays: an `.app` launches,
     /// a `.command`/`.tool`/`.terminal` runs in Terminal, a `.workflow` or
     /// script runs, and a `.webloc`/`.inetloc` follows the URL stored inside
@@ -19,7 +19,7 @@ public enum ParentToolPolicy {
         "scpt", "scptd", "applescript", "webloc", "inetloc", "fileloc",
     ]
 
-    public static func appName(_ raw: String) throws(ContractError) -> String {
+    package static func appName(_ raw: String) throws(ContractError) -> String {
         var name = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if name.lowercased().hasSuffix(".app") { name = String(name.dropLast(4)) }
         guard !name.isEmpty else { throw .invalidArgs("app name is empty") }
@@ -35,7 +35,7 @@ public enum ParentToolPolicy {
 
     /// `EndpointPolicy` governs OUR requests; this governs the user's browser,
     /// where http to any host is legitimate ("open http://my-router").
-    public static func httpURL(_ raw: String) throws(ContractError) -> URL {
+    package static func httpURL(_ raw: String) throws(ContractError) -> URL {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw .invalidArgs("url is empty") }
         guard text.utf8.count <= maxInputLength else { throw .invalidArgs("url is too long") }
@@ -59,7 +59,7 @@ public enum ParentToolPolicy {
 
     /// The parent opens what the user names, anywhere under $HOME — a
     /// different scope from the specialist's workdir on purpose.
-    public static func homePath(_ raw: String, home: URL) throws(ContractError) -> URL {
+    package static func homePath(_ raw: String, home: URL) throws(ContractError) -> URL {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw .invalidArgs("path is empty") }
         guard text.utf8.count <= maxInputLength else { throw .invalidArgs("path is too long") }
@@ -92,7 +92,7 @@ public enum ParentToolPolicy {
     /// Case-insensitive name resolution for `open_app`, with the closest
     /// names when it misses so the model can correct itself ("Safari", not
     /// "Safari Technology Preview").
-    public static func resolveApp(_ name: String, among known: [String]) -> Result<String, ContractError> {
+    package static func resolveApp(_ name: String, among known: [String]) -> Result<String, ContractError> {
         let wanted = name.lowercased()
         if let exact = known.first(where: { $0.lowercased() == wanted }) { return .success(exact) }
         let close = known.filter { candidate in
@@ -182,8 +182,8 @@ public enum ParentToolPolicy {
 /// exception: `open_url` for a host the user never named. A window title or
 /// a clipboard can put a URL in front of the model (10a's security finding);
 /// the user's own words are the only thing that lets it through unasked.
-public enum ParentToolGate: Sendable {
-    public static func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
+package enum ParentToolGate: Sendable {
+    package static func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
         guard call.name == ParentTool.openURL.rawValue,
               let raw = ToolArguments.parse(call.arguments)?["url"] as? String
         else { return nil }

@@ -1,12 +1,12 @@
 import Foundation
 
-public struct JobRequest: Sendable, Equatable {
-    public var id: String
-    public var goal: String
-    public var context: String
-    public var attachments: [String]
+package struct JobRequest: Sendable, Equatable {
+    package var id: String
+    package var goal: String
+    package var context: String
+    package var attachments: [String]
 
-    public init(
+    package init(
         id: String,
         goal: String,
         context: String,
@@ -19,15 +19,15 @@ public struct JobRequest: Sendable, Equatable {
     }
 }
 
-public struct JobResult: Sendable, Equatable {
-    public var output: String
-    public var isError: Bool
-    public var sessionId: String?
+package struct JobResult: Sendable, Equatable {
+    package var output: String
+    package var isError: Bool
+    package var sessionId: String?
     /// 16h-2: someone stopped it (the island, the menu, "para"). Not a
     /// failure to announce: the user already knows, she asked for it.
-    public var cancelled: Bool
+    package var cancelled: Bool
 
-    public init(
+    package init(
         output: String,
         isError: Bool,
         sessionId: String? = nil,
@@ -40,7 +40,7 @@ public struct JobResult: Sendable, Equatable {
     }
 }
 
-public enum JobEvent: Sendable, Equatable {
+package enum JobEvent: Sendable, Equatable {
     /// What was delegated. Chat knows it up front; a voice-born job only
     /// exists as events, and without this its record in the thread is
     /// anonymous — which is exactly what made "why did it search instead of
@@ -65,7 +65,7 @@ public enum JobEvent: Sendable, Equatable {
     case acted(UndoReceipt)
 }
 
-public protocol Executor: Sendable {
+package protocol Executor: Sendable {
     var descriptor: ExecutorDescriptor { get }
     func run(
         _ job: JobRequest,
@@ -75,7 +75,7 @@ public protocol Executor: Sendable {
 
 /// Protocol for submitting handoffs and tracking execution.
 /// Abstracts the job runner for dependency injection into UI.
-public protocol JobSubmitter: Sendable {
+package protocol JobSubmitter: Sendable {
     func submit(
         _ handoff: Handoff,
         events: AsyncStream<JobEvent>.Continuation
@@ -99,7 +99,7 @@ public protocol JobSubmitter: Sendable {
 }
 
 extension JobSubmitter {
-    public func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
+    package func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
         await resolveApproval(requestId: requestId, approved: approved)
     }
 }

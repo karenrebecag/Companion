@@ -9,7 +9,7 @@ import Foundation
 /// app they were in. Never our own process, never a password field. Logs
 /// carry pids and counts, never text.
 extension AXTextInjector: FocusedReading, KeyPressing, WindowRaising {
-    public func focusedField(pid: Int32) -> FocusedField? {
+    package func focusedField(pid: Int32) -> FocusedField? {
         guard trust(), let app = actable(pid), let element = focusedElement(of: pid) else {
             return nil
         }
@@ -24,7 +24,7 @@ extension AXTextInjector: FocusedReading, KeyPressing, WindowRaising {
 
     /// The value first; an element that exposes none (some web fields) may
     /// still answer with its selection.
-    public func read(pid: Int32) -> String? {
+    package func read(pid: Int32) -> String? {
         guard trust(), actable(pid) != nil, let element = focusedElement(of: pid),
               !AXSecure.isSecure(element)
         else { return nil }
@@ -56,7 +56,7 @@ extension AXTextInjector: FocusedReading, KeyPressing, WindowRaising {
     /// even with Companion in front. A private event source and cleared
     /// flags, so a modifier the user is holding (the FN hold) never turns
     /// Return into a shortcut.
-    public func press(_ key: NamedKey, pid: Int32) -> Bool {
+    package func press(_ key: NamedKey, pid: Int32) -> Bool {
         guard trust(), actable(pid) != nil,
               let source = CGEventSource(stateID: .privateState),
               let down = CGEvent(keyboardEventSource: source, virtualKey: Self.keyCode(key), keyDown: true),
@@ -69,7 +69,7 @@ extension AXTextInjector: FocusedReading, KeyPressing, WindowRaising {
         return true
     }
 
-    public func raise(titleContaining title: String, pid: Int32) -> String? {
+    package func raise(titleContaining title: String, pid: Int32) -> String? {
         guard trust(), let app = actable(pid) else { return nil }
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
@@ -94,7 +94,7 @@ extension AXTextInjector: FocusedReading, KeyPressing, WindowRaising {
         return titles[index]
     }
 
-    public static func bundleID(of pid: Int32) -> String? {
+    package static func bundleID(of pid: Int32) -> String? {
         NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
     }
 

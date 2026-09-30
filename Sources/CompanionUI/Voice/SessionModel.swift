@@ -8,8 +8,8 @@ import Observation
 /// would be the local transition the chrome contract forbids.
 @Observable
 @MainActor
-public final class SessionModel {
-    public private(set) var projection = SessionProjection()
+package final class SessionModel {
+    package private(set) var projection = SessionProjection()
 
     private var machine = SessionMachine()
     private let jobs: (any JobSubmitter)?
@@ -25,17 +25,17 @@ public final class SessionModel {
     private var handsGlowExpiry: Task<Void, Never>?
     private var receiptExpiry: Task<Void, Never>?
     /// 16h-3: where the island's events wait for the next turn.
-    public var islandEvents: (any IslandEventSink)?
+    package var islandEvents: (any IslandEventSink)?
     /// Wave 17: "the voice wins" — `BridgeHost` pauses the bridge for any
     /// turn of Karen's own and resumes it back at rest. `send(_:)` is the
     /// only place `projection.kind` changes, so it is the only place that
     /// needs to notice.
-    public var onKindChange: (@MainActor (SessionKind) -> Void)?
+    package var onKindChange: (@MainActor (SessionKind) -> Void)?
     /// The user pressed Undo on a receipt (Wave 20d B). The composition root
     /// wires the adapter that takes the action back.
-    public var onUndo: (@MainActor (UndoReceipt) -> Void)?
+    package var onUndo: (@MainActor (UndoReceipt) -> Void)?
 
-    public init(
+    package init(
         jobs: (any JobSubmitter)?,
         approvals: (any ApprovalsProvider)?,
         voice: (any VoiceControlling)? = nil,
@@ -54,7 +54,7 @@ public final class SessionModel {
     /// Returns the effects so a caller that keeps the thread (ChatViewModel)
     /// can write its record when the reducer decided to stop a job.
     @discardableResult
-    public func send(_ event: SessionEvent) -> [SessionEffect] {
+    package func send(_ event: SessionEvent) -> [SessionEffect] {
         let previousKind = projection.kind
         let effects = machine.handle(event)
         projection = machine.projection
@@ -87,7 +87,7 @@ public final class SessionModel {
 
     /// What only the view knows (a card the user closed, a result nobody
     /// opened) reaches the model through here.
-    public func report(_ event: IslandEvent) {
+    package func report(_ event: IslandEvent) {
         islandEvents?.record(event)
     }
 

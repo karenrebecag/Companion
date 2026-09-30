@@ -4,29 +4,29 @@ import Foundation
 // view paints the step and asks whether Continue is open; the facts come
 // from the devices port. Nothing here knows a window.
 
-public enum WelcomeStep: Int, Sendable, Equatable, CaseIterable {
+package enum WelcomeStep: Int, Sendable, Equatable, CaseIterable {
     case cover, hello, keys, permissions, holdKey, microphone, yourTurn
 
     /// Only the screens that need hardware can be skipped: a Mac without a
     /// microphone must not be trapped (spec 16c §4).
-    public var skippable: Bool { self == .microphone || self == .yourTurn }
+    package var skippable: Bool { self == .microphone || self == .yourTurn }
 }
 
 /// The four rows of the one permissions screen.
-public enum WelcomePermission: String, Sendable, Equatable, CaseIterable {
+package enum WelcomePermission: String, Sendable, Equatable, CaseIterable {
     case microphone, accessibility, screenRecording, speechRecognition
 }
 
-public struct WelcomeFacts: Sendable, Equatable {
+package struct WelcomeFacts: Sendable, Equatable {
     /// An OpenAI key is saved and verified, or a local model was accepted.
-    public var keyReady: Bool
-    public var granted: Set<WelcomePermission>
+    package var keyReady: Bool
+    package var granted: Set<WelcomePermission>
     /// The level meter moved above the noise floor at least once.
-    public var micHeard: Bool
+    package var micHeard: Bool
     /// A hold was released with words in it on the last screen.
-    public var holdDone: Bool
+    package var holdDone: Bool
 
-    public init(
+    package init(
         keyReady: Bool = false, granted: Set<WelcomePermission> = [],
         micHeard: Bool = false, holdDone: Bool = false
     ) {
@@ -37,13 +37,13 @@ public struct WelcomeFacts: Sendable, Equatable {
     }
 }
 
-public struct WelcomeFlow: Sendable, Equatable {
-    public private(set) var step: WelcomeStep
-    public private(set) var finished = false
+package struct WelcomeFlow: Sendable, Equatable {
+    package private(set) var step: WelcomeStep
+    package private(set) var finished = false
     /// A returning user who lost the key sees the key screen, not the tour.
     private let onlyKeys: Bool
 
-    public init(step: WelcomeStep = .cover) {
+    package init(step: WelcomeStep = .cover) {
         self.step = step
         self.onlyKeys = false
     }
@@ -53,11 +53,11 @@ public struct WelcomeFlow: Sendable, Equatable {
         self.onlyKeys = onlyKeys
     }
 
-    public static func start(welcomeDone: Bool) -> WelcomeFlow {
+    package static func start(welcomeDone: Bool) -> WelcomeFlow {
         WelcomeFlow(onlyKeys: welcomeDone)
     }
 
-    public func canContinue(_ facts: WelcomeFacts) -> Bool {
+    package func canContinue(_ facts: WelcomeFacts) -> Bool {
         switch step {
         case .cover, .hello, .holdKey: true
         case .keys: facts.keyReady
@@ -70,17 +70,17 @@ public struct WelcomeFlow: Sendable, Equatable {
     /// Moves on when the screen's condition holds. False when it did not
     /// move to another screen (blocked, or the flow just finished).
     @discardableResult
-    public mutating func advance(_ facts: WelcomeFacts) -> Bool {
+    package mutating func advance(_ facts: WelcomeFacts) -> Bool {
         guard !finished, canContinue(facts) else { return false }
         return moveOn()
     }
 
-    public mutating func skip() {
+    package mutating func skip() {
         guard !finished, step.skippable else { return }
         moveOn()
     }
 
-    public mutating func back() {
+    package mutating func back() {
         guard !finished, !onlyKeys, let previous = WelcomeStep(rawValue: step.rawValue - 1) else { return }
         step = previous
     }
@@ -98,7 +98,7 @@ public struct WelcomeFlow: Sendable, Equatable {
 
 /// What the welcome needs from the machine. One port so the view never
 /// touches AVFoundation, and a fake can drive every screen in tests.
-public protocol WelcomeDevices: Sendable {
+package protocol WelcomeDevices: Sendable {
     func granted(_ permission: WelcomePermission) async -> Bool
     /// The system prompt where there is one; otherwise false, and the row
     /// opens System Settings instead.
@@ -110,7 +110,7 @@ public protocol WelcomeDevices: Sendable {
     func greet(_ text: String, language: AppLanguage) async
 }
 
-public extension WelcomePermission {
+package extension WelcomePermission {
     var settingsLink: URL {
         switch self {
         case .microphone: PermissionSettingsLink.microphone

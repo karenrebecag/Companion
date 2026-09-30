@@ -4,31 +4,31 @@ import SwiftUI
 // Wave 16o-3: Incredible's ink trail and the orb that follows the cursor
 // while fn is held, measured in docs/research/incredible-fn-glow-pointer.md.
 
-public struct TrailPoint: Equatable, Sendable {
-    public let position: CGPoint
-    public let time: Double
+package struct TrailPoint: Equatable, Sendable {
+    package let position: CGPoint
+    package let time: Double
     /// A jump starts a new stroke, so no line crosses the screen.
-    public let stroke: Int
+    package let stroke: Int
 }
 
-public struct PointerTrail: Sendable {
-    public static let ink = Swatch("4678F5")
-    public static let life = 0.62
+package struct PointerTrail: Sendable {
+    package static let ink = Swatch("4678F5")
+    package static let life = 0.62
     /// The last fifth of a point's life narrows it to nothing.
-    public static let taper = 0.2
-    public static let alpha = 0.3
-    public static let maxWidth: CGFloat = 16
-    public static let follow: CGFloat = 0.3
-    public static let minStep: CGFloat = 1.5
-    public static let breakJump: CGFloat = 260
+    package static let taper = 0.2
+    package static let alpha = 0.3
+    package static let maxWidth: CGFloat = 16
+    package static let follow: CGFloat = 0.3
+    package static let minStep: CGFloat = 1.5
+    package static let breakJump: CGFloat = 260
 
-    public private(set) var points: [TrailPoint] = []
+    package private(set) var points: [TrailPoint] = []
     private var head: CGPoint?
     private var stroke = 0
 
-    public init() {}
+    package init() {}
 
-    public mutating func add(_ cursor: CGPoint, at time: Double) {
+    package mutating func add(_ cursor: CGPoint, at time: Double) {
         prune(at: time)
         guard let head else {
             start(at: cursor, time: time)
@@ -46,16 +46,16 @@ public struct PointerTrail: Sendable {
         points.append(TrailPoint(position: next, time: time, stroke: stroke))
     }
 
-    public mutating func prune(at time: Double) {
+    package mutating func prune(at time: Double) {
         points.removeAll { time - $0.time > Self.life }
     }
 
-    public mutating func reset() {
+    package mutating func reset() {
         points = []
         head = nil
     }
 
-    public static func width(age: Double) -> CGFloat {
+    package static func width(age: Double) -> CGFloat {
         let narrowing = life * (1 - taper)
         guard age > narrowing else { return maxWidth }
         return maxWidth * CGFloat(max(0, (life - age) / (life * taper)))
@@ -71,19 +71,19 @@ public struct PointerTrail: Sendable {
     }
 }
 
-public enum PointerOrb {
-    public static let size: CGFloat = 32
-    public static let offset = CGSize(width: 14, height: 17)
-    public static let follow: CGFloat = 0.16
+package enum PointerOrb {
+    package static let size: CGFloat = 32
+    package static let offset = CGSize(width: 14, height: 17)
+    package static let follow: CGFloat = 0.16
 
     /// Only with fn down, on the display the pointer is on, and never under
     /// Reduce Motion (the pointing itself is still read, only not drawn).
-    public static func shows(kind: SessionKind, reduceMotion: Bool, screen: CGRect, cursor: CGPoint) -> Bool {
+    package static func shows(kind: SessionKind, reduceMotion: Bool, screen: CGRect, cursor: CGPoint) -> Bool {
         kind == .listening && !reduceMotion && screen.contains(cursor)
     }
 
     /// One frame toward the cursor's corner: it trails, it never covers the tip.
-    public static func step(from orb: CGPoint, cursor: CGPoint) -> CGPoint {
+    package static func step(from orb: CGPoint, cursor: CGPoint) -> CGPoint {
         let target = CGPoint(x: cursor.x + offset.width, y: cursor.y + offset.height)
         return CGPoint(x: orb.x + (target.x - orb.x) * follow, y: orb.y + (target.y - orb.y) * follow)
     }

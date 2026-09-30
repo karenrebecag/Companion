@@ -1,44 +1,44 @@
 import SwiftUI
 
 /// Numbers the views apply. Extracted so press/hover stay testable without a window.
-public enum PressMotion {
-    public static let pressedScale: CGFloat = 0.98
-    public static let pressedOpacity: CGFloat = 0.85
-    public static let chipScale: CGFloat = 1.04
-    public static let iconScale: CGFloat = 1.05
-    public static let restFillOpacity: Double = 0.55
-    public static let restStrokeOpacity: Double = 0.5
+package enum PressMotion {
+    package static let pressedScale: CGFloat = 0.98
+    package static let pressedOpacity: CGFloat = 0.85
+    package static let chipScale: CGFloat = 1.04
+    package static let iconScale: CGFloat = 1.05
+    package static let restFillOpacity: Double = 0.55
+    package static let restStrokeOpacity: Double = 0.5
 
-    public static func scale(pressed: Bool, reduceMotion: Bool) -> CGFloat {
+    package static func scale(pressed: Bool, reduceMotion: Bool) -> CGFloat {
         pressed && !reduceMotion ? pressedScale : 1
     }
 
-    public static func opacity(pressed: Bool) -> CGFloat {
+    package static func opacity(pressed: Bool) -> CGFloat {
         pressed ? pressedOpacity : 1
     }
 
-    public static func hoverScale(
+    package static func hoverScale(
         _ hovering: Bool, reduceMotion: Bool, icon: Bool
     ) -> CGFloat {
         guard hovering, !reduceMotion else { return 1 }
         return icon ? iconScale : chipScale
     }
 
-    public static func fillOpacity(hovering: Bool) -> Double {
+    package static func fillOpacity(hovering: Bool) -> Double {
         hovering ? 1 : restFillOpacity
     }
 
-    public static func strokeOpacity(hovering: Bool) -> Double {
+    package static func strokeOpacity(hovering: Bool) -> Double {
         hovering ? 1 : restStrokeOpacity
     }
 }
 
-public struct PressableStyle: ButtonStyle {
+package struct PressableStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init() {}
+    package init() {}
 
-    public func makeBody(configuration: Configuration) -> some View {
+    package func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(
                 PressMotion.scale(
@@ -51,13 +51,13 @@ public struct PressableStyle: ButtonStyle {
     }
 }
 
-public struct HoverChip: ViewModifier {
+package struct HoverChip: ViewModifier {
     var hovering: Binding<Bool>?
     var icon = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var localHover = false
 
-    public func body(content: Content) -> some View {
+    package func body(content: Content) -> some View {
         let over = hovering?.wrappedValue ?? localHover
         content
             .background {
@@ -87,7 +87,7 @@ public struct HoverChip: ViewModifier {
 }
 
 extension View {
-    public func hoverChip(
+    package func hoverChip(
         hovering: Binding<Bool>? = nil, icon: Bool = false
     ) -> some View {
         modifier(HoverChip(hovering: hovering, icon: icon))

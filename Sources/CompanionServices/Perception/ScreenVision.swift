@@ -3,12 +3,12 @@ import Foundation
 
 /// Cheap vision sidecar: JPEG in, SUMMARY + SNIPPETS out. The voice model
 /// never sees the image.
-public struct ScreenVision: Sendable {
+package struct ScreenVision: Sendable {
     private let secrets: any SecretStore
     private let transport: any ChatTransport
     private let model: String
 
-    public init(
+    package init(
         secrets: any SecretStore,
         transport: any ChatTransport,
         model: String = "gpt-4o-mini"
@@ -18,7 +18,7 @@ public struct ScreenVision: Sendable {
         self.model = model
     }
 
-    public func summarize(jpeg: Data, app: String?) async -> ScreenBrief? {
+    package func summarize(jpeg: Data, app: String?) async -> ScreenBrief? {
         guard let text = await complete(
             jpeg: jpeg, prompt: Self.prompt(app: app), maxTokens: 400, timeout: 8)
         else { return nil }
@@ -27,7 +27,7 @@ public struct ScreenVision: Sendable {
 
     /// The `see` tool: the window's own text, not the sidecar's 50 words.
     /// The reply is the transcription itself, so it skips the SUMMARY parser.
-    public func transcribe(jpeg: Data, app: String?, question: String?) async -> ScreenBrief? {
+    package func transcribe(jpeg: Data, app: String?, question: String?) async -> ScreenBrief? {
         guard let text = await complete(
             jpeg: jpeg, prompt: ScreenSeePrompt.prompt(app: app, question: question),
             maxTokens: ScreenSeePrompt.maxTokens, timeout: ScreenSeePrompt.visionTimeout)

@@ -1,33 +1,33 @@
 import CompanionCore
 import Foundation
 
-public protocol RealtimeSocketing: Sendable {
+package protocol RealtimeSocketing: Sendable {
     func send(text: String) async throws
     func receive() async throws -> String
     func close() async
 }
 
-public protocol RealtimeConnecting: Sendable {
+package protocol RealtimeConnecting: Sendable {
     func connect(url: URL, bearer: String) async throws -> any RealtimeSocketing
 }
 
-public actor RealtimeWSTransport: VoiceTransport {
+package actor RealtimeWSTransport: VoiceTransport {
     private let connector: any RealtimeConnecting
     nonisolated private let pipe = EventPipe()
     private var socket: (any RealtimeSocketing)?
     private var pump: Task<Void, Never>?
     private var closingExplicitly = false
 
-    public init(connector: any RealtimeConnecting = URLSessionRealtimeConnector()) {
+    package init(connector: any RealtimeConnecting = URLSessionRealtimeConnector()) {
         self.connector = connector
     }
 
-    nonisolated public func events() -> AsyncStream<RealtimeEvent> {
+    nonisolated package func events() -> AsyncStream<RealtimeEvent> {
         pipe.stream
     }
 
     /// Handshake only — VoiceSession owns the 6s timeout, not this type.
-    public func open(key: String, url: URL) async throws {
+    package func open(key: String, url: URL) async throws {
         // Validate URL scheme: only wss (always) and ws (localhost only)
         guard let scheme = url.scheme?.lowercased(), ["wss", "ws"].contains(scheme) else {
             throw VoiceTransportError.unreachable
@@ -68,7 +68,7 @@ public actor RealtimeWSTransport: VoiceTransport {
         pump = Task { await self.runPump(on: connected, pipe: pipe) }
     }
 
-    public func send(_ json: String) async throws {
+    package func send(_ json: String) async throws {
         guard let socket else { throw VoiceTransportError.closed }
         do {
             try await socket.send(text: json)
@@ -79,7 +79,7 @@ public actor RealtimeWSTransport: VoiceTransport {
         }
     }
 
-    public func close() async {
+    package func close() async {
         await teardown(finishStream: true)
     }
 
@@ -124,16 +124,16 @@ public actor RealtimeWSTransport: VoiceTransport {
     }
 }
 
-public struct URLSessionRealtimeConnector: RealtimeConnecting, Sendable {
-    public init() {}
+package struct URLSessionRealtimeConnector: RealtimeConnecting, Sendable {
+    package init() {}
 
-    public static func mapFailure(httpStatus: Int?, error: Error) -> VoiceTransportError {
+    package static func mapFailure(httpStatus: Int?, error: Error) -> VoiceTransportError {
         if httpStatus == 401 { return .unauthorized }
         if let mapped = error as? VoiceTransportError { return mapped }
         return .unreachable
     }
 
-    public func connect(url: URL, bearer: String) async throws -> any RealtimeSocketing {
+    package func connect(url: URL, bearer: String) async throws -> any RealtimeSocketing {
         var request = URLRequest(url: url)
         request.setValue(bearer, forHTTPHeaderField: "Authorization")
         let handshake = WebSocketHandshake()

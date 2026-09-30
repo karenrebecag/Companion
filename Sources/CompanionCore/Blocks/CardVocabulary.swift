@@ -14,8 +14,8 @@ import Foundation
 /// price of working with any OpenAI-compatible provider, including the small
 /// local models that fail at tool calling — and it is why a malformed fence
 /// degrades to a visible code block instead of vanishing.
-public enum CardVocabulary: Sendable {
-    public static func text(_ language: AppLanguage = .en) -> String {
+package enum CardVocabulary: Sendable {
+    package static func text(_ language: AppLanguage = .en) -> String {
         switch language {
         case .en:
             return "The client paints NATIVE CARDS from companion: fences. "

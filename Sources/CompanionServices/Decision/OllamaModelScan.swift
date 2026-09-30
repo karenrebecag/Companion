@@ -4,8 +4,8 @@ import Foundation
 /// What a scan found. Four states, not two: "the daemon is silent" and "the
 /// daemon is not installed" need different copy, and telling someone to
 /// install what they already have is the kind of lie that loses trust.
-public struct OllamaScanResult: Sendable, Equatable {
-    public enum State: Sendable, Equatable {
+package struct OllamaScanResult: Sendable, Equatable {
+    package enum State: Sendable, Equatable {
         /// Daemon answered and a usable chat model was chosen.
         case ready(InstalledModel)
         /// Daemon answered, but nothing installed can hold a conversation.
@@ -16,10 +16,10 @@ public struct OllamaScanResult: Sendable, Equatable {
         case absent
     }
 
-    public var state: State
-    public var installed: [InstalledModel]
+    package var state: State
+    package var installed: [InstalledModel]
 
-    public init(state: State, installed: [InstalledModel]) {
+    package init(state: State, installed: [InstalledModel]) {
         self.state = state
         self.installed = installed
     }
@@ -28,11 +28,11 @@ public struct OllamaScanResult: Sendable, Equatable {
 /// Read-only detection of the models Ollama already has (ADR 004: one adapter,
 /// read-only, and the product behaves identically when Ollama is not there).
 /// Never spawns a process — this is HTTP to a daemon the user chose to run.
-public struct OllamaModelScan: Sendable {
+package struct OllamaModelScan: Sendable {
     /// Paths a Homebrew or a .pkg install leaves the binary in. Probing the
     /// filesystem for someone else's binary is the example ADR 004 names as
     /// allowed; reading their config would not be.
-    public static let binaryPaths = [
+    package static let binaryPaths = [
         "/usr/local/bin/ollama",
         "/opt/homebrew/bin/ollama",
         "/Applications/Ollama.app",
@@ -43,7 +43,7 @@ public struct OllamaModelScan: Sendable {
     private let timeout: TimeInterval
     private let binaryPresent: @Sendable () -> Bool
 
-    public init(
+    package init(
         transport: any ChatTransport,
         baseURL: URL = URL(string: "http://localhost:11434")!,
         timeout: TimeInterval = 1,
@@ -59,7 +59,7 @@ public struct OllamaModelScan: Sendable {
 
     /// Bool-shaped like `LiveCapabilityProbe`: a daemon that is down is "not
     /// here", not an error that breaks the launch.
-    public func scan(tier: RAMTier, preferred: String?) async -> OllamaScanResult {
+    package func scan(tier: RAMTier, preferred: String?) async -> OllamaScanResult {
         guard let url = URL(string: baseURL.absoluteString + "/api/tags"),
               EndpointPolicy.isAcceptable(url)
         else {
@@ -112,14 +112,14 @@ public struct OllamaModelScan: Sendable {
 /// Holds the last scan so the hot path never waits on a daemon. Refreshed at
 /// launch and on demand — never per request: a scan inside the request would
 /// make time-to-first-token depend on someone else's process.
-public final class LocalCatalog: @unchecked Sendable {
+package final class LocalCatalog: @unchecked Sendable {
     private let scan: OllamaModelScan
     private let base: [ProviderDescriptor]
     private let tier: RAMTier
     private let lock = NSLock()
     private var resolved: OllamaScanResult?
 
-    public init(
+    package init(
         scan: OllamaModelScan,
         base: [ProviderDescriptor] = ProviderDescriptor.catalog,
         tier: RAMTier = RAMTier.forBytes(ProcessInfo.processInfo.physicalMemory)
@@ -129,14 +129,14 @@ public final class LocalCatalog: @unchecked Sendable {
         self.tier = tier
     }
 
-    public var lastResult: OllamaScanResult? {
+    package var lastResult: OllamaScanResult? {
         lock.lock()
         defer { lock.unlock() }
         return resolved
     }
 
     @discardableResult
-    public func refresh(preferred: String? = nil) async -> OllamaScanResult {
+    package func refresh(preferred: String? = nil) async -> OllamaScanResult {
         let result = await scan.scan(tier: tier, preferred: preferred)
         store(result)
         return result
@@ -154,7 +154,7 @@ public final class LocalCatalog: @unchecked Sendable {
     /// that is installed: a descriptor pointing at a model the daemon does not
     /// have passes the health probe and then dies on the POST, which is the
     /// defect this whole piece exists to remove.
-    public func effective() -> [ProviderDescriptor] {
+    package func effective() -> [ProviderDescriptor] {
         let state = lastResult?.state
         return base.compactMap { provider in
             guard provider.id == ProviderDescriptor.ollama.id else {
@@ -170,7 +170,7 @@ extension LocalCatalog: StartupProbing {
     /// Apple Foundation Models is not a path yet (Wave 9b-2 decides whether a
     /// 4096-token window can hold a conversation); until then the only local
     /// path is a daemon with a model it actually has.
-    public func probe(preferred: String?) async -> [LocalPath] {
+    package func probe(preferred: String?) async -> [LocalPath] {
         let result = await refresh(preferred: preferred)
         guard case .ready(let model) = result.state else { return [] }
         return [.ollama(model: model.name)]

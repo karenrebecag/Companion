@@ -3,7 +3,7 @@ import Foundation
 /// Wave 18. The browser's tools. They live apart from `ParentTool` on
 /// purpose: they exist only while an extension is connected, and a new case
 /// in `ParentTool` would break its exhaustive switches.
-public enum BrowserTool: String, CaseIterable, Sendable {
+package enum BrowserTool: String, CaseIterable, Sendable {
     case tabs = "browser_tabs"
     case read = "browser_read"
     case click = "browser_click"
@@ -13,14 +13,14 @@ public enum BrowserTool: String, CaseIterable, Sendable {
     case take = "browser_take"
     case release = "browser_release"
 
-    public var isWrite: Bool {
+    package var isWrite: Bool {
         switch self {
         case .click, .type, .navigate, .open, .take, .release: return true
         case .tabs, .read: return false
         }
     }
 
-    public func spec(_ language: AppLanguage) -> ToolSpec {
+    package func spec(_ language: AppLanguage) -> ToolSpec {
         ToolSpec(
             name: rawValue,
             description: BrowserCopy.description(self, language) + " " + BrowserCopy.toolDataSuffix(language),

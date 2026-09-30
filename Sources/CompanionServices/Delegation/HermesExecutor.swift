@@ -5,8 +5,8 @@ import Foundation
 /// Hermes no tiene modo stdio — el prompt viaja como argumento -q (por stdin
 /// se quedaba esperando para siempre) y el rol va pegado al prompt porque
 /// tampoco hay flag de system prompt.
-public struct HermesExecutor: Executor, Sendable {
-    public var descriptor: ExecutorDescriptor
+package struct HermesExecutor: Executor, Sendable {
+    package var descriptor: ExecutorDescriptor
 
     private let workdir: String
     private let executablePath: String
@@ -17,7 +17,7 @@ public struct HermesExecutor: Executor, Sendable {
     private let skills: @Sendable () -> String
     private let language: AppLanguage
 
-    public init(
+    package init(
         workdir: String,
         executablePath: String,
         processLauncher: any ProcessLauncher,
@@ -43,7 +43,7 @@ public struct HermesExecutor: Executor, Sendable {
         )
     }
 
-    public func run(
+    package func run(
         _ job: JobRequest,
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {

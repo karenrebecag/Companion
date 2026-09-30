@@ -4,11 +4,11 @@ import Foundation
 /// Wave 20d B. Takes back what an action did without asking, when the user
 /// presses Undo. Nothing here is reachable from a tool call: the only caller
 /// is the island's button, through the composition root.
-public struct ActionUndoer: Sendable {
+package struct ActionUndoer: Sendable {
     private let sheets: (any SpreadsheetDriving)?
     private let trash: @Sendable (URL) throws -> Void
 
-    public init(
+    package init(
         sheets: (any SpreadsheetDriving)?,
         trash: @escaping @Sendable (URL) throws -> Void = { url in
             try FileManager.default.trashItem(at: url, resultingItemURL: nil)
@@ -18,7 +18,7 @@ public struct ActionUndoer: Sendable {
         self.trash = trash
     }
 
-    public func undo(_ step: UndoReceipt.Undo) async -> Bool {
+    package func undo(_ step: UndoReceipt.Undo) async -> Bool {
         switch step {
         case .trash(let path, let size, let modified):
             guard path.hasPrefix("/"), Self.unchanged(path, size: size, modified: modified) else { return false }

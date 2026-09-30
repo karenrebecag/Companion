@@ -5,8 +5,8 @@ import Foundation
 /// with exactly the list json_repair documents and nothing more. A JSON that
 /// already parses is never touched; text that is "super broken" is `nil`,
 /// never an invented object — the runner tells the model what it sent.
-public enum ToolArguments: Sendable {
-    public static func parse(_ raw: String) -> [String: Any]? {
+package enum ToolArguments: Sendable {
+    package static func parse(_ raw: String) -> [String: Any]? {
         if let object = object(raw) { return object }
         return repair(raw)
     }

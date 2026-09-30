@@ -5,16 +5,16 @@ import Foundation
 /// JSONL on the app's socket. Pure shapes; the relay and the channel actor
 /// live in Services.
 
-public enum BrowserWire {
+package enum BrowserWire {
     /// Chrome's own ceiling for a message from a native host is 1 MB; the
     /// same number bounds what we accept from the extension.
-    public static let maxNativeBytes = 1_048_576
+    package static let maxNativeBytes = 1_048_576
     /// The socket line is capped like the bridge's (BridgeListener closes on
     /// a longer one), so the relay must never forward more than this.
-    public static let maxLineBytes = BridgeCodec.maxLineBytes
+    package static let maxLineBytes = BridgeCodec.maxLineBytes
 }
 
-public enum BrowserWireError: Error, Sendable, Equatable {
+package enum BrowserWireError: Error, Sendable, Equatable {
     case frameTooLarge(Int)
     case truncated
     case badJSON
@@ -25,18 +25,18 @@ public enum BrowserWireError: Error, Sendable, Equatable {
 /// Incremental decoder for the stdio side. Bytes arrive in arbitrary chunks;
 /// complete frames come out. After an oversize prefix the stream cannot be
 /// resynchronised, so the decoder stays poisoned instead of guessing.
-public struct NativeFrameDecoder: Sendable {
+package struct NativeFrameDecoder: Sendable {
     private let limit: Int
     private var buffer = Data()
     private var poisoned = false
 
-    public init(limit: Int = BrowserWire.maxNativeBytes) {
+    package init(limit: Int = BrowserWire.maxNativeBytes) {
         self.limit = limit
     }
 
     /// Frames are read through a cursor and the consumed prefix is dropped
     /// once per push, so a push carrying many frames is linear, not quadratic.
-    public mutating func push(_ bytes: Data) -> [Result<Data, BrowserWireError>] {
+    package mutating func push(_ bytes: Data) -> [Result<Data, BrowserWireError>] {
         guard !poisoned else { return [] }
         buffer.append(bytes)
         var out: [Result<Data, BrowserWireError>] = []
@@ -60,13 +60,13 @@ public struct NativeFrameDecoder: Sendable {
 
     /// Called at EOF: leftover bytes mean the peer died mid-frame, which the
     /// caller must treat as an error instead of waiting for the rest.
-    public func finish() -> BrowserWireError? {
+    package func finish() -> BrowserWireError? {
         !poisoned && !buffer.isEmpty ? .truncated : nil
     }
 }
 
-public enum NativeFrameEncoder {
-    public static func encode(_ json: Data) throws(BrowserWireError) -> Data {
+package enum NativeFrameEncoder {
+    package static func encode(_ json: Data) throws(BrowserWireError) -> Data {
         guard json.count <= BrowserWire.maxNativeBytes else { throw .frameTooLarge(json.count) }
         let length = UInt32(json.count)
         let prefix = Data((0..<4).map { UInt8(truncatingIfNeeded: length >> (8 * UInt32($0))) })
@@ -76,19 +76,19 @@ public enum NativeFrameEncoder {
 
 // MARK: - Messages
 
-public enum BrowserKind: String, Sendable, Codable {
+package enum BrowserKind: String, Sendable, Codable {
     case chrome
     case comet
 }
 
-public struct BrowserHello: Sendable, Equatable {
-    public var extensionID: String
-    public var browser: BrowserKind
-    public var version: String
-    public var protocolVersion: Int
-    public var token: String
+package struct BrowserHello: Sendable, Equatable {
+    package var extensionID: String
+    package var browser: BrowserKind
+    package var version: String
+    package var protocolVersion: Int
+    package var token: String
 
-    public init(extensionID: String, browser: BrowserKind, version: String, protocolVersion: Int, token: String) {
+    package init(extensionID: String, browser: BrowserKind, version: String, protocolVersion: Int, token: String) {
         self.extensionID = extensionID
         self.browser = browser
         self.version = version
@@ -97,26 +97,26 @@ public struct BrowserHello: Sendable, Equatable {
     }
 }
 
-public struct BrowserElement: Sendable, Equatable {
-    public var id: Int
-    public var frame: Int
-    public var role: String
-    public var label: String
-    public var context: String
-    public var inputType: String?
-    public var autocomplete: String?
-    public var value: String?
+package struct BrowserElement: Sendable, Equatable {
+    package var id: Int
+    package var frame: Int
+    package var role: String
+    package var label: String
+    package var context: String
+    package var inputType: String?
+    package var autocomplete: String?
+    package var value: String?
     /// Origin of the frame the element lives in, only when it differs from
     /// the page's (nil = same origin as the page).
-    public var frameOrigin: String?
+    package var frameOrigin: String?
     /// Absolute http(s) target of a link; nil for anything else.
-    public var href: String?
+    package var href: String?
     /// The field's `name` and `id`, kept so identifier-based sensitivity rules
     /// (otp, pin, cvv...) can run here too.
-    public var fieldName: String?
-    public var fieldId: String?
+    package var fieldName: String?
+    package var fieldId: String?
 
-    public init(
+    package init(
         id: Int, frame: Int, role: String, label: String, context: String,
         inputType: String?, autocomplete: String?, value: String?,
         frameOrigin: String? = nil, href: String? = nil, fieldName: String? = nil, fieldId: String? = nil
@@ -136,19 +136,19 @@ public struct BrowserElement: Sendable, Equatable {
     }
 }
 
-public struct BrowserPage: Sendable, Equatable {
-    public var tab: Int
-    public var origin: String
-    public var url: String
-    public var title: String
-    public var text: String
+package struct BrowserPage: Sendable, Equatable {
+    package var tab: Int
+    package var origin: String
+    package var url: String
+    package var title: String
+    package var text: String
     /// Element ids are only valid for the generation that listed them: every
     /// read bumps it, so a click on an old id fails as `stale_id`.
-    public var generation: Int
-    public var elements: [BrowserElement]
-    public var truncated: Bool
+    package var generation: Int
+    package var elements: [BrowserElement]
+    package var truncated: Bool
 
-    public init(
+    package init(
         tab: Int, origin: String, url: String, title: String, text: String,
         generation: Int, elements: [BrowserElement], truncated: Bool
     ) {
@@ -163,20 +163,20 @@ public struct BrowserPage: Sendable, Equatable {
     }
 }
 
-public struct BrowserTab: Sendable, Equatable {
-    public var id: Int
-    public var title: String
-    public var url: String
-    public var active: Bool
+package struct BrowserTab: Sendable, Equatable {
+    package var id: Int
+    package var title: String
+    package var url: String
+    package var active: Bool
     /// Wave 18b: in the extension's "Companion" group. Ownership itself lives
     /// in the app (`BrowserLease`); this is only what the strip shows.
-    public var controlled: Bool
+    package var controlled: Bool
     /// The tab that opened this one, and when this one was born; both nil
     /// when the worker did not see it being created.
-    public var opener: Int?
-    public var createdAt: Date?
+    package var opener: Int?
+    package var createdAt: Date?
 
-    public init(
+    package init(
         id: Int, title: String, url: String, active: Bool,
         controlled: Bool = false, opener: Int? = nil, createdAt: Date? = nil
     ) {
@@ -190,7 +190,7 @@ public struct BrowserTab: Sendable, Equatable {
     }
 }
 
-public enum BrowserCommand: Sendable, Equatable {
+package enum BrowserCommand: Sendable, Equatable {
     case tabs
     case read(tab: Int, selector: String?)
     case click(tab: Int, generation: Int, element: Int)
@@ -201,7 +201,7 @@ public enum BrowserCommand: Sendable, Equatable {
     case release(tab: Int)
 }
 
-public enum BrowserInbound: Sendable, Equatable {
+package enum BrowserInbound: Sendable, Equatable {
     case hello(id: Int, BrowserHello)
     case tabs(id: Int, [BrowserTab])
     /// The answer to `open`: one tab, not a list, so a reply to `tabs` and a
@@ -212,7 +212,7 @@ public enum BrowserInbound: Sendable, Equatable {
     case error(id: Int?, BridgeErrorBody)
 }
 
-public enum BrowserOutbound: Sendable, Equatable {
+package enum BrowserOutbound: Sendable, Equatable {
     case helloOK(id: Int)
     case call(id: Int, BrowserCommand)
     case error(id: Int?, BridgeErrorBody)

@@ -6,15 +6,15 @@ import Foundation
 /// The system prompt appears once per app and signing identity; after a
 /// deny the request returns false with no UI, so the Settings row always
 /// offers the deep link too.
-public struct InputMonitoringPermission: InputMonitoringChecking {
-    public init() {}
+package struct InputMonitoringPermission: InputMonitoringChecking {
+    package init() {}
 
-    public func isGranted() -> Bool {
+    package func isGranted() -> Bool {
         CGPreflightListenEventAccess()
     }
 
     @discardableResult
-    public func request() -> Bool {
+    package func request() -> Bool {
         CGRequestListenEventAccess()
     }
 }

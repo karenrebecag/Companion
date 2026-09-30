@@ -5,21 +5,21 @@ import Foundation
 /// at most `maxSentences` sentences and `maxWords` words in total: what was
 /// said before the card counts too, or a long preamble would buy a second
 /// long answer. Without a card nothing is cut — a plain answer is heard whole.
-public struct SpeechBudget: Sendable, Equatable {
-    public static let maxWords = 25
-    public static let maxSentences = 2
+package struct SpeechBudget: Sendable, Equatable {
+    package static let maxWords = 25
+    package static let maxSentences = 2
 
-    public var cardShown = false
+    package var cardShown = false
     private var words = 0
     private var sentences = 0
 
-    public init() {}
+    package init() {}
 
     /// The cut as it may be said now; nil when the budget is spent. Every
     /// sentence in the cut counts. A piece that ends in a clause mark
     /// ("Claro que sí,") is not yet a sentence: its rest, in the next cut,
     /// is the same one.
-    public mutating func admit(_ cut: String) -> String? {
+    package mutating func admit(_ cut: String) -> String? {
         var said: [String] = []
         for part in SpeechFilter.sentences(of: cut) {
             guard let next = admitOne(part) else { break }
@@ -29,7 +29,7 @@ public struct SpeechBudget: Sendable, Equatable {
     }
 
     /// The whole reply under the rule, for text that is not streamed.
-    public static func brief(_ text: String, hasCard: Bool) -> String {
+    package static func brief(_ text: String, hasCard: Bool) -> String {
         var budget = SpeechBudget()
         budget.cardShown = hasCard
         return budget.admit(text) ?? ""
@@ -37,7 +37,7 @@ public struct SpeechBudget: Sendable, Equatable {
 
     /// True when the text holds a card that will actually paint: a fence that
     /// fails to parse shows as code, and the voice must not shorten for it.
-    public static func hasCard(in text: String) -> Bool {
+    package static func hasCard(in text: String) -> Bool {
         guard text.contains("```companion:") else { return false }
         return AnswerBlocks.blocks(from: text).contains {
             // A question with options is a card the voice must not read out.
