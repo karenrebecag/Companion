@@ -170,11 +170,30 @@ private func abandonOnce(
         requestId: "t-1", toolName: "click", summary: "s", inputJSON: "{}"))
     expect(!expired.approved && expired.timedOut, "deadline: denied and marked as timed out")
 
-    let answered = Task { await approvals.request(ApprovalRequest(
+    // The deadline timer is wall-clock, so a deny racing a short deadline
+    // loses on a stalled runner. A deadline far beyond the test keeps the
+    // deny the only thing that can answer.
+    let patient = Approvals(clock: RealtimeClock(), timeout: 60)
+    let answered = Task { await patient.request(ApprovalRequest(
         requestId: "t-2", toolName: "click", summary: "s", inputJSON: "{}")) }
-    await pollUntilTrue { true }
-    try? await Task.sleep(nanoseconds: 10_000_000)
-    _ = await approvals.resolve(requestId: "t-2", approved: false)
+    let denyLanded = await resolveOncePending(patient, requestId: "t-2", approved: false)
+    // Without a landed deny the request would sit out its whole deadline.
+    if !denyLanded { answered.cancel() }
     let denied = await answered.value
+    expect(denyLanded, "deadline: the deny reached a pending sheet")
     expect(!denied.approved && !denied.timedOut, "deadline: a user's deny is not a timeout")
+}
+
+/// `resolve` answers false until the request is registered; retrying it is
+/// the only signal `Approvals` exposes that the sheet is actually pending.
+private func resolveOncePending(
+    _ approvals: Approvals, requestId: String, approved: Bool, within seconds: TimeInterval = 5
+) async -> Bool {
+    let deadline = Date().addingTimeInterval(seconds)
+    while Date() < deadline {
+        if await approvals.resolve(requestId: requestId, approved: approved) { return true }
+        await Task.yield()
+        do { try await Task.sleep(nanoseconds: 1_000_000) } catch { return false }
+    }
+    return false
 }
