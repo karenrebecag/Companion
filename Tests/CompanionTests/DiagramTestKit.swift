@@ -35,12 +35,44 @@ final class Beacon: @unchecked Sendable {
     }
 
     func stop() { listener.cancel() }
+
+    /// Seconds until the first connection, or nil if none came before the deadline. A loaded
+    /// machine (the CI runner) takes longer than any fixed sleep to reach even an open page.
+    func firstHit(within seconds: Double) async -> Double? {
+        let start = Date()
+        while Date().timeIntervalSince(start) < seconds {
+            if hits > 0 { return Date().timeIntervalSince(start) }
+            do { try await Task.sleep(for: .milliseconds(50)) } catch { return nil }
+        }
+        return nil
+    }
 }
 
-/// Every way a page can reach a port, as one script.
+/// How long a blocked page gets to prove it stays silent: at least a second, and three times
+/// what the open control needed, so a slow machine cannot turn "no hits yet" into a pass.
+// HACK: capped at 12 s so the layers test fits its 60 s watchdog; past a 4 s control the
+// window drops under 3x. Raise the watchdog with the cap if the CI control ever takes > 4 s.
+func silenceWindow(controlTook seconds: Double) -> Duration {
+    .milliseconds(Int(min(12.0, max(1.0, seconds * 3)) * 1000))
+}
+
+/// Whether the leak script ran in this view. Reading it also keeps the view alive through the
+/// silence window, so an early release cannot stop the load and fake a silent port.
+@MainActor
+func leakScriptRan(in view: WKWebView) async -> Bool {
+    do {
+        return try await view.evaluateJavaScript("window.__leakRan === true") as? Bool ?? false
+    } catch {
+        return false
+    }
+}
+
+/// Every way a page can reach a port, as one script. It marks `window.__leakRan` first, so a
+/// silent port can be told apart from a page whose script never ran.
 func leakScript(port: UInt16) -> String {
     let url = "http://127.0.0.1:\(port)/leak"
     return """
+    window.__leakRan = true;
     try { fetch("\(url)/fetch").catch(() => {}); } catch (e) {}
     try { const x = new XMLHttpRequest(); x.open("GET", "\(url)/xhr"); x.send(); } catch (e) {}
     try { new Image().src = "\(url)/img"; } catch (e) {}
