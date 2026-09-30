@@ -194,12 +194,8 @@ private func samePath(_ bundle: Bundle?, _ url: URL) -> Bool {
 // MARK: - Call sites degrade on nil
 
 @MainActor func testFontsWithoutBundleKeepOnlyTheOtherDirectories() {
-    let main = URL(fileURLWithPath: "/fake/Companion.app/Contents/Resources")
-    expectEq(Fonts.bundledDirectories(bundle: nil, mainResourceURL: main),
-             [main.appendingPathComponent("Fonts")],
-             "21c fuentes: sin bundle se salta ese directorio y sigue con la copia de la app")
-    expectEq(Fonts.bundledDirectories(bundle: nil, mainResourceURL: nil), [],
-             "21c fuentes: sin nada, ninguna carpeta propia (quedan las del sistema)")
+    expectEq(Fonts.bundledDirectories(bundle: nil), [],
+             "21c fuentes: sin bundle, ninguna carpeta propia (quedan las del usuario y las del sistema)")
     Fonts.register(bundle: nil)
 }
 
