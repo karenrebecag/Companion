@@ -20,9 +20,9 @@ private final class FakeApps: AppsService, @unchecked Sendable {
     var accountsHang = false
     /// Wave 16k-2b: how many times the poll loop actually asked, and a gate
     /// so a test can hold one call open to prove a late answer is discarded.
-    private(set) var accountsCallCount = 0
+    @Guarded private(set) var accountsCallCount = 0
     var gateAccounts = false
-    private var accountsWaiters: [CheckedContinuation<Void, Never>] = []
+    @Guarded private var accountsWaiters: [CheckedContinuation<Void, Never>] = []
 
     func catalog(query: String, after: String?) async throws -> CatalogPage {
         queries.append((query, after))
@@ -55,7 +55,7 @@ private final class FakeApps: AppsService, @unchecked Sendable {
     /// needs attempt A's call held while attempt B's (same slug) goes
     /// straight through, which a set keyed only by slug cannot tell apart.
     var gateConnectLinkOnceFor: Set<String> = []
-    private var connectLinkWaiters: [CheckedContinuation<Void, Never>] = []
+    @Guarded private var connectLinkWaiters: [CheckedContinuation<Void, Never>] = []
     var gatedConnectLinkCallCount: Int { connectLinkWaiters.count }
 
     func releaseConnectLink() {
@@ -86,7 +86,7 @@ private final class FakeApps: AppsService, @unchecked Sendable {
     var disconnectResult: Result<Void, AppsFailure> = .success(())
     private(set) var disconnectCalls: [String] = []
     var gateDisconnect = false
-    private var disconnectWaiters: [CheckedContinuation<Void, Never>] = []
+    @Guarded private var disconnectWaiters: [CheckedContinuation<Void, Never>] = []
     var gatedDisconnectCallCount: Int { disconnectWaiters.count }
 
     func releaseDisconnect() {

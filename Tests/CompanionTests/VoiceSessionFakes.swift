@@ -124,7 +124,7 @@ final class StaticConfigProvider: ConfigProviding, @unchecked Sendable {
 }
 
 final class TestClock: @unchecked Sendable {
-    var now: TimeInterval = 0
+    @Guarded var now: TimeInterval = 0
 }
 
 final class SnapWatch: @unchecked Sendable {
@@ -151,22 +151,42 @@ final class SnapWatch: @unchecked Sendable {
 }
 
 final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable {
-    var key: String?, url: URL?, sent: [String] = [], closed = false
-    var openError: VoiceTransportError?
-    var autoEvents: [RealtimeEvent] = []
-    var openCount = 0
+    private struct State {
+        var key: String?, url: URL?, sent: [String] = [], closed = false
+        var openError: VoiceTransportError?
+        var autoEvents: [RealtimeEvent] = []
+        var openCount = 0
+    }
+    private let state = LockedBox(State())
     private let box = StreamBox<RealtimeEvent>()
 
-    func open(key: String, url: URL) async throws {
-        if let openError { throw openError }
-        openCount += 1
-        (self.key, self.url) = (key, url)
-        for event in autoEvents { box.yield(event) }
+    var key: String? { state.withLock { $0.key } }
+    var url: URL? { state.withLock { $0.url } }
+    var sent: [String] { state.withLock { $0.sent } }
+    var closed: Bool { state.withLock { $0.closed } }
+    var openCount: Int { state.withLock { $0.openCount } }
+    var openError: VoiceTransportError? {
+        get { state.withLock { $0.openError } }
+        set { state.withLock { $0.openError = newValue } }
+    }
+    var autoEvents: [RealtimeEvent] {
+        get { state.withLock { $0.autoEvents } }
+        set { state.withLock { $0.autoEvents = newValue } }
     }
 
-    func send(_ json: String) async throws { sent.append(json) }
+    func open(key: String, url: URL) async throws {
+        let events: [RealtimeEvent] = try state.withLock { s in
+            if let error = s.openError { throw error }
+            s.openCount += 1
+            (s.key, s.url) = (key, url)
+            return s.autoEvents
+        }
+        for event in events { box.yield(event) }
+    }
+
+    func send(_ json: String) async throws { state.withLock { $0.sent.append(json) } }
     func events() -> AsyncStream<RealtimeEvent> { box.stream }
-    func close() async { closed = true }
+    func close() async { state.withLock { $0.closed = true } }
     func yield(_ event: RealtimeEvent) { box.yield(event) }
 
     /// Simulate transport pump receiving an error and failing.
@@ -183,15 +203,18 @@ final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable {
 }
 
 final class ScriptedMic: MicCapturing, @unchecked Sendable {
-    var granted = true, started = false, stopped = false
-    var prewarmed = false, accessAsked = false
-    var hasEchoCancellation = false
+    var granted = true
+    @Guarded var started = false
+    @Guarded var stopped = false
+    @Guarded var prewarmed = false
+    @Guarded var accessAsked = false
+    @Guarded var hasEchoCancellation = false
     /// How many times `start()` ran, and whether one of those ran while the
     /// previous session was still live (no `stop()` in between) — the shape
     /// of the real MicCapture crash (double `installTap`, live 2026-09-23).
-    var startCount = 0
-    var startedWithoutStop = false
-    var receivedBufferValue = true
+    @Guarded var startCount = 0
+    @Guarded var startedWithoutStop = false
+    @Guarded var receivedBufferValue = true
     /// Seconds `receivedBuffer` takes to answer: the only way a test can
     /// slip a call into the session's suspension points.
     var receivedBufferDelay: TimeInterval = 0
@@ -232,9 +255,12 @@ final class ScriptedMic: MicCapturing, @unchecked Sendable {
 }
 
 final class ScriptedPlayer: PCMPlaying, @unchecked Sendable {
-    var shared: Bool?, played: [Data] = []
-    var flushed = false, stopped = false, hasPending = false
-    var volumes: [Double] = []
+    @Guarded var shared: Bool?
+    @Guarded var played: [Data] = []
+    @Guarded var flushed = false
+    @Guarded var stopped = false
+    @Guarded var hasPending = false
+    @Guarded var volumes: [Double] = []
     private let drainBox = StreamBox<Void>()
     private let levelBox = StreamBox<Double>()
     var drained: AsyncStream<Void> { drainBox.stream }
@@ -259,10 +285,13 @@ final class ScriptedPlayer: PCMPlaying, @unchecked Sendable {
 }
 
 final class ScriptedTranscriber: Transcriber, @unchecked Sendable {
-    var authorized = false, locale = "", started = false, stoppedText = ""
+    @Guarded var authorized = false
+    @Guarded var locale = ""
+    @Guarded var started = false
+    @Guarded var stoppedText = ""
     var grantsAuthorization = true
-    var stops = 0
-    var appended: [MicFrame] = []
+    @Guarded var stops = 0
+    @Guarded var appended: [MicFrame] = []
     var isAuthorized: Bool { authorized }
     private let box = StreamBox<String>()
     var partials: AsyncStream<String> { box.stream }
@@ -299,7 +328,7 @@ final class ScriptedTranscriber: Transcriber, @unchecked Sendable {
     /// Per-call delays, consumed in order before `stopDelay` applies: a
     /// slow first stop followed by an instant one.
     var stopDelays: [TimeInterval] = []
-    private(set) var running = false
+    @Guarded private(set) var running = false
     func stop() async -> String {
         stops += 1
         let text = stoppedText
@@ -338,8 +367,11 @@ final class ScriptedSegmentingEar: SegmentingTranscriber, @unchecked Sendable {
 }
 
 final class ScriptedSynth: SpeechSynthesizer, @unchecked Sendable {
-    var began = false, finished = false, stopped = false
-    var spoken: String?, speakingNow = ""
+    @Guarded var began = false
+    @Guarded var finished = false
+    @Guarded var stopped = false
+    @Guarded var spoken: String?
+    @Guarded var speakingNow = ""
     /// Written from the runtime's task, read from the test's: behind a lock
     /// so a read from any task is never a race (review 16h-2 L3).
     private let lock = NSLock()
@@ -358,12 +390,12 @@ final class ScriptedSynth: SpeechSynthesizer, @unchecked Sendable {
 final class ScriptedChat: ChatProvider, @unchecked Sendable {
     var deltas: [ChatDelta] = []
     /// Wave 10b: una lista por ronda; vacía, se repite `deltas` como antes.
-    var rounds: [[ChatDelta]] = []
-    private(set) var histories: [[Turn]] = []
-    private(set) var toolsSeen: [ToolSpec] = []
+    @Guarded var rounds: [[ChatDelta]] = []
+    @Guarded private(set) var histories: [[Turn]] = []
+    @Guarded private(set) var toolsSeen: [ToolSpec] = []
     /// HIGH-B: a job's end streams again (the summary), so the hold's own
     /// tools are the first entry, not the last.
-    private(set) var toolsPerCall: [[ToolSpec]] = []
+    @Guarded private(set) var toolsPerCall: [[ToolSpec]] = []
     func stream(_ history: [Turn], tools: [ToolSpec])
         -> AsyncThrowingStream<ChatDelta, Error>
     {
