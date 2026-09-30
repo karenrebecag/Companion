@@ -16,6 +16,7 @@ import Testing
     try await testSessionApprovedAfterClientLeftDoesNotExecute()
     try testStopRemovesBothFiles()
     try await testStartAfterStopServesOnTheNewSocket()
+    try await testClientsThatCloseAtOnceNeverLeaveTheSlotTaken()
 }
 
 private func tempBridgeDirectory() -> URL {
@@ -273,6 +274,54 @@ func testStopRemovesBothFiles() throws {
         #"{"id":1,"method":"hello","params":{"token":"\#(listener.token)","client":"claude-code","protocol":1}}"#)
     let reply = client.readLine()
     expect(reply?.contains("\"session\"") == true, "restart: hello round-trips on the new socket")
+}
+
+// MARK: - instant closes (races-produccion 1)
+
+/// Guards the accept order: a client gone before its connection is tracked
+/// must still free the one slot, or the listener keeps a dead connection as
+/// active and answers `busy` to everyone until restart. A transient `busy`
+/// while the last close is still being processed is fine, so the fresh client
+/// retries; only a slot that never frees fails the test.
+@MainActor func testClientsThatCloseAtOnceNeverLeaveTheSlotTaken() async throws {
+    let dir = tempBridgeDirectory()
+    let session = BridgeSession(
+        tools: FakeParentTools(), guard: ParentToolGuard(),
+        token: { "tok" }, language: { .en }, accessibility: { true })
+    let listener = BridgeListener(directory: dir) { connection in
+        Task.detached { await session.serve(connection) }
+    }
+    try listener.start()
+    defer { listener.stop() }
+    let path = dir.appendingPathComponent("bridge.sock").path
+    // A burst this fast overflows the listen backlog (ECONNREFUSED); that is
+    // the kernel pushing back, not the bug, so the refused ones are retried.
+    var closed = 0
+    let burstDeadline = Date().addingTimeInterval(30)
+    while closed < 200, Date() < burstDeadline {
+        do {
+            try PosixTestClient(path: path).close()
+            closed += 1
+        } catch {
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+    }
+    let hello = #"{"id":1,"method":"hello","params":{"token":"tok","client":"claude-code","protocol":1}}"#
+    let deadline = Date().addingTimeInterval(30)
+    var reply: String?
+    repeat {
+        guard let client = try? PosixTestClient(path: path) else {
+            try? await Task.sleep(nanoseconds: 1_000_000)
+            continue
+        }
+        try? client.send(hello)
+        reply = client.readLine()
+        client.close()
+        if reply?.contains(BridgeCode.busy) != true { break }
+        try? await Task.sleep(nanoseconds: 20_000_000)
+    } while Date() < deadline
+    expect(reply?.contains("\"session\"") == true,
+           "instant closes: a fresh client gets its session, not busy forever (got \(reply ?? "nil"))")
 }
 
 // MARK: - test helpers

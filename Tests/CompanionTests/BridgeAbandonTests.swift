@@ -53,10 +53,9 @@ private func parkedCall(tool: String, parkAll: Bool) async -> Parked {
         approvals.setPark(forTool: tool)
     }
     let session = makeSession(tools, approvals)
-    let pair = BridgePair()
     let released = ReleaseCount()
+    let pair = BridgePair(onClosed: { released.bump() })
     let done = ReleaseCount()
-    pair.connection.onClosed = { released.bump() }
     let serving = Task.detached { await session.serve(pair.connection); done.bump() }
     pair.send(hello(1))
     _ = pair.readLine()

@@ -67,8 +67,10 @@ private func write(_ fd: Int32, _ line: String) {
     let (appA, peerA) = try socketPair()
     let (appB, peerB) = try socketPair()
     defer { Darwin.close(peerB) }
-    let connectionA = BridgeConnection(fd: appA)
-    let connectionB = BridgeConnection(fd: appB)
+    let connectionA = BridgeConnection(fd: appA) { _ in }
+    let connectionB = BridgeConnection(fd: appB) { _ in }
+    connectionA.start()
+    connectionB.start()
     defer { connectionB.close() }
 
     let serveA = Task { await channel.attach(connectionA) }
