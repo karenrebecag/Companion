@@ -128,14 +128,33 @@ else
 fi
 # Una extension de SessionMachine en otro archivo heredaria el setter de
 # `projection` y esquivaria el chequeo de arriba.
-ext_hits=$(grep -rnE '^[[:space:]]*(public[[:space:]]+|internal[[:space:]]+)?extension[[:space:]]+SessionMachine([^[:alnum:]_]|$)' \
+# Agnostica al modificador (package/fileprivate/private/atributos): cuenta
+# cualquier `extension SessionMachine` en una linea que no sea comentario.
+ext_hits=$(grep -rnE '(^|[^[:alnum:]_])extension[[:space:]]+SessionMachine([^[:alnum:]_]|$)' \
         "$SRC" --include='*.swift' 2>/dev/null \
+    | grep -vE '^[^:]+:[0-9]+:[[:space:]]*(//|/?\*)' \
     | grep -vE '/CompanionCore/Session/SessionMachine(\+(Jobs|Dictation|Brakes|Resting))?\.swift:' || true)
 if [ -n "$ext_hits" ]; then
     fail "extension SessionMachine fuera de Session/SessionMachine(+Jobs|+Dictation|+Brakes|+Resting).swift:"
     echo "$ext_hits"
 else
     pass "SessionMachine solo se extiende en su propio archivo"
+fi
+
+# docs/specs/acceso-package.md: las tres librerias comparten visibilidad con
+# `package`, no con `public`/`open`. Un `public` nuevo reabre una API publica
+# que nadie consume fuera del paquete. Se ancla a la posicion de declaracion
+# (atributos y modificadores opcionales delante), asi ni comentarios, ni doc
+# comments, ni literales como "public" en SyntaxTokenizer+Family lo disparan;
+# `[^=[:space:]]` deja pasar una variable llamada `open = ...`.
+access_mods='(@[[:alnum:]_.]+(\([^)]*\))?|nonisolated(\([^)]*\))?|final|static|class|override|required|convenience|mutating|nonmutating|indirect|lazy|dynamic|weak|unowned|private|fileprivate|internal|package)'
+public_hits=$(grep -rnE "^[[:space:]]*($access_mods[[:space:]]+)*(public|open)(\((set)\))?[[:space:]]+[^=[:space:]]" \
+        "$SRC/CompanionCore" "$SRC/CompanionServices" "$SRC/CompanionUI" --include='*.swift' 2>/dev/null || true)
+if [ -n "$public_hits" ]; then
+    fail "public/open en las librerias (usar package, ver docs/specs/acceso-package.md):"
+    echo "$public_hits"
+else
+    pass "las librerias no declaran public/open (package, ver docs/specs/acceso-package.md)"
 fi
 
 # 16q-2: el interruptor "Tu ciudad" llega a las herramientas desde la raiz de
