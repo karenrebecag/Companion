@@ -101,6 +101,8 @@ public struct JobAnnouncement: Sendable, Equatable {
         case queued
         case done(result: String)
         case failed(reason: String)
+        /// 16q-1: the voice asks a job's permission; the card has the detail.
+        case asking(requestId: String)
     }
 
     public var goal: String
@@ -123,6 +125,7 @@ public struct JobAnnouncement: Sendable, Equatable {
         case .failed(let reason):
             return Escalation.jobFailedAnnouncement(
                 goal, reason: Escalation.resultSummary(reason), language)
+        case .asking: return Escalation.approvalAskedSpoken(language)
         }
     }
 
@@ -131,6 +134,7 @@ public struct JobAnnouncement: Sendable, Equatable {
         case .queued: return Escalation.jobQueuedSpoken(language)
         case .done: return Escalation.jobDoneSpoken(language)
         case .failed: return Escalation.jobFailedSpoken(language)
+        case .asking: return Escalation.approvalAskedSpoken(language)
         }
     }
 
@@ -138,7 +142,7 @@ public struct JobAnnouncement: Sendable, Equatable {
     public var summarySource: String? {
         let text: String
         switch outcome {
-        case .queued: return nil
+        case .queued, .asking: return nil
         case .done(let result): text = result
         case .failed(let reason): text = reason
         }

@@ -57,6 +57,17 @@ extension ChatViewModel {
         messages.append(ChatMessage(isStatus: true, text: text))
     }
 
+    /// One job's own stop (16q-1): the job card's, by id. The rest of the
+    /// line keeps running; the thread records this job only if it is the
+    /// chat's own.
+    public func cancelJob(_ id: JobID) {
+        guard jobSubmitter != nil else { return }
+        let own = chatJobID == id ? timeline(of: id) : nil
+        let effects = session.send(.stopJob(id))
+        guard effects.contains(.cancelJobByID(id)) else { return }
+        noteStopped(own)
+    }
+
     /// The brake. `JobRunner.cancel()` has existed since Wave 4 and had no
     /// caller anywhere in Sources — built, tested, and never wired to a pedal.
     /// Without it, a job started on a misheard sentence could not be stopped:
@@ -137,7 +148,15 @@ extension ChatViewModel {
             isStatus: true, text: ChatCopy.approvalAnswer(approved)))
         toast(ChatCopy.approvalAnswer(approved),
               level: approved ? .info : .error)
-        if effects.contains(.cancelJob) { noteStopped(own) }
+        // Refusing a job's first action stops that job (by id): the thread
+        // records it only when it is the chat's own.
+        if let stopped = effects.compactMap({ effect -> JobID? in
+            if case .cancelJobByID(let id) = effect { id } else { nil }
+        }).first {
+            noteStopped(stopped == chatJobID ? own : nil)
+        } else if effects.contains(.cancelJob) {
+            noteStopped(own)
+        }
     }
 
     /// The delegate call as the provider expects to see it echoed back.
@@ -191,7 +210,7 @@ extension ChatViewModel {
         }
 
         do {
-            let result = try await submitter.submit(handoff, events: sink)
+            let result = try await submitter.submit(handoff, as: id, events: sink)
             // Drained before the end, or a step still in the pump lands
             // after it and opens an orphan row.
             sink.finish()

@@ -42,6 +42,12 @@ final class WatchfulSubmitter: JobSubmitter, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         _cancelled = true
     }
+    func cancel(job id: JobID) async { await cancel() }
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try await submit(handoff, events: events)
+    }
     func resolveApproval(requestId: String, approved: Bool) async {}
     private var _remembered: [Bool] = []
     /// Wave 10c: what the sheet asked to remember, per answer.

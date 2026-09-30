@@ -25,10 +25,11 @@ public struct JobRunner: Sendable, JobSubmitter {
         self.language = language
     }
 
-    /// Convert a Handoff into a JobRequest with a unique ID.
-    public func handoffToRequest(_ handoff: Handoff) async -> JobRequest {
+    /// Convert a Handoff into a JobRequest with a unique ID. `id` is the one
+    /// its owner minted (16q-1): the queue stops a job by it.
+    public func handoffToRequest(_ handoff: Handoff, id: JobID = .mint()) async -> JobRequest {
         JobRequest(
-            id: UUID().uuidString,
+            id: id.raw,
             goal: handoff.goal,
             context: handoff.context
         )
@@ -40,7 +41,16 @@ public struct JobRunner: Sendable, JobSubmitter {
         _ handoff: Handoff,
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {
-        let job = await handoffToRequest(handoff)
+        try await submit(handoff, as: .mint(), events: events)
+    }
+
+    /// Same, under the id its owner named, so `cancel(job:)` can find it.
+    public func submit(
+        _ handoff: Handoff,
+        as id: JobID,
+        events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        let job = await handoffToRequest(handoff, id: id)
         events.yield(.started(goal: handoff.goal))
         let executor = executorProvider.selectExecutor(for: handoff)
         do {
@@ -95,6 +105,11 @@ public struct JobRunner: Sendable, JobSubmitter {
 
     public func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
         _ = await approvals.resolve(requestId: requestId, approved: approved, remember: remember)
+    }
+
+    /// One job's own stop (16q-1): the rest of the line keeps its place.
+    public func cancel(job id: JobID) async {
+        await queue.cancel(job: id.raw)
     }
 
     /// Every caller of this is the user's brake (the island, the menu, the

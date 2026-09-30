@@ -23,6 +23,8 @@ extension VoiceSession {
         switch event {
         case .realtimeSessionReady: timeline.mark(.sessionReady, at: now())
         case .firstSentence: timeline.mark(.firstToken, at: now())
+        // A typed turn is not a hold: words heard before it answer nothing.
+        case .typedSubmit: heardThisHold = nil
         case .agentAudioStarted:
             timeline.mark(.firstAudio, at: now())
             flushTimeline()

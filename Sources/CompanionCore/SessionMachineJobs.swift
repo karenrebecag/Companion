@@ -91,6 +91,12 @@ extension SessionMachine {
     /// The job's end. False when it names no job this machine shows.
     mutating func finish(_ id: JobID?) -> Bool {
         if let id { remember(id, in: &finishedJobs) }
+        return retire(id)
+    }
+
+    /// Takes the job out of the row or the line; the next one moves up.
+    /// True when it was the running one.
+    private mutating func retire(_ id: JobID?) -> Bool {
         if let job = projection.job, job.id == id {
             projection.job = nil
             if !projection.queued.isEmpty {
@@ -114,6 +120,21 @@ extension SessionMachine {
         projection.approvalQueue.removeAll { approvalOwners[$0.requestId] == id }
         for request in dead { approvalOwners[request.requestId] = nil }
         return dead.map { .resolveApproval(requestId: $0.requestId, approved: false, remember: false) }
+    }
+
+    /// 16q-1: one job's own stop. Only that job leaves (running or waiting),
+    /// its late events are recognised by id from here on, and the requests it
+    /// had on the sheet are refused; every other job and request stays.
+    mutating func stopJob(_ id: JobID) -> [SessionEffect] {
+        let known = projection.job?.id == id || projection.queued.contains { $0.id == id }
+        guard known else { return [] }
+        remember(id, in: &stoppedJobs)
+        var effects: [SessionEffect] = [.cancelJobByID(id), .islandEvent(.interrupted)]
+        effects += dropApprovals(of: id)
+        guard retire(id), projection.kind == .processing(.subAgentRunning) else { return effects }
+        projection.kind = projection.job != nil ? .processing(.subAgentRunning) : replyOrRestingKind()
+        if projection.kind == .idle { projection.interruption = .userStopped }
+        return effects
     }
 
     /// Stop brakes everything that runs or waits (review 16h-2 B1); their
@@ -142,6 +163,10 @@ extension SessionMachine {
     }
 
     private mutating func ask(_ request: ApprovalRequest, from id: JobID?) -> [SessionEffect] {
+        // An id is one request: a repeat (the id may come from a remote server)
+        // would stack a second card and take the owner from the first. Before
+        // the stopped-job check, whose denial would refuse the original's id.
+        if projection.approvalQueue.contains(where: { $0.requestId == request.requestId }) { return [] }
         // A stopped (or ended) job's request dies with it instead of
         // reopening the sheet (security review 2026-09-06). Only a tagged request can be
         // told to be that job's: an untagged one (the parent's gates, the

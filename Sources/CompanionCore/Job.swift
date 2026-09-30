@@ -79,6 +79,14 @@ public protocol JobSubmitter: Sendable {
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult
     func cancel() async
+    /// One job's own stop (16q-1). Not defaulted: a submitter that forgot it
+    /// would silently stop nothing, or too much.
+    func cancel(job id: JobID) async
+    /// Same as `submit(_:events:)` under the id its owner minted, so
+    /// `cancel(job:)` can find the job. Not defaulted either.
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult
     /// The UI must be able to answer a pending approval: without this the
     /// request only ever ends in the 120s auto-deny.
     func resolveApproval(requestId: String, approved: Bool) async

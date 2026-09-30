@@ -384,6 +384,7 @@ final class FakeVoice: VoiceControlling, @unchecked Sendable {
     func hangUp() async { hungUp = true; snapBox.finish(); levelBox.finish() }
     func toggleMute() async { muted.toggle() }
     func push(attachment: AttachmentRef) async { pushed.append(attachment) }
+    func approvalClosed(requestId: String) async {}
     var pushed: [AttachmentRef] = []
     func yieldSnapshot(_ snapshot: TurnSnapshot) { snapBox.yield(snapshot) }
     func yieldLevels(_ value: VoiceLevels) { levelBox.yield(value) }

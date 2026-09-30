@@ -270,7 +270,7 @@ private func request(_ id: String) -> ApprovalRequest {
     await pumpUntil("stream: el sí hablado recibe su salida") {
         h.transport.sent.contains { $0.contains("function_call_output") && $0.contains("c2") }
     }
-    expect(!seen.events.contains { $0 == .approvalSpoken(approved: true) },
+    expect(!seen.events.contains { if case .approvalSpoken = $0 { true } else { false } },
            "stream: en realtime el sí hablado no llega al reductor")
 }
 

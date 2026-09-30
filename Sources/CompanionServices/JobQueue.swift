@@ -17,7 +17,7 @@ public actor JobQueue {
     private var busy = false
     /// Each waiter learns whether it may run (true) or was stopped while
     /// still in line (false).
-    private var waiters: [CheckedContinuation<Bool, Never>] = []
+    private var waiters: [(id: String, turn: CheckedContinuation<Bool, Never>)] = []
     private var currentJobID: String?
     private var currentWork: Task<JobResult, Error>?
     /// The user stopped the job running now: whatever it ends with is hers.
@@ -26,6 +26,15 @@ public actor JobQueue {
     /// wakes on its own time; if a stop landed since it got in line, it
     /// belongs to that stop even though the line was already empty.
     private var stopEpoch = 0
+    /// 16q-1: jobs stopped one by one, by the id their owner minted. Kept
+    /// even when the job is not in the queue yet (named and announced, not
+    /// submitted) or was handed the turn a moment ago, so a stop can never
+    /// be lost between two awaits.
+    // HACK: capped list, oldest out. A job stopped this many stops ago that
+    // is only now submitted would run. Upgrade trigger: the owner reports
+    // "submitted" and the id is dropped when that job ends instead of by count.
+    private var stoppedIDs: [String] = []
+    private static let stoppedCap = 32
     /// Test seam: runs on the actor right after the turn is handed to the
     /// next waiter, the one instant a stop can land between "you're next"
     /// and that job starting.
@@ -52,8 +61,9 @@ public actor JobQueue {
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {
         let epoch = stopEpoch
-        guard await takeTurn() else { throw QueueError.stoppedByUser }
-        guard epoch == stopEpoch else {
+        guard !stoppedIDs.contains(job.id) else { throw QueueError.stoppedByUser }
+        guard await takeTurn(for: job.id) else { throw QueueError.stoppedByUser }
+        guard epoch == stopEpoch, !stoppedIDs.contains(job.id) else {
             releaseTurn()
             throw QueueError.stoppedByUser
         }
@@ -82,6 +92,20 @@ public actor JobQueue {
         return result
     }
 
+    /// 16q-1: one job's own stop. The one in flight is cancelled and its end
+    /// is the user's; one still in line leaves without ever running; the
+    /// rest of the line keeps its place and the total brake is untouched.
+    public func cancel(job id: String) {
+        stoppedIDs.append(id)
+        if stoppedIDs.count > Self.stoppedCap { stoppedIDs.removeFirst(stoppedIDs.count - Self.stoppedCap) }
+        if currentJobID == id {
+            stopRequested = true
+            currentWork?.cancel()
+        } else if let index = waiters.firstIndex(where: { $0.id == id }) {
+            waiters.remove(at: index).turn.resume(returning: false)
+        }
+    }
+
     /// Cancels the job in flight; queued callers keep their place in line.
     public func cancelCurrent() {
         currentWork?.cancel()
@@ -94,20 +118,20 @@ public actor JobQueue {
         stopEpoch += 1
         let line = waiters
         waiters = []
-        for waiter in line { waiter.resume(returning: false) }
+        for waiter in line { waiter.turn.resume(returning: false) }
         if currentWork != nil { stopRequested = true }
         currentWork?.cancel()
     }
 
     // MARK: - Serialization
 
-    private func takeTurn() async -> Bool {
+    private func takeTurn(for id: String) async -> Bool {
         guard busy else {
             busy = true
             return true
         }
         return await withCheckedContinuation { continuation in
-            waiters.append(continuation)
+            waiters.append((id: id, turn: continuation))
         }
     }
 
@@ -120,7 +144,7 @@ public actor JobQueue {
         // handed over still busy: clearing it first let a newcomer slip in
         // before the waiter woke, and two jobs ran at once.
         let next = waiters.removeFirst()
-        next.resume(returning: true)
+        next.turn.resume(returning: true)
         afterHandover?(self)
     }
 

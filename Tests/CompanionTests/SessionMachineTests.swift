@@ -233,7 +233,7 @@ private let owned = JobID("j")
     _ = m.handle(.approvalAnswered(requestId: "p1", approved: true, remember: false))
     _ = m.handle(.job(.approvalRequested(request("a1")), from: owned))
     let fx = m.handle(.approvalAnswered(requestId: "a1", approved: false, remember: false))
-    expect(fx.contains(.cancelJob), "padre: aprobar open_url no desarma «negar el primer paso»")
+    expect(fx.contains(.cancelJobByID(owned)), "padre: aprobar open_url no desarma «negar el primer paso»")
 
     var other = SessionMachine()
     _ = other.handle(.job(.started(goal: "x"), from: owned))
@@ -251,19 +251,19 @@ private let owned = JobID("j")
     _ = m.handle(.job(.started(goal: "x"), from: owned))
     _ = m.handle(.job(.approvalRequested(request("a1")), from: owned))
     _ = m.handle(.job(.approvalRequested(parentRequest("p1"))))
-    let fx = m.handle(.approvalSpoken(approved: true))
+    let fx = m.handle(.approvalSpoken(requestId: "a1", approved: true))
     expect(fx.contains(.resolveApproval(requestId: "a1", approved: true, remember: false)),
-           "hablado: resuelve la primera, la que la hoja enseña")
+           "hablado: resuelve la que la voz preguntó (aquí también es la primera)")
     expectEq(m.projection.approval?.requestId, "p1", "hablado: la siguiente pasa al frente")
 
     var first = SessionMachine()
     _ = first.handle(.job(.started(goal: "x"), from: owned))
     _ = first.handle(.job(.approvalRequested(request("a1")), from: owned))
-    let no = first.handle(.approvalSpoken(approved: false))
-    expect(no.contains(.cancelJob), "hablado: negar el primer paso por voz también para el encargo")
+    let no = first.handle(.approvalSpoken(requestId: "a1", approved: false))
+    expect(no.contains(.cancelJobByID(owned)), "hablado: negar el primer paso por voz también para el encargo")
 
     var empty = SessionMachine()
-    let none = empty.handle(.approvalSpoken(approved: true))
+    let none = empty.handle(.approvalSpoken(requestId: "a1", approved: true))
     expect(none.isEmpty, "hablado: sin nada pendiente no concede nada")
 }
 
@@ -317,10 +317,11 @@ private func request(_ id: String) -> ApprovalRequest {
 }
 
 private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
-    // Island facts are the model's business (ConversationQualityIslandTests).
+    // Island facts are the model's business (ConversationQualityIslandTests);
+    // `approvalClosed` is the voice session's bookkeeping (StopParity16qTests).
     effects.filter {
         switch $0 {
-        case .logTransition, .islandEvent: false
+        case .logTransition, .islandEvent, .approvalClosed: false
         default: true
         }
     }
@@ -511,7 +512,7 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     let fx = m.handle(.approvalAnswered(requestId: "a1", approved: false, remember: true))
     expect(fx.contains(.resolveApproval(requestId: "a1", approved: false, remember: false)),
            "negar 1º: se resuelve sin recordar")
-    expect(fx.contains(.cancelJob), "negar 1º: para el encargo")
+    expect(fx.contains(.cancelJobByID(owned)), "negar 1º: para el encargo")
     expectEq(m.projection.kind, .idle, "negar 1º: idle")
     expectEq(m.projection.interruption, .userStopped, "negar 1º: el motivo")
     expect(m.projection.job == nil, "negar 1º: sin tarjeta")

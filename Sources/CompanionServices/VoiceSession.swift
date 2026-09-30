@@ -77,10 +77,30 @@ public actor VoiceSession: VoiceControlling {
     var droppedAnnouncements = 0
     /// Written by VoiceSessionApprovals.
     var pendingApproval: ApprovalRequest?
-    /// A remote MCP tool waiting for the user's spoken yes (9j-3). Answered
-    /// over the websocket, not through the job runner. Written by
+    /// Remote MCP tools waiting on the sheet (9j-3, 16q-1). Answered over
+    /// the websocket, not through the job runner; only a click approves it.
+    /// Written by VoiceSessionApprovals.
+    var pendingMCPApprovals: [ApprovalRequest] = []
+    /// What she said in the hold that just ended (security M3), with that
+    /// hold's `pressed` stamp: a spoken yes is admitted only while the hold
+    /// answering is the hold that said it (round 2, S2). Written by
     /// VoiceSessionApprovals.
-    var pendingMCPApproval: ApprovalRequest?
+    var heardThisHold: HeardInHold?
+    /// Requests that already left the sheet, newest last: a task that lost the
+    /// race with `approvalClosed` must not re-arm or announce them. Bounded.
+    // HACK: a FIFO of the last 64 ids. Ids are unique per request, so a
+    // request older than that cannot still be racing; upgrade trigger: a
+    // source that reuses ids, then the set moves into the reducer's queue.
+    static let closedApprovalCap = 64
+    var closedApprovals: [String] = []
+    /// 16q-1: the sheet's route for the realtime MCP request: the parent
+    /// gate's `decide`, so the request shows on the sheet and dies in the
+    /// same 60 s.
+    let mcpGuard: ParentToolGuard
+    /// 16q-1: the job permission the voice is saying right now (classic).
+    /// Marked announced only when its audio ends, never when it is queued or
+    /// cut. Written by VoiceSessionAnnouncements.
+    var askedAloud: String?
     var lastMic = 0.0
     var lastAgent = 0.0
     var reconnectAttempted = false
@@ -230,6 +250,9 @@ public actor VoiceSession: VoiceControlling {
         // if a second consumer or a slow one ever appears.
         let eventBox = AudioStreamBox<SessionEvent>()
         self.eventBox = eventBox
+        self.mcpGuard = ParentToolGuard(
+            approvals: approvals,
+            onRequest: { request in eventBox.yield(.job(.approvalRequested(request))) })
         self.events = eventBox.stream
         self.realtime.events = eventBox
         self.classic.events = eventBox
@@ -266,6 +289,7 @@ public actor VoiceSession: VoiceControlling {
                             else { return }
                             Task { [weak self] in
                                 await self?.noteApproval(request)
+                                await self?.askApprovalAloud(request)
                             }
                         },
                         announce: { [weak self] announcement in
@@ -279,6 +303,7 @@ public actor VoiceSession: VoiceControlling {
                 await self?.answerPendingApproval(approved) ?? .nothingPending
             }
             classic.onResolveApproval = realtime.onResolveApproval
+            classic.onHeard = { [weak self] text, pressed in await self?.noteHeard(text, pressed: pressed) }
         }
         realtime.onMCPApproval = { [weak self] request in
             Task { [weak self] in await self?.noteMCPApproval(request) }

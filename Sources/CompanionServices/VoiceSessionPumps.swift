@@ -277,6 +277,7 @@ extension VoiceSession {
             if Task.isCancelled { return }
             switch event {
             case .finished:
+                markQuestionSaid()
                 await logAnnouncementSaid()
                 await apply(.speechFinished)
             case .failed:

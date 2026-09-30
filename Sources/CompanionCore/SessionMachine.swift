@@ -37,7 +37,7 @@ public struct SessionMachine: Sendable, Equatable {
     var typedBusy = false
     /// The key is down but still under the tap threshold: the mic is open
     /// locally, nothing has left the machine and no reply has been cut.
-    private var provisional = false
+    var provisional = false
     /// 16h-2: the jobs the user stopped. Anything they still say is late.
     var stoppedJobs: [JobID] = []
     var finishedJobs: [JobID] = []
@@ -51,7 +51,18 @@ public struct SessionMachine: Sendable, Equatable {
 
     public init() {}
 
+    /// Every request that leaves the sheet during an event, by any road, is
+    /// reported once (`approvalClosed`), so the voice session never announces
+    /// or answers a request that is no longer there (16q-1 review, M2).
     public mutating func handle(_ event: SessionEvent) -> [SessionEffect] {
+        let queued = projection.approvalQueue.map(\.requestId)
+        var effects = reduce(event)
+        let still = Set(projection.approvalQueue.map(\.requestId))
+        effects += queued.filter { !still.contains($0) }.map { .approvalClosed(requestId: $0) }
+        return effects
+    }
+
+    private mutating func reduce(_ event: SessionEvent) -> [SessionEffect] {
         let before = projection.kind
         let wasRestingWarm = restingWarm
         projection.cards = []
@@ -105,11 +116,10 @@ public struct SessionMachine: Sendable, Equatable {
             if approved, ofJob { projection.job?.approvedOnce = true }
             effects.append(.resolveApproval(
                 requestId: id, approved: approved, remember: remember && !stops))
-            if stops { effects += stop() }
-        case .approvalSpoken(let approved):
-            guard let first = projection.approval else { return [] }
-            return handle(.approvalAnswered(
-                requestId: first.requestId, approved: approved, remember: false))
+            if stops, let owner { effects += stopJob(owner) }
+        case .approvalSpoken(let id, let approved):
+            guard projection.approvalQueue.contains(where: { $0.requestId == id }) else { return [] }
+            return reduce(.approvalAnswered(requestId: id, approved: approved, remember: false))
         case .approvalSettled(let id):
             _ = remove(id)
         case .approvalDropped(let id):
@@ -248,19 +258,15 @@ public struct SessionMachine: Sendable, Equatable {
             projection.handsTarget = nil
         case .announcing(let on):
             projection.announcing = on
+        case .stopVoice:
+            guard voiceBrakeApplies else { return [] }
+            effects += silenceVoice(always: false)
+            effects += endTurn(denying: .theTurnsOwn)
+        case .stopJob(let id):
+            effects += stopJob(id)
         case .stop:
-            // At rest a job's end may still be talking: Esc silences it.
-            guard projection.kind != .idle || projection.announcing else { return [] }
-            if voice.state == .thinking || voice.state == .speaking || projection.announcing {
-                effects.append(.cancelVoiceOutput)
-            }
-            // Inside the release tail the voice still listens: the commit
-            // has not left yet, and Esc must be what stops it.
-            if projection.holding || inReleaseTail {
-                effects.append(.stopListening(commit: false))
-            }
-            provisional = false
-            effects.append(.islandEvent(.interrupted))
+            guard totalBrakeApplies else { return [] }
+            effects += silenceVoice(always: true)
             effects += stop()
         }
         // The partial belongs to the hold and to the wait for its words;
@@ -289,75 +295,7 @@ public struct SessionMachine: Sendable, Equatable {
         return effects
     }
 
-    /// A session a hold opened, resting with the mic closed and nothing of
-    /// ours on screen that says the hardware is still taken. Hands-free
-    /// muted from the window is not this: its button shows the state.
-    private var restingWarm: Bool {
-        guard voice.state == .listening, voice.muted, voice.holdArmed, !projection.holding
-        else { return false }
-        switch projection.kind {
-        case .idle, .hover, .processing(.completed): return true
-        default: return false
-        }
-    }
-
-    private mutating func observe(_ snapshot: TurnSnapshot) -> [SessionEffect] {
-        voice = snapshot
-        projection.pipeline = snapshot.pipeline
-        projection.voice = Self.status(of: snapshot)
-        switch snapshot.state {
-        case .connecting:
-            break
-        case .listening where snapshot.muted:
-            // The voice is warm with the mic closed: the chrome rests, except
-            // while Pending waits for the text just sent, or while a press
-            // is still being served.
-            if projection.kind == .processing(.pending) || projection.holding { break }
-            turnOver()
-            if case .processing = projection.kind {
-                return rest()
-            }
-            if projection.kind == .listening { projection.kind = .idle }
-        case .listening:
-            openTurn()
-            // Every door into a turn starts the reel fresh (review 16m H1):
-            // typed, hold, provisional hold, and this — the voice runtime.
-            projection.touched = []
-            projection.kind = .listening
-        case .thinking:
-            projection.kind = jobInFront ? .processing(.subAgentRunning) : .processing(.thinking)
-        case .speaking:
-            projection.kind = .processing(.speaking)
-        case .idle:
-            // Classic hold arms Speech while TurnMachine is still idle.
-            // Clearing holding here dropped FN-up (live 2026-09-07).
-            if projection.holding { break }
-            projection.holding = false
-            turnOver()
-            if projection.job != nil {
-                projection.kind = .processing(.subAgentRunning)
-            } else if !typedBusy, projection.kind != .processing(.completed) {
-                projection.kind = .idle
-            }
-        case .error:
-            // The failure is a reason and a card, not a mode: the voice may
-            // sit in its own error state, the chrome goes back to rest.
-            let failure = snapshot.failure ?? .sessionDropped
-            projection.holding = false
-            turnOver()
-            projection.interruption = .failure(failure)
-            projection.notice = Self.card(for: failure)
-            projection.cards = [Self.card(for: failure)]
-            projection.kind = projection.job != nil
-                ? .processing(.subAgentRunning) : .idle
-            if Self.fades(Self.card(for: failure)) {
-                return [.scheduleNoticeExpiry(Self.noticeDelay)]
-            }
-        }
-        return []
-    }
-
-    private static func fades(_ notice: SessionCard) -> Bool {
+    static func fades(_ notice: SessionCard) -> Bool {
         if case .connectApp = notice { return true }
         if case .signInApp = notice { return true }
         if case .receipt = notice { return true }
@@ -366,7 +304,7 @@ public struct SessionMachine: Sendable, Equatable {
 
     /// The user's own door into a turn (a press, a sent chat, the voice
     /// listening): a job already running goes behind it.
-    private mutating func openTurn() {
+    mutating func openTurn() {
         begin()
         turnReceipt = nil
         projection.job?.behindTurn = true
@@ -390,94 +328,7 @@ public struct SessionMachine: Sendable, Equatable {
         projection.dictatedText = nil
     }
 
-    /// Released, and the voice has not moved past listening yet.
-    private var inReleaseTail: Bool {
-        projection.kind == .processing(.pending) && voice.state == .listening
-            && voice.holdArmed && !voice.muted
-    }
-
-    /// A press cancelled under the threshold never cut the reply, so the
-    /// chrome goes back to it instead of painting Idle over a voice that
-    /// is still talking.
-    private mutating func replyOrRestingKind() -> SessionKind {
-        guard !jobInFront else { return .processing(.subAgentRunning) }
-        switch voice.state {
-        case .thinking: return .processing(.thinking)
-        case .speaking: return .processing(.speaking)
-        default: return restingKind()
-        }
-    }
-
-    /// Where a hold that produced nothing lands: the job's row if one runs,
-    /// otherwise Idle straight away (no Completed for nothing).
-    private mutating func restingKind() -> SessionKind {
-        turnOver()
-        return projection.job != nil ? .processing(.subAgentRunning) : .idle
-    }
-
-    /// Where the chrome goes when a piece of work ends: the job's row if one
-    /// runs, the typed turn if one is open, the voice if it is live, and
-    /// otherwise Completed with its timer.
-    mutating func rest() -> [SessionEffect] {
-        if jobInFront {
-            projection.kind = .processing(.subAgentRunning)
-            return []
-        }
-        if typedBusy {
-            projection.kind = .processing(.thinking)
-            return []
-        }
-        switch voice.state {
-        case .listening where !voice.muted:
-            projection.kind = .listening
-        case .thinking:
-            projection.kind = .processing(.thinking)
-        case .speaking:
-            projection.kind = .processing(.speaking)
-        case .idle, .connecting, .error, .listening:
-            // Her turn is over: a job still running takes the row back.
-            guard projection.job == nil else {
-                turnOver()
-                projection.kind = .processing(.subAgentRunning)
-                return []
-            }
-            projection.kind = .processing(.completed)
-            return completedExpiry()
-        }
-        return []
-    }
-
-    private mutating func stop() -> [SessionEffect] {
-        var effects: [SessionEffect] = []
-        if projection.job != nil || !projection.queued.isEmpty {
-            effects.append(.cancelJob)
-            noteStopped()
-        }
-        for request in projection.approvalQueue {
-            effects.append(.resolveApproval(
-                requestId: request.requestId, approved: false, remember: false))
-        }
-        projection.approvalQueue = []
-        approvalOwners = [:]
-        // A typed turn in flight is abandoned too; a flag left true kept the
-        // chrome painting the voice's last phase for ever (code review
-        // 2026-09-06).
-        typedBusy = false
-        projection.holding = false
-        projection.targets = []
-        projection.interruption = .userStopped
-        projection.kind = .idle
-        return effects
-    }
-
-    private mutating func remove(_ requestId: String) -> ApprovalRequest? {
-        guard let index = projection.approvalQueue.firstIndex(where: { $0.requestId == requestId })
-        else { return nil }
-        approvalOwners[requestId] = nil
-        return projection.approvalQueue.remove(at: index)
-    }
-
-    private static func status(of snapshot: TurnSnapshot) -> VoiceStatus {
+    static func status(of snapshot: TurnSnapshot) -> VoiceStatus {
         switch snapshot.state {
         case .idle, .error: .off
         case .connecting: .connecting
@@ -485,13 +336,13 @@ public struct SessionMachine: Sendable, Equatable {
         }
     }
 
-    private static func card(for failure: DictationFailure) -> SessionCard {
+    static func card(for failure: DictationFailure) -> SessionCard {
         switch failure {
         case .needsAccessibility: .permission(.accessibilityDenied)
         }
     }
 
-    private static func card(for failure: TurnFailure) -> SessionCard {
+    static func card(for failure: TurnFailure) -> SessionCard {
         switch failure {
         case .micDenied, .speechDenied, .accessibilityDenied: .permission(failure)
         case .notHeard, .micSilent: .couldntHear
