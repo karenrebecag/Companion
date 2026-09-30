@@ -46,13 +46,22 @@ public struct ParentToolGuard: Sendable {
     /// ("wants to use your hands", spec §9-5) has no tool call behind it,
     /// just this `ApprovalRequest`.
     func ask(_ request: ApprovalRequest) async -> Bool {
-        guard let approvals else { return false }
+        await decide(request).approved
+    }
+
+    /// The one point every sheet-backed decision goes through (16q-1: the
+    /// realtime MCP request too), returning the whole response so whatever
+    /// judges a request later has a single place to stand.
+    func decide(_ request: ApprovalRequest) async -> ApprovalResponse {
+        guard let approvals else {
+            return ApprovalResponse(requestId: request.requestId, approved: false)
+        }
         if let decision = await approvals.remembered(request) {
             await onRemembered?(request.toolName, decision)
-            return decision
+            return ApprovalResponse(requestId: request.requestId, approved: decision)
         }
         onRequest?(request)
-        return await approvals.request(request).approved
+        return await approvals.request(request)
     }
 
     /// "Stop hands" (spec §3 "Corte"): resolves a sheet the caller is still

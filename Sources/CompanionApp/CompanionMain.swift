@@ -235,6 +235,7 @@ final class VoicePortBox: VoiceControlling, @unchecked Sendable {
     func release() async { await session?.release() }
     func discard() async { await session?.discard() }
     func interrupt() async { await session?.interrupt() }
+    func approvalClosed(requestId: String) async { await session?.approvalClosed(requestId: requestId) }
     var snapshots: AsyncStream<TurnSnapshot> { session?.snapshots ?? AsyncStream { $0.finish() } }
     var levels: AsyncStream<VoiceLevels> { session?.levels ?? AsyncStream { $0.finish() } }
 }

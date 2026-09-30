@@ -20,6 +20,11 @@ final class ClassicRuntime: @unchecked Sendable {
     var onDelegate: (@Sendable (Handoff) -> Void)?
     var onStopJob: (@Sendable () async -> Void)?
     var onResolveApproval: (@Sendable (Bool) async -> SpokenApproval)?
+    /// 16q-1 review (security M3): the words of the hold this turn answers,
+    /// reported before the model runs so a spoken yes is checked against what
+    /// she said, not against what the model claims she said. Empty when
+    /// nothing was heard.
+    var onHeard: (@Sendable (String, TimeInterval?) async -> Void)?
     /// 16h-2 (security M1): our own lines this turn owes the user, said
     /// after the reply (a spoken yes the sheet did not take).
     var owedLines: [String] = []
@@ -195,6 +200,7 @@ final class ClassicRuntime: @unchecked Sendable {
     func submit(
         config: Config,
         endsHold: Bool = false,
+        pressed: TimeInterval? = nil,
         apply: @escaping @Sendable (TurnEvent) async -> Void
     ) async {
         let language = config.language
@@ -208,10 +214,17 @@ final class ClassicRuntime: @unchecked Sendable {
         // Code review 2026-09-24 (medio): a press cut this turn while its ear
         // was finishing. The listen running now is the next hold's; "heard
         // nothing" and the hang-up below would tear it down.
-        if heard.isEmpty, Task.isCancelled { return }
+        // The session still hears nothing, so words kept from an older hold
+        // cannot answer for this one.
+        if heard.isEmpty, Task.isCancelled {
+            await onHeard?("", pressed)
+            return
+        }
         await markTimeline?(.earFinal)
         turnTranscripts = config.debugTranscripts ? transcripts : nil
         turnTranscripts?.heard(heard)
+        // A cancelled hold's words belong to no one: a new press cut it.
+        await onHeard?(Task.isCancelled ? "" : heard, pressed)
         if heard.isEmpty {
             screen?.cancel()
             events?.yield(.heardNothing)

@@ -126,6 +126,12 @@ final class GatedJob: JobSubmitter, @unchecked Sendable {
         open()
     }
 
+    func cancel(job id: JobID) async { await cancel() }
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try await submit(handoff, events: events)
+    }
     func resolveApproval(requestId: String, approved: Bool) async {
         lock.withLock { _resolutions.append(approved) }
     }

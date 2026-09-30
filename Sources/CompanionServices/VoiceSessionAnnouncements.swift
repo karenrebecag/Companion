@@ -10,7 +10,15 @@ struct ParkedAnnouncement: Sendable {
 /// A pending approval and when the voice said its question, if it did.
 struct ApprovalSighting: Sendable {
     let requestId: String
+    let shownAt: TimeInterval
     var announcedAt: TimeInterval?
+}
+
+/// The words of one hold, tied to that hold's press so they cannot answer
+/// anything asked after it.
+struct HeardInHold: Sendable {
+    let text: String
+    let pressed: TimeInterval
 }
 
 /// A job's end, said by the voice (16h-2). Split out of VoiceSessionPumps:
@@ -47,10 +55,19 @@ extension VoiceSession {
             parkedAnnouncements = fresh
         }
         defer { publishAnnouncing() }
+        // A question nobody waits on any more (the sheet was clicked) is not
+        // asked.
+        let asked = parkedAnnouncements.count
+        parkedAnnouncements.removeAll { parked in
+            guard case .asking(let id) = parked.announcement.outcome else { return false }
+            return livePendingApproval?.requestId != id
+        }
+        if parkedAnnouncements.count < asked { drop(asked - parkedAnnouncements.count, reason: "answered") }
         guard !parkedAnnouncements.isEmpty, machine.snapshot.pipeline != .realtime,
               AnnouncementGap.isOpen(machine.snapshot), !announcementUnlogged
         else { return }
         let next = parkedAnnouncements.removeFirst()
+        if case .asking(let id) = next.announcement.outcome { askedAloud = id }
         announceTask?.cancel()
         announcementUnlogged = true
         let classic = classic
@@ -72,7 +89,16 @@ extension VoiceSession {
     /// turn's own `said=` never saw it. Written once the audio is done (or
     /// cut), from what the synthesizer actually said; the flag is read now,
     /// not at the start — the job may outlive the setting it began under.
+    /// 16q-1: the question of a job's permission counts as said only when
+    /// its audio finished; a press that cut it, a failure or a stop leave it
+    /// unsaid, and a yes to a question nobody heard is the click's.
+    func markQuestionSaid() {
+        guard announcementUnlogged, let id = askedAloud else { return }
+        approvalAnnounced(id)
+    }
+
     func logAnnouncementSaid() async {
+        askedAloud = nil
         guard announcementUnlogged else { return }
         announcementUnlogged = false
         publishAnnouncing()

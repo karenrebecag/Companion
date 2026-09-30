@@ -49,7 +49,7 @@ enum VoiceJobBridge {
         }
 
         do {
-            let result = try await jobs.submit(handoff, events: sink)
+            let result = try await jobs.submit(handoff, as: id, events: sink)
             // Drained first (review 16h-2 round 3): a step still in the pump
             // behind the end would land after it and open an orphan row.
             sink.finish()

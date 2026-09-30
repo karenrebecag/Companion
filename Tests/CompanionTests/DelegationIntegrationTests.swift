@@ -200,6 +200,12 @@ final class RecordingSubmitter: JobSubmitter, @unchecked Sendable {
         JobResult(output: "ok", isError: false)
     }
     func cancel() async {}
+    func cancel(job id: JobID) async { await cancel() }
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try await submit(handoff, events: events)
+    }
     func resolveApproval(requestId: String, approved: Bool) async {
         lock.withLock { calls.append(ResolvedCall(id: requestId, approved: approved)) }
     }

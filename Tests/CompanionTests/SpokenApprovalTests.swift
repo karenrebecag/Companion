@@ -64,6 +64,7 @@ private let sheet = ApprovalRequest(
     h.clock.now += 5
     await holding(h)
     h.clock.now += 1
+    await h.session.noteHeard("sí, dale", pressed: await h.session.timeline.pressed)
     let answer = await h.session.answerPendingApproval(true)
     expectEq(answer, .resolved, "sí hablado: dicha la pregunta, un hold posterior la contesta")
     await h.session.hangUp()

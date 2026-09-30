@@ -48,20 +48,28 @@ public struct MCPServerConfig: Sendable, Equatable, Codable {
 }
 
 extension MCPServerConfig {
-    /// Guidance injected when servers are configured, so the model knows the
-    /// approval dance: ask the user out loud, then resolve.
+    /// Guidance injected when a server asks permission (16q-1). The request
+    /// is a card on screen with Allow and Deny: the model says so in one
+    /// short sentence and keeps the detail off its voice. It never approves:
+    /// a spoken yes does not, only the click does; a spoken no may refuse.
     public static func approvalPrompt(
         server: String, tool: String, _ language: AppLanguage
     ) -> String {
         switch language {
         case .en:
             return "The MCP server «\(server)» asks permission to run "
-                + "«\(tool)». Ask the user out loud; when they answer, call "
-                + "resolve_approval with their decision."
+                + "«\(tool)». A card with Allow and Deny is on screen. Tell the "
+                + "user in one short sentence that it waits for their click; do "
+                + "not read out its details. A spoken yes does not approve it: "
+                + "never call resolve_approval with approved true for it. If "
+                + "they say no out loud, call resolve_approval with approved false."
         case .es:
             return "El servidor MCP «\(server)» pide permiso para ejecutar "
-                + "«\(tool)». Pregunta al usuario en voz alta; cuando "
-                + "responda, llama resolve_approval con su decisión."
+                + "«\(tool)». Hay una tarjeta en pantalla con Permitir y Rechazar. "
+                + "Dile al usuario en una frase corta que espera su clic; no leas "
+                + "el detalle. Un sí hablado no la aprueba: nunca llames "
+                + "resolve_approval con approved true para ella. Si dice que no "
+                + "en voz alta, llama resolve_approval con approved false."
         }
     }
 }

@@ -211,7 +211,8 @@ Criterios 1 y 2 en la voz clásica (el hold). Dónde vive cada cosa:
   Hoy nada llama a `approvalAnnounced`: por la decisión de producto del 2026-08-22 la voz no
   pregunta los permisos, así que en la práctica todo "sí" hablado pide el clic. Es la costura para
   el día en que la voz vuelva a preguntar.
-  **Rama MCP (provisional, HACK en el código)**: las llamadas a herramientas de los servidores MCP
+  **[Superado por 16q-1: las aprobaciones MCP tienen hoja y un sí hablado ya no las aprueba; ver
+  `wave-16q-paridad-decisiones.md`.] Rama MCP (provisional, HACK en el código)**: las llamadas a herramientas de los servidores MCP
   remotos de `mcp.json` / Ajustes que OpenAI ejecuta en la sesión realtime; con `requireApproval`
   ausente o `"always"` (por defecto) TODA llamada, lectura o escritura, pide aprobación. No tienen
   hoja, así que exigirles `SpokenYes` las dejaba inaprobables y colgadas en el servidor: conservan
@@ -242,7 +243,8 @@ hold nuevo ─ listening ─ thinking(propio) ─ speaking ─ … ─ fin del e
   colgado que lo borre.
 - Un aviso cuyo sintetizador ni termina ni lo para nada nuestro (un fallo interno sin `.failed`)
   seguiría bloqueando los siguientes; hoy cada parada nuestra lo libera.
-- `SessionEvent.stop` sigue siendo un único freno (ahora completo): con un encargo vivo, el botón
+- **[Superado por 16q-1: el freno de voz (`stopVoice`) ya no para encargos y cada encargo tiene su
+  stop por id.]** `SessionEvent.stop` sigue siendo un único freno (ahora completo): con un encargo vivo, el botón
   de la isla y el menú paran la voz, el encargo y los encolados, aunque la usuaria solo quisiera
   cortar la respuesta del turno nuevo. Separar "calla" de "para el encargo" es decisión de producto
   de Karen.
@@ -250,7 +252,7 @@ hold nuevo ─ listening ─ thinking(propio) ─ speaking ─ … ─ fin del e
 - Aprobar por voz un permiso de encargo queda apagado de hecho: en realtime siempre, y en clásico
   hasta que la voz anuncie las preguntas (falla cerrado; la hoja con clic sigue funcionando).
 - **Decisión abierta para Karen** — aprobaciones MCP en realtime: hoja propia o "no" explícito;
-  mientras tanto conservan el camino hablado previo.
+  mientras tanto conservan el camino hablado previo. (Resuelta en 16q-1: hoja propia.)
 - Tarjeta de recibo, ubicación y eventos isla→modelo: 16h-3.
 
 ## 9. 16h-3: alcance real

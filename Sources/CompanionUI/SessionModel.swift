@@ -92,6 +92,12 @@ public final class SessionModel {
         case .cancelJob:
             guard let jobs else { return }
             Task { await jobs.cancel() }
+        case .approvalClosed(let id):
+            guard let voice else { return }
+            Task { await voice.approvalClosed(requestId: id) }
+        case .cancelJobByID(let id):
+            guard let jobs else { return }
+            Task { await jobs.cancel(job: id) }
         case .resolveApproval(let id, let approved, let remember):
             // The same actor answers a specialist's request and the parent's
             // gate; the submitter is the road when no actor was injected.

@@ -7,6 +7,26 @@ enum IslandStop {
     /// "Cancelled" stays under the notch this long after a stop.
     static let cancelledFor: Double = 2
 
+    /// Incredible has no single brake (16q-1): the orb stops the turn of
+    /// voice and the agents keep working; each task has its own stop. The
+    /// island's stop is the job's when the job card is what it shows, and the
+    /// voice's otherwise. An untagged job has no id to stop by.
+    enum Brake: Equatable { case voice, job(JobID?) }
+
+    static func brake(for p: SessionProjection) -> Brake {
+        guard p.kind == .processing(.subAgentRunning), let job = p.job else { return .voice }
+        return .job(job.id)
+    }
+
+    /// The island's stop, applied: the voice's brake never reaches a job.
+    static func stop(_ chat: ChatViewModel) {
+        switch brake(for: chat.session.projection) {
+        case .job(let id?): chat.cancelJob(id)
+        case .job(nil): chat.cancelJob()
+        case .voice: chat.session.send(.stopVoice)
+        }
+    }
+
     static func asOrb(_ state: IslandState) -> Bool {
         state.showsStop && state.meter == .agent
     }

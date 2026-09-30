@@ -73,6 +73,7 @@ extension VoiceSession {
         // hold: its clock keeps the first press (code review 2026-09-06).
         let bounced = resumed || (timeline.pressed != nil && timeline.released == nil)
         if !bounced {
+            heardThisHold = nil
             classic.parentTools?.beginTurn()
             flushTimeline()
             timeline = TurnTimeline()

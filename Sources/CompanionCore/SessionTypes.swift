@@ -139,10 +139,12 @@ public enum SessionEvent: Sendable, Equatable {
     case jobFinished(ok: Bool, from: JobID? = nil)
     /// The sheet answered.
     case approvalAnswered(requestId: String, approved: Bool, remember: Bool)
-    /// The user answered out loud. The model carries no request id, so the
-    /// answer goes to what the sheet shows: the first of the queue. Same
-    /// road, same rules as the sheet (security review 2026-09-06).
-    case approvalSpoken(approved: Bool)
+    /// The user answered out loud, for the request the voice admitted the
+    /// answer to. Named, never "whatever the sheet shows first": with the
+    /// voice asking a job's permission (16q-1), the first of the queue may be
+    /// an app write of the chat that the yes was not about (F-D). Same road
+    /// and rules as the sheet; a request no longer pending resolves nothing.
+    case approvalSpoken(requestId: String, approved: Bool)
     /// Answered somewhere else (the spoken "yes", the actor returning): out
     /// of the queue, nothing to resolve.
     case approvalSettled(requestId: String)
@@ -210,12 +212,24 @@ public enum SessionEvent: Sendable, Equatable {
     case handsGlowExpired
     /// The user: Esc, the Stop button, "stop".
     case stop
+    /// 16q-1: the voice's brake (the orb, the island's chip while the voice
+    /// is what is in front). Cuts the voice, the hold and the turn's own
+    /// approvals; every job keeps running. Incredible's abort interrupts the
+    /// orchestrator's turn and leaves its agents working.
+    case stopVoice
+    /// 16q-1: one job's own stop (its card), by the id its owner minted.
+    case stopJob(JobID)
     /// 16h-2 (S2): the voice session has a job's end sounding or waiting.
     case announcing(Bool)
 }
 
 public enum SessionEffect: Sendable, Equatable {
     case cancelJob
+    /// 16q-1: stop this job only; the rest of the line keeps its place.
+    case cancelJobByID(JobID)
+    /// 16q-1 review: this request left the sheet, by any road (click, settled,
+    /// dropped, stopped, its job ended). The voice session forgets it.
+    case approvalClosed(requestId: String)
     case resolveApproval(requestId: String, approved: Bool, remember: Bool)
     case scheduleCompletedExpiry(TimeInterval)
     case scheduleNoticeExpiry(TimeInterval)

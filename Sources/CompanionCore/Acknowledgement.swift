@@ -50,12 +50,85 @@ public enum SpokenApproval: Sendable, Equatable {
 /// have said the question, and the hold carrying the answer must have
 /// started after it, at least the click guard's dwell later.
 public enum SpokenYes {
+    /// Timing alone is not consent (16q-1 review, security M3): the model
+    /// can call `resolve_approval(true)` in the hold after the question
+    /// whatever the user said, and a specialist's output can ask it to. The
+    /// words of THAT hold must be a clear yes.
     public static func admits(
-        realtime: Bool, announcedAt: TimeInterval?, holdStartedAt: TimeInterval?
+        realtime: Bool, announcedAt: TimeInterval?, holdStartedAt: TimeInterval?, heard: String?
     ) -> Bool {
-        guard !realtime, let announcedAt, let holdStartedAt else { return false }
+        guard !realtime, let announcedAt, let holdStartedAt, let heard, affirms(heard)
+        else { return false }
         return holdStartedAt >= announcedAt + ApprovalClickGuard.dwell
     }
+
+    /// A closed allowlist, on purpose: every word must be a yes or a
+    /// politeness word, so anything not foreseen (a question with or without
+    /// its mark, a hedge, a negation, a number) is not a yes. Short (a yes
+    /// with a paragraph after it is another request), counted in the words as
+    /// said, and at least one word must be a real yes ("por favor" alone is not).
+    // HACK: a word list is the whole judgment. It misses phrasings that mean
+    // yes and cannot tell irony. Upgrade trigger: the approval judge (16q-3)
+    // reads the user's words and replaces this.
+    public static func affirms(_ said: String) -> Bool {
+        let raw = said.split(whereSeparator: \.isWhitespace)
+        guard (1 ... maxWords).contains(raw.count) else { return false }
+        guard !said.contains(where: { $0.isNumber || "?¿".contains($0) }) else { return false }
+        var accented: [String] = []
+        for word in raw {
+            let letters = trimmedToLetters(String(word))
+            if letters.isEmpty {
+                // A lone dash or ellipsis says nothing; a symbol or emoji might.
+                guard word.allSatisfy({ $0.isPunctuation }) else { return false }
+                continue
+            }
+            accented.append(letters)
+        }
+        let words = accented.map { $0.folding(options: .diacriticInsensitive, locale: nil) }
+        // "si" is also "if": unaccented, it only counts as the whole answer.
+        if accented.contains("si"), !words.allSatisfy({ $0 == "si" }) { return false }
+        return matchesAllowlist(words)
+    }
+
+    private static func matchesAllowlist(_ words: [String]) -> Bool {
+        var index = 0
+        var sawYes = false
+        while index < words.count {
+            if let phrase = phrases.first(where: { words[index...].starts(with: $0.words) }) {
+                sawYes = sawYes || !phrase.polite
+                index += phrase.words.count
+            } else if yesWords.contains(words[index]) {
+                sawYes = true
+                index += 1
+            } else if politeWords.contains(words[index]) {
+                index += 1
+            } else {
+                return false
+            }
+        }
+        return sawYes
+    }
+
+    private static func trimmedToLetters(_ word: String) -> String {
+        let lowered = word.lowercased()
+        guard let first = lowered.firstIndex(where: \.isLetter),
+              let last = lowered.lastIndex(where: \.isLetter) else { return "" }
+        return String(lowered[first ... last])
+    }
+
+    private static let maxWords = 4
+    private static let yesWords: Set<String> = [
+        "si", "sip", "dale", "adelante", "hazlo", "permitelo", "aprobado", "apruebalo", "claro", "vale",
+        "ok", "okay", "andale", "sale", "va", "orale", "perfecto",
+        "yes", "yeah", "yep", "sure", "approved", "alright",
+    ]
+    private static let politeWords: Set<String> = ["please"]
+    /// Longest first: "claro que si" is a unit, and "que" is allowed nowhere else.
+    private static let phrases: [(words: [String], polite: Bool)] = [
+        (["claro", "que", "si"], false), (["de", "acuerdo"], false), (["go", "ahead"], false),
+        (["do", "it"], false), (["allow", "it"], false), (["sounds", "good"], false),
+        (["por", "favor"], true),
+    ]
 }
 
 /// Wave 16h-2 (criterion 2): a job's end is said in a gap, never over the

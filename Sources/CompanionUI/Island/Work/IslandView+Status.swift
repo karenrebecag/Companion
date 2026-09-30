@@ -131,14 +131,11 @@ extension IslandView {
         }
     }
 
-    /// Stop is the job's brake when one runs; otherwise it is the session's.
-    /// Either way the island says so, briefly, as Incredible's pill does.
+    /// Stop is that job's brake when the job card is showing; otherwise it is
+    /// the voice's, and the jobs keep going. Either way the island says so,
+    /// briefly, as Incredible's pill does.
     func stop() {
-        if chat.session.projection.job != nil {
-            chat.cancelJob()
-        } else {
-            chat.session.send(.stop)
-        }
+        IslandStop.stop(chat)
         cancelledTask?.cancel()
         cancelled = true
         cancelledTask = Task { @MainActor in

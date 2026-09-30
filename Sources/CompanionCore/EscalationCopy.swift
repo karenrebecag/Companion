@@ -236,6 +236,16 @@ extension Escalation {
         }
     }
 
+    /// 16q-1: the whole question, in one sentence and nothing from the
+    /// request in it: the card shows what would run (Incredible's voice says
+    /// a line and its card carries the detail).
+    public static func approvalAskedSpoken(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "There is a permission on the card: should I allow it?"
+        case .es: return "Hay un permiso en la tarjeta: ¿lo permito?"
+        }
+    }
+
     public static func jobQueuedSpoken(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "It is queued; I will do it right after this one."

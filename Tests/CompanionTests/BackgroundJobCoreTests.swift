@@ -78,17 +78,17 @@ func testAFinishedJobsLateStepOpensNoRow() {
 /// Review 16h-2 round 3 (HIGH): the one rule every spoken yes goes through.
 func testASpokenYesNeedsAnAnnouncementBeforeTheHold() {
     let dwell = ApprovalClickGuard.dwell
-    expect(!SpokenYes.admits(realtime: true, announcedAt: 0, holdStartedAt: 5),
+    expect(!SpokenYes.admits(realtime: true, announcedAt: 0, holdStartedAt: 5, heard: "sí"),
            "sí hablado: en realtime nunca")
-    expect(!SpokenYes.admits(realtime: false, announcedAt: nil, holdStartedAt: 5),
+    expect(!SpokenYes.admits(realtime: false, announcedAt: nil, holdStartedAt: 5, heard: "sí"),
            "sí hablado: sin anuncio, no")
-    expect(!SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: nil),
+    expect(!SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: nil, heard: "sí"),
            "sí hablado: sin hold, no")
-    expect(!SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: 4),
+    expect(!SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: 4, heard: "sí"),
            "sí hablado: un hold anterior al anuncio, no")
-    expect(!SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: 5 + dwell / 2),
+    expect(!SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: 5 + dwell / 2, heard: "sí"),
            "sí hablado: un hold pegado al anuncio, no")
-    expect(SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: 5 + dwell),
+    expect(SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: 5 + dwell, heard: "sí"),
            "sí hablado: anuncio, luego un hold pasado el dwell, sí")
 }
 
@@ -348,7 +348,7 @@ func testTheFirstApprovalIsNotInheritedByTheNextJob() {
     _ = m.handle(.jobFinished(ok: true, from: jobA))
     _ = m.handle(.job(.approvalRequested(ask("b1")), from: jobB))
     let fx = m.handle(.approvalAnswered(requestId: "b1", approved: false, remember: false))
-    expect(fx.contains(.cancelJob), "permiso: negar la primera acción de B para B; el sí de A no cuenta")
+    expect(fx.contains(.cancelJobByID(jobB)), "permiso: negar la primera acción de B para B; el sí de A no cuenta")
 }
 
 func testALateApprovalOfAStoppedJobIsDenied() {
@@ -385,7 +385,7 @@ func testAnApprovalAnsweredAfterItsJobEndedDoesNotTouchTheNext() {
     expectEq(m.projection.job?.id, jobB, "dueño: B sigue en la fila")
     _ = m.handle(.job(.approvalRequested(ask("b1")), from: jobB))
     let own = m.handle(.approvalAnswered(requestId: "b1", approved: false, remember: false))
-    expect(own.contains(.cancelJob), "dueño: la primera acción de B sigue siendo suya")
+    expect(own.contains(.cancelJobByID(jobB)), "dueño: la primera acción de B sigue siendo suya")
 }
 
 /// A request with no id is never a job's: a Stop left behind must not deny it.
