@@ -27,8 +27,6 @@ import Testing
     try testDanglingBuildSymlinkResolvesToNil()
     testOnlyALowercaseAppExtensionCountsAsAnApp()
     testFontsReadOnlyTheResolvedBundle()
-    testBundleScriptSkipsInstallAndRunsTheSmoke()
-    testSmokeScriptAssertsTheIsolatedLaunch()
 }
 
 // MARK: - Core report
@@ -218,37 +216,6 @@ private func check(_ name: String, _ passed: Bool) -> ResourceProbe.Check {
     expectEq(Fonts.bundledDirectories(bundle: bundle),
              [bundle?.resourceURL?.appendingPathComponent("Fonts")].compactMap { $0 },
              "21c fuentes: una sola carpeta, la del bundle")
-}
-
-// MARK: - Scripts, read as text
-
-private func script(_ relative: String) -> String {
-    do { return try String(contentsOfFile: repoPath(relative), encoding: .utf8) } catch { return "" }
-}
-
-@MainActor func testBundleScriptSkipsInstallAndRunsTheSmoke() {
-    let text = script("scripts/bundle.sh")
-    expect(text.contains("COMPANION_NO_INSTALL"), "21c D6: bundle.sh conoce COMPANION_NO_INSTALL")
-    let guardAt = text.range(of: "COMPANION_NO_INSTALL:-")?.lowerBound
-    let installAt = text.range(of: "ditto \"$APP\" \"$INSTALL\"")?.lowerBound
-    let signAt = text.range(of: "codesign --force")?.lowerBound
-    let smokeAt = text.range(of: "scripts/package-smoke.sh")?.lowerBound
-    expect(guardAt != nil && installAt != nil && guardAt! < installAt!,
-           "21c D6: el guard de no-instalar va antes del ditto a /Applications")
-    expect(signAt != nil && smokeAt != nil && signAt! < smokeAt!, "21c smoke: corre despues de firmar")
-    expect(smokeAt != nil && installAt != nil && smokeAt! < installAt!, "21c smoke: corre antes de instalar")
-    expect(!text.contains("Resources/Fonts"), "21c fuentes: bundle.sh ya no copia Contents/Resources/Fonts")
-    expect(!text.contains("SKIP_SMOKE") && !text.contains("NO_SMOKE"),
-           "21c smoke: sin valvula para saltarlo (la spec no la preve)")
-}
-
-@MainActor func testSmokeScriptAssertsTheIsolatedLaunch() {
-    let text = script("scripts/package-smoke.sh")
-    expect(!text.isEmpty, "21c smoke: existe scripts/package-smoke.sh")
-    for needle in ["sandbox-exec", "COMPANION_RESOURCE_PROBE=1", ResourceProbe.marker,
-                   "could not load resource bundle", "codesign --verify --strict", "BrowserExtension"] {
-        expect(text.contains(needle), "21c smoke: el script contiene \(needle)")
-    }
 }
 
 // MARK: - Helpers

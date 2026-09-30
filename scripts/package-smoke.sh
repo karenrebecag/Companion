@@ -12,6 +12,15 @@ set -euo pipefail
 
 APP_ARG="${1:?usage: package-smoke.sh <path/to/App.app>}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+# ROOT goes inside a quoted SBPL string below; these would end or escape it
+# and the profile would deny the wrong path (or nothing).
+case "$ROOT" in
+    *'"'* | *'\'* | *')'*)
+        echo "  smoke FAIL  la ruta del checkout lleva \", \\ o ) y no cabe en el perfil de sandbox-exec: $ROOT" >&2
+        echo "              mueve el checkout a una ruta sin esos caracteres" >&2
+        exit 1 ;;
+esac
+. "$ROOT/scripts/package-contents.sh"
 APP="$(cd "$APP_ARG" && pwd -P)"
 MARKER="COMPANION_RESOURCE_PROBE_OK"
 BUNDLES="Companion_CompanionUI.bundle Companion_CompanionServices.bundle"
@@ -22,6 +31,23 @@ fails=0
 ok()   { echo "  smoke ok    $*"; }
 fail() { echo "  smoke FAIL  $*" >&2; fails=$((fails + 1)); }
 die()  { echo "  smoke FAIL  $*" >&2; exit 1; }
+
+# $1 label, then an audit command from package-contents.sh. Anything it prints
+# is a failure; so is an audit that cannot list (they fail closed).
+audit() {
+    local label="$1" out
+    shift
+    if ! out="$("$@")"; then fail "$label: el audit no pudo listar"; return 0; fi
+    [ -z "$out" ] || fail "$label: $(printf '%s' "$out" | tr '\n' ' ')"
+}
+
+# $1 label  $2 line the audit must print, then the audit command.
+expect_caught() {
+    local label="$1" want="$2" out
+    shift 2
+    if ! out="$("$@")"; then fail "$label: el audit no pudo listar"; return 0; fi
+    if grep -qxF -- "$want" <<< "$out"; then ok "$label: lo detecta ($want)"; else fail "$label: no detecto $want"; fi
+}
 
 # D10: Apple marks sandbox-exec deprecated. If it disappears the gate must
 # fail and the decision reopens, never pass without isolation.
@@ -86,18 +112,28 @@ done
     || fail "la licencia OFL no viaja con las fuentes en el bundle de UI"
 [ -f "$APP/Contents/Resources/BrowserExtension/manifest.json" ] \
     || fail "falta Contents/Resources/BrowserExtension/manifest.json (D9)"
+audit "BrowserExtension fuera de la lista de scripts/package-contents.sh" \
+    browser_extension_strays "$APP/Contents/Resources/BrowserExtension"
+audit "la app lleva algo que nunca debe viajar" app_forbidden_entries "$APP"
+for pair in $RESOURCE_FOLDERS; do
+    audit "${pair%%:*} no coincide con git ls-files ${pair#*:}" \
+        resource_folder_strays "$APP/Contents/Resources/${pair%%:*}" "$ROOT" "${pair#*:}"
+done
 if codesign --verify --strict "$APP" 2>"$WORK/codesign.err"; then
     ok "codesign --verify --strict"
 else
     fail "codesign --verify --strict: $(cat "$WORK/codesign.err")"
 fi
-[ "$fails" -eq 0 ] && ok "bundles solo en Contents/Resources, fuentes en un solo lugar, extension presente"
+[ "$fails" -eq 0 ] && ok "bundles solo en Contents/Resources, fuentes en un solo lugar, extension presente, contenido igual a git"
 
 # ---------------------------------------------------------------- probe passes
 expected_skills=$(find "$ROOT/Sources/CompanionServices/Skills" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')
 
 assert_probe_passes() { # $1 label  $2 .app
     local label="$1" app="$2" prefix="$WORK/$1" before=$fails rc key line path
+    # The copy is what runs, so its seal is checked too, not only the original's.
+    codesign --verify --strict "$app" 2>"$prefix.codesign.err" \
+        || fail "$label: codesign --verify --strict de la copia: $(cat "$prefix.codesign.err")"
     rc=$(run_probe "$app" "$prefix")
     if [ "$rc" -ge 128 ]; then
         fail "$label: el probe murio por senal (rc=$rc)"
@@ -165,6 +201,26 @@ NO_EXTENSION="$WORK/no-extension/Companion.app"
 copy_app "$NO_EXTENSION"
 rm -rf "${NO_EXTENSION:?}/Contents/Resources/BrowserExtension"
 assert_probe_fails no-extension "$NO_EXTENSION" "browserExtension"
+
+# The layout audits are only as good as their detectors: planted copies of
+# the stray that once shipped, and of one inside a SwiftPM bundle, must be
+# caught by name.
+STRAY="$WORK/stray/Companion.app"
+copy_app "$STRAY"
+mkdir -p "$STRAY/Contents/Resources/BrowserExtension/Users/k/.git"
+echo '{}' > "$STRAY/Contents/Resources/BrowserExtension/Users/k/.git/claude-review.json"
+expect_caught "stray en la extension" 'Users/k/.git/claude-review.json' \
+    browser_extension_strays "$STRAY/Contents/Resources/BrowserExtension"
+
+SKILLS="Contents/Resources/Companion_CompanionServices.bundle/Skills"
+SKILLS_STRAY="$WORK/skills-stray/Companion.app"
+copy_app "$SKILLS_STRAY"
+mkdir -p "$SKILLS_STRAY/$SKILLS/.git"
+echo '{}' > "$SKILLS_STRAY/$SKILLS/.git/claude-review.json"
+echo 'x' > "$SKILLS_STRAY/$SKILLS/extra.md"
+expect_caught "stray en Skills, escaneo de la app" "$SKILLS/.git" app_forbidden_entries "$SKILLS_STRAY"
+expect_caught "extra en Skills, comparacion con git" 'extra.md' \
+    resource_folder_strays "$SKILLS_STRAY/$SKILLS" "$ROOT" Sources/CompanionServices/Skills
 
 echo
 if [ "$fails" -gt 0 ]; then

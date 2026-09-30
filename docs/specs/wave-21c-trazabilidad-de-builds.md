@@ -81,13 +81,19 @@ sin trackear**, y un `.swift` nuevo sin `git add` entra al build. Por eso:
 
 ```
 dirty = NOT (git diff --quiet HEAD)                         # staged + unstaged
-     OR hay salida de: git status --porcelain --untracked-files=all -- \
+     OR hay salida de: git status --porcelain --untracked-files=all --ignored -- \
           Package.swift Sources Extensions assets scripts
      OR git rev-parse falla (sin git)                       # desconocido nunca es limpio
+     OR git rev-parse --show-toplevel != ROOT               # no se juzga un repo padre
 ```
 
 Se calcula **antes** de `swift build`, para no medir artefactos del propio build. Si hay
 archivos sin trackear en `docs/`, dirty no se enciende.
+
+`--ignored` y la comprobación del toplevel se añadieron en 21c-3 (revisión de seguridad,
+2026-09-30), por la invariante "dirty nunca es falsamente limpio": un archivo ignorado dentro de
+`Sources` entra al build igual (SwiftPM `.copy` lo empaqueta), y un checkout sin `.git` dentro de
+otro repo haría juzgar el repo equivocado.
 
 ## 4. Archivo por UUID
 

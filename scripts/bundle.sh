@@ -59,10 +59,10 @@ done
 # CoreText register every face twice (21c).
 
 # Loaded unpacked from here, so the path Settings shows survives a rebuild.
+# Only the listed files: the folder can hold untracked strays git never shows.
+. "$ROOT/scripts/package-contents.sh"
 if [ -d "$ROOT/Extensions/browser" ]; then
-    mkdir -p "$APP/Contents/Resources/BrowserExtension"
-    cp -R "$ROOT/Extensions/browser/." "$APP/Contents/Resources/BrowserExtension/"
-    rm -rf "$APP/Contents/Resources/BrowserExtension/test"
+    browser_extension_copy "$ROOT/Extensions/browser" "$APP/Contents/Resources/BrowserExtension"
 fi
 
 [ -f "$ROOT/assets/AppIcon.icns" ] \
@@ -108,9 +108,12 @@ SIGN="-"
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "Companion Dev"; then
     SIGN="Companion Dev"
 fi
-if ! codesign --force --sign "$SIGN" "$APP" 2>/tmp/companion-codesign.err; then
+# Per-run file: a fixed /tmp name is shared by concurrent bundles and by users.
+SIGN_ERR="$(mktemp)"
+trap 'rm -f "$SIGN_ERR"' EXIT
+if ! codesign --force --sign "$SIGN" "$APP" 2>"$SIGN_ERR"; then
     echo "codesign falló con '$SIGN':" >&2
-    cat /tmp/companion-codesign.err >&2
+    cat "$SIGN_ERR" >&2
     exit 1
 fi
 if [ "$SIGN" = "-" ]; then
