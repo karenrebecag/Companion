@@ -19,6 +19,11 @@ enum CompanionMain {
         case .app:
             break
         }
+        // 21c: before AppKit, Log or the Keychain, so the packaging smoke
+        // measures resources and nothing else.
+        if ResourceProbe.isRequested() {
+            exit(ResourceProbe.run(UIResourceProbe.checks() + ServicesResourceProbe.checks()))
+        }
         let delegate = AppDelegate()
         let app = NSApplication.shared
         app.delegate = delegate

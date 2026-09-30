@@ -54,13 +54,9 @@ for bundle in "$BINPATH"/*.bundle; do
     cp -R "$bundle" "$APP/Contents/Resources/"
 done
 
-if [ -d "$ROOT/Sources/CompanionUI/Fonts" ]; then
-    mkdir -p "$APP/Contents/Resources/Fonts"
-    cp "$ROOT/Sources/CompanionUI/Fonts/"*.otf "$APP/Contents/Resources/Fonts/" 2>/dev/null || true
-    cp "$ROOT/Sources/CompanionUI/Fonts/"*.ttf "$APP/Contents/Resources/Fonts/" 2>/dev/null || true
-    [ -f "$ROOT/Sources/CompanionUI/Fonts/OFL.txt" ] \
-        && cp "$ROOT/Sources/CompanionUI/Fonts/OFL.txt" "$APP/Contents/Resources/Fonts/"
-fi
+# Fonts (and their OFL licenses) ship once, inside Companion_CompanionUI.bundle
+# (Package.swift copies the whole Fonts folder); a second copy here made
+# CoreText register every face twice (21c).
 
 # Loaded unpacked from here, so the path Settings shows survives a rebuild.
 if [ -d "$ROOT/Extensions/browser" ]; then
@@ -120,6 +116,18 @@ fi
 if [ "$SIGN" = "-" ]; then
     echo "aviso: firma ad-hoc — los permisos de micrófono se pierden en cada" >&2
     echo "       rebuild. Corre scripts/make-signing-cert.sh una vez." >&2
+fi
+
+# 21c: the signed app must find every resource with this checkout unreadable,
+# or it is not installed. No bypass: the spec allows none.
+"$ROOT/scripts/package-smoke.sh" "$APP"
+
+# D6: build, sign and smoke exactly as usual, but leave /Applications alone
+# (harnesses and other worktrees must not replace Karen's installed app).
+if [ "${COMPANION_NO_INSTALL:-}" = "1" ]; then
+    echo "built $APP (signed: $SIGN) — COMPANION_NO_INSTALL=1, sin instalar"
+    echo "run: open \"$APP\"    logs: ~/Library/Logs/$LOG_NAME"
+    exit 0
 fi
 
 # Install to /Applications: testing always opens THE app, never a stray
