@@ -2,23 +2,23 @@ import Foundation
 
 /// One product-chosen role. `id` is the model or adapter; `provider` is who
 /// serves it. Neither is the chat picker.
-public struct VoiceRole: Sendable, Equatable {
-    public var id: String
-    public var provider: String
+package struct VoiceRole: Sendable, Equatable {
+    package var id: String
+    package var provider: String
 
-    public init(id: String, provider: String) {
+    package init(id: String, provider: String) {
         self.id = id
         self.provider = provider
     }
 }
 
-public struct VoiceStack: Sendable, Equatable {
-    public var ear: VoiceRole?
-    public var brain: VoiceRole?
-    public var mouth: VoiceRole?
-    public var sight: VoiceRole?
+package struct VoiceStack: Sendable, Equatable {
+    package var ear: VoiceRole?
+    package var brain: VoiceRole?
+    package var mouth: VoiceRole?
+    package var sight: VoiceRole?
 
-    public init(
+    package init(
         ear: VoiceRole? = nil,
         brain: VoiceRole? = nil,
         mouth: VoiceRole? = nil,
@@ -32,22 +32,22 @@ public struct VoiceStack: Sendable, Equatable {
 
     /// 15c-4/15c-7: a brain that already picks the tool by commit, so the
     /// local router in front of it only adds latency.
-    public var hasFastBrain: Bool {
+    package var hasFastBrain: Bool {
         guard let provider = brain?.provider else { return false }
         return HoldBrainCatalog.fast.contains { $0.id == provider }
     }
 
-    public var logLine: String {
+    package var logLine: String {
         "ear=\(Self.tag(ear)) brain=\(Self.tag(brain)) mouth=\(Self.tag(mouth)) sight=\(Self.tag(sight))"
     }
 
     private static func tag(_ role: VoiceRole?) -> String { role?.id ?? "-" }
 }
 
-public enum VoiceStackResolver: Sendable {
+package enum VoiceStackResolver: Sendable {
     /// Keys and probes only. `providerOrder` is deliberately not a parameter:
     /// the hold must not follow the typed-chat ladder (Wave 14a).
-    public static func resolve(
+    package static func resolve(
         secrets: [SecretKey: Bool],
         appleSpeech: Bool,
         localModel: String?,
@@ -105,18 +105,18 @@ public enum VoiceStackResolver: Sendable {
 /// Wave 15f-7a: the one rule for when the hold speaks through ElevenLabs,
 /// shared by the press log and the router that actually picks the mouth so
 /// the two can never disagree.
-public enum ElevenLabsMouth {
+package enum ElevenLabsMouth {
     /// Flash v2.5: ElevenLabs' lowest-latency model (~75 ms per its docs,
     /// elevenlabs.io/docs/overview/models), and it takes `language_code`.
-    public static let model = "eleven_flash_v2_5"
+    package static let model = "eleven_flash_v2_5"
 
-    public static func isChosen(hasKey: Bool, voiceID: String) -> Bool {
+    package static func isChosen(hasKey: Bool, voiceID: String) -> Bool {
         hasKey && !voiceID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// 15f-6: the voice bench shortlist (spec §8.3), Karen's blind pick
     /// first; Brian stays as the old default so it is one click away.
-    public static let presets: [ElevenLabsVoicePreset] = [
+    package static let presets: [ElevenLabsVoicePreset] = [
         ElevenLabsVoicePreset(name: "Ana María", id: "m7yTemJqdIqrcNleANfX"),
         ElevenLabsVoicePreset(name: "Regina", id: "9Godp7dNohUvXk6qp0gS"),
         ElevenLabsVoicePreset(name: "Jorge", id: "Rt1JHkPO27QCUX6Nd5bV"),
@@ -131,7 +131,7 @@ public enum ElevenLabsMouth {
     /// path, so only what ElevenLabs issues passes — `^[A-Za-z0-9]{1,64}$`
     /// after trimming the ends. Lives here so Settings refuses exactly
     /// what the client would refuse.
-    public static func isValidVoiceID(_ raw: String) -> Bool {
+    package static func isValidVoiceID(_ raw: String) -> Bool {
         let voice = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard (1 ... maxVoiceIDLength).contains(voice.unicodeScalars.count) else { return false }
         return voice.unicodeScalars.allSatisfy { scalar in
@@ -143,11 +143,11 @@ public enum ElevenLabsMouth {
     }
 }
 
-public struct ElevenLabsVoicePreset: Sendable, Equatable, Hashable {
-    public let name: String
-    public let id: String
+package struct ElevenLabsVoicePreset: Sendable, Equatable, Hashable {
+    package let name: String
+    package let id: String
 
-    public init(name: String, id: String) {
+    package init(name: String, id: String) {
         self.name = name
         self.id = id
     }
@@ -155,18 +155,18 @@ public struct ElevenLabsVoicePreset: Sendable, Equatable, Hashable {
 
 /// 15e-3: which providers the hold's two chat clients may ask. Pure so the
 /// composition root's wiring is testable without building the app.
-public enum HoldBrainCatalog {
+package enum HoldBrainCatalog {
     /// The hold's brain on OpenAI: a tool call by commit costs less than
     /// gpt-4o's, and it is what `VoiceStackResolver` names in the log.
-    public static let openAIModel = "gpt-4o-mini"
+    package static let openAIModel = "gpt-4o-mini"
 
     /// One attempt each, no backoff: a 429 retried with sleeps was the
     /// 8-24 s turns measured live (15c-7).
-    public static let fast: [ProviderDescriptor] = [.cerebras]
+    package static let fast: [ProviderDescriptor] = [.cerebras]
 
     /// The fallback when the fast brain fails before its first delta. The
     /// fast rungs were already asked this turn, so they are skipped.
-    public static func ladder(_ effective: [ProviderDescriptor]) -> [ProviderDescriptor] {
+    package static func ladder(_ effective: [ProviderDescriptor]) -> [ProviderDescriptor] {
         let fastIDs = Set(fast.map(\.id))
         return effective
             .filter { !fastIDs.contains($0.id) }

@@ -1,13 +1,13 @@
 import SwiftUI
 
-public struct OrbView: View {
+package struct OrbView: View {
     private let config: OrbConfiguration
 
-    public init(configuration: OrbConfiguration = OrbConfiguration()) {
+    package init(configuration: OrbConfiguration = OrbConfiguration()) {
         self.config = configuration
     }
 
-    public var body: some View {
+    package var body: some View {
         GeometryReader { geometry in
             let size = min(geometry.size.width, geometry.size.height)
             ZStack {

@@ -4,14 +4,14 @@ import Foundation
 // Incredible's `stat`/`table`/`chart` blocks. Bounded so a runaway fence
 // cannot freeze the thread; a table that was cut says so.
 
-public struct StatsBlock: Sendable, Equatable {
-    public struct Item: Sendable, Equatable {
-        public var label: String
-        public var value: String
+package struct StatsBlock: Sendable, Equatable {
+    package struct Item: Sendable, Equatable {
+        package var label: String
+        package var value: String
         /// "+8 %", "−3": shown as written, never computed.
-        public var delta: String?
+        package var delta: String?
 
-        public init(label: String, value: String, delta: String? = nil) {
+        package init(label: String, value: String, delta: String? = nil) {
             self.label = label
             self.value = value
             self.delta = delta
@@ -19,26 +19,26 @@ public struct StatsBlock: Sendable, Equatable {
     }
 
     /// More than a row of tiles is a table.
-    public static let maxItems = 12
-    public var title: String?
-    public var items: [Item]
+    package static let maxItems = 12
+    package var title: String?
+    package var items: [Item]
 
-    public init(title: String? = nil, items: [Item]) {
+    package init(title: String? = nil, items: [Item]) {
         self.title = title
         self.items = items
     }
 }
 
-public struct TableBlock: Sendable, Equatable {
-    public static let maxRows = 200
-    public static let maxColumns = 12
-    public var title: String?
-    public var columns: [String]
+package struct TableBlock: Sendable, Equatable {
+    package static let maxRows = 200
+    package static let maxColumns = 12
+    package var title: String?
+    package var columns: [String]
     /// Every row has exactly `columns.count` cells.
-    public var rows: [[String]]
-    public var truncated: Bool
+    package var rows: [[String]]
+    package var truncated: Bool
 
-    public init(title: String? = nil, columns: [String], rows: [[String]], truncated: Bool = false) {
+    package init(title: String? = nil, columns: [String], rows: [[String]], truncated: Bool = false) {
         self.title = title
         self.columns = columns
         self.rows = rows
@@ -46,8 +46,8 @@ public struct TableBlock: Sendable, Equatable {
     }
 }
 
-public struct ChartBlock: Sendable, Equatable {
-    public enum Kind: String, Sendable, Equatable, CaseIterable {
+package struct ChartBlock: Sendable, Equatable {
+    package enum Kind: String, Sendable, Equatable, CaseIterable {
         case bar, line, area, pie, donut, scatter, polar, radar
 
         /// Parts of a whole and radial charts have no meaning below zero.
@@ -56,7 +56,7 @@ public struct ChartBlock: Sendable, Equatable {
         var singleSeries: Bool { [.pie, .donut, .polar].contains(self) }
         /// Only the island paints these; the window card and the PDF show the
         /// same numbers as a table rather than bars under another name.
-        public var isIslandOnly: Bool { self == .polar || self == .radar }
+        package var isIslandOnly: Bool { self == .polar || self == .radar }
         /// Most labels this kind stays legible with; nil is no cap of its own.
         var legibleLabels: Int? {
             switch self {
@@ -69,43 +69,43 @@ public struct ChartBlock: Sendable, Equatable {
         var minLabels: Int { self == .radar ? ChartBlock.minRadarAxes : 1 }
     }
 
-    public struct Series: Sendable, Equatable {
-        public var name: String?
-        public var values: [Double]
+    package struct Series: Sendable, Equatable {
+        package var name: String?
+        package var values: [Double]
 
-        public init(name: String? = nil, values: [Double]) {
+        package init(name: String? = nil, values: [Double]) {
             self.name = name
             self.values = values
         }
     }
 
-    public static let maxSeries = 8
-    public static let maxPoints = 500
-    public static let minRadarAxes = 3
+    package static let maxSeries = 8
+    package static let maxPoints = 500
+    package static let minRadarAxes = 3
     /// Legibility caps for the round kinds: past them the labels collide at
     /// the island's canvas and the same numbers read better as a table.
     // HACK: set from the 16m-5a snapshots (24 axes overlapped the pole labels,
     // 20 clears them); never checked against real answers. Revisit when a
     // real chart lands on the cap.
-    public static let maxRadarAxes = 20
-    public static let maxSlices = 12
+    package static let maxRadarAxes = 20
+    package static let maxSlices = 12
     /// Bar, line, area and scatter cost a mark per point per series, and
     /// past a thousand the chart is slower than it is useful.
     // HACK: a round number, not benchmarked. Measure Swift Charts on real
     // answers and move it when a chart of this size feels slow.
-    public static let maxCartesianPoints = 1000
+    package static let maxCartesianPoints = 1000
     /// Past this a value is a broken number, not a large one: the sums the
     /// painters take would overflow long before the cap on points does.
     // HACK: a flat ceiling far above any real figure; lower it per unit if
     // a chart ever needs to refuse sooner.
-    public static let maxMagnitude = 1e12
-    public var title: String?
-    public var kind: Kind
-    public var unit: String?
-    public var labels: [String]
-    public var series: [Series]
+    package static let maxMagnitude = 1e12
+    package var title: String?
+    package var kind: Kind
+    package var unit: String?
+    package var labels: [String]
+    package var series: [Series]
 
-    public init(title: String? = nil, kind: Kind, unit: String? = nil, labels: [String], series: [Series]) {
+    package init(title: String? = nil, kind: Kind, unit: String? = nil, labels: [String], series: [Series]) {
         self.title = title
         self.kind = kind
         self.unit = unit
@@ -115,7 +115,7 @@ public struct ChartBlock: Sendable, Equatable {
 
     /// The same numbers as rows, for a kind the painter does not know and
     /// for documents that want the figures beside the drawing.
-    public var asTable: TableBlock {
+    package var asTable: TableBlock {
         let columns = [""] + series.enumerated().map { index, serie in serie.name ?? "\(index + 1)" }
         let rows = labels.enumerated().map { index, label in
             [label] + series.map { $0.values.indices.contains(index) ? DataCells.number($0.values[index]) : "" }
@@ -139,11 +139,11 @@ enum DataCells {
 }
 
 extension CompanionBlocks {
-    public static let statsLanguage = "companion:stats"
-    public static let tableLanguage = "companion:table"
-    public static let chartLanguage = "companion:chart"
+    package static let statsLanguage = "companion:stats"
+    package static let tableLanguage = "companion:table"
+    package static let chartLanguage = "companion:chart"
 
-    public static func stats(_ body: String) -> StatsBlock? {
+    package static func stats(_ body: String) -> StatsBlock? {
         fenceObject(body).flatMap(stats(from:))
     }
 
@@ -160,7 +160,7 @@ extension CompanionBlocks {
         return items.isEmpty ? nil : StatsBlock(title: (dict["title"] as? String).map(clean), items: items)
     }
 
-    public static func table(_ body: String) -> TableBlock? {
+    package static func table(_ body: String) -> TableBlock? {
         guard let dict = fenceObject(body) else { return nil }
         return table(from: dict)
     }
@@ -181,7 +181,7 @@ extension CompanionBlocks {
 
     /// A chart, or the same data as a table when the kind is unknown: the
     /// numbers the model looked up are never thrown away over a word.
-    public static func chart(_ body: String) -> CardPayload? {
+    package static func chart(_ body: String) -> CardPayload? {
         guard let dict = fenceObject(body) else { return nil }
         return chart(from: dict)
     }

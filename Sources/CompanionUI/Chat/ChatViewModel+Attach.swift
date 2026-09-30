@@ -2,7 +2,7 @@ import CompanionCore
 import Foundation
 
 extension ChatViewModel {
-    public func attach(_ url: URL) -> AttachmentRef? {
+    package func attach(_ url: URL) -> AttachmentRef? {
         guard let attachments else { return nil }
         do {
             let ref = try attachments.adopt(url, conversationId: conversationId)
@@ -18,7 +18,7 @@ extension ChatViewModel {
         }
     }
 
-    public func removePending(_ ref: AttachmentRef) {
+    package func removePending(_ ref: AttachmentRef) {
         pendingAttachments.removeAll { $0.id == ref.id }
         attachments?.discard(ref)
     }

@@ -18,7 +18,7 @@ final class AudioStreamBox<T: Sendable>: @unchecked Sendable {
 
 /// AVAudioEngine and AVAudioMixerNode are not Sendable; this class isolates them
 /// and protects access with guard checks and Task synchronization.
-public final class MicCapture: MicCapturing, @unchecked Sendable {
+package final class MicCapture: MicCapturing, @unchecked Sendable {
     private let access: @Sendable () async -> Bool
     private let echoCancellation: Bool
     private let vetoStore: AECVetoStoring
@@ -35,13 +35,13 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
     private var tapInstalled = false
     private var watchdogRetryCount = 0
 
-    public var frames: AsyncStream<MicFrame> { frameBox.stream }
-    public var hasEchoCancellation: Bool { voiceProcessing }
-    public var receivedBuffer: Bool { didReceive }
+    package var frames: AsyncStream<MicFrame> { frameBox.stream }
+    package var hasEchoCancellation: Bool { voiceProcessing }
+    package var receivedBuffer: Bool { didReceive }
     /// Player joins this engine when VPIO is live so AEC hears the agent.
-    public var playbackEngine: AVAudioEngine? { voiceProcessing ? engine : nil }
+    package var playbackEngine: AVAudioEngine? { voiceProcessing ? engine : nil }
 
-    public init(
+    package init(
         echoCancellation: Bool = false,
         access: @escaping @Sendable () async -> Bool = {
             let ok = await AVCaptureDevice.requestAccess(for: .audio)
@@ -72,9 +72,9 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
         frameBox.finish()
     }
 
-    public func requestAccess() async -> Bool { await access() }
+    package func requestAccess() async -> Bool { await access() }
 
-    public func start() async throws {
+    package func start() async throws {
         do {
             try startOnce()
         } catch VoiceTransportError.unreachable where voiceProcessing {
@@ -104,7 +104,7 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
         try startOnce()
     }
 
-    public func stop() async { halt() }
+    package func stop() async { halt() }
 
     /// Wave 12c: build the engine and enable voice processing at boot so
     /// the first hold does not pay for it. Only with the mic already
@@ -112,7 +112,7 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
     /// `engine.prepare()` here: on a graph with no tap installed it raises
     /// an Objective-C exception and took the whole app down (seen live
     /// 2026-09-06); `start()` prepares once the tap exists.
-    public func prewarm() async {
+    package func prewarm() async {
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
             Log.app("prewarm: mic not granted yet, engine left cold")
             return
@@ -121,7 +121,7 @@ public final class MicCapture: MicCapturing, @unchecked Sendable {
         prepareEngine()
     }
 
-    public func disableVoiceProcessing() async {
+    package func disableVoiceProcessing() async {
         halt()
         vetoVoiceProcessing = true
         vetoStore.isVetoed = true

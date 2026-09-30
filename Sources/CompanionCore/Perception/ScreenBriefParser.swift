@@ -1,8 +1,8 @@
 import Foundation
 
 /// Turns the sidecar model's text into a brief. Pure: no network, no image.
-public enum ScreenBriefParser {
-    public static func parse(_ raw: String) -> ScreenBrief {
+package enum ScreenBriefParser {
+    package static func parse(_ raw: String) -> ScreenBrief {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return ScreenBrief() }
         var summary: String?

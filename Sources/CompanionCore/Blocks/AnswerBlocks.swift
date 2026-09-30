@@ -1,10 +1,10 @@
 import Foundation
 
 /// One checkbox line of a task block.
-public struct TaskLine: Sendable, Equatable {
-    public var done: Bool
-    public var text: String
-    public init(done: Bool, text: String) {
+package struct TaskLine: Sendable, Equatable {
+    package var done: Bool
+    package var text: String
+    package init(done: Bool, text: String) {
         self.done = done
         self.text = text
     }
@@ -14,7 +14,7 @@ public struct TaskLine: Sendable, Equatable {
 /// catalog names blocks the markdown splitter does not — tasks, callout,
 /// file chip, eyebrow — so they are DERIVED here, in Core, where a test can
 /// pin exactly which markdown becomes which block before any view exists.
-public enum AnswerBlock: Sendable, Equatable {
+package enum AnswerBlock: Sendable, Equatable {
     case title(String)
     case section(String)
     case eyebrow(String)
@@ -32,19 +32,19 @@ public enum AnswerBlock: Sendable, Equatable {
     case diagram(DiagramBlock)
 }
 
-public extension AnswerBlock {
+package extension AnswerBlock {
     var isChoice: Bool {
         if case .choice = self { return true }
         return false
     }
 }
 
-public enum AnswerBlocks {
+package enum AnswerBlocks {
     /// The card's summary cap (IslandResult.maxLine): anything the card can
     /// already say whole has no popup to earn.
     static let plainCap = 240
 
-    public static func blocks(from markdown: String) -> [AnswerBlock] {
+    package static func blocks(from markdown: String) -> [AnswerBlock] {
         let parts = MarkdownSplitter.split(markdown)
         let cut = MarkdownSplitter.endsInsideFence(markdown)
         return parts.enumerated().map { index, part in
@@ -55,7 +55,7 @@ public enum AnswerBlocks {
     /// True when the answer holds more than the result card can say: any
     /// structured block, or prose past the card's own cap (D2, spec §5 —
     /// a short phrase never opens the popup).
-    public static func isRich(_ blocks: [AnswerBlock]) -> Bool {
+    package static func isRich(_ blocks: [AnswerBlock]) -> Bool {
         var plain = 0
         for block in blocks {
             switch block {

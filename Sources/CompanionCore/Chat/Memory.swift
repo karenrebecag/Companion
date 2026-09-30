@@ -4,8 +4,8 @@ import Foundation
 /// read and edit — the industry converged on files over vectors for a
 /// single-user assistant, and this product's identity is not doing things
 /// behind the user's back (Wave 9j-2).
-public enum MemoryLocation {
-    public static func directory(
+package enum MemoryLocation {
+    package static func directory(
         appSupport: URL = FileManager.default.urls(
             for: .applicationSupportDirectory, in: .userDomainMask)[0]
     ) -> URL {
@@ -15,41 +15,41 @@ public enum MemoryLocation {
 
 /// What the session knows at open: the stable profile, the recent past, and
 /// the durable notes. Assembled by the store, injected by the prompt.
-public struct MemoryPack: Sendable, Equatable {
-    public var core: String
-    public var recentSessions: [String]
-    public var notes: [String]
+package struct MemoryPack: Sendable, Equatable {
+    package var core: String
+    package var recentSessions: [String]
+    package var notes: [String]
 
-    public init(core: String = "", recentSessions: [String] = [],
+    package init(core: String = "", recentSessions: [String] = [],
                 notes: [String] = []) {
         self.core = core
         self.recentSessions = recentSessions
         self.notes = notes
     }
 
-    public var isEmpty: Bool {
+    package var isEmpty: Bool {
         core.isEmpty && recentSessions.isEmpty && notes.isEmpty
     }
 }
 
 /// The read path port. File-backed in Services; a fake in tests.
-public protocol MemoryStore: Sendable {
+package protocol MemoryStore: Sendable {
     func load() -> MemoryPack
     func appendSession(_ summary: String) throws
 }
 
 /// One thing Companion remembers, as Settings › Memoria lists it (16g). The
 /// id is the file's path inside the memory folder and nothing else.
-public struct MemoryEntry: Sendable, Equatable, Identifiable {
-    public enum Kind: String, Sendable { case note, session }
+package struct MemoryEntry: Sendable, Equatable, Identifiable {
+    package enum Kind: String, Sendable { case note, session }
 
-    public let id: String
-    public let kind: Kind
+    package let id: String
+    package let kind: Kind
     /// yyyy-MM-dd from the file name; empty when the name has none.
-    public let day: String
-    public let text: String
+    package let day: String
+    package let text: String
 
-    public init(id: String, kind: Kind, day: String, text: String) {
+    package init(id: String, kind: Kind, day: String, text: String) {
         self.id = id
         self.kind = kind
         self.day = day
@@ -57,29 +57,29 @@ public struct MemoryEntry: Sendable, Equatable, Identifiable {
     }
 }
 
-public enum MemoryBrowsingError: Error, Equatable {
+package enum MemoryBrowsingError: Error, Equatable {
     case notAnEntry
 }
 
 /// The Settings side of memory: read what is there and forget one entry.
 /// The core profile is not an entry; it is edited as the file it is.
-public protocol MemoryBrowsing: Sendable {
+package protocol MemoryBrowsing: Sendable {
     func entries() -> [MemoryEntry]
     func forget(_ id: String) throws
 }
 
-public enum MemoryPrompt {
+package enum MemoryPrompt {
     /// Caps keep the pack from eating the context: memory informs the turn,
     /// it must never BE the turn.
-    public static let coreCap = 6_000        // ~1.5k tokens
-    public static let sessionCap = 700
-    public static let noteCap = 700
+    package static let coreCap = 6_000        // ~1.5k tokens
+    package static let sessionCap = 700
+    package static let noteCap = 700
 
     /// The block injected into the system prompt / realtime instructions.
     /// Framed as DATA about the user, never as instructions: stored text is
     /// untrusted — a note must not be able to smuggle an order into a future
     /// session (memory prompt-injection, documented failure mode).
-    public static func inject(
+    package static func inject(
         _ pack: MemoryPack, language: AppLanguage = .en,
         knowledgeDirectory: String = ""
     ) -> String {
@@ -135,12 +135,12 @@ public enum MemoryPrompt {
     }
 }
 
-public enum MemorySummary {
+package enum MemorySummary {
     /// Mechanical distillation of a session — no model call, per the 9h HACK
     /// note: what the user asked, in their words, plus the size of the
     /// exchange. Honest and instant. Upgrade trigger: when summaries read too
     /// thin to be useful, a cheap model call replaces this at session close.
-    public static func distill(
+    package static func distill(
         turns: [Turn], date: String, maxRequests: Int = 4
     ) -> String? {
         let asks = turns.filter { $0.role == .user }

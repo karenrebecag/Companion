@@ -1,6 +1,6 @@
 import Foundation
 
-public enum MenuCommand: String, Sendable, Equatable {
+package enum MenuCommand: String, Sendable, Equatable {
     case about, settings, hide, hideOthers, showAll, quit
     case undo, redo, cut, copy, paste, pastePlain, selectAll
     case attach, newConversation, history
@@ -8,15 +8,15 @@ public enum MenuCommand: String, Sendable, Equatable {
     case minimize, close, bringAllToFront
 }
 
-public struct MenuItemPlan: Sendable, Equatable {
-    public let title: String
-    public let command: MenuCommand?
-    public let keyEquivalent: String
-    public let modifiers: KeyModifiers
+package struct MenuItemPlan: Sendable, Equatable {
+    package let title: String
+    package let command: MenuCommand?
+    package let keyEquivalent: String
+    package let modifiers: KeyModifiers
 
-    public var isSeparator: Bool { command == nil }
+    package var isSeparator: Bool { command == nil }
 
-    public init(
+    package init(
         title: String,
         command: MenuCommand?,
         keyEquivalent: String,
@@ -28,33 +28,33 @@ public struct MenuItemPlan: Sendable, Equatable {
         self.modifiers = modifiers
     }
 
-    public static func separator() -> MenuItemPlan {
+    package static func separator() -> MenuItemPlan {
         MenuItemPlan(
             title: "", command: nil, keyEquivalent: "", modifiers: KeyModifiers())
     }
 }
 
-public struct MenuSectionPlan: Sendable, Equatable {
-    public let title: String
-    public let items: [MenuItemPlan]
+package struct MenuSectionPlan: Sendable, Equatable {
+    package let title: String
+    package let items: [MenuItemPlan]
 
-    public init(title: String, items: [MenuItemPlan]) {
+    package init(title: String, items: [MenuItemPlan]) {
         self.title = title
         self.items = items
     }
 }
 
 /// Closures the App layer fills. The plan itself never names a ViewModel.
-public struct MenuRouting {
-    public var openSettings: () -> Void
-    public var attach: () -> Void
-    public var newConversation: () -> Void
-    public var history: () -> Void
-    public var toggleVoice: () -> Void
-    public var toggleMute: () -> Void
-    public var hangUp: () -> Void
+package struct MenuRouting {
+    package var openSettings: () -> Void
+    package var attach: () -> Void
+    package var newConversation: () -> Void
+    package var history: () -> Void
+    package var toggleVoice: () -> Void
+    package var toggleMute: () -> Void
+    package var hangUp: () -> Void
 
-    public init(
+    package init(
         openSettings: @escaping () -> Void,
         attach: @escaping () -> Void,
         newConversation: @escaping () -> Void,
@@ -73,7 +73,7 @@ public struct MenuRouting {
     }
 }
 
-public extension Notification.Name {
+package extension Notification.Name {
     static let companionShortcutsDidChange = Notification.Name(
         "companion.shortcutsDidChange")
     /// Wave 16d: the menus follow a language picked in Settings.
@@ -112,8 +112,8 @@ public extension Notification.Name {
         "companion.handsLendingDidChange")
 }
 
-public enum MenuPlan {
-    public static func build(shortcuts: ShortcutSet) -> [MenuSectionPlan] {
+package enum MenuPlan {
+    package static func build(shortcuts: ShortcutSet) -> [MenuSectionPlan] {
         [
             MenuSectionPlan(title: "Companion", items: appItems(shortcuts)),
             MenuSectionPlan(title: Localized.string("menu.edit"), items: editItems()),
@@ -209,21 +209,21 @@ public enum MenuPlan {
 
 /// The menu bar item (Wave 16d): Incredible's five, so the app stays
 /// reachable with the window closed.
-public enum StatusCommand: String, Sendable, Equatable, CaseIterable {
+package enum StatusCommand: String, Sendable, Equatable, CaseIterable {
     // Wave 17: `stopHands` sits before `quit` — `StatusBarMenu.rebuild()`
     // draws a separator right before quit, and adding a case here is the
     // only thing that moves an entry ahead of that separator.
     case cancel, show, settings, checkUpdates, stopHands, quit
 }
 
-public struct StatusMenuItem: Sendable, Equatable {
-    public let command: StatusCommand
-    public let title: String
-    public let keyEquivalent: String
+package struct StatusMenuItem: Sendable, Equatable {
+    package let command: StatusCommand
+    package let title: String
+    package let keyEquivalent: String
 }
 
-public enum StatusMenuPlan {
-    public static var items: [StatusMenuItem] {
+package enum StatusMenuPlan {
+    package static var items: [StatusMenuItem] {
         StatusCommand.allCases.map { command in
             StatusMenuItem(
                 command: command,

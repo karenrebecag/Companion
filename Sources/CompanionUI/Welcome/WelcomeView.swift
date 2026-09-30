@@ -4,17 +4,17 @@ import SwiftUI
 /// Incredible's welcome (Wave 16c): a stepper, one idea per screen, one black
 /// pill at the bottom. Always light and black-and-white: clean paper before
 /// the app's own colour enters (Karen, 2026-08-26).
-public struct WelcomeView: View {
+package struct WelcomeView: View {
     var welcome: WelcomeModel
     @Bindable var chat: ChatViewModel
     @State private var keys = KeysSettingsModel()
 
-    public init(welcome: WelcomeModel, chat: ChatViewModel) {
+    package init(welcome: WelcomeModel, chat: ChatViewModel) {
         self.welcome = welcome
         self.chat = chat
     }
 
-    public var body: some View {
+    package var body: some View {
         let step = welcome.flow.step
         VStack(spacing: Space.none) {
             topBar(step)

@@ -4,7 +4,7 @@ import Foundation
 /// Standard executor provider: maintains list of available executors and selects one.
 /// Supports detection of CLI executors and fallback to native if selected executor vanishes.
 /// Uses thread-safe state management internally.
-public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendable {
+package final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendable {
     private let nativeExecutor: any Executor
     private let cliProbe: CLIExecutorProbe
     private let stateQueue = DispatchQueue(label: "com.companion.executor-provider", attributes: .concurrent)
@@ -14,7 +14,7 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
 
     /// workdir/launcher/approvals are what a CLI executor needs to exist; a
     /// provider that cannot build one can only ever return the native path.
-    public init(
+    package init(
         nativeExecutor: any Executor,
         cliProbe: CLIExecutorProbe,
         workdir: String? = nil,
@@ -43,7 +43,7 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
     private let skills: @Sendable () -> String
 
     /// Update the catalog of available executors (probe for CLI tools).
-    public func refreshAvailableExecutors() async {
+    package func refreshAvailableExecutors() async {
         let detected = await cliProbe.detectAvailable()
         let newExecutors = ExecutorCatalog.list(detected: detected)
 
@@ -67,7 +67,7 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
     }
 
     /// Get the current list of available executors (include native).
-    public func getAvailableExecutors() -> [ExecutorDescriptor] {
+    package func getAvailableExecutors() -> [ExecutorDescriptor] {
         var result: [ExecutorDescriptor] = []
         stateQueue.sync {
             result = _availableExecutors.isEmpty ? [ExecutorCatalog.native] : _availableExecutors
@@ -76,7 +76,7 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
     }
 
     /// Select an executor by ID. Returns false if ID not found (no change).
-    public func selectExecutor(id: ExecutorID) -> Bool {
+    package func selectExecutor(id: ExecutorID) -> Bool {
         var result = false
         stateQueue.sync {
             let available = _availableExecutors.isEmpty ? [ExecutorCatalog.native] : _availableExecutors
@@ -99,7 +99,7 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
     }
 
     /// Get the currently selected executor ID.
-    public func getSelectedExecutorId() -> ExecutorID {
+    package func getSelectedExecutorId() -> ExecutorID {
         var result: ExecutorID = .native
         stateQueue.sync {
             result = _selectedExecutorId ?? .native
@@ -108,7 +108,7 @@ public final class ExecutorProvider: ExecutorProviderProtocol, @unchecked Sendab
     }
 
     /// Implements ExecutorProviderProtocol: select executor for a handoff.
-    public func selectExecutor(for _: Handoff) -> any Executor {
+    package func selectExecutor(for _: Handoff) -> any Executor {
         var id: ExecutorID = .native
         var cached: (any Executor)? = nil
 

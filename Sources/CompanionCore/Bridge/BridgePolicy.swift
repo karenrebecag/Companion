@@ -8,7 +8,7 @@ import Foundation
 /// → paused (voice turn; Karen is speaking) → open (voice turn done).
 /// The approval sheet moves to the first call, not hello, because Claude Code
 /// launches MCP servers at startup and would pop a sheet on every launch.
-public enum BridgeState: Sendable, Equatable {
+package enum BridgeState: Sendable, Equatable {
     case idle
     case listed
     case awaitingApproval
@@ -17,7 +17,7 @@ public enum BridgeState: Sendable, Equatable {
     case closed
 }
 
-public enum BridgeVerdict: Sendable, Equatable {
+package enum BridgeVerdict: Sendable, Equatable {
     case proceed
     case needsApproval
     case reject(code: String)
@@ -25,13 +25,13 @@ public enum BridgeVerdict: Sendable, Equatable {
 
 /// Pure policy for session authorization and rate limiting. The write and read
 /// budgets each count towards their own sliding window.
-public struct BridgePolicy: Sendable, Equatable {
+package struct BridgePolicy: Sendable, Equatable {
     /// The tool name the session-grant approval carries. Not an executable
     /// tool: it exists so the reducer and the sheet can tell the bridge's
     /// ask apart from a job's (`ApprovalKey.from` refuses to remember it).
-    public static let sessionApprovalTool = "bridge_session"
+    package static let sessionApprovalTool = "bridge_session"
 
-    public static let writeTools: Set<String> = [
+    package static let writeTools: Set<String> = [
         "click",
         "type_text",
         "press_key",
@@ -57,7 +57,7 @@ public struct BridgePolicy: Sendable, Equatable {
     /// Companion was already allowed to see, changes no content, and an agent
     /// calls it between reads. It stays out of `writeTools`, so it is neither
     /// counted against the action budget nor reported as an action.
-    public static let readTools: Set<String> = [
+    package static let readTools: Set<String> = [
         "list_apps",
         "read_skill",
         "find_places",
@@ -70,32 +70,32 @@ public struct BridgePolicy: Sendable, Equatable {
     ]
 
     /// Allowlisted tools that sit in neither bucket.
-    public static func unbucketed(_ allowed: Set<String>) -> Set<String> {
+    package static func unbucketed(_ allowed: Set<String>) -> Set<String> {
         allowed.subtracting(writeTools).subtracting(readTools)
     }
 
-    public static let budgetPerMinute = 30
+    package static let budgetPerMinute = 30
     /// Wave 20c D6 (M8b): reads (`look`, `see`, `read_focused`...) draw from
     /// their own allowance. They used to be free, so a peer could hammer the
     /// screen capture and the vision model; and they must not share the
     /// action allowance, or either flood would starve the other. Looser than
     /// the actions: an agent re-reads the screen after every step.
-    public static let readBudgetPerMinute = 60
-    public static let window: TimeInterval = 60
+    package static let readBudgetPerMinute = 60
+    package static let window: TimeInterval = 60
 
     /// Wave 20c D5 (M2a): a connection with no traffic for this long loses
     /// the hands. Long enough for a slow agent step, short enough that a
     /// forgotten client does not hold them for the rest of the day.
-    public static let idleTimeout: TimeInterval = 10 * 60
+    package static let idleTimeout: TimeInterval = 10 * 60
     /// How often the session looks at the clock; the timeout is the ceiling,
     /// this is only the resolution.
-    public static let idleCheckInterval: TimeInterval = 15
+    package static let idleCheckInterval: TimeInterval = 15
 
     /// Wave 20c D5 (M2b): this many denied approvals inside `denialWindow`
     /// and the caller is cooled down until the oldest one ages out, so
     /// nobody can spam requests hoping for a mistaken yes.
-    public static let maxDenials = 3
-    public static let denialWindow: TimeInterval = 10 * 60
+    package static let maxDenials = 3
+    package static let denialWindow: TimeInterval = 10 * 60
 
     /// Wave 20c D5 (review F1): approval SHEETS shown per `sheetWindow`,
     /// whatever their outcome. Withdrawn and timed-out sheets are not denials
@@ -104,10 +104,10 @@ public struct BridgePolicy: Sendable, Equatable {
     /// session sheet plus a per-call sheet for each destructive click or
     /// `type_text`; 20 in ten minutes is far past what a person answers, and
     /// still stops a loop.
-    public static let maxSheetsPerWindow = 20
-    public static let sheetWindow: TimeInterval = denialWindow
+    package static let maxSheetsPerWindow = 20
+    package static let sheetWindow: TimeInterval = denialWindow
 
-    public private(set) var state: BridgeState
+    package private(set) var state: BridgeState
 
     /// Absolute timestamps of write operations. Pruned to keep only writes
     /// within the current window on each write-tool admit.
@@ -120,19 +120,19 @@ public struct BridgePolicy: Sendable, Equatable {
     /// never clears it, or reconnecting would reset the count.
     private var denialTimestamps: [Date]
 
-    public init() {
+    package init() {
         self.state = .idle
         self.writeTimestamps = []
         self.readTimestamps = []
         self.denialTimestamps = []
     }
 
-    public mutating func recordDenial(now: Date) {
+    package mutating func recordDenial(now: Date) {
         denialTimestamps = denialTimestamps.filter { $0 > now.addingTimeInterval(-Self.denialWindow) }
         denialTimestamps.append(now)
     }
 
-    public func isCoolingDown(now: Date) -> Bool {
+    package func isCoolingDown(now: Date) -> Bool {
         let cutoff = now.addingTimeInterval(-Self.denialWindow)
         return denialTimestamps.filter { $0 > cutoff }.count >= Self.maxDenials
     }
@@ -146,7 +146,7 @@ public struct BridgePolicy: Sendable, Equatable {
     /// sliding-window prune is the only thing allowed to shrink it, or
     /// `hello → 30 writes → bye → hello → …` would launder the 30/min cap
     /// on every reconnect.
-    public mutating func helloReceived(now: Date) -> BridgeVerdict {
+    package mutating func helloReceived(now: Date) -> BridgeVerdict {
         if isCoolingDown(now: now) { return .reject(code: BridgeCode.coolingDown) }
         switch state {
         case .idle, .closed:
@@ -165,18 +165,18 @@ public struct BridgePolicy: Sendable, Equatable {
     /// passes `nil`, so the expiry branches in `admit` and `resume` are
     /// inert until a wave brings expiring grants back. Kept, not removed:
     /// the state carries `until` and the tests pin the expiry semantics.
-    public mutating func approved(until: Date?, now: Date) {
+    package mutating func approved(until: Date?, now: Date) {
         state = .open(until: until)
     }
 
     /// Called when the user denies on the sheet. Closes the session.
-    public mutating func denied() {
+    package mutating func denied() {
         state = .closed
     }
 
     /// Called when a tool call arrives. Checks if the session is valid and
     /// if the write budget allows it. Records the timestamp if approved.
-    public mutating func admit(tool: String, now: Date) -> BridgeVerdict {
+    package mutating func admit(tool: String, now: Date) -> BridgeVerdict {
         if isCoolingDown(now: now) { return .reject(code: BridgeCode.coolingDown) }
         // Check session state
         switch state {
@@ -224,7 +224,7 @@ public struct BridgePolicy: Sendable, Equatable {
     /// Pause the session (voice turn started). The open session transitions to
     /// paused until resume or stop is called. Preserves the expiration time.
     /// In-flight calls are not interrupted.
-    public mutating func pause() {
+    package mutating func pause() {
         if case .open(let until) = state {
             state = .paused(until: until)
         }
@@ -232,7 +232,7 @@ public struct BridgePolicy: Sendable, Equatable {
 
     /// Resume from paused. Transitions back to open, or to closed if the
     /// session had an expiration and it passed while paused.
-    public mutating func resume(now: Date) {
+    package mutating func resume(now: Date) {
         if case .paused(let until) = state {
             if let expiry = until, expiry < now {
                 state = .closed
@@ -243,22 +243,22 @@ public struct BridgePolicy: Sendable, Equatable {
     }
 
     /// Stop the session. Closes it from any state.
-    public mutating func stop() {
+    package mutating func stop() {
         state = .closed
     }
 
     /// Called when the connection drops without a bye. Resets to idle so a
     /// new connection can attempt hello again.
-    public mutating func disconnected() {
+    package mutating func disconnected() {
         state = .idle
     }
 
-    public var isOpen: Bool {
+    package var isOpen: Bool {
         if case .open = state { return true }
         return false
     }
 
-    public var isListed: Bool {
+    package var isListed: Bool {
         if case .listed = state { return true }
         return false
     }
@@ -267,13 +267,13 @@ public struct BridgePolicy: Sendable, Equatable {
 /// Sliding window over the sheets a bridge has shown. Separate from the
 /// denial cool-down on purpose: that one counts refusals only, this one
 /// counts every sheet whatever became of it. Per process, never reset.
-public struct BridgeSheetLimit: Sendable, Equatable {
+package struct BridgeSheetLimit: Sendable, Equatable {
     private var shown: [Date] = []
 
-    public init() {}
+    package init() {}
 
     /// True and records the sheet when one more may be shown at `now`.
-    public mutating func admit(now: Date) -> Bool {
+    package mutating func admit(now: Date) -> Bool {
         let cutoff = now.addingTimeInterval(-BridgePolicy.sheetWindow)
         shown = shown.filter { $0 > cutoff }
         guard shown.count < BridgePolicy.maxSheetsPerWindow else { return false }

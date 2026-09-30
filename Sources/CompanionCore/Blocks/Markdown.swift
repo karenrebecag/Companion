@@ -1,16 +1,16 @@
 import Foundation
 
-public struct MarkdownSplitter: Sendable {
-    public struct Item: Sendable, Equatable {
-        public var depth: Int
-        public var text: String
-        public init(depth: Int, text: String) {
+package struct MarkdownSplitter: Sendable {
+    package struct Item: Sendable, Equatable {
+        package var depth: Int
+        package var text: String
+        package init(depth: Int, text: String) {
             self.depth = depth
             self.text = text
         }
     }
 
-    public enum Kind: Sendable, Equatable {
+    package enum Kind: Sendable, Equatable {
         case prose(String)
         case heading(level: Int, text: String)
         case list(ordered: Bool, items: [Item])
@@ -20,20 +20,20 @@ public struct MarkdownSplitter: Sendable {
         case table(headers: [String], rows: [[String]])
     }
 
-    public struct Part: Sendable, Equatable {
-        public var id: Int
-        public var kind: Kind
-        public init(id: Int, kind: Kind) {
+    package struct Part: Sendable, Equatable {
+        package var id: Int
+        package var kind: Kind
+        package init(id: Int, kind: Kind) {
             self.id = id
             self.kind = kind
         }
     }
 
-    public struct SourceLink: Sendable, Equatable {
-        public var title: String
-        public var url: String
-        public var detail: String?
-        public init(title: String, url: String, detail: String? = nil) {
+    package struct SourceLink: Sendable, Equatable {
+        package var title: String
+        package var url: String
+        package var detail: String?
+        package init(title: String, url: String, detail: String? = nil) {
             self.title = title
             self.url = url
             self.detail = detail
@@ -41,7 +41,7 @@ public struct MarkdownSplitter: Sendable {
     }
 
     /// Cards stay visible: they are the answer, not the process behind the fold.
-    public static func reportCut(_ text: String)
+    package static func reportCut(_ text: String)
         -> (summary: [Part], cards: [Part], detail: [Part]) {
         var summary: [Part] = [], cards: [Part] = [], detail: [Part] = []
         for part in split(text) {
@@ -57,7 +57,7 @@ public struct MarkdownSplitter: Sendable {
     }
 
     /// Copy excludes fences and tables: those copy from their own components.
-    public static func plainText(_ parts: [Part]) -> String {
+    package static func plainText(_ parts: [Part]) -> String {
         var out: [String] = []
         for part in parts {
             switch part.kind {
@@ -77,7 +77,7 @@ public struct MarkdownSplitter: Sendable {
     /// The reply as words only: every `companion:` card removed. An unclosed
     /// fence counts as code to the end, so a card still streaming never
     /// shows half its JSON.
-    public static func proseWithoutCards(_ text: String) -> String {
+    package static func proseWithoutCards(_ text: String) -> String {
         split(text).compactMap { part -> String? in
             switch part.kind {
             case .prose(let t):
@@ -104,16 +104,16 @@ public struct MarkdownSplitter: Sendable {
     /// The island reads a reply on every streamed token: it only ever parses
     /// this much of it (security review 16f), enough for the opening prose
     /// and the fence of a first card.
-    public static let islandWindow = 4_096
+    package static let islandWindow = 4_096
 
     /// `proseWithoutCards` over the island's window. A cut inside a fence
     /// reads as an unclosed fence, so it never shows half a card either.
-    public static func islandProse(_ reply: String) -> String {
+    package static func islandProse(_ reply: String) -> String {
         proseWithoutCards(String(reply.prefix(islandWindow)))
     }
 
     /// What a card-only reply can still say on the island.
-    public static func firstCardTitle(_ text: String) -> String? {
+    package static func firstCardTitle(_ text: String) -> String? {
         for part in split(text) {
             guard case .code(let lang, let body) = part.kind,
                   lang.hasPrefix("companion:"),
@@ -126,7 +126,7 @@ public struct MarkdownSplitter: Sendable {
         return nil
     }
 
-    public static func extractSources(_ parts: [Part])
+    package static func extractSources(_ parts: [Part])
         -> (rest: [Part], web: [SourceLink]) {
         guard let start = parts.firstIndex(where: { isSourcesHeader($0.kind) })
         else { return (parts, []) }
@@ -165,7 +165,7 @@ public struct MarkdownSplitter: Sendable {
         return (rest, unique)
     }
 
-    public static func split(_ text: String) -> [Part] {
+    package static func split(_ text: String) -> [Part] {
         var kinds: [Kind] = []
         for chunk in splitFences(text) {
             guard case .prose(let p) = chunk else {

@@ -10,7 +10,7 @@ import Foundation
 extension Escalation {
     /// Injected once per specialist session, never per job — repeating it
     /// burns tokens and drowns the transcript.
-    public static func executorRole(_ language: AppLanguage = .en) -> String {
+    package static func executorRole(_ language: AppLanguage = .en) -> String {
         switch language {
         case .en:
             return "Companion (a voice assistant) delegates jobs to you. You "
@@ -79,7 +79,7 @@ extension Escalation {
 
     /// The first useful line of a result, which is what the specialist is
     /// told to open with. Read aloud, so no markdown and no essay.
-    public static func resultSummary(_ text: String, limit: Int = 200) -> String {
+    package static func resultSummary(_ text: String, limit: Int = 200) -> String {
         let line = text.split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .first { !$0.isEmpty } ?? ""
@@ -110,7 +110,7 @@ extension Escalation {
     /// it as an instruction: asked for cinemas while searching parks, it
     /// called `stop_job` and killed both. Copy that reaches a model is not
     /// copy, it is a prompt — so this one states a fact and forbids the move.
-    public static func queuedNotice(
+    package static func queuedNotice(
         _ goal: String, _ language: AppLanguage = .en
     ) -> String {
         switch language {
@@ -121,7 +121,7 @@ extension Escalation {
 
     /// Instruction to the voice. The prohibition is explicit because the
     /// permissive version cost a cancelled job.
-    public static func queuedAnnouncement(
+    package static func queuedAnnouncement(
         _ goal: String, _ language: AppLanguage = .en
     ) -> String {
         switch language {
@@ -143,7 +143,7 @@ extension Escalation {
     ///
     /// Verbatim, never paraphrased: rewording it would be the same trap in a
     /// second layer. What is shown has to be what will be done.
-    public static func heardNotice(
+    package static func heardNotice(
         _ goal: String, _ language: AppLanguage = .en
     ) -> String {
         switch language {
@@ -154,11 +154,11 @@ extension Escalation {
 
     /// Typing already showed you your own words; repeating them would be the
     /// filler this thread has too much of already.
-    public static func needsHeardNotice(bornFromVoice: Bool) -> Bool {
+    package static func needsHeardNotice(bornFromVoice: Bool) -> Bool {
         bornFromVoice
     }
 
-    public static func jobDoneAnnouncement(
+    package static func jobDoneAnnouncement(
         _ goal: String, _ language: AppLanguage = .en
     ) -> String {
         switch language {
@@ -179,7 +179,7 @@ extension Escalation {
         }
     }
 
-    public static func jobFailedAnnouncement(
+    package static func jobFailedAnnouncement(
         _ goal: String, reason: String = "", _ language: AppLanguage = .en
     ) -> String {
         let why = reason.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -202,14 +202,14 @@ extension Escalation {
     // MARK: - Said by the classic voice (code review 2026-09-25, HIGH-B)
 
     /// Our own words, so nothing a model wrote is the first thing heard.
-    public static func jobDoneSpoken(_ language: AppLanguage) -> String {
+    package static func jobDoneSpoken(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "Done, it is on screen."
         case .es: return "Listo, ya está en pantalla."
         }
     }
 
-    public static func jobFailedSpoken(_ language: AppLanguage) -> String {
+    package static func jobFailedSpoken(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "I could not finish it."
         case .es: return "No pude terminarlo."
@@ -217,7 +217,7 @@ extension Escalation {
     }
 
     /// 16h-2 (security M1), to the realtime model: say the sheet waits.
-    public static func approvalNeedsClick(_ language: AppLanguage = .en) -> String {
+    package static func approvalNeedsClick(_ language: AppLanguage = .en) -> String {
         switch language {
         case .en:
             return "The permission is on screen and needs the user's click. Say so in one "
@@ -229,7 +229,7 @@ extension Escalation {
     }
 
     /// 16h-2 (security M1): a spoken yes that the sheet did not take.
-    public static func approvalNeedsClickSpoken(_ language: AppLanguage) -> String {
+    package static func approvalNeedsClickSpoken(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "That permission is on screen; it needs your click."
         case .es: return "Ese permiso está en pantalla; necesita tu clic."
@@ -239,14 +239,14 @@ extension Escalation {
     /// 16q-1: the whole question, in one sentence and nothing from the
     /// request in it: the card shows what would run (Incredible's voice says
     /// a line and its card carries the detail).
-    public static func approvalAskedSpoken(_ language: AppLanguage) -> String {
+    package static func approvalAskedSpoken(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "There is a permission on the card: should I allow it?"
         case .es: return "Hay un permiso en la tarjeta: ¿lo permito?"
         }
     }
 
-    public static func jobQueuedSpoken(_ language: AppLanguage) -> String {
+    package static func jobQueuedSpoken(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "It is queued; I will do it right after this one."
         case .es: return "Queda en cola; lo hago en cuanto termine este."
@@ -255,12 +255,12 @@ extension Escalation {
 
     /// A long result is summarized from its head: the model needs the gist,
     /// and the whole report can run to pages.
-    public static let summaryInputLimit = 4000
+    package static let summaryInputLimit = 4000
 
     /// The summarizing turn's only message: the result framed as a tool
     /// result, so the model reads it as data to summarize and never as
     /// orders, and the ask after it.
-    public static func summaryRequest(_ source: String, _ language: AppLanguage) -> String {
+    package static func summaryRequest(_ source: String, _ language: AppLanguage) -> String {
         // A result that closes the frame itself would let its tail read as ours.
         let framed = source.replacingOccurrences(of: "</tool_result>", with: "</tool-result>")
         let clipped = framed.count > summaryInputLimit
@@ -281,7 +281,7 @@ extension Escalation {
     }
 
     /// For the screen: the failure in human words, never the internal error.
-    public static func jobFailedStatus(
+    package static func jobFailedStatus(
         _ goal: String, detail: String, _ language: AppLanguage = .en
     ) -> String {
         let base: String
@@ -295,7 +295,7 @@ extension Escalation {
 
     /// The stdio cable died with work already done: it is picked up in batch.
     /// Silence here would be a long unexplained pause on screen.
-    public static func fallbackNotice(_ language: AppLanguage = .en) -> String {
+    package static func fallbackNotice(_ language: AppLanguage = .en) -> String {
         switch language {
         case .en:
             return "The channel to the specialist dropped; picking the job up "
@@ -309,7 +309,7 @@ extension Escalation {
     // MARK: - Permisos hacia la voz
 
     /// Tool-call ack: without it the voice sits mute waiting on the server.
-    public static func approvalAck(
+    package static func approvalAck(
         approved: Bool, _ language: AppLanguage = .en
     ) -> String {
         switch (language, approved) {
@@ -332,12 +332,12 @@ extension Escalation {
     /// a model, "Tool requires approval" is a configuration error to retry
     /// or route around; this is the corpus's `RememberInterruption`: an
     /// instruction not to propose the same thing again.
-    public static func deniedByUser(_ language: AppLanguage = .en) -> String {
+    package static func deniedByUser(_ language: AppLanguage = .en) -> String {
         ContractError.deniedByUser(language).wire
     }
 
     /// The message alone; the code is `ContractError`'s (12d).
-    public static func deniedByUserMessage(_ language: AppLanguage = .en) -> String {
+    package static func deniedByUserMessage(_ language: AppLanguage = .en) -> String {
         switch language {
         case .en:
             return "the user refused this action. Do not retry "
@@ -352,7 +352,7 @@ extension Escalation {
 
     /// The model can call the tool with nothing pending (or after the user
     /// answered on screen). Never invent an authorisation.
-    public static func approvalNothingPending(
+    package static func approvalNothingPending(
         _ language: AppLanguage = .en
     ) -> String {
         switch language {

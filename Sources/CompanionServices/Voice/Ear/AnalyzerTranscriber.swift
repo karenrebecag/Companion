@@ -3,11 +3,11 @@ import Foundation
 
 /// One result from the on-device analyzer: a volatile guess at the segment
 /// in progress, or that segment's final text.
-public struct TranscriberEngineResult: Sendable, Equatable {
-    public var text: String
-    public var isFinal: Bool
+package struct TranscriberEngineResult: Sendable, Equatable {
+    package var text: String
+    package var isFinal: Bool
 
-    public init(text: String, isFinal: Bool) {
+    package init(text: String, isFinal: Bool) {
         self.text = text
         self.isFinal = isFinal
     }
@@ -15,7 +15,7 @@ public struct TranscriberEngineResult: Sendable, Equatable {
 
 /// One analysis, from the first frame to its final. A value per hold so a
 /// late `finish()` of one hold can never touch the next one's analyzer.
-public protocol TranscriberEngineRun: Sendable {
+package protocol TranscriberEngineRun: Sendable {
     var results: AsyncStream<TranscriberEngineResult> { get }
     func feed(_ frame: MicFrame) async
     /// Ends the input and finalizes; the results stream ends after the
@@ -25,15 +25,15 @@ public protocol TranscriberEngineRun: Sendable {
 }
 
 /// What the engine reports about one locale's on-device model.
-public struct TranscriberAssets: Sendable, Equatable {
+package struct TranscriberAssets: Sendable, Equatable {
     /// `AssetInventory.status`, verbatim, for the log.
-    public var status: String
+    package var status: String
     /// `assetInstallationRequest(supporting:)` came back nil.
-    public var nothingToInstall: Bool
+    package var nothingToInstall: Bool
     /// `SpeechTranscriber.installedLocales` lists the locale.
-    public var localeInstalled: Bool
+    package var localeInstalled: Bool
 
-    public init(status: String, nothingToInstall: Bool, localeInstalled: Bool) {
+    package init(status: String, nothingToInstall: Bool, localeInstalled: Bool) {
         self.status = status
         self.nothingToInstall = nothingToInstall
         self.localeInstalled = localeInstalled
@@ -42,13 +42,13 @@ public struct TranscriberAssets: Sendable, Equatable {
     /// Code review 2026-09-24 (alto): live, `status` said missing for a
     /// model already on disk and every hold ended deaf. Nothing left to
     /// install, or the locale listed as installed, is the ground truth.
-    public var isReady: Bool { nothingToInstall || localeInstalled }
+    package var isReady: Bool { nothingToInstall || localeInstalled }
 }
 
 /// The seam between `AnalyzerTranscriber`'s hold logic and Apple's
 /// `SpeechAnalyzer` (`AppleSpeechEngine`): the framework ships no fake, so
 /// everything testable lives above this line.
-public protocol TranscriberEngine: Sendable {
+package protocol TranscriberEngine: Sendable {
     func requestAuthorization() async -> Bool
     var isAuthorized: Bool { get async }
     func assets(localeIdentifier: String) async -> TranscriberAssets
@@ -60,7 +60,7 @@ public protocol TranscriberEngine: Sendable {
 /// Wave 15e-0: the hold's only ear — Apple's on-device analyzer, streaming
 /// from the key-down (spike: 54 ms p50 per clip, no network). Replaces
 /// both `SFSpeechRecognizer` and the cloud Whisper final.
-public actor AnalyzerTranscriber: Transcriber {
+package actor AnalyzerTranscriber: Transcriber {
     /// Enough for the owner and the likeliest app names; more only dilutes
     /// the bias.
     static let maxContextualStrings = 50
@@ -86,17 +86,17 @@ public actor AnalyzerTranscriber: Transcriber {
     /// either one is stale and must not install its run.
     private var generation = 0
 
-    public nonisolated var partials: AsyncStream<String> { box.stream }
+    package nonisolated var partials: AsyncStream<String> { box.stream }
 
     /// Live snapshot of the recognized text; reading it never halts the
     /// analysis and never consumes the partials stream.
-    public nonisolated var currentText: String { current.value.snapshot() }
+    package nonisolated var currentText: String { current.value.snapshot() }
 
-    public var isAuthorized: Bool {
+    package var isAuthorized: Bool {
         get async { await engine.isAuthorized }
     }
 
-    public init(
+    package init(
         engine: any TranscriberEngine,
         vocabulary: @escaping @Sendable () -> [String],
         finalizeTimeout: TimeInterval = 0.5
@@ -106,11 +106,11 @@ public actor AnalyzerTranscriber: Transcriber {
         self.finalizeTimeout = finalizeTimeout
     }
 
-    public func requestAuthorization() async -> Bool {
+    package func requestAuthorization() async -> Bool {
         await engine.requestAuthorization()
     }
 
-    public func start(localeIdentifier: String) async throws {
+    package func start(localeIdentifier: String) async throws {
         generation += 1
         let owner = generation
         await halt()
@@ -159,7 +159,7 @@ public actor AnalyzerTranscriber: Transcriber {
         }
     }
 
-    public func append(_ frame: MicFrame) async {
+    package func append(_ frame: MicFrame) async {
         guard let run else { return }
         appended += 1
         if appended == 1 || appended % 100 == 0 {
@@ -170,7 +170,7 @@ public actor AnalyzerTranscriber: Transcriber {
 
     /// Takes the live run out of the actor before waiting on its final, so
     /// a start arriving meanwhile neither halts it nor shares its words.
-    public func stop() async -> String {
+    package func stop() async -> String {
         guard active || run != nil else { return "" }
         generation += 1
         active = false
@@ -204,7 +204,7 @@ public actor AnalyzerTranscriber: Transcriber {
     /// Downloads the on-device model for `localeIdentifier` when missing —
     /// once per locale in flight. Called at launch and by a hold that found
     /// the model absent.
-    public func prepare(localeIdentifier: String) async {
+    package func prepare(localeIdentifier: String) async {
         let locale = Self.locale(localeIdentifier)
         guard !ready.contains(locale), installing.insert(locale).inserted else { return }
         defer { installing.remove(locale) }

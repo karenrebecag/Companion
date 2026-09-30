@@ -6,52 +6,52 @@ import SwiftUI
 // two inks, the reel of touched apps, the runcard with its steps, the
 // checklist for long jobs and the sub-agent bars.
 
-public enum WorkStateMetrics {
+package enum WorkStateMetrics {
     /// wf-runcard: 320–420 wide, 14/16/12 padding, radius 20 over #16161b.
-    public static let runMinWidth: CGFloat = 320
-    public static let runMaxWidth: CGFloat = 420
-    public static let runPaddingTop: CGFloat = 14
-    public static let runPaddingX: CGFloat = 16
-    public static let runPaddingBottom: CGFloat = 12
-    public static let runRadius: CGFloat = 20
-    public static let runShadowAlpha = 0.32
-    public static let runShadowRadius: CGFloat = 48 / 2
-    public static let runShadowY: CGFloat = 18
+    package static let runMinWidth: CGFloat = 320
+    package static let runMaxWidth: CGFloat = 420
+    package static let runPaddingTop: CGFloat = 14
+    package static let runPaddingX: CGFloat = 16
+    package static let runPaddingBottom: CGFloat = 12
+    package static let runRadius: CGFloat = 20
+    package static let runShadowAlpha = 0.32
+    package static let runShadowRadius: CGFloat = 48 / 2
+    package static let runShadowY: CGFloat = 18
     /// wf-runstep: 5 × 2 padding, gap 2.
-    public static let stepPaddingY: CGFloat = 5
-    public static let stepPaddingX: CGFloat = 2
-    public static let stepGap: CGFloat = 2
+    package static let stepPaddingY: CGFloat = 5
+    package static let stepPaddingX: CGFloat = 2
+    package static let stepGap: CGFloat = 2
     /// wf-checklist: 320 wide, 18/20/12 padding.
-    public static let checklistWidth: CGFloat = 320
-    public static let checklistPaddingTop: CGFloat = 18
-    public static let checklistPaddingX: CGFloat = 20
-    public static let checklistPaddingBottom: CGFloat = 12
+    package static let checklistWidth: CGFloat = 320
+    package static let checklistPaddingTop: CGFloat = 18
+    package static let checklistPaddingX: CGFloat = 20
+    package static let checklistPaddingBottom: CGFloat = 12
     /// Past this many steps the runcard reads as a checklist.
-    public static let checklistAt = 5
+    package static let checklistAt = 5
     /// The reel of touched apps is a 26-pt band.
-    public static let reelHeight: CGFloat = 26
+    package static let reelHeight: CGFloat = 26
     /// Live transcription: 14/500 at 72 %, settling to 94 % once fixed.
-    public static let transcriptSize: CGFloat = 14
-    public static let transcriptLeading: CGFloat = 1.5
-    public static let transcriptLive = 0.72
-    public static let transcriptFixed = 0.94
+    package static let transcriptSize: CGFloat = 14
+    package static let transcriptLeading: CGFloat = 1.5
+    package static let transcriptLive = 0.72
+    package static let transcriptFixed = 0.94
     /// The tiny fate marks (check / x) beside a step.
-    public static let markSize: CGFloat = 9
+    package static let markSize: CGFloat = 9
     /// The checklist paints a window on long jobs, not the whole scroll.
-    public static let checklistVisibleSteps = 12
+    package static let checklistVisibleSteps = 12
 
     /// sub-agent-bars: one bar per live agent, gap 10.
-    public static let agentGap: CGFloat = 10
+    package static let agentGap: CGFloat = 10
 
-    public static let runSurface = Color(
+    package static let runSurface = Color(
         red: 0x16 / 255, green: 0x16 / 255, blue: 0x1B / 255)
 
     /// The steps a runcard shows are the tail: the card is a window on the
     /// work, the window's timeline keeps the whole story.
-    public static let runVisibleSteps = 4
+    package static let runVisibleSteps = 4
 
     /// The live sub-agents: Task steps that have not come back yet.
-    public static func agents(_ steps: [JobStepInfo]) -> [JobStepInfo] {
+    package static func agents(_ steps: [JobStepInfo]) -> [JobStepInfo] {
         steps.filter { ($0.tool == "Task" || $0.tool == "Agent") && !$0.done }
     }
 }

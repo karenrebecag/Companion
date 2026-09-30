@@ -1,16 +1,16 @@
 import Foundation
 
-public enum NoticeLevel: Sendable, Equatable {
+package enum NoticeLevel: Sendable, Equatable {
     case info, error
 }
 
-public struct Notice: Sendable, Equatable, Identifiable {
-    public let id: UUID
-    public let text: String
-    public let level: NoticeLevel
-    public let bornAt: TimeInterval
+package struct Notice: Sendable, Equatable, Identifiable {
+    package let id: UUID
+    package let text: String
+    package let level: NoticeLevel
+    package let bornAt: TimeInterval
 
-    public init(
+    package init(
         id: UUID = UUID(),
         text: String,
         level: NoticeLevel,
@@ -23,15 +23,15 @@ public struct Notice: Sendable, Equatable, Identifiable {
     }
 }
 
-public struct NoticeQueue: Sendable, Equatable {
-    public static let lifetime: TimeInterval = 4
-    public static let maxVisible = 3
+package struct NoticeQueue: Sendable, Equatable {
+    package static let lifetime: TimeInterval = 4
+    package static let maxVisible = 3
 
-    public private(set) var visible: [Notice] = []
+    package private(set) var visible: [Notice] = []
 
-    public init() {}
+    package init() {}
 
-    public mutating func add(
+    package mutating func add(
         _ text: String, level: NoticeLevel, at now: TimeInterval
     ) {
         visible.append(Notice(text: text, level: level, bornAt: now))
@@ -40,7 +40,7 @@ public struct NoticeQueue: Sendable, Equatable {
         }
     }
 
-    public mutating func expire(at now: TimeInterval) {
+    package mutating func expire(at now: TimeInterval) {
         visible.removeAll { now - $0.bornAt >= Self.lifetime }
     }
 }

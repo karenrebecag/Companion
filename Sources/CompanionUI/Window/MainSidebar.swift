@@ -4,7 +4,7 @@ import SwiftUI
 /// The main window as Incredible draws it (spec 16j §8): a sidebar and a
 /// page. Only sections that already do something are listed; the rest of
 /// Incredible's arrive with their own waves.
-public enum MainPage: Hashable {
+package enum MainPage: Hashable {
     case home
     /// 16k-1: under "Customize", as in Incredible.
     case apps
@@ -14,13 +14,13 @@ public enum MainPage: Hashable {
 /// live in `SidebarMetrics` (248 and 28, measured); a second copy here read
 /// 220 and nothing used it. The detail sheet's 860 x 620 and its 220 side
 /// column are Companion's own: Incredible's task detail was never measured.
-public enum MainWindowMetrics {
-    public static let detailMaxWidth: CGFloat = 860
-    public static let detailMaxHeight: CGFloat = 620
-    public static let detailSide: CGFloat = 220
+package enum MainWindowMetrics {
+    package static let detailMaxWidth: CGFloat = 860
+    package static let detailMaxHeight: CGFloat = 620
+    package static let detailSide: CGFloat = 220
 }
 
-public extension Notification.Name {
+package extension Notification.Name {
     /// Follow up (spec 16j §8): the window steps aside and the island takes
     /// the task. The app layer hides the window; the UI never does.
     static let companionFollowUp = Notification.Name("companion.followUp")

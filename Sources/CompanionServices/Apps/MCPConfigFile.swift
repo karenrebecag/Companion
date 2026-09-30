@@ -9,13 +9,13 @@ import Foundation
 ///
 /// Every call asks. An old `requireApproval` key still loads but is ignored
 /// and not written back.
-public enum MCPConfigFile {
+package enum MCPConfigFile {
     /// Bearer tokens live in the Keychain, bound to the server (host, port
     /// and path; 20c D6, M5). A token still written in the file is moved there on load and
     /// the file rewritten without it, only after the Keychain took it; if
     /// the Keychain refuses, the file is left as it was and the token keeps
     /// serving from it for this run (nothing lost, nothing newly plaintext).
-    public static func load(
+    package static func load(
         root: URL = MemoryLocation.directory().deletingLastPathComponent(),
         secrets: any HostSecretStore
     ) -> [MCPServerConfig] {
@@ -125,7 +125,7 @@ public enum MCPConfigFile {
     /// tolerant so a session open never crashes on a typo — this read keeps
     /// the difference between "no file" and "broken file": the editor must
     /// refuse to overwrite a file it could not parse (H1, review 16k-4).
-    public static func read(
+    package static func read(
         root: URL = MemoryLocation.directory().deletingLastPathComponent()
     ) -> MCPFileRead {
         let url = root.appendingPathComponent("mcp.json")
@@ -154,7 +154,7 @@ public enum MCPConfigFile {
     /// mean "clear"). The Apps page has no token field, so nothing there
     /// needs to clear one: removing the server does, and so does hand-editing
     /// a new token into mcp.json, which replaces it on the next load.
-    public static func save(
+    package static func save(
         _ servers: [MCPServerConfig],
         root: URL = MemoryLocation.directory().deletingLastPathComponent(),
         secrets: any HostSecretStore

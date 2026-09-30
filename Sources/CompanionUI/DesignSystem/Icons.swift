@@ -1,23 +1,23 @@
 import SwiftUI
 
-public enum CompanionIcon: Sendable, CaseIterable, Equatable {
+package enum CompanionIcon: Sendable, CaseIterable, Equatable {
     case check, clock, cross, folder
 }
 
 /// SVG 24×24 coordinates, not a grid step — shrinking must not fatten the stroke.
-public struct CompanionIconShape: Shape {
-    public static let viewBox: CGFloat = 24
+package struct CompanionIconShape: Shape {
+    package static let viewBox: CGFloat = 24
     // 1 pt identity; Shape.path is nonisolated, Stroke lives on MainActor.
-    public static let lineWidth: CGFloat = 1
-    public static let miterLimit: CGFloat = 10
+    package static let lineWidth: CGFloat = 1
+    package static let miterLimit: CGFloat = 10
 
-    public var icon: CompanionIcon
+    package var icon: CompanionIcon
 
-    public init(icon: CompanionIcon) {
+    package init(icon: CompanionIcon) {
         self.icon = icon
     }
 
-    public func path(in rect: CGRect) -> Path {
+    package func path(in rect: CGRect) -> Path {
         let s = min(rect.width, rect.height) / Self.viewBox
         func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
             CGPoint(x: rect.minX + x * s, y: rect.minY + y * s)
@@ -61,18 +61,18 @@ public struct CompanionIconShape: Shape {
     }
 }
 
-public struct IconGlyph: View {
-    public static let defaultSize: CGFloat = 16
+package struct IconGlyph: View {
+    package static let defaultSize: CGFloat = 16
 
     let icon: CompanionIcon
     var size: CGFloat
 
-    public init(icon: CompanionIcon, size: CGFloat = defaultSize) {
+    package init(icon: CompanionIcon, size: CGFloat = defaultSize) {
         self.icon = icon
         self.size = size
     }
 
-    public var body: some View {
+    package var body: some View {
         CompanionIconShape(icon: icon)
             .stroke(style: StrokeStyle(
                 lineWidth: CompanionIconShape.lineWidth,

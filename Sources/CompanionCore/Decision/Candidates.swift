@@ -1,19 +1,19 @@
 import Foundation
 
-public struct SiteCandidate: Sendable, Equatable {
-    public var name: String
-    public var url: String
+package struct SiteCandidate: Sendable, Equatable {
+    package var name: String
+    package var url: String
 
-    public init(name: String, url: String) {
+    package init(name: String, url: String) {
         self.name = name
         self.url = url
     }
 }
 
-public struct FileCandidate: Sendable, Equatable {
-    public var path: String
+package struct FileCandidate: Sendable, Equatable {
+    package var path: String
 
-    public init(path: String) {
+    package init(path: String) {
         self.path = path
     }
 }
@@ -21,8 +21,8 @@ public struct FileCandidate: Sendable, Equatable {
 /// What N0 is willing to let a model choose. An app that is not installed,
 /// a host the user did not say, and a string that is not in the utterance
 /// are not options.
-public enum CandidateSets {
-    public static let volumeOps: [DecisionOption] = [
+package enum CandidateSets {
+    package static let volumeOps: [DecisionOption] = [
         DecisionOption(id: "up", detail: "louder"),
         DecisionOption(id: "down", detail: "quieter"),
         DecisionOption(id: "mute", detail: "mute"),
@@ -30,7 +30,7 @@ public enum CandidateSets {
         DecisionOption(id: "max", detail: "maximum"),
     ]
 
-    public static let shortcuts: [DecisionOption] = [
+    package static let shortcuts: [DecisionOption] = [
         DecisionOption(id: "enter", detail: "press return"),
         DecisionOption(id: "escape", detail: "press escape"),
         DecisionOption(id: "copy", detail: "copy"),
@@ -54,27 +54,27 @@ public enum CandidateSets {
         DecisionOption(id: "send_message", detail: "send the message"),
     ]
 
-    public static let scrollDirections: [DecisionOption] = [
+    package static let scrollDirections: [DecisionOption] = [
         DecisionOption(id: "up", detail: "up"),
         DecisionOption(id: "down", detail: "down"),
         DecisionOption(id: "top", detail: "jump to the top"),
         DecisionOption(id: "bottom", detail: "jump to the bottom"),
     ]
 
-    public static let scrollAmounts: [DecisionOption] = [
+    package static let scrollAmounts: [DecisionOption] = [
         DecisionOption(id: "line", detail: "a little"),
         DecisionOption(id: "page", detail: "a page"),
         DecisionOption(id: "lots", detail: "a lot"),
     ]
 
-    public static let mediaOps: [DecisionOption] = [
+    package static let mediaOps: [DecisionOption] = [
         DecisionOption(id: "play", detail: "play"),
         DecisionOption(id: "pause", detail: "pause"),
         DecisionOption(id: "next", detail: "next"),
         DecisionOption(id: "previous", detail: "previous"),
     ]
 
-    public static let systemOps: [DecisionOption] = [
+    package static let systemOps: [DecisionOption] = [
         DecisionOption(id: "lock", detail: "lock the screen"),
         DecisionOption(id: "sleep_display", detail: "sleep the display"),
         DecisionOption(id: "show_desktop", detail: "show the desktop"),
@@ -85,7 +85,7 @@ public enum CandidateSets {
 
     /// Generic hosts only. A personal URL does not belong in a closed list
     /// the model can pick without the user having said it.
-    public static let allowlist: [SiteCandidate] = [
+    package static let allowlist: [SiteCandidate] = [
         SiteCandidate(name: "youtube", url: "https://www.youtube.com"),
         SiteCandidate(name: "google", url: "https://www.google.com"),
         SiteCandidate(name: "github", url: "https://www.github.com"),
@@ -95,18 +95,18 @@ public enum CandidateSets {
         SiteCandidate(name: "twitter", url: "https://www.twitter.com"),
     ]
 
-    public static func fold(_ text: String) -> String {
+    package static func fold(_ text: String) -> String {
         text.folding(options: .diacriticInsensitive, locale: Locale(identifier: "en_US_POSIX"))
             .lowercased()
     }
 
-    public static func normalized(_ text: String) -> String {
+    package static func normalized(_ text: String) -> String {
         tokens(text).joined(separator: " ")
     }
 
     /// At most `limit` installed apps the utterance actually names. A 4B
     /// chooses badly past a handful of options (discovery E5).
-    public static func appCandidates(
+    package static func appCandidates(
         _ utterance: String, apps: [String], limit: Int = 5
     ) -> [DecisionOption] {
         rankedApps(utterance, apps: apps)
@@ -114,7 +114,7 @@ public enum CandidateSets {
             .map { DecisionOption(id: $0.name) }
     }
 
-    public static func siteCandidates(
+    package static func siteCandidates(
         _ utterance: String, sites: [SiteCandidate]
     ) -> [DecisionOption] {
         let words = Set(tokens(utterance))
@@ -125,14 +125,14 @@ public enum CandidateSets {
         }
     }
 
-    public static func fileCandidates(
+    package static func fileCandidates(
         _ utterance: String, files: [FileCandidate]
     ) -> [DecisionOption] {
         ranked(files, score: { fileScore(utterance, $0.path) }, id: \.path)
             ?? cueFallback(files, utterance: utterance, cues: fileCues, id: \.path)
     }
 
-    public static func skillCandidates(
+    package static func skillCandidates(
         _ utterance: String, skills: [String]
     ) -> [DecisionOption] {
         let rows = skills.filter { $0.count >= 2 }
@@ -142,7 +142,7 @@ public enum CandidateSets {
 
     /// Spans cut out of the utterance. The model picks one; nothing here
     /// writes a word the user did not say.
-    public static func textSpans(_ utterance: String) -> [DecisionOption] {
+    package static func textSpans(_ utterance: String) -> [DecisionOption] {
         var found: [String] = []
         func add(_ raw: String?) {
             guard let raw else { return }
@@ -170,7 +170,7 @@ public enum CandidateSets {
     /// The user named something N0 can already run — an app, a site, or a
     /// closed-set word (volume, media, system, scroll). A `none` answer on
     /// top of that is the doubtful none that goes to arbitration.
-    public static func stronglyDirected(
+    package static func stronglyDirected(
         _ utterance: String, apps: [String], sites: [SiteCandidate]
     ) -> Bool {
         if let best = rankedApps(utterance, apps: apps).first, best.score >= 0.9 {

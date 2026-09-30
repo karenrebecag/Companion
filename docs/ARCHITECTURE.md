@@ -17,6 +17,11 @@ Dependencies only point downward. The compiler enforces this: a forbidden
 import is a build error, not a review comment. `scripts/gates.sh` adds the
 framework-level rules SPM can't express.
 
+Cross-target API is `package`, not `public` (SE-0386): visible to every
+target in this package and to nothing outside it. The package ships an
+executable, not a library, so there is no external API to declare. A symbol
+that another target does not need stays `internal`.
+
 ## Folders inside a target
 
 Each target groups its files by domain (`Voice/`, `Chat/`, `Browser/`,

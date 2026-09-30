@@ -3,8 +3,8 @@ import Foundation
 
 /// Maps adapter errors to the failure the user actually sees. Without this the
 /// session reports a generic drop and "no internet" reads as "voice died".
-public enum VoiceFailureMapping: Sendable {
-    public static func failure(for error: Error?) -> TurnFailure {
+package enum VoiceFailureMapping: Sendable {
+    package static func failure(for error: Error?) -> TurnFailure {
         guard let error else { return .sessionDropped }
         switch error {
         case let transport as VoiceTransportError:
@@ -29,7 +29,7 @@ public enum VoiceFailureMapping: Sendable {
         }
     }
 
-    public static func isQuota(_ message: String) -> Bool {
+    package static func isQuota(_ message: String) -> Bool {
         let lower = message.lowercased()
         return lower.contains("credit") || lower.contains("quota")
             || lower.contains("billing") || lower.contains("insufficient")

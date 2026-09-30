@@ -11,29 +11,29 @@ import SwiftUI
 // ask the user to grant something.
 
 /// Nonisolated: the width `Layout` below reads it off the main actor.
-public nonisolated enum IslandNoticeMetrics {
+package nonisolated enum IslandNoticeMetrics {
     /// Límite de uso: 380 wide, a 38 icon column then the rest, gap 10 × 12
     /// (CSS `gap: row column`).
-    public static let limitWidth: CGFloat = 380
-    public static let limitGutter: CGFloat = 38
-    public static let limitRowGap: CGFloat = 10
-    public static let limitColumnGap: CGFloat = 12
-    public static let paddingY: CGFloat = 18
-    public static let paddingX: CGFloat = 20
+    package static let limitWidth: CGFloat = 380
+    package static let limitGutter: CGFloat = 38
+    package static let limitRowGap: CGFloat = 10
+    package static let limitColumnGap: CGFloat = 12
+    package static let paddingY: CGFloat = 18
+    package static let paddingX: CGFloat = 20
 
     /// Actualización disponible: 522 wide, 30 + rest + actions.
-    public static let updateWidth: CGFloat = 522
-    public static let updateGutter: CGFloat = 30
+    package static let updateWidth: CGFloat = 522
+    package static let updateGutter: CGFloat = 30
 
     /// Consentimiento: 340-440, gap 10.
-    public static let consentMinWidth: CGFloat = 340
-    public static let consentMaxWidth: CGFloat = 440
-    public static let consentGap: CGFloat = 10
+    package static let consentMinWidth: CGFloat = 340
+    package static let consentMaxWidth: CGFloat = 440
+    package static let consentGap: CGFloat = 10
 
     /// Diagnóstico: min(420, 86 %), a 38 icon column then the rest.
-    public static let diagnosticWidth: CGFloat = 420
-    public static let diagnosticFraction: CGFloat = 0.86
-    public static let diagnosticGutter: CGFloat = 38
+    package static let diagnosticWidth: CGFloat = 420
+    package static let diagnosticFraction: CGFloat = 0.86
+    package static let diagnosticGutter: CGFloat = 38
 
     /// The card's width in the room it is given: the measured width, never
     /// more than the room. The update card asks for the wide shape

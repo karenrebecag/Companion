@@ -4,7 +4,7 @@ import Foundation
 /// to name every function that fetches or reads another file (IMAGE,
 /// STOCKHISTORY, COPILOT, external references) and lost the race each time
 /// Excel added one.
-public enum FormulaPolicy {
+package enum FormulaPolicy {
     /// Pure functions of the sheet's own cells: no network, no other file, no
     /// name that resolves indirectly (INDIRECT, OFFSET), no volatile lookups
     /// of the machine (CELL, INFO).

@@ -6,17 +6,17 @@ import SwiftUI
 
 /// How much room a capsule chip takes. The island speaks in captions; the
 /// welcome sheet asks its questions a step larger.
-public enum ChipDensity: Sendable {
+package enum ChipDensity: Sendable {
     case compact, regular
 
-    public var paddingX: CGFloat {
+    package var paddingX: CGFloat {
         switch self {
         case .compact: Space.x3
         case .regular: Space.x4
         }
     }
 
-    public var paddingY: CGFloat {
+    package var paddingY: CGFloat {
         switch self {
         case .compact: Space.x1_5
         case .regular: Space.x2

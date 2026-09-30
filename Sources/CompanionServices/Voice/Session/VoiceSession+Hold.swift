@@ -19,14 +19,14 @@ struct DeferredHold: Sendable {
 extension VoiceSession {
     /// FN on the way down (code review 2026-09-24): only local, reversible
     /// work starts — the mic and the on-device ear.
-    public func holdProvisionally() async {
+    package func holdProvisionally() async {
         await hold(provisional: true)
     }
 
     /// The tap threshold passed with the key still down: the press is a
     /// hold, so what it owes may leave the machine, and a reply in flight
     /// may be cut. Idempotent.
-    public func confirmHold() async {
+    package func confirmHold() async {
         if let deferred = deferredHold {
             deferredHold = nil
             await beginHold(dictate: deferred.dictate, provisional: false, pressedAt: deferred.pressedAt)
@@ -37,7 +37,7 @@ extension VoiceSession {
         startConfirmedWork(realtime: owed.realtime)
     }
 
-    public func hold(dictate: Bool = false, provisional: Bool = false) async {
+    package func hold(dictate: Bool = false, provisional: Bool = false) async {
         // A press that may still be a tap never cuts a reply, never takes a
         // release tail back and never opens a socket: it waits, whole.
         if provisional, !pressIsLocal {
@@ -152,7 +152,7 @@ extension VoiceSession {
     /// mic, the socket or any prompt. Measured, in the log. The Keychain is
     /// not touched: a read can be a dialog (a build whose signature the
     /// item's ACL does not list), and a dialog at launch is not a warm-up.
-    public func prewarm() async {
+    package func prewarm() async {
         let t0 = now()
         await mic.prewarm()
         let t1 = now()
@@ -167,7 +167,7 @@ extension VoiceSession {
 
     /// Release = ForceEndpoint: what the native ear heard goes now, without
     /// asking the server's VAD whether the sentence was over.
-    public func release() async {
+    package func release() async {
         // Past the threshold by definition, even if `.confirmed` lost the
         // race to the key-up.
         await confirmHold()
@@ -199,7 +199,7 @@ extension VoiceSession {
         return true
     }
 
-    public func discard() async {
+    package func discard() async {
         // A tap that never became a hold started nothing to undo; the reply
         // or the release tail it landed on goes on untouched.
         if deferredHold != nil {

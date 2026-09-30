@@ -6,31 +6,31 @@ import Foundation
 /// never says more than the app is allowed to say aloud. The invariant is
 /// "the receipt is a subset of the proven lines": everything on it has proof,
 /// not everything with proof has to be on it (the cap keeps the latest).
-public struct ReceiptLine: Sendable, Equatable {
-    public let text: String
+package struct ReceiptLine: Sendable, Equatable {
+    package let text: String
     /// A read-back confirmed it. Without one the app did it and says so, but
     /// does not claim to have checked.
-    public let verified: Bool
+    package let verified: Bool
 
-    public init(text: String, verified: Bool) {
+    package init(text: String, verified: Bool) {
         self.text = text
         self.verified = verified
     }
 }
 
-public struct ActionReceipt: Sendable, Equatable {
+package struct ActionReceipt: Sendable, Equatable {
     /// A receipt is a glance, not a log: the latest few.
-    public static let maxLines = 4
-    public static let maxLineLength = 120
+    package static let maxLines = 4
+    package static let maxLineLength = 120
 
-    public let entries: [ReceiptLine]
-    public var lines: [String] { entries.map(\.text) }
+    package let entries: [ReceiptLine]
+    package var lines: [String] { entries.map(\.text) }
 
-    public init?(lines: [String]) {
+    package init?(lines: [String]) {
         self.init(entries: lines.map { ReceiptLine(text: $0, verified: false) })
     }
 
-    public init?(entries: [ReceiptLine]) {
+    package init?(entries: [ReceiptLine]) {
         var kept: [ReceiptLine] = []
         for raw in entries {
             let text = Self.bounded(raw.text.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -47,7 +47,7 @@ public struct ActionReceipt: Sendable, Equatable {
     }
 
     /// The newest lines win when two receipts of one turn join.
-    public func merging(_ other: ActionReceipt) -> ActionReceipt {
+    package func merging(_ other: ActionReceipt) -> ActionReceipt {
         ActionReceipt(entries: entries + other.entries) ?? self
     }
 
@@ -63,8 +63,8 @@ public struct ActionReceipt: Sendable, Equatable {
 
 /// The rule that keeps "done" honest: a change is a receipt line only when it
 /// succeeded and, for typing, a read-back showed the text in the field.
-public enum ReceiptProof {
-    public static func entry(tool: String, outcome: ParentToolOutcome, language: AppLanguage) -> ReceiptLine? {
+package enum ReceiptProof {
+    package static func entry(tool: String, outcome: ParentToolOutcome, language: AppLanguage) -> ReceiptLine? {
         guard let hands = ParentTool(rawValue: tool), hands.changesSomething, outcome.ok else { return nil }
         // Typing is the one change with a read-back (`TypedProof`); an
         // unread typing is an attempt, and an attempt has no check.
@@ -92,7 +92,7 @@ public enum ReceiptProof {
         return parts.string ?? target
     }
 
-    public static func line(tool: String, outcome: ParentToolOutcome, language: AppLanguage) -> String? {
+    package static func line(tool: String, outcome: ParentToolOutcome, language: AppLanguage) -> String? {
         entry(tool: tool, outcome: outcome, language: language)?.text
     }
 }

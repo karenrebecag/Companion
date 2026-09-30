@@ -4,8 +4,8 @@ import Foundation
 /// Wave 18-4a, ADR 007. Writes the Chrome native messaging host manifest into
 /// another app's config folder. It only runs from the Settings button and
 /// `remove` undoes it; nothing here is called at launch.
-public struct NativeHostInstaller {
-    public enum Failure: Error, Equatable {
+package struct NativeHostInstaller {
+    package enum Failure: Error, Equatable {
         case symlinkAtDestination(BrowserKind)
         case unstableExecutablePath
     }
@@ -24,7 +24,7 @@ public struct NativeHostInstaller {
     private let executable: URL
     private let fileManager: FileManager
 
-    public init(home: URL, executable: URL, fileManager: FileManager = .default) {
+    package init(home: URL, executable: URL, fileManager: FileManager = .default) {
         self.home = home
         self.executable = executable
         self.fileManager = fileManager
@@ -42,7 +42,7 @@ public struct NativeHostInstaller {
 
     /// A browser counts as present only if its own support folder exists, so
     /// a browser the user never installed never gets a folder created for it.
-    public func detected() -> [BrowserKind] {
+    package func detected() -> [BrowserKind] {
         Self.supportPaths.filter { isDirectory(browserDir($0.1)) }.map(\.0)
     }
 
@@ -50,7 +50,7 @@ public struct NativeHostInstaller {
     /// them. The listener starts on this, so a manifest that only carries our
     /// name (another build, a dev worktree, widened origins) must not count:
     /// it would open the socket for a host this app did not put there.
-    public func installed() -> [BrowserKind] {
+    package func installed() -> [BrowserKind] {
         let expected: [String: Any]
         do {
             expected = try Self.manifestObject(path: try stablePath())
@@ -60,7 +60,7 @@ public struct NativeHostInstaller {
         return Self.supportPaths.filter { isCurrent(manifestURL($0.1), expected: expected) }.map(\.0)
     }
 
-    public func install() throws -> [BrowserKind] {
+    package func install() throws -> [BrowserKind] {
         let data = try Self.manifestData(path: try stablePath())
         var done: [BrowserKind] = []
         for (kind, relative) in Self.supportPaths where isDirectory(browserDir(relative)) {
@@ -76,7 +76,7 @@ public struct NativeHostInstaller {
         return done
     }
 
-    public func remove() throws -> [BrowserKind] {
+    package func remove() throws -> [BrowserKind] {
         let result = removeReporting()
         if let failure = result.failure { throw failure }
         return result.removed
@@ -87,7 +87,7 @@ public struct NativeHostInstaller {
     /// browser's manifest could not be touched. Ours by name is enough to
     /// remove, unlike `installed`: a stale manifest of ours is what an
     /// uninstall should clean up.
-    public func removeReporting() -> (removed: [BrowserKind], failure: Error?) {
+    package func removeReporting() -> (removed: [BrowserKind], failure: Error?) {
         var done: [BrowserKind] = []
         var failure: Error?
         for (kind, relative) in Self.supportPaths {

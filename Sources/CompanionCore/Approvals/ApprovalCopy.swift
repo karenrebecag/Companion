@@ -5,40 +5,40 @@ import Foundation
 /// full datum (URL, command, path) stays in `preview` because human-first
 /// is hierarchy, never hiding — the user must always be able to audit
 /// exactly what will run.
-public struct ApprovalDisplay: Sendable, Equatable {
+package struct ApprovalDisplay: Sendable, Equatable {
     /// What the sheet's tile draws: an SF Symbol, or the Claude logo when
     /// the bridge client says it is one (19-1b — the one client we ship a
     /// face for; the claim note still applies, a logo is not an identity).
-    public enum Mark: Sendable, Equatable { case symbol(String), claude }
-    public var mark: Mark
+    package enum Mark: Sendable, Equatable { case symbol(String), claude }
+    package var mark: Mark
     /// Words before the subject ("Abrir"); nil when the subject opens the
     /// phrase (the bridge's client name does).
-    public var lead: String?
+    package var lead: String?
     /// The one thing being asked about, painted with the visual weight.
     /// Capped at 80 with a visible mark: an unbounded subject could push
     /// the answer buttons off screen (security review 19-1).
-    public var subject: String
+    package var subject: String
     /// Words after the subject ("quiere usar tus manos").
-    public var trail: String?
+    package var trail: String?
     /// The complete auditable datum, secondary and selectable. NEVER cut:
     /// the tail is part of what runs (15g M1, extended by review 19-1) —
     /// the sheet bounds it with a scroll, not with an ellipsis.
-    public var preview: String?
-    public var showsRemember: Bool
+    package var preview: String?
+    package var showsRemember: Bool
 
     /// The whole phrase, for accessibility and tests.
-    public var title: String {
+    package var title: String {
         [lead, subject, trail].compactMap { $0 }.joined(separator: " ")
     }
 }
 
-public enum ApprovalCopy {
+package enum ApprovalCopy {
     /// Keys whose value stands for the whole request when no tool rule
     /// applies (`goal`: a handoff is approved on what it would delegate,
     /// never on the word "delegate" — security review 2026-09-25).
     private static let interesting = ["command", "path", "url", "query", "content", "goal"]
 
-    public static func display(for request: ApprovalRequest, language: AppLanguage) -> ApprovalDisplay {
+    package static func display(for request: ApprovalRequest, language: AppLanguage) -> ApprovalDisplay {
         let arguments = ToolArguments.parse(request.inputJSON) ?? [:]
         if request.isMCP { return mcpTool(request, language) }
         if request.toolName == BridgePolicy.sessionApprovalTool {
@@ -54,7 +54,7 @@ public enum ApprovalCopy {
     /// apps. The runner already built the human line ("Send Message ·
     /// Slack") in `summary`; the full arguments are the preview — they are
     /// what runs, same rule as type_text (15g M1).
-    public static let appToolPrefix = "app:"
+    package static let appToolPrefix = "app:"
 
     private static func appTool(_ request: ApprovalRequest, _ language: AppLanguage) -> ApprovalDisplay {
         // No remember on purpose: `ApprovalKey.from` has no rule for app
@@ -94,7 +94,7 @@ public enum ApprovalCopy {
     /// BOM, soft hyphen) and the Unicode line/paragraph separators go too:
     /// they hide or forge text the same way. Newlines and tabs stay — they
     /// are layout, not direction — unless the text is a one-line title.
-    public static func plainPreview(_ text: String, keepingLayout: Bool = true) -> String {
+    package static func plainPreview(_ text: String, keepingLayout: Bool = true) -> String {
         String(text.unicodeScalars.filter { scalar in
             if scalar == "\n" || scalar == "\t" { return keepingLayout }
             return !Self.hiddenCategories.contains(scalar.properties.generalCategory)
@@ -106,7 +106,7 @@ public enum ApprovalCopy {
     /// host, this command word — `ApprovalKey`), never a blanket grant, and
     /// "abrir enlaces" would overstate it (review 19-1). A tool without a
     /// noun here stays as its id.
-    public static func toolLabel(_ tool: String, language: AppLanguage) -> String {
+    package static func toolLabel(_ tool: String, language: AppLanguage) -> String {
         let nouns: [String: (es: String, en: String)] = [
             ParentTool.openURL.rawValue: ("abrir un enlace", "open a link"),
             ParentTool.openApp.rawValue: ("abrir una app", "open an app"),

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ChatDelta: Sendable, Equatable {
+package enum ChatDelta: Sendable, Equatable {
     case text(String)
     case handoff(Handoff)
     /// Every call of the round together, on purpose: the assistant turn that
@@ -9,7 +9,7 @@ public enum ChatDelta: Sendable, Equatable {
     case toolCalls([ToolCallRef])
 }
 
-public enum ChatError: Error, Sendable, Equatable {
+package enum ChatError: Error, Sendable, Equatable {
     case unauthorized, forbidden, rateLimited, timeout, unreachable
     case httpStatus(Int)
     case empty
@@ -17,58 +17,58 @@ public enum ChatError: Error, Sendable, Equatable {
     case invalidKey
 }
 
-public enum SecretStoreError: Error, Sendable, Equatable {
+package enum SecretStoreError: Error, Sendable, Equatable {
     case emptyValue, denied, notAvailable
     /// A host-bound secret was asked for with no usable host (20c D6).
     case invalidHost
     case unexpected(Int)
 }
 
-public enum PersistenceError: Error, Sendable, Equatable {
+package enum PersistenceError: Error, Sendable, Equatable {
     case encoding, decoding, io
 }
 
-public protocol SecretStore: Sendable {
+package protocol SecretStore: Sendable {
     func read(_ key: SecretKey) throws -> String?
     func write(_ key: SecretKey, value: String) throws
     func delete(_ key: SecretKey) throws
 }
 
-public protocol ChatProvider: Sendable {
+package protocol ChatProvider: Sendable {
     func stream(_ history: [Turn], tools: [ToolSpec])
         -> AsyncThrowingStream<ChatDelta, Error>
     func verify(_ key: String, provider: ProviderDescriptor) async throws
 }
 
-public protocol CapabilityProbe: Sendable {
+package protocol CapabilityProbe: Sendable {
     func isAvailable(_ provider: ProviderDescriptor) async -> Bool
 }
 
-public protocol ConversationStoring: Sendable {
+package protocol ConversationStoring: Sendable {
     func list() throws -> [ConversationMeta]
     func save(_ record: ConversationRecord) throws
     func load(_ id: String) throws -> ConversationRecord?
 }
 
-public struct ConversationMeta: Sendable, Equatable, Identifiable {
-    public var id: String
-    public var title: String
-    public var updatedAt: Date
+package struct ConversationMeta: Sendable, Equatable, Identifiable {
+    package var id: String
+    package var title: String
+    package var updatedAt: Date
 
-    public init(id: String, title: String, updatedAt: Date) {
+    package init(id: String, title: String, updatedAt: Date) {
         self.id = id
         self.title = title
         self.updatedAt = updatedAt
     }
 }
 
-public struct ConversationRecord: Sendable, Equatable, Identifiable {
-    public var id: String
-    public var title: String
-    public var updatedAt: Date
-    public var messages: [ConversationMessage]
+package struct ConversationRecord: Sendable, Equatable, Identifiable {
+    package var id: String
+    package var title: String
+    package var updatedAt: Date
+    package var messages: [ConversationMessage]
 
-    public init(
+    package init(
         id: String,
         title: String,
         updatedAt: Date,
@@ -81,15 +81,15 @@ public struct ConversationRecord: Sendable, Equatable, Identifiable {
     }
 }
 
-public struct ConversationMessage: Sendable, Equatable {
-    public var role: String
-    public var text: String
-    public var attachmentPaths: [String]
+package struct ConversationMessage: Sendable, Equatable {
+    package var role: String
+    package var text: String
+    package var attachmentPaths: [String]
     /// The message was a pick on a question card: it stays marked for the
     /// model after a restart (16m-6).
-    public var fromChoice: Bool
+    package var fromChoice: Bool
 
-    public init(role: String, text: String, attachmentPaths: [String] = [], fromChoice: Bool = false) {
+    package init(role: String, text: String, attachmentPaths: [String] = [], fromChoice: Bool = false) {
         self.role = role
         self.text = text
         self.attachmentPaths = attachmentPaths
@@ -97,7 +97,7 @@ public struct ConversationMessage: Sendable, Equatable {
     }
 }
 
-public protocol ConversationPresenting: Sendable {
+package protocol ConversationPresenting: Sendable {
     func historyTurns() async -> [Turn]
     func appendUser(_ text: String) async
     /// The thread paints `text`; the memory keeps the compact context line
@@ -120,13 +120,13 @@ public protocol ConversationPresenting: Sendable {
 }
 
 extension ConversationPresenting {
-    public func appendUser(_ text: String, context: TurnContext?) async {
+    package func appendUser(_ text: String, context: TurnContext?) async {
         await appendUser(text)
     }
 
-    public func memoryTurns() async -> [Turn] {
+    package func memoryTurns() async -> [Turn] {
         await historyTurns()
     }
 
-    public func lastInteraction() async -> Date? { nil }
+    package func lastInteraction() async -> Date? { nil }
 }

@@ -70,7 +70,7 @@ extension VoiceSession {
     /// A request left the sheet by some road (click, stop, its job ended):
     /// the session forgets it, so a permission that no longer exists is
     /// neither announced nor answered (16q-1 review, security M2).
-    public func approvalClosed(requestId: String) async {
+    package func approvalClosed(requestId: String) async {
         // Round 2 (C2): the close and the note that announced the request are
         // unordered tasks. Remembering the id makes a late note a no-op.
         // A repeat close would take a second slot and push a distinct id out.
@@ -90,7 +90,7 @@ extension VoiceSession {
 
     /// The reducer's report of what the sheet shows (C2): a spoken answer
     /// for any other request would be dropped there.
-    public func approvalFront(requestId: String?) async {
+    package func approvalFront(requestId: String?) async {
         sheetFront = SheetFront(requestId: requestId)
     }
 

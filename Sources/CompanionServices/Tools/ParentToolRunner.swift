@@ -5,9 +5,9 @@ import Foundation
 /// none of these asks permission — except `open_url` to a host nobody said
 /// and, since 15g, Return in a terminal — and `run_shell` is never here. Everything
 /// goes through `WorkspaceOpening`; the runner never touches `Process`.
-public struct ParentToolRunner: ParentToolExecuting, Sendable {
+package struct ParentToolRunner: ParentToolExecuting, Sendable {
     /// Enough to find a name in; more than this is a list, not an answer.
-    public static let maxAppListing = 100
+    package static let maxAppListing = 100
 
     private let workspace: any WorkspaceOpening
     private let home: URL
@@ -31,7 +31,7 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
     /// can show it and offer the way back.
     let onAct: (@Sendable (UndoReceipt) -> Void)?
 
-    public init(
+    package init(
         workspace: any WorkspaceOpening,
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
         places: (any PlacesSearching)? = nil,
@@ -66,7 +66,7 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
 
     /// Called when the user starts speaking or sends: the hands act only on
     /// the app that was in front then.
-    public func beginTurn() {
+    package func beginTurn() {
         guard let hands else { return }
         hands.turn.begin(hands.target())
     }
@@ -74,7 +74,7 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
     /// A tool without backing is not advertised (NativeToolRunner's rule):
     /// `find_places` needs no disk and no specialist, so it is offered here
     /// too — when there is a lookup behind it.
-    public func specs(_ language: AppLanguage) -> [ToolSpec] {
+    package func specs(_ language: AppLanguage) -> [ToolSpec] {
         var specs = ParentTool.specs(language)
             .filter { $0.name != ParentTool.readSkill.rawValue || skills != nil }
         if places != nil { specs.append(NativeTool.findPlaces.spec) }
@@ -86,7 +86,7 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
         return specs
     }
 
-    public func handles(_ name: String) -> Bool {
+    package func handles(_ name: String) -> Bool {
         if let tool = ParentTool(rawValue: name) {
             if tool == .see { return readyHands?.see != nil }
             if tool.isSight { return readyHands?.screen != nil }
@@ -97,7 +97,7 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
         return name == NativeTool.findPlaces.rawValue && places != nil
     }
 
-    public func unavailability(for name: String) -> String? {
+    package func unavailability(for name: String) -> String? {
         guard let tool = ParentTool(rawValue: name), !handles(name) else { return nil }
         guard tool.isHands || tool.isSight else { return BridgeCode.notAvailable }
         guard let hands else { return BridgeCode.notAvailable }
@@ -107,7 +107,7 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
         return hands.selfInFront() ? BridgeCode.selfInFront : BridgeCode.notAvailable
     }
 
-    public func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
+    package func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
         guard handles(name) else {
             return .failed(.notFound("unknown tool: \(name)"))
         }
@@ -145,14 +145,14 @@ public struct ParentToolRunner: ParentToolExecuting, Sendable {
         }
     }
 
-    public func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
+    package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
         if let request = ParentToolGate.approval(for: call, said: said) { return request }
         if let request = deliverableApproval(for: call) { return request }
         guard ParentTool(rawValue: call.name)?.isHands == true else { return nil }
         return handsApproval(for: call, said: said)
     }
 
-    public func granted(_ request: ApprovalRequest) {
+    package func granted(_ request: ApprovalRequest) {
         hands?.tickets.grant(id: request.requestId)
         deliverableTickets.grant(id: request.requestId)
     }

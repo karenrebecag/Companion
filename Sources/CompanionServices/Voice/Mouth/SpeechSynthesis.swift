@@ -1,7 +1,7 @@
 import CompanionCore
 import Foundation
 
-public protocol SpeechPlayback: Sendable {
+package protocol SpeechPlayback: Sendable {
     /// A fully-downloaded buffer — the cache-hit path.
     func play(_ data: Data) async throws
     /// Wave 15c-5: schedules PCM chunks as they arrive instead of waiting
@@ -13,7 +13,7 @@ public protocol SpeechPlayback: Sendable {
     func stop() async
 }
 
-public protocol TTSFetching: Sendable {
+package protocol TTSFetching: Sendable {
     func fetch(_ text: String, voice: VoiceID) async throws -> Data
     /// Wave 15c-5: the same audio as `fetch`, delivered as it arrives over
     /// the wire so playback can start before the sentence has finished
@@ -37,19 +37,19 @@ public protocol TTSFetching: Sendable {
 }
 
 extension TTSFetching {
-    public func warm() async {}
+    package func warm() async {}
 
-    public func cacheVariant(voice: VoiceID) -> String { "" }
+    package func cacheVariant(voice: VoiceID) -> String { "" }
 
-    public func mayCache(_ text: String) -> Bool { true }
+    package func mayCache(_ text: String) -> Bool { true }
 
-    public func resolved() -> any TTSFetching { self }
+    package func resolved() -> any TTSFetching { self }
 
     /// Default: the whole body as a single chunk, via `fetch` — correct for
     /// every fake in the test suite that only implements `fetch`; only
     /// `OpenAITTSClient` needs true streaming, so it is the only conformer
     /// that overrides this.
-    public func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
+    package func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
         AsyncThrowingStream { continuation in
             Task {
                 do {
@@ -64,18 +64,18 @@ extension TTSFetching {
     }
 }
 
-public protocol SystemSpeechFallback: Sendable {
+package protocol SystemSpeechFallback: Sendable {
     func speak(_ text: String) async throws
 }
 
-public actor SpeechSynthesis: SpeechSynthesizer {
+package actor SpeechSynthesis: SpeechSynthesizer {
     private let baseCache: PhraseCache
     private let fetcher: any TTSFetching
     private let playback: any SpeechPlayback
     private let fallback: any SystemSpeechFallback
     private let voice: VoiceID
 
-    nonisolated public let events: AsyncStream<SpeechEvent>
+    nonisolated package let events: AsyncStream<SpeechEvent>
     private let continuation: AsyncStream<SpeechEvent>.Continuation
 
     private var pending: [String] = []
@@ -104,7 +104,7 @@ public actor SpeechSynthesis: SpeechSynthesizer {
     private var cutUnreported = false
     private var requestUnmeasured = false
 
-    public init(
+    package init(
         cache: PhraseCache,
         fetcher: any TTSFetching,
         playback: any SpeechPlayback,
@@ -131,15 +131,15 @@ public actor SpeechSynthesis: SpeechSynthesizer {
         baseCache.scoped(mouth.cacheVariant(voice: voice))
     }
 
-    public var speakingNow: String { current }
+    package var speakingNow: String { current }
 
-    public func spokenSoFar() -> String? {
+    package func spokenSoFar() -> String? {
         let joined = spokenDone.joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return joined.isEmpty ? nil : joined
     }
 
-    public func begin() async {
+    package func begin() async {
         await halt(resetSpoken: true)
         closed = false
         failed = false
@@ -152,7 +152,7 @@ public actor SpeechSynthesis: SpeechSynthesizer {
         }
     }
 
-    public func enqueue(_ sentence: String) {
+    package func enqueue(_ sentence: String) {
         let text = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !stopped else { return }
         pending.append(text)
@@ -164,19 +164,19 @@ public actor SpeechSynthesis: SpeechSynthesizer {
         ping()
     }
 
-    public func finish() {
+    package func finish() {
         closed = true
         ping()
     }
 
-    public func stop() async {
+    package func stop() async {
         await halt(resetSpoken: false)
     }
 
     /// Reads the cache only — never fetches. `AckPolicy` calls this to
     /// decide, before speaking, whether the specific reply is already on
     /// disk.
-    public func isCached(_ phrase: String) async -> Bool {
+    package func isCached(_ phrase: String) async -> Bool {
         cachedAudio(phrase) != nil
     }
 
@@ -184,7 +184,7 @@ public actor SpeechSynthesis: SpeechSynthesizer {
     /// of its own: the caller (a hold's own reply, or the press-time fan-out)
     /// must never wait for this, and it must never touch `pending`/`current`
     /// or emit `.chunkStarted` — nothing here is meant to be heard.
-    public func prewarm(_ phrases: [String]) async {
+    package func prewarm(_ phrases: [String]) async {
         let fresh = phrases.filter { !prewarming.contains($0) }
         guard !fresh.isEmpty else { return }
         for phrase in fresh { prewarming.insert(phrase) }
@@ -200,7 +200,7 @@ public actor SpeechSynthesis: SpeechSynthesizer {
         prewarming.remove(phrase)
     }
 
-    public func warmConnection() async {
+    package func warmConnection() async {
         await fetcher.warm()
     }
 

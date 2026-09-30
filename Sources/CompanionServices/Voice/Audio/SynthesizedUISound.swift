@@ -3,14 +3,14 @@ import CompanionCore
 import Foundation
 
 /// Short confirmation/alert tones in memory. Own engine: never the mic's.
-public final class SynthesizedUISound: InterfaceSounding, @unchecked Sendable {
+package final class SynthesizedUISound: InterfaceSounding, @unchecked Sendable {
     private let isEnabled: @Sendable () -> Bool
 
-    public init(isEnabled: @escaping @Sendable () -> Bool) {
+    package init(isEnabled: @escaping @Sendable () -> Bool) {
         self.isEnabled = isEnabled
     }
 
-    public func play(_ cue: SoundCue) {
+    package func play(_ cue: SoundCue) {
         guard isEnabled() else { return }
         let frequency: Double = cue == .alert ? 660 : 880
         let gain: Float = cue == .alert ? 0.28 : 0.16

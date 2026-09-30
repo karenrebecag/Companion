@@ -7,15 +7,15 @@ import Foundation
 /// flips the toggle. It appears ONCE per app and signing identity — after a
 /// deny, `AXIsProcessTrustedWithOptions` returns false with no UI, which is
 /// why the Settings row always offers the deep link too (BUILD-LEDGER P5).
-public struct AccessibilityPermission: AccessibilityChecking {
-    public init() {}
+package struct AccessibilityPermission: AccessibilityChecking {
+    package init() {}
 
-    public func isTrusted() -> Bool {
+    package func isTrusted() -> Bool {
         AXIsProcessTrusted()
     }
 
     @discardableResult
-    public func request() -> Bool {
+    package func request() -> Bool {
         // The framework's constant is an unsafe global under Swift 6; its
         // documented value is the string below.
         let options = ["AXTrustedCheckOptionPrompt": true]

@@ -8,7 +8,7 @@ extension SessionMachine {
     /// 16h-3: own value, not measured (Incredible's receipts were not
     /// captured): long enough to read four lines, short of squatting the
     /// island. Counted from the moment the turn rests.
-    public static let receiptDelay: TimeInterval = 8
+    package static let receiptDelay: TimeInterval = 8
 
     /// How many stopped (and, apart, finished) jobs are remembered.
     // HACK: capped list, oldest out. A job stopped this many stops ago that

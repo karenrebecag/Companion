@@ -8,21 +8,21 @@ import Observation
 /// way the permission rows follow System Settings).
 @Observable
 @MainActor
-public final class BrowserSettingsModel {
-    public enum Notice: Equatable {
+package final class BrowserSettingsModel {
+    package enum Notice: Equatable {
         case moveApp, noBrowser, symlink, failed
     }
 
-    public private(set) var status: BrowserLinkStatus = .notInstalled
-    public private(set) var notice: Notice?
-    public let extensionFolder: String?
-    public let extensionID: String
+    package private(set) var status: BrowserLinkStatus = .notInstalled
+    package private(set) var notice: Notice?
+    package let extensionFolder: String?
+    package let extensionID: String
 
     private let readStatus: () -> BrowserLinkStatus
     private let connectAction: () -> BrowserLinkOutcome
     private let removeAction: () -> BrowserLinkOutcome
 
-    public init(
+    package init(
         status: @escaping () -> BrowserLinkStatus,
         connect: @escaping () -> BrowserLinkOutcome,
         remove: @escaping () -> BrowserLinkOutcome,
@@ -36,11 +36,11 @@ public final class BrowserSettingsModel {
         self.status = status()
     }
 
-    public func refresh() { status = readStatus() }
+    package func refresh() { status = readStatus() }
 
-    public func connect() { finish(connectAction()) }
+    package func connect() { finish(connectAction()) }
 
-    public func remove() { finish(removeAction()) }
+    package func remove() { finish(removeAction()) }
 
     private func finish(_ outcome: BrowserLinkOutcome) {
         switch outcome {
@@ -53,7 +53,7 @@ public final class BrowserSettingsModel {
         refresh()
     }
 
-    public var statusText: String {
+    package var statusText: String {
         switch status {
         case .notInstalled: Localized.string("settings.browser.status.notInstalled")
         case .disconnected: Localized.string("settings.browser.status.disconnected")
@@ -62,7 +62,7 @@ public final class BrowserSettingsModel {
         }
     }
 
-    public var noticeText: String? {
+    package var noticeText: String? {
         switch notice {
         case .none: nil
         case .moveApp: Localized.string("settings.browser.notice.moveApp")

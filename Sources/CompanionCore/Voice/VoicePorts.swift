@@ -1,27 +1,27 @@
 import Foundation
 
-public struct MicFrame: Sendable, Equatable {
-    public var pcm16le24k: Data
-    public var rms: Double
+package struct MicFrame: Sendable, Equatable {
+    package var pcm16le24k: Data
+    package var rms: Double
 
-    public init(pcm16le24k: Data, rms: Double) {
+    package init(pcm16le24k: Data, rms: Double) {
         self.pcm16le24k = pcm16le24k
         self.rms = rms
     }
 }
 
-public protocol VoiceTransport: Sendable {
+package protocol VoiceTransport: Sendable {
     func open(key: String, url: URL) async throws
     func send(_ json: String) async throws
     func events() -> AsyncStream<RealtimeEvent>
     func close() async
 }
 
-public enum VoiceTransportError: Error, Sendable, Equatable {
+package enum VoiceTransportError: Error, Sendable, Equatable {
     case timeout, unauthorized, closed, unreachable
 }
 
-public protocol MicCapturing: Sendable {
+package protocol MicCapturing: Sendable {
     func requestAccess() async -> Bool
     func start() async throws
     func stop() async
@@ -35,10 +35,10 @@ public protocol MicCapturing: Sendable {
 }
 
 extension MicCapturing {
-    public func prewarm() async {}
+    package func prewarm() async {}
 }
 
-public protocol PCMPlaying: Sendable {
+package protocol PCMPlaying: Sendable {
     func start(sharedEngine: Bool) async throws
     func play(_ pcm16le24k: Data) async
     func flush() async
@@ -50,7 +50,7 @@ public protocol PCMPlaying: Sendable {
     var levels: AsyncStream<Double> { get }
 }
 
-public protocol Transcriber: Sendable {
+package protocol Transcriber: Sendable {
     func requestAuthorization() async -> Bool
     var isAuthorized: Bool { get async }
     func start(localeIdentifier: String) async throws
@@ -66,21 +66,21 @@ public protocol Transcriber: Sendable {
 /// What a segmenting ear says about turn boundaries (Wave 9j-1): the server's
 /// VAD knows when the user STARTED speaking and hands each finished utterance
 /// as final text — the client stops guessing with heuristics.
-public enum EarTurnEvent: Sendable, Equatable {
+package enum EarTurnEvent: Sendable, Equatable {
     case speechStarted
     case finished(text: String)
 }
 
 /// An ear that detects turn boundaries itself. The session prefers these
 /// events over its local endpointer when the ear provides them.
-public protocol SegmentingTranscriber: Transcriber {
+package protocol SegmentingTranscriber: Transcriber {
     var turnEvents: AsyncStream<EarTurnEvent> { get }
 }
 
 /// Wave 15f-5: the instants inside the mouth for the FIRST sentence of a
 /// turn — the session stamps them on its own clock as they arrive, so a slow
 /// voice reads apart as queue, network or player.
-public enum SpeechMark: Sendable, Equatable {
+package enum SpeechMark: Sendable, Equatable {
     /// The first sentence reached the synthesizer.
     case firstCut
     /// Its TTS request left.
@@ -89,7 +89,7 @@ public enum SpeechMark: Sendable, Equatable {
     case firstByte
 }
 
-public enum SpeechEvent: Sendable, Equatable {
+package enum SpeechEvent: Sendable, Equatable {
     case chunkStarted(text: String, duration: TimeInterval)
     case mark(SpeechMark)
     case level(Double)
@@ -97,7 +97,7 @@ public enum SpeechEvent: Sendable, Equatable {
     case failed
 }
 
-public protocol SpeechSynthesizer: Sendable {
+package protocol SpeechSynthesizer: Sendable {
     func begin() async
     func enqueue(_ sentence: String) async
     func finish() async
@@ -121,22 +121,22 @@ public protocol SpeechSynthesizer: Sendable {
 /// port with nothing to warm) costs nothing extra: pressing a hold simply
 /// finds these calls no-ops.
 extension SpeechSynthesizer {
-    public func isCached(_ phrase: String) async -> Bool { false }
-    public func prewarm(_ phrases: [String]) async {}
-    public func warmConnection() async {}
+    package func isCached(_ phrase: String) async -> Bool { false }
+    package func prewarm(_ phrases: [String]) async {}
+    package func warmConnection() async {}
 }
 
-public struct VoiceLevels: Sendable, Equatable {
-    public var mic: Double
-    public var agent: Double
+package struct VoiceLevels: Sendable, Equatable {
+    package var mic: Double
+    package var agent: Double
 
-    public init(mic: Double, agent: Double) {
+    package init(mic: Double, agent: Double) {
         self.mic = mic
         self.agent = agent
     }
 }
 
-public protocol VoiceControlling: Sendable {
+package protocol VoiceControlling: Sendable {
     /// Applies mid-session; the server accepts speed changes but not voice.
     func setSpeed(_ speed: Double) async
     /// Playback volume, applied live to the local player.
@@ -168,18 +168,18 @@ public protocol VoiceControlling: Sendable {
 }
 
 extension VoiceControlling {
-    public func hold() async {}
-    public func holdProvisionally() async { await hold() }
-    public func confirmHold() async {}
-    public func release() async {}
-    public func discard() async {}
-    public func interrupt() async {}
+    package func hold() async {}
+    package func holdProvisionally() async { await hold() }
+    package func confirmHold() async {}
+    package func release() async {}
+    package func discard() async {}
+    package func interrupt() async {}
 }
 
 /// Whether this Mac has a route to the internet. Lets the session tell "the
 /// realtime server did not answer" (classic can still work) apart from "there
 /// is no network" (nothing remote will work).
-public protocol ReachabilityProbing: Sendable {
+package protocol ReachabilityProbing: Sendable {
     var isOnline: Bool { get async }
 }
 
@@ -187,27 +187,27 @@ public protocol ReachabilityProbing: Sendable {
 /// Plays a short sample so settings can preview a voice. Deliberately separate
 /// from VoiceTransport: a preview must never touch a live realtime session or
 /// the microphone graph (see docs/REFERENCE.md, audio section).
-public protocol VoiceSampling: Sendable {
+package protocol VoiceSampling: Sendable {
     func play(_ text: String, voice: VoiceID) async throws
 }
 
 /// How the user can interrupt the agent, decided by the audio path. The UI
 /// adapts to it: an explicit button when talking over is impossible, a clean
 /// flow when the mic can hear the user during playback.
-public enum InterruptCapability: Sendable, Equatable {
+package enum InterruptCapability: Sendable, Equatable {
     /// Echo-free output (headphones) or working AEC: talk over the agent.
     case voiceAndTap
     /// Speakers without echo cancellation: only the tap interrupts.
     case tapOnly
 
-    public static func decide(echoFreeOutput: Bool, aecActive: Bool) -> Self {
+    package static func decide(echoFreeOutput: Bool, aecActive: Bool) -> Self {
         (echoFreeOutput || aecActive) ? .voiceAndTap : .tapOnly
     }
 }
 
 /// Observes the audio output route so the UI can adapt live when the user
 /// plugs or unplugs headphones.
-public protocol OutputRouteObserving: Sendable {
+package protocol OutputRouteObserving: Sendable {
     /// Emits the current echo-free state on subscription and on every change.
     var echoFreeUpdates: AsyncStream<Bool> { get }
 }

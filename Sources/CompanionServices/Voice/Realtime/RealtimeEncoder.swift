@@ -2,7 +2,7 @@
 import Foundation
 
 /// Device PCM → Realtime wire: int16 LE, 24 kHz, mono.
-public struct RealtimeEncoder: @unchecked Sendable {
+package struct RealtimeEncoder: @unchecked Sendable {
     private static let target = AVAudioFormat(
         commonFormat: .pcmFormatInt16,
         sampleRate: 24_000,
@@ -12,10 +12,10 @@ public struct RealtimeEncoder: @unchecked Sendable {
     private var converter: AVAudioConverter?
     private var srcFormat: AVAudioFormat?
 
-    public init() {}
+    package init() {}
 
     /// Re-arms when the mic format changes (Voice Processing on/off).
-    public mutating func encode(_ buffer: AVAudioPCMBuffer) -> Data? {
+    package mutating func encode(_ buffer: AVAudioPCMBuffer) -> Data? {
         guard buffer.format.sampleRate > 0, buffer.frameLength > 0 else { return nil }
         if converter == nil || srcFormat != buffer.format {
             srcFormat = buffer.format

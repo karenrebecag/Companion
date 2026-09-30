@@ -29,14 +29,14 @@ protocol ContactsBackend: Sendable {
 /// that match what she typed, never the book; a contact's email and phone
 /// are read only when she opens that one contact; nothing here is logged
 /// with a name, a query or an identifier.
-public struct SystemContacts: ContactsProviding {
+package struct SystemContacts: ContactsProviding {
     /// Own value: a contact with more ways to reach it than this is a
     /// company switchboard; the list has to stay one glance long.
     static let maxChannels = 6
 
     let backend: any ContactsBackend
 
-    public init() {
+    package init() {
         self.init(backend: StoreBackend())
     }
 
@@ -44,11 +44,11 @@ public struct SystemContacts: ContactsProviding {
         self.backend = backend
     }
 
-    public func access() -> ContactsAccess {
+    package func access() -> ContactsAccess {
         backend.status()
     }
 
-    public func requestAccess() async -> Bool {
+    package func requestAccess() async -> Bool {
         switch backend.status() {
         case .granted: return true
         // The system shows no second dialog after a denial; asking again
@@ -64,7 +64,7 @@ public struct SystemContacts: ContactsProviding {
         }
     }
 
-    public func search(_ query: String, limit: Int) async -> [MentionCandidate] {
+    package func search(_ query: String, limit: Int) async -> [MentionCandidate] {
         let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
         // No text, no search: the selector never lists the book.
         guard backend.status() == .granted, !text.isEmpty else { return [] }
@@ -80,7 +80,7 @@ public struct SystemContacts: ContactsProviding {
         }
     }
 
-    public func channels(ofContact id: String) async -> [MentionChannel] {
+    package func channels(ofContact id: String) async -> [MentionChannel] {
         guard backend.status() == .granted else { return [] }
         do {
             return try backend.channels(ofContact: id)

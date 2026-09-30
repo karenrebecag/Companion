@@ -10,7 +10,7 @@ import Foundation
 /// selector cancels its own work on every key, and a cancelled caller must
 /// neither abort the query nor leave an empty answer in the cache. A query
 /// that failed or ran out of time is never cached.
-public final class RecentFiles: @unchecked Sendable {
+package final class RecentFiles: @unchecked Sendable {
     /// Own values: two weeks back, forty files, one minute of cache.
     static let days = 14
     static let limit = 40
@@ -25,7 +25,7 @@ public final class RecentFiles: @unchecked Sendable {
     private let home = NSHomeDirectory()
     private let runner: Runner
 
-    public convenience init() {
+    package convenience init() {
         self.init(runner: { days, limit in await SpotlightRecents.paths(days: days, limit: limit) })
     }
 
@@ -41,7 +41,7 @@ public final class RecentFiles: @unchecked Sendable {
             NSMetadataItemContentTypeTreeKey, NSMetadataItemContentTypeTreeKey)
     }
 
-    public func candidates() async -> [MentionCandidate] {
+    package func candidates() async -> [MentionCandidate] {
         let task = lock.withLock { () -> Task<[MentionCandidate], Never>? in
             if Date().timeIntervalSince(stamp) < Self.cacheSeconds { return nil }
             if let inFlight { return inFlight }

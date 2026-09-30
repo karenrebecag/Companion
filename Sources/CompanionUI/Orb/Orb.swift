@@ -1,14 +1,14 @@
 import CompanionCore
 import SwiftUI
 
-public struct Orb: View {
+package struct Orb: View {
     let state: TurnState
     let levels: VoiceLevels
     let accentColor: Color
 
     @Environment(\.accessibilityReduceMotion) var reduceMotion
 
-    public init(
+    package init(
         state: TurnState,
         levels: VoiceLevels,
         accentColor: Color
@@ -18,7 +18,7 @@ public struct Orb: View {
         self.accentColor = accentColor
     }
 
-    public var body: some View {
+    package var body: some View {
         let live: Double = {
             switch state {
             case .listening: levels.mic

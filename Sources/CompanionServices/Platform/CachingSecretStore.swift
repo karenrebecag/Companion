@@ -18,7 +18,7 @@ import Foundation
 /// temporary and remembering the "no" would condemn the whole session. And a
 /// key changed by another app (Keychain Access) is not seen until relaunch —
 /// the price of the cache, small enough to name and move on.
-public final class CachingSecretStore: SecretStore, @unchecked Sendable {
+package final class CachingSecretStore: SecretStore, @unchecked Sendable {
     private let inner: any SecretStore
     private let lock = NSLock()
     /// Two levels of optional on purpose: no entry means "never asked",
@@ -27,30 +27,30 @@ public final class CachingSecretStore: SecretStore, @unchecked Sendable {
     /// Keychain round trip every message.
     private var cache: [SecretKey: String?] = [:]
 
-    public init(_ inner: any SecretStore) {
+    package init(_ inner: any SecretStore) {
         self.inner = inner
     }
 
-    public func read(_ key: SecretKey) throws -> String? {
+    package func read(_ key: SecretKey) throws -> String? {
         if let cached = cached(key) { return cached }
         let value = try inner.read(key)
         remember(key, value)
         return value
     }
 
-    public func write(_ key: SecretKey, value: String) throws {
+    package func write(_ key: SecretKey, value: String) throws {
         try inner.write(key, value: value)
         forget(key)
     }
 
-    public func delete(_ key: SecretKey) throws {
+    package func delete(_ key: SecretKey) throws {
         try inner.delete(key)
         forget(key)
     }
 
     /// Drops everything. For a settings screen that lets keys be edited
     /// outside the two methods above.
-    public func invalidate() {
+    package func invalidate() {
         lock.lock()
         defer { lock.unlock() }
         cache.removeAll()

@@ -3,7 +3,7 @@ import Foundation
 /// Wave 18. JSONL codec for the socket between the relay and the app. The
 /// direction is fixed: the extension says hello and answers; only the app
 /// calls. An inbound `call` is therefore an error, never a request.
-public enum BrowserCodec {
+package enum BrowserCodec {
     /// JSONSerialization bridges `true` to 1, so a boolean would pass `as? Int`
     /// as a valid id; it is refused here.
     private static func integer(_ value: Any?) -> Int? {
@@ -15,7 +15,7 @@ public enum BrowserCodec {
         .failure(BridgeErrorBody(code: code, message: message))
     }
 
-    public static func decode(line: String) -> Result<BrowserInbound, BridgeErrorBody> {
+    package static func decode(line: String) -> Result<BrowserInbound, BridgeErrorBody> {
         guard line.utf8.count <= BrowserWire.maxLineBytes else {
             return fail(BridgeCode.frameTooLarge, "Line exceeds \(BrowserWire.maxLineBytes) bytes")
         }
@@ -114,7 +114,7 @@ public enum BrowserCodec {
 
     // MARK: Encode
 
-    public static func encode(_ message: BrowserOutbound) -> String {
+    package static func encode(_ message: BrowserOutbound) -> String {
         let envelope: [String: Any]
         switch message {
         case .helloOK(let id):

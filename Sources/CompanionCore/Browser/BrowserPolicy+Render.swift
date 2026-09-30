@@ -5,7 +5,7 @@ extension BrowserPolicy {
 
     /// The text the model reads: header, numbered elements, then page text,
     /// cut to `maxBytes` of UTF-8 with the truncation note inside the budget.
-    public static func render(_ page: BrowserPage, maxBytes: Int, language: AppLanguage = .en) -> String {
+    package static func render(_ page: BrowserPage, maxBytes: Int, language: AppLanguage = .en) -> String {
         let clean = scrub(page)
         var lines = ["\(clean.title) — \(clean.url)"]
         lines += clean.elements.map(line)

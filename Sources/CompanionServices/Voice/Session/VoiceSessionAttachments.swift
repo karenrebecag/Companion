@@ -35,7 +35,7 @@ enum VoiceAttachmentCopy {
 }
 
 extension VoiceSession {
-    public func push(attachment: AttachmentRef) async {
+    package func push(attachment: AttachmentRef) async {
         guard isLiveRealtime else { return }
         guard attachment.kind == .image else { return }
         let name = attachment.name

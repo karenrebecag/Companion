@@ -1,16 +1,16 @@
 import CompanionCore
 import Foundation
 
-public struct LiveCapabilityProbe: CapabilityProbe, Sendable {
+package struct LiveCapabilityProbe: CapabilityProbe, Sendable {
     private let transport: any ChatTransport
     private let timeout: TimeInterval
 
-    public init(transport: any ChatTransport, timeout: TimeInterval = 1) {
+    package init(transport: any ChatTransport, timeout: TimeInterval = 1) {
         self.transport = transport
         self.timeout = timeout
     }
 
-    public func isAvailable(_ provider: ProviderDescriptor) async -> Bool {
+    package func isAvailable(_ provider: ProviderDescriptor) async -> Bool {
         // Keyed providers are gated by SecretStore, not by a network ping.
         guard provider.secretKey == nil else { return true }
         // Catalog bases have no trailing slash; appendingPathComponent

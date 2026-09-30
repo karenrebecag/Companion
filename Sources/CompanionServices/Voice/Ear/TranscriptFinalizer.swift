@@ -6,7 +6,7 @@ import Foundation
 /// `signalFinal` resumes the wait early; the deadline resumes it with `nil`
 /// when no final ever came, exactly like `Approvals`' own timer
 /// (`Approvals.swift`).
-public actor TranscriptFinalizer {
+package actor TranscriptFinalizer {
     private var continuation: CheckedContinuation<String?, Never>?
     private var deadline: Task<Void, Never>?
     /// A final signalled before anyone waits: the analyzer's finishing task
@@ -15,12 +15,12 @@ public actor TranscriptFinalizer {
     private var early: String?
     private var resolved = false
 
-    public init() {}
+    package init() {}
 
     /// Suspends until `signalFinal` or `timeout` — whichever comes first —
     /// and returns `nil` on the timeout side, so the caller falls back to
     /// whatever partial it already had.
-    public func awaitFinal(timeout: TimeInterval) async -> String? {
+    package func awaitFinal(timeout: TimeInterval) async -> String? {
         if let early {
             self.early = nil
             resolved = true
@@ -41,7 +41,7 @@ public actor TranscriptFinalizer {
 
     /// The recognizer's own final result: wins the race whenever it lands
     /// before the deadline.
-    public func signalFinal(_ text: String) {
+    package func signalFinal(_ text: String) {
         guard continuation != nil else {
             if !resolved { early = text }
             return

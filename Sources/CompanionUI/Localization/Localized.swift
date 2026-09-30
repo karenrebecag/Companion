@@ -7,7 +7,7 @@ import Foundation
 /// The bundle's own localization follows the system, which is not enough: the
 /// app lets the user pick a language, so the lookup goes straight at the
 /// matching `.lproj` sub-bundle instead of trusting the process locale.
-public enum Localized {
+package enum Localized {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var source: @Sendable () -> AppLanguage = {
         LanguagePreference.current
@@ -36,7 +36,7 @@ public enum Localized {
     /// in the language being previewed, not the one in force. Reads prefer
     /// this task's `scoped` pin; previews and any caller outside a `scoped`
     /// block still see the one process-wide default.
-    public static var language: @Sendable () -> AppLanguage {
+    package static var language: @Sendable () -> AppLanguage {
         get { override.get()?.source ?? lock.withLock { source } }
         set { lock.withLock { source = newValue } }
     }
@@ -44,7 +44,7 @@ public enum Localized {
     /// Binds `language` for this task tree only (including non-detached
     /// `Task`s it spawns) — the isolation `pinLanguage(_:_:)` and every
     /// direct `Localized.language = { … }` test call site route through.
-    public static func scoped<R>(
+    package static func scoped<R>(
         to language: AppLanguage,
         isolation: isolated (any Actor)? = #isolation,
         _ body: () async throws -> R
@@ -53,13 +53,13 @@ public enum Localized {
             Pin(source: { language }), operation: body, isolation: isolation)
     }
 
-    public static func string(_ key: String) -> String {
+    package static func string(_ key: String) -> String {
         string(key, language: language())
     }
 
     /// For callers that already hold the language they must speak (the
     /// language picker preview, pure copy functions taking a parameter).
-    public static func string(_ key: String, language: AppLanguage) -> String {
+    package static func string(_ key: String, language: AppLanguage) -> String {
         bundle(for: language)?.localizedString(
             forKey: key, value: nil, table: nil)
             ?? fallback(key)

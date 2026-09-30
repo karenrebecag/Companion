@@ -9,7 +9,7 @@ import Foundation
 /// actor-isolated frame pump, the same exclusive-access pattern the rest of
 /// its state relies on). Once full, further frames are dropped rather than
 /// grown without bound (wave-15c §5, §8).
-public struct HoldAudioBuffer: Sendable, Equatable {
+package struct HoldAudioBuffer: Sendable, Equatable {
     private var pcm = Data()
     private let capBytes: Int
     private var speechFrameCount = 0
@@ -25,17 +25,17 @@ public struct HoldAudioBuffer: Sendable, Equatable {
     /// real speech holds several frames above threshold.
     private static let minSpeechFrames = 3
 
-    public init(maxSeconds: Double = 60, sampleRate: Int = 24_000) {
+    package init(maxSeconds: Double = 60, sampleRate: Int = 24_000) {
         // 16-bit mono: 2 bytes per sample.
         capBytes = Int(maxSeconds * Double(sampleRate) * 2)
     }
 
-    public mutating func reset() {
+    package mutating func reset() {
         pcm = Data()
         speechFrameCount = 0
     }
 
-    public mutating func append(_ frame: MicFrame) {
+    package mutating func append(_ frame: MicFrame) {
         let bytes = frame.pcm16le24k
         guard !bytes.isEmpty else { return }
         if frame.rms >= Self.speechRMSThreshold { speechFrameCount += 1 }
@@ -44,9 +44,9 @@ public struct HoldAudioBuffer: Sendable, Equatable {
         pcm += bytes.count <= remaining ? bytes : bytes.prefix(remaining)
     }
 
-    public var snapshot: Data { pcm }
+    package var snapshot: Data { pcm }
 
     /// Whether this hold ever sounded like speech — `ClassicRuntime` reads
     /// it at release to tell a silent hold from one the ear came back empty on.
-    public var hasSpeech: Bool { speechFrameCount >= Self.minSpeechFrames }
+    package var hasSpeech: Bool { speechFrameCount >= Self.minSpeechFrames }
 }

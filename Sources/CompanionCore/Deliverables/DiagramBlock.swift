@@ -4,18 +4,18 @@ import Foundation
 /// (16m-5b). The body is the Mermaid text itself, not JSON: a model that
 /// knows Mermaid writes it fluently, and wrapping it in JSON only adds
 /// escaping to get wrong.
-public struct DiagramBlock: Sendable, Equatable, Hashable {
+package struct DiagramBlock: Sendable, Equatable, Hashable {
     /// Mermaid's own `maxTextSize` is 50 000 characters; a diagram that fits
     /// the island's 504-wide canvas is far smaller than that.
     // HACK: a round number, not measured against real answers. Raise it when
     // a legitimate diagram lands on the cap and reads fine.
-    public static let maxSourceBytes = 16 * 1024
-    public var source: String
+    package static let maxSourceBytes = 16 * 1024
+    package var source: String
 
-    public init(source: String) { self.source = source }
+    package init(source: String) { self.source = source }
 }
 
-public extension CompanionBlocks {
+package extension CompanionBlocks {
     static let diagramLanguage = "companion:diagram"
 
     /// Nil sends the fence back to a code block, visible: an over-cap or

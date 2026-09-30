@@ -17,35 +17,35 @@ extension NSColor {
 
 // MARK: - Rampa neutral completa con tema oscuro
 /// Cada paso tiene un uso específico: página, superficies, texto, bordes.
-public enum Neutral {
-    public static let n50  = Swatch("FAFAFA")
-    public static let n100 = Swatch("F5F5F5")
-    public static let n150 = Swatch("EFEFEF")
-    public static let n200 = Swatch("E5E5E5")
-    public static let n300 = Swatch("D4D4D4")
-    public static let n400 = Swatch("A3A3A3")
-    public static let n500 = Swatch("737373")
-    public static let n600 = Swatch("525252")
-    public static let n700 = Swatch("404040")
-    public static let n770 = Swatch("2E2E2E")
-    public static let n800 = Swatch("262626")
-    public static let n850 = Swatch("1A1A1A")
-    public static let n870 = Swatch("191919")
-    public static let n900 = Swatch("171717")
-    public static let n950 = Swatch("0A0A0A")
-    public static let white = Swatch("FFFFFF")
-    public static let black = Swatch("000000")
+package enum Neutral {
+    package static let n50  = Swatch("FAFAFA")
+    package static let n100 = Swatch("F5F5F5")
+    package static let n150 = Swatch("EFEFEF")
+    package static let n200 = Swatch("E5E5E5")
+    package static let n300 = Swatch("D4D4D4")
+    package static let n400 = Swatch("A3A3A3")
+    package static let n500 = Swatch("737373")
+    package static let n600 = Swatch("525252")
+    package static let n700 = Swatch("404040")
+    package static let n770 = Swatch("2E2E2E")
+    package static let n800 = Swatch("262626")
+    package static let n850 = Swatch("1A1A1A")
+    package static let n870 = Swatch("191919")
+    package static let n900 = Swatch("171717")
+    package static let n950 = Swatch("0A0A0A")
+    package static let white = Swatch("FFFFFF")
+    package static let black = Swatch("000000")
 }
 
 /// Acentos nombrados siguiendo tintes de sistema (Reminders).
 /// El lima es la marca de Companion, no un verde de Apple.
-public enum Accent {
-    public static let lime   = Swatch("C9FE6E")
-    public static let blue   = Swatch("0A84FF")
-    public static let green  = Swatch("30D158")
-    public static let yellow = Swatch("FFD60A")
-    public static let pink   = Swatch("FF375F")
-    public static let orange = Swatch("FF9F0A")
-    public static let purple = Swatch("BF5AF2")
-    public static let teal = Swatch("5AC8FA")
+package enum Accent {
+    package static let lime   = Swatch("C9FE6E")
+    package static let blue   = Swatch("0A84FF")
+    package static let green  = Swatch("30D158")
+    package static let yellow = Swatch("FFD60A")
+    package static let pink   = Swatch("FF375F")
+    package static let orange = Swatch("FF9F0A")
+    package static let purple = Swatch("BF5AF2")
+    package static let teal = Swatch("5AC8FA")
 }

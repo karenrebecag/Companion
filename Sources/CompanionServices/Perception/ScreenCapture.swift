@@ -6,12 +6,12 @@ import ScreenCaptureKit
 import UniformTypeIdentifiers
 
 /// One JPEG of a display, without our own windows. Never a stream.
-public struct ScreenCapture: Sendable {
+package struct ScreenCapture: Sendable {
     private let bundleID: String
     private let trusted: @Sendable () -> Bool
     private let grab: (@Sendable () async -> Data?)?
 
-    public init(
+    package init(
         bundleID: String,
         trusted: @escaping @Sendable () -> Bool,
         grab: (@Sendable () async -> Data?)? = nil
@@ -23,12 +23,12 @@ public struct ScreenCapture: Sendable {
 
     /// Text on a Retina display does not survive 1280 px; the per-turn sidecar
     /// does not read text, `see` does.
-    public static let seeMaxSide: CGFloat = 2_000
-    public static let sidecarMaxSide: CGFloat = 1_280
+    package static let seeMaxSide: CGFloat = 2_000
+    package static let sidecarMaxSide: CGFloat = 1_280
 
     /// `pid` picks the display holding that process's window; without it, or
     /// when it has no window on screen, the main display.
-    public func jpeg(pid: Int32? = nil, maxSide: CGFloat = sidecarMaxSide) async -> Data? {
+    package func jpeg(pid: Int32? = nil, maxSide: CGFloat = sidecarMaxSide) async -> Data? {
         guard trusted() else { return nil }
         if let grab { return await grab() }
         return await Self.take(excluding: bundleID, pid: pid, maxSide: maxSide)

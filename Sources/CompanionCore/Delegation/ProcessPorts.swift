@@ -1,7 +1,7 @@
 import Foundation
 
 /// Port for process launch: allows CLI executors to be tested without spawning real processes.
-public protocol ProcessLauncher: Sendable {
+package protocol ProcessLauncher: Sendable {
     /// Launch a process with the given executable, arguments, and optional working directory.
     /// Returns a handle to read/write to the process, or nil if launch fails.
     func launch(
@@ -12,7 +12,7 @@ public protocol ProcessLauncher: Sendable {
 }
 
 /// Handle to communicate with a running process.
-public protocol ProcessHandle: Sendable {
+package protocol ProcessHandle: Sendable {
     /// Send a line to stdin (NDJSON format expected).
     func sendLine(_ line: String) async throws
 

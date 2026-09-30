@@ -2,24 +2,24 @@ import Foundation
 
 /// Home as Incredible draws it (spec 16j §8): every conversation is a task,
 /// grouped by day, newest first, with how long ago it last moved.
-public enum HomeTasks {
-    public enum Day: Sendable, Hashable {
+package enum HomeTasks {
+    package enum Day: Sendable, Hashable {
         case today, yesterday, earlier
     }
 
-    public enum Ago: Sendable, Equatable {
+    package enum Ago: Sendable, Equatable {
         case justNow
         case minutes(Int)
         case hours(Int)
         case days(Int)
     }
 
-    public struct Section: Sendable, Equatable {
-        public let day: Day
-        public let rows: [ConversationMeta]
+    package struct Section: Sendable, Equatable {
+        package let day: Day
+        package let rows: [ConversationMeta]
     }
 
-    public static func sections(_ metas: [ConversationMeta], now: Date, calendar: Calendar) -> [Section] {
+    package static func sections(_ metas: [ConversationMeta], now: Date, calendar: Calendar) -> [Section] {
         let sorted = metas.sorted { $0.updatedAt > $1.updatedAt }
         let order: [Day] = [.today, .yesterday, .earlier]
         return order.compactMap { day in
@@ -28,7 +28,7 @@ public enum HomeTasks {
         }
     }
 
-    public static func ago(_ date: Date, now: Date) -> Ago {
+    package static func ago(_ date: Date, now: Date) -> Ago {
         // A clock that runs ahead of the store reads as "now", never negative.
         let seconds = max(now.timeIntervalSince(date), 0)
         switch seconds {

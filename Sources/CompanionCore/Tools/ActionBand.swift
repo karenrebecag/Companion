@@ -3,7 +3,7 @@ import Foundation
 /// Wave 20d A. How much a step needs from the user, in Incredible's three
 /// levels: it just acts, it is confirmed on a card, or it can never be undone
 /// or hands over the controls and always takes the sheet and a ticket.
-public enum ActionBand: Sendable, Equatable {
+package enum ActionBand: Sendable, Equatable {
     case act
     case confirm
     case critical
@@ -12,22 +12,22 @@ public enum ActionBand: Sendable, Equatable {
 /// What the runner verified about the target before asking for a band. Every
 /// field defaults to the answer that raises the band, so a caller that did not
 /// look gets the sheet, not a free pass. The model never supplies any of it.
-public struct ActionFacts: Sendable, Equatable {
+package struct ActionFacts: Sendable, Equatable {
     /// A symlink counts as existing, dangling or not.
-    public var pathExists: Bool
+    package var pathExists: Bool
     /// A folder the user handed over for deliverables: not the whole home,
     /// not Library, not the app's own folders.
-    public var inWorkZone: Bool
+    package var inWorkZone: Bool
     /// Whether the range already holds values; nil when it was not read.
-    public var rangeHasValues: Bool?
+    package var rangeHasValues: Bool?
     /// The user's own words named this host (`ParentToolGate.saidIt`).
-    public var hostSaid: Bool
+    package var hostSaid: Bool
     /// The resolved click/menu target falls in a destructive family.
-    public var destructiveTarget: Bool
+    package var destructiveTarget: Bool
     /// The front app takes commands: typing there is running them.
-    public var inTerminal: Bool
+    package var inTerminal: Bool
 
-    public init(
+    package init(
         pathExists: Bool = true, inWorkZone: Bool = false, rangeHasValues: Bool? = nil,
         hostSaid: Bool = false, destructiveTarget: Bool = false, inTerminal: Bool = false
     ) {
@@ -54,7 +54,7 @@ extension ActionBand {
 
     /// Allowlist: a tool nobody classified is critical, so a new tool needs
     /// the sheet until someone decides otherwise.
-    public static func classify(
+    package static func classify(
         toolName: String, arguments: [String: Any], facts: ActionFacts
     ) -> ActionBand {
         if reads.contains(toolName) { return .act }

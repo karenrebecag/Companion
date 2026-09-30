@@ -5,45 +5,45 @@ import Foundation
 /// until the ear hears, how much dead air after the release. The two tool
 /// gaps measure how long the model takes to decide a tool call and how long
 /// the code takes to run it (Wave DM0). Pure; the session marks, the log reads.
-public struct TurnTimeline: Sendable, Equatable {
-    public enum Point: Sendable, Equatable, CaseIterable {
+package struct TurnTimeline: Sendable, Equatable {
+    package enum Point: Sendable, Equatable, CaseIterable {
         case pressed, micReady, earReady, sessionReady, firstPartial, released, committed, contextReady, toolCallSeen, toolDone, firstAudio, decision, firstToken, earFinal, firstCut, ttsRequest, firstByte, acknowledged
     }
 
-    public var pressed: TimeInterval?
-    public var micReady: TimeInterval?
-    public var earReady: TimeInterval?
-    public var sessionReady: TimeInterval?
-    public var firstPartial: TimeInterval?
-    public var released: TimeInterval?
-    public var committed: TimeInterval?
+    package var pressed: TimeInterval?
+    package var micReady: TimeInterval?
+    package var earReady: TimeInterval?
+    package var sessionReady: TimeInterval?
+    package var firstPartial: TimeInterval?
+    package var released: TimeInterval?
+    package var committed: TimeInterval?
     /// Wave 15g-5: the context fan-out is in hand and the chat request is
     /// about to leave — splits the vision wait from the model's own share.
-    public var contextReady: TimeInterval?
-    public var toolCallSeen: TimeInterval?
-    public var toolDone: TimeInterval?
-    public var firstAudio: TimeInterval?
+    package var contextReady: TimeInterval?
+    package var toolCallSeen: TimeInterval?
+    package var toolDone: TimeInterval?
+    package var firstAudio: TimeInterval?
     /// DM1c: when `DecisionGate.plan` returned. Done says `< 1.5s` here.
-    public var decision: TimeInterval?
+    package var decision: TimeInterval?
     /// Wave 15c-0: the brain's first content for this turn — a chat delta or
     /// the router's own reply — measured from `committed` so a slow model is
     /// visible apart from a slow mouth (wave-15c-tubo-rapido.md §1).
-    public var firstToken: TimeInterval?
+    package var firstToken: TimeInterval?
     /// Wave 15d-0: the ear's final transcript in hand — splits
     /// the ear's share of the wait from the brain's and the mouth's.
-    public var earFinal: TimeInterval?
+    package var earFinal: TimeInterval?
     /// Wave 15f-5: the mouth's own share, for the first sentence only.
-    public var firstCut: TimeInterval?
-    public var ttsRequest: TimeInterval?
-    public var firstByte: TimeInterval?
+    package var firstCut: TimeInterval?
+    package var ttsRequest: TimeInterval?
+    package var firstByte: TimeInterval?
     /// Wave 16h-2: the turn's own acknowledgement was queued, before the
     /// slow work it announces — criterion 1 reads `commit→ack` < 2 s.
-    public var acknowledged: TimeInterval?
+    package var acknowledged: TimeInterval?
 
-    public init() {}
+    package init() {}
 
     /// The first mark of a point wins: a retry never rewrites history.
-    public mutating func mark(_ point: Point, at time: TimeInterval) {
+    package mutating func mark(_ point: Point, at time: TimeInterval) {
         switch point {
         case .pressed: if pressed == nil { pressed = time }
         case .micReady: if micReady == nil { micReady = time }
@@ -68,7 +68,7 @@ public struct TurnTimeline: Sendable, Equatable {
 
     /// Nil before a press: there is nothing to say about a hold that did
     /// not happen.
-    public func line() -> String? {
+    package func line() -> String? {
         guard let pressed else { return nil }
         let parts = [
             "press→mic \(Self.gap(pressed, micReady))",
@@ -106,7 +106,7 @@ public struct TurnTimeline: Sendable, Equatable {
 
 extension TurnTimeline.Point {
     /// The mouth reports its instants without knowing about the timeline.
-    public init(_ mark: SpeechMark) {
+    package init(_ mark: SpeechMark) {
         switch mark {
         case .firstCut: self = .firstCut
         case .ttsRequest: self = .ttsRequest

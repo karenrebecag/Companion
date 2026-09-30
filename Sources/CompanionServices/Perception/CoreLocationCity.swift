@@ -59,7 +59,7 @@ final class SystemLocationManager: NSObject, LocationManaging, CLLocationManager
 /// never leave this file — not into the prompt, not into a log. Logs say
 /// that a lookup happened, never where.
 @MainActor
-public final class CoreLocationCityLocator: UserLocating {
+package final class CoreLocationCityLocator: UserLocating {
     typealias Sleep = @Sendable (Duration) async throws -> Void
     typealias Geocode = @Sendable (CLLocation) async -> UserLocation?
 
@@ -76,7 +76,7 @@ public final class CoreLocationCityLocator: UserLocating {
     private var fix: CheckedContinuation<CLLocation?, Never>?
     private var fixTimer: Task<Void, Never>?
 
-    public convenience init() {
+    package convenience init() {
         self.init(manager: SystemLocationManager(), sleep: { try await Task.sleep(for: $0) },
                   geocode: { await Self.city(of: $0) })
     }
@@ -98,7 +98,7 @@ public final class CoreLocationCityLocator: UserLocating {
         status == .authorizedAlways
     }
 
-    public nonisolated func current(prompting: Bool) async -> UserLocation? {
+    package nonisolated func current(prompting: Bool) async -> UserLocation? {
         await resolve(prompting: prompting)
     }
 

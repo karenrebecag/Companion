@@ -2,30 +2,30 @@ import Foundation
 
 /// What a chart says in words, for VoiceOver and for a copy: pure, so a test
 /// pins the numbers before any view speaks them (16m-5a).
-public struct ChartSummary: Sendable, Equatable {
-    public struct Extreme: Sendable, Equatable {
-        public var label: String
-        public var series: String?
-        public var value: Double
+package struct ChartSummary: Sendable, Equatable {
+    package struct Extreme: Sendable, Equatable {
+        package var label: String
+        package var series: String?
+        package var value: Double
 
         /// 12, 12.5 — never 12.0.
-        public var valueText: String { ChartBlock.text(value) }
+        package var valueText: String { ChartBlock.text(value) }
 
-        public init(label: String, series: String?, value: Double) {
+        package init(label: String, series: String?, value: Double) {
             self.label = label
             self.series = series
             self.value = value
         }
     }
 
-    public var kind: ChartBlock.Kind
-    public var title: String?
-    public var seriesCount: Int
-    public var pointCount: Int
-    public var maximum: Extreme?
-    public var minimum: Extreme?
+    package var kind: ChartBlock.Kind
+    package var title: String?
+    package var seriesCount: Int
+    package var pointCount: Int
+    package var maximum: Extreme?
+    package var minimum: Extreme?
 
-    public init(_ block: ChartBlock) {
+    package init(_ block: ChartBlock) {
         kind = block.kind
         title = block.title
         seriesCount = block.series.count
@@ -48,11 +48,11 @@ public struct ChartSummary: Sendable, Equatable {
 
 extension ChartBlock {
     /// A value as the user would write it: 12, 12.5, never 12.0.
-    public static func text(_ value: Double) -> String { DataCells.number(value) }
+    package static func text(_ value: Double) -> String { DataCells.number(value) }
 
     /// The data as CSV: it pastes into Numbers or Sheets as the table the
     /// drawing came from.
-    public var csv: String {
+    package var csv: String {
         let table = asTable
         let header = table.columns.map(Self.csvText)
         let rows = table.rows.map { [Self.csvText($0[0])] + $0.dropFirst().map(Self.csvField) }

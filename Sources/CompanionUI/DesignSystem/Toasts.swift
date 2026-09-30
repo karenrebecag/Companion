@@ -5,12 +5,12 @@ import SwiftUI
 
 @Observable
 @MainActor
-public final class NoticeCenter {
-    public private(set) var queue = NoticeQueue()
+package final class NoticeCenter {
+    package private(set) var queue = NoticeQueue()
     private let sound: (any InterfaceSounding)?
     private let now: () -> TimeInterval
 
-    public init(
+    package init(
         sound: (any InterfaceSounding)? = nil,
         now: @escaping () -> TimeInterval = { Date().timeIntervalSince1970 }
     ) {
@@ -18,12 +18,12 @@ public final class NoticeCenter {
         self.now = now
     }
 
-    public func toast(_ text: String, level: NoticeLevel = .info) {
+    package func toast(_ text: String, level: NoticeLevel = .info) {
         queue.add(text, level: level, at: now())
         sound?.play(SoundCue.forLevel(level))
     }
 
-    public func tick(at time: TimeInterval? = nil) {
+    package func tick(at time: TimeInterval? = nil) {
         queue.expire(at: time ?? now())
     }
 }

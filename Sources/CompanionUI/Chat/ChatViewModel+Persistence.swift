@@ -86,7 +86,7 @@ extension ChatViewModel {
     /// `applicationDidBecomeActive` (§10 of the spec): a voice turn already
     /// under way decides this for itself once it reaches `historyTurns()` or
     /// `appendUser`, so this entry point only admits a resting chrome.
-    public func rolloverIfIdle() {
+    package func rolloverIfIdle() {
         guard session.projection.kind == .idle || session.projection.kind == .hover else { return }
         rolloverIfDue()
     }

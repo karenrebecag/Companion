@@ -8,8 +8,8 @@ import Foundation
 /// favicon at display time, like the live catalog's URLs do. That display
 /// fetch goes through Google's favicon service — a dozen domain lookups a
 /// third party sees whenever the page opens (review 19-1c).
-public enum CatalogSeed {
-    public static func apps(language: AppLanguage) -> [CatalogApp] {
+package enum CatalogSeed {
+    package static func apps(language: AppLanguage) -> [CatalogApp] {
         let es = language == .es
         return [
             app("slack", "Slack", "slack.com",
@@ -53,7 +53,7 @@ public enum CatalogSeed {
 
     /// The page's local search over the seed, same contains the live
     /// catalog's query uses.
-    public static func filtered(_ query: String, language: AppLanguage) -> [CatalogApp] {
+    package static func filtered(_ query: String, language: AppLanguage) -> [CatalogApp] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return apps(language: language) }
         return apps(language: language).filter {

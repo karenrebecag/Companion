@@ -1,7 +1,7 @@
 import Foundation
 
 /// Short notices repeat; hashing UTF-8 keeps the key stable across launches.
-public struct PhraseCache: Sendable {
+package struct PhraseCache: Sendable {
     private static let maxChars = 80
 
     private let directory: URL
@@ -9,7 +9,7 @@ public struct PhraseCache: Sendable {
     /// keeps the keys every existing cache already has on disk.
     private let variant: String
 
-    public init(directory: URL) {
+    package init(directory: URL) {
         self.init(directory: directory, variant: "")
     }
 
@@ -20,18 +20,18 @@ public struct PhraseCache: Sendable {
 
     /// The same directory, keyed apart: audio stored under one variant is
     /// never read back under another.
-    public func scoped(_ variant: String) -> PhraseCache {
+    package func scoped(_ variant: String) -> PhraseCache {
         PhraseCache(directory: directory, variant: variant)
     }
 
-    public func data(for phrase: String) throws -> Data? {
+    package func data(for phrase: String) throws -> Data? {
         guard phrase.count <= Self.maxChars else { return nil }
         let url = fileURL(for: phrase)
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         return try Data(contentsOf: url)
     }
 
-    public func store(_ data: Data, for phrase: String) throws {
+    package func store(_ data: Data, for phrase: String) throws {
         guard phrase.count <= Self.maxChars else { return }
         try FileManager.default.createDirectory(
             at: directory, withIntermediateDirectories: true,

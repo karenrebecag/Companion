@@ -8,7 +8,7 @@ extension SessionMachine {
     /// may be private.
     // HACK: fixed 60 s ceiling. Make it a preference if someone reads long
     // dictations with the pointer parked on the card.
-    public static let dictationHoverCap: TimeInterval = 60
+    package static let dictationHoverCap: TimeInterval = 60
 
     /// The card is what Completed is showing: Completed with the pasted words.
     var showsDictationCard: Bool {

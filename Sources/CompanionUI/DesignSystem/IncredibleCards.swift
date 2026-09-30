@@ -3,30 +3,30 @@ import SwiftUI
 // Wave 16l-3: Incredible's cards — the plain elevated card, the action card
 // whose colour halo follows the pointer, and the status dot. Measurements from docs/research/incredible-componentes.md.
 
-public enum CardChrome {
-    public static let radius: CGFloat = Radius.lg
-    public static let padding: CGFloat = Space.x4
+package enum CardChrome {
+    package static let radius: CGFloat = Radius.lg
+    package static let padding: CGFloat = Space.x4
 }
 
-public enum ActionCardMetrics {
-    public static let paddingTop: CGFloat = Space.x6
-    public static let paddingX: CGFloat = Space.x6
-    public static let paddingBottom: CGFloat = 26
-    public static let gap: CGFloat = Space.x6
-    public static let radius: CGFloat = Radius.panel
+package enum ActionCardMetrics {
+    package static let paddingTop: CGFloat = Space.x6
+    package static let paddingX: CGFloat = Space.x6
+    package static let paddingBottom: CGFloat = 26
+    package static let gap: CGFloat = Space.x6
+    package static let radius: CGFloat = Radius.panel
     /// The halo is wider than the card so its edge never shows.
-    public static let haloWidth: CGFloat = 1.3
-    public static let haloRest = 0.6
-    public static let haloHover = 1.0
-    public static let haloDuration = 0.9
+    package static let haloWidth: CGFloat = 1.3
+    package static let haloRest = 0.6
+    package static let haloHover = 1.0
+    package static let haloDuration = 0.9
     /// The gradient reaches transparent at 72 % of its radius.
     static let haloFade: CGFloat = 0.72
 }
 
-public enum ActionCardHalo {
+package enum ActionCardHalo {
     /// Where the halo sits: under the pointer while it is inside the card,
     /// otherwise resting on the top-trailing corner.
-    public static func center(pointer: CGPoint?, in size: CGSize) -> CGPoint {
+    package static func center(pointer: CGPoint?, in size: CGSize) -> CGPoint {
         guard let pointer,
               pointer.x >= 0, pointer.y >= 0,
               pointer.x <= size.width, pointer.y <= size.height
@@ -36,19 +36,19 @@ public enum ActionCardHalo {
 }
 
 /// A white card with a soft colour field that trails the pointer.
-public struct ActionCard<Content: View>: View {
+package struct ActionCard<Content: View>: View {
     let accent: Color
     @ViewBuilder let content: () -> Content
 
     @State private var pointer: CGPoint?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(accent: Color, @ViewBuilder content: @escaping () -> Content) {
+    package init(accent: Color, @ViewBuilder content: @escaping () -> Content) {
         self.accent = accent
         self.content = content
     }
 
-    public var body: some View {
+    package var body: some View {
         VStack(alignment: .leading, spacing: ActionCardMetrics.gap) {
             content()
         }
@@ -90,13 +90,13 @@ public struct ActionCard<Content: View>: View {
 }
 
 /// An 8 pt status light.
-public struct StatusDot: View {
-    public static let side: CGFloat = 8
+package struct StatusDot: View {
+    package static let side: CGFloat = 8
     let color: Color
 
-    public init(_ color: Color) { self.color = color }
+    package init(_ color: Color) { self.color = color }
 
-    public var body: some View {
+    package var body: some View {
         Circle().fill(color).frame(width: Self.side, height: Self.side)
             .accessibilityHidden(true)
     }

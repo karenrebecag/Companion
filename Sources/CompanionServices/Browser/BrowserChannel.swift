@@ -4,16 +4,16 @@ import Foundation
 /// Whether an extension is connected, readable from any thread. The tool
 /// list asks this synchronously (a tool with nothing behind it is not
 /// offered), so it cannot live behind the channel's actor.
-public final class BrowserPresence: @unchecked Sendable {
+package final class BrowserPresence: @unchecked Sendable {
     private let lock = NSLock()
     private var current: BrowserKind?
     private var counter = 0
 
-    public init() {}
+    package init() {}
 
-    public var browser: BrowserKind? { lock.withLock { current } }
+    package var browser: BrowserKind? { lock.withLock { current } }
 
-    public var connected: Bool { browser != nil }
+    package var connected: Bool { browser != nil }
 
     /// Changes on every connect and disconnect, so a holder of per-connection
     /// state (pages read, approvals given) can tell it belongs to a
@@ -32,7 +32,7 @@ public final class BrowserPresence: @unchecked Sendable {
 /// `hello`, then Companion calls and the extension answers by id. It never
 /// dispatches anything the extension sends as a request: the extension is
 /// code running beside arbitrary web pages, so it may answer but never ask.
-public actor BrowserChannel {
+package actor BrowserChannel {
     private struct Pending {
         let command: BrowserCommand
         let continuation: CheckedContinuation<Result<BrowserInbound, ContractError>, Never>
@@ -49,7 +49,7 @@ public actor BrowserChannel {
     private var nextID = 0
     private var pending: [Int: Pending] = [:]
 
-    public init(
+    package init(
         presence: BrowserPresence, token: @escaping @Sendable () -> String,
         helloDeadline: Duration = .seconds(5)
     ) {
@@ -61,7 +61,7 @@ public actor BrowserChannel {
     /// Serves one connection until it closes. The `BridgeListener` slot
     /// already keeps a second client out; the check here is for the window in
     /// which the listener freed the slot before this actor saw the close.
-    public func attach(_ connection: BridgeConnection) async {
+    package func attach(_ connection: BridgeConnection) async {
         if let existing = current, existing.isOpen {
             connection.send(line: BrowserCodec.encode(.error(
                 id: nil, BridgeErrorBody(code: BridgeCode.busy, message: "another browser is connected"))))
@@ -94,7 +94,7 @@ public actor BrowserChannel {
     }
 
     /// The caller picks the timeout: a read is seconds, a navigation longer.
-    public func send(
+    package func send(
         _ command: BrowserCommand, timeout: Duration
     ) async -> Result<BrowserInbound, ContractError> {
         guard authenticated, let connection = current, connection.isOpen else {

@@ -10,7 +10,7 @@ extension BrowserToolRunner {
 
     // MARK: - approval
 
-    public func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
+    package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
         guard let tool = BrowserTool(rawValue: call.name), tool.isWrite,
               let arguments = ToolArguments.parse(call.arguments)
         else { return nil }

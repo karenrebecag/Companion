@@ -7,15 +7,15 @@ import Foundation
 /// reported as a configuration fault, which sends someone to fix what is not
 /// broken. It is the same family as `noProvider` being reported as "no
 /// internet", and the same fix: say what actually happened.
-public enum RetryPolicy: Sendable {
+package enum RetryPolicy: Sendable {
     /// Three tries total. Enough to ride out a burst, short enough that a
     /// provider having a bad day does not become a silent hang.
-    public static let maxAttempts = 3
+    package static let maxAttempts = 3
     /// Even when the provider asks for longer. An hour-long wait is a polite
     /// way of freezing.
-    public static let maxDelay: TimeInterval = 20
+    package static let maxDelay: TimeInterval = 20
 
-    public static func shouldRetry(_ error: ChatError, attempt: Int) -> Bool {
+    package static func shouldRetry(_ error: ChatError, attempt: Int) -> Bool {
         guard attempt < maxAttempts else { return false }
         switch error {
         // The only one where waiting IS the remedy: the provider said "later"
@@ -42,12 +42,12 @@ public enum RetryPolicy: Sendable {
     /// and fake behind it. Upgrade trigger: the first time a provider's own
     /// backoff differs enough from this curve to matter, widen the port
     /// instead of tuning these numbers.
-    public static func delay(attempt: Int) -> TimeInterval {
+    package static func delay(attempt: Int) -> TimeInterval {
         min(pow(2.0, Double(max(attempt, 1) - 1)), maxDelay)
     }
 
     /// The error keeps its identity all the way out. Collapsing an exhausted
     /// rate limit into a generic failure is how the truth got lost the first
     /// time.
-    public static func exhausted(_ error: ChatError) -> ChatError { error }
+    package static func exhausted(_ error: ChatError) -> ChatError { error }
 }

@@ -4,21 +4,21 @@ import Foundation
 /// silence opens with one line of ours, said before the work starts.
 /// Incredible acknowledges in 1-2.5 s; Companion sat 32 s mute on "búscalo
 /// en Safari" because the model delegated without a word.
-public enum Acknowledgement: Sendable {
+package enum Acknowledgement: Sendable {
     /// A parent tool still running after this long gets its line. Below it
     /// the result comes fast enough that a line would only be chatter.
-    public static let slowToolAfter: Duration = .seconds(1)
+    package static let slowToolAfter: Duration = .seconds(1)
 
     /// The router already says this when it delegates, and it is in the
     /// prewarmed set, so the model path reuses it: same words for the same
     /// act, and audio that is already on disk.
-    public static func delegating(_ language: AppLanguage) -> String {
+    package static func delegating(_ language: AppLanguage) -> String {
         DecisionCopy.delegated(language)
     }
 
     /// Says what the slow step is doing when that is known; the screen is
     /// the case Incredible names ("Let me take a look at your screen").
-    public static func working(tool name: String, _ language: AppLanguage) -> String {
+    package static func working(tool name: String, _ language: AppLanguage) -> String {
         let looks = name == ParentTool.look.rawValue || name == ParentTool.see.rawValue
         switch (looks, language) {
         case (true, .en): return "Let me look at your screen."
@@ -30,13 +30,13 @@ public enum Acknowledgement: Sendable {
 
     /// One line per turn: once anything was said, the user already knows
     /// the turn is alive.
-    public static func isNeeded(saidSoFar said: String) -> Bool {
+    package static func isNeeded(saidSoFar said: String) -> Bool {
         said.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
 /// 16h-2 (security M1): what a spoken yes did with the sheet.
-public enum SpokenApproval: Sendable, Equatable {
+package enum SpokenApproval: Sendable, Equatable {
     case resolved
     case nothingPending
     /// The sheet is there but a voice may not answer it (`SpokenYes`).
@@ -49,12 +49,12 @@ public enum SpokenApproval: Sendable, Equatable {
 /// Realtime has no hold to tie an answer to: never. Classic: the voice must
 /// have said the question, and the hold carrying the answer must have
 /// started after it, at least the click guard's dwell later.
-public enum SpokenYes {
+package enum SpokenYes {
     /// Timing alone is not consent (16q-1 review, security M3): the model
     /// can call `resolve_approval(true)` in the hold after the question
     /// whatever the user said, and a specialist's output can ask it to. The
     /// words of THAT hold must be a clear yes.
-    public static func admits(
+    package static func admits(
         realtime: Bool, announcedAt: TimeInterval?, holdStartedAt: TimeInterval?, heard: String?
     ) -> Bool {
         guard !realtime, let announcedAt, let holdStartedAt, let heard, affirms(heard)
@@ -70,7 +70,7 @@ public enum SpokenYes {
     // HACK: a word list is the whole judgment. It misses phrasings that mean
     // yes and cannot tell irony. Upgrade trigger: the approval judge (16q-3)
     // reads the user's words and replaces this.
-    public static func affirms(_ said: String) -> Bool {
+    package static func affirms(_ said: String) -> Bool {
         let raw = said.split(whereSeparator: \.isWhitespace)
         guard (1 ... maxWords).contains(raw.count) else { return false }
         guard !said.contains(where: { $0.isNumber || "?¿".contains($0) }) else { return false }
@@ -133,14 +133,14 @@ public enum SpokenYes {
 
 /// Wave 16h-2 (criterion 2): a job's end is said in a gap, never over the
 /// user or over a turn of the voice's own. It waits for the turn to end.
-public enum AnnouncementGap: Sendable {
+package enum AnnouncementGap: Sendable {
     /// A job's end older than this is not said any more.
     // HACK: one fixed age for every notice. Upgrade trigger: a notice that
     // must survive a long turn (a meeting-length dictation) — then the age
     // counts from when the gap first opened, not from the job's end.
-    public static let maxAge: TimeInterval = 120
+    package static let maxAge: TimeInterval = 120
 
-    public static func isOpen(_ voice: TurnSnapshot) -> Bool {
+    package static func isOpen(_ voice: TurnSnapshot) -> Bool {
         if voice.pipeline == .realtime { return voice.state == .listening }
         switch voice.state {
         case .idle:

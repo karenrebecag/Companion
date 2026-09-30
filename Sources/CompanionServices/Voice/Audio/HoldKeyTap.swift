@@ -8,8 +8,8 @@ import Foundation
 /// not also fire; FN+another key passes through. FN opens the mic on the
 /// way down and a tap or chord cancels it (15d-1); past the threshold it
 /// says `.confirmed`. The dictation key still never arms on a tap.
-public final class HoldKeyTap: @unchecked Sendable {
-    public let events: AsyncStream<HoldKeyEvent>
+package final class HoldKeyTap: @unchecked Sendable {
+    package let events: AsyncStream<HoldKeyEvent>
     private let continuation: AsyncStream<HoldKeyEvent>.Continuation
     private let keyCode: Int64
     /// 15b-1: which side's bit counts. FN (`.maskSecondaryFn`) has no
@@ -33,7 +33,7 @@ public final class HoldKeyTap: @unchecked Sendable {
     private var armGeneration = 0
     private let now: @Sendable () -> TimeInterval
 
-    public init(
+    package init(
         keyCode: Int64 = 63,
         flag: CGEventFlags = .maskSecondaryFn,
         swallowsRelease: Bool = true,
@@ -66,7 +66,7 @@ public final class HoldKeyTap: @unchecked Sendable {
     /// Pure: whether a MATCHING transition should be swallowed. FN still is
     /// (Globe must not also fire); the dictation tap never is (§8, a
     /// modifier eaten mid-air gets stuck).
-    public static func consumes(
+    package static func consumes(
         code: Int64, flags: CGEventFlags, keyCode: Int64, flag: CGEventFlags,
         swallowsRelease: Bool
     ) -> Bool {
@@ -75,7 +75,7 @@ public final class HoldKeyTap: @unchecked Sendable {
 
     /// False when Accessibility is missing or the tap could not be made.
     @discardableResult
-    public func start() -> Bool {
+    package func start() -> Bool {
         guard lock.withLock({ port == nil }) else { return true }
         guard AXIsProcessTrusted() else { return false }
         let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
@@ -119,7 +119,7 @@ public final class HoldKeyTap: @unchecked Sendable {
 
     deinit { stop() }
 
-    public func stop() {
+    package func stop() {
         lock.withLock { armWork?.cancel(); armWork = nil }
         let stopped: (CFMachPort, CFRunLoop?)? = lock.withLock {
             guard let port else { return nil }

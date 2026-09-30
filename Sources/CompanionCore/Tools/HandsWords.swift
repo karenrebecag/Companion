@@ -4,7 +4,7 @@ import Foundation
 /// user said (review 2026-09-25, H1/H3). Speech arrives with its own case,
 /// accents and punctuation ("Google.com", "google com"), so both sides are
 /// folded to words before comparing.
-public enum HandsWords {
+package enum HandsWords {
     /// Spoken ways of asking to submit what was typed. One word is enough:
     /// "dale enter", "envíalo ya", "búscalo".
     static let sendCues: Set<String> = [
@@ -49,35 +49,35 @@ public enum HandsWords {
         "abbrechen", "annuler", "annulla",
     ]
 
-    public static func isCancel(_ label: String) -> Bool {
+    package static func isCancel(_ label: String) -> Bool {
         let tokens = words(label).split(separator: " ").map(String.init)
         return !tokens.isEmpty && tokens.allSatisfy { cancelWords.contains($0) }
     }
 
     /// The family a button label belongs to, if any.
-    public static func destructiveFamily(of label: String) -> Int? {
+    package static func destructiveFamily(of label: String) -> Int? {
         let tokens = tokens(label)
         return destructiveFamilies.firstIndex { !$0.isDisjoint(with: tokens) }
     }
 
-    public static func asks(family: Int, in said: String) -> Bool {
+    package static func asks(family: Int, in said: String) -> Bool {
         let tokens = tokens(said)
         return !destructiveFamilies[family].isDisjoint(with: tokens)
     }
 
-    public static func said(_ text: String, in said: String) -> Bool {
+    package static func said(_ text: String, in said: String) -> Bool {
         let needle = words(text)
         guard !needle.isEmpty else { return false }
         return " \(words(said)) ".contains(" \(needle) ")
     }
 
-    public static func asksToSend(_ said: String) -> Bool {
+    package static func asksToSend(_ said: String) -> Bool {
         !sendCues.isDisjoint(with: words(said).split(separator: " ").map(String.init))
     }
 
     /// A URL, a host, a path or a command-line flag: things that navigate or
     /// act when typed into an address bar or a prompt.
-    public static func looksLikeAddress(_ text: String) -> Bool {
+    package static func looksLikeAddress(_ text: String) -> Bool {
         let lowered = text.lowercased()
         if lowered.contains("://") || lowered.contains("www.") { return true }
         return lowered.split(whereSeparator: \.isWhitespace).contains { token in
@@ -90,7 +90,7 @@ public enum HandsWords {
     /// Control characters other than line breaks and tabs; with `format`,
     /// also invisible format characters (bidi overrides, zero-width marks)
     /// that make a command read differently from what it runs.
-    public static func isControl(_ scalar: Unicode.Scalar, format: Bool) -> Bool {
+    package static func isControl(_ scalar: Unicode.Scalar, format: Bool) -> Bool {
         switch scalar.properties.generalCategory {
         case .control: return !["\n", "\r", "\t"].contains(scalar)
         case .format: return format
@@ -98,7 +98,7 @@ public enum HandsWords {
         }
     }
 
-    public static func hasControl(_ text: String, format: Bool) -> Bool {
+    package static func hasControl(_ text: String, format: Bool) -> Bool {
         text.unicodeScalars.contains { isControl($0, format: format) }
     }
 

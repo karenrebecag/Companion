@@ -5,7 +5,7 @@ import Foundation
 /// the rest of Accessibility already reads, and the app the user was in.
 /// `target` is `FrontmostAppSensor.lastOtherPID` — never Companion's own —
 /// read when the call arrives and read again right before acting.
-public struct ScreenHands: Sendable {
+package struct ScreenHands: Sendable {
     let injector: any TextInjecting
     let reader: any FocusedReading
     let keys: any KeyPressing
@@ -25,7 +25,7 @@ public struct ScreenHands: Sendable {
     let turn = TurnTarget()
     let scans = ScanMemory()
 
-    public init(
+    package init(
         injector: any TextInjecting,
         reader: any FocusedReading,
         keys: any KeyPressing,
@@ -50,7 +50,7 @@ public struct ScreenHands: Sendable {
     }
 
     /// One adapter behind all four ports, as the app wires it.
-    public init(
+    package init(
         ax: AXTextInjector, screen: AXScreen, target: @escaping @Sendable () -> Int32?,
         selfInFront: @escaping @Sendable () -> Bool = { false },
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil

@@ -3,7 +3,7 @@ import Foundation
 /// Why a mic frame did NOT reach OpenAI. The realtime path gates frames before
 /// forwarding; when the model misses part of an instruction, the first question
 /// is whether the audio ever left this machine. These are the gates.
-public enum GateReason: String, Sendable, Equatable, Hashable, CaseIterable {
+package enum GateReason: String, Sendable, Equatable, Hashable, CaseIterable {
     case empty       // the frame carried no PCM
     case muted       // mic muted or disabled
     case echoGuard   // listening, but guarded against the agent's own echo
@@ -13,27 +13,27 @@ public enum GateReason: String, Sendable, Equatable, Hashable, CaseIterable {
 
 /// The raw tally of one user turn: how many frames reached OpenAI and how many
 /// were gated, by reason. This is "lo que OpenAI recibe", counted.
-public struct FrameTally: Sendable, Equatable {
-    public var forwarded = 0
-    public var gated: [GateReason: Int] = [:]
+package struct FrameTally: Sendable, Equatable {
+    package var forwarded = 0
+    package var gated: [GateReason: Int] = [:]
 
-    public init() {}
+    package init() {}
 
-    public mutating func add(forwarded: Bool, reason: GateReason?) {
+    package mutating func add(forwarded: Bool, reason: GateReason?) {
         if forwarded { self.forwarded += 1 }
         else if let reason { gated[reason, default: 0] += 1 }
     }
 
-    public var gatedTotal: Int { gated.values.reduce(0, +) }
-    public var total: Int { forwarded + gatedTotal }
+    package var gatedTotal: Int { gated.values.reduce(0, +) }
+    package var total: Int { forwarded + gatedTotal }
 }
 
 /// Read-only classifier that names the gate a frame hit, WITHOUT the stateful
 /// backchannel RMS check `shouldForward` owns — the audit must never mutate the
 /// path it watches. Only called for frames the path already gated, so the
 /// forwarded branches here are unreachable and collapse to `.empty`.
-public enum RealtimeGate {
-    public static func reason(
+package enum RealtimeGate {
+    package static func reason(
         muted: Bool, emptyPCM: Bool, micEnabled: Bool,
         state: TurnState, echoGuarded: Bool, aec: Bool
     ) -> GateReason {
@@ -47,8 +47,8 @@ public enum RealtimeGate {
 
 /// Turns one turn's evidence into log lines. Pure: no audio, no I/O — just the
 /// native ground truth, what OpenAI transcribed and the frame counts.
-public enum VoiceAuditReport {
-    public static func turnLine(
+package enum VoiceAuditReport {
+    package static func turnLine(
         native: String, openAI: String, tally: FrameTally, goal: String?
     ) -> String {
         let gates = GateReason.allCases

@@ -3,16 +3,16 @@ import Foundation
 /// Compact handoff from the conversational layer to a specialist.
 /// A malformed or truncated `delegate` call must not escalate — the speaker
 /// keeps talking whatever text it already has.
-public struct Handoff: Sendable, Equatable {
-    public var goal: String
-    public var context: String
+package struct Handoff: Sendable, Equatable {
+    package var goal: String
+    package var context: String
 
-    public init(goal: String, context: String) {
+    package init(goal: String, context: String) {
         self.goal = goal
         self.context = context
     }
 
-    public static func parse(toolName: String, arguments: String) -> Handoff? {
+    package static func parse(toolName: String, arguments: String) -> Handoff? {
         guard toolName == "delegate" else { return nil }
         guard let data = arguments.data(using: .utf8) else { return nil }
         let obj: [String: Any]
@@ -33,11 +33,11 @@ public struct Handoff: Sendable, Equatable {
     }
 }
 
-public enum Escalation: Sendable {
+package enum Escalation: Sendable {
     /// Copy for both languages lives in Escalation+Copy.swift; this file is
     /// the shape of a handoff, not its wording.
 
-    public static func jobPrompt(
+    package static func jobPrompt(
         _ h: Handoff, workdir: String, desktop: String,
         attachments: [String] = [], language: AppLanguage = .en,
         skills: String = ""
@@ -57,7 +57,7 @@ public enum Escalation: Sendable {
         return out
     }
 
-    public static func executorPrompt(
+    package static func executorPrompt(
         _ h: Handoff, original: String, workdir: String, desktop: String,
         language: AppLanguage = .en
     ) -> String {
@@ -96,8 +96,8 @@ public enum Escalation: Sendable {
 /// own words. Classic has no model on the other side of the synthesizer, so
 /// it says `spokenLine` (ours, fixed) and asks the hold brain to summarize
 /// `summarySource` in a turn of its own — the instruction is never spoken.
-public struct JobAnnouncement: Sendable, Equatable {
-    public enum Outcome: Sendable, Equatable {
+package struct JobAnnouncement: Sendable, Equatable {
+    package enum Outcome: Sendable, Equatable {
         case queued
         case done(result: String)
         case failed(reason: String)
@@ -105,20 +105,20 @@ public struct JobAnnouncement: Sendable, Equatable {
         case asking(requestId: String)
     }
 
-    public var goal: String
-    public var outcome: Outcome
-    public var language: AppLanguage
+    package var goal: String
+    package var outcome: Outcome
+    package var language: AppLanguage
     /// The result also travels as a card, so the voice says a line, not it.
-    public var hasCard: Bool
+    package var hasCard: Bool
 
-    public init(goal: String, outcome: Outcome, language: AppLanguage, hasCard: Bool = false) {
+    package init(goal: String, outcome: Outcome, language: AppLanguage, hasCard: Bool = false) {
         self.goal = goal
         self.outcome = outcome
         self.language = language
         self.hasCard = hasCard
     }
 
-    public var instruction: String {
+    package var instruction: String {
         switch outcome {
         case .queued: return Escalation.queuedAnnouncement(goal, language)
         case .done: return Escalation.jobDoneAnnouncement(goal, language)
@@ -129,7 +129,7 @@ public struct JobAnnouncement: Sendable, Equatable {
         }
     }
 
-    public var spokenLine: String {
+    package var spokenLine: String {
         switch outcome {
         case .queued: return Escalation.jobQueuedSpoken(language)
         case .done: return Escalation.jobDoneSpoken(language)
@@ -139,7 +139,7 @@ public struct JobAnnouncement: Sendable, Equatable {
     }
 
     /// What the summarizing turn reads; nil when there is nothing to add.
-    public var summarySource: String? {
+    package var summarySource: String? {
         let text: String
         switch outcome {
         case .queued, .asking: return nil

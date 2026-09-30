@@ -2,8 +2,8 @@ import Foundation
 
 /// The one template (spec 20 D3/D4): blocks in, a self-contained page out.
 /// Every string passes through `escape`; the only markup is ours.
-public enum DocumentHTML {
-    public static func render(_ spec: DocumentSpec) -> String {
+package enum DocumentHTML {
+    package static func render(_ spec: DocumentSpec) -> String {
         var body = ""
         let hasCover = spec.blocks.contains { if case .cover = $0 { true } else { false } }
         if !hasCover {
@@ -59,7 +59,7 @@ public enum DocumentHTML {
         return ""
     }
 
-    public static func escape(_ text: String) -> String {
+    package static func escape(_ text: String) -> String {
         var out = ""
         out.reserveCapacity(text.count)
         for char in text {

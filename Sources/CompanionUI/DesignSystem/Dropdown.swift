@@ -1,17 +1,17 @@
 import SwiftUI
 
-public enum OpenMenu: Equatable, Sendable {
+package enum OpenMenu: Equatable, Sendable {
     case history, settingsPick(String)
 }
 
-public struct DropdownItem {
-    public var title: String
-    public var subtitle: String? = nil
-    public var symbol: String? = nil
-    public var rainbow = false
-    public var swatch: Color? = nil
+package struct DropdownItem {
+    package var title: String
+    package var subtitle: String? = nil
+    package var symbol: String? = nil
+    package var rainbow = false
+    package var swatch: Color? = nil
 
-    public init(
+    package init(
         title: String,
         subtitle: String? = nil,
         symbol: String? = nil,
@@ -30,16 +30,16 @@ public struct DropdownItem {
 /// ScrollView clipping cannot eat it — the prototype's reason for not using Menu.
 @Observable
 @MainActor
-public final class DropdownHost {
-    public var session = DropdownSession(count: 0)
-    public var items: [DropdownItem] = []
-    public var selectedTitle = ""
-    public var menu: OpenMenu?
+package final class DropdownHost {
+    package var session = DropdownSession(count: 0)
+    package var items: [DropdownItem] = []
+    package var selectedTitle = ""
+    package var menu: OpenMenu?
     var onChoose: ((Int) -> Void)?
 
-    public init() {}
+    package init() {}
 
-    public func toggle(_ menu: OpenMenu) {
+    package func toggle(_ menu: OpenMenu) {
         if self.menu == menu, session.isOpen {
             dismiss()
             return
@@ -51,7 +51,7 @@ public final class DropdownHost {
         session.handle(.toggle)
     }
 
-    public func present(
+    package func present(
         _ menu: OpenMenu,
         items: [DropdownItem],
         selectedTitle: String,
@@ -72,7 +72,7 @@ public final class DropdownHost {
         }
     }
 
-    public func dismiss() {
+    package func dismiss() {
         session.handle(.escape)
         menu = nil
     }

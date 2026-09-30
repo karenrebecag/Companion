@@ -8,16 +8,16 @@ import Foundation
 /// the SAME turn, so a hold never goes mute for one provider; once a delta
 /// has reached the caller, nothing here retries — a second provider
 /// speaking the same turn would double the audio (TDD rows 9-10).
-public final class FastBrainChatProvider: ChatProvider, Sendable {
+package final class FastBrainChatProvider: ChatProvider, Sendable {
     private let fast: any ChatProvider
     private let ladder: any ChatProvider
 
-    public init(fast: any ChatProvider, ladder: any ChatProvider) {
+    package init(fast: any ChatProvider, ladder: any ChatProvider) {
         self.fast = fast
         self.ladder = ladder
     }
 
-    public func stream(_ history: [Turn], tools: [ToolSpec])
+    package func stream(_ history: [Turn], tools: [ToolSpec])
         -> AsyncThrowingStream<ChatDelta, Error>
     {
         AsyncThrowingStream { continuation in
@@ -42,7 +42,7 @@ public final class FastBrainChatProvider: ChatProvider, Sendable {
         }
     }
 
-    public func verify(_ key: String, provider: ProviderDescriptor) async throws {
+    package func verify(_ key: String, provider: ProviderDescriptor) async throws {
         try await ladder.verify(key, provider: provider)
     }
 

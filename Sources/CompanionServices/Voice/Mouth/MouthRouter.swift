@@ -4,14 +4,14 @@ import Foundation
 /// Wave 15f-7a: picks the hold's mouth per request, so saving or deleting
 /// the ElevenLabs key in Settings takes effect on the next sentence and
 /// nothing reads the Keychain at boot.
-public struct MouthRouter: TTSFetching, Sendable {
+package struct MouthRouter: TTSFetching, Sendable {
     private let elevenLabs: any TTSFetching
     private let openAI: any TTSFetching
     private let secrets: any SecretStore
     private let voiceID: @Sendable () -> String
     private let breaker: ElevenLabsBreaker
 
-    public init(
+    package init(
         elevenLabs: any TTSFetching, openAI: any TTSFetching,
         secrets: any SecretStore, voiceID: @escaping @Sendable () -> String,
         cooldown: Duration = .seconds(60),
@@ -31,28 +31,28 @@ public struct MouthRouter: TTSFetching, Sendable {
     /// 2026-09-25 (MEDIUM-A): the returned mouth is new per sentence and
     /// remembers on its own whether it fell back, so that answer travels
     /// with the stream instead of living in a table keyed by text.
-    public func resolved() -> any TTSFetching {
+    package func resolved() -> any TTSFetching {
         guard let key = elevenLabsKey(), breaker.allows(key: key) else { return openAI }
         return ElevenLabsFirst(primary: elevenLabs, backup: openAI, breaker: breaker, key: key)
     }
 
-    public func cacheVariant(voice: VoiceID) -> String {
+    package func cacheVariant(voice: VoiceID) -> String {
         resolved().cacheVariant(voice: voice)
     }
 
-    public func fetch(_ text: String, voice: VoiceID) async throws -> Data {
+    package func fetch(_ text: String, voice: VoiceID) async throws -> Data {
         try await resolved().fetch(text, voice: voice)
     }
 
-    public func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
+    package func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
         resolved().stream(text, voice: voice)
     }
 
     /// Streamed through the router itself, the mouth that voiced the text
     /// is gone by the time this is asked: never claim a variant for it.
-    public func mayCache(_ text: String) -> Bool { false }
+    package func mayCache(_ text: String) -> Bool { false }
 
-    public func warm() async {
+    package func warm() async {
         await resolved().warm()
     }
 

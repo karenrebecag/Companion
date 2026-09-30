@@ -1,12 +1,12 @@
 /// Determines what action to perform when the user taps the mic button.
 /// This is a pure function, making it easy to test and reason about.
-public enum VoiceTapAction: Sendable, Equatable {
+package enum VoiceTapAction: Sendable, Equatable {
     case start, interrupt, hangUp
 
     /// Determines the tap action based on the current voice state.
     /// - Parameter state: The current TurnState.
     /// - Returns: The action to perform.
-    public static func forState(_ state: TurnState) -> VoiceTapAction {
+    package static func forState(_ state: TurnState) -> VoiceTapAction {
         switch state {
         case .idle, .error:
             // In idle or error, tap should start or retry.
@@ -23,7 +23,7 @@ public enum VoiceTapAction: Sendable, Equatable {
     /// Returns the label for the mic button based on the current state.
     /// - Parameter state: The current TurnState.
     /// - Returns: A localized label for the button.
-    public static func label(forState state: TurnState) -> String {
+    package static func label(forState state: TurnState) -> String {
         switch forState(state) {
         case .start:
             "Hablar"

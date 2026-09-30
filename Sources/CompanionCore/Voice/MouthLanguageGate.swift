@@ -2,11 +2,11 @@ import Foundation
 
 /// What a language recognizer concluded about a piece of text. `code` is a
 /// bare ISO 639-1 code ("es", "en"), compared against `AppLanguage.rawValue`.
-public struct DetectedLanguage: Sendable, Equatable {
-    public var code: String
-    public var confidence: Double
+package struct DetectedLanguage: Sendable, Equatable {
+    package var code: String
+    package var confidence: Double
 
-    public init(code: String, confidence: Double) {
+    package init(code: String, confidence: Double) {
         self.code = code
         self.confidence = confidence
     }
@@ -14,7 +14,7 @@ public struct DetectedLanguage: Sendable, Equatable {
 
 /// Port for the system recognizer (NaturalLanguage lives in Services, so
 /// Core stays pure and tests use a fake). Nil means no verdict.
-public protocol LanguageRecognizing: Sendable {
+package protocol LanguageRecognizing: Sendable {
     func dominant(_ text: String) -> DetectedLanguage?
 }
 
@@ -35,14 +35,14 @@ public protocol LanguageRecognizing: Sendable {
 /// it looks like a reasoning leak: never after a quoting lead-in, and only
 /// when it opens like reasoning or is a long unannounced sentence in a reply
 /// otherwise wholly in the app language.
-public struct MouthLanguageGate: Sendable {
+package struct MouthLanguageGate: Sendable {
     /// Below this, a sentence is a name or a neutral fragment ("OK",
     /// "Abrí Safari") the recognizer cannot judge.
-    public static let minWords = 4
-    public static let minConfidence = 0.6
+    package static let minWords = 4
+    package static let minConfidence = 0.6
     /// Shorter unannounced foreign lines ("Build succeeded with zero
     /// warnings.") are more likely quoted output than a leak.
-    public static let minLeakWords = 6
+    package static let minLeakWords = 6
 
     /// How the hold brain's leaked reasoning starts (log 2026-09-25).
     static let reasoningOpeners = [
@@ -52,8 +52,8 @@ public struct MouthLanguageGate: Sendable {
 
     private static let terminators: Set<Character> = [".", "!", "?", "…"]
 
-    public let language: AppLanguage
-    public private(set) var dropped: [String] = []
+    package let language: AppLanguage
+    package private(set) var dropped: [String] = []
     private let recognizer: any LanguageRecognizing
     private var inAppLanguage = false
     /// Every judged sentence so far was in the app language.
@@ -61,7 +61,7 @@ public struct MouthLanguageGate: Sendable {
     /// The last sentence said, which may introduce a quote in the next one.
     private var previous = ""
 
-    public init(
+    package init(
         language: AppLanguage, recognizer: any LanguageRecognizing, heard: String = ""
     ) {
         self.language = language
@@ -70,7 +70,7 @@ public struct MouthLanguageGate: Sendable {
     }
 
     /// The cut without its foreign sentences; nil when nothing is left.
-    public mutating func admit(_ cut: String) -> String? {
+    package mutating func admit(_ cut: String) -> String? {
         let sentences = Self.sentences(cut)
         var kept: [String] = []
         for sentence in sentences {
@@ -91,7 +91,7 @@ public struct MouthLanguageGate: Sendable {
     }
 
     /// The reply as it was actually said, for the thread and the transcript.
-    public static func removing(_ sentences: [String], from text: String) -> String {
+    package static func removing(_ sentences: [String], from text: String) -> String {
         var out = text
         for sentence in sentences {
             guard let range = out.range(of: sentence) else { continue }

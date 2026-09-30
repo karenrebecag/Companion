@@ -6,22 +6,22 @@ import Observation
 /// meter. Reads the machine through `WelcomeDevices`; never a framework.
 @Observable
 @MainActor
-public final class WelcomeModel {
+package final class WelcomeModel {
     /// Above the room's hum, below a normal voice at arm's length.
     static let heardLevel = 0.12
     static let doneKey = "companion.welcome.done"
 
-    public private(set) var flow: WelcomeFlow
-    public private(set) var facts = WelcomeFacts()
-    public private(set) var level = 0.0
-    public private(set) var done: Bool
+    package private(set) var flow: WelcomeFlow
+    package private(set) var facts = WelcomeFacts()
+    package private(set) var level = 0.0
+    package private(set) var done: Bool
 
     private let devices: any WelcomeDevices
     private let keyReady: () -> Bool
     private let defaults: UserDefaults
     private var greeted = false
 
-    public init(
+    package init(
         devices: any WelcomeDevices, keyReady: @escaping () -> Bool,
         defaults: UserDefaults = .standard
     ) {
@@ -33,9 +33,9 @@ public final class WelcomeModel {
         self.flow = WelcomeFlow.start(welcomeDone: seen)
     }
 
-    public var canContinue: Bool { flow.canContinue(facts) }
+    package var canContinue: Bool { flow.canContinue(facts) }
 
-    public func refresh() async {
+    package func refresh() async {
         var granted: Set<WelcomePermission> = []
         for permission in WelcomePermission.allCases where await devices.granted(permission) {
             granted.insert(permission)
@@ -44,13 +44,13 @@ public final class WelcomeModel {
         facts.keyReady = keyReady()
     }
 
-    public func request(_ permission: WelcomePermission) async {
+    package func request(_ permission: WelcomePermission) async {
         _ = await devices.request(permission)
         await refresh()
     }
 
     /// Runs until the stream ends or the task is cancelled (the screen left).
-    public func listen() async {
+    package func listen() async {
         for await value in devices.micLevels() {
             if Task.isCancelled { break }
             level = value
@@ -60,12 +60,12 @@ public final class WelcomeModel {
 
     /// Only a release that sent words on the last screen counts: a press, a
     /// tap or a hold from another screen is not the lesson.
-    public func observe(_ kind: SessionKind) {
+    package func observe(_ kind: SessionKind) {
         guard flow.step == .yourTurn, kind == .processing(.pending) else { return }
         facts.holdDone = true
     }
 
-    public func greet() async {
+    package func greet() async {
         guard !greeted else { return }
         greeted = true
         let name = UserProfile.ownerName.trimmingCharacters(in: .whitespaces)
@@ -75,21 +75,21 @@ public final class WelcomeModel {
         await devices.greet(line, language: Localized.language())
     }
 
-    public func next() {
+    package func next() {
         facts.keyReady = keyReady()
         flow.advance(facts)
         if flow.finished { finish() }
     }
 
-    public func back() { flow.back() }
+    package func back() { flow.back() }
 
-    public func skip() {
+    package func skip() {
         flow.skip()
         if flow.finished { finish() }
     }
 
     /// From Settings: the whole welcome again, from the cover.
-    public func reopen() {
+    package func reopen() {
         done = false
         flow = WelcomeFlow()
         facts.holdDone = false
@@ -97,7 +97,7 @@ public final class WelcomeModel {
     }
 
     /// Seen before, and the key went missing: only the key screen again.
-    public func resumeKeys() {
+    package func resumeKeys() {
         guard flow.finished else { return }
         flow = WelcomeFlow.start(welcomeDone: true)
     }

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum DecisionAction: String, Sendable, Equatable, CaseIterable {
+package enum DecisionAction: String, Sendable, Equatable, CaseIterable {
     case openApp = "open_app"
     case openURL = "open_url"
     case openFile = "open_file"
@@ -67,12 +67,12 @@ public enum DecisionAction: String, Sendable, Equatable, CaseIterable {
     }
 }
 
-public enum PlanRisk: String, Sendable, Equatable {
+package enum PlanRisk: String, Sendable, Equatable {
     case reversible
     case irreversible
 }
 
-public enum PlanDisposition: String, Sendable, Equatable {
+package enum PlanDisposition: String, Sendable, Equatable {
     case act
     case confirm
     case arbitrate
@@ -80,18 +80,18 @@ public enum PlanDisposition: String, Sendable, Equatable {
     case ignore
 }
 
-public enum PlanValue: Sendable, Equatable {
+package enum PlanValue: Sendable, Equatable {
     case text(String)
     case flag(Bool)
 }
 
-public struct DecisionWorld: Sendable, Equatable {
-    public var apps: [String]
-    public var sites: [SiteCandidate]
-    public var files: [FileCandidate]
-    public var skills: [String]
+package struct DecisionWorld: Sendable, Equatable {
+    package var apps: [String]
+    package var sites: [SiteCandidate]
+    package var files: [FileCandidate]
+    package var skills: [String]
 
-    public init(
+    package init(
         apps: [String] = [],
         sites: [SiteCandidate] = CandidateSets.allowlist,
         files: [FileCandidate] = [],
@@ -104,19 +104,19 @@ public struct DecisionWorld: Sendable, Equatable {
     }
 }
 
-public struct Plan: Sendable, Equatable {
-    public var utterance: String
-    public var action: DecisionAction
-    public var args: [String: PlanValue]
-    public var confidence: Double
-    public var risk: PlanRisk
-    public var disposition: PlanDisposition
+package struct Plan: Sendable, Equatable {
+    package var utterance: String
+    package var action: DecisionAction
+    package var args: [String: PlanValue]
+    package var confidence: Double
+    package var risk: PlanRisk
+    package var disposition: PlanDisposition
     /// The blended two-order distribution over actions, kept so a tie is not
     /// a dead end: `ArbitrationShortlist.build` needs the masses, not just
     /// the single winner `compose` could not pick.
-    public var actionMass: [String: Double]
+    package var actionMass: [String: Double]
 
-    public init(
+    package init(
         utterance: String, action: DecisionAction, args: [String: PlanValue],
         confidence: Double, risk: PlanRisk, disposition: PlanDisposition,
         actionMass: [String: Double] = [:]
@@ -132,7 +132,7 @@ public struct Plan: Sendable, Equatable {
 
     /// A second run of the same mutation doubles it (another empty, another
     /// send, the same text typed again). Opening an app does not.
-    public var retryKey: String? {
+    package var retryKey: String? {
         switch action {
         case .typeText:
             guard case .text(let text) = args["text"] else { return nil }
@@ -151,7 +151,7 @@ public struct Plan: Sendable, Equatable {
         }
     }
 
-    public static func risk(action: DecisionAction, args: [String: PlanValue]) -> PlanRisk {
+    package static func risk(action: DecisionAction, args: [String: PlanValue]) -> PlanRisk {
         switch action {
         case .system where args["op"] == .text("empty_trash"):
             return .irreversible
@@ -184,7 +184,7 @@ public struct Plan: Sendable, Equatable {
         return steps.contains { step in stems.contains { step.hasPrefix($0) } }
     }
 
-    public static func compose(
+    package static func compose(
         utterance: String,
         world: DecisionWorld = DecisionWorld(),
         trust: Double? = nil,
@@ -327,12 +327,12 @@ public struct Plan: Sendable, Equatable {
     }
 }
 
-public enum PlanThreshold {
-    public static let reversibleAct = 0.6
+package enum PlanThreshold {
+    package static let reversibleAct = 0.6
     /// Both the 0.6–0.8 band and a 0.99 confirm by voice. 0.8 is not a skip.
-    public static let irreversibleFloor = 0.6
+    package static let irreversibleFloor = 0.6
 
-    public static func evaluate(
+    package static func evaluate(
         action: DecisionAction,
         risk: PlanRisk,
         confidence: Double,
@@ -357,17 +357,17 @@ public enum PlanThreshold {
 
 /// Three rejects of the same order on this screen go to N2. The second time
 /// that happens, stop and say so instead of asking again.
-public struct RejectionTracker: Sendable, Equatable {
-    public enum Effect: String, Sendable, Equatable {
+package struct RejectionTracker: Sendable, Equatable {
+    package enum Effect: String, Sendable, Equatable {
         case none, arbitrate, stop
     }
 
     private var rejects: [String: Int] = [:]
     private var incidents: [String: Int] = [:]
 
-    public init() {}
+    package init() {}
 
-    public func observing(_ utterance: String, rejected: Bool) -> (RejectionTracker, Effect) {
+    package func observing(_ utterance: String, rejected: Bool) -> (RejectionTracker, Effect) {
         let key = CandidateSets.normalized(utterance)
         var next = self
         guard rejected else {
@@ -390,12 +390,12 @@ public struct RejectionTracker: Sendable, Equatable {
 /// utterance being handled), not by session: two "gracias" in the same
 /// conversation, or the trash emptied again an hour later, are two attempts,
 /// not a retry. Only the same key inside the same attempt is a retry.
-public struct MutationLedger: Sendable, Equatable {
+package struct MutationLedger: Sendable, Equatable {
     private var seen: Set<String> = []
 
-    public init() {}
+    package init() {}
 
-    public func recording(_ key: String, attempt: String) -> (MutationLedger, already: Bool) {
+    package func recording(_ key: String, attempt: String) -> (MutationLedger, already: Bool) {
         let scoped = "\(attempt)#\(key)"
         var next = self
         let already = next.seen.contains(scoped)

@@ -2,14 +2,14 @@ import Foundation
 
 /// Validates redirect targets to prevent Authorization headers from leaking
 /// to cross-host or downgraded connections.
-public enum RedirectPolicy: Sendable {
+package enum RedirectPolicy: Sendable {
     /// Returns true if a redirect from `from` to `to` is safe.
     /// A redirect is safe only if:
     /// - Both URLs have the same host
     /// - Both URLs have the same port (or no explicit port)
     /// - Both URLs have the same scheme
     /// - No downgrade from https to http
-    public static func allows(from: URL, to: URL) -> Bool {
+    package static func allows(from: URL, to: URL) -> Bool {
         // Extract scheme, host, and port carefully
         guard let fromScheme = from.scheme?.lowercased(),
               let fromHost = from.host?.lowercased(),

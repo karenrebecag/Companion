@@ -4,7 +4,7 @@ extension BrowserPolicy {
     /// Acting inside a frame or on a link that belongs to another origin than
     /// the page hands control to a third party, so it asks. Without the page
     /// origin nothing can be compared and the answer is the cautious one.
-    public static func clickVerdict(
+    package static func clickVerdict(
         _ element: BrowserElement, said: String, pageOrigin: String? = nil
     ) -> HandsVerdict {
         if leavesPageOrigin(element, pageOrigin: pageOrigin) { return .ask }
@@ -15,7 +15,7 @@ extension BrowserPolicy {
         return HandsGate.clickVerdict(label: element.label, context: element.context, said: said)
     }
 
-    public static func typeVerdict(
+    package static func typeVerdict(
         _ element: BrowserElement, text: String, said: String, pageOrigin: String? = nil
     ) -> HandsVerdict {
         if isSensitive(element) { return .refuse(BridgeCode.secureField) }
@@ -39,7 +39,7 @@ extension BrowserPolicy {
     /// WHY a plain path change may act: refusing every same-site link would
     /// make the tool unusable, and a click on a link is already judged by
     /// its label; the finite word list is defence in depth, not a guarantee.
-    public static func navigateVerdict(
+    package static func navigateVerdict(
         from origin: String?, currentURL: String?, to raw: String, said: String
     ) -> Result<HandsVerdict, ContractError> {
         let url: URL
@@ -57,7 +57,7 @@ extension BrowserPolicy {
 
     /// Without the current address nothing can be shown to be unchanged, so
     /// the words decide.
-    public static func navigateVerdict(
+    package static func navigateVerdict(
         from origin: String?, to raw: String, said: String
     ) -> Result<HandsVerdict, ContractError> {
         navigateVerdict(from: origin, currentURL: nil, to: raw, said: said)
@@ -140,7 +140,7 @@ extension BrowserPolicy {
     /// Whether two origins, or an origin and a full address, name the same
     /// place. The runner compares the tab's live address with the origin it
     /// read, so both sides go through the one normalization.
-    public static func sameOrigin(_ first: String, _ second: String) -> Bool {
+    package static func sameOrigin(_ first: String, _ second: String) -> Bool {
         canonicalOrigin(first) == canonicalOrigin(second)
     }
 

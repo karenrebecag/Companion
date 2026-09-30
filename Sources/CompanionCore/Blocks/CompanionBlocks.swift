@@ -1,19 +1,19 @@
 import Foundation
 
-public struct LocationsBlock: Sendable, Equatable {
-    public struct Location: Sendable, Equatable {
-        public var id: String?
-        public var name: String
-        public var eyebrow: String?
-        public var address: String?
-        public var lat: Double
-        public var lng: Double
-        public var url: String?
+package struct LocationsBlock: Sendable, Equatable {
+    package struct Location: Sendable, Equatable {
+        package var id: String?
+        package var name: String
+        package var eyebrow: String?
+        package var address: String?
+        package var lat: Double
+        package var lng: Double
+        package var url: String?
 
         /// Stable even when the specialist omits id.
-        public var stableId: String { id ?? "\(lat),\(lng)" }
+        package var stableId: String { id ?? "\(lat),\(lng)" }
 
-        public init(
+        package init(
             id: String? = nil,
             name: String,
             eyebrow: String? = nil,
@@ -32,17 +32,17 @@ public struct LocationsBlock: Sendable, Equatable {
         }
     }
 
-    public var title: String?
-    public var locations: [Location]
+    package var title: String?
+    package var locations: [Location]
 
-    public init(title: String? = nil, locations: [Location]) {
+    package init(title: String? = nil, locations: [Location]) {
         self.title = title
         self.locations = locations
     }
 
     /// Only the fields Mapbox JS reads; "</" is escaped so a name cannot
     /// close the embedding <script> tag.
-    public var locatorJSON: String {
+    package var locatorJSON: String {
         struct Pin: Encodable {
             let id: String
             let name: String
@@ -65,15 +65,15 @@ public struct LocationsBlock: Sendable, Equatable {
     }
 }
 
-public struct GalleryBlock: Sendable, Equatable {
-    public struct Item: Sendable, Equatable {
-        public var path: String?
-        public var url: String?
-        public var caption: String?
+package struct GalleryBlock: Sendable, Equatable {
+    package struct Item: Sendable, Equatable {
+        package var path: String?
+        package var url: String?
+        package var caption: String?
 
         /// Local disk or https only: plain http does not travel.
         /// Paths must be absolute and must not contain traversal components.
-        public var isRenderable: Bool {
+        package var isRenderable: Bool {
             if let p = path {
                 // Path must be absolute (start with /) and contain no ".." components.
                 guard p.hasPrefix("/") else { return false }
@@ -85,17 +85,17 @@ public struct GalleryBlock: Sendable, Equatable {
             return parsed.scheme == "https"
         }
 
-        public init(path: String? = nil, url: String? = nil, caption: String? = nil) {
+        package init(path: String? = nil, url: String? = nil, caption: String? = nil) {
             self.path = path
             self.url = url
             self.caption = caption
         }
     }
 
-    public var title: String?
-    public var images: [Item]
+    package var title: String?
+    package var images: [Item]
 
-    public init(title: String? = nil, images: [Item]) {
+    package init(title: String? = nil, images: [Item]) {
         self.title = title
         self.images = images
     }
@@ -109,14 +109,14 @@ public struct GalleryBlock: Sendable, Equatable {
 /// What we refuse to do is present both with the same authority: a pin the
 /// model wrote from memory looks exactly as confident as one that was looked
 /// up, and that is the whole defect.
-public enum CardSource: Sendable, Equatable {
+package enum CardSource: Sendable, Equatable {
     /// The app looked it up. Trusted.
     case tool
     /// The model wrote it into a fence. Unverified by construction.
     case model
 }
 
-public enum CardPayload: Sendable, Equatable {
+package enum CardPayload: Sendable, Equatable {
     case locations(LocationsBlock)
     case gallery(GalleryBlock)
     /// Wave 20: figures, rows and series (Incredible's stat/table/chart).
@@ -127,22 +127,22 @@ public enum CardPayload: Sendable, Equatable {
 
 /// What the interface paints, travelling on its own channel — never through
 /// the model's context, which is where a transcribed coordinate goes wrong.
-public struct Card: Sendable, Equatable {
-    public var payload: CardPayload
-    public var source: CardSource
+package struct Card: Sendable, Equatable {
+    package var payload: CardPayload
+    package var source: CardSource
 
-    public init(payload: CardPayload, source: CardSource) {
+    package init(payload: CardPayload, source: CardSource) {
         self.payload = payload
         self.source = source
     }
 }
 
-public enum CompanionBlocks: Sendable {
-    public static let locationsLanguage = "companion:locations"
-    public static let galleryLanguage = "companion:gallery"
+package enum CompanionBlocks: Sendable {
+    package static let locationsLanguage = "companion:locations"
+    package static let galleryLanguage = "companion:gallery"
 
     /// Nil sends the fence back to a CodeBlock so broken JSON stays visible.
-    public static func locations(_ body: String) -> LocationsBlock? {
+    package static func locations(_ body: String) -> LocationsBlock? {
         guard let dict = fenceObject(body),
               let list = dict["locations"] as? [Any],
               !list.isEmpty
@@ -160,7 +160,7 @@ public enum CompanionBlocks: Sendable {
         return LocationsBlock(title: dict["title"] as? String, locations: parsed)
     }
 
-    public static func gallery(_ body: String) -> GalleryBlock? {
+    package static func gallery(_ body: String) -> GalleryBlock? {
         guard let dict = fenceObject(body),
               let list = dict["images"] as? [Any]
         else { return nil }
@@ -188,7 +188,7 @@ public enum CompanionBlocks: Sendable {
     /// A fence body is one message's card, never a dataset: past this it is
     /// refused before it is parsed. Documents and tool arguments have their
     /// own bounds and go through `jsonObject`, uncapped.
-    public static let maxFenceBytes = 256 * 1024
+    package static let maxFenceBytes = 256 * 1024
 
     static func fenceObject(_ body: String) -> [String: Any]? {
         body.utf8.count <= maxFenceBytes ? jsonObject(body) : nil

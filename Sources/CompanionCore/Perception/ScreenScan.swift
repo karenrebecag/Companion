@@ -6,17 +6,17 @@ import Foundation
 
 /// One node of the walk, as the adapter read it. `label` is the element's
 /// own name (title, description, placeholder); `value` is its content.
-public struct ScanNode: Sendable, Equatable {
-    public var role: String
-    public var subrole: String
-    public var label: String
-    public var value: String?
-    public var secure: Bool
+package struct ScanNode: Sendable, Equatable {
+    package var role: String
+    package var subrole: String
+    package var label: String
+    package var value: String?
+    package var secure: Bool
     /// 0 = the window itself; each dialog, sheet or alert gets its own
     /// number, so a neutral "Sí" can be judged by what its dialog says.
-    public var group: Int
+    package var group: Int
 
-    public init(
+    package init(
         role: String, subrole: String, label: String, value: String?, secure: Bool, group: Int = 0
     ) {
         self.role = role
@@ -30,13 +30,13 @@ public struct ScanNode: Sendable, Equatable {
 
 /// One walk of one window. `generation` ties the ids handed to the model to
 /// the element handles the adapter kept: a newer walk makes them stale.
-public struct ScreenWalk: Sendable, Equatable {
-    public var nodes: [ScanNode]
-    public var partial: Bool
-    public var window: String
-    public var generation: Int
+package struct ScreenWalk: Sendable, Equatable {
+    package var nodes: [ScanNode]
+    package var partial: Bool
+    package var window: String
+    package var generation: Int
 
-    public init(nodes: [ScanNode], partial: Bool, window: String, generation: Int) {
+    package init(nodes: [ScanNode], partial: Bool, window: String, generation: Int) {
         self.nodes = nodes
         self.partial = partial
         self.window = window
@@ -44,35 +44,35 @@ public struct ScreenWalk: Sendable, Equatable {
     }
 }
 
-public struct ScreenElement: Sendable, Equatable {
-    public var id: Int
+package struct ScreenElement: Sendable, Equatable {
+    package var id: Int
     /// Index into the walk's nodes: what the adapter presses.
-    public var node: Int
-    public var kind: String
-    public var label: String
+    package var node: Int
+    package var kind: String
+    package var label: String
     /// The text of the dialog this control sits in; empty in the window.
-    public var context: String
+    package var context: String
 }
 
-public struct ScreenScan: Sendable, Equatable {
+package struct ScreenScan: Sendable, Equatable {
     /// Enough for a dialog, a form or a mail list; a full web page is cut
     /// and says so, as Incredible's scan does.
-    public static let maxElements = 150
-    public static let maxChars = 6_000
+    package static let maxElements = 150
+    package static let maxChars = 6_000
     static let maxLine = 200
 
-    public var app: String
-    public var window: String
-    public var generation: Int
-    public var elements: [ScreenElement]
-    public var partial: Bool
+    package var app: String
+    package var window: String
+    package var generation: Int
+    package var elements: [ScreenElement]
+    package var partial: Bool
     var lines: [String]
 
-    public func element(id: Int) -> ScreenElement? {
+    package func element(id: Int) -> ScreenElement? {
         elements.first { $0.id == id }
     }
 
-    public func render() -> String {
+    package func render() -> String {
         var text = "window \"\(window)\" (\(app))"
         for line in lines { text += "\n" + line }
         if partial {
@@ -81,7 +81,7 @@ public struct ScreenScan: Sendable, Equatable {
         return text
     }
 
-    public static func build(_ walk: ScreenWalk, app: String) -> ScreenScan {
+    package static func build(_ walk: ScreenWalk, app: String) -> ScreenScan {
         var elements: [ScreenElement] = []
         var lines: [String] = []
         var chars = 0
@@ -139,7 +139,7 @@ public struct ScreenScan: Sendable, Equatable {
         return flat.count > maxLine ? "…" + String(flat.suffix(maxLine)) : flat
     }
 
-    public static func clip(_ text: String) -> String {
+    package static func clip(_ text: String) -> String {
         let flat = text.split(whereSeparator: \.isNewline).joined(separator: " ")
             .trimmingCharacters(in: .whitespaces)
         return flat.count > maxLine ? String(flat.prefix(maxLine)) + "…" : flat
@@ -148,7 +148,7 @@ public struct ScreenScan: Sendable, Equatable {
 
 /// Which Accessibility roles are something to press or fill, and the short
 /// word the model reads for each.
-public enum ScreenRoles {
+package enum ScreenRoles {
     static let kinds: [String: String] = [
         "AXButton": "button", "AXLink": "link", "AXCheckBox": "checkbox",
         "AXRadioButton": "radio", "AXPopUpButton": "popup", "AXMenuButton": "menu button",
@@ -157,38 +157,38 @@ public enum ScreenRoles {
         "AXDisclosureTriangle": "disclosure", "AXSlider": "slider", "AXIncrementor": "stepper",
     ]
 
-    public static func kind(_ node: ScanNode) -> String? {
+    package static func kind(_ node: ScanNode) -> String? {
         if node.secure { return "password field" }
         return kinds[node.role]
     }
 
-    public static func isControl(_ role: String) -> Bool {
+    package static func isControl(_ role: String) -> Bool {
         kinds[role] != nil
     }
 
-    public static func isText(_ role: String) -> Bool {
+    package static func isText(_ role: String) -> Bool {
         role == "AXStaticText" || role == "AXHeading"
     }
 
     /// Roles worth walking into for their children, and roles the walk reads.
-    public static func isInteresting(_ role: String) -> Bool {
+    package static func isInteresting(_ role: String) -> Bool {
         kinds[role] != nil || isText(role)
     }
 }
 
 // MARK: - Ports
 
-public enum ScrollDirection: String, Sendable, Equatable, CaseIterable {
+package enum ScrollDirection: String, Sendable, Equatable, CaseIterable {
     case up, down
 }
 
 /// How a click landed, in Incredible's order: the element's own press
 /// action, focusing it (a field), or a mouse click posted to the process.
-public enum ClickRoute: String, Sendable, Equatable {
+package enum ClickRoute: String, Sendable, Equatable {
     case press, focus, mouse
 }
 
-public enum ClickOutcome: Sendable, Equatable {
+package enum ClickOutcome: Sendable, Equatable {
     case clicked(ClickRoute)
     /// The walk that produced the id is no longer the latest.
     case stale
@@ -198,7 +198,7 @@ public enum ClickOutcome: Sendable, Equatable {
 
 /// The window of one process, read and acted on through Accessibility. The
 /// adapter keeps the element handles of its latest walk only.
-public protocol ScreenActing: Sendable {
+package protocol ScreenActing: Sendable {
     func walk(pid: Int32) -> ScreenWalk?
     /// `label` is what the user or the sheet saw: a control whose live label
     /// changed since the look is stale, never pressed.

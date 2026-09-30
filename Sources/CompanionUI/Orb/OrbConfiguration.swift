@@ -1,18 +1,18 @@
 import SwiftUI
 
-public struct OrbConfiguration {
-    public let glowColor: Color
-    public let backgroundColors: [Color]
-    public let particleColor: Color
-    public let showBackground: Bool
-    public let showWavyBlobs: Bool
-    public let showParticles: Bool
-    public let showGlowEffects: Bool
-    public let showShadow: Bool
-    public let coreGlowIntensity: Double
-    public let speed: Double
+package struct OrbConfiguration {
+    package let glowColor: Color
+    package let backgroundColors: [Color]
+    package let particleColor: Color
+    package let showBackground: Bool
+    package let showWavyBlobs: Bool
+    package let showParticles: Bool
+    package let showGlowEffects: Bool
+    package let showShadow: Bool
+    package let coreGlowIntensity: Double
+    package let speed: Double
 
-    public init(
+    package init(
         backgroundColors: [Color] = [.green, .blue, .pink],
         glowColor: Color = .white,
         coreGlowIntensity: Double = 1.0,

@@ -9,14 +9,14 @@ import Foundation
 /// publishes events and writes the thread; it never keeps a card of its own.
 extension ChatViewModel {
     /// Non-nil while a specialist works: the live card owns the steps.
-    public var job: JobTimeline? { session.projection.job }
+    package var job: JobTimeline? { session.projection.job }
 
     /// The first request waiting for the sheet.
-    public var pendingApproval: ApprovalRequest? { session.projection.approval }
+    package var pendingApproval: ApprovalRequest? { session.projection.approval }
 
     /// The chat path knows the goal up front.
     @discardableResult
-    public func startJob(goal: String) -> JobID {
+    package func startJob(goal: String) -> JobID {
         let id = JobID.mint()
         chatJobID = id
         session.send(.job(.started(goal: goal), from: id))
@@ -60,7 +60,7 @@ extension ChatViewModel {
     /// One job's own stop (16q-1): the job card's, by id. The rest of the
     /// line keeps running; the thread records this job only if it is the
     /// chat's own.
-    public func cancelJob(_ id: JobID) {
+    package func cancelJob(_ id: JobID) {
         guard jobSubmitter != nil else { return }
         let own = chatJobID == id ? timeline(of: id) : nil
         let effects = session.send(.stopJob(id))
@@ -73,7 +73,7 @@ extension ChatViewModel {
     /// Without it, a job started on a misheard sentence could not be stopped:
     /// denying a permission only refused one command, and correcting yourself
     /// out loud did nothing at all.
-    public func cancelJob() {
+    package func cancelJob() {
         guard session.projection.job != nil, jobSubmitter != nil else { return }
         let own = timeline(of: chatJobID)
         let effects = session.send(.stop)
@@ -95,7 +95,7 @@ extension ChatViewModel {
 
     /// One seam for every job event, chat-born or voice-born. The thread
     /// keeps what deserves a line; the session keeps the state.
-    public func receiveJobEvent(_ event: JobEvent, from id: JobID?) {
+    package func receiveJobEvent(_ event: JobEvent, from id: JobID?) {
         switch event {
         case .started, .stepStarted, .stepFinished, .thought, .acted:
             break
@@ -125,7 +125,7 @@ extension ChatViewModel {
 
     /// What the voice session reports: job events keep their thread lines,
     /// everything else goes straight to the reducer.
-    public func receive(_ event: SessionEvent) {
+    package func receive(_ event: SessionEvent) {
         if case .job(let jobEvent, let id) = event {
             receiveJobEvent(jobEvent, from: id)
         } else if case .jobFinished(let ok, let id) = event {
@@ -139,7 +139,7 @@ extension ChatViewModel {
     /// `remember` is the sheet's toggle (Wave 10c 3B.3). The reducer decides
     /// whether refusing this step stops the whole job (10c 3B.4) and where
     /// the answer travels; the thread only says what happened.
-    public func answerApproval(_ approved: Bool, remember: Bool = false) {
+    package func answerApproval(_ approved: Bool, remember: Bool = false) {
         guard let request = pendingApproval else { return }
         let own = timeline(of: chatJobID)
         let effects = session.send(.approvalAnswered(

@@ -6,8 +6,8 @@ import Foundation
 /// for the binary — not config coupling: the product never writes here and
 /// behaves identically when the file is missing (ADR 001). The path lives in
 /// this one adapter only.
-public enum HermesProviderScan {
-    public static func providers(
+package enum HermesProviderScan {
+    package static func providers(
         reading: () -> Data? = {
             let url = URL(fileURLWithPath:
                 NSHomeDirectory() + "/.hermes/provider_models_cache.json")

@@ -2,18 +2,18 @@ import Foundation
 
 /// One line of a job's timeline: what the specialist did, in order. Pure so
 /// the counting and the wording are testable without instantiating a view.
-public struct JobStepInfo: Sendable, Equatable, Codable {
+package struct JobStepInfo: Sendable, Equatable, Codable {
     /// Technical tool name ("WebSearch"), which picks the icon.
-    public let tool: String
+    package let tool: String
     /// The step in human words ("WebSearch: vuelos a Lima").
-    public let label: String
+    package let label: String
     /// 16m-2: the runcard shows each step's fate, so `stepFinished` can no
     /// longer be dropped on the floor. Nothing persists steps today, so
     /// the synthesized Codable is enough (review 16m).
-    public var done: Bool
-    public var failed: Bool
+    package var done: Bool
+    package var failed: Bool
 
-    public init(tool: String, label: String, done: Bool = false, failed: Bool = false) {
+    package init(tool: String, label: String, done: Bool = false, failed: Bool = false) {
         self.tool = tool
         self.label = label
         self.done = done
@@ -21,10 +21,10 @@ public struct JobStepInfo: Sendable, Equatable, Codable {
     }
 }
 
-public enum JobSteps: Sendable {
+package enum JobSteps: Sendable {
     /// Symbol name per tool. An unknown tool still gets a glyph: a blank slot
     /// reads as a broken row, not as "no icon for this".
-    public static func icon(for tool: String) -> String {
+    package static func icon(for tool: String) -> String {
         switch tool {
         case Thinking.tool: "lightbulb"
         case "WebSearch": "globe"
@@ -40,14 +40,14 @@ public enum JobSteps: Sendable {
     }
 
     /// The tool name a thought travels under, so a step is a step everywhere.
-    public enum Thinking {
-        public static let tool = "Thinking"
+    package enum Thinking {
+        package static let tool = "Thinking"
     }
 
     /// "2 searches · 1 file · 1 command" — derived from the steps, never
     /// invented. The same file touched twice is one file. Core has no bundle
     /// to look strings up in, so the language arrives as a parameter.
-    public static func summary(
+    package static func summary(
         _ steps: [JobStepInfo], _ language: AppLanguage = .en
     ) -> String? {
         var searches = 0
@@ -90,7 +90,7 @@ public enum JobSteps: Sendable {
     }
 
     /// Unique paths the job touched, in order.
-    public static func files(_ steps: [JobStepInfo]) -> [String] {
+    package static func files(_ steps: [JobStepInfo]) -> [String] {
         var seen: Set<String> = []
         var out: [String] = []
         for step in steps
@@ -104,7 +104,7 @@ public enum JobSteps: Sendable {
     }
 
     /// "Worked 47 s" / "Worked 1:42". Nobody reads "Worked 102 s".
-    public static func worked(
+    package static func worked(
         _ seconds: Double, _ language: AppLanguage = .en
     ) -> String {
         let verb = language == .en ? "Worked" : "Trabajó"

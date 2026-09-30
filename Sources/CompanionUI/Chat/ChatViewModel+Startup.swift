@@ -5,7 +5,7 @@ import Foundation
 /// the same reason as jobs and attachments: one screen's worth of state per
 /// file, so the view model stays readable.
 extension ChatViewModel {
-    public func onAppear() {
+    package func onAppear() {
         do {
             let raw = try secrets.read(.openAI)
             let key = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -28,7 +28,7 @@ extension ChatViewModel {
     /// The 2 s cap the spec asks for is owned by the adapter's own timeout:
     /// a second timer here would only duplicate it.
     /// "Ya instalé Ollama": probe again without relaunching the app.
-    public func retryLocalProbe() {
+    package func retryLocalProbe() {
         beginProbe()
     }
 
@@ -58,7 +58,7 @@ extension ChatViewModel {
 
     /// Confirms a path the probe already found; it never probes again, and it
     /// never goes out to the network to validate a key that does not exist.
-    public func acceptLocalBase(_ path: LocalPath) {
+    package func acceptLocalBase(_ path: LocalPath) {
         acceptedLocal = path
         ProviderPreference.accept(path)
         needsOnboarding = false

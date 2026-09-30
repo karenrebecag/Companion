@@ -1,9 +1,9 @@
 import SwiftUI
 
-public enum ControlState: Sendable, CaseIterable {
+package enum ControlState: Sendable, CaseIterable {
     case normal, hover, pressed, disabled, focused
 
-    public static func resolve(
+    package static func resolve(
         enabled: Bool, hovering: Bool, pressed: Bool, focused: Bool
     ) -> ControlState {
         if !enabled { return .disabled }
@@ -14,7 +14,7 @@ public enum ControlState: Sendable, CaseIterable {
     }
 }
 
-public enum AppButtonKind: Sendable, CaseIterable {
+package enum AppButtonKind: Sendable, CaseIterable {
     case primary, secondary, destructive, ghost
     /// Solid ink button: black on light, white on dark. For surfaces that
     /// must stay clean of the app accent (the welcome sheet).
@@ -25,30 +25,30 @@ public enum AppButtonKind: Sendable, CaseIterable {
 // to one Semantic role in AppButton/AppField and nowhere else (audit 16p
 // §1). They stay enums so ControlLook is Equatable and a test can pin a
 // look without comparing SwiftUI colors.
-public enum ControlFill: Sendable, Equatable {
+package enum ControlFill: Sendable, Equatable {
     /// `wash` is Incredible's ghost fill: black 5 % over the surface.
     case destructive, surface, clear, ink, wash
 }
 
-public enum ControlInk: Sendable, Equatable {
+package enum ControlInk: Sendable, Equatable {
     case onDestructive, foreground, onInk, muted
 }
 
-public enum ControlStroke: Sendable, Equatable {
+package enum ControlStroke: Sendable, Equatable {
     case none, border, destructive
 }
 
-public struct ControlLook: Equatable, Sendable {
-    public let fill: ControlFill
-    public let ink: ControlInk
-    public let stroke: ControlStroke
-    public let elevation: Elevation
-    public let focusRing: CGFloat
-    public let opacity: Double
+package struct ControlLook: Equatable, Sendable {
+    package let fill: ControlFill
+    package let ink: ControlInk
+    package let stroke: ControlStroke
+    package let elevation: Elevation
+    package let focusRing: CGFloat
+    package let opacity: Double
     /// Incredible's buttons grow on hover instead of lifting a shadow.
-    public var scale: CGFloat = 1
+    package var scale: CGFloat = 1
 
-    public static func button(
+    package static func button(
         _ kind: AppButtonKind, _ state: ControlState
     ) -> ControlLook {
         // 16l: Incredible fades the same look to 50 % and never shadows a
@@ -64,7 +64,7 @@ public struct ControlLook: Equatable, Sendable {
             scale: grows ? ButtonMetrics.hoverScale : 1)
     }
 
-    public static func field(
+    package static func field(
         _ state: ControlState, error: Bool
     ) -> ControlLook {
         ControlLook(

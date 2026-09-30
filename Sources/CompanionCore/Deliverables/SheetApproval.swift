@@ -5,11 +5,11 @@ import Foundation
 /// workbook comes from the runner that will write to it, never from the
 /// model's arguments, and the values are shown whole: a sheet that cuts them
 /// approves cells the user never saw.
-public enum SheetApproval {
+package enum SheetApproval {
     /// The key the runner sets in the arguments it puts in front of the user.
     static let workbookKey = "workbook"
 
-    public static func workbook(in arguments: [String: Any]) -> String? {
+    package static func workbook(in arguments: [String: Any]) -> String? {
         guard let path = arguments[workbookKey] as? String, path.hasPrefix("/") else { return nil }
         return path
     }
@@ -18,7 +18,7 @@ public enum SheetApproval {
     /// model put there must not pass for the one the runner resolved.
     /// `app` pins the one the runner resolved when the model left it out, so
     /// the write cannot land in whatever is in front later.
-    public static func bind(_ inputJSON: String, workbook: String?, app: SheetApp? = nil) -> String {
+    package static func bind(_ inputJSON: String, workbook: String?, app: SheetApp? = nil) -> String {
         guard var object = ToolArguments.parse(inputJSON) else { return "{}" }
         object[workbookKey] = workbook
         if let app { object["app"] = app.rawValue }
@@ -34,7 +34,7 @@ public enum SheetApproval {
 
     /// Stable over the exact cells, types and their boundaries: it is what a
     /// remembered decision covers.
-    public static func fingerprint(_ cells: [[SheetCell]]) -> String {
+    package static func fingerprint(_ cells: [[SheetCell]]) -> String {
         var canonical = "\(cells.count)"
         for row in cells {
             canonical += "|\(row.count)"
@@ -53,7 +53,7 @@ public enum SheetApproval {
     /// Workbook, range with its cell count, then every cell as it will be
     /// typed. Values that do not parse are shown raw: the write will refuse
     /// them, and the sheet still says what was asked.
-    public static func preview(_ arguments: [String: Any], language: AppLanguage) -> String {
+    package static func preview(_ arguments: [String: Any], language: AppLanguage) -> String {
         let es = language == .es
         var lines = [workbook(in: arguments) ?? (es ? "Libro sin identificar" : "Workbook not identified")]
         guard let range = (arguments["range"] as? String).flatMap(SheetRange.init(a1:)) else { return lines[0] }

@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 /// Keyboard shortcut action.
-public enum ShortcutAction: String, Codable, CaseIterable, Sendable {
+package enum ShortcutAction: String, Codable, CaseIterable, Sendable {
     case toggleVoice = "toggleVoice"
     case toggleMute = "toggleMute"
     case hangUp = "hangUp"
@@ -11,7 +11,7 @@ public enum ShortcutAction: String, Codable, CaseIterable, Sendable {
     case newConversation = "newConversation"
     case history = "history"
 
-    public var label: String {
+    package var label: String {
         switch self {
         case .toggleVoice: Localized.string("shortcut.toggleVoice")
         case .toggleMute: Localized.string("shortcut.toggleMute")
@@ -25,13 +25,13 @@ public enum ShortcutAction: String, Codable, CaseIterable, Sendable {
 }
 
 /// Keyboard modifiers.
-public struct KeyModifiers: Codable, Equatable, Hashable, Sendable {
-    public var command: Bool = false
-    public var shift: Bool = false
-    public var option: Bool = false
-    public var control: Bool = false
+package struct KeyModifiers: Codable, Equatable, Hashable, Sendable {
+    package var command: Bool = false
+    package var shift: Bool = false
+    package var option: Bool = false
+    package var control: Bool = false
 
-    public init(command: Bool = false, shift: Bool = false,
+    package init(command: Bool = false, shift: Bool = false,
                 option: Bool = false, control: Bool = false) {
         self.command = command
         self.shift = shift
@@ -40,7 +40,7 @@ public struct KeyModifiers: Codable, Equatable, Hashable, Sendable {
     }
 
     /// Parse from NSEvent modifierFlags.
-    public static func from(_ flags: NSEvent.ModifierFlags) -> KeyModifiers {
+    package static func from(_ flags: NSEvent.ModifierFlags) -> KeyModifiers {
         KeyModifiers(
             command: flags.contains(.command),
             shift: flags.contains(.shift),
@@ -49,7 +49,7 @@ public struct KeyModifiers: Codable, Equatable, Hashable, Sendable {
         )
     }
 
-    public func toNSEventModifierFlags() -> NSEvent.ModifierFlags {
+    package func toNSEventModifierFlags() -> NSEvent.ModifierFlags {
         var flags: NSEvent.ModifierFlags = []
         if command { flags.insert(.command) }
         if shift { flags.insert(.shift) }
@@ -59,7 +59,7 @@ public struct KeyModifiers: Codable, Equatable, Hashable, Sendable {
     }
 
     /// String representation for display.
-    public func display() -> String {
+    package func display() -> String {
         var parts: [String] = []
         if command { parts.append("Cmd") }
         if shift { parts.append("Shift") }
@@ -70,33 +70,33 @@ public struct KeyModifiers: Codable, Equatable, Hashable, Sendable {
 }
 
 /// A single keyboard shortcut binding.
-public struct Shortcut: Codable, Equatable, Sendable {
-    public let action: ShortcutAction
-    public let keyCode: UInt16
-    public let modifiers: KeyModifiers
+package struct Shortcut: Codable, Equatable, Sendable {
+    package let action: ShortcutAction
+    package let keyCode: UInt16
+    package let modifiers: KeyModifiers
 
-    public init(action: ShortcutAction, keyCode: UInt16, modifiers: KeyModifiers) {
+    package init(action: ShortcutAction, keyCode: UInt16, modifiers: KeyModifiers) {
         self.action = action
         self.keyCode = keyCode
         self.modifiers = modifiers
     }
 
     /// Check if this shortcut conflicts with another (same key binding).
-    public func conflictsWith(_ other: Shortcut) -> Bool {
+    package func conflictsWith(_ other: Shortcut) -> Bool {
         self.keyCode == other.keyCode && self.modifiers == other.modifiers
     }
 
     /// Display string for the shortcut.
-    public func displayKey() -> String {
+    package func displayKey() -> String {
         let keyName = keyCodeToName(keyCode) ?? "Key(\(keyCode))"
         return "\(modifiers.display())\(modifiers.display().isEmpty ? "" : "+")\(keyName)"
     }
 
     /// Character Cocoa expects on NSMenuItem. Empty if the key has no
     /// equivalent: the item stays clickable without lying about a key.
-    public var keyEquivalent: String { Self.equivalent(for: keyCode) }
+    package var keyEquivalent: String { Self.equivalent(for: keyCode) }
 
-    public static func equivalent(for keyCode: UInt16) -> String {
+    package static func equivalent(for keyCode: UInt16) -> String {
         switch keyCode {
         case 49: return " "
         case 43: return ","
@@ -127,15 +127,15 @@ public struct Shortcut: Codable, Equatable, Sendable {
 }
 
 /// Set of shortcuts, persistable and conflict-free.
-public struct ShortcutSet: Codable {
-    public var shortcuts: [Shortcut]
+package struct ShortcutSet: Codable {
+    package var shortcuts: [Shortcut]
 
-    public init(shortcuts: [Shortcut] = []) {
+    package init(shortcuts: [Shortcut] = []) {
         self.shortcuts = shortcuts
     }
 
     /// Default shortcuts.
-    public static var defaults: ShortcutSet {
+    package static var defaults: ShortcutSet {
         ShortcutSet(shortcuts: [
             Shortcut(action: .toggleVoice,
                     keyCode: 49,
@@ -158,12 +158,12 @@ public struct ShortcutSet: Codable {
         ])
     }
 
-    public func shortcut(for action: ShortcutAction) -> Shortcut? {
+    package func shortcut(for action: ShortcutAction) -> Shortcut? {
         shortcuts.first { $0.action == action }
     }
 
     /// Check if any shortcuts conflict.
-    public func hasConflicts() -> [Shortcut] {
+    package func hasConflicts() -> [Shortcut] {
         var conflicts: [Shortcut] = []
         for (i, shortcut) in shortcuts.enumerated() {
             for other in shortcuts[(i + 1)...] {
@@ -177,7 +177,7 @@ public struct ShortcutSet: Codable {
     }
 
     /// Persist to UserDefaults.
-    public func save(key: String = "companionShortcuts") {
+    package func save(key: String = "companionShortcuts") {
         if let encoded = try? JSONEncoder().encode(self) {
             UserDefaults.standard.set(encoded, forKey: key)
             NotificationCenter.default.post(
@@ -186,7 +186,7 @@ public struct ShortcutSet: Codable {
     }
 
     /// Load from UserDefaults.
-    public static func load(key: String = "companionShortcuts") -> ShortcutSet {
+    package static func load(key: String = "companionShortcuts") -> ShortcutSet {
         guard let data = UserDefaults.standard.data(forKey: key),
               let set = try? JSONDecoder().decode(ShortcutSet.self, from: data)
         else {
@@ -198,10 +198,10 @@ public struct ShortcutSet: Codable {
 
 // MARK: - Shortcut resolution (pure logic)
 
-public enum ShortcutResolver {
+package enum ShortcutResolver {
     /// Resolve a keyboard event to a shortcut action.
     /// Returns nil if no match is found or if a text field is focused.
-    public static func resolve(
+    package static func resolve(
         keyCode: UInt16,
         modifiers: KeyModifiers,
         in set: ShortcutSet,

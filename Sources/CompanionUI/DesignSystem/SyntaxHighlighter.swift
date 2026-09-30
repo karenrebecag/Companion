@@ -1,12 +1,12 @@
 import CompanionCore
 import SwiftUI
 
-public enum SyntaxPalette: Sendable {
-    public enum Role: Sendable, Equatable {
+package enum SyntaxPalette: Sendable {
+    package enum Role: Sendable, Equatable {
         case foreground, mutedForeground, purple, green, orange, blue, pink
     }
 
-    public static func role(for kind: SyntaxKind) -> Role {
+    package static func role(for kind: SyntaxKind) -> Role {
         switch kind {
         case .text: .foreground
         case .keyword: .purple
@@ -18,7 +18,7 @@ public enum SyntaxPalette: Sendable {
         }
     }
 
-    public static func color(for kind: SyntaxKind) -> Color {
+    package static func color(for kind: SyntaxKind) -> Color {
         switch role(for: kind) {
         case .foreground: Semantic.foreground
         case .mutedForeground: Semantic.mutedForeground
@@ -31,8 +31,8 @@ public enum SyntaxPalette: Sendable {
     }
 }
 
-public enum SyntaxHighlighter {
-    public static func attributed(
+package enum SyntaxHighlighter {
+    package static func attributed(
         _ source: String, language: String
     ) -> AttributedString {
         var out = AttributedString()

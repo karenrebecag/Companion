@@ -1,16 +1,16 @@
 import CompanionCore
 import Foundation
 
-public enum VoiceCopy {
-    public static var fallbackClassic: String {
+package enum VoiceCopy {
+    package static var fallbackClassic: String {
         Localized.string("voice.fallback.classic")
     }
 
-    public static var functionRefusal: String {
+    package static var functionRefusal: String {
         Localized.string("voice.function.refusal")
     }
 
-    public static func failure(_ reason: TurnFailure) -> String {
+    package static func failure(_ reason: TurnFailure) -> String {
         switch reason {
         case .micDenied: Localized.string("voice.fail.micDenied")
         case .micUnavailable: Localized.string("voice.fail.micUnavailable")
@@ -29,7 +29,7 @@ public enum VoiceCopy {
 
     /// A refused permission gets a way out, not only a sentence (Wave 10a
     /// §3.6): the failures that ARE permissions map to their Settings pane.
-    public static func settingsLink(for reason: TurnFailure?) -> URL? {
+    package static func settingsLink(for reason: TurnFailure?) -> URL? {
         switch reason {
         case .micDenied: PermissionSettingsLink.microphone
         case .speechDenied: PermissionSettingsLink.speechRecognition
@@ -40,12 +40,12 @@ public enum VoiceCopy {
 
     /// The session's reason (Wave 12a): only a failure that IS a permission
     /// gets the link; a stop or a steer has nothing to open.
-    public static func settingsLink(after reason: InterruptReason?) -> URL? {
+    package static func settingsLink(after reason: InterruptReason?) -> URL? {
         guard case .failure(let failure) = reason else { return nil }
         return settingsLink(for: failure)
     }
 
-    public static var previewFailed: String {
+    package static var previewFailed: String {
         Localized.string("voice.preview.failed")
     }
 }

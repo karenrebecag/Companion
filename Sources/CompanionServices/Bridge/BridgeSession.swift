@@ -13,7 +13,7 @@ import Foundation
 /// epoch moved, so a connection that went away cannot authorize the one that
 /// replaced it, and a new connection always starts from `idle` (it must send
 /// its own valid `hello`).
-public actor BridgeSession {
+package actor BridgeSession {
     let tools: any ParentToolExecuting
     let guardian: ParentToolGuard
     private let token: @Sendable () -> String
@@ -54,7 +54,7 @@ public actor BridgeSession {
     /// peer is not idle, the sheet has its own timeout.
     private var inFlight = 0
 
-    public init(
+    package init(
         tools: any ParentToolExecuting,
         guard parentGuard: ParentToolGuard,
         token: @escaping @Sendable () -> String,
@@ -84,11 +84,11 @@ public actor BridgeSession {
         self.onSessionBoundary = onSessionBoundary
     }
 
-    public var state: BridgeState { policy.state }
+    package var state: BridgeState { policy.state }
 
     /// Reads lines off `connection` until it closes or a reply says to close
     /// it. One call drives one connection start to finish.
-    public func serve(_ connection: BridgeConnection) async {
+    package func serve(_ connection: BridgeConnection) async {
         connection.holdSlotUntilServed()
         defer { connection.releaseSlot() }
         if let live = current, live.isOpen {
@@ -140,7 +140,7 @@ public actor BridgeSession {
     /// the session is closed (a fresh hello and sheet are needed) and the
     /// peer sees EOF. True when it acted.
     @discardableResult
-    public func expireIfIdle() -> Bool {
+    package func expireIfIdle() -> Bool {
         guard current != nil, inFlight == 0,
               now().timeIntervalSince(lastActivity) >= idleTimeout
         else { return false }
@@ -187,7 +187,7 @@ public actor BridgeSession {
     }
 
     /// Pure enough to test without a socket: one line in, one reply out.
-    public func handle(line: String) async -> (reply: String, close: Bool) {
+    package func handle(line: String) async -> (reply: String, close: Bool) {
         await handle(line: line, mine: epoch)
     }
 
@@ -215,7 +215,7 @@ public actor BridgeSession {
 
     /// The connection dropped without a `bye` (crash, network loss): reset
     /// to `idle` so the next connection can `hello` again.
-    public func connectionClosed() {
+    package func connectionClosed() {
         epoch += 1
         policy.disconnected()
         ledger = BridgeRequestLedger()
@@ -223,14 +223,14 @@ public actor BridgeSession {
     }
 
     /// Karen started a hold or sent a chat: the bridge yields the pin.
-    public func pause() {
+    package func pause() {
         policy.pause()
         onState(policy.state)
     }
 
     /// The voice turn ended: reopen and re-pin, so the hands follow
     /// whatever app Karen left in front rather than the one from before.
-    public func resume() {
+    package func resume() {
         policy.resume(now: now())
         onState(policy.state)
         if policy.isOpen {
@@ -245,7 +245,7 @@ public actor BridgeSession {
     /// path `connectionClosed()` already takes on any other disconnect).
     /// The in-flight call (if any) finishes; its reply is `denied_by_user`
     /// or `session_closed`.
-    public func stop() async {
+    package func stop() async {
         Log.bridge("stop requested by user")
         policy.stop()
         onState(policy.state)

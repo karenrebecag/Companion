@@ -4,14 +4,14 @@ import Foundation
 /// Watches turn snapshots and drives the thinking sound. Fed by a callback
 /// from the view model rather than iterating the snapshot stream: that stream
 /// has a single consumer, and a second iterator would steal elements from it.
-public final class AmbienceObserver: @unchecked Sendable {
+package final class AmbienceObserver: @unchecked Sendable {
     private let lock = NSLock()
     private let sound: any ThinkingSounding
     private let isEnabled: @Sendable () -> Bool
     private var previous: TurnState = .idle
     private var active = false
 
-    public init(
+    package init(
         sound: any ThinkingSounding,
         isEnabled: @escaping @Sendable () -> Bool
     ) {
@@ -19,7 +19,7 @@ public final class AmbienceObserver: @unchecked Sendable {
         self.isEnabled = isEnabled
     }
 
-    public func observe(_ state: TurnState) {
+    package func observe(_ state: TurnState) {
         lock.lock()
         let cue = AmbienceCue.forTransition(from: previous, to: state)
         previous = state

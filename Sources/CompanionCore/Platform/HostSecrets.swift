@@ -2,7 +2,7 @@ import Foundation
 
 /// What a host-bound secret is for. The raw value is part of the stored
 /// name, so it must never contain `@`.
-public enum HostSecretKind: String, Sendable, Equatable {
+package enum HostSecretKind: String, Sendable, Equatable {
     /// The key the app shows the companion-apps function.
     case appsKey = "apps-key"
     /// A bearer token for one of the user's own MCP servers.
@@ -18,16 +18,16 @@ public enum HostSecretKind: String, Sendable, Equatable {
 /// purpose: a host is the trust unit the user typed in, and a port change is
 /// not a new owner. An MCP token is finer: its name is the server key (host,
 /// port and path), see `SecretHost.serverKey`.
-public protocol HostSecretStore: Sendable {
+package protocol HostSecretStore: Sendable {
     func read(_ kind: HostSecretKind, host: String) throws -> String?
     func write(_ kind: HostSecretKind, host: String, value: String) throws
     func delete(_ kind: HostSecretKind, host: String) throws
 }
 
-public enum SecretHost {
+package enum SecretHost {
     /// The lowercased host, or nil when it is empty or holds a character
     /// that would break the stored name.
-    public static func normalized(_ raw: String) -> String? {
+    package static func normalized(_ raw: String) -> String? {
         let host = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !host.isEmpty,
               !host.contains("@"),
@@ -37,7 +37,7 @@ public enum SecretHost {
     }
 
     /// The host of an absolute URL string, normalized; nil when it has none.
-    public static func of(url text: String) -> String? {
+    package static func of(url text: String) -> String? {
         URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines))?.host
             .flatMap(normalized)
     }
@@ -54,7 +54,7 @@ public enum SecretHost {
     /// Fails closed on anything Foundation and a WHATWG parser (the fetcher's)
     /// can read as two different hosts: a backslash, userinfo, or an encoded
     /// or slash-bearing host. Such a URL has no key, so no token.
-    public static func serverKey(of url: String) -> String? {
+    package static func serverKey(of url: String) -> String? {
         let text = url.trimmingCharacters(in: .whitespacesAndNewlines)
         // A WHATWG parser reads `\` as `/`, Foundation does not: two hosts.
         guard !text.contains("\\"),
@@ -81,12 +81,12 @@ public enum SecretHost {
 /// The apps endpoint host this launch saw, kept in memory only. The flat key
 /// is bound to it and to no other host, so an endpoint rewritten after
 /// launch (or while the Keychain was unreadable) is never handed the key.
-public struct AppsLaunchPin: Sendable, Equatable {
-    public let host: String?
+package struct AppsLaunchPin: Sendable, Equatable {
+    package let host: String?
 
-    public static let unobserved = AppsLaunchPin(host: nil)
+    package static let unobserved = AppsLaunchPin(host: nil)
 
-    public static func observed(_ host: String) -> AppsLaunchPin { AppsLaunchPin(host: host) }
+    package static func observed(_ host: String) -> AppsLaunchPin { AppsLaunchPin(host: host) }
 }
 
 /// The companion-apps key across its two homes: the flat Keychain name it
@@ -105,17 +105,17 @@ public struct AppsLaunchPin: Sendable, Equatable {
 ///
 /// Core has no logger, so the non-fatal failures are reported through `log`;
 /// every production caller passes the app's log, the default is for tests.
-public enum AppsCredentials {
+package enum AppsCredentials {
     /// Where the origin marker lives: `HostSecretStore` reads by kind and
     /// host, and there is one flat key, so one fixed slot holds its host.
-    public static let originSlot = "flat"
+    package static let originSlot = "flat"
 
     /// The key for `host`. A key still under the flat name is moved to the
     /// host (spec R3): written bound first, deleted flat only after that
     /// write held, so a refusing Keychain never costs a working key. A flat
     /// copy that could not be deleted is retried on every read here. With no
     /// recorded origin the flat key only goes to the host `pin` observed.
-    public static func key(
+    package static func key(
         host: String, legacy: any SecretStore, bound: any HostSecretStore, pin: AppsLaunchPin,
         log: @Sendable (String) -> Void = { _ in }
     ) throws -> String? {
@@ -137,7 +137,7 @@ public enum AppsCredentials {
     /// caller cannot skip the pin or the log. Nil when the endpoint is unset
     /// or invalid; the key is nil when none is stored. A Keychain failure
     /// throws, so callers can tell it from "not configured".
-    public static func currentKey(
+    package static func currentKey(
         endpoint: String?, legacy: any SecretStore, bound: any HostSecretStore, pin: AppsLaunchPin,
         log: @Sendable (String) -> Void = { _ in }
     ) throws -> (url: URL, key: String?)? {
@@ -149,7 +149,7 @@ public enum AppsCredentials {
     /// The launch step: the endpoint as the user typed it, validated like the
     /// runner does, and the flat key moved to it before anything can rewrite
     /// the endpoint. The pin it returns is what `key` checks later.
-    public static func launch(
+    package static func launch(
         endpoint: String?, legacy: any SecretStore, bound: any HostSecretStore,
         log: @Sendable (String) -> Void = { _ in }
     ) -> AppsLaunchPin {
@@ -162,7 +162,7 @@ public enum AppsCredentials {
     /// so no read path has to do it. Skipped when there is no endpoint to
     /// bind to; a host recorded by an earlier attempt wins over the current
     /// endpoint, which may have been rewritten since.
-    public static func migrateFlatKey(
+    package static func migrateFlatKey(
         configuredHost: String?, legacy: any SecretStore, bound: any HostSecretStore,
         log: @Sendable (String) -> Void = { _ in }
     ) {
@@ -226,7 +226,7 @@ public enum AppsCredentials {
     /// being replaced go after the new one is safe, and neither failing
     /// undoes it: a save never destroys a working key. A flat copy that
     /// stays is pinned to `host`, so it cannot follow a later endpoint swap.
-    public static func save(
+    package static func save(
         _ key: String, host: String, previousHost: String?,
         legacy: any SecretStore, bound: any HostSecretStore,
         log: @Sendable (String) -> Void = { _ in }

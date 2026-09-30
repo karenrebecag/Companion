@@ -15,7 +15,7 @@ import WebKit
 /// Queueing, dedupe, caching, the deadline and cancellation are the
 /// `DiagramScheduler`'s; this class is the page it drives.
 @MainActor
-public final class WebKitDiagramRenderer: DiagramRendering {
+package final class WebKitDiagramRenderer: DiagramRendering {
     /// Test seams: what the real page looked like, and the SVG it produced.
     var pageObserver: (@MainActor (WKWebView) -> Void)?
     var svgObserver: (@MainActor (String) -> Void)?
@@ -24,7 +24,7 @@ public final class WebKitDiagramRenderer: DiagramRendering {
     private static var rules: WKContentRuleList?
     private static var script: String?
 
-    public convenience init() {
+    package convenience init() {
         self.init(script: nil)
     }
 
@@ -43,7 +43,7 @@ public final class WebKitDiagramRenderer: DiagramRendering {
         set { scheduler.timeout = newValue }
     }
 
-    public func render(_ block: DiagramBlock, width: Double) async -> DiagramOutcome {
+    package func render(_ block: DiagramBlock, width: Double) async -> DiagramOutcome {
         await scheduler.render(block, width: width)
     }
 

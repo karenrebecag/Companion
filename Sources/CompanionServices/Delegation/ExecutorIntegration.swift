@@ -3,8 +3,8 @@ import Foundation
 
 /// Fábrica de ejecutores CLI. La ruta del binario llega ya resuelta por el
 /// probe: aquí no se adivinan rutas.
-public enum ExecutorFactory {
-    public static func createExecutor(
+package enum ExecutorFactory {
+    package static func createExecutor(
         descriptor: ExecutorDescriptor,
         workdir: String,
         executablePath: String,
@@ -45,14 +45,14 @@ public enum ExecutorFactory {
 /// Lanzador real: subprocesos de verdad con pipes, cada uno en SU grupo de
 /// proceso. El grupo importa porque un especialista arranca ayudantes propios:
 /// senalar solo al hijo directo los deja vivos y launchd los adopta.
-public struct RealProcessLauncher: ProcessLauncher {
+package struct RealProcessLauncher: ProcessLauncher {
     private let registry: ProcessRegistry
 
-    public init(registry: ProcessRegistry = .shared) {
+    package init(registry: ProcessRegistry = .shared) {
         self.registry = registry
     }
 
-    public func launch(
+    package func launch(
         executable: String,
         arguments: [String],
         cwd: String?

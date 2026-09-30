@@ -9,15 +9,15 @@ import Foundation
 /// Strict and fail-closed: anything outside the contract is `failed(.invalid)`,
 /// which is never covered. A fault that cannot be pinned to one action (bad
 /// envelope, an id the request never had) fails the whole batch.
-public enum JudgeVerdictParser {
+package enum JudgeVerdictParser {
     private static let entryKeys: Set<String> = ["id", "covered", "reason"]
     /// A batch is at most 8 verdicts of about 60 bytes each; 16 KB is generous
     /// and still stops a hostile or runaway body before it is read.
-    public static let maxBodyBytes = 16 * 1024
+    package static let maxBodyBytes = 16 * 1024
     /// Twice the batch cap: room for a repeated id, not for a flood.
-    public static let maxEntries = 16
+    package static let maxEntries = 16
 
-    public static func parse(_ data: Data, ids: [String]) -> [JudgeVerdict] {
+    package static func parse(_ data: Data, ids: [String]) -> [JudgeVerdict] {
         let rejected = ids.map { _ in JudgeVerdict.failed(.invalid) }
         guard data.count <= maxBodyBytes,
               case .object(let root)? = JSONValue.parse(data),
@@ -59,8 +59,8 @@ public enum JudgeVerdictParser {
 /// OpenAI; classic uses the hold brain's own chain, in its own order. Ollama
 /// takes the model `LocalCatalog` confirmed at runtime: the static default tag
 /// may not be installed, and it 404s.
-public enum ActionJudgeRoute {
-    public static func provider(pipeline: VoicePipeline, keys: Set<SecretKey>,
+package enum ActionJudgeRoute {
+    package static func provider(pipeline: VoicePipeline, keys: Set<SecretKey>,
                                 ollamaModel: String?) -> ProviderDescriptor? {
         let openAI = ProviderDescriptor.openAI.withModel(HoldBrainCatalog.openAIModel)
         switch pipeline {
@@ -83,18 +83,18 @@ public enum ActionJudgeRoute {
 /// Immutable: every write returns the next ledger, so the shadow actor holds
 /// the only mutable reference. Time is a parameter, which is the injected
 /// clock: the ledger never reads one.
-public struct JudgeLedger: Sendable, Equatable {
-    public static let capacity = 32
-    public static let ttl: TimeInterval = 120
+package struct JudgeLedger: Sendable, Equatable {
+    package static let capacity = 32
+    package static let ttl: TimeInterval = 120
 
-    public struct Pair: Sendable, Equatable {
-        public let verdict: JudgeVerdict
-        public let decision: ApprovalDecision
-        public let verdictFirst: Bool
+    package struct Pair: Sendable, Equatable {
+        package let verdict: JudgeVerdict
+        package let decision: ApprovalDecision
+        package let verdictFirst: Bool
         /// From the moment the version was first seen to the decision.
-        public let msDecision: Int
+        package let msDecision: Int
 
-        public init(verdict: JudgeVerdict, decision: ApprovalDecision, verdictFirst: Bool, msDecision: Int) {
+        package init(verdict: JudgeVerdict, decision: ApprovalDecision, verdictFirst: Bool, msDecision: Int) {
             self.verdict = verdict
             self.decision = decision
             self.verdictFirst = verdictFirst
@@ -113,7 +113,7 @@ public struct JudgeLedger: Sendable, Equatable {
 
     private let entries: [Entry]
 
-    public init() {
+    package init() {
         entries = []
     }
 
@@ -121,16 +121,16 @@ public struct JudgeLedger: Sendable, Equatable {
         self.entries = entries
     }
 
-    public var count: Int { entries.count }
+    package var count: Int { entries.count }
 
     /// The action is proposed before the judge answers or the sheet resolves.
     /// Opening its entry at that moment is what lets `msDecision` measure the
     /// user's whole wait, and not start at whichever side happened to land first.
-    public func opening(_ version: ActionVersion, at time: TimeInterval) -> JudgeLedger {
+    package func opening(_ version: ActionVersion, at time: TimeInterval) -> JudgeLedger {
         apply(to: version, at: time) { _ in }.ledger
     }
 
-    public func recording(verdict: JudgeVerdict, for version: ActionVersion,
+    package func recording(verdict: JudgeVerdict, for version: ActionVersion,
                           at time: TimeInterval) -> (ledger: JudgeLedger, pair: Pair?) {
         apply(to: version, at: time) { entry in
             // One truth per version: a second verdict (the classic batch and
@@ -151,7 +151,7 @@ public struct JudgeLedger: Sendable, Equatable {
     /// eviction) rather than tombstoning the version: a tombstone would be one
     /// more entry to bound, and a verdict alone never pairs, so it cannot
     /// reach the metric.
-    public func recording(decision: ApprovalDecision, for version: ActionVersion,
+    package func recording(decision: ApprovalDecision, for version: ActionVersion,
                           at time: TimeInterval) -> (ledger: JudgeLedger, pair: Pair?) {
         apply(to: version, at: time) { entry in
             entry.decision = decision
@@ -192,25 +192,25 @@ public struct JudgeLedger: Sendable, Equatable {
 
 /// The counters spec 12 reads to decide whether to propose 16q-4. `failed`
 /// is a cell of its own: it never feeds a covered or an agreement counter.
-public struct JudgeAgreement: Sendable, Equatable, CustomStringConvertible {
-    public private(set) var judged = 0
-    public private(set) var failed = 0
-    public private(set) var paired = 0
-    public private(set) var approved = 0
-    public private(set) var denied = 0
-    public private(set) var falseCover = 0
-    public private(set) var coveredApproved = 0
-    public private(set) var notCoveredDenied = 0
-    public private(set) var onTime = 0
+package struct JudgeAgreement: Sendable, Equatable, CustomStringConvertible {
+    package private(set) var judged = 0
+    package private(set) var failed = 0
+    package private(set) var paired = 0
+    package private(set) var approved = 0
+    package private(set) var denied = 0
+    package private(set) var falseCover = 0
+    package private(set) var coveredApproved = 0
+    package private(set) var notCoveredDenied = 0
+    package private(set) var onTime = 0
     /// The shadow lives as long as the app, so an unbounded sample list grows
     /// for weeks. A thousand recent samples keep p95 meaningful (50 above it)
     /// and follow the provider as it is now, not as it was at launch.
     static let maxLatencySamples = 1000
     private(set) var latencies: [Int] = []
 
-    public init() {}
+    package init() {}
 
-    public func recording(_ verdict: JudgeVerdict, ms: Int) -> JudgeAgreement {
+    package func recording(_ verdict: JudgeVerdict, ms: Int) -> JudgeAgreement {
         var next = self
         next.judged += 1
         next.latencies = Array((latencies + [ms]).suffix(Self.maxLatencySamples))
@@ -218,7 +218,7 @@ public struct JudgeAgreement: Sendable, Equatable, CustomStringConvertible {
         return next
     }
 
-    public func recording(_ pair: JudgeLedger.Pair) -> JudgeAgreement {
+    package func recording(_ pair: JudgeLedger.Pair) -> JudgeAgreement {
         var next = self
         next.paired += 1
         if pair.verdictFirst { next.onTime += 1 }
@@ -233,13 +233,13 @@ public struct JudgeAgreement: Sendable, Equatable, CustomStringConvertible {
         return next
     }
 
-    public var agreementRate: Double? { ratio(coveredApproved + notCoveredDenied, paired) }
-    public var utilityRate: Double? { ratio(coveredApproved, approved) }
-    public var failRate: Double? { ratio(failed, judged) }
-    public var onTimeRate: Double? { ratio(onTime, paired) }
+    package var agreementRate: Double? { ratio(coveredApproved + notCoveredDenied, paired) }
+    package var utilityRate: Double? { ratio(coveredApproved, approved) }
+    package var failRate: Double? { ratio(failed, judged) }
+    package var onTimeRate: Double? { ratio(onTime, paired) }
 
     /// Nearest rank, so p95 of a hundred samples is the 95th, not an average.
-    public func latency(percentile: Double) -> Int? {
+    package func latency(percentile: Double) -> Int? {
         guard !latencies.isEmpty else { return nil }
         let rank = Int((percentile * Double(latencies.count)).rounded(.up))
         return latencies.sorted()[min(max(rank, 1), latencies.count) - 1]
@@ -249,7 +249,7 @@ public struct JudgeAgreement: Sendable, Equatable, CustomStringConvertible {
         whole == 0 ? nil : Double(part) / Double(whole)
     }
 
-    public var description: String {
+    package var description: String {
         "paired=\(paired) false_cover=\(falseCover) covered_approved=\(coveredApproved) "
             + "approved=\(approved) not_covered_denied=\(notCoveredDenied) failed=\(failed) on_time=\(onTime)"
     }
@@ -259,21 +259,21 @@ public struct JudgeAgreement: Sendable, Equatable, CustomStringConvertible {
 
 /// What is decided without asking the model. The adapter (3b) sends the model
 /// only `askable(in:)` and puts the answer back with `combine`.
-public enum ActionJudgeLocalRules {
+package enum ActionJudgeLocalRules {
     /// nil means the model may be asked. An action whose summary is incomplete
     /// fails closed: the judge would be deciding on a destination it was not
     /// fully shown.
-    public static func verdict(for action: ProposedAction) -> JudgeVerdict? {
+    package static func verdict(for action: ProposedAction) -> JudgeVerdict? {
         action.isComplete ? nil : .failed(.invalid)
     }
 
-    public static func askable(in request: ActionJudgeRequest) -> [ProposedAction] {
+    package static func askable(in request: ActionJudgeRequest) -> [ProposedAction] {
         request.actions.filter { verdict(for: $0) == nil }
     }
 
     /// One verdict per action, in order. If the model did not answer exactly
     /// the actions it was asked about, none of its answers is believed.
-    public static func combine(_ request: ActionJudgeRequest, modelVerdicts: [JudgeVerdict]) -> [JudgeVerdict] {
+    package static func combine(_ request: ActionJudgeRequest, modelVerdicts: [JudgeVerdict]) -> [JudgeVerdict] {
         // An unbelieved batch leaves no answers to hand out, so every asked
         // action reaches the fallback and fails closed.
         var answers = modelVerdicts.count == askable(in: request).count ? modelVerdicts[...] : []

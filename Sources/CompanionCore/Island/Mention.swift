@@ -20,20 +20,20 @@ enum MentionText {
 
 /// One row the selector may offer. Never carries a way to reach the person:
 /// a contact is an identifier and a name until she asks for more.
-public struct MentionCandidate: Sendable, Equatable, Identifiable, CustomStringConvertible,
+package struct MentionCandidate: Sendable, Equatable, Identifiable, CustomStringConvertible,
     CustomDebugStringConvertible, CustomReflectable
 {
-    public enum Kind: String, Sendable, CaseIterable { case contact, app, file }
+    package enum Kind: String, Sendable, CaseIterable { case contact, app, file }
 
-    public static let maxName = 60
+    package static let maxName = 60
     static let maxDetail = 80
 
-    public let id: String
-    public let kind: Kind
-    public let name: String
-    public let detail: String?
+    package let id: String
+    package let kind: Kind
+    package let name: String
+    package let detail: String?
 
-    public init?(id: String, kind: Kind, name: String, detail: String? = nil) {
+    package init?(id: String, kind: Kind, name: String, detail: String? = nil) {
         let clean = MentionText.line(name, max: Self.maxName)
         guard !clean.isEmpty else { return nil }
         self.id = id
@@ -45,27 +45,27 @@ public struct MentionCandidate: Sendable, Equatable, Identifiable, CustomStringC
 
     /// Redacted on purpose, as `DictatedText` is: a log line built from a
     /// value that holds it must never print somebody's name.
-    public var description: String { "<mention candidate: \(kind.rawValue)>" }
-    public var debugDescription: String { description }
-    public var customMirror: Mirror { Mirror(self, children: []) }
+    package var description: String { "<mention candidate: \(kind.rawValue)>" }
+    package var debugDescription: String { description }
+    package var customMirror: Mirror { Mirror(self, children: []) }
 }
 
 /// One way to reach a contact, offered only after she opens that contact's
 /// channels and shipped only if she picks it.
-public struct MentionChannel: Sendable, Equatable, Identifiable, CustomStringConvertible,
+package struct MentionChannel: Sendable, Equatable, Identifiable, CustomStringConvertible,
     CustomDebugStringConvertible, CustomReflectable
 {
-    public enum Kind: String, Sendable { case email, phone }
+    package enum Kind: String, Sendable { case email, phone }
 
-    public static let maxValue = 120
+    package static let maxValue = 120
     static let maxLabel = 40
 
-    public let kind: Kind
-    public let label: String?
-    public let value: String
-    public var id: String { kind.rawValue + ":" + value }
+    package let kind: Kind
+    package let label: String?
+    package let value: String
+    package var id: String { kind.rawValue + ":" + value }
 
-    public init?(kind: Kind, label: String?, value: String) {
+    package init?(kind: Kind, label: String?, value: String) {
         let clean = MentionText.line(value, max: Self.maxValue)
         guard !clean.isEmpty else { return nil }
         self.kind = kind
@@ -74,46 +74,46 @@ public struct MentionChannel: Sendable, Equatable, Identifiable, CustomStringCon
         self.label = tag?.isEmpty == false ? tag : nil
     }
 
-    public var description: String { "<mention channel: \(kind.rawValue)>" }
-    public var debugDescription: String { description }
-    public var customMirror: Mirror { Mirror(self, children: []) }
+    package var description: String { "<mention channel: \(kind.rawValue)>" }
+    package var debugDescription: String { description }
+    package var customMirror: Mirror { Mirror(self, children: []) }
 }
 
 /// A pick: the visible name and, only when she chose one, a single channel.
-public struct Mention: Sendable, Equatable, CustomStringConvertible,
+package struct Mention: Sendable, Equatable, CustomStringConvertible,
     CustomDebugStringConvertible, CustomReflectable
 {
-    public let kind: MentionCandidate.Kind
-    public let name: String
-    public let channel: MentionChannel?
+    package let kind: MentionCandidate.Kind
+    package let name: String
+    package let channel: MentionChannel?
 
-    public init(candidate: MentionCandidate, channel: MentionChannel? = nil) {
+    package init(candidate: MentionCandidate, channel: MentionChannel? = nil) {
         kind = candidate.kind
         name = candidate.name
         self.channel = channel
     }
 
-    public var description: String { "<mention: \(kind.rawValue)>" }
-    public var debugDescription: String { description }
-    public var customMirror: Mirror { Mirror(self, children: []) }
+    package var description: String { "<mention: \(kind.rawValue)>" }
+    package var debugDescription: String { description }
+    package var customMirror: Mirror { Mirror(self, children: []) }
 }
 
 /// When the field is asking for a mention: an `@` that starts a word, at the
 /// end of what she typed (the field gives no caret), followed by something
 /// that can still be a name.
-public enum MentionTrigger {
-    public struct Active: Equatable, Sendable {
-        public let query: String
+package enum MentionTrigger {
+    package struct Active: Equatable, Sendable {
+        package let query: String
         /// Exactly what she typed, `@` included: what a pick replaces.
-        public let token: String
+        package let token: String
     }
 
     /// Own value: no first-plus-last-plus-second-surname is longer than this.
-    public static let maxQueryLength = 30
+    package static let maxQueryLength = 30
     /// Own value: "Ana María López" is a name; a fourth word is a sentence.
     static let maxInnerSpaces = 2
 
-    public static func active(in draft: String) -> Active? {
+    package static func active(in draft: String) -> Active? {
         // Bounded on purpose: a pasted megabyte never gets scanned.
         let tail = draft.suffix(maxQueryLength + 1)
         guard let at = tail.lastIndex(of: "@") else { return nil }
@@ -125,7 +125,7 @@ public enum MentionTrigger {
 
     /// Replaces the token at the end of the draft with the name and a space.
     /// A draft that moved on since the pick is returned as it is.
-    public static func inserting(_ name: String, into draft: String, replacing active: Active) -> String {
+    package static func inserting(_ name: String, into draft: String, replacing active: Active) -> String {
         guard draft.hasSuffix(active.token), MentionTrigger.active(in: draft) == active else { return draft }
         return String(draft.dropLast(active.token.count)) + "@" + name + " "
     }
@@ -142,16 +142,16 @@ public enum MentionTrigger {
 }
 
 /// Which candidates the selector shows, in which order.
-public enum MentionRanking {
+package enum MentionRanking {
     /// Own value: 240 pt of list holds about eight rows of 6 + 8 padding.
-    public static let maxRows = 8
+    package static let maxRows = 8
 
     private static let sourceOrder: [MentionCandidate.Kind] = [.contact, .app, .file]
 
     /// Sources first (contacts, apps, files), then how well the name matches
     /// inside each, then the order the source gave. The query is literal
     /// text: it never becomes a pattern.
-    public static func rank(_ candidates: [MentionCandidate], query: String) -> [MentionCandidate] {
+    package static func rank(_ candidates: [MentionCandidate], query: String) -> [MentionCandidate] {
         let needle = MentionText.fold(query.trimmingCharacters(in: .whitespaces))
         var seen = Set<String>()
         var ranked: [MentionCandidate] = []
@@ -188,9 +188,9 @@ public enum MentionRanking {
 /// words) plus, if she opened its channels and chose one, that one channel.
 /// Never the address book, never fields she did not choose, and nothing at
 /// all for a mention whose `@name` she deleted before sending.
-public enum MentionContext {
+package enum MentionContext {
     /// Own value: five mentions in a message is already a group email.
-    public static let maxMentions = 5
+    package static let maxMentions = 5
 
     /// The mentions still standing in the words that are about to be sent,
     /// in the order they appear in the text. Contract:
@@ -198,7 +198,7 @@ public enum MentionContext {
     ///   carries a channel she chose wins over the one that does not;
     /// - past `maxMentions` the first ones in the text travel, except that a
     ///   mention with a chosen channel is never dropped for one without.
-    public static func referenced(_ mentions: [Mention], in text: String) -> [Mention] {
+    package static func referenced(_ mentions: [Mention], in text: String) -> [Mention] {
         let words = MentionText.fold(text)
         var byName: [String: (position: Int, mention: Mention)] = [:]
         for mention in mentions {
@@ -215,13 +215,13 @@ public enum MentionContext {
         return (Array(chosen) + Array(plain)).sorted { $0.position < $1.position }.map(\.mention)
     }
 
-    public static func render(_ mentions: [Mention], language: AppLanguage) -> String {
+    package static func render(_ mentions: [Mention], language: AppLanguage) -> String {
         guard !mentions.isEmpty else { return "" }
         let lines = mentions.map { line($0, language: language) }
         return ([header(language)] + lines).joined(separator: "\n")
     }
 
-    public static func wrap(_ text: String, mentions: [Mention], language: AppLanguage) -> String {
+    package static func wrap(_ text: String, mentions: [Mention], language: AppLanguage) -> String {
         let block = render(mentions, language: language)
         return block.isEmpty ? text : block + "\n\n" + text
     }
@@ -270,11 +270,11 @@ public enum MentionContext {
 /// What a key does to the open selector. Left and Right only mean something
 /// when they cannot be a caret move: Right at the end of the field expands a
 /// contact, Left inside the channels goes back.
-public enum MentionKeys {
-    public enum Key: Equatable, Sendable { case up, down, enter, tab, escape, left, right }
-    public enum Outcome: Equatable, Sendable { case pass, move(Int), choose(Int), expand(Int), back, close }
+package enum MentionKeys {
+    package enum Key: Equatable, Sendable { case up, down, enter, tab, escape, left, right }
+    package enum Outcome: Equatable, Sendable { case pass, move(Int), choose(Int), expand(Int), back, close }
 
-    public static func outcome(_ key: Key, cursor: Int?, count: Int, inChannels: Bool = false) -> Outcome {
+    package static func outcome(_ key: Key, cursor: Int?, count: Int, inChannels: Bool = false) -> Outcome {
         guard count > 0 else { return .pass }
         let inRange = cursor.flatMap { (0 ..< count).contains($0) ? $0 : nil }
         switch key {

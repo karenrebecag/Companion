@@ -1,21 +1,21 @@
 import Foundation
 
-public enum SyntaxKind: Sendable, Equatable {
+package enum SyntaxKind: Sendable, Equatable {
     case text, keyword, string, comment, number, typeName, attr
 }
 
-public struct SyntaxToken: Sendable, Equatable {
-    public let text: String
-    public let kind: SyntaxKind
+package struct SyntaxToken: Sendable, Equatable {
+    package let text: String
+    package let kind: SyntaxKind
 
-    public init(text: String, kind: SyntaxKind) {
+    package init(text: String, kind: SyntaxKind) {
         self.text = text
         self.kind = kind
     }
 }
 
-public enum SyntaxTokenizer: Sendable {
-    public static func tokenize(_ source: String, language: String) -> [SyntaxToken] {
+package enum SyntaxTokenizer: Sendable {
+    package static func tokenize(_ source: String, language: String) -> [SyntaxToken] {
         let fam = Family.of(language)
         if fam == .plain {
             return source.isEmpty

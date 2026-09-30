@@ -1,18 +1,18 @@
 import CompanionCore
 import Foundation
 
-public final class ConversationStore: ConversationStoring, Sendable {
-    public static let cap = 30
+package final class ConversationStore: ConversationStoring, Sendable {
+    package static let cap = 30
 
     private let directory: URL
     private let cap: Int
 
-    public init(directory: URL, cap: Int = ConversationStore.cap) {
+    package init(directory: URL, cap: Int = ConversationStore.cap) {
         self.directory = directory
         self.cap = cap
     }
 
-    public func list() throws -> [ConversationMeta] {
+    package func list() throws -> [ConversationMeta] {
         guard FileManager.default.fileExists(atPath: directory.path) else {
             return []
         }
@@ -34,7 +34,7 @@ public final class ConversationStore: ConversationStoring, Sendable {
         return Array(metas.prefix(cap))
     }
 
-    public func save(_ record: ConversationRecord) throws {
+    package func save(_ record: ConversationRecord) throws {
         guard !record.messages.isEmpty else { return }
         try ensureDirectory()
         let data: Data
@@ -51,7 +51,7 @@ public final class ConversationStore: ConversationStoring, Sendable {
         prune()
     }
 
-    public func load(_ id: String) throws -> ConversationRecord? {
+    package func load(_ id: String) throws -> ConversationRecord? {
         let url = try fileURL(for: id)
         guard FileManager.default.fileExists(atPath: url.path) else {
             return nil

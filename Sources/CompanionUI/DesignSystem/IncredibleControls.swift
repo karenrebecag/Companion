@@ -4,52 +4,52 @@ import SwiftUI
 // The native Toggle and Picker draw at the system's size and colours, so
 // they can never match; these are drawn.
 
-public struct SwitchGeometry: Sendable, Equatable {
-    public let width: CGFloat
-    public let height: CGFloat
-    public let thumb: CGFloat
-    public let pad: CGFloat
+package struct SwitchGeometry: Sendable, Equatable {
+    package let width: CGFloat
+    package let height: CGFloat
+    package let thumb: CGFloat
+    package let pad: CGFloat
 
-    public static let medium = SwitchGeometry(
+    package static let medium = SwitchGeometry(
         width: ControlMetrics.switchWidth, height: ControlMetrics.switchHeight,
         thumb: ControlMetrics.switchThumb, pad: ControlMetrics.switchPad)
-    public static let small = SwitchGeometry(
+    package static let small = SwitchGeometry(
         width: ControlMetrics.switchSmallWidth, height: ControlMetrics.switchSmallHeight,
         thumb: ControlMetrics.switchSmallThumb, pad: ControlMetrics.switchPad)
 
     /// How far the thumb moves between off and on.
-    public var travel: CGFloat { width - thumb - pad * 2 }
+    package var travel: CGFloat { width - thumb - pad * 2 }
 
-    public static let offTrackAlpha = 0.16
-    public static let duration = 0.22
+    package static let offTrackAlpha = 0.16
+    package static let duration = 0.22
 }
 
-public enum SelectMetrics {
-    public static let height: CGFloat = 42
-    public static let smallHeight: CGFloat = ControlMetrics.selectSmallHeight
-    public static let paddingX: CGFloat = Space.x3
-    public static let gap: CGFloat = Space.x2
-    public static let radius: CGFloat = Radius.control
+package enum SelectMetrics {
+    package static let height: CGFloat = 42
+    package static let smallHeight: CGFloat = ControlMetrics.selectSmallHeight
+    package static let paddingX: CGFloat = Space.x3
+    package static let gap: CGFloat = Space.x2
+    package static let radius: CGFloat = Radius.control
 }
 
-public enum MenuMetrics {
-    public static let padding: CGFloat = Space.x1_5
-    public static let gap: CGFloat = Space.x0_5
-    public static let radius: CGFloat = Radius.cardSm
-    public static let itemPaddingY: CGFloat = Space.x2
-    public static let itemPaddingX: CGFloat = Space.x2_5
-    public static let itemRadius: CGFloat = Radius.badge
-    public static let itemGap: CGFloat = Space.x2_5
-    public static let islandWidth: CGFloat = 230
-    public static let islandRadius: CGFloat = Radius.lg
-    public static let islandGap: CGFloat = Space.x1
-    public static let enterScale: CGFloat = 0.97
-    public static let duration = MotionTime.base
+package enum MenuMetrics {
+    package static let padding: CGFloat = Space.x1_5
+    package static let gap: CGFloat = Space.x0_5
+    package static let radius: CGFloat = Radius.cardSm
+    package static let itemPaddingY: CGFloat = Space.x2
+    package static let itemPaddingX: CGFloat = Space.x2_5
+    package static let itemRadius: CGFloat = Radius.badge
+    package static let itemGap: CGFloat = Space.x2_5
+    package static let islandWidth: CGFloat = 230
+    package static let islandRadius: CGFloat = Radius.lg
+    package static let islandGap: CGFloat = Space.x1
+    package static let enterScale: CGFloat = 0.97
+    package static let duration = MotionTime.base
 }
 
 /// Incredible's switch: black track when on, 16 % black when off, a white
 /// thumb; on dark surfaces a 12 % white track that turns green.
-public struct IncredibleSwitch: View {
+package struct IncredibleSwitch: View {
     let label: String
     @Binding var isOn: Bool
     var geometry: SwitchGeometry = .medium
@@ -58,7 +58,7 @@ public struct IncredibleSwitch: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    public init(_ label: String, isOn: Binding<Bool>,
+    package init(_ label: String, isOn: Binding<Bool>,
                 geometry: SwitchGeometry = .medium, enabled: Bool = true) {
         self.label = label
         self._isOn = isOn
@@ -66,7 +66,7 @@ public struct IncredibleSwitch: View {
         self.enabled = enabled
     }
 
-    public var body: some View {
+    package var body: some View {
         Button {
             isOn.toggle()
         } label: {
@@ -100,7 +100,7 @@ public struct IncredibleSwitch: View {
     }
 
     /// What a write from assistive technology leaves behind.
-    public static func write(_ value: Bool, over current: Bool, enabled: Bool) -> Bool {
+    package static func write(_ value: Bool, over current: Bool, enabled: Bool) -> Bool {
         enabled ? value : current
     }
 

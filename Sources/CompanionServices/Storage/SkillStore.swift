@@ -4,25 +4,25 @@ import Foundation
 /// One system skill as it ships inside the app: the folder name and the
 /// text of its `SKILL.md`. Seeded onto disk so the user can open it and the
 /// specialist can read_file it, like everything else Companion remembers.
-public struct BundledSkill: Sendable, Equatable {
-    public var name: String
-    public var content: String
+package struct BundledSkill: Sendable, Equatable {
+    package var name: String
+    package var content: String
 
-    public init(name: String, content: String) {
+    package init(name: String, content: String) {
         self.name = name
         self.content = content
     }
 }
 
-public enum SkillStoreError: Error, Sendable, Equatable {
+package enum SkillStoreError: Error, Sendable, Equatable {
     case bundleMissing
     case unreadable(String)
 }
 
-public enum BundledSkills {
+package enum BundledSkills {
     /// `Skills/<name>/SKILL.md` inside the module's resource bundle. The
     /// module bundle is internal to Swift; a nil argument means "this one".
-    public static func load(from bundle: Bundle? = nil) throws -> [BundledSkill] {
+    package static func load(from bundle: Bundle? = nil) throws -> [BundledSkill] {
         let bundle = bundle ?? Bundle.module
         guard let root = bundle.url(forResource: "Skills", withExtension: nil) else {
             throw SkillStoreError.bundleMissing
@@ -55,14 +55,14 @@ public enum BundledSkills {
 /// skill saved in this turn is in the catalog on the next.
 /// HACK: no cache. Index by modification date when a catalog of hundreds
 /// makes the scan show up in a turn's latency.
-public final class SkillStore: SkillReading, @unchecked Sendable {
+package final class SkillStore: SkillReading, @unchecked Sendable {
     private let location: SkillsLocation
     private let bundled: [BundledSkill]
     private let lock = NSLock()
     /// Files already reported as invalid, so the log says it once.
     private var warned: Set<String> = []
 
-    public init(location: SkillsLocation, bundled: [BundledSkill]) {
+    package init(location: SkillsLocation, bundled: [BundledSkill]) {
         self.location = location
         self.bundled = bundled
     }
@@ -71,7 +71,7 @@ public final class SkillStore: SkillReading, @unchecked Sendable {
     /// edited by hand: `default/` is the system's copy, `custom/` is the
     /// user's. Returns the names written.
     @discardableResult
-    public func seed() -> [String] {
+    package func seed() -> [String] {
         var written: [String] = []
         for skill in bundled {
             let folder = location.systemSkills.appendingPathComponent(skill.name, isDirectory: true)
@@ -94,13 +94,13 @@ public final class SkillStore: SkillReading, @unchecked Sendable {
         return written
     }
 
-    public func catalog() -> [SkillCard] { scan() }
+    package func catalog() -> [SkillCard] { scan() }
 
     /// A missing folder is the normal empty state. A file that does not parse
     /// is skipped and logged once. A name in both `default/` and `custom/`
     /// keeps the system one: a collision is the user's to fix, not the
     /// model's to disambiguate.
-    public func scan() -> [SkillCard] {
+    package func scan() -> [SkillCard] {
         var cards: [SkillCard] = []
         var seen: Set<String> = []
         for (base, kind, origin) in [
@@ -130,7 +130,7 @@ public final class SkillStore: SkillReading, @unchecked Sendable {
         return cards
     }
 
-    public func body(named name: String) -> String? {
+    package func body(named name: String) -> String? {
         guard SkillFrontmatter.isValidName(name) else { return nil }
         guard let card = scan().first(where: { $0.name == name }) else { return nil }
         guard let text = read(URL(fileURLWithPath: card.path)) else { return nil }
@@ -141,7 +141,7 @@ public final class SkillStore: SkillReading, @unchecked Sendable {
         }
     }
 
-    public func rendered(language: AppLanguage) -> String {
+    package func rendered(language: AppLanguage) -> String {
         SkillCatalog.render(scan(), language: language)
     }
 

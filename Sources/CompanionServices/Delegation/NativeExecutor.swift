@@ -3,8 +3,8 @@ import Foundation
 
 /// Native specialist executor: loop over ChatProvider with tool execution and approval gates.
 /// All tool execution routes through this single entry point.
-public struct NativeExecutor: Executor, Sendable {
-    public var descriptor: ExecutorDescriptor
+package struct NativeExecutor: Executor, Sendable {
+    package var descriptor: ExecutorDescriptor
 
     private let chatProvider: any ChatProvider
     private let toolRunner: NativeToolRunner
@@ -15,7 +15,7 @@ public struct NativeExecutor: Executor, Sendable {
     private let skillsSource: (@Sendable () -> String)?
     private let maxIterations = 10
 
-    public init(
+    package init(
         descriptor: ExecutorDescriptor,
         chatProvider: any ChatProvider,
         config: Config,
@@ -38,7 +38,7 @@ public struct NativeExecutor: Executor, Sendable {
 
     /// Execute a job by looping with the model: accumulate text, execute tools on request,
     /// emit JobEvent through the continuation. Respect cancellation gracefully.
-    public func run(
+    package func run(
         _ job: JobRequest,
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {

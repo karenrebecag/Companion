@@ -11,7 +11,7 @@ extension VoiceSession {
     /// Composition-root call, once: `classic.decide` stays nil until this
     /// runs, and a nil `decide` is `ClassicRuntime.submit`'s "today,
     /// unchanged" path (DM1c-2 §"Files").
-    public func attachDecision(_ gate: DecisionGate) {
+    package func attachDecision(_ gate: DecisionGate) {
         classic.decide = { [weak self] utterance, canDelegate in
             guard let self else { return .passThrough(.disabled) }
             return await self.routeThroughDecisionGate(

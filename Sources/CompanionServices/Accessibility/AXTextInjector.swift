@@ -8,7 +8,7 @@ import Foundation
 /// an app other than the one probed at press, never keystrokes letter by
 /// letter (they lose accents and are slow): the selected text attribute
 /// first, the pasteboard and one Command-V when the app ignores it.
-public final class AXTextInjector: FocusedFieldProbing, TextInjecting, @unchecked Sendable {
+package final class AXTextInjector: FocusedFieldProbing, TextInjecting, @unchecked Sendable {
     let selfBundleID: String
     let trust: @Sendable () -> Bool
     static let editableRoles: Set<String> = [
@@ -26,7 +26,7 @@ public final class AXTextInjector: FocusedFieldProbing, TextInjecting, @unchecke
     /// Without our own bundle id there is no way to exclude our window from
     /// the targets, and dictating into Companion is exactly what must never
     /// happen: refuse to exist instead of failing open (security review).
-    public init?(
+    package init?(
         selfBundleID: String,
         trust: @escaping @Sendable () -> Bool = { AXIsProcessTrusted() }
     ) {
@@ -36,9 +36,9 @@ public final class AXTextInjector: FocusedFieldProbing, TextInjecting, @unchecke
         self.trust = trust
     }
 
-    public func isTrusted() -> Bool { trust() }
+    package func isTrusted() -> Bool { trust() }
 
-    public func focusedField() -> FocusedField? {
+    package func focusedField() -> FocusedField? {
         guard let app = front(), let element = focusedElement(of: app.pid) else { return nil }
         if AXSecure.isSecure(element) {
             return FocusedField(app: app.name, pid: app.pid, secure: true)
@@ -50,7 +50,7 @@ public final class AXTextInjector: FocusedFieldProbing, TextInjecting, @unchecke
         return FocusedField(app: app.name, pid: app.pid)
     }
 
-    public func inject(_ text: String, into field: FocusedField) async -> InjectionResult {
+    package func inject(_ text: String, into field: FocusedField) async -> InjectionResult {
         guard trust() else { return .failed(.needsAccessibility) }
         guard let app = front(), app.pid == field.pid,
               let element = focusedElement(of: field.pid)

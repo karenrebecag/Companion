@@ -12,7 +12,7 @@ import Foundation
 /// continuous-transcript contract the turn logic already consumes; the
 /// committed-prefix bookkeeping lives in the caller. Costs $0.017/min of
 /// session audio, so it is started only when the realtime pipeline opens.
-public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable {
+package final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable {
     private let keyProvider: @Sendable () -> String?
     /// The user's turn-detection preference (Settings), read at session open:
     /// since 9j-1 the server's VAD segments the turns, so the knob that went
@@ -41,7 +41,7 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
     private var sentFrames = 0
     private var heardAnything = false
 
-    public init(
+    package init(
         keyProvider: @escaping @Sendable () -> String?,
         turnDetection: @escaping @Sendable () -> TurnDetection = {
             .serverVAD(silenceMs: 700)
@@ -51,19 +51,19 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
         self.turnDetection = turnDetection
     }
 
-    public var partials: AsyncStream<String> { box.stream }
+    package var partials: AsyncStream<String> { box.stream }
 
-    public var turnEvents: AsyncStream<EarTurnEvent> { turnBox.stream }
+    package var turnEvents: AsyncStream<EarTurnEvent> { turnBox.stream }
 
-    public var currentText: String { lock.withLock { text } }
+    package var currentText: String { lock.withLock { text } }
 
     /// The key gates the whole realtime pipeline before this runs; report
     /// what is actually true at this moment.
-    public var isAuthorized: Bool { keyProvider() != nil }
+    package var isAuthorized: Bool { keyProvider() != nil }
 
-    public func requestAuthorization() async -> Bool { isAuthorized }
+    package func requestAuthorization() async -> Bool { isAuthorized }
 
-    public func start(localeIdentifier: String) async throws {
+    package func start(localeIdentifier: String) async throws {
         halt()
         guard let key = keyProvider() else {
             throw VoiceTransportError.unreachable
@@ -89,7 +89,7 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
             language: hint, turnDetection: turnDetection()), over: task)
     }
 
-    public func append(_ frame: MicFrame) async {
+    package func append(_ frame: MicFrame) async {
         guard let socket else { return }
         let payload = Self.appendJSON(frame.pcm16le24k)
         let waiting: Bool = lock.withLock {
@@ -117,7 +117,7 @@ public final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendable
         }
     }
 
-    public func stop() async -> String {
+    package func stop() async -> String {
         let heard = currentText
         halt()
         return heard

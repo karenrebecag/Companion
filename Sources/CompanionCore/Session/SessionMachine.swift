@@ -5,31 +5,31 @@ import Foundation
 /// keeps deciding how to capture and play; this one translates its snapshots
 /// into chrome and adds what the voice cannot see: typed turns, the parent's
 /// hands, the specialist's job and the sheet.
-public struct SessionMachine: Sendable, Equatable {
-    public internal(set) var projection = SessionProjection()
+package struct SessionMachine: Sendable, Equatable {
+    package internal(set) var projection = SessionProjection()
     /// Seconds Completed stays on screen before Idle.
-    public static let completedDelay: TimeInterval = 1.5
+    package static let completedDelay: TimeInterval = 1.5
     /// How long the hands aura outlives the last executed bridge call: long
     /// enough to bridge the gap between an agent's consecutive steps without
     /// flicker, short enough that an idle-but-open session goes dark.
-    public static let handsGlowLinger: TimeInterval = 4
+    package static let handsGlowLinger: TimeInterval = 4
     /// Seconds Pending waits for the voice to answer before giving up.
-    public static let pendingTimeout: TimeInterval = 12
+    package static let pendingTimeout: TimeInterval = 12
     /// Seconds a hold session may rest, mic closed, before it hangs up. The
     /// software gate closes the ear, not the hardware: with the window gone
     /// nothing of ours showed the microphone was still taken (security
     /// review 2026-09-06). Long enough for the next hold to find it warm.
-    public static let voiceIdleTimeout: TimeInterval = 20
+    package static let voiceIdleTimeout: TimeInterval = 20
     /// Seconds "didn't hear you" and the hold hint stay before leaving on
     /// their own, as Incredible's card does (spec 16c §2). A permission or
     /// a failure stays: it carries the way out.
-    public static let noticeDelay: TimeInterval = 6
+    package static let noticeDelay: TimeInterval = 6
     /// Seconds the dictation result card waits for a click on copy before
     /// leaving. Not measured (Incredible's card has a hide button and no
     /// visible clock): long enough to read a sentence and reach the button.
-    public static let dictationCardDelay: TimeInterval = 12
+    package static let dictationCardDelay: TimeInterval = 12
     /// The reel's ceiling per turn (16m-2, security review).
-    public static let touchedCap = 12
+    package static let touchedCap = 12
 
     /// The pointer is over the dictation card (16m-4): it does not expire.
     var dictationHeld = false
@@ -49,12 +49,12 @@ public struct SessionMachine: Sendable, Equatable {
     var turnReceipt: ActionReceipt?
     var receiptPublished = false
 
-    public init() {}
+    package init() {}
 
     /// Every request that leaves the sheet during an event, by any road, is
     /// reported once (`approvalClosed`), so the voice session never announces
     /// or answers a request that is no longer there (16q-1 review, M2).
-    public mutating func handle(_ event: SessionEvent) -> [SessionEffect] {
+    package mutating func handle(_ event: SessionEvent) -> [SessionEffect] {
         let queued = projection.approvalQueue.map(\.requestId)
         var effects = reduce(event)
         let still = Set(projection.approvalQueue.map(\.requestId))

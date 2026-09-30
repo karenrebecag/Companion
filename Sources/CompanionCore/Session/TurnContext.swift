@@ -2,21 +2,21 @@ import Foundation
 
 /// How the turn arrived. The reducer has known this since Wave 3
 /// (`TurnSnapshot.typedTurn`); the model never did (Wave 10a).
-public enum TurnSource: String, Sendable, Equatable {
+package enum TurnSource: String, Sendable, Equatable {
     case voice, typed
 }
 
 /// What the clipboard holds, summarized. The kind always travels; the
 /// preview is a bounded prefix and never the whole board.
-public struct ClipboardSummary: Sendable, Equatable {
-    public enum Kind: String, Sendable, Equatable {
+package struct ClipboardSummary: Sendable, Equatable {
+    package enum Kind: String, Sendable, Equatable {
         case text, image, files
     }
 
-    public var kind: Kind
-    public var preview: String
+    package var kind: Kind
+    package var preview: String
 
-    public init(kind: Kind, preview: String) {
+    package init(kind: Kind, preview: String) {
         self.kind = kind
         self.preview = preview
     }
@@ -25,39 +25,39 @@ public struct ClipboardSummary: Sendable, Equatable {
 /// What the app perceived around one turn: the source it came from, when,
 /// and what was on the user's screen. Sensed for the current turn only,
 /// rendered by `ContextBlock`, never persisted (spec 10a §4).
-public struct TurnContext: Sendable, Equatable {
-    public var source: TurnSource
-    public var timestamp: Date
+package struct TurnContext: Sendable, Equatable {
+    package var source: TurnSource
+    package var timestamp: Date
     /// Seconds since the previous sensed turn: the "you interrupted me,
     /// pick up without repeating" hint of the corpus (spec 06).
-    public var sinceLastTurn: TimeInterval?
-    public var focusedApp: String?
-    public var openDocuments: [String]
-    public var clipboard: ClipboardSummary?
+    package var sinceLastTurn: TimeInterval?
+    package var focusedApp: String?
+    package var openDocuments: [String]
+    package var clipboard: ClipboardSummary?
     /// Compact screen brief from the sidecar (Wave 13a). Never a JPEG.
-    public var screenSummary: String?
-    public var screenSnippets: [ScreenSnippet]
-    public var screenPending: Bool
+    package var screenSummary: String?
+    package var screenSnippets: [ScreenSnippet]
+    package var screenPending: Bool
     /// HIGH-2/M2 (2026-09-25): `screenSummary` carried over from a previous
     /// turn's late vision call — it describes a moment ago, not now.
-    public var screenStale: Bool
+    package var screenStale: Bool
     /// Wave 15b-11: this turn follows one the user cut short (a press mid
     /// `.thinking`/`.speaking`). Rendered as `<steer>`, our own prose — never
     /// the model's words repeated back to it.
-    public var interrupted: Bool
+    package var interrupted: Bool
     /// Wave 16o-3: what the cursor rested on while the user spoke.
-    public var pointed: [PointedElement]
+    package var pointed: [PointedElement]
     /// Wave 16h-3: the window in front of the app in front, and the city the
     /// user is in. Sensed per turn, never persisted.
-    public var focusedWindow: String?
-    public var location: UserLocation?
+    package var focusedWindow: String?
+    package var location: UserLocation?
     /// Wave 16h-3: what happened on the island since the last turn.
-    public var islandEvents: [IslandEvent]
+    package var islandEvents: [IslandEvent]
     /// The last fact in `islandEvents`, for the acknowledgement that follows
     /// building the prompt.
-    public var islandEventsThrough: Int
+    package var islandEventsThrough: Int
 
-    public init(
+    package init(
         source: TurnSource,
         timestamp: Date = Date(),
         sinceLastTurn: TimeInterval? = nil,
@@ -95,11 +95,11 @@ public struct TurnContext: Sendable, Equatable {
 }
 
 /// A verbatim fragment visible on screen, tagged with the app it sat in.
-public struct ScreenSnippet: Sendable, Equatable {
-    public var app: String
-    public var text: String
+package struct ScreenSnippet: Sendable, Equatable {
+    package var app: String
+    package var text: String
 
-    public init(app: String, text: String) {
+    package init(app: String, text: String) {
         self.app = app
         self.text = text
     }
@@ -107,17 +107,17 @@ public struct ScreenSnippet: Sendable, Equatable {
 
 /// What the sidecar produced for one hold. `pending` means the vision call
 /// did not land in time; the turn still goes.
-public struct ScreenBrief: Sendable, Equatable {
-    public var summary: String?
-    public var snippets: [ScreenSnippet]
-    public var pending: Bool
+package struct ScreenBrief: Sendable, Equatable {
+    package var summary: String?
+    package var snippets: [ScreenSnippet]
+    package var pending: Bool
     /// HIGH-2/M2: this summary was captured for an earlier turn and carried
     /// into this one — a moment ago, not now.
-    public var stale: Bool
+    package var stale: Bool
     /// Wave 16o-3: sampled from press to commit alongside the AX harvest.
-    public var pointed: [PointedElement] = []
+    package var pointed: [PointedElement] = []
 
-    public init(
+    package init(
         summary: String? = nil, snippets: [ScreenSnippet] = [], pending: Bool = false,
         stale: Bool = false
     ) {
@@ -132,11 +132,11 @@ public struct ScreenBrief: Sendable, Equatable {
 /// each, tagged with the app it came from. Pure — the AX walk (Services,
 /// `AXScreenText`) hands raw strings, this never touches AppKit or
 /// ApplicationServices (spec 15b-6).
-public enum ScreenTextSnippets {
-    public static let maxSnippets = 12
-    public static let maxChars = 80
+package enum ScreenTextSnippets {
+    package static let maxSnippets = 12
+    package static let maxChars = 80
 
-    public static func snippets(from texts: [String], app: String) -> [ScreenSnippet] {
+    package static func snippets(from texts: [String], app: String) -> [ScreenSnippet] {
         var seen = Set<String>()
         var out: [ScreenSnippet] = []
         for raw in texts {
@@ -167,7 +167,7 @@ public enum ScreenTextSnippets {
 }
 
 /// Capture + vision, started on press, collected at commit.
-public protocol ScreenSeeing: Sendable {
+package protocol ScreenSeeing: Sendable {
     func begin(app: String?)
     func cancel()
     /// The AX harvest (15b-6), already running since press: bounded by its
@@ -182,35 +182,35 @@ public protocol ScreenSeeing: Sendable {
 }
 
 extension ScreenSeeing {
-    public func axSnippets() async -> [ScreenSnippet] { [] }
-    public func beginPointing() {}
+    package func axSnippets() async -> [ScreenSnippet] { [] }
+    package func beginPointing() {}
 }
 
 /// Each channel is opt-out (corpus spec 09). The clipboard is born off:
 /// reading it unasked is exactly what macOS 15 warns the user about.
-public struct ContextChannels: OptionSet, Sendable, Equatable {
-    public let rawValue: Int
+package struct ContextChannels: OptionSet, Sendable, Equatable {
+    package let rawValue: Int
 
-    public init(rawValue: Int) {
+    package init(rawValue: Int) {
         self.rawValue = rawValue
     }
 
-    public static let focusedApp = ContextChannels(rawValue: 1 << 0)
-    public static let openDocuments = ContextChannels(rawValue: 1 << 1)
-    public static let clipboard = ContextChannels(rawValue: 1 << 2)
-    public static let screen = ContextChannels(rawValue: 1 << 3)
+    package static let focusedApp = ContextChannels(rawValue: 1 << 0)
+    package static let openDocuments = ContextChannels(rawValue: 1 << 1)
+    package static let clipboard = ContextChannels(rawValue: 1 << 2)
+    package static let screen = ContextChannels(rawValue: 1 << 3)
     /// 16h-3: the city rides with every request. The system permission is
     /// asked only by a nearby search, never by this channel.
-    public static let location = ContextChannels(rawValue: 1 << 4)
+    package static let location = ContextChannels(rawValue: 1 << 4)
 
-    public static let `default`: ContextChannels = [.focusedApp, .openDocuments, .screen, .location]
-    public static let all: ContextChannels = [.focusedApp, .openDocuments, .clipboard, .screen, .location]
+    package static let `default`: ContextChannels = [.focusedApp, .openDocuments, .screen, .location]
+    package static let all: ContextChannels = [.focusedApp, .openDocuments, .clipboard, .screen, .location]
 }
 
 /// The perception port. Never throws: a channel that is off, unpermitted or
 /// failing comes back empty, and the whole call ends within its budget —
 /// the turn cannot wait for the Accessibility tree of a busy app.
-public protocol ContextSensing: Sendable {
+package protocol ContextSensing: Sendable {
     func sense(_ channels: ContextChannels, budget: Duration) async -> TurnContext
     /// Whoever builds the prompt calls this after it carried `ctx`'s island
     /// events; sensing alone never consumes them.
@@ -218,5 +218,5 @@ public protocol ContextSensing: Sendable {
 }
 
 extension ContextSensing {
-    public func acknowledgeIslandEvents(through: Int) {}
+    package func acknowledgeIslandEvents(through: Int) {}
 }

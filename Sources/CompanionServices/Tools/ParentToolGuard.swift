@@ -7,16 +7,16 @@ import Foundation
 /// that shows the sheet. Nil from `check` means go ahead; otherwise it is
 /// the denial to answer the model with. No provider means fail closed.
 ///
-/// Public since Wave 17: `BridgeSession`'s public init takes one across the
-/// module's own public API surface (a public actor cannot have an internal
+/// Package-level since Wave 17: `BridgeSession`'s package init takes one across the
+/// targets' package API surface (a package actor cannot have an internal
 /// parameter type). The approval flow itself stays exactly what it was —
 /// only the type's visibility changed.
-public struct ParentToolGuard: Sendable {
+package struct ParentToolGuard: Sendable {
     var approvals: (any ApprovalsProvider)?
     var onRequest: (@Sendable (ApprovalRequest) -> Void)?
     var onRemembered: (@Sendable (String, Bool) async -> Void)?
 
-    public init(
+    package init(
         approvals: (any ApprovalsProvider)? = nil,
         onRequest: (@Sendable (ApprovalRequest) -> Void)? = nil,
         onRemembered: (@Sendable (String, Bool) async -> Void)? = nil

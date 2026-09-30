@@ -1,9 +1,9 @@
 import Foundation
 
-public enum SentenceSplitter: Sendable {
+package enum SentenceSplitter: Sendable {
     private static let terminators: Set<Character> = [".", "!", "?", "…"]
 
-    public static func takeSentence(_ buffer: String,
+    package static func takeSentence(_ buffer: String,
                                     minChars: Int = 25) -> (sentence: String, rest: String)? {
         var count = 0
         var i = buffer.startIndex
@@ -31,7 +31,7 @@ public enum SentenceSplitter: Sendable {
         return nil
     }
 
-    public static func splitFirstSentence(_ text: String) -> (String, String?) {
+    package static func splitFirstSentence(_ text: String) -> (String, String?) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         var count = 0
         var i = trimmed.startIndex
@@ -51,7 +51,7 @@ public enum SentenceSplitter: Sendable {
         return (trimmed, nil)
     }
 
-    public static func sentences(_ text: String) -> [String] {
+    package static func sentences(_ text: String) -> [String] {
         var out: [String] = []
         var rest: String? = text.trimmingCharacters(in: .whitespacesAndNewlines)
         while let chunk = rest, !chunk.isEmpty {
@@ -72,7 +72,7 @@ extension SentenceSplitter {
     /// The first utterance of a reply: at the first clause mark followed by
     /// whitespace, or on the last whole word within `maxChars`. A mark at the
     /// end of the buffer waits, like `takeSentence`: "3," may still be "3,5".
-    public static func takeFirstCut(
+    package static func takeFirstCut(
         _ buffer: String, maxChars: Int = 40
     ) -> (sentence: String, rest: String)? {
         var count = 0
@@ -113,19 +113,19 @@ extension SentenceSplitter {
 /// Wave 15d-5: what the hold's mouth has heard from the model but not yet
 /// spoken. The first utterance of a turn cuts early (`takeFirstCut`, or a
 /// stall through `takeStalled`); every later one keeps `takeSentence`.
-public struct MouthBuffer: Sendable, Equatable {
-    public private(set) var pending = ""
-    public private(set) var firstCutDone = false
+package struct MouthBuffer: Sendable, Equatable {
+    package private(set) var pending = ""
+    package private(set) var firstCutDone = false
 
-    public init() {}
+    package init() {}
 
     /// True while a stall timer still has a job: nothing spoken yet, and at
     /// least one word waiting.
-    public var awaitsFirstCut: Bool {
+    package var awaitsFirstCut: Bool {
         !firstCutDone && pending.contains { !$0.isWhitespace }
     }
 
-    public mutating func append(_ piece: String) -> [String] {
+    package mutating func append(_ piece: String) -> [String] {
         pending += piece
         var out: [String] = []
         if !firstCutDone {
@@ -145,7 +145,7 @@ public struct MouthBuffer: Sendable, Equatable {
     /// last whitespace. A stall can land mid-token ("Claro que s"), and a
     /// word spoken in halves sounds broken; the tail waits for the next cut.
     /// No whitespace at all means one word, said whole.
-    public mutating func takeStalled() -> String? {
+    package mutating func takeStalled() -> String? {
         guard !firstCutDone else { return nil }
         let body = pending.drop(while: \.isWhitespace)
         guard !body.isEmpty else { return nil }
@@ -158,7 +158,7 @@ public struct MouthBuffer: Sendable, Equatable {
     }
 
     /// Everything left, said whole (before acting, and at the end of a turn).
-    public mutating func drain() -> String? {
+    package mutating func drain() -> String? {
         let text = pending.trimmingCharacters(in: .whitespacesAndNewlines)
         pending = ""
         guard !text.isEmpty else { return nil }

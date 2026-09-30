@@ -2,21 +2,21 @@ import Foundation
 
 /// Keyboard and pointer events for the custom dropdown. Pure so tests do
 /// not have to instantiate a SwiftUI Menu stand-in.
-public struct DropdownSession: Equatable, Sendable {
-    public var isOpen = false
-    public var highlight = 0
-    public private(set) var lastChosen: Int?
-    public let count: Int
+package struct DropdownSession: Equatable, Sendable {
+    package var isOpen = false
+    package var highlight = 0
+    package private(set) var lastChosen: Int?
+    package let count: Int
 
-    public enum Event: Sendable, Equatable {
+    package enum Event: Sendable, Equatable {
         case toggle, escape, clickOutside, choose, arrowUp, arrowDown
     }
 
-    public init(count: Int) {
+    package init(count: Int) {
         self.count = count
     }
 
-    public mutating func handle(_ event: Event) {
+    package mutating func handle(_ event: Event) {
         switch event {
         case .toggle:
             guard count > 0 else { return }

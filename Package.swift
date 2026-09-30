@@ -9,7 +9,6 @@ let package = Package(
     platforms: [.macOS(.v26)],
     products: [
         .executable(name: "companion", targets: ["CompanionApp"]),
-        .library(name: "CompanionCore", targets: ["CompanionCore"]),
     ],
     targets: [
         // Dominio puro: máquina de estados, codecs de protocolo, parsing.

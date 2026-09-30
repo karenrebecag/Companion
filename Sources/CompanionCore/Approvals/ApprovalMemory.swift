@@ -3,16 +3,16 @@ import Foundation
 /// `auto_approve_key` (corpus spec 16, FLOWS §7) in the grammar Claude Code
 /// documents and companion already speaks through `can_use_tool`:
 /// `Tool(pattern *)`, so a remembered rule reads the same on both sides.
-public struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
-    public var tool: String
-    public var pattern: String
+package struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
+    package var tool: String
+    package var pattern: String
 
-    public init(tool: String, pattern: String) {
+    package init(tool: String, pattern: String) {
         self.tool = tool
         self.pattern = pattern
     }
 
-    public var description: String { "\(tool)(\(pattern))" }
+    package var description: String { "\(tool)(\(pattern))" }
 
     /// Tools that take a subcommand as their second word (`npm run`, `git
     /// status`): the subcommand is part of the pattern. For everything else
@@ -28,7 +28,7 @@ public struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
     /// is neither remembered nor answered from memory.
     private static let shellMetacharacters = CharacterSet(charactersIn: ";&|`$()<>\n\r{}")
 
-    public static func from(_ request: ApprovalRequest) -> ApprovalKey? {
+    package static func from(_ request: ApprovalRequest) -> ApprovalKey? {
         // A remote MCP server names its own tools: a key by name would let
         // its `run_shell` inherit, or plant, a rule the user set for the
         // local one. With no key it is never looked up nor stored.
@@ -100,16 +100,16 @@ public struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
 /// (Wave 10c 3B.2). A remembered denial outranks a later approval: Claude
 /// Code evaluates `deny` before `allow`, and "no" said once must not be
 /// talked over by a "yes" said later for the same key.
-public struct ApprovalMemory: Sendable, Equatable {
+package struct ApprovalMemory: Sendable, Equatable {
     private var decisions: [ApprovalKey: Bool] = [:]
 
-    public init() {}
+    package init() {}
 
-    public func decision(for key: ApprovalKey) -> Bool? {
+    package func decision(for key: ApprovalKey) -> Bool? {
         decisions[key]
     }
 
-    public func remembering(_ key: ApprovalKey, approved: Bool) -> ApprovalMemory {
+    package func remembering(_ key: ApprovalKey, approved: Bool) -> ApprovalMemory {
         if decisions[key] == false { return self }
         var copy = self
         copy.decisions[key] = approved

@@ -6,10 +6,10 @@ import NaturalLanguage
 /// Constrained to the languages the app speaks: unconstrained, a short
 /// Spanish sentence full of product names reads as Catalan or Portuguese
 /// with enough confidence to be dropped.
-public struct NaturalLanguageRecognizer: LanguageRecognizing {
-    public init() {}
+package struct NaturalLanguageRecognizer: LanguageRecognizing {
+    package init() {}
 
-    public func dominant(_ text: String) -> DetectedLanguage? {
+    package func dominant(_ text: String) -> DetectedLanguage? {
         // A fresh recognizer per call: NLLanguageRecognizer is a mutable
         // class, and the mouth may be asked from more than one turn.
         let recognizer = NLLanguageRecognizer()

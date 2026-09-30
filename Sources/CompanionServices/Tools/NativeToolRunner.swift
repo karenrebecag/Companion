@@ -1,16 +1,16 @@
 import CompanionCore
 import Foundation
 
-public struct ToolResult: Sendable {
+package struct ToolResult: Sendable {
     /// What the model reads. `content`, in the vocabulary of the Apps SDK.
-    public var ok: Bool
-    public var output: String
+    package var ok: Bool
+    package var output: String
     /// What the interface paints, on its own channel. The model never reads
     /// this, which is the point: a coordinate it cannot see is a coordinate it
     /// cannot rewrite wrong.
-    public var card: Card?
+    package var card: Card?
 
-    public init(ok: Bool, output: String, card: Card? = nil) {
+    package init(ok: Bool, output: String, card: Card? = nil) {
         self.ok = ok
         self.output = output
         self.card = card
@@ -19,7 +19,7 @@ public struct ToolResult: Sendable {
 
 /// Single entry point for tool execution: enforces approval gate for risky tools
 /// and applies double-barrier path validation (lexical + symlink resolution).
-public struct NativeToolRunner: Sendable {
+package struct NativeToolRunner: Sendable {
     let workdir: String?
     let pathValidator: PathValidator
     private let places: (any PlacesSearching)?
@@ -49,7 +49,7 @@ public struct NativeToolRunner: Sendable {
 
     /// Injectable timeout: the tests must not sit through a real minute of
     /// shell, and a blocking test starves everything else on the main actor.
-    public init(
+    package init(
         workdir: String?,
         shellTimeout: TimeInterval = 60,
         places: (any PlacesSearching)? = MapKitPlacesSearch(),
@@ -79,7 +79,7 @@ public struct NativeToolRunner: Sendable {
     /// configured is not advertised: offering one that always fails captures
     /// the intent and then dies, which is how "buscar cines" ended in "no
     /// puedo buscar en la web" instead of falling through to find_places.
-    public var availableTools: [NativeTool] {
+    package var availableTools: [NativeTool] {
         NativeTool.allCases.filter { tool in
             switch tool {
             case .webSearch: return webSearch?.isConfigured == true
@@ -92,7 +92,7 @@ public struct NativeToolRunner: Sendable {
 
     /// Execute a tool with approval gate and path barrier.
     /// Returns error BEFORE touching disk/shell if risky tool lacks approval.
-    public func execute(
+    package func execute(
         tool: String,
         arguments: [String: Any],
         approved: Bool

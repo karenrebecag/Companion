@@ -65,15 +65,15 @@ enum DeliverableTools {
 extension NativeTool {
     /// Offered by the parent itself (spec 20b D2): with Claude Code installed
     /// every delegation goes to it, and it has none of these.
-    public static let parentDeliverables: [NativeTool] = [.createDocument, .sheetRead, .sheetWrite]
+    package static let parentDeliverables: [NativeTool] = [.createDocument, .sheetRead, .sheetWrite]
 }
 
 /// What the MCP bridge may drive (20c D6, M9). An ALLOWLIST: a tool the
 /// runner gains later is out of the bridge until it is named here, so
 /// exposing a capability to an outside agent is always a deliberate edit,
 /// and `BridgeAllowlistTests` fails on a runner tool with no decision.
-public enum BridgeScope {
-    public static let bridgeTools: Set<String> = [
+package enum BridgeScope {
+    package static let bridgeTools: Set<String> = [
         "open_app", "open_url", "open_file", "list_apps", "read_skill", "find_places",
         "type_text", "press_key", "focus_window", "read_focused",
         "look", "click", "scroll", "menu", "see",
@@ -87,14 +87,14 @@ public enum BridgeScope {
     /// approval memory is process-wide, so a "remember" given in the chat
     /// would wave an agent's workbook writes through; and sheet_read, being
     /// safe, would give it every open workbook without a sheet.
-    public static func isLocalOnly(_ name: String) -> Bool {
+    package static func isLocalOnly(_ name: String) -> Bool {
         NativeTool.parentDeliverables.contains { $0.rawValue == name }
     }
 
-    public static func allows(_ name: String) -> Bool { bridgeTools.contains(name) }
+    package static func allows(_ name: String) -> Bool { bridgeTools.contains(name) }
 
     /// True when a person has decided this tool's bridge exposure.
-    public static func decided(_ name: String) -> Bool { allows(name) || isLocalOnly(name) }
+    package static func decided(_ name: String) -> Bool { allows(name) || isLocalOnly(name) }
 }
 
 extension ParentTool {
@@ -102,7 +102,7 @@ extension ParentTool {
     /// App-tool requests count (F-G, security review 16k-3): a sheet left
     /// behind by a switched turn must be dropped, not answerable into the
     /// next conversation.
-    public static func ownsRequest(_ toolName: String) -> Bool {
+    package static func ownsRequest(_ toolName: String) -> Bool {
         ParentTool(rawValue: toolName) != nil
             || BrowserTool(rawValue: toolName) != nil
             || toolName.hasPrefix(ApprovalCopy.appToolPrefix)

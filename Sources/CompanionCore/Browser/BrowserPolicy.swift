@@ -1,6 +1,6 @@
 import Foundation
 
-public enum HostLaunch: Equatable, Sendable {
+package enum HostLaunch: Equatable, Sendable {
     case app
     case nativeHost(origin: String)
     case rejected
@@ -9,12 +9,12 @@ public enum HostLaunch: Equatable, Sendable {
 /// Wave 18. What the browser may hand back and what may be done with it.
 /// The extension filters first; this filters again because the extension is
 /// code running next to arbitrary web pages, not a trust boundary.
-public enum BrowserPolicy {
+package enum BrowserPolicy {
     /// Derived from the public `key` in Extensions/browser/manifest.json;
     /// rotating that key means changing this id in the same commit.
-    public static let pinnedExtensionID = "gaipfdnbliibnfchgcnamnjpfgkilnll"
+    package static let pinnedExtensionID = "gaipfdnbliibnfchgcnamnjpfgkilnll"
 
-    public static let pinnedOrigins: Set<String> = ["chrome-extension://\(pinnedExtensionID)/"]
+    package static let pinnedOrigins: Set<String> = ["chrome-extension://\(pinnedExtensionID)/"]
 
     private static let originPrefix = "chrome-extension://"
 
@@ -22,7 +22,7 @@ public enum BrowserPolicy {
     /// manifest cannot carry arguments), so the mode is read from argv[1].
     /// An extension origin that is not pinned is rejected, never treated as
     /// a normal launch: the app must not open its UI for a stranger's call.
-    public static func launch(arguments: [String]) -> HostLaunch {
+    package static func launch(arguments: [String]) -> HostLaunch {
         guard arguments.count > 1 else { return .app }
         let first = arguments[1]
         // A bare `--native-host` is rejected rather than opening the full app:
@@ -48,7 +48,7 @@ public enum BrowserPolicy {
             .contains { sensitiveNameWords.contains(String($0)) }
     }
 
-    public static func isSensitive(_ element: BrowserElement) -> Bool {
+    package static func isSensitive(_ element: BrowserElement) -> Bool {
         if element.inputType?.lowercased() == "password" { return true }
         for name in [element.fieldName, element.fieldId] {
             if let name, namesASecret(name) { return true }
@@ -64,7 +64,7 @@ public enum BrowserPolicy {
     /// Sensitive values are removed even if the extension sent them; the
     /// field itself stays listed so the model knows it is there and that it
     /// cannot type into it.
-    public static func scrub(_ page: BrowserPage) -> BrowserPage {
+    package static func scrub(_ page: BrowserPage) -> BrowserPage {
         var clean = page
         clean.elements = page.elements.filter { !isHidden($0) }.map { element in
             guard isSensitive(element) else { return element }

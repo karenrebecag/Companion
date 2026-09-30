@@ -3,14 +3,14 @@ import Foundation
 /// Where the user is, as a city and a country. Never coordinates: the type
 /// has nowhere to keep them, so nothing downstream can leak what was never
 /// stored (16h-3).
-public struct UserLocation: Sendable, Equatable {
+package struct UserLocation: Sendable, Equatable {
     /// A city name is a label, not a paragraph: it rides in every prompt.
-    public static let maxField = 60
+    package static let maxField = 60
 
-    public let city: String
-    public let country: String?
+    package let city: String
+    package let country: String?
 
-    public init?(city: String, country: String? = nil) {
+    package init?(city: String, country: String? = nil) {
         let cleanCity = Self.clean(city)
         guard !cleanCity.isEmpty else { return nil }
         self.city = cleanCity
@@ -19,13 +19,13 @@ public struct UserLocation: Sendable, Equatable {
     }
 
     /// What Settings holds: "Cuernavaca" or "Cuernavaca, México".
-    public init?(typed: String) {
+    package init?(typed: String) {
         let parts = typed.split(separator: ",", maxSplits: 1, omittingEmptySubsequences: false)
         self.init(city: parts.first.map(String.init) ?? "",
                   country: parts.dropFirst().first.map(String.init))
     }
 
-    public var label: String {
+    package var label: String {
         country.map { "\(city), \($0)" } ?? city
     }
 
@@ -48,28 +48,28 @@ public struct UserLocation: Sendable, Equatable {
 /// The system's city, behind a port: CoreLocation lives in Services.
 /// `prompting` says whether this call may put up the system's permission
 /// dialog; a turn never may, a lookup the user asked for may.
-public protocol UserLocating: Sendable {
+package protocol UserLocating: Sendable {
     func current(prompting: Bool) async -> UserLocation?
 }
 
 /// The one answer to "where is the user": what they wrote in Settings wins
 /// over what the system says, and the search provider's guess is never asked.
-public struct UserLocationSource: Sendable {
+package struct UserLocationSource: Sendable {
     private let manualCity: @Sendable () -> String
     private let system: (any UserLocating)?
 
-    public init(manualCity: @escaping @Sendable () -> String, system: (any UserLocating)?) {
+    package init(manualCity: @escaping @Sendable () -> String, system: (any UserLocating)?) {
         self.manualCity = manualCity
         self.system = system
     }
 
     /// What Settings holds, and nothing from the system: for callers whose
     /// "Tu ciudad" switch is off.
-    public func typedCity() -> UserLocation? {
+    package func typedCity() -> UserLocation? {
         UserLocation(typed: manualCity())
     }
 
-    public func current(prompting: Bool) async -> UserLocation? {
+    package func current(prompting: Bool) async -> UserLocation? {
         if let typed = UserLocation(typed: manualCity()) { return typed }
         return await system?.current(prompting: prompting)
     }
@@ -78,7 +78,7 @@ public struct UserLocationSource: Sendable {
 /// "Near me" without saying where: the words that mean the user's own place.
 /// The search tool cannot guess it — on 2026-09-25 "Restaurantes cercanos"
 /// came back from Fullerton because the provider filled the gap itself.
-public enum NearMe {
+package enum NearMe {
     /// As the whole `near` argument: the model put a pronoun where a place goes.
     private static let placePhrases: Set<[String]> = [
         ["aqui"], ["aca"], ["here"], ["cerca"], ["nearby"], ["near", "me"], ["near", "here"],
@@ -96,7 +96,7 @@ public enum NearMe {
     /// "cerca de/del/al ..." is an anchor and is searched as said; only the
     /// pronouns ("cerca de mí", "cerca de aquí") and a bare "cerca" are the
     /// user's own place. An explicit `near` is never overwritten.
-    public static func isNearby(query: String, near: String?) -> Bool {
+    package static func isNearby(query: String, near: String?) -> Bool {
         let place = words(near ?? "")
         if !place.isEmpty { return placePhrases.contains(place) }
         let asked = words(query)
@@ -117,7 +117,7 @@ public enum NearMe {
 
     /// The tool's answer when the user's city is unknown: an instruction to
     /// the model, so it asks instead of searching somewhere else.
-    public static func needsCity(_ language: AppLanguage) -> String {
+    package static func needsCity(_ language: AppLanguage) -> String {
         switch language {
         case .en:
             return "Location unknown: the user's city is not available. Ask them which city "

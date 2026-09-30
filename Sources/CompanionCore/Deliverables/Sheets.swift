@@ -4,10 +4,10 @@ import Foundation
 // the app — what xlwings does on a Mac. Everything that decides lives here;
 // the adapter only sends the script.
 
-public enum SheetApp: String, Sendable, Equatable, CaseIterable {
+package enum SheetApp: String, Sendable, Equatable, CaseIterable {
     case excel, numbers
 
-    public var bundleID: String {
+    package var bundleID: String {
         switch self {
         case .excel: "com.microsoft.Excel"
         case .numbers: "com.apple.iWork.Numbers"
@@ -17,27 +17,27 @@ public enum SheetApp: String, Sendable, Equatable, CaseIterable {
 
 /// A rectangle in A1 notation, on the active sheet. No sheet prefix: the
 /// user is looking at the sheet it acts on.
-public struct SheetRange: Sendable, Equatable {
+package struct SheetRange: Sendable, Equatable {
     /// A bigger write is a file job, not a live edit (Incredible: 5-30 ms per
     /// cell over Apple Events on a Mac).
-    public static let maxCells = 5_000
+    package static let maxCells = 5_000
     static let maxRow = 1_048_576
     static let maxColumn = 16_384
 
-    public let firstColumn: Int
-    public let firstRow: Int
-    public let lastColumn: Int
-    public let lastRow: Int
+    package let firstColumn: Int
+    package let firstRow: Int
+    package let lastColumn: Int
+    package let lastRow: Int
 
-    public var rows: Int { lastRow - firstRow + 1 }
-    public var columns: Int { lastColumn - firstColumn + 1 }
+    package var rows: Int { lastRow - firstRow + 1 }
+    package var columns: Int { lastColumn - firstColumn + 1 }
 
-    public var a1: String {
+    package var a1: String {
         let start = Self.name(firstColumn) + "\(firstRow)"
         return rows == 1 && columns == 1 ? start : start + ":" + Self.name(lastColumn) + "\(lastRow)"
     }
 
-    public init?(a1 raw: String) {
+    package init?(a1 raw: String) {
         let parts = raw.uppercased().split(separator: ":", omittingEmptySubsequences: false)
         guard (1...2).contains(parts.count),
               let start = Self.cell(String(parts[0])),
@@ -50,7 +50,7 @@ public struct SheetRange: Sendable, Equatable {
     }
 
     /// The A1 name of a cell inside the range, zero-based from its corner.
-    public func cell(row: Int, column: Int) -> String {
+    package func cell(row: Int, column: Int) -> String {
         Self.name(firstColumn + column) + "\(firstRow + row)"
     }
 
@@ -76,14 +76,14 @@ public struct SheetRange: Sendable, Equatable {
     }
 }
 
-public enum SheetCell: Sendable, Equatable {
+package enum SheetCell: Sendable, Equatable {
     case text(String)
     case number(Double)
     case formula(String)
     case empty
 }
 
-public enum SheetError: Error, Sendable, Equatable {
+package enum SheetError: Error, Sendable, Equatable {
     case invalidRange
     case shapeMismatch
     case forbiddenFormula
@@ -95,14 +95,14 @@ public enum SheetError: Error, Sendable, Equatable {
     case appFailed
 }
 
-public enum SheetValues {
+package enum SheetValues {
     /// A range holds at most `SheetRange.maxCells` (5 000) cells; 1 MiB is
     /// about 200 bytes a cell, room for long text and formulas and nothing
     /// like the memory a hostile array could ask for.
-    public static let maxSheetBytes = 1024 * 1024
+    package static let maxSheetBytes = 1024 * 1024
     /// A 2-D array, sent as JSON text or as a real array, that must match the
     /// range cell for cell: a short write would land shifted.
-    public static func parse(any value: Any?, for range: SheetRange) -> Result<[[SheetCell]], SheetError> {
+    package static func parse(any value: Any?, for range: SheetRange) -> Result<[[SheetCell]], SheetError> {
         let raw: Any?
         if let text = value as? String {
             guard text.utf8.count <= maxSheetBytes else { return .failure(.invalidValues) }
@@ -142,7 +142,7 @@ public enum SheetValues {
 
     /// Excel's formula setter, like typing, starts a formula on any of these;
     /// the cell stays text for us but must pass the same list.
-    public static func looksLikeFormula(_ text: String) -> Bool {
+    package static func looksLikeFormula(_ text: String) -> Bool {
         guard let first = text.first(where: { !$0.isWhitespace }) else { return false }
         return "=+-@".contains(foldedSign(first) ?? first)
     }
@@ -156,7 +156,7 @@ public enum SheetValues {
     /// Numbers reads a range as one flat list.
     // HACK: a short read is padded with blanks, so a cell Numbers dropped reads
     // as empty. Compare counts against the range when a write report must be exact.
-    public static func reshape(_ flat: [String], columns: Int) -> [[String]] {
+    package static func reshape(_ flat: [String], columns: Int) -> [[String]] {
         guard columns > 0 else { return [] }
         var rows: [[String]] = []
         var index = 0
@@ -169,17 +169,17 @@ public enum SheetValues {
     }
 
     /// The sheet says where and what, not "sheet_write".
-    public static func approvalDetail(_ object: [String: Any]) -> String? {
+    package static func approvalDetail(_ object: [String: Any]) -> String? {
         guard let range = object["range"] as? String else { return nil }
         let app = (object["app"] as? String).map { $0 + " · " } ?? ""
         return app + range.uppercased() + "\n" + SheetApproval.preview(object, language: .en)
     }
 }
 
-public enum AppleScriptText {
+package enum AppleScriptText {
     /// A string literal that stays one literal: quotes and backslashes
     /// escaped, line breaks turned into the escapes AppleScript reads.
-    public static func literal(_ text: String) -> String {
+    package static func literal(_ text: String) -> String {
         var out = "\""
         for char in text {
             switch char {
@@ -194,7 +194,7 @@ public enum AppleScriptText {
         return out + "\""
     }
 
-    public static func value(_ cell: SheetCell) -> String {
+    package static func value(_ cell: SheetCell) -> String {
         switch cell {
         case .text(let text), .formula(let text): literal(text)
         case .number(let number): DataCells.number(number)
@@ -202,16 +202,16 @@ public enum AppleScriptText {
         }
     }
 
-    public static func matrix(_ cells: [[SheetCell]]) -> String {
+    package static func matrix(_ cells: [[SheetCell]]) -> String {
         "{" + cells.map { "{" + $0.map(value).joined(separator: ", ") + "}" }.joined(separator: ", ") + "}"
     }
 }
 
-public enum SheetBackup {
+package enum SheetBackup {
     /// Next to the workbook, same extension, so it opens the same way. A name
     /// already taken gets `-2`, `-3`...: two writes in one second must not
     /// refuse or overwrite each other's copy.
-    public static func path(
+    package static func path(
         for document: String, at date: Date,
         exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> String {
@@ -234,15 +234,15 @@ public enum SheetBackup {
     }
 }
 
-public struct SheetWriteReceipt: Sendable, Equatable {
-    public var backupPath: String
+package struct SheetWriteReceipt: Sendable, Equatable {
+    package var backupPath: String
     /// A sample read back after the write, for the report.
-    public var readBack: [[String]]
+    package var readBack: [[String]]
     /// The write happened but the workbook in front changed before it could be
     /// read back: the report must not say "nothing was written".
-    public var readBackUnavailable: Bool
+    package var readBackUnavailable: Bool
 
-    public init(backupPath: String, readBack: [[String]], readBackUnavailable: Bool = false) {
+    package init(backupPath: String, readBack: [[String]], readBackUnavailable: Bool = false) {
         self.backupPath = backupPath
         self.readBack = readBack
         self.readBackUnavailable = readBackUnavailable
@@ -250,7 +250,7 @@ public struct SheetWriteReceipt: Sendable, Equatable {
 }
 
 /// Port for `sheet_read` / `sheet_write`: one adapter per app behind it.
-public protocol SpreadsheetDriving: Sendable {
+package protocol SpreadsheetDriving: Sendable {
     /// The app whose document the user is looking at, if any.
     func active() async -> SheetApp?
     func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]]

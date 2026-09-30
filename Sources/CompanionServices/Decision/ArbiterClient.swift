@@ -6,14 +6,14 @@ import Foundation
 /// the installed-app list, never emits a free tool call, and never invents a
 /// confidence — a Chat Completions function call carries no logprobs, unlike
 /// `OllamaDecisionProvider`'s single-token trick.
-public struct ArbiterClient: Sendable {
+package struct ArbiterClient: Sendable {
     private let transport: any ChatTransport
     private let secrets: any SecretStore
     private let fastModel: ProviderDescriptor
     private let strongModel: ProviderDescriptor
     private let timeout: TimeInterval
 
-    public init(
+    package init(
         transport: any ChatTransport,
         secrets: any SecretStore,
         fastModel: ProviderDescriptor,
@@ -27,7 +27,7 @@ public struct ArbiterClient: Sendable {
         self.timeout = timeout
     }
 
-    public func arbitrate(
+    package func arbitrate(
         utterance: String, shortlist: ArbitrationShortlist
     ) async -> (entry: ShortlistEntry, confidence: Double)? {
         // An empty shortlist is `choiceSchema`'s own thrown error (OpenAI

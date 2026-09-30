@@ -7,8 +7,8 @@ import Foundation
 /// It lives in Services, not the composition root, because nothing in it needs
 /// the approval sheet or the session: only the runner does, and it brings its
 /// own tickets. That keeps the start condition and the tool lists testable.
-public final class BrowserHost: @unchecked Sendable {
-    public let presence = BrowserPresence()
+package final class BrowserHost: @unchecked Sendable {
+    package let presence = BrowserPresence()
     /// Two runners over one channel: each keeps its own page cache and
     /// tickets, so a yes spoken in the conversation cannot be spent by a
     /// bridge peer (and the peer's calls never spend the user's).
@@ -26,7 +26,7 @@ public final class BrowserHost: @unchecked Sendable {
     private let lock = NSLock()
     private var started = false
 
-    public init(
+    package init(
         directory: URL, installer: NativeHostInstaller,
         language: @escaping @Sendable () -> AppLanguage,
         commanding: (any BrowserCommanding)? = nil,
@@ -64,12 +64,12 @@ public final class BrowserHost: @unchecked Sendable {
     /// X12: the browser's listener is independent of "lend your hands" and
     /// only exists once the user connected a browser, so a user who never did
     /// has no extra socket open.
-    public func startIfInstalled() {
+    package func startIfInstalled() {
         guard !installer.installed().isEmpty else { return }
         start()
     }
 
-    public func stop() {
+    package func stop() {
         lock.withLock {
             guard started else { return }
             listener.stop()
@@ -81,7 +81,7 @@ public final class BrowserHost: @unchecked Sendable {
 
     /// Writes the manifest, then starts listening. A failed install never
     /// leaves a listener behind.
-    public func connect() -> BrowserLinkOutcome {
+    package func connect() -> BrowserLinkOutcome {
         let installed: [BrowserKind]
         do {
             installed = try installer.install()
@@ -97,7 +97,7 @@ public final class BrowserHost: @unchecked Sendable {
         return start() ? .done : .failed
     }
 
-    public func remove() -> BrowserLinkOutcome {
+    package func remove() -> BrowserLinkOutcome {
         let result = installer.removeReporting()
         // A manifest that was removed no longer authorizes a listener, even
         // if another browser's manifest could not be touched.
@@ -113,7 +113,7 @@ public final class BrowserHost: @unchecked Sendable {
         }
     }
 
-    public var status: BrowserLinkStatus {
+    package var status: BrowserLinkStatus {
         if installer.installed().isEmpty { return .notInstalled }
         if let browser = presence.browser { return .connected(browser) }
         return .disconnected
@@ -124,7 +124,7 @@ public final class BrowserHost: @unchecked Sendable {
     /// client, which would skip the take sheet. The leases clear before this
     /// returns; the returned task finishes telling the extension.
     @discardableResult
-    public func bridgeSessionChanged() -> Task<Void, Never> {
+    package func bridgeSessionChanged() -> Task<Void, Never> {
         let tabs = leases.releaseAll(owner: Self.bridgeCaller)
         let leases = leases, commander = commander
         return Task.detached { await leases.giveBack(tabs, channel: commander) }
@@ -134,14 +134,14 @@ public final class BrowserHost: @unchecked Sendable {
 
     /// Chat and both voice modes: the parent's tools, the connected apps' and
     /// the browser's.
-    public func conversationTools(
+    package func conversationTools(
         parent: any ParentToolExecuting, apps: any ParentToolExecuting
     ) -> CompositeParentTools {
         CompositeParentTools([parent, apps, conversationRunner])
     }
 
     /// The bridge lends the hands and the browser, never Karen's connected apps.
-    public func bridgeTools(parent: any ParentToolExecuting) -> CompositeParentTools {
+    package func bridgeTools(parent: any ParentToolExecuting) -> CompositeParentTools {
         CompositeParentTools([parent, bridgeRunner])
     }
 

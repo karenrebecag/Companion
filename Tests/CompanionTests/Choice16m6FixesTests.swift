@@ -253,7 +253,8 @@ private func sendPick(
     let files = [root.appendingPathComponent("Island/Choice/IslandChoice.swift"),
                  root.appendingPathComponent("Island/Choice/IslandChoiceCard.swift")]
     let text = (try? String(contentsOf: root.appendingPathComponent("Chat/ChatViewModel.swift"), encoding: .utf8)) ?? ""
-    let chooseBody = text.components(separatedBy: "public func choose").dropFirst().first?
+    // No access keyword in the anchor: it survives public -> package.
+    let chooseBody = text.components(separatedBy: "func choose(").dropFirst().first?
         .components(separatedBy: "private func dispatch").first ?? ""
     // Sobre texto vacio todo `!contains` pasa: el ancla exige un cuerpo real.
     expect(!chooseBody.isEmpty && chooseBody.contains("dispatch("),

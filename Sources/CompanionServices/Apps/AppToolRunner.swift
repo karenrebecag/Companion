@@ -13,7 +13,7 @@ import Foundation
 /// drown the model's context). Before any turn is noted — the realtime
 /// session, whose tool list is fixed at socket open — the whole connected
 /// set is offered.
-public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
+package final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
     struct ConnectedTools: Sendable {
         let slug: String
         let name: String
@@ -62,7 +62,7 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
     private let signIn: (@Sendable (String, String) -> Void)?
     private let now: @Sendable () -> TimeInterval
 
-    public init(
+    package init(
         service: @escaping @Sendable () -> (any AppsService)?,
         catalog: [AppMention.Candidate],
         suggest: (@Sendable (String, String) -> Void)?,
@@ -79,7 +79,7 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
     /// Pulls the connected accounts and each one's tools. Called off the
     /// turn's path: at launch, when the Apps page changes something, and
     /// by TTL — `specs` and `execute` only ever read the cache.
-    public func refresh() async {
+    package func refresh() async {
         guard let service = service() else {
             Log.app("apps: runner has no service (endpoint or key missing)")
             return
@@ -118,7 +118,7 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
 
     /// The connected apps as `@` candidates: what the last refresh saw, no
     /// network. Before the first refresh there is nothing to offer.
-    public func connectedMentionCandidates() -> [MentionCandidate] {
+    package func connectedMentionCandidates() -> [MentionCandidate] {
         lock.lock()
         defer { lock.unlock() }
         return cache.compactMap { MentionCandidate(id: $0.slug, kind: .app, name: $0.name) }
@@ -140,7 +140,7 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
         lock.unlock()
     }
 
-    public func noteTurn(_ said: String) {
+    package func noteTurn(_ said: String) {
         lock.lock()
         grants.removeAll()
         let ready = loaded
@@ -188,7 +188,7 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
     /// agent keeps every connector, and each write still asks its own sheet.
     /// Grants die and a stale cache refreshes here as they do for a typed
     /// turn, but there are no words to match, so no suggestion is raised.
-    public func noteChoiceTurn() {
+    package func noteChoiceTurn() {
         lock.lock()
         grants.removeAll()
         scope = .allConnected
@@ -197,7 +197,7 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
         refreshInBackground(ifStale: stale)
     }
 
-    public func specs(_ language: AppLanguage) -> [ToolSpec] {
+    package func specs(_ language: AppLanguage) -> [ToolSpec] {
         lock.lock()
         defer { lock.unlock() }
         let apps: [ConnectedTools] =
@@ -230,11 +230,11 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
     /// lib/validate.mjs), so the name alone says whose it is. Scope does
     /// not gate here: a call the model makes is executed if the tool is
     /// real — the approval gate, not the listing, is the security line.
-    public func handles(_ name: String) -> Bool {
+    package func handles(_ name: String) -> Bool {
         lookup(name) != nil
     }
 
-    public func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
+    package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
         guard let (app, action) = lookup(call.name), action.group != .leer else { return nil }
         return ApprovalRequest(
             requestId: UUID().uuidString,
@@ -243,7 +243,7 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
             inputJSON: call.arguments)
     }
 
-    public func granted(_ request: ApprovalRequest) {
+    package func granted(_ request: ApprovalRequest) {
         // "app:<slug>:<tool>", split once: a tool name is never re-split on
         // a ":" it might carry (F-A, security review 16k-3 — the wire also
         // rejects such names now, this is the second belt).
@@ -256,7 +256,7 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
         lock.unlock()
     }
 
-    public func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
+    package func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
         guard let (app, action) = lookup(name) else {
             return .failed(.notFound("unknown app tool: \(name)"))
         }
@@ -324,63 +324,63 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
 /// One seam, several runners: the three paths keep calling a single
 /// `ParentToolExecuting`; this fans out. Routing is by `handles`, first
 /// taker wins — the parent's own tools come first by construction.
-public struct CompositeParentTools: ParentToolExecuting, Sendable {
+package struct CompositeParentTools: ParentToolExecuting, Sendable {
     private let runners: [any ParentToolExecuting]
 
-    public init(_ runners: [any ParentToolExecuting]) {
+    package init(_ runners: [any ParentToolExecuting]) {
         self.runners = runners
     }
 
-    public func specs(_ language: AppLanguage) -> [ToolSpec] {
+    package func specs(_ language: AppLanguage) -> [ToolSpec] {
         runners.flatMap { $0.specs(language) }
     }
 
-    public func handles(_ name: String) -> Bool {
+    package func handles(_ name: String) -> Bool {
         runners.contains { $0.handles(name) }
     }
 
-    public func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
+    package func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
         guard let runner = runners.first(where: { $0.handles(name) }) else {
             return .failed(.notFound("unknown tool: \(name)"))
         }
         return await runner.execute(name: name, argumentsJSON: argumentsJSON)
     }
 
-    public func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
+    package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
         guard let runner = runners.first(where: { $0.handles(call.name) }) else {
             return ParentToolGate.approval(for: call, said: said)
         }
         return runner.approval(for: call, said: said)
     }
 
-    public func actsWithoutSheet(_ call: ToolCallRef) async -> Bool {
+    package func actsWithoutSheet(_ call: ToolCallRef) async -> Bool {
         guard let runner = runners.first(where: { $0.handles(call.name) }) else { return false }
         return await runner.actsWithoutSheet(call)
     }
 
-    public func bound(_ request: ApprovalRequest) async -> ApprovalRequest {
+    package func bound(_ request: ApprovalRequest) async -> ApprovalRequest {
         var current = request
         for runner in runners { current = await runner.bound(current) }
         return current
     }
 
-    public func granted(_ request: ApprovalRequest) {
+    package func granted(_ request: ApprovalRequest) {
         for runner in runners { runner.granted(request) }
     }
 
-    public func beginTurn() {
+    package func beginTurn() {
         for runner in runners { runner.beginTurn() }
     }
 
-    public func noteTurn(_ said: String) {
+    package func noteTurn(_ said: String) {
         for runner in runners { runner.noteTurn(said) }
     }
 
-    public func noteChoiceTurn() {
+    package func noteChoiceTurn() {
         for runner in runners { runner.noteChoiceTurn() }
     }
 
-    public func unavailability(for name: String) -> String? {
+    package func unavailability(for name: String) -> String? {
         for runner in runners {
             if let reason = runner.unavailability(for: name) { return reason }
         }

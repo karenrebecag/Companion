@@ -1,12 +1,12 @@
 import CompanionCore
 import Foundation
 
-public struct WebResult: Sendable, Equatable {
-    public var title: String
-    public var url: String
-    public var snippet: String
+package struct WebResult: Sendable, Equatable {
+    package var title: String
+    package var url: String
+    package var snippet: String
 
-    public init(title: String, url: String, snippet: String) {
+    package init(title: String, url: String, snippet: String) {
         self.title = title
         self.url = url
         self.snippet = snippet
@@ -15,7 +15,7 @@ public struct WebResult: Sendable, Equatable {
 
 /// Port so the provider can change without the tool noticing, and so a test
 /// never goes out to a search engine.
-public protocol WebSearching: Sendable {
+package protocol WebSearching: Sendable {
     /// False means "do not offer this tool at all". A tool that is advertised
     /// and always fails is worse than a missing one: it captures the model's
     /// intent and then dies, and the model reports "I cannot search the web"
@@ -27,14 +27,14 @@ public protocol WebSearching: Sendable {
 /// Brave Search: its own index rather than a reseller of Google or Bing, which
 /// fits an assistant that runs on your Mac; and the lowest latency of the
 /// agent-oriented APIs, which is what decides it for a voice product.
-public struct BraveWebSearch: WebSearching {
-    public static let endpoint = "https://api.search.brave.com/res/v1/web/search"
+package struct BraveWebSearch: WebSearching {
+    package static let endpoint = "https://api.search.brave.com/res/v1/web/search"
 
     private let transport: any ChatTransport
     private let secrets: any SecretStore
     private let limit: Int
 
-    public init(
+    package init(
         transport: any ChatTransport,
         secrets: any SecretStore,
         limit: Int = 6
@@ -44,7 +44,7 @@ public struct BraveWebSearch: WebSearching {
         self.limit = limit
     }
 
-    public var isConfigured: Bool { key != nil }
+    package var isConfigured: Bool { key != nil }
 
     private var key: String? {
         let value: String?
@@ -59,7 +59,7 @@ public struct BraveWebSearch: WebSearching {
         return trimmed
     }
 
-    public func search(_ query: String) async throws -> [WebResult] {
+    package func search(_ query: String) async throws -> [WebResult] {
         guard let key else { throw ChatError.unauthorized }
         var components = URLComponents(string: Self.endpoint)
         components?.queryItems = [

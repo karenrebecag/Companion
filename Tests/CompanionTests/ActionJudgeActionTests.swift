@@ -66,9 +66,14 @@ private func mcp(_ tool: String, _ json: String = #"{"path":"a.txt"}"#) -> Propo
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
     let source = try String(contentsOf: root.appendingPathComponent("Sources/CompanionCore/Decision/ActionJudging.swift"),
                             encoding: .utf8)
-    expect(!source.contains("public init(values:"), "16q-3a init: ActionSummary no se construye desde fuera")
-    expect(!source.contains("public init(kind:"), "16q-3a init: ProposedAction tampoco")
+    // `package` is visible to every other target of the package, so it leaks the
+    // same way `public` does; whitespace is tolerated so a reformat can't hide one.
+    let leaking = try NSRegularExpression(pattern: #"\b(public|package)\s+(convenience\s+)?init[?!]?\s*(<[^>]*>)?\s*\(\s*(values|kind)\s*:"#)
+    let range = NSRange(source.startIndex..., in: source)
+    expect(leaking.firstMatch(in: source, range: range) == nil,
+           "16q-3a init: ActionSummary y ProposedAction no se construyen desde fuera (ni public ni package)")
     expect(source.contains("init(values: [String: Value], isComplete"), "16q-3a init: el interno existe")
+    expect(source.contains("init(kind:"), "16q-3a init: el interno de ProposedAction existe")
 }
 
 // MARK: - UserWords, ProposedAction, ActionJudgeRequest

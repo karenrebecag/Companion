@@ -8,13 +8,13 @@ import Foundation
 /// reader sees it. The thread and the model's history used to be one array,
 /// and their requirements are opposite: the reader wants the whole report, the
 /// model wants a bounded, correctly attributed trace of it.
-public struct Recall: Sendable, Equatable {
-    public var role: TurnRole
-    public var content: String
-    public var toolCalls: [ToolCallRef]
-    public var toolCallID: String?
+package struct Recall: Sendable, Equatable {
+    package var role: TurnRole
+    package var content: String
+    package var toolCalls: [ToolCallRef]
+    package var toolCallID: String?
 
-    public init(
+    package init(
         role: TurnRole,
         content: String,
         toolCalls: [ToolCallRef] = [],
@@ -29,33 +29,33 @@ public struct Recall: Sendable, Equatable {
 
 /// Where a user message came from. A pick on a question card is an answer to
 /// that question and nothing more; the model is told so (16m-6 security).
-public enum MessageOrigin: Sendable, Equatable {
+package enum MessageOrigin: Sendable, Equatable {
     case typed
     case choice
 }
 
-public struct ChatMessage: Identifiable, Equatable {
-    public let id: UUID
-    public var role: TurnRole?
-    public var isStatus: Bool
-    public var text: String
-    public var attachments: [AttachmentRef]
+package struct ChatMessage: Identifiable, Equatable {
+    package let id: UUID
+    package var role: TurnRole?
+    package var isStatus: Bool
+    package var text: String
+    package var attachments: [AttachmentRef]
     /// Painted from its own channel, not parsed out of the text. A card that
     /// is here never passed through the model.
-    public var card: Card?
+    package var card: Card?
     /// nil means "remember me as you read me", which is every ordinary
     /// message and therefore changes nothing for them.
-    public var recall: Recall?
-    public var origin: MessageOrigin
-    public var mentions: [Mention] = []
+    package var recall: Recall?
+    package var origin: MessageOrigin
+    package var mentions: [Mention] = []
     /// The status line a failed turn leaves: what lets a question that was
     /// answered into a failure be asked again.
-    public var isFailure: Bool
+    package var isFailure: Bool
     /// Read back from disk, not made in this session: a question card in it
     /// has no live turn behind it.
-    public var restored: Bool
+    package var restored: Bool
 
-    public init(
+    package init(
         id: UUID = UUID(),
         role: TurnRole? = nil,
         isStatus: Bool = false,

@@ -5,12 +5,12 @@ import Observation
 /// 15f-6: the ElevenLabs voice picked in Settings › Voz. Nothing stored
 /// (or a value that no longer validates) reads as Karen's default, so an
 /// old or hand-edited default can never reach the URL path.
-public enum ElevenLabsVoicePreference {
+package enum ElevenLabsVoicePreference {
     nonisolated private static let key = "companion.voice.elevenLabsID"
     /// Swappable so a test writes into its own suite, never the user's.
-    nonisolated(unsafe) public static var store: UserDefaults = .standard
+    nonisolated(unsafe) package static var store: UserDefaults = .standard
 
-    nonisolated public static var voiceID: String {
+    nonisolated package static var voiceID: String {
         get {
             guard let raw = store.string(forKey: key),
                   ElevenLabsMouth.isValidVoiceID(raw)
@@ -27,23 +27,23 @@ public enum ElevenLabsVoicePreference {
 /// presence is kept; the key itself never lands in view state.
 @Observable
 @MainActor
-public final class ElevenLabsVoiceModel {
-    public var secrets: (any SecretStore)?
-    public private(set) var hasKey = false
-    public private(set) var voiceID: String
-    public var customField = ""
-    public private(set) var errorText: String?
+package final class ElevenLabsVoiceModel {
+    package var secrets: (any SecretStore)?
+    package private(set) var hasKey = false
+    package private(set) var voiceID: String
+    package var customField = ""
+    package private(set) var errorText: String?
 
-    public init(secrets: (any SecretStore)? = nil) {
+    package init(secrets: (any SecretStore)? = nil) {
         self.secrets = secrets
         voiceID = ElevenLabsVoicePreference.voiceID
     }
 
-    public var selectedPreset: ElevenLabsVoicePreset? {
+    package var selectedPreset: ElevenLabsVoicePreset? {
         ElevenLabsMouth.presets.first { $0.id == voiceID }
     }
 
-    public func refresh() {
+    package func refresh() {
         voiceID = ElevenLabsVoicePreference.voiceID
         guard let secrets else {
             hasKey = false
@@ -61,13 +61,13 @@ public final class ElevenLabsVoiceModel {
         hasKey = !(value ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    public func select(_ preset: ElevenLabsVoicePreset) {
+    package func select(_ preset: ElevenLabsVoicePreset) {
         store(preset.id)
     }
 
     /// Refused ids never persist: the router would read them on the next
     /// sentence and the client would drop every request to OpenAI.
-    public func applyCustom() {
+    package func applyCustom() {
         guard ElevenLabsMouth.isValidVoiceID(customField) else {
             errorText = Localized.string("settings.voice.eleven.invalid")
             return
