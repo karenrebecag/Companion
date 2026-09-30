@@ -122,6 +122,17 @@ public struct IslandView: View {
         Self.resultRows(chat.messages, limit: Self.maxResults)
     }
 
+    /// What the panel says above a question card: the card already carries the
+    /// question as its title, so the same words are shown once. Voice and
+    /// typed turns both land here as the latest assistant message.
+    static func replyText(for message: ChatMessage) -> String {
+        let text = IslandReplyText.spoken(from: message.text)
+        guard let choice = IslandChoice.block(in: message),
+              IslandChoice.sameWords(text, choice.question)
+        else { return text }
+        return ""
+    }
+
     /// The newest reply, the one the panel says in big words.
     var latestReply: ChatMessage? {
         chat.messages.last { $0.role == .assistant && !$0.isStatus }
@@ -305,7 +316,7 @@ public struct IslandView: View {
     @ViewBuilder
     func reply(_ state: IslandState) -> some View {
         if let latest = latestReply {
-            let text = IslandReplyText.spoken(from: latest.text)
+            let text = Self.replyText(for: latest)
             if !text.isEmpty {
                 IslandReply(text: text, startedAt: replyStart, speaking: state.meter == .agent)
                     .onTapGesture { openResult(latest.id) }
