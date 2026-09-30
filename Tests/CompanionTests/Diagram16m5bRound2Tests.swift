@@ -341,17 +341,22 @@ private final class GatedRenderer: DiagramRendering {
 @Test func diagramRendererIsolationWiringTests() async {
     await watchedWeb(60, "diagramRendererIsolationWiringTests") {
         do {
+            // The control gets its own port: an open page keeps retrying, so on a slow
+            // machine its late hits must never be counted against the real render.
+            let controlBeacon = try Beacon()
+            guard let controlPort = await controlBeacon.start() else { return expect(false, "16m-5b r2: no abrió el puerto de control") }
+            defer { controlBeacon.stop() }
             let beacon = try Beacon()
             guard let port = await beacon.start() else { return expect(false, "16m-5b r2: no abrió el puerto de prueba") }
             defer { beacon.stop() }
             let width = Double(IslandVisualMetrics.diagramWidth)
 
-            // Control: a permissive page reaches the port, so zeros below mean the layers held.
+            // Control: a permissive page reaches its port, so zeros below mean the layers held.
             let open = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
-            open.loadHTMLString(pageWithoutCSP(leakScript(port: port)), baseURL: nil)
-            do { try await Task.sleep(for: .seconds(1)) } catch {}
-            let control = beacon.hits
-            expect(control > 0, "16m-5b r2: el control llega al puerto (llegó \(control))")
+            open.loadHTMLString(pageWithoutCSP(leakScript(port: controlPort)), baseURL: nil)
+            guard let took = await controlBeacon.firstHit(within: 20) else {
+                return expect(false, "16m-5b r2: el control no llegó a su puerto en 20 s")
+            }
 
             // The real wiring: page, CSP, rules, configuration.
             let renderer = testRenderer(script: fakeMermaid(leaking: port))
@@ -359,8 +364,8 @@ private final class GatedRenderer: DiagramRendering {
             renderer.pageObserver = { view = $0 }
             let full = await renderer.render(DiagramBlock(source: flow), width: width)
             expect(isImage(full), "16m-5b r2: la página real dibuja con el script de prueba: \(full)")
-            do { try await Task.sleep(for: .milliseconds(700)) } catch {}
-            expectEq(beacon.hits, control, "16m-5b r2: el render real no abrió ni una conexión")
+            do { try await Task.sleep(for: silenceWindow(controlTook: took)) } catch {}
+            expectEq(beacon.hits, 0, "16m-5b r2: el render real no abrió ni una conexión")
 
             // Kills: `WKWebViewConfiguration()` instead of `makeConfiguration()`.
             guard let view else { return expect(false, "16m-5b r2: el observador no vio la página") }
@@ -380,13 +385,23 @@ private final class GatedRenderer: DiagramRendering {
         do {
             // Kills: removing `userContentController.add(rules)` from the draw. The
             // page has no CSP, so only the content rules stand between it and the port.
+            // A control on its own port proves hits are observable on this machine and sets
+            // the silence window, so a slow runner cannot turn "not yet" into a pass.
+            let controlBeacon = try Beacon()
+            guard let controlPort = await controlBeacon.start() else { return expect(false, "16m-5b r2: no abrió el puerto de control") }
+            defer { controlBeacon.stop() }
+            let open = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
+            open.loadHTMLString(pageWithoutCSP(leakScript(port: controlPort)), baseURL: nil)
+            guard let took = await controlBeacon.firstHit(within: 20) else {
+                return expect(false, "16m-5b r2: el control no llegó a su puerto en 20 s")
+            }
             let beacon = try Beacon()
             guard let port = await beacon.start() else { return expect(false, "16m-5b r2: no abrió el puerto de prueba") }
             defer { beacon.stop() }
             let renderer = testRenderer(script: fakeMermaid(leaking: port), pageHTML: pageWithoutCSP)
             let outcome = await renderer.render(DiagramBlock(source: flow), width: 504)
             expect(isImage(outcome), "16m-5b r2: dibuja sin CSP: \(outcome)")
-            do { try await Task.sleep(for: .milliseconds(700)) } catch {}
+            do { try await Task.sleep(for: silenceWindow(controlTook: took)) } catch {}
             expectEq(beacon.hits, 0, "16m-5b r2: las reglas solas, en el render real, cierran la red")
         } catch {
             expect(false, "\(error)")
@@ -496,30 +511,38 @@ private final class GatedRenderer: DiagramRendering {
         do {
             // Each layer alone, on a raw web view: the CSP of the real page, and the
             // content rules of the real rule list.
-            let beacon = try Beacon()
-            guard let port = await beacon.start() else { return expect(false, "16m-5b r2: no abrió el puerto de prueba") }
-            defer { beacon.stop() }
-            let script = leakScript(port: port)
+            // One port per page, so the control's late retries never land on a layer's count.
+            let controlBeacon = try Beacon()
+            guard let controlPort = await controlBeacon.start() else { return expect(false, "16m-5b r2: no abrió el puerto de control") }
+            defer { controlBeacon.stop() }
             let open = WKWebView(frame: .zero, configuration: WKWebViewConfiguration())
-            open.loadHTMLString(pageWithoutCSP(script), baseURL: nil)
-            do { try await Task.sleep(for: .seconds(1)) } catch {}
-            let control = beacon.hits
-            expect(control > 0, "16m-5b r2: el control llega al puerto")
+            open.loadHTMLString(pageWithoutCSP(leakScript(port: controlPort)), baseURL: nil)
+            guard let took = await controlBeacon.firstHit(within: 20) else {
+                return expect(false, "16m-5b r2: el control no llegó a su puerto en 20 s")
+            }
 
+            let cspBeacon = try Beacon()
+            guard let cspPort = await cspBeacon.start() else { return expect(false, "16m-5b r2: no abrió el puerto de la CSP") }
+            defer { cspBeacon.stop() }
             let cspOnly = WKWebView(frame: .zero, configuration: WebKitDiagramRenderer.makeConfiguration())
-            cspOnly.loadHTMLString(DiagramPage.html(vendorScript: script), baseURL: nil)
-            do { try await Task.sleep(for: .seconds(1)) } catch {}
-            expectEq(beacon.hits, control, "16m-5b r2: la CSP sola cierra la red")
+            cspOnly.loadHTMLString(DiagramPage.html(vendorScript: leakScript(port: cspPort)), baseURL: nil)
+            do { try await Task.sleep(for: silenceWindow(controlTook: took)) } catch {}
+            expect(await leakScriptRan(in: cspOnly), "16m-5b r2: el script corrió bajo la CSP, así que el cero no es vacío")
+            expectEq(cspBeacon.hits, 0, "16m-5b r2: la CSP sola cierra la red")
 
             do {
+                let rulesBeacon = try Beacon()
+                guard let rulesPort = await rulesBeacon.start() else { return expect(false, "16m-5b r2: no abrió el puerto de las reglas") }
+                defer { rulesBeacon.stop() }
                 let rules = try await WKContentRuleListStore.default().compileContentRuleList(
                     forIdentifier: "companion.diagram.test", encodedContentRuleList: DiagramPage.blockNetworkRules)
                 let config = WebKitDiagramRenderer.makeConfiguration()
                 if let rules { config.userContentController.add(rules) }
                 let rulesOnly = WKWebView(frame: .zero, configuration: config)
-                rulesOnly.loadHTMLString(pageWithoutCSP(script), baseURL: nil)
-                do { try await Task.sleep(for: .seconds(1)) } catch {}
-                expectEq(beacon.hits, control, "16m-5b r2: las reglas solas cierran la red")
+                rulesOnly.loadHTMLString(pageWithoutCSP(leakScript(port: rulesPort)), baseURL: nil)
+                do { try await Task.sleep(for: silenceWindow(controlTook: took)) } catch {}
+                expect(await leakScriptRan(in: rulesOnly), "16m-5b r2: el script corrió bajo las reglas, así que el cero no es vacío")
+                expectEq(rulesBeacon.hits, 0, "16m-5b r2: las reglas solas cierran la red")
             }
         } catch {
             expect(false, "\(error)")
