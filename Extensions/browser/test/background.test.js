@@ -16,6 +16,11 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
     calls: [],
     // A test sets this to make a chrome call throw: (name, args) => boolean.
     failWhen: () => false,
+    cdp: [],
+    debugTargets: [],
+    attachError: null,
+    page: null,
+    cursor: undefined,
   };
   const trip = (name, args) => { if (state.failWhen(name, args)) throw new Error(`${name} failed`); };
   const created = [];
@@ -23,7 +28,7 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
   const dropEmptyGroups = () => { state.groups = state.groups.filter((g) => state.tabs.some((t) => t.groupId === g.id)); };
   const findTab = (id) => state.tabs.find((t) => t.id === id);
   const ports = [];
-  const registered = { alarm: [], startup: [], installed: [], removed: [], forbidden: [] };
+  const registered = { alarm: [], startup: [], installed: [], removed: [], forbidden: [], detach: [] };
   const listener = (bucket) => ({ addListener: (fn) => bucket.push(fn) });
   const chrome = {
     runtime: {
@@ -114,7 +119,27 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
         set: async (values) => { Object.assign(state.stored, values); },
       },
     },
-    scripting: { executeScript: async () => [] },
+    // Runs the injected func against `state.page`, a stand-in for page.js; files injection is a no-op.
+    scripting: {
+      executeScript: async ({ target, func, args, files }) => {
+        if (files || !func) return [];
+        globalThis.__companionPage = state.page;
+        globalThis.__companionCursor = state.cursor;
+        return [{ frameId: target.frameIds?.[0] ?? 0, result: await func(...(args ?? [])) }];
+      },
+    },
+    debugger: {
+      attach(target, version, cb) {
+        state.calls.push(['debugger.attach', target.tabId]);
+        if (state.attachError) chrome.runtime.lastError = { message: state.attachError };
+        cb();
+        chrome.runtime.lastError = undefined;
+      },
+      detach(target, cb) { state.calls.push(['debugger.detach', target.tabId]); cb(); },
+      sendCommand(target, method, params, cb) { state.cdp.push([target.tabId, method, params]); cb({}); },
+      getTargets(cb) { cb(state.debugTargets); },
+      onDetach: listener(registered.detach),
+    },
   };
   return { chrome, ports, registered, state };
 }
@@ -136,6 +161,8 @@ const answersTo = (port, id) => port.sent.filter((m) => m.id === id);
 afterEach(() => {
   mock.timers.reset();
   delete globalThis.chrome;
+  delete globalThis.__companionPage;
+  delete globalThis.__companionCursor;
 });
 
 test('the first message on a new port is a hello that carries no token', async () => {
@@ -338,7 +365,8 @@ test('browser_release after the user moved the tab out does nothing', async () =
   state.calls.length = 0;
   const reply = await ask(ports[0], 37, 'browser_release', { tab: 3 });
   assert.deepEqual(reply.result, { done: 'released' });
-  assert.deepEqual(state.calls, [], 'no ungroup, no move');
+  // Releasing always drops the debugger; what must not happen is touching the tab's place.
+  assert.deepEqual(state.calls.filter((c) => !c[0].startsWith('debugger.')), [], 'no ungroup, no move');
   assert.equal(state.tabs.at(-1).id, 3);
 });
 
@@ -420,4 +448,377 @@ test('browser_release falls back to the original index when regrouping fails, an
   const tab = state.tabs.find((t) => t.id === 2);
   assert.equal(tab.groupId, -1, 'not left in our group');
   assert.ok(state.calls.some((c) => c[0] === 'tabs.move' && c[1] === 2 && c[2] === 1), 'moved back to its index');
+});
+
+// --- Trusted input (18c) ---------------------------------------------------------------------------
+
+const presses = (state) => state.cdp.filter(([, method, params]) => method === 'Input.dispatchMouseEvent' && params.type === 'mousePressed');
+
+// A page with one button, read so element 1 of the reply's generation is live.
+async function readyButton(rig, spot, { landed = true } = {}) {
+  const clicked = [];
+  rig.state.page = {
+    read: () => ({ origin: 'https://a.example', text: 'Go', elements: [{ id: 1, frame: 0, role: 'button', label: 'Go', context: '', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null }] }),
+    locate: () => { rig.state.locates = (rig.state.locates ?? 0) + 1; return typeof spot === 'function' ? spot() : spot; },
+    hitsAt: () => rig.state.stillHits ?? true,
+    landed: () => landed,
+    click: () => { clicked.push(1); return { done: 'clicked' }; },
+  };
+  const read = await ask(rig.ports[0], 50, 'browser_read', { tab: 3 });
+  return { generation: read.result.page.generation, clicked };
+}
+
+const onScreen = { box: { x: 40, y: 60, w: 20, h: 10 }, inView: true, blocked: false, label: 'Go', role: 'button' };
+
+test('a trusted click presses once at the element center and answers clicked', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  const reply = await ask(rig.ports[0], 51, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+  assert.equal(presses(rig.state).length, 1);
+  assert.deepEqual([presses(rig.state)[0][2].x, presses(rig.state)[0][2].y], [40, 60]);
+});
+
+test('an element something else covers is never pressed with the mouse', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, clicked } = await readyButton(rig, { ...onScreen, blocked: true });
+  const reply = await ask(rig.ports[0], 52, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(presses(rig.state).length, 0);
+  assert.equal(clicked.length, 0);
+  assert.equal(reply.error.code, 'stale_id');
+});
+
+test('a press whose landing cannot be confirmed is not pressed again nor clicked synthetically', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, clicked } = await readyButton(rig, onScreen, { landed: false });
+  const reply = await ask(rig.ports[0], 53, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(presses(rig.state).length, 1);
+  assert.equal(clicked.length, 0);
+  assert.deepEqual(reply.result, { done: 'clicked' });
+});
+
+test('after the user cancels the debugging banner nothing re-attaches and input is refused', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  const attaches = () => rig.state.calls.filter((c) => c[0] === 'debugger.attach').length;
+  const before = attaches();
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+  const reply = await ask(rig.ports[0], 54, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(reply.error.code, 'debugger_revoked');
+  assert.equal(presses(rig.state).length, 0);
+  assert.equal(attaches(), before);
+});
+
+test('an attachment an earlier worker left behind is adopted instead of breaking the tab', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.attachError = 'Another debugger is already attached to the tab with id: 3.';
+  rig.state.debugTargets = [{ tabId: 3, attached: true, extensionId: EXTENSION_ID }];
+  const { generation } = await readyButton(rig, onScreen);
+  const reply = await ask(rig.ports[0], 55, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+  assert.equal(presses(rig.state).length, 1);
+});
+
+test('an element covered while the cursor glided is not pressed', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, clicked } = await readyButton(rig, onScreen);
+  rig.state.stillHits = false;
+  const reply = await ask(rig.ports[0], 56, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(presses(rig.state).length, 0);
+  assert.equal(clicked.length, 0);
+  assert.equal(reply.error.code, 'stale_id');
+});
+
+test('taking the tab again does not lift the user\'s Cancel on the debugging banner', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+  await ask(rig.ports[0], 57, 'browser_take', { tab: 3 });
+  const reply = await ask(rig.ports[0], 58, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(reply.error.code, 'debugger_revoked');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('releasing a tab an earlier worker attached to still detaches it', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await ask(rig.ports[0], 59, 'browser_take', { tab: 2 });
+  rig.state.debugTargets = [{ tabId: 3, attached: true, extensionId: EXTENSION_ID }];
+  await ask(rig.ports[0], 60, 'browser_release', { tab: 3 });
+  assert.ok(rig.state.calls.some((c) => c[0] === 'debugger.detach' && c[1] === 3));
+});
+
+test('a disconnect detaches every attachment of ours, also those an earlier worker left', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.debugTargets = [
+    { tabId: 3, attached: true, extensionId: EXTENSION_ID },
+    { tabId: 2, attached: true, extensionId: 'someoneelse' },
+  ];
+  rig.ports[0].hangUp();
+  await settle();
+  await settle();
+  const detached = rig.state.calls.filter((c) => c[0] === 'debugger.detach').map((c) => c[1]);
+  assert.deepEqual(detached, [3]);
+});
+
+// A page with one text field; `value` is what the field reads back after the keys.
+async function readyField(rig, { prepare = { ready: true }, spot = onScreen, readBack = null } = {}) {
+  const log = { synthetic: [], prepared: 0 };
+  rig.state.page = {
+    read: () => ({ origin: 'https://a.example', text: '', elements: [{ id: 1, frame: 0, role: 'textbox', label: 'Name', context: '', inputType: 'text', autocomplete: null, value: '', frameOrigin: null, href: null, fieldName: null, fieldId: null }] }),
+    locate: () => spot,
+    hitsAt: () => true,
+    landed: () => true,
+    prepareType: () => { log.prepared++; return prepare; },
+    typedValue: () => ({ value: readBack ?? log.typed ?? '' }),
+    type: (g, id, text) => { log.synthetic.push(text); return { done: 'typed' }; },
+  };
+  const read = await ask(rig.ports[0], 70, 'browser_read', { tab: 3 });
+  return { generation: read.result.page.generation, log };
+}
+
+const keysSent = (state) => state.cdp.filter(([, method, params]) => method === 'Input.dispatchKeyEvent' && params.type === 'char').map(([, , p]) => p.text).join('');
+const inputCalls = (state) => state.cdp.filter(([, method]) => method.startsWith('Input.'));
+
+test('trusted typing presses the field once and sends every printable key', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { readBack: 'Ana' });
+  const reply = await ask(rig.ports[0], 71, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.deepEqual(reply.result, { done: 'typed' });
+  assert.equal(presses(rig.state).length, 1);
+  assert.equal(keysSent(rig.state), 'Ana');
+});
+
+test('typing never sends Return, Escape or any other control key, and says so', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { readBack: 'ab' });
+  const reply = await ask(rig.ports[0], 72, 'browser_type', { tab: 3, generation, element: 1, text: 'a\nb\r\u001b\u007f' });
+  assert.equal(keysSent(rig.state), 'ab');
+  const keys = rig.state.cdp.filter(([, method]) => method === 'Input.dispatchKeyEvent').map(([, , p]) => p.key);
+  for (const forbidden of ['Enter', '\n', '\r', '\u001b', 'Escape', '\u007f']) assert.ok(!keys.includes(forbidden), forbidden);
+  assert.match(reply.result.done, /left out/);
+});
+
+test('a sensitive field is refused before any input reaches the page', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { prepare: { error: { code: 'secure_field', message: 'sensitive field, typing refused' } } });
+  const reply = await ask(rig.ports[0], 73, 'browser_type', { tab: 3, generation, element: 1, text: 'hunter2' });
+  assert.equal(reply.error.code, 'secure_field');
+  assert.deepEqual(inputCalls(rig.state), []);
+});
+
+test('a field that did not take the keys gets the value the old way', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyField(rig, { readBack: 'garbled' });
+  const reply = await ask(rig.ports[0], 74, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.deepEqual(log.synthetic, ['Ana']);
+  assert.deepEqual(reply.result, { done: 'typed' });
+});
+
+test('an element inside a frame is clicked the old way, not refused as covered', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, clicked } = await readyButton(rig, { ...onScreen, inFrame: true });
+  const reply = await ask(rig.ports[0], 75, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+  assert.equal(clicked.length, 1);
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a debugger that goes away mid-action answers debugger_unavailable, not invalid_args', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  rig.chrome.debugger.sendCommand = (target, method, params, cb) => {
+    if (method === 'Input.dispatchMouseEvent') rig.chrome.runtime.lastError = { message: 'Debugger is not attached to the tab with id: 3.' };
+    cb({});
+    rig.chrome.runtime.lastError = undefined;
+  };
+  const reply = await ask(rig.ports[0], 76, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(reply.error.code, 'debugger_unavailable');
+});
+
+test('the Cancel on the debugging banner survives a worker restart', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+  await settle();
+  const stored = { ...rig.state.stored };
+  mock.timers.reset();
+  const again = await boot({ tabs: userTabs(), stored });
+  const { generation } = await readyButton(again, onScreen);
+  const reply = await ask(again.ports[0], 77, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(reply.error.code, 'debugger_revoked');
+  assert.equal(presses(again.state).length, 0);
+});
+
+test('the cursor is removed when the user cancels the debugging banner', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await readyButton(rig, onScreen);
+  let destroyed = 0;
+  const run = rig.chrome.scripting.executeScript;
+  rig.chrome.scripting.executeScript = async (opts) => {
+    globalThis.__companionCursor = { destroy: () => { destroyed++; } };
+    return opts.func ? [{ frameId: 0, result: opts.func(...(opts.args ?? [])) }] : run(opts);
+  };
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+  await settle();
+  assert.equal(destroyed, 1);
+});
+
+// --- QA review follow-ups ---------------------------------------------------------------------------
+
+const offScreen = { ...onScreen, inView: false };
+
+test('an element that never comes on screen is not pressed and is clicked synthetically once', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, clicked } = await readyButton(rig, offScreen);
+  const reply = await ask(rig.ports[0], 80, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(presses(rig.state).length, 0);
+  assert.equal(clicked.length, 1);
+  assert.deepEqual(reply.result, { done: 'clicked' });
+});
+
+test('a cover that goes away is waited out and the element is pressed exactly once', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  let n = 0;
+  const { generation } = await readyButton(rig, () => (++n === 1 ? { ...onScreen, blocked: true } : onScreen));
+  await ask(rig.ports[0], 81, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(presses(rig.state).length, 1);
+});
+
+test('a cover that stays is checked three times and never pressed', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, { ...onScreen, blocked: true });
+  await ask(rig.ports[0], 82, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(rig.state.locates, 3);
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('typing into a covered field sends no press and no key', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { spot: { ...onScreen, blocked: true } });
+  const reply = await ask(rig.ports[0], 83, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.deepEqual(inputCalls(rig.state), []);
+});
+
+test('typing into a field off screen focuses it without a press and still types real keys', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyField(rig, { spot: offScreen, readBack: 'Ana' });
+  const reply = await ask(rig.ports[0], 84, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.equal(presses(rig.state).length, 0);
+  assert.equal(keysSent(rig.state), 'Ana');
+  assert.equal(log.prepared, 2);
+  assert.deepEqual(reply.result, { done: 'typed' });
+});
+
+test('two actions on one tab never interleave their input', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  rig.ports[0].receive(call(85, 'browser_click', { tab: 3, generation, element: 1 }));
+  rig.ports[0].receive(call(86, 'browser_click', { tab: 3, generation, element: 1 }));
+  for (let i = 0; i < 10; i++) await settle();
+  const kinds = rig.state.cdp.filter(([, m]) => m === 'Emulation.setFocusEmulationEnabled' || m === 'Input.dispatchMouseEvent')
+    .map(([, m, p]) => (m === 'Emulation.setFocusEmulationEnabled' ? (p.enabled ? 'on' : 'off') : p.type));
+  const block = ['on', 'mouseMoved', 'mousePressed', 'mouseReleased', 'off'];
+  assert.deepEqual(kinds, [...block, ...block]);
+});
+
+test('taking a tab attaches once and keeps its page lifecycle active', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await ask(rig.ports[0], 87, 'browser_take', { tab: 3 });
+  await readyButton(rig, onScreen);
+  assert.equal(rig.state.calls.filter((c) => c[0] === 'debugger.attach').length, 1);
+  const methods = rig.state.cdp.filter(([tab]) => tab === 3).map(([, m, p]) => [m, p]);
+  assert.ok(methods.some(([m]) => m === 'Page.enable'));
+  assert.ok(methods.some(([m, p]) => m === 'Page.setWebLifecycleState' && p.state === 'active'));
+});
+
+test('focus emulation is switched off even when the action fails', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  const send = rig.chrome.debugger.sendCommand;
+  rig.chrome.debugger.sendCommand = (target, method, params, cb) => {
+    if (method === 'Input.dispatchMouseEvent') rig.chrome.runtime.lastError = { message: 'boom' };
+    send(target, method, params, cb);
+    rig.chrome.runtime.lastError = undefined;
+  };
+  await ask(rig.ports[0], 88, 'browser_click', { tab: 3, generation, element: 1 });
+  const last = rig.state.cdp.filter(([, m]) => m === 'Emulation.setFocusEmulationEnabled').at(-1);
+  assert.deepEqual(last[2], { enabled: false });
+});
+
+test('a tab Chrome will not let us attach to answers debugger_unavailable and is never pressed', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.attachError = 'Cannot access a chrome:// URL';
+  const { generation } = await readyButton(rig, onScreen);
+  const take = await ask(rig.ports[0], 89, 'browser_take', { tab: 2 });
+  assert.deepEqual(take.result, { done: 'taken' });
+  const reply = await ask(rig.ports[0], 90, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(reply.error.code, 'debugger_unavailable');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('an attachment held by someone else is not adopted', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.attachError = 'Another debugger is already attached to the tab with id: 3.';
+  rig.state.debugTargets = [{ tabId: 3, attached: true, extensionId: 'someoneelse' }];
+  const { generation } = await readyButton(rig, onScreen);
+  const reply = await ask(rig.ports[0], 91, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(reply.error.code, 'debugger_unavailable');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a Cancel that lands in the middle of an action answers debugger_revoked', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  rig.chrome.debugger.sendCommand = (target, method, params, cb) => {
+    if (method === 'Input.dispatchMouseEvent') {
+      for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+      rig.chrome.runtime.lastError = { message: 'Debugger is not attached to the tab with id: 3.' };
+    }
+    cb({});
+    rig.chrome.runtime.lastError = undefined;
+  };
+  const reply = await ask(rig.ports[0], 92, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(reply.error.code, 'debugger_revoked');
+});
+
+test('typing after the user cancelled the banner is refused with no input at all', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { readBack: 'Ana' });
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+  const reply = await ask(rig.ports[0], 93, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.equal(reply.error.code, 'debugger_revoked');
+  assert.deepEqual(inputCalls(rig.state), []);
+});
+
+test('reading after the user cancelled the banner does not re-attach', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await readyButton(rig, onScreen);
+  const attaches = () => rig.state.calls.filter((c) => c[0] === 'debugger.attach').length;
+  const before = attaches();
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+  await ask(rig.ports[0], 94, 'browser_read', { tab: 3 });
+  assert.equal(attaches(), before);
+});
+
+async function countDestroys(rig) {
+  const seen = { destroyed: 0 };
+  rig.state.cursor = { destroy: () => { seen.destroyed++; } };
+  return seen;
+}
+
+test('the cursor is removed when the tab is released', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await ask(rig.ports[0], 95, 'browser_take', { tab: 3 });
+  const seen = await countDestroys(rig);
+  await ask(rig.ports[0], 96, 'browser_release', { tab: 3 });
+  assert.equal(seen.destroyed, 1);
+});
+
+test('the cursor is removed from every controlled tab when the app goes away', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await ask(rig.ports[0], 97, 'browser_take', { tab: 3 });
+  const seen = await countDestroys(rig);
+  rig.ports[0].hangUp();
+  for (let i = 0; i < 5; i++) await settle();
+  assert.equal(seen.destroyed, 1);
 });

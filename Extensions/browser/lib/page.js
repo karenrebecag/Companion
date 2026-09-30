@@ -305,9 +305,109 @@
     return found.error ? found : run(found.element);
   }
 
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const STABLE_TRIES = 10;
+  const STABLE_STEP_MS = 40;
+
+  // A popover that re-renders between measure and press makes a trusted click land on nothing,
+  // so the box has to hold still across two reads before its center is handed to CDP.
+  async function locate(generation, id, token) {
+    const found = lookup(stateOf(), generation, id);
+    if (found.error) return found;
+    const el = found.element;
+    // A selector read reaches into same-origin iframes; their boxes are in the frame's own coordinates.
+    if (el.ownerDocument !== document) return { inFrame: true, label: labelOf(el), role: roleOf(el) };
+    el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+    let box = null;
+    for (let i = 0; i < STABLE_TRIES; i++) {
+      const r = el.getBoundingClientRect();
+      const next = { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+      const still = box && Math.abs(box.x - next.x) < 1 && Math.abs(box.y - next.y) < 1;
+      box = next;
+      if (still) break;
+      await sleep(STABLE_STEP_MS);
+    }
+    const inView = box.w > 0 && box.h > 0 && box.x >= 0 && box.y >= 0
+      && box.x <= window.innerWidth && box.y <= window.innerHeight;
+    // A trusted press goes to whatever is on top at that pixel, not to the element: a decoy or a
+    // floating third-party frame there would receive a click nobody approved.
+    const blocked = inView && !hitsTarget(el, deepElementFromPoint(document, box.x, box.y));
+    if (inView && !blocked) armLanding(el, token);
+    return { box, inView, blocked, label: labelOf(el), role: roleOf(el) };
+  }
+
+  function deepElementFromPoint(doc, x, y) {
+    let node = doc.elementFromPoint(x, y);
+    while (node && node.shadowRoot) {
+      const inner = node.shadowRoot.elementFromPoint(x, y);
+      if (!inner || inner === node) break;
+      node = inner;
+    }
+    return node;
+  }
+
+  // Re-checked right before the press: the page had the whole cursor glide to slip something on top.
+  function hitsAt(generation, id, x, y) {
+    const found = lookup(stateOf(), generation, id);
+    return !found.error && hitsTarget(found.element, deepElementFromPoint(document, x, y));
+  }
+
+  // Walks up through shadow roots to their hosts, so a hit on a web component's inner span counts.
+  // Another control on the way up (a Delete button inside a clickable row) is not the approved one.
+  function hitsTarget(el, topmost) {
+    for (let node = topmost; node; node = node.parentNode ?? node.host ?? null) {
+      if (node === el) return true;
+      if (node.tagName && isListable(node)) return false;
+    }
+    return false;
+  }
+
+  // Proof the press reached the element and not an overlay on top of it: the trusted click's path must contain it.
+  function armLanding(el, token) {
+    const state = stateOf();
+    state.landing = { token, hit: false };
+    const listener = (event) => {
+      if (state.landing?.token !== token) return;
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+      state.landing = { token, hit: event.isTrusted === true && path.includes(el) };
+    };
+    window.addEventListener('click', listener, { capture: true, once: true });
+  }
+
+  // null means this document is not the one that was armed: the click navigated, which is a landing.
+  function landed(token) {
+    const landing = stateOf().landing;
+    return landing && landing.token === token ? landing.hit : null;
+  }
+
+  // Runs after the trusted click focused the field; selecting first makes the keys replace, not append.
+  function prepareType(generation, id) {
+    const found = lookup(stateOf(), generation, id);
+    if (found.error) return found;
+    const el = found.element;
+    if (isSensitive(fieldOf(el))) return { error: { code: 'secure_field', message: 'sensitive field, typing refused' } };
+    const tag = tagOf(el);
+    const isText = tag === 'input' || tag === 'textarea';
+    if ((!isText && !isContentEditableEl(el)) || (tag === 'input' && String(el.type || '').toLowerCase() === 'file')) {
+      return { error: { code: 'invalid_args', message: 'this element cannot take typed text' } };
+    }
+    if (el.ownerDocument.activeElement !== el) el.focus();
+    if (isText && typeof el.select === 'function') el.select();
+    else el.ownerDocument.execCommand('selectAll', false);
+    return { ready: true };
+  }
+
+  function typedValue(generation, id) {
+    const found = lookup(stateOf(), generation, id);
+    if (found.error) return found;
+    const el = found.element;
+    const tag = tagOf(el);
+    return { value: tag === 'input' || tag === 'textarea' ? el.value : String(el.textContent ?? '') };
+  }
+
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
-    clickElement, typeIntoElement, read,
+    clickElement, typeIntoElement, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt,
     click: (generation, id) => act(generation, id, clickElement),
     type: (generation, id, text) => act(generation, id, (el) => typeIntoElement(el, text)),
   };

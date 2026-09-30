@@ -341,3 +341,76 @@ test('the serialized value is clipped to 200 code points', () => {
   assert.equal(Array.from(out.value).length, 200);
   assert.ok(!SURROGATE.test(out.value));
 });
+
+test('the point under the cursor hits the target when it is the target or inside it', () => {
+  const button = fake({ tag: 'button', text: 'Go' });
+  const icon = fake({ tag: 'span' });
+  icon.parentNode = button;
+  const overlay = fake({ tag: 'div' });
+  assert.equal(page.hitsTarget(button, button), true);
+  assert.equal(page.hitsTarget(button, icon), true);
+  assert.equal(page.hitsTarget(button, overlay), false);
+  assert.equal(page.hitsTarget(button, null), false);
+});
+
+test('a hit inside a shadow root counts through its host', () => {
+  const host = fake({ tag: 'my-button' });
+  const shadowRoot = { host, parentNode: null };
+  const inner = fake({ tag: 'span' });
+  inner.parentNode = shadowRoot;
+  assert.equal(page.hitsTarget(host, inner), true);
+});
+
+test('a hit on another control inside the target is not the target', () => {
+  const row = fake({ tag: 'a', attrs: { href: '/item' } });
+  const del = fake({ tag: 'button', text: 'Delete' });
+  del.parentNode = row;
+  assert.equal(page.hitsTarget(row, del), false);
+});
+
+test('a hit on something that contains the target is not the target', () => {
+  const overlay = fake({ tag: 'div' });
+  const button = fake({ tag: 'button', text: 'Go' });
+  button.parentNode = overlay;
+  assert.equal(page.hitsTarget(button, overlay), false);
+});
+
+// prepareType and typedValue look elements up in the page state, as after a read.
+function armed(el) {
+  globalThis.__companionState = { generation: 1, elements: new Map([[1, el]]) };
+  return el;
+}
+
+test('prepareType refuses a password or card field before focusing or selecting it', () => {
+  for (const attrs of [{ type: 'password' }, { type: 'text', autocomplete: 'cc-number' }]) {
+    const el = armed(fake({ tag: 'input', attrs }));
+    let selected = 0;
+    el.select = () => { selected++; };
+    assert.equal(page.prepareType(1, 1).error.code, 'secure_field', JSON.stringify(attrs));
+    assert.equal(el.focused, false);
+    assert.equal(selected, 0);
+  }
+});
+
+test('prepareType refuses a file input and an element that takes no text', () => {
+  armed(fake({ tag: 'input', attrs: { type: 'file' } }));
+  assert.equal(page.prepareType(1, 1).error.code, 'invalid_args');
+  armed(fake({ tag: 'div' }));
+  assert.equal(page.prepareType(1, 1).error.code, 'invalid_args');
+});
+
+test('prepareType focuses a text field and selects its content so the keys replace it', () => {
+  const el = armed(fake({ tag: 'input', attrs: { type: 'text' }, value: 'old' }));
+  let selected = 0;
+  el.select = () => { selected++; };
+  assert.deepEqual(page.prepareType(1, 1), { ready: true });
+  assert.equal(el.focused, true);
+  assert.equal(selected, 1);
+});
+
+test('typedValue reads an input by value and an editable by its text', () => {
+  armed(fake({ tag: 'input', attrs: { type: 'text' }, value: 'Ana' }));
+  assert.deepEqual(page.typedValue(1, 1), { value: 'Ana' });
+  armed(fake({ tag: 'div', attrs: { contenteditable: 'true' }, text: 'Hola', editable: true }));
+  assert.deepEqual(page.typedValue(1, 1), { value: 'Hola' });
+});
