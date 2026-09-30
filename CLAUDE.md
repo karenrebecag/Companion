@@ -10,6 +10,7 @@ referencia `../companion` (solo lectura: se consulta, jamas se edita).
 | `docs/ROADMAP.md` | Estado de las waves y foco actual | Al abrir sesion, SIEMPRE primero |
 | `docs/PROGRAM.md` | El plan: que entrega cada wave | Al abrir una wave |
 | `docs/specs/wave-N-*.md` | Contrato de cada wave (BORRADOR/APROBADO/EN CURSO/CERRADO) | Antes de codear la wave |
+| Specs cerrados | Se borran del arbol al cerrar sin pendientes; `git log --diff-filter=D --name-only -- docs/specs` los encuentra | Cuando un comentario cita una spec que ya no esta |
 | `docs/ORCHESTRATION.md` | Flujo por wave: fases, agentes, paralelismo, cierre | Antes de despachar agentes |
 | `docs/ARCHITECTURE.md` | Patron: capas, puertos, reducer, concurrencia | Antes de disenar cualquier API |
 | `docs/REFERENCE.md` | Ledger de cicatrices del original (archivo:linea) | Antes de portar CUALQUIER comportamiento |
