@@ -13,14 +13,15 @@ const idFromKey = (key) => createHash('sha256')
   .slice(0, 32)
   .replace(/[0-9a-f]/g, (digit) => String.fromCharCode('a'.charCodeAt(0) + parseInt(digit, 16)));
 
-test('the permissions are exactly nativeMessaging, scripting, alarms, tabGroups and storage', () => {
-  assert.deepEqual([...manifest.permissions].sort(), ['alarms', 'nativeMessaging', 'scripting', 'storage', 'tabGroups']);
+// debugger since step 1 of the Incredible-style redesign (authorized by Karen 2026-09-29): trusted
+// input and an active lifecycle on background tabs are impossible without it. Only Companion's tabs attach.
+test('the permissions are exactly nativeMessaging, scripting, alarms, tabGroups, storage and debugger', () => {
+  assert.deepEqual([...manifest.permissions].sort(), ['alarms', 'debugger', 'nativeMessaging', 'scripting', 'storage', 'tabGroups']);
 });
 
-test('tabs and debugger are not requested in any permission list', () => {
+test('tabs is not requested in any permission list', () => {
   for (const list of [manifest.permissions, manifest.optional_permissions ?? []]) {
     assert.ok(!list.includes('tabs'));
-    assert.ok(!list.includes('debugger'));
   }
 });
 

@@ -3,6 +3,7 @@ import {
   nextGeneration, makeReplyGuard, sanitizeTab, buildPage,
 } from './lib/wire.js';
 import { GROUP_TITLE, groupPlan, releasePlan, cleanupPlan, recordCreated } from './lib/groups.js';
+import { createCdp, isControl } from './lib/cdp.js';
 
 const HOST = 'com.karen.companion.browser';
 const PROTOCOL = 1;
@@ -19,6 +20,7 @@ let reconnectTimer = null;
 const tabState = new Map();
 let generationCounter = 0;
 const replies = makeReplyGuard();
+const cdp = createCdp(globalThis.chrome, { onDetached: (tabId) => { hideCursor(tabId); } });
 const GROUPS_KEY = 'companionGroups';
 // Where each taken tab was before we grouped it. Memory only: after a worker restart release simply ungroups.
 const taken = new Map();
@@ -111,8 +113,8 @@ function dispatch(name, args) {
   switch (name) {
     case 'browser_tabs': return tabs();
     case 'browser_read': return readTab(args.tab, args.selector ?? null);
-    case 'browser_click': return act(args, (g, id) => globalThis.__companionPage.click(g, id), []);
-    case 'browser_type': return act(args, (g, id, text) => globalThis.__companionPage.type(g, id, text), [args.text]);
+    case 'browser_click': return trustedClick(args);
+    case 'browser_type': return trustedType(args);
     case 'browser_navigate': return navigate(args.tab, args.url);
     case 'browser_open': return serial(() => openTab(args.url));
     case 'browser_take': return serial(() => takeTab(args.tab));
@@ -170,6 +172,7 @@ async function takeTab(tabId) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab) return staleTab;
   await putInGroup(tab);
+  await cdp.ensureAttached(tabId).catch((error) => console.warn('companion: debugger attach failed', error?.message));
   return { done: 'taken' };
 }
 
@@ -182,6 +185,7 @@ async function openTab(url) {
     await chrome.tabs.remove(created.id).catch(() => {});
     throw error;
   }
+  await cdp.ensureAttached(created.id).catch((error) => console.warn('companion: debugger attach failed', error?.message));
   const { id, title, url: shown, active } = sanitizeTab({ ...created, url: created.url || created.pendingUrl || url });
   return { tab: { id, title, url: shown, active } };
 }
@@ -191,6 +195,7 @@ async function releaseTab(tabId) {
   if (!tab) return staleTab;
   const record = taken.get(tabId) ?? null;
   taken.delete(tabId);
+  await cdp.detach(tabId);
   const inWindow = new Set((await chrome.tabGroups.query({ windowId: tab.windowId })).map((g) => g.id));
   const plan = releasePlan({ record, tab, ourGroupIds: await ourGroupIds(tab.windowId), groupExists: (id) => inWindow.has(id) });
   if (!plan.act) return { done: 'released' };
@@ -209,6 +214,7 @@ async function releaseTab(tabId) {
 
 function dissolveOurGroups() {
   taken.clear();
+  cdp.detachAll();
   return serial(async () => {
     try {
       const stored = (await chrome.storage.session.get(GROUPS_KEY))[GROUPS_KEY];
@@ -237,6 +243,7 @@ async function run(target, func, args) {
 async function readTab(tabId, selector) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab) return { error: { code: 'invalid_args', message: 'no such tab' } };
+  await cdp.ensureAttached(tabId).catch(() => {});
   generationCounter = nextGeneration(generationCounter, Date.now());
   const generation = generationCounter;
   // With a selector only the top frame runs: it descends into same-origin iframes itself, and
@@ -268,6 +275,151 @@ async function act(args, func, extra) {
   return hit ? hit.result : { error: { code: 'stale_id', message: 'the frame is gone' } };
 }
 
+const CLICK_ATTEMPTS = 3;
+const staleElement = { error: { code: 'stale_id', message: 'read the page again to get fresh element ids' } };
+
+function entryFor(args) {
+  const state = tabState.get(args.tab);
+  return state && state.generation === args.generation ? state.map.get(args.element) ?? null : null;
+}
+
+async function inPage(target, func, args = []) {
+  const [hit] = await run(target, func, args);
+  return hit ? hit.result : null;
+}
+
+// Decoration: a page that refuses injection simply has no cursor, and the action goes ahead.
+async function showCursor(target, x, y, label) {
+  try {
+    await chrome.scripting.executeScript({ target, files: ['lib/cursor.js'], world: 'ISOLATED' });
+    await chrome.scripting.executeScript({
+      target, world: 'ISOLATED', args: [x, y, label],
+      func: (cx, cy, text) => globalThis.__companionCursor?.moveTo(cx, cy, text),
+    });
+  } catch {
+    // Restricted page or frame gone.
+  }
+}
+
+async function pressCursor(target) {
+  await chrome.scripting.executeScript({ target, world: 'ISOLATED', func: () => { globalThis.__companionCursor?.press(); } })
+    .catch(() => {});
+}
+
+async function hideCursor(tabId) {
+  await chrome.scripting.executeScript({
+    target: { tabId, frameIds: [0] }, world: 'ISOLATED', func: () => { globalThis.__companionCursor?.destroy(); },
+  }).catch(() => {});
+}
+
+// false only when the armed document saw a click that missed; a navigation or an unreadable page counts as landed.
+async function didLand(target, token) {
+  try {
+    const out = await inPage(target, (t) => ({ landed: globalThis.__companionPage?.landed(t) ?? null }), [token]);
+    return out?.landed !== false;
+  } catch {
+    return true;
+  }
+}
+
+const coveredElement = { error: { code: 'stale_id', message: 'something covers this element (a dialog or banner); read the page again' } };
+const revokedReply = (error) => ({ error: { code: 'debugger_revoked', message: error.message } });
+// Cancel mid-action, DevTools taking over, or a page Chrome will not let us attach to: the caller
+// needs a stable code, not a raw message under invalid_args.
+// A Cancel that lands mid-action surfaces as a plain "not attached" error, so the revocation is checked
+// again: a model told "unavailable" would retry what the user just stopped.
+async function inputFailed(tabId, error) {
+  if (error?.code === 'debugger_revoked' || await cdp.isRevoked(tabId)) {
+    return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
+  }
+  return { error: { code: 'debugger_unavailable', message: String(error?.message ?? error).slice(0, 200) } };
+}
+const LOCATE_ATTEMPTS = 3;
+
+// Moves the cursor to the element and presses there with a real mouse, at most ONCE: a press that
+// could not be confirmed may still have landed, and pressing again could buy or send twice.
+// Only locating is retried. Returns 'pressed', 'offscreen' (never pressed), or an error reply.
+async function pressElement(args, entry, target, verb) {
+  for (let attempt = 1; attempt <= LOCATE_ATTEMPTS; attempt++) {
+    const token = `${Date.now()}-${attempt}`;
+    const spot = await inPage(target, (g, id, t) => globalThis.__companionPage.locate(g, id, t),
+      [args.generation, entry.localId, token]);
+    if (!spot) return staleElement;
+    if (spot.error) return spot;
+    if (spot.inFrame) return 'frame';
+    if (!spot.inView) continue;
+    if (spot.blocked) {
+      if (attempt < LOCATE_ATTEMPTS) continue;
+      return coveredElement;
+    }
+    await showCursor(target, spot.box.x, spot.box.y, `${verb} · ${spot.label || spot.role}`);
+    const still = await inPage(target, (g, id, x, y) => ({ hit: globalThis.__companionPage.hitsAt(g, id, x, y) }),
+      [args.generation, entry.localId, spot.box.x, spot.box.y]);
+    if (!still?.hit) return coveredElement;
+    await cdp.mouseClick(args.tab, spot.box.x, spot.box.y);
+    await pressCursor(target);
+    if (!(await didLand(target, token))) console.warn('companion: press not confirmed on the element; not repeating it');
+    return 'pressed';
+  }
+  return 'offscreen';
+}
+
+// Only the top frame gets the trusted path: an iframe's box is in its own coordinates, not the tab's.
+async function trustedClick(args) {
+  const entry = entryFor(args);
+  if (!entry) return staleElement;
+  if (entry.frameId !== 0) return act(args, (g, id) => globalThis.__companionPage.click(g, id), []);
+  const target = { tabId: args.tab, frameIds: [0] };
+  try {
+    await inject(target);
+  } catch {
+    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+  }
+  if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
+  return cdp.withInput(args.tab, async () => {
+    const pressed = await pressElement(args, entry, target, 'Clic');
+    if (pressed === 'pressed') return { done: 'clicked' };
+    if (typeof pressed === 'object') return pressed;
+    // Never pressed (off-screen or zero-size): the synthetic click targets the element itself, nothing on top of it.
+    const fallback = await inPage(target, (g, id) => globalThis.__companionPage.click(g, id), [args.generation, entry.localId]);
+    return fallback ?? staleElement;
+  }).catch((error) => inputFailed(args.tab, error));
+}
+
+async function trustedType(args) {
+  const entry = entryFor(args);
+  if (!entry) return staleElement;
+  const typeSynthetic = () => act(args, (g, id, text) => globalThis.__companionPage.type(g, id, text), [args.text]);
+  if (entry.frameId !== 0) return typeSynthetic();
+  const target = { tabId: args.tab, frameIds: [0] };
+  try {
+    await inject(target);
+  } catch {
+    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+  }
+  const prepare = () => inPage(target, (g, id) => globalThis.__companionPage.prepareType(g, id), [args.generation, entry.localId]);
+  // Refuse a sensitive or unfit field before the cursor ever goes near it.
+  const checked = await prepare();
+  if (!checked) return staleElement;
+  if (checked.error) return checked;
+  if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
+  return cdp.withInput(args.tab, async () => {
+    const pressed = await pressElement(args, entry, target, 'Escribiendo');
+    if (pressed === 'frame') return typeSynthetic();
+    if (typeof pressed === 'object') return pressed;
+    const ready = await prepare();
+    if (!ready) return staleElement;
+    if (ready.error) return ready;
+    await cdp.typeText(args.tab, args.text);
+    const expected = Array.from(args.text).filter((ch) => !isControl(ch)).join('');
+    const after = await inPage(target, (g, id) => globalThis.__companionPage.typedValue(g, id), [args.generation, entry.localId]);
+    // A field that swallowed the keys (masked inputs, some editors) still gets the value the old way.
+    if (!after || after.error || after.value !== expected) return typeSynthetic();
+    // The model has to know its line breaks did not go in, or it would report text that is not there.
+    return { done: expected.length === Array.from(args.text).length ? 'typed' : 'typed (line breaks and control keys were left out)' };
+  }).catch((error) => inputFailed(args.tab, error));
+}
+
 async function navigate(tabId, url) {
   try {
     await chrome.tabs.update(tabId, { url });
@@ -280,6 +432,7 @@ async function navigate(tabId, url) {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   tabState.delete(tabId);
+  cdp.forget(tabId);
   taken.delete(tabId);
   createdAt = new Map([...createdAt].filter(([id]) => id !== tabId));
 });

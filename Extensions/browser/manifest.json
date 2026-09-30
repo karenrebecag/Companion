@@ -5,7 +5,7 @@
   "description": "Lets Companion read and operate the tabs you lend it, through a local native host.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA+mSpyYx06SsB/3gRfwb9TzK5cX7r5hX4rEekhCftDuUYNGUCc4WVZCNX6ZzNF5QAvygnfXBLq1DTi3nAwkU4vVOVsDcYbSWgXd5FVZ0zaGeoy/BsS1J/rMDKEP9jG022Hlnc1nTwPj6PHtxp74fwuYRdWyb2hJAGQPQ4jxmWhWdVgGIcin2+PzBLdtO8cUvrO31R3Z6XX5TDS1fS/imu6tzAoVYv4+Tr1fVYSuZplKrW4Wd3XCaMJTLj2g37ZP6M0Se37pD78Y5/MoPmzJSIsBxEMUqwd4e8RZ9ocREbUyFZ7XLkJwi3BYQ5dxVlNq5ft13YuIvBQEmnvOZo2t3f4QIDAQAB",
   "minimum_chrome_version": "116",
-  "permissions": ["nativeMessaging", "scripting", "alarms", "tabGroups", "storage"],
+  "permissions": ["nativeMessaging", "scripting", "alarms", "tabGroups", "storage", "debugger"],
   "host_permissions": ["<all_urls>"],
   "externally_connectable": { "ids": [] },
   "background": { "service_worker": "background.js", "type": "module" }
