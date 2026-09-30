@@ -59,9 +59,14 @@ enum DiagramPNG {
     /// The matte off the main actor: six million pixels for a 3000-point
     /// diagram is seconds of loop in a debug build, and the island must stay
     /// live while it runs.
-    static func matteAsync(onWhite white: CGImage, onBlack black: CGImage) async -> CGImage? {
+    /// `onRun` is a per-call probe so a test sees only its own run, never one
+    /// from a parallel test.
+    static func matteAsync(onWhite white: CGImage, onBlack black: CGImage,
+                           onRun: (@Sendable (Bool) -> Void)? = nil) async -> CGImage? {
         let shots = MatteShots(white: white, black: black)
-        return await Task.detached(priority: .userInitiated) { DiagramMatte.matte(onWhite: shots.white, onBlack: shots.black) }.value
+        return await Task.detached(priority: .userInitiated) {
+            DiagramMatte.matte(onWhite: shots.white, onBlack: shots.black, onRun: onRun)
+        }.value
     }
 
     /// Kept for callers on the main actor with small images (tests).
@@ -91,10 +96,9 @@ enum DiagramMatte {
     }
 
     /// alpha = 1 - (white - black) / 255; premultiplied colour = black.
-    /// Test seam: told whether the loop is running on the main thread.
-    nonisolated(unsafe) static var onRun: (@Sendable (Bool) -> Void)?
-
-    static func matte(onWhite white: CGImage, onBlack black: CGImage) -> CGImage? {
+    /// `onRun` is a test probe: told whether the loop is running on the main thread.
+    static func matte(onWhite white: CGImage, onBlack black: CGImage,
+                      onRun: (@Sendable (Bool) -> Void)? = nil) -> CGImage? {
         onRun?(Thread.isMainThread)
         let width = black.width, height = black.height
         guard white.width == width, white.height == height,

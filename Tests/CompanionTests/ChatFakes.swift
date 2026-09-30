@@ -213,8 +213,9 @@ final class FakeWorkspaceOpener: WorkspaceOpening, @unchecked Sendable {
     var installed: [String]
     var running: [String]
     var failure: ContractError?
-    private(set) var openedApps: [String] = []
-    private(set) var openedURLs: [URL] = []
+    private let opened = LockedBox<(apps: [String], urls: [URL])>(([], []))
+    var openedApps: [String] { opened.withLock { $0.apps } }
+    var openedURLs: [URL] { opened.withLock { $0.urls } }
 
     init(installed: [String] = ["Safari"], running: [String] = []) {
         self.installed = installed
@@ -223,12 +224,12 @@ final class FakeWorkspaceOpener: WorkspaceOpening, @unchecked Sendable {
 
     func openApplication(named name: String) async throws(ContractError) {
         if let failure { throw failure }
-        openedApps.append(name)
+        opened.withLock { $0.apps.append(name) }
     }
 
     func open(_ url: URL) async throws(ContractError) {
         if let failure { throw failure }
-        openedURLs.append(url)
+        opened.withLock { $0.urls.append(url) }
     }
 
     func runningApplications() -> [String] { running }

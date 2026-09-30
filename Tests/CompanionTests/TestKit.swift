@@ -22,6 +22,48 @@ func expectEq<T: Equatable>(
             sourceLocation: sourceLocation)
 }
 
+/// Fakes are written from an actor's thread and read from the main-actor test
+/// body (`pumpUntil`); a bare stored property there is a data race that
+/// crashed the suite in `Array.append`. Same idea as `ScriptedThread`'s lock.
+final class LockedBox<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: T
+
+    init(_ value: T) { stored = value }
+
+    /// `_modify` keeps `box.value.append(x)` one critical section instead of
+    /// a get and a set that another writer could slip between.
+    var value: T {
+        get { lock.withLock { stored } }
+        _modify {
+            lock.lock()
+            defer { lock.unlock() }
+            yield &stored
+        }
+    }
+
+    func withLock<R>(_ body: (inout T) throws -> R) rethrows -> R {
+        try lock.withLock { try body(&stored) }
+    }
+}
+
+/// The lock is non-recursive and held for the whole `_modify`: touching the
+/// same property inside its own mutation deadlocks, and check-then-act across
+/// two separate accesses is not atomic (use `withLock`).
+/// Property-wrapper form of `LockedBox` for fakes with many independent
+/// flags: `@Guarded var started = false` keeps every call site unchanged.
+@propertyWrapper
+struct Guarded<T>: Sendable {
+    private let box: LockedBox<T>
+
+    init(wrappedValue: T) { box = LockedBox(wrappedValue) }
+
+    var wrappedValue: T {
+        get { box.value }
+        nonmutating _modify { yield &box.value }
+    }
+}
+
 /// Sequential harness only. Never call this from Core or Services.
 final class AsyncBox<T: Sendable>: @unchecked Sendable {
     var result: Result<T, Error>?

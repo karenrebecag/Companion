@@ -220,22 +220,50 @@ func testTheDataEntersAsAnArgumentNeverAsCode() {
 
 // MARK: - Core: the timeout
 
+/// Work that ignores cancellation and ends only when the test opens it. The
+/// timeout returning at all proves it did not wait for the hung work; a wall
+/// clock bound on that failed whenever a loaded machine ran slow.
+@MainActor private final class HungWork {
+    private var waiter: CheckedContinuation<Void, Never>?
+    private var opened = false
+    private(set) var finished = false
+
+    func run(_ value: Int) async -> Int {
+        if !opened { await withCheckedContinuation { waiter = $0 } }
+        finished = true
+        return value
+    }
+
+    func open() {
+        opened = true
+        waiter?.resume()
+        waiter = nil
+    }
+}
+
 @MainActor
 @Test func diagramTimeoutTests() async {
-    let fast = await DiagramTimeout.run(after: .seconds(2)) { 42 }
+    let fast = await DiagramTimeout.run(after: .seconds(600)) { 42 }
     expectEq(fast, 42, "16m-5b: lo que termina a tiempo se entrega")
-    let start = ContinuousClock.now
-    let slow: Int? = await DiagramTimeout.run(after: .milliseconds(80)) {
-        do { try await Task.sleep(for: .seconds(30)) } catch { return -1 }
-        return 1
+    let hung = HungWork()
+    let late = HungWork()
+    // A timeout that waits for the work would park a call forever, so the
+    // watchdog opens the work and fails the test instead of hanging the suite.
+    let watchdog = Task { @MainActor in
+        do { try await Task.sleep(for: .seconds(10)) } catch { return }
+        Issue.record("16m-5b: el timeout espero al trabajo colgado")
+        hung.open()
+        late.open()
     }
+    defer { watchdog.cancel() }
+    let slow: Int? = await DiagramTimeout.run(after: .milliseconds(80)) { await hung.run(1) }
     expectEq(slow, nil, "16m-5b: lo que no termina devuelve nil")
-    expect(ContinuousClock.now - start < .seconds(3), "16m-5b: el timeout no espera al trabajo colgado")
-    let late: Int? = await DiagramTimeout.run(after: .milliseconds(20)) {
-        do { try await Task.sleep(for: .milliseconds(200)) } catch { return -1 }
-        return 7
-    }
-    expectEq(late, nil, "16m-5b: la respuesta tardía se descarta, no se entrega dos veces")
+    expect(!hung.finished, "16m-5b: el timeout no espera al trabajo colgado")
+    hung.open()
+    let dropped: Int? = await DiagramTimeout.run(after: .milliseconds(20)) { await late.run(7) }
+    late.open()
+    await pumpUntil("16m-5b: la respuesta tardía llega después del timeout") { late.finished }
+    expectEq(dropped, nil, "16m-5b: la respuesta tardía se descarta, no se entrega dos veces")
 }
 
 // MARK: - The vendored script

@@ -113,9 +113,7 @@ private final class MatteProbe: @unchecked Sendable { var onMain: Bool? }
             return expect(false, "16m-5b r3: no se pudieron crear las tomas")
         }
         let ran = MatteProbe()
-        DiagramMatte.onRun = { ran.onMain = $0 }
-        defer { DiagramMatte.onRun = nil }
-        let matted = await DiagramPNG.matteAsync(onWhite: white, onBlack: black)
+        let matted = await DiagramPNG.matteAsync(onWhite: white, onBlack: black) { ran.onMain = $0 }
         expect(matted != nil, "16m-5b r3: el matting termina")
         expectEq(ran.onMain, false, "16m-5b r3: el bucle del matting corre fuera del hilo principal")
     }

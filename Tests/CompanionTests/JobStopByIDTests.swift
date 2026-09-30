@@ -19,39 +19,54 @@ import Testing
 }
 
 /// Blocks every job until the test lets it end by id; records who started
-/// and who was cancelled while running.
+/// and who was cancelled while running. A job waits on a continuation, not a
+/// clock: under load a polling deadline fired on jobs the test still held.
 private final class HoldExecutor: Executor, @unchecked Sendable {
     let descriptor = ExecutorCatalog.native
     private let lock = NSLock()
     private var started: [String] = []
     private var cancelled: [String] = []
     private var open: Set<String> = []
+    private var waiters: [String: CheckedContinuation<Bool, Never>] = [:]
     var startedIDs: [String] { lock.withLock { started } }
     var cancelledIDs: [String] { lock.withLock { cancelled } }
-    func release(_ id: String) { lock.withLock { _ = open.insert(id) } }
 
-    /// A job nobody releases or cancels ends by itself: a broken stop must
-    /// fail the test, not park it for the queue's whole budget.
-    struct Abandoned: Error {}
-    static let deadline: Duration = .seconds(4)
+    func release(_ id: String) {
+        let waiter = lock.withLock { () -> CheckedContinuation<Bool, Never>? in
+            open.insert(id)
+            return waiters.removeValue(forKey: id)
+        }
+        waiter?.resume(returning: true)
+    }
 
     func run(
         _ job: JobRequest, events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {
         lock.withLock { started.append(job.id) }
-        let limit = ContinuousClock.now.advanced(by: Self.deadline)
-        while !lock.withLock({ open.contains(job.id) }) {
-            if ContinuousClock.now >= limit { throw Abandoned() }
-            do {
-                try await Task.sleep(for: .milliseconds(5))
-            } catch {
-                lock.withLock { cancelled.append(job.id) }
-                throw error
+        let released = await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+                let now = lock.withLock { () -> Bool? in
+                    if open.contains(job.id) { return true }
+                    if Task.isCancelled { return false }
+                    waiters[job.id] = continuation
+                    return nil
+                }
+                if let now { continuation.resume(returning: now) }
             }
+        } onCancel: {
+            let waiter = lock.withLock { waiters.removeValue(forKey: job.id) }
+            waiter?.resume(returning: false)
+        }
+        guard released else {
+            lock.withLock { cancelled.append(job.id) }
+            throw CancellationError()
         }
         return JobResult(output: "ok:\(job.id)", isError: false)
     }
 }
+
+/// Far past any hold in these tests: the queue's own clock is not what they check.
+private let longBudget: TimeInterval = 60
 
 private func request(_ id: String) -> JobRequest {
     JobRequest(id: id, goal: "objetivo", context: "")
@@ -63,11 +78,11 @@ private func request(_ id: String) -> JobRequest {
     return continuation
 }
 
-/// Generous by default: the suite runs in parallel with tests that block real
-/// threads, and a starved pool takes seconds to schedule a task. The stop
-/// assertions pass a tighter deadline themselves.
+/// The deadline only decides how long a broken build takes to fail: every
+/// condition here is reached by events, never by time passing, so it is set
+/// far past anything a loaded machine needs.
 @MainActor private func until(
-    _ label: String, timeout: TimeInterval = 10, _ predicate: () async -> Bool
+    _ label: String, timeout: TimeInterval = 20, _ predicate: () async -> Bool
 ) async {
     let deadline = Date().addingTimeInterval(timeout)
     while !(await predicate()), Date() < deadline {
@@ -105,8 +120,9 @@ private final class FirstOf: @unchecked Sendable {
 /// `outcome` with a deadline: a task that never ends yields nil, so a test
 /// waiting on a stop that did nothing fails instead of hanging. A structured
 /// race would not do: its group waits for the child parked on `task.value`.
+/// Like `until`, the deadline is only the failure path.
 private func bounded(
-    _ task: Task<JobResult, Error>, seconds: Double = 3
+    _ task: Task<JobResult, Error>, seconds: Double = 20
 ) async -> Result<JobResult, Error>? {
     await withCheckedContinuation { continuation in
         let race = FirstOf(continuation)
@@ -120,7 +136,7 @@ private func bounded(
 }
 
 @MainActor func testStoppingTheRunningJobLetsTheNextOneRun() async {
-    let queue = JobQueue(budget: 10)
+    let queue = JobQueue(budget: longBudget)
     let executor = HoldExecutor()
     let first = Task { try await queue.submit(request("a"), to: executor, events: sink()) }
     let second = Task { try await queue.submit(request("b"), to: executor, events: sink()) }
@@ -130,7 +146,7 @@ private func bounded(
     await queue.cancel(job: "a")
     // The executor is what proves the stop reached the running job: without
     // it a's task only ends when the budget does.
-    await until("por id: a recibio la cancelacion", timeout: 2) { executor.cancelledIDs == ["a"] }
+    await until("por id: a recibio la cancelacion") { executor.cancelledIDs == ["a"] }
     if case .failure(let error)? = await bounded(first) {
         expectEq(error as? JobQueue.QueueError, .stoppedByUser, "por id: a termina como parado por la usuaria")
     } else {
@@ -146,7 +162,7 @@ private func bounded(
 }
 
 @MainActor func testStoppingAWaitingJobLeavesTheRunningOne() async {
-    let queue = JobQueue(budget: 10)
+    let queue = JobQueue(budget: longBudget)
     let executor = HoldExecutor()
     let first = Task { try await queue.submit(request("a"), to: executor, events: sink()) }
     await until("espera: a corre") { executor.startedIDs == ["a"] }
@@ -167,7 +183,7 @@ private func bounded(
 
 /// The job was named and announced but had not reached the queue yet.
 @MainActor func testAStopBeforeSubmitKeepsTheJobFromEverRunning() async {
-    let queue = JobQueue(budget: 10)
+    let queue = JobQueue(budget: longBudget)
     let executor = HoldExecutor()
     await queue.cancel(job: "a")
     var failure: Error?
@@ -181,7 +197,7 @@ private func bounded(
 /// to B still busy, and a stop of B that lands before B is back on the actor
 /// sees neither a waiter nor work in flight.
 @MainActor func testAStopDuringTheHandoverKeepsThatJobFromRunning() async {
-    let queue = JobQueue(budget: 10)
+    let queue = JobQueue(budget: longBudget)
     let executor = HoldExecutor()
     await queue.setAfterHandover { queue in queue.cancel(job: "b") }
     let first = Task { try await queue.submit(request("a"), to: executor, events: sink()) }
@@ -200,7 +216,7 @@ private func bounded(
 }
 
 @MainActor func testStoppingAnUnknownIdChangesNothing() async {
-    let queue = JobQueue(budget: 10)
+    let queue = JobQueue(budget: longBudget)
     let executor = HoldExecutor()
     let first = Task { try await queue.submit(request("a"), to: executor, events: sink()) }
     await until("desconocido: a corre") { executor.startedIDs == ["a"] }
@@ -213,7 +229,7 @@ private func bounded(
 
 /// Mutation guard: the total brake keeps stopping running and waiting jobs.
 @MainActor func testTheTotalBrakeStillStopsTheWholeLine() async {
-    let queue = JobQueue(budget: 10)
+    let queue = JobQueue(budget: longBudget)
     let executor = HoldExecutor()
     let first = Task { try await queue.submit(request("a"), to: executor, events: sink()) }
     await until("total: a corre") { executor.startedIDs == ["a"] }
@@ -237,7 +253,7 @@ private struct OneExecutorProvider: ExecutorProviderProtocol {
 /// The runner is what the UI reaches: it must submit under the caller's id
 /// and stop by that same id.
 @MainActor func testJobRunnerRoutesTheJobsOwnStop() async {
-    let queue = JobQueue(budget: 10)
+    let queue = JobQueue(budget: longBudget)
     let executor = HoldExecutor()
     let runner = JobRunner(
         executorProvider: OneExecutorProvider(executor: executor), queue: queue,
@@ -251,7 +267,7 @@ private struct OneExecutorProvider: ExecutorProviderProtocol {
     defer { second.cancel() }
     await until("runner: el segundo espera") { await queue.waitingCount == 1 }
     await runner.cancel(job: mine)
-    await until("runner: el primero recibio la cancelacion", timeout: 2) { executor.cancelledIDs == ["mio"] }
+    await until("runner: el primero recibio la cancelacion") { executor.cancelledIDs == ["mio"] }
     let stopped = await boundedValue(first)
     expectEq(stopped?.cancelled, true, "runner: el primero termina como parado por la usuaria")
     await until("runner: el segundo arranca despues") { executor.startedIDs == ["mio", "otro"] }
@@ -262,7 +278,7 @@ private struct OneExecutorProvider: ExecutorProviderProtocol {
 
 /// The list is capped: the 33rd stop keeps its place, the oldest leaves.
 @MainActor func testTheStoppedListKeepsThe32NewestAndDropsTheOldest() async {
-    let queue = JobQueue(budget: 10)
+    let queue = JobQueue(budget: longBudget)
     let executor = HoldExecutor()
     for index in 0 ... 32 { await queue.cancel(job: "s\(index)") }
     var newest: Error?
