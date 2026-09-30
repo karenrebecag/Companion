@@ -67,8 +67,12 @@ From then on `scripts/release.sh` signs, notarizes and staples on its own.
 
 Notarization requires the hardened runtime, which blocks microphone access
 unless the app declares it. `scripts/companion.entitlements` asks for exactly
-three things: audio input, outgoing network, and read-write access to files
-the user picks. Nothing else.
+five things: audio input, outgoing network, read-write access to files the
+user picks, Apple events (spreadsheets) and location (16h-3). The city goes
+with each request while the "Your city" context switch is on (default on); the
+system permission is only asked when a nearby search finds no city in Settings.
+The title of the window in front travels with the app-in-front channel.
+Nothing else.
 
 ## Local development builds
 
@@ -79,10 +83,9 @@ the audio section of `docs/REFERENCE.md`.
 
 ## Updates
 
-There is no update framework and that is deliberate: the only binary this
-project ships that it did not build is RiveRuntime (ADR 003, attributed and
-pinned by checksum in `NOTICE.md`), and adding a second one takes another
-ADR. Releases are published on GitHub and the app compares its version
+There is no update framework and that is deliberate: the project ships no
+binary it did not build (RiveRuntime left with the mascot, ADR 003 retired),
+and adding one takes an ADR. Releases are published on GitHub and the app compares its version
 against the latest release (ADR 002).
 
 The check is silent by design: no network, a 404, a hostile payload — all of

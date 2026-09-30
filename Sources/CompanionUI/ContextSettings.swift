@@ -7,15 +7,34 @@ import Observation
 /// front and open documents on, clipboard off.
 public enum ContextPreference {
     nonisolated private static let key = "companion.contextChannels"
+    nonisolated private static let locationKnownKey = "companion.contextChannels.locationKnown"
     /// Swappable so a test writes into its own suite, never the user's.
     nonisolated(unsafe) public static var store: UserDefaults = .standard
 
     nonisolated public static var channels: ContextChannels {
-        get {
-            guard let raw = store.object(forKey: key) as? Int else { return .default }
-            return ContextChannels(rawValue: raw)
+        get { read(from: store) }
+        set { write(newValue, to: store) }
+    }
+
+    /// The "Tu ciudad" switch as the composition root reads it.
+    nonisolated public static var locationChannelOn: Bool { channels.contains(.location) }
+
+    nonisolated static func read(from store: UserDefaults) -> ContextChannels {
+        guard let raw = store.object(forKey: key) as? Int else { return .default }
+        var channels = ContextChannels(rawValue: raw)
+        // Saved before the location channel existed: it starts on, like every
+        // channel, unless she had turned every channel off (switching a sense
+        // on behind that choice would be the opposite of it); from the first
+        // save of her own, the switch wins.
+        if !store.bool(forKey: locationKnownKey), !channels.isDisjoint(with: .all) {
+            channels.insert(.location)
         }
-        set { store.set(newValue.rawValue, forKey: key) }
+        return channels
+    }
+
+    nonisolated static func write(_ channels: ContextChannels, to store: UserDefaults) {
+        store.set(channels.rawValue, forKey: key)
+        store.set(true, forKey: locationKnownKey)
     }
 }
 
@@ -61,6 +80,11 @@ public final class ContextSettingsModel {
                 refreshTrust()
             }
         }
+    }
+
+    public var location: Bool {
+        get { ContextPreference.channels.contains(.location) }
+        set { set(.location, newValue) }
     }
 
     public var clipboard: Bool {

@@ -23,15 +23,20 @@ public struct JobResult: Sendable, Equatable {
     public var output: String
     public var isError: Bool
     public var sessionId: String?
+    /// 16h-2: someone stopped it (the island, the menu, "para"). Not a
+    /// failure to announce: the user already knows, she asked for it.
+    public var cancelled: Bool
 
     public init(
         output: String,
         isError: Bool,
-        sessionId: String? = nil
+        sessionId: String? = nil,
+        cancelled: Bool = false
     ) {
         self.output = output
         self.isError = isError
         self.sessionId = sessionId
+        self.cancelled = cancelled
     }
 }
 
@@ -57,7 +62,7 @@ public enum JobEvent: Sendable, Equatable {
     /// before" / "denied, as before".
     case approvalRemembered(tool: String, approved: Bool)
     /// Wave 20d B: a step ran on its own band (no sheet); the way back.
-    case acted(ActionReceipt)
+    case acted(UndoReceipt)
 }
 
 public protocol Executor: Sendable {
@@ -76,6 +81,14 @@ public protocol JobSubmitter: Sendable {
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult
     func cancel() async
+    /// One job's own stop (16q-1). Not defaulted: a submitter that forgot it
+    /// would silently stop nothing, or too much.
+    func cancel(job id: JobID) async
+    /// Same as `submit(_:events:)` under the id its owner minted, so
+    /// `cancel(job:)` can find the job. Not defaulted either.
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult
     /// The UI must be able to answer a pending approval: without this the
     /// request only ever ends in the 120s auto-deny.
     func resolveApproval(requestId: String, approved: Bool) async

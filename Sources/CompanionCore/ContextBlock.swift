@@ -11,6 +11,9 @@ public enum ContextBlock {
     /// into the prompt"). ~600 characters is ~150 tokens.
     public enum Caps {
         public static let app = 80
+        public static let window = 120
+        public static let location = 120
+        public static let islandEvents = IslandEventLog.capacity
         public static let documents = 8
         public static let document = 120
         public static let clipboard = 400
@@ -22,6 +25,9 @@ public enum ContextBlock {
         public static let block = 1_600
     }
 
+    /// Island events are never a degrade target: the turn acknowledges every
+    /// one it was handed, so a fact cut here would be spent unheard.
+    ///
     /// Degrades until the whole block fits: clipboard first (the noisiest),
     /// then documents from the end, then the app name. Every cut stays
     /// visible; the structure stays whole. The clock (`<time_since_last_
@@ -45,6 +51,8 @@ public enum ContextBlock {
                 trimmed.screenPending = false
             } else if !trimmed.openDocuments.isEmpty {
                 trimmed.openDocuments.removeLast()
+            } else if trimmed.focusedWindow != nil {
+                trimmed.focusedWindow = nil
             } else if let app = trimmed.focusedApp, size(app) > 8 {
                 trimmed.focusedApp = String(String.UnicodeScalarView(app.unicodeScalars.prefix(8)))
             } else {
@@ -70,6 +78,12 @@ public enum ContextBlock {
         lines.append("  <now>\(escape(nowStamp(ctx.timestamp, timeZone: timeZone, language: language)))</now>")
         if let app = ctx.focusedApp, !app.isEmpty {
             lines.append("  <focused_app>\(cut(escape(app), Caps.app))</focused_app>")
+        }
+        if let window = ctx.focusedWindow, !window.isEmpty {
+            lines.append("  <focused_window>\(cut(escape(window), Caps.window))</focused_window>")
+        }
+        if let location = ctx.location {
+            lines.append("  <user_location>\(cut(escape(location.label), Caps.location))</user_location>")
         }
         if !ctx.openDocuments.isEmpty {
             lines.append("  <open_documents>")
@@ -117,6 +131,13 @@ public enum ContextBlock {
                 lines.append("    - [\(app)] \(text)")
             }
             lines.append("  </screen_snippets>")
+        }
+        if !ctx.islandEvents.isEmpty {
+            lines.append("  <island_events>")
+            for event in ctx.islandEvents.suffix(Caps.islandEvents) {
+                lines.append("    - \(eventLine(event, language))")
+            }
+            lines.append("  </island_events>")
         }
         lines.append("</context>")
         if ctx.interrupted {
@@ -195,6 +216,34 @@ public enum ContextBlock {
         }
     }
 
+    /// What the island did, in our own short words: facts about a card, never
+    /// its content, and nothing the model could take for an instruction.
+    private static func eventLine(_ event: IslandEvent, _ language: AppLanguage) -> String {
+        switch (event, language) {
+        case (.shown(let kind), .en): "card shown: \(kindWord(kind, language))"
+        case (.shown(let kind), .es): "tarjeta mostrada: \(kindWord(kind, language))"
+        case (.closed(let kind), .en): "card closed by the user: \(kindWord(kind, language))"
+        case (.closed(let kind), .es): "tarjeta cerrada por la usuaria: \(kindWord(kind, language))"
+        case (.ignored(let kind), .en): "card left on its own, unattended: \(kindWord(kind, language))"
+        case (.ignored(let kind), .es): "tarjeta que se fue sola sin atender: \(kindWord(kind, language))"
+        case (.interrupted, .en): "the user interrupted"
+        case (.interrupted, .es): "la usuaria interrumpió"
+        }
+    }
+
+    private static func kindWord(_ kind: IslandCardKind, _ language: AppLanguage) -> String {
+        switch (kind, language) {
+        case (.result, .en): "result"
+        case (.result, .es): "resultado"
+        case (.notice, .en): "notice"
+        case (.notice, .es): "aviso"
+        case (.receipt, .en): "receipt"
+        case (.receipt, .es): "recibo"
+        case (.answer, .en): "answer"
+        case (.answer, .es): "respuesta"
+        }
+    }
+
     private static func sourceWord(_ source: TurnSource, _ language: AppLanguage) -> String {
         switch (source, language) {
         case (.voice, .en): "voice"
@@ -246,15 +295,9 @@ public enum ContextBlock {
         return head + "…"
     }
 
-    /// One field, one line. `\r`, U+2028/2029, NEL and the control range
-    /// would fake a new line or section inside an escaped field.
+    /// One field, one line, nothing invisible (`TextHygiene`).
     private static func flatten(_ text: String) -> String {
-        let breaks = CharacterSet.newlines.union(.controlCharacters)
-        var out = String.UnicodeScalarView()
-        for scalar in text.unicodeScalars {
-            out.append(breaks.contains(scalar) ? " " : scalar)
-        }
-        return String(out)
+        TextHygiene.oneLine(text)
     }
 
     /// An app name is untrusted: a quote must not close the attribute it sits in.

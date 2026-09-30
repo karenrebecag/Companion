@@ -78,6 +78,17 @@ public struct ParentToolGuard: Sendable {
         await answer(request, parked: nil) == .approved
     }
 
+    /// The one point every sheet-backed decision without a tool call behind
+    /// it goes through (16q-1: the realtime MCP request too), returning the
+    /// whole response so whatever judges a request later has a single place
+    /// to stand. Same road as `answer`: nothing here decides on its own.
+    func decide(_ request: ApprovalRequest) async -> ApprovalResponse {
+        let sheet = await answer(request, parked: nil)
+        return ApprovalResponse(
+            requestId: request.requestId, approved: sheet == .approved,
+            timedOut: sheet == .timedOut)
+    }
+
     /// `parked` runs right before the sheet is shown, so a caller that must
     /// withdraw it later already knows which one it is; returning false
     /// vetoes the sheet.
@@ -85,7 +96,9 @@ public struct ParentToolGuard: Sendable {
         _ request: ApprovalRequest, parked: (@Sendable (ApprovalRequest) -> Bool)?
     ) async -> SheetAnswer {
         guard let approvals else { return .denied }
-        if let decision = await approvals.remembered(request) {
+        // Defense in depth over `ApprovalKey.from`: a provider with another
+        // memory must still never answer an MCP request without its sheet.
+        if !request.isMCP, let decision = await approvals.remembered(request) {
             await onRemembered?(request.toolName, decision)
             return decision ? .approved : .denied
         }
@@ -99,7 +112,10 @@ public struct ParentToolGuard: Sendable {
     /// "Stop hands" (spec §3 "Corte"): resolves a sheet the caller is still
     /// parked on, as a denial — without the caller reaching into
     /// `approvals` itself, which stays private to this struct.
-    func withdraw(_ request: ApprovalRequest) async {
-        _ = await approvals?.resolve(requestId: request.requestId, approved: false)
+    /// False when nothing was parked under that id: a caller that reports
+    /// the refusal as applied must know it was not.
+    @discardableResult
+    func withdraw(_ request: ApprovalRequest) async -> Bool {
+        await approvals?.resolve(requestId: request.requestId, approved: false) ?? false
     }
 }

@@ -16,9 +16,10 @@ extension VoiceSession {
     func startClassicTurn(config: Config) {
         classicTurnTask?.cancel()
         let endsHold = machine.snapshot.holdArmed
+        let pressed = timeline.pressed
         classicTurnTask = Task { [weak self] in
             guard let self else { return }
-            await self.classic.submit(config: config, endsHold: endsHold) { event in
+            await self.classic.submit(config: config, endsHold: endsHold, pressed: pressed) { event in
                 await self.apply(event)
             }
         }
@@ -30,6 +31,7 @@ extension VoiceSession {
     func cancelClassicTurn() async {
         classicTurnTask?.cancel()
         classicTurnTask = nil
+        await cutAnnouncement()
         await synthesizer.stop()
         screen?.cancel()
     }

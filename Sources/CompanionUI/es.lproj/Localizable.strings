@@ -31,7 +31,6 @@
 "chat.approval.rememberedDeny" = "Denegado, como antes: %@.";
 "chat.job.done" = "Encargo listo";
 "chat.job.failed" = "Encargo falló";
-"job.working" = "El especialista está trabajando";
 
 /* Adjuntos */
 "chat.attach.done" = "Adjuntado: %@";
@@ -55,19 +54,9 @@
 "voice.fail.accessibilityDenied" = "Sin permiso de Accesibilidad no pude escribir en el campo. Tus palabras fueron al chat.";
 "voice.preview.failed" = "No se pudo reproducir la muestra. Revisa tu conexión.";
 
-/* Idle */
-"idle.phrase.1" = "Lista cuando tú lo estés";
-"idle.phrase.2" = "¿En qué andamos hoy?";
-"idle.phrase.3" = "Cuéntame qué sigue";
-"idle.phrase.4" = "Tu Mac y yo, a tus órdenes";
-"idle.phrase.5" = "Dime y lo hacemos";
-"idle.phrase.6" = "Empecemos cuando quieras";
-"idle.caption.voice" = "Toca el orb de abajo para empezar a hablar";
-"idle.caption.text" = "Escribe abajo y presiona Enter";
-
 /* Ajustes */
 "settings.title" = "Ajustes";
-"settings.close" = "Cerrar";
+"action.close" = "Cerrar";
 "settings.tab.general" = "General";
 "settings.tab.voice" = "Voz";
 "settings.tab.vocabulary" = "Vocabulario";
@@ -79,6 +68,13 @@
 "settings.you.blurb" = "Companion usa esto para conocerte. Se guarda solo, y aplica desde tu siguiente mensaje.";
 "settings.you.name" = "Cómo te llamo";
 "settings.you.name.placeholder" = "Tu nombre";
+"settings.you.city" = "Tu ciudad";
+"settings.you.city.placeholder" = "Ciudad, País";
+"settings.you.city.subtitle" = "Lo que significa «cerca de mí». Si lo dejas vacío, Companion le pregunta la ciudad a tu Mac, y solo cuando pides algo cercano.";
+"island.receipt.title" = "Hecho";
+"island.receipt.dismiss" = "Cerrar el recibo";
+"island.receipt.check" = "Hecho y comprobado";
+"island.receipt.done" = "Hecho";
 "settings.you.about" = "Sobre ti";
 "settings.you.about.placeholder" = "En qué trabajas, cómo te gusta que te hablen…";
 "settings.you.instructions" = "Cómo responder";
@@ -176,14 +172,8 @@
 "approval.remember" = "Recordar durante esta sesión";
 "attach.list" = "Archivos adjuntos";
 "attach.remove" = "Quitar %@";
-"attach.open" = "%@. Abrir";
 "attach.drop.title" = "Suéltalos aquí";
 "attach.drop.subtitle" = "Imágenes, PDFs, código: lo que quieras que mire";
-"composer.placeholder" = "Escríbele a Companion";
-"composer.send" = "Enviar";
-"controlbar.unmute" = "Activar micrófono";
-"controlbar.mute" = "Silenciar micrófono";
-"header.settings" = "Ajustes";
 "header.newConversation" = "Nueva conversación";
 "header.noConversations" = "Todavía no hay conversaciones";
 "header.recent" = "Recientes";
@@ -193,48 +183,16 @@
 "menu.window" = "Ventana";
 "shortcut.newConversation" = "Nueva conversación";
 "shortcut.toggleMute" = "Silenciar/activar sonido";
-"thread.queued" = "En cola: %@";
 "thread.untitled" = "Conversación";
-"onboarding.title.l1" = "Habla con tu Mac";
-"onboarding.title.l2" = "y déjala trabajar.";
-"onboarding.blurb" = "Conversa por voz, encárgale tareas de verdad y deja que recuerde lo que importa.";
-"onboarding.key" = "Clave de OpenAI";
-"onboarding.getKey" = "¿Sin clave? Consíguela aquí";
-"onboarding.verifying" = "Verificando...";
 "chat.card.locations" = "Se mostró un mapa con: %@.";
 "chat.card.gallery" = "Se mostró una galería en pantalla.";
 "chat.job.stopped" = "Paraste el encargo.";
-"job.stop" = "Parar";
-"chat.job.failed" = "El encargo no pudo terminar: %@";
+"chat.job.failed.notice" = "El encargo no pudo terminar: %@";
 "card.unverified" = "Companion no verificó estos lugares o imágenes.";
-"onboarding.probing" = "Buscando un modelo en tu Mac…";
-"onboarding.base.blurb" = "Tu Mac ya puede hablar contigo. Sin cuenta y sin configurar nada.";
-"onboarding.local.ollama" = "Empezar con %@ en tu Mac";
-"onboarding.local.apple" = "Empezar con el modelo de tu Mac";
-"onboarding.local.missing" = "Busqué en tu Mac y todavía no tiene su propio modelo. Descárgalo en un par de minutos.";
-"onboarding.key.optional" = "Una clave de OpenAI activa la voz en tiempo real y mejores modelos.";
-"onboarding.ollama.download" = "Descargar Ollama";
-"onboarding.ollama.installed" = "Ya lo instalé. Volver a buscar";
-"onboarding.section.local" = "En tu Mac";
-"onboarding.section.key" = "Con tu clave de OpenAI";
-"onboarding.choice.local.title" = "En tu Mac";
-"onboarding.choice.local.sub" = "Privado y gratis. Funciona sin internet.";
-"onboarding.choice.cloud.title" = "Con OpenAI";
-"onboarding.choice.cloud.sub" = "Voz en tiempo real y mejores modelos.";
-"onboarding.local.ready" = "%@ listo para hablar";
-"onboarding.local.none.status" = "Sin modelo todavía";
-"onboarding.local.apple.short" = "El modelo de tu Mac";
-"onboarding.ollama.what" = "Ollama es una app gratuita que corre modelos de IA en tu Mac.";
-"onboarding.ollama.waiting" = "Esperando la instalación…";
-"onboarding.cta.probing" = "Buscando…";
-"onboarding.continue" = "Conectar con OpenAI";
-"status.approvalWaiting" = "El especialista espera tu permiso";
-"status.escToStop" = "Esc para cortar";
 "sources.title" = "Fuentes";
 "sources.web" = "Web";
 "sources.files" = "Archivos";
 "map.open" = "Abrir";
-"shortcut.escToCancel" = "Presiona Esc para cancelar";
 "accent.lime" = "Verde eléctrico";
 "voice.sample" = "Hola, soy Companion. Así sueno.";
 "settings.app.language" = "Idioma";
@@ -253,6 +211,9 @@
 "settings.context.blurb" = "Cuando le hablas, Companion mira la app enfrente, los documentos abiertos y — con Grabación de pantalla — una foto de lo que se ve. Una descripción corta viaja con tus palabras. La imagen no se guarda.";
 "settings.context.app" = "App enfrente";
 "settings.context.documents" = "Documentos abiertos";
+"settings.context.documents.subtitle" = "Los títulos de las ventanas abiertas viajan con tus palabras, y el título de la ventana de delante viaja con el nombre de la app de delante.";
+"settings.context.location" = "Tu ciudad";
+"settings.context.location.subtitle" = "Tu ciudad acompaña cada pedido mientras esto esté encendido. Apagado, deja de acompañarlos y macOS nunca te pregunta por tu ubicación: una búsqueda de algo cerca usa la ciudad de Ajustes › Tú, y si está vacía te pregunta en qué ciudad buscar.";
 "settings.context.clipboard" = "Portapapeles";
 "settings.context.clipboard.subtitle" = "Apagado por defecto. Lo que copiaste viaja al modelo en ese turno, hasta 400 caracteres. macOS puede mostrar un aviso cada vez que se lee.";
 "settings.context.screen" = "Lo que se ve";
@@ -307,7 +268,6 @@
 "island.answer.copy" = "Copiar el código";
 "island.answer.fold" = "Plegar el código";
 "island.action.keys" = "Abrir Claves";
-"island.hands" = "Manos: %@";
 "island.hands.stop" = "Detener manos";
 "island.receipt.created" = "Creé %@";
 "island.receipt.wrote" = "Escribí %@";
@@ -483,7 +443,6 @@
 "home.ago.minutes" = "Hace %d min";
 "home.ago.hours" = "Hace %d h";
 "home.ago.days" = "Hace %d d";
-"task.close" = "Cerrar";
 "task.next" = "Tu próximo mensaje continúa esta tarea.";
 "task.followUp" = "Seguir";
 "task.details" = "Detalles";
@@ -585,6 +544,10 @@
 "island.attach.noText" = "No encontré texto en esa zona.";
 "island.attach.captureFailed" = "No pude hacer la captura.";
 "island.attach.needsScreen" = "Para capturar, da el permiso de Grabación de pantalla.";
+"island.attach.captures" = "%d capturas";
+"island.attach.openCaptures" = "Ver las capturas";
+"island.attach.failed" = "No pude adjuntar %@";
+"island.attach.pickerUnavailable" = "No pude abrir el selector de archivos.";
 "island.drop.title" = "Suelta el archivo";
 "island.drop.ask" = "Pregúntale";
 "island.drop.airDrop" = "AirDrop";
@@ -594,6 +557,128 @@
 "island.connectApp" = "Conectar %@";
 "island.connectApp.body" = "Conéctala y Companion podrá usarla por voz.";
 "island.connectApp.action" = "Conectar";
+
+/* Wave 16p-1: labels that used to be literals in code */
+"accent.standard" = "Predeterminado";
+"accent.blue" = "Azul";
+"accent.green" = "Verde";
+"accent.yellow" = "Amarillo";
+"accent.pink" = "Rosa";
+"accent.orange" = "Naranja";
+"accent.purple" = "Morado";
+"accent.white" = "Blanco";
+"shortcut.toggleVoice" = "Iniciar/terminar turno";
+"shortcut.hangUp" = "Terminar llamada";
+"shortcut.settings" = "Abrir ajustes";
+"shortcut.attach" = "Adjuntar archivos";
+"shortcut.history" = "Ver conversaciones";
+"appearance.light" = "Claro";
+"appearance.dark" = "Oscuro";
+"appearance.auto" = "Sistema";
+"island.opening" = "Abriendo";
+"island.reply.open" = "Abre el resultado completo";
+
+"island.dictation.copy" = "Copiar dictado";
+"island.dictation.copied" = "Copiado";
+"island.dictation.hide" = "Ocultar dictado";
+"island.notice.limit.title" = "Límite de uso alcanzado";
+"island.notice.update.title" = "Companion %@ está disponible";
+"island.notice.update.body" = "Descarga la nueva versión desde su página de lanzamiento.";
+"island.notice.update.action" = "Actualizar";
+"island.notice.update.later" = "Después";
+
+/* Wave 16m-5a: gráficas en la isla */
+"island.chart.kind.bar" = "Gráfica de barras";
+"island.chart.kind.line" = "Gráfica de líneas";
+"island.chart.kind.area" = "Gráfica de área";
+"island.chart.kind.pie" = "Gráfica circular";
+"island.chart.kind.donut" = "Gráfica de dona";
+"island.chart.kind.scatter" = "Gráfica de dispersión";
+"island.chart.kind.polar" = "Gráfica polar";
+"island.chart.kind.radar" = "Gráfica de radar";
+"island.chart.points.one" = "1 punto";
+"island.chart.points.other" = "%d puntos";
+"island.chart.high" = "El máximo es %@ con %@";
+"island.chart.low" = "El mínimo es %@ con %@";
+"island.chart.copy" = "Copiar los datos de la gráfica";
+"island.chart.copied" = "Datos de la gráfica copiados";
+"island.chart.categories" = "Categorías";
+"island.diagram.label" = "Diagrama";
+"island.diagram.copy" = "Copiar el diagrama como imagen";
+"island.diagram.copied" = "Imagen del diagrama copiada";
+"island.diagram.failed" = "No pude dibujar este diagrama. Aquí está su texto.";
+"island.diagram.timeout" = "Dibujar este diagrama tardó demasiado. Aquí está su texto.";
+"island.diagram.loading" = "Dibujando el diagrama";
+"island.diagram.download" = "Descargar el diagrama como PNG";
+"island.diagram.background.on" = "Copiar y descargar con fondo. Toca para dejarlo transparente";
+"island.diagram.background.off" = "Copiar y descargar sin fondo. Toca para añadirlo";
+"island.diagram.save.failed" = "No pude guardar el PNG. Prueba con otra carpeta.";
+
+/* 16m-6: la pregunta con opciones */
+"island.choice.option" = "%@, %d de %d";
+"island.choice.selected" = "elegida";
+"island.choice.unavailable" = "no disponible";
+"island.choice.hint" = "Selecciona una con un clic, las flechas y Espacio, o un número del 1 al 9. Return o Confirmar la envía.";
+"island.choice.hint.multiple" = "Selecciona las que quieras con un clic, las flechas y Espacio, o números del 1 al 9. Return o Confirmar las envía.";
+"island.choice.confirm" = "Confirmar";
+"island.choice.confirm.hint" = "Envía lo que seleccionaste.";
+"island.choice.other" = "¿Otra cosa? Escríbela aquí";
+"island.signIn" = "Vuelve a iniciar sesión en %@";
+"island.signIn.body" = "Su sesión caducó, así que no puedo usarla hasta que lo hagas.";
+"island.signIn.action" = "Iniciar sesión";
+
+/* 16m-7: mentions */
+"mention.kind.contact" = "contacto";
+"mention.kind.app" = "app conectada";
+"mention.kind.file" = "archivo reciente";
+"mention.row" = "%@, %@, %d de %d";
+"mention.hint" = "Flechas para moverte, Return o Tab para elegir, Escape para cerrar.";
+"mention.hint.contact" = "Flechas para moverte, Return o Tab para elegir, flecha derecha para elegir un correo o teléfono, Escape para cerrar.";
+"mention.typeToSearch" = "Escribe un nombre para buscar en tus contactos";
+"mention.nameOnly" = "Solo el nombre";
+"mention.list" = "Sugerencias de mención";
+
+/* 16m-7: feedback modal */
+"feedback.title" = "Enviar comentario";
+"feedback.mood.title" = "¿Cómo va?";
+"feedback.mood.love" = "Me encanta";
+"feedback.mood.upset" = "Al límite";
+"feedback.topics.title" = "¿Sobre qué es?";
+"feedback.topic.voice" = "Voz y chat";
+"feedback.topic.screen" = "Pantalla y navegador";
+"feedback.topic.apps" = "Apps conectadas";
+"feedback.topic.errands" = "Encargos";
+"feedback.topic.dictation" = "Dictado";
+"feedback.topic.other" = "Otra cosa";
+"feedback.mood.good" = "Bien";
+"feedback.mood.meh" = "Regular";
+"feedback.mood.bad" = "Mal";
+"feedback.placeholder" = "¿Qué nos dirías?";
+"feedback.counter" = "Quedan %d";
+"feedback.counter.over" = "%d de más";
+"feedback.capture.add" = "Agregar una captura";
+"feedback.capture.file" = "Elegir una imagen";
+"feedback.capture.paste" = "Pegar una imagen";
+"feedback.capture.remove" = "Quitar la captura %d";
+"feedback.capture.item" = "Captura %d";
+"feedback.send" = "Enviar";
+"feedback.cancel" = "Cancelar";
+"feedback.done" = "Listo";
+"feedback.sent" = "Se abrió tu app de correo con el mensaje. No sale nada hasta que lo envíes ahí.";
+"feedback.note.limit" = "Es el máximo de capturas para un mensaje.";
+"feedback.note.noGrabber" = "Las capturas no están disponibles aquí.";
+"feedback.note.captureFailed" = "No pude tomar la captura.";
+"feedback.note.needsScreen" = "Para capturar, permite la grabación de pantalla.";
+"feedback.note.noAttach" = "Se abrió tu app de correo, pero no pude adjuntar las capturas. Están en la carpeta temporal de capturas.";
+"feedback.note.deliveryFailed" = "No pude abrir tu app de correo.";
+"feedback.note.captureAction" = "Las capturas solo se toman cuando pulsas el botón.";
+"feedback.note.truncated" = "Se abrió tu app de correo, pero el mensaje era demasiado largo para un enlace de correo y se cortó el final.";
+"feedback.note.noFiles" = "Aquí no se pueden añadir imágenes.";
+"feedback.note.noPaste" = "No hay ninguna imagen en el portapapeles.";
+"feedback.note.notImage" = "Ese archivo no es una imagen.";
+"feedback.note.unreadable" = "No pude leer ese archivo.";
+"feedback.note.tooBig" = "Cada captura puede pesar hasta 4 MB.";
+"feedback.note.pasteFailed" = "No pude guardar la imagen pegada.";
 
 /* Wave 18-4b: browser panel */
 "settings.browser.header" = "NAVEGADOR";

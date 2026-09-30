@@ -947,7 +947,7 @@ private func openEvil(_ id: String = "c1") -> ChatDelta {
     let chat = FakeChatProvider(replies: [.success([openEvil()]), .success([.text("x")])])
     let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener), approvals: approvals)
     vm.receiveJobEvent(.approvalRequested(ApprovalRequest(
-        requestId: "job-1", toolName: "run_shell", summary: "", inputJSON: #"{"command":"ls"}"#)))
+        requestId: "job-1", toolName: "run_shell", summary: "", inputJSON: #"{"command":"ls"}"#)), from: nil)
     vm.draft = "resume esto"
     vm.send()
     await pumpUntilAsync("cola: dos pendientes") { await approvals.requested.count == 1 }

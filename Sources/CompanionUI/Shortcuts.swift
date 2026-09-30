@@ -13,13 +13,13 @@ public enum ShortcutAction: String, Codable, CaseIterable, Sendable {
 
     public var label: String {
         switch self {
-        case .toggleVoice: "Iniciar/terminar turno"
+        case .toggleVoice: Localized.string("shortcut.toggleVoice")
         case .toggleMute: Localized.string("shortcut.toggleMute")
-        case .hangUp: "Terminar llamada"
-        case .settings: "Abrir ajustes"
-        case .attach: "Adjuntar archivos"
+        case .hangUp: Localized.string("shortcut.hangUp")
+        case .settings: Localized.string("shortcut.settings")
+        case .attach: Localized.string("shortcut.attach")
         case .newConversation: Localized.string("shortcut.newConversation")
-        case .history: "Ver conversaciones"
+        case .history: Localized.string("shortcut.history")
         }
     }
 }

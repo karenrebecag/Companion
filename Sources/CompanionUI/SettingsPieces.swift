@@ -90,6 +90,8 @@ enum SettingsPillKind {
     case destructive
 }
 
+/// Incredible's button (40 high, grows on hover), not a capsule chip: the
+/// chip is the smaller Geist control of the island and the welcome.
 struct SettingsPill: View {
     let title: String
     var kind: SettingsPillKind = .neutral
@@ -149,15 +151,6 @@ struct SettingsSwitch: View {
 
     var body: some View {
         IncredibleSwitch(label, isOn: $isOn)
-    }
-}
-
-/// A key drawn as a key, for rows that name one.
-struct SettingsKeycap: View {
-    let text: String
-
-    var body: some View {
-        Keycap(text, size: .small)
     }
 }
 

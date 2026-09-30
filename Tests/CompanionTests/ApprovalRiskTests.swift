@@ -71,45 +71,47 @@ private func req(_ id: String, _ tool: String) -> ApprovalRequest {
     for tool in ["write_file", "sheet_write", "open_url", BridgePolicy.sessionApprovalTool] {
         await h.session.noteApproval(req("r-\(tool)", tool))
         let resolved = await h.session.answerPendingApproval(true)
-        expect(!resolved, "alto: \(tool) no se resuelve por voz")
+        expectEq(resolved, .needsClick, "alto: \(tool) no se resuelve por voz")
         let still = await h.session.pendingApproval
         expectEq(still?.requestId, "r-\(tool)", "alto: \(tool) sigue pendiente para el clic")
     }
 }
 
+/// Merged with 16q-1: realtime has no hold to bind a yes to, so it always
+/// takes the click there. A low-risk request still resolves by voice in
+/// classic, once the voice asked it and she said a clear yes in a later hold.
 @MainActor func testALowRiskRequestStillResolvesByVoice() async {
-    let jobs = ApprovingSubmitter()
+    let jobs = GatedJob()
     let model = SessionModel(jobs: jobs, approvals: nil)
-    let h = makeVoiceHarness(jobs: jobs, session: model)
-    await h.session.start()
-    await pumpUntil("bajo: listening") { h.watch.latest.state == .listening }
-    h.transport.yield(.functionCall(
-        name: "delegate", arguments: #"{"goal":"buscar cine"}"#, callId: "c1"))
-    await pumpUntil("bajo: encargo aceptado") {
-        h.transport.sent.contains { $0.contains("function_call_output") }
-    }
-    jobs.askApproval(req("f1", "find_places"))
-    await pumpUntil("bajo: la hoja la tiene") { model.projection.approval?.requestId == "f1" }
-    h.transport.yield(.functionCall(
-        name: "resolve_approval", arguments: #"{"approved":true}"#, callId: "c2"))
-    await pumpUntil("bajo: llega al encargo") {
-        jobs.resolutions.contains { $0 == ApprovalVerdict(id: "f1", approved: true) }
-    }
+    let h = await q1Classic(jobs, model: model, rounds: [[.handoff(q1Flights)], q1SaysYes])
+    await q1AskedAndSaid(h, jobs, "f1", tool: "find_places")
+    h.clock.now += 5
+    h.transcriber.stoppedText = "sí, dale"
+    await h.session.hold()
+    await pumpUntil("bajo: hold") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await h.session.awaitClassicTurn()
+    await pumpUntil("bajo: llega al encargo") { jobs.resolutions == [true] }
+    jobs.open()
+    await h.session.hangUp()
 }
 
 /// The note must not outlive the sheet: a click closes it, and a later yes
 /// finds nothing pending.
 @MainActor func testAClickClearsTheVoiceNote() async {
     let jobs = ApprovingSubmitter()
-    let model = SessionModel(jobs: jobs, approvals: nil)
+    // The close reaches the session through the voice port (16q-1's
+    // `approvalClosed` effect), where 20c wired `onApprovalClosed`.
+    let port = Q1SessionVoiceBox()
+    let model = SessionModel(jobs: jobs, approvals: nil, voice: port)
     let h = makeVoiceHarness(jobs: jobs, session: model)
     let session = h.session
-    model.onApprovalClosed = { id, _ in Task { await session.approvalClosed(id) } }
+    port.session = session
     await session.noteApproval(req("o1", "open_url"))
     model.send(.job(.started(goal: "x")))
     model.send(.job(.approvalRequested(req("o1", "open_url"))))
     model.send(.approvalAnswered(requestId: "o1", approved: false, remember: false))
     await pumpUntilAsync("clic: la nota se limpia") { await session.pendingApproval == nil }
     let resolved = await session.answerPendingApproval(true)
-    expect(!resolved, "clic: un sí posterior no encuentra nada pendiente")
+    expectEq(resolved, .nothingPending, "clic: un sí posterior no encuentra nada pendiente")
 }

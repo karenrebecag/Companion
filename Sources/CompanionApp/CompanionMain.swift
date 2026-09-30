@@ -38,7 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var voice: VoiceViewModel?
     /// Set by `presentWindow`.
     var voicePreview: VoicePreview?
-    private var executorChoice: ExecutorChoice?
     /// Set by `presentWindow`.
     var updates: UpdateState?
     /// Set by `presentWindow`, read by its own closures.
@@ -81,7 +80,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let env = makeLaunchEnvironment()
         let providers = makeChatProviders(environment: env)
         let jobs = makeJobInfrastructure(environment: env, chat: providers.chat)
-        self.executorChoice = jobs.choice
         let sensing = makeSensingAndModel(environment: env, providers: providers, jobs: jobs)
         self.model = sensing.model
         let pipeline = makeVoicePipeline(
@@ -90,8 +88,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         installBridge(environment: env, jobs: jobs, sensing: sensing)
         presentWindow(
             model: sensing.model, voice: pipeline.voice, sessionModel: sensing.sessionModel,
-            choice: jobs.choice, env: env,
-            openAIMouth: pipeline.openAIMouth, mouth: pipeline.mouth, voicePort: sensing.voicePort)
+            env: env,
+            openAIMouth: pipeline.openAIMouth, mouth: pipeline.mouth, voicePort: sensing.voicePort,
+            appTools: sensing.appTools)
     }
 
     /// The hold lives outside the window (Wave 12b): closing main leaves
@@ -228,13 +227,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// (Wave 20d B): the runner is built before the reducer it reports to.
 nonisolated final class ReceiptRelay: @unchecked Sendable {
     private let lock = NSLock()
-    private var target: (@Sendable (ActionReceipt) -> Void)?
+    private var target: (@Sendable (UndoReceipt) -> Void)?
 
-    func connect(_ target: @escaping @Sendable (ActionReceipt) -> Void) {
+    func connect(_ target: @escaping @Sendable (UndoReceipt) -> Void) {
         lock.withLock { self.target = target }
     }
 
-    func send(_ receipt: ActionReceipt) {
+    func send(_ receipt: UndoReceipt) {
         lock.withLock { target }?(receipt)
     }
 }
@@ -269,6 +268,8 @@ final class VoicePortBox: VoiceControlling, @unchecked Sendable {
     func release() async { await session?.release() }
     func discard() async { await session?.discard() }
     func interrupt() async { await session?.interrupt() }
+    func approvalClosed(requestId: String) async { await session?.approvalClosed(requestId: requestId) }
+    func approvalFront(requestId: String?) async { await session?.approvalFront(requestId: requestId) }
     var snapshots: AsyncStream<TurnSnapshot> { session?.snapshots ?? AsyncStream { $0.finish() } }
     var levels: AsyncStream<VoiceLevels> { session?.levels ?? AsyncStream { $0.finish() } }
 }

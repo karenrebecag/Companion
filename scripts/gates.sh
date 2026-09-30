@@ -82,7 +82,7 @@ fi
 
 # TCC no muestra el prompt de microfono/voz sin usage descriptions: si se
 # pierden del bundle, la voz falla en runtime y ningun test lo ve.
-for key in NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSScreenCaptureUsageDescription; do
+for key in NSMicrophoneUsageDescription NSSpeechRecognitionUsageDescription NSScreenCaptureUsageDescription NSLocationWhenInUseUsageDescription NSLocationUsageDescription NSContactsUsageDescription; do
     if grep -q "$key" "$ROOT/scripts/bundle.sh" 2>/dev/null; then
         pass "bundle declara $key"
     else
@@ -104,12 +104,61 @@ check_imports() {
         pass "$label"
     fi
 }
-check_imports CompanionCore     "SwiftUI|AppKit|AVFoundation|WebKit|Combine" \
-    "Core es puro (sin SwiftUI/AppKit/AVFoundation/WebKit/Combine)"
+check_imports CompanionCore     "SwiftUI|AppKit|AVFoundation|WebKit|Combine|CoreLocation|MapKit" \
+    "Core es puro (sin SwiftUI/AppKit/AVFoundation/WebKit/Combine/CoreLocation/MapKit)"
 check_imports CompanionServices "SwiftUI" \
     "Services no importa SwiftUI"
 check_imports CompanionUI       "AVFoundation|WebKit" \
     "UI no importa AVFoundation/WebKit"
+
+# Revision 16h-2 ronda 3: la proyeccion de sesion tiene un solo escritor, el
+# reductor (SessionMachine.swift + SessionMachineJobs.swift + SessionMachineDictation.swift
+# + SessionMachineBrakes.swift + SessionMachineResting.swift).
+# Fuera de Core
+# solo se copia su salida entera (SessionModel: `= machine.projection`).
+proj_write='(^|[^[:alnum:]_])projection(\??\.[[:alnum:]_?.]+|\[[^]]*\])*[[:space:]]*([-+]?=[^=]|\.(append|remove[[:alnum:]]*|insert)\()'
+proj_hits=$(grep -rnE "$proj_write" "$SRC" --include='*.swift' 2>/dev/null \
+    | grep -vE '/CompanionCore/SessionMachine(Jobs|Dictation|Brakes|Resting)?\.swift:' \
+    | grep -vE '(let|var)[[:space:]]+projection[[:space:]:=]|= machine\.projection$' || true)
+if [ -n "$proj_hits" ]; then
+    fail "escritura de la proyeccion fuera del reductor:"
+    echo "$proj_hits"
+else
+    pass "la proyeccion solo la escribe el reductor"
+fi
+# Una extension de SessionMachine en otro archivo heredaria el setter de
+# `projection` y esquivaria el chequeo de arriba.
+ext_hits=$(grep -rnE '^[[:space:]]*(public[[:space:]]+|internal[[:space:]]+)?extension[[:space:]]+SessionMachine([^[:alnum:]_]|$)' \
+        "$SRC" --include='*.swift' 2>/dev/null \
+    | grep -vE '/CompanionCore/SessionMachine(Jobs|Dictation|Brakes|Resting)?\.swift:' || true)
+if [ -n "$ext_hits" ]; then
+    fail "extension SessionMachine fuera de SessionMachine(Jobs|Dictation|Brakes|Resting).swift:"
+    echo "$ext_hits"
+else
+    pass "SessionMachine solo se extiende en su propio archivo"
+fi
+
+# 16q-2: el interruptor "Tu ciudad" llega a las herramientas desde la raiz de
+# composicion. El default de los runners es apagado (fail closed), asi que una
+# constante o un cableado perdido aqui dejaria "cerca de mi" sin ciudad, o
+# la abriria sin permiso del usuario; App no tiene test, se fija por texto.
+# Sin comentarios (// y /* */), exactamente un `locationChannelOn:` y dentro de la
+# llamada ParentToolRunner(; el patron vive en conformance/location-wiring.regex
+# y lo lee tambien Parity16q2RoundTests.
+if python3 - "$SRC/CompanionApp/CompanionMainSensing.swift" "$ROOT/conformance/location-wiring.regex" <<'PY' 2>/dev/null
+import re, sys
+src = open(sys.argv[1]).read()
+pattern = open(sys.argv[2]).read().strip()
+bare = re.sub(r"/\*.*?\*/", "", src, flags=re.S)
+bare = re.sub(r"//[^\n]*", "", bare)
+ok = bare.count("locationChannelOn:") == 1 and re.search(pattern, bare, flags=re.S) is not None
+sys.exit(0 if ok else 1)
+PY
+then
+    pass "la raiz cablea ContextPreference.locationChannelOn dentro de ParentToolRunner("
+else
+    fail "CompanionMainSensing no cablea locationChannelOn: { ContextPreference.locationChannelOn } dentro de ParentToolRunner( (comentarios no cuentan)"
+fi
 
 # Literales de padding/spacing/cornerRadius: un solo sistema de tokens.
 # Valvula: // token-exempt:  (WHY en el mismo comentario)

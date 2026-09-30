@@ -277,6 +277,7 @@ extension VoiceSession {
             if Task.isCancelled { return }
             switch event {
             case .finished:
+                markQuestionSaid()
                 await logAnnouncementSaid()
                 await apply(.speechFinished)
             case .failed:
@@ -303,45 +304,6 @@ extension VoiceSession {
                 }
             }
         }
-    }
-
-    func jobAnnounce(_ announcement: JobAnnouncement) async {
-        let snap = machine.snapshot
-        guard snap.state != .idle, snap.state != .error else { return }
-        if snap.pipeline == .realtime {
-            pendingAnnouncements.append(announcement.instruction)
-            await flushAnnouncements()
-            return
-        }
-        // Code review 2026-09-25 (HIGH-B): classic has no model behind the
-        // synthesizer, so the instruction is never spoken; the classic
-        // runtime says our line and a summary turn through `TurnMouth`.
-        await cutAnnouncement()
-        announcementUnlogged = true
-        let classic = classic
-        announceTask = Task { await classic.announce(announcement) }
-    }
-
-    /// A press over the announcement: what already sounded is its `said=`.
-    func cutAnnouncement() async {
-        announceTask?.cancel()
-        announceTask = nil
-        // Already logged means its audio already ended: nothing to silence.
-        guard announcementUnlogged else { return }
-        await logAnnouncementSaid()
-        await synthesizer.stop()
-    }
-
-    /// 15f-3: the specialist's outcome is spoken outside any turn, so the
-    /// turn's own `said=` never saw it. Written once the audio is done (or
-    /// cut), from what the synthesizer actually said; the flag is read now,
-    /// not at the start — the job may outlive the setting it began under.
-    func logAnnouncementSaid() async {
-        guard announcementUnlogged else { return }
-        announcementUnlogged = false
-        guard configProvider.current.debugTranscripts,
-              let said = await synthesizer.spokenSoFar() else { return }
-        classic.transcripts?.said(said)
     }
 
     func completeHold(hasSpeech: Bool) async {

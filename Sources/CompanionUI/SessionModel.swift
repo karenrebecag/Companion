@@ -24,20 +24,16 @@ public final class SessionModel {
     private var noticeExpiry: Task<Void, Never>?
     private var handsGlowExpiry: Task<Void, Never>?
     private var receiptExpiry: Task<Void, Never>?
+    /// 16h-3: where the island's events wait for the next turn.
+    public var islandEvents: (any IslandEventSink)?
     /// Wave 17: "the voice wins" — `BridgeHost` pauses the bridge for any
     /// turn of Karen's own and resumes it back at rest. `send(_:)` is the
     /// only place `projection.kind` changes, so it is the only place that
     /// needs to notice.
     public var onKindChange: (@MainActor (SessionKind) -> Void)?
-    /// A request left the sheet by any road (click, spoken, dropped, settled
-    /// elsewhere). The voice session drops its note for it, so a later
-    /// injected yes has nothing stale to answer (Wave 20c D1). The Bool is
-    /// the sheet's own verdict, nil when it closed without one; the voice
-    /// session needs it to answer an MCP request with the click (20c D2).
-    public var onApprovalClosed: (@MainActor (String, Bool?) -> Void)?
     /// The user pressed Undo on a receipt (Wave 20d B). The composition root
     /// wires the adapter that takes the action back.
-    public var onUndo: (@MainActor (ActionReceipt) -> Void)?
+    public var onUndo: (@MainActor (UndoReceipt) -> Void)?
 
     public init(
         jobs: (any JobSubmitter)?,
@@ -81,16 +77,18 @@ public final class SessionModel {
             voiceIdle?.cancel()
             voiceIdle = nil
         }
+        if projection.notice == nil {
+            noticeExpiry?.cancel()
+            noticeExpiry = nil
+        }
         for effect in effects { perform(effect) }
-        notifyClosedApprovals(event, effects)
         return effects
     }
 
-    private func notifyClosedApprovals(_ event: SessionEvent, _ effects: [SessionEffect]) {
-        for case .resolveApproval(let id, let approved, _) in effects {
-            onApprovalClosed?(id, approved)
-        }
-        if case .approvalSettled(let id) = event { onApprovalClosed?(id, nil) }
+    /// What only the view knows (a card the user closed, a result nobody
+    /// opened) reaches the model through here.
+    public func report(_ event: IslandEvent) {
+        islandEvents?.record(event)
     }
 
     private func perform(_ effect: SessionEffect) {
@@ -98,6 +96,15 @@ public final class SessionModel {
         case .cancelJob:
             guard let jobs else { return }
             Task { await jobs.cancel() }
+        case .approvalClosed(let id):
+            guard let voice else { return }
+            Task { await voice.approvalClosed(requestId: id) }
+        case .approvalFront(let id):
+            guard let voice else { return }
+            Task { await voice.approvalFront(requestId: id) }
+        case .cancelJobByID(let id):
+            guard let jobs else { return }
+            Task { await jobs.cancel(job: id) }
         case .resolveApproval(let id, let approved, let remember):
             // The same actor answers a specialist's request and the parent's
             // gate; the submitter is the road when no actor was injected.
@@ -114,7 +121,9 @@ public final class SessionModel {
         case .scheduleNoticeExpiry(let delay):
             // A second "didn't hear you" gets its own six seconds.
             noticeExpiry?.cancel()
-            noticeExpiry = timer(delay, then: .noticeExpired)
+            // Armed for THIS notice: if another took its place, the late
+            // clock finds it changed and does nothing.
+            noticeExpiry = timer(delay, then: projection.notice.map { .noticeExpired($0) } ?? .noticeDismissed)
         case .scheduleReceiptExpiry(let id, let delay):
             // The newest receipt owns the window: an older one's undo is gone.
             receiptExpiry?.cancel()
@@ -150,6 +159,8 @@ public final class SessionModel {
         case .cancelVoiceOutput:
             guard let voice else { return }
             Task { await voice.interrupt() }
+        case .islandEvent(let fact):
+            islandEvents?.record(fact)
         case .logTransition(let from, let to):
             log("session: \(Self.name(from)) -> \(Self.name(to))")
         }

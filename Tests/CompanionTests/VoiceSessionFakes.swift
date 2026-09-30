@@ -53,8 +53,7 @@ func makeVoiceHarness(
     // tail's own tests pass it explicitly.
     releaseTail: TimeInterval = 0,
     screen: (any ScreenSeeing)? = nil,
-    debugTranscripts: Bool = false,
-    mcpApprovalTimeout: TimeInterval = ApprovalTiming.autoDeny
+    debugTranscripts: Bool = false
 ) -> VoiceHarness {
     let transport = ScriptedVoiceTransport()
     transport.autoEvents = autoEvents
@@ -96,15 +95,14 @@ func makeVoiceHarness(
         micSilenceTimeout: micSilenceTimeout,
         releaseTail: releaseTail,
         now: { clock.now },
-        readyTimeout: readyTimeout,
-        mcpApprovalTimeout: mcpApprovalTimeout)
+        readyTimeout: readyTimeout)
     let watch = SnapWatch(session.snapshots)
     if onJobEvent != nil || sessionModel != nil {
         // Wave 12a: the closure became a stream; the harness keeps its shape.
         // One pump: an AsyncStream has one consumer.
         Task {
             for await event in session.events {
-                if case .job(let jobEvent) = event { onJobEvent?(jobEvent) }
+                if case .job(let jobEvent, _) = event { onJobEvent?(jobEvent) }
                 if let sessionModel {
                     await MainActor.run { sessionModel.send(event) }
                 }
@@ -341,11 +339,16 @@ final class ScriptedSegmentingEar: SegmentingTranscriber, @unchecked Sendable {
 
 final class ScriptedSynth: SpeechSynthesizer, @unchecked Sendable {
     var began = false, finished = false, stopped = false
-    var queue: [String] = [], spoken: String?, speakingNow = ""
+    var spoken: String?, speakingNow = ""
+    /// Written from the runtime's task, read from the test's: behind a lock
+    /// so a read from any task is never a race (review 16h-2 L3).
+    private let lock = NSLock()
+    private var sentences: [String] = []
+    var queue: [String] { lock.withLock { sentences } }
     private let box = StreamBox<SpeechEvent>()
     var events: AsyncStream<SpeechEvent> { box.stream }
     func begin() async { began = true }
-    func enqueue(_ sentence: String) async { queue.append(sentence) }
+    func enqueue(_ sentence: String) async { lock.withLock { sentences.append(sentence) } }
     func finish() async { finished = true }
     func stop() async { stopped = true }
     func spokenSoFar() async -> String? { spoken }
@@ -390,26 +393,55 @@ final class ScriptedSecrets: SecretStore, @unchecked Sendable {
 }
 
 final class ScriptedThread: ConversationPresenting, @unchecked Sendable {
-    var turns: [Turn] = [], status: [String] = [], stream = "", finished = false
+    // Locked: a background job writes the thread from its own task while the
+    // voice writes it from the session; the bare arrays crashed the suite.
+    private let lock = NSLock()
+    private var _turns: [Turn] = [], _status: [String] = [], _stream = "", _finished = false
+    private var _history: [Turn] = []
+    var turns: [Turn] {
+        get { lock.withLock { _turns } }
+        set { lock.withLock { _turns = newValue } }
+    }
+    var status: [String] {
+        get { lock.withLock { _status } }
+        set { lock.withLock { _status = newValue } }
+    }
+    var stream: String {
+        get { lock.withLock { _stream } }
+        set { lock.withLock { _stream = newValue } }
+    }
+    var finished: Bool {
+        get { lock.withLock { _finished } }
+        set { lock.withLock { _finished = newValue } }
+    }
     /// Like the real presenter: `turns` is what gets painted (raw words),
     /// `history` is what the model sees next turn (compact context line).
-    var history: [Turn] = []
+    var history: [Turn] {
+        get { lock.withLock { _history } }
+        set { lock.withLock { _history = newValue } }
+    }
     func historyTurns() async -> [Turn] { history }
     func memoryTurns() async -> [Turn] { turns }
     func appendUser(_ text: String) async {
-        turns.append(Turn(role: .user, content: text))
-        history.append(Turn(role: .user, content: text))
+        lock.withLock {
+            _turns.append(Turn(role: .user, content: text))
+            _history.append(Turn(role: .user, content: text))
+        }
     }
     func appendUser(_ text: String, context: TurnContext?) async {
         let remembered = context.map { ContextBlock.compact($0, language: .en) + " " + text } ?? text
-        turns.append(Turn(role: .user, content: text))
-        history.append(Turn(role: .user, content: remembered))
+        lock.withLock {
+            _turns.append(Turn(role: .user, content: text))
+            _history.append(Turn(role: .user, content: remembered))
+        }
     }
     func appendAssistant(_ text: String) async {
-        turns.append(Turn(role: .assistant, content: text))
-        history.append(Turn(role: .assistant, content: text))
+        lock.withLock {
+            _turns.append(Turn(role: .assistant, content: text))
+            _history.append(Turn(role: .assistant, content: text))
+        }
     }
-    func appendStatus(_ text: String) async { status.append(text) }
+    func appendStatus(_ text: String) async { lock.withLock { _status.append(text) } }
     // Mirrors the REAL contract (ChatViewModel replaces): the old fake
     // accumulated, which is exactly why no test caught the flashing bubble.
     func showStream(_ text: String) async { stream = text }

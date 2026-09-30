@@ -28,9 +28,21 @@ struct SettingsPrivacyPage: View {
                 ) {
                     SettingsSwitch(label: Localized.string("settings.context.screen"), isOn: contextBinding(\.screen))
                 }
-                SettingsRow(title: Localized.string("settings.context.documents"), key: "settings.context.documents") {
+                SettingsRow(
+                    title: Localized.string("settings.context.documents"),
+                    subtitle: Localized.string("settings.context.documents.subtitle"),
+                    key: "settings.context.documents"
+                ) {
                     SettingsSwitch(
                         label: Localized.string("settings.context.documents"), isOn: contextBinding(\.documents))
+                }
+                SettingsRow(
+                    title: Localized.string("settings.context.location"),
+                    subtitle: Localized.string("settings.context.location.subtitle"),
+                    key: "settings.context.location"
+                ) {
+                    SettingsSwitch(
+                        label: Localized.string("settings.context.location"), isOn: contextBinding(\.location))
                 }
                 SettingsRow(
                     title: Localized.string("settings.privacy.lendHands"),

@@ -92,21 +92,21 @@ extension NativeToolRunner {
     /// the path it resolved) and from the target as it is right now, so the
     /// undo can tell later whether the user touched it. Nil when there is
     /// nothing to say; the receipt has no undo when the target cannot be read.
-    func receipt(tool: String, arguments: [String: Any]) async -> ActionReceipt? {
+    func receipt(tool: String, arguments: [String: Any]) async -> UndoReceipt? {
         switch tool {
         case NativeTool.createDocument.rawValue, NativeTool.writeFile.rawValue:
             guard let path = arguments["path"] as? String, case .success(let real) = writeBarrier(path),
                   let attributes = Self.attributes(real) else { return nil }
             let size = (attributes[.size] as? NSNumber)?.intValue ?? 0
             let modified = attributes[.modificationDate] as? Date ?? Date()
-            return ActionReceipt(
+            return UndoReceipt(
                 kind: .created, subject: (real as NSString).lastPathComponent,
                 undo: .trash(path: real, size: size, modified: modified))
         case NativeTool.sheetWrite.rawValue:
             guard let range = (arguments["range"] as? String).flatMap(SheetRange.init(a1:)),
                   let app = (arguments["app"] as? String).flatMap(SheetApp.init(rawValue:)),
                   let workbook = SheetApproval.workbook(in: arguments) else { return nil }
-            var undo: ActionReceipt.Undo?
+            var undo: UndoReceipt.Undo?
             do {
                 if let now = try await sheets?.read(app, range: range) {
                     undo = .clearCells(app: app, range: range.a1, workbook: workbook, expected: now)
@@ -115,7 +115,7 @@ extension NativeToolRunner {
                 // No baseline to compare against later, so no undo is offered.
                 Log.app("receipt: sheet unreadable, no undo")
             }
-            return ActionReceipt(kind: .wrote, subject: range.a1, undo: undo)
+            return UndoReceipt(kind: .wrote, subject: range.a1, undo: undo)
         default:
             return nil
         }

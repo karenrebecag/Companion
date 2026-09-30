@@ -586,8 +586,12 @@ private let slack = FocusedField(app: "Slack", pid: 42)
     await pumpUntil("anuncio: listening") { h.watch.latest.state == .listening }
     await h.session.release()
     await pumpUntil("anuncio: el submitter corrió") { !jobs.goals.isEmpty }
-    await pumpUntil("anuncio: la boca habla") { !h.synth.queue.isEmpty }
-    expectEq(h.synth.queue.first, "Done, it is on screen.", "anuncio: palabras propias")
+    // 16h-2: the hold acknowledges first and its turn ends; the job's end
+    // speaks after, in the gap.
+    await pumpUntil("anuncio: el acuse") { h.synth.queue.first == Acknowledgement.delegating(.en) }
+    h.synth.yield(.finished)
+    await pumpUntil("anuncio: la boca habla") { h.synth.queue.count >= 2 }
+    expectEq(h.synth.queue[1], "Done, it is on screen.", "anuncio: palabras propias")
     expect(!h.synth.queue.contains { $0.contains("The specialist answered") },
            "anuncio: nunca la instrucción al modelo")
 }
@@ -767,6 +771,12 @@ final class CapturingSubmitter: JobSubmitter, @unchecked Sendable {
         return JobResult(output: "ok", isError: false)
     }
     func cancel() async {}
+    func cancel(job id: JobID) async { await cancel() }
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try await submit(handoff, events: events)
+    }
     func resolveApproval(requestId: String, approved: Bool) async {}
     var isBusy: Bool { get async { false } }
 }

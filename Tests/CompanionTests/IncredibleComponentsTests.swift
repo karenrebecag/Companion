@@ -14,7 +14,6 @@ import Testing
     testCurvesMatchIncredible()
     testButtonMetricsMatchIncredible()
     testIconButtonAndCloseMatchIncredible()
-    testBadgeMatchesIncredible()
     testKeycapsMatchIncredible()
 }
 
@@ -91,12 +90,6 @@ import Testing
     expectEq(IconButtonSize.close.side, 32, "16l cerrar: 32")
 }
 
-@MainActor func testBadgeMatchesIncredible() {
-    expectEq([BadgeMetrics.radius, BadgeMetrics.paddingX, BadgeMetrics.paddingY],
-             [10, 8, 2], "16l badge: chip 10, 2 × 8")
-    expectEq(BadgeMetrics.size, TypeSize.micro, "16l badge: 11 px")
-}
-
 @MainActor func testKeycapsMatchIncredible() {
     let small = KeycapSize.small, large = KeycapSize.large
     expectEq([small.radius, small.paddingX, small.paddingY, small.fontSize],
@@ -139,6 +132,7 @@ import Testing
              [230, 16, 4], "16l menú de la isla: 230, radio 16, gap 4")
     expectEq(MenuMetrics.enterScale, 0.97, "16l menú: entra desde 0.97")
     expectEq(MenuMetrics.duration, 0.2, "16l menú: 0.2 s")
+    expectEq(MenuMetrics.duration, MotionTime.base, "16p menú: la duración sale de MotionTime, no de un literal")
 }
 
 // MARK: - 16l-3: cards

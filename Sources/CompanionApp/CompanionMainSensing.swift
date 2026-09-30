@@ -84,6 +84,12 @@ func makeSensingAndModel(
         // Wave 16o-3: what the cursor points at while the user speaks.
         pointerStart: { pointer.start() },
         pointerStop: { pointer.stop() })
+    // 16h-3: "nearby" is the city typed in Settings, else the system's (asked
+    // once, cached, never coordinates). The search provider's guess is never
+    // consulted.
+    let location = UserLocationSource(
+        manualCity: { [configProvider = env.configProvider] in configProvider.ownerCity },
+        system: CachedCityLocator(CoreLocationCityLocator()))
     let parentTools = ParentToolRunner(
         workspace: workspaceOpener, places: MapKitPlacesSearch(),
         skills: env.skillStore,
@@ -110,19 +116,29 @@ func makeSensingAndModel(
         workdir: env.config.workdir,
         documents: NativeDocumentRenderer(),
         sheets: AppleEventSheets(),
-        onAct: { receipts.send($0) })
+        onAct: { receipts.send($0) },
+        location: location,
+        // 16q-2: the same switch the turn's context reads (pinned by a test and Gate 3).
+        locationChannelOn: { ContextPreference.locationChannelOn })
+    // 16h-3: what the island did (cards shown, closed, ignored, a stop) waits
+    // here for the next turn, voice or chat.
+    let islandEvents = IslandEventBuffer()
     let sensor = SystemContextSensor(
         focused: frontmost,
         // Documents of the app the user was IN, not of Companion.
         documents: OpenDocumentsSensor(
             trusted: { accessibility.isTrusted() }, pid: { frontmost.lastOtherPID }),
-        clipboard: ClipboardSensor())
+        clipboard: ClipboardSensor(),
+        window: FocusedWindowSensor(
+            trusted: { accessibility.isTrusted() }, pid: { frontmost.lastOtherPID }),
+        location: location, islandEvents: islandEvents)
     // One reducer for the chrome (Wave 12a): the chat, the voice and the
     // specialist all send here; the views read the projection. The voice
     // port is wired once the session exists (below).
     let voicePort = VoicePortBox()
     let sessionModel = SessionModel(
         jobs: jobs.jobRunner, approvals: jobs.approvals, voice: voicePort, log: { Log.app($0) })
+    sessionModel.islandEvents = islandEvents
     // Wave 20d B: what ran without the sheet reaches the island with its
     // undo; the press is the user's alone.
     receipts.connect { receipt in
@@ -134,7 +150,7 @@ func makeSensingAndModel(
         Task {
             let undone = await undoer.undo(step)
             await MainActor.run {
-                sessionModel.send(.actionDone(ActionReceipt(
+                sessionModel.send(.actionDone(UndoReceipt(
                     kind: undone ? .undone : .couldNotUndo, subject: receipt.subject)))
             }
         }
@@ -165,6 +181,11 @@ func makeSensingAndModel(
         suggest: { slug, name in
             Task { @MainActor in
                 _ = sessionModel.send(.connectAppSuggested(slug: slug, name: name))
+            }
+        },
+        signIn: { slug, name in
+            Task { @MainActor in
+                _ = sessionModel.send(.signInAppSuggested(slug: slug, name: name))
             }
         })
     Task.detached(priority: .utility) { await appTools.refresh() }

@@ -27,20 +27,27 @@ final class DelayedContextSensor: ContextSensing, @unchecked Sendable {
     private let lock = NSLock()
     private var _calls = 0
     private var _cancelled = false
+    private var _finished = 0
+    var finished: Int { lock.withLock { _finished } }
     var calls: Int { lock.withLock { _calls } }
     var wasCancelled: Bool { lock.withLock { _cancelled } }
     private let delay: TimeInterval
+    private let laterDelay: TimeInterval
     private let context: TurnContext
 
-    init(delay: TimeInterval, context: TurnContext) {
+    /// `laterDelay` applies from the second `sense` on: a test that must prove
+    /// the commit does not sense again makes a second call unmistakably slow.
+    init(delay: TimeInterval, laterDelay: TimeInterval? = nil, context: TurnContext) {
         self.delay = delay
+        self.laterDelay = laterDelay ?? delay
         self.context = context
     }
 
     func sense(_ channels: ContextChannels, budget: Duration) async -> TurnContext {
-        lock.withLock { _calls += 1 }
+        let call = lock.withLock { _calls += 1; return _calls }
         do {
-            try await Task.sleep(for: .seconds(delay))
+            try await Task.sleep(for: .seconds(call == 1 ? delay : laterDelay))
+            lock.withLock { _finished += 1 }
         } catch {
             lock.withLock { _cancelled = true }
         }
@@ -53,18 +60,17 @@ final class DelayedContextSensor: ContextSensing, @unchecked Sendable {
 /// Task's already-finished value instead of calling `sense` again.
 @MainActor func testPressTimeSenseIsNotRepeatedAtCommit() async {
     let sensor = DelayedContextSensor(
-        delay: 0.2, context: TurnContext(source: .typed, focusedApp: "Notes"))
+        delay: 0.2, laterDelay: 30, context: TurnContext(source: .typed, focusedApp: "Notes"))
     let h = makeVoiceHarness(sensor: sensor)
     h.transcriber.stoppedText = "hola"
     h.chat.rounds = [[.text("Hola.")]]
     await h.session.hold()
     await pumpUntil("press-sense: listening") { h.watch.latest.state == .listening }
-    await settle(0.35) // past the sensor's own delay: the press-time sense is done
-    let before = Date()
+    // Causal, not a wall-clock guess: under a loaded parallel run 0.35 s did not
+    // always outlast the sensor's 0.2 s, so the release awaited the remainder.
+    await pumpUntil("press-sense: el sense de la pulsación terminó") { sensor.finished == 1 }
     await h.session.release()
     await pumpUntil("press-sense: el chat recibe el turno") { !h.chat.histories.isEmpty }
-    expect(Date().timeIntervalSince(before) < 0.1,
-           "press-sense: el commit no vuelve a pagar el sensor")
     expectEq(sensor.calls, 1, "press-sense: un solo sense, en la pulsación")
     let last = h.chat.histories[0].last { $0.role == .user }
     expect(last?.content.contains("Notes") == true, "press-sense: el contexto sensado al pulsar viaja")

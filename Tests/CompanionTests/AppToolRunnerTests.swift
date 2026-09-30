@@ -197,3 +197,13 @@ private struct NullWorkspace: WorkspaceOpening {
     func runningApplications() -> [String] { [] }
     func installedApplications() -> [String] { [] }
 }
+
+// 16m-7: the `@` selector offers the apps the runner already knows are connected.
+@Test func appToolRunnerMentionCandidatesTests() async {
+    let runner = AppToolRunner(service: { FakeAppsService() }, catalog: [], suggest: nil)
+    expectEq(runner.connectedMentionCandidates().count, 0, "16m-7: antes de cargar no se inventa nada")
+    await runner.refresh()
+    let found = runner.connectedMentionCandidates()
+    expectEq(found.map(\.kind), [.app], "16m-7: solo las conectadas, no la que pide reconectar")
+    expectEq(found.map(\.id), ["slack_v2"], "16m-7: por su slug")
+}

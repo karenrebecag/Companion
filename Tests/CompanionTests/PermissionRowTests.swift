@@ -54,6 +54,10 @@ import Testing
     expectEq(ax.requests, 2, "toggle: con permiso no pide")
     model.clipboard = true
     expect(ContextPreference.channels.contains(.clipboard), "toggle: portapapeles")
+    model.location = true
+    expect(model.location && ContextPreference.channels.contains(.location), "toggle: ubicación encendida")
+    model.location = false
+    expect(!model.location && !ContextPreference.channels.contains(.location), "toggle: ubicación apagada")
 }
 
 @MainActor func testVoiceFailureOffersTheRightLink() {

@@ -1,7 +1,7 @@
 import SwiftUI
 
 public enum OpenMenu: Equatable, Sendable {
-    case choice, history, settingsPick(String)
+    case history, settingsPick(String)
 }
 
 public struct DropdownItem {
@@ -38,12 +38,6 @@ public final class DropdownHost {
     var onChoose: ((Int) -> Void)?
 
     public init() {}
-
-    /// Choice is a header panel: the root hit-sink covers the rest of the
-    /// window. History is a centered overlay; its blur is the sink.
-    public var blocksRoot: Bool {
-        session.isOpen && menu == .choice
-    }
 
     public func toggle(_ menu: OpenMenu) {
         if self.menu == menu, session.isOpen {
@@ -147,12 +141,12 @@ private extension AnyTransition {
         .modifier(
             active: DropdownChrome(blur: 0, scale: MenuMetrics.enterScale, opacity: 0),
             identity: DropdownChrome(blur: 0, scale: 1, opacity: 1))
-        .animation(MotionCurve.animation(MotionCurve.standard, MenuMetrics.duration))
     }
 }
 
 struct DropdownPanel<Content: View>: View {
     @ViewBuilder let content: Content
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: MenuMetrics.gap) {
@@ -169,7 +163,9 @@ struct DropdownPanel<Content: View>: View {
             RoundedRectangle(cornerRadius: MenuMetrics.radius)
                 .stroke(Semantic.popupBorder, lineWidth: Stroke.hairline)
         )
-        .transition(.dropdown)
+        .transition(ChromeMotion.transition(
+            .dropdown, reduceMotion: reduceMotion,
+            animation: MotionCurve.animation(MotionCurve.standard, MenuMetrics.duration)))
     }
 }
 
@@ -186,6 +182,7 @@ struct DropdownRow: View {
     let action: () -> Void
 
     @State private var hovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: action) {
@@ -235,7 +232,7 @@ struct DropdownRow: View {
         .onHover { hovering = $0 }
         .accessibilityLabel(subtitle.map { "\(title), \($0)" } ?? title)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-        .animation(.expoOut(MotionTime.fast), value: hovering)
+        .animation(ChromeMotion.animation(.expoOut(MotionTime.fast), reduceMotion: reduceMotion), value: hovering)
         .staggered(index)
     }
 }
@@ -248,7 +245,16 @@ extension View {
     }
 
     func dropdownPortal(host: DropdownHost) -> some View {
-        overlayPreferenceValue(DropdownAnchorKey.self) { anchor in
+        modifier(DropdownPortal(host: host))
+    }
+}
+
+private struct DropdownPortal: ViewModifier {
+    let host: DropdownHost
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content.overlayPreferenceValue(DropdownAnchorKey.self) { anchor in
             GeometryReader { proxy in
                 if host.session.isOpen, let anchor {
                     let rect = proxy[anchor]
@@ -268,7 +274,7 @@ extension View {
                                             swatch: item.swatch,
                                             rainbow: item.rainbow
                                         ) {
-                                            withAnimation(.springSheet) { host.pick(i) }
+                                            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { host.pick(i) }
                                         }
                                     }
                                 }
@@ -281,7 +287,7 @@ extension View {
                             y: rect.maxY + Space.x1)
                         .focusable()
                         .onKeyPress(.escape) {
-                            withAnimation(.springSheet) { host.dismiss() }
+                            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { host.dismiss() }
                             return .handled
                         }
                         .onKeyPress(.upArrow) {
@@ -293,7 +299,7 @@ extension View {
                             return .handled
                         }
                         .onKeyPress(.return) {
-                            withAnimation(.springSheet) { host.pickHighlight() }
+                            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { host.pickHighlight() }
                             return .handled
                         }
                     }
@@ -316,6 +322,7 @@ struct SettingsItem<T: Hashable>: View {
     let onChange: (T) -> Void
 
     @Environment(DropdownHost.self) private var host
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var menu: OpenMenu { .settingsPick(id ?? title) }
 
@@ -328,7 +335,7 @@ struct SettingsItem<T: Hashable>: View {
                 Spacer()
             }
             Button {
-                withAnimation(.springSheet) {
+                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) {
                     host.present(
                         menu,
                         items: options.map { opt in

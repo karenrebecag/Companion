@@ -75,7 +75,9 @@ private let slack = FocusedField(app: "Slack", pid: 42)
     await h.session.release()
     await pumpUntil("dictado: pega") { injector.texts == ["hola qué tal"] }
     expectEq(injector.fields.first?.pid, 42, "dictado: en el campo sondeado")
-    await pumpUntil("dictado: lo dice") { seen.events.contains { $0 == .dictated(app: "Slack") } }
+    await pumpUntil("dictado: lo dice") {
+        seen.events.contains { $0 == .dictated(app: "Slack", text: "hola qué tal") }
+    }
     let added = Array(h.transport.sent.dropFirst(before))
     expect(!hasMessage(added, type: "conversation.item.create"), "dictado: nada viaja a la conversación")
     expect(!hasMessage(added, type: "response.create"), "dictado: y no se pide respuesta")
@@ -141,7 +143,8 @@ private let slack = FocusedField(app: "Slack", pid: 42)
     await h.session.release()
     await pumpUntil("se fue: el texto va a Companion") { !h.chat.histories.isEmpty }
     expectEq(injector.texts, ["hola"], "se fue: se intentó una vez")
-    expect(!seen.events.contains { $0 == .dictated(app: "Slack") }, "se fue: no dice «pegado»")
+    expect(!seen.events.contains { if case .dictated = $0 { true } else { false } },
+           "se fue: no dice «pegado»")
 }
 
 /// 18. Dictado vacío: «no te oí», y el inyector no recibe una cadena vacía.
@@ -171,16 +174,27 @@ private let slack = FocusedField(app: "Slack", pid: 42)
         await h.session.hold(dictate: true)
         await pumpUntil("log: listening") { h.watch.latest.state == .listening }
         await h.session.release()
-        await pumpUntil("log: pegó") { seen.events.contains { $0 == .dictated(app: "Slack") } }
+        await pumpUntil("log: pegó") {
+            seen.events.contains { $0 == .dictated(app: "Slack", text: "palabra secreta") }
+        }
         await h.session.hangUp()
         let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
         expect(text.contains("dictation: pasted 15 chars into Slack via ax"), "log: cuenta y dónde")
         expect(!text.contains("palabra secreta"), "log: nunca el texto")
+        // 16m-4: the result card reads the pasted words, so `.dictated`
+        // carries them, in memory. Only its payload is exempt, and only
+        // because it is `DictatedText`, which prints redacted: any event's
+        // description is still checked, `.dictated` included.
         let leaked = seen.events.contains {
             if case .partialTranscript = $0 { return false }
             return "\($0)".contains("palabra secreta")
         }
-        expect(!leaked, "flujo: el texto solo viaja como parcial")
+        expect(!leaked, "flujo: el texto solo viaja como parcial y como payload del resultado, sin imprimirse")
+        let carried = seen.events.contains {
+            if case .dictated(_, let words) = $0 { return words?.value == "palabra secreta" }
+            return false
+        }
+        expect(carried, "flujo: el resultado sí lo lleva a la tarjeta")
     }
 }
 

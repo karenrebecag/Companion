@@ -20,6 +20,10 @@
       "why": "se salta TypeScale Y la tipografia elegida: no responde ni al control de tamano ni a la fuente del usuario. Toda tipografia pasa por Fonts/Font.ui*",
       "pattern": "system\\(size:\\s*[0-9]"
     },
+    "system-font-expression": {
+      "why": "16p-2: un tamano calculado (.system(size: X * 0.8)) esquiva TypeScale igual que el literal y system-font no lo ve; eran 16 en el audit. El tamano pasa por Fonts/GeistFont (que escalan con el usuario); solo la fabrica de Typography.swift llama a .system, con token-exempt",
+      "pattern": "\\.system\\(\\s*size:\\s*[A-Za-z_(]"
+    },
     "role-opacity": {
       "why": "el estado es un rol semantico, no un alfa inventado por call site. Tres idiomas distintos de 'seleccionado' salieron de aqui",
       "pattern": "Semantic\\.[a-zA-Z]+\\.opacity\\("
@@ -46,28 +50,14 @@
     }
   },
   "exemptFiles": {
-    "IslandMotion.swift": "archivo de tokens (spec 16f §9): aqui se declaran las duraciones, curvas y amplitudes de la isla, como MotionTime en Motion.swift; MotionBudgetTests las comprueba contra las reglas M1-M8"
+    "Island/IslandMotion.swift": "archivo de tokens (spec 16f §9): aqui se declaran las duraciones, curvas y amplitudes de la isla, como MotionTime en Motion.swift; MotionBudgetTests las comprueba contra las reglas M1-M8"
   },
   "baseline": {
-    "AttachmentViews.swift": {
-      "space-arithmetic": 12
-    },
-    "ChatInputView.swift": {
-      "space-arithmetic": 1
-    },
     "CompanionRootView.swift": {
-      "space-arithmetic": 2
+      "space-arithmetic": 1
     },
     "Dropdown.swift": {
       "space-arithmetic": 3
-    },
-    "HeaderView.swift": {
-      "role-opacity": 1,
-      "space-arithmetic": 11
-    },
-    "JobCardView.swift": {
-      "frame-literal": 1,
-      "space-arithmetic": 1
     },
     "MarkdownView.swift": {
       "frame-literal": 2
@@ -86,17 +76,6 @@
     },
     "Shimmer.swift": {
       "space-arithmetic": 1
-    },
-    "ShortcutCaptureField.swift": {
-      "copy-literal": 1,
-      "radius-literal": 1
-    },
-    "StatusLine.swift": {
-      "copy-literal": 1,
-      "space-arithmetic": 2
-    },
-    "ThreadView.swift": {
-      "space-arithmetic": 8
     },
     "Toasts.swift": {
       "frame-literal": 1

@@ -42,6 +42,15 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
     /// Slugs already suggested: the connect card nudges once per launch,
     /// never on every mention.
     private var suggestedSlugs: Set<String> = []
+    /// Same rule for the sign-in nudge, in its own set: having offered to
+    /// connect an app must not silence the later "sign in again".
+    private var signedInSuggested: Set<String> = []
+    /// Connected accounts whose tools did not load this time: connected all
+    /// the same, so never a "connect it" candidate.
+    private var connectedUnlisted: Set<String> = []
+    /// Accounts that exist but whose session expired (`reconnect`): naming
+    /// one asks for signing in again, not for connecting it.
+    private var expired: [AppMention.Candidate] = []
     private var lastRefresh: TimeInterval = 0
 
     private let service: @Sendable () -> (any AppsService)?
@@ -50,17 +59,20 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
     /// carry their own names).
     private let catalog: [AppMention.Candidate]
     private let suggest: (@Sendable (String, String) -> Void)?
+    private let signIn: (@Sendable (String, String) -> Void)?
     private let now: @Sendable () -> TimeInterval
 
     public init(
         service: @escaping @Sendable () -> (any AppsService)?,
         catalog: [AppMention.Candidate],
         suggest: (@Sendable (String, String) -> Void)?,
+        signIn: (@Sendable (String, String) -> Void)? = nil,
         now: @escaping @Sendable () -> TimeInterval = { Date().timeIntervalSince1970 }
     ) {
         self.service = service
         self.catalog = catalog
         self.suggest = suggest
+        self.signIn = signIn
         self.now = now
     }
 
@@ -83,6 +95,7 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
             return
         }
         var fresh: [ConnectedTools] = []
+        var unlisted: Set<String> = []
         for account in accounts where account.state == .connected {
             do {
                 let actions = try await service.tools(app: account.app)
@@ -91,18 +104,31 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
                     actions: actions))
             } catch {
                 Log.app("apps: could not list tools of \(account.app)")
+                unlisted.insert(account.app)
             }
         }
-        store(fresh)
+        store(fresh, unlisted: unlisted, expired: accounts.filter { $0.state == .reconnect }.map {
+            AppMention.Candidate(slug: $0.app, name: Self.displayName($0.app))
+        })
         // Counts only, never content: enough to tell "cache empty" from
         // "cache loaded" when a live turn misbehaves (QA 16k-3).
         Log.app("apps: runner cached \(fresh.count) app(s), "
             + "\(fresh.reduce(0) { $0 + $1.actions.count }) tool(s)")
     }
 
-    private func store(_ fresh: [ConnectedTools]) {
+    /// The connected apps as `@` candidates: what the last refresh saw, no
+    /// network. Before the first refresh there is nothing to offer.
+    public func connectedMentionCandidates() -> [MentionCandidate] {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache.compactMap { MentionCandidate(id: $0.slug, kind: .app, name: $0.name) }
+    }
+
+    private func store(_ fresh: [ConnectedTools], unlisted: Set<String>, expired: [AppMention.Candidate]) {
         lock.lock()
         cache = fresh
+        connectedUnlisted = unlisted
+        self.expired = expired
         loaded = true
         lastRefresh = now()
         lock.unlock()
@@ -129,8 +155,17 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
             // Named but not connected: the island offers the way, once —
             // and only once the cache has really loaded, or "connected"
             // and "not loaded yet" are indistinguishable (M2).
-            let candidates = catalog.filter { !connectedSlugs.contains($0.slug) }
-            if ready, let slug = AppMention.match(said, in: candidates),
+            let expiredSlugs = Set(expired.map(\.slug))
+            let candidates = catalog.filter {
+                !connectedSlugs.contains($0.slug) && !expiredSlugs.contains($0.slug)
+                    && !connectedUnlisted.contains($0.slug)
+            }
+            if ready, let slug = AppMention.match(said, in: expired), !signedInSuggested.contains(slug) {
+                signedInSuggested.insert(slug)
+                let name = expired.first { $0.slug == slug }?.name ?? slug
+                lock.unlock()
+                signIn?(slug, name)
+            } else if ready, let slug = AppMention.match(said, in: candidates),
                !suggestedSlugs.contains(slug) {
                 suggestedSlugs.insert(slug)
                 let name = candidates.first { $0.slug == slug }?.name ?? slug
@@ -140,9 +175,26 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
                 lock.unlock()
             }
         }
-        if stale {
-            Task.detached(priority: .utility) { [weak self] in await self?.refresh() }
-        }
+        refreshInBackground(ifStale: stale)
+    }
+
+    /// Off the turn's path: a slow catalog never delays the request.
+    private func refreshInBackground(ifStale stale: Bool) {
+        guard stale else { return }
+        Task.detached(priority: .utility) { [weak self] in await self?.refresh() }
+    }
+
+    /// A card answer names no app, so the words cannot narrow the set; the
+    /// agent keeps every connector, and each write still asks its own sheet.
+    /// Grants die and a stale cache refreshes here as they do for a typed
+    /// turn, but there are no words to match, so no suggestion is raised.
+    public func noteChoiceTurn() {
+        lock.lock()
+        grants.removeAll()
+        scope = .allConnected
+        let stale = now() - lastRefresh > Self.refreshTTL
+        lock.unlock()
+        refreshInBackground(ifStale: stale)
     }
 
     public func specs(_ language: AppLanguage) -> [ToolSpec] {
@@ -264,7 +316,8 @@ public final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
         let words = slug.split(whereSeparator: { $0 == "_" || $0 == "-" })
             .filter { $0.range(of: "^v[0-9]+$", options: .regularExpression) == nil }
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
-        return words.isEmpty ? slug : words.joined(separator: " ")
+        // The slug comes off the wire and ends up on a card: display text.
+        return TextSanitizer.display(words.isEmpty ? slug : words.joined(separator: " "), maxLength: 40)
     }
 }
 
@@ -321,6 +374,10 @@ public struct CompositeParentTools: ParentToolExecuting, Sendable {
 
     public func noteTurn(_ said: String) {
         for runner in runners { runner.noteTurn(said) }
+    }
+
+    public func noteChoiceTurn() {
+        for runner in runners { runner.noteChoiceTurn() }
     }
 
     public func unavailability(for name: String) -> String? {

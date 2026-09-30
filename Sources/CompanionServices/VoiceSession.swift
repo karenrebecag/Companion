@@ -61,16 +61,51 @@ public actor VoiceSession: VoiceControlling {
     /// Job outcomes waiting for a listening gap; the voice must never be
     /// talked over by its own announcement.
     var pendingAnnouncements: [String] = []
+    /// 16h-2: a job's end for the classic voice, parked until the turn in
+    /// flight (or the hold being made) is over. `AnnouncementGap` decides.
+    var parkedAnnouncements: [ParkedAnnouncement] = []
+    /// 16h-2 (M3): the user closed the voice (or it failed): a job's end is
+    /// dropped instead of speaking into a voice she turned off. A new hold
+    /// or start opens it again.
+    var voiceClosed = false
+    /// What the reducer was last told about notices (S2).
+    var publishedAnnouncing = false
+    /// When and in which hold the pending approval appeared (security M1).
+    var pendingApprovalSeen: ApprovalSighting?
+    /// Notices dropped unsaid (voice closed, error, stop, too old): the
+    /// log counts them, and a test can wait on something that happened.
+    var droppedAnnouncements = 0
     /// Written by VoiceSessionApprovals.
     var pendingApproval: ApprovalRequest?
-    /// Remote MCP tools whose sheet is open, by request id. Answered over the
-    /// websocket with the sheet's click, never by `resolve_approval` (20c D2).
+    /// Remote MCP tools waiting on the sheet (9j-3, 16q-1). Answered over
+    /// the websocket, not through the job runner; only a click approves it.
     /// Written by VoiceSessionApprovals.
-    var pendingMCPApprovals: [String: ApprovalRequest] = [:]
-    /// One auto-deny per open MCP sheet: these requests never enter
-    /// `Approvals`, whose timer is what denies every other permission.
-    var mcpApprovalTimers: [String: Task<Void, Never>] = [:]
-    let mcpApprovalTimeout: TimeInterval
+    var pendingMCPApprovals: [ApprovalRequest] = []
+    /// What she said in the hold that just ended (security M3), with that
+    /// hold's `pressed` stamp: a spoken yes is admitted only while the hold
+    /// answering is the hold that said it (round 2, S2). Written by
+    /// VoiceSessionApprovals.
+    var heardThisHold: HeardInHold?
+    /// The request the sheet shows, as the reducer last reported it (C2).
+    /// Nil until a sheet reports at all: a session without one (headless,
+    /// tests) keeps answering, and the reducer still drops what it must.
+    /// Written by VoiceSessionApprovals.
+    var sheetFront: SheetFront?
+    /// Requests that already left the sheet, newest last: a task that lost the
+    /// race with `approvalClosed` must not re-arm or announce them. Bounded.
+    // HACK: a FIFO of the last 64 ids. Ids are unique per request, so a
+    // request older than that cannot still be racing; upgrade trigger: a
+    // source that reuses ids, then the set moves into the reducer's queue.
+    static let closedApprovalCap = 64
+    var closedApprovals: [String] = []
+    /// 16q-1: the sheet's route for the realtime MCP request: the parent
+    /// gate's `decide`, so the request shows on the sheet and dies in the
+    /// same 60 s.
+    let mcpGuard: ParentToolGuard
+    /// 16q-1: the job permission the voice is saying right now (classic).
+    /// Marked announced only when its audio ends, never when it is queued or
+    /// cut. Written by VoiceSessionAnnouncements.
+    var askedAloud: String?
     var lastMic = 0.0
     var lastAgent = 0.0
     var reconnectAttempted = false
@@ -182,10 +217,8 @@ public actor VoiceSession: VoiceControlling {
         now: @escaping @Sendable () -> TimeInterval = {
             Date().timeIntervalSince1970
         },
-        readyTimeout: TimeInterval = 6,
-        mcpApprovalTimeout: TimeInterval = ApprovalTiming.autoDeny
+        readyTimeout: TimeInterval = 6
     ) {
-        self.mcpApprovalTimeout = mcpApprovalTimeout
         self.transport = transport
         self.mic = mic
         self.player = player
@@ -222,6 +255,9 @@ public actor VoiceSession: VoiceControlling {
         // if a second consumer or a slow one ever appears.
         let eventBox = AudioStreamBox<SessionEvent>()
         self.eventBox = eventBox
+        self.mcpGuard = ParentToolGuard(
+            approvals: approvals,
+            onRequest: { request in eventBox.yield(.job(.approvalRequested(request))) })
         self.events = eventBox.stream
         self.realtime.events = eventBox
         self.classic.events = eventBox
@@ -254,10 +290,11 @@ public actor VoiceSession: VoiceControlling {
                         // their hands full has to reach the ear too.
                         onEvent: { [weak self] event in
                             eventBox.yield(event)
-                            guard case .job(.approvalRequested(let request)) = event
+                            guard case .job(.approvalRequested(let request), _) = event
                             else { return }
                             Task { [weak self] in
                                 await self?.noteApproval(request)
+                                await self?.askApprovalAloud(request)
                             }
                         },
                         announce: { [weak self] announcement in
@@ -268,9 +305,10 @@ public actor VoiceSession: VoiceControlling {
             }
             classic.onDelegate = realtime.onDelegate
             realtime.onResolveApproval = { [weak self] approved in
-                await self?.answerPendingApproval(approved) ?? false
+                await self?.answerPendingApproval(approved) ?? .nothingPending
             }
             classic.onResolveApproval = realtime.onResolveApproval
+            classic.onHeard = { [weak self] text, pressed in await self?.noteHeard(text, pressed: pressed) }
         }
         realtime.onMCPApproval = { [weak self] request in
             Task { [weak self] in await self?.noteMCPApproval(request) }
@@ -306,6 +344,7 @@ public actor VoiceSession: VoiceControlling {
     }
 
     public func start() async {
+        voiceClosed = false
         await apply(.startVoice(preferRealtime: openAIKey() != nil))
     }
 
@@ -315,6 +354,8 @@ public actor VoiceSession: VoiceControlling {
 
     public func hangUp() async {
         screen?.cancel()
+        voiceClosed = true
+        await silenceAnnouncements(reason: "voice-closed")
         await apply(.hangUp)
     }
 
@@ -324,7 +365,10 @@ public actor VoiceSession: VoiceControlling {
         Log.app("voice: mic \(machine.snapshot.muted ? "muted" : "unmuted")")
     }
 
+    /// Esc, the Stop button, a spoken "para": a job's end still talking, or
+    /// waiting to, goes quiet with everything else (review 16h-2 S2).
     public func interrupt() async {
+        await silenceAnnouncements(reason: "stopped")
         await apply(.interrupt)
     }
 }

@@ -54,10 +54,10 @@ import Testing
 /// Los pasos alimentan la tarjeta; el hilo deja de llenarse de líneas.
 @MainActor func testStepsBuildTheCardNotStatusLines() async {
     let model = makeTimelineModel()
-    model.startJob(goal: "crear prueba1.md")
-    model.receiveJobEvent(.stepStarted(tool: "Write", summary: "prueba1.md"))
-    model.receiveJobEvent(.stepFinished(tool: "Write", ok: true))
-    model.receiveJobEvent(.thought("Reviso que el escritorio exista"))
+    let id = model.startJob(goal: "crear prueba1.md")
+    model.receiveJobEvent(.stepStarted(tool: "Write", summary: "prueba1.md"), from: id)
+    model.receiveJobEvent(.stepFinished(tool: "Write", ok: true), from: id)
+    model.receiveJobEvent(.thought("Reviso que el escritorio exista"), from: id)
 
     let job = model.job
     expectEq(job?.goal, "crear prueba1.md", "tarjeta: el encargo tiene nombre")
@@ -69,20 +69,22 @@ import Testing
            "tarjeta: los pasos ya no ensucian el hilo con status sueltos")
 }
 
-/// Cuando llega el resultado, la tarjeta viva se apaga: el informe manda.
+/// Cuando el encargo termina, la tarjeta viva se apaga: el informe manda.
+/// Por su propio fin, con su id (review 16h-2 round 3): un texto que llega
+/// al hilo puede ser de la voz y no cierra nada.
 @MainActor func testCardClosesWhenTheResultLands() async {
     let model = makeTimelineModel()
-    model.startJob(goal: "algo")
-    model.receiveJobEvent(.stepStarted(tool: "Bash", summary: "ls"))
+    let first = model.startJob(goal: "algo")
+    model.receiveJobEvent(.stepStarted(tool: "Bash", summary: "ls"), from: first)
     expect(model.job != nil, "tarjeta: viva mientras trabaja")
 
-    await model.appendAssistant("# Listo\nya está")
+    model.finishJob(ok: true, id: first)
     expect(model.job == nil, "tarjeta: el resultado la cierra")
 
     // Y un fallo también: nada de tarjetas colgadas para siempre.
-    model.startJob(goal: "lo imposible")
-    model.receiveJobEvent(.stepStarted(tool: "Bash", summary: "ls"))
-    await model.appendStatus("El encargo «lo imposible» no se pudo completar.")
+    let second = model.startJob(goal: "lo imposible")
+    model.receiveJobEvent(.stepStarted(tool: "Bash", summary: "ls"), from: second)
+    model.finishJob(ok: false, id: second)
     expect(model.job == nil, "tarjeta: un fallo también la cierra")
 }
 

@@ -267,8 +267,10 @@ extension ParentToolCopy {
         _ tool: ParentTool, _ outcome: ParentToolOutcome, _ language: AppLanguage
     ) -> String {
         switch (tool, language) {
-        case (.typeText, .en): return "Typed the text."
-        case (.typeText, .es): return "Escribí el texto."
+        // Injecting is not proof the field holds the text (a write with no
+        // read after it once reported "written correctly" over 0 bytes).
+        case (.typeText, .en): return outcome.verified ? "Typed the text." : "Tried to type the text."
+        case (.typeText, .es): return outcome.verified ? "Escribí el texto." : "Intenté escribir el texto."
         case (.pressKey, .en): return "Pressed \(outcome.target)."
         case (.pressKey, .es): return "Pulsé \(outcome.target)."
         // Never the title: this line is saved in the thread.

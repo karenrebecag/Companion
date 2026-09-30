@@ -9,16 +9,20 @@ private func mcp(_ id: String, tool: String = "docs/search", args: String = "{}"
     ApprovalRequest(requestId: id, toolName: tool, summary: "", inputJSON: args, isMCP: true)
 }
 
+// Tagged (16q-1): refusing a job's first action stops THAT job by its id, so
+// the job and its requests carry the owner.
+private let owner = JobID("j")
+
 private func jobAction(_ id: String) -> ApprovalRequest {
     ApprovalRequest(requestId: id, toolName: "run_shell", summary: "", inputJSON: "{}")
 }
 
 @Test @MainActor func mcpDenyDoesNotStopTheUnrelatedJob() {
     var m = SessionMachine()
-    _ = m.handle(.job(.started(goal: "x")))
+    _ = m.handle(.job(.started(goal: "x"), from: owner))
     _ = m.handle(.job(.approvalRequested(mcp("m1"))))
     let fx = m.handle(.approvalAnswered(requestId: "m1", approved: false, remember: false))
-    expect(!fx.contains(.cancelJob), "mcp no: el encargo ajeno no se cancela")
+    expect(!fx.contains(.cancelJob) && !fx.contains(.cancelJobByID(owner)), "mcp no: el encargo ajeno no se cancela")
     expect(fx.contains(.resolveApproval(requestId: "m1", approved: false, remember: false)),
            "mcp no: solo esa peticion se niega")
     expect(m.projection.job != nil, "mcp no: el encargo sigue")
@@ -26,9 +30,9 @@ private func jobAction(_ id: String) -> ApprovalRequest {
 
 @Test @MainActor func mcpDenyDoesNotDenyTheRestOfTheQueue() {
     var m = SessionMachine()
-    _ = m.handle(.job(.started(goal: "x")))
+    _ = m.handle(.job(.started(goal: "x"), from: owner))
     _ = m.handle(.job(.approvalRequested(mcp("m1"))))
-    _ = m.handle(.job(.approvalRequested(jobAction("a1"))))
+    _ = m.handle(.job(.approvalRequested(jobAction("a1")), from: owner))
     _ = m.handle(.approvalAnswered(requestId: "m1", approved: false, remember: false))
     expectEq(m.projection.approvalQueue.map(\.requestId), ["a1"],
              "mcp no: la cola del encargo queda intacta")
@@ -36,12 +40,12 @@ private func jobAction(_ id: String) -> ApprovalRequest {
 
 @Test @MainActor func mcpApproveDoesNotWeakenTheJobsFirstDenyRule() {
     var m = SessionMachine()
-    _ = m.handle(.job(.started(goal: "x")))
+    _ = m.handle(.job(.started(goal: "x"), from: owner))
     _ = m.handle(.job(.approvalRequested(mcp("m1"))))
     _ = m.handle(.approvalAnswered(requestId: "m1", approved: true, remember: false))
-    _ = m.handle(.job(.approvalRequested(jobAction("a1"))))
+    _ = m.handle(.job(.approvalRequested(jobAction("a1")), from: owner))
     let fx = m.handle(.approvalAnswered(requestId: "a1", approved: false, remember: false))
-    expect(fx.contains(.cancelJob), "mcp si: negar la 1a accion real del encargo aun lo para")
+    expect(fx.contains(.cancelJobByID(owner)), "mcp si: negar la 1a accion real del encargo aun lo para")
 }
 
 @Test func mcpSheetShowsTheFullArgumentsAndNoRemember() {

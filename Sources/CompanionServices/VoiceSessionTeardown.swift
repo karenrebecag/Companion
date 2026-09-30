@@ -10,7 +10,9 @@ extension VoiceSession {
     func closeRealtime() async {
         screen?.cancel()
         pendingAnnouncements.removeAll()
-        dropPendingMCPApprovals()
+        voiceClosed = true
+        await silenceAnnouncements(reason: "session-closed")
+        await dropPendingMCPApprovals()
         micSilenceTask?.cancel()
         micSilenceTask = nil
         eventTask?.cancel()

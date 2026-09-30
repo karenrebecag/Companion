@@ -1,104 +1,236 @@
 import CompanionCore
 import Foundation
 
+/// What the sheet shows first, as the reducer reported it; `requestId` nil
+/// means the sheet is empty.
+struct SheetFront: Sendable, Equatable {
+    let requestId: String?
+}
+
 /// The two permission channels a live session answers into: a job's
 /// approval and an MCP tool's (both close on the sheet's click). Split out of VoiceSession when it crossed the
 /// 400-line gate. What they touch is not `private` any more but still
 /// actor-isolated: the actor, not the access level, is what keeps this
 /// state single-threaded.
 extension VoiceSession {
-    /// The user's own MCP server asks to run a tool. It joins the same sheet
-    /// as every other permission: the model reads the request aloud but its
-    /// boolean settles nothing (Wave 20c D2).
+    /// 16q-1: a remote MCP tool's permission is a sheet, like the parent's
+    /// gates: Allow / Deny, the auto-deny of `ApprovalTiming`, and the
+    /// server hears the answer only once the user gave it. A spoken "yes"
+    /// never approves it (`answerPendingApproval`): Incredible accepts one
+    /// because a judge model checks the word, and Companion has no judge;
+    /// and the model's boolean settles nothing here (20c D2).
     func noteMCPApproval(_ request: ApprovalRequest) async {
-        let id = request.requestId
-        pendingMCPApprovals[id] = request
-        let timeout = mcpApprovalTimeout
-        mcpApprovalTimers[id] = Task { [weak self] in
-            do {
-                try await Task.sleep(for: .seconds(timeout))
-            } catch {
-                return
-            }
-            await self?.mcpApprovalExpired(id)
+        // The id is the server's: one already waiting means a repeat or a
+        // forgery. Fail closed: the original is refused (its own flow tells
+        // the server, once) instead of two sheets sharing one answer.
+        if let waiting = pendingMCPApprovals.first(where: { $0.requestId == request.requestId }) {
+            Log.app("voice: duplicate MCP approval id; refusing it")
+            await mcpGuard.withdraw(waiting)
+            return
         }
-        eventBox.yield(.job(.approvalRequested(request)))
+        pendingMCPApprovals.append(request)
+        let decision = await mcpGuard.decide(request)
+        // Dropped with its session (20c D2): the id died with the connection,
+        // so nothing is sent; the sheet only has to let go of it.
+        let live = pendingMCPApprovals.contains { $0.requestId == request.requestId }
+        pendingMCPApprovals.removeAll { $0.requestId == request.requestId }
+        // Answered by a click, the auto-deny or a "no": whichever it was, the
+        // sheet must not keep a request the server already heard about.
+        eventBox.yield(.approvalSettled(requestId: request.requestId))
+        guard live else { return }
+        await realtime.send(RealtimeCodec.mcpApprovalResponse(
+            requestId: request.requestId, approve: decision.approved))
+        await realtime.requestResponse()
     }
 
-    /// Nobody clicked in time. The sheet's own ring empties without closing
-    /// it and these requests never enter `Approvals`, so the deny is driven
-    /// here: OpenAI must not wait for ever, and the sheet must not outlive
-    /// the answer.
-    private func mcpApprovalExpired(_ requestId: String) async {
-        guard pendingMCPApprovals[requestId] != nil else { return }
-        await approvalClosed(requestId, approved: false)
-        eventBox.yield(.approvalDropped(requestId: requestId))
+    /// The session ended: its MCP request ids die with the connection, so a
+    /// late click must find nothing to answer, and no sheet may outlive them
+    /// (20c D2). Refused where the sheet's own answer would be, so the one
+    /// decision point still closes each of them once.
+    func dropPendingMCPApprovals() async {
+        let dropped = pendingMCPApprovals
+        pendingMCPApprovals = []
+        for request in dropped { await mcpGuard.withdraw(request) }
     }
 
-    /// The session ended: its request ids die with the connection, so a late
-    /// click must find nothing to answer, and no sheet may outlive them.
-    func dropPendingMCPApprovals() {
-        let ids = Array(pendingMCPApprovals.keys)
-        pendingMCPApprovals = [:]
-        for timer in mcpApprovalTimers.values { timer.cancel() }
-        mcpApprovalTimers = [:]
-        for id in ids { eventBox.yield(.approvalDropped(requestId: id)) }
+    /// The words the user said in the hold that just ended, as the ear heard
+    /// them. What a spoken yes is checked against (security M3). Stamped with
+    /// the press the hold STARTED with, not the live one: a hold cut by a new
+    /// press reports late, and the live press would lend its words to the new
+    /// hold. An empty report, or words of another hold, clear the last words
+    /// so a yes cannot outlive its hold.
+    func noteHeard(_ text: String, pressed: TimeInterval?) {
+        guard !text.isEmpty, let pressed, pressed == timeline.pressed else {
+            heardThisHold = nil
+            return
+        }
+        heardThisHold = HeardInHold(text: text, pressed: pressed)
+    }
+
+    /// A request left the sheet by some road (click, stop, its job ended):
+    /// the session forgets it, so a permission that no longer exists is
+    /// neither announced nor answered (16q-1 review, security M2).
+    public func approvalClosed(requestId: String) async {
+        // Round 2 (C2): the close and the note that announced the request are
+        // unordered tasks. Remembering the id makes a late note a no-op.
+        // A repeat close would take a second slot and push a distinct id out.
+        if !closedApprovals.contains(requestId) {
+            closedApprovals.append(requestId)
+            if closedApprovals.count > Self.closedApprovalCap {
+                closedApprovals.removeFirst(closedApprovals.count - Self.closedApprovalCap)
+            }
+        }
+        // The sheet changed: a yes said before it no longer answers it.
+        heardThisHold = nil
+        if pendingApproval?.requestId == requestId {
+            pendingApproval = nil
+            pendingApprovalSeen = nil
+        }
+    }
+
+    /// The reducer's report of what the sheet shows (C2): a spoken answer
+    /// for any other request would be dropped there.
+    public func approvalFront(requestId: String?) async {
+        sheetFront = SheetFront(requestId: requestId)
+    }
+
+    /// The pending job request, unless it died on the actor's deadline: the
+    /// auto-deny tells nobody here, so it expires by the same clock.
+    var livePendingApproval: ApprovalRequest? {
+        guard let pending = pendingApproval else { return nil }
+        if let seen = pendingApprovalSeen, seen.requestId == pending.requestId,
+           now() - seen.shownAt >= ApprovalTiming.autoDeny {
+            pendingApproval = nil
+            pendingApprovalSeen = nil
+            return nil
+        }
+        return pending
     }
 
     /// The permission the specialist is blocked on. One at a time: the job
     /// queue is serial, so a new request means the previous one is settled.
     ///
-    /// Deliberately silent: a job is assistive UI and does not interrupt to
-    /// ask. The sheet shows the request; `resolve_approval` stays declared so
-    /// a spoken "yes" still lands, but nobody is told out loud. The price,
-    /// chosen: a request nobody looks at dies in the auto-deny (ApprovalTiming).
+    /// Only arms the request: the sheet shows it and `askApprovalAloud` says
+    /// the question in classic. Until the voice has said it (`approvalAnnounced`)
+    /// a spoken "yes" asks for the click (`SpokenYes`), and a request nobody
+    /// looks at dies in the auto-deny (ApprovalTiming).
     func noteApproval(_ request: ApprovalRequest) async {
+        guard !closedApprovals.contains(request.requestId) else { return }
+        // A new request is a new question: the last words answered another.
+        heardThisHold = nil
         pendingApproval = request
+        pendingApprovalSeen = ApprovalSighting(requestId: request.requestId, shownAt: now())
+    }
+
+    /// 16q-1 (audit decision 3): in classic the voice asks a job's permission
+    /// in one short sentence and the card carries the detail; the yes is
+    /// then the click's or, through `SpokenYes`, a spoken one in a later
+    /// hold. The sentence is ours and fixed: nothing from the request is
+    /// spoken, so a tool's payload cannot put words in the voice's mouth.
+    /// Realtime does not ask (a spoken yes never counts there).
+    func askApprovalAloud(_ request: ApprovalRequest) async {
+        guard machine.snapshot.pipeline != .realtime,
+              !closedApprovals.contains(request.requestId) else { return }
+        await jobAnnounce(JobAnnouncement(
+            goal: request.summary, outcome: .asking(requestId: request.requestId),
+            language: configProvider.current.language))
+    }
+
+    /// The voice has said the question of `requestId` (review 16h-2 round
+    /// 3): the one moment a later hold's "yes" can be an answer to it.
+    /// Called when the audio of a classic job's permission question ends
+    /// (16q-1; the product decision of 2026-08-22 that the voice does not ask
+    /// was reversed for classic on 2026-09-29, when Karen approved matching
+    /// Incredible). Realtime never calls it.
+    func approvalAnnounced(_ requestId: String) {
+        if pendingApprovalSeen?.requestId == requestId { pendingApprovalSeen?.announcedAt = now() }
+    }
+
+    /// The words, only if they were said in the hold now answering.
+    private var heardOfThisHold: String? {
+        guard let heard = heardThisHold, heard.pressed == timeline.pressed else { return nil }
+        return heard.text
+    }
+
+    private func spokenYesAdmitted(_ seen: ApprovalSighting?) -> Bool {
+        SpokenYes.admits(
+            realtime: machine.snapshot.pipeline == .realtime,
+            announcedAt: seen?.announcedAt, holdStartedAt: timeline.pressed, heard: heardOfThisHold)
     }
 
     /// The model turned the user's spoken answer into a decision. Nothing
     /// pending means the sheet already answered it (or the model invented the
     /// call): resolving anyway would grant a permission nobody asked about.
-    func answerPendingApproval(_ approved: Bool) async -> Bool {
-        guard let pending = pendingApproval else {
+    func answerPendingApproval(_ approved: Bool) async -> SpokenApproval {
+        // An MCP approval outranks a job approval: it arrived through the
+        // live session the user is answering into. It only exists in
+        // realtime, where `SpokenYes` is always false, so a yes is the
+        // click's and only a no resolves here (16q-1).
+        if let mcp = pendingMCPApprovals.last {
+            guard !approved else {
+                Log.app("voice: MCP approvals need the sheet, not resolve_approval")
+                return .needsClick
+            }
+            // The newest one: the request the model just asked about. Refused
+            // where the sheet's own answer would be: the actor wakes
+            // `noteMCPApproval`, which tells the server and clears the sheet.
+            // Any older one stays on the sheet for its own click.
+            // It is listed before the actor parks it: a "no" in that window
+            // refused nothing, and the model must not say it did.
+            guard await mcpGuard.withdraw(mcp) else {
+                Log.app("voice: spoken no for an MCP request not parked yet; needs the sheet")
+                return .needsClick
+            }
+            return .resolved
+        }
+        guard let pending = livePendingApproval else {
             Log.app("voice: approval answered with nothing pending")
-            return false
+            return .nothingPending
         }
-        // Wave 20c D1 (supersedes F-D's `app:` prefix denylist): the model
-        // makes this call and any text it reads can plant the yes, so only
-        // low-risk requests are its to settle. Everything else, the
-        // bridge's hands included, waits for the sheet's click.
-        guard ApprovalRisk.of(toolName: pending.toolName) == .low else {
-            Log.app("voice: \(pending.toolName) needs the sheet, not resolve_approval")
-            return false
+        // C2: the reducer drops an answer for a request the sheet is not
+        // showing. Yes or no, it takes the click; the request stays armed
+        // for when it reaches the front.
+        if let front = sheetFront, front.requestId != pending.requestId {
+            Log.app("voice: spoken answer for a request the sheet is not showing; needs the click")
+            return .needsClick
         }
-        // HACK: the model's boolean is trusted for low-risk requests; the
-        // heard words (`SpokenConfirmation.reading`) are not compared to it
-        // because the transcript arrives on a different path than the tool
-        // call and may lag it. Upgrade trigger: the first low-risk tool that
-        // spends money or leaves the Mac, or the transcript reaching this
-        // actor with the call.
+        // Refusing is the safe direction: a spoken "no" resolves without a
+        // click, whoever asked. Only a "yes" has to prove it is the user's.
+        if approved { guard admitsSpokenYes(to: pending) else { return .needsClick } }
         pendingApproval = nil
-        // Not resolved here: the reducer resolves this exact request only if
-        // the sheet is showing it, with the sheet's rules. Two notions of
-        // "pending" let a spoken yes grant a request nobody was looking at
-        // (security review 2026-09-06).
+        // Not resolved here: the answer goes to the session reducer, which
+        // resolves this exact request, only while the sheet shows it, with
+        // the sheet's rules. Two notions of "pending" let a spoken yes grant a
+        // request nobody was looking at (security review 2026-09-06).
         eventBox.yield(.approvalSpoken(requestId: pending.requestId, approved: approved))
-        return true
+        return .resolved
     }
 
-    /// The sheet closed this request (click, drop, settled elsewhere): a note
-    /// for it must not be answerable any more.
-    ///
-    /// An MCP request is answered here, with the sheet's verdict: no verdict
-    /// (dropped, settled elsewhere) is a no, so OpenAI never waits forever.
-    public func approvalClosed(_ requestId: String, approved: Bool? = nil) async {
-        if pendingApproval?.requestId == requestId { pendingApproval = nil }
-        mcpApprovalTimers.removeValue(forKey: requestId)?.cancel()
-        if pendingMCPApprovals.removeValue(forKey: requestId) != nil {
-            await realtime.send(RealtimeCodec.mcpApprovalResponse(
-                requestId: requestId, approve: approved ?? false))
-            await realtime.requestResponse()
+    private func admitsSpokenYes(to pending: ApprovalRequest) -> Bool {
+        // F-D (security review 16k-3): `resolve_approval` is a call the
+        // MODEL makes — and a connected app's read output is words an
+        // attacker can plant in front of that model. An app write approved
+        // by a "spoken yes" the user never spoke would be the injection's
+        // whole payoff, so app writes take the sheet's click, always.
+        if pending.toolName.hasPrefix(ApprovalCopy.appToolPrefix) {
+            Log.app("voice: app write approvals need the sheet, not resolve_approval")
+            return false
         }
+        // 20c D1: only a request whose worst case is small is the voice's to
+        // settle, whatever was said. Allowlist: a tool nobody classified, the
+        // bridge's hands, a write or a browser action takes the click.
+        guard ApprovalRisk.of(toolName: pending.toolName) == .low, !pending.isMCP else {
+            Log.app("voice: a request above low risk needs the sheet, not resolve_approval")
+            return false
+        }
+        // 16h-2 (security M1, round 3): with the voice free while a job
+        // runs, a "yes" in a new turn may answer something else.
+        guard spokenYesAdmitted(pendingApprovalSeen) else {
+            Log.app("voice: spoken approval refused: not announced, or not a yes she said")
+            return false
+        }
+        // No reset of the words here: the caller clears `pendingApproval`, and the
+        // only way to arm another request is `noteApproval`, which clears them.
+        return true
     }
 }

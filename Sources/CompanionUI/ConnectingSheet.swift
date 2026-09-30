@@ -9,6 +9,8 @@ public enum ConnectingSheetMetrics {
     // centered composition — big title, 72pt icon lockup, one centered
     // action — not a leading-aligned card.
     public static let maxWidth: CGFloat = 520
+    // Only the 72 icon was read off the capture; the sheet width, track and dot
+    // are Companion's own.
     public static let icon: CGFloat = 72
     public static let trackWidth: CGFloat = 120
     public static let dot: CGFloat = 8
@@ -32,20 +34,20 @@ struct ConnectingSheet: View {
                 .multilineTextAlignment(.center)
             track
             Text(ConnectingCopy.body(phase, app: app.name))
-                .font(.uiBody)
+                .typeRole(.body)
                 .foregroundStyle(bodyForeground)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             if showsHint {
                 Text(Localized.string("apps.connecting.hint"))
-                    .font(.uiCaption)
+                    .typeRole(.micro)
                     .foregroundStyle(Semantic.mutedForeground)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
             buttons
             Text(Localized.string("apps.panel.privacy"))
-                .font(.uiCaption)
+                .typeRole(.micro)
                 .foregroundStyle(Semantic.mutedForeground)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -59,16 +61,7 @@ struct ConnectingSheet: View {
     }
 
     private var closeButton: some View {
-        Button(action: onClose) {
-            Image(systemName: "xmark")
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.foreground)
-                .frame(width: MainWindowMetrics.avatar, height: MainWindowMetrics.avatar)
-                .background(Circle().fill(Semantic.muted))
-                .contentShape(Circle())
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel(Localized.string("task.close"))
+        CloseButton(action: onClose)
     }
 
     private var track: some View {
@@ -105,9 +98,8 @@ struct ConnectingSheet: View {
     }
 }
 
-/// The Companion side of the track. A plain glyph in a rounded tile — the
-/// mascot (`Mascot.swift`) pulls in Rive for a full animation this modal
-/// does not need.
+/// The Companion side of the track. A plain glyph in a rounded tile: the
+/// modal names who connects, it does not need an animated identity.
 private struct CompanionMarkIcon: View {
     var body: some View {
         Image(systemName: "bolt.fill")

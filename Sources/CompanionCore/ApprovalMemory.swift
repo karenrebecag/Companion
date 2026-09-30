@@ -29,6 +29,10 @@ public struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
     private static let shellMetacharacters = CharacterSet(charactersIn: ";&|`$()<>\n\r{}")
 
     public static func from(_ request: ApprovalRequest) -> ApprovalKey? {
+        // A remote MCP server names its own tools: a key by name would let
+        // its `run_shell` inherit, or plant, a rule the user set for the
+        // local one. With no key it is never looked up nor stored.
+        guard !request.isMCP else { return nil }
         let arguments = ToolArguments.parse(request.inputJSON) ?? [:]
         switch request.toolName {
         case NativeTool.runShell.rawValue:

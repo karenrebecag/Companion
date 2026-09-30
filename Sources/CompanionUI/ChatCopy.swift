@@ -43,10 +43,10 @@ public enum ChatCopy {
         Localized.string("chat.job.stopped")
     }
 
-    /// Was hardcoded Spanish in the UI layer, outside the catalog, where the
-    /// static gate could not see it because it is not a `Text(...)`.
+    /// The reason goes through `error(_:)`, so only catalog copy reaches the
+    /// thread: a job's raw description can carry paths and internal detail.
     public static func jobFailedNotice(_ error: Error) -> String {
-        String(format: Localized.string("chat.job.failed"), "\(error)")
+        String(format: Localized.string("chat.job.failed.notice"), Self.error(error))
     }
 
     /// The specialist IS running. Used to mark what was delegated.

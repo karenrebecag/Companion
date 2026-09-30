@@ -18,14 +18,22 @@ enum VoiceJobBridge {
         announce: (@Sendable (JobAnnouncement) async -> Void)? = nil,
         language: AppLanguage = .en
     ) async {
+        // 16h-2: every event of this job carries its id, so the projection
+        // never paints a queued job's name or steps on the running one.
+        let id = JobID.mint()
         let (stream, sink) = AsyncStream<JobEvent>.makeStream()
-        let pump = Task {
-            for await event in stream { onEvent?(.job(event)) }
+        let pump = Task { () -> Bool in
+            var card = false
+            for await event in stream {
+                if case .card = event { card = true }
+                onEvent?(.job(event, from: id))
+            }
+            return card
         }
         defer { pump.cancel() }
         // Named up front: the runner says it too, but a submitter that does
         // not must still leave a card with a goal on it.
-        onEvent?(.job(.started(goal: handoff.goal)))
+        onEvent?(.job(.started(goal: handoff.goal), from: id))
         // Queued, not refused and never at the cost of what is running.
         // `JobQueue` already serialises execution, so submitting is enough to
         // make it wait; what was missing was saying so, because a second job
@@ -41,12 +49,18 @@ enum VoiceJobBridge {
         }
 
         do {
-            let result = try await jobs.submit(handoff, events: sink)
+            let result = try await jobs.submit(handoff, as: id, events: sink)
+            // Drained first (review 16h-2 round 3): a step still in the pump
+            // behind the end would land after it and open an orphan row.
             sink.finish()
-            onEvent?(.jobFinished(ok: !result.isError))
+            let sawCard = await pump.value
+            onEvent?(.jobFinished(ok: !result.isError, from: id))
             if result.isError {
                 await thread.appendStatus(Escalation.jobFailedStatus(
                     handoff.goal, detail: result.output, language))
+                // 16h-2: with the voice free, a stop now lands at rest, where
+                // "I could not finish it" would contradict the user's own act.
+                if result.cancelled { return }
                 await announce?(JobAnnouncement(
                     goal: handoff.goal, outcome: .failed(reason: result.output), language: language))
             } else {
@@ -56,18 +70,23 @@ enum VoiceJobBridge {
                 // (realtime) or says a short summary through the mouth's
                 // guards (classic, code review 2026-09-25 HIGH-B).
                 await thread.appendAssistant(result.output)
+                // A card carries the detail and the voice keeps to a line
+                // (16h-1 H2).
                 await announce?(JobAnnouncement(
-                    goal: handoff.goal, outcome: .done(result: result.output), language: language))
+                    goal: handoff.goal, outcome: .done(result: result.output), language: language,
+                    hasCard: sawCard || SpeechBudget.hasCard(in: result.output)))
             }
         } catch {
             sink.finish()
-            onEvent?(.jobFinished(ok: false))
+            _ = await pump.value
+            onEvent?(.jobFinished(ok: false, from: id))
             Log.app("voice: job failed (\(error))")
             // A thrown error is still a reason: silence here is what made the
             // voice fall back on inventing an outcome.
             let reason = JobRunner.failureText(for: error, language)
             await thread.appendStatus(Escalation.jobFailedStatus(
                 handoff.goal, detail: reason, language))
+            if JobRunner.isCancellation(error) { return }
             await announce?(JobAnnouncement(
                 goal: handoff.goal, outcome: .failed(reason: reason), language: language))
         }

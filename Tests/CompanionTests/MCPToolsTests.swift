@@ -6,6 +6,7 @@ import Testing
 
 // 9j-3: servidores MCP remotos como tools del realtime. OpenAI los ejecuta
 // server-side; el cliente declara y aprueba. El wire es puro y se prueba sin red.
+// La aprobacion en voz (hoja, sin sí hablado) vive en Approvals16q1Tests.
 
 @Test @MainActor func mcpToolsTests() async {
     testConfigDecodeAndShape()
@@ -84,12 +85,13 @@ func testMCPRequestIsHighRisk() {
 @MainActor private func mcpHarness(
     timeout: TimeInterval = ApprovalTiming.autoDeny
 ) async -> (VoiceHarness, SessionModel) {
-    let model = SessionModel(jobs: nil, approvals: nil)
-    let h = makeVoiceHarness(session: model, mcpApprovalTimeout: timeout)
-    let session = h.session
-    model.onApprovalClosed = { id, approved in
-        Task { await session.approvalClosed(id, approved: approved) }
-    }
+    // The merge with 16q-1 routes the MCP sheet through the one approvals
+    // actor (`ParentToolGuard.decide`): the click, the deadline and the
+    // brakes reach the server through it, and without it the request fails
+    // closed. The fixture injects it where 20c wired `onApprovalClosed`.
+    let actor = Approvals(clock: RealtimeClock(), timeout: timeout)
+    let model = SessionModel(jobs: nil, approvals: actor)
+    let h = makeVoiceHarness(approvals: actor, session: model)
     await h.session.start()
     await pumpUntil("mcp: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.mcpApprovalRequest(
@@ -122,7 +124,7 @@ private func mcpVerdicts(_ h: VoiceHarness) -> [(id: String, approve: Bool)] {
              "mcp: la hoja muestra server/tool")
     let landed = await h.session.answerPendingApproval(true)
     await settle(0.1)
-    expect(!landed, "mcp: resolve_approval no aterriza en un MCP")
+    expect(landed != .resolved, "mcp: resolve_approval no aterriza en un MCP")
     expect(mcpVerdicts(h).isEmpty, "mcp: el modelo no manda mcp_approval_response")
     expect(model.projection.approval?.requestId == "req9",
            "mcp: la hoja sigue esperando el clic")
@@ -156,8 +158,8 @@ private func mcpVerdicts(_ h: VoiceHarness) -> [(id: String, approve: Bool)] {
     let (h, model) = await mcpHarness()
     model.send(.approvalAnswered(requestId: "req9", approved: true, remember: false))
     await pumpUntil("mcp: primera respuesta") { mcpVerdicts(h).count == 1 }
-    await h.session.approvalClosed("req9", approved: false)
-    await h.session.approvalClosed("nadie", approved: true)
+    await h.session.approvalClosed(requestId: "req9")
+    await h.session.approvalClosed(requestId: "nadie")
     await settle(0.1)
     expectEq(mcpVerdicts(h).count, 1, "mcp: un segundo cierre del mismo id no manda nada")
 }
@@ -202,7 +204,7 @@ private func mcpVerdicts(_ h: VoiceHarness) -> [(id: String, approve: Bool)] {
     let (h, model) = await mcpHarness()
     await h.session.hangUp()
     await pumpUntil("mcp: colgar cierra la hoja") { model.projection.approval == nil }
-    await h.session.approvalClosed("req9", approved: true)
+    model.send(.approvalAnswered(requestId: "req9", approved: true, remember: false))
     await settle(0.1)
     expect(!mcpVerdicts(h).contains { $0.approve },
            "mcp: tras colgar, un clic tardio no aprueba nada")

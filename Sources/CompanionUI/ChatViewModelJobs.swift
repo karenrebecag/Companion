@@ -15,18 +15,37 @@ extension ChatViewModel {
     public var pendingApproval: ApprovalRequest? { session.projection.approval }
 
     /// The chat path knows the goal up front.
-    public func startJob(goal: String) {
-        session.send(.job(.started(goal: goal)))
+    @discardableResult
+    public func startJob(goal: String) -> JobID {
+        let id = JobID.mint()
+        chatJobID = id
+        session.send(.job(.started(goal: goal), from: id))
+        return id
     }
 
     /// The live card is for the wait; this is the record. Replacing the old
     /// status line with a card that vanishes left no trace of WHAT was
     /// delegated, which made a specialist that searched instead of creating
-    /// impossible to diagnose.
-    func finishJob(ok: Bool = true) {
-        let timeline = session.projection.job
-        session.send(.jobFinished(ok: ok))
+    /// impossible to diagnose. Only the chat's own job, by id (review 16h-2
+    /// round 3): each job records itself when ITS end arrives, never
+    /// whichever row happens to be in front.
+    func finishJob(ok: Bool = true, id: JobID) {
+        if chatJobID == id { chatJobID = nil }
+        end(ok: ok, id: id)
+    }
+
+    private func end(ok: Bool, id: JobID?) {
+        let timeline = timeline(of: id)
+        session.send(.jobFinished(ok: ok, from: id))
         record(timeline)
+    }
+
+    /// Job `id`'s timeline, running or queued; nil when no row carries it.
+    private func timeline(of id: JobID?) -> JobTimeline? {
+        guard let id else { return nil }
+        let shown = session.projection
+        if shown.job?.id == id { return shown.job }
+        return shown.queued.first { $0.id == id }
     }
 
     private func record(_ timeline: JobTimeline?) {
@@ -38,23 +57,37 @@ extension ChatViewModel {
         messages.append(ChatMessage(isStatus: true, text: text))
     }
 
+    /// One job's own stop (16q-1): the job card's, by id. The rest of the
+    /// line keeps running; the thread records this job only if it is the
+    /// chat's own.
+    public func cancelJob(_ id: JobID) {
+        guard jobSubmitter != nil else { return }
+        let own = chatJobID == id ? timeline(of: id) : nil
+        let effects = session.send(.stopJob(id))
+        guard effects.contains(.cancelJobByID(id)) else { return }
+        noteStopped(own)
+    }
+
     /// The brake. `JobRunner.cancel()` has existed since Wave 4 and had no
     /// caller anywhere in Sources — built, tested, and never wired to a pedal.
     /// Without it, a job started on a misheard sentence could not be stopped:
     /// denying a permission only refused one command, and correcting yourself
     /// out loud did nothing at all.
     public func cancelJob() {
-        guard let timeline = session.projection.job, jobSubmitter != nil else { return }
+        guard session.projection.job != nil, jobSubmitter != nil else { return }
+        let own = timeline(of: chatJobID)
         let effects = session.send(.stop)
         guard effects.contains(.cancelJob) else { return }
-        noteStopped(timeline)
+        noteStopped(own)
     }
 
     /// The record first, so what it managed to do survives the stop — the
     /// same promise the reference makes: stopping keeps the work so far.
-    private func noteStopped(_ timeline: JobTimeline) {
-        cancelledJob = true
-        record(timeline)
+    /// `own` is the chat's job among the stopped ones; a voice job's stop
+    /// leaves no record here and no mark on the chat's next ending.
+    private func noteStopped(_ own: JobTimeline?) {
+        if own != nil { cancelledJob = true }
+        record(own)
         messages.append(ChatMessage(isStatus: true, text: ChatCopy.jobStopped))
         toast(ChatCopy.jobStopped, level: .info)
         persist()
@@ -62,7 +95,7 @@ extension ChatViewModel {
 
     /// One seam for every job event, chat-born or voice-born. The thread
     /// keeps what deserves a line; the session keeps the state.
-    public func receiveJobEvent(_ event: JobEvent) {
+    public func receiveJobEvent(_ event: JobEvent, from id: JobID?) {
         switch event {
         case .started, .stepStarted, .stepFinished, .thought, .acted:
             break
@@ -86,15 +119,18 @@ extension ChatViewModel {
             messages.append(ChatMessage(
                 isStatus: true, text: ChatCopy.approvalRemembered(tool, approved: approved)))
         }
-        session.send(.job(event))
+        session.send(.job(event, from: id))
         persist()
     }
 
     /// What the voice session reports: job events keep their thread lines,
     /// everything else goes straight to the reducer.
     public func receive(_ event: SessionEvent) {
-        if case .job(let jobEvent) = event {
-            receiveJobEvent(jobEvent)
+        if case .job(let jobEvent, let id) = event {
+            receiveJobEvent(jobEvent, from: id)
+        } else if case .jobFinished(let ok, let id) = event {
+            // A voice job's end records that job, found by its own id.
+            end(ok: ok, id: id)
         } else {
             session.send(event)
         }
@@ -105,15 +141,21 @@ extension ChatViewModel {
     /// the answer travels; the thread only says what happened.
     public func answerApproval(_ approved: Bool, remember: Bool = false) {
         guard let request = pendingApproval else { return }
-        let timeline = session.projection.job
+        let own = timeline(of: chatJobID)
         let effects = session.send(.approvalAnswered(
             requestId: request.requestId, approved: approved, remember: remember))
         messages.append(ChatMessage(
             isStatus: true, text: ChatCopy.approvalAnswer(approved)))
         toast(ChatCopy.approvalAnswer(approved),
               level: approved ? .info : .error)
-        if effects.contains(.cancelJob), let timeline {
-            noteStopped(timeline)
+        // Refusing a job's first action stops that job (by id): the thread
+        // records it only when it is the chat's own.
+        if let stopped = effects.compactMap({ effect -> JobID? in
+            if case .cancelJobByID(let id) = effect { id } else { nil }
+        }).first {
+            noteStopped(stopped == chatJobID ? own : nil)
+        } else if effects.contains(.cancelJob) {
+            noteStopped(own)
         }
     }
 
@@ -156,18 +198,24 @@ extension ChatViewModel {
                 text: ChatCopy.handoff(handoff),
                 recall: Recall(role: .assistant, content: "", toolCalls: [call])))
         }
-        startJob(goal: handoff.goal)
+        // The id is this run's, captured: tagging with whatever job the chat
+        // has at delivery time sent late steps out untagged (review 16h-2
+        // round 3).
+        let id = startJob(goal: handoff.goal)
         persist()
 
         let (stream, sink) = AsyncStream<JobEvent>.makeStream()
-        _ = Task {
-            for await event in stream { receiveJobEvent(event) }
+        let pump = Task {
+            for await event in stream { receiveJobEvent(event, from: id) }
         }
 
         do {
-            let result = try await submitter.submit(handoff, events: sink)
+            let result = try await submitter.submit(handoff, as: id, events: sink)
+            // Drained before the end, or a step still in the pump lands
+            // after it and opens an orphan row.
             sink.finish()
-            finishJob(ok: !result.isError)
+            await pump.value
+            finishJob(ok: !result.isError, id: id)
             // Stopped while it was finishing: the answer is no longer wanted.
             guard !cancelledJob else {
                 cancelledJob = false
@@ -192,7 +240,8 @@ extension ChatViewModel {
             }
         } catch {
             sink.finish()
-            finishJob(ok: false)
+            await pump.value
+            finishJob(ok: false, id: id)
             // A stop is not a failure: cancelJob already wrote the record and
             // said so, and a second notice would read as something breaking.
             guard !cancelledJob else {

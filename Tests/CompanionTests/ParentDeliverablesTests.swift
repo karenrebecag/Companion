@@ -115,9 +115,9 @@ private func runner(workdir: String? = nil, sheets: FakeSheets = FakeSheets()) -
 
 private final class Receipts: @unchecked Sendable {
     private let lock = NSLock()
-    private var items: [ActionReceipt] = []
-    var all: [ActionReceipt] { lock.withLock { items } }
-    func add(_ receipt: ActionReceipt) { lock.withLock { items.append(receipt) } }
+    private var items: [UndoReceipt] = []
+    var all: [UndoReceipt] { lock.withLock { items } }
+    func add(_ receipt: UndoReceipt) { lock.withLock { items.append(receipt) } }
 }
 
 @MainActor func testANewDocumentIsDeliveredWithoutTheSheet() async throws {

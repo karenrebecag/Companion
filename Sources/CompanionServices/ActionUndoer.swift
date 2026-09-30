@@ -18,7 +18,7 @@ public struct ActionUndoer: Sendable {
         self.trash = trash
     }
 
-    public func undo(_ step: ActionReceipt.Undo) async -> Bool {
+    public func undo(_ step: UndoReceipt.Undo) async -> Bool {
         switch step {
         case .trash(let path, let size, let modified):
             guard path.hasPrefix("/"), Self.unchanged(path, size: size, modified: modified) else { return false }

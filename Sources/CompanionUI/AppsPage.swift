@@ -6,6 +6,9 @@ import SwiftUI
 /// function is set up the page asks for it instead of showing buttons that
 /// do nothing.
 public enum AppsMetrics {
+    // None of these are in docs/research: Incredible's Apps grid was read for
+    // its structure, not its pixels. Own values, pinned in Pins16p3Tests so a
+    // later capture overrules them on purpose.
     public static let icon: CGFloat = 40
     public static let iconRadius: CGFloat = Radius.md
     public static let cardMinHeight: CGFloat = 132
@@ -136,7 +139,7 @@ struct AppsPage: View {
                 .tracking(Tracking.title, at: TypeSize.dialogTitle)
                 .foregroundStyle(Semantic.foreground)
             Text(Localized.string("apps.lede"))
-                .font(.uiBody)
+                .typeRole(.body)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -183,7 +186,7 @@ struct AppsPage: View {
     private var setupBanner: some View {
         HStack(spacing: Space.x3) {
             Text(Localized.string("apps.seed.banner"))
-                .font(.uiCaption)
+                .typeRole(.micro)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
@@ -223,7 +226,7 @@ struct AppsPage: View {
     private func failed(_ failure: AppsFailure) -> some View {
         VStack(alignment: .leading, spacing: Space.x3) {
             Text(AppsCopy.failure(failure))
-                .font(.uiBody)
+                .typeRole(.body)
                 .foregroundStyle(Semantic.foreground)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: Space.x2) {
@@ -265,7 +268,7 @@ struct AppsPage: View {
             }
             if let connectError = apps.connectError {
                 Text(AppsCopy.failure(connectError))
-                    .font(.uiCaption)
+                    .typeRole(.micro)
                     .foregroundStyle(Semantic.destructive)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -354,7 +357,7 @@ struct AppCard: View {
             }
             if let description = app.description, !description.isEmpty {
                 Text(description)
-                    .font(.uiCaption)
+                    .typeRole(.micro)
                     .foregroundStyle(Semantic.mutedForeground)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -444,7 +447,7 @@ struct AppsSetupForm: View {
                 .font(.uiLabel.weight(.semibold))
                 .foregroundStyle(Semantic.foreground)
             Text(Localized.string("apps.setup.body"))
-                .font(.uiBody)
+                .typeRole(.body)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
             AppField(title: Localized.string("apps.setup.endpoint"),

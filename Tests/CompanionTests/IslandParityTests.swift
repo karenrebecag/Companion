@@ -67,7 +67,7 @@ private func notices(_ effects: [SessionEffect]) -> [SessionEffect] {
     _ = m.handle(.released)
     let fx = m.handle(.heardNothing)
     expectEq(notices(fx), [.scheduleNoticeExpiry(SessionMachine.noticeDelay)], "no te oí: arma su cierre")
-    _ = m.handle(.noticeExpired)
+    _ = m.handle(.noticeExpired(.couldntHear))
     expect(m.projection.notice == nil, "no te oí: se va solo")
     expectEq(IslandState.from(m.projection, pebbleHidden: false).size, .pebble, "no te oí: vuelve al reposo")
 
@@ -77,7 +77,7 @@ private func notices(_ effects: [SessionEffect]) -> [SessionEffect] {
 
     var denied = SessionMachine()
     _ = denied.handle(.voice(TurnSnapshot(state: .error, failure: .micDenied)))
-    _ = denied.handle(.noticeExpired)
+    _ = denied.handle(.noticeExpired(.permission(.micDenied)))
     expectEq(denied.projection.notice, .permission(.micDenied),
              "permiso: no se va solo, lleva la salida")
 }

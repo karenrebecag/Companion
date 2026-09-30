@@ -35,6 +35,7 @@ public struct SettingsView: View {
     /// Bumped on a language change: every string on screen repaints at once.
     @State private var languageTick = 0
     @Environment(DropdownHost.self) private var dropdowns
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(
         preview: VoicePreview? = nil,
@@ -68,7 +69,7 @@ public struct SettingsView: View {
                     .padding(Space.x6)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .id("\(tab.rawValue)-\(languageTick)")
-                    .transition(.modeSwap)
+                    .transition(ChromeMotion.transition(.modeSwap, reduceMotion: reduceMotion))
             }
             .scrollIndicators(.hidden)
             .environment(\.settingsHighlight, highlight)
@@ -87,7 +88,7 @@ public struct SettingsView: View {
             if dropdowns.session.isOpen, case .settingsPick = dropdowns.menu {
                 Color.black.opacity(0.001)
                     .onTapGesture {
-                        withAnimation(.springSheet) { dropdowns.dismiss() }
+                        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
                     }
             }
         }
@@ -122,14 +123,9 @@ public struct SettingsView: View {
     }
 
     private var closeButton: some View {
-        RoundIconButton(
-            icon: .cross,
-            foreground: Semantic.foreground,
-            background: Semantic.surface,
-            help: Localized.string("settings.close")
-        ) {
+        CloseButton {
             dropdowns.dismiss()
-            withAnimation(.springSheet) { onClose() }
+            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { onClose() }
         }
         .padding(Space.x4)
     }
@@ -139,7 +135,7 @@ public struct SettingsView: View {
     private func jump(_ entry: SettingsSearch.Entry) {
         guard let target = SettingsTab(rawValue: entry.page) else { return }
         dropdowns.dismiss()
-        withAnimation(.springSelect) { tab = target }
+        withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { tab = target }
         query = ""
         highlight = entry.id
         highlightTimer?.cancel()
@@ -203,6 +199,7 @@ struct SettingsSidebar: View {
     @Binding var tab: SettingsTab
     @Binding var query: String
     let onPick: (SettingsSearch.Entry) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x1) {
@@ -242,13 +239,15 @@ struct SettingsSidebar: View {
         }
         .padding(.horizontal, Space.x3)
         .padding(.vertical, Space.x2)
+        // A text field in a capsule, not a button: CapsuleChipStyle has
+        // nothing to style here.
         .background(Capsule().fill(Semantic.muted))
     }
 
     private func group(_ pages: [SettingsTab]) -> some View {
         ForEach(pages, id: \.self) { page in
             Button {
-                withAnimation(.springSelect) { tab = page }
+                withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { tab = page }
             } label: {
                 HStack(spacing: Space.x2) {
                     Image(systemName: page.symbol)

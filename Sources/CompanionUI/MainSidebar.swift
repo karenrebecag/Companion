@@ -10,15 +10,14 @@ public enum MainPage: Hashable {
     case apps
 }
 
+/// Only what the window's sheets size themselves by. The sidebar and avatar
+/// live in `SidebarMetrics` (248 and 28, measured); a second copy here read
+/// 220 and nothing used it. The detail sheet's 860 x 620 and its 220 side
+/// column are Companion's own: Incredible's task detail was never measured.
 public enum MainWindowMetrics {
-    public static let sidebar: CGFloat = 220
-    public static let heroHeight: CGFloat = 150
-    public static let startWidth: CGFloat = 250
-    public static let pageMaxWidth: CGFloat = 720
     public static let detailMaxWidth: CGFloat = 860
     public static let detailMaxHeight: CGFloat = 620
     public static let detailSide: CGFloat = 220
-    public static let avatar: CGFloat = 28
 }
 
 public extension Notification.Name {
@@ -32,6 +31,7 @@ struct MainSidebar: View {
     let onSettings: () -> Void
     let onFeedback: () -> Void
     @State private var avatarImage = UserProfile.avatarImage
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // 16n: Incredible's sidebar — a #f9f9f9 panel with a #eee edge, the
     // wordmark row, 38 pt rows in a 42 pt band, the account at the bottom.
@@ -70,7 +70,7 @@ struct MainSidebar: View {
 
     private func row(_ target: MainPage, symbol: String, title: String) -> some View {
         SidebarRow(symbol: symbol, title: title, selected: page == target) {
-            withAnimation(.springSelect) { page = target }
+            withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { page = target }
         }
     }
 
@@ -88,7 +88,7 @@ struct MainSidebar: View {
                     .lineLimit(1)
                 Spacer(minLength: Space.none)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: SidebarMetrics.chevron * 0.7, weight: .semibold))
+                    .font(Fonts.sans(SidebarMetrics.chevron * 0.7).weight(.semibold))
                     .frame(width: SidebarMetrics.chevron, height: SidebarMetrics.chevron)
                     .foregroundStyle(Semantic.chevron)
             }
@@ -135,7 +135,7 @@ struct SidebarRow: View {
         Button(action: action) {
             HStack(spacing: SidebarMetrics.itemGap) {
                 Image(systemName: symbol)
-                    .font(.system(size: SidebarMetrics.icon * 0.85))
+                    .font(Fonts.sans(SidebarMetrics.icon * 0.85))
                     .frame(width: SidebarMetrics.icon, height: SidebarMetrics.icon)
                     .accessibilityHidden(true)
                 Text(title).font(Fonts.sans(TypeSize.rowTitle).weight(.medium))

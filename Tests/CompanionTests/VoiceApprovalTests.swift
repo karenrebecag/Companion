@@ -8,18 +8,31 @@ import Testing
 // decisión de producto de 2026-08-22 lo revierte: el encargo es UI asistiva y
 // no habla por su cuenta. La solicitud vive en la hoja y nada más.
 //
-// Lo que sobrevive es la respuesta: `resolve_approval` sigue declarada, así
-// que quien ve la hoja y dice "sí, autorízalo" resuelve sin tocar el trackpad.
-// Lo que se pierde, y es el precio elegido: un permiso que nadie mira muere en
-// el auto-deny (ApprovalTiming) sin que la voz lo mencione.
+// `resolve_approval` sigue declarada, pero desde la review 16h-2 ronda 3 un
+// "sí" hablado solo resuelve lo que la voz preguntó antes del hold (clásico);
+// en realtime siempre pide el clic. Un permiso que nadie mira muere en el
+// auto-deny (ApprovalTiming) sin que la voz lo mencione.
 
 @Test @MainActor func voiceApprovalTests() async {
     testApprovalToolIsDeclared()
     await testApprovalNeverReachesTheEar()
-    await testVoiceGrantReachesTheJob()
+    await testARealtimeYesNeverReachesTheJob()
     await testMalformedDecisionResolvesNothing()
     await testNoVoiceSessionMeansNoAnnouncement()
     await testSpokenYesNeverApprovesAnAppWrite()
+    await testASpokenNoRefusesAnAppWrite()
+}
+
+/// Negar es la dirección segura: un "no" hablado a un write de app se
+/// resuelve sin clic; solo el sí lo necesita.
+@MainActor func testASpokenNoRefusesAnAppWrite() async {
+    let h = makeVoiceHarness(jobs: ApprovingSubmitter())
+    await h.session.noteApproval(ApprovalRequest(
+        requestId: "r8", toolName: "app:slack_v2:slack_v2-send-message",
+        summary: "Send Message · Slack", inputJSON: "{}"))
+    let answer = await h.session.answerPendingApproval(false)
+    expectEq(answer, .resolved, "app write: el no hablado lo niega sin pedir clic")
+    expect(await h.session.pendingApproval == nil, "app write: y deja de estar pendiente")
 }
 
 /// 6 (F-D, security review 16k-3): `resolve_approval` la llama el MODELO, y
@@ -32,7 +45,7 @@ import Testing
         requestId: "r7", toolName: "app:slack_v2:slack_v2-send-message",
         summary: "Send Message · Slack", inputJSON: "{}"))
     let resolved = await h.session.answerPendingApproval(true)
-    expect(!resolved, "app write: el si hablado no lo resuelve")
+    expectEq(resolved, .needsClick, "app write: el si hablado no lo resuelve; pide el clic")
 }
 
 /// 1. Sin la tool declarada el modelo no puede contestar aunque quiera.
@@ -83,10 +96,10 @@ import Testing
            "permiso: no se pregunta en voz alta; la hoja es el único canal")
 }
 
-/// 3. La respuesta del modelo llega al encargo vivo, con acuse para la voz.
-/// Desde 12a viaja por el reductor de sesión (`approvalSpoken`): la voz
-/// contesta lo que la hoja muestra, con las mismas reglas que la hoja.
-@MainActor func testVoiceGrantReachesTheJob() async {
+/// 3. Review 16h-2 round 3 (HIGH): en realtime no hay hold al que atar un
+/// sí, y `resolve_approval` lo llama el MODELO. El sí hablado no llega al
+/// encargo; la salida del tool pide el clic de la hoja.
+@MainActor func testARealtimeYesNeverReachesTheJob() async {
     let jobs = ApprovingSubmitter()
     let sessionModel = SessionModel(jobs: jobs, approvals: nil)
     let h = makeVoiceHarness(jobs: jobs, session: sessionModel)
@@ -102,23 +115,22 @@ import Testing
         requestId: "r7", toolName: "find_places", summary: "cines cerca",
         inputJSON: "{}"))
     h.transport.yield(.responseDone)
-    await pumpUntil("concede: vuelve a escuchar") {
-        h.watch.latest.state == .listening
-    }
-    // The sheet shows the request before anyone can say yes to it.
     await pumpUntil("concede: la hoja tiene la petición") {
         sessionModel.projection.approval?.requestId == "r7"
     }
-
+    await pumpUntilAsync("la sesión vio la hoja") { await h.session.pendingApproval != nil }
+    h.clock.now += ApprovalClickGuard.dwell + 0.1
     h.transport.yield(.functionCall(
         name: "resolve_approval", arguments: #"{"approved":true}"#,
         callId: "c2"))
-    await pumpUntil("concede: el permiso llega al encargo") {
-        jobs.resolutions.contains { $0 == ApprovalVerdict(id: "r7", approved: true) }
+    await pumpUntil("concede: se acusa el tool call") {
+        h.transport.sent.contains { $0.contains("function_call_output") && $0.contains("c2") }
     }
-    expect(h.transport.sent.contains {
-        $0.contains("function_call_output") && $0.contains("c2")
-    }, "concede: se acusa el tool call para que la voz siga")
+    let output = h.transport.sent.last { $0.contains("c2") } ?? ""
+    expect(output.contains("clic") || output.contains("click"),
+           "realtime: la salida pide el clic (\(output))")
+    expect(jobs.resolutions.isEmpty, "realtime: el sí hablado no llega al encargo")
+    expectEq(sessionModel.projection.approval?.requestId, "r7", "realtime: la hoja sigue esperando")
 }
 
 /// 4. Un JSON roto no concede ni deniega: la solicitud sigue viva.
@@ -145,6 +157,10 @@ import Testing
         sessionModel.projection.approval?.requestId == "r9"
     }
 
+    // 16h-2 (security M1): a spoken yes reaches only a sheet that has been
+    // on screen for the click guard's dwell; the test clock has to get there.
+    await pumpUntilAsync("la sesión vio la hoja") { await h.session.pendingApproval != nil }
+    h.clock.now += ApprovalClickGuard.dwell + 0.1
     // Truncado por el servidor, y el clásico "1" que NO es un booleano.
     h.transport.yield(.functionCall(
         name: "resolve_approval", arguments: #"{"approv"#, callId: "c2"))
@@ -154,7 +170,8 @@ import Testing
     expect(jobs.resolutions.isEmpty,
            "roto: un argumento que no es booleano no resuelve nada")
 
-    // Y la solicitud sigue viva: la respuesta buena sí entra.
+    // Y la solicitud sigue viva: la negativa buena sí entra. Negar es la
+    // dirección segura; solo el sí hablado necesita el clic.
     h.transport.yield(.functionCall(
         name: "resolve_approval", arguments: #"{"approved":false}"#,
         callId: "c4"))
@@ -191,15 +208,27 @@ final class ApprovingSubmitter: JobSubmitter, @unchecked Sendable {
 
     var resolutions: [ApprovalVerdict] { lock.withLock { verdicts } }
 
+    /// A request asked before `submit` ran is held, not lost: the bridge
+    /// starts the job on its own task, so the test can get there first.
+    private var early: [ApprovalRequest] = []
+
     func askApproval(_ request: ApprovalRequest) {
-        let sink = lock.withLock { self.sink }
+        let sink = lock.withLock { () -> AsyncStream<JobEvent>.Continuation? in
+            if self.sink == nil { early.append(request) }
+            return self.sink
+        }
         sink?.yield(.approvalRequested(request))
     }
 
     func submit(
         _ handoff: Handoff, events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {
-        lock.withLock { sink = events }
+        let held = lock.withLock { () -> [ApprovalRequest] in
+            sink = events
+            defer { early = [] }
+            return early
+        }
+        for request in held { events.yield(.approvalRequested(request)) }
         // Vive lo suficiente para que el permiso tenga a quién volver.
         try? await Task.sleep(for: .seconds(3))
         return JobResult(output: "hecho", isError: false)
@@ -207,6 +236,12 @@ final class ApprovingSubmitter: JobSubmitter, @unchecked Sendable {
 
     func cancel() async {}
 
+    func cancel(job id: JobID) async { await cancel() }
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try await submit(handoff, events: events)
+    }
     func resolveApproval(requestId: String, approved: Bool) async {
         lock.withLock {
             verdicts.append(ApprovalVerdict(id: requestId, approved: approved))

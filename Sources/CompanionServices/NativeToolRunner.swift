@@ -24,6 +24,11 @@ public struct NativeToolRunner: Sendable {
     let pathValidator: PathValidator
     private let places: (any PlacesSearching)?
     private let webSearch: (any WebSearching)?
+    /// 16h-3: where "nearby" means. Absent, the lookup runs as it always did.
+    private let location: UserLocationSource?
+    /// 16q-2: the "Tu ciudad" switch. Read per call, since it can flip while
+    /// the app runs.
+    private let locationChannelOn: @Sendable () -> Bool
     private let timeout: TimeInterval
     /// The denial is copy a model reads; it follows the user's language.
     private let language: AppLanguage
@@ -52,13 +57,18 @@ public struct NativeToolRunner: Sendable {
         language: AppLanguage = .en,
         skills: SkillsLocation? = nil,
         documents: (any DocumentRendering)? = nil,
-        sheets: (any SpreadsheetDriving)? = nil
+        sheets: (any SpreadsheetDriving)? = nil,
+        location: UserLocationSource? = nil,
+        // Fail closed: a caller that forgets to wire the switch gets "off".
+        locationChannelOn: @escaping @Sendable () -> Bool = { false }
     ) {
+        self.locationChannelOn = locationChannelOn
         self.workdir = workdir
         self.pathValidator = PathValidator(workdir: workdir, extraRoots: skills?.roots ?? [])
         self.timeout = shellTimeout
         self.places = places
         self.webSearch = webSearch
+        self.location = location
         self.language = language
         self.skills = skills
         self.documents = documents
@@ -318,7 +328,20 @@ public struct NativeToolRunner: Sendable {
         guard let places else {
             return ToolResult(ok: false, output: "Place lookup is unavailable")
         }
-        let near = arguments["near"] as? String
+        var near = arguments["near"] as? String
+        if let location, NearMe.isNearby(query: query, near: near) {
+            // Switch on: the lookup the user asked for is where the Location
+            // dialog may appear (a turn's context sensing never asks). Switch
+            // off: only the city typed in Settings, so it never asks and never
+            // reads the system's city either.
+            let city = locationChannelOn()
+                ? await location.current(prompting: true)
+                : location.typedCity()
+            guard let city else {
+                return ToolResult(ok: false, output: NearMe.needsCity(language))
+            }
+            near = city.label
+        }
         let found = await places.search(query, near: near)
         guard !found.isEmpty else {
             // An empty map is worse than no map: it reads as "the place does

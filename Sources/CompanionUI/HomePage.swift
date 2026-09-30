@@ -21,6 +21,11 @@ struct HomePage: View {
                     .frame(height: HomeMetrics.headHeight, alignment: .center)
                 HStack(alignment: .top, spacing: HomeMetrics.columnGap) {
                     VStack(alignment: .leading, spacing: HomeMetrics.tasksTop) {
+                        if let error = ChatErrorSurface.visible(
+                            errorText: chat.errorText, needsOnboarding: chat.needsOnboarding, dismissed: nil)
+                        {
+                            HomeErrorBanner(text: error, onDismiss: chat.dismissError)
+                        }
                         hero
                         tasks
                     }
@@ -57,8 +62,7 @@ struct HomePage: View {
             .tracking(Tracking.title, at: TypeSize.bannerTitle)
             .foregroundStyle(Neutral.white.color)
             Text(Localized.string("home.hero.body"))
-                .font(Fonts.sans(TypeSize.heroBody))
-                .lineSpacing(Leading.spacing(Leading.body, at: TypeScale.apply(TypeSize.heroBody)))
+                .typeRole(.heroBody)
                 .foregroundStyle(Neutral.white.color.opacity(HeroMetrics.bodyAlpha))
                 .frame(maxWidth: HeroMetrics.bodyWidth, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -148,7 +152,7 @@ struct HomeTaskRow: View {
                     .monospacedDigit()
                     .foregroundStyle(Semantic.textMuted)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: TaskRowMetrics.chevron * 0.75, weight: .medium))
+                    .font(Fonts.sans(TaskRowMetrics.chevron * 0.75).weight(.medium))
                     .frame(width: TaskRowMetrics.chevron, height: TaskRowMetrics.chevron)
                     .foregroundStyle(hovering ? Semantic.mutedForeground : Semantic.faintForeground)
                     .accessibilityHidden(true)
@@ -199,7 +203,7 @@ struct HomeStartCard: View {
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text(title).font(.uiLabel).foregroundStyle(Semantic.foreground)
                 Text(body)
-                    .font(.uiCaption)
+                    .typeRole(.micro)
                     .foregroundStyle(Semantic.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
             }

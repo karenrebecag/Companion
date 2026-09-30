@@ -39,7 +39,7 @@ private func request(_ id: String) -> ApprovalRequest {
     let submitter = WatchfulSubmitter()
     let vm = awaiting(submitter)
     await pumpUntil("arranca") { vm.job != nil }
-    vm.receiveJobEvent(.approvalRequested(request("a1")))
+    vm.receiveJobEvent(.approvalRequested(request("a1")), from: vm.chatJobID)
     vm.answerApproval(false)
     await pumpUntil("para de verdad") { submitter.cancelled }
     expect(submitter.cancelled, "negar el primer paso para el encargo entero")
@@ -51,9 +51,9 @@ private func request(_ id: String) -> ApprovalRequest {
     let submitter = WatchfulSubmitter()
     let vm = awaiting(submitter)
     await pumpUntil("arranca") { vm.job != nil }
-    vm.receiveJobEvent(.approvalRequested(request("a1")))
+    vm.receiveJobEvent(.approvalRequested(request("a1")), from: vm.chatJobID)
     vm.answerApproval(true)
-    vm.receiveJobEvent(.approvalRequested(request("a2")))
+    vm.receiveJobEvent(.approvalRequested(request("a2")), from: vm.chatJobID)
     vm.answerApproval(false)
     await settle(0.15)
     expect(!submitter.cancelled,
@@ -64,7 +64,7 @@ private func request(_ id: String) -> ApprovalRequest {
     let submitter = WatchfulSubmitter()
     let vm = awaiting(submitter)
     await pumpUntil("arranca") { vm.job != nil }
-    vm.receiveJobEvent(.approvalRequested(request("a1")))
+    vm.receiveJobEvent(.approvalRequested(request("a1")), from: vm.chatJobID)
     vm.answerApproval(true)
     await settle(0.15)
     expect(!submitter.cancelled, "autorizar no para nada")
@@ -76,7 +76,7 @@ private func request(_ id: String) -> ApprovalRequest {
     let submitter = WatchfulSubmitter()
     let vm = awaiting(submitter)
     await pumpUntil("recuerda: arranca") { vm.job != nil }
-    vm.receiveJobEvent(.approvalRequested(request("a1")))
+    vm.receiveJobEvent(.approvalRequested(request("a1")), from: vm.chatJobID)
     vm.answerApproval(false, remember: true)
     await pumpUntil("recuerda: para") { submitter.cancelled }
     await pumpUntil("recuerda: resolvió") { !submitter.remembered.isEmpty }

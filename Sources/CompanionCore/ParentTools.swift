@@ -76,6 +76,15 @@ public enum ParentTool: String, CaseIterable, Sendable, Equatable {
         }
     }
 
+    /// The call changes something (opens, types, presses, clicks) as opposed
+    /// to reading. Its status line is what the voice owes the user.
+    public var changesSomething: Bool {
+        switch self {
+        case .openApp, .openURL, .openFile, .typeText, .pressKey, .focusWindow, .click, .menu: true
+        case .listApps, .readSkill, .readFocused, .look, .scroll, .see: false
+        }
+    }
+
     /// Offered only when the runner has a screen adapter behind them.
     public var isSight: Bool {
         switch self {
@@ -251,14 +260,26 @@ public struct ParentToolOutcome: Sendable, Equatable {
     public var card: Card?
     /// Which tool produced it, when the copy needs to know (11a).
     public var tool: String?
+    /// Wave 16h-1: something read back proves the change (the field holds the
+    /// text). Without it, copy says what was tried, never that it worked.
+    public var verified: Bool
+    /// The app the hands acted on, so a read from another window proves nothing.
+    public var fieldPID: Int32?
+    /// For `type_text`: how many times the text was already in the field
+    /// before it was typed. Nil when the field could not be read.
+    public var typedBefore: Int?
 
     public init(ok: Bool, output: String, target: String = "", card: Card? = nil,
-                tool: String? = nil) {
+                tool: String? = nil, verified: Bool = false,
+                fieldPID: Int32? = nil, typedBefore: Int? = nil) {
+        self.fieldPID = fieldPID
+        self.typedBefore = typedBefore
         self.ok = ok
         self.output = output
         self.target = target
         self.card = card
         self.tool = tool
+        self.verified = verified
     }
 
     public static func failed(_ error: ContractError, target: String = "",
@@ -299,6 +320,10 @@ public protocol ParentToolExecuting: Sendable {
     /// what the user named (the connected apps' runner filters by the app
     /// the request names — spec §5's context budget rule).
     func noteTurn(_ said: String)
+    /// 16q-2: the turn is an answer on a question card. Its words are the
+    /// model's, not hers, so they never name an app or stand as consent; but
+    /// the connected apps stay reachable, as in any turn.
+    func noteChoiceTurn()
 }
 
 extension ParentToolExecuting {
@@ -317,6 +342,8 @@ extension ParentToolExecuting {
     public func beginTurn() {}
 
     public func noteTurn(_ said: String) {}
+
+    public func noteChoiceTurn() { noteTurn("") }
 }
 
 /// The record of what the app did by itself, in the thread — same idea as

@@ -76,13 +76,11 @@ func makeChatProviders(environment env: LaunchEnvironment) -> ChatProviders {
         localCatalog: localCatalog, chat: chat, holdChat: holdChat, store: store)
 }
 
-/// Job execution: the executor catalog, the picker and the runner. Split out
-/// of `applicationDidFinishLaunching` when CompanionMain crossed the
-/// 400-line gate. `self.executorChoice` is set by the caller, which keeps
-/// that stored property private to CompanionMain.swift.
+/// Job execution: the executor catalog and the runner. Split out of
+/// `applicationDidFinishLaunching` when CompanionMain crossed the 400-line
+/// gate.
 struct JobInfrastructure {
     let approvals: Approvals
-    let choice: ExecutorChoice
     let jobRunner: JobRunner
 }
 
@@ -117,22 +115,9 @@ func makeJobInfrastructure(
         approvals: approvals,
         sessions: sessions,
         skills: { env.configProvider.current.skills })
-    // The picker starts with the native executor and grows when the probe
-    // finds a CLI; nothing appears if none is installed (ADR 001).
-    let choice = ExecutorChoice(
-        available: [ExecutorCatalog.native],
-        selected: .native
-    ) { id in
-        _ = executors.selectExecutor(id: id)
-    }
-    Task {
-        await executors.refreshAvailableExecutors()
-        await MainActor.run {
-            choice.refresh(
-                executors.getAvailableExecutors(),
-                selected: executors.getSelectedExecutorId())
-        }
-    }
+    // The probe still runs at launch: routing sends work to a CLI executor
+    // only once it has been found (ADR 001). There is no picker to feed.
+    Task { await executors.refreshAvailableExecutors() }
 
     let jobRunner = JobRunner(
         executorProvider: executors,
@@ -140,5 +125,5 @@ func makeJobInfrastructure(
         approvals: approvals,
         language: { env.configProvider.current.language })
 
-    return JobInfrastructure(approvals: approvals, choice: choice, jobRunner: jobRunner)
+    return JobInfrastructure(approvals: approvals, jobRunner: jobRunner)
 }

@@ -64,6 +64,34 @@ struct UIContract: Decodable {
     print("  ok    [conformance] \(clean) archivos dentro de contrato")
 }
 
+/// 16p-2: `system-font` solo ve el literal; un tamaño calculado
+/// (`.system(size: X * 0.8)`) esquivaba igual TypeScale y la fuente del
+/// usuario. La regla nueva tiene que ver esas formas y ninguna otra.
+@Test func systemFontExpressionRuleTests() throws {
+    guard let root = Conformance.repoRoot() else { return }
+    let contract = try Conformance.contract(at: root)
+    guard let rule = contract.rules["system-font-expression"] else {
+        expect(false, "contrato: falta la regla system-font-expression")
+        return
+    }
+    let leaks = Conformance.logicalLines(of: """
+        .font(.system(size: SidebarMetrics.icon * 0.85))
+        .font(Font.system(size: TypeSize.body, weight: .semibold))
+        .font(.system(
+            size: IconSize.hero, weight: .light))
+        """)
+    expectEq(Conformance.count(rule.pattern, in: leaks), 3,
+             "system-font-expression: salta con un tamaño calculado, también partido en líneas")
+    let clean = Conformance.logicalLines(of: """
+        .font(Fonts.sans(TypeSize.body))
+        .font(.system(size: 12))
+        Image(systemName: "xmark")
+        .font(GeistFont.uiCaption)
+        """)
+    expectEq(Conformance.count(rule.pattern, in: clean), 0,
+             "system-font-expression: no salta con Fonts ni con el literal (ese es de system-font)")
+}
+
 /// El libro de puertas del HUD (Wave 12d). No ejecuta nada: comprueba que
 /// cada puerta cita tests que existen y corren (`@Test` o invocados) y
 /// reglas que existen, para que el libro no pueda citar pruebas que ya se

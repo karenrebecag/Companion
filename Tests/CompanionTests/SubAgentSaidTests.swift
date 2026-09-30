@@ -30,7 +30,11 @@ private func contents(_ url: URL) -> String {
     (try? String(contentsOf: url, encoding: .utf8)) ?? ""
 }
 
+private let ack = Acknowledgement.delegating(.es)
+
 /// A hold that delegates, then the summary round the job's end asks for.
+/// 16h-2: the hold says its acknowledgement first and ends; the job's end
+/// waits for that turn to be over before it speaks.
 @MainActor private func runJobHold(
     _ h: VoiceHarness, submitted: @escaping @MainActor () -> Bool, summary: [ChatDelta]
 ) async {
@@ -40,7 +44,20 @@ private func contents(_ url: URL) -> String {
     await pumpUntil("subagente: listening") { h.watch.latest.state == .listening }
     await h.session.release()
     await pumpUntil("subagente: el submitter corrió") { submitted() }
-    await pumpUntil("subagente: la boca habla") { h.synth.finished && h.synth.queue.count >= 2 }
+    await pumpUntil("subagente: el acuse suena primero") { h.synth.finished && h.synth.queue.first == ack }
+    h.synth.finished = false
+    h.synth.yield(.finished)
+    await pumpUntil("subagente: la boca habla") { h.synth.finished && h.synth.queue.count >= 3 }
+}
+
+/// What the job's end said, without the hold's own acknowledgement.
+@MainActor private func announced(_ h: VoiceHarness) -> [String] {
+    Array(h.synth.queue.drop { $0 == ack })
+}
+
+/// The `said=` lines of the announcement; the hold's own line is its turn's.
+private func announcementSaid(_ url: URL) -> [Substring] {
+    contents(url).split(separator: "\n").filter { $0.contains("said=") && !$0.hasSuffix("said=\(ack)") }
 }
 
 @MainActor func testClassicJobDoneSpeaksOwnWordsAndASummaryTurn() async {
@@ -53,8 +70,8 @@ private func contents(_ url: URL) -> String {
         .text(#"{"goal":"verifica","path":"/tmp/x"}"#),
         .text(" El log dice: Permission denied while writing the backup file."),
     ])
-    let spoken = h.synth.queue.joined(separator: " ")
-    expectEq(h.synth.queue.first, "Listo, ya está en pantalla.", "HIGH-B: primero, palabras propias")
+    let spoken = announced(h).joined(separator: " ")
+    expectEq(announced(h).first, "Listo, ya está en pantalla.", "HIGH-B: primero, palabras propias")
     for marker in instructionMarkers {
         expect(!spoken.contains(marker), "HIGH-B: nunca la instrucción al modelo (\(marker))")
     }
@@ -73,8 +90,8 @@ private func contents(_ url: URL) -> String {
     expect(!contents(url).contains("said=Listo"), "HIGH-B: said= no se escribe antes de sonar")
     h.synth.spoken = spoken
     h.synth.yield(.finished)
-    await pumpUntil("HIGH-B: said= tras terminar el audio") { contents(url).contains("said=") }
-    let said = contents(url).split(separator: "\n").filter { $0.contains("said=") }
+    await pumpUntil("HIGH-B: said= tras terminar el audio") { !announcementSaid(url).isEmpty }
+    let said = announcementSaid(url)
     expectEq(said.count, 1, "HIGH-B: una línea said= del anuncio")
     expect(said.first?.hasSuffix("said=\(spoken)") == true, "HIGH-B: said= es lo que sonó")
 }
@@ -88,8 +105,8 @@ private func contents(_ url: URL) -> String {
     await runJobHold(h, submitted: { !submitted.all.isEmpty }, summary: [
         .text("No tenía permiso para escribir en esa carpeta."),
     ])
-    let spoken = h.synth.queue.joined(separator: " ")
-    expectEq(h.synth.queue.first, "No pude terminarlo.", "HIGH-B: fallo en palabras propias")
+    let spoken = announced(h).joined(separator: " ")
+    expectEq(announced(h).first, "No pude terminarlo.", "HIGH-B: fallo en palabras propias")
     for marker in instructionMarkers {
         expect(!spoken.contains(marker), "HIGH-B: nunca la instrucción al modelo (\(marker))")
     }
@@ -104,7 +121,7 @@ private func contents(_ url: URL) -> String {
     let h = makeVoiceHarness(jobs: jobs, language: .es, debugTranscripts: false)
     await h.session.attachTranscriptLog(TranscriptDebugLog(fileURL: url))
     await runJobHold(h, submitted: { !jobs.goals.isEmpty }, summary: [.text("Listo.")])
-    h.synth.spoken = h.synth.queue.joined(separator: " ")
+    h.synth.spoken = announced(h).joined(separator: " ")
     h.synth.yield(.finished)
     await settle()
     expect(!FileManager.default.fileExists(atPath: url.path),
@@ -124,8 +141,8 @@ private func contents(_ url: URL) -> String {
     h.synth.spoken = "Listo, ya está en pantalla."
     h.synth.stopped = false
     await h.session.hold()
-    await pumpUntil("LOW-4: said= al cortar") { contents(url).contains("said=") }
-    let said = contents(url).split(separator: "\n").filter { $0.contains("said=") }
+    await pumpUntil("LOW-4: said= al cortar") { !announcementSaid(url).isEmpty }
+    let said = announcementSaid(url)
     expectEq(said.count, 1, "LOW-4: una línea")
     expect(said.first?.hasSuffix("said=Listo, ya está en pantalla.") == true,
            "LOW-4: solo lo que sonó (\(said))")
@@ -146,6 +163,12 @@ private final class RefusingJobSubmitter: JobSubmitter, @unchecked Sendable {
         return JobResult(output: output, isError: true)
     }
     func cancel() async {}
+    func cancel(job id: JobID) async { await cancel() }
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try await submit(handoff, events: events)
+    }
     func resolveApproval(requestId: String, approved: Bool) async {}
     var isBusy: Bool { get async { false } }
 }

@@ -134,7 +134,7 @@ private struct SlowExecutor: Executor {
 /// (paso vivo + duracion) instead of one loose status line per step.
 @MainActor func testStepsPaintInTheThread() {
     let vm = wiredViewModel(RecordingSubmitter())
-    vm.receiveJobEvent(.stepStarted(tool: "write_file", summary: "prueba1.md"))
+    vm.receiveJobEvent(.stepStarted(tool: "write_file", summary: "prueba1.md"), from: nil)
     expect(vm.job?.steps.contains { $0.label.contains("prueba1.md") } ?? false,
            "pasos: el encargo por voz pinta su linea de tiempo")
 }
@@ -157,7 +157,7 @@ private struct SlowExecutor: Executor {
     let request = ApprovalRequest(
         requestId: "r1", toolName: "run_shell",
         summary: "", inputJSON: "{\"command\":\"ls\"}")
-    vm.receiveJobEvent(JobEvent.approvalRequested(request))
+    vm.receiveJobEvent(JobEvent.approvalRequested(request), from: nil)
     expectEq(vm.pendingApproval?.requestId, "r1",
              "permiso: llega al estado que la hoja observa")
 }
@@ -168,7 +168,7 @@ private struct SlowExecutor: Executor {
     let request = ApprovalRequest(
         requestId: "r2", toolName: "write_file",
         summary: "", inputJSON: "{\"path\":\"a.txt\"}")
-    vm.receiveJobEvent(JobEvent.approvalRequested(request))
+    vm.receiveJobEvent(JobEvent.approvalRequested(request), from: nil)
     vm.answerApproval(true)
     expect(vm.pendingApproval == nil, "permiso: la hoja se cierra al responder")
     await pumpUntil("permiso: la respuesta llega al especialista") {
@@ -200,6 +200,12 @@ final class RecordingSubmitter: JobSubmitter, @unchecked Sendable {
         JobResult(output: "ok", isError: false)
     }
     func cancel() async {}
+    func cancel(job id: JobID) async { await cancel() }
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try await submit(handoff, events: events)
+    }
     func resolveApproval(requestId: String, approved: Bool) async {
         lock.withLock { calls.append(ResolvedCall(id: requestId, approved: approved)) }
     }

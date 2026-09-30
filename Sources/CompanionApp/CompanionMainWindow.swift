@@ -18,8 +18,9 @@ extension AppDelegate {
     /// `applicationDidFinishLaunching`.
     func presentWindow(
         model: ChatViewModel, voice: VoiceViewModel, sessionModel: SessionModel,
-        choice: ExecutorChoice, env: LaunchEnvironment,
-        openAIMouth: OpenAITTSClient, mouth: MouthRouter, voicePort: VoicePortBox
+        env: LaunchEnvironment,
+        openAIMouth: OpenAITTSClient, mouth: MouthRouter, voicePort: VoicePortBox,
+        appTools: AppToolRunner
     ) {
         // Wave 12h: FN is an Accessibility HID tap (same permission as
         // dictation). Solo FN is swallowed; Input Monitoring is not used.
@@ -99,9 +100,13 @@ extension AppDelegate {
             defer: false)
         window.title = "Companion"
         WindowChrome.configure(window)
+        let captureGrabber = ScreenRegionGrabber(directory: FileManager.default.temporaryDirectory
+            .appendingPathComponent("companion-captures", isDirectory: true))
+        // Screen content from a run that never cleaned up must not outlive it.
+        captureGrabber.purgeLeftovers()
         let root = CompanionRootView(
             chat: model, voice: voice,
-            voicePreview: preview, executors: choice,
+            voicePreview: preview,
             updates: updates,
             welcome: WelcomeModel(
                 devices: SystemWelcomeDevices(),
@@ -115,7 +120,8 @@ extension AppDelegate {
                 // could edit by hand; only this root touches the disk.
                 readMCP: { MCPConfigFile.read() },
                 saveMCP: { try MCPConfigFile.save($0, secrets: env.hostSecrets) },
-                log: { Log.app($0) }))
+                log: { Log.app($0) }),
+            grabber: captureGrabber)
         let hosting = NSHostingView(rootView: root)
         WindowChrome.install(hosting, in: window)
         window.center()
@@ -137,6 +143,8 @@ extension AppDelegate {
         // Before the island: at the same level, the later window stays on top.
         screenOverlays = ScreenOverlays(session: sessionModel, onFailure: { Log.app($0) })
         let islandGeometry = IslandGeometry()
+        let recentFiles = RecentFiles()
+        let diagramRenderer = WebKitDiagramRenderer()
         let island = IslandPanel(
             content: IslandView(
                 chat: model, voice: voice, hold: holdSettings, geometry: islandGeometry,
@@ -146,8 +154,18 @@ extension AppDelegate {
                     Log.app("island: \(size)")
                 },
                 onReleaseKey: { [weak self] in self?.island?.releaseKey() },
-                grabber: ScreenRegionGrabber(directory: FileManager.default.temporaryDirectory
-                    .appendingPathComponent("companion-captures", isDirectory: true))),
+                grabber: captureGrabber,
+                pickFiles: { await IslandFilePanel.pick() },
+                updates: updates,
+                // 16m-7: the Contacts dialog is asked by the selector, the
+                // first time she types `@`; building this asks nothing.
+                mentions: MentionSources(
+                    contacts: SystemContacts(),
+                    connectedApps: { appTools.connectedMentionCandidates() },
+                    recentFiles: { await recentFiles.candidates() }),
+                // 16m-5b: the only WebKit in the app, drawing Mermaid with no network.
+                diagrams: diagramRenderer,
+                saveFile: { data, name in await IslandSavePanel.save(data, suggestedName: name) }),
             geometry: islandGeometry,
             onHover: { over in sessionModel.send(over ? .hoverEntered : .hoverLeft) })
         island.onResignKey = {

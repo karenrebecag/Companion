@@ -9,6 +9,11 @@ public protocol FocusedAppSensing: Sendable {
     func focusedApp() async -> String?
 }
 
+/// Wave 16h-3: the title of the window in front, next to the app's name.
+public protocol FocusedWindowSensing: Sendable {
+    func focusedWindow() async -> String?
+}
+
 public protocol OpenDocumentsSensing: Sendable {
     func openDocuments() async -> [String]
 }
@@ -41,6 +46,9 @@ public final class SystemContextSensor: ContextSensing, @unchecked Sendable {
     private let focused: any FocusedAppSensing
     private let documents: any OpenDocumentsSensing
     private let clipboardSensor: any ClipboardSensing
+    private let window: (any FocusedWindowSensing)?
+    private let location: UserLocationSource?
+    private let islandEvents: (any IslandEventSource)?
     private let now: @Sendable () -> Date
     private let lock = NSLock()
     private var lastSense: Date?
@@ -49,11 +57,17 @@ public final class SystemContextSensor: ContextSensing, @unchecked Sendable {
         focused: any FocusedAppSensing,
         documents: any OpenDocumentsSensing,
         clipboard: any ClipboardSensing,
+        window: (any FocusedWindowSensing)? = nil,
+        location: UserLocationSource? = nil,
+        islandEvents: (any IslandEventSource)? = nil,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.focused = focused
         self.documents = documents
         self.clipboardSensor = clipboard
+        self.window = window
+        self.location = location
+        self.islandEvents = islandEvents
         self.now = now
     }
 
@@ -72,6 +86,15 @@ public final class SystemContextSensor: ContextSensing, @unchecked Sendable {
             let focused = self.focused
             Task.detached { box.put(.app(await focused.focusedApp())) }
         }
+        if channels.contains(.focusedApp), let window {
+            expected += 1
+            Task.detached { box.put(.window(await window.focusedWindow())) }
+        }
+        if channels.contains(.location), let location {
+            expected += 1
+            // Never `prompting`: a turn must not put up the Location dialog.
+            Task.detached { box.put(.location(await location.current(prompting: false))) }
+        }
         if channels.contains(.openDocuments) {
             expected += 1
             let documents = self.documents
@@ -82,16 +105,28 @@ public final class SystemContextSensor: ContextSensing, @unchecked Sendable {
             let clipboard = self.clipboardSensor
             Task.detached { box.put(.clipboard(await clipboard.clipboard())) }
         }
+        // Not the environment: the app's own facts, so no channel gates them.
+        // Taken here, per sense, so a turn hears each fact exactly once.
+        if let batch = islandEvents?.pending() {
+            ctx.islandEvents = batch.events
+            ctx.islandEventsThrough = batch.through
+        }
         guard expected > 0 else { return ctx }
         await box.wait(for: expected, budget: budget)
         for result in box.drain() {
             switch result {
             case .app(let name): ctx.focusedApp = name
+            case .window(let title): ctx.focusedWindow = title
+            case .location(let city): ctx.location = city
             case .documents(let list): ctx.openDocuments = list
             case .clipboard(let summary): ctx.clipboard = summary
             }
         }
         return ctx
+    }
+
+    public func acknowledgeIslandEvents(through: Int) {
+        islandEvents?.acknowledge(through: through)
     }
 
     private func since(_ stamp: Date) -> TimeInterval? {
@@ -104,6 +139,8 @@ public final class SystemContextSensor: ContextSensing, @unchecked Sendable {
 
     private enum ChannelResult: Sendable {
         case app(String?)
+        case window(String?)
+        case location(UserLocation?)
         case documents([String])
         case clipboard(ClipboardSummary?)
     }
@@ -304,12 +341,45 @@ public final class OpenDocumentsSensor: OpenDocumentsSensing, @unchecked Sendabl
         }
     }
 
-    private static func attribute(_ name: String, of element: AXUIElement) -> String? {
+    static func attribute(_ name: String, of element: AXUIElement) -> String? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success,
               let text = value as? String, !text.isEmpty
         else { return nil }
         return text
+    }
+}
+
+/// The title of the window in front of the app in front (16h-3), through the
+/// same Accessibility trust and the same pid as the documents sensor.
+public final class FocusedWindowSensor: FocusedWindowSensing, @unchecked Sendable {
+    private let trusted: @Sendable () -> Bool
+    private let pid: @Sendable () -> pid_t?
+    private let title: @Sendable (pid_t) -> String?
+
+    public init(
+        trusted: @escaping @Sendable () -> Bool = { AXIsProcessTrusted() },
+        pid: @escaping @Sendable () -> pid_t?,
+        title: @escaping @Sendable (pid_t) -> String? = { FocusedWindowSensor.title(of: $0) }
+    ) {
+        self.trusted = trusted
+        self.pid = pid
+        self.title = title
+    }
+
+    public func focusedWindow() async -> String? {
+        guard trusted(), let pid = pid() else { return nil }
+        return title(pid)
+    }
+
+    public static func title(of pid: pid_t) -> String? {
+        let app = AXUIElementCreateApplication(pid)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
+              let window = value, CFGetTypeID(window) == AXUIElementGetTypeID()
+        else { return nil }
+        // Checked one line above: the type id says this is an AXUIElement.
+        return OpenDocumentsSensor.attribute(kAXTitleAttribute, of: window as! AXUIElement)
     }
 }
 

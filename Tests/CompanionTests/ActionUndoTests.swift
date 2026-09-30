@@ -29,7 +29,7 @@ private final class Trashed: @unchecked Sendable {
 
 private struct Boom: Error {}
 
-private func trashStep(_ url: URL) throws -> ActionReceipt.Undo {
+private func trashStep(_ url: URL) throws -> UndoReceipt.Undo {
     let info = try FileManager.default.attributesOfItem(atPath: url.path)
     return .trash(path: url.path, size: (info[.size] as? NSNumber)?.intValue ?? 0,
                   modified: info[.modificationDate] as? Date ?? Date())

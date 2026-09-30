@@ -66,7 +66,7 @@ These are the product and engineering choices that define the project more than 
 |----------|-----|
 | **No required external agent runtime** (ADR 001) | Hermes was powerful and also a full ecosystem. Requiring it killed adoption for a personal tool. Capabilities were absorbed natively; Claude Code / Hermes remain optional adapters. |
 | **No Sparkle** (ADR 002) | Updates check GitHub Releases with a small, testable client. Adding an update framework would be a second binary dependency on a project that treats supply chain as a first-class concern. |
-| **One binary dependency only: Rive** (ADR 003) | The mascot is product identity. The cost is accepted explicitly, attributed, and pinned by checksum. Any further binary needs its own ADR. |
+| **No binary dependencies** (ADR 003 retired) | The one vendored binary (Rive, for the mascot) left when the orb became the identity. Any binary needs its own ADR. |
 | **Ad-hoc signing for releases** | There is no Apple Developer account behind the project. Gatekeeper will block the first open; the README documents both macOS 14 and 15+ paths. Notarization is supported by the scripts the day credentials exist. |
 | **Approvals for destructive tools** | The specialist is useful only if it is trusted. Write and shell always ask. Paths cannot leave the chosen workdir, including via symlinks. |
 | **Spec-first waves, gates before merge** | Every non-trivial change starts as a written contract. `scripts/gates.sh` (build, static checks, layer rules, tests) is the same script run in CI and locally. |
@@ -150,7 +150,6 @@ Debug and release use different bundle IDs on purpose so Launch Services never o
 - Swift 6 (strict concurrency), SwiftPM only — no Xcode project required to build and test
 - macOS 14+
 - OpenAI Realtime (primary voice path) + system Speech / AVSpeech as fallbacks
-- RiveRuntime (vendored) for the mascot
 - MIT license
 
 ---

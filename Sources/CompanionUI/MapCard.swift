@@ -30,6 +30,9 @@ struct MapCard: View {
                             .onTapGesture {
                                 selectedId = loc.stableId
                             }
+                            .accessibilityLabel(loc.name)
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityAction { selectedId = loc.stableId }
                     }
                     .annotationTitles(.hidden)
                 }

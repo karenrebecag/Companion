@@ -3,58 +3,71 @@ import CompanionCore
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Which screen fills the window. The welcome is the only first-run flow
+/// (spec 16p §4.2): a key that goes missing later routes back to it, never
+/// to a second onboarding.
+enum RootScreen: CaseIterable, Equatable {
+    case welcome, main
+
+    static func pick(welcomeDone: Bool, needsKey: Bool) -> RootScreen {
+        welcomeDone && !needsKey ? .main : .welcome
+    }
+}
+
 public struct CompanionRootView: View {
     var chat: ChatViewModel
     var voice: VoiceViewModel
     private let voicePreview: VoicePreview?
-    private let executors: ExecutorChoice?
     @State private var showSettings = false
     @State private var settingsTab: SettingsTab = .general
     @State private var chromeTick = 0
     @State private var keyboardMonitor: KeyboardMonitor?
     @State private var dropdowns = DropdownHost()
     @State private var page = MainPage.home
+    /// The comments modal, while it is open (16m-7).
+    @State private var feedback: FeedbackModel?
     /// The task whose detail sheet is open (spec 16j §8).
     @State private var openTask: ConversationMeta?
     /// Read once per opened task: the store is disk, and the body re-runs
     /// on every streamed token (code review 16j-2).
     @State private var openTaskMessages: [ChatMessage] = []
     @Environment(\.openURL) private var openURL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(
         chat: ChatViewModel,
         voice: VoiceViewModel,
         voicePreview: VoicePreview? = nil,
-        executors: ExecutorChoice? = nil,
         updates: UpdateState? = nil,
-        welcome: WelcomeModel? = nil,
+        welcome: WelcomeModel,
         memory: (any MemoryBrowsing)? = nil,
         browser: BrowserSettingsModel? = nil,
-        apps: AppsModel? = nil
+        apps: AppsModel? = nil,
+        grabber: (any RegionGrabbing)? = nil
     ) {
         self.chat = chat
         self.voice = voice
         self.voicePreview = voicePreview
-        self.executors = executors
         self.updates = updates
         self.welcome = welcome
         self.memory = memory
         self.browser = browser
         self.apps = apps
+        self.grabber = grabber
     }
 
     private let updates: UpdateState?
-    private let welcome: WelcomeModel?
+    private let welcome: WelcomeModel
     private let memory: (any MemoryBrowsing)?
     private let browser: BrowserSettingsModel?
     private let apps: AppsModel?
+    /// The island's region capture, reused by the feedback modal (16m-7).
+    private let grabber: (any RegionGrabbing)?
 
     public var body: some View {
         Group {
-            if let welcome, !welcome.done || chat.needsOnboarding {
+            if RootScreen.pick(welcomeDone: welcome.done, needsKey: chat.needsOnboarding) == .welcome {
                 WelcomeView(welcome: welcome, chat: chat)
-            } else if chat.needsOnboarding {
-                OnboardingView(model: chat)
             } else {
                 // Incredible's window (spec 16j §8): an index of what the island
                 // did. Talking, and continuing a task, happen in the island.
@@ -62,13 +75,13 @@ public struct CompanionRootView: View {
                     MainSidebar(
                         page: $page,
                         onSettings: { openSettings(.general) },
-                        onFeedback: { if let url = IslandCopy.feedbackURL { openURL(url) } })
+                        onFeedback: openFeedback)
                     Rectangle().fill(Semantic.borderChrome).frame(width: Stroke.hairline)
                     if page == .apps, let apps {
                         AppsPage(apps: apps)
                     } else {
                         HomePage(chat: chat, onOpen: { task in
-                            withAnimation(.springSheet) { openTask = task }
+                            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { openTask = task }
                         }, onSettings: openSettings)
                     }
                 }
@@ -89,31 +102,15 @@ public struct CompanionRootView: View {
         }
         .environment(dropdowns)
         .overlay {
-            if dropdowns.menu == .choice || dropdowns.menu == .history {
+            if dropdowns.menu == .history {
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .overlay(Semantic.scrim)
                     .ignoresSafeArea()
                     .transition(.opacity)
-                    .allowsHitTesting(dropdowns.menu == .history)
                     .onTapGesture {
-                        withAnimation(.springSheet) { dropdowns.dismiss() }
+                        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
                     }
-            }
-        }
-        .overlay {
-            if dropdowns.blocksRoot {
-                Color.black.opacity(0.001)
-                    .onTapGesture {
-                        withAnimation(.springSheet) { dropdowns.dismiss() }
-                    }
-            }
-        }
-        .overlay(alignment: .topLeading) {
-            if !chat.needsOnboarding, dropdowns.menu == .choice {
-                ChoiceDropdown(executors: executors, host: dropdowns)
-                    .padding(.leading, Space.x4)
-                    .padding(.top, Space.x1 * 25)
             }
         }
         .overlay {
@@ -135,16 +132,16 @@ public struct CompanionRootView: View {
             }
         }
         .dropdownPortal(host: dropdowns)
-        .animation(.springSheet, value: dropdowns.menu)
+        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: dropdowns.menu)
         .onExitCommand {
             if chat.session.projection.approval != nil {
                 chat.answerApproval(false)
             } else if showSettings, dropdowns.session.isOpen {
-                withAnimation(.springSheet) { dropdowns.dismiss() }
+                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
             } else if showSettings {
-                withAnimation(.springSheet) { showSettings = false }
+                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
             } else if dropdowns.session.isOpen {
-                withAnimation(.springSheet) { dropdowns.dismiss() }
+                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
             } else if voice.isActive {
                 voice.hangUp()
             }
@@ -168,14 +165,14 @@ public struct CompanionRootView: View {
                 case .hangUp:
                     voice.hangUp()
                 case .settings:
-                    withAnimation(.springSheet) { showSettings = true }
+                    withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = true }
                 case .newConversation:
                     voice.hangUp()
                     chat.newConversation()
                 case .attach:
                     pickAttachments()
                 case .history:
-                    withAnimation(.springSheet) { dropdowns.toggle(.history) }
+                    withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.toggle(.history) }
                 }
             }
             monitor.start()
@@ -190,7 +187,7 @@ public struct CompanionRootView: View {
                         .ignoresSafeArea()
                         .onTapGesture {
                             dropdowns.dismiss()
-                            withAnimation(.springSheet) { showSettings = false }
+                            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
                         }
                     GeometryReader { geo in
                         let w = min(
@@ -208,7 +205,7 @@ public struct CompanionRootView: View {
                             browser: browser,
                             tab: $settingsTab,
                             onClose: {
-                                withAnimation(.springSheet) { showSettings = false }
+                                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
                             })
                         .environment(dropdowns)
                         .frame(width: w, height: h)
@@ -218,9 +215,10 @@ public struct CompanionRootView: View {
                 .transition(.opacity)
             }
         }
-        .animation(.springSheet, value: showSettings)
+        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: showSettings)
+        .overlay { feedbackLayer }
         .overlay { taskSheet }
-        .animation(.springSheet, value: openTask?.id)
+        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: openTask?.id)
         .onChange(of: openTask?.id) { _, id in
             openTaskMessages = id.map(chat.transcript) ?? []
         }
@@ -233,12 +231,16 @@ public struct CompanionRootView: View {
             if let slug = note.object as? String { apps?.focus(slug) }
         }
         .onReceive(
+            NotificationCenter.default.publisher(for: .companionOpenFeedback)
+        ) { _ in openFeedback() }
+        .onAppear { if FeedbackRequest.consume() { openFeedback() } }
+        .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenSettings)
         ) { note in
             // The island names the page it means: keys live in privacy, the
             // shortcuts in general; the menu opens at the top.
             settingsTab = (note.object as? String).flatMap(SettingsTab.init(rawValue:)) ?? .general
-            withAnimation(.springSheet) { showSettings = true }
+            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = true }
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionChromeDidChange)
@@ -257,14 +259,14 @@ public struct CompanionRootView: View {
             for url in urls { adoptFile(url) }
             return true
         } isTargeted: { over in
-            withAnimation(.expoOut(MotionTime.fast)) {
+            withAnimation(ChromeMotion.animation(.expoOut(MotionTime.fast), reduceMotion: reduceMotion)) {
                 chat.dropTargeted = over
             }
         }
         .overlay {
             if chat.dropTargeted { DropVeil() }
         }
-        .animation(.springSheet, value: chat.pendingAttachments)
+        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: chat.pendingAttachments)
         .overlay {
             if let request = chat.session.projection.approval {
                 ZStack {
@@ -290,7 +292,7 @@ public struct CompanionRootView: View {
                 .transition(.opacity)
             }
         }
-        .animation(.springSheet, value: chat.session.projection.approval != nil)
+        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: chat.session.projection.approval != nil)
     }
 
     private func pickWorkdir() {
@@ -304,9 +306,28 @@ public struct CompanionRootView: View {
         }
     }
 
+    private func openFeedback() {
+        _ = FeedbackRequest.consume()
+        guard feedback == nil else { return }
+        feedback = FeedbackModel(
+            grabber: grabber, delivery: SystemFeedbackDelivery(), attachments: SystemFeedbackAttachments())
+    }
+
+    @ViewBuilder
+    private var feedbackLayer: some View {
+        if let model = feedback {
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial).overlay(Semantic.scrim).ignoresSafeArea()
+                FeedbackModal(model: model, onClose: { feedback = nil })
+                    .elevation(.sheet)
+            }
+            .transition(.opacity)
+        }
+    }
+
     private func openSettings(_ tab: SettingsTab) {
         settingsTab = tab
-        withAnimation(.springSheet) { showSettings = true }
+        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = true }
     }
 
     @ViewBuilder

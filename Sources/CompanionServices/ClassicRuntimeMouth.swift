@@ -87,7 +87,13 @@ struct TurnMouth {
     var buffer = MouthBuffer()
     var json = HandoffInText()
     var gate: MouthLanguageGate
+    /// 16h-1: the single filter on the way to the voice, and the length rule
+    /// for a turn whose detail is on a card.
+    var filter = SpeechFilter()
+    var budget = SpeechBudget()
     var started = false
+    /// The filter took something out of this turn.
+    var filtered = false
     /// Everything the model wrote that was speakable (JSON already out).
     var spoken = ""
 
@@ -95,9 +101,11 @@ struct TurnMouth {
         gate = MouthLanguageGate(language: language, recognizer: recognizer, heard: heard)
     }
 
-    /// What the voice actually said: the thread and the transcript must not
-    /// keep a sentence the mouth dropped.
-    var said: String { saidPart(of: spoken) }
+    /// The reply minus what the mouth dropped (foreign reasoning, leaks): the
+    /// thread and the transcript must not keep those. The length budget trims
+    /// only the voice; the thread keeps the full text, which is the point of
+    /// a card carrying the detail.
+    var said: String { SpeechFilter.clean(saidPart(of: spoken)) }
 
     /// Code review 2026-09-25 (LOW-2): a round's text as the voice said it,
     /// for the model's next round.
@@ -115,7 +123,49 @@ extension ClassicRuntime {
         for dropped in mouth.gate.dropped[before...] {
             Log.app("mouth: dropped reason=language chars=\(dropped.count)")
         }
-        if let kept { await synthesizer.enqueue(kept) }
+        guard let kept else { return }
+        let clean = mouth.filter.admit(kept)
+        let removed = Self.visibleCount(kept) - Self.visibleCount(clean)
+        if removed > 0 {
+            mouth.filtered = true
+            Log.app("mouth: dropped reason=leak chars=\(removed)")
+        }
+        await speak(clean, &mouth)
+    }
+
+    /// Past the length rule, to the synthesizer.
+    private func speak(_ clean: String, _ mouth: inout TurnMouth) async {
+        if cardThisTurn { mouth.budget.cardShown = true }
+        guard !clean.isEmpty, let said = mouth.budget.admit(clean) else { return }
+        await synthesizer.enqueue(said)
+    }
+
+    /// End of the turn: what an element left open was holding back was text
+    /// after all, so it is said now.
+    func flushHeld(_ mouth: inout TurnMouth) async {
+        await speak(mouth.filter.flush(), &mouth)
+    }
+
+    /// The safety net (16h-1 S-C): when the filter or the language gate took
+    /// something out of this turn, an effect the model reported may have gone
+    /// with it. The app then says the tool's own status line, which is what
+    /// the thread already shows, so a change is never done in silence.
+    func sayMissingEffects(_ mouth: inout TurnMouth, apply: @Sendable (TurnEvent) async -> Void) async {
+        guard mouth.filtered || !mouth.gate.dropped.isEmpty else { return }
+        let said = mouth.said
+        for line in effectLines where !said.contains(line) {
+            if !mouth.started {
+                mouth.started = true
+                await apply(.firstSentence)
+            }
+            await synthesizer.enqueue(line)
+            mouth.spoken += (mouth.spoken.isEmpty ? "" : " ") + line
+        }
+    }
+
+    /// Blanks come and go at the edges of a cut without anything leaking.
+    private static func visibleCount(_ text: String) -> Int {
+        text.filter { !$0.isWhitespace }.count
     }
 
     /// 15f-1: a goal object in the content is found here; what happens to
@@ -180,13 +230,20 @@ extension ClassicRuntime {
         apply: @Sendable (TurnEvent) async -> Void
     ) async -> Bool {
         guard !piece.isEmpty else { return true }
+        let piece = SpeechFilter.joiner(after: mouth.spoken, before: piece) + piece
+        let voiced = SpeechFilter.stoppingLines(piece, after: mouth.spoken)
         if !mouth.started {
             mouth.started = true
             await apply(.firstSentence)
         }
         text += piece
         mouth.spoken += piece
-        for sentence in mouth.buffer.append(piece) {
+        // Only a card that will paint shortens the voice: a fence that fails
+        // to parse shows as code, and the answer stays whole.
+        if !mouth.budget.cardShown, SpeechBudget.hasCard(in: mouth.spoken) {
+            mouth.budget.cardShown = true
+        }
+        for sentence in mouth.buffer.append(voiced) {
             if Task.isCancelled { return false }
             await say(sentence, &mouth)
         }

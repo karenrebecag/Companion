@@ -71,13 +71,13 @@ import Testing
         notices: notices)
     vm.onAppear()
     vm.receiveJobEvent(.approvalRequested(ApprovalRequest(
-        requestId: "r1", toolName: "run_shell", summary: "ls", inputJSON: "{}")))
+        requestId: "r1", toolName: "run_shell", summary: "ls", inputJSON: "{}")), from: nil)
     vm.answerApproval(true)
     expectEq(notices.queue.visible.last?.text, ChatCopy.approvalAnswer(true),
              "toast: permiso resuelto avisa")
     expectEq(sound.played.last, .confirm, "toast: permiso concedido confirma")
     vm.receiveJobEvent(.approvalRequested(ApprovalRequest(
-        requestId: "r2", toolName: "run_shell", summary: "ls", inputJSON: "{}")))
+        requestId: "r2", toolName: "run_shell", summary: "ls", inputJSON: "{}")), from: nil)
     vm.answerApproval(false)
     expectEq(notices.queue.visible.last?.level, .error,
              "toast: permiso denegado es error")
@@ -162,6 +162,12 @@ final class FailingSubmitter: JobSubmitter, @unchecked Sendable {
         JobResult(output: "boom", isError: true)
     }
     func cancel() async {}
+    func cancel(job id: JobID) async { await cancel() }
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try await submit(handoff, events: events)
+    }
     func resolveApproval(requestId: String, approved: Bool) async {}
     var isBusy: Bool { get async { false } }
 }

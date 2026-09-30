@@ -29,6 +29,7 @@ public enum UserProfile {
     nonisolated private static let nameKey = "companion.ownerName"
     nonisolated private static let aboutKey = "companion.ownerAbout"
     nonisolated private static let instructionsKey = "companion.ownerInstructions"
+    nonisolated private static let cityKey = "companion.ownerCity"
 
     nonisolated public static var ownerName: String {
         get { UserDefaults.standard.string(forKey: nameKey) ?? "" }
@@ -43,6 +44,12 @@ public enum UserProfile {
     nonisolated public static var instructions: String {
         get { UserDefaults.standard.string(forKey: instructionsKey) ?? "" }
         set { UserDefaults.standard.set(newValue, forKey: instructionsKey) }
+    }
+
+    /// 16h-3: where "nearby" means. Empty defers to the system's city.
+    nonisolated public static var city: String {
+        get { UserDefaults.standard.string(forKey: cityKey) ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: cityKey) }
     }
 
     public static var avatarURL: URL {
@@ -85,9 +92,9 @@ public enum AppearancePreference: String, CaseIterable, Equatable {
 
     public var label: String {
         switch self {
-        case .light: "Claro"
-        case .dark: "Oscuro"
-        case .auto: "Sistema"
+        case .light: Localized.string("appearance.light")
+        case .dark: Localized.string("appearance.dark")
+        case .auto: Localized.string("appearance.auto")
         }
     }
 

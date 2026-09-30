@@ -9,13 +9,21 @@ extension ChatViewModel {
     /// different thing from what the thread shows.
     func historyForTests() -> [Turn] { windowedTurns() }
 
+    /// In memory only: the mention block rides the turn she sent it in and
+    /// is never part of the saved thread.
+    private func mentioned(_ message: ChatMessage, _ content: String) -> String {
+        MentionContext.wrap(content, mentions: message.mentions, language: config.language)
+    }
+
     func windowedTurns() -> [Turn] {
         let turns: [Turn] = messages.compactMap { message in
             // A status line carries no memory of its own — unless it was given
             // one, which is how the delegate call survives in the history.
             if let recall = message.recall {
                 return Turn(
-                    role: recall.role, content: recall.content,
+                    role: recall.role,
+                    content: mentioned(message, message.origin == .choice
+                        ? ChoiceOrigin.mark(recall.content, language: config.language) : recall.content),
                     attachments: message.attachments,
                     toolCalls: recall.toolCalls,
                     toolCallID: recall.toolCallID)
@@ -29,7 +37,9 @@ extension ChatViewModel {
                 ? ConversationMemory.recall(message.text)
                 : message.text
             return Turn(
-                role: role, content: content,
+                role: role,
+                content: mentioned(message, message.origin == .choice
+                    ? ChoiceOrigin.mark(content, language: config.language) : content),
                 attachments: message.attachments)
         }
         let window = max(0, config.chat.historyWindow)

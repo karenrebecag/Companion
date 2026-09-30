@@ -25,16 +25,18 @@ extension ChatViewModel {
     static func messages(of record: ConversationRecord) -> [ChatMessage] {
         record.messages.map { item in
             if item.role == "status" {
-                return ChatMessage(isStatus: true, text: item.text)
+                return ChatMessage(isStatus: true, text: item.text, restored: true)
             }
-            return ChatMessage(role: TurnRole(rawValue: item.role), text: item.text)
+            return ChatMessage(
+                role: TurnRole(rawValue: item.role), text: item.text,
+                origin: item.fromChoice ? .choice : .typed, restored: true)
         }
     }
 
     func persist() {
         let stored = messages.map { message -> ConversationMessage in
             let role = message.isStatus ? "status" : (message.role?.rawValue ?? "assistant")
-            return ConversationMessage(role: role, text: message.text)
+            return ConversationMessage(role: role, text: message.text, fromChoice: message.origin == .choice)
         }
         guard !stored.isEmpty else { return }
         let title = messages.first { $0.role == .user }

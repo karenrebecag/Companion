@@ -47,20 +47,12 @@ rm -rf "$APP"
 mkdir -p "$BIN" "$APP/Contents/Resources"
 cp "$BUILT" "$BIN/Companion"
 
-# SPM does not know the framework will live in the bundle: without this rpath
-# dyld looks everywhere except Contents/Frameworks and the app dies at launch.
-install_name_tool -add_rpath "@executable_path/../Frameworks" \
-    "$BIN/Companion" 2>/dev/null || true
 
 BINPATH="$(swift build -c "$CONFIG" --show-bin-path)"
 for bundle in "$BINPATH"/*.bundle; do
     [ -e "$bundle" ] || continue
     cp -R "$bundle" "$APP/Contents/Resources/"
 done
-# Rive resolves fileName against the main bundle, not the SPM module bundle.
-if [ -d "$ROOT/Sources/CompanionUI/Mascot" ]; then
-    cp "$ROOT/Sources/CompanionUI/Mascot/"*.riv "$APP/Contents/Resources/" 2>/dev/null || true
-fi
 
 if [ -d "$ROOT/Sources/CompanionUI/Fonts" ]; then
     mkdir -p "$APP/Contents/Resources/Fonts"
@@ -101,19 +93,17 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <string>Companion transcribes your voice on this Mac to understand you.</string>
     <key>NSAppleEventsUsageDescription</key>
     <string>Companion reads and writes the spreadsheet you have open in Excel or Numbers when you ask it to. Every write asks first and keeps a copy of the workbook.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Your city goes with each request while the city switch in Settings is on. macOS only asks for your location when you search for something nearby and Settings has no city. Companion keeps the city, never your coordinates.</string>
+    <key>NSLocationUsageDescription</key>
+    <string>Your city goes with each request while the city switch in Settings is on. macOS only asks for your location when you search for something nearby and Settings has no city. Companion keeps the city, never your coordinates.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>Companion looks up a contact by name when you type @ in the island, so you can mention them. It reads names as you type and an email or phone only if you choose one, and never uploads your address book.</string>
     <key>NSScreenCaptureUsageDescription</key>
     <string>Companion captures the screen when you hold FN so it can see what you are looking at. One snapshot per hold, never a recording, never stored.</string>
 </dict>
 </plist>
 PLIST
-
-# Rive ships as a framework: it must travel inside the bundle and be signed
-# with the same identity, or the app will not launch.
-RIVE_FW="$ROOT/vendor/RiveRuntime.xcframework/macos-arm64_x86_64/RiveRuntime.framework"
-if [ -d "$RIVE_FW" ]; then
-    mkdir -p "$APP/Contents/Frameworks"
-    cp -R "$RIVE_FW" "$APP/Contents/Frameworks/"
-fi
 
 # A stable identity keeps TCC grants across rebuilds; ad-hoc makes macOS treat
 # every build as a new app and silently drop the microphone grant, which shows
@@ -121,10 +111,6 @@ fi
 SIGN="-"
 if security find-identity -v -p codesigning 2>/dev/null | grep -q "Companion Dev"; then
     SIGN="Companion Dev"
-fi
-if [ -d "$APP/Contents/Frameworks/RiveRuntime.framework" ]; then
-    codesign --force --sign "$SIGN" \
-        "$APP/Contents/Frameworks/RiveRuntime.framework" >/dev/null 2>&1 || true
 fi
 if ! codesign --force --sign "$SIGN" "$APP" 2>/tmp/companion-codesign.err; then
     echo "codesign falló con '$SIGN':" >&2

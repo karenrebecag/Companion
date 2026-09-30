@@ -85,7 +85,7 @@ struct SettingsGeneralPage: View {
                     subtitle: Localized.string("settings.app.talk.hold.subtitle"),
                     key: "settings.app.talk.hold"
                 ) {
-                    SettingsKeycap(text: Localized.string("settings.app.talk.fn"))
+                    Keycap(Localized.string("settings.app.talk.fn"), size: .small)
                 }
                 SettingsRow(
                     title: Localized.string("settings.app.talk.dictationKey"),

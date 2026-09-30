@@ -34,6 +34,13 @@ public actor Approvals: ApprovalsProvider {
         let started = clock.now()
         let timeout = self.timeout
         if Task.isCancelled { return ApprovalResponse(requestId: id, approved: false) }
+        // A second request under an id already waiting would overwrite the
+        // first and leave its caller parked for ever (and an id can come from
+        // a remote server): the newcomer is refused, the original stays.
+        if pending[id] != nil {
+            Log.app("approvals: duplicate request id refused")
+            return ApprovalResponse(requestId: id, approved: false)
+        }
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 let timer = Task { [weak self] in
@@ -67,11 +74,13 @@ public actor Approvals: ApprovalsProvider {
     ) -> Bool {
         guard let entry = pending.removeValue(forKey: requestId) else { return false }
         entry.timer.cancel()
-        if remember, let key = ApprovalKey.from(entry.request) {
+        // An MCP request has no key; the response must not claim otherwise.
+        let remembers = remember && !entry.request.isMCP
+        if remembers, let key = ApprovalKey.from(entry.request) {
             memory = memory.remembering(key, approved: approved)
         }
         entry.continuation.resume(returning: ApprovalResponse(
-            requestId: requestId, approved: approved, remember: remember, timedOut: timedOut))
+            requestId: requestId, approved: approved, remember: remembers, timedOut: timedOut))
         return true
     }
 

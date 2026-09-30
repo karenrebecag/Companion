@@ -93,9 +93,17 @@ public enum AttachmentPolicy: Sendable {
         "\(id.uuidString)-\(sanitizedFileName(original))"
     }
 
+    /// Direction controls let a name read backwards on screen
+    /// ("factura\u{202E}fdp.exe" shows as "factura exe.pdf"): none survive.
+    static let bidiControls: Set<UInt32> = [
+        0x061C, 0x200E, 0x200F, 0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069,
+    ]
+
     public static func sanitizedFileName(_ name: String) -> String {
         let base = URL(fileURLWithPath: name).lastPathComponent
-        let cleaned = base.replacingOccurrences(of: ":", with: "_")
+        let visible = String(String.UnicodeScalarView(
+            base.unicodeScalars.filter { !bidiControls.contains($0.value) }))
+        let cleaned = visible.replacingOccurrences(of: ":", with: "_")
         return cleaned.isEmpty || cleaned == "/" || cleaned == "." || cleaned == ".."
             ? "file" : cleaned
     }

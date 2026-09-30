@@ -105,10 +105,12 @@
     {
       "id": "dictation-never-logged",
       "source": "corpus spec 11 (Observed); relay-hud-spec/05 §4 (12e)",
-      "claim": "Lo dictado va al campo enfocado y a ningún otro sitio: ni al log, ni al historial, ni a la conversación.",
+      "claim": "Lo dictado va al campo enfocado y, en memoria, a la tarjeta de resultado de la isla hasta que se oculta o caduca; a ningún otro sitio: ni al log, ni al historial, ni a la conversación.",
       "tests": [
         "testDictationNeverReachesTheLog",
-        "testAHoldDictatesIntoTheField"
+        "testAHoldDictatesIntoTheField",
+        "theWordsNeverReachTheLogThroughTheWholeCard",
+        "theWordsNeverPrintThroughAnyDescription"
       ],
       "rules": []
     }

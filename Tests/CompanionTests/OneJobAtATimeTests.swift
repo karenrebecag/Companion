@@ -35,6 +35,12 @@ final class BusySubmitter: JobSubmitter, @unchecked Sendable {
     }
 
     func cancel() async {}
+    func cancel(job id: JobID) async { await cancel() }
+    func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try await submit(handoff, events: events)
+    }
     func resolveApproval(requestId: String, approved: Bool) async {}
     var isBusy: Bool { get async { busy } }
 }

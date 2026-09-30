@@ -4,7 +4,12 @@ import Foundation
 /// the decision is testable without a window. Sizes are roles, not points:
 /// the UI maps them to its own tokens.
 public struct IslandState: Sendable, Equatable {
-    public enum Size: Sendable, Equatable, CaseIterable { case hidden, pebble, nudge, bar, card }
+    public enum Size: Sendable, Equatable, CaseIterable {
+        case hidden, pebble, nudge, bar, card
+        /// 16m-6: the update offer's card measures 522, wider than the 492 of
+        /// every other card; only that one line asks for it.
+        case wideCard
+    }
     public enum Meter: Sendable, Equatable { case none, mic, agent }
     public enum Line: Sendable, Equatable {
         case none
@@ -24,6 +29,10 @@ public struct IslandState: Sendable, Equatable {
         case dictating(String)
         case pasting
         case dictated(String)
+        /// 16m-4: what the hold pasted, offered back as a card (copy / hide).
+        case dictationResult(app: String, text: DictatedText)
+        /// 16m-4: a newer release exists; the card offers its page.
+        case updateAvailable(tag: String)
         /// Spec 15d §5: the hold's words are being written to disk.
         case transcriptsDebug
         /// Spec 16i §2: the user stopped the voice; said once, briefly.
@@ -35,6 +44,13 @@ public struct IslandState: Sendable, Equatable {
         case dropZones
         /// 16k-3: the turn named an app that is not connected yet.
         case connectApp(slug: String, name: String)
+        /// 16m-6: the app is connected but its session expired.
+        case signInApp(slug: String, name: String)
+        /// 16p-1: a chat-level error (persistence, generic chat) that no turn
+        /// failure line covers; the sentence rides along.
+        case chatError(String)
+        /// 16h-3: what the turn did and could prove.
+        case receipt(ActionReceipt)
     }
 
     /// Incredible's status light: amber = it needs you, green = done.
@@ -50,6 +66,8 @@ public struct IslandState: Sendable, Equatable {
         case stopHands
         /// 16k-3: the connect card's way to the Apps page.
         case openApps(slug: String)
+        /// 16m-4: the update card's way to the release page.
+        case openUpdate
     }
 
     public var size: Size
@@ -67,7 +85,7 @@ public struct IslandState: Sendable, Equatable {
     public var hands: String?
     /// Wave 20d B: why it can stay silent before acting is that the way back is
     /// here for five seconds.
-    public var receipt: ActionReceipt?
+    public var receipt: UndoReceipt?
     /// The sheet replaced the field: the panel must hand the keyboard back,
     /// or the next Return meant for the draft answers the sheet (security
     /// review 16, critical).
@@ -97,7 +115,7 @@ public struct IslandState: Sendable, Equatable {
         _ p: SessionProjection, pebbleHidden: Bool, mainInFront: Bool = false,
         holdLearned: Bool = false, keyListening: Bool = true, debugTranscripts: Bool = false,
         composing: Bool = false, cancelled: Bool = false, followUp: String? = nil,
-        dropping: Bool = false
+        dropping: Bool = false, errorText: String? = nil, update: String? = nil
     ) -> IslandState {
         var state: IslandState
         switch p.kind {
@@ -108,10 +126,20 @@ public struct IslandState: Sendable, Equatable {
         case .idle where composing:
             // A draft or a focused field outlives the pointer (16e).
             state = IslandState(size: .nudge)
+        // A session notice carries its own way out and outranks this one.
+        case .idle where !(errorText ?? "").isEmpty && p.notice == nil:
+            state = IslandState(size: .card, line: .chatError(errorText ?? ""))
         case .idle where cancelled && p.notice == nil:
             state = IslandState(size: .bar, line: .cancelled)
         case .idle where followUp != nil && p.notice == nil:
             state = IslandState(size: .bar, line: .followUp(followUp ?? ""))
+        // Last of the resting cards: an offer, never in front of something
+        // that needs the user (a notice, an error, a hold), never on an
+        // island the user hid (it would surface it) and never while the
+        // main window is in front (it would say it twice).
+        case .idle where update != nil && p.notice == nil && p.approval == nil
+            && !mainInFront && !(pebbleHidden && p.voice == .off):
+            state = IslandState(size: .wideCard, line: .updateAvailable(tag: update ?? ""))
         case .idle:
             state = atRest(p, pebbleHidden: pebbleHidden)
         case .hover:
@@ -165,7 +193,8 @@ public struct IslandState: Sendable, Equatable {
         switch line {
         case .permission(let failure): .openPermission(failure)
         case .failure(.noProviders), .failure(.quotaExceeded): .openKeys
-        case .connectApp(let slug, _): .openApps(slug: slug)
+        case .connectApp(let slug, _), .signInApp(let slug, _): .openApps(slug: slug)
+        case .updateAvailable: .openUpdate
         default: nil
         }
     }
@@ -196,8 +225,11 @@ public struct IslandState: Sendable, Equatable {
         case .couldntHear: IslandState(size: .card, line: .couldntHear)
         case .connectApp(let slug, let name):
             IslandState(size: .card, line: .connectApp(slug: slug, name: name))
+        case .signInApp(let slug, let name):
+            IslandState(size: .card, line: .signInApp(slug: slug, name: name))
         case .permission(let failure): IslandState(size: .card, line: .permission(failure))
         case .failure(let failure): IslandState(size: .card, line: .failure(failure))
+        case .receipt(let receipt): IslandState(size: .card, line: .receipt(receipt))
         // While the voice session lives the microphone is taken: the pebble
         // is the one mark of ours that says so, and it cannot be hidden
         // (security review 2026-09-06).
@@ -224,7 +256,12 @@ public struct IslandState: Sendable, Equatable {
                 line: .job(goal: job?.goal, step: job?.steps.last?.label, steps: job?.steps.count ?? 0),
                 showsStop: true)
         case .completed:
-            return IslandState(size: .bar, line: p.dictation.map { .dictated($0) } ?? .completed)
+            guard let app = p.dictation else { return IslandState(size: .bar, line: .completed) }
+            // The words are the card; without them the bar only says where.
+            guard let text = p.dictatedText, !text.value.isEmpty else {
+                return IslandState(size: .bar, line: .dictated(app))
+            }
+            return IslandState(size: .card, line: .dictationResult(app: app, text: text))
         }
     }
 }

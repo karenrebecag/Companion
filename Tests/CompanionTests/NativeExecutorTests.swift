@@ -599,7 +599,7 @@ actor RoundEvents {
     private(set) var approvals = 0
     private(set) var remembered: [Bool] = []
     private(set) var denied: [String] = []
-    private(set) var receipts: [ActionReceipt] = []
+    private(set) var receipts: [UndoReceipt] = []
     init(_ stream: AsyncStream<JobEvent>) {
         Task { for await event in stream { await self.add(event) } }
     }
@@ -737,7 +737,7 @@ actor MemoryApprovals: ApprovalsProvider {
     let dir = scratchDir("acts")
     defer { try? FileManager.default.removeItem(at: dir) }
     let call = #"{"path":"notas.txt","content":"1"}"#
-    func run() async -> (asked: Int, provider: RoundsProvider, receipts: [ActionReceipt]) {
+    func run() async -> (asked: Int, provider: RoundsProvider, receipts: [UndoReceipt]) {
         let provider = RoundsProvider(rounds: [
             [.toolCalls([ToolCallRef(id: "a", name: "write_file", arguments: call)])],
             [.text("listo")],

@@ -5,8 +5,8 @@ governs it: **simplification is only valid where nothing is lost visually.**
 Parity with the prototype is the floor, not the ceiling.
 
 Everything here is built in-house: no UI framework, no icon package, no
-component library. The one binary dependency in the project is Rive, and it
-exists solely for the mascot (see ADR 003).
+component library, and no binary dependency (Rive left with the mascot;
+ADR 003 is retired).
 
 ## Foundations
 
@@ -91,8 +91,7 @@ setting: state still changes, it just stops animating.
 | `Icons` | SF Symbols at tokenised weights and scales. |
 | `Toasts` | Ephemeral notices, top-right, expiring on an injected clock. |
 | `SyntaxHighlighter` | Paints the tokens produced by `Syntax` in Core. |
-| `Orb` / `OrbLayers` | Voice-state visual, driven by pure appearance logic. |
-| `Mascot` | The Rive character on first run. |
+| `Orb` | Voice-state visual and the app's identity, driven by pure appearance logic. |
 | Cards | `MapCard`, `GalleryCard`, `SourcesCard` and the job report. |
 
 ### Why the dropdown is ours

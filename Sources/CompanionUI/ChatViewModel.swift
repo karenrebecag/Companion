@@ -12,8 +12,27 @@ public final class ChatViewModel: ConversationPresenting {
     public internal(set) var messages: [ChatMessage] = []
     public internal(set) var streaming = ""
     public internal(set) var busy = false
-    public internal(set) var queued: [String] = []
+    struct QueuedMessage: Equatable {
+        let text: String
+        let origin: MessageOrigin
+        var mentions: [Mention] = []
+    }
+
+    var queue: [QueuedMessage] = []
+    /// What is waiting behind the running turn, in order.
+    public var queued: [String] { queue.map(\.text) }
     public internal(set) var pendingAttachments: [AttachmentRef] = []
+    public internal(set) var pendingMentions: [Mention] = []
+    /// The field changed: a mention whose `@name` is no longer in it is gone,
+    /// with its channel, and typing the name again by hand does not bring it back.
+    func syncMentions(with words: String) {
+        pendingMentions = MentionContext.referenced(pendingMentions, in: words)
+    }
+
+    /// A pick from the `@` selector, waiting for the message it belongs to.
+    public func addMention(_ mention: Mention) {
+        pendingMentions.append(mention)
+    }
     public var dropTargeted = false
     public internal(set) var busySince: Date?
     /// The session's state (Wave 12a): kind, job, sheet queue. This model
@@ -22,6 +41,9 @@ public final class ChatViewModel: ConversationPresenting {
     /// Set by the brake so the job's own ending knows it was stopped rather
     /// than broken.
     var cancelledJob = false
+    /// 16h-2: the id of the chat's own job, so its events never land on a
+    /// voice-born job's row (or the other way round).
+    var chatJobID: JobID?
 
     public var folderName: String?
 
@@ -59,7 +81,13 @@ public final class ChatViewModel: ConversationPresenting {
     /// The task Follow up handed to the island (spec 16j §8); the next turn
     /// continues it.
     public var followUp: String?
-    public internal(set) var errorText: String?
+    public internal(set) var errorText: String? {
+        // A cleared error re-arms the island for the next identical one.
+        didSet { if errorText == nil { dismissedIslandError = nil } }
+    }
+    /// The chat error the island already showed or was outranked on; it
+    /// lives here so a recreated view cannot resurrect it. Home keeps its own.
+    public internal(set) var dismissedIslandError: String?
     public var draft = ""
     public var onboardingKey = ""
     public private(set) var onboardingBusy = false
@@ -140,6 +168,10 @@ public final class ChatViewModel: ConversationPresenting {
             ?? config.workdir.map { URL(fileURLWithPath: $0).lastPathComponent }
     }
 
+    public func dismissError() {
+        errorText = nil
+    }
+
     public func toast(_ text: String, level: NoticeLevel = .info) {
         notices.toast(text, level: level)
     }
@@ -175,8 +207,9 @@ public final class ChatViewModel: ConversationPresenting {
     public func changeKey() {
         abandonTurn()
         dropParentApprovals()
-        queued = []
+        queue = []
         pendingAttachments = []
+        pendingMentions = []
         streaming = ""
         onboardingKey = ""
         errorText = nil
@@ -191,18 +224,43 @@ public final class ChatViewModel: ConversationPresenting {
         guard !text.isEmpty || !pendingAttachments.isEmpty else { return }
         draft = ""
         errorText = nil
+        // Only the mentions whose @name is still in the words travel; what
+        // she deleted is gone with it.
+        let sent = MentionContext.referenced(pendingMentions, in: text)
+        pendingMentions = []
+        dispatch(text, origin: .typed, mentions: sent)
+    }
+
+    /// A pick from a question card (16m-6) is a typed message: same guards,
+    /// same queue, same turn. Not through `draft`: whatever she had half
+    /// written in the composer stays.
+    /// False when nothing was sent (no key yet, empty label): the card must
+    /// not show an answer that never left. The message is marked as a card
+    /// pick and never takes the staged attachments.
+    @discardableResult
+    public func choose(_ label: String) -> Bool {
+        guard !needsOnboarding else { return false }
+        let text = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return false }
+        errorText = nil
+        dispatch(text, origin: .choice)
+        return true
+    }
+
+    private func dispatch(_ text: String, origin: MessageOrigin, mentions: [Mention] = []) {
         if busy {
-            queued.append(text)
+            queue.append(QueuedMessage(text: text, origin: origin, mentions: mentions))
             return
         }
-        startTurn(text)
+        startTurn(text, origin: origin, mentions: mentions)
     }
 
     public func newConversation() {
         abandonTurn()
         dropParentApprovals()
-        queued = []
+        queue = []
         pendingAttachments = []
+        pendingMentions = []
         errorText = nil
         persist()
         conversationId = UUID().uuidString
@@ -215,7 +273,7 @@ public final class ChatViewModel: ConversationPresenting {
         guard id != conversationId else { return }
         abandonTurn()
         dropParentApprovals()
-        queued = []
+        queue = []
         errorText = nil
         persist()
         do {
@@ -303,16 +361,14 @@ public final class ChatViewModel: ConversationPresenting {
                content: ContextBlock.compact(ctx, language: config.language) + " " + text)
     }
 
+    /// Not a job's end: the voice's replies land here too, and every job
+    /// sends its own tagged end (review 16h-2 round 3).
     public func appendAssistant(_ text: String) async {
-        // A result landing means the job is over: a live card left running
-        // under the report is the app lying about what it is doing.
-        finishJob()
         messages.append(ChatMessage(role: .assistant, text: text))
         persist()
     }
 
     public func appendStatus(_ text: String) async {
-        finishJob()
         messages.append(ChatMessage(isStatus: true, text: text))
         persist()
     }

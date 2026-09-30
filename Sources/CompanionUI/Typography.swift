@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // Typography half of the design tokens: families, fallbacks, scale and the
@@ -192,6 +193,90 @@ public enum Leading {
     public static func spacing(_ ratio: CGFloat, at size: CGFloat) -> CGFloat {
         Swift.max(0, size * (ratio - 1))
     }
+
+    /// SwiftUI adds `lineSpacing` on top of the font's own line height (about
+    /// 1.2 x the size in SF), so the gap that lands a line on `ratio * size`
+    /// is what is left after that natural height. Never below zero: SwiftUI
+    /// ignores a negative `lineSpacing`, so a ratio tighter than the font's own
+    /// line (display, 1.06) bottoms out at the natural height.
+    public static func spacing(_ ratio: CGFloat, at size: CGFloat, face: FontFace) -> CGFloat {
+        Swift.max(0, ratio * size - naturalHeight(size, face: face))
+    }
+
+    /// The face's own line box at a size. AppKit's attributed-string size is
+    /// what SwiftUI's Text lays out, to the point: NSLayoutManager and raw
+    /// CoreText metrics both disagree with it at several sizes.
+    public static func naturalHeight(_ size: CGFloat, face: FontFace = .system) -> CGFloat {
+        let font: NSFont
+        switch face {
+        case .system: font = NSFont.systemFont(ofSize: size)
+        case .geist: font = NSFont(name: "Geist-Regular", size: size) ?? NSFont.systemFont(ofSize: size)
+        }
+        return NSAttributedString(string: "Ag", attributes: [.font: font]).size().height
+    }
+}
+
+/// A type role: the size and the line height Incredible pairs with it. The
+/// font factory only knows sizes; a role is what lets a multi-line text ask
+/// for both from one name. Note `TypeRole.caption` is 12 pt, while
+/// `Font.uiCaption` is the 11 pt step (`.micro`): use `typeRole(.micro)` for it.
+public enum TypeRole: CaseIterable, Sendable {
+    case micro, caption, body, rowTitle, heroBody, sectionTitle
+    case dialogTitle, bannerTitle, pageTitle, display
+
+    public var size: CGFloat {
+        switch self {
+        case .micro: TypeSize.micro
+        case .caption: TypeSize.caption
+        case .body: TypeSize.body
+        case .rowTitle: TypeSize.rowTitle
+        case .heroBody: TypeSize.heroBody
+        case .sectionTitle: TypeSize.sectionTitle
+        case .dialogTitle: TypeSize.dialogTitle
+        case .bannerTitle: TypeSize.bannerTitle
+        case .pageTitle: TypeSize.pageTitle
+        case .display: TypeSize.display
+        }
+    }
+
+    public var leading: CGFloat {
+        switch self {
+        case .micro: Leading.micro
+        case .caption: Leading.caption
+        case .body: Leading.body
+        case .rowTitle: Leading.rowTitle
+        case .heroBody: Leading.heroBody
+        case .sectionTitle: Leading.sectionTitle
+        case .dialogTitle: Leading.dialogTitle
+        case .bannerTitle: Leading.bannerTitle
+        case .pageTitle: Leading.pageTitle
+        case .display: Leading.display
+        }
+    }
+
+    /// Takes the size as rendered, after the user's scale: the gap is a share
+    /// of what is on screen, not of the nominal size.
+    public func lineSpacing(atScaledSize scaled: CGFloat, face: FontFace = .system) -> CGFloat {
+        Leading.spacing(leading, at: scaled, face: face)
+    }
+
+    /// The gap for this role at the user's current scale.
+    public func lineSpacing(face: FontFace = .system) -> CGFloat {
+        lineSpacing(atScaledSize: TypeScale.apply(size), face: face)
+    }
+}
+
+extension View {
+    /// The gap between lines that gives a role its measured line height.
+    public func typeLeading(_ role: TypeRole, face: FontFace = .system) -> some View {
+        lineSpacing(role.lineSpacing(face: face))
+    }
+
+    /// Font and line height from one role, so a text cannot get one role's
+    /// size with another's leading.
+    public func typeRole(_ role: TypeRole, face: FontFace = .system) -> some View {
+        font(Fonts.sans(role.size, face: face)).typeLeading(role, face: face)
+    }
 }
 
 // Font registry. Bundle holds Inter (OFL). Proprietary faces load from
@@ -260,7 +345,7 @@ public enum Fonts {
         if let name = FontFallback.sansFamily(for: face, registered: registered) {
             return Font.custom(name, size: s)
         }
-        return Font.system(size: s)
+        return Font.system(size: s)  // token-exempt: the font factory is the one place that calls .system
     }
 
     public static func sample(_ face: AppTypeface, size: CGFloat) -> Font {
@@ -269,9 +354,9 @@ public enum Fonts {
             return Font.custom(name, size: s)
         }
         if face == .serif {
-            return Font.system(size: s, design: .serif)
+            return Font.system(size: s, design: .serif)  // token-exempt: the font factory is the one place that calls .system
         }
-        return Font.system(size: s)
+        return Font.system(size: s)  // token-exempt: the font factory is the one place that calls .system
     }
 
     public static func logo(_ size: CGFloat) -> Font {
@@ -279,7 +364,13 @@ public enum Fonts {
         if let name = FontFallback.logoName(registered: registered) {
             return Font.custom(name, size: s)
         }
-        return Font.system(size: s, weight: .medium)
+        return Font.system(size: s, weight: .medium)  // token-exempt: the font factory is the one place that calls .system
+    }
+
+    /// SF Symbols: the system font at the user's scale, where the symbol's
+    /// weight is honoured.
+    public static func symbol(_ size: CGFloat, weight: Font.Weight) -> Font {
+        Font.system(size: TypeScale.apply(size), weight: weight)  // token-exempt: the font factory is the one place that calls .system
     }
 
     public static func mono(_ size: CGFloat, bold: Bool = false) -> Font {
@@ -287,7 +378,7 @@ public enum Fonts {
         if let name = FontFallback.monoName(bold: bold, registered: registered) {
             return Font.custom(name, size: s)
         }
-        return Font.system(size: s, design: .monospaced)
+        return Font.system(size: s, design: .monospaced)  // token-exempt: the font factory is the one place that calls .system
             .weight(bold ? .bold : .regular)
     }
 }
@@ -298,6 +389,7 @@ extension Font {
     // tracking. Ver "presupuesto de canales" en docs/specs/reticula.
     public static var uiEyebrow: Font { Fonts.mono(TypeSize.micro, bold: true) }
     public static var uiMicro: Font { Fonts.sans(TypeSize.micro) }
+    /// The 11 pt step, i.e. `TypeRole.micro`; `TypeRole.caption` is 12 pt.
     public static var uiCaption: Font { Fonts.sans(TypeSize.micro) }
     public static var uiMono: Font { Fonts.mono(TypeSize.micro) }
     public static var uiMonoSm: Font { Fonts.mono(TypeSize.micro) }
@@ -311,7 +403,7 @@ extension Font {
     public static var uiSubtitle: Font { Fonts.sans(TypeSize.strong) }
     // Mismo papel con dos nombres; unificarlos es R-04.
     public static var uiTitle: Font { Fonts.sans(TypeSize.title) }
-    /// Onboarding hero title: the one place the sheet speaks at display size.
+    /// Hero title: the one place a sheet speaks at display size.
     public static var uiDisplay: Font { Fonts.sans(TypeSize.display) }
     public static var uiHeading: Font { Fonts.sans(TypeSize.title) }
     public static var uiLogo: Font { Fonts.logo(TypeSize.display) }

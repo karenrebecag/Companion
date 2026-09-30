@@ -330,6 +330,8 @@ public struct Config: Sendable, Equatable {
     public var ownerFirstName: String
     public var ownerAbout: String
     public var ownerInstructions: String
+    /// Settings › Tú: the city "nearby" means. Empty defers to the system's.
+    public var ownerCity: String
     /// Decides the UI copy AND the language the model answers in; a prompt
     /// left in one language makes the other half of the app a lie.
     public var language: AppLanguage
@@ -363,6 +365,7 @@ public struct Config: Sendable, Equatable {
         ownerFirstName: String = "",
         ownerAbout: String = "",
         ownerInstructions: String = "",
+        ownerCity: String = "",
         language: AppLanguage = .en,
         memory: String = "",
         skills: String = "",
@@ -380,6 +383,7 @@ public struct Config: Sendable, Equatable {
         self.ownerFirstName = ownerFirstName
         self.ownerAbout = ownerAbout
         self.ownerInstructions = ownerInstructions
+        self.ownerCity = ownerCity
         self.language = language
         self.memory = memory
         self.skills = skills

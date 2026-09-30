@@ -10,6 +10,37 @@ import Testing
     await testCancelCurrentStopsTheJob()
     await testFailureDoesNotJamTheQueue()
     await testEventsReachTheCaller()
+    await testAStopDuringTheHandoverKeepsTheNextJobFromRunning()
+}
+
+/// Review 16h-2 round 3 (MEDIUM): the turn is handed to B still busy, and B
+/// only runs once it gets back onto the actor. A stop landing in between saw
+/// no one in line and no work in flight, and B ran after the stop.
+@MainActor func testAStopDuringTheHandoverKeepsTheNextJobFromRunning() async {
+    let queue = JobQueue(budget: 5)
+    let executor = GateExecutor()
+    await queue.setAfterHandover { queue in queue.cancelAll() }
+    let first = Task { try await queue.submit(job("1"), to: executor, events: sinkIgnoring()) }
+    await waitUntil("traspaso: A corre") { executor.started == ["1"] }
+    let second = Task { try await queue.submit(job("2"), to: executor, events: sinkIgnoring()) }
+    await waitUntilAsync("traspaso: B espera su turno") { await queue.waitingCount == 1 }
+    executor.open()
+    _ = try? await first.value
+    var failure: Error?
+    do { _ = try await second.value } catch { failure = error }
+    expectEq(executor.started, ["1"], "traspaso: B nunca arranca tras el stop")
+    expectEq(failure as? JobQueue.QueueError, .stoppedByUser, "traspaso: B sabe que lo pararon")
+    expect(!(await queue.isBusy), "traspaso: la cola queda libre")
+}
+
+@MainActor private func waitUntilAsync(
+    _ label: String, timeout: TimeInterval = 2, _ predicate: () async -> Bool
+) async {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !(await predicate()), Date() < deadline {
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+    expect(await predicate(), label)
 }
 
 /// The whole point of delegating: the answer must come back.
@@ -160,6 +191,42 @@ private final class ScriptedExecutor: Executor, @unchecked Sendable {
         for event in emits { events.yield(event) }
         if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
         return JobResult(output: output, isError: false)
+    }
+}
+
+/// Job "1" waits for `open()`; every run is recorded under the lock.
+private final class GateExecutor: Executor, @unchecked Sendable {
+    let descriptor = ExecutorCatalog.native
+    private let lock = NSLock()
+    private var ids: [String] = []
+    private var gate: CheckedContinuation<Void, Never>?
+    private var opened = false
+    var started: [String] { lock.withLock { ids } }
+
+    func open() {
+        let waiting = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            opened = true
+            defer { gate = nil }
+            return gate
+        }
+        waiting?.resume()
+    }
+
+    func run(
+        _ job: JobRequest, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        lock.withLock { ids.append(job.id) }
+        if job.id == "1" {
+            await withCheckedContinuation { continuation in
+                let now = lock.withLock { () -> Bool in
+                    if opened { return true }
+                    gate = continuation
+                    return false
+                }
+                if now { continuation.resume() }
+            }
+        }
+        return JobResult(output: "ok", isError: false)
     }
 }
 

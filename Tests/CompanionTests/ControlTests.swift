@@ -15,14 +15,11 @@ import Testing
     testDropdownToggleOnEmptyStaysClosed()
     testDropdownSecondMenuClosesFirst()
     testOpenMenuSettingsPicksAreDistinct()
-    testSettingsPickDoesNotArmRootHitSink()
-    testRootMenusArmHitSink()
+    testSettingsPickClosesCleanly()
     testDropdownToggleOpensAndCloses()
     testShimmerWaitsThenSweeps()
     testShimmerActiveOnThinking()
     testShimmerRingDurations()
-    testControlBarOrbSizes()
-    testMuteBorderedOnlyWhenOpen()
 }
 
 @MainActor func testPrimaryFillAndInk() {
@@ -145,10 +142,10 @@ import Testing
     expect(
         OpenMenu.settingsPick("Tipografía") != OpenMenu.settingsPick("Voz"),
         "settingsPick: cada campo es un menu")
-    expectEq(OpenMenu.choice, OpenMenu.choice, "choice: identidad")
+    expect(OpenMenu.history != OpenMenu.settingsPick("Voz"), "history: no es un campo de ajustes")
 }
 
-@MainActor func testSettingsPickDoesNotArmRootHitSink() {
+@MainActor func testSettingsPickClosesCleanly() {
     let host = DropdownHost()
     host.present(
         .settingsPick("a"),
@@ -156,40 +153,23 @@ import Testing
         selectedTitle: "uno"
     ) { _ in }
     expect(host.session.isOpen, "settingsPick abre")
-    expect(!host.blocksRoot, "settingsPick no cubre la ventana raiz")
     host.dismiss()
     expect(!host.session.isOpen, "dismiss deja la sesion cerrada")
-    expect(!host.blocksRoot, "cerrado no bloquea")
+    expect(host.menu == nil, "cerrado no deja menu")
 }
 
-@MainActor func testRootMenusArmHitSink() {
-    let host = DropdownHost()
-    host.present(
-        .choice,
-        items: [DropdownItem(title: "nativo")],
-        selectedTitle: "nativo"
-    ) { _ in }
-    expect(host.blocksRoot, "choice: scrim y click-away en root")
-    host.present(
-        .history,
-        items: [DropdownItem(title: "ayer")],
-        selectedTitle: "ayer"
-    ) { _ in }
-    expect(!host.blocksRoot, "history: overlay centrado, el blur es el sink")
-    expect(host.menu == .history, "history reemplaza choice")
-}
-
+/// 16p-2: the executor choice left with the header; history is the one
+/// root menu, a centered overlay whose blur is the click-away.
 @MainActor func testDropdownToggleOpensAndCloses() {
     let host = DropdownHost()
-    host.toggle(.choice)
-    expect(host.session.isOpen, "toggle: abre choice")
-    expect(host.blocksRoot, "choice: click-away en root")
-    expect(host.items.isEmpty, "choice: panel propio, no items genericos")
-    host.toggle(.choice)
-    expect(!host.session.isOpen, "toggle otra vez: cierra")
     host.toggle(.history)
-    host.toggle(.choice)
-    expect(host.menu == .choice, "choice reemplaza history")
+    expect(host.session.isOpen, "toggle: abre history")
+    expect(host.items.isEmpty, "history: panel propio, no items genericos")
+    host.toggle(.history)
+    expect(!host.session.isOpen, "toggle otra vez: cierra")
+    host.present(.settingsPick("a"), items: [DropdownItem(title: "uno")], selectedTitle: "uno") { _ in }
+    host.toggle(.history)
+    expect(host.menu == .history, "history reemplaza al menu de ajustes")
 }
 
 @MainActor func testShimmerWaitsThenSweeps() {
@@ -233,18 +213,4 @@ import Testing
     expect(
         !OrbAppearance.shouldAnimateShell(for: .listening, reduceMotion: true),
         "ring: reduce-motion apaga el sweep")
-}
-
-@MainActor func testControlBarOrbSizes() {
-    expectEq(ControlBarMetrics.orbVoice, 68, "orb: 68 en modo voz")
-    expectEq(ControlBarMetrics.orbText, 46, "orb: 46 en modo texto")
-    expectEq(ControlBarMetrics.orbSize(.voice), 68, "voz: protagonista")
-    expectEq(ControlBarMetrics.orbSize(.text), 46, "texto: compacto")
-}
-
-@MainActor func testMuteBorderedOnlyWhenOpen() {
-    expect(MuteChrome.bordered(muted: false),
-           "mute abierto: borde, no relleno rojo")
-    expect(!MuteChrome.bordered(muted: true),
-           "mute cerrado: circulo rojo solido")
 }

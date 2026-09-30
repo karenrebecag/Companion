@@ -28,6 +28,10 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
         self.hostSecrets = hostSecrets
     }
 
+    /// Only the city, for the sensor that reads it every turn: the whole
+    /// `current` also renders memory and skills.
+    var ownerCity: String { UserProfile.city }
+
     var current: Config {
         let ownerName = UserProfile.ownerName.isEmpty
             ? NSFullUserName()
@@ -47,6 +51,7 @@ final class StoredConfigProvider: ConfigProviding, Sendable {
             ownerFirstName: ownerName,
             ownerAbout: UserProfile.about,
             ownerInstructions: UserProfile.instructions,
+            ownerCity: UserProfile.city,
             language: LanguagePreference.current,
             memory: memory.map {
                 MemoryPrompt.inject(

@@ -6,6 +6,8 @@ import SwiftUI
 /// grouped Leer / Crear y cambiar / Borrar, with a search field. Connecting
 /// is 16k-2b; Desconectar (16k-2c) lives in `connectState` below.
 public enum AppPanelMetrics {
+    // Audited from Incredible's connector dialog (spec 16k §9.5 D1), not
+    // from docs/research: max 1000 x 700, a 430 left column, a 44 icon.
     public static let maxWidth: CGFloat = 1000
     public static let maxHeight: CGFloat = 700
     public static let leftWidth: CGFloat = 430
@@ -46,16 +48,7 @@ struct AppPanel: View {
                 .foregroundStyle(Semantic.foreground)
                 .lineLimit(1)
             Spacer()
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.foreground)
-                    .frame(width: MainWindowMetrics.avatar, height: MainWindowMetrics.avatar)
-                    .background(Circle().fill(Semantic.muted))
-                    .contentShape(Circle())
-            }
-            .buttonStyle(PressableStyle())
-            .accessibilityLabel(Localized.string("task.close"))
+            CloseButton(action: onClose)
         }
     }
 
@@ -64,18 +57,18 @@ struct AppPanel: View {
             AppIconView(icon: app.icon, size: AppPanelMetrics.icon, padding: Space.x2)
             if let description = app.description, !description.isEmpty {
                 Text(description)
-                    .font(.uiBody)
+                    .typeRole(.body)
                     .foregroundStyle(Semantic.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
             }
             connectState
             Spacer(minLength: Space.x4)
             Text(Localized.string("apps.panel.poweredBy"))
-                .font(.uiCaption)
+                .typeRole(.micro)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
             Text(Localized.string("apps.panel.privacy"))
-                .font(.uiCaption)
+                .typeRole(.micro)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -115,7 +108,7 @@ struct AppPanel: View {
         case .confirming:
             VStack(alignment: .leading, spacing: Space.x2) {
                 Text(String(format: Localized.string("apps.panel.disconnect.confirm"), app.name))
-                    .font(.uiCaption)
+                    .typeRole(.micro)
                     .foregroundStyle(Semantic.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: Space.x2) {
@@ -137,7 +130,7 @@ struct AppPanel: View {
         case .failed(let failure):
             VStack(alignment: .leading, spacing: Space.x2) {
                 Text(AppsCopy.failure(failure))
-                    .font(.uiCaption)
+                    .typeRole(.micro)
                     .foregroundStyle(Semantic.destructive)
                     .fixedSize(horizontal: false, vertical: true)
                 AppButton(String(format: Localized.string("apps.panel.disconnect"), app.name),
@@ -155,7 +148,7 @@ struct AppPanel: View {
             connectedActions
         } else {
             Text(String(format: Localized.string("apps.panel.emptyNotConnected"), app.name))
-                .font(.uiBody)
+                .typeRole(.body)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -175,12 +168,12 @@ struct AppPanel: View {
             .accessibilityLabel(Localized.string("apps.panel.loading"))
         case .failed(let failure):
             Text(AppsCopy.failure(failure))
-                .font(.uiBody)
+                .typeRole(.body)
                 .foregroundStyle(Semantic.destructive)
                 .fixedSize(horizontal: false, vertical: true)
         case .ready(let actions) where actions.isEmpty:
             Text(String(format: Localized.string("apps.panel.emptyListed"), app.name))
-                .font(.uiBody)
+                .typeRole(.body)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
         case .ready(let actions):
@@ -220,7 +213,7 @@ struct AppPanel: View {
                 .font(.uiLabel.weight(.semibold))
                 .foregroundStyle(Semantic.foreground)
             Text(AppPanelCopy.note(group))
-                .font(.uiCaption)
+                .typeRole(.micro)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
             LazyVStack(alignment: .leading, spacing: Space.x2) {
@@ -240,7 +233,7 @@ struct AppPanel: View {
                 HStack(alignment: .top, spacing: Space.x2) {
                     Rectangle().fill(Semantic.borderChrome).frame(width: Stroke.hairline)
                     Text(action.description)
-                        .font(.uiCaption)
+                        .typeRole(.micro)
                         .foregroundStyle(Semantic.mutedForeground)
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)

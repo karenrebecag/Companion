@@ -7,6 +7,7 @@ struct SettingsYouPage: View {
     @State private var ownerName = UserProfile.ownerName
     @State private var about = UserProfile.about
     @State private var instructions = UserProfile.instructions
+    @State private var city = UserProfile.city
     @State private var avatar = UserProfile.avatarImage
     @State private var fontDelta = TypeScale.delta
     @State private var appearance = AppearancePreference.stored
@@ -18,6 +19,16 @@ struct SettingsYouPage: View {
                 profileRow
                 SettingsRow(title: Localized.string("settings.you.name"), key: "settings.you.name") {
                     TextField(Localized.string("settings.you.name.placeholder"), text: $ownerName)
+                        .textFieldStyle(.plain)
+                        .font(.uiLabel)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: Container.hero)
+                }
+                SettingsRow(
+                    title: Localized.string("settings.you.city"),
+                    subtitle: Localized.string("settings.you.city.subtitle"), key: "settings.you.city"
+                ) {
+                    TextField(Localized.string("settings.you.city.placeholder"), text: $city)
                         .textFieldStyle(.plain)
                         .font(.uiLabel)
                         .multilineTextAlignment(.trailing)
@@ -48,6 +59,7 @@ struct SettingsYouPage: View {
         .onChange(of: ownerName) { persistProfile() }
         .onChange(of: about) { persistProfile() }
         .onChange(of: instructions) { persistProfile() }
+        .onChange(of: city) { persistProfile() }
         .onChange(of: appearance) { _, pref in
             AppearancePreference.stored = pref
             if let window = NSApp.keyWindow { WindowChrome.applyAppearance(window) }
@@ -115,6 +127,7 @@ struct SettingsYouPage: View {
         UserProfile.ownerName = ownerName
         UserProfile.about = about
         UserProfile.instructions = instructions
+        UserProfile.city = city
     }
 
     private func pickAvatar() {
