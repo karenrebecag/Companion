@@ -139,7 +139,7 @@ private let book = [
 
 @Test func contactsFetchOnlyAsksForWhatItNeedsTests() throws {
     guard let root = Conformance.repoRoot() else { return }
-    let source = try String(contentsOf: root.appendingPathComponent("Sources/CompanionServices/Contacts.swift"), encoding: .utf8)
+    let source = try String(contentsOf: root.appendingPathComponent("Sources/CompanionServices/Perception/Contacts.swift"), encoding: .utf8)
     for forbidden in ["NoteKey", "BirthdayKey", "PostalAddresses", "ImageData", "ThumbnailImage", "SocialProfiles",
                       "InstantMessage", "ContactRelations", "DatesKey", "UrlAddresses", "JobTitle", "OrganizationName",
                       "enumerateContacts", "containers(matching"] {

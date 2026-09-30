@@ -12,7 +12,7 @@ BUILT="$(swift build -c "$CONFIG" --show-bin-path)/companion"
 
 # Single source of truth: the version ships in the binary, so the bundle
 # reads it from Build.swift instead of keeping a copy that drifts.
-VERSION="$(grep -o 'version = "[^"]*"' "$ROOT/Sources/CompanionCore/Build.swift" | cut -d'"' -f2)"
+VERSION="$(grep -o 'version = "[^"]*"' "$ROOT/Sources/CompanionCore/Platform/Build.swift" | cut -d'"' -f2)"
 [ -n "$VERSION" ] || { echo "no pude leer Build.version" >&2; exit 1; }
 
 # Identity per configuration. The source of truth is ProductIdentity.swift and

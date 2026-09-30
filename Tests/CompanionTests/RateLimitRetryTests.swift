@@ -36,10 +36,14 @@ import Testing
     // `Retry-After` es lo que el proveedor pide de verdad, y no llega hasta
     // aqui: ChatTransport expone status y lineas, no cabeceras. Queda como
     // HACK con su gatillo, no como un parametro que nadie puede rellenar.
-    let source = try? String(
-        contentsOfFile: "Sources/CompanionCore/RetryPolicy.swift",
-        encoding: .utf8)
-    guard let source else { return }
+    guard let root = Conformance.repoRoot() else {
+        print("  nota  [rateLimitRetry] fuera del checkout: no hay que escanear")
+        return
+    }
+    let path = "Sources/CompanionCore/Chat/RetryPolicy.swift"
+    let source = (try? String(
+        contentsOf: root.appendingPathComponent(path), encoding: .utf8)) ?? ""
+    expect(source.contains("enum RetryPolicy"), "\(path) se lee y declara RetryPolicy")
     expect(source.contains("HACK:") && source.contains("Retry-After"),
            "la carencia esta escrita, con su disparador de mejora")
 }

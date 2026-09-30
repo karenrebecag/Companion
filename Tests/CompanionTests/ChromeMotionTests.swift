@@ -24,7 +24,7 @@ import Testing
         print("  nota  [chromeMotion] fuera del checkout: no hay que escanear")
         return
     }
-    for name in ["CompanionRootView", "SettingsView", "Dropdown", "MainSidebar"] {
+    for name in ["Window/CompanionRootView", "Settings/SettingsView", "DesignSystem/Dropdown", "Window/MainSidebar"] {
         let file = root.appendingPathComponent("Sources/CompanionUI/\(name).swift")
         let lines = Conformance.logicalLines(of: file)
         expect(!lines.isEmpty, "\(name): el archivo se lee")

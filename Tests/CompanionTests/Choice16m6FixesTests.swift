@@ -245,22 +245,28 @@ private func sendPick(
 
     // The road a pick takes never touches the approval or spoken-confirmation
     // machinery: a source scan, so a future shortcut fails loudly.
-    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-        .deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Sources/CompanionUI")
-    var files = [root.appendingPathComponent("Island/Choice/IslandChoice.swift"),
+    guard let repo = Conformance.repoRoot() else {
+        print("  nota  [choice16m6] fuera del checkout: no hay que escanear")
+        return
+    }
+    let root = repo.appendingPathComponent("Sources/CompanionUI")
+    let files = [root.appendingPathComponent("Island/Choice/IslandChoice.swift"),
                  root.appendingPathComponent("Island/Choice/IslandChoiceCard.swift")]
-    let text = (try? String(contentsOf: root.appendingPathComponent("ChatViewModel.swift"), encoding: .utf8)) ?? ""
-    let chooseBody = text.components(separatedBy: "public func choose").last?
-        .components(separatedBy: "private func dispatch").first ?? "MISSING"
-    expect(chooseBody != "MISSING", "16m-6 fix: choose existe")
+    let text = (try? String(contentsOf: root.appendingPathComponent("Chat/ChatViewModel.swift"), encoding: .utf8)) ?? ""
+    let chooseBody = text.components(separatedBy: "public func choose").dropFirst().first?
+        .components(separatedBy: "private func dispatch").first ?? ""
+    // Sobre texto vacio todo `!contains` pasa: el ancla exige un cuerpo real.
+    expect(!chooseBody.isEmpty && chooseBody.contains("dispatch("),
+           "16m-6 fix: choose existe y llega a dispatch")
+    let sources = files.map { (try? String(contentsOf: $0, encoding: .utf8)) ?? "" }
+    expect(sources[0].contains("enum IslandChoice"), "16m-6 fix: IslandChoice.swift se lee")
+    expect(sources[1].contains("struct IslandChoiceCard"), "16m-6 fix: IslandChoiceCard.swift se lee")
     for name in ["DecisionGate", "SpokenConfirmation", "resolveApproval", "answerApproval", "ApprovalsProvider"] {
         expect(!chooseBody.contains(name), "16m-6 fix: choose no toca \(name)")
-        for file in files {
-            let source = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+        for (file, source) in zip(files, sources) {
             expect(!source.contains(name), "16m-6 fix: \(file.lastPathComponent) no toca \(name)")
         }
     }
-    files.removeAll()
 }
 
 @Test @MainActor func failedTurnReopensTheQuestionTests() async {

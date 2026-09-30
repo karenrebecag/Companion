@@ -2,7 +2,7 @@ import Foundation
 
 /// 16q-1: the brakes of the session reducer. Incredible has no single brake:
 /// the voice's stops the turn and leaves the jobs, each job has its own stop
-/// (`stopJob`, in SessionMachineJobs.swift), and the menu bar's is total.
+/// (`stopJob`, in SessionMachine+Jobs.swift), and the menu bar's is total.
 /// They share what a brake does to the voice (`silenceVoice`) and to the
 /// turn (`endTurn`). Split from SessionMachine.swift when it crossed the
 /// 400-line warning; like SessionMachineJobs it is the reducer, so the gate

@@ -43,7 +43,7 @@ test('the id derived from the key is the one Companion pins', () => {
 });
 
 test('the Swift side pins the same id', () => {
-  const policy = readFileSync(new URL('../../../Sources/CompanionCore/BrowserPolicy.swift', import.meta.url), 'utf8');
+  const policy = readFileSync(new URL('../../../Sources/CompanionCore/Browser/BrowserPolicy.swift', import.meta.url), 'utf8');
   assert.ok(policy.includes(PINNED_ID), 'BrowserPolicy.pinnedOrigins names the id the key produces');
 });
 

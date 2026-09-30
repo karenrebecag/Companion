@@ -34,7 +34,7 @@ public struct Handoff: Sendable, Equatable {
 }
 
 public enum Escalation: Sendable {
-    /// Copy for both languages lives in EscalationCopy.swift; this file is
+    /// Copy for both languages lives in Escalation+Copy.swift; this file is
     /// the shape of a handoff, not its wording.
 
     public static func jobPrompt(

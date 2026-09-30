@@ -53,13 +53,13 @@
     "Island/IslandMotion.swift": "archivo de tokens (spec 16f §9): aqui se declaran las duraciones, curvas y amplitudes de la isla, como MotionTime en Motion.swift; MotionBudgetTests las comprueba contra las reglas M1-M8"
   },
   "baseline": {
-    "CompanionRootView.swift": {
+    "Window/CompanionRootView.swift": {
       "space-arithmetic": 1
     },
-    "Dropdown.swift": {
+    "DesignSystem/Dropdown.swift": {
       "space-arithmetic": 3
     },
-    "MarkdownView.swift": {
+    "Chat/MarkdownView.swift": {
       "frame-literal": 2
     },
     "Orb/OrbView.swift": {
@@ -68,16 +68,16 @@
     "Orb/RotatingGlowView.swift": {
       "raw-duration": 1
     },
-    "Pressable.swift": {
+    "DesignSystem/Pressable.swift": {
       "role-opacity": 1
     },
-    "SettingsView.swift": {
+    "Settings/SettingsView.swift": {
       "space-arithmetic": 1
     },
-    "Shimmer.swift": {
+    "DesignSystem/Shimmer.swift": {
       "space-arithmetic": 1
     },
-    "Toasts.swift": {
+    "DesignSystem/Toasts.swift": {
       "frame-literal": 1
     }
   }
