@@ -147,6 +147,63 @@ private func poll(_ seconds: TimeInterval, _ pred: () -> Bool) async -> Bool {
     }
 }
 
+// R3 (interrupciones-por-causa): the steer note says "I cut you to change
+// course". An explicit stop is not a change of course, so it leaves no note;
+// what was already said is still real and still threaded.
+@Suite struct StopLeavesNoSteerNote {
+    @Test @MainActor func aStopWhileStuckInAToolThreadsThePartialButLeavesNoNote() async {
+        let rig = await stuckRig(deadline: { try? await Task.sleep(for: .seconds(30)) })
+        let h = rig.h
+        await h.session.hold()
+        await pumpUntil("1") { h.watch.latest.state == .listening }
+        await h.session.release()
+        await rig.tools.waitUntilBlocked()
+        h.synth.spoken = "Abro Safari."
+        await h.session.interrupt()
+        rig.tools.release()
+        await h.session.awaitClassicTurn()
+
+        #expect(h.thread.turns.contains { $0.role == .assistant && $0.content == "Abro Safari." },
+                "a stop dropped what had already been said")
+        let pending = await h.session.classic.steerPending
+        #expect(!pending, "a stop left a steer note for the next turn")
+
+        await h.session.hold()
+        await pumpUntil("2") { h.watch.latest.state == .listening }
+        h.transcriber.stoppedText = "abre Notes"
+        await h.session.release()
+        await h.session.awaitClassicTurn()
+        let next = h.chat.histories.count >= 2 ? h.chat.histories[1].last { $0.role == .user } : nil
+        #expect(next != nil, "the turn after the stop never reached the model")
+        #expect(next?.content.contains("<steer>") == false, "the turn after a stop was told it was a steer")
+    }
+
+    // The press lands while the stopped turn is still stuck, so it cuts that
+    // same turn again; the stop still stands.
+    @Test @MainActor func aPressAfterAStopOnTheSameStuckTurnStillLeavesNoNote() async {
+        let rig = await stuckRig(deadline: { try? await Task.sleep(for: .seconds(30)) })
+        let h = rig.h
+        await h.session.hold()
+        await pumpUntil("1") { h.watch.latest.state == .listening }
+        await h.session.release()
+        await rig.tools.waitUntilBlocked()
+        h.synth.spoken = "Abro Safari."
+        await h.session.interrupt()
+        await h.session.hold()
+        await pumpUntil("2") { h.watch.latest.state == .listening }
+        h.transcriber.stoppedText = "abre Notes"
+        await h.session.release()
+        rig.tools.release()
+        // The latest handle is the press's turn, which waited on the stopped
+        // one: once it returns, both are done and no wall clock is involved.
+        await h.session.awaitClassicTurn()
+
+        let next = h.chat.histories.count >= 2 ? h.chat.histories[1].last { $0.role == .user } : nil
+        #expect(next != nil, "the turn after the stop never reached the model")
+        #expect(next?.content.contains("<steer>") == false, "a press undid the stop's missing note")
+    }
+}
+
 /// An ear whose `stop` parks until the test finishes it: a turn cut while
 /// "its ear was still finishing".
 private final class GatedEar: Transcriber, @unchecked Sendable {

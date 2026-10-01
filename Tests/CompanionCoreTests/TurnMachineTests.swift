@@ -47,7 +47,7 @@ import Testing
     _ = apply(&m, .agentAudioStarted)
     expectEq(m.snapshot.state, .speaking, "hold: el agente habla")
     expectEq(apply(&m, .holdPressed(preferRealtime: true)),
-             [.cancelAgentOutput, .setMicEnabled(true), .clearInputAudio],
+             [.cancelAgentOutput(steer: true), .setMicEnabled(true), .clearInputAudio],
              "hold: pulsar mientras habla corta y abre")
     expectEq(m.snapshot.state, .listening, "hold: listening tras el corte")
     expectEq(apply(&m, .holdReleased(hasSpeech: true)), [.setMicEnabled(false), .commitWithText], "hold: y suelta")
@@ -106,7 +106,8 @@ import Testing
     _ = apply(&m, .holdReleased(hasSpeech: true))
     _ = apply(&m, .delegateCallStarted)
     expectEq(m.snapshot.state, .thinking, "interrupt: thinking")
-    expectEq(apply(&m, .interrupt), [.cancelAgentOutput], "interrupt: corta")
+    expectEq(apply(&m, .interrupt), [.cancelAgentOutput(steer: false)],
+             "interrupt: corta, y un stop no es un cambio de rumbo (R3)")
     expectEq(m.snapshot.state, .listening, "interrupt: listening")
     expect(m.snapshot.muted, "interrupt: el micro sigue cerrado")
 
@@ -119,7 +120,7 @@ import Testing
     _ = apply(&classic, .classicListenArmed)
     _ = apply(&classic, .holdReleased(hasSpeech: true))
     expectEq(classic.snapshot.state, .thinking, "interrupt clásico: thinking")
-    expectEq(apply(&classic, .interrupt), [.cancelAgentOutput, .stopClassicIO],
+    expectEq(apply(&classic, .interrupt), [.cancelAgentOutput(steer: false), .stopClassicIO],
              "interrupt clásico: corta el turno y apaga el micro, no lo reabre")
     expectEq(classic.snapshot.state, .idle, "interrupt clásico: idle, no listening")
     expect(classic.snapshot.pipeline == nil, "interrupt clásico: sin pipeline armado")
@@ -370,7 +371,7 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
 
     let real = apply(&m, .heardWhileSpeaking(heard: "oye espera",
                                              agentSaying: saying))
-    expectEq(real, [.cancelAgentOutput],
+    expectEq(real, [.cancelAgentOutput(steer: true)],
              "barge-in: interrupción real cancela al agente")
     expectEq(m.snapshot.state, .listening, "barge-in: real → listening")
     expect(m.snapshot.interruptionPending, "barge-in: real marca pending")
@@ -379,7 +380,7 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
     armClassicSpeaking(&unicode)
     let accented = apply(&unicode, .heardWhileSpeaking(
         heard: "oye espera ya entendí", agentSaying: saying))
-    expectEq(accented, [.cancelAgentOutput],
+    expectEq(accented, [.cancelAgentOutput(steer: true)],
              "barge-in: unicode propio sí interrumpe")
 
     var rt = TurnMachine()
@@ -387,13 +388,13 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
     _ = apply(&rt, .agentAudioStarted)
     expectEq(rt.snapshot.state, .speaking, "barge-in: realtime speaking")
     let tap = apply(&rt, .advance(hasSpeech: false))
-    expectEq(tap, [.cancelAgentOutput],
+    expectEq(tap, [.cancelAgentOutput(steer: true)],
              "barge-in: tap en speaking realtime cancela")
     expectEq(rt.snapshot.state, .listening, "barge-in: tap → listening")
 
     _ = apply(&rt, .agentAudioStarted)
     let server = apply(&rt, .serverSpeechStarted)
-    expectEq(server, [.cancelAgentOutput],
+    expectEq(server, [.cancelAgentOutput(steer: true)],
              "barge-in: speechStarted en speaking cancela")
     expectEq(rt.snapshot.state, .listening, "barge-in: server barge → listening")
     expect(rt.snapshot.speechOpen, "barge-in: speechOpen queda armado")

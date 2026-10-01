@@ -67,11 +67,12 @@ extension VoiceSession {
                 await classic.stopIO(mic: mic)
             case .submitUtterance:
                 startClassicTurn(config: configProvider.current)
-            case .cancelAgentOutput:
+            case .cancelAgentOutput(let steer):
+                // Realtime has no steer note to leave or withhold.
                 if machine.snapshot.pipeline == .realtime {
                     await realtime.cancelAgent()
                 } else {
-                    await cancelClassicTurn()
+                    await cancelClassicTurn(steer: steer)
                 }
             case .commitAndRespond:
                 // Muting mid-utterance: there is no audio buffer to commit any

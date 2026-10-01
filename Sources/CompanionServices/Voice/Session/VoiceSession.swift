@@ -37,6 +37,7 @@ package actor VoiceSession: VoiceControlling {
     var speechTask: Task<Void, Never>?
     /// 15b-10: `classic.submit`, detached so a press mid-turn can cancel it.
     var classicTurnTask: Task<Void, Never>?
+    var classicTurnCut: ClassicTurnCut?
     /// HIGH-B (code review 2026-09-25): a job's end, said as a classic turn;
     /// `said=` waits until its audio ends or a press cuts it.
     var announceTask: Task<Void, Never>?

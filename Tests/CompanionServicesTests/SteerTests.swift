@@ -25,6 +25,7 @@ import CompanionTestKit
     await testCutThreadsWhatWasAlreadySpoken()
     await testPressDuringThinkingReachesListeningThroughTheRealActor()
     await testInterruptDuringClassicThinkingTearsTheMicDownThroughTheRealActor()
+    await testAStopMidReplyThreadsWhatWasSaidButLeavesNoSteerNote()
     await testSteerPendingReachesTheNextTurnExactlyOnce()
     await testSteerPendingIsConsumedEvenWhenTheRouterHandlesTheTurn()
 }
@@ -34,7 +35,7 @@ import CompanionTestKit
 @MainActor func testHoldPressedDuringClassicThinkingCuts() {
     var machine = TurnMachine(snapshot: TurnSnapshot(state: .thinking, pipeline: .classic))
     let effects = machine.handle(.holdPressed(preferRealtime: false), at: 0)
-    expectEq(effects, [.cancelAgentOutput, .requestClassicListen],
+    expectEq(effects, [.cancelAgentOutput(steer: true), .requestClassicListen],
              "15b-10: pulsar en .thinking clásico corta y vuelve a escuchar")
     expectEq(machine.snapshot.state, .listening, "15b-10: el estado cae a listening")
     expect(machine.snapshot.interruptionPending, "15b-10: marca la interrupción")
@@ -48,7 +49,7 @@ import CompanionTestKit
 @MainActor func testInterruptDuringClassicThinkingCuts() {
     var machine = TurnMachine(snapshot: TurnSnapshot(state: .thinking, pipeline: .classic))
     let effects = machine.handle(.interrupt, at: 0)
-    expectEq(effects, [.cancelAgentOutput, .stopClassicIO],
+    expectEq(effects, [.cancelAgentOutput(steer: false), .stopClassicIO],
              "15b code review: interrupt en clásico corta y apaga el micro, no lo reabre")
     expectEq(machine.snapshot.state, .idle, "15b code review: idle, no listening con el micro huérfano")
     expect(machine.snapshot.pipeline == nil, "15b code review: sin pipeline armado")
@@ -57,7 +58,7 @@ import CompanionTestKit
 @MainActor func testInterruptDuringClassicSpeakingEndsIdleNotListening() {
     var machine = TurnMachine(snapshot: TurnSnapshot(state: .speaking, pipeline: .classic))
     let effects = machine.handle(.interrupt, at: 0)
-    expectEq(effects, [.cancelAgentOutput, .stopClassicIO],
+    expectEq(effects, [.cancelAgentOutput(steer: false), .stopClassicIO],
              "15b code review: mismo corte mientras habla")
     expectEq(machine.snapshot.state, .idle, "15b code review: idle mientras hablaba")
 }
@@ -65,7 +66,7 @@ import CompanionTestKit
 @MainActor func testHoldPressedDuringClassicSpeakingStillCuts() {
     var machine = TurnMachine(snapshot: TurnSnapshot(state: .speaking, pipeline: .classic))
     let effects = machine.handle(.holdPressed(preferRealtime: false), at: 0)
-    expectEq(effects, [.cancelAgentOutput, .requestClassicListen],
+    expectEq(effects, [.cancelAgentOutput(steer: true), .requestClassicListen],
              "15b-10: .speaking clásico sigue cortando igual (regresión)")
 }
 
@@ -315,6 +316,33 @@ import CompanionTestKit
     expect(h.mic.stopped, "interrupt real: el micro se apaga, no queda abierto sin dueño")
 }
 
+/// R3 with no tool in the way: the stop lands mid-reply, through one of the
+/// stream's own cut points rather than a stuck call.
+@MainActor func testAStopMidReplyThreadsWhatWasSaidButLeavesNoSteerNote() async {
+    let chat = GatedChat()
+    let h = makeSteerHarness(chat: chat)
+    h.transcriber.stoppedText = "cuéntame algo largo"
+    await h.session.hold()
+    await pumpUntil("R3 habla: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("R3 habla: el chat arrancó") { !chat.histories.isEmpty }
+    chat.yield(.text("Esta es una respuesta larga para el corte. "), toCall: 0)
+    await pumpUntilAsync("R3 habla: la primera frase sonó") { !h.synth.queue.isEmpty }
+    h.synth.spoken = "Esta es una respuesta larga para el corte."
+
+    await h.session.interrupt()
+    chat.finish(toCall: 0)
+    await h.session.awaitClassicTurn()
+
+    expectEq(h.thread.turns.last?.content, "Esta es una respuesta larga para el corte.",
+             "R3: lo ya dicho sigue en el hilo tras un stop")
+    // This harness has no context sensor, so no `<steer>` is ever rendered
+    // here: the flag itself is the observable (the rendered note is pinned in
+    // StopLeavesNoSteerNote, which wires a sensor).
+    let pending = await h.session.classic.steerPending
+    expect(!pending, "R3: un stop a media respuesta no deja nota de rumbo")
+}
+
 // MARK: - Fakes
 
 /// A chat fake whose stream only yields what the test explicitly pushes, so
@@ -398,6 +426,7 @@ private struct SteerHarness {
     let synth: ScriptedSynth
     let watch: SnapWatch
     let mic: ScriptedMic
+    let thread: ScriptedThread
 }
 
 /// Classic-only (no OpenAI key): the fewest moving parts that still wire
@@ -418,5 +447,6 @@ private func makeSteerHarness(chat: GatedChat) -> SteerHarness {
         configProvider: provider, reachability: AssumeOnline(),
         echoFreeProbe: { false }, now: { 0 })
     let watch = SnapWatch(session.snapshots)
-    return SteerHarness(session: session, transcriber: transcriber, synth: synth, watch: watch, mic: mic)
+    return SteerHarness(
+        session: session, transcriber: transcriber, synth: synth, watch: watch, mic: mic, thread: thread)
 }
