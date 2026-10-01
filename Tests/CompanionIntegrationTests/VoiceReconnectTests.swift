@@ -46,7 +46,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     }
     await pumpUntil("first update") { sessionUpdates(h).count == 1 }
     await h.transport.simulateStreamEnd()
-    await pumpUntil("reconnected", timeout: 5) { h.transport.openCount == 2 }
+    await pumpUntil("reconnected") { h.transport.openCount == 2 }
 }
 
 @Test @MainActor func reconnectKeepsReadingServerEvents() async {
@@ -65,7 +65,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     h.thread.history = [Turn(role: .user, content: "zebra-marker-said-before-the-drop")]
 
     await h.transport.simulateStreamEnd()
-    await pumpUntil("update on the new connection", timeout: 5) {
+    await pumpUntil("update on the new connection") {
         sessionUpdates(h).count == 2
     }
     // A later event proves the pump passed the new connection's own
@@ -94,10 +94,10 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     expect(await h.session.realtimeSnapshot().micEnabled == false, "mic gated while muted")
 
     await h.transport.simulateStreamEnd()
-    await pumpUntil("reconnected", timeout: 5) { h.transport.openCount == 2 }
+    await pumpUntil("reconnected") { h.transport.openCount == 2 }
     // The second update goes out right after the per-connection reset, so
     // seeing it means the reset already ran.
-    await pumpUntil("new connection handled", timeout: 5) {
+    await pumpUntil("new connection handled") {
         sessionUpdates(h).count == 2
     }
 
@@ -116,10 +116,10 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     // retry is spent, or the pump would reopen in a hot loop.
     h.transport.autoEvents = []
     await h.transport.simulateStreamEnd()
-    await pumpUntil("reconnected", timeout: 5) { h.transport.openCount == 2 }
+    await pumpUntil("reconnected") { h.transport.openCount == 2 }
     await h.transport.simulateStreamEnd()
 
-    await pumpUntil("gives up", timeout: 5) { h.watch.latest.state == .error }
+    await pumpUntil("gives up") { h.watch.latest.state == .error }
     expectEq(h.transport.openCount, 2, "no third open")
 }
 
@@ -201,7 +201,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
 @MainActor private func connectionReady(
     _ h: VoiceHarness, _ n: Int, updates: Int? = nil
 ) async {
-    await pumpUntilAsync("connection \(n) ready", timeout: 5) {
+    await pumpUntilAsync("connection \(n) ready") {
         guard h.transport.openCount == n, sessionUpdates(h).count == updates ?? n
         else { return false }
         return await h.session.realtimeSnapshot().ready
@@ -223,7 +223,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     // A failing path must not leave the held open suspended forever.
     defer { h.transport.releaseOpen() }
     await h.transport.simulateStreamEnd()
-    await pumpUntil("open entered", timeout: 5) { h.transport.openEntered }
+    await pumpUntil("open entered") { h.transport.openEntered }
 
     await h.session.hangUp()
     await pumpUntil("hung up") { h.watch.latest.state == .idle }
@@ -231,7 +231,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     h.transport.releaseOpen()
 
     // The socket that finished opening after the hang-up is closed again.
-    await pumpUntil("late socket closed", timeout: 2) {
+    await pumpUntil("late socket closed") {
         h.transport.closeCount > closesAtHangUp
     }
     expectEq(h.watch.latest.state, .idle, "no failure after the hang-up")
@@ -245,7 +245,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     // A failing path must not leave the held open suspended forever.
     defer { h.transport.releaseOpen() }
     await h.transport.simulateStreamEnd()
-    await pumpUntil("open entered", timeout: 5) { h.transport.openEntered }
+    await pumpUntil("open entered") { h.transport.openEntered }
 
     await h.session.hangUp()
     await pumpUntil("hung up") { h.watch.latest.state == .idle }
@@ -255,7 +255,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     }
     await connectionReady(h, 3, updates: 2)
     h.transport.releaseOpen()
-    await pumpUntil("held open returned", timeout: 5) { h.transport.openReturned == 3 }
+    await pumpUntil("held open returned") { h.transport.openReturned == 3 }
 
     h.transport.yield(.speechStarted)
     await pumpUntil("new session still served") { h.watch.latest.speechOpen }
@@ -281,7 +281,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
 
     h.transport.sendFails = false
     await h.transport.simulateStreamEnd()
-    await pumpUntilAsync("config on the new connection", timeout: 5) {
+    await pumpUntilAsync("config on the new connection") {
         sessionUpdates(h).count == 2
     }
     expect(!(await h.session.realtimeSnapshot().transportDown), "the pause ended with the old socket")
@@ -298,7 +298,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     }
 
     await h.transport.simulateStreamEnd()
-    await pumpUntil("budget spent", timeout: 5) { h.watch.latest.state == .error }
+    await pumpUntil("budget spent") { h.watch.latest.state == .error }
     expectEq(h.transport.openCount, 4, "no fourth reconnect inside the window")
 }
 
@@ -350,7 +350,7 @@ private actor ParkingApprovals: ApprovalsProvider {
         requestId: "m1", toolName: "docs/search", summary: "search",
         inputJSON: "{}", isMCP: true)
     let deciding = Task { await h.session.noteMCPApproval(request) }
-    await pumpUntilAsync("parked", timeout: 5) {
+    await pumpUntilAsync("parked") {
         await h.session.pendingMCPApprovals.count == 1
     }
 
@@ -843,7 +843,7 @@ private func quoted(_ note: String) -> String {
     let seen = SessionEventBox(h.session.events)
     await dropWhileSpeaking(h, saying: cutWords)
     h.player.yieldDrained()
-    await pumpUntil("notice event", timeout: 5) { seen.events.contains(.replyCut) }
+    await pumpUntil("notice event") { seen.events.contains(.replyCut) }
     expect(h.watch.latest.state != .error, "the reconnect itself succeeded")
 }
 
@@ -947,7 +947,7 @@ private func quoted(_ note: String) -> String {
     expect(!seen.events.contains(.replyCut), "audio is still queued: not yet")
 
     h.player.yieldDrained()
-    await pumpUntil("notice", timeout: 5) { seen.events.contains(.replyCut) }
+    await pumpUntil("notice") { seen.events.contains(.replyCut) }
     h.player.yieldDrained()
     await h.session.probeCommit("go on")
     await settle(0.05)
@@ -976,7 +976,7 @@ private func quoted(_ note: String) -> String {
     h.player.hasPending = false
     await h.transport.simulateStreamEnd()
     await connectionReady(h, 2)
-    await pumpUntil("notice", timeout: 5) { seen.events.contains(.replyCut) }
+    await pumpUntil("notice") { seen.events.contains(.replyCut) }
 }
 
 @Test @MainActor func noNoticeWhenNothingWasCut() async {
