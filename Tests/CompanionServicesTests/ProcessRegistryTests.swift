@@ -70,7 +70,9 @@ import Testing
     expect(grandchild > 0, "el nieto reporto su pid")
     expectEq(registry.liveCount, 1, "el registro lo tiene")
 
-    registry.terminateAll()
+    // terminateGroup spins through the SIGTERM grace per group; on the main
+    // actor that starves every MainActor test running alongside.
+    await Task.detached { registry.terminateAll() }.value
     let gone = await waitUntilGone(grandchild)
     expect(gone, "el nieto murio con la limpieza")
     expectEq(registry.liveCount, 0, "y el registro queda vacio")
