@@ -61,11 +61,12 @@ extension ClassicRuntime {
         _ mouth: inout TurnMouth, apply: @escaping @Sendable (TurnEvent) async -> Void
     ) async -> [Turn] {
         guard Acknowledgement.isNeeded(saidSoFar: mouth.said), let first = calls.first else {
-            return await act(calls, said: text, heard: heard, using: parentTools, language: language)
+            return await act(
+                calls, said: text, heard: heard, using: parentTools, language: language, &mouth)
         }
         let wait = slowToolWait
         let line = Acknowledgement.working(tool: first.name, language)
-        let unverified = unverifiedTyped
+        let unverified = mouth.unverifiedTyped
         let round = await withTaskGroup(of: ToolRace.self) { group -> ActedRound? in
             group.addTask {
                 .done(await self.actRound(
@@ -92,7 +93,7 @@ extension ClassicRuntime {
         // Folded in here, after both racers ended: the round never writes the
         // turn's state while the acknowledgement reads it.
         guard let round else { return [] }
-        absorb(round)
+        Self.absorb(round, into: &mouth)
         return round.turns
     }
 }

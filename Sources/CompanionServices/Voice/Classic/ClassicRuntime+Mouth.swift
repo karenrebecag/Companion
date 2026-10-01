@@ -96,6 +96,19 @@ struct TurnMouth {
     var filtered = false
     /// Everything the model wrote that was speakable (JSON already out).
     var spoken = ""
+    /// 16h-1: a tool put a card on screen this turn, so what is still said
+    /// is a line pointing at it (`SpeechBudget`), not the card read aloud.
+    var cardThisTurn = false
+    /// 16h-1: texts `type_text` injected that no `read_focused` has confirmed
+    /// yet; a later read in the same turn turns them into a success line.
+    var unverifiedTyped: [ClassicRuntime.TypedAttempt] = []
+    /// 16h-1: the status line of every call this turn that changed something.
+    /// If the filter swallowed what the model said about them, the app says
+    /// them itself (`sayMissingEffects`).
+    var effectLines: [String] = []
+    /// 16h-2 (security M1): our own lines this turn owes the user, said
+    /// after the reply (a spoken yes the sheet did not take).
+    var owedLines: [String] = []
 
     init(language: AppLanguage, recognizer: any LanguageRecognizing, heard: String) {
         gate = MouthLanguageGate(language: language, recognizer: recognizer, heard: heard)
@@ -135,7 +148,7 @@ extension ClassicRuntime {
 
     /// Past the length rule, to the synthesizer.
     private func speak(_ clean: String, _ mouth: inout TurnMouth) async {
-        if cardThisTurn { mouth.budget.cardShown = true }
+        if mouth.cardThisTurn { mouth.budget.cardShown = true }
         guard !clean.isEmpty, let said = mouth.budget.admit(clean) else { return }
         await synthesizer.enqueue(said)
     }
@@ -153,7 +166,7 @@ extension ClassicRuntime {
     func sayMissingEffects(_ mouth: inout TurnMouth, apply: @Sendable (TurnEvent) async -> Void) async {
         guard mouth.filtered || !mouth.gate.dropped.isEmpty else { return }
         let said = mouth.said
-        for line in effectLines where !said.contains(line) {
+        for line in mouth.effectLines where !said.contains(line) {
             if !mouth.started {
                 mouth.started = true
                 await apply(.firstSentence)

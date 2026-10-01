@@ -17,23 +17,24 @@ extension ClassicRuntime {
         var unverified: [TypedAttempt]
     }
 
-    /// Runs the round and folds what it learnt into the turn. The one
-    /// caller-facing way to act when nothing runs beside it.
+    /// Runs the round and folds what it learnt into the turn that owns
+    /// `mouth`, so two overlapping turns never share that state.
     func act(
         _ calls: [ToolCallRef], said text: String, heard: String,
-        using parentTools: any ParentToolExecuting, language: AppLanguage
+        using parentTools: any ParentToolExecuting, language: AppLanguage,
+        _ mouth: inout TurnMouth
     ) async -> [Turn] {
         let round = await actRound(
             calls, said: text, heard: heard, using: parentTools, language: language,
-            unverified: unverifiedTyped)
-        absorb(round)
+            unverified: mouth.unverifiedTyped)
+        Self.absorb(round, into: &mouth)
         return round.turns
     }
 
-    func absorb(_ round: ActedRound) {
-        unverifiedTyped = round.unverified
-        effectLines += round.effectLines
-        if round.sawCard { cardThisTurn = true }
+    static func absorb(_ round: ActedRound, into mouth: inout TurnMouth) {
+        mouth.unverifiedTyped = round.unverified
+        mouth.effectLines += round.effectLines
+        if round.sawCard { mouth.cardThisTurn = true }
     }
 
     /// Runs the round's parent calls and returns the turns the next round
