@@ -6,10 +6,32 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 ## [Unreleased]
 
 ### Fixed
+- **La voz sigue escuchando después de un corte de red (2026-09-30, #59).** Al reconectar,
+  nadie leía la conexión nueva y la voz quedaba sorda; además arrancaba sin instrucciones, tools
+  ni voz elegida, y volvía a encender el micrófono aunque lo hubieras silenciado. Ahora reanuda
+  con su configuración y tu mute. Colgar durante una reconexión ya no revive la sesión, y un
+  servidor que corta en bucle se rinde tras 3 reconexiones por minuto.
+- **El puente con otros agentes no se queda "ocupado" para siempre (2026-09-30, #57).** Un
+  cliente que cerraba al instante podía dejar el puente tomado hasta reiniciar la app.
+- **Un texto sin traducir muestra el inglés, no la clave interna (2026-09-30, #58).** Antes una
+  sola clave faltante en español pintaba algo como `chat.job.done` en pantalla.
+- **La app instalada ya no depende de la carpeta de compilación (2026-09-30, #52, #54, #56).**
+  Fuentes, mascota, skills y diagramas se buscaban primero junto al build de desarrollo; sin él,
+  la app podía cerrarse al abrir. La extensión del navegador se empaqueta desde una lista fija de
+  archivos, así un archivo ajeno no se cuela en la app.
 - **Tu voz se ve en la isla mientras hablas (2026-09-25).** En el modo clásico la isla leía el oído
   de OpenAI, que ahí no recibe audio; ahora lee el oído que escucha.
 - **Las respuestas se leen con formato (2026-09-25).** Negrita, cursiva y enlaces en párrafos y
   viñetas en vez de asteriscos; solo los enlaces web se abren.
+
+### Changed
+- **Código ordenado por dominio y API interna de paquete (2026-09-30, #50, #51).** Las carpetas
+  siguen el dominio de cada pieza y las librerías ya no exponen nada `public`; un gate lo impide.
+- **La suite de tests dejó de fallar al azar (2026-09-30, #53).** Carreras en los dobles de test,
+  esperas con reloj real y un hook global compartido hacían fallar 3 o 4 de cada 10 corridas;
+  ahora pasan 10 de 10.
+- **Specs aprobadas de los siguientes pasos (2026-09-30, #55):** tests por módulo, catálogo
+  único de textos y división de VoiceSession, cada una con su research verificado.
 
 ### Added
 - **Documentos, hojas y gráficas (Wave 20, 2026-09-28).** "Hazme un PDF del
