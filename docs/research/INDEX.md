@@ -9,3 +9,4 @@
 - tsan-gate-ci | standard | APROBADO | Versiones: swift-tools=6.2 | Como agregar un gate de ThreadSanitizer a CI (tiempo en runner, alcance, forma del job, aislamiento del build, carreras conocidas, requerido o informativo)
 - classic-turn-serialize | standard | APROBADO | Versiones: swift-tools=6.2 | Como serializar los turnos clasicos (el nuevo espera al cortado) para que la nota de corte y el hilo lleguen en orden: plazo, aviso, forma, latencia y test en rojo
 - interrupciones-por-causa | standard | APROBADO | Versiones: swift-tools=6.2 | Si los agentes de voz en produccion reaccionan distinto segun la causa del corte (barge-in, red, herramienta atascada, stop) y si el plazo y el rastro del turno cortado deben variar por causa
+- ci-cola-macos | quick | APROBADO | Versiones: swift-tools=6.2 | Como bajar la cola de macOS en CI: CodeQL Swift solo en main y semanal (advanced setup) y cancelar corridas reemplazadas por PR sin tocar las de main

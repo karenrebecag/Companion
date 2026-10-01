@@ -1,0 +1,41 @@
+Mediciones para docs/research/ci-cola-macos.md, tomadas 2026-10-01 ~16:50Z con gh api (solo GET).
+
+[A] Branch protection de main: gh api repos/karenrebecag/Companion/branches/main/protection
+required_status_checks.contexts = ["gates"] (strict=false, app_id 15368)
+enforce_admins.enabled = true
+CodeQL no aparece como check requerido.
+
+[B] Rulesets: gh api repos/karenrebecag/Companion/rulesets
+[]  (ningun ruleset; no hay regla de merge protection por code scanning)
+
+[C] Workflows: gh api repos/karenrebecag/Companion/actions/workflows
+339250619 CI .github/workflows/ci.yml active
+340233100 CodeQL dynamic/github-code-scanning/codeql active
+
+[D] Job "Analyze (swift)" de default setup (job 110426950828, run 36879382085, push a main)
+labels = macos-latest; log: "Image: macos-26-arm64"
+log: build-mode: autobuild; CODEQL_ACTION_VERSION: 4.38.2; CodeQL CLI 2.27.1
+log: compila con /Applications/Xcode_26.6.app (MacOSX26.5.sdk)
+pasos: Checkout repository, Setup proxy for registries, Initialize CodeQL, Autobuild, Perform CodeQL Analysis
+Jobs fallidos 110339781204 y 110266071886: el paso Autobuild no termina en success; log no disponible (BlobNotFound / vacio).
+
+[E] Jobs macOS de runs completados creados >= 2026-10-01T00:00Z (y uno de 2026-09-30 23:35Z de la ventana del listado)
+columnas: workflow | job | conclusion | minutos de ejecucion | minutos en cola (started - created)
+CI gates: 31 jobs, suma 260 min de ejecucion, 5-11 min cada uno; cola maxima 58 min (otros: 55, 46, 45, 23, 17, 16, 15, 13)
+CI tsan: 2 jobs, 7 + 7 = 14 min
+CodeQL Analyze (swift) en PR: 17 jobs, suma 975 min (63, 28, 74, 49, 44, 82, 80, 54, 68, 74, 68, 74, 14, 77, 24, 67, 35); 2 cancelled (63, 74), 9 failure
+CodeQL Analyze (swift) en push a main: 12 jobs, suma 725 min (14, 97, 74, 16, 112, 69, 74, 14, 71, 25, 95, 64); 7 failure
+Total macOS: 260 + 14 + 975 + 725 = 1974 min
+Swift CodeQL = 1700 / 1974 = 86 %; Swift CodeQL en PR = 975 / 1974 = 49 %
+
+[F] Runs en cola al momento de medir (16:50Z): CI pull_request x8 queued; PR #74, #75, #77, #78 CodeQL queued; PR #71, #72, #76 y main CodeQL in_progress.
+PR #72 y PR #70 tienen runs CodeQL cancelados tras 63 y 74 min de Swift, de commits ya reemplazados.
+
+[G] Versiones de actions resueltas con gh api (2026-10-01)
+actions/checkout tag v4 -> commit 11d5960a326750d5838078e36cf38b85af677262
+actions/checkout latest release v7.0.1 -> commit 3d3c42e5aac5ba805825da76410c181273ba90b1
+github/codeql-action tag v4 -> commit 2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 (= v4.38.2, la que usa default setup)
+
+[H] Plan de la cuenta duena: gh api user --jq .plan.name -> pro (owner.type User)
+
+[I] git ls-files | grep -cE '\.(js|mjs|ts|tsx)$' -> 12 archivos: 11 bajo Extensions/browser/ y 1 fuera (ver git ls-files)
