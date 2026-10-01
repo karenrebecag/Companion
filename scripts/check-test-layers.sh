@@ -2,8 +2,12 @@
 # Test-layer gate. Usage: check-test-layers.sh <root> [dump-package.json]
 # R1: no @testable import in Tests/<dir> unless <dir> ends in "Tests".
 # R2: import direction between test/support targets (see FORBIDDEN below).
-# R3: (with a manifest) UI test targets carry no resources and the UI test
-#     support target no defaultIsolation.
+# R3: (with a manifest) UI test targets carry no resources; the four support
+#     targets are regular, settings-free and depend only on what the layer
+#     table allows; the four layer test targets depend only on their own
+#     set; no non-test target depends on a support target; every Tests/ folder
+#     with Swift files has a manifest target.
+# R4: no @_exported import in Tests/<dir> except Tests/CompanionTests.
 # Fails closed: a find/grep/parse error is a failure, never a silent pass.
 # Bash 3.2, system tools only.
 # Known limitation: imports are matched line by line, so the inside of a
@@ -73,6 +77,7 @@ forbidden_for() {
 }
 
 testable_pattern="${STMT}${ATTRS}@testable[[:space:]]+${ATTRS}${ACCESS}import[[:space:]]"
+exported_pattern="${STMT}${ATTRS}@_exported[[:space:]]+${ATTRS}${ACCESS}import[[:space:]]"
 
 for dir in "$ROOT"/Tests/*/; do
     [ -d "$dir" ] || continue
@@ -83,6 +88,14 @@ for dir in "$ROOT"/Tests/*/; do
         *) report R1 "@testable import outside a *Tests target ($name)" "$dir" "$testable_pattern" ;;
     esac
 
+    # WHY the exemption: CompanionTests still holds the voice files, which lean
+    # on SupportImports.swift until PR 4 moves them. It disappears with that
+    # folder; then every Tests/<dir> is covered.
+    case "$name" in
+        CompanionTests) ;;
+        *) report R4 "@_exported import in $name; imports must be explicit" "$dir" "$exported_pattern" ;;
+    esac
+
     forbidden=$(forbidden_for "$name")
     if [ -n "$forbidden" ]; then
         report R2 "$name imports a layer it may not" "$dir" "$(import_pattern "$forbidden")"
@@ -91,9 +104,14 @@ done
 
 # ------------------------------------------------------------------------ R3
 if [ -n "$MANIFEST" ]; then
+    # Every folder that holds Swift files must have a manifest target, or the
+    # checks below would silently skip it (Tests/Fixtures holds none).
     present=""
-    for t in CompanionUITests CompanionUITestSupport; do
-        [ -d "$ROOT/Tests/$t" ] && present="$present $t"
+    for d in "$ROOT"/Tests/*/; do
+        [ -d "$d" ] || continue
+        if [ -n "$(find "$d" -name '*.swift' -print -quit 2>/dev/null)" ]; then
+            present="$present $(basename "$d")"
+        fi
     done
     if [ ! -f "$MANIFEST" ]; then
         note_fail error "manifest not found: $MANIFEST"
@@ -121,6 +139,64 @@ for name in ("CompanionUITests", "CompanionUITestSupport"):
 for s in targets.get("CompanionUITestSupport", {}).get("settings", []):
     if "defaultIsolation" in s.get("kind", {}):
         print("FAIL [R3] CompanionUITestSupport sets defaultIsolation")
+        bad = 1
+
+def deps(t):
+    names = set()
+    for d in t.get("dependencies", []):
+        for key in ("byName", "target"):
+            if key in d:
+                names.add(d[key][0])
+    return names
+
+# Allowed Companion* dependencies per support target (the layer table).
+ALLOWED = {
+    "CompanionTestKit": set(),
+    "CompanionCoreTestSupport": {"CompanionCore", "CompanionTestKit"},
+    "CompanionServicesTestSupport": {"CompanionServices", "CompanionCoreTestSupport", "CompanionTestKit"},
+    "CompanionUITestSupport": {"CompanionUI", "CompanionCoreTestSupport", "CompanionTestKit"},
+}
+for name, allowed in ALLOWED.items():
+    t = targets.get(name)
+    if t is None:
+        continue
+    if t.get("type") != "regular":
+        print("FAIL [R3] %s is of type %s, not regular" % (name, t.get("type")))
+        bad = 1
+    if t.get("settings"):
+        print("FAIL [R3] %s declares settings" % name)
+        bad = 1
+    for dep in sorted(d for d in deps(t) if d.startswith("Companion") and d not in allowed):
+        print("FAIL [R3] %s depends on %s" % (name, dep))
+        bad = 1
+
+SUPPORT = set(ALLOWED)
+
+# Test targets: exactly their Package.swift sets. The legacy CompanionTests is
+# left out on purpose: it holds the voice files and depends on everything until
+# PR 4 moves them and the folder disappears.
+CORE_TS = {"CompanionCore", "CompanionCoreTestSupport", "CompanionTestKit"}
+TEST_ALLOWED = {
+    "CompanionCoreTests": CORE_TS,
+    "CompanionServicesTests": CORE_TS | {"CompanionServices", "CompanionServicesTestSupport"},
+    "CompanionUITests": CORE_TS | {"CompanionUI", "CompanionUITestSupport"},
+    "CompanionIntegrationTests": CORE_TS | {
+        "CompanionServices", "CompanionUI", "CompanionServicesTestSupport", "CompanionUITestSupport"},
+}
+for name, allowed in TEST_ALLOWED.items():
+    t = targets.get(name)
+    if t is None:
+        continue
+    for dep in sorted(d for d in deps(t) if d.startswith("Companion") and d not in allowed):
+        print("FAIL [R3] %s depends on %s" % (name, dep))
+        bad = 1
+
+# Every non-test, non-support target, whatever its name.
+for name, t in sorted(targets.items()):
+    if t.get("type") == "test" or name in SUPPORT:
+        continue
+    for dep in sorted(deps(t) & SUPPORT):
+        print("FAIL [R3] production target %s depends on %s" % (name, dep))
         bad = 1
 sys.exit(bad)
 PY

@@ -1,5 +1,5 @@
 {
-  "$comment": "Contrato de la reticula de CompanionUI, ejecutable. Runner: Tests/CompanionTests/ConformanceTests.swift. Patron tomado de ATOMUIKIT/atom-uikit-ds/conformance (modelo Willison: el contrato es data, el runner es tonto). 'baseline' es RATCHET de deuda pre-contrato: si un archivo empeora falla; si mejora, el runner pide bajar el numero. Meter deuda nueva aqui para que pase un cambio propio se le dice a Karen. Valvula por linea: // token-exempt: <por que>.",
+  "$comment": "Contrato de la reticula de CompanionUI, ejecutable. Runner: Tests/CompanionUITests/ConformanceTests.swift. Patron tomado de ATOMUIKIT/atom-uikit-ds/conformance (modelo Willison: el contrato es data, el runner es tonto). 'baseline' es RATCHET de deuda pre-contrato: si un archivo empeora falla; si mejora, el runner pide bajar el numero. Meter deuda nueva aqui para que pase un cambio propio se le dice a Karen. Valvula por linea: // token-exempt: <por que>.",
   "scanDirs": [
     "Sources/CompanionUI"
   ],

@@ -99,15 +99,31 @@ directory or dotfiles. This is what keeps the app distributable.
 
 ## Testing
 
-Target: Swift Testing (`@Test` / `#expect`). Today the machine builds with
-bare Command Line Tools, which ship neither the Testing module nor XCTest, so
-tests run through `CompanionTests` — an executable target with a tiny harness
-whose API mirrors Swift Testing on purpose (`expect` -> `#expect`). Upgrade
-trigger: once Xcode is installed, migrate mechanically to a real
-`.testTarget`. Core targets ~complete coverage; the reference project's test
-suite is ported as a characterization contract. `scripts/gates.sh` runs
-build + static checks + architecture checks + tests; it must be green before
-any merge. Two contracts are data, not prose: `conformance/ui-contract.json`
+Swift Testing (`@Test` / `#expect`), one test target per layer under
+`Tests/<Target>/` (flat folders, so `#filePath` depth is the same everywhere):
+
+| Test target | Depends on | Holds |
+|---|---|---|
+| `CompanionCoreTests` | Core | domain: codecs, state machines, policies |
+| `CompanionServicesTests` | Core, Services | adapters: network, processes, bridge |
+| `CompanionUITests` | Core, UI | views, view models, copy; no resources |
+| `CompanionIntegrationTests` | Core, Services, UI | flows that cross layers |
+| `CompanionTests` | all | transitional: the voice files, until the VoiceSession split |
+
+Shared fakes live in four regular support targets (not test targets, never
+`@testable`, API `package`): `CompanionTestKit` (harness, conformance, fixtures;
+no Companion dependency), `CompanionCoreTestSupport` (Core + TestKit),
+`CompanionServicesTestSupport` and `CompanionUITestSupport` (each: its layer +
+CoreTestSupport + TestKit). A support target never carries `swiftSettings`, so
+UI's `defaultIsolation` does not leak into the fakes. `scripts/check-test-layers.sh`
+(run by Gate 3) enforces this: R1 no `@testable` outside `*Tests`; R2 import
+direction between test and support targets; R3 (on `dump-package`) support
+targets are regular, settings-free, depend only on what the table allows, no
+production target depends on them, and UI test targets have no resources; R4 no
+`@_exported import` (`CompanionTests` exempt until it disappears). Outside
+`CompanionTests` (until PR 4), imports of support modules are explicit in every
+file. `scripts/gates.sh` runs build (debug and release) + static checks +
+architecture checks + tests; it must be green before any merge. Two contracts are data, not prose: `conformance/ui-contract.json`
 (grid and projection rules over `Sources/CompanionUI`, a ratchet on old debt)
 and `conformance/hud-gates.json` (the HUD's auditor gates, each citing the
 tests that prove it; the runner fails when a cited test disappears).

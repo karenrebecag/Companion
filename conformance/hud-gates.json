@@ -1,5 +1,5 @@
 {
-  "$comment": "Libro de puertas del HUD (Wave 12d): relay-hud-spec/05 §10 y 00 §3, hechos ejecutables. Runner: hudGatesTests en Tests/CompanionTests/ConformanceTests.swift. Cada puerta cita los tests que la prueban (func <nombre>( en Tests/CompanionTests) y las reglas de ui-contract.json que la vigilan; una puerta sin ambos, o que cita un test que ya no existe, falla. Modelo Willison: el contrato es data, el runner es tonto.",
+  "$comment": "Libro de puertas del HUD (Wave 12d): relay-hud-spec/05 §10 y 00 §3, hechos ejecutables. Runner: hudGatesTests en Tests/CompanionUITests/ConformanceTests.swift. Cada puerta cita los tests que la prueban (func <nombre>( en cualquier carpeta de Tests/) y las reglas de ui-contract.json que la vigilan; una puerta sin ambos, o que cita un test que ya no existe, falla. Modelo Willison: el contrato es data, el runner es tonto.",
   "gates": [
     {
       "id": "hold-without-main",

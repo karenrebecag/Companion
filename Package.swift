@@ -72,6 +72,43 @@ let package = Package(
             path: "Tests/CompanionUITestSupport"
         ),
 
+        // One test target per layer; layer gates in scripts/check-test-layers.sh.
+        .testTarget(
+            name: "CompanionCoreTests",
+            dependencies: ["CompanionCore", "CompanionCoreTestSupport", "CompanionTestKit"],
+            path: "Tests/CompanionCoreTests"
+        ),
+
+        .testTarget(
+            name: "CompanionServicesTests",
+            dependencies: [
+                "CompanionCore", "CompanionServices", "CompanionServicesTestSupport",
+                "CompanionCoreTestSupport", "CompanionTestKit",
+            ],
+            path: "Tests/CompanionServicesTests"
+        ),
+
+        // No resources: a test target that declared them would get its own
+        // Bundle.module and shadow CompanionUI's in these tests.
+        .testTarget(
+            name: "CompanionUITests",
+            dependencies: [
+                "CompanionCore", "CompanionUI", "CompanionUITestSupport",
+                "CompanionCoreTestSupport", "CompanionTestKit",
+            ],
+            path: "Tests/CompanionUITests"
+        ),
+
+        .testTarget(
+            name: "CompanionIntegrationTests",
+            dependencies: [
+                "CompanionCore", "CompanionServices", "CompanionUI",
+                "CompanionTestKit", "CompanionCoreTestSupport",
+                "CompanionServicesTestSupport", "CompanionUITestSupport",
+            ],
+            path: "Tests/CompanionIntegrationTests"
+        ),
+
         .testTarget(
             name: "CompanionTests",
             dependencies: [

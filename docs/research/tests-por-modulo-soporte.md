@@ -191,3 +191,11 @@ Este brief se reusa para 21-tests C3a-C3d (targets de soporte `CompanionTestKit`
 mover helpers sin cambiar comportamiento, todo `package`, sin `@testable` ni
 swiftSettings en soporte. Un archivo transitorio `SupportImports.swift` con
 `@_exported import` evita tocar los imports de ~390 archivos hasta PR 3. El Estado no cambia.
+
+## Nota de reuso, PR 3 (2026-09-30)
+
+Este brief se reusa para 21-tests C4-C8 (movimiento de los tests no-voz a
+`CompanionCoreTests`, `CompanionServicesTests`, `CompanionUITests` y
+`CompanionIntegrationTests`; regla R4 contra `@_exported import` y R3 extendida a los
+cuatro targets de soporte). Solo `git mv` y imports explicitos; el lote de voz y
+`SupportImports.swift` se quedan en `CompanionTests` hasta PR 4. El Estado no cambia.
