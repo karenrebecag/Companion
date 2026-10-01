@@ -8,11 +8,12 @@
 #     set; no non-test target depends on a support or test target; no
 #     product lists a support or test target, or a target the manifest lacks
 #     (a missing/malformed `products` fails; an empty list passes); every
-#     Tests/ folder with Swift files has a manifest target; no CompanionTests
-#     target (the transitional one is retired); every layer-table target is
-#     in the manifest. A target named *TestSupport, CompanionTestKit, or any
-#     non-test target whose normalised path is under Tests/ (any case),
-#     counts as support and must have a layer-table entry.
+#     Tests/ folder with Swift files has a manifest target, and no Swift file
+#     sits directly under Tests/; no CompanionTests target (the transitional
+#     one is retired); every layer-table target is in the manifest. A target
+#     named *TestSupport, CompanionTestKit, or any non-test target whose
+#     normalised path is under Tests/ (any case), counts as support and must
+#     have a layer-table entry.
 # R4: no @_exported import anywhere under Tests/.
 # Fails closed: a find/grep/parse error is a failure, never a silent pass.
 # Bash 3.2, system tools only.
@@ -112,6 +113,11 @@ if [ -n "$MANIFEST" ]; then
         if [ -n "$(find "$d" -name '*.swift' -print -quit 2>/dev/null)" ]; then
             present="$present $(basename "$d")"
         fi
+    done
+    # A file directly under Tests/ belongs to no target folder: SwiftPM
+    # ignores it and its tests never run.
+    for f in "$ROOT"/Tests/*.swift; do
+        [ -f "$f" ] && note_fail R3 "Tests/$(basename "$f") is outside every target folder; its tests never run"
     done
     if [ ! -f "$MANIFEST" ]; then
         note_fail error "manifest not found: $MANIFEST"
