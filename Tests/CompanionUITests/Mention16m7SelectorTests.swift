@@ -30,6 +30,11 @@ private final class FakeContacts: ContactsProviding, @unchecked Sendable {
 
     func holdDialog() { lock.withLock { holding = true } }
 
+    /// True once `requestAccess` is parked on the held dialog: the state a
+    /// test needs, not the rows that usually arrive around the same time.
+    /// False again once answered, so it only reads before `answerDialog`.
+    var isAsking: Bool { lock.withLock { dialog != nil } }
+
     func answerDialog() {
         let waiting = lock.withLock { () -> CheckedContinuation<Void, Never>? in
             holding = false
@@ -274,7 +279,12 @@ private let phone = MentionChannel(kind: .phone, label: nil, value: "+52 55 0000
     var picks: [MentionPick] = []
     selector.onPick = { picks.append($0) }
     selector.update(draft: "hola @a")
-    await pumpUntil("16m-7 review: apps y archivos ya están") { selector.rows.count == 2 }
+    // Nothing orders the contacts child of the task group before apps and
+    // files publish (docs/research/tests-orden-no-prometido.md), so two rows
+    // do not mean the dialog is up yet: wait for the dialog itself.
+    await pumpUntil("16m-7 review: apps y archivos ya están, con el diálogo abierto") {
+        contacts.isAsking && selector.rows.count == 2
+    }
     expect(selector.isRequestingAccess, "16m-7 review: el diálogo sigue abierto")
     expect(selector.press(.down), "16m-7 review: flecha abajo")
     expect(selector.press(.tab), "16m-7 review: Tab elige lo resaltado")
@@ -346,8 +356,9 @@ private let phone = MentionChannel(kind: .phone, label: nil, value: "+52 55 0000
     let selector = model(contacts, apps: [], files: [])
     selector.update(draft: "@a")
     // The dialog is only held once the first search is asking; answering before
-    // that would make the second key race an already-closed dialog.
-    await pumpUntil("16m-7 review: el diálogo está abierto") { selector.isRequestingAccess }
+    // that would make the second key race an already-closed dialog. The flag
+    // goes up before the request parks, so wait for the parked request too.
+    await pumpUntil("16m-7 review: el diálogo está abierto") { contacts.isAsking && selector.isRequestingAccess }
     selector.update(draft: "@an")
     contacts.answerDialog()
     await pumpUntil("16m-7 review: tras conceder, los contactos aparecen para la última consulta") { selector.rows.map(\.title) == ["Ana García"] }
