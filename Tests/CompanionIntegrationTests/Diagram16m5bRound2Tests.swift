@@ -461,8 +461,10 @@ private final class GatedRenderer: DiagramRendering {
             renderer.timeout = .seconds(30)
             let next = await renderer.render(DiagramBlock(source: flow), width: width)
             expect(isImage(next), "16m-5b r2: el siguiente de la cola termina: \(next)")
-            do { try await Task.sleep(for: .seconds(1)) } catch {}
-            expect(weakView == nil, "16m-5b r2: el web view colgado se soltó tras el timeout")
+            // The page is freed when WebKit fails the hung script, and it does
+            // so when JS garbage collection reaches it, on no fixed schedule:
+            // docs/research/diagram-page-liberacion.md.
+            await pumpUntil("16m-5b r2: el web view colgado se soltó tras el timeout") { weakView == nil }
 
             // A cancelled caller frees a hung page too.
             let long = testRenderer(script: fakeMermaid())
