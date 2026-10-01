@@ -1,8 +1,10 @@
 # Reference Brief: velocidad de voz por conversacion ("habla mas rapido / mas lento")
 
-Slug: velocidad-de-voz-por-conversacion | Nivel: quick | Fecha: 2026-10-01 | Estado: ESCALADO
+Slug: velocidad-de-voz-por-conversacion | Nivel: quick | Fecha: 2026-10-01 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-01 ESCALATE
+
+Decision de Karen (2026-10-01): opcion (c), tool `set_speech_speed` mas instruccion de ritmo; "conversacion" = una sesion de voz (de start() a hangUp()), la siguiente arranca en la base; al cambiar, una frase corta dicha ya a la nueva velocidad; R8 de ajuste-en-la-isla NO cubre este valor en memoria (no es un ajuste guardado) y asi queda escrito; la verificacion en vivo de gpt-realtime/marin se hace dentro del spec. Implementacion por spec supervisado por el orquestador. [KAREN:chat 2026-10-01 via orquestador]
 
 ## 1. Pregunta y decisiones abiertas
 
