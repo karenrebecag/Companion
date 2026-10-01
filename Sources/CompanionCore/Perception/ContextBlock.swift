@@ -23,6 +23,7 @@ package enum ContextBlock {
         package static let pointed = PointerTrace.maxItems
         package static let pointedText = 80
         package static let block = 1_600
+        package static let replyCut = 400
     }
 
     /// Island events are never a degrade target: the turn acknowledges every
@@ -143,6 +144,9 @@ package enum ContextBlock {
         if ctx.interrupted {
             lines.append("<steer>\(escape(steerNote(language)))</steer>")
         }
+        if let said = ctx.replyCutAfter, !said.isEmpty {
+            lines.append("<reply_cut>\(replyCutNote(said, language))</reply_cut>")
+        }
         if let hint = replyHint(ctx.source, language: language) {
             lines.append("<how_to_reply>\(hint)</how_to_reply>")
         }
@@ -203,6 +207,50 @@ package enum ContextBlock {
             return "The user cut your previous reply short to correct course. "
                 + "Do not repeat it; pick up from what they say now."
         }
+    }
+
+    /// A network cut, not the user: the model may be asked to go on, and
+    /// must do it without saying again what already reached the user. The
+    /// tail is what a continuation needs, so that is what survives the cap.
+    private static func replyCutNote(_ said: String, _ language: AppLanguage) -> String {
+        let tail = escapedTail(flatten(said), budget: Caps.replyCut)
+        switch language {
+        case .es:
+            return "Tu respuesta anterior se cortó por la red después de: \"\(tail)\". "
+                + "Si te piden seguir, continúa desde ahí sin repetir lo anterior."
+        case .en:
+            return "Your previous reply was cut off by the network after: \"\(tail)\". "
+                + "If asked to continue, continue from there without repeating it."
+        }
+    }
+
+    /// The last `budget` scalars AFTER escaping (a run of `<` costs four
+    /// each; the block cap counts scalars, not graphemes). Escaping works on
+    /// scalars, so a `<`, `&` or `"` glued to a combining mark or a joiner
+    /// is still caught; the walk keeps whole graphemes, so neither an entity
+    /// nor an emoji sequence is split. Quotes become apostrophes: the partial
+    /// is quoted in the note and must not be able to close the quote.
+    private static func escapedTail(_ text: String, budget: Int) -> String {
+        var kept: [String] = []
+        var used = 0
+        var cut = false
+        for character in text.reversed() {
+            var piece = ""
+            for scalar in character.unicodeScalars {
+                switch scalar {
+                case "&": piece += "&amp;"
+                case "<": piece += "&lt;"
+                case ">": piece += "&gt;"
+                case "\"": piece += "'"
+                default: piece.unicodeScalars.append(scalar)
+                }
+            }
+            let cost = piece.unicodeScalars.count
+            if used + cost > budget { cut = true; break }
+            used += cost
+            kept.append(piece)
+        }
+        return (cut ? "…" : "") + kept.reversed().joined()
     }
 
     private static func frame(_ language: AppLanguage) -> String {

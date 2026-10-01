@@ -294,7 +294,7 @@ package struct SpeechFilter: Sendable, Equatable {
 
     private static let markTags = [
         "context", "now", "focused_app", "open_documents", "clipboard", "screen_summary",
-        "screen_snippets", "pointed_while_speaking", "at", "steer", "how_to_reply",
+        "screen_snippets", "pointed_while_speaking", "at", "steer", "reply_cut", "how_to_reply",
         "time_since_last_interaction", "active_knowledge", "active_skills",
     ]
     /// About one sentence: how long an element may stay open, holding what

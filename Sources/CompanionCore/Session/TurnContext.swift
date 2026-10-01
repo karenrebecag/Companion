@@ -45,6 +45,9 @@ package struct TurnContext: Sendable, Equatable {
     /// `.thinking`/`.speaking`). Rendered as `<steer>`, our own prose — never
     /// the model's words repeated back to it.
     package var interrupted: Bool
+    /// What the model had said when the network cut its reply. Unlike
+    /// `interrupted`, nobody cut it: it must not be told the user did.
+    package var replyCutAfter: String?
     /// Wave 16o-3: what the cursor rested on while the user spoke.
     package var pointed: [PointedElement]
     /// Wave 16h-3: the window in front of the app in front, and the city the
@@ -69,6 +72,7 @@ package struct TurnContext: Sendable, Equatable {
         screenPending: Bool = false,
         screenStale: Bool = false,
         interrupted: Bool = false,
+        replyCutAfter: String? = nil,
         pointed: [PointedElement] = [],
         focusedWindow: String? = nil,
         location: UserLocation? = nil,
@@ -86,6 +90,7 @@ package struct TurnContext: Sendable, Equatable {
         self.screenPending = screenPending
         self.screenStale = screenStale
         self.interrupted = interrupted
+        self.replyCutAfter = replyCutAfter
         self.pointed = pointed
         self.focusedWindow = focusedWindow
         self.location = location
