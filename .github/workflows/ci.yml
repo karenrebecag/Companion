@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+# PR: a new commit cancels the superseded run. Push to main falls back to
+# run_id, so main runs never share a group and are never cancelled or
+# replaced: tsan counts clean main runs before it becomes required
+# (docs/specs/tsan-gate.md).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   gates:
     # The compliance suite is the contract: build, static checks, layer rules
@@ -14,7 +22,7 @@ jobs:
     # build died before running a single gate (20 red runs, same cause).
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Show toolchain
         run: swift --version
       - name: Run gates
@@ -31,7 +39,7 @@ jobs:
     timeout-minutes: 45
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Show toolchain
         run: swift --version
       - name: Run ThreadSanitizer
