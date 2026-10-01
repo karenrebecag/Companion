@@ -45,6 +45,8 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   viñetas en vez de asteriscos; solo los enlaces web se abren.
 
 ### Changed
+- **El README abre con el nombre en arte ASCII (2026-10-01).** "COMPANION" en la tipografía
+  ANSI Shadow, con el marco del OG image de ASCII Motion, sobre el título.
 - **CI corre ThreadSanitizer sobre toda la suite (2026-09-30).** Un job `tsan` aparte busca
   carreras de datos en cada PR; fue la única herramienta que destapó las del puente y del modo
   clásico. Por ahora es informativo: un aviso lo pone en rojo sin bloquear el merge, y pasa a
