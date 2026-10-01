@@ -124,7 +124,10 @@ private func isImage(_ outcome: DiagramOutcome) -> Bool { if case .image = outco
         let started = ContinuousClock.now
         _ = await running.value
         expect(ContinuousClock.now - started < .seconds(2), "16m-5b r2: cancelar suelta al que espera enseguida")
-        expectEq(probe.cancelledSeen, 1, "16m-5b r2: la cancelación llega al dibujo en curso")
+        // DiagramTimeout.Race.finish resumes the caller as it cancels the work, so the
+        // draw notices on a later main-actor turn. A draw that is never cancelled
+        // ends its 20 s sleep without throwing, so the count stays 0 and this fails.
+        await pumpUntil("16m-5b r2: la cancelación llega al dibujo en curso") { probe.cancelledSeen == 1 }
         probe.delay = .milliseconds(20)
         let next = await scheduler.render(block("C --> D"), width: 504)
         expect(isImage(next), "16m-5b r2: la cola no se quedó ocupada 20 s")
