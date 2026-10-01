@@ -56,7 +56,7 @@ waves anteriores realmente produjeron:
 
 ### 4. Cierre
 
-- Entrada en `CHANGELOG.md` (que cambio y por que importa al usuario).
+- Un fragmento en `changelog.d/` por PR (ver `changelog.d/README.md`: que cambio y por que importa al usuario), ensamblado al cerrar la wave con `scripts/changelog-assemble.sh`.
 - `docs/ROADMAP.md` actualizado (estado de la wave, siguiente foco).
 - Spec marcado CERRADO con fecha; desviaciones documentadas.
 - Resumen a Karen y stop. La wave siguiente NO arranca sola.

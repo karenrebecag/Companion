@@ -12,6 +12,19 @@ fail()    { echo "FAIL  $1"; fails=$((fails + 1)); }
 warn()    { echo "warn  $1"; warns=$((warns + 1)); }
 section() { echo; echo "== $1"; }
 
+# ------------------------------------------------------------ Gate 0: fragmento
+# Es un diff de git: si falla se sale aqui mismo, sin gastar 10 min de build en macOS.
+section "Gate 0 — fragmento de changelog"
+if frag_out=$(bash "$ROOT/scripts/check-changelog-fragment.sh" 2>&1); then
+    echo "$frag_out"
+else
+    fail "fragmento de changelog:"
+    echo "$frag_out"
+    echo
+    echo "$fails fallos, $warns avisos (gates 1-4 no corrieron)"
+    exit 1
+fi
+
 # ---------------------------------------------------------------- Gate 1: build
 section "Gate 1 — build"
 if (cd "$ROOT" && swift build 2>&1 | tail -5 | grep -q "Build complete"); then

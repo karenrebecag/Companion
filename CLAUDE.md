@@ -15,7 +15,7 @@ referencia `../companion` (solo lectura: se consulta, jamas se edita).
 | `docs/ARCHITECTURE.md` | Patron: capas, puertos, reducer, concurrencia | Antes de disenar cualquier API |
 | `docs/REFERENCE.md` | Ledger de cicatrices del original (archivo:linea) | Antes de portar CUALQUIER comportamiento |
 | `docs/DECISIONS.md` | ADRs (001: desacople de Hermes) | Antes de agregar dependencias o tools |
-| `CHANGELOG.md` | Una entrada por wave cerrada | Al cerrar una wave |
+| `changelog.d/` | Un fragmento por PR (ver `changelog.d/README.md`); se ensambla en `CHANGELOG.md` con `scripts/changelog-assemble.sh` | En cada PR; el ensamblado al cerrar una wave |
 
 ## Reglas de oro
 
