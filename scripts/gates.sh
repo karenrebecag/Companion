@@ -123,16 +123,18 @@ check_imports CompanionUI       "AVFoundation|WebKit" \
 # Capas de los targets de test: sin @testable en soporte, imports en una sola
 # direccion, sin resources/defaultIsolation donde no toca. Falla cerrado.
 manifest_tmp=$(mktemp "${TMPDIR:-/tmp}/companion-manifest.XXXXXX")
+describe_tmp=$(mktemp "${TMPDIR:-/tmp}/companion-describe.XXXXXX")
 # One EXIT trap for every temp file: a second `trap ... EXIT` replaces the
 # first instead of adding to it. Gate 4 writes the test output here.
 test_out_tmp=$(mktemp "${TMPDIR:-/tmp}/companion-test-out.XXXXXX")
-trap 'rm -f "$manifest_tmp" "$test_out_tmp"' EXIT
+trap 'rm -f "$manifest_tmp" "$describe_tmp" "$test_out_tmp"' EXIT
 if (cd "$ROOT" && swift package dump-package > "$manifest_tmp" 2>/dev/null) \
-        && layer_out=$(bash "$ROOT/scripts/check-test-layers.sh" "$ROOT" "$manifest_tmp" 2>&1); then
-    pass "capas de test: sin @testable en soporte, imports y manifiesto en regla"
+        && (cd "$ROOT" && swift package describe --type json > "$describe_tmp" 2>/dev/null) \
+        && layer_out=$(bash "$ROOT/scripts/check-test-layers.sh" "$ROOT" "$manifest_tmp" "$describe_tmp" 2>&1); then
+    pass "capas de test: sin @testable en soporte, imports, manifiesto y fuentes en regla"
 else
     fail "capas de test:"
-    echo "${layer_out:-no se pudo leer swift package dump-package}"
+    echo "${layer_out:-no se pudo leer swift package dump-package o swift package describe}"
 fi
 
 # Revision 16h-2 ronda 3: la proyeccion de sesion tiene un solo escritor, el

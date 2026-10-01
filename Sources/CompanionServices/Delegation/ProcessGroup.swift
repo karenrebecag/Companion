@@ -262,6 +262,15 @@ extension ProcessGroupRunner {
         }
         let stdin = Pipe()
         let stdout = Pipe()
+        // A child that exits between turns leaves this pipe without a reader,
+        // and the app never ignores SIGPIPE (AppKit keeps SIG_DFL): the next
+        // turn's write would kill the app instead of throwing the error the
+        // executor retries on. Per fd, so children keep the default signal.
+        guard Darwin.fcntl(stdin.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) == 0 else {
+            registry.release()
+            Log.app("process: could not protect \(executable) stdin from SIGPIPE")
+            return nil
+        }
         let pid: pid_t
         do {
             pid = try spawn(

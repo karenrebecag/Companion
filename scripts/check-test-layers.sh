@@ -1,5 +1,8 @@
 #!/bin/bash
-# Test-layer gate. Usage: check-test-layers.sh <root> [dump-package.json]
+# Test-layer gate. Usage:
+#   check-test-layers.sh <root> [dump-package.json] [describe.json]
+# describe.json is `swift package describe --type json`: with it, R3 also
+# fails on any .swift under Tests/ that no target compiles.
 # R1: no @testable import in Tests/<dir> unless <dir> ends in "Tests".
 # R2: import direction between test/support targets (see FORBIDDEN below).
 # R3: (with a manifest) UI test targets carry no resources; the four support
@@ -25,6 +28,7 @@ set -u
 
 ROOT="${1:-}"
 MANIFEST="${2:-}"
+DESCRIBE="${3:-}"
 fails=0
 note_fail() { echo "FAIL [$1] $2"; fails=$((fails + 1)); }
 
@@ -258,6 +262,45 @@ sys.exit(bad)
 PY
         ); rc=$?
         [ -n "$r3" ] && echo "$r3"
+        [ $rc -ne 0 ] && fails=$((fails + 1))
+    fi
+    # WHY describe and not the manifest: exclude:, sources: and path: follow
+    # SwiftPM rules (sources: [] means all, dot names skipped, exact-path
+    # excludes) that a copy here would drift from; describe reports what
+    # SwiftPM resolved. Loose files are named above, so they are not repeated.
+    if [ -n "$DESCRIBE" ]; then
+        owned=$(python3 - "$DESCRIBE" "$ROOT" <<'PY'
+import json, os, posixpath, sys
+try:
+    described = json.load(open(sys.argv[1]))
+    owned = set()
+    for t in described["targets"]:
+        base = posixpath.normpath(t["path"])
+        for s in t.get("sources", []):
+            owned.add(posixpath.normpath(posixpath.join(base, s)))
+except Exception as e:
+    print("FAIL [error] swift package describe output unreadable: %r" % (e,))
+    sys.exit(2)
+root = sys.argv[2]
+def walk_error(e):
+    raise e
+bad = 0
+# HACK: os.walk does not enter symlinked folders, so a .swift behind one is
+# never checked. Follow links once Tests/ holds any symlinked folder.
+try:
+    for d, _, files in os.walk(os.path.join(root, "Tests"), onerror=walk_error):
+        for f in sorted(files):
+            rel = posixpath.relpath(os.path.join(d, f), root)
+            if f.endswith(".swift") and posixpath.dirname(rel) != "Tests" and rel not in owned:
+                print("FAIL [R3] %s is compiled by no target (exclude:, sources: or path: leave it out); its tests never run" % rel)
+                bad = 1
+except OSError as e:
+    print("FAIL [error] cannot walk Tests/: %s" % e)
+    sys.exit(2)
+sys.exit(bad)
+PY
+        ); rc=$?
+        [ -n "$owned" ] && echo "$owned"
         [ $rc -ne 0 ] && fails=$((fails + 1))
     fi
 fi

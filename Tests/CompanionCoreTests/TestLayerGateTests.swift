@@ -777,3 +777,8 @@ func layerGateFailsClosedOnMalformedProducts(json: String) throws {
     expect(result.status != 0 && result.output.contains("CompanionIntegrationTests is missing"),
            "R3: a layer test target dropped from the manifest: \(result.output)")
 }
+
+// The source-ownership cases live in TestLayerGateSourcesTests; this file is near its size cap.
+func layerGateFixture(_ files: [String: String]) throws -> URL { try fixture(files) }
+func layerGateCleanManifest(_ root: URL) throws -> URL { try manifestFile(root) }
+let layerGateScript = layerScript
