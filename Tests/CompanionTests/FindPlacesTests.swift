@@ -11,11 +11,6 @@ import Testing
     testItIsSafeSoLookingUpAPlaceCostsNoClick()
 }
 
-struct FakePlaces: PlacesSearching {
-    var found: [FoundPlace]
-    func search(_ query: String, near: String?) async -> [FoundPlace] { found }
-}
-
 private let soumaya = FoundPlace(
     name: "Museo Soumaya", address: "Blvd. Miguel de Cervantes Saavedra 303",
     lat: 19.4406, lng: -99.2047)

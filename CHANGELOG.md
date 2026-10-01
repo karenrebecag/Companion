@@ -280,6 +280,7 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ### Changed
 - Los gates comprueban el build de release y que los tests respeten las capas (2026-09-30).
+- Los fakes y helpers compartidos de los tests viven en cuatro targets de soporte, uno por capa (2026-09-30).
 - `JobTimeline` vive en Core (la proyección lo lleva). `ChatViewModel.job` y
   `pendingApproval` son lecturas de `session.projection`; `approvalQueue` y
   `jobHasApprovedAction` desaparecen. Negar el primer paso o pulsar Stop

@@ -90,22 +90,6 @@ import Testing
 
 // MARK: - Harness
 
-/// Controllable clock for `ChatViewModel`'s injected `now`: the rollover
-/// window is measured against it, never wall time, so a test can cross the
-/// idle limit without sleeping.
-final class RolloverClock: @unchecked Sendable {
-    private let lock = NSLock()
-    private var current: Date
-    init(_ start: Date) { self.current = start }
-    var date: Date {
-        lock.lock(); defer { lock.unlock() }
-        return current
-    }
-    func advance(by seconds: TimeInterval) {
-        lock.lock(); current = current.addingTimeInterval(seconds); lock.unlock()
-    }
-}
-
 @MainActor func rolloverPrimed(
     chat: FakeChatProvider = FakeChatProvider(),
     store: MemoryConversationStore = MemoryConversationStore(),

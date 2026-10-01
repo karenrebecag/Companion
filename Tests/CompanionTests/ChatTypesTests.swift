@@ -138,25 +138,6 @@ import Testing
     expectEq(many.messages[199].text, "m199", "record: el último no se recorta")
 }
 
-/// In-memory SecretStore for the harness. Production lives in Services.
-final class MemorySecretStore: SecretStore, @unchecked Sendable {
-    private var values: [String: String] = [:]
-
-    func read(_ key: SecretKey) throws -> String? {
-        values[key.rawValue]
-    }
-
-    func write(_ key: SecretKey, value: String) throws {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { throw SecretStoreError.emptyValue }
-        values[key.rawValue] = trimmed
-    }
-
-    func delete(_ key: SecretKey) throws {
-        values.removeValue(forKey: key.rawValue)
-    }
-}
-
 @MainActor func testMemorySecretStore() {
     let store: any SecretStore = MemorySecretStore()
 
@@ -271,24 +252,6 @@ func waitAsync<T: Sendable>(
     case .success(let value): return value
     case .failure(let error): throw error
     case nil: throw CancellationError()
-    }
-}
-
-final class MemoryConversationStore: ConversationStoring, @unchecked Sendable {
-    private var records: [String: ConversationRecord] = [:]
-
-    func list() throws -> [ConversationMeta] {
-        records.values.map {
-            ConversationMeta(id: $0.id, title: $0.title, updatedAt: $0.updatedAt)
-        }
-    }
-
-    func save(_ record: ConversationRecord) throws {
-        records[record.id] = record
-    }
-
-    func load(_ id: String) throws -> ConversationRecord? {
-        records[id]
     }
 }
 

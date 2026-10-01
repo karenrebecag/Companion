@@ -245,26 +245,6 @@ actor TestApprovals: ApprovalsProvider {
     }
 }
 
-actor DenyingApprovals: ApprovalsProvider {
-    func request(_ approval: ApprovalRequest) async -> ApprovalResponse {
-        ApprovalResponse(requestId: approval.requestId, approved: false)
-    }
-
-    func resolve(requestId: String, approved: Bool) async -> Bool {
-        true
-    }
-}
-
-actor ApprovingApprovals: ApprovalsProvider {
-    func request(_ approval: ApprovalRequest) async -> ApprovalResponse {
-        ApprovalResponse(requestId: approval.requestId, approved: true)
-    }
-
-    func resolve(requestId: String, approved: Bool) async -> Bool {
-        true
-    }
-}
-
 // MARK: - Requisitos de seguridad del spec (adversarial, cancelación, protocolo)
 
 @Test @MainActor func nativeExecutorSecurityTests() async {
@@ -467,7 +447,6 @@ private final class RepeatingToolProvider: ChatProvider, @unchecked Sendable {
 
     func verify(_ key: String, provider: ProviderDescriptor) async throws {}
 }
-
 
 // MARK: - Wave 10c: N calls por ronda, deduplicadas, con argumentos reparados
 

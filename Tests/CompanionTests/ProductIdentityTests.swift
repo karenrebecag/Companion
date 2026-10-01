@@ -59,8 +59,3 @@ import Testing
                "script: bundle.sh asigna \(identity.logFileName)")
     }
 }
-
-/// Resolves through the repo markers, so it survives test files moving between folders.
-func repoPath(_ relative: String) -> String {
-    (Conformance.repoRoot()?.appendingPathComponent(relative).path) ?? relative
-}

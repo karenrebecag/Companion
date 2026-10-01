@@ -5,14 +5,6 @@ import Testing
 // DM1a. The composer copies the choice it was given. A perfect provider
 // recovers every labeled action; a made-up id never becomes an argument.
 
-struct ScriptedDecision: DecisionProvider {
-    var body: @Sendable (DecisionQuestion) -> DecisionAnswer?
-
-    func answer(_ question: DecisionQuestion) async -> DecisionAnswer? {
-        body(question)
-    }
-}
-
 private struct OrdenFixture: Sendable {
     var id: String
     var texto: String

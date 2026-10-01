@@ -117,32 +117,6 @@ import Testing
              "cambio: reposo, no un turno fantasma")
 }
 
-/// Un reloj manual: `sleep` se queda parado hasta que el test lo suelta.
-final class ManualSleeper: @unchecked Sendable {
-    private let lock = NSLock()
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-    private var armedDelays: [TimeInterval] = []
-    var pending: Int { lock.withLock { waiters.count } }
-
-    /// How many waits of this length have registered. `SessionModel` starts its
-    /// timers as tasks that hop off the main actor, so `send` returning does not
-    /// mean the wait exists yet: `fire()` only wakes registered waiters, and a
-    /// fire that runs first is lost for good. Wait on this before firing.
-    func armed(_ seconds: TimeInterval) -> Int { lock.withLock { armedDelays.filter { $0 == seconds }.count } }
-
-    func sleep(_ seconds: TimeInterval) async throws {
-        await withCheckedContinuation { continuation in
-            lock.withLock { armedDelays.append(seconds); waiters.append(continuation) }
-        }
-        try Task.checkCancellation()
-    }
-
-    func fire() {
-        let all = lock.withLock { let w = waiters; waiters = []; return w }
-        for waiter in all { waiter.resume() }
-    }
-}
-
 private func request(_ id: String) -> ApprovalRequest {
     ApprovalRequest(requestId: id, toolName: "run_shell", summary: "ls", inputJSON: "{}")
 }

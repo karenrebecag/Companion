@@ -34,7 +34,6 @@ private func readLog(_ url: URL) -> String {
     }
 }
 
-
 /// Row 1: frames fed from the first one; `stop()` is the analyzer's final.
 @MainActor func testTheFinalCarriesWhatWasSaidFromTheFirstFrame() async {
     let engine = FakeTranscriberEngine()
@@ -304,44 +303,6 @@ final class FakeTranscriberRun: TranscriberEngineRun, @unchecked Sendable {
         cancelled = true
         finishGate?.open()
         box.finish()
-    }
-}
-
-/// Suspends callers of `wait()` until `open()`; `entered` tells a test the
-/// code under test reached the gate.
-final class TestGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var isOpen = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-    private var didEnter = false
-
-    var entered: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return didEnter
-    }
-
-    func wait() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            lock.lock()
-            didEnter = true
-            if isOpen {
-                lock.unlock()
-                continuation.resume()
-            } else {
-                waiters.append(continuation)
-                lock.unlock()
-            }
-        }
-    }
-
-    func open() {
-        lock.lock()
-        isOpen = true
-        let pending = waiters
-        waiters = []
-        lock.unlock()
-        pending.forEach { $0.resume() }
     }
 }
 

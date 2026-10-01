@@ -190,33 +190,3 @@ private func error(of body: () throws -> Any) -> ContractError? {
     }
 }
 
-/// `<root>/real/home` como HOME de prueba. `root` vive en el temp del
-/// sistema, que en macOS ya es un symlink (`/var` → `/private/var`), así que
-/// hasta el caso feliz ejercita la canonicalización.
-struct HomeFixture {
-    let root: URL
-    let home: URL
-    /// realpath(3), like the policy: Foundation's resolver drops `/private`.
-    var canonical: URL {
-        guard let real = realpath(home.path, nil) else { return home }
-        defer { free(real) }
-        return URL(fileURLWithPath: String(cString: real))
-    }
-
-    init() throws {
-        root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("parent-home-\(UUID().uuidString)")
-        home = root.appendingPathComponent("real/home")
-        try FileManager.default.createDirectory(
-            at: home, withIntermediateDirectories: true)
-    }
-
-    func mkdir(_ rel: String) throws {
-        try FileManager.default.createDirectory(
-            at: home.appendingPathComponent(rel), withIntermediateDirectories: true)
-    }
-
-    func touch(_ rel: String) throws {
-        try Data("x".utf8).write(to: home.appendingPathComponent(rel))
-    }
-}

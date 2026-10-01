@@ -69,10 +69,3 @@ import Testing
     expect(VoiceCopy.settingsLink(for: nil) == nil, "voz: sin fallo, sin enlace")
 }
 
-final class FakeAccessibility: AccessibilityChecking, @unchecked Sendable {
-    var trusted: Bool
-    private(set) var requests = 0
-    init(trusted: Bool) { self.trusted = trusted }
-    func isTrusted() -> Bool { trusted }
-    func request() -> Bool { requests += 1; return trusted }
-}
