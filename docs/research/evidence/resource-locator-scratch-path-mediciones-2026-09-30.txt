@@ -1,0 +1,97 @@
+Mediciones para docs/research/resource-locator-scratch-path.md, Mac local de desarrollo, 2026-09-30.
+Toolchain: Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101), Target: arm64-apple-macosx26.0 (swift --version).
+Todo lo de abajo se copio de la salida de los comandos de esta corrida. Rutas del scratchpad abreviadas como $S
+($S = /private/tmp/claude-501/-Users-karenrebecaog/e0b23f19-7f67-419b-a085-60649011cbf6/scratchpad, fuera del repo).
+
+== P. Paquete sonda desechable ($S/probe, fuera del repo; no se toco Sources/ ni Tests/ del proyecto) ==
+Package.swift: tools 6.2, macOS 26; target ProbeLib (resources: .copy("Res")), executableTarget ProbeApp, testTarget ProbeTests.
+ProbeLib/Report.swift imprime, desde una clase privada LibFinder DEFINIDA EN LA LIBRERIA (no en el test):
+  Bundle.main.bundleURL, Bundle.main.executableURL, Bundle(for: LibFinder.self).bundleURL/.executableURL,
+  dladdr(#dsohandle).dli_fname, Bundle.allBundles, CommandLine.arguments[0], Bundle.module.bundlePath.
+ProbeTests llama a probeReport desde un @Test (Swift Testing) y desde un XCTestCase.
+
+P1. swift test --jobs 6 (scratch por defecto .build)
+PROBE[xctest] main.bundleURL=/Applications/Xcode.app/Contents/Developer/usr/bin
+PROBE[xctest] main.executableURL=/Applications/Xcode.app/Contents/Developer/usr/bin/xctest
+PROBE[xctest] forClass.bundleURL=$S/probe/.build/arm64-apple-macosx/debug/ProbePackageTests.xctest
+PROBE[xctest] forClass.executableURL=$S/probe/.build/arm64-apple-macosx/debug/ProbePackageTests.xctest/Contents/MacOS/ProbePackageTests
+PROBE[xctest] dladdr(dsohandle)=$S/probe/.build/arm64-apple-macosx/debug/ProbePackageTests.xctest/Contents/MacOS/ProbePackageTests
+PROBE[xctest] allBundles=["/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib", "$S/probe/.build/arm64-apple-macosx/debug/ProbePackageTests.xctest", "/Applications/Xcode.app/Contents/Developer/usr/bin"]
+PROBE[xctest] module=$S/probe/.build/arm64-apple-macosx/debug/Probe_ProbeLib.bundle
+PROBE[swift-testing] main.bundleURL=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec/swift/pm
+PROBE[swift-testing] main.executableURL=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec/swift/pm/swiftpm-testing-helper
+PROBE[swift-testing] forClass.bundleURL=$S/probe/.build/arm64-apple-macosx/debug/ProbePackageTests.xctest
+PROBE[swift-testing] dladdr(dsohandle)=$S/probe/.build/arm64-apple-macosx/debug/ProbePackageTests.xctest/Contents/MacOS/ProbePackageTests
+PROBE[swift-testing] allBundles=["/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec/swift/pm", "$S/probe/.build/arm64-apple-macosx/debug/ProbePackageTests.xctest"]
+PROBE[swift-testing] module=$S/probe/.build/arm64-apple-macosx/debug/Probe_ProbeLib.bundle
+ls .build: debug -> arm64-apple-macosx/debug
+ls .build/arm64-apple-macosx/debug: Probe_ProbeLib.bundle, ProbePackageTests.xctest, ProbeApp (mismo directorio)
+
+P2. Accessor generado: $S/probe/.build/arm64-apple-macosx/debug/ProbeLib.build/DerivedSources/resource_bundle_accessor.swift
+5: let mainPath = Bundle.main.bundleURL.appendingPathComponent("Probe_ProbeLib.bundle").path
+6: let buildPath = "$S/probe/.build/arm64-apple-macosx/debug/Probe_ProbeLib.bundle"
+10: guard let bundle = preferredBundle ?? Bundle(path: buildPath) else {
+12: Swift.fatalError("could not load resource bundle: from \(mainPath) or \(buildPath)")
+
+P3. swift run --jobs 6 ProbeApp
+PROBE[run] main.bundleURL=$S/probe/.build/arm64-apple-macosx/debug
+PROBE[run] main.executableURL=$S/probe/.build/arm64-apple-macosx/debug/ProbeApp
+PROBE[run] forClass.bundleURL=$S/probe/.build/arm64-apple-macosx/debug
+PROBE[run] dladdr(dsohandle)=$S/probe/.build/arm64-apple-macosx/debug/ProbeApp
+PROBE[run] allBundles=["$S/probe/.build/arm64-apple-macosx/debug"]
+PROBE[run] module=$S/probe/.build/arm64-apple-macosx/debug/Probe_ProbeLib.bundle
+
+P4. swift test --jobs 6 --scratch-path ../probe-scratch --sanitize=thread
+PROBE[xctest] main.bundleURL=/Applications/Xcode.app/Contents/Developer/usr/bin
+PROBE[xctest] forClass.bundleURL=$S/probe-scratch/arm64-apple-macosx/debug/ProbePackageTests.xctest
+PROBE[xctest] module=$S/probe-scratch/arm64-apple-macosx/debug/Probe_ProbeLib.bundle
+PROBE[swift-testing] main.bundleURL=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec/swift/pm
+PROBE[swift-testing] forClass.bundleURL=$S/probe-scratch/arm64-apple-macosx/debug/ProbePackageTests.xctest
+PROBE[swift-testing] dladdr(dsohandle)=$S/probe-scratch/arm64-apple-macosx/debug/ProbePackageTests.xctest/Contents/MacOS/ProbePackageTests
+PROBE[swift-testing] allBundles=["$S/probe-scratch/arm64-apple-macosx/debug/ProbePackageTests.xctest", "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/libexec/swift/pm"]
+PROBE[swift-testing] module=$S/probe-scratch/arm64-apple-macosx/debug/Probe_ProbeLib.bundle
+ls ../probe-scratch: debug -> arm64-apple-macosx/debug; bin dir con Probe_ProbeLib.bundle y ProbePackageTests.xctest
+accessor bajo ese scratch, linea 6: let buildPath = "$S/probe-scratch/arm64-apple-macosx/debug/Probe_ProbeLib.bundle"
+Nota: el orden de Bundle.allBundles cambio entre P1 y P4 (no es estable).
+
+P5. swift build --jobs 6 --triple x86_64-apple-macosx26.0 (scratch por defecto)
+ls .build: arm64-apple-macosx, x86_64-apple-macosx, debug -> x86_64-apple-macosx/debug   (el symlink lo reescribe el ultimo build)
+accessor x86_64, linea 6: let buildPath = "$S/probe/.build/x86_64-apple-macosx/debug/Probe_ProbeLib.bundle"
+ls .build/x86_64-apple-macosx/debug: Probe_ProbeLib.bundle, ProbeApp
+swift build --show-bin-path                                  -> $S/probe/.build/arm64-apple-macosx/debug
+swift build --show-bin-path --triple x86_64-apple-macosx26.0 -> $S/probe/.build/x86_64-apple-macosx/debug
+swift build --show-bin-path --scratch-path ../probe-scratch  -> $S/probe-scratch/arm64-apple-macosx/debug
+
+== C. companion-next (este worktree, rama fix/resource-bundle-locator, HEAD 5ead31d) ==
+C1. swift build --jobs 6 -> Build complete! (18.27s)
+.build/arm64-apple-macosx/debug/CompanionUI.build/DerivedSources/resource_bundle_accessor.swift linea 6:
+  let buildPath = "/Users/karenrebecaog/Desktop/SoftwareDevProjects/companion-next-resource-locator/.build/arm64-apple-macosx/debug/Companion_CompanionUI.bundle"
+.build: debug -> arm64-apple-macosx/debug; bin dir con Companion_CompanionServices.bundle, Companion_CompanionUI.bundle, companion
+
+C2. En este worktree (con .build por defecto YA construido en C1):
+swift test --jobs 6 --scratch-path $S/cn-scratch --filter resourceBundle21cTests
+-> Test run with 1 test in 0 suites passed after 0.224 seconds.
+Lectura: el locator ve <checkout>/.build/debug/<bundle> (de C1), devuelve .swiftPMModule y el accessor resuelve su buildPath de $S/cn-scratch. Pasa por coincidencia.
+
+C3. Copia limpia del mismo HEAD sin .build (git archive HEAD | tar -x -C $S/cn-copy):
+swift test --jobs 6 --scratch-path $S/cn-copy-scratch --filter "resourceBundle21cTests|resourceProbe21cTests"
+✘ ResourceBundle21cTests.swift:154:11: Expectation failed: condition
+✘ ResourceBundle21cTests.swift:156:11: Expectation failed: condition
+✘ ResourceProbe21cTests.swift:103:13: Expectation failed: (got → ["bundle.ui", "lproj.en", "lproj.es", "font", "mascot"]) == (want → [])
+✘ ResourceProbe21cTests.swift:105:13: Expectation failed: (got → "missing") == (want → nil)
+✘ ResourceProbe21cTests.swift:120:13: Expectation failed: (got → ["bundle.services", "skills", "mermaid"]) == (want → [])
+✘ ResourceProbe21cTests.swift:122:13: Expectation failed: (got → "load failed: bundleMissing") == (want → "12")
+✘ ResourceProbe21cTests.swift:130:13: Expectation failed: (got → ["bundle.services", "skills", "mermaid", "browserExtension"]) == (want → ["browserExtension"])
+✘ ResourceProbe21cTests.swift:164:11: Expectation failed: condition
+✘ ResourceProbe21cTests.swift:167:11: Expectation failed: condition
+✘ Test run with 2 tests in 0 suites failed after 0.232 seconds with 9 issues.
+Sin trap: la suite termina y reporta; el locator devolvio nil.
+
+C4. Enlace del test bundle (bin dir de C3):
+ls: Companion_CompanionServices.bundle, Companion_CompanionUI.bundle, CompanionPackageTests.xctest; ningun .dylib
+nm CompanionPackageTests.xctest/Contents/MacOS/CompanionPackageTests | grep -c ResourceBundleLocator -> 15
+otool -L ... | grep -i companion -> solo la linea del propio binario (CompanionCore esta enlazado estatico dentro del .xctest)
+
+== Referencia externa (no medida aqui) ==
+../companion-next-tsan-gate/docs/research/evidence/tsan-gate-mediciones-2026-09-30.txt, bloque B:
+--scratch-path .build-plain sin sanitizer: 1529 tests, 555 issues (textos devueltos como claves).

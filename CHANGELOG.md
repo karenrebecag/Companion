@@ -6,6 +6,11 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 ## [Unreleased]
 
 ### Fixed
+- **Los tests encuentran los textos aunque se compile en otra carpeta (2026-09-30).** Con
+  `swift test --scratch-path` (el que usan los builds aislados y TSan) unos 555 tests veían
+  claves como `island.hands.stop` en vez del texto, porque los recursos solo se buscaban en el
+  `.build` por defecto. Ahora se buscan junto al bundle de tests cargado, y ya no queda ningún
+  camino que evalúe `Bundle.module`, el único que podía cerrar la app si faltaba un bundle.
 - **Si se corta la red mientras Companion habla, no pierdes lo que dijo (2026-09-30).**
   Lo que alcanzó a decir queda en el chat cuando termina de sonar, la voz vuelve a escucharte en
   vez de quedarse "hablando", y si dices "sigue" continúa donde se quedó sin repetir. Al

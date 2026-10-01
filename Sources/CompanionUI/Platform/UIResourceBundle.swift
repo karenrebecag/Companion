@@ -3,7 +3,7 @@ import Foundation
 import os
 
 /// CompanionUI's resource bundle (fonts, mascot, `.lproj`), or nil. Never
-/// read `Bundle.module` anywhere else: its generated accessor traps when the
+/// evaluate `Bundle.module`: its generated accessor traps when the
 /// bundle is missing (`ResourceBundleLocator` says why).
 nonisolated enum UIResourceBundle {
     /// SE-0271 calls the name implementation-defined; 21c's packaging probe
@@ -25,14 +25,13 @@ nonisolated enum UIResourceBundle {
     static func resolve(
         mainBundleURL: URL = Bundle.main.bundleURL,
         executableURL: URL? = Bundle.main.executableURL,
-        buildDirectory: URL? = ResourceBundleLocator.defaultBuildDirectory
+        codeBundleURL: URL? = ResourceBundleLocator.defaultCodeBundleURL
     ) -> Bundle? {
         switch ResourceBundleLocator.locate(
             bundleName: name, mainBundleURL: mainBundleURL, executableURL: executableURL,
-            buildDirectory: buildDirectory, isDirectory: ResourceBundleLocator.isDirectory)
+            codeBundleURL: codeBundleURL, isDirectory: ResourceBundleLocator.isDirectory)
         {
         case let .directory(url): Bundle(url: url)
-        case .swiftPMModule: Bundle.module
         case nil: nil
         }
     }

@@ -25,7 +25,6 @@ import Testing
     try testEmptyBundleDegradesAtEverySite()
     testFontsRegisterFromTheResolvedBundleResolvesAPostScriptName()
     try testLocalizedFallsBackToEnglishWhenOnlyEnExists()
-    try testDanglingBuildSymlinkResolvesToNil()
     testOnlyALowercaseAppExtensionCountsAsAnApp()
     testFontsReadOnlyTheResolvedBundle()
 }
@@ -181,29 +180,12 @@ private func check(_ name: String, _ passed: Bool) -> ResourceProbe.Check {
              "21c QA: sin es.lproj, cae al ingles antes que a la clave cruda")
 }
 
-/// LOW: `.build/debug` is a symlink into a triple folder; after a clean it dangles.
-@MainActor func testDanglingBuildSymlinkResolvesToNil() throws {
-    let root = try probeTempRoot("dangling")
-    defer { removeProbeTemp(root) }
-    let dotBuild = root.appendingPathComponent(".build")
-    try FileManager.default.createDirectory(at: dotBuild, withIntermediateDirectories: true)
-    let debug = dotBuild.appendingPathComponent("debug")
-    try FileManager.default.createSymbolicLink(
-        at: debug, withDestinationURL: dotBuild.appendingPathComponent("arm64-apple-macosx/debug"))
-    let fakeApp = root.appendingPathComponent("Companion.app")
-    let exe = fakeApp.appendingPathComponent("Contents/MacOS/Companion")
-    expect(UIResourceBundle.resolve(mainBundleURL: fakeApp, executableURL: exe, buildDirectory: debug) == nil,
-           "21c QA: .build/debug colgando = nil en UI, nunca Bundle.module")
-    expect(ServicesResourceBundle.resolve(mainBundleURL: fakeApp, executableURL: exe, buildDirectory: debug) == nil,
-           "21c QA: .build/debug colgando = nil en Services, nunca Bundle.module")
-}
-
 /// LOW, decision pinned: only `.app` (what bundle.sh writes) counts as an app.
 @MainActor func testOnlyALowercaseAppExtensionCountsAsAnApp() {
     let name = "Companion_CompanionUI.bundle"
     let upper = URL(fileURLWithPath: "/fake/Companion.APP")
     let found = ResourceBundleLocator.locate(
-        bundleName: name, mainBundleURL: upper, executableURL: nil, buildDirectory: nil,
+        bundleName: name, mainBundleURL: upper, executableURL: nil, codeBundleURL: nil,
         isDirectory: { $0.path == "/fake/Companion.APP/Contents/Resources/\(name)" })
     expectEq(found, nil, "21c QA: .APP no se trata como .app (bundle.sh siempre escribe .app)")
 }

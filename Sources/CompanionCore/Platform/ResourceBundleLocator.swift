@@ -4,9 +4,6 @@ import Foundation
 package enum ResourceBundleLocation: Equatable, Sendable {
     /// Open the bundle at this directory.
     case directory(URL)
-    /// Only the generated `Bundle.module` knows the path, and its build-path
-    /// candidate was seen on disk, so evaluating it cannot trap.
-    case swiftPMModule
 }
 
 /// The search order behind `UIResourceBundle` and `ServicesResourceBundle`.
@@ -17,14 +14,16 @@ package enum ResourceBundleLocation: Equatable, Sendable {
 /// ships the bundles in `Contents/Resources`, where that accessor never
 /// looks, so a packaged app on a Mac without this checkout trapped at launch.
 /// Same order CodexBar adopted after its 0.48.0 launch crash; see
-/// docs/research/recursos-empaquetados-bundle-module.md §4, §7.
+/// docs/research/recursos-empaquetados-bundle-module.md §4, §7. The accessor
+/// is never evaluated: the `.xctest` step covers `swift test` under any
+/// scratch path (docs/research/resource-locator-scratch-path.md).
 package enum ResourceBundleLocator {
     /// Pure: `isDirectory` is the only contact with the disk.
     package static func locate(
         bundleName: String,
         mainBundleURL: URL,
         executableURL: URL?,
-        buildDirectory: URL?,
+        codeBundleURL: URL?,
         isDirectory: (URL) -> Bool
     ) -> ResourceBundleLocation? {
         if mainBundleURL.pathExtension == "app" {
@@ -36,8 +35,11 @@ package enum ResourceBundleLocator {
             let beside = executableURL.deletingLastPathComponent().appendingPathComponent(bundleName)
             if isDirectory(beside) { return .directory(beside) }
         }
-        if let buildDirectory, isDirectory(buildDirectory.appendingPathComponent(bundleName)) {
-            return .swiftPMModule
+        // SwiftPM writes the resource bundles next to the .xctest in every scratch
+        // path, triple and sanitizer measured; a .app's parent would be foreign.
+        if let codeBundleURL, codeBundleURL.pathExtension == "xctest" {
+            let sibling = codeBundleURL.deletingLastPathComponent().appendingPathComponent(bundleName)
+            if isDirectory(sibling) { return .directory(sibling) }
         }
         return nil
     }
@@ -48,23 +50,10 @@ package enum ResourceBundleLocator {
             && directory.boolValue
     }
 
-    /// The directory the generated accessor falls back to: `.build/<config>`
-    /// of the checkout this file was compiled from (a symlink to the
-    /// triple-specific folder). Absent on any other Mac, which is the point.
-    /// HACK: assumes the default scratch path and no `--triple`. A build with
-    /// `--scratch-path` finds nothing here and degrades to nil (never a trap);
-    /// derive it from the build instead if such a build ever needs resources.
-    package static let defaultBuildDirectory: URL = {
-        let packageRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent() // Platform
-            .deletingLastPathComponent() // CompanionCore
-            .deletingLastPathComponent() // Sources
-            .deletingLastPathComponent()
-        #if DEBUG
-        let configuration = "debug"
-        #else
-        let configuration = "release"
-        #endif
-        return packageRoot.appendingPathComponent(".build/\(configuration)", isDirectory: true)
-    }()
+    /// The bundle that holds this module's code: the `.xctest` under
+    /// `swift test`, the `.app` when packaged. `Bundle.main` is the toolchain's
+    /// runner under test, so only a class defined here points at the real build.
+    package static let defaultCodeBundleURL: URL = Bundle(for: CodeBundleAnchor.self).bundleURL
 }
+
+private final class CodeBundleAnchor {}
