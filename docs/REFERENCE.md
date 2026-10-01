@@ -366,7 +366,7 @@ Descubiertas en prueba manual de Wave 3; ningun test las vio.
   tests que la prueban y reglas del contrato que la vigilan.
   `hudGatesTests` (en `ConformanceTests.swift`) comprueba que cada test
   citado corre (`Conformance.testRuns`: `func <nombre>(` en las líneas
-  lógicas de `Tests/CompanionTests`, con `@Test` o invocado desde otra
+  lógicas de `Tests/`, con `@Test` o invocado desde otra
   línea) y cada regla existe; no ejecuta nada, `swift test` ya lo hace.
   `testTheLedgerKeepsItsTenGates` fija los diez ids (`HUDGates.expected`).
   Una puerta nueva se añade con su test y en esa lista; un test que se

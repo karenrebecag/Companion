@@ -193,7 +193,7 @@ function fake({ tag, attrs = {}, text = '', value = '', ctx = '', execWorks = tr
 
 const SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/;
 
-// Shared fixture: keep identical to `sensitiveFixtures` in Tests/CompanionTests/BrowserPolicyTests.swift.
+// Shared fixture: keep identical to `sensitiveFixtures` in Tests/CompanionCoreTests/BrowserReviewTests.swift.
 const SENSITIVE_FIXTURES = [
   [{ type: 'text', autocomplete: 'cc-' }, true],
   [{ type: 'text', autocomplete: 'cc-number' }, true],

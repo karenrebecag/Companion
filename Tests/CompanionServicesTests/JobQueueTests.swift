@@ -1,0 +1,270 @@
+import CompanionCore
+@testable import CompanionServices
+import CompanionTestKit
+import Foundation
+import Testing
+
+@Test @MainActor func jobQueueTests() async {
+    await testResultReachesCaller()
+    await testSerialOneAtATime()
+    await testSilentJobStillTimesOut()
+    await testCancelCurrentStopsTheJob()
+    await testFailureDoesNotJamTheQueue()
+    await testEventsReachTheCaller()
+    await testAStopDuringTheHandoverKeepsTheNextJobFromRunning()
+}
+
+/// Review 16h-2 round 3 (MEDIUM): the turn is handed to B still busy, and B
+/// only runs once it gets back onto the actor. A stop landing in between saw
+/// no one in line and no work in flight, and B ran after the stop.
+@MainActor func testAStopDuringTheHandoverKeepsTheNextJobFromRunning() async {
+    let queue = JobQueue(budget: 5)
+    let executor = GateExecutor()
+    await queue.setAfterHandover { queue in queue.cancelAll() }
+    let first = Task { try await queue.submit(job("1"), to: executor, events: sinkIgnoring()) }
+    defer { first.cancel() }
+    await waitUntil("traspaso: A corre") { executor.started == ["1"] }
+    let second = Task { try await queue.submit(job("2"), to: executor, events: sinkIgnoring()) }
+    defer { first.cancel(); second.cancel() }
+    await waitUntilAsync("traspaso: B espera su turno") { await queue.waitingCount == 1 }
+    executor.open()
+    _ = try? await first.value
+    var failure: Error?
+    do { _ = try await second.value } catch { failure = error }
+    expectEq(executor.started, ["1"], "traspaso: B nunca arranca tras el stop")
+    expectEq(failure as? JobQueue.QueueError, .stoppedByUser, "traspaso: B sabe que lo pararon")
+    expect(!(await queue.isBusy), "traspaso: la cola queda libre")
+}
+
+/// The deadline is only how long a broken build takes to fail; conditions
+/// here are reached by events, not by time passing.
+@MainActor private func waitUntilAsync(
+    _ label: String, timeout: TimeInterval = 20, _ predicate: () async -> Bool
+) async {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !(await predicate()), Date() < deadline {
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+    expect(await predicate(), label)
+}
+
+/// The whole point of delegating: the answer must come back.
+@MainActor func testResultReachesCaller() async {
+    let queue = JobQueue(budget: 5)
+    let executor = ScriptedExecutor(output: "listo")
+    let (events, sink) = AsyncStream<JobEvent>.makeStream()
+    events.ignore()
+    let result = try? await queue.submit(job("1"), to: executor, events: sink)
+    expectEq(result?.output, "listo", "cola: el resultado del especialista vuelve")
+    expectEq(result?.isError, false, "cola: sin error")
+}
+
+/// The first job is held open rather than timed: a 40 ms sleep against a
+/// 150 ms job read "not busy" whenever a loaded machine ran late.
+@MainActor func testSerialOneAtATime() async {
+    let queue = JobQueue(budget: 60)
+    let executor = GateExecutor()
+    let first = Task { try? await queue.submit(job("1"), to: executor, events: sinkIgnoring()) }
+    defer { first.cancel() }
+    await waitUntil("cola: el primero corre") { executor.started == ["1"] }
+    let busyDuringFirst = await queue.isBusy
+    let second = Task { try? await queue.submit(job("2"), to: executor, events: sinkIgnoring()) }
+    defer { second.cancel() }
+    await waitUntilAsync("cola: el segundo espera su turno") { await queue.waitingCount == 1 }
+    executor.open()
+    _ = await (first.value, second.value)
+    expect(busyDuringFirst, "cola: marca ocupado mientras corre")
+    expectEq(executor.maxConcurrent, 1, "cola: nunca dos especialistas a la vez")
+    expectEq(executor.started, ["1", "2"], "cola: respeta el orden de llegada")
+}
+
+/// The bug this replaces: the old queue only checked the clock when an event
+/// arrived, so a hung executor waited forever.
+@MainActor func testSilentJobStillTimesOut() async {
+    let queue = JobQueue(budget: 0.05)
+    let executor = SilentExecutor()
+    var failure: Error?
+    do {
+        _ = try await queue.submit(job("1"), to: executor, events: sinkIgnoring())
+    } catch { failure = error }
+    expectEq(failure as? JobQueue.QueueError, .budgetExhausted,
+             "cola: un trabajo mudo también agota el presupuesto")
+    await waitUntil("cola: el trabajo se cancela al agotarse") {
+        executor.wasCancelled
+    }
+}
+
+@MainActor func testCancelCurrentStopsTheJob() async {
+    let queue = JobQueue(budget: 60)
+    let executor = SilentExecutor()
+    let attempt = Task { try? await queue.submit(job("1"), to: executor, events: sinkIgnoring()) }
+    defer { attempt.cancel() }
+    await waitUntil("cola: el trabajo ya corre") { executor.hasStarted }
+    await queue.cancelCurrent()
+    let result = await attempt.value
+    expect(result == nil, "cola: cancelar corta el trabajo en curso")
+    await waitUntil("cola: el ejecutor recibe la cancelación") {
+        executor.wasCancelled
+    }
+}
+
+@MainActor func testFailureDoesNotJamTheQueue() async {
+    let queue = JobQueue(budget: 5)
+    let failing = FailingExecutor()
+    _ = try? await queue.submit(job("1"), to: failing, events: sinkIgnoring())
+    let healthy = ScriptedExecutor(output: "segundo")
+    let result = try? await queue.submit(job("2"), to: healthy, events: sinkIgnoring())
+    expectEq(result?.output, "segundo", "cola: un fallo no atora la fila")
+    let busy = await queue.isBusy
+    expect(!busy, "cola: queda libre tras terminar")
+}
+
+@MainActor func testEventsReachTheCaller() async {
+    let queue = JobQueue(budget: 5)
+    let executor = ScriptedExecutor(output: "ok", emits: [
+        .stepStarted(tool: "read_file", summary: "leyendo"),
+        .stepFinished(tool: "read_file", ok: true),
+    ])
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    let seen = EventBox()
+    let collector = Task { for await event in stream { seen.append(event) } }
+    _ = try? await queue.submit(job("1"), to: executor, events: sink)
+    sink.finish()
+    _ = await collector.value
+    expectEq(seen.count, 2, "cola: los pasos llegan a quien observa")
+}
+
+/// Cancellation lands on another thread; poll instead of asserting instantly.
+/// As with `waitUntilAsync`, the deadline is only the failure path.
+@MainActor private func waitUntil(
+    _ label: String, timeout: TimeInterval = 20, _ predicate: () -> Bool
+) async {
+    let deadline = Date().addingTimeInterval(timeout)
+    while !predicate(), Date() < deadline {
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+    expect(predicate(), label)
+}
+
+// MARK: - Fakes
+
+private func job(_ id: String) -> JobRequest {
+    JobRequest(id: id, goal: "objetivo", context: "")
+}
+
+@MainActor private func sinkIgnoring() -> AsyncStream<JobEvent>.Continuation {
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    stream.ignore()
+    return sink
+}
+
+private final class EventBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [JobEvent] = []
+    func append(_ event: JobEvent) { lock.withLock { events.append(event) } }
+    var count: Int { lock.withLock { events.count } }
+}
+
+private final class ScriptedExecutor: Executor, @unchecked Sendable {
+    let descriptor = ExecutorCatalog.native
+    private let output: String
+    private let emits: [JobEvent]
+    private let lock = NSLock()
+    private var live = 0
+    private(set) var maxConcurrent = 0
+    private(set) var started: [String] = []
+
+    init(output: String, emits: [JobEvent] = []) {
+        self.output = output
+        self.emits = emits
+    }
+
+    func run(
+        _ job: JobRequest, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        lock.withLock {
+            live += 1
+            maxConcurrent = max(maxConcurrent, live)
+            started.append(job.id)
+        }
+        defer { lock.withLock { live -= 1 } }
+        for event in emits { events.yield(event) }
+        return JobResult(output: output, isError: false)
+    }
+}
+
+/// Job "1" waits for `open()`; every run is recorded under the lock.
+private final class GateExecutor: Executor, @unchecked Sendable {
+    let descriptor = ExecutorCatalog.native
+    private let lock = NSLock()
+    private var ids: [String] = []
+    private var gate: CheckedContinuation<Void, Never>?
+    private var opened = false
+    private var live = 0
+    private var peak = 0
+    var started: [String] { lock.withLock { ids } }
+    var maxConcurrent: Int { lock.withLock { peak } }
+
+    func open() {
+        let waiting = lock.withLock { () -> CheckedContinuation<Void, Never>? in
+            opened = true
+            defer { gate = nil }
+            return gate
+        }
+        waiting?.resume()
+    }
+
+    func run(
+        _ job: JobRequest, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        lock.withLock {
+            ids.append(job.id)
+            live += 1
+            peak = max(peak, live)
+        }
+        defer { lock.withLock { live -= 1 } }
+        if job.id == "1" {
+            await withCheckedContinuation { continuation in
+                let now = lock.withLock { () -> Bool in
+                    if opened { return true }
+                    gate = continuation
+                    return false
+                }
+                if now { continuation.resume() }
+            }
+        }
+        return JobResult(output: "ok", isError: false)
+    }
+}
+
+/// Never emits, never returns on its own: the shape that used to hang forever.
+private final class SilentExecutor: Executor, @unchecked Sendable {
+    let descriptor = ExecutorCatalog.native
+    private let lock = NSLock()
+    private var cancelled = false
+    private var started = false
+    var wasCancelled: Bool { lock.withLock { cancelled } }
+    var hasStarted: Bool { lock.withLock { started } }
+
+    func run(
+        _ job: JobRequest, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        lock.withLock { started = true }
+        do {
+            try await Task.sleep(for: .seconds(30))
+        } catch {
+            lock.withLock { cancelled = true }
+            throw error
+        }
+        return JobResult(output: "", isError: false)
+    }
+}
+
+private struct FailingExecutor: Executor {
+    let descriptor = ExecutorCatalog.native
+    func run(
+        _ job: JobRequest, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        throw ChatError.unreachable
+    }
+}
