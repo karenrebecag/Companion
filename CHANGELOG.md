@@ -63,14 +63,6 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 - **La voz también vive en el target de su capa (2026-10-01).** Los tests de voz pasan a Services
   e integración y el target de transición `CompanionTests` desaparece; los imports de soporte son
   explícitos en todos los archivos.
-- **Decidido como un agente prueba a Companion sin tocarse a si misma (2026-10-01).** Cinco
-  briefs de research: el puente puede mirar y consultar el estado de Companion pero no pulsarla,
-  solo con metadatos; cada aprobacion critica pedira Touch ID; un pedido de cambiar un ajuste
-  traera ese control a la isla; y la velocidad de voz sera por conversacion. Todavia no cambia la app.
-  La spec de la velocidad ya esta firmada: "habla mas rapido" vale hasta colgar, tambien entre
-  pulsaciones de FN, y nunca se guarda en Ajustes. Tambien quedan firmadas las specs de lo que
-  sigue: que un agente pueda revisar a Companion sin tocarla, Touch ID en cada aprobacion critica
-  (si no se puede verificar, nada critico se aprueba) y los ajustes que se cambian desde la isla.
 - **CI corre ThreadSanitizer sobre toda la suite (2026-09-30).** Un job `tsan` aparte busca
   carreras de datos en cada PR; fue la única herramienta que destapó las del puente y del modo
   clásico. Por ahora es informativo: un aviso lo pone en rojo sin bloquear el merge, y pasa a
