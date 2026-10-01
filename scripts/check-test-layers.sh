@@ -5,8 +5,9 @@
 # R3: (with a manifest) UI test targets carry no resources; the four support
 #     targets are regular, settings-free and depend only on what the layer
 #     table allows; the four layer test targets depend only on their own
-#     set; no non-test target depends on a support target; every Tests/ folder
-#     with Swift files has a manifest target.
+#     set; no non-test target depends on a support target; no product lists a
+#     support or test target (a missing/malformed `products` fails); every
+#     Tests/ folder with Swift files has a manifest target.
 # R4: no @_exported import in Tests/<dir> except Tests/CompanionTests.
 # Fails closed: a find/grep/parse error is a failure, never a silent pass.
 # Bash 3.2, system tools only.
@@ -122,7 +123,8 @@ if [ -n "$MANIFEST" ]; then
         r3=$(python3 - "$MANIFEST" $present <<'PY'
 import json, sys
 try:
-    targets = {t["name"]: t for t in json.load(open(sys.argv[1]))["targets"]}
+    manifest = json.load(open(sys.argv[1]))
+    targets = {t["name"]: t for t in manifest["targets"]}
 except Exception as e:
     print("FAIL [error] manifest unreadable: %s" % e)
     sys.exit(2)
@@ -198,6 +200,25 @@ for name, t in sorted(targets.items()):
     for dep in sorted(deps(t) & SUPPORT):
         print("FAIL [R3] production target %s depends on %s" % (name, dep))
         bad = 1
+
+# Products: test code must not ship. A missing or malformed `products` is a
+# failure, never a skip.
+products = manifest.get("products")
+if not isinstance(products, list):
+    print("FAIL [R3] manifest products missing or not a list")
+    bad = 1
+else:
+    for p in products:
+        listed = p.get("targets") if isinstance(p, dict) else None
+        if (not isinstance(p, dict) or not isinstance(p.get("name"), str)
+                or not isinstance(listed, list) or not all(isinstance(x, str) for x in listed)):
+            print("FAIL [R3] malformed product entry: %r" % (p,))
+            bad = 1
+            continue
+        for tname in sorted(listed):
+            if tname in SUPPORT or targets.get(tname, {}).get("type") == "test":
+                print("FAIL [R3] product %s lists %s, a support or test target" % (p["name"], tname))
+                bad = 1
 sys.exit(bad)
 PY
         ); rc=$?
