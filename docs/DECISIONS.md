@@ -458,3 +458,35 @@ espera al vencer.
 no deja rastro (Q3). El control y la escritura del hilo son dos pasos: un bump
 entre ambos aun enhebra ese parcial; marcado `HACK:` en `cutTurn`, con su
 disparador de mejora. Todo contador nuevo exige entrar en la lista de arriba.
+
+---
+
+## ADR 009 — Companion se deja inspeccionar, no manejar, por el puente
+
+**Fecha:** 2026-10-01 · **Estado:** BORRADOR (spec self-qa-inspeccion; briefs self-qa-puente D3, self-qa-inspeccion-datos D1-D7)
+
+**Contexto.** En el QA en vivo del 2026-10-01 el orquestador intento probar
+Companion por su propio puente y toda accion devolvio `self_in_front`; recurrio
+a UI scripting con System Events. Es el fallo observado que la regla de ADR 001
+exige antes de sumar tools. Abrir las manos sobre Companion no es la salida: la
+hoja de aprobacion vive en la misma ventana, el chat convierte texto en palabras
+de la usuaria y Ajustes guarda grants y modos.
+
+**Decision.** Una familia `companion_*` de SOLO LECTURA, servida unicamente por
+el puente, detras del mismo "Prestar las manos" y de la hoja de sesion. Devuelve
+metadatos: nombres de caso, conteos, longitudes, marcas, idioma detectado dentro
+del proceso. El texto de la usuaria no sale; para el turno de texto hay un
+oraculo de igualdad que contesta un bool, solo contra su ultimo mensaje y con
+limite propio. El log principal sale como datos marcados, nunca el de
+transcripciones. Ninguna `companion_*` escribe un ajuste ni pulsa nada (R1-R8).
+Cada nombre entra por `BridgeScope` y `readTools` con su test.
+
+**Lo que no se hizo.** Ni denylist sobre `click` (falla abierta ante cada
+control nuevo), ni canal solo en debug (Karen prueba el release), ni contenido
+completo de hilos (sale a un tercero sin consentimiento propio).
+
+**Consecuencias.** La isla y la pantalla se leen de un espejo que la UI escribe
+al pintar: lo que se inspecciona es lo pintado, no una reconstruccion. Mientras
+Karen habla el puente esta en pausa, asi que la secuencia de un turno se lee
+despues, del log. Disparador de revision: una prueba cuyo oraculo no quepa en
+metadato, igualdad o rasgo derivado (D7 de self-qa-inspeccion-datos).

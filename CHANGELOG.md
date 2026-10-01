@@ -83,6 +83,12 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   único de textos y división de VoiceSession, cada una con su research verificado.
 
 ### Added
+- **Base para que un agente revise a Companion sin tocarla (2026-10-01).** Queda definido, en
+  el núcleo, qué podrá ver un agente conectado por el puente: el estado de la sesión, lo que
+  pinta la isla, tus ajustes no secretos y el hilo activo solo como metadatos. Nunca verá lo que
+  escribes ni lo que dices, ni claves; solo si tu último mensaje es igual a un texto que él ya
+  conoce, con tope de 10 consultas por minuto. Todo es de solo lectura. Todavía no se sirve nada:
+  la app se comporta igual. Se registra como ADR 008.
 - **Documentos, hojas y gráficas (Wave 20, 2026-09-28).** "Hazme un PDF del
   informe" termina en un PDF de verdad, con tablas y gráficas, sin instalar
   nada; lo mismo en `.xlsx`. Companion lee y escribe en el Excel o el Numbers
