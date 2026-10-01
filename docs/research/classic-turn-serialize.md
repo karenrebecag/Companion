@@ -298,3 +298,10 @@ await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
 | 6 | groue/Semaphore AsyncSemaphore.swift | Gwendal Roue | 2543679 | 2026-10-01 | medium |
 | 7 | Brief classic-runtime-submit-speak (D2 y C2) | propio | 2026-09-30 | 2026-10-01 | high |
 | 8 | Sondas A1-A5 (swiftc 6.3.3) y B-C (copia del repo en dfd3aeb, swift test) | propio | 2026-10-01 | 2026-10-01 | high |
+
+Nota 2026-10-01 (sin cambio de contenido): #71 movio los archivos citados; las citas siguen fijadas a d563ca3. Rutas actuales:
+
+- `Tests/CompanionTests/ClassicRuntimeRaceTests.swift` -> `Tests/CompanionServicesTests/ClassicRuntimeRaceTests.swift`
+- `Tests/CompanionTests/SteerTests.swift` -> `Tests/CompanionServicesTests/SteerTests.swift`
+- `Tests/CompanionTests/VoiceSessionFakes.swift` -> `Tests/CompanionServicesTestSupport/VoiceSessionFakes.swift`
+- `Tests/CompanionTests/BackgroundJobRuntimeTests.swift` -> `Tests/CompanionIntegrationTests/BackgroundJobRuntimeTests.swift`
