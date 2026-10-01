@@ -21,7 +21,7 @@ import Testing
     try await testClientsThatCloseAtOnceNeverLeaveTheSlotTaken()
 }
 
-private func tempBridgeDirectory() -> URL {
+func tempBridgeDirectory() -> URL {
     // uuid.prefix(8): the sandbox's own $TMPDIR is already long, and
     // sockaddr_un.sun_path caps at 104 bytes.
     FileManager.default.temporaryDirectory
@@ -345,6 +345,16 @@ final class PosixTestClient {
     init(path: String) throws {
         let socketFD = Darwin.socket(AF_UNIX, SOCK_STREAM, 0)
         guard socketFD >= 0 else { throw PosixTestClientError.socket }
+        // A client that writes after the listener hung up (a late hello
+        // after `busy`) must get EPIPE: the signal kills the whole test run
+        // with no summary. Set before connect, so a listener that hangs up at
+        // once cannot win the race and leave the option unset (EINVAL).
+        var on: Int32 = 1
+        guard Darwin.setsockopt(
+            socketFD, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size)) == 0 else {
+            Darwin.close(socketFD)
+            throw PosixTestClientError.socket
+        }
         var addr = sockaddr_un()
         addr.sun_family = sa_family_t(AF_UNIX)
         let pathBytes = Array(path.utf8) + [0]

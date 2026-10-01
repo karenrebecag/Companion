@@ -68,6 +68,10 @@ private func write(_ fd: Int32, _ line: String) {
     let (appA, peerA) = try socketPair()
     let (appB, peerB) = try socketPair()
     defer { Darwin.close(peerB) }
+    // The test writes on these ends; an unprotected write to a closed app end
+    // kills the whole test run instead of failing this test.
+    precondition(BridgeSocket.suppressSigpipe(on: peerA), "peer A protected from SIGPIPE")
+    precondition(BridgeSocket.suppressSigpipe(on: peerB), "peer B protected from SIGPIPE")
     let connectionA = BridgeConnection(fd: appA) { _ in }
     let connectionB = BridgeConnection(fd: appB) { _ in }
     connectionA.start()
