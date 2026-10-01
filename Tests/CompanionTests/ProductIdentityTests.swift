@@ -60,11 +60,7 @@ import Testing
     }
 }
 
-/// Los tests corren desde .build; el repo está tres niveles arriba.
+/// Resolves through the repo markers, so it survives test files moving between folders.
 func repoPath(_ relative: String) -> String {
-    var url = URL(fileURLWithPath: #filePath)
-    url.deleteLastPathComponent()  // CompanionTests
-    url.deleteLastPathComponent()  // Tests
-    url.deleteLastPathComponent()  // repo
-    return url.appendingPathComponent(relative).path
+    (Conformance.repoRoot()?.appendingPathComponent(relative).path) ?? relative
 }
