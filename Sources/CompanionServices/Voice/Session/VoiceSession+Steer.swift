@@ -14,12 +14,18 @@ extension VoiceSession {
     /// before this effect runs, but a stray double `.submitUtterance` must
     /// still never run two turns at once.
     func startClassicTurn(config: Config) {
-        classicTurnTask?.cancel()
+        // Kept, not dropped: the new turn waits for the cut one before it
+        // reads the steer note and writes the thread, so the two never
+        // interleave (classic-turn-serialize).
+        let previous = classicTurnTask
+        previous?.cancel()
         let endsHold = machine.snapshot.holdArmed
         let pressed = timeline.pressed
         classicTurnTask = Task { [weak self] in
             guard let self else { return }
-            await self.classic.submit(config: config, endsHold: endsHold, pressed: pressed) { event in
+            await self.classic.submit(
+                config: config, endsHold: endsHold, pressed: pressed, after: previous
+            ) { event in
                 await self.apply(event)
             }
         }
@@ -29,8 +35,9 @@ extension VoiceSession {
     /// voice already speaking, and any vision still uploading — the hold
     /// that follows must never race what this one was doing.
     func cancelClassicTurn() async {
+        // The handle stays: the press that follows starts a turn that waits
+        // on it. A finished task is harmless to wait on.
         classicTurnTask?.cancel()
-        classicTurnTask = nil
         await cutAnnouncement()
         await synthesizer.stop()
         screen?.cancel()
