@@ -10,6 +10,10 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   Lo que alcanzó a decir queda en el chat cuando termina de sonar, la voz vuelve a escucharte en
   vez de quedarse "hablando", y si dices "sigue" continúa donde se quedó sin repetir. Al
   reconectar nunca habla sola.
+- **Instalar desde main ya no falla el smoke de empaquetado (2026-09-30).** Las 5 fuentes
+  propietarias que solo viven en este Mac (ignoradas por git) hacían que `bundle.sh` rechazara la
+  carpeta `Fonts`. Ahora una lista explícita las admite si están presentes; cualquier otro archivo
+  ajeno sigue siendo un stray.
 - **La voz sigue escuchando después de un corte de red (2026-09-30, #59).** Al reconectar,
   nadie leía la conexión nueva y la voz quedaba sorda; además arrancaba sin instrucciones, tools
   ni voz elegida, y volvía a encender el micrófono aunque lo hubieras silenciado. Ahora reanuda
