@@ -19,3 +19,20 @@ jobs:
         run: swift --version
       - name: Run gates
         run: scripts/gates.sh
+
+  tsan:
+    # ThreadSanitizer over the full suite, on its own runner so its build
+    # never overwrites the debug binaries the gates job tests. Only TSan
+    # reproduced the bridge and ClassicRuntime races (docs/specs/tsan-gate.md).
+    # Informational until 5 clean runs in a row; then continue-on-error goes
+    # and tsan joins gates as a required check. No path filter: a skipped
+    # job counts as passing in a required check.
+    runs-on: macos-26
+    timeout-minutes: 45
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show toolchain
+        run: swift --version
+      - name: Run ThreadSanitizer
+        run: scripts/tsan.sh

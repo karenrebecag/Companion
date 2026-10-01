@@ -1,0 +1,38 @@
+Mediciones TSan de la suite completa, Mac local de desarrollo, 2026-09-30.
+Copiadas literalmente de los logs que produjo la sesion orquestadora (scratchpad de la sesion, fuera del repo).
+Condiciones: carga ~19 en 14 cores, tres sesiones compilando a la vez (dato de la sesion orquestadora). Los tiempos no son representativos del runner.
+Toolchain local: Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101), arm64-apple-macosx26.0.
+
+A. TSan con --scratch-path .build-tsan (tsan-full-build.log, tsan-full-parallel.log, tsan-full-serial.log)
+build:     Build complete! (50.33s)
+paralelo:  Test run with 1529 tests in 1 suite failed after 25.268 seconds with 558 issues (including 1 known issue).
+paralelo:  0 lineas "WARNING: ThreadSanitizer"
+serie:     3 lineas "WARNING: ThreadSanitizer"; el log termina en "Test diagramSchedulerCacheTests() started." sin linea "Test run with"
+serie:     SUMMARY: ThreadSanitizer: data race AnalyzerTranscriberTests.swift:152 in closure #2 in closure #1 in testMissingAssetsNeverHangAndLogTheReason()
+serie:     SUMMARY: ThreadSanitizer: Swift access race BrowserListenerTests.swift in countSigpipe(_:)
+serie:     SUMMARY: ThreadSanitizer: data race BrowserListenerTests.swift:45 in withSigpipeCounter(_:)
+fallos:    BridgeUITests.swift:120:17: Expectation failed: (got -> "island.hands.stop") == (want -> "Stop hands")
+
+B. Sin sanitizer con --scratch-path .build-plain (plain-scratch-build.log, plain-scratch-test.log)
+build:     Build complete! (43.90s)
+tests:     Test run with 1529 tests in 1 suite failed after 21.899 seconds with 555 issues (including 1 known issue).
+tests:     0 lineas "WARNING: ThreadSanitizer"
+Conclusion de A+B: los ~555 fallos de textos devueltos como claves los causa el scratch path distinto, no TSan.
+
+C. TSan en el .build por defecto, --no-parallel, build con --jobs 6 (tsan-default-build.log, tsan-default-test.log)
+build:     Build complete! (1.78s)   (incremental: el .build ya estaba compilado con TSan; no mide un build en frio)
+tests:     Test run with 1529 tests in 1 suite passed after 95.244 seconds with 1 known issue.
+tests:     ThreadSanitizer: reported 3 warnings
+tests:     error: Process '.../swiftpm-testing-helper --test-bundle-path .../.build/arm64-apple-macosx/debug/CompanionPackageTests.xctest/Contents/MacOS/CompanionPackageTests --skip-build --sanitize=thread --no-parallel ... --testing-library swift-testing' exited with unexpected signal code 6
+tests:     SUMMARY: ThreadSanitizer: data race ClassicRuntime.swift:285 in ClassicRuntime.submit(config:endsHold:pressed:apply:)
+tests:     SUMMARY: ThreadSanitizer: Swift access race BrowserListenerTests.swift in countSigpipe(_:)
+tests:     SUMMARY: ThreadSanitizer: data race BrowserListenerTests.swift:45 in withSigpipeCounter(_:)
+tests:     ninguno de earReviewTests, mentionSelectorTabDuringDialogTests, processRegistryTests, utteranceLogPrivacyTests, mcpToolsTests aparece en un aviso de TSan
+Detalle del aviso de produccion: docs/research/evidence/tsan-classicruntime-submit-speak.txt
+
+D. Runner de GitHub, job gates actual (sin TSan), corrida 36795743537, commit 568dbd5, macos-26
+toolchain: Apple Swift version 6.3.3 (swiftlang-6.3.3.1.3 clang-2100.1.1.101)
+Gate 1 build:  00:38:09.80 -> 00:39:14.15  (~64 s)
+Gate 4 tests:  00:39:17.45 -> 00:43:59.37  (~4 min 42 s, incluye compilar el target de tests; --no-parallel)
+resultado:     ok  swift test verde - with 1514 tests in 1 suite
+job completo:  00:38:03 -> 00:44:03 (6 min); la corrida se creo 00:21:11 (cola de ~17 min antes de que arrancara el job)
