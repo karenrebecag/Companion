@@ -28,6 +28,21 @@ final class RealtimeRuntime: @unchecked Sendable {
         }
     }
 
+    static func act(
+        _ call: ToolCallRef, gate: ParentToolGuard, said: String, language: AppLanguage,
+        tools: any ParentToolExecuting
+    ) async -> ParentToolOutcome {
+        if let denied = await gate.check(call, said: said, language: language, tools: tools) {
+            return denied
+        }
+        // The guard's waits besides the sheet (binding, memory) are cut
+        // points too, and this is the last one before the effect.
+        if Task.isCancelled {
+            return .failed(.interrupted, target: ParentTool.target(of: call), tool: call.name)
+        }
+        return await tools.execute(name: call.name, argumentsJSON: call.arguments)
+    }
+
     let transport: any VoiceTransport
     let player: any PCMPlaying
     let thread: any ConversationPresenting
@@ -95,6 +110,11 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// The current response's full text already reached the thread (its
     /// final transcript), so a drop before `response.done` has nothing to add.
     private var replyThreaded = false
+    /// The parent's call while the guard holds it. The event loop is not
+    /// cancelled by a barge-in, so this is what the cut reaches.
+    private var parentCall: Task<ParentToolOutcome, Never>?
+    /// Barge-ins so far, for a call that arrived just before one.
+    private var cuts = 0
 
     init(
         transport: any VoiceTransport,
@@ -268,6 +288,10 @@ final class RealtimeRuntime: @unchecked Sendable {
     }
 
     nonisolated(nonsending) func cancelAgent() async {
+        // A barge-in withdraws the sheet the cut reply was waiting on, as a
+        // press does in classic (approval-after-cut D3, Karen 2026-10-01).
+        cuts += 1
+        parentCall?.cancel()
         await send(RealtimeCodec.responseCancel())
         await player.flush()
     }
@@ -386,26 +410,8 @@ final class RealtimeRuntime: @unchecked Sendable {
             // An action of the parent's own: done here, recorded in the
             // thread, answered to the server — no job, no sheet.
             if let parentTools, parentTools.handles(name) {
-                let call = ToolCallRef(id: callId, name: name, arguments: arguments)
-                await markTimeline?(.toolCallSeen)
-                events?.yield(.parentActing(targets: [ParentTool.target(of: call)]))
-                let outcome: ParentToolOutcome
-                if let denied = await parentGuard.check(
-                    call, said: lastUserText, language: language, tools: parentTools) {
-                    outcome = denied
-                } else {
-                    outcome = await parentTools.execute(
-                        name: name, argumentsJSON: arguments)
-                }
-                await thread.appendStatus(
-                    ParentToolCopy.status(name, outcome, language))
-                if let card = outcome.card { events?.yield(.job(.card(card))) }
-                events?.yield(.parentActed)
-                await markTimeline?(.toolDone)
-                await send(RealtimeCodec.functionOutput(
-                    callId: callId, output: outcome.output))
-                await requestResponse()
-                return [.functionOutputSent]
+                return await runParentCall(
+                    ToolCallRef(id: callId, name: name, arguments: arguments), tools: parentTools)
             }
             // Answer the server immediately so the voice keeps flowing; the
             // job runs in the background and its result is announced later.
@@ -441,6 +447,42 @@ final class RealtimeRuntime: @unchecked Sendable {
             // FIX 5: Unknown events are logged with type name via traceName, not generic "ignored".
             return []
         }
+    }
+
+    private nonisolated(nonsending) func runParentCall(
+        _ call: ToolCallRef, tools: any ParentToolExecuting
+    ) async -> [TurnEvent] {
+        // The awaits below come before the call is held: a barge-in in
+        // between finds nothing to cancel, so it is counted instead.
+        let cutsAtArrival = cuts
+        await markTimeline?(.toolCallSeen)
+        events?.yield(.parentActing(targets: [ParentTool.target(of: call)]))
+        let work = Task { [parentGuard, lastUserText, language] in
+            await Self.act(call, gate: parentGuard, said: lastUserText, language: language, tools: tools)
+        }
+        parentCall = work
+        if cuts != cutsAtArrival { work.cancel() }
+        // Closing the session cancels the loop, not the call.
+        let outcome = await withTaskCancellationHandler {
+            await work.value
+        } onCancel: {
+            work.cancel()
+        }
+        // A closed session's call can unwind after the next session holds
+        // its own.
+        if parentCall == work { parentCall = nil }
+        await thread.appendStatus(ParentToolCopy.status(call.name, outcome, language))
+        if let card = outcome.card { events?.yield(.job(.card(card))) }
+        events?.yield(.parentActed)
+        await markTimeline?(.toolDone)
+        // A cut call is still answered, or the model's next request is
+        // malformed; but the user who cut it is talking, and their own turn
+        // asks for the next response. A cut that lands during `execute`
+        // cannot undo the effect; it only keeps the model quiet.
+        await send(RealtimeCodec.functionOutput(callId: call.id, output: outcome.output))
+        if work.isCancelled { return [] }
+        await requestResponse()
+        return [.functionOutputSent]
     }
 
     /// A spoken "sí" is not a decision until the model turns it into a JSON

@@ -107,8 +107,9 @@ private let openCall = ToolCallRef(
         #expect(!seen.events.contains(.approvalWithdrawn(requestId: "r1")))
     }
 
-    // D3 split: realtime's barge-in is its own PR; closing the session does
-    // cancel the handler, so the guard's check already covers it.
+    // Closing the session cancels the event loop, and the runtime hands that
+    // cancel on to the call waiting on its sheet. Barge-ins are in
+    // RealtimeBargeInWithdrawsTests.
     @Test @MainActor func closingRealtimeWhileTheSheetWaitsActsOnNothingAndWithdrawsTheCard() async {
         let approvals = ScriptedApprovals(park: true)
         let tools = FakeParentTools(handledNames: ["open_url"])
