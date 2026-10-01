@@ -45,6 +45,12 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   viñetas en vez de asteriscos; solo los enlaces web se abren.
 
 ### Changed
+- **CI corre ThreadSanitizer sobre toda la suite (2026-09-30).** Un job `tsan` aparte busca
+  carreras de datos en cada PR; fue la única herramienta que destapó las del puente y del modo
+  clásico. Por ahora es informativo: un aviso lo pone en rojo sin bloquear el merge, y pasa a
+  requerido tras 5 corridas limpias seguidas. En local se corre igual con `scripts/tsan.sh`.
+  Para que arranque en verde se arreglaron dos carreras que solo existían en los tests (el
+  contador de SIGPIPE y el motor falso del transcriptor); la app no cambia.
 - **Los tests se dividen en un target por capa (2026-09-30).** Core, Services, UI e integración
   tienen su propio target y un gate impide que uno importe la capa que no le toca; la voz sigue
   en `CompanionTests` y se mueve en el paso siguiente.
