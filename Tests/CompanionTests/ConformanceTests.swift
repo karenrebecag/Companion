@@ -101,7 +101,7 @@ struct UIContract: Decodable {
     let ledger = try Conformance.gates(at: root)
     let contract = try Conformance.contract(at: root)
     let testSources = Conformance.swiftFiles(
-        in: root.appendingPathComponent("Tests/CompanionTests"))
+        in: root.appendingPathComponent("Tests"))
     let corpus = testSources.flatMap { Conformance.logicalLines(of: $0) }
     expect(!ledger.gates.isEmpty, "puertas: el libro no está vacío")
     for gate in ledger.gates {
@@ -149,15 +149,37 @@ enum Conformance {
         return try JSONDecoder().decode(HUDGates.self, from: Data(contentsOf: url))
     }
 
-    /// El checkout, desde este archivo. Si alguien compila el paquete fuera del
-    /// repo no hay fuentes que escanear y el test se salta en vez de mentir.
-    static func repoRoot() -> URL? {
-        let here = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()   // CompanionTests
-            .deletingLastPathComponent()   // Tests
-            .deletingLastPathComponent()   // raiz
-        let contract = here.appendingPathComponent("conformance/ui-contract.json")
-        return FileManager.default.fileExists(atPath: contract.path) ? here : nil
+    /// Parents to climb before giving up: deep enough for any Tests/<Target>/
+    /// layout, shallow enough that a stray file never resolves to an
+    /// unrelated checkout far above it.
+    private static let defaultMaxDepth = 8
+
+    /// The marker search without side effects. Split from repoRoot so the depth
+    /// bound can be tested without provoking an Issue.
+    package static func findRoot(from file: String, maxDepth: Int = defaultMaxDepth) -> URL? {
+        var dir = URL(fileURLWithPath: file).deletingLastPathComponent()
+        for _ in 0..<maxDepth {
+            let hasManifest = FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("Package.swift").path)
+            let hasContract = FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("conformance/ui-contract.json").path)
+            if hasManifest && hasContract { return dir }
+            let parent = dir.deletingLastPathComponent()
+            if parent.path == dir.path { break }
+            dir = parent
+        }
+        return nil
+    }
+
+    /// El checkout, buscado por sus marcadores (Package.swift y el contrato) y
+    /// no por cuantos niveles hay: el test puede vivir a cualquier profundidad.
+    /// Si alguien compila el paquete fuera del repo no hay fuentes que escanear;
+    /// se registra un Issue, porque un nil silencioso dejaba a los escaneres
+    /// saltarse sin que nadie se enterara.
+    package static func repoRoot(from file: String = #filePath) -> URL? {
+        if let root = findRoot(from: file) { return root }
+        Issue.record("repoRoot: no Package.swift + conformance/ui-contract.json above \(file)")
+        return nil
     }
 
     static func contract(at root: URL) throws -> UIContract {
@@ -264,4 +286,50 @@ extension Conformance {
             Range($0.range(at: 1), in: src).map { String(src[$0]) }
         })
     }
+}
+
+// MARK: - repoRoot(from:)
+
+/// Test folders will live at different depths; the root is found by its
+/// markers, never by counting path components.
+@Test func repoRootFindsRootFromDeeperPaths() throws {
+    let root = try scriptTempRoot("repo-root")
+    defer { removeScriptTemp(root) }
+    try FileManager.default.createDirectory(
+        at: root.appendingPathComponent("conformance"), withIntermediateDirectories: true)
+    try "".write(to: root.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+    try "{}".write(
+        to: root.appendingPathComponent("conformance/ui-contract.json"), atomically: true, encoding: .utf8)
+
+    expectEq(Conformance.repoRoot(from: root.path + "/Tests/A/B/x.swift")?.path, root.path,
+             "repoRoot: depth 3 below the root")
+    expectEq(Conformance.repoRoot(from: root.path + "/Tests/x.swift")?.path, root.path,
+             "repoRoot: depth 1 below the root")
+    expectEq(Conformance.findRoot(from: root.path + "/a/b/c/d/e/f/g/x.swift")?.path, root.path,
+             "findRoot: eight directories up still finds it")
+    expect(Conformance.findRoot(from: root.path + "/a/b/c/d/e/f/g/h/x.swift") == nil,
+           "findRoot: nine directories up is past the walk limit")
+    expectEq(Conformance.findRoot(from: root.path + "/a/b/c/d/e/f/g/h/x.swift", maxDepth: 9)?.path, root.path,
+             "findRoot: the bound is the parameter")
+}
+
+@Test func repoRootFromThisFileIsTheCheckout() {
+    let root = Conformance.repoRoot()
+    expect(root != nil, "repoRoot: the default #filePath resolves inside the checkout")
+    expect(FileManager.default.fileExists(atPath: (root?.path ?? "") + "/Package.swift"),
+           "repoRoot: the result holds Package.swift")
+}
+
+/// A silent nil let the scanners skip themselves; the miss must be loud.
+@Test func repoRootRecordsAnIssueWhenNothingIsFound() {
+    withKnownIssue {
+        let root = Conformance.repoRoot(from: "/tmp/x/y.swift")
+        expect(root == nil, "repoRoot: no markers means nil")
+    } matching: { issue in
+        issue.comments.contains { $0.rawValue.contains("repoRoot") }
+    }
+}
+
+@Test func findRootNeverRecords() {
+    expect(Conformance.findRoot(from: "/tmp/x/y.swift") == nil, "findRoot: a miss is a plain nil")
 }

@@ -21,6 +21,15 @@ else
     (cd "$ROOT" && swift build 2>&1 | tail -15)
 fi
 
+# `@testable` compiles in debug and breaks in release, and CI only builds
+# debug: a release build is the only thing that catches it.
+if (cd "$ROOT" && swift build -c release 2>&1 | tail -5 | grep -q "Build complete"); then
+    pass "swift build -c release compila"
+else
+    fail "swift build -c release fallo"
+    (cd "$ROOT" && swift build -c release 2>&1 | tail -15)
+fi
+
 # ------------------------------------------------------------- Gate 2: estatico
 section "Gate 2 — estatico"
 if grep -rnE "(sk-[A-Za-z0-9_-]{20,}|sk_[A-Za-z0-9]{20,}|gsk_[A-Za-z0-9]{16,}|xai-[A-Za-z0-9]{16,}|AKIA[0-9A-Z]{16})" \
@@ -110,6 +119,18 @@ check_imports CompanionServices "SwiftUI" \
     "Services no importa SwiftUI"
 check_imports CompanionUI       "AVFoundation|WebKit" \
     "UI no importa AVFoundation/WebKit"
+
+# Capas de los targets de test: sin @testable en soporte, imports en una sola
+# direccion, sin resources/defaultIsolation donde no toca. Falla cerrado.
+manifest_tmp=$(mktemp "${TMPDIR:-/tmp}/companion-manifest.XXXXXX")
+trap 'rm -f "$manifest_tmp"' EXIT
+if (cd "$ROOT" && swift package dump-package > "$manifest_tmp" 2>/dev/null) \
+        && layer_out=$(bash "$ROOT/scripts/check-test-layers.sh" "$ROOT" "$manifest_tmp" 2>&1); then
+    pass "capas de test: sin @testable en soporte, imports y manifiesto en regla"
+else
+    fail "capas de test:"
+    echo "${layer_out:-no se pudo leer swift package dump-package}"
+fi
 
 # Revision 16h-2 ronda 3: la proyeccion de sesion tiene un solo escritor, el
 # reductor (Session/SessionMachine.swift + SessionMachine+Jobs.swift + SessionMachine+Dictation.swift

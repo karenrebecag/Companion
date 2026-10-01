@@ -177,3 +177,9 @@ Contextos: `swift test` local en paralelo; CI `scripts/gates.sh` con `--no-paral
 | 11 | isowords Package.swift y TestHelpers | Point-Free | c727d3a | 2026-09-30 | medium |
 | 12 | swift-composable-architecture Package.swift | Point-Free | 377da40 | 2026-09-30 | high |
 | 13 | swift-numerics Package.swift | Apple | a7d826e | 2026-09-30 | high |
+
+## Nota de reuso (2026-09-30)
+
+Este brief se reusa para 21-tests C1/C2 (gates de capas y `Conformance.repoRoot`):
+`scripts/check-test-layers.sh`, `Tests/CompanionTests/TestLayerGateTests.swift` y el
+endurecimiento de `repoRoot(from:)`. El Estado no cambia.
