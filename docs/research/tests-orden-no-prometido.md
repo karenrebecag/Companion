@@ -1,6 +1,6 @@
 # Reference Brief: tests que dependen de un orden que Swift no promete (TaskGroup, Task y MainActor)
 
-Slug: tests-orden-no-prometido | Nivel: standard | Fecha: 2026-10-01 | Estado: ESCALADO
+Slug: tests-orden-no-prometido | Nivel: standard | Fecha: 2026-10-01 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-01 ESCALATE
 
@@ -197,7 +197,7 @@ expect(selector.isRequestingAccess, "16m-7 review: el diálogo sigue abierto")
 - ASSUMPTION: `swift test` de SwiftPM 6.3.3 no reenvia `--repetitions` a Swift Testing; en el codigo de `SwiftTestCommand` de esa version no aparece la cadena. prueba: correr `swift test --filter mentionSelectorTabDuringDialogTests --repetitions 50` y ver si el informe muestra 50 iteraciones; si no, se usa un bucle de shell.
 - ASSUMPTION: en la app, el dialogo real de Contactos no toma el teclado antes de que SwiftUI aplique `geometry.picking` por el `onChange` de la bandera. prueba: con `tccutil reset AddressBook` para la app, escribir `@` por primera vez y ver que la isla no se pliega mientras el dialogo esta abierto.
 - ASSUMPTION: el flake hermano de aprobaciones es un deadline corto contra un MainActor sin atender, y no un proxy; no se leyo el rig `mcp(timeout:)` entero. prueba: leer `mcp(timeout:)` en `Approvals16q1ReviewTests.swift` y ver si acepta un `ManualSleeper`; si lo acepta, esperar `armed` y luego `fire`; si no, quitar `timeout: 5`.
-- [NEEDS CLARIFICATION: Karen, B agrega `isAsking` al fake privado del archivo de tests; si prefieres no tocar el fake, A (una sola linea) cumple igual, a cambio de convertir la asercion en precondicion. Cual prefieres.]
+- Decision B [KAREN:chat 2026-10-01 via orquestador].
 
 ## 10. Checklist de estandar
 
@@ -229,6 +229,6 @@ expect(selector.isRequestingAccess, "16m-7 review: el diálogo sigue abierto")
 | 12 | swift-async-algorithms Gate, GatedSequence, TestShare | Apple | 13713a4 | 2026-10-01 | high |
 | 13 | swift-concurrency-extras README y MainSerialExecutor | Point-Free | 5fa2534 | 2026-10-01 | medium |
 
-Recomendacion de este brief: B, implementado en el PR; la eleccion A/B queda pendiente de Karen.
+Recomendacion de este brief: B, implementado en el PR; Karen eligio B.
 
-Estado: ESCALADO
+Estado: APROBADO
