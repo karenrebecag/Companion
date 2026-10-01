@@ -57,7 +57,7 @@ extension ClassicRuntime {
             // answer, or the round is malformed.
             if Task.isCancelled {
                 turns.append(Turn(
-                    role: .tool, content: "cancelled: the user interrupted", toolCallID: call.id))
+                    role: .tool, content: ContractError.interrupted.wire, toolCallID: call.id))
                 continue
             }
             // A URL the user did not say waits for the sheet (10c 3D).
@@ -65,6 +65,10 @@ extension ClassicRuntime {
             if let denied = await parentGuard.check(
                 call, said: heard, language: language, tools: parentTools) {
                 outcome = denied
+            } else if Task.isCancelled {
+                // The guard's other awaits (binding, memory) are cut points
+                // too, and this is the last one before the effect.
+                outcome = .failed(.interrupted, target: ParentTool.target(of: call), tool: call.name)
             } else {
                 outcome = await parentTools.execute(
                     name: call.name, argumentsJSON: call.arguments)

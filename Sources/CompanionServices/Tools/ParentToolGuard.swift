@@ -15,23 +15,29 @@ package struct ParentToolGuard: Sendable {
     var approvals: (any ApprovalsProvider)?
     var onRequest: (@Sendable (ApprovalRequest) -> Void)?
     var onRemembered: (@Sendable (String, Bool) async -> Void)?
+    var onSettled: (@Sendable (ApprovalRequest, SheetAnswer) -> Void)?
 
     package init(
         approvals: (any ApprovalsProvider)? = nil,
         onRequest: (@Sendable (ApprovalRequest) -> Void)? = nil,
-        onRemembered: (@Sendable (String, Bool) async -> Void)? = nil
+        onRemembered: (@Sendable (String, Bool) async -> Void)? = nil,
+        onSettled: (@Sendable (ApprovalRequest, SheetAnswer) -> Void)? = nil
     ) {
         self.approvals = approvals
         self.onRequest = onRequest
         self.onRemembered = onRemembered
+        self.onSettled = onSettled
     }
 
     /// How a sheet ended. Only `denied` is the user refusing: a deadline is
     /// silence, and callers that count refusals must tell them apart.
-    enum SheetAnswer: Sendable, Equatable {
+    package enum SheetAnswer: Sendable, Equatable {
         case approved, denied, timedOut
         /// No sheet was shown: the bridge's sheets-per-window limit is spent.
         case refused
+        /// The caller was cut while the sheet waited. Not the user refusing,
+        /// so the bridge's cool-down must not count it.
+        case abandoned
     }
 
     /// `check`'s answer plus how the sheet ended, for callers that count
@@ -65,9 +71,18 @@ package struct ParentToolGuard: Sendable {
         let target = ParentTool.target(of: call)
         let denied = ParentToolOutcome.failed(
             .deniedByUser(language), target: target, tool: call.name)
-        let answer = await answer(request, parked: parked)
-        if answer == .approved { tools?.granted(request) }
-        return Verdict(denial: answer == .approved ? nil : denied, answer: answer)
+        let sheet = await answer(request, parked: parked)
+        // The sheet's wait is where the user can cut the caller: a yes that
+        // lands after that answers a turn nobody is in any more, so it grants
+        // nothing and leaves no ticket behind (approval-after-cut, D1).
+        if Task.isCancelled {
+            onSettled?(request, .abandoned)
+            let cut = ParentToolOutcome.failed(.interrupted, target: target, tool: call.name)
+            return Verdict(denial: cut, answer: .abandoned)
+        }
+        onSettled?(request, sheet)
+        if sheet == .approved { tools?.granted(request) }
+        return Verdict(denial: sheet == .approved ? nil : denied, answer: sheet)
     }
 
     /// The remembered/onRequest/request dance on its own, without a

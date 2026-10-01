@@ -15,6 +15,7 @@ import Testing
     await testAPeerThatLeavesMidPerCallSheetExecutesNothing()
     await testStopsAndTimeoutsOfTheSessionSheetDoNotCoolTheCallerDown()
     await testStopsAndTimeoutsOfAPerCallSheetDoNotCoolTheCallerDown()
+    await testACancelledPerCallSheetActsOnNothingAndDoesNotCoolTheCallerDown()
     await testApprovalsMarksItsOwnDeadlineAsTimedOut()
 }
 
@@ -163,6 +164,42 @@ private func abandonOnce(
         pair.closeClient()
         await serving.value
     }
+}
+
+/// approval-after-cut: a per-call sheet whose caller is cancelled answers
+/// `.abandoned`. A late yes acts on nothing, and the cool-down does not count
+/// it, however many times it happens.
+@MainActor func testACancelledPerCallSheetActsOnNothingAndDoesNotCoolTheCallerDown() async {
+    let tools = FakeParentTools()
+    let approvals = ScriptedApprovals(answer: true)
+    tools.setScriptedApproval(ApprovalRequest(
+        requestId: "click-1", toolName: "click", summary: "s", inputJSON: "{}"))
+    approvals.setPark(forTool: "click")
+    let session = makeSession(tools, approvals)
+    for _ in 0 ..< BridgePolicy.maxDenials {
+        let pair = BridgePair()
+        let serving = Task.detached { await session.serve(pair.connection) }
+        pair.send(hello(1))
+        _ = pair.readLine()
+        let before = approvals.requests.count
+        pair.send(call(2, "click"))
+        await pollUntilTrue { approvals.requests.count > before }
+        serving.cancel()
+        if let request = approvals.requests.last {
+            _ = await approvals.resolve(requestId: request.requestId, approved: true)
+        }
+        pair.closeClient()
+        await serving.value
+    }
+    expect(tools.executeCalls.isEmpty, "cancelled: a late yes clicked for a gone caller")
+    let pair = BridgePair()
+    let serving = Task.detached { await session.serve(pair.connection) }
+    pair.send(hello(1))
+    let reply = pair.readLine() ?? "<silence>"
+    expect(!reply.contains(BridgeCode.coolingDown) && reply.contains("tools"),
+           "cool-down: a cancelled caller is not a refusal: \(reply)")
+    pair.closeClient()
+    await serving.value
 }
 
 @MainActor func testApprovalsMarksItsOwnDeadlineAsTimedOut() async {

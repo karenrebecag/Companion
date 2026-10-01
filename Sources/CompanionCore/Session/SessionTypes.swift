@@ -58,6 +58,9 @@ package enum SessionCard: Sendable, Equatable {
     case receipt(ActionReceipt)
     /// The network cut the reply mid-sentence and the session came back.
     case replyCut
+    /// The user cut the turn while a permission waited: the card left and
+    /// nothing was done.
+    case approvalWithdrawn
 }
 
 /// The voice port's own status, distinct from the kind: a session can be
@@ -158,6 +161,9 @@ package enum SessionEvent: Sendable, Equatable {
     /// Abandoned with its turn (a conversation switch): denied, but not a
     /// refusal of the job's first action.
     case approvalDropped(requestId: String)
+    /// Its turn was cut while the sheet waited (approval-after-cut): out of
+    /// the queue like a settled one, plus a notice saying why.
+    case approvalWithdrawn(requestId: String)
     case hoverEntered
     case hoverLeft
     case completedTimerExpired

@@ -53,6 +53,8 @@ package struct IslandState: Sendable, Equatable {
         case receipt(ActionReceipt)
         /// The network cut the reply mid-sentence; shown only while the voice is live.
         case replyCut
+        /// A cut ended the wait on a permission; says why nothing happened.
+        case approvalWithdrawn
     }
 
     /// Incredible's status light: amber = it needs you, green = done.
@@ -233,6 +235,7 @@ package struct IslandState: Sendable, Equatable {
         case .failure(let failure): IslandState(size: .card, line: .failure(failure))
         case .receipt(let receipt): IslandState(size: .card, line: .receipt(receipt))
         case .replyCut: IslandState(size: .card, line: .replyCut)
+        case .approvalWithdrawn: IslandState(size: .card, line: .approvalWithdrawn)
         // While the voice session lives the microphone is taken: the pebble
         // is the one mark of ours that says so, and it cannot be hidden
         // (security review 2026-09-06).

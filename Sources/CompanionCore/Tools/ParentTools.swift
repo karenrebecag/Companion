@@ -35,6 +35,10 @@ package struct ContractError: Error, Sendable, Equatable {
         ContractError(code: "denied_by_user", message: Escalation.deniedByUserMessage(language))
     }
 
+    /// The user cut the turn before the call ran. Not a refusal: the model
+    /// must not read it as "don't do this", only as "this did not happen".
+    package static let interrupted = ContractError(code: "cancelled", message: "the user interrupted")
+
     /// Code first, so a model parsing the result finds it without reading
     /// prose. Changing this shape changes the model's API.
     package var wire: String { "\(code): \(message)" }
