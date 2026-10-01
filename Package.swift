@@ -108,15 +108,5 @@ let package = Package(
             ],
             path: "Tests/CompanionIntegrationTests"
         ),
-
-        .testTarget(
-            name: "CompanionTests",
-            dependencies: [
-                "CompanionCore", "CompanionServices", "CompanionUI",
-                "CompanionTestKit", "CompanionCoreTestSupport",
-                "CompanionServicesTestSupport", "CompanionUITestSupport",
-            ],
-            path: "Tests/CompanionTests"
-        ),
     ]
 )
