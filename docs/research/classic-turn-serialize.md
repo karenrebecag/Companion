@@ -1,6 +1,6 @@
 # Reference Brief: serializar los turnos clasicos (el turno nuevo espera al cortado)
 
-Slug: classic-turn-serialize | Nivel: standard | Fecha: 2026-10-01 | Estado: APROBADO
+Slug: classic-turn-serialize | Nivel: standard | Fecha: 2026-10-01 | Estado: ESCALADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-01 ESCALATE
 

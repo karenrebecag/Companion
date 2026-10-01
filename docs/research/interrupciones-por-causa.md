@@ -1,6 +1,6 @@
 # Reference Brief: interrupciones por causa (barge-in, red, herramienta atascada, stop)
 
-Slug: interrupciones-por-causa | Nivel: standard | Fecha: 2026-10-01 | Estado: APROBADO
+Slug: interrupciones-por-causa | Nivel: standard | Fecha: 2026-10-01 | Estado: ESCALADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-01 ESCALATE
 
