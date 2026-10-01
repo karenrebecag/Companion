@@ -28,6 +28,8 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 - **Los tests se dividen en un target por capa (2026-09-30).** Core, Services, UI e integración
   tienen su propio target y un gate impide que uno importe la capa que no le toca; la voz sigue
   en `CompanionTests` y se mueve en el paso siguiente.
+- **Los gates de capas cubren más (2026-09-30).** Tienen casos negativos para cada dependencia
+  prohibida entre targets de test, y rechazan que código de test aparezca en un producto del paquete.
 - **Código ordenado por dominio y API interna de paquete (2026-09-30, #50, #51).** Las carpetas
   siguen el dominio de cada pieza y las librerías ya no exponen nada `public`; un gate lo impide.
 - **La suite de tests dejó de fallar al azar (2026-09-30, #53).** Carreras en los dobles de test,

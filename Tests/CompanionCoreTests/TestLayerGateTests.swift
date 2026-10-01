@@ -39,10 +39,15 @@ private func manifest(_ root: URL, targets: [String: (resources: Bool, isolation
                 ? [["kind": ["defaultIsolation": ["_0": "MainActor"]], "tool": "swift"]] : [],
         ]
     }
-    let data = try JSONSerialization.data(withJSONObject: ["targets": entries])
+    let data = try JSONSerialization.data(withJSONObject: ["targets": entries, "products": realProducts()])
     let url = root.appendingPathComponent("manifest.json")
     try data.write(to: url)
     return url
+}
+
+/// The `products` shape of the real `swift package dump-package`.
+private func realProducts() -> [[String: Any]] {
+    [["name": "companion", "settings": [Any](), "targets": ["CompanionApp"], "type": ["executable": NSNull()]]]
 }
 
 private func runLayers(
@@ -395,8 +400,16 @@ private func cleanTargets() -> [ManifestTarget] {
     ]
 }
 
+private enum ProductsInput {
+    case real
+    case missing
+    case value(Any)
+}
+
 /// Replaces the named target in the clean manifest, or appends it.
-private func manifestFile(_ root: URL, replacing replacement: ManifestTarget? = nil) throws -> URL {
+private func manifestFile(
+    _ root: URL, replacing replacement: ManifestTarget? = nil, products: ProductsInput = .real
+) throws -> URL {
     var targets = cleanTargets()
     if let replacement {
         if let index = targets.firstIndex(where: { $0["name"] as? String == replacement["name"] as? String }) {
@@ -405,7 +418,13 @@ private func manifestFile(_ root: URL, replacing replacement: ManifestTarget? = 
             targets.append(replacement)
         }
     }
-    let data = try JSONSerialization.data(withJSONObject: ["targets": targets])
+    var object: [String: Any] = ["targets": targets]
+    switch products {
+    case .real: object["products"] = realProducts()
+    case .missing: break
+    case .value(let value): object["products"] = value
+    }
+    let data = try JSONSerialization.data(withJSONObject: object)
     let url = root.appendingPathComponent("manifest.json")
     try data.write(to: url)
     return url
@@ -414,11 +433,12 @@ private func manifestFile(_ root: URL, replacing replacement: ManifestTarget? = 
 private func expectManifestResult(
     _ replacement: ManifestTarget?, passes: Bool, _ label: String,
     folders: [String: String] = ["CompanionCoreTestSupport/S.swift": "import CompanionCore\n"],
+    products: ProductsInput = .real,
     sourceLocation: SourceLocation = #_sourceLocation
 ) throws {
     let root = try fixture(folders)
     defer { removeScriptTemp(root, sourceLocation: sourceLocation) }
-    let result = try runLayers(root, manifest: try manifestFile(root, replacing: replacement))
+    let result = try runLayers(root, manifest: try manifestFile(root, replacing: replacement, products: products))
     expect(result.status == 0 ? passes : !passes, "\(label): \(result.output)", sourceLocation: sourceLocation)
     if !passes {
         expect(result.output.contains("[R3]"), "\(label): output names R3: \(result.output)",
@@ -541,4 +561,74 @@ private func expectManifestResult(
     try expectLayerResult([
         "CompanionIntegrationTests/T.swift": "@MainActor @_exported import CompanionTestKit\n",
     ], passes: false, "R4: stacked attributes", rule: "R4")
+}
+
+// MARK: - R3, test-target dependency table: negative cases
+
+/// (target, extra dependency) pairs the table must reject. The base set is the
+/// clean manifest's own, so the only difference is the one widened edge.
+struct ExtraDependency: Sendable, CustomTestStringConvertible {
+    let target: String
+    let extra: String
+    var testDescription: String { "\(target) -> \(extra)" }
+}
+
+private let forbiddenTestEdges: [ExtraDependency] = [
+    ExtraDependency(target: "CompanionUITests", extra: "CompanionServices"),
+    ExtraDependency(target: "CompanionUITests", extra: "CompanionServicesTestSupport"),
+    ExtraDependency(target: "CompanionIntegrationTests", extra: "CompanionApp"),
+    ExtraDependency(target: "CompanionCoreTests", extra: "CompanionServices"),
+    ExtraDependency(target: "CompanionServicesTests", extra: "CompanionUITestSupport"),
+]
+
+@Test(arguments: forbiddenTestEdges)
+func layerGateRejectsAWidenedTestTargetDependency(edge: ExtraDependency) throws {
+    let base = try #require(cleanTargets().first { $0["name"] as? String == edge.target })
+    let names = (base["dependencies"] as? [[String: [Any]]] ?? []).compactMap { $0["byName"]?.first as? String }
+    try expectManifestResult(
+        target(edge.target, type: "test", deps: names + [edge.extra]),
+        passes: false, "R3: \(edge.testDescription)")
+}
+
+// MARK: - R3, products
+
+private func library(_ name: String, targets: [String]) -> [String: Any] {
+    ["name": name, "settings": [Any](), "targets": targets, "type": ["library": ["automatic"]]]
+}
+
+@Test func layerGateAcceptsTheRealShapedProducts() throws {
+    try expectManifestResult(nil, passes: true, "R3: only the companion executable", products: .real)
+}
+
+@Test func layerGateRejectsALibraryProductListingTheTestKit() throws {
+    try expectManifestResult(
+        nil, passes: false, "R3: library product -> TestKit",
+        products: .value(realProducts() + [library("Kit", targets: ["CompanionTestKit"])]))
+}
+
+@Test func layerGateRejectsAnExecutableProductListingASupportTarget() throws {
+    let exe: [String: Any] = [
+        "name": "companion", "settings": [Any](), "targets": ["CompanionApp", "CompanionUITestSupport"],
+        "type": ["executable": NSNull()],
+    ]
+    try expectManifestResult(nil, passes: false, "R3: executable product -> UITestSupport", products: .value([exe]))
+}
+
+@Test func layerGateRejectsAProductListingATestTarget() throws {
+    try expectManifestResult(
+        nil, passes: false, "R3: product -> a test target",
+        products: .value(realProducts() + [library("T", targets: ["CompanionCoreTests"])]))
+}
+
+@Test func layerGateFailsClosedWhenProductsIsMissing() throws {
+    try expectManifestResult(nil, passes: false, "R3: no products key", products: .missing)
+}
+
+@Test(arguments: [
+    #""a string""#, #"{"name": "x"}"#, #"[{"name": "x"}]"#,
+    #"[{"name": "x", "targets": "CompanionApp"}]"#, #"[{"name": "x", "targets": [1]}]"#, "[1]", "null",
+])
+func layerGateFailsClosedOnMalformedProducts(json: String) throws {
+    let products = try JSONSerialization.jsonObject(with: Data(json.utf8), options: .fragmentsAllowed)
+    try expectManifestResult(nil, passes: false, "R3: malformed products \(json)", products: .value(products))
 }

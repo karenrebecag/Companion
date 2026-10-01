@@ -199,3 +199,11 @@ Este brief se reusa para 21-tests C4-C8 (movimiento de los tests no-voz a
 `CompanionIntegrationTests`; regla R4 contra `@_exported import` y R3 extendida a los
 cuatro targets de soporte). Solo `git mv` y imports explicitos; el lote de voz y
 `SupportImports.swift` se quedan en `CompanionTests` hasta PR 4. El Estado no cambia.
+
+## Nota de reuso, PR de casos negativos (2026-09-30)
+
+Este brief se reusa para cerrar la deuda de QA de #63: casos negativos de la tabla de
+dependencias de los targets de test (R3) y una comprobacion de `products` del manifiesto
+(ningun producto lista un target de soporte, `CompanionTestKit` o un target de test).
+Solo `scripts/check-test-layers.sh`, `Tests/CompanionCoreTests/TestLayerGateTests.swift` y
+`CHANGELOG.md`; sin dependencias nuevas. El Estado no cambia.
