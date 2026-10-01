@@ -39,6 +39,11 @@ Cada criterio tiene su test o su evidencia.
 - **A9. Clave de cache de frases.** Con factor 1 es identica a la de hoy, y con factor distinto de 1 cambia.
 - **A10. Ajustes sin cambios.** Ajustes sigue sin control de velocidad: `SettingsParityTests` en verde y ningun archivo de `CompanionUI` tocado.
 - **A11. Evidencia en vivo.** Existe el archivo de evidencia de la tarea 0, con P1-P3 en PASS, antes de mergear el PR-5.
+- **A11b. Formato en el cable (hallazgo de la tarea 0, corrida 1, 2026-10-01).**
+  - `encodeJSON` usa `JSONSerialization` (`ToolSpec.swift:211-213`), que escribe 0.8 como `0.80000000000000004` y 1.6 como `1.6000000000000001`. El servidor realtime rechaza el `session.update` entero con `decimal_max_decimal_places_exceeded` (mas de 16 decimales). Evidencia: `docs/research/evidence/realtime-speed-marin-2026-10-01-run1-float.txt`.
+  - Toda velocidad que sale al cable (realtime, OpenAI TTS, ElevenLabs) se redondea a 2 decimales y se serializa como `Decimal`, que sale como literal corto (`0.8`, `1.43`). Un solo helper en Core: `ConversationSpeed.wire(_ speed: Double) -> Decimal`.
+  - Tests: el JSON de `speedUpdate(0.8)`, de `sessionUpdate` con 0.8 y de los cuerpos de las dos bocas contiene `"speed":0.8` literal; `1.1 x 1.3` sale `1.43`.
+  - **Bug latente de hoy:** `prepareSessionUpdate` manda `config.voice.speed` con `JSONSerialization` (`RealtimeRuntime.swift:212`). Con una velocidad guardada como 0.8, el `session.update` completo se rechaza y la sesion arranca sin instrucciones ni tools. Hoy no se alcanza: el valor guardado de Karen es 1 y Ajustes ya no expone la velocidad. Lo cierra el PR-5; el helper entra en el PR-3.
 - **A12. Prueba en vivo de Karen** (app release):
   - con manos libres, "habla mas rapido" acelera y suena una frase;
   - con FN, "mas lento" frena;
@@ -166,6 +171,16 @@ Criterios de PASS:
 Si falla:
 - **P1 o P2:** el PR-5 vuelve a Karen con la evidencia y una variante de "solo instruccion" en realtime. Los PR-1 a PR-4 siguen.
 - **Solo P3:** se prueba esperar `session.updated` antes del `response.create`.
+
+### Resultado (2026-10-01, corridas de Karen)
+
+- **Corrida 1** (`realtime-speed-marin-2026-10-01-run1-float.txt`): P1 y P2 PASS, P3 FAIL. El servidor rechazo `speed` 0.8 por `decimal_max_decimal_places_exceeded`: `JSONSerialization` lo escribe como `0.80000000000000004`. De ahi sale el criterio A11b.
+- **Corrida 2** (`realtime-speed-marin-2026-10-01-run2-decimal.txt`), con la velocidad como `Decimal` de 2 decimales: **P1, P2 y P3 PASS**. A 1.4 el audio dura 0.706 veces lo de 1.0 por caracter; a 0.8 dura mas que a 1.0 (0.0694 contra 0.0632 s/caracter).
+- **Informativos:**
+  - un update a media respuesta (6a) se acepta, pero no cambia la respuesta en curso: sale a la velocidad anterior. Confirma que la velocidad se aplica entre respuestas y que esperar a `response.done` (A3) es lo correcto;
+  - un update despues de `response.cancel` (6b) se acepta;
+  - 1.6 se rechaza (`decimal_above_max_value`, maximo 1.5), igual que el rango de A7.
+- Gate del PR-5: **cumplido**.
 
 ## 5. Plan TDD (primero RED)
 
