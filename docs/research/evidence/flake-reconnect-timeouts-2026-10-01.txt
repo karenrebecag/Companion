@@ -1,0 +1,60 @@
+flake-timeout5 evidence: SIGSTOP stall inside the pump window, VoiceReconnectTests
+Setup: scratch copies built with git archive of the branch base (RED, short timeouts) and of base + patched VoiceReconnectTests.swift (GREEN, 30 s default). In both, the same probe: the first predicate evaluation of the pump launches a helper that SIGSTOPs the test process (by PID) for N s, and the pending event (stream end / releaseOpen) is fired right after the pump's deadline has been set, so after the resume it is still unobserved.
+--- t5_red_giveup
+PUMP stall begin 6s
+PUMP stall over
+✘ Test aReconnectThatNeverBecomesReadyIsNotRetried() recorded an issue at VoiceReconnectTests.swift:118:20: Expectation failed: condition
+✘ Test aReconnectThatNeverBecomesReadyIsNotRetried() failed after 6.043 seconds with 1 issue.
+--- t5_red_late
+PUMP stall begin 3s
+PUMP stall over
+✘ Test aHangUpDuringAReconnectLeavesTheSessionIdle() recorded an issue at VoiceReconnectTests.swift:231:20: Expectation failed: condition
+✘ Test aHangUpDuringAReconnectLeavesTheSessionIdle() failed after 3.049 seconds with 1 issue.
+--- t5_green_giveup_1
+PUMP stall begin 6s
+PUMP stall over
+✔ Test aReconnectThatNeverBecomesReadyIsNotRetried() passed after 6.050 seconds.
+--- t5_green_giveup_2
+PUMP stall begin 6s
+PUMP stall over
+✔ Test aReconnectThatNeverBecomesReadyIsNotRetried() passed after 6.052 seconds.
+--- t5_green_giveup_3
+PUMP stall begin 6s
+PUMP stall over
+✔ Test aReconnectThatNeverBecomesReadyIsNotRetried() passed after 6.045 seconds.
+--- t5_green_late_1
+PUMP stall begin 3s
+PUMP stall over
+✔ Test aHangUpDuringAReconnectLeavesTheSessionIdle() passed after 3.046 seconds.
+--- t5_green_late_2
+PUMP stall begin 3s
+PUMP stall over
+✔ Test aHangUpDuringAReconnectLeavesTheSessionIdle() passed after 3.048 seconds.
+--- t5_green_late_3
+PUMP stall begin 3s
+PUMP stall over
+✔ Test aHangUpDuringAReconnectLeavesTheSessionIdle() passed after 3.047 seconds.
+--- t5_clean_giveup_1
+PUMP no stall
+✔ Test aReconnectThatNeverBecomesReadyIsNotRetried() passed after 0.014 seconds.
+--- t5_clean_giveup_2
+PUMP no stall
+✔ Test aReconnectThatNeverBecomesReadyIsNotRetried() passed after 0.014 seconds.
+--- t5_clean_giveup_3
+PUMP no stall
+✔ Test aReconnectThatNeverBecomesReadyIsNotRetried() passed after 0.014 seconds.
+--- t5_clean_late_1
+PUMP no stall
+✔ Test aHangUpDuringAReconnectLeavesTheSessionIdle() passed after 0.015 seconds.
+--- t5_clean_late_2
+PUMP no stall
+✔ Test aHangUpDuringAReconnectLeavesTheSessionIdle() passed after 0.014 seconds.
+--- t5_clean_late_3
+PUMP no stall
+✔ Test aHangUpDuringAReconnectLeavesTheSessionIdle() passed after 0.015 seconds.
+--- t5_base_clean_giveup
+PUMP no stall
+✔ Test aReconnectThatNeverBecomesReadyIsNotRetried() passed after 0.014 seconds.
+--- t5_base_clean_late
+PUMP no stall
+✔ Test aHangUpDuringAReconnectLeavesTheSessionIdle() passed after 0.015 seconds.
