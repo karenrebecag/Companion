@@ -129,6 +129,14 @@ package struct SessionMachine: Sendable, Equatable {
             return reduce(.approvalAnswered(requestId: id, approved: approved, remember: false))
         case .approvalSettled(let id):
             _ = remove(id)
+        case .approvalWithdrawn(let id):
+            // The actor already ended the wait: nothing to resolve. A card
+            // already answered is gone, and then there is nothing to explain.
+            guard remove(id) != nil else { return [] }
+            if let current = projection.notice, !Self.fades(current) { return effects }
+            projection.notice = .approvalWithdrawn
+            projection.cards = [.approvalWithdrawn]
+            effects.append(.scheduleNoticeExpiry(Self.noticeDelay))
         case .approvalDropped(let id):
             guard remove(id) != nil else { return [] }
             effects.append(.resolveApproval(requestId: id, approved: false, remember: false))
@@ -326,6 +334,7 @@ package struct SessionMachine: Sendable, Equatable {
         if case .signInApp = notice { return true }
         if case .receipt = notice { return true }
         if case .replyCut = notice { return true }
+        if case .approvalWithdrawn = notice { return true }
         return notice == .couldntHear || notice == .holdHint
     }
 

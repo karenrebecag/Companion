@@ -332,6 +332,14 @@ package actor VoiceSession: VoiceControlling {
             onRemembered: { name, approved in
                 await presenter.appendStatus(ParentToolCopy.remembered(
                     name, approved: approved, configProvider.current.language))
+            },
+            // The card closes however the wait ended; a cut one also says
+            // why, or the user is left with a card that does nothing.
+            onSettled: { [weak self] request, answer in
+                let id = request.requestId
+                eventBox.yield(answer == .abandoned
+                    ? .approvalWithdrawn(requestId: id) : .approvalSettled(requestId: id))
+                Task { [weak self] in await self?.approvalClosed(requestId: id) }
             })
         realtime.parentGuard = parentGuard
         classic.parentGuard = parentGuard

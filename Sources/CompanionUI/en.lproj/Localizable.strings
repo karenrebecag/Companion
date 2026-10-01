@@ -698,3 +698,7 @@
 /* Voice: the connection dropped while Companion was speaking */
 "island.replyCut.title" = "Connection dropped mid-reply";
 "island.replyCut.body" = "Back online. Say \"go on\" to continue.";
+
+/* Voice: the user interrupted while Companion waited for a permission, so it did nothing */
+"island.approvalWithdrawn.title" = "I stopped without doing it";
+"island.approvalWithdrawn.body" = "You interrupted me while I was waiting for your OK, so I didn't do anything.";

@@ -85,7 +85,8 @@ extension SessionCard {
     /// neither is news for the model.
     var islandKind: IslandCardKind? {
         switch self {
-        case .couldntHear, .permission, .failure, .connectApp, .signInApp, .replyCut: .notice
+        case .couldntHear, .permission, .failure, .connectApp, .signInApp, .replyCut,
+             .approvalWithdrawn: .notice
         case .receipt: .receipt
         case .holdHint, .approval, .approvalAnswered, .answer: nil
         }
