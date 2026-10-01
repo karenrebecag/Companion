@@ -32,6 +32,12 @@ if [ "$warnings" -gt 0 ]; then
 fi
 if [ $rc -ne 0 ]; then
     echo "FAIL  swift test --sanitize=thread salio con $rc"
+    # A dead test process leaves no ✘ line; the report names the signal and
+    # the test that was running. tsan.sh had no trap, so it gets its own.
+    test_out_tmp=$(mktemp "${TMPDIR:-/tmp}/companion-tsan-out.XXXXXX")
+    trap 'rm -f "$test_out_tmp"' EXIT
+    printf '%s\n' "$out" > "$test_out_tmp"
+    bash "$ROOT/scripts/report-test-failure.sh" "$rc" "$test_out_tmp"
     # Un build roto no deja ninguna linea de tests: sin el error del
     # compilador el log de CI solo diria el codigo de salida.
     echo "$out" | grep -E '✘|↳|Issue recorded|Expectation failed|error:' | head -40

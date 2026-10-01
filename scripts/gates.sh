@@ -123,7 +123,10 @@ check_imports CompanionUI       "AVFoundation|WebKit" \
 # Capas de los targets de test: sin @testable en soporte, imports en una sola
 # direccion, sin resources/defaultIsolation donde no toca. Falla cerrado.
 manifest_tmp=$(mktemp "${TMPDIR:-/tmp}/companion-manifest.XXXXXX")
-trap 'rm -f "$manifest_tmp"' EXIT
+# One EXIT trap for every temp file: a second `trap ... EXIT` replaces the
+# first instead of adding to it. Gate 4 writes the test output here.
+test_out_tmp=$(mktemp "${TMPDIR:-/tmp}/companion-test-out.XXXXXX")
+trap 'rm -f "$manifest_tmp" "$test_out_tmp"' EXIT
 if (cd "$ROOT" && swift package dump-package > "$manifest_tmp" 2>/dev/null) \
         && layer_out=$(bash "$ROOT/scripts/check-test-layers.sh" "$ROOT" "$manifest_tmp" 2>&1); then
     pass "capas de test: sin @testable en soporte, imports y manifiesto en regla"
@@ -270,6 +273,8 @@ if [ $rc -eq 0 ]; then
     pass "swift test verde — $(echo "$out" | grep -oE 'with [0-9]+ tests? in [0-9]+ suites?' | tail -1)"
 else
     fail "swift test fallo:"
+    printf '%s\n' "$out" > "$test_out_tmp"
+    bash "$ROOT/scripts/report-test-failure.sh" "$rc" "$test_out_tmp"
     echo "$out" | tail -20
     # Debugging 2026-09-28: las ultimas 20 lineas casi nunca alcanzan cuando
     # falla un dispatcher que agrupa muchos sub-tests (Issue recorded llega
@@ -277,7 +282,7 @@ else
     # "fallo con 1 issue" para adivinar cual.
     echo
     echo "-- detalle del fallo (busqueda en toda la salida, no solo el final) --"
-    echo "$out" | grep -E '✘|↳|Issue recorded|Expectation failed'
+    echo "$out" | grep -E '✘|↳|Issue recorded|Expectation failed|error:'
 fi
 
 # Wave 18 (X14): la extension del navegador trae su propio arnes, sin
