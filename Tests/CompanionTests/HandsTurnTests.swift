@@ -39,7 +39,9 @@ private final class CancellingTools: ParentToolExecuting, @unchecked Sendable {
         ToolCallRef(id: "b", name: "press_key", arguments: #"{"key":"return"}"#),
     ]
     let turns = await Task {
-        await runtime.act(calls, said: "", heard: "escribe hola y envíalo", using: tools, language: .es)
+        var mouth = TurnMouth(language: .es, recognizer: runtime.languageRecognizer, heard: "escribe hola y envíalo")
+        return await runtime.act(
+            calls, said: "", heard: "escribe hola y envíalo", using: tools, language: .es, &mouth)
     }.value
     expectEq(tools.ran, ["type_text"], "barge-in: Return no se pulsa tras el corte")
     expectEq(turns.count, 3, "barge-in: cada llamada tiene su respuesta")

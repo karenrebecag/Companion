@@ -17,6 +17,10 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 - **La isla avisa cuando la red corta a Companion a media respuesta (2026-09-30).** Ves
   "Se cortó la conexión a media respuesta" y cómo seguir. El aviso se va solo, no tapa un error
   ni un permiso pendiente, y no aparece si la voz está apagada o si ya hablaste encima.
+- **Un aviso y tu siguiente turno ya no se pisan en el modo clásico (2026-09-30).** Si
+  hablabas mientras Companion leía un aviso, o cortabas un turno y empezabas otro, los dos
+  compartían el estado del turno: una tarjeta o una acción de uno podía colarse en la respuesta
+  del otro. Ahora cada turno lleva su propio estado.
 - **La voz sigue escuchando después de un corte de red (2026-09-30, #59).** Al reconectar,
   nadie leía la conexión nueva y la voz quedaba sorda; además arrancaba sin instrucciones, tools
   ni voz elegida, y volvía a encender el micrófono aunque lo hubieras silenciado. Ahora reanuda

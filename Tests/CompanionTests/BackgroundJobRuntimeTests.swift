@@ -548,8 +548,11 @@ private struct CardTools: ParentToolExecuting {
         [open], said: "", heard: "abre Safari", using: CardTools(), language: .es, unverified: [])
     expectEq(round.effectLines, ["Abrí Safari."], "ronda: devuelve la línea del efecto")
     expect(round.sawCard, "ronda: y que hubo tarjeta")
-    expect(runtime.effectLines.isEmpty, "ronda: sin escribir el estado del runtime desde el hijo")
-    expect(!runtime.cardThisTurn, "ronda: ni la tarjeta")
+    var mouth = TurnMouth(language: .es, recognizer: FakeRecognizer(), heard: "abre Safari")
+    expect(mouth.effectLines.isEmpty && !mouth.cardThisTurn, "ronda: el turno no cambia hasta absorber")
+    ClassicRuntime.absorb(round, into: &mouth)
+    expectEq(mouth.effectLines, ["Abrí Safari."], "ronda: absorber lleva la línea al turno")
+    expect(mouth.cardThisTurn, "ronda: y la tarjeta")
 }
 
 // MARK: - the notice's lifecycle (S1, S2, M3)

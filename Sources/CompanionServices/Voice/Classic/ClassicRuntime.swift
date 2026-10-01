@@ -1,8 +1,14 @@
 import CompanionCore
 import Foundation
+import Synchronization
 
 /// Port protocols (Transcriber, SpeechSynthesizer, ChatProvider, ConversationPresenting)
-/// may not conform to Sendable but are safely isolated by exclusive access in VoiceSession.
+/// may not conform to Sendable. Nothing here is isolated to VoiceSession: its
+/// turn task, its notice task and (for three fields) the actor itself all run
+/// this object at once, off the actor. What makes that safe is that a turn's
+/// own state lives in its `TurnMouth` and never on the runtime, and the three
+/// fields that genuinely cross tasks sit behind one `Mutex` (`Crossing`).
+/// The rest is wiring, assigned once before the first task exists.
 final class ClassicRuntime: @unchecked Sendable {
     let transcriber: any Transcriber
     let synthesizer: any SpeechSynthesizer
@@ -25,14 +31,23 @@ final class ClassicRuntime: @unchecked Sendable {
     /// she said, not against what the model claims she said. Empty when
     /// nothing was heard.
     var onHeard: (@Sendable (String, TimeInterval?) async -> Void)?
-    /// 16h-2 (security M1): our own lines this turn owes the user, said
-    /// after the reply (a spoken yes the sheet did not take).
-    var owedLines: [String] = []
     var screen: (any ScreenSeeing)?
     /// Wave 15b-5: `sensor.sense(...)` started at press (`VoiceSessionFanOut`),
     /// so `senseVoice` reads an already-finished Task at commit instead of
     /// paying the sense delay on the turn the user is waiting on.
-    var pressedContext: Task<TurnContext?, Never>?
+    var pressedContext: Task<TurnContext?, Never>? {
+        get { crossing.withLock { $0.pressedContext } }
+        set { crossing.withLock { $0.pressedContext = newValue } }
+    }
+
+    /// The fields the actor and a turn task both touch. A struct under one
+    /// lock, so a read-and-clear is a single step with no `await` inside.
+    private struct Crossing {
+        var steerPending = false
+        var leftoverHeard: String?
+        var pressedContext: Task<TurnContext?, Never>?
+    }
+    private let crossing = Mutex(Crossing())
 
     /// Code review 2026-09-23 (medio): every place that abandons a hold
     /// instead of letting `senseVoice` consume the scan — a fresh press's
@@ -40,8 +55,14 @@ final class ClassicRuntime: @unchecked Sendable {
     /// submitting — must cancel it here. One place all those callers route
     /// through, so a stray scan never keeps sensing after its hold is gone.
     func cancelPressedContext() {
-        pressedContext?.cancel()
-        pressedContext = nil
+        takePressedContext()?.cancel()
+    }
+
+    private func takePressedContext() -> Task<TurnContext?, Never>? {
+        crossing.withLock { state in
+            defer { state.pressedContext = nil }
+            return state.pressedContext
+        }
     }
     /// DM1c-2: `VoiceSession.attachDecision` wires the local router here.
     /// Nil (today) or a `.passThrough` outcome: byte-identical to before —
@@ -49,21 +70,31 @@ final class ClassicRuntime: @unchecked Sendable {
     var decide: (@Sendable (String, Bool) async -> DecisionOutcome)?
     /// Words already taken from the ear (dictation fallback). `stop()` is
     /// one-shot in production; a second call would drop the utterance.
-    var leftoverHeard: String?
+    var leftoverHeard: String? {
+        get { crossing.withLock { $0.leftoverHeard } }
+        set { crossing.withLock { $0.leftoverHeard = newValue } }
+    }
+
+    private func takeLeftoverHeard() -> String? {
+        crossing.withLock { state in
+            defer { state.leftoverHeard = nil }
+            return state.leftoverHeard
+        }
+    }
     /// 15b-10: set when a press cuts this turn mid-flight, consumed once by
     /// the next turn's `<steer>` note (15b-11) so the model knows it was
     /// interrupted instead of repeating itself.
-    var steerPending = false
-    /// 16h-1: a tool put a card on screen this turn, so what is still said
-    /// is a line pointing at it (`SpeechBudget`), not the card read aloud.
-    var cardThisTurn = false
-    /// 16h-1: texts `type_text` injected that no `read_focused` has confirmed
-    /// yet; a later read in the same turn turns them into a success line.
-    var unverifiedTyped: [TypedAttempt] = []
-    /// 16h-1: the status line of every call this turn that changed something.
-    /// If the filter swallowed what the model said about them, the app says
-    /// them itself (`sayMissingEffects`).
-    var effectLines: [String] = []
+    var steerPending: Bool {
+        get { crossing.withLock { $0.steerPending } }
+        set { crossing.withLock { $0.steerPending = newValue } }
+    }
+
+    private func takeSteerPending() -> Bool {
+        crossing.withLock { state in
+            defer { state.steerPending = false }
+            return state.steerPending
+        }
+    }
     /// Wave 15b-9: the turn's own clock, injectable so a test can cross the
     /// idle window without sleeping.
     var now: @Sendable () -> Date = { Date() }
@@ -81,7 +112,6 @@ final class ClassicRuntime: @unchecked Sendable {
     /// 15d-6: the opt-in transcript file; `turnTranscripts` is it for the
     /// current turn only when `Config.debugTranscripts` was on at its start.
     var transcripts: TranscriptDebugLog?
-    private var turnTranscripts: TranscriptDebugLog?
     var firstCutWait: @Sendable () async -> Void = ClassicRuntime.defaultFirstCutWait
     /// 16h-2: how long a parent tool may run before the turn acknowledges
     /// it; injectable so a test decides when a tool counts as slow. An
@@ -205,8 +235,7 @@ final class ClassicRuntime: @unchecked Sendable {
     ) async {
         let language = config.language
         let heard: String
-        if let leftover = leftoverHeard {
-            leftoverHeard = nil
+        if let leftover = takeLeftoverHeard() {
             heard = leftover.trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
             heard = await finalTranscript()
@@ -221,8 +250,10 @@ final class ClassicRuntime: @unchecked Sendable {
             return
         }
         await markTimeline?(.earFinal)
-        turnTranscripts = config.debugTranscripts ? transcripts : nil
-        turnTranscripts?.heard(heard)
+        // Held by this turn alone: a cut turn and its successor each write
+        // to the log they started with.
+        let transcript = config.debugTranscripts ? transcripts : nil
+        transcript?.heard(heard)
         // A cancelled hold's words belong to no one: a new press cut it.
         await onHeard?(Task.isCancelled ? "" : heard, pressed)
         if heard.isEmpty {
@@ -243,15 +274,15 @@ final class ClassicRuntime: @unchecked Sendable {
         // 15b-11: consumed exactly once by whichever turn comes next —
         // cleared here even when the router below ends up handling it and
         // never renders a `<context>` block to carry the note at all.
-        let interrupted = steerPending
-        steerPending = false
+        let interrupted = takeSteerPending()
         if let decide {
             let outcome = await decide(heard, onDelegate != nil)
             if case .passThrough = outcome {
                 // The router abstained (disabled, ignored, no executor…):
                 // today's model-in-the-loop path takes the turn, unchanged.
             } else {
-                await respond(to: outcome, heard: heard, language: language, apply: apply)
+                await respond(
+                    to: outcome, heard: heard, language: language, transcript: transcript, apply: apply)
                 return
             }
         }
@@ -282,10 +313,6 @@ final class ClassicRuntime: @unchecked Sendable {
         // 15g-5: the context is in hand and the first chat request leaves
         // next — `commit→context` is the fan-out's share of the wait.
         await markTimeline?(.contextReady)
-        cardThisTurn = false
-        unverifiedTyped = []
-        effectLines = []
-        owedLines = []
         var mouth = TurnMouth(language: language, recognizer: languageRecognizer, heard: heard)
         for round in 1 ... Self.maxParentRounds {
             var text = ""
@@ -296,7 +323,7 @@ final class ClassicRuntime: @unchecked Sendable {
             let (events, armFirstCut) = mouthEvents(chat.stream(history, tools: tools))
             do {
                 for try await event in events {
-                    if Task.isCancelled { return await cutTurn() }
+                    if Task.isCancelled { return await cutTurn(transcript) }
                     guard case .delta(let delta) = event else {
                         if let early = mouth.buffer.takeStalled() { await say(early, &mouth) }
                         continue
@@ -306,12 +333,12 @@ final class ClassicRuntime: @unchecked Sendable {
                         let (piece, found) = guardJSON(mouth.json.feed(raw))
                         if fromContent == nil { fromContent = found }
                         guard await take(piece, round: &text, &mouth, apply: apply) else {
-                            return await cutTurn()
+                            return await cutTurn(transcript)
                         }
                         if mouth.buffer.awaitsFirstCut { armFirstCut() }
                     case .toolCalls(let roundCalls):
                         for call in roundCalls {
-                            await handleJobTool(call, language: language)
+                            await handleJobTool(call, language: language, &mouth)
                             if parentTools?.handles(call.name) == true {
                                 calls.append(call)
                             }
@@ -332,10 +359,10 @@ final class ClassicRuntime: @unchecked Sendable {
             // never spoken; a lone brace was prose.
             let (tail, _) = guardJSON(mouth.json.finish())
             guard await take(tail, round: &text, &mouth, apply: apply) else {
-                return await cutTurn()
+                return await cutTurn(transcript)
             }
             if failed { break }
-            if Task.isCancelled { return await cutTurn() }
+            if Task.isCancelled { return await cutTurn(transcript) }
             if handoff == nil, let found = fromContent {
                 if let fragment = mouth.buffer.drain() { await say(fragment, &mouth) }
                 if !calls.isEmpty, let parentTools {
@@ -343,14 +370,14 @@ final class ClassicRuntime: @unchecked Sendable {
                         calls, said: mouth.saidPart(of: text), heard: heard, using: parentTools,
                         language: language, &mouth, apply: apply)
                 }
-                if Task.isCancelled { return await cutTurn() }
+                if Task.isCancelled { return await cutTurn(transcript) }
                 // Tool results are perceived input too: a page `web_fetch`
                 // read can carry the goal object as well as the clipboard.
                 let perceived = HandoffProposal.echoSources(context) + [block]
                     + history.filter { $0.role == .tool }.map(\.content)
                 guard await propose(found, perceived: perceived, round: &text, &mouth,
                                     language: language, apply: apply)
-                else { return await cutTurn() }
+                else { return await cutTurn(transcript) }
                 break
             }
             if let handoff {
@@ -363,12 +390,12 @@ final class ClassicRuntime: @unchecked Sendable {
                 // A cut here still leaves the handoff undelivered: nothing
                 // was promised to the user yet, so no errand starts on their
                 // behalf without them hearing it (spec 15b-10 §3-D).
-                if Task.isCancelled { return await cutTurn() }
+                if Task.isCancelled { return await cutTurn(transcript) }
                 // 16h-2: the user hears the line before the job exists, so a
                 // slow specialist never decides when the turn first sounds;
                 // a press over the line still keeps the errand from starting.
                 await acknowledge(Acknowledgement.delegating(language), &mouth, apply: apply)
-                if Task.isCancelled { return await cutTurn() }
+                if Task.isCancelled { return await cutTurn(transcript) }
                 onDelegate?(handoff)
                 break
             }
@@ -383,12 +410,12 @@ final class ClassicRuntime: @unchecked Sendable {
             // was missing — a press landing mid-`act()` (a non-handoff tool
             // round) used to fall through into the next round's
             // `chat.stream` anyway.
-            if Task.isCancelled { return await cutTurn() }
+            if Task.isCancelled { return await cutTurn(transcript) }
             if round == Self.maxParentRounds {
                 Log.app("voice: classic parent-tool round cap reached")
             }
         }
-        if Task.isCancelled { return await cutTurn() }
+        if Task.isCancelled { return await cutTurn(transcript) }
         if let rest = mouth.buffer.drain() {
             if !mouth.started {
                 mouth.started = true
@@ -398,15 +425,15 @@ final class ClassicRuntime: @unchecked Sendable {
         }
         await flushHeld(&mouth)
         await sayMissingEffects(&mouth, apply: apply)
-        for line in owedLines { await sayOwn(line, &mouth, apply: apply) }
-        if Task.isCancelled { return await cutTurn() }
+        for line in mouth.owedLines { await sayOwn(line, &mouth, apply: apply) }
+        if Task.isCancelled { return await cutTurn(transcript) }
         if !mouth.spoken.isEmpty {
             let said = mouth.said
-            turnTranscripts?.said(said)
+            transcript?.said(said)
             await thread.appendAssistant(said)
             await thread.finishStream()
         }
-        if Task.isCancelled { return await cutTurn() }
+        if Task.isCancelled { return await cutTurn(transcript) }
         await apply(.replyCompleted)
     }
 
@@ -414,9 +441,9 @@ final class ClassicRuntime: @unchecked Sendable {
     /// (never the fuller text still mid-generation) threads as the
     /// assistant's partial reply, and the next turn gets a one-shot note
     /// that it happened — nothing here enqueues, appends twice or delegates.
-    private func cutTurn() async {
+    private func cutTurn(_ transcript: TranscriptDebugLog?) async {
         if let partial = await synthesizer.spokenSoFar() {
-            turnTranscripts?.said(partial)
+            transcript?.said(partial)
             await thread.appendAssistant(partial)
             await thread.finishStream()
         }
@@ -429,6 +456,7 @@ final class ClassicRuntime: @unchecked Sendable {
     /// never runs this turn.
     private func respond(
         to outcome: DecisionOutcome, heard: String, language: AppLanguage,
+        transcript: TranscriptDebugLog?,
         apply: @escaping @Sendable (TurnEvent) async -> Void
     ) async {
         screen?.cancel()
@@ -465,11 +493,11 @@ final class ClassicRuntime: @unchecked Sendable {
         if case .delegate = outcome { await markTimeline?(.acknowledged) }
         // A press cut the router's turn (code review L2): nothing more is
         // said, and no errand starts behind the new hold.
-        if Task.isCancelled { return await cutTurn() }
+        if Task.isCancelled { return await cutTurn(transcript) }
         await synthesizer.enqueue(spoken)
-        if Task.isCancelled { return await cutTurn() }
+        if Task.isCancelled { return await cutTurn(transcript) }
         if case .delegate(let handoff) = outcome { onDelegate?(handoff) }
-        turnTranscripts?.said(spoken)
+        transcript?.said(spoken)
         await thread.appendAssistant(threaded)
         await thread.finishStream()
         await apply(.replyCompleted)
@@ -477,9 +505,8 @@ final class ClassicRuntime: @unchecked Sendable {
 
     private func senseVoice(_ config: Config, utterance: String) async -> TurnContext? {
         var ctx: TurnContext
-        if let pressedContext {
-            self.pressedContext = nil
-            guard let sensed = await pressedContext.value else { return nil }
+        if let pressed = takePressedContext() {
+            guard let sensed = await pressed.value else { return nil }
             ctx = sensed
         } else {
             guard let sensor else { return nil }
@@ -507,14 +534,16 @@ final class ClassicRuntime: @unchecked Sendable {
         return ctx
     }
 
-    private func handleJobTool(_ call: ToolCallRef, language: AppLanguage) async {
+    private func handleJobTool(
+        _ call: ToolCallRef, language: AppLanguage, _ mouth: inout TurnMouth
+    ) async {
         switch call.name {
         case "stop_job":
             await onStopJob?()
         case "resolve_approval":
             if let approved = Self.approved(from: call.arguments),
                await onResolveApproval?(approved) == .needsClick {
-                owedLines.append(Escalation.approvalNeedsClickSpoken(language))
+                mouth.owedLines.append(Escalation.approvalNeedsClickSpoken(language))
             }
         default:
             break

@@ -1,0 +1,24 @@
+WARNING: ThreadSanitizer: data race (pid=75337)
+  Write of size 1 at 0x00010c7469e9 by thread T13:
+    #0 ClassicRuntime.submit(config:endsHold:pressed:apply:) ClassicRuntime.swift:285 (CompanionPackageTests:arm64+0x5791e0)
+    #1 swift::runJobInEstablishedExecutorContext(swift::Job*) <null> (libswift_Concurrency.dylib:arm64e+0x2e14)
+
+  Previous read of size 1 at 0x00010c7469e9 by thread T10:
+    #0 ClassicRuntime.speak(_:_:) ClassicRuntime+Mouth.swift:138 (CompanionPackageTests:arm64+0x54fa1c)
+    #1 swift::runJobInEstablishedExecutorContext(swift::Job*) <null> (libswift_Concurrency.dylib:arm64e+0x2e14)
+
+  Location is heap block of size 648 at 0x00010c746800 allocated by main thread:
+    #0 malloc <null> (libclang_rt.tsan_osx_dynamic.dylib:arm64e+0x679b4)
+    #1 _malloc_type_malloc_outlined <null> (libsystem_malloc.dylib:arm64e+0x1e658)
+    #2 VoiceSession.init(transport:mic:player:transcriber:synthesizer:chat:secrets:thread:configProvider:jobs:realtimeEar:memoryStore:parentTools:sensor:approvals:fieldProbe:injector:screen:reachability:echoFreeProbe:micSilenceTimeout:releaseTail:now:readyTimeout:) VoiceSession.swift:249 (CompanionPackageTests:arm64+0x894a3c)
+    #3 VoiceSession.__allocating_init(transport:mic:player:transcriber:synthesizer:chat:secrets:thread:configProvider:jobs:realtimeEar:memoryStore:parentTools:sensor:approvals:fieldProbe:injector:screen:reachability:echoFreeProbe:micSilenceTimeout:releaseTail:now:readyTimeout:) VoiceSession.swift (CompanionPackageTests:arm64+0x893130)
+    #4 makeVoiceHarness(key:autoEvents:readyTimeout:aec:online:micSilenceTimeout:echoFreeOutput:jobs:language:realtimeEar:parentTools:onJobEvent:sensor:memoryStore:approvals:session:voiceMode:fieldProbe:injector:releaseTail:screen:debugTranscripts:) VoiceSessionFakes.swift:74 (CompanionPackageTests:arm64+0x21647bc)
+    #5 restingWithJob(_:rounds:session:) BackgroundJobRuntimeTests.swift:562 (CompanionPackageTests:arm64+0xc2b540)
+    #6 swift::runJobInEstablishedExecutorContext(swift::Job*) <null> (libswift_Concurrency.dylib:arm64e+0x2e14)
+    #7 <null> <null> (swiftpm-testing-helper:arm64+0x100000888)
+
+  Thread T13 (tid=18940993, running) is a GCD worker thread
+
+  Thread T10 (tid=18940991, running) is a GCD worker thread
+
+SUMMARY: ThreadSanitizer: data race ClassicRuntime.swift:285 in ClassicRuntime.submit(config:endsHold:pressed:apply:)
