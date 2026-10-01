@@ -1,0 +1,207 @@
+# approvals16q1:115 autoDeny flake — RED/GREEN (2026-10-01)
+# Scratch copy at d563ca3 with timestamped probe logging; 6 s SIGSTOP inside the pump window.
+## RED (timeout: 5)
+Test Suite 'CompanionPackageTests.xctest' passed at 2026-10-01 10:01:08.101.
+Test Suite 'Selected tests' passed at 2026-10-01 10:01:08.101.
+PROBE 1790870468.1666 Approvals.request parked req9
+PROBE 1790870468.1695 Approvals.request parked barrera
+PROBE 1790870468.1728 dropPendingMCPApprovals dropped=2
+PROBE 1790870468.1728 decide returned approved=false timedOut=false
+PROBE 1790870468.1728 live=false transportDown=false
+PROBE 1790870468.1728 decide returned approved=false timedOut=false
+PROBE 1790870468.1729 live=false transportDown=false
+PROBE 1790870468.1791 Approvals.request parked req9
+PROBE 1790870468.1816 decide returned approved=true timedOut=false
+PROBE 1790870468.1816 live=true transportDown=false
+PROBE 1790870468.1816 sent
+PROBE 1790870468.1850 dropPendingMCPApprovals dropped=0
+PROBE 1790870468.1919 Approvals.request parked req9
+PROBE 1790870468.1948 decide returned approved=false timedOut=false
+PROBE 1790870468.1948 live=true transportDown=false
+PROBE 1790870468.1948 sent
+PROBE 1790870468.1978 dropPendingMCPApprovals dropped=0
+PROBE 1790870468.2046 Approvals.request parked req9
+PROBE 1790870474.2230 timer woke req9
+PROBE 1790870474.2231 autoDeny entered pending=true
+✘ Test approvals16q1Tests() recorded an issue at Approvals16q1Tests.swift:119:20: Expectation failed: condition
+↳ mcp autoDeny: viaja rechazada
+PROBE 1790870474.2237 dropPendingMCPApprovals dropped=1
+PROBE 1790870474.2238 decide returned approved=false timedOut=true
+PROBE 1790870474.2238 live=false transportDown=false
+PROBE 1790870474.2239 test end sent=3
+PROBE 1790870474.2318 decide returned approved=false timedOut=false
+PROBE 1790870474.2318 live=true transportDown=false
+PROBE 1790870474.2319 sent
+PROBE 1790870474.2350 dropPendingMCPApprovals dropped=0
+PROBE 1790870474.2425 Approvals.request parked req9
+PROBE 1790870474.2459 Approvals.request parked barrera
+PROBE 1790870474.2484 dropPendingMCPApprovals dropped=2
+PROBE 1790870474.2484 decide returned approved=false timedOut=false
+PROBE 1790870474.2484 live=false transportDown=false
+PROBE 1790870474.2484 decide returned approved=false timedOut=false
+PROBE 1790870474.2484 live=false transportDown=false
+PROBE 1790870474.2558 Approvals.request parked req9
+PROBE 1790870474.2586 decide returned approved=false timedOut=false
+PROBE 1790870474.2586 live=true transportDown=false
+PROBE 1790870474.2586 sent
+PROBE 1790870474.2621 dropPendingMCPApprovals dropped=0
+PROBE 1790870474.2695 Approvals.request parked req9
+PROBE 1790870474.2727 decide returned approved=false timedOut=false
+PROBE 1790870474.2727 live=true transportDown=false
+PROBE 1790870474.2728 sent
+PROBE 1790870474.2761 dropPendingMCPApprovals dropped=0
+✘ Test approvals16q1Tests() failed after 6.394 seconds with 1 issue.
+✘ Test run with 1 test in 0 suites failed after 6.394 seconds with 1 issue.
+## GREEN with 6 s stall, run 1 (default 30 s pump)
+Test Suite 'CompanionPackageTests.xctest' passed at 2026-10-01 10:02:04.232.
+Test Suite 'Selected tests' passed at 2026-10-01 10:02:04.232.
+PROBE 1790870524.3409 Approvals.request parked req9
+PROBE 1790870524.3438 Approvals.request parked barrera
+PROBE 1790870524.3469 dropPendingMCPApprovals dropped=2
+PROBE 1790870524.3470 decide returned approved=false timedOut=false
+PROBE 1790870524.3470 live=false transportDown=false
+PROBE 1790870524.3470 decide returned approved=false timedOut=false
+PROBE 1790870524.3470 live=false transportDown=false
+PROBE 1790870524.3543 Approvals.request parked req9
+PROBE 1790870524.3565 decide returned approved=true timedOut=false
+PROBE 1790870524.3565 live=true transportDown=false
+PROBE 1790870524.3565 sent
+PROBE 1790870524.3599 dropPendingMCPApprovals dropped=0
+PROBE 1790870524.3660 Approvals.request parked req9
+PROBE 1790870524.3689 decide returned approved=false timedOut=false
+PROBE 1790870524.3689 live=true transportDown=false
+PROBE 1790870524.3689 sent
+PROBE 1790870524.3723 dropPendingMCPApprovals dropped=0
+PROBE 1790870524.3789 Approvals.request parked req9
+PROBE 1790870530.3973 timer woke req9
+PROBE 1790870530.3973 autoDeny entered pending=true
+PROBE 1790870530.3977 decide returned approved=false timedOut=true
+PROBE 1790870530.3977 live=true transportDown=false
+PROBE 1790870530.3977 sent
+PROBE 1790870530.4012 dropPendingMCPApprovals dropped=0
+PROBE 1790870530.4013 test end sent=5
+PROBE 1790870530.4107 decide returned approved=false timedOut=false
+PROBE 1790870530.4107 live=true transportDown=false
+PROBE 1790870530.4107 sent
+PROBE 1790870530.4144 dropPendingMCPApprovals dropped=0
+PROBE 1790870530.4227 Approvals.request parked req9
+PROBE 1790870530.4259 Approvals.request parked barrera
+PROBE 1790870530.4284 dropPendingMCPApprovals dropped=2
+PROBE 1790870530.4285 decide returned approved=false timedOut=false
+PROBE 1790870530.4286 live=false transportDown=false
+PROBE 1790870530.4287 decide returned approved=false timedOut=false
+PROBE 1790870530.4287 live=false transportDown=false
+PROBE 1790870530.4372 Approvals.request parked req9
+PROBE 1790870530.4392 decide returned approved=false timedOut=false
+PROBE 1790870530.4392 live=true transportDown=false
+PROBE 1790870530.4392 sent
+PROBE 1790870530.4422 dropPendingMCPApprovals dropped=0
+PROBE 1790870530.4504 Approvals.request parked req9
+PROBE 1790870530.4531 decide returned approved=false timedOut=false
+PROBE 1790870530.4531 live=true transportDown=false
+PROBE 1790870530.4532 sent
+PROBE 1790870530.4565 dropPendingMCPApprovals dropped=0
+✔ Test approvals16q1Tests() passed after 6.431 seconds.
+✔ Test run with 1 test in 0 suites passed after 6.432 seconds.
+## GREEN with 6 s stall, run 2 (default 30 s pump)
+Test Suite 'CompanionPackageTests.xctest' passed at 2026-10-01 10:02:11.271.
+Test Suite 'Selected tests' passed at 2026-10-01 10:02:11.271.
+PROBE 1790870531.3472 Approvals.request parked req9
+PROBE 1790870531.3507 Approvals.request parked barrera
+PROBE 1790870531.3530 dropPendingMCPApprovals dropped=2
+PROBE 1790870531.3534 decide returned approved=false timedOut=false
+PROBE 1790870531.3534 live=false transportDown=false
+PROBE 1790870531.3534 decide returned approved=false timedOut=false
+PROBE 1790870531.3535 live=false transportDown=false
+PROBE 1790870531.3626 Approvals.request parked req9
+PROBE 1790870531.3665 decide returned approved=true timedOut=false
+PROBE 1790870531.3666 live=true transportDown=false
+PROBE 1790870531.3666 sent
+PROBE 1790870531.3699 dropPendingMCPApprovals dropped=0
+PROBE 1790870531.3803 Approvals.request parked req9
+PROBE 1790870531.3833 decide returned approved=false timedOut=false
+PROBE 1790870531.3836 live=true transportDown=false
+PROBE 1790870531.3837 sent
+PROBE 1790870531.3872 dropPendingMCPApprovals dropped=0
+PROBE 1790870531.3953 Approvals.request parked req9
+PROBE 1790870537.4169 timer woke req9
+PROBE 1790870537.4170 autoDeny entered pending=true
+PROBE 1790870537.4174 decide returned approved=false timedOut=true
+PROBE 1790870537.4174 live=true transportDown=false
+PROBE 1790870537.4174 sent
+PROBE 1790870537.4192 dropPendingMCPApprovals dropped=0
+PROBE 1790870537.4193 test end sent=5
+PROBE 1790870537.4306 decide returned approved=false timedOut=false
+PROBE 1790870537.4306 live=true transportDown=false
+PROBE 1790870537.4307 sent
+PROBE 1790870537.4344 dropPendingMCPApprovals dropped=0
+PROBE 1790870537.4425 Approvals.request parked req9
+PROBE 1790870537.4462 Approvals.request parked barrera
+PROBE 1790870537.4490 dropPendingMCPApprovals dropped=2
+PROBE 1790870537.4491 decide returned approved=false timedOut=false
+PROBE 1790870537.4491 live=false transportDown=false
+PROBE 1790870537.4492 decide returned approved=false timedOut=false
+PROBE 1790870537.4492 live=false transportDown=false
+PROBE 1790870537.4617 Approvals.request parked req9
+PROBE 1790870537.4697 decide returned approved=false timedOut=false
+PROBE 1790870537.4697 live=true transportDown=false
+PROBE 1790870537.4698 sent
+PROBE 1790870537.4736 dropPendingMCPApprovals dropped=0
+PROBE 1790870537.4823 Approvals.request parked req9
+PROBE 1790870537.4841 decide returned approved=false timedOut=false
+PROBE 1790870537.4841 live=true transportDown=false
+PROBE 1790870537.4842 sent
+PROBE 1790870537.4886 dropPendingMCPApprovals dropped=0
+✔ Test approvals16q1Tests() passed after 6.509 seconds.
+✔ Test run with 1 test in 0 suites passed after 6.509 seconds.
+## GREEN with 6 s stall, run 3 (default 30 s pump)
+Test Suite 'CompanionPackageTests.xctest' passed at 2026-10-01 10:02:18.733.
+Test Suite 'Selected tests' passed at 2026-10-01 10:02:18.733.
+PROBE 1790870538.8098 Approvals.request parked req9
+PROBE 1790870538.8134 Approvals.request parked barrera
+PROBE 1790870538.8165 dropPendingMCPApprovals dropped=2
+PROBE 1790870538.8166 decide returned approved=false timedOut=false
+PROBE 1790870538.8167 live=false transportDown=false
+PROBE 1790870538.8167 decide returned approved=false timedOut=false
+PROBE 1790870538.8167 live=false transportDown=false
+PROBE 1790870538.8247 Approvals.request parked req9
+PROBE 1790870538.8264 decide returned approved=true timedOut=false
+PROBE 1790870538.8264 live=true transportDown=false
+PROBE 1790870538.8265 sent
+PROBE 1790870538.8294 dropPendingMCPApprovals dropped=0
+PROBE 1790870538.8375 Approvals.request parked req9
+PROBE 1790870538.8404 decide returned approved=false timedOut=false
+PROBE 1790870538.8405 live=true transportDown=false
+PROBE 1790870538.8405 sent
+PROBE 1790870538.8442 dropPendingMCPApprovals dropped=0
+PROBE 1790870538.8528 Approvals.request parked req9
+PROBE 1790870544.8665 timer woke req9
+PROBE 1790870544.8665 autoDeny entered pending=true
+PROBE 1790870544.8668 decide returned approved=false timedOut=true
+PROBE 1790870544.8668 live=true transportDown=false
+PROBE 1790870544.8669 sent
+PROBE 1790870544.8700 dropPendingMCPApprovals dropped=0
+PROBE 1790870544.8700 test end sent=5
+PROBE 1790870544.8772 decide returned approved=false timedOut=false
+PROBE 1790870544.8772 live=true transportDown=false
+PROBE 1790870544.8773 sent
+PROBE 1790870544.8804 dropPendingMCPApprovals dropped=0
+PROBE 1790870544.8876 Approvals.request parked req9
+PROBE 1790870544.8899 Approvals.request parked barrera
+PROBE 1790870544.8930 dropPendingMCPApprovals dropped=2
+PROBE 1790870544.8930 decide returned approved=false timedOut=false
+PROBE 1790870544.8930 live=false transportDown=false
+PROBE 1790870544.8930 decide returned approved=false timedOut=false
+PROBE 1790870544.8930 live=false transportDown=false
+PROBE 1790870544.9001 Approvals.request parked req9
+PROBE 1790870544.9028 decide returned approved=false timedOut=false
+PROBE 1790870544.9028 live=true transportDown=false
+PROBE 1790870544.9029 sent
+PROBE 1790870544.9062 dropPendingMCPApprovals dropped=0
+PROBE 1790870544.9133 Approvals.request parked req9
+PROBE 1790870544.9156 decide returned approved=false timedOut=false
+PROBE 1790870544.9156 live=true transportDown=false
+PROBE 1790870544.9156 sent
+PROBE 1790870544.9190 dropPendingMCPApprovals dropped=0
+✔ Test approvals16q1Tests() passed after 6.390 seconds.
+✔ Test run with 1 test in 0 suites passed after 6.390 seconds.
