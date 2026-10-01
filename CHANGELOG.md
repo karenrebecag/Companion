@@ -63,10 +63,6 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 - **La voz también vive en el target de su capa (2026-10-01).** Los tests de voz pasan a Services
   e integración y el target de transición `CompanionTests` desaparece; los imports de soporte son
   explícitos en todos los archivos.
-- **CI deja de hacer cola por el analisis de Swift (2026-10-01).** CodeQL de Swift tardaba hasta
-  95 min en macOS y ocupaba la mayoria de los 5 runners en cada PR; ahora corre solo en main, cada
-  semana y a mano. Actions y JavaScript se siguen analizando en cada PR. Un commit nuevo en un PR
-  cancela su corrida anterior; las de main nunca se cancelan. Las actions quedan fijadas por SHA.
 - **CI corre ThreadSanitizer sobre toda la suite (2026-09-30).** Un job `tsan` aparte busca
   carreras de datos en cada PR; fue la única herramienta que destapó las del puente y del modo
   clásico. Por ahora es informativo: un aviso lo pone en rojo sin bloquear el merge, y pasa a
