@@ -126,7 +126,7 @@ private func assistant(_ text: String) -> ThreadMessageInput {
             .updateAvailable(tag: sentinel), .transcriptsDebug, .cancelled, .followUp(sentinel),
             .dropZones, .connectApp(slug: sentinel, name: sentinel),
             .signInApp(slug: sentinel, name: sentinel), .chatError(sentinel),
-            .receipt(receipt), .replyCut,
+            .receipt(receipt), .replyCut, .approvalWithdrawn,
         ]
     }
 
@@ -137,6 +137,7 @@ private func assistant(_ text: String) -> ThreadMessageInput {
             "job", "completed", "couldntHear", "permission", "failure", "dictating", "pasting",
             "dictated", "dictationResult", "updateAvailable", "transcriptsDebug", "cancelled",
             "followUp", "dropZones", "connectApp", "signInApp", "chatError", "receipt", "replyCut",
+            "approvalWithdrawn",
         ])
         #expect(Set(names).count == names.count)
     }
@@ -152,6 +153,8 @@ private func assistant(_ text: String) -> ThreadMessageInput {
         #expect(lengths(.connectApp(slug: "gh", name: sentinel)) == [2, n])
         #expect(lengths(.chatError(sentinel)) == [n])
         #expect(lengths(.thinking) == [])
+        // A fixed localized title and body; nothing the user or the model wrote.
+        #expect(lengths(.approvalWithdrawn) == [])
         for line in allLines() {
             let painted = PaintedIsland(state: IslandState(size: .bar, line: line), catalogText: nil)
             #expect(!(try encoded(IslandInspection(painted))).contains(sentinel))
@@ -187,6 +190,7 @@ private func assistant(_ text: String) -> ThreadMessageInput {
         #expect(IslandState.Line.thinking.carriesText == false)
         #expect(IslandState.Line.failure(.micDenied).carriesText == false)
         #expect(IslandState.Line.followUp("x").carriesText)
+        #expect(IslandState.Line.approvalWithdrawn.carriesText == false)
     }
 
     // MARK: Settings
@@ -390,6 +394,7 @@ private func lineIndex(_ line: IslandState.Line) -> Int {
     case .chatError: 23
     case .receipt: 24
     case .replyCut: 25
+    case .approvalWithdrawn: 26
     }
 }
 
@@ -399,7 +404,7 @@ private func state(_ line: IslandState.Line) -> IslandState {
 
 extension SelfInspectionTests {
     @Test func allLinesCoversEveryCaseOnce() {
-        #expect(allLines().map(lineIndex) == Array(0..<26))
+        #expect(allLines().map(lineIndex) == Array(0..<27))
     }
 
     // MARK: Oracle role and empty probe
@@ -464,16 +469,16 @@ extension SelfInspectionTests {
         }
     }
 
-    @Test func islandTextLengthTableCoversAllTwentySixLines() {
+    @Test func islandTextLengthTableCoversEveryLine() {
         let n = sentinel.count
         let expected: [[Int]] = [
             [], [], [], [], [], [n], [], [n, n], [], [], [], [], [n], [], [n], [n, n], [n], [], [],
-            [n], [], [n, n], [n, n], [n], [n], [],
+            [n], [], [n, n], [n, n], [n], [n], [], [],
         ]
         let actual = allLines().map {
             IslandInspection(PaintedIsland(state: state($0), catalogText: nil)).textLengths
         }
-        #expect(expected.count == 26)
+        #expect(expected.count == 27)
         #expect(actual == expected)
     }
 

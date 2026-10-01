@@ -222,7 +222,7 @@ extension IslandState.Line {
         switch self {
         case .none, .holdHint, .keyBlocked, .pending, .thinking, .speaking, .completed,
              .couldntHear, .permission, .failure, .pasting, .transcriptsDebug, .cancelled,
-             .dropZones, .replyCut:
+             .dropZones, .replyCut, .approvalWithdrawn:
             false
         case .acting, .job, .dictating, .dictated, .dictationResult, .updateAvailable,
              .followUp, .connectApp, .signInApp, .chatError, .receipt:
@@ -242,7 +242,7 @@ extension IslandState.Line {
         case .receipt(let receipt): receipt.lines.map(\.count)
         case .none, .holdHint, .keyBlocked, .pending, .thinking, .speaking, .completed,
              .couldntHear, .permission, .failure, .pasting, .transcriptsDebug, .cancelled,
-             .dropZones, .replyCut:
+             .dropZones, .replyCut, .approvalWithdrawn:
             []
         }
     }
