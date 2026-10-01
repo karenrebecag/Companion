@@ -55,6 +55,9 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   viñetas en vez de asteriscos; solo los enlaces web se abren.
 
 ### Changed
+- **El gate de capas rechaza un test suelto en `Tests/` (2026-10-01).** Un `.swift` directo en
+  `Tests/`, fuera de toda carpeta de target, no lo compila ningún target y sus tests nunca
+  corren; ahora el gate falla y lo nombra.
 - **El gate de capas ya no depende de cómo se llame un target de soporte (2026-10-01).** Todo
   target bajo `Tests/` que no sea de test cuenta como soporte, se llame como se llame y aunque la
   ruta se escriba distinto (`./Tests/x`, `tests/x`); un target de producción tampoco puede

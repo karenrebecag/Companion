@@ -337,6 +337,20 @@ func layerGateRejectsEveryImportKind(kind: String) throws {
            "R3: UITests folder but no UITests target: \(result.output)")
 }
 
+@Test func layerGateRejectsASwiftFileLooseInTests() throws {
+    // No target owns a file directly under Tests/, so its tests never run.
+    let root = try fixture([
+        "CompanionCoreTestSupport/S.swift": "import CompanionCore\n",
+        "Loose.swift": "import Testing\n", "Other.swift": "import Testing\n", "README.md": "notes\n",
+    ])
+    defer { removeScriptTemp(root) }
+    let json = try manifest(root, targets: [:])
+    let result = try runLayers(root, manifest: json)
+    expect(result.status != 0 && result.output.contains("[R3]") && result.output.contains("Tests/Loose.swift")
+           && result.output.contains("Tests/Other.swift") && !result.output.contains("README"),
+           "R3: every loose Swift file is named, a loose non-Swift file is not: \(result.output)")
+}
+
 @Test func layerGateSkipsR3WhenTheFolderIsAbsent() throws {
     let root = try fixture(["CompanionCoreTests/T.swift": "import CompanionCore\n"])
     defer { removeScriptTemp(root) }
