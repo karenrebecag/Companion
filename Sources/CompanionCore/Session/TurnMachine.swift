@@ -76,7 +76,7 @@ extension TurnMachine {
                 return cutClassicTurn()
             }
             snapshot.state = .listening
-            return [.cancelAgentOutput] + openMic()
+            return [.cancelAgentOutput(steer: true)] + openMic()
         }
     }
 
@@ -133,11 +133,12 @@ extension TurnMachine {
             // endpointer and no key held to ever close it. Unlike a press,
             // nothing is about to hold this mic: it ends the same way a
             // hold now ends idle after its reply, torn down, not relistening.
+            // A stop is not a change of course: no steer note (R3).
             guard snapshot.pipeline == .realtime else {
-                return [.cancelAgentOutput] + hangUp()
+                return [.cancelAgentOutput(steer: false)] + hangUp()
             }
             snapshot.state = .listening
-            return [.cancelAgentOutput]
+            return [.cancelAgentOutput(steer: false)]
         case .idle, .error, .connecting, .listening:
             return []
         }
@@ -150,7 +151,7 @@ extension TurnMachine {
     private mutating func cutClassicTurn() -> [TurnEffect] {
         snapshot.interruptionPending = true
         snapshot.state = .listening
-        return [.cancelAgentOutput, .requestClassicListen]
+        return [.cancelAgentOutput(steer: true), .requestClassicListen]
     }
 
     /// 15d-1: the key came up while the classic mic was still starting
@@ -265,7 +266,7 @@ extension TurnMachine {
         case .speaking:
             if snapshot.pipeline == .realtime {
                 snapshot.state = .listening
-                return [.cancelAgentOutput]
+                return [.cancelAgentOutput(steer: true)]
             }
             return cutClassicTurn()
         }
@@ -337,7 +338,7 @@ extension TurnMachine {
         else { return [] }
         snapshot.interruptionPending = true
         snapshot.state = .listening
-        return [.cancelAgentOutput]
+        return [.cancelAgentOutput(steer: true)]
     }
 
     private mutating func firstSentence() -> [TurnEffect] {
@@ -403,7 +404,7 @@ extension TurnMachine {
         snapshot.speechOpen = true
         let cancel = snapshot.state == .speaking
         snapshot.state = .listening
-        return cancel ? [.cancelAgentOutput] : []
+        return cancel ? [.cancelAgentOutput(steer: true)] : []
     }
 
     private mutating func serverSpeechStopped() -> [TurnEffect] {

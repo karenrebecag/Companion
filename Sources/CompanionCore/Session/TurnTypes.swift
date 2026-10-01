@@ -120,7 +120,9 @@ package enum TurnEffect: Sendable, Equatable {
     case closeRealtime
     case stopClassicIO
     case submitUtterance
-    case cancelAgentOutput
+    /// `steer`: whether the cut is a change of course (press, barge-in) that
+    /// leaves the next classic turn a note, or a stop that leaves none (R3).
+    case cancelAgentOutput(steer: Bool)
     case commitAndRespond
     /// Wave 9i: arm the turn from the native (Apple) transcript instead of the
     /// audio OpenAI would guess from. The session reads the native text and

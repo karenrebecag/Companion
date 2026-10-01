@@ -21,10 +21,12 @@ extension VoiceSession {
         previous?.cancel()
         let endsHold = machine.snapshot.holdArmed
         let pressed = timeline.pressed
+        let cut = ClassicTurnCut()
+        classicTurnCut = cut
         classicTurnTask = Task { [weak self] in
             guard let self else { return }
             await self.classic.submit(
-                config: config, endsHold: endsHold, pressed: pressed, after: previous
+                config: config, endsHold: endsHold, pressed: pressed, after: previous, cut: cut
             ) { event in
                 await self.apply(event)
             }
@@ -34,7 +36,9 @@ extension VoiceSession {
     /// `.cancelAgentOutput` on the classic pipeline: stop the turn task, the
     /// voice already speaking, and any vision still uploading — the hold
     /// that follows must never race what this one was doing.
-    func cancelClassicTurn() async {
+    func cancelClassicTurn(steer: Bool) async {
+        // Marked before the cancel, so the turn's `cutTurn` already sees it.
+        if !steer { classicTurnCut?.stop() }
         // The handle stays: the press that follows starts a turn that waits
         // on it. A finished task is harmless to wait on.
         classicTurnTask?.cancel()
