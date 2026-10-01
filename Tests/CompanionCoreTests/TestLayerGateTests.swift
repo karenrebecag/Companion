@@ -39,7 +39,12 @@ private func manifest(_ root: URL, targets: [String: (resources: Bool, isolation
                 ? [["kind": ["defaultIsolation": ["_0": "MainActor"]], "tool": "swift"]] : [],
         ]
     }
-    let data = try JSONSerialization.data(withJSONObject: ["targets": entries, "products": realProducts()])
+    // The real products list CompanionApp, so the manifest has to define it too.
+    let app: [String: Any] = [
+        "name": "CompanionApp", "type": "executable", "resources": [Any](), "settings": [Any](),
+        "dependencies": [Any](),
+    ]
+    let data = try JSONSerialization.data(withJSONObject: ["targets": entries + [app], "products": realProducts()])
     let url = root.appendingPathComponent("manifest.json")
     try data.write(to: url)
     return url
@@ -170,7 +175,7 @@ private func expectLayerResult(
     defer { removeScriptTemp(root) }
     let json = try manifest(root, targets: [
         "CompanionUITests": (false, false), "CompanionUITestSupport": (false, false),
-        "CompanionTests": (true, true),
+        "CompanionCoreTests": (true, true),
     ])
     let result = try runLayers(root, manifest: json)
     expect(result.status == 0, "R3: clean manifest: \(result.output)")
@@ -322,16 +327,16 @@ func layerGateRejectsEveryImportKind(kind: String) throws {
 @Test func layerGateRejectsAFolderWithoutItsManifestTarget() throws {
     let root = try fixture(["CompanionUITests/T.swift": "import CompanionUI\n"])
     defer { removeScriptTemp(root) }
-    let json = try manifest(root, targets: ["CompanionTests": (false, false)])
+    let json = try manifest(root, targets: ["CompanionCoreTests": (false, false)])
     let result = try runLayers(root, manifest: json)
     expect(result.status != 0 && result.output.contains("[R3]"),
            "R3: UITests folder but no UITests target: \(result.output)")
 }
 
 @Test func layerGateSkipsR3WhenTheFolderIsAbsent() throws {
-    let root = try fixture(["CompanionTests/T.swift": "import CompanionCore\n"])
+    let root = try fixture(["CompanionCoreTests/T.swift": "import CompanionCore\n"])
     defer { removeScriptTemp(root) }
-    let json = try manifest(root, targets: ["CompanionTests": (true, true)])
+    let json = try manifest(root, targets: ["CompanionCoreTests": (true, true)])
     let result = try runLayers(root, manifest: json)
     expect(result.status == 0, "R3: neither folder nor target: \(result.output)")
 }
@@ -350,11 +355,11 @@ func layerGateRejectsEveryImportKind(kind: String) throws {
     ], passes: false, "R4: @_exported in a support folder", rule: "R4")
 }
 
-@Test func layerGateAllowsExportedImportInCompanionTests() throws {
-    // CompanionTests still holds the voice files until PR 4; the exemption goes with that folder.
+@Test func layerGateRejectsExportedImportInTheRetiredCompanionTests() throws {
+    // The transitional target is gone; its exemption went with it.
     try expectLayerResult([
         "CompanionTests/SupportImports.swift": "@_exported import CompanionTestKit\n",
-    ], passes: true, "R4: @_exported in CompanionTests")
+    ], passes: false, "R4: @_exported in Tests/CompanionTests", rule: "R4")
 }
 
 // MARK: - R3 on the support targets (real dump-package shape)
@@ -396,7 +401,6 @@ private func cleanTargets() -> [ManifestTarget] {
         target("CompanionIntegrationTests", type: "test",
                deps: ["CompanionCore", "CompanionServices", "CompanionUI", "CompanionTestKit",
                       "CompanionCoreTestSupport", "CompanionServicesTestSupport", "CompanionUITestSupport"]),
-        target("CompanionTests", type: "test", deps: ["CompanionCore", "CompanionServicesTestSupport"]),
     ]
 }
 
@@ -433,7 +437,7 @@ private func manifestFile(
 private func expectManifestResult(
     _ replacement: ManifestTarget?, passes: Bool, _ label: String,
     folders: [String: String] = ["CompanionCoreTestSupport/S.swift": "import CompanionCore\n"],
-    products: ProductsInput = .real,
+    products: ProductsInput = .real, mention: String? = nil,
     sourceLocation: SourceLocation = #_sourceLocation
 ) throws {
     let root = try fixture(folders)
@@ -443,6 +447,10 @@ private func expectManifestResult(
     if !passes {
         expect(result.output.contains("[R3]"), "\(label): output names R3: \(result.output)",
                sourceLocation: sourceLocation)
+        if let mention {
+            expect(result.output.contains(mention), "\(label): output names \(mention): \(result.output)",
+                   sourceLocation: sourceLocation)
+        }
     }
 }
 
@@ -505,7 +513,7 @@ private func expectManifestResult(
 @Test func layerGateRejectsASupportFolderWithoutItsManifestTarget() throws {
     let root = try fixture(["CompanionUITestSupport/S.swift": "import CompanionUI\n"])
     defer { removeScriptTemp(root) }
-    let json = try manifest(root, targets: ["CompanionTests": (false, false)])
+    let json = try manifest(root, targets: ["CompanionCoreTests": (false, false)])
     let result = try runLayers(root, manifest: json)
     expect(result.status != 0 && result.output.contains("[R3]"),
            "R3: support folder but no support target: \(result.output)")
@@ -522,9 +530,9 @@ private func expectManifestResult(
 @Test func layerGateRejectsAFolderWithoutAnyManifestTarget() throws {
     let root = try fixture(["CompanionCoreTests/T.swift": "import CompanionCore\n"])
     defer { removeScriptTemp(root) }
-    let json = try manifest(root, targets: ["CompanionTests": (false, false)])
+    let json = try manifest(root, targets: [:])
     let result = try runLayers(root, manifest: json)
-    expect(result.status != 0 && result.output.contains("[R3]"),
+    expect(result.status != 0 && result.output.contains("[R3]") && result.output.contains("CompanionCoreTests"),
            "R3: CoreTests folder but no CoreTests target: \(result.output)")
 }
 
@@ -549,12 +557,35 @@ private func expectManifestResult(
         passes: false, "R3: CoreTests -> ServicesTestSupport")
 }
 
-@Test func layerGateLeavesTheLegacyCompanionTestsUnconstrained() throws {
+@Test func layerGateRejectsTheRetiredCompanionTestsTarget() throws {
     try expectManifestResult(
         target("CompanionTests", type: "test",
                deps: ["CompanionCore", "CompanionServices", "CompanionUI", "CompanionTestKit",
                       "CompanionCoreTestSupport", "CompanionServicesTestSupport", "CompanionUITestSupport"]),
-        passes: true, "R3: legacy CompanionTests keeps every dependency")
+        passes: false, "R3: a CompanionTests target is no longer allowed", mention: "CompanionTests")
+}
+
+// MARK: - R3, support targets recognised by name
+
+@Test func layerGateTreatsAnyTestSupportNamedTargetAsSupport() throws {
+    // A new support target must not slip past the production-dependency check.
+    try expectManifestResult(
+        target("CompanionCore", deps: ["CompanionFooTestSupport"]),
+        passes: false, "R3: production -> an unlisted *TestSupport", mention: "CompanionFooTestSupport")
+}
+
+@Test func layerGateRejectsASupportTargetWithoutALayerTableEntry() throws {
+    try expectManifestResult(
+        target("CompanionFooTestSupport", deps: ["CompanionCore"]),
+        passes: false, "R3: *TestSupport with no table entry", mention: "CompanionFooTestSupport")
+}
+
+@Test func layerGateRejectsAProductListingAnUnlistedSupportTarget() throws {
+    try expectManifestResult(
+        target("CompanionFooTestSupport", deps: ["CompanionCore"]),
+        passes: false, "R3: product -> an unlisted *TestSupport",
+        products: .value(realProducts() + [library("Foo", targets: ["CompanionFooTestSupport"])]),
+        mention: "CompanionFooTestSupport")
 }
 
 @Test func layerGateRejectsExportedImportBehindAStackedAttribute() throws {
@@ -587,7 +618,7 @@ func layerGateRejectsAWidenedTestTargetDependency(edge: ExtraDependency) throws 
     let names = (base["dependencies"] as? [[String: [Any]]] ?? []).compactMap { $0["byName"]?.first as? String }
     try expectManifestResult(
         target(edge.target, type: "test", deps: names + [edge.extra]),
-        passes: false, "R3: \(edge.testDescription)")
+        passes: false, "R3: \(edge.testDescription)", mention: edge.extra)
 }
 
 // MARK: - R3, products
@@ -618,6 +649,17 @@ private func library(_ name: String, targets: [String]) -> [String: Any] {
     try expectManifestResult(
         nil, passes: false, "R3: product -> a test target",
         products: .value(realProducts() + [library("T", targets: ["CompanionCoreTests"])]))
+}
+
+@Test func layerGateRejectsAProductListingAnUnknownTarget() throws {
+    try expectManifestResult(
+        nil, passes: false, "R3: product -> a target the manifest does not have",
+        products: .value(realProducts() + [library("Ghost", targets: ["CompanionGhost"])]),
+        mention: "CompanionGhost")
+}
+
+@Test func layerGatePassesAnEmptyProductsList() throws {
+    try expectManifestResult(nil, passes: true, "R3: no products at all is fine", products: .value([Any]()))
 }
 
 @Test func layerGateFailsClosedWhenProductsIsMissing() throws {

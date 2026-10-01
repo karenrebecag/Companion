@@ -45,6 +45,9 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   viñetas en vez de asteriscos; solo los enlaces web se abren.
 
 ### Changed
+- **La voz también vive en el target de su capa (2026-10-01).** Los tests de voz pasan a Services
+  e integración y el target de transición `CompanionTests` desaparece; los imports de soporte son
+  explícitos en todos los archivos.
 - **CI corre ThreadSanitizer sobre toda la suite (2026-09-30).** Un job `tsan` aparte busca
   carreras de datos en cada PR; fue la única herramienta que destapó las del puente y del modo
   clásico. Por ahora es informativo: un aviso lo pone en rojo sin bloquear el merge, y pasa a

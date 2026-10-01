@@ -108,7 +108,6 @@ Swift Testing (`@Test` / `#expect`), one test target per layer under
 | `CompanionServicesTests` | Core, Services | adapters: network, processes, bridge |
 | `CompanionUITests` | Core, UI | views, view models, copy; no resources |
 | `CompanionIntegrationTests` | Core, Services, UI | flows that cross layers |
-| `CompanionTests` | all | transitional: the voice files, until the VoiceSession split |
 
 Shared fakes live in four regular support targets (not test targets, never
 `@testable`, API `package`): `CompanionTestKit` (harness, conformance, fixtures;
@@ -120,10 +119,12 @@ UI's `defaultIsolation` does not leak into the fakes. `scripts/check-test-layers
 direction between test and support targets; R3 (on `dump-package`) support
 targets are regular, settings-free, depend only on what the table allows, no
 production target depends on them, and UI test targets have no resources; R4 no
-`@_exported import` (`CompanionTests` exempt until it disappears). Outside
-`CompanionTests` (until PR 4), imports of support modules are explicit in every
-file. `scripts/gates.sh` runs build (debug and release) + static checks +
-architecture checks + tests; it must be green before any merge. Two contracts are data, not prose: `conformance/ui-contract.json`
+`@_exported import`. Imports of support modules are explicit in every file. The
+voice harness reaches `SessionModel` only through the `SessionEventSink`
+protocol, so `CompanionServicesTestSupport` never imports UI.
+`scripts/gates.sh` runs build (debug and release) + static checks +
+architecture checks + tests; it must be green before any merge. Two contracts
+are data, not prose: `conformance/ui-contract.json`
 (grid and projection rules over `Sources/CompanionUI`, a ratchet on old debt)
 and `conformance/hud-gates.json` (the HUD's auditor gates, each citing the
 tests that prove it; the runner fails when a cited test disappears).

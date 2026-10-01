@@ -6,9 +6,12 @@
 #     targets are regular, settings-free and depend only on what the layer
 #     table allows; the four layer test targets depend only on their own
 #     set; no non-test target depends on a support target; no product lists a
-#     support or test target (a missing/malformed `products` fails); every
-#     Tests/ folder with Swift files has a manifest target.
-# R4: no @_exported import in Tests/<dir> except Tests/CompanionTests.
+#     support or test target, or a target the manifest lacks (a missing/
+#     malformed `products` fails; an empty list passes); every Tests/ folder
+#     with Swift files has a manifest target; no CompanionTests target (the
+#     transitional one is retired). A target named *TestSupport, or
+#     CompanionTestKit, counts as support and must have a layer-table entry.
+# R4: no @_exported import anywhere under Tests/.
 # Fails closed: a find/grep/parse error is a failure, never a silent pass.
 # Bash 3.2, system tools only.
 # Known limitation: imports are matched line by line, so the inside of a
@@ -89,13 +92,7 @@ for dir in "$ROOT"/Tests/*/; do
         *) report R1 "@testable import outside a *Tests target ($name)" "$dir" "$testable_pattern" ;;
     esac
 
-    # WHY the exemption: CompanionTests still holds the voice files, which lean
-    # on SupportImports.swift until PR 4 moves them. It disappears with that
-    # folder; then every Tests/<dir> is covered.
-    case "$name" in
-        CompanionTests) ;;
-        *) report R4 "@_exported import in $name; imports must be explicit" "$dir" "$exported_pattern" ;;
-    esac
+    report R4 "@_exported import in $name; imports must be explicit" "$dir" "$exported_pattern"
 
     forbidden=$(forbidden_for "$name")
     if [ -n "$forbidden" ]; then
@@ -172,11 +169,21 @@ for name, allowed in ALLOWED.items():
         print("FAIL [R3] %s depends on %s" % (name, dep))
         bad = 1
 
-SUPPORT = set(ALLOWED)
+# WHY by name: a hardcoded list would let a new support target skip every
+# check here. A support-named target without a table entry has no layer to
+# enforce, so it fails until the table says what it may depend on.
+def is_support(name):
+    return name in ALLOWED or name == "CompanionTestKit" or name.endswith("TestSupport")
 
-# Test targets: exactly their Package.swift sets. The legacy CompanionTests is
-# left out on purpose: it holds the voice files and depends on everything until
-# PR 4 moves them and the folder disappears.
+SUPPORT = {n for n in targets if is_support(n)} | set(ALLOWED)
+for name in sorted(SUPPORT - set(ALLOWED)):
+    print("FAIL [R3] support target %s has no layer-table entry" % name)
+    bad = 1
+if "CompanionTests" in targets:
+    print("FAIL [R3] CompanionTests target is retired; tests live in their layer's target")
+    bad = 1
+
+# Test targets: exactly their Package.swift sets.
 CORE_TS = {"CompanionCore", "CompanionCoreTestSupport", "CompanionTestKit"}
 TEST_ALLOWED = {
     "CompanionCoreTests": CORE_TS,
@@ -197,7 +204,7 @@ for name, allowed in TEST_ALLOWED.items():
 for name, t in sorted(targets.items()):
     if t.get("type") == "test" or name in SUPPORT:
         continue
-    for dep in sorted(deps(t) & SUPPORT):
+    for dep in sorted(d for d in deps(t) if d in SUPPORT or is_support(d)):
         print("FAIL [R3] production target %s depends on %s" % (name, dep))
         bad = 1
 
@@ -216,7 +223,10 @@ else:
             bad = 1
             continue
         for tname in sorted(listed):
-            if tname in SUPPORT or targets.get(tname, {}).get("type") == "test":
+            if tname not in targets:
+                print("FAIL [R3] product %s lists %s, which the manifest does not define" % (p["name"], tname))
+                bad = 1
+            elif tname in SUPPORT or targets[tname].get("type") == "test":
                 print("FAIL [R3] product %s lists %s, a support or test target" % (p["name"], tname))
                 bad = 1
 sys.exit(bad)

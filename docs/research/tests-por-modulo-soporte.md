@@ -207,3 +207,15 @@ dependencias de los targets de test (R3) y una comprobacion de `products` del ma
 (ningun producto lista un target de soporte, `CompanionTestKit` o un target de test).
 Solo `scripts/check-test-layers.sh`, `Tests/CompanionCoreTests/TestLayerGateTests.swift` y
 `CHANGELOG.md`; sin dependencias nuevas. El Estado no cambia.
+
+## Nota de reuso, PR 4 (2026-10-01)
+
+Este brief se reusa para 21-tests C9-C10 (cierre del programa): los tests de voz se
+reparten entre `CompanionServicesTests` y `CompanionIntegrationTests`;
+`VoiceSessionFakes` baja a `CompanionServicesTestSupport` sin `@testable`, con el unico
+uso de UI (`SessionModel`) detras de un seam `SessionEventSink` que vive solo en el
+soporte; los helpers solo-voz compartidos entre los dos destinos bajan al soporte mas
+bajo que sus imports permitan. Se borran `SupportImports.swift`, el target transitorio
+`CompanionTests` y sus exenciones en `check-test-layers.sh` (R3 y R4); cada archivo
+importa explicitamente lo que usa. Deuda de #63/#64 en el mismo gate. Sin dependencias
+nuevas. El Estado del brief no cambia; la spec pasa a CERRADO.

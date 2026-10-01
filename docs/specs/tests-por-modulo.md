@@ -1,6 +1,8 @@
 # Tests: un target por modulo
 
-Estado: APROBADO (Karen, 2026-09-30; medido sobre main 7b56b17, 2026-09-30).
+Estado: CERRADO (2026-10-01). Aprobado por Karen el 2026-09-30; entregado en
+#60 (gates), #62 (soporte), #63 (tests no-voz), #64 (casos negativos) y el PR
+de la voz, que retira `CompanionTests`.
 Research: `docs/research/tests-por-modulo-soporte.md` (APROBADO).
 
 ## Objetivo
