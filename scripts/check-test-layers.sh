@@ -5,12 +5,14 @@
 # R3: (with a manifest) UI test targets carry no resources; the four support
 #     targets are regular, settings-free and depend only on what the layer
 #     table allows; the four layer test targets depend only on their own
-#     set; no non-test target depends on a support target; no product lists a
-#     support or test target, or a target the manifest lacks (a missing/
-#     malformed `products` fails; an empty list passes); every Tests/ folder
-#     with Swift files has a manifest target; no CompanionTests target (the
-#     transitional one is retired). A target named *TestSupport, or
-#     CompanionTestKit, counts as support and must have a layer-table entry.
+#     set; no non-test target depends on a support or test target; no
+#     product lists a support or test target, or a target the manifest lacks
+#     (a missing/malformed `products` fails; an empty list passes); every
+#     Tests/ folder with Swift files has a manifest target; no CompanionTests
+#     target (the transitional one is retired); every layer-table target is
+#     in the manifest. A target named *TestSupport, CompanionTestKit, or any
+#     non-test target whose normalised path is under Tests/ (any case),
+#     counts as support and must have a layer-table entry.
 # R4: no @_exported import anywhere under Tests/.
 # Fails closed: a find/grep/parse error is a failure, never a silent pass.
 # Bash 3.2, system tools only.
@@ -118,7 +120,7 @@ if [ -n "$MANIFEST" ]; then
     else
         # shellcheck disable=SC2086
         r3=$(python3 - "$MANIFEST" $present <<'PY'
-import json, sys
+import json, posixpath, sys
 try:
     manifest = json.load(open(sys.argv[1]))
     targets = {t["name"]: t for t in manifest["targets"]}
@@ -169,11 +171,21 @@ for name, allowed in ALLOWED.items():
         print("FAIL [R3] %s depends on %s" % (name, dep))
         bad = 1
 
-# WHY by name: a hardcoded list would let a new support target skip every
-# check here. A support-named target without a table entry has no layer to
-# enforce, so it fails until the table says what it may depend on.
+# WHY by name and by path: a hardcoded list would let a new support target
+# skip every check here, and a name pattern alone misses one called anything
+# else (CompanionFakes). dump-package gives everything under Tests/ its path,
+# so a non-test target there is test code whatever its name. The path is kept
+# as written and APFS ignores case, so "./Tests/x" or "tests/x" must count
+# too. A support target without a table entry has no layer to enforce, so it
+# fails until the table says what it may depend on.
 def is_support(name):
-    return name in ALLOWED or name == "CompanionTestKit" or name.endswith("TestSupport")
+    if name in ALLOWED or name == "CompanionTestKit" or name.endswith("TestSupport"):
+        return True
+    t = targets.get(name)
+    if t is None or t.get("type") == "test" or not isinstance(t.get("path"), str):
+        return False
+    path = posixpath.normpath(t["path"]).lower()
+    return path == "tests" or path.startswith("tests/")
 
 SUPPORT = {n for n in targets if is_support(n)} | set(ALLOWED)
 for name in sorted(SUPPORT - set(ALLOWED)):
@@ -192,6 +204,12 @@ TEST_ALLOWED = {
     "CompanionIntegrationTests": CORE_TS | {
         "CompanionServices", "CompanionUI", "CompanionServicesTestSupport", "CompanionUITestSupport"},
 }
+# A layer target dropped from the manifest, with no folder left behind either,
+# would skip its checks above in silence.
+for name in sorted(set(ALLOWED) | set(TEST_ALLOWED)):
+    if name not in targets:
+        print("FAIL [R3] layer target %s is missing from the manifest" % name)
+        bad = 1
 for name, allowed in TEST_ALLOWED.items():
     t = targets.get(name)
     if t is None:
@@ -204,7 +222,8 @@ for name, allowed in TEST_ALLOWED.items():
 for name, t in sorted(targets.items()):
     if t.get("type") == "test" or name in SUPPORT:
         continue
-    for dep in sorted(d for d in deps(t) if d in SUPPORT or is_support(d)):
+    for dep in sorted(d for d in deps(t)
+                      if d in SUPPORT or is_support(d) or targets.get(d, {}).get("type") == "test"):
         print("FAIL [R3] production target %s depends on %s" % (name, dep))
         bad = 1
 
