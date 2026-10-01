@@ -410,3 +410,51 @@ queda aceptado, como en la wave 17. No hay puerto TCP ni secreto de larga vida.
 nuestro, no un flag guardado. Disparador de mejora: con cuenta de Apple
 Developer, pasar el secreto al Keychain con acceso restringido por firma y
 revisar este ADR.
+
+---
+
+## ADR 008 — Contadores de generacion: solo para descartar escrituras tardias
+
+**Fecha:** 2026-10-01 · **Estado:** ACEPTADO (Aprobado por Karen 2026-10-01 [KAREN:chat 2026-10-01 via orquestador]; briefs `classic-turn-serialize` Q2 y `interrupciones-por-causa` R1)
+
+**Contexto.** `ARCHITECTURE.md:79` dice "Cancellation is structured, not
+generation counters". Sigue siendo la regla: cancelar con `Task.cancel()` y
+esperar a que el trabajo termine. Pero hay trabajo que la cancelacion
+estructurada no puede detener a tiempo: una herramienta del turno clasico que
+espera un permiso del sistema o la ubicacion (hasta 50 s) no mira la
+cancelacion, y su `cutTurn` llega despues de que el turno nuevo ya empezo.
+
+**Decision.** Excepcion acotada. Un contador de generacion se permite solo para
+**descartar las escrituras tardias** de trabajo que la cancelacion estructurada
+no puede parar a tiempo; nunca para decidir si cancelar. El trabajo se sigue
+cancelando con `Task.cancel()`; el contador solo protege lo que escribe al
+despertar. Precedentes, con su ubicacion actual:
+
+- `realtimeGeneration`: declarado en `VoiceSession.swift:113`, bumpeado en
+  `VoiceSession+Pumps.swift:14` y comprobado en `VoiceSession+Pumps.swift:128`
+  y `:167` (#59, `72c36eb`: una reconexion de la sesion anterior se aparta).
+- `holdGeneration`: declarado en `VoiceSession.swift:145`, bumpeado en
+  `VoiceSession+Hold.swift:66` y `:214`, comprobado en
+  `VoiceSession+Hold.swift:178` y `:197`, `VoiceSession+Pumps.swift:381` y
+  `VoiceSession+Timeline.swift:22`.
+- `armGeneration`: `HoldKeyTap.swift:33`, bumpeado en `:149`, `:181` y `:205`,
+  comprobado en `:212` (un armado tardio del tap de la tecla).
+- `turnGeneration` (nuevo): campo de `Crossing` en `ClassicRuntime.swift`,
+  bumpeado por `supersedeStuckTurn()` cuando vence la espera, comprobado en
+  `cutTurn` antes de leer `spokenSoFar`, antes de enhebrar el parcial y al
+  poner `steerPending`.
+
+**Espera acotada.** Cada turno clasico espera al turno cortado que lo
+precede, con un plazo inyectable (`turnWaitDeadline`, 2 s por defecto, el mismo
+para toda causa de corte). Al vencer, el turno nuevo empieza igual y sube la
+generacion; el cut tardio del atascado no enhebra su parcial ni deja nota. La
+espera NO es estructurada a proposito: `await task.value` no se interrumpe por
+cancelacion, y un plazo con `withTaskGroup` espera igual a su hijo y no acota
+nada (sondas A1 y A2 del brief). Son dos tareas sueltas que reanudan una
+continuacion una sola vez, con un `Mutex`; el antecesor no se cancela ni se
+espera al vencer.
+
+**Consecuencia.** Un turno cortado antes de que sus palabras lleguen al modelo
+no deja rastro (Q3). El control y la escritura del hilo son dos pasos: un bump
+entre ambos aun enhebra ese parcial; marcado `HACK:` en `cutTurn`, con su
+disparador de mejora. Todo contador nuevo exige entrar en la lista de arriba.

@@ -10,6 +10,12 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   tests: cuatro esperas de permisos MCP tenían un tope de 5 s de reloj de pared. Si el proceso
   quedaba parado más que eso, la espera fallaba antes de que llegara el rechazo automático. Ahora
   usan el tope común de 30 s. La app no cambia.
+- **En el modo clásico, el turno nuevo espera al que cortaste (2026-10-01).** Si cortabas a
+  Companion mientras usaba una herramienta lenta y hablabas de nuevo, tu turno nuevo arrancaba antes
+  de que el viejo terminara: no sabía que lo habías interrumpido y el chat quedaba en desorden.
+  Ahora espera hasta 2 s a que el turno cortado se detenga. Si una herramienta no lo deja, arranca
+  igual y lo que el viejo diga tarde se descarta. Un turno que cortas antes de que tus palabras
+  lleguen al modelo ya no deja rastro.
 - **Los tests encuentran los textos aunque se compile en otra carpeta (2026-09-30).** Con
   `swift test --scratch-path` (el que usan los builds aislados y TSan) unos 555 tests veían
   claves como `island.hands.stop` en vez del texto, porque los recursos solo se buscaban en el

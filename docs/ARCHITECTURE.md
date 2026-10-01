@@ -77,6 +77,8 @@ an `InterruptReason` on the way back to Idle, never a kind of its own.
 - Long-lived sessions (voice, jobs) are `actor`s in Services.
 - Events flow as `AsyncStream`, not stored callback closures.
 - Cancellation is structured (`Task.cancel()`), not generation counters.
+  The one exception, discarding late writes from work that cannot be
+  stopped in time, is ADR 008 in `DECISIONS.md`.
 - `DispatchSemaphore` never blocks an async context.
 
 ## Observation
