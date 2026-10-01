@@ -18,6 +18,11 @@ import Testing
     try testAppScanFlagsLeaksAnywhereInTheApp()
     try testAppScanFailsClosed()
     try testResourceFolderMatchesGitExactly()
+    try testLocalOnlyFontIsAcceptedWhenPresent()
+    try testUnknownUntrackedFileIsStillAStrayBesideLocalOnlyFont()
+    try testLocalOnlyResourcesMatchTheGitignoreFontBlock()
+    try testLocalOnlyEntryOnlyCountsInItsOwnFolderAndExactPath()
+    try testLocalOnlyPathAsSymlinkOrDirectoryIsFlagged()
 }
 
 /// Runs `snippet` with scripts/package-contents.sh sourced; `args` are $1...
@@ -254,4 +259,125 @@ func testResourceFolderMatchesGitExactly() throws {
     let nothing = try contentsLib(#"resource_folder_strays "$1" "$2" "$3""#,
                                   [shipped.path, repoPath(""), "Sources/NoSuchFolder21c"])
     expect(nothing.status != 0, "21c item 1: sin archivos trackeados en la fuente, la comparacion falla cerrada")
+}
+
+// MARK: - Local-only resources (proprietary fonts, ignored by git)
+
+private let fontsSource = "Sources/CompanionUI/Fonts"
+private let localOnlyFont = "Gadey-Regular.otf"
+
+/// Fonts folder as SwiftPM copies it: every tracked file, nothing else.
+private func trackedFontsCopy(into root: URL) throws -> URL {
+    let tracked = lines(try runProcess("/usr/bin/git", ["-C", repoPath(""), "ls-files", "--", fontsSource],
+                                       env: ["PATH": "/usr/bin:/bin"]).output)
+    expect(!tracked.isEmpty, "git ve las fuentes trackeadas")
+    let shipped = root.appendingPathComponent("Fonts")
+    for path in tracked {
+        let target = shipped.appendingPathComponent(String(path.dropFirst(fontsSource.count + 1)))
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(atPath: repoPath(path), toPath: target.path)
+    }
+    return shipped
+}
+
+func testLocalOnlyFontIsAcceptedWhenPresent() throws {
+    let root = try scriptTempRoot("local-only-ok")
+    defer { removeScriptTemp(root) }
+    let shipped = try trackedFontsCopy(into: root)
+    let clone = try contentsLib(#"resource_folder_strays "$1" "$2" "$3""#, [shipped.path, repoPath(""), fontsSource])
+    expectEq(clone.status, 0, "la comparacion del clon corre (\(clone.output))")
+    expectEq(clone.output, "", "un clon sin las fuentes locales no reporta nada (\(clone.output))")
+    for font in try localOnlyNames() { try write("x", to: shipped.appendingPathComponent(font)) }
+    let mac = try contentsLib(#"resource_folder_strays "$1" "$2" "$3""#, [shipped.path, repoPath(""), fontsSource])
+    expectEq(mac.status, 0, "la comparacion corre (\(mac.output))")
+    expectEq(mac.output, "", "las cinco fuentes local-only presentes no son stray (\(mac.output))")
+}
+
+func testUnknownUntrackedFileIsStillAStrayBesideLocalOnlyFont() throws {
+    let root = try scriptTempRoot("local-only-stray")
+    defer { removeScriptTemp(root) }
+    let shipped = try trackedFontsCopy(into: root)
+    try write("x", to: shipped.appendingPathComponent(localOnlyFont))
+    try write("x", to: shipped.appendingPathComponent("Unlisted-Regular.otf"))
+    let dirty = lines(try contentsLib(#"resource_folder_strays "$1" "$2" "$3""#,
+                                      [shipped.path, repoPath(""), fontsSource]).output)
+    expectEq(dirty, ["Unlisted-Regular.otf"], "solo el archivo fuera de la lista es stray (\(dirty))")
+}
+
+private func git(_ args: [String]) throws -> (status: Int32, output: String) {
+    try runProcess("/usr/bin/git", ["-C", repoPath("")] + args, env: ["PATH": "/usr/bin:/bin"])
+}
+
+private func localOnlyPaths() throws -> [String] {
+    lines(try contentsLib(#"printf '%s\n' $LOCAL_ONLY_RESOURCES"#).output)
+}
+
+private func localOnlyNames() throws -> [String] {
+    try localOnlyPaths().map { String($0.dropFirst(fontsSource.count + 1)) }
+}
+
+func testLocalOnlyResourcesMatchTheGitignoreFontBlock() throws {
+    let listed = try localOnlyPaths().sorted()
+    expectEq(listed.count, 5, "LOCAL_ONLY_RESOURCES lista las cinco fuentes (\(listed))")
+    for path in listed {
+        expectEq(try git(["check-ignore", "-q", "--", path]).status, 0, "git ignora \(path)")
+        expect(try git(["ls-files", "--error-unmatch", "--", path]).status != 0, "\(path) no esta trackeado")
+    }
+    // Reverse direction, from git itself: whatever is ignored under Fonts on this
+    // Mac (any extension, glob or leading-slash entry) must be in the list.
+    let ignoredHere = lines(try git(["ls-files", "--others", "--ignored", "--exclude-standard", "--", fontsSource]).output)
+    for path in ignoredHere {
+        expect(listed.contains(path), "\(path) esta ignorado pero falta en LOCAL_ONLY_RESOURCES")
+    }
+    // Where no font is present the ignored set is invisible to git, so the
+    // .gitignore block is the reference for the absent ones.
+    let declared = lines(scriptText(".gitignore")).map { $0.hasPrefix("/") ? String($0.dropFirst()) : $0 }
+        .filter { $0.hasPrefix(fontsSource + "/") }.sorted()
+    expectEq(listed, declared, "LOCAL_ONLY_RESOURCES coincide con el bloque de fuentes de .gitignore")
+}
+
+private func strays(_ shipped: URL, _ source: String) throws -> [String] {
+    lines(try contentsLib(#"resource_folder_strays "$1" "$2" "$3""#, [shipped.path, repoPath(""), source]).output)
+}
+
+func testLocalOnlyEntryOnlyCountsInItsOwnFolderAndExactPath() throws {
+    let root = try scriptTempRoot("local-only-scope")
+    defer { removeScriptTemp(root) }
+    let mascotSource = "Sources/CompanionUI/Mascot"
+    let tracked = lines(try git(["ls-files", "--", mascotSource]).output)
+    expect(!tracked.isEmpty, "git ve la mascota")
+    let mascot = root.appendingPathComponent("Mascot")
+    for path in tracked {
+        let target = mascot.appendingPathComponent(String(path.dropFirst(mascotSource.count + 1)))
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.copyItem(atPath: repoPath(path), toPath: target.path)
+    }
+    try write("x", to: mascot.appendingPathComponent(localOnlyFont))
+    expectEq(try strays(mascot, mascotSource), [localOnlyFont], "una fuente local-only en otra carpeta es stray")
+
+    let fonts = try trackedFontsCopy(into: root)
+    try write("x", to: fonts.appendingPathComponent("sub/\(localOnlyFont)"))
+    let nested = try strays(fonts, fontsSource)
+    expect(nested.contains("sub/\(localOnlyFont)"), "el match es por ruta exacta, no por nombre (\(nested))")
+}
+
+func testLocalOnlyPathAsSymlinkOrDirectoryIsFlagged() throws {
+    let outside = try scriptTempRoot("local-only-outside")
+    defer { removeScriptTemp(outside) }
+    let real = outside.appendingPathComponent("real.otf")
+    try write("x", to: real)
+    let cases: [(String, (URL) throws -> Void, String)] = [
+        ("symlink a un archivo real", { try FileManager.default.createSymbolicLink(at: $0, withDestinationURL: real) }, localOnlyFont),
+        ("symlink colgante", { try FileManager.default.createSymbolicLink(atPath: $0.path, withDestinationPath: "/nonexistent-21c") }, localOnlyFont),
+        ("directorio", { try FileManager.default.createDirectory(at: $0, withIntermediateDirectories: true) }, localOnlyFont + "/"),
+    ]
+    for (label, make, strayName) in cases {
+        let root = try scriptTempRoot("local-only-odd")
+        defer { removeScriptTemp(root) }
+        let shipped = try trackedFontsCopy(into: root)
+        try make(shipped.appendingPathComponent(localOnlyFont))
+        let found = try strays(shipped, fontsSource)
+        expect(found.contains(strayName), "\(label): se reporta como stray (\(found))")
+        expect(found.contains("falta: \(localOnlyFont)"), "\(label): se reporta falta (\(found))")
+    }
 }

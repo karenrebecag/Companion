@@ -76,14 +76,36 @@ browser_extension_strays() {
     package_strays "$1" "$(printf '%s\n' $BROWSER_EXTENSION_FILES)"
 }
 
+# Files that exist only on the owner's Mac: git ignores them (proprietary
+# faces, All Rights Reserved, cannot ship in the MIT repo) and SwiftPM copies
+# the whole folder, so they land in the app there and are absent on a clone.
+# An allowlist rather than "ignored is fine": an ignored stray must still fail.
+# A test compares this list with the font block of .gitignore.
+LOCAL_ONLY_RESOURCES="
+Sources/CompanionUI/Fonts/Gadey-Regular.otf
+Sources/CompanionUI/Fonts/Hypodermic.otf
+Sources/CompanionUI/Fonts/TBJInterval-Bold.otf
+Sources/CompanionUI/Fonts/TBJInterval-Light.otf
+Sources/CompanionUI/Fonts/TBJInterval-Regular.otf
+"
+
 # $1 folder shipped in the app  $2 repo root  $3 its source folder, relative
 # to $2 (a `.copy` resource of Package.swift). SwiftPM copies the folder whole,
-# so an untracked or ignored file there ships; the tracked files are the list.
+# so an untracked or ignored file there ships; the tracked files are the list,
+# plus the LOCAL_ONLY_RESOURCES of this folder that are present (absent is the
+# clone case, not a missing file).
 resource_folder_strays() {
-    local tracked
+    local tracked file allowed
     tracked="$(git -C "$2" ls-files -z -- "$3" | tr '\0' '\n')" || return 1
     [ -n "$tracked" ] || { echo "git no ve archivos en $3" >&2; return 1; }
-    package_strays "$1" "$(printf '%s\n' "$tracked" | sed "s|^$3/||")"
+    allowed="$(printf '%s\n' "$tracked" | sed "s|^$3/||")"
+    for file in $LOCAL_ONLY_RESOURCES; do
+        case "$file" in "$3"/*) ;; *) continue ;; esac
+        if [ -e "$1/${file#"$3"/}" ] || [ -L "$1/${file#"$3"/}" ]; then
+            allowed="$allowed"$'\n'"${file#"$3"/}"
+        fi
+    done
+    package_strays "$1" "$allowed"
 }
 
 # $1 .app. Prints every entry that must never ship: a path component named
