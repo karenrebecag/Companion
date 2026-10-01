@@ -13,65 +13,82 @@
 
 # Companion
 
-Native macOS voice companion. Talk or type; the model you choose works the turn. Heavy work can be handed to a specialist that reads and writes files, runs commands, and searches the web — inside a folder you choose, and only after asking permission for anything destructive.
+Talk to your Mac, or type: Companion answers in one thread and can hand real work to a specialist, under permissions you control.
 
-Built for one real need: **natural conversation with the computer**, with access to the local AI tools already on the machine, less friction than Siri, and more agency than a chat window.
+[![CI](https://github.com/karenrebecag/Companion/actions/workflows/ci.yml/badge.svg)](https://github.com/karenrebecag/Companion/actions/workflows/ci.yml)
+![macOS 26+](https://img.shields.io/badge/macOS-26%2B-blue)
+![Swift 6](https://img.shields.io/badge/Swift-6-orange)
+[![MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-This is a personal project and a portfolio piece. It is not a commercial product. It exists to solve a daily problem and to practice product judgment under real constraints (hardware scars, permissions, trust, scope).
+## What you can do
 
-Spec-driven end to end. The owner wrote the specs, the architecture rules, the ADRs, and the wave program; the implementation was produced by orchestrated agents under those contracts. Zero lines of application code were written by hand.
+- **Ask without leaving what you are doing.** Hold `fn` anywhere, say "what's on my screen?", let go, and get the answer spoken and written in the same thread. Typing works the same way.
+- **Have a conversation, hands free.** With an OpenAI key, start a live voice conversation and interrupt it whenever you want: by tapping always, and by voice when the output is echo-free, for example with headphones.
+- **Hand off a chore.** Ask for something that touches files, runs a command or needs the web ("find the PDFs in this folder and summarize them"). A specialist does it in the background while you keep talking.
+- **Stay in control of what it changes.** Edits, overwrites and commands show a permission sheet first; only a brand-new plain-text file in a visible folder of the workdir is created without asking. An unanswered sheet times out to "deny".
+- **Dictate into the app in front of you.** A separate hold sends your words to the focused text field instead of to the assistant.
+- **Carry on after a bad connection.** If the network drops mid-reply in a live voice conversation, what was said stays in the thread and you can say "go on".
 
-Requires macOS 14+ and an OpenAI API key. Optional specialist executors (Claude Code, Hermes) are detected at runtime — the app is fully usable without them.
+## How it works
 
----
-
-## The problem it actually tries to solve
-
-Most “AI on the desktop” experiences are either:
-
-- a chat panel that cannot touch the rest of the machine, or
-- a powerful agent that is slow, opaque, or requires a heavy external stack.
-
-Companion aims at the middle that is useful every day: **speak or type, stay in one thread, and occasionally let a specialist act on files and the terminal under explicit permission**. Voice and text share the same conversation. The specialist is optional, sandboxed, and interruptible.
-
-The project started as a working prototype and was rebuilt from zero with a strict process (specs → TDD → gates → close). The rebuild was not a rewrite for its own sake; it was a way to keep the behaviour that only shows up on real hardware while replacing a structure that had become hard to reason about.
-
----
-
-## What works today
-
-- **One thread for voice and text.** OpenAI Realtime for live voice with barge-in (tap anytime; by voice when output is echo-free, e.g. headphones). Classic pipeline (mic → system speech recognition → chat → TTS) as fallback.
-- **Delegation to a specialist.** The chat model can hand off a job. A built-in `NativeExecutor` runs a tool loop over any OpenAI-compatible endpoint with a small, deliberate set of tools (read / write / edit files, shell, web). Claude Code and Hermes appear as options only if they are installed.
-- **Approvals, answerable by voice.** Destructive actions require explicit permission. The request appears in a sheet — a job is assistive UI and does not interrupt to ask — and can be answered out loud while hands are busy. Unanswered requests time out to deny.
-- **Keys stay on the machine.** Stored in the Keychain. Nothing reads environment files or `~/.hermes` as a requirement.
-- **Degrades on purpose.** No optional CLI → the app still works. No network → clear failure instead of a silent mic. Missing permissions → the rest of the product remains usable.
-
----
-
-## Architecture (why it is shaped this way)
-
-Four SPM targets, dependencies only downward. The compiler enforces the boundaries; `scripts/gates.sh` adds the rules SPM cannot express.
-
-```
-CompanionApp          composition root
-  ├── CompanionUI     SwiftUI, design tokens, cards   (MainActor by default)
-  ├── CompanionServices  network, audio, processes, Keychain
-  └── CompanionCore   pure domain: state machine, codecs, parsing
+```mermaid
+flowchart LR
+    You([You]) --> Ear[On-device speech recognition]
+    Ear --> Turn[Turn state machine]
+    Turn --> Model[Chat or realtime model]
+    Model --> Voice[Spoken reply]
+    Model -.-> Spec[Specialist with approvals]
 ```
 
-**Ports & adapters.** Core defines protocols (`VoiceTransport`, `ChatProvider`, `Executor`, `SecretStore`, …). Services implements them. Optional capabilities are discovered at runtime, never assumed.
+One pure state machine decides what each turn does, a runtime executes its effects, and the specialist is optional. Diagrams of the turn lifecycle, a realtime turn, a network drop, delegation with approval and the classic fallback are in [`docs/HOW-IT-WORKS.md`](docs/HOW-IT-WORKS.md). The layers and the reasons behind them are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-**Turn lifecycle as a pure reducer.** `TurnMachine` is a value-type state machine: `handle(event) → [Effect]`. No I/O. A runtime in Services executes effects and feeds results back as events. Exhaustively tested. This is the single source of truth for idle → connecting → listening → thinking → speaking and for barge-in, mute, fallback, and delegation hand-off.
+## Install
 
-**Swift 6 strict concurrency** everywhere. Long-lived sessions are actors. UI defaults to MainActor. Events move as `AsyncStream`. Cancellation is structured.
+You need macOS 26 or later and an OpenAI API key.
 
-**Configuration boundary.** One `Config` type owns external facts (keys, models, endpoints, detected executors, language). Nothing else reads the environment or home directory. That is what keeps the app distributable and reviewable.
+1. Download `Companion.dmg` from the [latest release](https://github.com/karenrebecag/Companion/releases/latest), open it, and drag the app to Applications.
+2. Open it. The build is **not notarized** (there is no Apple Developer account behind the project), so macOS blocks the first launch. Double-click once and let it be blocked, then go to **System Settings > Privacy & Security** and choose **Open Anyway**. Right-click > Open does not work on macOS 15 and later.
 
-Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+## First run
 
----
+A short welcome walks you through setup:
 
-## Decisions that matter
+1. Your name and the language Companion answers in (English or Spanish).
+2. Your keys. The OpenAI key is required; Cerebras (answers in under a second) and ElevenLabs (a more natural voice) are optional. There is also a way to continue without a key, on this Mac only.
+3. Four permissions: Microphone, Accessibility, Screen Recording and Speech Recognition.
+4. The `fn` key. If it opens emoji or dictation, choose "Do Nothing" for it in Keyboard settings.
+5. A microphone check, then your first turn: hold `fn` and say "what's on my screen?".
+
+Optional specialists, Claude Code and Hermes, are detected at runtime. The app is fully usable without them.
+
+## Privacy and security
+
+- **Keys live in the macOS Keychain.** Companion has no server of its own. Network calls go to the services you configured keys for, such as OpenAI.
+- **Permissions are asked for, not assumed.** Microphone, Speech Recognition, Accessibility and Screen Recording are requested through the system prompts shown in the welcome flow.
+- **The specialist works in one folder.** File tools only touch paths inside the working folder, with symlinks resolved so a link cannot lead out. If you never choose a folder, the working folder is your home folder, and a choice of home is not remembered between launches.
+- **Changes ask first.** Editing a file, running a command and replacing existing content go to the permission sheet. A few purely additive actions, such as creating a brand-new plain-text file (txt, md, csv, log) in a visible folder you chose, do not ask. Unanswered requests are denied after 60 seconds, and a decision can be remembered for the session only.
+- **Spoken approval is limited on purpose.** A spoken "no" always counts. A spoken "yes" is accepted only in the classic pipeline, after the voice asked, and only if you said a short, clear yes. In realtime, approving needs a click.
+
+## Status and roadmap
+
+This is a personal project and a portfolio piece, not a commercial product. The engineering and process are mature for that scope. Open gaps, stated plainly:
+
+- **First run for a stranger.** The ad-hoc build, four permission prompts and a required API key are real walls.
+- **Delegation is hard to discover.** The most distinctive capability does not explain itself, so you have to learn what to ask for.
+- **A request nobody looks at is denied after 60 seconds**, quietly.
+- **Continuity.** Conversations and per-folder job sessions persist, but there is no local knowledge layer that accumulates context about you.
+
+The voice no longer reads a job's result back: the specialist's text is the message and the voice only acknowledges it ([ADR 005](docs/DECISIONS.md)). Wave status and the measured gap against the original prototype are in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+**Next, not a commitment:** local knowledge under your control, an inspectable store of notes, preferences and project context that the model can query through tools, under the same approval and folder rules. **Deferred on purpose:** a vision model driving arbitrary system UI. It is expensive in reliability, permissions and scope, and it does not strengthen the core idea of natural conversation plus deliberate, bounded local agency.
+
+## Built spec-driven
+
+Spec-driven end to end. The owner wrote the specs, the architecture rules, the ADRs and the wave program; the implementation was produced by orchestrated agents under those contracts. Zero lines of application code were written by hand.
+
+The project started as a working prototype and was rebuilt from zero with a strict process: specs, then TDD, then gates, then close. The rebuild was not a rewrite for its own sake. It kept the behaviour that only shows up on real hardware and replaced a structure that had become hard to reason about.
+
+### Decisions that matter
 
 These are the product and engineering choices that define the project more than any feature list.
 
@@ -80,57 +97,21 @@ These are the product and engineering choices that define the project more than 
 | **No required external agent runtime** (ADR 001) | Hermes was powerful and also a full ecosystem. Requiring it killed adoption for a personal tool. Capabilities were absorbed natively; Claude Code / Hermes remain optional adapters. |
 | **No Sparkle** (ADR 002) | Updates check GitHub Releases with a small, testable client. Adding an update framework would be a second binary dependency on a project that treats supply chain as a first-class concern. |
 | **No binary dependencies** (ADR 003 retired) | The one vendored binary (Rive, for the mascot) left when the orb became the identity. Any binary needs its own ADR. |
-| **Ad-hoc signing for releases** | There is no Apple Developer account behind the project. Gatekeeper will block the first open; the README documents both macOS 14 and 15+ paths. Notarization is supported by the scripts the day credentials exist. |
-| **Approvals for destructive tools** | The specialist is useful only if it is trusted. Write and shell always ask. Paths cannot leave the chosen workdir, including via symlinks. |
+| **Ad-hoc signing for releases** | There is no Apple Developer account behind the project. Gatekeeper blocks the first open; the Install section has the steps. Notarization is supported by the scripts the day credentials exist. |
+| **Approvals for destructive tools** | The specialist is useful only if it is trusted. Writes and shell commands ask. File paths cannot leave the chosen workdir, including via symlinks. |
 | **Spec-first waves, gates before merge** | Every non-trivial change starts as a written contract. `scripts/gates.sh` (build, static checks, layer rules, tests) is the same script run in CI and locally. |
-| **Ledger of hardware scars** | Audio, permissions, and realtime behaviour that only appear on real Macs are written down in [`docs/REFERENCE.md`](docs/REFERENCE.md) so they are not rediscovered. |
+| **Ledger of hardware scars** | Audio, permissions and realtime behaviour that only appear on real Macs are written down in [`docs/REFERENCE.md`](docs/REFERENCE.md) so they are not rediscovered. |
 
-What was deliberately left out is as important as what shipped: no mandatory Python stack, no silent update framework, no “computer use” of the whole UI, no unbounded tool surface in the native executor.
+What was deliberately left out is as important as what shipped: no mandatory Python stack, no silent update framework, no unbounded tool surface in the native executor.
 
----
-
-## Current status (honest)
-
-The engineering and process are mature for a personal project of this scope. The product still has gaps that matter when the audience is no longer only the author:
-
-- **Trust of the voice loop.** Mostly closed: the voice no longer reads a result back — the specialist's text is the message and the voice only acknowledges, and which of the two endings happened comes from the job, not from the model ([ADR 005](docs/DECISIONS.md)). What is still open is silence, not lying: the classic fallback has no model to produce that acknowledgment, so a job ends there without a word, and a permission nobody looks at times out to deny just as quietly.
-- **First-run for a stranger.** Gatekeeper (ad-hoc build), microphone and speech prompts, and a required API key are real walls. The happy path for someone who has never seen the repo is still being hardened.
-- **Discoverability of delegation.** The most differentiated capability is not self-explanatory. Users have to learn what they can actually ask for.
-- **Continuity.** Conversations and per-folder job sessions persist. There is not yet a deliberate local knowledge layer that makes the companion feel like it accumulates context about *you* over time.
-
-Wave program and measured gap vs the original prototype live in [`docs/ROADMAP.md`](docs/ROADMAP.md).
-
----
-
-## Direction (not a commitment)
-
-The next meaningful product step under consideration is **local knowledge under user control** — an explicit, inspectable store (notes, preferences, project context) that the model can query through tools, with the same approval and sandbox rules that already exist. The goal is continuity without turning the app into a second notes system or a silent profiler.
-
-**Explicitly deferred:** vision models driving direct control of arbitrary system UI. It is attractive on a whiteboard and expensive in reliability, permissions, and scope. It does not strengthen the core thesis (natural conversation + deliberate local agency) enough to justify the cost right now.
-
----
-
-## Install
-
-Download `Companion.dmg` from the [latest release](https://github.com/karenrebecag/Companion/releases/latest), open it, and drag the app to Applications.
-
-The build is **not notarized** (no Apple Developer account). macOS will refuse to open it the first time:
-
-- **macOS 14 (Sonoma):** right-click the app → **Open** → **Open** again.
-- **macOS 15 (Sequoia) and later:** double-click once and let it be blocked, then **System Settings → Privacy & Security** → **Open Anyway**. Right-click → Open no longer works there.
-
-On first speech the system will ask for microphone and speech recognition. Refusing either leaves the rest of the app working. An OpenAI API key is requested on first run and stored in the Keychain.
-
----
-
-## Build
+## Build from source
 
 ```bash
 swift build
 swift test           # Swift Testing
 scripts/gates.sh     # full compliance suite
 
-scripts/bundle.sh          # debug .app (Companion Next) — required for voice
+scripts/bundle.sh          # debug .app (Companion Next), required for voice
 open "build/Companion Next.app"
 
 scripts/bundle.sh release  # product identity, for packaging
@@ -142,13 +123,12 @@ Run `scripts/make-signing-cert.sh` once. Without a stable signing identity every
 
 Debug and release use different bundle IDs on purpose so Launch Services never opens the wrong binary. See [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
 
----
-
 ## Documents
 
 | Document | What it is |
 |----------|------------|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Layers, ports & adapters, concurrency rules |
+| [`docs/HOW-IT-WORKS.md`](docs/HOW-IT-WORKS.md) | How a turn works, with diagrams: realtime, network drop, delegation, classic |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Layers, ports and adapters, concurrency rules, test layers |
 | [`docs/PROGRAM.md`](docs/PROGRAM.md) | Rebuild method (waves, specs, TDD, gates) |
 | [`docs/REFERENCE.md`](docs/REFERENCE.md) | Ledger of behaviour learned on real hardware |
 | [`docs/DECISIONS.md`](docs/DECISIONS.md) | ADRs |
@@ -156,23 +136,10 @@ Debug and release use different bundle IDs on purpose so Launch Services never o
 | [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md) | Signing, Gatekeeper, updates |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | How changes are expected to land |
 
----
-
-## Stack
-
-- Swift 6 (strict concurrency), SwiftPM only — no Xcode project required to build and test
-- macOS 14+
-- OpenAI Realtime (primary voice path) + system Speech / AVSpeech as fallbacks
-- MIT license
-
----
-
 ## Contributing
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). Read [`docs/REFERENCE.md`](docs/REFERENCE.md) before touching audio, permissions, or the realtime protocol — most of that behaviour is invisible to tests.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). Read [`docs/REFERENCE.md`](docs/REFERENCE.md) before touching audio, permissions, or the realtime protocol: most of that behaviour is invisible to tests. `scripts/gates.sh` must be green before a change is considered done.
 
-`scripts/gates.sh` must be green before a change is considered done.
+## License
 
----
-
-Licensed under MIT.
+[MIT](LICENSE).
