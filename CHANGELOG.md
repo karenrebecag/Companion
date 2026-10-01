@@ -6,10 +6,6 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 ## [Unreleased]
 
 ### Fixed
-- **Un test de diagramas ya no falla en CI de vez en cuando (2026-10-01).** Solo tests: al
-  cancelar un dibujo, el test revisaba de inmediato que el dibujo se hubiera enterado, pero el
-  aviso llega en un turno posterior del main actor. Con el main actor ocupado, la revisión
-  llegaba antes y fallaba. Ahora espera a que el dibujo registre la cancelación. La app no cambia.
 - **Un test de permisos ya no falla cuando la Mac se congela unos segundos (2026-10-01).** Solo
   tests: cuatro esperas de permisos MCP tenían un tope de 5 s de reloj de pared. Si el proceso
   quedaba parado más que eso, la espera fallaba antes de que llegara el rechazo automático. Ahora
