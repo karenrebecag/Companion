@@ -65,16 +65,26 @@ package enum Localized {
 
     /// `resources` nil (bundle not found, 21c) paints the raw key.
     static func string(_ key: String, language: AppLanguage, in resources: Bundle?) -> String {
-        bundle(for: language, in: resources)?.localizedString(
-            forKey: key, value: nil, table: nil)
+        lookup(key, in: bundle(for: language, in: resources))
             ?? fallback(key, in: resources)
+    }
+
+    /// Passed as `value:` so a key absent from an lproj that does exist is
+    /// distinguishable from a real translation that happens to equal its key.
+    private static let missingSentinel = "\u{1}companion.missing-key\u{1}"
+
+    private static func lookup(_ key: String, in bundle: Bundle?) -> String? {
+        guard let value = bundle?.localizedString(
+            forKey: key, value: missingSentinel, table: nil),
+            !value.isEmpty, value != missingSentinel
+        else { return nil }
+        return value
     }
 
     /// Missing translation must never paint a blank: English is the source,
     /// so it is always the last thing standing before the raw key.
     private static func fallback(_ key: String, in resources: Bundle?) -> String {
-        bundle(for: .en, in: resources)?.localizedString(forKey: key, value: nil, table: nil)
-            ?? key
+        lookup(key, in: bundle(for: .en, in: resources)) ?? key
     }
 
     private static func bundle(for language: AppLanguage, in resources: Bundle?) -> Bundle? {
