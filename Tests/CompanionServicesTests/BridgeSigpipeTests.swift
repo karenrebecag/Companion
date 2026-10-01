@@ -14,7 +14,7 @@ import Testing
 /// The harness can fail: an unprotected write to a peer that left raises
 /// exactly one signal, so a protected write that stays below two is a real
 /// EPIPE and not a counter that never counts.
-private func expectTheControlRaisesOneSigpipe() async throws {
+func expectTheControlRaisesOneSigpipe() async throws {
     let (control, controlPeer) = try socketPair()
     Darwin.close(controlPeer)
     var byte: UInt8 = 0x41
