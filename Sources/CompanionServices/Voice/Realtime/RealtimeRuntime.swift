@@ -86,6 +86,15 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// every model-facing line have to agree on one language.
     private(set) var language: AppLanguage = .en
     private(set) var transportDown = false
+    /// A reply the network cut, waiting for the player to finish what it
+    /// already holds before it joins the thread: threading it earlier would
+    /// show the user words their ears have not reached.
+    private var unthreadedCut: String?
+    /// The same words, owed to the next user turn as a one-shot note.
+    private var cutNote: String?
+    /// The current response's full text already reached the thread (its
+    /// final transcript), so a drop before `response.done` has nothing to add.
+    private var replyThreaded = false
 
     init(
         transport: any VoiceTransport,
@@ -102,6 +111,9 @@ final class RealtimeRuntime: @unchecked Sendable {
     func reset() {
         micEnabled = true
         resetConnection()
+        // A new session has no half-said reply to pick up.
+        unthreadedCut = nil
+        cutNote = nil
     }
 
     /// What dies with a socket. `micEnabled` is NOT here: it mirrors the
@@ -111,16 +123,41 @@ final class RealtimeRuntime: @unchecked Sendable {
         pendingUpdate = nil
         voiceSent = false
         transportDown = false
-        dropInFlightResponse()
+        let partial = dropInFlightResponse()
+        if !partial.isEmpty {
+            // A later partial wins over an undrained earlier one: it is what
+            // was being said when the voice stopped.
+            unthreadedCut = partial
+            cutNote = partial
+        }
     }
 
-    /// The server's response died with the connection. Kept apart on purpose:
-    /// what to do when the drop lands mid-speech is still open, and this is
-    /// the one place that decision will change.
-    private func dropInFlightResponse() {
+    /// The server's response died with the connection; what it had said so
+    /// far is handed back before it is cleared.
+    private func dropInFlightResponse() -> String {
+        // `agentSpeech` outlives a finished reply (the echo guard reads it),
+        // so only a response still open on entry was actually cut.
+        let wasCut = responseActive && !replyThreaded
         responseActive = false
         pendingResponse = false
+        // HACK: `agentSpeech` is the generated transcript, not the played
+        // audio, so the partial can include words the user never heard.
+        // Upgrade to the player's played-sample count (or
+        // conversation.item.truncate) once it is measured that the gap
+        // confuses the model on "go on".
+        let partial = agentSpeech.trimmingCharacters(in: .whitespacesAndNewlines)
         agentSpeech = ""
+        return wasCut ? partial : ""
+    }
+
+    /// The cut reply joins the thread as the assistant's, the same way the
+    /// classic pipeline threads what it said before a cut. Safe to call when
+    /// nothing was cut.
+    nonisolated(nonsending) func threadCutReply() async {
+        guard let partial = unthreadedCut else { return }
+        unthreadedCut = nil
+        await thread.appendAssistant(partial)
+        await thread.finishStream()
     }
 
     /// The single funnel for asking the server to respond. The server holds
@@ -203,11 +240,20 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// user's turn preempts whatever the agent was still saying.
     nonisolated(nonsending) func commitWithText(_ text: String, context: TurnContext? = nil) async {
         lastUserText = text
+        // A turn that beats the drain must still come after the reply it
+        // answers.
+        await threadCutReply()
         await thread.appendUser(text, context: context)
         Log.app("voice: turn from native text \(text.count) chars")
         // The block goes to the server with THIS turn only; the thread keeps
         // the compact line, so the seed never fills with XML (Wave 10a).
-        let payload = context.map {
+        var sent = context
+        if let note = cutNote {
+            cutNote = nil
+            sent = sent ?? TurnContext(source: .voice)
+            sent?.replyCutAfter = note
+        }
+        let payload = sent.map {
             ContextBlock.wrap(text, with: ContextBlock.render($0, language: language))
         } ?? text
         await send(RealtimeCodec.userTextItem(payload))
@@ -280,6 +326,7 @@ final class RealtimeRuntime: @unchecked Sendable {
             await thread.showStream(agentSpeech)
             return []
         case .assistantTranscriptDone(let text):
+            replyThreaded = true
             await thread.finishStream()
             await thread.appendAssistant(text)
             return [.replyCompleted]
@@ -305,6 +352,11 @@ final class RealtimeRuntime: @unchecked Sendable {
             return []
         case .responseCreated:
             responseActive = true
+            replyThreaded = false
+            // A reply nobody asked for (the user's turn consumed the note
+            // before asking) moved the thread on: "continue" would point at
+            // a sentence that is no longer the last thing said.
+            cutNote = nil
             // A fresh response is a fresh utterance: the echo reference must
             // not accumulate the whole session.
             agentSpeech = ""

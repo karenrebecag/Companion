@@ -210,7 +210,17 @@ extension VoiceSession {
         await realtime.flushPendingUpdate()
         if realtime.transportDown { Log.app("voice: reconnect config not delivered") }
         await dropPendingMCPApprovals()
+        await settleSpeechAfterReconnect()
         return true
+    }
+
+    /// Nothing queued means no drain signal is coming (it fired before the
+    /// drop, or the last delta held no frames), so a machine still speaking
+    /// would never leave it. With audio queued the drain pump settles it.
+    private func settleSpeechAfterReconnect() async {
+        guard !(await player.hasPending) else { return }
+        if machine.snapshot.state == .speaking { await apply(.playerDrained) }
+        await realtime.threadCutReply()
     }
 
     func pumpFrames() async {
@@ -309,6 +319,7 @@ extension VoiceSession {
         for await _ in player.drained {
             if Task.isCancelled { return }
             await apply(.playerDrained)
+            await realtime.threadCutReply()
         }
     }
 

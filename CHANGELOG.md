@@ -6,6 +6,10 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 ## [Unreleased]
 
 ### Fixed
+- **Si se corta la red mientras Companion habla, no pierdes lo que dijo (2026-09-30).**
+  Lo que alcanzó a decir queda en el chat cuando termina de sonar, la voz vuelve a escucharte en
+  vez de quedarse "hablando", y si dices "sigue" continúa donde se quedó sin repetir. Al
+  reconectar nunca habla sola.
 - **La voz sigue escuchando después de un corte de red (2026-09-30, #59).** Al reconectar,
   nadie leía la conexión nueva y la voz quedaba sorda; además arrancaba sin instrucciones, tools
   ni voz elegida, y volvía a encender el micrófono aunque lo hubieras silenciado. Ahora reanuda
