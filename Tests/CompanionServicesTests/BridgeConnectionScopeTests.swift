@@ -23,6 +23,9 @@ final class BridgePair: @unchecked Sendable {
     init(onClosed: @escaping @Sendable () -> Void = {}) {
         var fds: [Int32] = [0, 0]
         precondition(Darwin.socketpair(AF_UNIX, SOCK_STREAM, 0, &fds) == 0, "socketpair")
+        // The test writes on the client end after the server end may have
+        // closed; unprotected, that write kills the whole test run.
+        precondition(BridgeSocket.suppressSigpipe(on: fds[1]), "client end protected from SIGPIPE")
         connection = BridgeConnection(fd: fds[0]) { _ in onClosed() }
         connection.start()
         clientFD = fds[1]

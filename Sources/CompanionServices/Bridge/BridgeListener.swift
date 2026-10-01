@@ -245,10 +245,18 @@ package final class BridgeConnection: @unchecked Sendable {
     private let onClosed: @Sendable (BridgeConnection) -> Void
     private var slotHeld = false
     private var slotFreed = false
+    /// False when the option could not be set, typically because the peer
+    /// already hung up (EINVAL): then a write would raise the very signal it
+    /// prevents, and there is nobody left to read it anyway. The read loop
+    /// still sees EOF and closes.
+    private let writable: Bool
 
     init(fd: Int32, onClosed: @escaping @Sendable (BridgeConnection) -> Void) {
         self.fd = fd
         self.onClosed = onClosed
+        // The invariant lives in the type, not only in the accept loop: any
+        // constructor of a connection gets a fd that answers EPIPE, not SIGPIPE.
+        self.writable = BridgeSocket.suppressSigpipe(on: fd)
         self.peer = BridgePeer.of(fd: fd)
         var pendingContinuation: AsyncStream<String>.Continuation?
         self.lines = AsyncStream<String> { continuation in pendingContinuation = continuation }
@@ -276,7 +284,7 @@ package final class BridgeConnection: @unchecked Sendable {
     /// partial write (a blocking socket should not see `EAGAIN`, but the
     /// retry costs nothing and protects against a future non-blocking fd).
     package func send(line: String) {
-        guard !isClosed() else { return }
+        guard writable, !isClosed() else { return }
         _ = writeAll(Data((line + "\n").utf8))
     }
 
