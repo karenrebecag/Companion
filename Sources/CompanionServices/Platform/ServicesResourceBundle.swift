@@ -2,7 +2,7 @@ import CompanionCore
 import Foundation
 
 /// CompanionServices' resource bundle (system skills, vendored Mermaid), or
-/// nil. Never read `Bundle.module` anywhere else: its generated accessor
+/// nil. Never evaluate `Bundle.module`: its generated accessor
 /// traps when the bundle is missing (`ResourceBundleLocator` says why).
 enum ServicesResourceBundle {
     /// SE-0271 calls the name implementation-defined; 21c's packaging probe
@@ -21,14 +21,13 @@ enum ServicesResourceBundle {
     static func resolve(
         mainBundleURL: URL = Bundle.main.bundleURL,
         executableURL: URL? = Bundle.main.executableURL,
-        buildDirectory: URL? = ResourceBundleLocator.defaultBuildDirectory
+        codeBundleURL: URL? = ResourceBundleLocator.defaultCodeBundleURL
     ) -> Bundle? {
         switch ResourceBundleLocator.locate(
             bundleName: name, mainBundleURL: mainBundleURL, executableURL: executableURL,
-            buildDirectory: buildDirectory, isDirectory: ResourceBundleLocator.isDirectory)
+            codeBundleURL: codeBundleURL, isDirectory: ResourceBundleLocator.isDirectory)
         {
         case let .directory(url): Bundle(url: url)
-        case .swiftPMModule: Bundle.module
         case nil: nil
         }
     }

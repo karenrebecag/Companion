@@ -13,14 +13,16 @@ import Testing
 @Test @MainActor func resourceBundle21cTests() throws {
     testLocatorPrefersAppResources()
     testLocatorFallsBackBesideTheExecutable()
-    testLocatorTouchesModuleOnlyWhenTheBuildBundleExists()
+    testLocatorFindsTheBundleBesideTheLoadedTestBundle()
+    testLocatorIgnoresACodeBundleThatIsNotAnXctest()
+    testLocatorWithoutACodeBundleKeepsTheExistingOrder()
     testLocatorIgnoresContentsResourcesOutsideAnApp()
     testLocatorWithNothingPresentIsNil()
     try testResolversOnFakeAppLayout()
     try testResolversOnFakeExecutableLayout()
     try testResolversWithNothingPresentAreNilWithoutTrap()
-    testResolversReachTheBuildBundleUnderSwiftTest()
-    try testNoProductionCodeTouchesModuleOutsideTheResolvers()
+    testResolversReachTheBundleBesideTheXctestUnderSwiftTest()
+    try testNoProductionCodeEvaluatesModule()
     testFontsWithoutBundleKeepOnlyTheOtherDirectories()
     try testFontFilesAreDedupedByName()
     try testUserFontsWithABundledNameStillRegister()
@@ -35,37 +37,52 @@ import Testing
 private let uiName = "Companion_CompanionUI.bundle"
 private let app = URL(fileURLWithPath: "/fake/Companion.app")
 private let appExe = URL(fileURLWithPath: "/fake/Companion.app/Contents/MacOS/Companion")
-private let build = URL(fileURLWithPath: "/fake/checkout/.build/debug")
+private let xctest = URL(fileURLWithPath: "/fake/scratch/arm64-apple-macosx/debug/CompanionPackageTests.xctest")
 
 private func locate(
-    main: URL = app, exe: URL? = appExe, build: URL? = build, present: Set<String>
+    main: URL = app, exe: URL? = appExe, code: URL? = xctest, present: Set<String>
 ) -> ResourceBundleLocation? {
     ResourceBundleLocator.locate(
         bundleName: uiName, mainBundleURL: main, executableURL: exe,
-        buildDirectory: build, isDirectory: { present.contains($0.standardizedFileURL.path) })
+        codeBundleURL: code, isDirectory: { present.contains($0.standardizedFileURL.path) })
 }
 
 @MainActor func testLocatorPrefersAppResources() {
     let inResources = "/fake/Companion.app/Contents/Resources/\(uiName)"
     let everywhere: Set<String> = [
-        inResources, "/fake/Companion.app/Contents/MacOS/\(uiName)", "/fake/checkout/.build/debug/\(uiName)",
+        inResources, "/fake/Companion.app/Contents/MacOS/\(uiName)", "/fake/scratch/arm64-apple-macosx/debug/\(uiName)",
     ]
     expectEq(locate(present: everywhere), .directory(URL(fileURLWithPath: inResources)),
-             "21c: una .app se resuelve en Contents/Resources antes que junto al binario o el .build")
+             "21c: una .app se resuelve en Contents/Resources antes que junto al binario o al .xctest")
 }
 
 @MainActor func testLocatorFallsBackBesideTheExecutable() {
     let beside = "/fake/Companion.app/Contents/MacOS/\(uiName)"
-    expectEq(locate(present: [beside, "/fake/checkout/.build/debug/\(uiName)"]),
+    expectEq(locate(present: [beside, "/fake/scratch/arm64-apple-macosx/debug/\(uiName)"]),
              .directory(URL(fileURLWithPath: beside)),
              "21c: sin Contents/Resources, el bundle junto al ejecutable")
 }
 
-@MainActor func testLocatorTouchesModuleOnlyWhenTheBuildBundleExists() {
-    expectEq(locate(present: ["/fake/checkout/.build/debug/\(uiName)"]), .swiftPMModule,
-             "21c: Bundle.module solo cuando el bundle del .build existe")
-    expectEq(locate(build: nil, present: ["/fake/checkout/.build/debug/\(uiName)"]), nil,
-             "21c: sin directorio de build conocido, jamas Bundle.module")
+@MainActor func testLocatorFindsTheBundleBesideTheLoadedTestBundle() {
+    let sibling = "/fake/scratch/arm64-apple-macosx/debug/\(uiName)"
+    expectEq(
+        locate(main: URL(fileURLWithPath: "/fake/toolchain/usr/libexec/swift/pm"),
+               exe: URL(fileURLWithPath: "/fake/toolchain/usr/libexec/swift/pm/swiftpm-testing-helper"),
+               present: [sibling]),
+        .directory(URL(fileURLWithPath: sibling)),
+        "scratch path: bajo swift test el bundle es hermano del .xctest que cargo el codigo")
+}
+
+@MainActor func testLocatorIgnoresACodeBundleThatIsNotAnXctest() {
+    let aside = "/fake/\(uiName)"
+    expectEq(locate(code: URL(fileURLWithPath: "/fake/Companion.app"), present: [aside]), nil,
+             "scratch path: el paso del .xctest no se aplica a una .app (su padre es ajeno)")
+}
+
+@MainActor func testLocatorWithoutACodeBundleKeepsTheExistingOrder() {
+    expectEq(locate(code: nil, present: ["/fake/scratch/arm64-apple-macosx/debug/\(uiName)"]), nil,
+             "scratch path: sin bundle de codigo conocido no hay paso del .xctest")
+    expectEq(locate(present: []), nil, "scratch path: .xctest sin bundle hermano = nil")
 }
 
 @MainActor func testLocatorIgnoresContentsResourcesOutsideAnApp() {
@@ -109,12 +126,11 @@ private func samePath(_ bundle: Bundle?, _ url: URL) -> Bool {
     try makeDir(services)
     try makeDir(fakeApp.appendingPathComponent("Contents/MacOS"))
     let exe = fakeApp.appendingPathComponent("Contents/MacOS/Companion")
-    let noBuild = root.appendingPathComponent("no-build")
 
-    expect(samePath(UIResourceBundle.resolve(mainBundleURL: fakeApp, executableURL: exe, buildDirectory: noBuild), ui),
+    expect(samePath(UIResourceBundle.resolve(mainBundleURL: fakeApp, executableURL: exe, codeBundleURL: nil), ui),
            "21c: UI resuelve el bundle de Contents/Resources de la .app")
     expect(samePath(ServicesResourceBundle.resolve(
-        mainBundleURL: fakeApp, executableURL: exe, buildDirectory: noBuild), services),
+        mainBundleURL: fakeApp, executableURL: exe, codeBundleURL: nil), services),
            "21c: Services resuelve el bundle de Contents/Resources de la .app")
 }
 
@@ -127,12 +143,11 @@ private func samePath(_ bundle: Bundle?, _ url: URL) -> Bool {
     try makeDir(ui)
     try makeDir(services)
     let exe = bin.appendingPathComponent("companion")
-    let noBuild = root.appendingPathComponent("no-build")
 
-    expect(samePath(UIResourceBundle.resolve(mainBundleURL: bin, executableURL: exe, buildDirectory: noBuild), ui),
+    expect(samePath(UIResourceBundle.resolve(mainBundleURL: bin, executableURL: exe, codeBundleURL: nil), ui),
            "21c: UI resuelve el bundle junto al ejecutable")
     expect(samePath(ServicesResourceBundle.resolve(
-        mainBundleURL: bin, executableURL: exe, buildDirectory: noBuild), services),
+        mainBundleURL: bin, executableURL: exe, codeBundleURL: nil), services),
            "21c: Services resuelve el bundle junto al ejecutable")
 }
 
@@ -142,34 +157,29 @@ private func samePath(_ bundle: Bundle?, _ url: URL) -> Bool {
     let fakeApp = root.appendingPathComponent("Companion.app")
     try makeDir(fakeApp.appendingPathComponent("Contents/MacOS"))
     let exe = fakeApp.appendingPathComponent("Contents/MacOS/Companion")
-    let noBuild = root.appendingPathComponent("no-build")
 
-    expect(UIResourceBundle.resolve(mainBundleURL: fakeApp, executableURL: exe, buildDirectory: noBuild) == nil,
+    expect(UIResourceBundle.resolve(mainBundleURL: fakeApp, executableURL: exe, codeBundleURL: nil) == nil,
            "21c: UI sin bundle en ningun lado = nil (nunca Bundle.module a ciegas)")
-    expect(ServicesResourceBundle.resolve(mainBundleURL: fakeApp, executableURL: exe, buildDirectory: noBuild) == nil,
+    expect(ServicesResourceBundle.resolve(mainBundleURL: fakeApp, executableURL: exe, codeBundleURL: nil) == nil,
            "21c: Services sin bundle en ningun lado = nil (nunca Bundle.module a ciegas)")
 }
 
-/// Under `swift test` Bundle.main is the runner, so only step 3 can find them.
-@MainActor func testResolversReachTheBuildBundleUnderSwiftTest() {
+/// Under `swift test` Bundle.main is the runner, so only the step beside the
+/// .xctest can find them, wherever `--scratch-path` put the build.
+@MainActor func testResolversReachTheBundleBesideTheXctestUnderSwiftTest() {
     expect(UIResourceBundle.bundle?.path(forResource: "en", ofType: "lproj") != nil,
-           "21c: bajo swift test el resolver de UI llega al bundle del .build")
+           "21c: bajo swift test el resolver de UI llega al bundle hermano del .xctest")
     expect(ServicesResourceBundle.bundle?.url(forResource: "Skills", withExtension: nil) != nil,
-           "21c: bajo swift test el resolver de Services llega al bundle del .build")
+           "21c: bajo swift test el resolver de Services llega al bundle hermano del .xctest")
 }
 
-/// The accessor traps; the only safe caller is the resolver, after its check.
-@MainActor func testNoProductionCodeTouchesModuleOutsideTheResolvers() throws {
+/// The accessor traps and nothing guards it any more, so nothing may evaluate it.
+@MainActor func testNoProductionCodeEvaluatesModule() throws {
     let sources = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appendingPathComponent("Sources")
-    let allowed: Set<String> = [
-        "CompanionUI/Platform/UIResourceBundle.swift",
-        "CompanionServices/Platform/ServicesResourceBundle.swift",
-    ]
     let pattern = try NSRegularExpression(pattern: #"\.module([^A-Za-z0-9_]|$)"#)
     var offenders: [String] = []
-    var allowedHits: [String: Int] = [:]
     let files = FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)
     while let file = files?.nextObject() as? URL {
         guard file.pathExtension == "swift" else { continue }
@@ -178,18 +188,10 @@ private func samePath(_ bundle: Bundle?, _ url: URL) -> Bool {
         for (index, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
             let code = String(raw.split(separator: "//", maxSplits: 1, omittingEmptySubsequences: false).first ?? "")
             let range = NSRange(code.startIndex..., in: code)
-            guard pattern.firstMatch(in: code, range: range) != nil else { continue }
-            if allowed.contains(relative) {
-                allowedHits[relative, default: 0] += 1
-            } else {
-                offenders.append("\(relative):\(index + 1)")
-            }
+            if pattern.firstMatch(in: code, range: range) != nil { offenders.append("\(relative):\(index + 1)") }
         }
     }
-    expectEq(offenders, [], "21c: ningun archivo de Sources evalua .module fuera de los resolvers")
-    for file in allowed {
-        expectEq(allowedHits[file], 1, "21c: \(file) toca .module en un solo lugar, detras de su chequeo")
-    }
+    expectEq(offenders, [], "scratch path: ningun archivo de Sources evalua .module")
 }
 
 // MARK: - Call sites degrade on nil
