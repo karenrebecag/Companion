@@ -11,7 +11,9 @@ import Foundation
 /// transcript has grown beyond what earlier turns already consumed.
 ///
 /// Off silently when Speech is not authorized. Called only from the
-/// VoiceSession actor's context.
+/// VoiceSession actor's context; its async methods are
+/// `nonisolated(nonsending)` so they run there instead of hopping to the
+/// generic executor and racing the state below.
 final class VoiceAudit: @unchecked Sendable {
     private let native: any Transcriber
     private var tally = FrameTally()
@@ -30,7 +32,7 @@ final class VoiceAudit: @unchecked Sendable {
     /// partial pump, which reads `turnText()` on the actor after each one.
     var partials: AsyncStream<String> { native.partials }
 
-    func begin(locale: String) async {
+    nonisolated(nonsending) func begin(locale: String) async {
         guard await native.requestAuthorization() else {
             Log.app("ear: not authorized (Speech permission or missing key) — ear off")
             return
@@ -48,7 +50,7 @@ final class VoiceAudit: @unchecked Sendable {
 
     /// Vetted user audio only: the gate keeps the agent's own voice (no AEC)
     /// out, so the transcript never quotes the assistant back as the user.
-    func hear(_ frame: MicFrame, forwarded: Bool, reason: GateReason?) async {
+    nonisolated(nonsending) func hear(_ frame: MicFrame, forwarded: Bool, reason: GateReason?) async {
         guard enabled else { return }
         tally.add(forwarded: forwarded, reason: reason)
         guard forwarded else { return }
@@ -89,7 +91,7 @@ final class VoiceAudit: @unchecked Sendable {
             tally: tally, goal: goal))
     }
 
-    func end() async {
+    nonisolated(nonsending) func end() async {
         if enabled { _ = await native.stop() }
         enabled = false
         committed = ""

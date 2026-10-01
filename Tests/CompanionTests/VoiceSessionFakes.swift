@@ -156,14 +156,47 @@ final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable {
         var openError: VoiceTransportError?
         var autoEvents: [RealtimeEvent] = []
         var openCount = 0
+        var box = StreamBox<RealtimeEvent>()
+        var streamEnded = false
+        var holdNextOpen = false
+        var openWaiter: CheckedContinuation<Void, Never>?
+        var openEntered = false
+        var sendFails = false
+        var sendAttempts = 0
+        var closeCount = 0
+        var openReturned = 0
     }
     private let state = LockedBox(State())
-    private let box = StreamBox<RealtimeEvent>()
 
     var key: String? { state.withLock { $0.key } }
     var url: URL? { state.withLock { $0.url } }
     var sent: [String] { state.withLock { $0.sent } }
     var closed: Bool { state.withLock { $0.closed } }
+    var closeCount: Int { state.withLock { $0.closeCount } }
+    /// Opens that have come back, by success or by throw: the signal that a
+    /// reconnect held in `open` has resumed and is about to act.
+    var openReturned: Int { state.withLock { $0.openReturned } }
+    /// Every `send` that reached the transport, failed or not: what a
+    /// paused runtime must stop producing.
+    var sendAttempts: Int { state.withLock { $0.sendAttempts } }
+    var sendFails: Bool {
+        get { state.withLock { $0.sendFails } }
+        set { state.withLock { $0.sendFails = newValue } }
+    }
+    /// The next `open` suspends after counting itself until `releaseOpen()`,
+    /// so a test can act while a reconnect is half-way through.
+    var holdNextOpen: Bool {
+        get { state.withLock { $0.holdNextOpen } }
+        set { state.withLock { $0.holdNextOpen = newValue } }
+    }
+    var openEntered: Bool { state.withLock { $0.openEntered } }
+    func releaseOpen() {
+        let waiter = state.withLock { s -> CheckedContinuation<Void, Never>? in
+            defer { s.openWaiter = nil }
+            return s.openWaiter
+        }
+        waiter?.resume()
+    }
     var openCount: Int { state.withLock { $0.openCount } }
     var openError: VoiceTransportError? {
         get { state.withLock { $0.openError } }
@@ -175,29 +208,65 @@ final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable {
     }
 
     func open(key: String, url: URL) async throws {
-        let events: [RealtimeEvent] = try state.withLock { s in
+        defer { state.withLock { $0.openReturned += 1 } }
+        // A fresh stream per open once the last one ended, like the real
+        // EventPipe: reusing a finished one would drop the new connection's
+        // events and hide a pump that never restarted.
+        let (events, box, hold): ([RealtimeEvent], StreamBox<RealtimeEvent>, Bool) = try state.withLock { s in
             if let error = s.openError { throw error }
             s.openCount += 1
             (s.key, s.url) = (key, url)
-            return s.autoEvents
+            if s.streamEnded {
+                s.box = StreamBox()
+                s.streamEnded = false
+            }
+            defer { s.holdNextOpen = false }
+            return (s.autoEvents, s.box, s.holdNextOpen)
+        }
+        if hold {
+            await withCheckedContinuation { waiter in
+                state.withLock { s in
+                    s.openWaiter = waiter
+                    s.openEntered = true
+                }
+            }
         }
         for event in events { box.yield(event) }
     }
 
-    func send(_ json: String) async throws { state.withLock { $0.sent.append(json) } }
-    func events() -> AsyncStream<RealtimeEvent> { box.stream }
-    func close() async { state.withLock { $0.closed = true } }
-    func yield(_ event: RealtimeEvent) { box.yield(event) }
+    func send(_ json: String) async throws {
+        try state.withLock { s in
+            s.sendAttempts += 1
+            if s.sendFails { throw VoiceTransportError.unreachable }
+            s.sent.append(json)
+        }
+    }
+    func events() -> AsyncStream<RealtimeEvent> { state.withLock { $0.box.stream } }
+    func close() async {
+        state.withLock { s in
+            s.closed = true
+            s.closeCount += 1
+        }
+    }
+    func yield(_ event: RealtimeEvent) { state.withLock { $0.box }.yield(event) }
 
     /// Simulate transport pump receiving an error and failing.
     func simulateReceiveFailure() async {
         await Task.yield()
-        box.finish()
+        endStream()
     }
 
     /// Simulate stream ending without explicit close (abrupt termination).
     func simulateStreamEnd() async {
         await Task.yield()
+        endStream()
+    }
+
+    private func endStream() {
+        let box = state.withLock { s in
+            s.streamEnded = true
+            return s.box
+        }
         box.finish()
     }
 }

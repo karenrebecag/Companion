@@ -109,6 +109,12 @@ package actor VoiceSession: VoiceControlling {
     var lastMic = 0.0
     var lastAgent = 0.0
     var reconnectAttempted = false
+    /// Bumped each time the event pump is created, i.e. once per session.
+    var realtimeGeneration = 0
+    /// When each reconnect of this session started; see `reconnectBudgetLeft`.
+    var reconnectTimes: [TimeInterval] = []
+    static let reconnectBudget = 3
+    static let reconnectWindow: TimeInterval = 60
     /// Wave 9i: the local voice-activity endpointer. OpenAI no longer listens,
     /// so the client decides when a user turn starts and ends, from the mic.
     /// Wave 9i: the user's turn, driven by the native transcript. Created when
