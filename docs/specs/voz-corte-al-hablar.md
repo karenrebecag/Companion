@@ -1,7 +1,8 @@
 # Voz: corte de red mientras Companion habla (C2, silencio avisado)
 
-Estado: EN CURSO (PR A). Aprobado por Karen el 2026-09-30.
-PR A: comportamiento (puntos 1, 2, 4 y 5). PR B, el aviso en la isla (punto 3), la cierra.
+Estado: CERRADO en codigo (PR A #65: puntos 1, 2, 4 y 5; PR B: punto 3, el aviso en la isla).
+Aprobado por Karen el 2026-09-30. Pendiente solo la prueba en vivo de Karen (seccion Aceptacion);
+al pasarla, esta spec se borra del arbol.
 Research: `docs/research/voz-reconexion-aislamiento.md`, decision C (APROBADO;
 Karen eligio C2 sin C5). Va despues de #59 (fix/voice-reconnect).
 

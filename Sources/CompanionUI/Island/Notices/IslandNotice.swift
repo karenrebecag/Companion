@@ -113,6 +113,11 @@ enum IslandNotice {
                     action: .openApps(slug: slug),
                     actionTitle: Localized.string("island.signIn.action"),
                     lifetime: SessionMachine.noticeDelay)
+        case .replyCut:
+            Content(grid: .diagnostic, symbol: "wifi.exclamationmark",
+                    title: Localized.string("island.replyCut.title"),
+                    body: Localized.string("island.replyCut.body"),
+                    action: nil, actionTitle: nil, lifetime: SessionMachine.noticeDelay)
         case .chatError(let text):
             Content(grid: .diagnostic, symbol: "exclamationmark.circle.fill", title: text, body: nil,
                     action: nil, actionTitle: nil, lifetime: SessionMachine.noticeDelay)

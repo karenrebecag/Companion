@@ -1,5 +1,6 @@
 import CompanionCore
 @testable import CompanionServices
+@testable import CompanionUI
 import Foundation
 import Testing
 
@@ -830,4 +831,182 @@ private func quoted(_ note: String) -> String {
     await settle(0.05)
     expectEq(assistantTurns(h), ["Second thought entirely"],
              "the later partial wins: it is what was being said when the voice stopped")
+}
+
+// MARK: - The island says it
+
+@Test @MainActor func aCutMidResponseRaisesAnIslandNoticeEvenWhenTheReconnectWorked() async {
+    let h = makeVoiceHarness(online: true)
+    let seen = SessionEventBox(h.session.events)
+    await dropWhileSpeaking(h, saying: cutWords)
+    h.player.yieldDrained()
+    await pumpUntil("notice event", timeout: 5) { seen.events.contains(.replyCut) }
+    expect(h.watch.latest.state != .error, "the reconnect itself succeeded")
+}
+
+@Test @MainActor func aDropWithNothingSaidRaisesNoNotice() async {
+    let h = makeVoiceHarness(online: true)
+    let seen = SessionEventBox(h.session.events)
+    await dropWhileSpeaking(h, saying: nil)
+    h.player.yieldDrained()
+    await pumpUntil("listening") { h.watch.latest.state == .listening }
+    await settle(0.05)
+    expect(!seen.events.contains(.replyCut), "silence on the way in, silence on the island")
+}
+
+@MainActor @Test func theReplyCutNoticeIsACardThatFades() {
+    var machine = SessionMachine()
+    _ = machine.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime)))
+    let effects = machine.handle(.replyCut)
+    expectEq(machine.projection.notice, .replyCut, "the notice is up")
+    expect(effects.contains(.scheduleNoticeExpiry(SessionMachine.noticeDelay)), "it leaves on its own")
+    var atRest = machine.projection
+    atRest.kind = .idle
+    expectEq(IslandState.from(atRest, pebbleHidden: false).line, .replyCut, "painted as its line at rest")
+    let content = IslandNotice.content(for: .replyCut)
+    expectEq(content?.lifetime, SessionMachine.noticeDelay, "counts down like the other fading cards")
+    _ = machine.handle(.noticeExpired(.replyCut))
+    expectEq(machine.projection.notice, nil, "expired")
+}
+
+@MainActor @Test func theReplyCutCopyIsRealAndTranslated() {
+    for key in ["island.replyCut.title", "island.replyCut.body"] {
+        let en = Localized.string(key, language: .en)
+        let es = Localized.string(key, language: .es)
+        expect(!en.isEmpty && en != key, "\(key): en resolves")
+        expect(!es.isEmpty && es != key, "\(key): es resolves")
+        expect(en != es, "\(key): translated, not copied")
+    }
+    expectEq(Localized.string("island.replyCut.body", language: .en), "Back online. Say \"go on\" to continue.", "en body")
+    expectEq(Localized.string("island.replyCut.body", language: .es), "Ya hay conexión. Di «sigue» y continúo.", "es body, tu register")
+}
+
+// MARK: - Fix round: when the machine takes the notice
+
+@MainActor private func liveMachine() -> SessionMachine {
+    var machine = SessionMachine()
+    _ = machine.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime)))
+    return machine
+}
+
+@MainActor @Test func aReplyCutNeverReplacesAFailureTheReconnectLeft() {
+    var machine = SessionMachine()
+    _ = machine.handle(.voice(TurnSnapshot(state: .error, pipeline: .realtime, failure: .sessionDropped)))
+    let before = machine.projection.notice
+    expectEq(before, .failure(.sessionDropped), "precondition: the failure card is up")
+    let effects = machine.handle(.replyCut)
+    expectEq(machine.projection.notice, before, "the failure card stays; the voice is off")
+    expectEq(effects, [], "and no timer is armed")
+}
+
+@MainActor @Test func aReplyCutNeverReplacesANonFadingNoticeEvenWithTheVoiceLive() {
+    var machine = liveMachine()
+    _ = machine.handle(.dictationFailed(.needsAccessibility))
+    let notice = machine.projection.notice
+    expectEq(notice, .permission(.accessibilityDenied), "precondition: a permission card is up")
+    let effects = machine.handle(.replyCut)
+    expectEq(machine.projection.notice, notice, "the permission card stays")
+    expectEq(effects, [], "no timer armed")
+}
+
+@MainActor @Test func aReplyCutIsIgnoredWhileTheVoiceIsOff() {
+    var machine = SessionMachine()
+    let effects = machine.handle(.replyCut)
+    expectEq(machine.projection.notice, nil, "nothing to say about a voice that is not there")
+    expectEq(effects, [], "no timer")
+}
+
+@MainActor @Test func aReplyCutReplacesAFadingNudgeAndKeepsTheKind() {
+    var machine = liveMachine()
+    _ = machine.handle(.connectAppSuggested(slug: "s", name: "S"))
+    let kind = machine.projection.kind
+    _ = machine.handle(.replyCut)
+    expectEq(machine.projection.notice, .replyCut, "a fading nudge makes way")
+    expectEq(machine.projection.kind, kind, "the turn keeps its kind")
+}
+
+@MainActor @Test func aNewTurnClearsTheReplyCutAndAStaleClockLeavesItAlone() {
+    var machine = liveMachine()
+    _ = machine.handle(.replyCut)
+    _ = machine.handle(.noticeExpired(.couldntHear))
+    expectEq(machine.projection.notice, .replyCut, "a clock armed for another notice does nothing")
+    _ = machine.handle(.pressed)
+    expectEq(machine.projection.notice, nil, "a new turn clears it")
+}
+
+// MARK: - Fix round: when the runtime raises it
+
+@Test @MainActor func theNoticeComesOnlyAfterTheDrainAndExactlyOnce() async {
+    let h = makeVoiceHarness(online: true)
+    let seen = SessionEventBox(h.session.events)
+    await dropWhileSpeaking(h, saying: cutWords)
+    await settle(0.05)
+    expect(!seen.events.contains(.replyCut), "audio is still queued: not yet")
+
+    h.player.yieldDrained()
+    await pumpUntil("notice", timeout: 5) { seen.events.contains(.replyCut) }
+    h.player.yieldDrained()
+    await h.session.probeCommit("go on")
+    await settle(0.05)
+    expectEq(seen.events.filter { $0 == .replyCut }.count, 1, "once, not per drain or per turn")
+}
+
+@Test @MainActor func aUserTurnBeatingTheDrainRaisesNoNoticeButKeepsTheOrder() async {
+    let h = makeVoiceHarness(online: true)
+    let seen = SessionEventBox(h.session.events)
+    await dropWhileSpeaking(h, saying: cutWords)
+    await h.session.probeCommit("wait")
+    h.player.yieldDrained()
+    await settle(0.05)
+    expectEq(h.thread.turns.map(\.content), [cutWords, "wait"], "the cut reply still precedes the turn")
+    expect(!seen.events.contains(.replyCut), "they already got their answer: no stale card")
+}
+
+@Test @MainActor func theNothingQueuedReconnectPathRaisesTheNotice() async {
+    let h = makeVoiceHarness(online: true)
+    let seen = SessionEventBox(h.session.events)
+    await startListening(h)
+    h.transport.yield(.responseCreated)
+    h.transport.yield(.assistantTranscriptDelta(cutWords))
+    h.transport.yield(.audioDelta(Data([1, 2])))
+    await pumpUntil("speaking") { h.watch.latest.state == .speaking }
+    h.player.hasPending = false
+    await h.transport.simulateStreamEnd()
+    await connectionReady(h, 2)
+    await pumpUntil("notice", timeout: 5) { seen.events.contains(.replyCut) }
+}
+
+@Test @MainActor func noNoticeWhenNothingWasCut() async {
+    let completed = makeVoiceHarness(online: true)
+    let a = SessionEventBox(completed.session.events)
+    await dropAfterCompletedReply(completed, drained: true)
+
+    let draining = makeVoiceHarness(online: true)
+    let b = SessionEventBox(draining.session.events)
+    await dropAfterCompletedReply(draining, drained: false)
+    draining.player.yieldDrained()
+
+    let reset = makeVoiceHarness(online: true)
+    let c = SessionEventBox(reset.session.events)
+    await dropWhileSpeaking(reset, saying: cutWords)
+    await reset.session.probeReset()
+    reset.player.yieldDrained()
+
+    let blank = makeVoiceHarness(online: true)
+    let d = SessionEventBox(blank.session.events)
+    await startListening(blank)
+    blank.transport.yield(.responseCreated)
+    blank.transport.yield(.assistantTranscriptDelta("   "))
+    blank.transport.yield(.audioDelta(Data([1, 2])))
+    await pumpUntil("speaking") { blank.watch.latest.state == .speaking }
+    await pumpUntilAsync("blank in flight") { await !blank.session.realtimeSnapshot().agentSpeech.isEmpty }
+    await blank.transport.simulateStreamEnd()
+    await connectionReady(blank, 2)
+    blank.player.yieldDrained()
+
+    await settle(0.1)
+    expect(!a.events.contains(.replyCut), "a finished reply, dropped later")
+    expect(!b.events.contains(.replyCut), "a finished reply, dropped while draining")
+    expect(!c.events.contains(.replyCut), "a new session forgot the cut")
+    expect(!d.events.contains(.replyCut), "a whitespace-only partial")
 }

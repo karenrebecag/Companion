@@ -694,3 +694,7 @@
 "settings.browser.notice.noBrowser" = "Chrome or Comet not found on this Mac.";
 "settings.browser.notice.symlink" = "A link is in the way in the browser folder; Companion will not write over it.";
 "settings.browser.notice.failed" = "Could not do it. Try again.";
+
+/* Voice: the connection dropped while Companion was speaking */
+"island.replyCut.title" = "Connection dropped mid-reply";
+"island.replyCut.body" = "Back online. Say \"go on\" to continue.";

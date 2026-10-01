@@ -694,3 +694,7 @@
 "settings.browser.notice.noBrowser" = "No encuentro Chrome ni Comet en este Mac.";
 "settings.browser.notice.symlink" = "Hay un enlace en la carpeta del navegador; Companion no escribirá encima.";
 "settings.browser.notice.failed" = "No pude hacerlo. Inténtalo de nuevo.";
+
+/* Voice: the connection dropped while Companion was speaking */
+"island.replyCut.title" = "Se cortó la conexión a media respuesta";
+"island.replyCut.body" = "Ya hay conexión. Di «sigue» y continúo.";

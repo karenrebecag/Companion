@@ -220,7 +220,7 @@ extension VoiceSession {
     private func settleSpeechAfterReconnect() async {
         guard !(await player.hasPending) else { return }
         if machine.snapshot.state == .speaking { await apply(.playerDrained) }
-        await realtime.threadCutReply()
+        await realtime.threadCutReply(announce: true)
     }
 
     func pumpFrames() async {
@@ -319,7 +319,7 @@ extension VoiceSession {
         for await _ in player.drained {
             if Task.isCancelled { return }
             await apply(.playerDrained)
-            await realtime.threadCutReply()
+            await realtime.threadCutReply(announce: true)
         }
     }
 

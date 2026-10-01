@@ -151,13 +151,16 @@ final class RealtimeRuntime: @unchecked Sendable {
     }
 
     /// The cut reply joins the thread as the assistant's, the same way the
-    /// classic pipeline threads what it said before a cut. Safe to call when
-    /// nothing was cut.
-    nonisolated(nonsending) func threadCutReply() async {
+    /// classic pipeline threads what it said before a cut. The island says why
+    /// the voice stopped only when asked: a user turn that beat the drain has
+    /// already been answered, and the card would show up stale at the next
+    /// rest. Safe to call when nothing was cut.
+    nonisolated(nonsending) func threadCutReply(announce: Bool) async {
         guard let partial = unthreadedCut else { return }
         unthreadedCut = nil
         await thread.appendAssistant(partial)
         await thread.finishStream()
+        if announce { events?.yield(.replyCut) }
     }
 
     /// The single funnel for asking the server to respond. The server holds
@@ -242,7 +245,7 @@ final class RealtimeRuntime: @unchecked Sendable {
         lastUserText = text
         // A turn that beats the drain must still come after the reply it
         // answers.
-        await threadCutReply()
+        await threadCutReply(announce: false)
         await thread.appendUser(text, context: context)
         Log.app("voice: turn from native text \(text.count) chars")
         // The block goes to the server with THIS turn only; the thread keeps

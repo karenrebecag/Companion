@@ -202,6 +202,16 @@ package struct SessionMachine: Sendable, Equatable {
             projection.notice = .signInApp(slug: slug, name: name)
             projection.cards = [.signInApp(slug: slug, name: name)]
             effects.append(.scheduleNoticeExpiry(Self.noticeDelay))
+        case .replyCut:
+            // News about a voice that is back: with it off, or a failure or
+            // permission card up, "back online" would be false or would bury
+            // what the user must act on.
+            guard projection.voice != .off else { return [] }
+            if let current = projection.notice, !Self.fades(current) { return [] }
+            // Same nudge shape as the app suggestions: the turn keeps its kind.
+            projection.notice = .replyCut
+            projection.cards = [.replyCut]
+            effects.append(.scheduleNoticeExpiry(Self.noticeDelay))
         case .noticeExpired(let armedFor):
             // A clock armed for a notice that is gone or replaced does nothing.
             if let notice = projection.notice, Self.fades(notice), armedFor == notice {
@@ -315,6 +325,7 @@ package struct SessionMachine: Sendable, Equatable {
         if case .connectApp = notice { return true }
         if case .signInApp = notice { return true }
         if case .receipt = notice { return true }
+        if case .replyCut = notice { return true }
         return notice == .couldntHear || notice == .holdHint
     }
 
