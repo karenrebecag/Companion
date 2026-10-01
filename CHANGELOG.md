@@ -67,6 +67,8 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   briefs de research: el puente puede mirar y consultar el estado de Companion pero no pulsarla,
   solo con metadatos; cada aprobacion critica pedira Touch ID; un pedido de cambiar un ajuste
   traera ese control a la isla; y la velocidad de voz sera por conversacion. Todavia no cambia la app.
+  La spec de la velocidad ya esta firmada: "habla mas rapido" vale hasta colgar, tambien entre
+  pulsaciones de FN, y nunca se guarda en Ajustes.
 - **CI corre ThreadSanitizer sobre toda la suite (2026-09-30).** Un job `tsan` aparte busca
   carreras de datos en cada PR; fue la única herramienta que destapó las del puente y del modo
   clásico. Por ahora es informativo: un aviso lo pone en rojo sin bloquear el merge, y pasa a
