@@ -210,34 +210,37 @@ private func readLog(_ url: URL) -> String {
 
 // MARK: - Fakes
 
+/// Written from the transcriber's tasks (install runs on a GCD thread) and
+/// read by the main-actor test body through pumpUntil, so every stored field
+/// sits behind @Guarded; TSan caught `installs` racing at the install check.
 final class FakeTranscriberEngine: TranscriberEngine, @unchecked Sendable {
-    var installed = true
-    var installDelay: TimeInterval = 0
-    var finalOnFinish: [String] = []
+    @Guarded var installed = true
+    @Guarded var installDelay: TimeInterval = 0
+    @Guarded var finalOnFinish: [String] = []
     /// `finish()` returns but the results stream never ends: the final
     /// never lands.
-    var resultsNeverEnd = false
+    @Guarded var resultsNeverEnd = false
     /// `finish()` itself never returns until the run is cancelled — the
     /// analyzer's finalize hanging.
-    var finishNeverReturns = false
+    @Guarded var finishNeverReturns = false
     /// Held by the next `begin` before it opens a run, then cleared.
-    var nextBeginGate: TestGate?
+    @Guarded var nextBeginGate: TestGate?
     /// Held by the next run's `finish()` before its finals land.
-    var nextFinishGate: TestGate?
-    private(set) var installs = 0
-    private(set) var runs: [FakeTranscriberRun] = []
-    private(set) var contextual: [[String]] = []
-    private(set) var locales: [String] = []
+    @Guarded var nextFinishGate: TestGate?
+    @Guarded private(set) var installs = 0
+    @Guarded private(set) var runs: [FakeTranscriberRun] = []
+    @Guarded private(set) var contextual: [[String]] = []
+    @Guarded private(set) var locales: [String] = []
 
     func requestAuthorization() async -> Bool { true }
     var isAuthorized: Bool { true }
 
     /// Every call to `assets(localeIdentifier:)`: the press path should
     /// stop asking once a locale proved ready.
-    private(set) var assetChecks = 0
+    @Guarded private(set) var assetChecks = 0
     /// Overrides what `installed` reports, to model the live mismatch
     /// between `AssetInventory.status` and what is actually on disk.
-    var reportedAssets: TranscriberAssets?
+    @Guarded var reportedAssets: TranscriberAssets?
 
     func assets(localeIdentifier: String) async -> TranscriberAssets {
         assetChecks += 1

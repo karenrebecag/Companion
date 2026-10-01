@@ -3,6 +3,7 @@ import CompanionCore
 import CompanionTestKit
 import Darwin
 import Foundation
+import Synchronization
 import Testing
 
 // Wave 18-2 (X11). The listener serves a second socket for the browser relay
@@ -14,9 +15,13 @@ import Testing
 /// running two of them in parallel would make both results meaningless.
 @Suite(.serialized) struct SigpipeSensitive {}
 
-nonisolated(unsafe) var sigpipeCount = 0
+/// Written by the signal handler on whatever thread the kernel picks and read
+/// by the test's polling task, so a plain var is a data race TSan reports.
+/// Atomic is lock-free (SE-0410), which C allows inside a handler; a lock is
+/// not async-signal-safe, and Swift cannot express volatile sig_atomic_t.
+let sigpipeCount = Atomic<Int>(0)
 
-private func countSigpipe(_ signal: Int32) { sigpipeCount += 1 }
+private func countSigpipe(_ signal: Int32) { sigpipeCount.add(1, ordering: .relaxed) }
 
 private func shortTempDirectory() -> URL {
     // sun_path caps at 104 bytes and the sandbox $TMPDIR is already long.
@@ -43,15 +48,15 @@ private func connection(from box: Box<BridgeConnection>) async -> BridgeConnecti
 func withSigpipeCounter<T>(_ body: () async throws -> T) async rethrows -> T {
     let previous = signal(SIGPIPE, countSigpipe)
     defer { signal(SIGPIPE, previous) }
-    sigpipeCount = 0
+    sigpipeCount.store(0, ordering: .relaxed)
     return try await body()
 }
 
 /// Polls, because the handler can run on any thread after the write returns.
 func waitForSigpipes(atLeast n: Int, timeout: TimeInterval = 2) async -> Bool {
     let deadline = Date().addingTimeInterval(timeout)
-    while sigpipeCount < n, Date() < deadline { try? await Task.sleep(nanoseconds: 2_000_000) }
-    return sigpipeCount >= n
+    while sigpipeCount.load(ordering: .relaxed) < n, Date() < deadline { try? await Task.sleep(nanoseconds: 2_000_000) }
+    return sigpipeCount.load(ordering: .relaxed) >= n
 }
 
 /// A negative observation: the count must not reach `n` during the window,
@@ -59,10 +64,10 @@ func waitForSigpipes(atLeast n: Int, timeout: TimeInterval = 2) async -> Bool {
 func stayedBelow(sigpipes n: Int, window: TimeInterval = 0.15) async -> Bool {
     let deadline = Date().addingTimeInterval(window)
     while Date() < deadline {
-        if sigpipeCount >= n { return false }
+        if sigpipeCount.load(ordering: .relaxed) >= n { return false }
         try? await Task.sleep(nanoseconds: 5_000_000)
     }
-    return sigpipeCount < n
+    return sigpipeCount.load(ordering: .relaxed) < n
 }
 
 func socketPair() throws -> (Int32, Int32) {
@@ -88,7 +93,7 @@ extension SigpipeSensitive {
             Darwin.close(control)
             // The kernel posts the signal to the process, so a handler may run on another thread a moment later.
             expect(await waitForSigpipes(atLeast: 1), "control: a fd without the option raises SIGPIPE (the harness can fail)")
-            expectEq(sigpipeCount, 1, "control: exactly one")
+            expectEq(sigpipeCount.load(ordering: .relaxed), 1, "control: exactly one")
 
             let (protected, peer) = try socketPair()
             expect(BridgeSocket.suppressSigpipe(on: protected), "protected: the option applies to a live socket")
