@@ -26,19 +26,26 @@ import Testing
 @MainActor func testTheCapRefusesInsteadOfPilingUp() async {
     // Un techo que no se aplica es documentacion. Sin el, cada encargo suma
     // shells hasta que la Mac se arrastra.
+    // The holders live until the test lets them go and the third waits for
+    // both to hold a slot: a fixed wait raced their exit, so a process stall
+    // longer than their sleep freed the ceiling before the third asked.
     let registry = ProcessRegistry(cap: 2)
     async let a = ProcessGroupRunner.run(
-        executable: "/bin/sh", arguments: ["-c", "sleep 0.3"],
-        cwd: NSTemporaryDirectory(), timeout: 5, registry: registry)
+        executable: "/bin/sh", arguments: ["-c", "sleep 30"],
+        cwd: NSTemporaryDirectory(), timeout: 60, registry: registry)
     async let b = ProcessGroupRunner.run(
-        executable: "/bin/sh", arguments: ["-c", "sleep 0.3"],
-        cwd: NSTemporaryDirectory(), timeout: 5, registry: registry)
-    await settle(0.08)
+        executable: "/bin/sh", arguments: ["-c", "sleep 30"],
+        cwd: NSTemporaryDirectory(), timeout: 60, registry: registry)
+    await pumpUntil("los dos ocupan el techo") { registry.liveCount == 2 }
     let third = await ProcessGroupRunner.run(
         executable: "/bin/sh", arguments: ["-c", "echo tarde"],
         cwd: NSTemporaryDirectory(), timeout: 5, registry: registry)
     expect(third.refusedByCap, "el tercero se rechaza con el techo lleno")
     expect(!third.stderr.isEmpty, "y dice por que, en vez de fallar mudo")
+    expectEq(registry.liveCount, 2, "y rechazado no ocupa un lugar")
+    // terminateGroup spins through the SIGTERM grace per group; on the main
+    // actor that starves every MainActor test running alongside.
+    await Task.detached { registry.terminateAll() }.value
     _ = await (a, b)
 }
 
