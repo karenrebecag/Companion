@@ -73,14 +73,45 @@ import Testing
 }
 
 @MainActor func testTheWaitDoesNotBlockTheCaller() async {
-    // El bucle de usleep ocupaba un hilo del pool durante todo el timeout.
-    // Dos esperas concurrentes deben solaparse, no sumarse.
-    let started = Date()
-    async let a = sh("sleep 0.4")
-    async let b = sh("sleep 0.4")
-    _ = await (a, b)
-    let elapsed = Date().timeIntervalSince(started)
-    expect(elapsed < 0.75, "dos esperas se solapan (tardo \(elapsed) s)")
+    // A blocking wait parks a pool thread for the whole timeout. Each shell
+    // only exits once both have started, so a wait that holds the only
+    // thread starves the second spawn and the first gives up with 7. With
+    // two shells that only bites under LIBDISPATCH_COOPERATIVE_POOL_STRICT
+    // (one thread per QoS bucket), which CI sets for this test alone, and
+    // not with SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0;
+    // docs/research/tests-espera-sin-hilo.md. A clock threshold here flaked
+    // whenever the host stalled.
+    let n = 2
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("pgwait-\(UUID().uuidString)")
+    do { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) } catch {
+        return expect(false, "no se creo el directorio de la barrera: \(error)")
+    }
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let registry = ProcessRegistry(cap: n)
+    let script = """
+        touch "$1/$2"; i=0
+        while [ "$(ls "$1" | wc -l)" -lt "$3" ]; do
+          i=$((i+1)); [ "$i" -gt 400 ] && exit 7; sleep 0.05
+        done
+        """
+    let outcomes = await withTaskGroup(of: ShellOutcome.self) { group in
+        for index in 0 ..< n {
+            group.addTask {
+                await ProcessGroupRunner.run(
+                    executable: "/bin/sh",
+                    arguments: ["-c", script, "sh", dir.path, "\(index)", "\(n)"],
+                    cwd: nil, timeout: 60, registry: registry)
+            }
+        }
+        var all: [ShellOutcome] = []
+        for await outcome in group { all.append(outcome) }
+        return all
+    }
+    expectEq(outcomes.count, n, "volvieron las \(n) esperas")
+    for outcome in outcomes {
+        expectEq(outcome.exitCode, 0, "las \(n) llegaron a la barrera: \(outcome.stderr)")
+    }
 }
 
 /// Espera a que el proceso desaparezca de verdad, en vez de dormir un tiempo

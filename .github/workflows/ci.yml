@@ -27,6 +27,22 @@ jobs:
         run: swift --version
       - name: Run gates
         run: scripts/gates.sh
+      - name: Process waits under a strict cooperative pool
+        # One pool thread per QoS bucket, so a wait that parks its thread
+        # starves the second shell of testTheWaitDoesNotBlockTheCaller.
+        # Filtered: the suite's semaphore helpers would hang a full run here.
+        # The variable only takes effect at process start, hence env:. A filter
+        # that matches nothing still exits 0, so the run must report one test;
+        # cooperative queues switched off would let a blocking wait pass.
+        # docs/research/tests-espera-sin-hilo.md
+        timeout-minutes: 5
+        env:
+          LIBDISPATCH_COOPERATIVE_POOL_STRICT: 1
+        run: |
+          set -o pipefail
+          unset SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES
+          swift test --skip-build --filter processGroupTests 2>&1 | tee strict-pool.log
+          grep -q "Test run with 1 test" strict-pool.log
 
   tsan:
     # ThreadSanitizer over the full suite, on its own runner so its build
