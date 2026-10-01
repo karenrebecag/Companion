@@ -11,57 +11,6 @@ import Testing
     await testStoppingWithNoJobIsHarmless()
 }
 
-final class WatchfulSubmitter: JobSubmitter, @unchecked Sendable {
-    private let lock = NSLock()
-    private var _cancelled = false
-    private var _released: (() -> Void)?
-    let output: String
-
-    init(output: String = "informe") { self.output = output }
-
-    var cancelled: Bool {
-        lock.lock(); defer { lock.unlock() }; return _cancelled
-    }
-
-    func submit(
-        _ handoff: Handoff, events: AsyncStream<JobEvent>.Continuation
-    ) async throws -> JobResult {
-        events.yield(.stepStarted(tool: "run_shell", summary: "df -h"))
-        // Espera como un encargo de verdad, pero ACOTADA: un test que no lo
-        // cancela dejaba esta tarea girando el resto de la suite y volvia
-        // intermitentes a los tests que dependen de temporizadores.
-        for _ in 0 ..< 200 where !cancelled {
-            try await Task.sleep(nanoseconds: 5_000_000)
-        }
-        throw CancellationError()
-    }
-
-    func cancel() async { markCancelled() }
-
-    private func markCancelled() {
-        lock.lock(); defer { lock.unlock() }
-        _cancelled = true
-    }
-    func cancel(job id: JobID) async { await cancel() }
-    func submit(
-        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
-    ) async throws -> JobResult {
-        try await submit(handoff, events: events)
-    }
-    func resolveApproval(requestId: String, approved: Bool) async {}
-    private var _remembered: [Bool] = []
-    /// Wave 10c: what the sheet asked to remember, per answer.
-    var remembered: [Bool] { lock.lock(); defer { lock.unlock() }; return _remembered }
-    func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
-        record(remember)
-    }
-    private func record(_ remember: Bool) {
-        lock.lock(); defer { lock.unlock() }
-        _remembered.append(remember)
-    }
-    var isBusy: Bool { get async { false } }
-}
-
 @MainActor private func running(_ submitter: WatchfulSubmitter) -> ChatViewModel {
     let vm = ChatViewModel(
         chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),

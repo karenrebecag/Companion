@@ -71,7 +71,6 @@ func delegationFailureIsReported() throws {
            "delegación: el fallo se cuenta en humano")
 }
 
-
 // MARK: - Fakes
 
 private struct TestExecutorProvider: ExecutorProviderProtocol {
@@ -118,7 +117,6 @@ private struct SlowExecutor: Executor {
         return JobResult(output: "done", isError: false)
     }
 }
-
 
 // MARK: - Cableado real (el punto donde este repo falla una y otra vez)
 
@@ -184,30 +182,3 @@ private struct SlowExecutor: Executor {
              "permiso: se muestra el comando, no el JSON crudo")
 }
 
-struct ResolvedCall: Equatable {
-    let id: String
-    let approved: Bool
-}
-
-final class RecordingSubmitter: JobSubmitter, @unchecked Sendable {
-    private let lock = NSLock()
-    private var calls: [ResolvedCall] = []
-    var resolved: [ResolvedCall] { lock.withLock { calls } }
-
-    func submit(
-        _ handoff: Handoff, events: AsyncStream<JobEvent>.Continuation
-    ) async throws -> JobResult {
-        JobResult(output: "ok", isError: false)
-    }
-    func cancel() async {}
-    func cancel(job id: JobID) async { await cancel() }
-    func submit(
-        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
-    ) async throws -> JobResult {
-        try await submit(handoff, events: events)
-    }
-    func resolveApproval(requestId: String, approved: Bool) async {
-        lock.withLock { calls.append(ResolvedCall(id: requestId, approved: approved)) }
-    }
-    var isBusy: Bool { get async { false } }
-}

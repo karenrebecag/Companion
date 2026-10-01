@@ -183,3 +183,11 @@ Contextos: `swift test` local en paralelo; CI `scripts/gates.sh` con `--no-paral
 Este brief se reusa para 21-tests C1/C2 (gates de capas y `Conformance.repoRoot`):
 `scripts/check-test-layers.sh`, `Tests/CompanionTests/TestLayerGateTests.swift` y el
 endurecimiento de `repoRoot(from:)`. El Estado no cambia.
+
+## Nota de reuso, PR 2 (2026-09-30)
+
+Este brief se reusa para 21-tests C3a-C3d (targets de soporte `CompanionTestKit`,
+`CompanionCoreTestSupport`, `CompanionServicesTestSupport`, `CompanionUITestSupport`):
+mover helpers sin cambiar comportamiento, todo `package`, sin `@testable` ni
+swiftSettings en soporte. Un archivo transitorio `SupportImports.swift` con
+`@_exported import` evita tocar los imports de ~390 archivos hasta PR 3. El Estado no cambia.

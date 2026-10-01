@@ -35,12 +35,6 @@ import Testing
     }
 }
 
-@MainActor func chat() -> ChatViewModel {
-    ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
-        store: MemoryConversationStore(), config: Config())
-}
-
 @MainActor func island(
     _ chat: ChatViewModel, composing: Bool = false, updates: UpdateState? = nil
 ) -> AnyView {

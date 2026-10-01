@@ -163,16 +163,7 @@ private struct ProbeOnlyOpener: WorkspaceOpening {
     func installedApplications() -> [String] { real.installedApplications() }
 }
 
-
 // MARK: - Wave 11a: el padre lee una skill por nombre
-
-final class FakeSkillReader: SkillReading, @unchecked Sendable {
-    var cards: [SkillCard]
-    var bodies: [String: String]
-    init(cards: [SkillCard], bodies: [String: String]) { self.cards = cards; self.bodies = bodies }
-    func catalog() -> [SkillCard] { cards }
-    func body(named name: String) -> String? { bodies[name] }
-}
 
 @MainActor func testReadSkillByNameOnly() async {
     let opener = FakeWorkspaceOpener()

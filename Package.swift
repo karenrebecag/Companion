@@ -43,9 +43,42 @@ let package = Package(
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
 
+        // Test support targets: regular targets (never test targets) so several
+        // test targets can share them. No @testable, no swiftSettings; what they
+        // expose is `package`. scripts/check-test-layers.sh enforces both.
+        .target(name: "CompanionTestKit", path: "Tests/CompanionTestKit"),
+
+        .target(
+            name: "CompanionCoreTestSupport",
+            dependencies: ["CompanionCore", "CompanionTestKit"],
+            path: "Tests/CompanionCoreTestSupport"
+        ),
+
+        .target(
+            name: "CompanionServicesTestSupport",
+            dependencies: [
+                "CompanionServices", "CompanionCoreTestSupport", "CompanionTestKit",
+            ],
+            path: "Tests/CompanionServicesTestSupport"
+        ),
+
+        // No .defaultIsolation here, unlike CompanionUI: helpers state their own
+        // @MainActor, so test targets that never see UI types can share them.
+        .target(
+            name: "CompanionUITestSupport",
+            dependencies: [
+                "CompanionUI", "CompanionCoreTestSupport", "CompanionTestKit",
+            ],
+            path: "Tests/CompanionUITestSupport"
+        ),
+
         .testTarget(
             name: "CompanionTests",
-            dependencies: ["CompanionCore", "CompanionServices", "CompanionUI"],
+            dependencies: [
+                "CompanionCore", "CompanionServices", "CompanionUI",
+                "CompanionTestKit", "CompanionCoreTestSupport",
+                "CompanionServicesTestSupport", "CompanionUITestSupport",
+            ],
             path: "Tests/CompanionTests"
         ),
     ]

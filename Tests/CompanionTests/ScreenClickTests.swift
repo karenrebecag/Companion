@@ -20,59 +20,6 @@ import Testing
     testTheSightToolsAreOfferedOnlyWithAScreenAdapter()
 }
 
-final class FakeScreen: ScreenActing, @unchecked Sendable {
-    private let lock = NSLock()
-    var nodes: [ScanNode]
-    var generation = 0
-    var route: ClickRoute = .press
-    private(set) var clicks: [(node: Int, pid: Int32)] = []
-    private(set) var scrolls: [(node: Int?, direction: ScrollDirection)] = []
-    private(set) var menus: [[String]] = []
-    private(set) var pressedTitles: [String] = []
-    /// The titles the last path step can match, resolved like the adapter
-    /// does (`WindowTitles.bestMatch`); nil means the path is exact.
-    var menuTitles: [String]?
-
-    init(_ nodes: [ScanNode]) { self.nodes = nodes }
-
-    func walk(pid: Int32) -> ScreenWalk? {
-        lock.withLock {
-            generation += 1
-            return ScreenWalk(nodes: nodes, partial: false, window: "Ventana", generation: generation)
-        }
-    }
-
-    func click(node: Int, generation: Int, pid: Int32, label: String) -> ClickOutcome {
-        lock.withLock {
-            guard generation == self.generation else { return .stale }
-            clicks.append((node, pid))
-            return .clicked(route)
-        }
-    }
-
-    func scroll(node: Int?, generation: Int, direction: ScrollDirection, pid: Int32) -> Bool {
-        lock.withLock { scrolls.append((node, direction)) }
-        return true
-    }
-
-    func menuTitle(path: [String], pid: Int32) -> String? {
-        lock.withLock {
-            guard let last = path.last else { return nil }
-            guard let titles = menuTitles else { return last }
-            return WindowTitles.bestMatch(titles, for: last).map { titles[$0] }
-        }
-    }
-
-    func menu(path: [String], pid: Int32, expecting: String) -> String? {
-        guard menuTitle(path: path, pid: pid) == expecting else { return nil }
-        lock.withLock {
-            menus.append(path)
-            pressedTitles.append(expecting)
-        }
-        return expecting
-    }
-}
-
 private let allowSheet = [
     ScanNode(role: "AXStaticText", subrole: "", label: "", value: "google.com quiere tu ubicación",
              secure: false),

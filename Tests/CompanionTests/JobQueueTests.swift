@@ -157,14 +157,6 @@ private func job(_ id: String) -> JobRequest {
     return sink
 }
 
-extension AsyncStream where Element == JobEvent {
-    /// Drains without observing: some tests only care about the result.
-    func ignore() {
-        let stream = self
-        Task { for await _ in stream {} }
-    }
-}
-
 private final class EventBox: @unchecked Sendable {
     private let lock = NSLock()
     private var events: [JobEvent] = []
