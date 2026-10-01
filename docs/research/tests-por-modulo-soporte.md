@@ -219,3 +219,13 @@ bajo que sus imports permitan. Se borran `SupportImports.swift`, el target trans
 `CompanionTests` y sus exenciones en `check-test-layers.sh` (R3 y R4); cada archivo
 importa explicitamente lo que usa. Deuda de #63/#64 en el mismo gate. Sin dependencias
 nuevas. El Estado del brief no cambia; la spec pasa a CERRADO.
+
+## Nota de reuso, endurecimiento del gate (2026-10-01)
+
+Este brief se reusa para la deuda de gate que dejo #71: `check-test-layers.sh` reconoce
+como soporte, ademas de por nombre, cualquier target no-test cuya ruta normalizada este
+bajo `Tests/` sin importar mayusculas (la forma real de `swift package dump-package` guarda
+la ruta tal como se escribio), rechaza que un target de produccion dependa de uno de test, y
+falla si un target de la tabla de capas (soporte o test) falta del manifiesto. Solo el
+script, `TestLayerGateTests.swift`, `CHANGELOG.md` y esta nota; sin dependencias nuevas.
+El Estado no cambia.

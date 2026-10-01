@@ -49,6 +49,11 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
   viñetas en vez de asteriscos; solo los enlaces web se abren.
 
 ### Changed
+- **El gate de capas ya no depende de cómo se llame un target de soporte (2026-10-01).** Todo
+  target bajo `Tests/` que no sea de test cuenta como soporte, se llame como se llame y aunque la
+  ruta se escriba distinto (`./Tests/x`, `tests/x`); un target de producción tampoco puede
+  depender de un target de test, y si un target de la tabla de capas desaparece del manifest el
+  gate falla en vez de saltarse sus chequeos.
 - **La voz también vive en el target de su capa (2026-10-01).** Los tests de voz pasan a Services
   e integración y el target de transición `CompanionTests` desaparece; los imports de soporte son
   explícitos en todos los archivos.

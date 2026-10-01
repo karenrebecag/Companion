@@ -24,27 +24,26 @@ private func fixture(_ files: [String: String]) throws -> URL {
     return root
 }
 
-private let supportTargets: Set<String> = [
-    "CompanionTestKit", "CompanionCoreTestSupport", "CompanionServicesTestSupport", "CompanionUITestSupport",
-]
-
-private func manifest(_ root: URL, targets: [String: (resources: Bool, isolation: Bool)]) throws -> URL {
-    let entries: [[String: Any]] = targets.keys.sorted().map { name in
-        let spec = targets[name]!
-        return [
-            "name": name,
-            "type": supportTargets.contains(name) ? "regular" : "test",
-            "resources": spec.resources ? [["path": "Fonts", "rule": ["copy": [String: String]()]]] : [],
-            "settings": spec.isolation
-                ? [["kind": ["defaultIsolation": ["_0": "MainActor"]], "tool": "swift"]] : [],
-        ]
+/// The clean manifest with resources or isolation switched on for the named
+/// targets. It always starts complete, so a case fails only for what it sets:
+/// a partial manifest would trip the missing-layer-target check instead.
+private func manifest(
+    _ root: URL, targets: [String: (resources: Bool, isolation: Bool)], omit: Set<String> = []
+) throws -> URL {
+    // A misspelled name would leave the manifest clean and let the case pass
+    // for the wrong reason.
+    let known = Set(cleanTargets().compactMap { $0["name"] as? String })
+    try #require(Set(targets.keys).union(omit).isSubset(of: known), "unknown target in \(targets.keys) \(omit)")
+    let entries: [ManifestTarget] = cleanTargets().compactMap { entry in
+        guard let name = entry["name"] as? String, !omit.contains(name) else { return nil }
+        guard let spec = targets[name] else { return entry }
+        var changed = entry
+        changed["resources"] = spec.resources ? [["path": "Fonts", "rule": ["copy": [String: String]()]]] : []
+        changed["settings"] = spec.isolation
+            ? [["kind": ["defaultIsolation": ["_0": "MainActor"]], "tool": "swift"]] : []
+        return changed
     }
-    // The real products list CompanionApp, so the manifest has to define it too.
-    let app: [String: Any] = [
-        "name": "CompanionApp", "type": "executable", "resources": [Any](), "settings": [Any](),
-        "dependencies": [Any](),
-    ]
-    let data = try JSONSerialization.data(withJSONObject: ["targets": entries + [app], "products": realProducts()])
+    let data = try JSONSerialization.data(withJSONObject: ["targets": entries, "products": realProducts()])
     let url = root.appendingPathComponent("manifest.json")
     try data.write(to: url)
     return url
@@ -151,7 +150,9 @@ private func expectLayerResult(
     defer { removeScriptTemp(root) }
     let json = try manifest(root, targets: ["CompanionUITests": (true, false)])
     let result = try runLayers(root, manifest: json)
-    expect(result.status != 0 && result.output.contains("[R3]"), "R3: UITests with resources: \(result.output)")
+    expect(result.status != 0 && result.output.contains("[R3]")
+           && result.output.contains("CompanionUITests declares resources"),
+           "R3: UITests with resources: \(result.output)")
 }
 
 @Test func layerGateRejectsResourcesInUITestSupport() throws {
@@ -159,7 +160,9 @@ private func expectLayerResult(
     defer { removeScriptTemp(root) }
     let json = try manifest(root, targets: ["CompanionUITestSupport": (true, false)])
     let result = try runLayers(root, manifest: json)
-    expect(result.status != 0 && result.output.contains("[R3]"), "R3: UITestSupport with resources: \(result.output)")
+    expect(result.status != 0 && result.output.contains("[R3]")
+           && result.output.contains("CompanionUITestSupport declares resources"),
+           "R3: UITestSupport with resources: \(result.output)")
 }
 
 @Test func layerGateRejectsDefaultIsolationInUITestSupport() throws {
@@ -167,7 +170,8 @@ private func expectLayerResult(
     defer { removeScriptTemp(root) }
     let json = try manifest(root, targets: ["CompanionUITestSupport": (false, true)])
     let result = try runLayers(root, manifest: json)
-    expect(result.status != 0 && result.output.contains("[R3]"), "R3: UITestSupport with defaultIsolation: \(result.output)")
+    expect(result.status != 0 && result.output.contains("[R3]") && result.output.contains("defaultIsolation"),
+           "R3: UITestSupport with defaultIsolation: \(result.output)")
 }
 
 @Test func layerGateAcceptsCleanManifest() throws {
@@ -327,9 +331,9 @@ func layerGateRejectsEveryImportKind(kind: String) throws {
 @Test func layerGateRejectsAFolderWithoutItsManifestTarget() throws {
     let root = try fixture(["CompanionUITests/T.swift": "import CompanionUI\n"])
     defer { removeScriptTemp(root) }
-    let json = try manifest(root, targets: ["CompanionCoreTests": (false, false)])
+    let json = try manifest(root, targets: [:], omit: ["CompanionUITests"])
     let result = try runLayers(root, manifest: json)
-    expect(result.status != 0 && result.output.contains("[R3]"),
+    expect(result.status != 0 && result.output.contains("Tests/CompanionUITests exists"),
            "R3: UITests folder but no UITests target: \(result.output)")
 }
 
@@ -368,39 +372,48 @@ private typealias ManifestTarget = [String: Any]
 
 private func target(
     _ name: String, type: String = "regular", deps: [String] = [], settings: Bool = false,
-    shape: String = "byName"
+    shape: String = "byName", path: String? = nil
 ) -> ManifestTarget {
-    [
+    var entry: ManifestTarget = [
         "name": name,
         "type": type,
         "resources": [],
         "settings": settings ? [["kind": ["enableUpcomingFeature": ["_0": "X"]], "tool": "swift"]] : [],
         "dependencies": deps.map { [shape: [$0, NSNull()]] },
     ]
+    if let path { entry["path"] = path }
+    return entry
 }
 
+/// Mirrors `swift package dump-package`: everything under Tests/ declares its
+/// path; the production targets use the default Sources/ and declare none.
 private func cleanTargets() -> [ManifestTarget] {
-    [
+    func underTests(
+        _ name: String, type: String = "regular", deps: [String]
+    ) -> ManifestTarget {
+        target(name, type: type, deps: deps, path: "Tests/\(name)")
+    }
+    return [
         target("CompanionCore"),
         target("CompanionServices", deps: ["CompanionCore"]),
         target("CompanionUI", deps: ["CompanionCore"]),
         target("CompanionApp", type: "executable", deps: ["CompanionCore", "CompanionServices", "CompanionUI"]),
-        target("CompanionTestKit"),
-        target("CompanionCoreTestSupport", deps: ["CompanionCore", "CompanionTestKit"]),
-        target("CompanionServicesTestSupport",
-               deps: ["CompanionServices", "CompanionCoreTestSupport", "CompanionTestKit"]),
-        target("CompanionUITestSupport", deps: ["CompanionUI", "CompanionCoreTestSupport", "CompanionTestKit"]),
-        target("CompanionCoreTests", type: "test",
-               deps: ["CompanionCore", "CompanionCoreTestSupport", "CompanionTestKit"]),
-        target("CompanionServicesTests", type: "test",
-               deps: ["CompanionCore", "CompanionServices", "CompanionServicesTestSupport",
-                      "CompanionCoreTestSupport", "CompanionTestKit"]),
-        target("CompanionUITests", type: "test",
-               deps: ["CompanionCore", "CompanionUI", "CompanionUITestSupport",
-                      "CompanionCoreTestSupport", "CompanionTestKit"]),
-        target("CompanionIntegrationTests", type: "test",
-               deps: ["CompanionCore", "CompanionServices", "CompanionUI", "CompanionTestKit",
-                      "CompanionCoreTestSupport", "CompanionServicesTestSupport", "CompanionUITestSupport"]),
+        underTests("CompanionTestKit", deps: []),
+        underTests("CompanionCoreTestSupport", deps: ["CompanionCore", "CompanionTestKit"]),
+        underTests("CompanionServicesTestSupport",
+                   deps: ["CompanionServices", "CompanionCoreTestSupport", "CompanionTestKit"]),
+        underTests("CompanionUITestSupport", deps: ["CompanionUI", "CompanionCoreTestSupport", "CompanionTestKit"]),
+        underTests("CompanionCoreTests", type: "test",
+                   deps: ["CompanionCore", "CompanionCoreTestSupport", "CompanionTestKit"]),
+        underTests("CompanionServicesTests", type: "test",
+                   deps: ["CompanionCore", "CompanionServices", "CompanionServicesTestSupport",
+                          "CompanionCoreTestSupport", "CompanionTestKit"]),
+        underTests("CompanionUITests", type: "test",
+                   deps: ["CompanionCore", "CompanionUI", "CompanionUITestSupport",
+                          "CompanionCoreTestSupport", "CompanionTestKit"]),
+        underTests("CompanionIntegrationTests", type: "test",
+                   deps: ["CompanionCore", "CompanionServices", "CompanionUI", "CompanionTestKit",
+                          "CompanionCoreTestSupport", "CompanionServicesTestSupport", "CompanionUITestSupport"]),
     ]
 }
 
@@ -513,9 +526,9 @@ private func expectManifestResult(
 @Test func layerGateRejectsASupportFolderWithoutItsManifestTarget() throws {
     let root = try fixture(["CompanionUITestSupport/S.swift": "import CompanionUI\n"])
     defer { removeScriptTemp(root) }
-    let json = try manifest(root, targets: ["CompanionCoreTests": (false, false)])
+    let json = try manifest(root, targets: [:], omit: ["CompanionUITestSupport"])
     let result = try runLayers(root, manifest: json)
-    expect(result.status != 0 && result.output.contains("[R3]"),
+    expect(result.status != 0 && result.output.contains("Tests/CompanionUITestSupport exists"),
            "R3: support folder but no support target: \(result.output)")
 }
 
@@ -530,9 +543,9 @@ private func expectManifestResult(
 @Test func layerGateRejectsAFolderWithoutAnyManifestTarget() throws {
     let root = try fixture(["CompanionCoreTests/T.swift": "import CompanionCore\n"])
     defer { removeScriptTemp(root) }
-    let json = try manifest(root, targets: [:])
+    let json = try manifest(root, targets: [:], omit: ["CompanionCoreTests"])
     let result = try runLayers(root, manifest: json)
-    expect(result.status != 0 && result.output.contains("[R3]") && result.output.contains("CompanionCoreTests"),
+    expect(result.status != 0 && result.output.contains("Tests/CompanionCoreTests exists"),
            "R3: CoreTests folder but no CoreTests target: \(result.output)")
 }
 
@@ -585,7 +598,7 @@ private func expectManifestResult(
         target("CompanionFooTestSupport", deps: ["CompanionCore"]),
         passes: false, "R3: product -> an unlisted *TestSupport",
         products: .value(realProducts() + [library("Foo", targets: ["CompanionFooTestSupport"])]),
-        mention: "CompanionFooTestSupport")
+        mention: "lists CompanionFooTestSupport")
 }
 
 @Test func layerGateRejectsExportedImportBehindAStackedAttribute() throws {
@@ -673,4 +686,80 @@ private func library(_ name: String, targets: [String]) -> [String: Any] {
 func layerGateFailsClosedOnMalformedProducts(json: String) throws {
     let products = try JSONSerialization.jsonObject(with: Data(json.utf8), options: .fragmentsAllowed)
     try expectManifestResult(nil, passes: false, "R3: malformed products \(json)", products: .value(products))
+}
+
+// MARK: - R3, support by location and missing layer targets
+
+@Test func layerGateTreatsATargetUnderTestsAsSupportWhateverItsName() throws {
+    // A support target named outside the *TestSupport pattern is still test code.
+    try expectManifestResult(
+        target("CompanionFakes", deps: ["CompanionCore"], path: "Tests/CompanionFakes"),
+        passes: false, "R3: a regular target under Tests/ with no layer-table entry",
+        mention: "support target CompanionFakes has no layer-table entry")
+}
+
+@Test func layerGateTreatsOtherSpellingsOfTestsAsSupport() throws {
+    // SwiftPM keeps the path as written, and APFS is case-insensitive, so a
+    // literal "Tests/" prefix would miss these.
+    for path in ["./Tests/CompanionFakes", "tests/CompanionFakes", "Tests", "Sources/../Tests/CompanionFakes"] {
+        try expectManifestResult(
+            target("CompanionFakes", deps: ["CompanionCore"], path: path),
+            passes: false, "R3: support spelled \(path)",
+            mention: "support target CompanionFakes has no layer-table entry")
+    }
+}
+
+@Test func layerGateLeavesARegularTargetOutsideTestsAlone() throws {
+    try expectManifestResult(
+        target("CompanionFoo", deps: ["CompanionCore"], path: "Sources/CompanionFoo"),
+        passes: true, "R3: a production target with an explicit Sources/ path")
+}
+
+@Test func layerGateLeavesAnExtraTestTargetUnderTestsAlone() throws {
+    // A test target is never support, so it needs no layer-table entry.
+    try expectManifestResult(
+        target("CompanionExtraTests", type: "test", deps: ["CompanionCore"], path: "Tests/CompanionExtraTests"),
+        passes: true, "R3: a test target outside the layer table")
+}
+
+@Test func layerGateRejectsAProductionDependencyOnATestTarget() throws {
+    try expectManifestResult(
+        target("CompanionUI", deps: ["CompanionCore", "CompanionCoreTests"]),
+        passes: false, "R3: production -> a test target",
+        mention: "production target CompanionUI depends on CompanionCoreTests")
+}
+
+@Test func layerGateRejectsAProductionDependencyOnATargetUnderTests() throws {
+    let root = try fixture(["CompanionCoreTestSupport/S.swift": "import CompanionCore\n"])
+    defer { removeScriptTemp(root) }
+    var targets = cleanTargets()
+    targets.append(target("CompanionFakes", deps: ["CompanionCore"], path: "Tests/CompanionFakes"))
+    if let index = targets.firstIndex(where: { $0["name"] as? String == "CompanionUI" }) {
+        targets[index] = target("CompanionUI", deps: ["CompanionCore", "CompanionFakes"])
+    }
+    let url = root.appendingPathComponent("manifest.json")
+    try JSONSerialization.data(withJSONObject: ["targets": targets, "products": realProducts()]).write(to: url)
+    let result = try runLayers(root, manifest: url)
+    expect(result.status != 0 && result.output.contains("production target CompanionUI depends on CompanionFakes"),
+           "R3: production -> a target under Tests/: \(result.output)")
+}
+
+@Test func layerGateRejectsAManifestMissingALayerTarget() throws {
+    // No folder either, so only the layer table can notice the target is gone.
+    let root = try fixture(["CompanionCoreTestSupport/S.swift": "import CompanionCore\n"])
+    defer { removeScriptTemp(root) }
+    let json = try manifest(root, targets: [:], omit: ["CompanionServicesTestSupport"])
+    let result = try runLayers(root, manifest: json)
+    expect(result.status != 0 && result.output.contains("[R3]")
+           && result.output.contains("CompanionServicesTestSupport is missing"),
+           "R3: a layer target dropped from the manifest: \(result.output)")
+}
+
+@Test func layerGateRejectsAManifestMissingALayerTestTarget() throws {
+    let root = try fixture(["CompanionCoreTestSupport/S.swift": "import CompanionCore\n"])
+    defer { removeScriptTemp(root) }
+    let json = try manifest(root, targets: [:], omit: ["CompanionIntegrationTests"])
+    let result = try runLayers(root, manifest: json)
+    expect(result.status != 0 && result.output.contains("CompanionIntegrationTests is missing"),
+           "R3: a layer test target dropped from the manifest: \(result.output)")
 }
