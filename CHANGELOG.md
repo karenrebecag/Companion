@@ -5,6 +5,12 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 
 ## [Unreleased]
 
+### Added
+- **Base para pedirle a Companion que hable más rápido o más lento (2026-10-01).** Todavía no
+  cambia nada en la app: esta entrega solo deja listas las piezas internas (cuánto se acelera
+  cada voz, sus límites y el aviso corto que dirá al cambiar). La función completa llega en los
+  siguientes cambios.
+
 ### Fixed
 - **Un test de permisos ya no falla cuando la Mac se congela unos segundos (2026-10-01).** Solo
   tests: cuatro esperas de permisos MCP tenían un tope de 5 s de reloj de pared. Si el proceso
