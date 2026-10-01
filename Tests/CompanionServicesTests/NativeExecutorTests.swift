@@ -38,7 +38,7 @@ func turnSupportsToolResult() {
 @Test @MainActor
 func nativeExecutorAcceptsApprovalsDependency() throws {
     let result = try runAsync {
-        let tempDir = FileManager.default.temporaryDirectory.path
+        let tempDir = scratchDir("approvals-dependency").path
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
         let chatProvider = ToolCallTestProvider(
@@ -64,7 +64,7 @@ func nativeExecutorAcceptsApprovalsDependency() throws {
 @Test @MainActor
 func riskyToolEmitsApprovalEvent() throws {
     let result = try runAsync {
-        let tempDir = FileManager.default.temporaryDirectory.path
+        let tempDir = scratchDir("risky-tool").path
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
         // Use write_file which requires approval
@@ -106,9 +106,9 @@ func riskyToolEmitsApprovalEvent() throws {
 @Test @MainActor
 func deniedToolDoesNotExecute() throws {
     let result = try runAsync {
-        let tempDir = FileManager.default.temporaryDirectory.path
+        let tempDir = scratchDir("denied").path
         let testFile = (tempDir as NSString).appendingPathComponent("test.sh")
-        defer { try? FileManager.default.removeItem(atPath: testFile) }
+        defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
         // Use write_file which is denied
         let chatProvider = ToolCallTestProvider(
@@ -145,7 +145,7 @@ func deniedToolDoesNotExecute() throws {
 @Test @MainActor
 func iterationLimitPreventsInfiniteLoop() throws {
     let result = try runAsync {
-        let tempDir = FileManager.default.temporaryDirectory.path
+        let tempDir = scratchDir("iteration-limit").path
         defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
         // Provider that always emits tool call
