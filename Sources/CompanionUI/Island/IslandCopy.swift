@@ -42,6 +42,7 @@ enum IslandCopy {
             String(format: Localized.string("island.connectApp"), name)
         case .signInApp(_, let name):
             String(format: Localized.string("island.signIn"), name)
+        case .replyCut: Localized.string("island.replyCut.title")
         case .chatError(let text): text
         case .receipt(let receipt): receipt.lines.last ?? ""
         }

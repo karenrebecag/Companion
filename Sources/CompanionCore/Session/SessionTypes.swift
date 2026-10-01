@@ -56,6 +56,8 @@ package enum SessionCard: Sendable, Equatable {
     /// 16h-3: what the turn did and could prove. A notice, so a new turn
     /// clears it and it leaves on its own.
     case receipt(ActionReceipt)
+    /// The network cut the reply mid-sentence and the session came back.
+    case replyCut
 }
 
 /// The voice port's own status, distinct from the kind: a session can be
@@ -170,6 +172,9 @@ package enum SessionEvent: Sendable, Equatable {
     case connectAppSuggested(slug: String, name: String)
     /// 16m-6: the turn named an app whose connected account expired.
     case signInAppSuggested(slug: String, name: String)
+    /// The voice reconnected after the socket died mid-reply: the user heard
+    /// it stop, and the island says why.
+    case replyCut
     /// 16h-3: a round of the parent's hands finished with proven effects.
     case receipt(ActionReceipt)
     /// The hold key went down (or the pointer pressed the island).
