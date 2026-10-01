@@ -1,0 +1,6 @@
+# strings -n 8 /Applications/Incredible.app/Contents/MacOS/incredible (Incredible 0.2.36), 2026-10-01
+# accessibilityIdentifier hits: 0
+Incredible itself
+capture exclusion NOT applied (Incredible's own windows may appear in the recording)
+crates/desktop-host-support/src/capture_exclusion_macos.rs
+setSharingType:
