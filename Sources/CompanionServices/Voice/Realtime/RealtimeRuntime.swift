@@ -38,6 +38,7 @@ final class RealtimeRuntime: @unchecked Sendable {
         // The guard's waits besides the sheet (binding, memory) are cut
         // points too, and this is the last one before the effect.
         if Task.isCancelled {
+            tools.withdraw(call)
             return .failed(.interrupted, target: ParentTool.target(of: call), tool: call.name)
         }
         return await tools.execute(name: call.name, argumentsJSON: call.arguments)

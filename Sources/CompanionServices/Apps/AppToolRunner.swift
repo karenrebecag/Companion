@@ -293,6 +293,11 @@ package final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
         }
     }
 
+    /// Grants are kept by tool name, so that is all a dropped call can take.
+    package func withdraw(_ call: ToolCallRef) {
+        _ = consumeGrant(call.name)
+    }
+
     private func consumeGrant(_ name: String) -> Bool {
         lock.lock()
         defer { lock.unlock() }
@@ -366,6 +371,12 @@ package struct CompositeParentTools: ParentToolExecuting, Sendable {
 
     package func granted(_ request: ApprovalRequest) {
         for runner in runners { runner.granted(request) }
+    }
+
+    // To every runner, as `granted` is: the one that handed out the ticket
+    // is not necessarily the one `execute` would route to.
+    package func withdraw(_ call: ToolCallRef) {
+        for runner in runners { runner.withdraw(call) }
     }
 
     package func beginTurn() {

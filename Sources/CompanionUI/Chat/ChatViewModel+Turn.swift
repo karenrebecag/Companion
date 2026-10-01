@@ -206,8 +206,12 @@ extension ChatViewModel {
                 outcome = denied
             } else {
                 // The sheet may have outlived the conversation: a turn that
-                // was switched away must not open or paint anything.
-                guard !Task.isCancelled else { break }
+                // was switched away must not open or paint anything, nor
+                // leave the yes it got behind.
+                guard !Task.isCancelled else {
+                    tools.withdraw(call)
+                    break
+                }
                 outcome = await tools.execute(name: call.name, argumentsJSON: call.arguments)
             }
             guard !Task.isCancelled else { break }

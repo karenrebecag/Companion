@@ -166,6 +166,22 @@ private final class FakeAppsService: AppsService, @unchecked Sendable {
            "runner: conectada tras la carga, tampoco — sus tools ya viajan")
 }
 
+/// approval-ticket-on-cut: a write dropped after its sheet said yes takes
+/// the grant with it.
+@Test func anAppGrantGoesWithItsDroppedCall() async {
+    let service = FakeAppsService()
+    let runner = AppToolRunner(service: { service }, catalog: [], suggest: nil)
+    await runner.refresh()
+    let write = ToolCallRef(id: "1", name: "slack_v2-send-message", arguments: #"{"text":"hola"}"#)
+    if let request = runner.approval(for: write, said: "") { runner.granted(request) }
+
+    runner.withdraw(write)
+
+    let spent = await runner.execute(name: write.name, argumentsJSON: write.arguments)
+    #expect(spent.output.hasPrefix("approval_required:"))
+    #expect(service.calls.isEmpty)
+}
+
 @Test func compositeParentToolsTests() async {
     let service = FakeAppsService()
     let apps = AppToolRunner(service: { service }, catalog: [], suggest: nil)

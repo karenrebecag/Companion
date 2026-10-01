@@ -97,6 +97,21 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
         tickets.grant(id: request.requestId)
     }
 
+    package func withdraw(_ call: ToolCallRef) {
+        tickets.revoke(name: call.name, arguments: call.arguments)
+        // An open's ticket is keyed by the address it resolved to, not by
+        // the raw arguments, so it is rebuilt the same way.
+        guard call.name == BrowserTool.open.rawValue,
+              let raw = ToolArguments.parse(call.arguments)?["url"] as? String else { return }
+        do {
+            let url = try ParentToolPolicy.httpURL(raw)
+            let ticket = Self.openTicket(url)
+            tickets.revoke(name: ticket.name, arguments: ticket.arguments)
+        } catch {
+            // Never resolved, so no ticket was ever issued for it.
+        }
+    }
+
     // MARK: - reads
 
     private func tabs() async -> ParentToolOutcome {

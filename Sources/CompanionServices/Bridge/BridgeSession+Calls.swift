@@ -161,7 +161,10 @@ extension BridgeSession {
         let verdict = await guardian.verdict(
             ref, said: "", language: language(), tools: tools, parked: { parkedSheet.park($0, owner: mine) })
         let withdrawn = parked.settleCurrent(owner: mine)
-        guard mine == epoch else { return .dropped }
+        guard mine == epoch else {
+            tools.withdraw(ref)
+            return .dropped
+        }
         if verdict.answer == .refused { return refuseSheet(id: id) }
         if let denied = verdict.denial {
             let counts = verdict.answer.map { countsAsDenial($0, withdrawn: withdrawn) } ?? true
@@ -170,6 +173,7 @@ extension BridgeSession {
         // Same M4 guard as the session sheet: the yes may have landed after
         // the peer left, and there is nobody to answer or to act for.
         guard current?.isOpen ?? true else {
+            tools.withdraw(ref)
             Log.bridge("call approved after the client left; nothing executed")
             return .dropped
         }
