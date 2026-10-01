@@ -250,7 +250,7 @@ private struct MCP {
 @MainActor func testALateClickAfterTheAutoDenyAddsNoSecondAnswer() async {
     let rig = await mcp(timeout: 0.15)
     rig.ask("req9")
-    await pumpUntil("tarde: rechazada por el auto-deny", timeout: 5) { rig.sent == [Wire(id: "req9", approve: false)] }
+    await pumpUntil("tarde: rechazada por el auto-deny") { rig.sent == [Wire(id: "req9", approve: false)] }
     await pumpUntil("tarde: la hoja se limpia sola") { rig.model.projection.approval == nil }
     // The sheet is already empty: the click has nothing to resolve, so the
     // reducer says nothing to do and nothing can reach the wire later.
@@ -265,7 +265,7 @@ private struct MCP {
     rig.ask("dup")
     await pumpUntil("dup: en la hoja") { rig.model.projection.approval?.requestId == "dup" }
     rig.ask("dup")
-    await pumpUntil("dup: se rechaza cerrado, una sola vez", timeout: 5) { rig.sent == [Wire(id: "dup", approve: false)] }
+    await pumpUntil("dup: se rechaza cerrado, una sola vez") { rig.sent == [Wire(id: "dup", approve: false)] }
     await pumpUntil("dup: la hoja se vacia") { rig.model.projection.approval == nil }
     // A later request goes through the same stream: once it is on the sheet
     // the duplicate has been handled, and it must not have added an answer.

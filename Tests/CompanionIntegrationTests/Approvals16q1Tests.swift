@@ -116,7 +116,7 @@ private struct MCPRig {
 /// The same actor as the parent's gates, so the same deadline.
 @MainActor func testAnUnansweredMCPRequestDiesInTheAutoDeny() async {
     let rig = await liveMCP(timeout: 0.15)
-    await pumpUntil("mcp autoDeny: viaja rechazada", timeout: 5) {
+    await pumpUntil("mcp autoDeny: viaja rechazada") {
         rig.approvals == [WireApproval(id: "req9", approve: false)]
     }
     await rig.harness.session.hangUp()
@@ -124,7 +124,7 @@ private struct MCPRig {
 
 @MainActor func testWithoutAnApprovalsActorTheMCPRequestFailsClosed() async {
     let rig = await liveMCP(withApprovals: false)
-    await pumpUntil("mcp sin actor: se rechaza sola", timeout: 5) {
+    await pumpUntil("mcp sin actor: se rechaza sola") {
         rig.approvals == [WireApproval(id: "req9", approve: false)]
     }
     await rig.harness.session.hangUp()

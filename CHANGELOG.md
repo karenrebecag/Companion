@@ -6,6 +6,10 @@ entrada por wave cerrada; sin releases versionados hasta Wave 5.
 ## [Unreleased]
 
 ### Fixed
+- **Un test de permisos ya no falla cuando la Mac se congela unos segundos (2026-10-01).** Solo
+  tests: cuatro esperas de permisos MCP tenían un tope de 5 s de reloj de pared. Si el proceso
+  quedaba parado más que eso, la espera fallaba antes de que llegara el rechazo automático. Ahora
+  usan el tope común de 30 s. La app no cambia.
 - **Los tests encuentran los textos aunque se compile en otra carpeta (2026-09-30).** Con
   `swift test --scratch-path` (el que usan los builds aislados y TSan) unos 555 tests veían
   claves como `island.hands.stop` en vez del texto, porque los recursos solo se buscaban en el
