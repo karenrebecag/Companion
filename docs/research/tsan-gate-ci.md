@@ -6,6 +6,8 @@ Verificador: research-verifier 2026-09-30 ESCALATE
 
 Decision de Karen (2026-09-30): (a) informativo ya con continue-on-error, requerido tras el arreglo de ClassicRuntime y N=5 corridas limpias; al promover, gates y tsan como checks requeridos; cero supresiones en produccion; A' scripts/tsan.sh invocado por ci.yml; sigpipeCount como `Atomic` de Int en un let global con import Synchronization solo en tests; timeout-minutes 45 y medicion en la primera corrida. [KAREN:chat 2026-09-30 via orquestador]
 
+Ratificado por Karen (2026-10-01): el Estado APROBADO de este brief lo escribio un agente con la decision de Karen relayada; Karen lo ratifico despues de mergear #70 ("perfecto, ratificado"). [KAREN:chat 2026-10-01 via orquestador]
+
 ## 1. Pregunta y decisiones abiertas
 
 Cambio: agregar `swift test --sanitize=thread` como gate de CI, en un PR propio. TSan fue el oraculo de la carrera del bridge: las corridas normales nunca la reprodujeron, y TSan mostro 3 de 500 callbacks perdidos mas sus avisos. Segun la peticion de la sesion orquestadora, Karen aprobo el gate como PR aparte; los archivos citados no registran esa frase textual, asi que este brief no la etiqueta como palabra de Karen.

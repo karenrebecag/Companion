@@ -6,6 +6,8 @@ Verificador: research-verifier 2026-09-30 ESCALATE
 
 Decision de Karen (2026-09-30): D1 C1+B (estado por turno + Mutex para steerPending, leftoverHeard y pressedContext); D2 serializar turnos en un PR aparte despues de C2; D3 Mutex. [KAREN:chat 2026-09-30 via orquestador]
 
+Ratificado por Karen (2026-10-01): el Estado APROBADO de este brief lo escribio un agente con la decision de Karen relayada; Karen lo ratifico despues de mergear #68 ("perfecto, ratificado"). [KAREN:chat 2026-10-01 via orquestador]
+
 ## 1. Pregunta y decisiones abiertas
 
 TSan reporta una carrera en produccion: `ClassicRuntime.submit` escribe `cardThisTurn` (ClassicRuntime.swift:285) y `ClassicRuntime.speak` lo lee (ClassicRuntime+Mouth.swift:138), ambos en hilos de trabajo de GCD, mientras corre `backgroundJobRuntimeTests`. Hay que decidir como sacar el estado compartido de la carrera sin romper el corte por pulsacion.

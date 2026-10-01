@@ -15,6 +15,8 @@ Mediciones crudas de esta corrida: docs/research/evidence/resource-locator-scrat
 (paquete sonda desechable en el scratchpad de la sesion, fuera del repo; Sources/ y Tests/ no se tocaron).
 -->
 
+Ratificado por Karen (2026-10-01): el Estado APROBADO de este brief lo escribio un agente con la decision de Karen relayada; Karen lo ratifico despues de mergear #69 ("perfecto, ratificado"). [KAREN:chat 2026-10-01 via orquestador]
+
 ## 1. Pregunta y decisiones abiertas
 
 Pregunta del orquestador (encargo de esta corrida, rama fix/resource-bundle-locator): como debe decidir `ResourceBundleLocator` que el accessor `Bundle.module` que genera SwiftPM se puede evaluar sin trap, sin fijar `<raiz de #filePath>/.build/<debug|release>`.
