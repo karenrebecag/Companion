@@ -388,7 +388,7 @@ un placeholder amarillo donde va el `TextEditor` (`ImageRenderer` no dibuja vist
   se quitan las directivas `%%{ ... }%%` (una o varias líneas), el frontmatter `---` cerrado y las líneas `click`,
   porque el tema y el nivel de seguridad los fija la página, no el modelo. El HTML del modelo **no se quita**:
   viaja como texto y la CSP más `strict` lo neutralizan. Una fence rota o vacía sigue visible como código.
-- **Vendor** (`Sources/CompanionServices/Diagram/`): `mermaid.min.js` **11.17.2** (la de Incredible; la última
+- **Vendor** (`Sources/CompanionServices/Diagram/`): `mermaid.min.js` **11.17.2** (la misma versión que usa Incredible; la última
   mayor, 12, no se adoptó), SHA-256 `581ed7d74bd9048d0e3a91363927d72ef22942d7722546b27f7cc29e35390eb8`,
   3 572 661 bytes (bundle IIFE con todos los diagramas), `LICENSE` MIT y `VENDOR.md` con cómo se obtuvo
   (`npm pack mermaid@11.17.2`). El renderer **se niega a cargar** un script cuyo hash no sea el fijado;
@@ -432,16 +432,12 @@ un placeholder amarillo donde va el `TextEditor` (`ImageRenderer` no dibuja vist
     no activa y un panel desde una app inactiva se abre detrás), por lo que no hace falta el permiso de la carpeta
     Descargas. Cancelar el panel no es descarga.
 
-**Valores tomados de Incredible** (solo valores, del frontend extraído en el scratchpad de la sesión
-`inc16k/firstRun-*.js`, la llamada `mermaid.initialize`; nada de código ni de textos): versión 11.17.2 (cadena de
-versión en `mermaid.core-*.js`); `securityLevel: "strict"`; `theme: "base"`; `startOnLoad: false`; `fontFamily`
-(pila del sistema); `flowchart {curve: "basis", padding: 14, useMaxWidth: true}`; `sequence {useMaxWidth: true,
-mirrorActors: false}`; `themeVariables`: darkMode true, background transparent, fontSize 13px, primaryColor
-#1e1e26, secondaryColor #191920, tertiaryColor #15151b, bordes blancos al 18/12/10 %, primaryTextColor 94 %,
-textColor 82 %, lineColor 32 %, edgeLabelBackground #14141a, cluster 3 % / 10 %, notas #23232c (texto 90 %, borde
-14 %), primaryColorAccent #4a9cff, pie1-8 (#4a9cff #8b80ff #4cc2b4 #f0a93b #f06b9b #56c596 #c08bff #ffd166),
-pieStroke #14141a 2px, textos de pie 94 % / 96 %. Del CSS: el SVG a `max-width: 100%` con alto automático y centrado
-(`.ovx-mermaid-body`); contenedor `.ovx-visual` ya medido en §7.
+**Valores tomados de Incredible** (solo observaciones, sin código ni textos; las constantes están en la referencia
+local): versión 11.17.2 de la librería; nivel de seguridad estricto; tema `base`; sin render automático al cargar;
+pila de fuentes del sistema; flowchart con curva suave y padding moderado; secuencia sin actores espejo; paleta
+oscura sobre fondo transparente, con nodos y clusters en tonos oscuros, bordes y líneas como velos de blanco,
+acento azul y ocho colores para los pies con trazo del color del fondo. El SVG ocupa como máximo el ancho del
+contenedor, con alto automático y centrado; el contenedor visual ya está medido en §7.
 
 **Valores propios (no medidos)**: 16 KiB de tope de texto; 10 s de tope de dibujo; 504 de ancho; 8000 de alto
 máximo del SVG antes de hacer imagen; caché de 8; 3 timeouts seguidos apagan el renderer; 2x en los PNG; `suppressErrorRendering`; relleno de página `rgb(26, 26, 28)` (WebKit pinta el PDF sobre blanco

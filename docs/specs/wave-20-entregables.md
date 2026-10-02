@@ -12,22 +12,26 @@ Pedido de Karen: "¿cómo genera PDFs y documentos, interactúa con spreadsheets
 
 Los tres son capacidades del producto que hoy dependen de algo que la usuaria tendría que instalar. ADR 001: se absorben nativas.
 
-## 2. Cómo lo hace Incredible (análisis estático, 2026-09-28)
+## 2. Cómo lo hace Incredible (análisis estático, 2026-09-28; referencia local)
 
-Evidencia: `Contents/Resources/_up_/python-kernel/python/prelude.py`, `site-packages` del Python 3.12 embebido, `~/.incredible/skills/{premium-documents,excel-live}/SKILL.md` y la forma (solo claves) de `~/.incredible/island-cards.json`.
+Evidencia: inspección en solo lectura de la app instalada (referencia local); nada de su código ni de sus nombres internos entra al repo.
 
-- **Documentos**: clases con el diseño horneado, que el modelo llama como API, no maqueta:
-  - `Deck()` → `.pptx` con python-pptx; `.cover()`, `.metrics()`, `.columns()`, `.bullets()`, `.table()`, `.image()`, `.section()`.
-  - `Doc()` → PDF con reportlab (Platypus); `.h1()`, `.body()`, `.metric_row()`, `.table()`, `.callout()`, `.image()`.
-  - `WordDoc()` → `.docx` con python-docx; `Sheet()` → `.xlsx` con openpyxl (encabezado congelado, filas en bandas, anchos automáticos).
-  - `chart()` / `chart_grouped()` → PNG con matplotlib, estilo fijo (título a la izquierda, ejes apagados).
-  - Salida en `~/Incredible-Agent/<fecha - nombre>/`, verificada con `os.path.exists` antes de avisar.
-- **Hojas en vivo**: xlwings, que en macOS habla con Excel por Apple Events (appscript). Escribe rangos en una sola llamada, fórmulas, formato; guarda una versión antes y después de cada escritura (`list_file_history`, `restore_file_version`); relee ~20 celdas para verificar. Sin tablas dinámicas ni formato condicional en Mac (no hay API). Google Sheets: no aparece.
-- **Tarjetas**: el modelo no escribe HTML. Llama `present_result(title, blocks)` y la app pinta bloques tipados: `stat` (etiqueta/valor), `table` (columnas/filas), `chart` (`bar|line|pie|donut|scatter`, `labels`, `series`, `unit`), `prose` (Markdown), `receipt` (estado), `actions` (`open_url`).
+- **Documentos**: clases de documento con el diseño horneado, que el modelo llama como API, no maqueta:
+  - Presentaciones (`.pptx`) con portada, métricas, columnas, viñetas, tablas, imágenes y secciones.
+  - Documentos PDF con encabezados, cuerpo, fila de métricas, tablas, callouts e imágenes.
+  - Documentos Word (`.docx`) y hojas (`.xlsx`) con encabezado congelado, filas en bandas y anchos automáticos.
+  - Gráficas como imagen con estilo fijo (título a la izquierda, ejes apagados).
+  - La salida va a una carpeta propia con la fecha y el nombre, verificada antes de avisar.
+- **Hojas en vivo**: automatización de Excel por Apple Events. Escribe rangos en una sola llamada, fórmulas y
+  formato; guarda una versión antes y después de cada escritura; relee unas ~20 celdas para verificar. Sin tablas
+  dinámicas ni formato condicional en Mac (no hay API). Google Sheets: no aparece.
+- **Tarjetas**: el modelo no escribe HTML. Llama a una herramienta de presentar resultado con un título y
+  bloques, y la app pinta bloques tipados: cifras (etiqueta y valor), tablas, gráficas (barras, líneas, pie,
+  dona y dispersión), prosa en Markdown, recibos de estado y acciones de abrir enlace.
 - **Coste**: ~1 GB de app, de los que el grueso es Python, FFmpeg y ONNX.
 
 **Se toma**: el diseño horneado detrás de una API pequeña (el modelo elige contenido, nunca estilo), los bloques tipados, la verificación antes de avisar y la copia antes de escribir una hoja.
-**No se toma**: el Python embebido, matplotlib ni la carpeta `~/Incredible-Agent`.
+**No se toma**: el Python embebido, la librería de gráficas ni su carpeta de salida.
 
 ## 3. Lo que ya tenemos y se reusa
 

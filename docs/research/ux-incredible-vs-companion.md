@@ -1,10 +1,10 @@
 # UX de Companion frente a Incredible — investigación y propuesta
 
-**2026-09-24. Documento de trabajo (no es spec).** Fuentes: binario e Info.plist
-de `/Applications/Incredible.app` (v0.1.81), `~/.incredible/overlay.json`,
-`~/Documents/Incredible-Debug`, y el código de `Sources/CompanionUI` +
+**2026-09-24. Documento de trabajo (no es spec).** Fuentes: inspección en solo lectura
+de la app instalada de Incredible (v0.1.81; el detalle vive en la referencia local),
+capturas de Karen, su documentación pública, y el código de `Sources/CompanionUI` +
 `CompanionApp` con sus `Localizable.strings`. Seis agentes de lectura;
-todo lo afirmado tiene archivo y línea en los informes originales.
+lo afirmado de Companion tiene archivo y línea en los informes originales.
 
 Karen: "ni siquiera yo entiendo cómo configurar la app porque la UX es pésima…
 fijar nuestra configuración y quitar opciones de personalización… puede ser
@@ -31,18 +31,15 @@ avatar, tecla de activación y 4 atajos, dictado (tecla, nivel, estilo,
 diccionario propio, importar de Wispr), sonidos del sistema, silenciar voz,
 subtítulos, brillo de pantalla, indicador en reposo, mantener despierta la Mac,
 modo creador de contenido, recordatorios solo texto, y privacidad: contexto de
-pantalla, apps, contactos, reuniones, diagnósticos. `model_tier: minimal |
-balanced` es la única decisión de IA visible.
+pantalla, apps, contactos, reuniones, diagnósticos. Un selector de nivel de modelo (mínimo o equilibrado) es la única decisión de IA visible.
 
 ### 2.2 Lo que NO puede cambiar
 Proveedor de transcripción, modelos (usan ~15 roles distintos internamente),
-claves, proveedor de voz. Todo pasa por su servidor; el kernel Python tiene un
-candado mecánico contra llamadas directas a OpenAI/Groq.
+claves, proveedor de voz. Todo pasa por su servidor; su kernel Python bloquea las llamadas directas a proveedores de IA.
 
 ### 2.3 Primer arranque (orden inferido de los recursos y prompts)
-1. Permisos, con **una ilustración por permiso** (`accessibility-permissions.png`,
-   `screen-reading-permissions.png`) y textos de una línea:
-   "Incredible needs microphone access to hear your voice commands."
+1. Permisos, con **una ilustración por permiso** y textos de una línea
+   que explican para qué sirve cada uno.
 2. Nombre, correo y rol; investiga tu empresa mientras tanto.
 3. Un tour que **toma la pantalla** y muestra un documento, una hoja y una
    presentación con voz en off personalizada (te llama por tu nombre).
@@ -53,23 +50,22 @@ candado mecánico contra llamadas directas a OpenAI/Groq.
 
 ### 2.4 Estados y feedback
 - Sin texto de estado: barras de audio, brillo y contorno de pantalla en
-  ventanas propias (`screen-glow`, `screen-outline`, `ListeningBars`).
+  ventanas propias (brillo de pantalla, contorno de pantalla y barras de escucha).
 - Transcript parcial visible mientras se mantiene la tecla.
 - "No te oí" es una **tarjeta que se va sola a los 6 s**, y el sistema vuelve
   a reposo.
 - La respuesta hablada **apunta a una tarjeta** en pantalla cuando hay datos
-  ("I've put the full summary on your screen"); la voz nunca recita la tarjeta.
-- Errores con frase completa y salida: "You're offline", "Your session
-  expired.", "This needs your browser… Open Chrome and connect…, then try again."
+  (la voz dice que puso el resumen en pantalla); la voz nunca recita la tarjeta.
+- Errores con frase completa y salida: sin conexión, sesión vencida, o "esto necesita tu navegador" con
+  el paso para conectarlo y reintentar.
 - Cerrar la ventana no cierra la app; icono monocromo en la barra de menús con
   5 entradas: Cancel Current Action (Esc) · Show · Settings… · Check for
   Updates… · Quit.
 
 ### 2.5 Tono
-Segunda persona, frases cortas, habla de sí en tercera persona ("Incredible
-needs…"), promete control ("It never changes anything without asking"), admite
-límites ("cannot control desktop apps **yet**"), cero jerga en la UI. Prompt de
-voz: honesto, 2 frases, noticia primero, nunca "You're absolutely right!".
+Segunda persona, frases cortas, habla de sí en tercera persona, promete control (nunca cambia nada sin
+preguntar), admite límites (lo que aún no puede hacer lo dice con un "todavía"), cero jerga en la UI. Su
+voz es honesta, de pocas frases y con la noticia primero (observación del comportamiento; referencia local).
 
 ### 2.6 Visual
 Geist + Geist Mono variable, marca "glass", fondos fotográficos en la bienvenida

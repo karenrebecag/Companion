@@ -113,7 +113,6 @@ Decisiones para Karen (recomendacion de este brief entre parentesis; la decision
 - Un test comprueba que los catalogos ingles y espanol tienen las mismas claves [repo:Tests/CompanionUITests/LocalizedTests.swift:22]
 - Un test pasa todas las etiquetas visibles del inventario por un filtro de jerga en los dos idiomas [repo:Tests/CompanionUITests/SettingsParityTests.swift:57]
 - CompanionCore no puede importar UI: las dependencias entre targets son la arquitectura [repo:Package.swift:4]
-- Incredible 0.2.36 tiene un comando de UI por ajuste (`settings_set_screen_glow_enabled`, `settings_set_mute_voice`...), `get_settings`, `update_settings`, `settings_apply_patch`, el evento `setting_changed` y una categoria `settings_change` en su taxonomia de intenciones; no aparece `show_setting` ni un prompt que diga que el modelo cambia ajustes [repo:docs/research/evidence/incredible-0.2.36-ajustes-strings-2026-10-01.txt:1]
 Contextos: app release instalada en /Applications (com.karen.companion, la que Karen prueba), con la isla como panel no activante y la ventana principal que puede estar delante o no; bundle debug de bundle.sh (otra identidad, no instalado en esta Mac); turno de chat escrito (desde la ventana principal o desde el campo de la isla); turno de voz en tiempo real (FN sostenido, la app de delante sigue activa); cliente MCP externo por el shim de companion-mcp; `swift test` local y en CI (sin ventana ni VoiceOver); VoiceOver.
 
 ## 3. Fuentes primarias
@@ -187,7 +186,6 @@ Q3, como se ve:
 - Se resuelve con el patron que el puente ya tiene: los cierres sin cambio cuentan como denegaciones y tres en diez minutos enfrian al llamante [repo:Sources/CompanionCore/Bridge/BridgePolicy.swift:97]
 - Contra la atribucion "Claude Code quiere...": el nombre del cliente lo declara el propio cliente y no es identidad, asi que la tarjeta debe decir que es el nombre que el agente da [repo:Sources/CompanionServices/Bridge/BridgeSession+Calls.swift:88]
 - Contra llevar a la isla los canales de contexto: encenderlos amplia lo que el modelo ve y dispara avisos del sistema, el mismo tipo de autoconfiguracion de alcance que 20d deja solo en manos de la usuaria [repo:Sources/CompanionUI/Settings/ContextSettings.swift:62]
-- Contra copiar a Incredible: sus cadenas muestran setters por ajuste desde la UI y una categoria `settings_change` en la taxonomia, pero no prueban que su modelo cambie ajustes ni como se ve; no se usa como patron de UX [repo:docs/research/evidence/incredible-0.2.36-ajustes-strings-2026-10-01.txt:21]
 
 ## 7. Ejemplares y anti-ejemplos
 
@@ -245,7 +243,7 @@ Slider(value: $volume, in: IslandVolume.floor...1) { editing in
 - ASSUMPTION: las vistas de la isla repintan en el idioma nuevo sin un contador como el de Ajustes. prueba: cambiar idioma con la isla en `.card` y comprobar que el titulo de la tarjeta cambia sin otro evento
 - ASSUMPTION: el shim de companion-mcp reenvia la lista de tools de `hello` y no la fija. prueba: leer su codigo de `tools/list`
 - ASSUMPTION: 20 s sin puntero ni foco es una vida razonable para la tarjeta; no hay medicion publicada para un control en un notch. prueba: probar 10, 20 y 30 s con Karen sobre tres ajustes (switch, selector, nombre)
-- ASSUMPTION: las cadenas de Incredible no dicen si su modelo puede llamar a `update_settings`; no se uso para decidir. prueba: pedirle a Incredible por voz "apaga el brillo de pantalla" y observar si lo hace, si abre Ajustes o si se niega
+- ASSUMPTION: Incredible tiene un comando de UI por ajuste y una categoria de cambio de ajustes en su taxonomia de intenciones, pero no se sabe si su modelo puede cambiar ajustes ni como se ve (referencia local); no se uso para decidir. prueba: pedirle a Incredible por voz "apaga el brillo de pantalla" y observar si lo hace, si abre Ajustes o si se niega
 - [NEEDS CLARIFICATION: D8, "pon la voz mas rapida". La velocidad salio de Ajustes en 16g y un test lo fija. Se responde "ese ajuste no esta en la app", o se reabre la velocidad como control solo de isla (y se cambia el test)?]
 - [NEEDS CLARIFICATION: D9, pantalla, documentos y ubicacion van a la pagina y no a la isla. Karen nombro como "nunca" las claves, "Prestar las manos", grants y destinos; los canales de contexto no estaban en su lista.]
 - [NEEDS CLARIFICATION: con la opcion A de Q2, el resultado posterior (`changed`, `dismissed`, `expired`) le llega al modelo de chat y voz como contexto del siguiente turno; se quiere tambien que la voz lo diga en voz alta ("listo"), o basta con la tarjeta?]
@@ -289,6 +287,6 @@ Slider(value: $volume, in: IslandVolume.floor...1) { editing in
 | 9 | Raycast API: Preferences | Raycast | sitio actual | 2026-10-01 | medium |
 | 10 | vscode preferences.contribution.ts, settingsEditor2.ts | Microsoft | d04893d | 2026-10-01 | high |
 | 11 | boring.notch OpenNotchHUD.swift, BoringNotchWindow.swift | TheBoredTeam | d58240c | 2026-10-01 | medium (app de comunidad, sin pruebas de accesibilidad vistas) |
-| 12 | Incredible.app 0.2.36, cadenas del binario sobre ajustes | Norditech, binario instalado | 0.2.36 | 2026-10-01 | low (solo cadenas, sin logica) |
+| 12 | Incredible.app 0.2.36, analisis estatico de cadenas (solo consulta local) | Norditech, app instalada | 0.2.36 | 2026-10-01 | low (solo cadenas, sin logica) |
 | 13 | Codigo y specs de companion-next (Settings, Island, Bridge, wave-20d) | companion-next | d563ca3 (HEAD del worktree) | 2026-10-01 | high |
 | 14 | Brief padre self-qa-puente (R1-R7, D4, D8) y borrador hermano self-qa-inspeccion-datos (solo metadatos) | companion-next docs/research | 2026-10-01 | 2026-10-01 | medium (el hermano es BORRADOR) |

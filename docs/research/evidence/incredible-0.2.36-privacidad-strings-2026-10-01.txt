@@ -1,9 +1,0 @@
-# strings -n 8 /Applications/Incredible.app/Contents/MacOS/incredible (CFBundleShortVersionString 0.2.36), 2026-10-01
-# Solo cadenas: no prueba en que flujo corre cada una. Hits de "mcpServers|claude_desktop_config": 0.
-network_logs docstring: "Request metadata only - method, url, status, failed, duration. Not response bodies."
-Request class docstring: "One request the page made: what it asked for and how it went. Metadata only - no response bodies."
-Prompt de informe de aprendizaje del navegador: "ANONYMIZE all instance values - never include the user's own data: no names, emails, ids, document contents, or URLs carrying query data; describe their shape instead (e.g. 'an event title')."
-Prompt de clasificacion de tareas: "ANONYMIZE completely. Never include real names, email addresses, phone numbers, company or product names, message/document contents, file names, amounts tied to a person..."
-Prompt de clasificacion de tareas: "Be specific about the SHAPE of the task: how many items, what kinds of content, which categories of app, and the user's goal."
-Cliente MCP (no servidor): "That address answered, but not like an MCP server. Make sure the link is the server's MCP address"
-Formulario: "The DOM diff cannot see this on a secure field (redacted)"

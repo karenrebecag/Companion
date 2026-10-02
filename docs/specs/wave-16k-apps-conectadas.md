@@ -178,7 +178,7 @@ Fuera de alcance, anotado: `OpenAITranscriber` usa la misma sesión sin polític
 Gates 0 fallos; instalada. Pendiente de Karen: desplegar `companion-apps`, pegar dirección y clave
 en la página, probar en vivo, y la grabación de §6. Sigue 16k-2.
 
-## 9. Spec 16k-2: conectores como Incredible (CERRADO 2026-09-28; D1/D2 auditadas contra el binario)
+## 9. Spec 16k-2: conectores como Incredible (CERRADO 2026-09-28; D1/D2 auditadas contra la app)
 
 **Cierre**: 16k-2a/2b/2c construidas test-first, doble review por sesión (hallazgos corregidos
 vía tdd-guide: carrera del spinner, epoch de intentos de conexión, guard del doble DELETE),
@@ -263,33 +263,28 @@ Cada una: tests en rojo primero, gates verdes, code-reviewer + security-reviewer
   **Abrir de nuevo** (el enlace de Pipedream vale 4 h, así que reintentar es barato). Companion
   adopta los números de Incredible: 3 s × 40 intentos + timeout global de 2.5 min.
 
-### 9.6 Auditoría del binario (2026-09-28, solo lectura)
+### 9.6 Auditoría de la app (2026-09-28, solo lectura)
 
-Método: assets del frontend extraídos del binario Tauri (slice arm64, mapa phf con punteros
-chained-fixup, brotli), 1607 archivos; grep sobre `main-*.js` y `firstRun-*.js`. Solo se leyó
-código de UI; jamás `auth.json` ni `bridge-secret`. Hechos nuevos que cierran huecos de §6:
+Método: inspección en solo lectura del frontend de la app instalada; solo se leyó código de UI, jamás
+credenciales (detalle en la referencia local). Hechos nuevos que cierran huecos de §6:
 
-- **Máquina del intento** (una función pura, como el `ConnectPoll` planeado): fases
-  `initiating → waiting(attempts) → complete | timed_out | failed`. `initiating` muestra
-  "Opening your browser…" (o "macOS is asking for permission…" si la app es de tipo `device`).
-  Si `initiateConnection` no trae `redirect_url` pero la cuenta ya está `ACTIVE`, salta directo
-  a `complete`. Con `waiting` y varios intentos, aparece el hint "Still waiting on the browser.
-  If nothing came up, open the link again."
-- **Título del modal por fase**: "Connecting X" → "X is connected" / "X didn't finish
-  connecting" / "Couldn't connect X". En `complete`: palomita sobre la línea animada, copy
-  "You're all set…" y botón "Let's go".
-- **Grupos de acciones**: el servidor declara `gravity` = `Read` | `Write` | `Destructive`; la UI
-  solo agrupa (nada de adivinar por nombre — valida el diseño de la función 16k-0). Notas
-  exactas: Read "Only reads. Nothing in the app changes."; Create and change "Changes something
-  in the app. Incredible shows you what before it does."; Delete "Removes something. Incredible
-  always asks first." Orden alfabético dentro de cada grupo y un buscador "Search N actions"
-  dentro del panel.
-- **Sin conectar, el panel NO lista acciones**: estado vacío "Connect X to see everything it can
-  do."; conectada pero sin lista: "X didn't list any actions just now. Try Check, or reconnect
-  it." (esto responde la duda de §9.3: no hace falta `/api/tools` sin cuenta para la paridad).
-- **Desconectar**: botón fantasma "Disconnect X" con spinner "Disconnecting…"; los servidores
-  MCP propios usan "Remove" (tono peligro) y muestran salud (punto de color + host).
-- **Ajuste por app** visto en el panel: toggle "Run look-ups without asking" (lecturas sin
-  aprobación) — dato útil para 16k-3.
-- **Conectores nativos además de Pipedream**: apps con `auth_method` `api_key`/`basic` abren un
+- **Máquina del intento** (una función pura, como el `ConnectPoll` planeado): fases iniciar, esperar (con
+  número de intentos) y terminar en completo, tiempo agotado o fallo. Iniciar muestra un texto de que se abre
+  el navegador (o de que macOS pide permiso si la app es de tipo dispositivo). Si el inicio no trae enlace
+  pero la cuenta ya está activa, salta directo a completo. Con varios intentos de espera aparece una pista
+  de que se sigue esperando al navegador y se puede abrir el enlace de nuevo.
+- **Título del modal por fase:** conectando, conectada, no terminó o no se pudo conectar. En completo: palomita
+  sobre la línea animada, texto de que todo quedó listo y un botón para seguir.
+- **Grupos de acciones:** el servidor declara la gravedad de cada acción (lectura, escritura o destructiva);
+  la UI solo agrupa (nada de adivinar por nombre: valida el diseño de la función 16k-0). Cada grupo lleva una
+  nota corta: la lectura no cambia nada, crear y cambiar muestra antes qué se hará, borrar siempre pregunta
+  primero. Orden alfabético dentro de cada grupo y un buscador de acciones dentro del panel.
+- **Sin conectar, el panel NO lista acciones:** estado vacío que invita a conectar; conectada pero sin lista,
+  un aviso con la opción de revisar o reconectar (esto responde la duda de §9.3: no hace falta
+  `/api/tools` sin cuenta para la paridad).
+- **Desconectar:** botón fantasma con spinner mientras desconecta; los servidores MCP propios usan "quitar"
+  (tono peligro) y muestran salud (punto de color + host).
+- **Ajuste por app** visto en el panel: un interruptor para correr consultas sin aprobación (lecturas sin
+  aprobación): dato útil para 16k-3.
+- **Conectores nativos además de Pipedream**: apps con autenticación por clave o usuario y contraseña abren un
   formulario local (Username/Password o API key). Fuera de alcance de 16k-2; anotado.
