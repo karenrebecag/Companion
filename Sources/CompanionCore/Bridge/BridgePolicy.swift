@@ -66,7 +66,15 @@ package struct BridgePolicy: Sendable, Equatable {
         "look",
         "see",
         "browser_tabs",
-        "browser_read"
+        "browser_read",
+        // Self-qa (ADR 009): they read the app, never write; the equality
+        // check has its own tighter limit on top of this budget.
+        "companion_state",
+        "companion_island",
+        "companion_settings",
+        "companion_thread",
+        "companion_last_message_matches",
+        "companion_log"
     ]
 
     /// Allowlisted tools that sit in neither bucket.
