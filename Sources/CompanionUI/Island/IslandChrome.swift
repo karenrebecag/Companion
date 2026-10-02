@@ -38,6 +38,22 @@ package enum IslandChrome {
         }
     }
 
+    /// Incredible's column cap (local reference).
+    package static let columnCap: CGFloat = 560
+    /// The shell's spacing under the band and its bottom padding. Named here
+    /// so the shell and the column cap read the same values.
+    package static let shellSpacing: CGFloat = Space.x2
+    package static let shellBottom: CGFloat = Space.x4
+    package static let columnGaps: CGFloat = shellSpacing + shellBottom
+
+    /// The one place the column's height is capped: never past Incredible's
+    /// cap, and never taller than the shape can hold under the band, so the
+    /// end of a reply is never cut off by the shape. Growing the canvas
+    /// (K11, brief isla-ciclo-y-legibilidad) lifts it here alone.
+    package static func columnMaxHeight(bandHeight: CGFloat) -> CGFloat {
+        min(columnCap, canvasHeight - shadowRoom - bandHeight - columnGaps)
+    }
+
     /// The same rectangle for every size: the window never moves.
     package static func canvasFrame(for notch: Notch) -> CGRect {
         CGRect(x: (notch.midX - canvasWidth / 2).rounded(), y: notch.top - canvasHeight,

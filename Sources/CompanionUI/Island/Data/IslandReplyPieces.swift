@@ -32,44 +32,49 @@ struct IslandResultCard: View {
     }
 }
 
-/// The reply as the panel shows it (16f): large plain words, no bubble, the
-/// part that was said. The rest lives in the window.
+/// The reply as the panel shows it: large plain words, no bubble, the whole
+/// spoken reply up to its last `wordCap` words, as Incredible does. Cutting
+/// at the first paragraph and a fixed length left "aquel p…" on screen
+/// (brief isla-maquetacion-incredible, F2).
 enum IslandReplyText {
-    static let maxLength = 240
+    static let wordCap = 600
 
     static func spoken(from reply: String) -> String {
         // The panel shows what the voice may say: the same filter, so a JSON
         // object or an instruction meant for the model never paints here.
-        let paragraph = SpeechFilter.clean(MarkdownSplitter.islandProse(reply))
+        // Code is not spoken, so it does not paint either. `islandProse`
+        // reads a bounded window, so the cost per streamed token stays
+        // bounded (security review 16f).
+        let prose = MarkdownSplitter.islandProse(reply)
+            .replacingOccurrences(of: #"```[\s\S]*?```"#, with: "\n\n", options: .regularExpression)
+        let paragraphs = SpeechFilter.clean(prose)
             .components(separatedBy: "\n\n")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty } ?? ""
-        // Model text is unbounded and this runs on every streamed token: cut
-        // first, so the cost never depends on the reply (security review 16f).
-        var text = String(paragraph.prefix(maxLength * 4))
-        // [label](url) reads as its label; a "[" that opens no link is
-        // skipped, not the end of the search.
-        var from = text.startIndex
-        while let open = text.range(of: "[", range: from..<text.endIndex) {
-            guard let mid = text.range(of: "](", range: open.upperBound..<text.endIndex),
-                  let close = text.range(of: ")", range: mid.upperBound..<text.endIndex),
-                  !text[open.upperBound..<mid.lowerBound].contains("[")
-            else {
-                from = open.upperBound
-                continue
-            }
-            let label = String(text[open.upperBound..<mid.lowerBound])
-            // Indices do not survive a mutation; the offset does.
-            let resume = text.distance(from: text.startIndex, to: open.lowerBound) + label.count
-            text.replaceSubrange(open.lowerBound..<close.upperBound, with: label)
-            from = text.index(text.startIndex, offsetBy: resume)
-        }
-        text = text.replacingOccurrences(of: "**", with: "")
+            .map(plain)
+            .filter { !$0.isEmpty }
+        return lastWords(paragraphs.joined(separator: "\n\n"), cap: wordCap)
+    }
+
+    /// Keeps the end of a long reply, where the voice is, and its breaks.
+    static func lastWords(_ text: String, cap: Int) -> String {
+        let words = text.split(whereSeparator: \.isWhitespace)
+        guard words.count > cap else { return text }
+        return String(text[words[words.count - cap].startIndex...])
+    }
+
+    private static func plain(_ paragraph: String) -> String {
+        // [label](url) reads as its label; a "[" that opens no link is left
+        // as is. The label holds no bracket, so each "[" has one candidate
+        // "](", and the url is bounded: a stray "[" costs a short scan, not a
+        // rescan of the whole window (the paragraph can be the whole window
+        // now). A label with a "]" inside stays raw; that is rare.
+        let text = paragraph
+            .replacingOccurrences(of: #"\[([^\[\]]*)\]\([^)]{0,512}\)"#, with: "$1", options: .regularExpression)
+            .replacingOccurrences(of: "**", with: "")
             .replacingOccurrences(of: "`", with: "")
             .replacingOccurrences(of: "\n", with: " ")
             .split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
             .trimmingCharacters(in: CharacterSet(charactersIn: "#*- ").union(.whitespaces))
-        return text.count > maxLength ? String(text.prefix(maxLength)) + "…" : text
+        return text
     }
 }
 
