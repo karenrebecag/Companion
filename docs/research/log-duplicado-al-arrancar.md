@@ -1,6 +1,6 @@
 # Reference Brief: lineas duplicadas en Companion.log al arrancar (log o registro doble)
 
-Slug: log-duplicado-al-arrancar | Nivel: quick | Fecha: 2026-10-02 | Estado: AUTO
+Slug: log-duplicado-al-arrancar | Nivel: quick | Fecha: 2026-10-02 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-02 AUTO
 
@@ -172,3 +172,5 @@ RED tests propuestos (no escritos, el brief no toca codigo):
 | 8 | View.onPreferenceChange(_:perform:) | Apple | macOS 26 SDK docs | 2026-10-02 | medium |
 | 9 | Codigo de companion-next (Log, HoldKeyTap, BridgeListener, BridgeHost, BrowserHost, IslandView, IslandChrome, CompanionMain, CompanionMainWindow) | repo | main 9085264 | 2026-10-02 | high |
 | 10 | ~/Library/Logs/Companion.log, lineas de ciclo de vida 2026-10-01 y 2026-10-02 | app instalada | 2026-10-02 | 2026-10-02 | medium |
+
+[KAREN:chat 2026-10-02] Aprobados los cambios solo de log, prioridad baja, despues de la UI del notch.
