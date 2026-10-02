@@ -1,0 +1,50 @@
+Evidencia para docs/research/manos-escribir-en-notas.md (recogida 2026-10-02, solo lectura).
+A. ~/Library/Logs/Companion.log, turno de voz fallido (lineas originales 9599-9651, extracto literal)
+2026-10-02T15:42:21.144Z [chat] decision: pass reason=fastBrain
+2026-10-02T15:42:21.765Z [app] session: processing(thinking) -> processing(toolExecuting)
+2026-10-02T15:42:22.407Z [app] hands: type_text chars=4 pid=82033 bundle=com.apple.Notes
+2026-10-02T15:42:22.408Z [app] hands: type_text no_focused_field pid=82033 bundle=com.apple.Notes
+2026-10-02T15:42:23.088Z [app] hands: focus_window raised pid=82033 bundle=com.apple.Notes
+2026-10-02T15:42:24.117Z [app] sight: look elements=0 nodes=164 partial=true pid=82033 bundle=com.apple.Notes
+2026-10-02T15:42:38.217Z [app] sight: look elements=0 nodes=168 partial=true pid=82033 bundle=com.apple.Notes
+2026-10-02T15:42:38.679Z [app] sight: click unknown_id pid=82033 bundle=com.apple.Notes
+2026-10-02T15:42:39.957Z [app] sight: look elements=0 nodes=165 partial=true pid=82033 bundle=com.apple.Notes
+2026-10-02T15:42:40.549Z [app] sight: scroll down pid=82033 bundle=com.apple.Notes
+2026-10-02T15:42:41.887Z [app] sight: look elements=0 nodes=134 partial=true pid=82033 bundle=com.apple.Notes
+2026-10-02T15:42:42.558Z [app] sight: scroll up pid=82033 bundle=com.apple.Notes
+2026-10-02T15:42:52.973Z [app] hands: type_text no_focused_field pid=82033 bundle=com.apple.Notes
+2026-10-02T15:43:06.470Z [app] hands: type_text no_focused_field pid=82033 bundle=com.apple.Notes
+B. Mismo log: ningun "sight: menu" en el turno de voz; cerebro del turno
+2026-10-02T15:42:18.001Z [app] voice stack: ear=apple-analyzer brain=gpt-oss-120b mouth=elevenlabs/eleven_flash_v2_5 sight=gpt-4o-mini
+2026-10-02T15:42:21.764Z [chat] chat: answered by cerebras/gpt-oss-120b
+C. Mismo log: los 9 look sobre Notes registrados dan elements=0 (grep: 9 lineas, 0 con elements distinto de 0); cuatro de muestra
+2026-09-25T23:20:23.595Z sight: look elements=0 nodes=161 partial=true bundle=com.apple.Notes
+2026-09-28T22:04:45.029Z sight: look elements=0 nodes=142 partial=true bundle=com.apple.Notes
+2026-09-28T23:00:12.918Z sight: look elements=0 nodes=164 partial=true bundle=com.apple.Notes
+2026-10-02T15:39:34.927Z sight: look elements=0 nodes=65 partial=true bundle=com.apple.Notes
+D. Mismo log, 2026-09-28 por el puente MCP (cliente claude-code): menu y luego type_text SI escribieron en Notes
+2026-09-28T22:04:42.874Z [bridge] call open_app ok=true target=Notes chars=16
+2026-09-28T22:04:45.029Z [app] sight: look elements=0 nodes=142 partial=true pid=64420 bundle=com.apple.Notes
+2026-09-28T22:04:58.204Z [app] sight: menu steps=2 pid=64420 bundle=com.apple.Notes
+2026-09-28T22:05:01.325Z [app] hands: type_text typed chars=174 via=ax pid=64420
+2026-09-28T22:56:58.453Z [app] sight: menu steps=2 pid=34700 bundle=com.apple.Notes
+2026-09-28T22:57:02.252Z [app] hands: type_text typed chars=111 via=ax pid=34700
+E. Spec cerrada wave-15g-manos.md, leida con git show ab1637a22fee0d91d81fb109cad475dc0f1e2ac8:docs/specs/wave-15g-manos.md (borrada en d13a9f1)
+linea 24: Lista blanca de teclas: Tab, Return, Backspace, Delete, flechas, Insert, F2, Esc (rechaza las que necesitan foco real). [descripcion de Incredible en esa fecha]
+linea 48: press_key(key) con lista cerrada return, tab, escape, up, down, left, right, backspace, por CGEventPostToPid al mismo pid, sin modificadores | teclas de fondo seguras, como la lista blanca de Incredible
+F. /Applications/Incredible.app 0.2.36, strings -n 8 Contents/MacOS/incredible (texto de la guia de su worker computer-use, citado solo como evidencia de comportamiento)
+press_key() sends one key/chord: Tab, Enter, Escape, Alt+Left, Ctrl+Shift+p, Home/End, PageUp/PageDown, Backspace/Delete, F1-F24 or a letter/digit.
+Use the target OS's shortcuts: Cmd is Mac Command, Ctrl is Control on either OS.
+Inspect view.input_focus before every keyboard action ... or an application shortcut that opens the intended navigation surface.
+A title-bar Close button and a notification dismiss button have different effects.
+G. Incredible 0.2.36, strings de Contents/MacOS/accessibility-helper
+Invalid key or modifiers.
+Unsupported keyboard modifier.
+AXMenuItemCmdChar / AXMenuItemCmdModifiers / Invalid menu path: / Menu item is disabled: / AXPress failed on menu item
+The application's focused window/control does not match this target. Activate this window and inspect its focus before keyboard input.
+H. Incredible 0.2.36, juez de alineacion para comandos destructivos (strings del binario principal)
+A sub-agent is about to run a potentially destructive command. Your single job is to decide whether the user ... would expect this command to run silently, or would want a chance to review it first.
+ASK - the command is destructive or irreversible in a way that exceeds what the user explicitly authorised, OR alignment is unclear. The user sees an approval dialog.
+I. Prototipo ../companion en b8a4fd0d6b2efc8fcb9c2f6b22ba45902883365f (solo lectura)
+git ls-files | xargs grep -lE 'AXUIElement|CGEvent|osascript|NSAppleScript' -> 0 archivos: el prototipo no tiene manos propias.
+Sources/ClaudeStream.swift:84 atiende can_use_tool de Claude Code: las acciones sobre el Mac se delegaban al agente con aprobacion por herramienta.
