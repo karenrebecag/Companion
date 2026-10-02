@@ -171,3 +171,8 @@ Reutilizado (2026-10-02) por feat/self-qa-source (PR-4 de la spec self-qa-inspec
 - El espejo guarda la isla tal como se pinto y la frase del catalogo solo para lineas sin contenido (D5); con lineas que llevan texto no guarda copia.
 - Ajustes se leen de las preferencias que ya existen, sin nombrar `UserDefaults` en los archivos `SelfInspection*`.
 No se investigo nada nuevo.
+
+Reutilizado (2026-10-02) por feat/self-qa-mirror (PR-5 de la spec self-qa-inspeccion, sobre main):
+- `IslandView` escribe en el espejo el mismo `IslandState` que pinta, con `.onChange(of: state, initial: true)`, el mismo modificador que la vista ya usa para el tamano; lo inspeccionado es lo pintado (consecuencia del ADR 009), sin reconstruirlo desde la sesion.
+- `CompanionRootView` escribe pagina, Ajustes abierto y pestana con el mismo modificador. El espejo es una clase sin `@Observable`, asi que escribirlo no repinta ninguna vista.
+No se investigo nada nuevo.

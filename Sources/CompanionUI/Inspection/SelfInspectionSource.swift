@@ -1,5 +1,6 @@
 import CompanionCore
 import Foundation
+import SwiftUI
 
 /// What the UI last painted, written by the views themselves (PR-5): the
 /// island state is computed inside `IslandView` and the screen lives in
@@ -35,6 +36,28 @@ import Foundation
         case .home: "home"
         case .apps: "apps"
         }
+    }
+}
+
+/// How `CompanionRootView` reports its screen to the mirror. A modifier of
+/// its own so the root body's chain stays small enough to type-check; it
+/// lives here, beside the mirror, to keep that view under the size limit.
+struct ScreenReport: ViewModifier {
+    let page: MainPage
+    let settingsOpen: Bool
+    let settingsTab: SettingsTab
+    let mirror: InspectionMirror?
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: settingsOpen, initial: true) { report() }
+            .onChange(of: settingsTab) { report() }
+            .onChange(of: page) { report() }
+    }
+
+    /// The mirror is plain storage, not observed: writing it never repaints.
+    private func report() {
+        mirror?.show(page: page, settingsOpen: settingsOpen, settingsTab: settingsTab)
     }
 }
 
