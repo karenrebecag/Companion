@@ -121,7 +121,7 @@ extension VoiceSession {
         // A newer press owns the session now.
         guard generation == holdGeneration else { return true }
         noteHeard(words, pressed: timeline.pressed)
-        guard words.isEmpty || SpokenYes.affirms(words) else {
+        guard words.isEmpty || SpokenYes.affirms(words) || SpokenNo.refuses(words) else {
             // No answer: these words are a turn of their own, and the new
             // turn cancels the parked one (#87), and gets the pin the press
             // held back.
@@ -137,6 +137,10 @@ extension VoiceSession {
         // Back at rest before anything answers: the click may land any time.
         await apply(.holdDiscarded)
         guard !words.isEmpty else { return true }
+        if SpokenNo.refuses(words) {
+            await refuseParkedSheet(requestId)
+            return true
+        }
         // The one place a spoken yes is judged, so a later decision about it
         // changes the rule there, not this path.
         if await answerPendingApproval(true) == .needsClick {
@@ -144,6 +148,39 @@ extension VoiceSession {
                 goal: "", outcome: .needsClick, language: configProvider.current.language))
         }
         return true
+    }
+
+    /// D3: the voice's "no" goes the same single road as any spoken answer
+    /// (`answerPendingApproval`). The mark comes first so the round the
+    /// refusal wakes ends on the "no" line; a no the sheet did not take
+    /// refused nothing and takes its mark back.
+    // HACK: a click on Deny that the reducer applies instead of the spoken
+    // no (which it then drops) is heard as the voice's: same refusal, only
+    // the line and the model's round differ. A click to Allow there is the
+    // click's, since the round only counts a sheet that ended refused.
+    // Upgrade trigger: the sheet reporting who answered it.
+    private func refuseParkedSheet(_ requestId: String) async {
+        // The ear's awaits ran after the press was armed: the sheet may be
+        // another request by now, and this no was not about it.
+        guard livePendingApproval?.requestId == requestId else { return }
+        // `answerPendingApproval` answers an MCP request first: this no was
+        // said to the parent's question, so it is spent on neither.
+        guard pendingMCPApprovals.isEmpty else {
+            await jobAnnounce(JobAnnouncement(
+                goal: "", outcome: .needsClick, language: configProvider.current.language))
+            return
+        }
+        classic.noteRefusedByVoice(requestId)
+        switch await answerPendingApproval(false) {
+        case .resolved:
+            return
+        case .needsClick:
+            classic.forgetRefusedByVoice(requestId)
+            await jobAnnounce(JobAnnouncement(
+                goal: "", outcome: .needsClick, language: configProvider.current.language))
+        case .nothingPending:
+            classic.forgetRefusedByVoice(requestId)
+        }
     }
 
     /// The reducer's report of what the sheet shows (C2): a spoken answer

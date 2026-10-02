@@ -37,12 +37,13 @@ final class RaisedFlag: @unchecked Sendable {
 /// before the round ends, since a `TestGate` does not hear the cancel.
 @MainActor func parentSheetRig(
     firstRound: [ChatDelta] = [.toolCalls([parentOpenCall])],
-    slow: TestGate? = nil, slowReturned: RaisedFlag? = nil
+    slow: TestGate? = nil, slowReturned: RaisedFlag? = nil, jobs: (any JobSubmitter)? = nil
 ) async -> ParentSheetRig {
     let approvals = ScriptedApprovals(park: true)
     let tools = FakeParentTools(handledNames: ["open_url"])
     tools.setScriptedApproval(parentSheetRequest)
-    let h = makeVoiceHarness(key: nil, language: .es, parentTools: tools, approvals: approvals)
+    let h = makeVoiceHarness(
+        key: nil, jobs: jobs, language: .es, parentTools: tools, approvals: approvals)
     h.chat.rounds = [firstRound, [.text("Listo.")]]
     h.transcriber.stoppedText = "abre la pagina"
     let classic = await h.session.classic

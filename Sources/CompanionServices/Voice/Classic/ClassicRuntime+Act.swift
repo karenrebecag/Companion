@@ -1,5 +1,6 @@
 import CompanionCore
 import Foundation
+import Synchronization
 
 /// A round of the parent's own tools. Split from ClassicRuntime.swift for
 /// 16h-2 (review S3): the round now runs beside the acknowledgement, so it
@@ -15,6 +16,11 @@ extension ClassicRuntime {
         var sawCard: Bool
         /// Typings still waiting for a read that proves them.
         var unverified: [TypedAttempt]
+        /// The sheets this round showed that ended refused, whoever refused
+        /// them: a voice's no only counts once its sheet really was.
+        var deniedSheets: [String] = []
+        /// Every sheet this round showed, however it ended.
+        var shownSheets: [String] = []
     }
 
     /// Runs the round and folds what it learnt into the turn that owns
@@ -51,21 +57,38 @@ extension ClassicRuntime {
         var turns = [Turn(role: .assistant, content: text, toolCalls: calls)]
         var cards: [Card] = []
         var runs: [ToolRun] = []
+        var deniedSheets: [String] = []
+        var shownSheets: [String] = []
+        var refusedByVoice = false
         events?.yield(.parentActing(targets: calls.map { ParentTool.target(of: $0) }))
         defer { events?.yield(.parentActed) }
         for call in calls {
             // A press cut the turn: type_text may have run, but Return after
             // it must not (review 2026-09-25). Every call still gets an
-            // answer, or the round is malformed.
-            if Task.isCancelled {
+            // answer, or the round is malformed. A spoken no ends the turn
+            // the same way: nothing after it runs or asks again.
+            if Task.isCancelled || refusedByVoice {
                 turns.append(Turn(
                     role: .tool, content: ContractError.interrupted.wire, toolCallID: call.id))
                 continue
             }
             // A URL the user did not say waits for the sheet (10c 3D).
             let outcome: ParentToolOutcome
-            if let denied = await parentGuard.verdict(
-                call, said: heard, language: language, tools: parentTools, parked: onParked).denial {
+            let shown = ShownSheet()
+            let verdict = await parentGuard.verdict(
+                call, said: heard, language: language, tools: parentTools,
+                parked: onParked.map { report in
+                    { @Sendable request in
+                        shown.set(request.requestId)
+                        return report(request)
+                    }
+                })
+            if let id = shown.id { shownSheets.append(id) }
+            if verdict.answer == .denied, let id = shown.id {
+                deniedSheets.append(id)
+                refusedByVoice = isRefusedByVoice(id)
+            }
+            if let denied = verdict.denial {
                 outcome = denied
             } else if Task.isCancelled {
                 // The guard's other awaits (binding, memory) are cut points
@@ -106,6 +129,14 @@ extension ClassicRuntime {
         } + proof.late.map { ReceiptLine(text: $0, verified: true) }
         if let receipt = ActionReceipt(entries: proven) { events?.yield(.receipt(receipt)) }
         return ActedRound(
-            turns: turns, effectLines: effects, sawCard: !cards.isEmpty, unverified: proof.unverified)
+            turns: turns, effectLines: effects, sawCard: !cards.isEmpty, unverified: proof.unverified,
+            deniedSheets: deniedSheets, shownSheets: shownSheets)
     }
+}
+
+/// The sheet one call showed, written by the guard's park callback.
+private final class ShownSheet: Sendable {
+    private let value = Mutex<String?>(nil)
+    func set(_ id: String) { value.withLock { $0 = id } }
+    var id: String? { value.withLock { $0 } }
 }
