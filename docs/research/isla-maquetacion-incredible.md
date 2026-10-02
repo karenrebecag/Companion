@@ -1,6 +1,6 @@
 # Reference Brief: maquetacion de la isla, el sistema de medidas y desborde de Incredible frente al de Companion
 
-Slug: isla-maquetacion-incredible | Nivel: standard | Fecha: 2026-10-02 | Estado: ESCALADO
+Slug: isla-maquetacion-incredible | Nivel: standard | Fecha: 2026-10-02 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-02 ESCALATE
 
@@ -299,3 +299,5 @@ Criterios (cada medida marcada "local" se verifica contra la referencia local, n
 | 11 | boring.notch sizing/matters.swift | TheBoredTeam | d58240c | 2026-10-02 | medium |
 | 12 | DynamicNotchKit NSScreen+Extensions.swift y NotchView.swift | MrKai77 | cd0b3e5 | 2026-10-02 | medium |
 | 13 | Capturas de Karen 2 a 4 (karen-ui-2026-10-02) | Karen | 2026-10-02 | 2026-10-02 | high |
+
+[KAREN:chat 2026-10-02] Paridad total con Incredible: en todas las decisiones de este brief se iguala el comportamiento y el valor de Incredible, tomado de la referencia local ~/Desktop/incredible-ref (los extractos no se suben al repo). Toda decision que revierte una regla de seguridad firmada va en su propio ADR con el riesgo escrito y mi firma antes de cualquier codigo. D10 (barra de 320) se iguala a Incredible cuando se mida; hasta entonces no cambia. F1 y F2 van primero.
