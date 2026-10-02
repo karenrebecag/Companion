@@ -156,7 +156,7 @@ Contextos: app de release (IslandPanel, NSPanel no activante colgado del notch);
 - boring.notch (app de notch para macOS, unas 10,9k estrellas, push 2026-10-02, codigo abierto): abre tras un hover minimo y cierra 100 ms despues de que el puntero sale, salvo que un popover lo retenga [ref:https://github.com/TheBoredTeam/boring.notch/blob/d58240cc160d5e54da1a8a5925e095d067a8e1e0/boringNotch/ContentView.swift#L513-L557@d58240cc160d5e54da1a8a5925e095d067a8e1e0]
 - boring.notch: el hover minimo por defecto es 0,3 s [ref:https://github.com/TheBoredTeam/boring.notch/blob/d58240cc160d5e54da1a8a5925e095d067a8e1e0/boringNotch/models/Constants.swift#L79@d58240cc160d5e54da1a8a5925e095d067a8e1e0]
 - boring.notch: cada aviso nuevo cancela y rearma el temporizador de retiro, 1,5 s por defecto [ref:https://github.com/TheBoredTeam/boring.notch/blob/d58240cc160d5e54da1a8a5925e095d067a8e1e0/boringNotch/BoringViewCoordinator.swift#L237-L259@d58240cc160d5e54da1a8a5925e095d067a8e1e0]
-- Donde boring.notch e Incredible difieren (cierre a 100 ms contra 250 ms; hover de 0,3 s contra 150/300 ms), manda Incredible por la directiva relayada de que Incredible es el minimo de Companion; boring.notch solo confirma el patron (dwell al entrar, gracia al salir, rearmar el retiro)
+- Donde boring.notch e Incredible difieren (cierre a 100 ms contra 250 ms; hover de 0,3 s contra 150/300 ms), manda Incredible por la directiva relayada de que Incredible es el minimo de Companion, sobre el pedido firmado de replicar el notch y el motion de Incredible [repo:docs/specs/wave-16f-notch-y-motion.md:3]; boring.notch solo confirma el patron (dwell al entrar, gracia al salir, rearmar el retiro)
 
 ## 5. Opciones
 
