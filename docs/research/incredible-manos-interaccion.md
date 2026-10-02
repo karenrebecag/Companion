@@ -1,6 +1,6 @@
 # Reference Brief: las manos de Incredible y como replicarlas en Companion
 
-Slug: incredible-manos-interaccion | Nivel: deep | Fecha: 2026-10-02 | Estado: ESCALADO
+Slug: incredible-manos-interaccion | Nivel: deep | Fecha: 2026-10-02 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-02 ESCALATE
 
@@ -480,3 +480,5 @@ Cada spec es un PR. Los criterios son medibles y heredan la seccion 10.
 | 27 | Hammerspoon eventtap.lua | Hammerspoon | commit 23e387e | 2026-10-02 | high |
 | 28 | Notes app: create new note with formatted title | MacScripter (foro) | 2019-06 | 2026-10-02 | low |
 | 29 | Briefs previos sobre Incredible (arquitectura, glow y puntero, auditoria de decisiones) | companion-next | main 9085264 | 2026-10-02 | medium |
+
+[KAREN:chat 2026-10-02] Paridad total con Incredible: en todas las decisiones de este brief se iguala el comportamiento y el valor de Incredible, tomado de la referencia local ~/Desktop/incredible-ref (los extractos no se suben al repo). Toda decision que revierte una regla de seguridad firmada va en su propio ADR con el riesgo escrito y mi firma antes de cualquier codigo. D9 (juez LLM) y la lista de que no copiar entran como reversiones, cada una con su ADR.
