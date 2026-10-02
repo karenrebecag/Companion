@@ -121,7 +121,8 @@ extension AppDelegate {
                 readMCP: { MCPConfigFile.read() },
                 saveMCP: { try MCPConfigFile.save($0, secrets: env.hostSecrets) },
                 log: { Log.app($0) }),
-            grabber: captureGrabber)
+            grabber: captureGrabber,
+            mirror: inspection)
         let hosting = NSHostingView(rootView: root)
         WindowChrome.install(hosting, in: window)
         window.center()
@@ -165,7 +166,8 @@ extension AppDelegate {
                     recentFiles: { await recentFiles.candidates() }),
                 // 16m-5b: the only WebKit in the app, drawing Mermaid with no network.
                 diagrams: diagramRenderer,
-                saveFile: { data, name in await IslandSavePanel.save(data, suggestedName: name) }),
+                saveFile: { data, name in await IslandSavePanel.save(data, suggestedName: name) },
+                mirror: inspection),
             geometry: islandGeometry,
             onHover: { over in sessionModel.send(over ? .hoverEntered : .hoverLeft) })
         island.onResignKey = {
