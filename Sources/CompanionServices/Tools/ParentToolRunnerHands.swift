@@ -319,6 +319,11 @@ private struct HandsAct {
         Log.app("hands: type_text chars=\(text.count) pid=\(pid) bundle=\(bundle)")
         let target: FocusedField
         switch field() {
+        case .failure(let error) where error.code == "no_focused_field" && hands.screen != nil:
+            // A bare failure was retried as-is; menu is the way out, and it
+            // is offered only with sight.
+            return fail(error.code, error.message + "; if it needs a new document, create it with "
+                + "menu (e.g. File > New Note, Archivo > Nueva nota) and type again")
         case .failure(let error): return fail(error.code, error.message)
         case .success(let found): target = found
         }

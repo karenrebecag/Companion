@@ -30,4 +30,8 @@ import Testing
         handsEnabled: true, sightEnabled: true, language: .en)
     expect(en.contains("Pressing buttons or menus is never delegated"), "16a-4 en: never delegated")
     expect(en.contains("look first"), "16a-4 en: look before click")
+    // Brief manos-escribir-en-notas, D1: with no field to type into, the model
+    // retried type_text three times and never tried menu (log 2026-10-02).
+    expect(es.contains("Archivo > Nueva nota"), "D1 es: sin campo, crear el documento con menu")
+    expect(en.contains("File > New Note"), "D1 en: no field, create the document with menu")
 }

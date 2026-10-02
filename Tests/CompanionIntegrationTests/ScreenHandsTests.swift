@@ -235,6 +235,20 @@ private func rejected(_ key: String) -> Bool {
     let hands = FakeHands()
     let typed = await handsRunner(hands).execute(name: "type_text", argumentsJSON: #"{"text":"a"}"#)
     expect(typed.output.hasPrefix("no_focused_field:"), "sin campo: lo dice")
+    // D1 (brief manos-escribir-en-notas): with sight the error names the way
+    // out; without it, menu is not offered, so naming it would mislead.
+    expect(!typed.output.contains("menu"), "sin vista: no nombra una tool que no tiene")
+    let sighted = ParentToolRunner(
+        workspace: FakeWorkspaceOpener(),
+        hands: ScreenHands(
+            injector: hands, reader: hands, keys: hands, windows: hands,
+            trusted: { true }, target: { 7 }, bundleID: { _ in "com.apple.Notes" }, screen: FakeScreen([])))
+    let routed = await sighted.execute(name: "type_text", argumentsJSON: #"{"text":"a"}"#)
+    expect(routed.output.hasPrefix("no_focused_field:"), "con vista: el mismo código")
+    expect(routed.output.contains("menu") && routed.output.contains("File > New Note")
+           && routed.output.contains("Archivo > Nueva nota"), "con vista: apunta a menu, en y es")
+    let readSighted = await sighted.execute(name: "read_focused", argumentsJSON: "{}")
+    expect(!readSighted.output.contains("menu"), "leer: no hay nada que crear")
     let read = await handsRunner(hands).execute(name: "read_focused", argumentsJSON: "{}")
     expect(read.output.hasPrefix("no_focused_field:"), "sin campo: al leer también")
     for id in ["com.apple.Terminal", "com.googlecode.iterm2", "com.mitchellh.ghostty",

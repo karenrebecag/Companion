@@ -193,7 +193,7 @@ private struct SightAct {
         }
         if HandsGate.menuNeedsTicket(path: path, resolved: resolved),
            !hands.tickets.redeem(.init(name: call.name, arguments: call.arguments, pid: pid, item: resolved)) {
-            return fail("approval_required", "this menu item deletes, pays or sends; it needs approval")
+            return fail("approval_required", "this menu item cannot be undone (delete, pay, send, quit or close); it needs approval")
         }
         guard let item = screen.menu(path: path, pid: pid, expecting: resolved) else {
             return fail("menu_not_found", "the menu item is gone or changed since it was read")

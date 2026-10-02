@@ -272,7 +272,9 @@ package enum ChatPrompt: Sendable {
                 + "for questions about images or layout, describe a screenshot "
                 + "(see). To press something, look first, then click the id "
                 + "from that look; after a click, look again to check. "
-                + "Pressing buttons or menus is never delegated."
+                + "If there is no field to type into because the app needs a "
+                + "new document, create it with menu (File > New Note) and "
+                + "type again. Pressing buttons or menus is never delegated."
         case .es:
             return "Puedes ver la ventana de delante como una lista numerada de "
                 + "sus controles y texto (look), pulsar uno por su número "
@@ -280,8 +282,10 @@ package enum ChatPrompt: Sendable {
                 + "de menús (menu) y, solo para preguntas sobre imágenes o "
                 + "diseño, describir una captura (see). Para pulsar algo, "
                 + "primero look y luego click con el número de ese look; "
-                + "después de pulsar, vuelve a mirar para comprobar. Pulsar "
-                + "botones o menús no se delega."
+                + "después de pulsar, vuelve a mirar para comprobar. Si no hay "
+                + "campo donde escribir porque la app necesita un documento "
+                + "nuevo, créalo con menu (Archivo > Nueva nota) y vuelve a "
+                + "escribir. Pulsar botones o menús no se delega."
         }
     }
 

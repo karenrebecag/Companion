@@ -152,12 +152,15 @@ package enum HandsGate {
 
     package static func menuVerdict(path: [String], resolved: String? = nil, said: String) -> HandsVerdict {
         let families = menuFamilies(path: path, resolved: resolved)
-        return families.allSatisfy { HandsWords.asks(family: $0, in: said) } ? .act : .ask
+        return families.allSatisfy { HandsWords.asks($0, in: said) } ? .act : .ask
     }
 
-    private static func menuFamilies(path: [String], resolved: String?) -> [Int] {
-        let families = [path.last, resolved].compactMap { $0 }.compactMap { family(label: $0, context: "") }
-        return Array(Set(families))
+    /// The click families plus quit/close, which only the menu bar has.
+    private static func menuFamilies(path: [String], resolved: String?) -> Set<Set<String>> {
+        let labels = [path.last, resolved].compactMap { $0 }
+        let shared = labels.compactMap { family(label: $0, context: "") }.map { HandsWords.destructiveFamilies[$0] }
+        let quits = labels.contains(where: HandsWords.isMenuQuit) ? [HandsWords.menuQuitFamily] : []
+        return Set(shared + quits)
     }
 
     /// "Archivo > Exportar" as its parts; empty when the argument is absent.
