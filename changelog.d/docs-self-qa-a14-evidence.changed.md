@@ -1,0 +1,1 @@
+- **La revisión de Companion por un agente quedó probada en la app real (2026-10-02).** Con Companion al frente, un agente conectado por el puente pudo ver su estado, la isla, los ajustes, el hilo como metadatos y el log, sin leer lo que escribes y sin poder pulsar nada dentro de Companion. La evidencia queda en el repo.
