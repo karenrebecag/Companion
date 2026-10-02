@@ -174,6 +174,21 @@ package enum ScreenRoles {
     package static func isInteresting(_ role: String) -> Bool {
         kinds[role] != nil || isText(role)
     }
+
+    /// Reading the children's roles ahead costs one AX call per child, so
+    /// only a window pays it, once per walk.
+    package static func readsChildRoles(of parentRole: String) -> Bool {
+        parentRole == "AXWindow"
+    }
+
+    /// The order to walk children in: a window's toolbars first, everything
+    /// else as AX gives it. The walk stops on time, and a long list walked
+    /// first left Notes' toolbar ("Nueva nota") without an id.
+    package static func childOrder(parentRole: String, childRoles: [String]) -> [Int] {
+        guard readsChildRoles(of: parentRole) else { return Array(childRoles.indices) }
+        let toolbars = childRoles.indices.filter { childRoles[$0] == "AXToolbar" }
+        return toolbars + childRoles.indices.filter { childRoles[$0] != "AXToolbar" }
+    }
 }
 
 // MARK: - Ports
