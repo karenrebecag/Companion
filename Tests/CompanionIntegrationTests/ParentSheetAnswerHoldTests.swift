@@ -13,6 +13,23 @@ import CompanionTestKit
 
 private let needsClick = Escalation.approvalNeedsClickSpoken(.es)
 
+/// The hold's words reached the model as the user's own turn. Contained,
+/// not equal: the turn carries the voice's context around the words.
+private func heardSí(_ history: [Turn]?) -> Bool {
+    history?.contains { $0.role == .user && $0.content.contains("sí") } == true
+}
+
+/// The click settles the sheet, and the session closes it from a task of
+/// its own. A release before that close is a separate, known window (the
+/// hold is still heard as an answer); these tests are about the click.
+@MainActor private func clickAllowAndLetTheSheetClose(_ rig: ParentSheetRig) async {
+    _ = await rig.approvals.resolve(requestId: "r1", approved: true)
+    await pumpUntil("the click acted") { rig.tools.executeCalls.count == 1 }
+    await pumpUntilAsync("the session closed the sheet") {
+        await rig.h.session.pendingApproval == nil
+    }
+}
+
 @Suite struct ParentSheetAnswerHold {
     @Test @MainActor func aYesAsksForTheClickAndTheNextYesStillDoes() async {
         let rig = await parentSheetRig()
@@ -154,12 +171,40 @@ private let needsClick = Escalation.approvalNeedsClickSpoken(.es)
         rig.h.transcriber.stoppedText = "sí"
         await rig.h.session.hold()
         await pumpUntil("listening for the answer") { rig.h.watch.latest.state == .listening }
-        _ = await rig.approvals.resolve(requestId: "r1", approved: true)
-        await pumpUntil("the click acted") { rig.tools.executeCalls.count == 1 }
+        await clickAllowAndLetTheSheetClose(rig)
+        // The clicked turn asks the model about its result before the key
+        // comes up; the release landing first is the sibling test below.
+        await pumpUntil("the clicked turn went on") { rig.h.chat.histories.count == 2 }
         await rig.h.session.release()
         await pumpUntil("the words opened a turn") { rig.h.chat.histories.count >= 3 }
 
         #expect(rig.tools.beginTurnCount == before + 1, "the new turn kept the parked call's hands")
+        #expect(!rig.h.synth.queue.contains(needsClick))
+        #expect(rig.tools.executeCalls.count == 1)
+        #expect(heardSí(rig.h.chat.histories.last))
+    }
+
+    /// The same click, with the release free to land before the clicked
+    /// turn's next model round: then the new turn cuts that round (#87) and
+    /// takes its place. Whichever comes first, the click acted once and the
+    /// hold's words reached the model as a turn, never as an answer. It does
+    /// not force that order: a quiet machine mostly runs the other one.
+    @Test @MainActor func aClickThenAQuickReleaseStillActsOnceAndHearsTheWords() async {
+        let rig = await parentSheetRig()
+        await restWithTheQuestionSaid(rig)
+        let before = rig.tools.beginTurnCount
+
+        rig.h.clock.now += 1
+        rig.h.transcriber.stoppedText = "sí"
+        await rig.h.session.hold()
+        await pumpUntil("listening for the answer") { rig.h.watch.latest.state == .listening }
+        await clickAllowAndLetTheSheetClose(rig)
+        await rig.h.session.release()
+        await pumpUntil("the words reached the model") { rig.h.chat.histories.contains(where: heardSí) }
+        // Settled before the negatives, so a late execute or line would show.
+        await rig.h.session.awaitClassicTurn()
+
+        #expect(rig.tools.beginTurnCount == before + 1)
         #expect(!rig.h.synth.queue.contains(needsClick))
         #expect(rig.tools.executeCalls.count == 1)
     }
