@@ -6,9 +6,9 @@ Verificador: research-verifier 2026-10-02 ESCALATE
 
 Origen: Karen probo la app de release el 2026-10-02 y mando cinco capturas (karen-ui-2026-10-02: 1-no-puede-escribir, 2-pensando-barra-vacia, 3-chips-vacios, 4-texto-cortado, 5-ventana-chat). Directiva del mismo dia: Incredible es el minimo de Companion; donde Incredible difiere de una regla firmada, se recomienda igualarlo y el choque va como decision de Karen. Se replica el comportamiento, nunca el codigo.
 
-Alcance: este brief decide QUE abre y cierra la isla, CUANDO corre y se reinicia la cuenta atras, si el texto largo se corta o se desplaza y DONDE aplica el tope de alto. Las medidas exactas en pixeles (anchos, alto de cada tamano, zonas near/commit, rejilla) son de `isla-maquetacion-incredible`; las curvas, duraciones de animacion y keyframes son de `isla-motion-incredible`. Los numeros que este brief ya tiene se quedan con su evidencia, y el tope de texto se alinea con el D4 de `isla-maquetacion-incredible` (ultimas 600 palabras).
+Alcance: este brief decide QUE abre y cierra la isla, CUANDO corre y se reinicia la cuenta atras, si el texto largo se corta o se desplaza y DONDE aplica el tope de alto. Las medidas exactas en pixeles (anchos, alto de cada tamano, zonas near/commit, rejilla) son de `isla-maquetacion-incredible`; las curvas, duraciones de animacion y keyframes son de `isla-motion-incredible`. Los numeros de Companion se quedan con su evidencia, y el tope de texto se alinea con el D4 de `isla-maquetacion-incredible`.
 
-Evidencia de Incredible de esta corrida: `docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt`, leida de la copia duradera `/Users/karenrebecaog/Desktop/incredible-ref/frontend-0.2.36/` (assets del overlay con el hash de contenido que el binario instalado nombra). Se reusan sin rehacer: `incredible-isla-componentes.md`, `incredible-ui-detalle.md`, `incredible-componentes.md`, `ux-incredible-vs-companion.md`, `audit-ui-companion-vs-incredible.md` y `ajuste-en-la-isla.md`.
+Evidencia de Incredible de esta corrida: los valores extraidos del binario no se publican en este repo; viven en la referencia local, citada como [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]. Se reusan sin rehacer: `incredible-isla-componentes.md`, `incredible-ui-detalle.md`, `incredible-componentes.md`, `ux-incredible-vs-companion.md`, `audit-ui-companion-vs-incredible.md` y `ajuste-en-la-isla.md`.
 
 ## 1. Pregunta y decisiones abiertas
 
@@ -18,17 +18,17 @@ Hallazgo que cambia la lectura de la captura 5: no es la ventana principal, es l
 
 Decisiones para Karen. En cada una, la recomendacion es igualar a Incredible; donde eso choca con una regla firmada se nombra la regla y los tests que la fijan (cambian en el mismo PR).
 
-- K1. Modelo de abrir y cerrar. Recomendado: el de Incredible (open por actividad, interaccion o hover; cerrado en todo lo demas; asentamiento de 200 ms al terminar la respuesta, pausado por hover y con piso de 1,5 s al salir el puntero). Choca con `SessionMachine.completedDelay = 1.5` (Sources/CompanionCore/Session/SessionMachine.swift:11), que hoy deja "Listo" 1,5 s sin importar el puntero. Tests que lo fijan: SessionMachineTests.swift:152 y :426, Island16m4Tests.swift:46 e Island16m4ReviewTests.swift:28 (los cuatro esperan `scheduleCompletedExpiry(completedDelay)`).
+- K1. Modelo de abrir y cerrar. Recomendado: igualar a Incredible (local reference): abre por actividad, interaccion o hover; cerrado en todo lo demas; asentamiento breve al terminar la respuesta, pausado por hover y con un piso al salir el puntero (valores en la referencia local). Choca con el valor actual de Companion, `SessionMachine.completedDelay = 1.5` (Sources/CompanionCore/Session/SessionMachine.swift:11), que hoy deja "Listo" 1,5 s sin importar el puntero. Tests que lo fijan: SessionMachineTests.swift:152 y :426, Island16m4Tests.swift:46 e Island16m4ReviewTests.swift:28 (los cuatro esperan `scheduleCompletedExpiry(completedDelay)`).
 - K2. Trabajo de fondo. Recomendado: un encargo corriendo sin turno de la usuaria deja la isla en un estado chico de reposo con las ranuras de tareas (el `seed` de Incredible), no en tarjeta abierta. Choca con la tarjeta `.card` que hoy dura todo el encargo (Sources/CompanionCore/Island/IslandState.swift:261) y con la runcard/checklist de 16m-2 visibles sin hover.
 - K3. Escucha en manos libres. Incredible mantiene la isla abierta mientras escucha (turno activo). Recomendado: igual. Si Karen quiere que se cierre tambien ahi, es una regla nueva sin referencia y necesita un plazo que ella firme.
-- K4. Tarjetas con cuenta atras. Recomendado: el anillo y el reloj de la sesion se pausan con el puntero encima y siguen donde iban; la tarjeta de dictado baja de 12 s a 4,9 s como la de Incredible. Choca con `dictationCardDelay = 12` (SessionMachine.swift:30, marcado "Not measured" en su comentario) y con avisos que hoy no se pausan. Tests que lo fijan: Island16m4Tests.swift:39 (exige dictado mas largo que Completed; con 4,9 s y 200 ms sigue valiendo, pero cambia si Completed desaparece como constante) y :46.
-- K5. Texto largo. Recomendado, alineado con el D4 de `isla-maquetacion-incredible`: la respuesta hablada entera hasta sus ultimas 600 palabras (Incredible descarta las primeras y refluye), todos sus parrafos, sin "…", dentro de una columna con tope de 560 y desplazamiento vertical cuando no cabe. El tope de seguridad deja de ser 240/960 caracteres y pasa a 600 palabras. Choca con el recorte a 240 caracteres y al primer parrafo de 16f ("The rest lives in the window", Sources/CompanionUI/Island/Data/IslandReplyPieces.swift:36). Tests que lo fijan: NotchTests.swift:156; IslandCardsTests.swift:29-55 y ConversationQualityVoiceTests.swift:86-92 y :229-230 (CompanionIntegrationTests) llaman a `IslandReplyText.spoken` y esperan solo el primer parrafo o la cadena filtrada; hay que revisarlos uno por uno.
+- K4. Tarjetas con cuenta atras. Recomendado: el anillo y el reloj de la sesion se pausan con el puntero encima y siguen donde iban; la tarjeta de dictado baja de los 12 s actuales al plazo de Incredible (local reference). Choca con `dictationCardDelay = 12` (SessionMachine.swift:30, marcado "Not measured" en su comentario) y con avisos que hoy no se pausan. Tests que lo fijan: Island16m4Tests.swift:39 (exige dictado mas largo que Completed; hay que revisar si sigue valiendo con los plazos de Incredible, y cambia si Completed desaparece como constante) y :46.
+- K5. Texto largo. Recomendado, alineado con el D4 de `isla-maquetacion-incredible`: la respuesta hablada entera hasta el tope de palabras de Incredible (descarta las primeras y refluye), todos sus parrafos, sin "…", dentro de una columna con el tope de alto de Incredible y desplazamiento vertical cuando no cabe. El tope de seguridad deja de ser 240/960 caracteres y pasa al de Incredible (local reference). Choca con el recorte a 240 caracteres y al primer parrafo de 16f ("The rest lives in the window", Sources/CompanionUI/Island/Data/IslandReplyPieces.swift:36). Tests que lo fijan: NotchTests.swift:156; IslandCardsTests.swift:29-55 y ConversationQualityVoiceTests.swift:86-92 y :229-230 (CompanionIntegrationTests) llaman a `IslandReplyText.spoken` y esperan solo el primer parrafo o la cadena filtrada; hay que revisarlos uno por uno.
 - K6. Tarjetas "Ver →". Recomendado: solo para respuestas que traen un resultado (tarjeta de datos, entregable), no una por cada respuesta pasada. Choca con 16c/16e "tarjetas de respuesta (3, Ver →)" (docs/specs/wave-16c-ux-como-incredible.md:89).
 - K7. Circulos punteados. Recomendado: las tres ranuras solo mientras corre un encargo, como la banda de agentes de Incredible, que no se ve sin agentes. Choca con 16f, que los copio de una grabacion como fijos (docs/specs/wave-16f-notch-y-motion.md:88). Ningun test pinta `IslandSlots`; solo PrimitivesTests.swift:50 usa su medida `slotSide`.
 - K8. Carrete de apps tocadas. Recomendado: un solo item a la vez (el ultimo), como el carrete de Incredible, y nunca un item vacio. Choca con la fila de chips de 16m-2. Tests que fijan `touched` y el chip (fix A1): Island16m2Tests.swift:85-130 (orden, reinicio por turno, tope de 12), IncredibleComponentsTests.swift:205-210 (fija `ReferentChipMetrics.maxWidth` = 230) y SelfInspectionTests.swift:80 y :506 (el espejo lee `touched`).
-- K9. Linea de estado al actuar. Incredible pinta "Thinking" tambien mientras ejecuta una herramienta y no nombra la app. Recomendado: "Pensando" como linea, y el nombre de la app pasa al item del carrete (K8), asi el dato no se pierde. Choca con la linea `.acting` que nombra el destino (Sources/CompanionUI/Island/IslandCopy.swift:23).
+- K9. Linea de estado al actuar. Incredible pinta la linea de pensar tambien mientras ejecuta una herramienta y no nombra la app. Recomendado: "Pensando" como linea, y el nombre de la app pasa al item del carrete (K8), asi el dato no se pierde. Choca con la linea `.acting` que nombra el destino (Sources/CompanionUI/Island/IslandCopy.swift:23).
 - K10. Etiqueta "Hablando". Recomendado: sin etiqueta cuando la isla ya muestra la frase que se dice; el orbe y la onda bastan. Choca con `island.speaking` que hoy se pinta junto a la onda.
-- K11. Alto maximo abierto. Incredible abre hasta 44 (barra) + 560 (columna) + 8 = 612 px; Companion recorta hoy la forma a 592 (lienzo 620 menos 28 de sombra, Sources/CompanionUI/Island/IslandChrome.swift:51). Opciones: agrandar el lienzo para que quepan 612 mas la sombra (igual a Incredible; recomendado), o dejar el lienzo y topar la columna en 592 menos la cabecera y el margen inferior. Las medidas finas son de `isla-maquetacion-incredible`.
+- K11. Alto maximo abierto. El alto abierto maximo de Incredible (local reference) es mayor que el de Companion, que recorta hoy la forma a 592 (lienzo 620 menos 28 de sombra, Sources/CompanionUI/Island/IslandChrome.swift:51). Opciones: agrandar el lienzo para que quepa el alto de Incredible mas la sombra (recomendado), o dejar el lienzo y topar la columna en 592 menos la cabecera y el margen inferior. Las medidas finas son de `isla-maquetacion-incredible`.
 
 No choca: la tarjeta de un ajuste (ajuste-en-la-isla) ya pide no contar con el puntero o el foco encima (docs/research/ajuste-en-la-isla.md:229), que es la misma regla de pausa de K4; su vida de 20 s no tiene equivalente en Incredible y se queda.
 
@@ -64,7 +64,7 @@ Contextos: app de release (IslandPanel, NSPanel no activante colgado del notch);
 - El titulo de cada tarjeta de resultado se corta a 60 caracteres con "…" [repo:Sources/CompanionCore/Island/IslandParts.swift:46]
 - Y ademas a una linea en la vista [repo:Sources/CompanionUI/Island/Data/IslandReplyPieces.swift:15]
 - El cuerpo de la isla no tiene ScrollView: el contenido se mide a su alto ideal [repo:Sources/CompanionUI/Island/IslandView.swift:153]
-- El alto de la forma se recorta al lienzo menos el espacio de sombra, 620 menos 28 = 592, menos que los 612 de Incredible [repo:Sources/CompanionUI/Island/IslandChrome.swift:51]
+- El alto de la forma se recorta al lienzo menos el espacio de sombra, 620 menos 28 = 592, menos que el alto abierto de Incredible [repo:Sources/CompanionUI/Island/IslandChrome.swift:51]
 - El repo ya tiene el patron de abrazar el contenido y desplazar solo pasado el tope, en el popup de respuesta rica [repo:Sources/CompanionUI/Island/Data/AnswerBlockViews.swift:33]
 
 ### C. Ciclo de abrir y cerrar
@@ -113,7 +113,7 @@ Contextos: app de release (IslandPanel, NSPanel no activante colgado del notch);
 - Pendiente, pensando, actuando y pegando llevan brillo [repo:Sources/CompanionUI/Island/IslandCopy.swift:78]
 - La respuesta se pinta en la barra mientras habla o al terminar con luz verde [repo:Sources/CompanionUI/Island/Work/IslandView+Status.swift:89]
 - Hablando se escribe "Hablando" junto a la onda [repo:Sources/CompanionUI/Island/IslandCopy.swift:24]
-- La transcripcion ya usa las dos tintas medidas de Incredible, 72 % y 94 % [repo:Sources/CompanionUI/Island/Work/IslandWorkPieces.swift:36]
+- La transcripcion ya usa las dos tintas medidas de Incredible (local reference) [repo:Sources/CompanionUI/Island/Work/IslandWorkPieces.swift:36]
 
 ## 3. Fuentes primarias
 
@@ -125,38 +125,26 @@ Contextos: app de release (IslandPanel, NSPanel no activante colgado del notch);
 
 ## 4. Implementaciones de referencia
 
-- Incredible 0.2.36 (Norditech, la referencia que Karen fija como minimo): la isla tiene cuatro estados, hidden, seed, cue y open [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:8]
-- Incredible abre la isla por actividad o interaccion: dictado, voz, menu, campo, envio, adjuntos en espera, puntero, o turno activo [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:9]
-- Incredible fuera de esa lista: cue con el puntero cerca, seed con agentes, si no hidden [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:11]
-- Incredible no abre la isla por trabajo de fondo: queda en seed con las barras de agentes [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:12]
-- Incredible mantiene abierta la isla 2 s tras un envio escrito, o hasta que cambie el turno [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:13]
-- Incredible: al terminar la respuesta corre un asentamiento de 200 ms con tick de 50 ms [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:14]
-- Incredible: el hover pausa el asentamiento y al salir le quedan al menos 1,5 s [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:15]
-- Incredible: con una tarjeta presente o expandida no corre el asentamiento [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:16]
-- Incredible: un turno nuevo cancela el asentamiento [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:17]
-- Incredible abre por hover tras 150 ms en la zona de abrir, 300 ms si el puntero va rapido [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:18]
-- Incredible baja de nivel tras 250 ms, con 300 ms de histeresis [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:19]
-- Incredible: tarjetas con cuenta atras de 6 s (pista y "no te oi"), 10 s (trabajo de fondo, uso) y 4,9 s (dictado) [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:24]
-- Incredible: el anillo de la cuenta atras es el boton de cerrar [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:25]
-- Incredible: el hover pausa el anillo y lo reanuda donde iba [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:26]
-- Incredible: la columna de la isla tiene tope de 560 px [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:30]
-- Incredible: las ranuras de conversacion y de tarjeta se desplazan en vertical dentro del tope [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:31]
-- Incredible: el texto hablado se pinta sin clamp ni puntos suspensivos [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:33]
-- Incredible: del texto hablado guarda solo las ultimas 600 palabras y el resto refluye [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:54]
-- Incredible: la barra mide 44 px en mac [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:55]
-- Incredible: el alto abierto maximo es 44 + 560 + 8 = 612 px [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:56]
-- Incredible: la transcripcion en vivo es una ventana de 4 lineas que desvanece el borde de arriba al desbordar [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:35]
-- Incredible usa puntos suspensivos solo en metadatos de una linea; el nombre de un adjunto va a 2 lineas [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:38]
-- Incredible: tres ranuras de tareas, las vacias como circulos punteados de 24 px [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:43]
-- Incredible: la banda de agentes no se ve ni recibe clics sin agentes [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:44]
-- Incredible: ejecutar una herramienta se pinta como "Thinking", sin nombrar la app [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:46]
-- Incredible: el carrete muestra un solo item y el cambio entra a los 650 ms [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:47]
-- Incredible: el campo de estado se sostiene al menos 600 ms [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:49]
-- Incredible: los resultados se apilan como tarjetas con datos y "Show →"; la voz apunta a la tarjeta [repo:docs/research/ux-incredible-vs-companion.md:144]
+- Incredible 0.2.36 (Norditech, la referencia que Karen fija como minimo): la isla tiene un conjunto cerrado de estados, de oculto a abierto [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible abre la isla por una lista cerrada de razones de actividad o interaccion (dictado, voz, menu, campo, envio, adjuntos en espera, puntero, turno activo); fuera de ella queda en reposo chico o cerrada [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible no abre la isla por trabajo de fondo: queda en reposo chico con las ranuras de tareas [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible sostiene la isla un plazo corto tras un envio escrito, o hasta que cambie el turno [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible: al terminar la respuesta corre un asentamiento breve; el hover lo pausa y al salir queda un piso; con una tarjeta presente o expandida no corre; un turno nuevo lo cancela [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible abre por hover tras una permanencia corta, mas larga si el puntero va rapido, y baja de nivel con histeresis [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible: las tarjetas con cuenta atras tienen plazos por tipo (pista y "no te oi", trabajo de fondo y uso, dictado, este el mas corto); el anillo es el boton de cerrar y el hover lo pausa y lo reanuda donde iba [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible: la columna de la isla tiene tope de alto y sus ranuras de conversacion y de tarjeta se desplazan en vertical dentro del tope [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible: el texto hablado se pinta sin clamp ni puntos suspensivos; guarda solo las ultimas palabras hasta un tope y el resto refluye [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible: el alto abierto maximo es la suma de barra, columna y un margen [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible: la transcripcion en vivo es una ventana de pocas lineas que desvanece el borde de arriba al desbordar [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible usa puntos suspensivos solo en metadatos de una linea; el nombre de un adjunto va a mas de una linea [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible: ranuras de tareas, las vacias como circulos punteados; la banda de agentes no se ve ni recibe clics sin agentes [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible: ejecutar una herramienta se pinta con la misma linea de pensar, sin nombrar la app [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible: el carrete muestra un solo item y el cambio entra con retardo; el campo de estado se sostiene un minimo antes de cambiar [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
+- Incredible: los resultados se apilan como tarjetas con acceso a verlos; la voz apunta a la tarjeta [repo:docs/research/ux-incredible-vs-companion.md:144]
 - boring.notch (app de notch para macOS, unas 10,9k estrellas, push 2026-10-02, codigo abierto): abre tras un hover minimo y cierra 100 ms despues de que el puntero sale, salvo que un popover lo retenga [ref:https://github.com/TheBoredTeam/boring.notch/blob/d58240cc160d5e54da1a8a5925e095d067a8e1e0/boringNotch/ContentView.swift#L513-L557@d58240cc160d5e54da1a8a5925e095d067a8e1e0]
 - boring.notch: el hover minimo por defecto es 0,3 s [ref:https://github.com/TheBoredTeam/boring.notch/blob/d58240cc160d5e54da1a8a5925e095d067a8e1e0/boringNotch/models/Constants.swift#L79@d58240cc160d5e54da1a8a5925e095d067a8e1e0]
 - boring.notch: cada aviso nuevo cancela y rearma el temporizador de retiro, 1,5 s por defecto [ref:https://github.com/TheBoredTeam/boring.notch/blob/d58240cc160d5e54da1a8a5925e095d067a8e1e0/boringNotch/BoringViewCoordinator.swift#L237-L259@d58240cc160d5e54da1a8a5925e095d067a8e1e0]
-- Donde boring.notch e Incredible difieren (cierre a 100 ms contra 250 ms; hover de 0,3 s contra 150/300 ms), manda Incredible por la directiva relayada de que Incredible es el minimo de Companion, sobre el pedido firmado de replicar el notch y el motion de Incredible [repo:docs/specs/wave-16f-notch-y-motion.md:3]; boring.notch solo confirma el patron (dwell al entrar, gracia al salir, rearmar el retiro)
+- Donde boring.notch e Incredible difieren (plazo de cierre y hover minimo), manda Incredible por la directiva relayada de que Incredible es el minimo de Companion, sobre el pedido firmado de replicar el notch y el motion de Incredible [repo:docs/specs/wave-16f-notch-y-motion.md:3]; boring.notch solo confirma el patron (dwell al entrar, gracia al salir, rearmar el retiro)
 
 ## 5. Opciones
 
@@ -172,7 +160,7 @@ B. Texto largo
 
 | Opcion | Pros | Contras | Complejidad | Recomendacion |
 |---|---|---|---|---|
-| B1. Respuesta entera hasta sus ultimas 600 palabras en una columna con tope de 560 y desplazamiento vertical solo pasado el tope | Es lo de Incredible; el patron ya existe en el popup rico; el tope de 600 palabras sigue acotando el costo | Cambiar NotchTests, IslandCardsTests y ConversationQualityVoiceTests; decidir K11 (612 contra 592) | media | Si |
+| B1. Respuesta entera hasta el tope de palabras de Incredible en una columna con tope de alto y desplazamiento vertical solo pasado el tope | Es lo de Incredible; el patron ya existe en el popup rico; el tope de palabras sigue acotando el costo | Cambiar NotchTests, IslandCardsTests y ConversationQualityVoiceTests; decidir K11 | media | Si |
 | B2. Seguir cortando y que "Ver" abra la ventana | Sin cambio | Es la queja de Karen; Incredible no corta | baja | No |
 | B3. Una frase por cuadro, como la linea de voz pasiva de Incredible | Sin desplazamiento | Incredible lo usa solo en modo pasivo; en la isla abierta pinta todo | media | No |
 
@@ -180,7 +168,7 @@ C. Abrir y cerrar
 
 | Opcion | Pros | Contras | Complejidad | Recomendacion |
 |---|---|---|---|---|
-| C1. Modelo de escena de Incredible: lista cerrada de razones para abrir; asentamiento 200 ms con pausa por hover y piso de 1,5 s; trabajo de fondo en reposo chico; tarjetas con anillo que se pausa | Medido; cada razon se puede probar en el reductor puro | Toca IslandState, SessionMachine y la vista; un tamano nuevo de reposo; cuatro tests de `completedDelay` | media | Si |
+| C1. Modelo de escena de Incredible: lista cerrada de razones para abrir; asentamiento corto con pausa por hover y piso; trabajo de fondo en reposo chico; tarjetas con anillo que se pausa | Medido; cada razon se puede probar en el reductor puro | Toca IslandState, SessionMachine y la vista; un tamano nuevo de reposo; cuatro tests de `completedDelay` | media | Si |
 | C2. Mantener el modelo y bajar tiempos | Diff chico | No arregla el encargo que deja la tarjeta abierta ni la pausa por hover | baja | No |
 | C3. Temporizador global de inactividad | Facil de explicar | No es lo de Incredible; cerraria una aprobacion o un campo con texto | baja | No |
 
@@ -188,21 +176,21 @@ D y E se resuelven con A, B y C mas las decisiones K6, K8, K9 y K10 (seccion 1).
 
 ## 6. Evidencia en contra
 
-- Contra el asentamiento de 200 ms: la respuesta se iria casi al callar la voz; se acepta porque el hover la retiene y le da 1,5 s al salir, y porque el hilo de la ventana es la via sin temporizador que WCAG pide para contenido que se retira solo [doc:https://www.w3.org/WAI/WCAG22/Understanding/timing-adjustable.html@WCAG2.2]
+- Contra el asentamiento corto: la respuesta se iria casi al callar la voz; se acepta porque el hover la retiene y le da un piso al salir, y porque el hilo de la ventana es la via sin temporizador que WCAG pide para contenido que se retira solo [doc:https://www.w3.org/WAI/WCAG22/Understanding/timing-adjustable.html@WCAG2.2]
 - La isla lee la respuesta del mismo hilo `chat.messages` que muestra la ventana, asi que lo que la isla retira no se pierde [repo:Sources/CompanionUI/Island/IslandView.swift:143]
-- Contra el texto entero en el notch: Apple pide que la presentacion expandida sea una version agrandada y predecible de la compacta, no un lector; se resuelve con el tope de 560 y desplazamiento, que es lo que hace Incredible [doc:https://developer.apple.com/tutorials/data/design/human-interface-guidelines/live-activities.json@HIG-2026]
-- Contra quitar el tope de 240: el tope tambien acotaba el costo por token del texto del modelo; se resuelve con el tope de Incredible, las ultimas 600 palabras, aplicado antes de limpiar [repo:Sources/CompanionUI/Island/Data/IslandReplyPieces.swift:49]
-- Contra el alto de Incredible: 612 no cabe en la forma de hoy, que se recorta a 592; se resuelve en K11 (agrandar el lienzo o topar la columna) [repo:Sources/CompanionUI/Island/IslandChrome.swift:51]
-- Contra mandar el encargo a reposo chico: la usuaria deja de ver el progreso sin pedirlo; se acepta porque Incredible hace eso y porque el hover o un pedido de atencion lo vuelven a abrir [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:12]
+- Contra el texto entero en el notch: Apple pide que la presentacion expandida sea una version agrandada y predecible de la compacta, no un lector; se resuelve con el tope de columna y desplazamiento, que es lo que hace Incredible [doc:https://developer.apple.com/tutorials/data/design/human-interface-guidelines/live-activities.json@HIG-2026]
+- Contra quitar el tope de 240: el tope tambien acotaba el costo por token del texto del modelo; se resuelve con el tope de palabras de Incredible, aplicado antes de limpiar [repo:Sources/CompanionUI/Island/Data/IslandReplyPieces.swift:49]
+- Contra el alto de Incredible: no cabe en la forma de hoy, que se recorta a 592; se resuelve en K11 (agrandar el lienzo o topar la columna) [repo:Sources/CompanionUI/Island/IslandChrome.swift:51]
+- Contra mandar el encargo a reposo chico: la usuaria deja de ver el progreso sin pedirlo; se acepta porque Incredible hace eso y porque el hover o un pedido de atencion lo vuelven a abrir [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
 - Contra pausar avisos con el puntero: una tarjeta podria quedarse para siempre con el puntero encima; ya pasa con el dictado y se acoto con un tope de 60 s, que sirve de patron [repo:Sources/CompanionCore/Session/SessionMachine+Dictation.swift:11]
-- Contra quitar los circulos: 16f los copio de una grabacion de Incredible, asi que Incredible si los tiene; se resuelve mostrandolos solo cuando Incredible muestra su banda, con agentes [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:44]
+- Contra quitar los circulos: 16f los copio de una grabacion de Incredible, asi que Incredible si los tiene; se resuelve mostrandolos solo cuando Incredible muestra su banda, con agentes [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
 
 ## 7. Ejemplares y anti-ejemplos
 
 - Bien hecho, en el repo: el popup abraza una respuesta corta y solo pasado el tope cambia a ScrollView con alto fijo; un ScrollView avido hacia que todo midiera el tope [repo:Sources/CompanionUI/Island/Data/AnswerBlockViews.swift:27]
 - Bien hecho, en el repo: un aviso nuevo cancela el reloj del anterior y arma el suyo [repo:Sources/CompanionUI/Voice/SessionModel.swift:123]
 - Bien hecho, fuera: boring.notch rearma el retiro en cada aviso nuevo y lo cancela al esconderse [ref:https://github.com/TheBoredTeam/boring.notch/blob/d58240cc160d5e54da1a8a5925e095d067a8e1e0/boringNotch/BoringViewCoordinator.swift#L237-L259@d58240cc160d5e54da1a8a5925e095d067a8e1e0]
-- Bien hecho, Incredible: la pausa reanuda donde iba y la salida del puntero garantiza un piso, en vez de reiniciar el reloj completo [repo:docs/research/evidence/incredible-0.2.36-isla-ciclo-2026-10-02.txt:15]
+- Bien hecho, Incredible: la pausa reanuda donde iba y la salida del puntero garantiza un piso, en vez de reiniciar el reloj completo [ref:incredible-ref/briefs/isla-ciclo-y-legibilidad.md@f5b635381a94]
 - Anti-ejemplo, en el repo: un chip con `maxWidth` y fondo detras del marco crece hasta el maximo aunque su texto este vacio [repo:Sources/CompanionUI/Island/Data/IslandAnswerPieces.swift:144]
 - Anti-ejemplo, en el repo: el corte con "…" despues de quedarse con un solo parrafo [repo:Sources/CompanionUI/Island/Data/IslandReplyPieces.swift:72]
 - Anti-ejemplo, en el repo: ranuras de tareas dibujadas sin tareas [repo:Sources/CompanionUI/Island/IslandView.swift:283]
@@ -211,7 +199,7 @@ D y E se resuelven con A, B y C mas las decisiones K6, K8, K9 y K10 (seccion 1).
 
 - Un `.frame(maxWidth:)` no es un tope pasivo: con espacio de sobra el marco se estira; el chip tiene que medir su texto [doc:https://developer.apple.com/tutorials/data/documentation/swiftui/view/frame(minwidth:idealwidth:maxwidth:minheight:idealheight:maxheight:alignment:).json@macOS26]
 - El contenido de la isla se mide con `fixedSize` vertical; un ScrollView sin alto explicito dentro de eso no da el alto esperado, por eso el patron del repo fija el alto al tope [repo:Sources/CompanionUI/Island/IslandView.swift:153]
-- La forma y el area de clics siguen el alto medido y se recortan a 592; con la columna de 560 de Incredible la forma pasaria de 592, y sin decidir K11 el fondo del texto queda fuera de la forma [repo:Sources/CompanionUI/Island/IslandChrome.swift:51]
+- La forma y el area de clics siguen el alto medido y se recortan a 592; con la columna de Incredible la forma pasaria de 592, y sin decidir K11 el fondo del texto queda fuera de la forma [repo:Sources/CompanionUI/Island/IslandChrome.swift:51]
 - Filtrar en la vista y no en el reductor deja la cadena vacia en `touched`, que la autoinspeccion lee [repo:Sources/CompanionCore/Session/SessionMachine.swift:98]
 - El reloj de la sesion y el anillo de la tarjeta son dos relojes: pausar solo el anillo deja que el aviso se vaya con el puntero encima [repo:Sources/CompanionUI/Voice/SessionModel.swift:126]
 - Con reduce motion la cuenta atras debe vencer por tiempo, no por el fin de una animacion; hoy el anillo se calcula del tiempo transcurrido y asi debe seguir [repo:Sources/CompanionUI/Island/Notices/IslandNoticeCard.swift:113]
@@ -232,17 +220,17 @@ D y E se resuelven con A, B y C mas las decisiones K6, K8, K9 y K10 (seccion 1).
 - Contexto CI, A1: IncredibleComponentsTests fija el maximo de 230 del chip [repo:Tests/CompanionUITests/IncredibleComponentsTests.swift:208]
 - Contexto CI, A1: SelfInspectionTests carga `touched` y lo espera en el espejo [repo:Tests/CompanionCoreTests/SelfInspectionTests.swift:80]
 - Contexto CI, K7: ningun test pinta `IslandSlots`; solo se fija su medida `slotSide` [repo:Tests/CompanionUITests/PrimitivesTests.swift:50]
-- La pista "no te oi" ya coincide con Incredible en 6 s; no tocarla al cambiar las demas vidas [repo:Sources/CompanionCore/Session/SessionMachine.swift:26]
+- La pista "no te oi" ya coincide con Incredible; no tocarla al cambiar las demas vidas [repo:Sources/CompanionCore/Session/SessionMachine.swift:26]
 
 ## 9. Incertidumbre
 
 - ASSUMPTION: no se sabe que regla dejo la isla abierta en la sesion de Karen (voz en manos libres escuchando, campo con foco, adjunto en espera o encargo corriendo). prueba: leer en el log de la app las lineas "island:" de la hora de las capturas y ver el ultimo tamano antes de quedarse fijo
 - ASSUMPTION: Incredible 0.2.36 muestra las tres ranuras punteadas solo con agentes; no se aislo el nodo donde se pintan. prueba: abrir Incredible sin tareas y mirar arriba a la derecha con hover; luego lanzar una tarea de fondo y mirar otra vez
-- ASSUMPTION: el asentamiento de 200 ms es lo que se ve; el backend nativo podria sostener Completed mas tiempo. prueba: grabar la pantalla con Incredible respondiendo por voz y medir del fin del audio al cierre
-- ASSUMPTION: Incredible no desplaza solo la columna para seguir la palabra dicha (cero resultados de scrollIntoView/scrollTo). prueba: pedirle una respuesta larga por voz y ver si la columna sigue a la voz
+- ASSUMPTION: el asentamiento medido es lo que se ve; el backend nativo podria sostener Completed mas tiempo. prueba: grabar la pantalla con Incredible respondiendo por voz y medir del fin del audio al cierre
+- ASSUMPTION: Incredible no desplaza solo la columna para seguir la palabra dicha (sin llamadas de desplazamiento programatico en el extracto). prueba: pedirle una respuesta larga por voz y ver si la columna sigue a la voz
 - ASSUMPTION: Incredible mantiene la isla abierta durante toda la escucha en manos libres. prueba: activar manos libres en Incredible y esperar 60 s en silencio
 - [NEEDS CLARIFICATION: con la isla desplazada por la usuaria, la columna sigue a la voz al llegar palabras nuevas o se queda donde ella la dejo? Recomendado: seguir a la voz solo si estaba al final, como un terminal.]
-- [NEEDS CLARIFICATION: K11, alto abierto: agrandar el lienzo para los 612 de Incredible mas la sombra (recomendado), o dejar el lienzo de 620 y topar la columna en 592 menos la cabecera y el margen inferior?]
+- [NEEDS CLARIFICATION: K11, alto abierto: agrandar el lienzo para el alto de Incredible mas la sombra (recomendado), o dejar el lienzo de 620 y topar la columna en 592 menos la cabecera y el margen inferior?]
 
 ## 10. Checklist de estandar
 
@@ -251,24 +239,24 @@ D y E se resuelven con A, B y C mas las decisiones K6, K8, K9 y K10 (seccion 1).
 - [ ] A: el ancho de un chip es el de su texto mas su padding (5 + 7), y nunca pasa de 230.
 - [ ] A/K7: sin encargo, la cabecera derecha no pinta ranuras; con un encargo, tres ranuras y la primera gira.
 - [ ] B: una respuesta hablada de 1.200 caracteres en tres parrafos se pinta entera, sin "…".
-- [ ] B: una respuesta de 700 palabras pinta solo las ultimas 600; ese tope se aplica antes de limpiar el texto.
-- [ ] B: con contenido de la columna hasta 560 pt no hay ScrollView y la forma abraza el contenido; pasado 560 la columna mide 560 y se desplaza en vertical.
-- [ ] B/K11: la forma abierta llega al alto que Karen firme en K11 (612 como Incredible, o el tope reducido) y el texto nunca queda fuera de la forma.
-- [ ] B: la transcripcion en vivo muestra hasta 4 lineas, la mas nueva abajo, y desvanece los 20 pt de arriba al desbordar.
+- [ ] B: una respuesta mas larga que el tope de palabras de Incredible pinta solo las ultimas palabras hasta ese tope; el tope se aplica antes de limpiar el texto.
+- [ ] B: con contenido de la columna hasta el tope de Incredible no hay ScrollView y la forma abraza el contenido; pasado el tope la columna mide el tope y se desplaza en vertical.
+- [ ] B/K11: la forma abierta llega al alto que Karen firme en K11 (el de Incredible, o el tope reducido) y el texto nunca queda fuera de la forma.
+- [ ] B: la transcripcion en vivo muestra la ventana de lineas de Incredible, la mas nueva abajo, y desvanece el borde de arriba al desbordar.
 - [ ] B: los puntos suspensivos solo quedan en titulos y metadatos de una linea y en el nombre de adjunto (2 lineas).
 - [ ] C: cerrado = `.hidden` o `.pebble`; en idle, sin puntero, sin campo con foco ni borrador, sin adjuntos, sin aviso, sin hoja y sin turno, la isla esta cerrada.
-- [ ] C: el hover abre tras 150 ms de permanencia (300 ms si el puntero va a mas de 450 pt/s) y, al salir sin otra razon, cierra a los 250 ms.
-- [ ] C: al terminar la respuesta (voz callada, sin herramienta ni turno) la isla sigue abierta 200 ms y se cierra.
-- [ ] C: con el puntero sobre el panel, ese plazo no corre; al salir quedan max(lo que quedaba, 1,5 s).
-- [ ] C: press, escucha, pensar, actuar, hablar o un envio escrito cancelan el plazo y abren; un envio escrito sostiene la isla 2 s o hasta que empiece el turno.
+- [ ] C: el hover abre tras la permanencia de Incredible (mas larga si el puntero va rapido) y, al salir sin otra razon, cierra con su histeresis (valores en la referencia local).
+- [ ] C: al terminar la respuesta (voz callada, sin herramienta ni turno) la isla sigue abierta el asentamiento de Incredible (referencia local) y se cierra.
+- [ ] C: con el puntero sobre el panel, ese plazo no corre; al salir queda como minimo el piso de Incredible (referencia local).
+- [ ] C: press, escucha, pensar, actuar, hablar o un envio escrito cancelan el plazo y abren; un envio escrito sostiene la isla el plazo de Incredible o hasta que empiece el turno.
 - [ ] C/K2: un encargo corriendo sin turno de la usuaria no pinta `.card`; el hover lo abre y un pedido de atencion (aprobacion) lo abre.
-- [ ] C/K4: "no te oi" y la pista viven 6 s; el aviso de trabajo de fondo 10 s; la tarjeta de dictado 4,9 s.
+- [ ] C/K4: "no te oi" y la pista viven 6 s; el aviso de trabajo de fondo y la tarjeta de dictado viven los plazos de Incredible (referencia local).
 - [ ] C/K4: el puntero encima pausa el anillo y el reloj de la sesion; al salir sigue donde iba, sin reiniciar; un aviso nuevo arma su propio reloj completo.
 - [ ] C: con reduce motion los avisos vencen en el mismo tiempo.
 - [ ] Tests: el PR que implemente K1/K4/K5/A1 actualiza SessionMachineTests:152 y :426, Island16m4Tests:39 y :46, Island16m4ReviewTests:28, NotchTests:156, IslandCardsTests, ConversationQualityVoiceTests, Island16m2Tests, IncredibleComponentsTests y SelfInspectionTests, y corre CompanionIntegrationTests ademas de los targets unitarios.
 - [ ] D/K6: una respuesta sin resultado no genera tarjeta "Ver →".
-- [ ] E: la linea de estado no cambia antes de 600 ms de mostrarse.
-- [ ] E/K8: el carrete muestra un solo item; un item nuevo entra a los 650 ms del cambio.
+- [ ] E: la linea de estado se sostiene el minimo de Incredible (referencia local) antes de cambiar.
+- [ ] E/K8: el carrete muestra un solo item; un item nuevo entra con el retardo de Incredible (referencia local).
 - [ ] E/K9-K10: mientras actua la linea dice "Pensando"; mientras la frase dicha esta en pantalla no se escribe "Hablando".
 - [ ] Medidas de pixeles y curvas: las de `isla-maquetacion-incredible` e `isla-motion-incredible`.
 
@@ -276,7 +264,7 @@ D y E se resuelven con A, B y C mas las decisiones K6, K8, K9 y K10 (seccion 1).
 
 | n | Titulo | Editor | Version o fecha | Consultado | Confianza |
 |---|---|---|---|---|---|
-| 1 | Incredible.app, assets del overlay (copia duradera en Desktop/incredible-ref/frontend-0.2.36) | Norditech, binario instalado | 0.2.36 | 2026-10-02 | high (reglas leidas; geometria de zonas no) |
+| 1 | Incredible.app 0.2.36, extractos del overlay (solo en la referencia local, no se publican) | Norditech, binario instalado | 0.2.36 | 2026-10-02 | high (reglas leidas; geometria de zonas no) |
 | 2 | frame(minWidth:idealWidth:maxWidth:...) | Apple, SwiftUI | macOS 26 | 2026-10-02 | high |
 | 3 | defaultScrollAnchor(_:) | Apple, SwiftUI | macOS 14+ | 2026-10-02 | high |
 | 4 | HIG, Live Activities | Apple | 2026 | 2026-10-02 | medium (iPhone; macOS sin guia de notch) |
