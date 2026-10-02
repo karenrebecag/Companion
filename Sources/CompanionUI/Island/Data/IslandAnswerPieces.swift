@@ -94,7 +94,7 @@ package enum ReferentLine {
     package static func parts(_ targets: [String], language: AppLanguage)
         -> (verb: String, referents: [String])
     {
-        let referents = targets.filter { !$0.isEmpty }
+        let referents = targets.filter(ParentTool.names)
         guard !referents.isEmpty else {
             return (ParentToolCopy.acting([], language), [])
         }
@@ -141,11 +141,41 @@ struct ReferentChip: View {
             .padding(.leading, ReferentChipMetrics.paddingLeading)
             .padding(.trailing, ReferentChipMetrics.paddingTrailing)
             .padding(.vertical, ReferentChipMetrics.paddingY)
-            .frame(maxWidth: ReferentChipMetrics.maxWidth, alignment: .leading)
+            .modifier(HugsUpTo(maxWidth: ReferentChipMetrics.maxWidth))
             .background(RoundedRectangle(cornerRadius: ReferentChipMetrics.radius)
                 .fill(tint.opacity(ReferentChipMetrics.fill)))
             .overlay(RoundedRectangle(cornerRadius: ReferentChipMetrics.radius)
                 .strokeBorder(tint.opacity(ReferentChipMetrics.stroke), lineWidth: Stroke.hairline))
+    }
+}
+
+/// `frame(maxWidth:)` takes whatever it is offered up to the cap, so a
+/// short chip in a wide row grew to the cap. This takes the content's own
+/// width, never more than the offer or the cap. A truncated label measures
+/// a few points under its offer, so a long chip takes the limit outright.
+private struct HugsUpTo: ViewModifier {
+    let maxWidth: CGFloat
+
+    func body(content: Content) -> some View {
+        CappedWidth(maxWidth: maxWidth) { content }
+    }
+}
+
+private struct CappedWidth: Layout {
+    let maxWidth: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        let limit = min(proposal.width ?? maxWidth, maxWidth)
+        let width = min(content.sizeThatFits(.unspecified).width, limit)
+        let height = content.sizeThatFits(ProposedViewSize(width: width, height: proposal.height)).height
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(
+            at: bounds.origin, anchor: .topLeading,
+            proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
     }
 }
 
