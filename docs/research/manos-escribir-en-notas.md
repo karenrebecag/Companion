@@ -1,6 +1,6 @@
 # Reference Brief: las manos no crean una nota nueva en Notas
 
-Slug: manos-escribir-en-notas | Nivel: quick | Fecha: 2026-10-02 | Estado: ESCALADO
+Slug: manos-escribir-en-notas | Nivel: quick | Fecha: 2026-10-02 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-02 ESCALATE
 
@@ -176,3 +176,5 @@ Contextos: app instalada, voz clasica (cerebro cerebras/gpt-oss-120b por la capa
 | 8 | Companion.log, turnos 2026-09-28 y 2026-10-02 | maquina de Karen | 2026-10-02 | 2026-10-02 | high |
 | 9 | Spec cerrada wave-15g-manos.md en ab1637a | companion-next | ab1637a | 2026-10-02 | high |
 | 10 | Prototipo companion | companion | b8a4fd0 | 2026-10-02 | high (ausencia de manos) |
+
+[KAREN:chat 2026-10-02] Confirmo la directiva con mis palabras: si Incredible lo hace, Companion lo hace; Incredible es el minimo. (D1) Si: no_focused_field y el prompt enrutan a menu. (D2) Si: look ve la barra de herramientas antes que las listas largas, midiendo que Chrome no empeore. (D3) Si, revierto 15g: press_key acepta acordes resueltos contra la barra de menus y pulsados por AXPress bajo el gate de menu; acorde sin item pide hoja; acordes de sistema negados siempre; requiere ADR antes del codigo. (D4) Si: familia destructiva nueva quit/close, hoja salvo que yo lo haya dicho. (D5) ApprovalRisk sigue en high.
