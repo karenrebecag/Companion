@@ -1,0 +1,6 @@
+# Lectura solo-lectura de /Applications/Incredible.app (CFBundleShortVersionString 0.2.36), 2026-10-02, para el brief isla-motion-incredible
+# Contents/Resources solo trae _up_ (python-kernel, wake-word), ffmpeg-runtime, python-runtime y app-icon-macos.icns: ningun .css ni .js suelto
+grep -a -c "cubic-bezier" Contents/MacOS/incredible -> 0 (el CSS no esta en texto plano: va comprimido dentro del binario)
+grep -a -o "overlay-*.(css|js)" Contents/MacOS/incredible -> overlay-CkZPSNkG.css, overlay-DstkIEbM.js (los mismos nombres que citan los briefs previos)
+grep -a -o "@keyframes NAME" Contents/MacOS/incredible -> sin resultados
+# La extraccion previa (scratchpad/inc de otra sesion) ya no existe: la carpeta js esta vacia. Este brief no descomprimio nada (fuera de los comandos permitidos al agente)
