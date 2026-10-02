@@ -41,10 +41,12 @@ extension ClassicRuntime {
     /// needs: one assistant turn with every call, one answer per call — or
     /// the model repeats the action it does not know it took. Touches the
     /// ports (tools, thread, events) but never the runtime's turn state.
+    /// `onParked` hears each sheet right before it shows; nil leaves the
+    /// guard exactly as `check` runs it.
     func actRound(
         _ calls: [ToolCallRef], said text: String, heard: String,
         using parentTools: any ParentToolExecuting, language: AppLanguage,
-        unverified: [TypedAttempt]
+        unverified: [TypedAttempt], onParked: (@Sendable (ApprovalRequest) -> Bool)? = nil
     ) async -> ActedRound {
         var turns = [Turn(role: .assistant, content: text, toolCalls: calls)]
         var cards: [Card] = []
@@ -62,8 +64,8 @@ extension ClassicRuntime {
             }
             // A URL the user did not say waits for the sheet (10c 3D).
             let outcome: ParentToolOutcome
-            if let denied = await parentGuard.check(
-                call, said: heard, language: language, tools: parentTools) {
+            if let denied = await parentGuard.verdict(
+                call, said: heard, language: language, tools: parentTools, parked: onParked).denial {
                 outcome = denied
             } else if Task.isCancelled {
                 // The guard's other awaits (binding, memory) are cut points

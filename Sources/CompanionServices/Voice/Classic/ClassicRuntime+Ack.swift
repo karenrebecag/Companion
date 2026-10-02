@@ -1,10 +1,14 @@
 import CompanionCore
 import Foundation
 
-/// Which of the two racers in `actAcknowledging` answered first.
+/// What the racers in `actAcknowledging` report.
 private enum ToolRace: Sendable {
     case done(ClassicRuntime.ActedRound)
     case slow
+    /// A sheet of the round is about to show.
+    case parked
+    /// The round ended first: there is no rest to undo.
+    case quiet
 }
 
 /// Wave 16h-2 (criterion 1): the turn's own line before work the user would
@@ -53,44 +57,68 @@ extension ClassicRuntime {
     }
 
     /// `act`, raced against `slowToolWait`: a round still running when the
-    /// wait ends is acknowledged while it keeps running. Structured, so a
-    /// press that cuts the turn cancels both racers.
+    /// wait ends is acknowledged while it keeps running. A round whose sheet
+    /// shows rests the turn, so the question can be asked in the gap, and
+    /// takes the voice back when it ends (classic-spoken-yes-parent-sheet).
+    /// Structured, so a press that cuts the turn cancels every racer.
     func actAcknowledging(
         _ calls: [ToolCallRef], said text: String, heard: String,
         using parentTools: any ParentToolExecuting, language: AppLanguage,
         _ mouth: inout TurnMouth, apply: @escaping @Sendable (TurnEvent) async -> Void
     ) async -> [Turn] {
-        guard Acknowledgement.isNeeded(saidSoFar: mouth.said), let first = calls.first else {
-            return await act(
-                calls, said: text, heard: heard, using: parentTools, language: language, &mouth)
-        }
+        let line = Acknowledgement.isNeeded(saidSoFar: mouth.said)
+            ? calls.first.map { Acknowledgement.working(tool: $0.name, language) } : nil
         let wait = slowToolWait
-        let line = Acknowledgement.working(tool: first.name, language)
         let unverified = mouth.unverifiedTyped
+        let (parks, parkSink) = AsyncStream.makeStream(of: Void.self, bufferingPolicy: .bufferingNewest(1))
+        var rested = false
         let round = await withTaskGroup(of: ToolRace.self) { group -> ActedRound? in
             group.addTask {
                 .done(await self.actRound(
                     calls, said: text, heard: heard, using: parentTools, language: language,
-                    unverified: unverified))
+                    unverified: unverified, onParked: { _ in
+                        parkSink.yield()
+                        return true
+                    }))
             }
+            // One park per round is enough: the turn stays at rest until the
+            // round ends, so its later sheets are asked in the same gap.
             group.addTask {
-                await wait()
-                return .slow
+                for await _ in parks { return .parked }
+                return .quiet
+            }
+            if line != nil {
+                group.addTask {
+                    await wait()
+                    return .slow
+                }
             }
             var round: ActedRound?
             for await result in group {
                 switch result {
                 case .done(let done):
                     round = done
+                    parkSink.finish()
                     group.cancelAll()
-                case .slow:
+                case .parked:
                     guard round == nil, !Task.isCancelled else { continue }
+                    await apply(.sheetParked)
+                    rested = await isTurnParked?() ?? false
+                case .slow:
+                    // At rest the gap is the question's: a line now would
+                    // talk over it.
+                    guard round == nil, !rested, !Task.isCancelled, let line else { continue }
                     await acknowledge(line, &mouth, apply: apply)
+                case .quiet:
+                    continue
                 }
             }
             return round
         }
-        // Folded in here, after both racers ended: the round never writes the
+        // A cut turn's mark is already gone, and a new turn's park is not
+        // this one's to end.
+        if rested, !Task.isCancelled { await apply(.sheetResumed) }
+        // Folded in here, after the racers ended: the round never writes the
         // turn's state while the acknowledgement reads it.
         guard let round else { return [] }
         Self.absorb(round, into: &mouth)

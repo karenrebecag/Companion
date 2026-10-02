@@ -31,6 +31,9 @@ final class ClassicRuntime: @unchecked Sendable {
     /// she said, not against what the model claims she said. Empty when
     /// nothing was heard.
     var onHeard: (@Sendable (String, TimeInterval?) async -> Void)?
+    /// Whether the reducer let the turn rest on its parent's sheet. Only it
+    /// knows: hands-free and typed turns are refused the rest.
+    var isTurnParked: (@Sendable () async -> Bool)?
     var screen: (any ScreenSeeing)?
     /// Wave 15b-5: `sensor.sense(...)` started at press (`VoiceSessionFanOut`),
     /// so `senseVoice` reads an already-finished Task at commit instead of
