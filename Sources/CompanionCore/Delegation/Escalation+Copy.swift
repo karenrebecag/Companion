@@ -236,6 +236,15 @@ extension Escalation {
         }
     }
 
+    /// classic-spoken-yes-parent-sheet D3: a spoken no gets its own line,
+    /// not the interruption notice. Proposed copy; Karen decides it.
+    package static func approvalRefusedSpoken(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "Okay, I won't do it."
+        case .es: return "Vale, no lo hago."
+        }
+    }
+
     /// 16q-1: the whole question, in one sentence and nothing from the
     /// request in it: the card shows what would run (Incredible's voice says
     /// a line and its card carries the detail).
