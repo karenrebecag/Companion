@@ -103,6 +103,9 @@ package struct JobAnnouncement: Sendable, Equatable {
         case failed(reason: String)
         /// 16q-1: the voice asks a job's permission; the card has the detail.
         case asking(requestId: String)
+        /// A spoken answer the voice may not give: the sheet waits for the
+        /// click (classic-spoken-yes-parent-sheet D1 a).
+        case needsClick
     }
 
     package var goal: String
@@ -126,6 +129,7 @@ package struct JobAnnouncement: Sendable, Equatable {
             return Escalation.jobFailedAnnouncement(
                 goal, reason: Escalation.resultSummary(reason), language)
         case .asking: return Escalation.approvalAskedSpoken(language)
+        case .needsClick: return Escalation.approvalNeedsClickSpoken(language)
         }
     }
 
@@ -135,6 +139,7 @@ package struct JobAnnouncement: Sendable, Equatable {
         case .done: return Escalation.jobDoneSpoken(language)
         case .failed: return Escalation.jobFailedSpoken(language)
         case .asking: return Escalation.approvalAskedSpoken(language)
+        case .needsClick: return Escalation.approvalNeedsClickSpoken(language)
         }
     }
 
@@ -142,7 +147,7 @@ package struct JobAnnouncement: Sendable, Equatable {
     package var summarySource: String? {
         let text: String
         switch outcome {
-        case .queued, .asking: return nil
+        case .queued, .asking, .needsClick: return nil
         case .done(let result): text = result
         case .failed(let reason): text = reason
         }

@@ -78,6 +78,10 @@ package actor VoiceSession: VoiceControlling {
     var droppedAnnouncements = 0
     /// Written by VoiceSessionApprovals.
     var pendingApproval: ApprovalRequest?
+    /// The parent sheet a classic turn rests on, and the one this hold
+    /// answers (decided at its press): only those two make a press an answer.
+    var parkedParentApproval: String?
+    var answeringSheet: String?
     /// Remote MCP tools waiting on the sheet (9j-3, 16q-1). Answered over
     /// the websocket, not through the job runner; only a click approves it.
     /// Written by VoiceSessionApprovals.
@@ -329,10 +333,7 @@ package actor VoiceSession: VoiceControlling {
             approvals: approvals,
             onRequest: { [weak self] request in
                 eventBox.yield(.job(.approvalRequested(request)))
-                Task { [weak self] in
-                    await self?.noteApproval(request)
-                    await self?.askApprovalAloud(request)
-                }
+                Task { [weak self] in await self?.noteParentApproval(request) }
             },
             onRemembered: { name, approved in
                 await presenter.appendStatus(ParentToolCopy.remembered(
