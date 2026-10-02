@@ -62,20 +62,28 @@ private func bridge(_ tools: FakeParentTools) -> BridgeSession {
         token: { "tok" }, language: { .en }, accessibility: { true })
 }
 
+/// Self-qa PR-3: the third runner the bridge composes, the read-only
+/// `companion_*` family.
+private func selfInspection() -> SelfInspectionRunner {
+    SelfInspectionRunner(source: FakeSelfInspecting(), language: { .en }, equalityLimit: EqualityLimitBox())
+}
+
 /// The guard. When it fails, a tool was added to the runner without a
 /// decision about the bridge: put it in `BridgeScope.bridgeTools` if an
 /// outside agent may drive it, or in `BridgeScope.localOnly` if not.
 @Test @MainActor func everyToolTheRunnerOffersHasABridgeDecision() {
-    let offered = Set(fullRunner().specs(.en).map(\.name))
+    let served = Set(fullRunner().specs(.en).map(\.name))
         .union(connectedBrowser().specs(.en).map(\.name))
+        .union(selfInspection().specs(.en).map(\.name))
+    let offered = served
         .union(BrowserTool.allCases.map(\.rawValue))
         .union(ParentTool.allCases.map(\.rawValue))
+        .union(CompanionTool.allCases.map(\.rawValue))
         .union(NativeTool.parentDeliverables.map(\.rawValue))
     let undecided = offered.filter { !BridgeScope.decided($0) }
     expect(undecided.isEmpty,
            "tools with no bridge decision (allowlist or local-only): \(undecided.sorted())")
-    expect(Set(fullRunner().specs(.en).map(\.name)).union(connectedBrowser().specs(.en).map(\.name))
-            .isSuperset(of: BridgeScope.bridgeTools),
+    expect(served.isSuperset(of: BridgeScope.bridgeTools),
            "a fully backed runner offers every allowlisted tool (the guard is not vacuous)")
 }
 
@@ -94,6 +102,9 @@ private func bridge(_ tools: FakeParentTools) -> BridgeSession {
         // 18b adds open, take and release (take asks a sheet on the bridge).
         "browser_tabs", "browser_read", "browser_click", "browser_type", "browser_navigate",
         "browser_open", "browser_take", "browser_release",
+        // Self-qa PR-3: added deliberately, read-only, behind the same sheet.
+        "companion_state", "companion_island", "companion_settings", "companion_thread",
+        "companion_last_message_matches", "companion_log",
     ]
     expectEq(BridgeScope.bridgeTools, expected, "the allowlist is exactly the tools the bridge serves")
     for name in expected.sorted() {

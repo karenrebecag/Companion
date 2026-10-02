@@ -248,3 +248,10 @@ Reutilizado (2026-10-01) por feat/self-qa-runner (PR-2 de la spec self-qa-inspec
 - no pide hoja propia (`approval` por defecto, nil);
 - devuelve `target` vacio (R6);
 - topa el nombre que declara el agente al mismo largo que el puente usa al registrarlo.
+
+Reutilizado (2026-10-02) por feat/self-qa-allowlist (PR-3 de la spec self-qa-inspeccion, sobre main). Las seis `companion_*` entran al puente aplicando D3, R2 y R5-R7 tal cual, sin investigar nada nuevo:
+- entran por nombre en `BridgeScope.bridgeTools` y en `BridgePolicy.readTools` (R5): gastan del presupuesto de lectura y nunca cuentan como accion;
+- la primera de una conexion abre la misma hoja de sesion, y si se deniega no corre nada (R7);
+- la puerta las ve con `said: ""` (R2);
+- la linea `Log.bridge` lleva `target=` vacio (R6);
+- con Companion al frente responden, y las manos siguen devolviendo `self_in_front` (D3).

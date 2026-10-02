@@ -81,6 +81,10 @@ package enum BridgeScope {
         // connected extension. Tabs and read are reads; the rest are writes.
         "browser_tabs", "browser_read", "browser_click", "browser_type", "browser_navigate",
         "browser_open", "browser_take", "browser_release",
+        // Self-qa PR-3 (ADR 009): Companion lets an agent inspect it, read
+        // only and behind the same session sheet; it never lends the hands.
+        "companion_state", "companion_island", "companion_settings", "companion_thread",
+        "companion_last_message_matches", "companion_log",
     ]
 
     /// Offered to the user by the parent, never lent over the bridge. The
