@@ -17,8 +17,9 @@ package nonisolated enum IslandChoiceMetrics {
     /// Own value (not measured): an option that can no longer be picked.
     package static let unavailableAlpha = 0.45
     /// Own value: composer, reply and a two-line question take ~330 of the
-    /// 592 pt the shape can grow to, so past this the list scrolls inside the
-    /// card instead of pushing the field off the canvas.
+    /// height the shape can grow to (`IslandChrome.canvasHeight` less the
+    /// shadow), so past this the list scrolls inside the card instead of
+    /// pushing the field off the canvas.
     package static let listMaxHeight: CGFloat = 260
 
     /// 340-440 is a clamp on what the words ask for, capped by the room.

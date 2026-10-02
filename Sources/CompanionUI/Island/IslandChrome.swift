@@ -24,7 +24,10 @@ package enum IslandChrome {
     /// and the canvas must hold it with margin. Clicks still pass through
     /// everywhere but the shape, the dropdown and the popup.
     package static let canvasWidth: CGFloat = 620
-    package static let canvasHeight: CGFloat = 620
+    /// Tall enough for Incredible's whole column under the tallest band the
+    /// island draws, so the shape never cuts the end of a reply (K11, brief
+    /// isla-ciclo-y-legibilidad). Derived, so moving any part moves it.
+    package static let canvasHeight: CGFloat = bandRoom + columnGaps + columnCap + shadowRoom
     /// Below the shape's bottom edge the shadow needs somewhere to fall.
     static let shadowRoom: CGFloat = 28
 
@@ -40,6 +43,9 @@ package enum IslandChrome {
 
     /// Incredible's column cap (local reference).
     package static let columnCap: CGFloat = 560
+    /// Incredible's band height (local reference). Real notches and menu
+    /// bars are shorter, so the canvas sized for it holds any of them.
+    package static let bandRoom: CGFloat = 44
     /// The shell's spacing under the band and its bottom padding. Named here
     /// so the shell and the column cap read the same values.
     package static let shellSpacing: CGFloat = Space.x2
@@ -48,8 +54,8 @@ package enum IslandChrome {
 
     /// The one place the column's height is capped: never past Incredible's
     /// cap, and never taller than the shape can hold under the band, so the
-    /// end of a reply is never cut off by the shape. Growing the canvas
-    /// (K11, brief isla-ciclo-y-legibilidad) lifts it here alone.
+    /// end of a reply is never cut off by the shape. A band taller than
+    /// `bandRoom` gives up column height here instead of overflowing.
     package static func columnMaxHeight(bandHeight: CGFloat) -> CGFloat {
         min(columnCap, canvasHeight - shadowRoom - bandHeight - columnGaps)
     }
