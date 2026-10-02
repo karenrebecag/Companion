@@ -48,6 +48,8 @@ package struct TurnMachine: Sendable, Equatable {
         case .holdReleased(let hasSpeech): return holdReleased(hasSpeech)
         case .holdDiscarded: return holdDiscarded()
         case .interrupt: return interrupt()
+        case .sheetParked: return sheetParked()
+        case .sheetResumed: return sheetResumed()
         }
     }
 }
@@ -134,14 +136,22 @@ extension TurnMachine {
             // nothing is about to hold this mic: it ends the same way a
             // hold now ends idle after its reply, torn down, not relistening.
             // A stop is not a change of course: no steer note (R3).
-            guard snapshot.pipeline == .realtime else {
-                return [.cancelAgentOutput(steer: false)] + hangUp()
-            }
+            guard snapshot.pipeline == .realtime else { return stopClassicTurn() }
             snapshot.state = .listening
             return [.cancelAgentOutput(steer: false)]
         case .idle, .error, .connecting, .listening:
-            return []
+            // The parked turn is still alive behind the rest, an answer hold
+            // or a failure: a stop must reach it, or the sheet's denial lets
+            // it go on to the model (#87).
+            guard snapshot.sheetParked else { return [] }
+            return stopClassicTurn()
         }
+    }
+
+    private mutating func stopClassicTurn() -> [TurnEffect] {
+        let effects = [TurnEffect.cancelAgentOutput(steer: false)] + hangUp()
+        snapshot.sheetParked = false
+        return effects
     }
 
     /// Classic `.thinking`/`.speaking` cut short by a press or an interrupt
@@ -150,6 +160,7 @@ extension TurnMachine {
     /// in, so `ClassicRuntime.submit` never races a fresh hold.
     private mutating func cutClassicTurn() -> [TurnEffect] {
         snapshot.interruptionPending = true
+        snapshot.sheetParked = false
         snapshot.state = .listening
         return [.cancelAgentOutput(steer: true), .requestClassicListen]
     }
@@ -192,16 +203,18 @@ extension TurnMachine {
         }
     }
 
+    /// Hang-ups and failures stop the mic and the speaker, never the turn
+    /// task: a parked turn outlives them, so its mark does too.
     private mutating func hangUp() -> [TurnEffect] {
         let effects = teardownEffects()
-        snapshot = .idle
+        snapshot = TurnSnapshot(sheetParked: snapshot.sheetParked)
         return effects
     }
 
     private mutating func fail(_ reason: TurnFailure) -> [TurnEffect] {
         var effects: [TurnEffect] = [.noteFailure(reason)]
         effects += teardownEffects()
-        snapshot = TurnSnapshot(state: .error, failure: reason)
+        snapshot = TurnSnapshot(state: .error, failure: reason, sheetParked: snapshot.sheetParked)
         return effects
     }
 
@@ -211,7 +224,8 @@ extension TurnMachine {
         effects.append(.requestClassicListen)
         let kept = snapshot.inConversation
         snapshot = TurnSnapshot(
-            state: .listening, pipeline: .classic, inConversation: kept, failure: reason)
+            state: .listening, pipeline: .classic, inConversation: kept, failure: reason,
+            sheetParked: snapshot.sheetParked)
         return effects
     }
 
@@ -231,12 +245,15 @@ extension TurnMachine {
         snapshot.typedTurn = typed
         snapshot.streamingStarted = false
         snapshot.awaitingExecutor = false
+        snapshot.sheetParked = false
         return [.submitUtterance]
     }
 
     private mutating func startVoice(_ preferRealtime: Bool) -> [TurnEffect] {
         guard snapshot.state == .idle || snapshot.state == .error else { return [] }
-        guard preferRealtime else {
+        // A press over a parked classic turn stays classic: a realtime
+        // session would route the stop's cancel to itself, not to that turn.
+        guard preferRealtime, !snapshot.sheetParked else {
             snapshot.classicListenPending = true
             snapshot.failure = nil
             return [.requestClassicListen]
@@ -337,6 +354,7 @@ extension TurnMachine {
         guard EchoGuard.isRealInterruption(heard: heard, agentSaying: agentSaying)
         else { return [] }
         snapshot.interruptionPending = true
+        snapshot.sheetParked = false
         snapshot.state = .listening
         return [.cancelAgentOutput(steer: true)]
     }
@@ -356,22 +374,58 @@ extension TurnMachine {
         // mic `submit()` never stopped — MicCapture.startOnce() then
         // installed a second tap on the still-running engine and crashed
         // (live 2026-09-23).
-        if snapshot.typedTurn || snapshot.holdArmed {
-            let effects = snapshot.holdArmed ? teardownEffects() : []
-            snapshot.typedTurn = false
-            snapshot.holdArmed = false
-            // The conversation this reply belonged to was a hold's: the next
-            // failure must not take the hands-free recover path.
-            snapshot.inConversation = false
-            snapshot.state = .idle
-            snapshot.pipeline = nil
-            snapshot.speechOpen = false
-            snapshot.echoGuardUntil = 0
-            return effects
-        }
+        if snapshot.typedTurn || snapshot.holdArmed { return rest() }
         snapshot.state = .listening
         snapshot.pipeline = .classic
         return [.requestClassicListen]
+    }
+
+    /// Where a typed or hold turn lands when its voice is done: idle, mic
+    /// closed, waiting for the next press. `sheetParked` is left as it was.
+    private mutating func rest() -> [TurnEffect] {
+        let effects = snapshot.holdArmed ? teardownEffects() : []
+        snapshot.typedTurn = false
+        snapshot.holdArmed = false
+        // The conversation this reply belonged to was a hold's: the next
+        // failure must not take the hands-free recover path.
+        snapshot.inConversation = false
+        snapshot.state = .idle
+        snapshot.pipeline = nil
+        snapshot.speechOpen = false
+        snapshot.echoGuardUntil = 0
+        return effects
+    }
+
+    /// Hands-free is left out: its ear stays shut for the whole wait, so
+    /// nobody could answer, and it never relistens before the reply.
+    private mutating func sheetParked() -> [TurnEffect] {
+        let inTurn = snapshot.state == .thinking || snapshot.state == .speaking
+        guard inTurn, !snapshot.sheetParked, snapshot.pipeline == .classic, snapshot.holdArmed,
+              !snapshot.typedTurn
+        else { return [] }
+        snapshot.sheetParked = true
+        // The line already playing finishes; `.speechFinished` then rests.
+        if snapshot.streamingStarted { return [.finishSpeechStream] }
+        return rest()
+    }
+
+    /// The parked round is over waiting: the turn takes its voice back for
+    /// whatever it still has to say. `.stopClassicIO` ends the question if
+    /// it is still being said, so the turn is the only speaker again.
+    private mutating func sheetResumed() -> [TurnEffect] {
+        guard snapshot.sheetParked else { return [] }
+        snapshot.sheetParked = false
+        // HACK: a resume before the rest landed (click during the work line)
+        // or during an answer hold leaves the reply threaded but unheard.
+        // Queue the resume behind the rest if that click turns out common.
+        guard snapshot.state == .idle, snapshot.pipeline == nil,
+              !snapshot.classicListenPending, !snapshot.holdArmed
+        else { return [] }
+        snapshot.state = .speaking
+        snapshot.pipeline = .classic
+        snapshot.holdArmed = true
+        snapshot.streamingStarted = true
+        return [.stopClassicIO, .beginSpeechStream]
     }
 
     private mutating func replyCompleted() -> [TurnEffect] {

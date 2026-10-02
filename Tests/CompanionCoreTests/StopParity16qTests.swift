@@ -268,6 +268,30 @@ private let bridgeGrant = ApprovalRequest(
            "stop total en reposo: tambien niega lo que espera la hoja")
 }
 
+/// classic-spoken-yes-parent-sheet 1a: a classic turn resting on the
+/// parent's sheet is still a turn. Denying the sheet alone let the guard
+/// answer `.denied` and the turn went on to the model after a stop (#87).
+@Test @MainActor func everyBrakeCutsATurnRestingOnTheParentsSheet() {
+    for brake: SessionEvent in [.stopVoice, .stop] {
+        var m = SessionMachine()
+        _ = m.handle(.voice(TurnSnapshot(sheetParked: true)))
+        _ = m.handle(.job(.approvalRequested(request("p1"))))
+        let fx = m.handle(brake)
+        #expect(has(fx, .cancelVoiceOutput))
+        #expect(has(fx, .islandEvent(.interrupted)))
+    }
+}
+
+/// The mutation guard of the one above: the same sheet with no parked turn
+/// behind it is denied, and there is no voice to cut.
+@Test @MainActor func aSheetWithNoParkedTurnIsDeniedWithoutCuttingTheVoice() {
+    var m = SessionMachine()
+    _ = m.handle(.job(.approvalRequested(request("p1"))))
+    let fx = m.handle(.stopVoice)
+    #expect(has(fx, .resolveApproval(requestId: "p1", approved: false, remember: false)))
+    #expect(!has(fx, .cancelVoiceOutput))
+}
+
 /// The job row in front and no voice to cut: nothing was interrupted, and
 /// the model must not be told the user cut anything.
 @MainActor func testStopVoiceWithNothingToCutReportsNoInterruption() {
