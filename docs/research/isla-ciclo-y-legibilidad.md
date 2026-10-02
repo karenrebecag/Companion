@@ -1,6 +1,6 @@
 # Reference Brief: ciclo de vida y legibilidad de la isla (que abre, que cierra, la cuenta atras, el texto largo y los elementos vacios), contra Incredible 0.2.36
 
-Slug: isla-ciclo-y-legibilidad | Nivel: standard | Fecha: 2026-10-02 | Estado: ESCALADO
+Slug: isla-ciclo-y-legibilidad | Nivel: standard | Fecha: 2026-10-02 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-02 ESCALATE
 
@@ -273,3 +273,5 @@ D y E se resuelven con A, B y C mas las decisiones K6, K8, K9 y K10 (seccion 1).
 | 7 | incredible-isla-componentes, incredible-ui-detalle, ux-incredible-vs-companion | este repo | 2026-09-24/25 | 2026-10-02 | medium |
 | 8 | isla-maquetacion-incredible (brief hermano, D4) | este programa | BORRADOR 2026-10-02 | 2026-10-02 | medium |
 | 9 | Codigo y tests de companion-next (Island, Session, Tools, Tests) | este repo | main 9085264 | 2026-10-02 | high |
+
+[KAREN:chat 2026-10-02] Paridad total con Incredible: en todas las decisiones de este brief se iguala el comportamiento y el valor de Incredible, tomado de la referencia local ~/Desktop/incredible-ref (los extractos no se suben al repo). Toda decision que revierte una regla de seguridad firmada va en su propio ADR con el riesgo escrito y mi firma antes de cualquier codigo. K11: crecer el lienzo para que quepa la columna completa de Incredible.
