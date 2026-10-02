@@ -67,9 +67,8 @@ extension IslandView {
             if let receipt = state.receipt, state.approval == nil {
                 IslandReceiptRow(receipt: receipt) { chat.session.send(.undoPressed(id: receipt.id)) }
             }
-            let touched = chat.session.projection.touched
-            if !touched.isEmpty, state.approval == nil {
-                IslandReel(touched: touched)
+            if let item = IslandReel.item(chat.session.projection.touched), state.approval == nil {
+                IslandReel(item: item)
             }
             if case .job = state.line, let job = chat.session.projection.job {
                 // Waving the checklist away falls back to the small

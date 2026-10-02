@@ -98,7 +98,7 @@ import Testing
         JobStepInfo(tool: "Task", label: "Task: escribir tests"),
     ]), to: out, "island-agentbars")
 
-    try piece(IslandReel(touched: ["Slack", "Safari", "Notas", "Mail"])
+    try piece(IslandReel(item: "Mail")
         .frame(width: 420), to: out, "island-reel")
 
     try piece(VStack(alignment: .leading, spacing: 12) {

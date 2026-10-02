@@ -18,6 +18,9 @@ package enum MotionTime {
     package static let layout = 0.9
     /// A meter following a live level: anything slower lags the voice.
     package static let follow = 0.08
+    /// The touched-apps reel swaps its one item at Incredible's pace (local
+    /// reference, brief isla-ciclo-y-legibilidad K8).
+    package static let reelSwap = 0.65
 }
 
 /// The one entry curve (spec 16f §9, M3): a strong ease-out that starts
