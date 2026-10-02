@@ -43,6 +43,7 @@ extension IslandView {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .modifier(IslandVoiceOverLine(line: state.line))
                 .animation(IslandMotionBudget.textSwap.animation(reduceMotion: reduceMotion),
                            value: IslandCopy.swapKey(state.line))
                 if let action = state.action {

@@ -118,11 +118,30 @@ struct IslandStatusText: View {
                 ForEach(parts.referents, id: \.self) { ReferentChip(text: $0) }
             }
             .accessibilityElement(children: .combine)
-        } else {
-            Text(IslandCopy.line(line))
+        } else if let shown = IslandCopy.visibleLine(line) {
+            Text(shown)
                 .font(GeistFont.uiLabel)
                 .foregroundStyle(IslandInk.text)
                 .lineLimit(2)
+        }
+    }
+}
+
+/// A line the island does not paint still reaches VoiceOver: an overlay
+/// takes no room, so the layout is the same as with no line at all. With
+/// nothing painted the row under it has no height, and VoiceOver can skip
+/// an element with an empty frame, so the element keeps the meter's.
+struct IslandVoiceOverLine: ViewModifier {
+    let line: IslandState.Line
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .leading) {
+            if IslandCopy.voiceOverOnly(line) {
+                Color.clear
+                    .frame(height: IslandChrome.meterSide)
+                    .accessibilityElement()
+                    .accessibilityLabel(IslandCopy.line(line))
+            }
         }
     }
 }

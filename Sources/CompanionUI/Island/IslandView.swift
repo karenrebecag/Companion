@@ -283,7 +283,11 @@ package struct IslandView: View {
     func composer(_ state: IslandState) -> some View {
         VStack(alignment: .leading, spacing: Space.x2) {
             IslandComposer(
-                draft: $draft, focused: $fieldFocused, mark: AnyView(mark),
+                draft: $draft, focused: $fieldFocused,
+                // The unpainted line rides on the orb, the one piece that
+                // stands for the voice here.
+                mark: AnyView(mark.accessibilityValue(
+                    IslandCopy.voiceOverOnly(state.line) ? IslandCopy.line(state.line) : "")),
                 onSend: submit, popover: $popover, staged: !chat.pendingAttachments.isEmpty,
                 mentions: mentions)
                 .onExitCommand {
@@ -297,8 +301,8 @@ package struct IslandView: View {
             attachTray
             if let attachNote {
                 caption(attachNote)
-            } else if case .none = state.line {} else {
-                caption(IslandCopy.line(state.line))
+            } else if case .none = state.line {} else if let shown = IslandCopy.visibleLine(state.line) {
+                caption(shown)
             }
             if confirmingClear {
                 IslandClearConfirm(onClear: clearHistory, onCancel: { confirmingClear = false })

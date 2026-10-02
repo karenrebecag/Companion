@@ -49,6 +49,19 @@ enum IslandCopy {
         }
     }
 
+    /// The words the island paints. Speaking paints none (brief
+    /// isla-ciclo-y-legibilidad K10, Karen): the orb and the voice already
+    /// say it, and the label read as noise next to them.
+    static func visibleLine(_ line: IslandState.Line) -> String? {
+        if case .speaking = line { return nil }
+        return Self.line(line)
+    }
+
+    /// A line VoiceOver still needs although nothing is painted for it.
+    static func voiceOverOnly(_ line: IslandState.Line) -> Bool {
+        visibleLine(line) == nil
+    }
+
     static func action(_ action: IslandState.Action) -> String {
         switch action {
         case .openKeys: Localized.string("island.action.keys")
