@@ -12,7 +12,7 @@ Objetivo, en palabras de Karen (encargo de /research del 2026-10-02, citado por 
 
 Este brief es el paraguas. El brief rapido `manos-escribir-en-notas`, escrito en paralelo, resuelve solo el caso "abre Notas y escribe hola"; este lo explica dentro del modelo completo.
 
-Hallazgo que reencuadra el pedido: Incredible 0.2.36 no tiene una sola "mano". Tiene tres superficies con reglas distintas (seccion 4): AppleScript de un paso para apps con diccionario (Notas, Spotify, Calendar), una superficie AX en segundo plano para los workflows guardados, y una superficie "Experimental Compute Use" opt-in con teclado por PID, acordes, clics por coordenadas y arrastre. "Replicar exactamente" exige elegir cual de las tres, o cuales.
+Hallazgo que reencuadra el pedido: Incredible no tiene una sola "mano". Tiene tres superficies con reglas distintas (seccion 4): AppleScript de un paso para apps con diccionario (Notas, Spotify, Calendar), una superficie AX en segundo plano para los workflows guardados, y una superficie "Experimental Compute Use" opt-in con teclado por PID, acordes, clics por coordenadas y arrastre. "Replicar exactamente" exige elegir cual de las tres, o cuales.
 
 Decisiones grises (una por bloque; cada una tiene opciones en la seccion 5):
 
@@ -32,13 +32,13 @@ Decisiones grises (una por bloque; cada una tiene opciones en la seccion 5):
 - [NEEDS CLARIFICATION: ¿Companion puede robar el foco (activar la app) para terminar una tarea, o debe preferir siempre el segundo plano y avisar cuando no pueda?]
 
 ### D4. Abrir una app y esperar a que este lista
-- Hoy `open_app` vuelve en cuanto LaunchServices acepta el lanzamiento, sin esperar ventana ni foco. Incredible espera la ventana (hasta 30 s) y devuelve el PID.
+- Hoy `open_app` vuelve en cuanto LaunchServices acepta el lanzamiento, sin esperar ventana ni foco. Incredible espera la ventana con un plazo y devuelve el PID.
 - Decision tecnica (sin pregunta a Karen): la spec M2 la fija; solo falta el plazo maximo.
 
 ### D5. Verificar despues de cada accion
-- Incredible observa la app tras cada accion (espera minima, AX quieto, presupuesto) y devuelve un resumen del cambio (titulo, dialogo nuevo, ventana nueva, "nada cambio").
+- Incredible observa la app tras cada accion (espera acotada) y devuelve un resumen del cambio (titulo, dialogo nuevo, ventana nueva, "nada cambio").
 - Companion devuelve "look again" y deja la verificacion al modelo.
-- Decision tecnica: spec M4. Pregunta para Karen solo sobre latencia: [NEEDS CLARIFICATION: ¿se acepta aproximadamente 1 s extra por accion de mano a cambio de que cada resultado diga que cambio?]
+- Decision tecnica: spec M4. Pregunta para Karen solo sobre latencia: [NEEDS CLARIFICATION: ¿se acepta una latencia extra por accion de mano a cambio de que cada resultado diga que cambio?]
 
 ### D6. Lo que la usuaria ve mientras actuan las manos
 - Hoy el aura de pantalla solo se enciende con las manos prestadas al puente (agente externo), no con las manos de la propia voz.
@@ -54,7 +54,7 @@ Decisiones grises (una por bloque; cada una tiene opciones en la seccion 5):
 - [NEEDS CLARIFICATION: ¿crear contenido nuevo en una app (una nota, un borrador) corre sin hoja como hoy corre `type_text` fuera de una terminal, o pide hoja?]
 
 ### D9. Juez LLM
-- Incredible pone un juez LLM (`judge_actions`) delante de lotes de escrituras. No se recomienda copiarlo como compuerta (seccion 6 y 7); queda como decision explicita.
+- Incredible pone un juez LLM delante de lotes de escrituras. No se recomienda copiarlo como compuerta (seccion 6 y 7); queda como decision explicita.
 - [NEEDS CLARIFICATION: ¿se descarta el juez LLM como compuerta de las manos, dejando las compuertas deterministas actuales (HandsGate, ActionBand, tickets)?]
 
 ## 2. Estado actual
@@ -153,27 +153,27 @@ Contextos: app instalada (/Applications/Companion.app con TCC concedido), voz re
 
 ### 2.8 Tabla de capacidades, brecha por brecha
 
-| Capacidad | Incredible 0.2.36 | Companion hoy | Brecha | Evidencia |
+| Capacidad | Incredible | Companion hoy | Brecha | Evidencia |
 |---|---|---|---|---|
-| Arbol AX numerado | escaneo con presupuesto, ids que caducan, aviso de parcial | igual (`look`) | ninguna de fondo | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:19] [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:14] |
-| Buscar por rol/nombre/texto | `find_by_role`, `find_by_text`, `find_all`, ambiguedad como error | solo lista numerada | falta busqueda dirigida y error `Ambiguous` | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:73] [repo:Sources/CompanionCore/Tools/ParentTool+Sight.swift:10] |
-| Captura de ventana exacta + OCR local | SCK por ventana, OCR Vision con tope de 2 s, vision remota de respaldo | captura + vision remota; OCR solo de region | falta captura por ventana con OCR local primero | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:45] [repo:Sources/CompanionServices/Perception/ScreenCapture.swift:71] |
-| Clic semantico | `AXPress`, luego foco | `AXPress`, foco, clic al proceso | ninguna | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:20] [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:241] |
-| Clic por coordenadas, derecho, doble, arrastre | sobre captura de la ventana exacta, mueve el puntero fisico, ventana delante | no existe | falta (decision D7) | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:85] [repo:Sources/CompanionCore/Tools/ParentTools.swift:68] |
-| Escribir texto | `type_text` por PID sin portapapeles, `fill`, `set_value`, `select_text` | atributo de seleccion, o portapapeles + Cmd+V | falta `set_value`/`fill` y seleccion precisa | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:84] [repo:Sources/CompanionServices/Accessibility/AXTextInjector.swift:59] |
-| Atajos con modificadores | `press_key("Cmd+n")`, acordes, F1-F24 | 8 teclas sin modificadores | falta (decision D2) | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:82] [repo:Sources/CompanionServices/Accessibility/AXTextInjector+Hands.swift:103] |
-| Menus | ruta con `AXPress`, item deshabilitado detectado, lee atajos de cada item | ruta con `AXPress` | falta detectar deshabilitado y listar menus con sus atajos | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:17] [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:316] |
-| Abrir app | sin activar, espera ventana hasta 30 s, devuelve PID | activa, no espera | falta esperar y fijar el PID devuelto | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:76] [repo:Sources/CompanionServices/Tools/NSWorkspaceOpener.swift:27] |
-| Apps con diccionario (Notas) | AppleScript de un paso permitido; -1743 = pedir Automatizacion | Apple Events solo para Excel/Numbers | falta (decision D1) | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:60] [repo:Sources/CompanionServices/Deliverables/AppleEventSheets.swift:5] |
-| Desplazar | arriba/abajo/izquierda/derecha y `scroll_into_view` | arriba/abajo por pagina | falta horizontal y "hasta que se vea" | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:25] [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:272] |
-| Cambiar de ventana | ventanas por id exacto, `activate(intent)` puede cambiar de Space | `focus_window` por titulo dentro de la app objetivo | falta listar ventanas de todas las apps y el caso otro Space | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:77] [repo:Sources/CompanionServices/Accessibility/AXTextInjector+Hands.swift:72] |
-| Leer que cambio | AXObserver, espera minima 1 s + 500 ms quieto, resumen "nada cambio / dialogo / ventana nueva" | "look again" en el texto del resultado | falta (decision D5) | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:80] [repo:Sources/CompanionServices/Tools/ParentToolRunner+Sight.swift:164] |
-| Guardas antes de teclear | foco y caret iguales al escaneo, tecla sostenida, pantalla bloqueada | app objetivo igual a la del turno | faltan foco/caret, tecla sostenida y bloqueo | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:38] [repo:Sources/CompanionServices/Tools/ParentToolRunnerHands.swift:298] |
-| Errores tipados | NotFound, Ambiguous, Stale, Disabled, ForegroundRequired, InputBusy, OutcomeUnknown... | codigos de contrato | faltan `ambiguous`, `disabled`, `input_busy`, `outcome_unknown` | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:87] [repo:Sources/CompanionCore/Tools/ParentTools.swift:6] |
-| Visual de las manos | panel indicador con glow sobre la ventana objetivo, transparente a clics | aura solo con el puente | falta para la voz propia (decision D6) | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:44] [repo:Sources/CompanionCore/Session/SessionMachine.swift:286] |
-| Aprobacion | lecturas en silencio, juez LLM para lotes, tarjeta para enviar/borrar | compuertas deterministas, hoja, tickets, Touch ID firmado | Companion es mas estricto; no copiar el juez | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:52] [repo:Sources/CompanionCore/Tools/ParentTool+Hands.swift:96] |
-| Ritmo | no se encontro limite de acciones de escritorio en las cadenas | limites solo en el puente | igual de abierto en la voz propia | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:103] [repo:Sources/CompanionCore/Bridge/BridgePolicy.swift:85] |
-| Permisos | Accesibilidad, Grabacion, Automatizacion (entitlement apple-events) | Accesibilidad, Grabacion; Automatizacion solo hojas | Automatizacion por app nueva si D1 = B o C | [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:9] [repo:scripts/bundle.sh:90] |
+| Arbol AX numerado | escaneo acotado, ids que caducan, aviso de parcial | igual (`look`) | ninguna de fondo | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:14] |
+| Buscar por rol/nombre/texto | busqueda dirigida por rol, nombre o texto, con la ambiguedad como error | solo lista numerada | falta busqueda dirigida y error `Ambiguous` | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionCore/Tools/ParentTool+Sight.swift:10] |
+| Captura de ventana exacta + OCR local | captura por ventana, OCR local con tope de tiempo, vision remota de respaldo | captura + vision remota; OCR solo de region | falta captura por ventana con OCR local primero | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Perception/ScreenCapture.swift:71] |
+| Clic semantico | `AXPress`, luego foco | `AXPress`, foco, clic al proceso | ninguna | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:241] |
+| Clic por coordenadas, derecho, doble, arrastre | sobre captura de la ventana exacta, mueve el puntero fisico, ventana delante | no existe | falta (decision D7) | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionCore/Tools/ParentTools.swift:68] |
+| Escribir texto | teclado al proceso sin portapapeles, escritura por valor y seleccion de texto | atributo de seleccion, o portapapeles + Cmd+V | falta `set_value`/`fill` y seleccion precisa | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Accessibility/AXTextInjector.swift:59] |
+| Atajos con modificadores | acordes y teclas con nombre | 8 teclas sin modificadores | falta (decision D2) | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Accessibility/AXTextInjector+Hands.swift:103] |
+| Menus | ruta por AX, item deshabilitado detectado, lee atajos de cada item | ruta con `AXPress` | falta detectar deshabilitado y listar menus con sus atajos | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:316] |
+| Abrir app | sin activar, espera la ventana con un plazo, devuelve el PID | activa, no espera | falta esperar y fijar el PID devuelto | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Tools/NSWorkspaceOpener.swift:27] |
+| Apps con diccionario (Notas) | AppleScript de un paso permitido; la falta de permiso se explica como Automatizacion | Apple Events solo para Excel/Numbers | falta (decision D1) | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Deliverables/AppleEventSheets.swift:5] |
+| Desplazar | cuatro direcciones y desplazar hasta que se vea | arriba/abajo por pagina | falta horizontal y "hasta que se vea" | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:272] |
+| Cambiar de ventana | ventanas por id exacto, puede cambiar de Space | `focus_window` por titulo dentro de la app objetivo | falta listar ventanas de todas las apps y el caso otro Space | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Accessibility/AXTextInjector+Hands.swift:72] |
+| Leer que cambio | observador AX con espera acotada y resumen de lo que cambio | "look again" en el texto del resultado | falta (decision D5) | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Tools/ParentToolRunner+Sight.swift:164] |
+| Guardas antes de teclear | foco y caret iguales al escaneo, tecla sostenida, pantalla bloqueada | app objetivo igual a la del turno | faltan foco/caret, tecla sostenida y bloqueo | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionServices/Tools/ParentToolRunnerHands.swift:298] |
+| Errores tipados | errores tipados (no encontrado, ambiguo, obsoleto, deshabilitado, entrada ocupada, resultado desconocido...) | codigos de contrato | faltan `ambiguous`, `disabled`, `input_busy`, `outcome_unknown` | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionCore/Tools/ParentTools.swift:6] |
+| Visual de las manos | panel indicador con glow sobre la ventana objetivo, transparente a clics | aura solo con el puente | falta para la voz propia (decision D6) | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionCore/Session/SessionMachine.swift:286] |
+| Aprobacion | lecturas en silencio, juez LLM para lotes, tarjeta para enviar/borrar | compuertas deterministas, hoja, tickets, Touch ID firmado | Companion es mas estricto; no copiar el juez | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionCore/Tools/ParentTool+Hands.swift:96] |
+| Ritmo | no se encontro limite de acciones de escritorio | limites solo en el puente | igual de abierto en la voz propia | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:Sources/CompanionCore/Bridge/BridgePolicy.swift:85] |
+| Permisos | Accesibilidad, Grabacion, Automatizacion | Accesibilidad, Grabacion; Automatizacion solo hojas | Automatizacion por app nueva si D1 = B o C | [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b] [repo:scripts/bundle.sh:90] |
 
 ## 3. Fuentes primarias
 
@@ -205,92 +205,88 @@ Contextos: app instalada (/Applications/Companion.app con TCC concedido), voz re
 
 ## 4. Implementaciones de referencia
 
-### 4.1 Incredible 0.2.36 (referencia de comportamiento; codigo propietario, no se copia)
-Por que es referencia: es el producto que Karen pidio igualar; la evidencia es estatica (cadenas y recursos de texto plano), con hash del binario. [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:2]
-- Tres superficies de manos, no una: AppleScript de un paso, superficie AX de workflows en segundo plano, y "Experimental Compute Use" opt-in [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:59]
-- El agente de fondo por defecto solo tiene captura de pantalla en `desktop`, no manos sobre apps nativas [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:64]
-- La superficie completa de computer use es una skill opt-in ligada al ajuste `experimental_compute_use` [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:68]
-- El orquestador de voz no actua: su `open_app` solo lanza y todo lo que sigue es trabajo de un agente [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:67]
-- El agente recibe las palabras de la usuaria literales junto a los objetivos [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:66]
-- El helper nativo (Swift) usa AX, CGEvent, NSWorkspace, ScreenCaptureKit y Vision; nada privado aparece en `otool -L` [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:8]
+### 4.1 Incredible (referencia de comportamiento; codigo propietario, no se copia)
+Por que es referencia: es el producto que Karen pidio igualar. El detalle verificable (valores, cadenas, nombres internos) no se publica en el repo; vive en la referencia local y aqui solo se resume el comportamiento. [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Tres superficies de manos, no una: AppleScript de un paso, una superficie de Accesibilidad para workflows en segundo plano, y una superficie opt-in de uso de computadora con teclado, acordes, coordenadas y arrastre [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- El agente de fondo por defecto no tiene manos sobre apps nativas; la superficie completa es opt-in [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- El orquestador de voz no actua: abre la app y todo lo que sigue es trabajo de un agente, que recibe la frase literal de la usuaria junto al objetivo [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- El helper nativo usa APIs publicas de macOS (Accesibilidad, eventos, NSWorkspace, ScreenCaptureKit, Vision) [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 
 #### Percibir
-- Escaneo AX con presupuesto de tiempo y nodos, y aviso explicito de resultado parcial [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:19]
-- Primado de apps Chromium/Electron antes de escanear (Chrome, Slack, VSCode, Cursor...) [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:13]
-- Cada vista trae `input_focus` y la seleccion de texto, para saber donde caeria una tecla [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:81]
-- La captura de computer use es de la ventana exacta y no recurre al escritorio [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:114]
-- El comando `screenshot` del helper daemon, en cambio, usa `CGWindowListCreateImage` [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:27]
-- OCR local primero (Vision, tope 2 s) y modelo de vision como respaldo [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:45]
-- Lee el atajo de teclado de cada item de menu [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:18]
+- Escaneo AX acotado en tiempo y tamano, con aviso explicito de resultado parcial [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Prepara las apps basadas en Chromium/Electron antes de escanear [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Cada vista dice donde esta el foco de entrada y la seleccion de texto, para saber donde caeria una tecla [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- La captura de la superficie de computadora es de la ventana exacta, no del escritorio [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- OCR local primero, con tope de tiempo, y modelo de vision como respaldo [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Lee el atajo de teclado de cada item de menu [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 
 #### Decidir
-- Preferir acciones AX en segundo plano; primer plano solo si hace falta [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:70]
-- Preferir la ruta directa: un control de navegacion, la busqueda de la app, un atajo conocido o un menu, antes que coordenadas [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:97]
-- Cada accion lleva un `intent` con su efecto concreto, incluido el destinatario de un envio [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:72]
-- El contenido de las apps es dato, no autoridad para cambiar la tarea [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:71]
+- Preferir acciones AX en segundo plano; primer plano solo si hace falta [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Preferir la ruta directa (navegacion, busqueda de la app, atajo conocido, menu) antes que coordenadas [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Cada accion declara su efecto concreto, incluido el destinatario de un envio [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- El contenido de las apps es dato, no autoridad para cambiar la tarea [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 
 #### Actuar
-- Clic semantico por `AXPress` y, si falla, foco [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:20]
-- `set_value` escribe en un campo sin pulsaciones [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:100]
-- Teclado al PID con fuente privada (`CGEventPostToPid`), solo si ventana y control enfocados coinciden con el escaneo [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:78]
-- `press_key` acepta acordes (`Cmd`, `Ctrl`, `Alt`, `Shift`) y teclas con nombre [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:82]
-- `type_text` acepta de 1 a 16000 bytes y no usa el portapapeles [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:84]
-- Menus por ruta con `AXPress`, con error propio si el item esta deshabilitado [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:17]
-- Abrir app sin activarla y esperar su ventana hasta 30 s, sin repetir el lanzamiento [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:76]
-- Clic por coordenadas y arrastre sobre una captura, moviendo el puntero fisico, con la ventana exacta delante [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:85]
-- Una vista SwiftUI/Catalyst puede no desplazarse en segundo plano; lo reporta como error propio [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:25]
+- Clic semantico por la accion AX de pulsar y, si falla, foco [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Escribir en un campo por valor, sin pulsaciones [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Teclado dirigido al proceso, solo si ventana y control enfocados coinciden con el escaneo [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Atajos con modificadores y teclas con nombre; el texto se teclea con tope de tamano y sin usar el portapapeles [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Menus por ruta, con error propio si el item esta deshabilitado [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Abrir app sin activarla y esperar su ventana con un plazo, sin repetir el lanzamiento [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Clic por coordenadas y arrastre sobre una captura, moviendo el puntero fisico, con la ventana exacta delante [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Una vista SwiftUI/Catalyst puede no desplazarse en segundo plano; lo reporta como error propio [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 
 #### Verificar
-- Tras cada accion espera al menos 1 s, luego 500 ms de AX quieto, con 5 s de presupuesto [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:80]
-- Observa cambios con `AXObserver` (foco, valor, ventana creada, elemento destruido) [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:14]
-- El resumen de cambio anuncia dialogos y ventanas nuevas [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:93]
-- "Nada cambio" se reporta y se prohibe repetir la misma accion [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:92]
-- Un clic exitoso no prueba que el foco se movio; hay que revisar el foco antes de teclear [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:81]
-- Solo se reportan resultados verificados [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:89]
+- Tras cada accion espera un margen minimo y a que el arbol AX se quede quieto, con un presupuesto total [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Observa cambios por notificaciones AX (foco, valor, ventana creada, elemento destruido) [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- El resumen de cambio anuncia dialogos y ventanas nuevas [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- "Nada cambio" se reporta y se prohibe repetir la misma accion [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Un clic exitoso no prueba que el foco se movio; hay que revisar el foco antes de teclear [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Solo se reportan resultados verificados [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 
 #### Recuperarse
-- Errores tipados con resultado externo: `Stale` re-escanea, `Ambiguous` estrecha, `OutcomeUnknown` inspecciona y nunca repite un guardar/enviar/alternar [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:87]
-- Si la usuaria tiene una tecla o boton apretado, espera; nunca borra su entrada [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:39]
-- Si el foco o la entrada cambian durante la entrega, para y no reintenta [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:37]
-- Si la Mac esta bloqueada, pide desbloquear [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:30]
-- Un dialogo bloquea su app: se resuelve primero, con Escape si no hay nada que clicar [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:101]
-- Si AX no da el contenido, mira la imagen en vez de insistir con el arbol [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:113]
+- Errores tipados segun el resultado externo: obsoleto re-escanea, ambiguo estrecha, resultado desconocido inspecciona y nunca repite un guardar/enviar/alternar [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Si la usuaria tiene una tecla o boton apretado, espera; nunca borra su entrada [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Si el foco o la entrada cambian durante la entrega, para y no reintenta [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Si la Mac esta bloqueada, pide desbloquear [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Un dialogo bloquea su app: se resuelve primero, con Escape si no hay nada que clicar [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Si AX no da el contenido, mira la imagen en vez de insistir con el arbol [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 
 #### Seguridad
-- Lecturas en silencio; escrituras y borrados de conectores levantan una tarjeta por celda [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:58]
-- Un juez LLM aprueba lo deshacible y lo cubierto por palabras o tarjetas de la usuaria [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:52]
-- El juez rechaza lo irreversible sin cobertura y lo que viene de una web, un correo o un documento [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:54]
-- Un clasificador aparte decide si un comando destructivo va al dialogo de aprobacion [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:50]
-- La entrada visual (coordenadas) pasa por aprobacion antes de ejecutarse [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:91]
-- Nunca teclea contraseñas, codigos ni PIN; le pasa el inicio de sesion a la usuaria [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:94]
-- Antes de enviar, publicar o pagar, confirma el destino en la pantalla actual [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:95]
-- Ventanas y pestañas que no abrio no son suyas para cerrar ni manejar [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:96]
-- Prohibe manejar la interfaz por script: nada de System Events, pulsaciones ni clics por AppleScript [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:62]
+- Lecturas en silencio; escrituras y borrados de conectores levantan una tarjeta [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Un juez LLM aprueba lo deshacible y lo cubierto por palabras o tarjetas de la usuaria [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- El juez rechaza lo irreversible sin cobertura y lo que viene de una web, un correo o un documento [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Un clasificador aparte decide si un comando destructivo va al dialogo de aprobacion [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- La entrada visual (coordenadas) pasa por aprobacion antes de ejecutarse [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Nunca teclea contraseñas, codigos ni PIN; le pasa el inicio de sesion a la usuaria [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Antes de enviar, publicar o pagar, confirma el destino en la pantalla actual [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Ventanas y pestañas que no abrio no son suyas para cerrar ni manejar [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Prohibe manejar la interfaz por script: nada de System Events, pulsaciones ni clics por AppleScript [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 - Un si hablado vale como "go" en Incredible [repo:docs/research/auditoria-decisiones-incredible.md:67]
-- No se encontro un limite de ritmo para acciones de escritorio en las cadenas [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:103]
+- No se encontro un limite de ritmo para acciones de escritorio [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 
 #### Lo que ve la usuaria
-- Un panel indicador propio dibuja un glow en un WKWebView (`updateComputeGlow`) [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:44]
-- Ese panel ignora el raton, asi que no tapa clics [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:46]
-- El `intent` de las acciones de conector se le muestra a la usuaria [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:58]
+- Un panel indicador propio dibuja un glow sobre la ventana objetivo [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Ese panel ignora el raton, asi que no tapa clics [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- El efecto de las acciones de conector se le muestra a la usuaria [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 - El rastro de tinta y el orbe del cursor son del hold de FN, no de las manos [repo:docs/research/incredible-fn-glow-pointer.md:82]
 - No hay resaltado del elemento bajo el cursor [repo:docs/research/incredible-fn-glow-pointer.md:186]
 
 #### Permisos
-- Info.plist de Incredible declara Apple Events ("para escribir texto y controlar tu computadora") y Grabacion de pantalla [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:10]
-- El helper pide Accesibilidad con el prompt del sistema y tiene un modo `request-permissions` [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:28]
-- Observar y actuar por AX no requiere Grabacion; solo la inspeccion visual la requiere [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:33]
-- El -1743 se interpreta como "falta Automatizacion", no como fallo del comando [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:61]
+- Declara Apple Events (con un texto de uso sobre escribir y controlar la computadora) y Grabacion de pantalla [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Pide Accesibilidad con el prompt del sistema y tiene un modo dedicado para pedir permisos [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Observar y actuar por AX no requiere Grabacion; solo la inspeccion visual la requiere [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- La falta de permiso de Automatizacion se interpreta como tal, no como fallo del comando [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 
-### 4.2 "Abre Notas y escribe hola" en Incredible, paso a paso (inferido de la evidencia)
-- 1: el orquestador no escribe; su `open_app` solo lanza Notas, y "escribe hola" es trabajo de un agente [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:67]
-- 2: `tell_agent` le pasa el objetivo y la frase literal de la usuaria [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:66]
-- 3: sin Experimental Compute Use, la ruta permitida es AppleScript de un paso: "a Notes note" esta entre los ejemplos [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:60]
+### 4.2 "Abre Notas y escribe hola" en Incredible, paso a paso (inferido, ver la referencia local)
+- 1: el orquestador no escribe; solo lanza Notas, y "escribe hola" es trabajo de un agente [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- 2: el agente recibe el objetivo y la frase literal de la usuaria [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- 3: sin la superficie opt-in de uso de computadora, la ruta permitida es AppleScript de un paso, y Notas esta entre los ejemplos [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 - 4: el script crea la nota con su cuerpo (`make new note with properties {body:...}`), sin depender de ningun campo enfocado [doc:https://www.macscripter.net/t/notes-app-create-new-note-with-formatted-title/71686@2019-06]
-- 5: la primera vez macOS pide Automatizacion; un -1743 se le explica a la usuaria [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:61]
-- 6: crear una nota es deshacible, asi que no pide tarjeta; enviar, compartir o borrar si [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:63]
-- 7 (variante con Experimental Compute Use): `computer.open_app` sin activar, `wait_for_window`, vista con `input_focus`, `press_key("Cmd+n")` o el menu, revisar el foco, `type_text("hola")`, leer el `Change` [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:73]
-- 8: en la variante AX, si el foco no es el editor, primero `el.focus()` o un atajo, y nunca teclear a ciegas [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:81]
+- 5: la primera vez macOS pide Automatizacion; la falta de permiso se le explica a la usuaria [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- 6: crear una nota es deshacible, asi que no pide tarjeta; enviar, compartir o borrar si [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- 7 (variante con la superficie opt-in): abrir la app sin activar, esperar ventana, leer la vista con el foco de entrada, atajo de nueva nota o menu, revisar el foco, teclear "hola", leer el cambio [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- 8: en la variante AX, si el foco no es el editor, primero se enfoca el control o se usa un atajo, y nunca se teclea a ciegas [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 
 ### 4.3 Peekaboo (steipete/Peekaboo)
 Por que es referencia: automatizacion de macOS en Swift de Peter Steinberger, activo (push 2026-10-01), unas 5.2k estrellas, con servicios de clic, tecleo, atajos, menus y arrastre separados y testeados. [ref:https://github.com/steipete/Peekaboo/blob/016240d908566e54b702336ba39abc0f621b5b60/Core/PeekabooAutomationKit/Sources/PeekabooAutomationKit/Services/UI/HotkeyService.swift#L156-L160@016240d]
@@ -320,7 +316,7 @@ Por que es referencia: automatizacion de macOS desde 2014, unas 16k estrellas, A
 | D3 foco | B: activar cuando haga falta, avisando | completa mas tareas | roba el foco; choca con `target_changed` | baja | solo con aviso visible |
 | D4 abrir | esperar ventana y fijar PID devuelto | elimina la carrera del turno | una espera mas | baja | recomendada |
 | D5 verificar | A: modelo vuelve a mirar | ya existe | caro en tokens y turnos; el modelo se salta el paso | nula | no |
-| D5 verificar | B: AXObserver + espera acotada + resumen de cambio | cada resultado dice que cambio | aprox. 1 s por accion | media | recomendada |
+| D5 verificar | B: AXObserver + espera acotada + resumen de cambio | cada resultado dice que cambio | latencia extra por accion | media | recomendada |
 | D6 visual | aura sobre la ventana objetivo tambien para la voz propia | la usuaria ve que y donde | un estado mas en el reductor | baja | recomendada |
 | D7 coordenadas | A: fuera | sin riesgo de clic equivocado | algunos controles inalcanzables | nula | por ahora |
 | D7 coordenadas | B: con captura y ventana delante, critico | cubre lienzos y controles sin AX | mueve el puntero; Touch ID cada vez | alta | despues de M1-M6 |
@@ -336,7 +332,7 @@ Cada spec es un PR. Los criterios son medibles y heredan la seccion 10.
   - El prompt (clasico y realtime) enseña la recuperacion: `look`, `click` sobre el campo, o `menu` de crear (p. ej. Archivo > Nueva nota), y luego `type_text`.
   - Criterios: test con fake de foco en `AXOutline` devuelve `no_focused_field` con `focused_role=AXOutline`; test de prompt contiene la frase de recuperacion en es y en; prueba en vivo "abre Notas y escribe hola" 9 de 10 corridas con la nota escrita y leida de vuelta.
 - **M2. `open_app` espera y fija el objetivo.**
-  - Espera hasta que el PID lanzado sea el frontal y tenga ventana AX, con plazo (propuesto 10 s, Incredible usa hasta 30 s).
+  - Espera hasta que el PID lanzado sea el frontal y tenga ventana AX, con plazo (plazo propio a fijar en M2; Incredible usa uno mayor).
   - El turno fija ese PID, no el que observe la siguiente mano.
   - Criterios: test con fake de activacion retrasada 400 ms: `type_text` despues de `open_app` actua sobre el PID nuevo; plazo vencido devuelve `window_not_ready`; ningun `type_text` cae en la app anterior.
 - **M3. Acordes en `press_key` con lista blanca.**
@@ -362,13 +358,13 @@ Cada spec es un PR. Los criterios son medibles y heredan la seccion 10.
 
 ## 6. Evidencia en contra
 
-- Contra "replicar exactamente": la mitad de las manos de Incredible (acordes, coordenadas, arrastre) es una skill experimental opt-in, no el producto por defecto; copiarla entera seria ir mas lejos que Incredible [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:69]
-- Resolucion: la hoja de ruta empieza por lo que Incredible hace por defecto (recuperarse, esperar, verificar) y deja coordenadas para el final y a decision de Karen [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:98]
+- Contra "replicar exactamente": la mitad de las manos de Incredible (acordes, coordenadas, arrastre) es una superficie experimental opt-in, no el producto por defecto; copiarla entera seria ir mas lejos que Incredible [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Resolucion: la hoja de ruta empieza por lo que Incredible hace por defecto (recuperarse, esperar, verificar) y deja coordenadas para el final y a decision de Karen [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 - Contra los acordes en segundo plano: algunas apps ignoran atajos dirigidos a un PID si no estan delante [ref:https://github.com/steipete/Peekaboo/blob/016240d908566e54b702336ba39abc0f621b5b60/Core/PeekabooAutomationKit/Sources/PeekabooAutomationKit/Services/UI/HotkeyService.swift#L156-L160@016240d]
 - Resolucion: M3 exige verificar el efecto con M4 y, si no hubo cambio, recurrir al menu equivalente (que se puede pulsar por AX sin foco) [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:316]
 - Contra Apple Events para Notas: es un permiso de TCC nuevo por app y abre un canal que puede leer datos de otra app [doc:https://developer.apple.com/tutorials/data/documentation/bundleresources/information-property-list/nsappleeventsusagedescription.json@macOS26-sdk-docs]
 - Resolucion: aceptado solo si Karen lo decide (D1), limitado a crear y releer, sin leer notas existentes [repo:Sources/CompanionServices/Deliverables/AppleEventSheets.swift:5]
-- Contra M4: la espera de Incredible (al menos 1 s por accion) alarga cada paso en una app de voz [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:80]
+- Contra M4: la espera de Incredible tras cada accion alarga cada paso en una app de voz [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 - Resolucion: aceptado con presupuesto propio y medido; la pregunta de latencia es de Karen (D5) [repo:Sources/CompanionServices/Accessibility/AXTextInjector.swift:24]
 - Contra el aura para la voz propia: un estado mas en el reductor y otra superficie que puede quedarse encendida [repo:Sources/CompanionCore/Session/SessionMachine.swift:286]
 - Resolucion: el freno ya apaga lo que cuelga del turno; el criterio de M5 lo exige con test [repo:Sources/CompanionCore/Session/SessionMachine+Brakes.swift:53]
@@ -380,22 +376,22 @@ Cada spec es un PR. Los criterios son medibles y heredan la seccion 10.
 - Modificadores pasados en el mismo evento de bajada y de subida, a una app concreta si se pide [ref:https://github.com/Hammerspoon/hammerspoon/blob/23e387e2805a9890066366e0ac96c71b27f0cfd5/extensions/eventtap/eventtap.lua#L275-L277@23e387e]
 - Fuente privada y flags limpios para que un modificador que la usuaria sostiene no se mezcle, como ya hace Companion [repo:Sources/CompanionServices/Accessibility/AXTextInjector+Hands.swift:59]
 - Antes de escribir, buscar y enfocar el campo en vez de fallar [ref:https://github.com/steipete/Peekaboo/blob/016240d908566e54b702336ba39abc0f621b5b60/Core/PeekabooAutomationKit/Sources/PeekabooAutomationKit/Services/UI/TypeService+TargetResolution.swift#L9-L27@016240d]
-- Abrir y esperar ventanas antes de devolver la app, como hace el modulo publico de Incredible [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:109]
+- Abrir y esperar ventanas antes de devolver la app, como hace el modulo publico de Incredible [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 - Un id viejo nunca se reasigna a otro elemento: se vuelve a mirar [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:234]
 
 ### Anti-ejemplos
 - Publicar eventos por la funcion privada `SLEventPostToPid` de SkyLight (Peekaboo lo hace); Companion usa solo APIs publicas [ref:https://github.com/steipete/Peekaboo/blob/016240d908566e54b702336ba39abc0f621b5b60/Core/PeekabooAutomationKit/Sources/PeekabooAutomationKit/Services/UI/BackgroundInputDriver.swift#L1722-L1746@016240d]
-- Manejar la interfaz con System Events o pulsaciones por AppleScript; el propio Incredible lo prohibe [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:62]
-- Repetir la misma accion cuando "nada cambio" [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:92]
+- Manejar la interfaz con System Events o pulsaciones por AppleScript; el propio Incredible lo prohibe [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Repetir la misma accion cuando "nada cambio" [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 - Decir "escrito" sin releer el campo [repo:Sources/CompanionCore/Tools/ParentTool+Hands.swift:270]
 
 ### Que NO copiar (legal, etico o contra reglas firmadas)
-- Codigo, prompts o textos de Incredible: este brief solo resume comportamiento y cita cadenas cortas [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:5]
+- Codigo, prompts o textos de Incredible: este brief solo resume comportamiento; los extractos viven en la referencia local [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 - "Un si hablado es el mismo go": contradice 20c D1, que solo deja al si hablado lo de bajo riesgo [repo:docs/specs/wave-20c-endurecimiento-aprobaciones.md:27]
 - Aprobar manos criticas sin Touch ID o recordar un si en lo critico: contradice la spec firmada [repo:docs/specs/touch-id-aprobaciones-criticas.md:11]
 - Abrir una URL que aparecio en pantalla o en un resultado sin que la usuaria la dijera: es el sumidero de exfiltracion de `open_url` [repo:Sources/CompanionCore/Approvals/ApprovalRisk.swift:14]
 - Un juez LLM como compuerta: no se decide aqui; es la decision D9 de la seccion 1 (la seccion 5 compara las opciones) [repo:Sources/CompanionCore/Tools/ParentTool+Hands.swift:96]
-- Entitlements que bajan el endurecimiento (`disable-library-validation`, `allow-unsigned-executable-memory`) que trae Incredible [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:9]
+- Entitlements que bajan el endurecimiento y que Incredible trae [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 - Teclear credenciales o codigos que aparezcan en pantalla (Incredible tambien lo prohibe; Companion ya excluye campos seguros) [repo:Sources/CompanionServices/Tools/ParentToolRunnerHands.swift:306]
 - Grabar la pantalla para "enseñar tareas" y subirlo: fuera de alcance de las manos y de privacidad distinta [repo:docs/research/incredible-arquitectura.md:47]
 
@@ -408,9 +404,9 @@ Cada spec es un PR. Los criterios son medibles y heredan la seccion 10.
 - El texto Unicode de un evento puede ignorarse; por eso `type_text` no debe ir por teclas letra a letra [doc:https://developer.apple.com/tutorials/data/documentation/coregraphics/cgevent/keyboardsetunicodestring(stringlength:unicodestring:).json@macOS26-sdk-docs]
 - `AXPress` puede devolver `kAXErrorCannotComplete` aunque el boton se haya pulsado; reintentar a ciegas puede pulsar dos veces [doc:https://developer.apple.com/tutorials/data/documentation/applicationservices/1462091-axuielementperformaction.json@macOS26-sdk-docs]
 - Los nombres de menu estan en el idioma del sistema: "Archivo > Nueva nota" en español, "File > New Note" en ingles [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:334]
-- El portapapeles de respaldo de `type_text` pisa un momento lo que la usuaria copio; Incredible evita el portapapeles en su teclado [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:84]
-- Una vista SwiftUI o Catalyst puede no desplazarse por AX en segundo plano [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:25]
-- Apps en otro Space o tapadas dejan de publicar contenido actual por AX [repo:docs/research/evidence/incredible-0.2.36-manos-strings-2026-10-02.txt:77]
+- El portapapeles de respaldo de `type_text` pisa un momento lo que la usuaria copio; Incredible evita el portapapeles en su teclado [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Una vista SwiftUI o Catalyst puede no desplazarse por AX en segundo plano [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
+- Apps en otro Space o tapadas dejan de publicar contenido actual por AX [ref:incredible-ref/briefs/incredible-manos-interaccion.md@e7ed900b469b]
 - Todo lo de Apple Events necesita `NSAppleEventsUsageDescription` con un texto que cubra el uso nuevo, o el permiso no tiene explicacion [repo:scripts/bundle.sh:90]
 - Cada mano en la hoja sera critica cuando Touch ID aterrice: abrir acordes destructivos a la hoja significa un dedo por atajo [repo:docs/specs/touch-id-aprobaciones-criticas.md:29]
 
@@ -429,9 +425,9 @@ Cada spec es un PR. Los criterios son medibles y heredan la seccion 10.
 - ASSUMPTION: el cuerpo de una nota de Notas en macOS 26 es un `AXTextArea` alcanzable por `look`. prueba: abrir una nota y correr `look` desde el puente (self-qa) o Accessibility Inspector, y ver el rol del cuerpo.
 - ASSUMPTION: `make new note with properties {body:...}` sigue vigente en el diccionario de Notas de macOS 26 (la fuente es un foro de 2019). prueba: `sdef /System/Applications/Notes.app` y buscar la clase `note` y el comando `make`.
 - ASSUMPTION: en Incredible el AppleScript de un paso no pasa por el juez cuando crea contenido. prueba: con Incredible en vivo, pedir "crea una nota que diga hola" y ver si aparece tarjeta (solo observando, sin inyectar nada).
-- ASSUMPTION: el valor por defecto de `experimental_compute_use` es apagado. prueba: mirar el interruptor en Ajustes de Incredible en una instalacion nueva.
+- ASSUMPTION: el valor por defecto de el uso experimental de computadora es apagado. prueba: mirar el interruptor en Ajustes de Incredible en una instalacion nueva.
 - ASSUMPTION: Notas atiende Cmd+N dirigido a su PID estando en segundo plano. prueba: con M3 en una rama, mandar Cmd+N a Notas con Companion delante y contar notas antes y despues.
-- ASSUMPTION: las cadenas de Incredible no tienen limite de ritmo para acciones de escritorio porque no existe, no porque viva en el servidor. prueba: no se puede resolver sin el codigo; tratarlo como desconocido y no usarlo como argumento.
+- ASSUMPTION: Incredible no tiene limite de ritmo para acciones de escritorio porque no existe, no porque viva en el servidor. prueba: no se puede resolver sin el codigo; tratarlo como desconocido y no usarlo como argumento.
 - [NEEDS CLARIFICATION: D1, D2, D3, D5, D6, D7, D8 y D9 de la seccion 1.]
 
 ## 10. Checklist de estandar
@@ -455,7 +451,7 @@ Cada spec es un PR. Los criterios son medibles y heredan la seccion 10.
 
 | n | Titulo | Editor | Version o fecha | Consultado | Confianza |
 |---|---|---|---|---|---|
-| 1 | Cadenas de Incredible 0.2.36 (helper y binario principal) y recursos Python | Norditech, analisis propio | 0.2.36, sha 8a1eba9d / 5699175d | 2026-10-02 | medium |
+| 1 | Analisis estatico local de Incredible (extractos solo en la referencia local) | Norditech, analisis propio | 0.2.36 | 2026-10-02 | medium |
 | 2 | AXUIElementPerformAction | Apple | macOS 26 SDK docs | 2026-10-02 | high |
 | 3 | AXUIElementCopyAttributeValue | Apple | macOS 26 SDK docs | 2026-10-02 | high |
 | 4 | AXUIElementSetAttributeValue | Apple | macOS 26 SDK docs | 2026-10-02 | high |
