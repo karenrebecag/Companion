@@ -43,7 +43,8 @@ package struct CompanionRootView: View {
         memory: (any MemoryBrowsing)? = nil,
         browser: BrowserSettingsModel? = nil,
         apps: AppsModel? = nil,
-        grabber: (any RegionGrabbing)? = nil
+        grabber: (any RegionGrabbing)? = nil,
+        mirror: InspectionMirror? = nil
     ) {
         self.chat = chat
         self.voice = voice
@@ -54,6 +55,7 @@ package struct CompanionRootView: View {
         self.browser = browser
         self.apps = apps
         self.grabber = grabber
+        self.mirror = mirror
     }
 
     private let updates: UpdateState?
@@ -63,6 +65,9 @@ package struct CompanionRootView: View {
     private let apps: AppsModel?
     /// The island's region capture, reused by the feedback modal (16m-7).
     private let grabber: (any RegionGrabbing)?
+    /// Where self-inspection reads the screen: page, Settings and tab are
+    /// this view's private state, so only the view can report them.
+    private let mirror: InspectionMirror?
 
     package var body: some View {
         Group {
@@ -222,6 +227,7 @@ package struct CompanionRootView: View {
         .onChange(of: openTask?.id) { _, id in
             openTaskMessages = id.map(chat.transcript) ?? []
         }
+        .modifier(ScreenReport(page: page, settingsOpen: showSettings, settingsTab: settingsTab, mirror: mirror))
         .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenApps)
         ) { note in

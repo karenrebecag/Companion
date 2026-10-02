@@ -25,6 +25,9 @@ package struct IslandView: View {
     let diagrams: (any DiagramRendering)?
     /// Saves a diagram's PNG through the system's panel (16m-5b); absent, no download tool.
     let saveFile: IslandFileSaver?
+    /// Where self-inspection reads the island (spec self-qa-inspeccion);
+    /// absent, nothing is recorded.
+    let mirror: InspectionMirror?
     // Members are internal, not private, on purpose: the island's families
     // extend this view from Island/*/IslandView+X.swift, and Swift's private
     // stops at the file.
@@ -72,7 +75,8 @@ package struct IslandView: View {
         updates: UpdateState? = nil,
         mentions: MentionSources? = nil,
         diagrams: (any DiagramRendering)? = nil,
-        saveFile: IslandFileSaver? = nil
+        saveFile: IslandFileSaver? = nil,
+        mirror: InspectionMirror? = nil
     ) {
         self.chat = chat
         self.voice = voice
@@ -87,6 +91,7 @@ package struct IslandView: View {
         self.mentions = mentions.map(MentionSelectorModel.init(sources:))
         self.diagrams = diagrams
         self.saveFile = saveFile
+        self.mirror = mirror
     }
 
     var state: IslandState {
@@ -173,6 +178,9 @@ package struct IslandView: View {
             onSize(size, contentHeight)
             move(from: old == size ? .pebble : old, to: size)
         }
+        // The state this body painted, not one rebuilt from the session: the
+        // mirror is plain storage, so writing it never repaints anything.
+        .onChange(of: state, initial: true) { _, painted in mirror?.paint(painted) }
         .onChange(of: geometry.notch) { _, _ in move(from: state.size, to: state.size) }
         .onChange(of: chat.session.projection.notice, initial: true) { _, notice in
             chat.supersedeIslandError(notice: notice)
