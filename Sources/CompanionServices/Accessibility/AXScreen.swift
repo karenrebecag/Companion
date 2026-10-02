@@ -131,10 +131,26 @@ package final class AXScreen: ScreenActing, @unchecked Sendable {
         // A password field's children are glyphs; a control's children are
         // its own caption, already read into its label.
         guard !secure, !Self.isLeafControl(role) else { return }
-        for child in AXRead.elements(kAXChildrenAttribute, of: element) ?? [] {
+        for child in children(of: element, role: role, state: &state) {
             guard !state.full() else { return }
             visit(child, state: &state)
         }
+    }
+
+    private func children(of element: AXUIElement, role: String, state: inout WalkState) -> [AXUIElement] {
+        let children = AXRead.elements(kAXChildrenAttribute, of: element) ?? []
+        guard ScreenRoles.readsChildRoles(of: role) else { return children }
+        // The reads ahead obey the walk's budget and `visit`'s per-call cap,
+        // so a hung app or one with thousands of children cannot overrun
+        // it; a role left unread counts as not a toolbar.
+        var roles: [String] = []
+        for child in children {
+            guard !state.full() else { break }
+            AXUIElementSetMessagingTimeout(child, Self.messagingTimeout)
+            roles.append(AXRead.string(kAXRoleAttribute, of: child))
+        }
+        roles += Array(repeating: "", count: children.count - roles.count)
+        return ScreenRoles.childOrder(parentRole: role, childRoles: roles).map { children[$0] }
     }
 
     private static func isLeafControl(_ role: String) -> Bool {
