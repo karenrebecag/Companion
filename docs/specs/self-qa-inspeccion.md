@@ -66,7 +66,7 @@ Lo hace con una familia de tools `companion_*` de solo lectura. Funcionan aunque
   - El texto termina con `BridgeCopy.toolDataSuffix`.
   - Ningun camino lee el log de transcripciones de depuracion (test que escanea las fuentes).
 - **A11. R6.** La linea `Log.bridge("call ...")` de una `companion_*` lleva `target=` vacio; el runner nunca pone contenido en `target`.
-- **A12.** Existe ADR 008 en `docs/DECISIONS.md` (texto en §5).
+- **A12.** Existe ADR 009 en `docs/DECISIONS.md` (texto en §5; numerado 009 porque main ya tenia un ADR 008).
 - **A13. Gates.**
   - `scripts/gates.sh` en verde en cada PR.
   - Pasan por code-reviewer, qa-reviewer y security-reviewer, que lo revisa como frontera de confianza (puente, hoja, canal `said`, Ajustes).
@@ -319,7 +319,7 @@ Antes de escribir cada test se confirma en main en que target vive hoy el archiv
 ## 5. ADR para `docs/DECISIONS.md`
 
 ```markdown
-## ADR 008 — Companion se deja inspeccionar, no manejar, por el puente
+## ADR 009 — Companion se deja inspeccionar, no manejar, por el puente
 
 **Fecha:** 2026-10-01 · **Estado:** BORRADOR (spec self-qa-inspeccion; briefs self-qa-puente D3, self-qa-inspeccion-datos D1-D7)
 

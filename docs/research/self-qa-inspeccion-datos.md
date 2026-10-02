@@ -157,3 +157,5 @@ Contextos: app release instalada en /Applications (donde corre el puente y las t
 | 10 | LLM01:2025 Prompt Injection | OWASP GenAI Security Project | 2025 | 2026-10-01 | high |
 | 11 | Incredible.app 0.2.36, cadenas del binario `Contents/MacOS/incredible` | Norditech, binario instalado | 0.2.36 | 2026-10-01 | medium (solo cadenas, sin flujo) |
 | 12 | Codigo y specs del repo (Memory, ConversationStore, ChatViewModel+Persistence, IslandState, IslandEvents, Log, TranscriptDebugLog, voz-corte-al-hablar) | companion-next | d563ca3 | 2026-10-01 | high |
+
+Reutilizado (2026-10-01) por feat/self-qa-inspeccion-core (PR #90) tras rebasarse sobre main: clasifica el caso nuevo `IslandState.Line.approvalWithdrawn` (de #87, tarjeta con titulo y cuerpo fijos localizados) como sin texto, segun D5 de este brief (copia del catalogo de la app, no datos de la usuaria). No se investigo nada nuevo.
