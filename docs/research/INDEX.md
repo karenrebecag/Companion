@@ -26,3 +26,4 @@
 - ci-cola-macos | quick | APROBADO | Versiones: swift-tools=6.2 | Como bajar la cola de macOS en CI: CodeQL Swift solo en main y semanal (advanced setup) y cancelar corridas reemplazadas por PR sin tocar las de main
 - bridge-sigpipe | standard | APROBADO | Versiones: swift-tools=6.2 | Si la app (BridgeListener/BridgeSession) puede morir por SIGPIPE cuando un cliente MCP se desconecta, y si las muertes por senal de CI vienen del producto o de los clientes de prueba
 - changelog-por-fragmentos | standard | APROBADO | Versiones: swift-tools=6.2 | Como evitar que cada merge haga conflictuar CHANGELOG.md en los demas PR (fragmentos por PR, ensamblado con shell, gate de un fragmento)
+- native-executor-flakes | quick | APROBADO | Versiones: swift-tools=6.2 | Por que fallan intermitentemente bajo carga los tests de NativeExecutorTests (CancellationError del tope de runAsync, seen.denied vacio) y que patron documentado los vuelve deterministas

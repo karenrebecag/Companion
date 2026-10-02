@@ -35,167 +35,132 @@ func turnSupportsToolResult() {
     expectEq(toolResult.content, "File contents here", "content should be preserved")
 }
 
-@Test @MainActor
-func nativeExecutorAcceptsApprovalsDependency() throws {
-    let result = try runAsync {
-        let tempDir = scratchDir("approvals-dependency").path
-        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+// Awaited directly, not through runAsync: its 5 s semaphore held a real
+// thread while the body waited for a turn in the pool, and under load the
+// deadline won and surfaced as CancellationError on the @Test line.
 
-        let chatProvider = ToolCallTestProvider(
-            toolName: "readFile",
-            arguments: "{\"path\":\"test.txt\"}"
-        )
-        let approvals = TestApprovals()
+@Test(.timeLimit(.minutes(1))) @MainActor
+func nativeExecutorAcceptsApprovalsDependency() async {
+    let tempDir = scratchDir("approvals-dependency").path
+    defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
-        // This should compile and initialize
-        let executor = NativeExecutor(
-            descriptor: ExecutorCatalog.native,
-            chatProvider: chatProvider,
-            config: Config(workdir: tempDir),
-            approvals: approvals
-        )
+    let chatProvider = ToolCallTestProvider(
+        toolName: "readFile",
+        arguments: "{\"path\":\"test.txt\"}"
+    )
+    let approvals = TestApprovals()
 
-        return executor.descriptor.shortName == "native"
-    }
+    // This should compile and initialize
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native,
+        chatProvider: chatProvider,
+        config: Config(workdir: tempDir),
+        approvals: approvals
+    )
 
-    expect(result, "executor should initialize with Approvals")
+    expect(executor.descriptor.shortName == "native", "executor should initialize with Approvals")
 }
 
-@Test @MainActor
-func riskyToolEmitsApprovalEvent() throws {
-    let result = try runAsync {
-        let tempDir = scratchDir("risky-tool").path
-        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+@Test(.timeLimit(.minutes(1))) @MainActor
+func riskyToolEmitsApprovalEvent() async throws {
+    let tempDir = scratchDir("risky-tool").path
+    defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
-        // Use write_file which requires approval
-        let chatProvider = ToolCallTestProvider(
-            toolName: "write_file",
-            arguments: "{\"path\":\"test.sh\",\"content\":\"hello\"}"
-        )
-        let approvals = DenyingApprovals()
+    // Use write_file which requires approval
+    let chatProvider = ToolCallTestProvider(
+        toolName: "write_file",
+        arguments: "{\"path\":\"test.sh\",\"content\":\"hello\"}"
+    )
+    let approvals = DenyingApprovals()
 
-        let executor = NativeExecutor(
-            descriptor: ExecutorCatalog.native,
-            chatProvider: chatProvider,
-            config: Config(workdir: tempDir),
-            approvals: approvals
-        )
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native,
+        chatProvider: chatProvider,
+        config: Config(workdir: tempDir),
+        approvals: approvals
+    )
 
-        let job = JobRequest(id: "job-1", goal: "Write file", context: "")
-        let (stream, continuation) = AsyncStream<JobEvent>.makeStream()
+    let job = JobRequest(id: "job-1", goal: "Write file", context: "")
+    let (stream, continuation) = AsyncStream<JobEvent>.makeStream()
+    let seen = RoundEvents(stream)
 
-        let tracker = EventTracker()
-        let drainTask = Task {
-            for await event in stream {
-                if case .approvalRequested = event {
-                    await tracker.recordApprovalRequest()
-                }
-            }
-        }
+    _ = try await executor.run(job, events: continuation)
+    continuation.finish()
 
-        let _ = try await executor.run(job, events: continuation)
-        continuation.finish()
-        try? await drainTask.value
-
-        return await tracker.approvalRequested
-    }
-
-    expect(result, "approval should be requested for risky tool")
+    expect(await seen.approvals > 0, "approval should be requested for risky tool")
 }
 
-@Test @MainActor
-func deniedToolDoesNotExecute() throws {
-    let result = try runAsync {
-        let tempDir = scratchDir("denied").path
-        let testFile = (tempDir as NSString).appendingPathComponent("test.sh")
-        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+@Test(.timeLimit(.minutes(1))) @MainActor
+func deniedToolDoesNotExecute() async throws {
+    let tempDir = scratchDir("denied").path
+    let testFile = (tempDir as NSString).appendingPathComponent("test.sh")
+    defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
-        // Use write_file which is denied
-        let chatProvider = ToolCallTestProvider(
-            toolName: "write_file",
-            arguments: "{\"path\":\"test.sh\",\"content\":\"denied\"}"
-        )
-        let approvals = DenyingApprovals()
+    // Use write_file which is denied
+    let chatProvider = ToolCallTestProvider(
+        toolName: "write_file",
+        arguments: "{\"path\":\"test.sh\",\"content\":\"denied\"}"
+    )
+    let approvals = DenyingApprovals()
 
-        let executor = NativeExecutor(
-            descriptor: ExecutorCatalog.native,
-            chatProvider: chatProvider,
-            config: Config(workdir: tempDir),
-            approvals: approvals
-        )
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native,
+        chatProvider: chatProvider,
+        config: Config(workdir: tempDir),
+        approvals: approvals
+    )
 
-        let job = JobRequest(id: "job-1", goal: "Write file", context: "")
-        let (stream, continuation) = AsyncStream<JobEvent>.makeStream()
+    let job = JobRequest(id: "job-1", goal: "Write file", context: "")
+    let (stream, continuation) = AsyncStream<JobEvent>.makeStream()
+    stream.ignore()
 
-        let drainTask = Task {
-            for await _ in stream {}
-        }
+    _ = try await executor.run(job, events: continuation)
+    continuation.finish()
 
-        let _ = try await executor.run(job, events: continuation)
-        continuation.finish()
-        try? await drainTask.value
-
-        // File should not exist (write was denied)
-        return !FileManager.default.fileExists(atPath: testFile)
-    }
-
-    expect(result, "file should not exist when write denied")
+    expect(!FileManager.default.fileExists(atPath: testFile), "file should not exist when write denied")
 }
 
-@Test @MainActor
-func iterationLimitPreventsInfiniteLoop() throws {
-    let result = try runAsync {
-        let tempDir = scratchDir("iteration-limit").path
-        defer { try? FileManager.default.removeItem(atPath: tempDir) }
+@Test(.timeLimit(.minutes(1))) @MainActor
+func iterationLimitPreventsInfiniteLoop() async throws {
+    let tempDir = scratchDir("iteration-limit").path
+    defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
-        // Provider that always emits tool call
-        let chatProvider = InfiniteToolCallProvider()
-        let approvals = ApprovingApprovals()
+    // Provider that always emits tool call
+    let chatProvider = InfiniteToolCallProvider()
+    let approvals = ApprovingApprovals()
 
-        let executor = NativeExecutor(
-            descriptor: ExecutorCatalog.native,
-            chatProvider: chatProvider,
-            config: Config(workdir: tempDir),
-            approvals: approvals
-        )
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native,
+        chatProvider: chatProvider,
+        config: Config(workdir: tempDir),
+        approvals: approvals
+    )
 
-        let job = JobRequest(id: "job-loop", goal: "Keep requesting", context: "")
-        let (stream, continuation) = AsyncStream<JobEvent>.makeStream()
+    let job = JobRequest(id: "job-loop", goal: "Keep requesting", context: "")
+    let (stream, continuation) = AsyncStream<JobEvent>.makeStream()
+    let seen = RoundEvents(stream)
 
-        let tracker = EventTracker()
-        let drainTask = Task {
-            for await event in stream {
-                if case .stepStarted = event {
-                    await tracker.incrementStepCount()
-                }
-            }
-        }
+    _ = try await executor.run(job, events: continuation)
+    continuation.finish()
 
-        let _ = try await executor.run(job, events: continuation)
-        continuation.finish()
-        try? await drainTask.value
+    expect(await seen.steps.count <= 10, "should not exceed 10 iterations")
+}
 
-        let stepCount = await tracker.stepCount
-        return stepCount <= 10
+/// The CancellationError these tests reported was runAsync's own deadline:
+/// a body that never finishes gets exactly that error, not one from the
+/// executor.
+@Test @MainActor func runAsyncReportsItsOwnDeadlineAsCancellation() {
+    let gate = TestGate()
+    defer { gate.open() }
+    do {
+        try runAsync(timeout: 0.2) { await gate.wait() }
+        expect(false, "runAsync: un cuerpo colgado no debia terminar")
+    } catch {
+        expect(error is CancellationError, "runAsync: su propio plazo sale como CancellationError (\(error))")
     }
-
-    expect(result, "should not exceed 10 iterations")
 }
 
 // MARK: - Test Helpers
-
-actor EventTracker {
-    private(set) var approvalRequested = false
-    private(set) var stepCount = 0
-
-    func recordApprovalRequest() {
-        approvalRequested = true
-    }
-
-    func incrementStepCount() {
-        stepCount += 1
-    }
-}
 
 final class ToolCallTestProvider: ChatProvider, @unchecked Sendable {
     let toolName: String
@@ -249,7 +214,7 @@ actor TestApprovals: ApprovalsProvider {
 
 // MARK: - Requisitos de seguridad del spec (adversarial, cancelación, protocolo)
 
-@Test @MainActor func nativeExecutorSecurityTests() async {
+@Test(.timeLimit(.minutes(1))) @MainActor func nativeExecutorSecurityTests() async {
     await testPromptInjectionCannotExecute()
     await testCancellationStopsTheLoop()
     testToolRoundTripCarriesCallID()
@@ -357,14 +322,14 @@ private actor WatchingApprovals: ApprovalsProvider {
     func resolve(requestId: String, approved: Bool) async -> Bool { false }
 }
 
-private actor EventCollector {
-    private var events: [JobEvent] = []
+/// Same contract as `RoundEvents`: read only after `finish()`.
+private final class EventCollector: Sendable {
+    private let consumer: Task<[JobEvent], Never>
     init(_ stream: AsyncStream<JobEvent>) {
-        Task { for await event in stream { await self.add(event) } }
+        consumer = Task { await drain(stream) }
     }
-    private func add(_ event: JobEvent) { events.append(event) }
-    func sawApprovalRequest() -> Bool {
-        events.contains { if case .approvalRequested = $0 { return true }; return false }
+    func sawApprovalRequest() async -> Bool {
+        await consumer.value.contains { if case .approvalRequested = $0 { true } else { false } }
     }
 }
 
@@ -452,7 +417,7 @@ private final class RepeatingToolProvider: ChatProvider, @unchecked Sendable {
 
 // MARK: - Wave 10c: N calls por ronda, deduplicadas, con argumentos reparados
 
-@Test @MainActor func nativeExecutorRoundTests() async {
+@Test(.timeLimit(.minutes(1))) @MainActor func nativeExecutorRoundTests() async {
     await testTwoCallsInOneRoundRunInOrder()
     await testIdenticalCallsRunOnce()
     await testTwoApprovalsInOneRound()
@@ -574,26 +539,36 @@ private func scratchDir(_ tag: String) -> URL {
     expectEq(await approvals.requests, 0, "crudo: no se pidió permiso por algo que no se puede ejecutar")
 }
 
-actor RoundEvents {
-    private(set) var steps: [String] = []
-    private(set) var finished: [Bool] = []
-    private(set) var approvals = 0
-    private(set) var remembered: [Bool] = []
-    private(set) var denied: [String] = []
-    private(set) var receipts: [UndoReceipt] = []
-    init(_ stream: AsyncStream<JobEvent>) {
-        Task { for await event in stream { await self.add(event) } }
-    }
-    private func add(_ event: JobEvent) {
-        switch event {
-        case .stepStarted(let tool, _): steps.append(tool)
-        case .stepFinished(_, let ok): finished.append(ok)
-        case .approvalRequested: approvals += 1
-        case .approvalRemembered(_, let approved): remembered.append(approved)
-        case .approvalDenied(let tool): denied.append(tool)
-        case .acted(let receipt): receipts.append(receipt)
-        default: break
+/// Every read awaits the one task that drains the stream, so it sees every
+/// event sent before `finish()`. An actor fed by a loose loop answered from
+/// whatever the loop had reached, which under load was nothing. Read only
+/// after `finish()`: before it, the read waits for an end that never comes.
+final class RoundEvents: Sendable {
+    private let consumer: Task<[JobEvent], Never>
+    init(_ stream: AsyncStream<JobEvent>, after gate: TestGate? = nil) {
+        consumer = Task {
+            await gate?.wait()
+            return await drain(stream)
         }
+    }
+    private var events: [JobEvent] { get async { await consumer.value } }
+    var steps: [String] {
+        get async { await events.compactMap { if case .stepStarted(let tool, _) = $0 { tool } else { nil } } }
+    }
+    var finished: [Bool] {
+        get async { await events.compactMap { if case .stepFinished(_, let ok) = $0 { ok } else { nil } } }
+    }
+    var approvals: Int {
+        get async { await events.filter { if case .approvalRequested = $0 { true } else { false } }.count }
+    }
+    var remembered: [Bool] {
+        get async { await events.compactMap { if case .approvalRemembered(_, let approved) = $0 { approved } else { nil } } }
+    }
+    var denied: [String] {
+        get async { await events.compactMap { if case .approvalDenied(let tool) = $0 { tool } else { nil } } }
+    }
+    var receipts: [UndoReceipt] {
+        get async { await events.compactMap { if case .acted(let receipt) = $0 { receipt } else { nil } } }
     }
 }
 
@@ -699,6 +674,22 @@ final class RoundsProvider: ChatProvider, @unchecked Sendable {
     expectEq(await seen.finished, [false], "negar: el paso termina en no-ok")
 }
 
+/// The testDenialIsAnInstructionNotAnError flake (TSan, got [] want
+/// ["run_shell"]): the test read the log
+/// right after `finish()`, before the consumer had caught up. A read issued
+/// while the consumer is still parked has to wait for it.
+@Test(.timeLimit(.minutes(1))) @MainActor func aRoundEventsReadWaitsForItsConsumer() async {
+    let gate = TestGate()
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    let seen = RoundEvents(stream, after: gate)
+    sink.yield(.approvalDenied(tool: "run_shell"))
+    sink.finish()
+    await pumpUntil("colector: el consumidor quedo detenido") { gate.entered }
+    let read = Task { await seen.denied }
+    gate.open()
+    expectEq(await read.value, ["run_shell"], "colector: la lectura espera al consumidor")
+}
+
 /// Remembers a fixed decision for every key; counts real requests.
 actor MemoryApprovals: ApprovalsProvider {
     private let decision: Bool
@@ -714,7 +705,7 @@ actor MemoryApprovals: ApprovalsProvider {
 
 /// Wave 20d B: a plain data file that does not exist yet is written without
 /// the sheet; the same path once it exists asks, because that is an overwrite.
-@Test @MainActor func nativeExecutorActsWithoutTheSheetForANewDataFile() async throws {
+@Test(.timeLimit(.minutes(1))) @MainActor func nativeExecutorActsWithoutTheSheetForANewDataFile() async throws {
     let dir = scratchDir("acts")
     defer { try? FileManager.default.removeItem(at: dir) }
     let call = #"{"path":"notas.txt","content":"1"}"#
@@ -730,7 +721,6 @@ actor MemoryApprovals: ApprovalsProvider {
         let seen = RoundEvents(stream)
         _ = try? await executor.run(JobRequest(id: "j", goal: "x", context: ""), events: sink)
         sink.finish()
-        try? await Task.sleep(for: .milliseconds(50))
         let receipts = await seen.receipts
         return (await seen.approvals, provider, receipts)
     }
@@ -754,7 +744,7 @@ actor MemoryApprovals: ApprovalsProvider {
 
 /// A "no" the user asked to remember outranks the shortcut: the same write
 /// does not go through because its target is still free.
-@Test @MainActor func aRememberedDenialBeatsTheActBand() async {
+@Test(.timeLimit(.minutes(1))) @MainActor func aRememberedDenialBeatsTheActBand() async {
     let dir = scratchDir("acts-denied")
     defer { try? FileManager.default.removeItem(at: dir) }
     let provider = RoundsProvider(rounds: [
@@ -768,7 +758,6 @@ actor MemoryApprovals: ApprovalsProvider {
     let seen = RoundEvents(stream)
     _ = try? await executor.run(JobRequest(id: "j", goal: "x", context: ""), events: sink)
     sink.finish()
-    try? await Task.sleep(for: .milliseconds(50))
     expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("notas.txt").path),
            "negada de antes: un archivo nuevo tampoco se escribe solo")
     expectEq(await seen.receipts.count, 0, "negada de antes: sin recibo")
