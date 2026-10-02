@@ -35,7 +35,8 @@ extension SessionMachine {
     /// always said so).
     mutating func silenceVoice(always: Bool) -> [SessionEffect] {
         var effects: [SessionEffect] = []
-        if voice.state == .thinking || voice.state == .speaking || projection.announcing {
+        let voiceBusy = voice.state == .thinking || voice.state == .speaking || voice.sheetParked
+        if voiceBusy || projection.announcing {
             effects.append(.cancelVoiceOutput)
         }
         // Inside the release tail the voice still listens: the commit
