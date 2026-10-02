@@ -163,10 +163,14 @@ func browserTabsReply(_ id: Int) -> String {
 @Test func aHelloInsideTheDeadlineIsNotClosedLater() async throws {
     let rig = try makeBrowserRig(helloDeadline: .seconds(1))
     defer { rig.listener.stop() }
-    let started = Date()
+    // The premise is the state, not a stopwatch: ok:true (checked inside the
+    // helper) is only written on an open connection, and once authenticated
+    // the deadline handler closes nothing. A pause over 1 s between connect
+    // and hello can still close it first; accepted as a known limit. The
+    // 1.5 s watch below can only miss a regression under load, never invent one.
     let client = try await browserConnected(rig)
     defer { client.close() }
-    expect(Date().timeIntervalSince(started) < 1, "deadline: the hello landed inside the deadline (the premise of the test)")
+    expect(rig.presence.connected, "deadline: the hello authenticated (the premise of the test)")
     // Watches until the hello timer's moment has passed: an authenticated session must still be there.
     let outlived = await browserWaitFor(timeout: 1.5) { !rig.presence.connected }
     expect(!outlived, "deadline: an authenticated session outlives the hello timer")

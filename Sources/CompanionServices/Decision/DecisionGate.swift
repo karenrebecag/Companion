@@ -87,9 +87,10 @@ package actor DecisionGate {
     }
 
     /// N1, and N2 when N1 could not pick alone. Races the whole cascade
-    /// against `budget`; a slower provider never blocks the turn — it just
-    /// loses the race and today's path takes over. No side effects: nothing
-    /// is executed here.
+    /// against `budget`; a slower provider loses the race and today's path
+    /// takes over. `race` still waits for the cancelled loser to return, so
+    /// this only holds for providers that honor cancellation (URLSession
+    /// does). No side effects: nothing is executed here.
     package func plan(_ utterance: String, canDelegate: Bool) async -> DecisionStep {
         let world = worldProvider()
         let supports = systemSupports

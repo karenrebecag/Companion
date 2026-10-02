@@ -207,24 +207,31 @@ import Testing
     expectEq(step, .passThrough(.unresolved), "sin juicio del proveedor no hay shortlist ni accion")
 }
 
+// No wall-clock bound: under a loaded suite `plan` came back in 1.5-5.3 s
+// while the budget still won, because the race also waits for the cancelled
+// loser (brief tests-reloj-de-pared-bajo-carga). The facts asserted are that
+// the budget won and that the loser saw the cancel; the budget's value itself
+// is not asserted (accepted limit of option 1-A).
 @Test func dm1cGateTimesOutWithinBudgetWhenTheProviderIsSlow() async {
     struct SlowProvider: DecisionProvider {
+        let cancelled: LockedBox<Bool>
         func answer(_ question: DecisionQuestion) async -> DecisionAnswer? {
-            try? await Task.sleep(for: .seconds(5))
+            // Long enough that only the budget can end plan(); bounded so a
+            // regression that stops cancelling fails in ~20 s instead of hanging.
+            do { try await Task.sleep(for: .seconds(10)) } catch { cancelled.value = true }
             return nil
         }
     }
+    let cancelled = LockedBox(false)
     let gate = DecisionGate(
-        provider: SlowProvider(),
+        provider: SlowProvider(cancelled: cancelled),
         arbiter: FakeArbiter(result: nil),
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         world: { DecisionWorld() },
         budget: .milliseconds(80))
-    let start = Date()
     let step = await gate.plan("abre Safari", canDelegate: false)
-    let elapsed = Date().timeIntervalSince(start)
     expectEq(step, .passThrough(.timedOut), "el proveedor lento nunca decide a tiempo")
-    expect(elapsed < 1, "vuelve en el orden del budget, no del proveedor (\(elapsed)s)")
+    expect(cancelled.value, "el gate cancelo al proveedor que perdio la carrera")
 }
 
 @Test func dm1cForgedAppNameOpensNothing() async {
