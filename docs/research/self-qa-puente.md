@@ -242,3 +242,9 @@ Contextos: app release instalada en /Applications (com.karen.companion, la que K
 | 17 | Incredible.app 0.2.36, analisis estatico: grep de cadenas en `Contents/MacOS/incredible` y `accessibility-helper` (capture_exclusion, setSharingType, "Incredible itself"; sin accessibilityIdentifier ni servidor de pruebas) | Norditech, binario instalado | 0.2.36 | 2026-10-01 | medium (solo cadenas, sin logica) |
 | 18 | Issue "app controls expose no accessibility labels to the AX API", SpaceTrucker2196/henge | GitHub, tercero | abierta | 2026-10-01 | low (pista, no evidencia) |
 | 19 | Specs del repo: wave-15g (borrada en d13a9f1), 17, 20b, 20c, 20d | companion-next | d563ca3 (HEAD del worktree) | 2026-10-01 | high |
+
+Reutilizado (2026-10-01) por feat/self-qa-runner (PR-2 de la spec self-qa-inspeccion, apilado sobre #90). El runner de `companion_*` aplica D3 y R1-R6 sin investigar nada nuevo:
+- solo lee (sin escrituras ni manos);
+- no pide hoja propia (`approval` por defecto, nil);
+- devuelve `target` vacio (R6);
+- topa el nombre que declara el agente al mismo largo que el puente usa al registrarlo.

@@ -63,7 +63,22 @@ import Testing
     testLogReconfigureRecovers()
     testLogNoErrorInterpolation()
     testLogNoPaths()
+    testLogTailReadsTheConfiguredFile()
     await testACaptureKeepsItsOwnLinesWhenTheSinkMoves()
+}
+
+/// `companion_log` reads through `Log.tail(lines:)`, the runner's default;
+/// here because it needs the process-wide sink pointed somewhere.
+@MainActor func testLogTailReadsTheConfiguredFile() {
+    let url = uniqueLogURL()
+    Log.configure(fileURL: url)
+    let sentinel = "tail-\(UUID().uuidString)"
+    Log.app("antes")
+    Log.app(sentinel)
+    let last = Log.tail(lines: 1)
+    expectEq(last.count, 1, "tail: una linea pedida, una devuelta")
+    expect(last.first?.contains(sentinel) == true, "tail: la ultima del archivo configurado")
+    expect(Log.tail(lines: 2).first?.contains("antes") == true, "tail: en orden")
 }
 
 @MainActor func testLogUnconfiguredIsNoOp() {

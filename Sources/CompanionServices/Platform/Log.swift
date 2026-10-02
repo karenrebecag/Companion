@@ -35,6 +35,35 @@ package enum Log: Sendable {
         try await $capture.withValue(url, operation: body, isolation: isolation)
     }
 
+    /// The last `lines` lines of the file `configure` named, for
+    /// `companion_log` (D6 of self-qa-inspeccion-datos). Under the sink's
+    /// lock so a line being appended is never read half-written. Only the
+    /// current file: the `.1` generation is older diagnostics nobody asked
+    /// for, and any other log the app keeps is not reachable from here.
+    package static func tail(lines: Int) -> [String] {
+        sink.lock.lock()
+        defer { sink.lock.unlock() }
+        guard let url = sink.fileURL else { return [] }
+        return tail(lines: lines, from: url)
+    }
+
+    /// Reads the whole file: it is capped at `maxFileBytes`, so the cost is
+    /// bounded. A file that cannot be read yields no lines; logging that
+    /// failure here would re-enter the lock the caller may hold.
+    package static func tail(lines: Int, from url: URL) -> [String] {
+        guard lines > 0 else { return [] }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            return []
+        }
+        return String(decoding: data, as: UTF8.self)
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .suffix(lines)
+            .map(String.init)
+    }
+
     package static func app(_ message: String) { write(tag: "app", message: message) }
 
     package static func chat(_ message: String) { write(tag: "chat", message: message) }
