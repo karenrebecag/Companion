@@ -222,11 +222,15 @@ func testTheNotchedScreenWins() {
 @Test @MainActor func resultCardsAreKeyedByTheirMessage() async {
     let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
                              store: MemoryConversationStore(), config: Config())
-    await chat.appendAssistant("## Uno\n\nprimera")
+    // K6: only replies with a data card make rows, and the latest reply is
+    // the panel's, so a row appears once a newer reply pushes it down.
+    let card = { (title: String) in "```companion:stats\n{\"title\":\"\(title)\",\"a\":1}\n```" }
+    await chat.appendAssistant(card("Uno"))
+    await chat.appendAssistant(card("Dos"))
     let before = IslandView.resultRows(chat.messages, limit: 3).map(\.id)
-    await chat.appendAssistant("## Dos\n\nsegunda")
+    await chat.appendAssistant(card("Tres"))
     let after = IslandView.resultRows(chat.messages, limit: 3).map(\.id)
-    expectEq(after.count, 2, "tarjetas: dos respuestas")
+    expectEq(after.count, 2, "tarjetas: las dos de antes de la última")
     expectEq(after.last, before.first, "tarjetas: la vieja conserva su identidad al bajar")
     expect(after.first != before.first, "tarjetas: la nueva es otra, y entra con su animación")
 }

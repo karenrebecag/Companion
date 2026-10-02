@@ -61,8 +61,8 @@ package struct IslandView: View {
     /// Whether the latest result card was ever opened, for the model (16h-3).
     @State var resultAttention = IslandResultAttention()
 
-    /// Incredible stacks the latest few; more is the window's job.
-    static let maxResults = 3
+    /// Incredible stacks the latest few under the reply; more is the window's job.
+    static let maxResults = 2
 
     package init(
         chat: ChatViewModel, voice: VoiceViewModel, hold: HoldSettingsModel,
@@ -111,20 +111,6 @@ package struct IslandView: View {
                 errorText: chat.errorText, needsOnboarding: chat.needsOnboarding,
                 dismissed: chat.dismissedIslandError),
             update: updates?.noticeTag)
-    }
-
-    /// Newest first, the replies of this conversation only, each keyed by
-    /// its message so a card keeps its identity as newer ones push it down.
-    static func resultRows(_ messages: [ChatMessage], limit: Int) -> [(id: UUID, result: IslandResult)] {
-        messages.reversed()
-            .filter { $0.role == .assistant && !$0.isStatus }
-            .compactMap { message in IslandResult(reply: message.text).map { (id: message.id, result: $0) } }
-            .prefix(limit)
-            .map { $0 }
-    }
-
-    var results: [(id: UUID, result: IslandResult)] {
-        Self.resultRows(chat.messages, limit: Self.maxResults)
     }
 
     /// What the panel says above a question card: the card already carries the
@@ -318,7 +304,7 @@ package struct IslandView: View {
                 IslandClearConfirm(onClear: clearHistory, onCancel: { confirmingClear = false })
             }
             reply(state)
-            ForEach(Array(results.dropFirst().enumerated()), id: \.element.id) { index, row in
+            ForEach(Array(results.enumerated()), id: \.element.id) { index, row in
                 IslandResultCard(result: row.result, onOpen: { openResult(row.id) })
                     .modifier(IslandLineReveal(index: index))
             }
