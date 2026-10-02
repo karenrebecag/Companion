@@ -77,16 +77,25 @@ struct IslandTranscript: View {
     }
 }
 
-/// The apps this turn has touched so far, oldest first: a quiet band under
-/// the status line, one small chip per app.
+/// The app this turn touched last: a quiet band under the status line with
+/// one item, as Incredible's reel (K8). A row of every app crowded the band,
+/// and an empty target painted an empty chip.
 struct IslandReel: View {
-    let touched: [String]
+    static func item(_ touched: [String]) -> String? {
+        touched.last { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    let item: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: Space.x1) {
-            ForEach(touched, id: \.self) { ReferentChip(text: $0) }
+            ReferentChip(text: item)
+                .id(item)
+                .transition(.opacity)
             Spacer(minLength: Space.none)
         }
+        .animation(reduceMotion ? nil : .expoOut(MotionTime.reelSwap), value: item)
         .frame(height: WorkStateMetrics.reelHeight)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(Localized.string("island.reel"))
