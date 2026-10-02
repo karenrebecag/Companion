@@ -234,7 +234,11 @@ package struct IslandView: View {
         case .nudge:
             shell(state, header: AnyView(IslandHeaderControls(popover: $popover))) { composer(state) }
         case .bar, .card, .wideCard:
-            shell(state) { status(state) }
+            shell(state) {
+                IslandColumn(maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height)) {
+                    status(state)
+                }
+            }
         }
     }
 
@@ -275,7 +279,7 @@ package struct IslandView: View {
     /// The band beside the notch holds the task slots; the rest sits under it.
     func shell<Inner: View>(_ state: IslandState, header: AnyView? = nil,
                                     @ViewBuilder _ inner: () -> Inner) -> some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
+        VStack(alignment: .leading, spacing: IslandChrome.shellSpacing) {
             HStack {
                 if let header { header }
                 Spacer(minLength: Space.none)
@@ -287,7 +291,7 @@ package struct IslandView: View {
             inner()
         }
         .padding(.horizontal, IslandChrome.shellMargin)
-        .padding(.bottom, Space.x4)
+        .padding(.bottom, IslandChrome.shellBottom)
     }
 
     func composer(_ state: IslandState) -> some View {

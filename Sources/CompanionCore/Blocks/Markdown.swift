@@ -103,8 +103,12 @@ package struct MarkdownSplitter: Sendable {
 
     /// The island reads a reply on every streamed token: it only ever parses
     /// this much of it (security review 16f), enough for the opening prose
-    /// and the fence of a first card.
-    package static let islandWindow = 4_096
+    /// and the fence of a first card. It has to fit the island's word cap
+    /// with room for markup, or a reply that fits the cap gets cut short.
+    // HACK: a head window, so a reply longer than this stops updating on the
+    // island while the voice goes on. Upgrade trigger: the first spoken reply
+    // seen past the window, then the window follows the tail outside fences.
+    package static let islandWindow = 8_192
 
     /// `proseWithoutCards` over the island's window. A cut inside a fence
     /// reads as an unclosed fence, so it never shows half a card either.

@@ -148,12 +148,13 @@ func testTheNotchedScreenWins() {
 }
 
 @MainActor func testTheReplyIsTheSpokenPartInPlainWords() {
+    // F2 (brief isla-maquetacion-incredible): every paragraph, not the first.
     expectEq(IslandReplyText.spoken(from: "## Vuelos a Lima\n\nEl más **barato** sale el martes."),
-             "Vuelos a Lima", "respuesta: el primer párrafo, sin marcas")
+             "Vuelos a Lima\n\nEl más barato sale el martes.", "respuesta: todos los párrafos, sin marcas")
     expectEq(IslandReplyText.spoken(from: "Listo. Abrí [Safari](https://apple.com) y `busqué`."),
              "Listo. Abrí Safari y busqué.", "respuesta: enlaces y código como texto")
     let long = String(repeating: "palabra ", count: 80)
-    expect(IslandReplyText.spoken(from: long).count <= IslandReplyText.maxLength + 1, "respuesta: con tope")
+    expectEq(IslandReplyText.spoken(from: long).split(separator: " ").count, 80, "respuesta: entera, sin corte")
     expectEq(IslandReplyText.spoken(from: "   "), "", "respuesta: vacía")
 }
 
@@ -172,7 +173,7 @@ func testTheNotchedScreenWins() {
     let start = Date()
     let text = IslandReplyText.spoken(from: flood)
     expect(Date().timeIntervalSince(start) < 0.2, "respuesta: miles de enlaces no congelan la isla")
-    expect(text.count <= IslandReplyText.maxLength + 1, "respuesta: con tope")
+    expect(text.split(whereSeparator: \.isWhitespace).count <= IslandReplyText.wordCap, "respuesta: con tope de palabras")
 }
 
 /// Security review 16f (note): the shape now grows under a still pointer,
