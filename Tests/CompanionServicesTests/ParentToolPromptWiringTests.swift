@@ -56,6 +56,18 @@ import Testing
         canDelegate: true, parentToolsEnabled: true, handsEnabled: true)
     expect(hands.contains("read_focused"), "realtime: con manos declaradas, la regla de manos")
     expect(!with.contains("read_focused"), "realtime: sin manos declaradas, sin la regla")
+    // D1 (brief manos-escribir-en-notas): hands-free hears the menu route too,
+    // only when menu is offered.
+    for (language, route) in [(AppLanguage.en, "File > New Note"), (.es, "Archivo > Nueva nota")] {
+        let sighted = RealtimeRuntime.instructions(
+            config: Config(ownerFirstName: "Karen", language: language), history: [],
+            canDelegate: true, parentToolsEnabled: true, handsEnabled: true, sightEnabled: true)
+        expect(sighted.contains(route), "realtime \(language): con vista, la ruta de menu")
+        let blind = RealtimeRuntime.instructions(
+            config: Config(ownerFirstName: "Karen", language: language), history: [],
+            canDelegate: true, parentToolsEnabled: true, handsEnabled: true)
+        expect(!blind.contains(route), "realtime \(language): sin vista, no la promete")
+    }
 }
 
 @MainActor private func systemPrompt(tools: [ToolSpec]) -> String {

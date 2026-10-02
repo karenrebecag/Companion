@@ -49,6 +49,33 @@ package enum HandsWords {
         "abbrechen", "annuler", "annulla",
     ]
 
+    /// Quitting an app or closing its window or tab loses unsaved work
+    /// (brief manos-escribir-en-notas, D4). Menu bar only: in a dialog
+    /// "Cerrar" backs out (`cancelWords`), in the menu bar it closes.
+    /// "Cerrar sesión" never lands here, since `tokens` fuses it to signout.
+    /// No "sal": it is also salt, and any word of the utterance clears it.
+    static let menuQuitFamily: Set<String> = [
+        "salir", "quit", "exit", "cerrar", "cierra", "cierralo", "cierrala", "close",
+        "forzar", "force", "beenden", "schliessen", "schließen", "quitter", "fermer", "sair",
+        "fechar", "esci", "chiudi",
+    ]
+
+    package static func isMenuQuit(_ label: String) -> Bool {
+        !menuQuitFamily.isDisjoint(with: menuTokens(label))
+    }
+
+    package static func asks(_ family: Set<String>, in said: String) -> Bool {
+        !family.isDisjoint(with: tokens(said))
+    }
+
+    /// Leaving full screen closes nothing, though it says "salir"/"exit".
+    private static func menuTokens(_ label: String) -> Set<String> {
+        let fused = words(label).replacingOccurrences(
+            of: #"\b(?:salir de (?:la )?pantalla completa|exit full ?screen)\b"#,
+            with: "fullscreen", options: .regularExpression)
+        return tokens(fused)
+    }
+
     package static func isCancel(_ label: String) -> Bool {
         let tokens = words(label).split(separator: " ").map(String.init)
         return !tokens.isEmpty && tokens.allSatisfy { cancelWords.contains($0) }
@@ -61,8 +88,7 @@ package enum HandsWords {
     }
 
     package static func asks(family: Int, in said: String) -> Bool {
-        let tokens = tokens(said)
-        return !destructiveFamilies[family].isDisjoint(with: tokens)
+        asks(destructiveFamilies[family], in: said)
     }
 
     package static func said(_ text: String, in said: String) -> Bool {
