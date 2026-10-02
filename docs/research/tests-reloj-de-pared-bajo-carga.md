@@ -1,6 +1,6 @@
 # Reference Brief: dos tests con tope de reloj de pared que caen bajo carga (DecisionGate y BrowserChannel)
 
-Slug: tests-reloj-de-pared-bajo-carga | Nivel: quick | Fecha: 2026-10-02 | Estado: ESCALADO
+Slug: tests-reloj-de-pared-bajo-carga | Nivel: quick | Fecha: 2026-10-02 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-02 ESCALATE
 
@@ -231,3 +231,5 @@ Test 2 (`BrowserChannel`):
 | 7 | Task.swift (megaYield) | pointfreeco/swift-concurrency-extras | 5fa2534 | 2026-10-02 | medium |
 | 8 | tests-espera-sin-hilo, tests-orden-no-prometido | companion-next docs/research | 2026-10-01 | 2026-10-02 | high |
 | 9 | Sondas: los dos tests sueltos en companion-next-self-qa-wiring, mismas fuentes | esta corrida | 2026-10-02 | 2026-10-02 | medium |
+
+[KAREN:chat 2026-10-02] (1) Acepto 1-A: proveedor que solo termina al cancelarse, sin tope de reloj; no hace falta otra referencia. (2) 2-A: quitar la premisa de tiempo y afirmar ok:true y presence.connected; el falso rojo con una pausa de mas de 1 s entre connect y hello queda como limite conocido. 2-B no, por ser diseno propio sin precedente. (3) Solo corregir el comentario de plan; 1-D (que race no espere al perdedor) se abre como cambio de producto solo si se observa en la app.
