@@ -225,10 +225,24 @@ private func navigate(_ from: String?, _ raw: String, said: String = "") -> Resu
 @Test func browserCopyIsBilingual() {
     expect(BrowserCopy.truncationNote(.en) != BrowserCopy.truncationNote(.es), "aviso es != en")
     for code in [BridgeCode.notConnected, BridgeCode.staleId, BridgeCode.secureField, BridgeCode.timeout,
-                 BridgeCode.busy, BridgeCode.invalidArgs] {
+                 BridgeCode.busy, BridgeCode.invalidArgs, BridgeCode.selectorNoMatch, BridgeCode.selectorHidden] {
         let en = BrowserCopy.failure(code: code, .en)
         let es = BrowserCopy.failure(code: code, .es)
         expect(!en.isEmpty && !es.isEmpty && en != es, "\(code): mensaje en ambos idiomas")
     }
     expect(BrowserCopy.failure(code: "unheard_of", .en).contains("unheard_of"), "codigo desconocido se nombra")
+}
+
+// An empty selector read names why and what to do next, in both languages.
+@Test func aSelectorReadThatFindsNothingNamesTheNextStep() {
+    for code in ["selector_no_match", "selector_hidden"] {
+        let en = BrowserCopy.failure(code: code, .en)
+        let es = BrowserCopy.failure(code: code, .es)
+        expect(!en.contains(code) && !es.contains(code), "\(code): has its own copy, not the unknown-code fallback")
+        expect(en != es, "\(code): en and es differ")
+        expect(en.contains("read again") && en.contains("without a selector"), "\(code) en: \(en)")
+        expect(es.contains("vuelve a leer") && es.contains("sin selector"), "\(code) es: \(es)")
+    }
+    expect(BrowserCopy.failure(code: "selector_no_match", .en) != BrowserCopy.failure(code: "selector_hidden", .en),
+           "nothing found and found but hidden read differently")
 }
