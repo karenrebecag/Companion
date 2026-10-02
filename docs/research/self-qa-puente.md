@@ -255,3 +255,8 @@ Reutilizado (2026-10-02) por feat/self-qa-allowlist (PR-3 de la spec self-qa-ins
 - la puerta las ve con `said: ""` (R2);
 - la linea `Log.bridge` lleva `target=` vacio (R6);
 - con Companion al frente responden, y las manos siguen devolviendo `self_in_front` (D3).
+
+Reutilizado (2026-10-02) por feat/self-qa-wiring (PR-6 de la spec self-qa-inspeccion, apilado sobre #109). La App compone el runner en la lista del puente aplicando D3 y R1 tal cual, sin investigar nada nuevo:
+- `installBridge` suma `SelfInspectionRunner` a `CompositeParentTools`, junto a las manos y el navegador, solo en la lista del puente y nunca en las tools de la conversacion;
+- sigue detras de "Prestar las manos" y de la hoja de sesion: con el interruptor apagado no hay listener;
+- llamar todas las `companion_*` con una aprobacion pendiente no la toca ni la resuelve (R1).

@@ -63,6 +63,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var bridgeHost: BridgeHost?
     /// Wave 18: the browser link; listens only once a browser was connected.
     var browserHost: BrowserHost?
+    /// Self-qa (ADR 009): what the island and the window last painted. The
+    /// views write it, the bridge's `companion_*` read it; read by
+    /// `presentWindow`, so internal.
+    let inspection = InspectionMirror()
 
     /// A net, not a guarantee, and the difference matters: this runs on an
     /// orderly quit and on nothing else. A crash or a Force Quit gives the app
@@ -137,9 +141,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             trust: { accessibility.isTrusted() })
         sensing.browserHost.startIfInstalled()
         self.browserHost = sensing.browserHost
+        // Self-qa (ADR 009): an agent may also inspect Companion, read only.
+        // Only here, never among the conversation's tools: it is meant for an
+        // outside agent behind the session sheet, not for the model.
+        let inspector = SelfInspectionRunner(
+            source: SelfInspectionSource(session: sensing.sessionModel, chat: sensing.model, mirror: inspection),
+            language: { env.configProvider.current.language })
         let bridgeHost = BridgeHost(
             // The bridge lends the hands and the browser, not Karen's connected apps.
-            tools: sensing.browserHost.bridgeTools(parent: sensing.parentTools), approvals: jobs.approvals,
+            tools: CompositeParentTools([sensing.browserHost.bridgeTools(parent: sensing.parentTools), inspector]),
+            approvals: jobs.approvals,
             language: { env.configProvider.current.language },
             accessibility: { accessibility.isTrusted() },
             sessionModel: sensing.sessionModel,
