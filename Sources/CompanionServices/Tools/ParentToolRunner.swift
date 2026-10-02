@@ -157,6 +157,11 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         deliverableTickets.grant(id: request.requestId)
     }
 
+    package func withdraw(_ call: ToolCallRef) {
+        hands?.tickets.revoke(name: call.name, arguments: call.arguments)
+        deliverableTickets.revoke(name: call.name, arguments: call.arguments)
+    }
+
     /// By catalog name only. A path is not a valid name, so it is not found
     /// before anything looks at the disk.
     private func readSkill(_ arguments: [String: Any]) -> ParentToolOutcome {

@@ -158,6 +158,20 @@ final class ApprovalTickets: @unchecked Sendable {
         lock.withLock { granted.append((ticket, now())) }
     }
 
+    /// By name and arguments only: the pid, node or scan a ticket was bound
+    /// to may have moved since, and the dropped call cannot rebuild them. A
+    /// pending one goes too, or a late yes would grant it afterwards. An
+    /// identical call in another lane loses its ticket with it; that one
+    /// fails closed and asks again.
+    func revoke(name: String, arguments: String) {
+        lock.withLock {
+            granted.removeAll { $0.ticket.name == name && $0.ticket.arguments == arguments }
+            if let parked = pending, parked.ticket.name == name, parked.ticket.arguments == arguments {
+                pending = nil
+            }
+        }
+    }
+
     func reset() {
         lock.withLock {
             pending = nil

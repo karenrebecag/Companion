@@ -68,6 +68,7 @@ extension ClassicRuntime {
             } else if Task.isCancelled {
                 // The guard's other awaits (binding, memory) are cut points
                 // too, and this is the last one before the effect.
+                parentTools.withdraw(call)
                 outcome = .failed(.interrupted, target: ParentTool.target(of: call), tool: call.name)
             } else {
                 outcome = await parentTools.execute(

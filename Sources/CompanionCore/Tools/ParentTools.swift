@@ -317,6 +317,10 @@ package protocol ParentToolExecuting: Sendable {
     /// The gate reports a yes, from the sheet or the session's memory. A
     /// runner that must not act unapproved (a terminal) acts only after it.
     func granted(_ request: ApprovalRequest)
+    /// The call was dropped after the gate (a cut, a peer that left): any
+    /// ticket the gate handed out for it goes too, or the fail-closed check
+    /// in `execute` finds it spendable for another identical call.
+    func withdraw(_ call: ToolCallRef)
     /// The user started a turn (a hold, a sent message): a runner that acts
     /// on another app pins the app that was in front now.
     func beginTurn()
@@ -342,6 +346,8 @@ extension ParentToolExecuting {
     package func actsWithoutSheet(_ call: ToolCallRef) async -> Bool { false }
 
     package func granted(_ request: ApprovalRequest) {}
+
+    package func withdraw(_ call: ToolCallRef) {}
 
     package func beginTurn() {}
 
