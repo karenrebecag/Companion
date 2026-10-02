@@ -17,8 +17,14 @@ import Testing
     await testFNHeldPastTheThresholdConfirms()
 }
 
-private final class TapClock: @unchecked Sendable {
-    var now: TimeInterval = 0
+/// The tap reads the clock on its arm queue while the test body moves it on
+/// the main actor; a bare stored property raced under TSan in CI (#116).
+private final class TapClock: Sendable {
+    private let box = LockedBox<TimeInterval>(0)
+    var now: TimeInterval {
+        get { box.value }
+        set { box.value = newValue }
+    }
 }
 
 private final class TapEvents: @unchecked Sendable {
