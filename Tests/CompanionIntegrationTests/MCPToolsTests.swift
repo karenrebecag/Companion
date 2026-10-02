@@ -22,7 +22,8 @@ import CompanionTestKit
     await testSheetDenyAnswersNo()
     await testDroppedSheetAnswersNo()
     await testStaleOrDuplicateCloseSendsNothing()
-    await testQueuedMCPRequestsAnswerInOrder()
+    await testQueuedMCPRequestsEachGetTheirAnswer()
+    await testCrossedMCPVerdictsKeepTheirAnswers()
     await testStopWhileMCPQueuedAnswersNo()
     await testUnansweredMCPRequestTimesOut()
     await testTeardownClearsPendingMCPApprovals()
@@ -108,16 +109,18 @@ func testMCPRequestIsHighRisk() {
 /// (request id, approve) of every mcp_approval_response frame, decoded: a
 /// substring test on the raw frame would pass on the id "true-1".
 private func mcpVerdicts(_ h: VoiceHarness) -> [(id: String, approve: Bool)] {
-    h.transport.sent.compactMap { frame in
-        guard let data = frame.data(using: .utf8),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let item = root["item"] as? [String: Any],
-              item["type"] as? String == "mcp_approval_response",
-              let id = item["approval_request_id"] as? String,
-              let approve = item["approve"] as? Bool
-        else { return nil }
-        return (id, approve)
-    }
+    h.transport.sent.compactMap(mcpVerdict)
+}
+
+private func mcpVerdict(_ frame: String) -> (id: String, approve: Bool)? {
+    guard let data = frame.data(using: .utf8),
+          let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let item = root["item"] as? [String: Any],
+          item["type"] as? String == "mcp_approval_response",
+          let id = item["approval_request_id"] as? String,
+          let approve = item["approve"] as? Bool
+    else { return nil }
+    return (id, approve)
 }
 
 /// El booleano del modelo no aprueba un MCP propio: solo la hoja.
@@ -167,7 +170,16 @@ private func mcpVerdicts(_ h: VoiceHarness) -> [(id: String, approve: Bool)] {
     expectEq(mcpVerdicts(h).count, 1, "mcp: un segundo cierre del mismo id no manda nada")
 }
 
-@MainActor func testQueuedMCPRequestsAnswerInOrder() async {
+/// Each verdict as "id:approve", sorted. The protocol pairs a verdict with its
+/// id and promises no order between ids, and each request answers from its
+/// own task, so two clicks a few ms apart can cross on the wire (brief
+/// mcp-orden-veredictos, option A). Sorted rather than a set: a duplicate
+/// verdict still fails.
+private func mcpVerdictPairs(_ h: VoiceHarness) -> [String] {
+    mcpVerdicts(h).map { "\($0.id):\($0.approve)" }.sorted()
+}
+
+@MainActor func testQueuedMCPRequestsEachGetTheirAnswer() async {
     let (h, model) = await mcpHarness()
     h.transport.yield(.mcpApprovalRequest(
         id: "req10", server: "docs", tool: "write", argumentsJSON: "{}"))
@@ -178,9 +190,22 @@ private func mcpVerdicts(_ h: VoiceHarness) -> [(id: String, approve: Bool)] {
     }
     model.send(.approvalAnswered(requestId: "req10", approved: false, remember: false))
     await pumpUntil("mcp: ambas contestadas") { mcpVerdicts(h).count == 2 }
-    let sent = mcpVerdicts(h)
-    expectEq(sent.map(\.id), ["req9", "req10"], "mcp: en orden y con su id")
-    expectEq(sent.map(\.approve), [true, false], "mcp: cada una con su verdad")
+    expectEq(mcpVerdictPairs(h), ["req10:false", "req9:true"], "mcp: cada id con su verdad")
+}
+
+@MainActor func testCrossedMCPVerdictsKeepTheirAnswers() async {
+    let (h, model) = await mcpHarness()
+    h.transport.yield(.mcpApprovalRequest(
+        id: "req10", server: "docs", tool: "write", argumentsJSON: "{}"))
+    await pumpUntil("mcp cruzado: la segunda queda en cola") { model.projection.approvalQueue.count == 2 }
+    h.transport.holdSend { mcpVerdict($0)?.id == "req9" }
+    model.send(.approvalAnswered(requestId: "req9", approved: true, remember: false))
+    await pumpUntil("mcp cruzado: el primer veredicto queda retenido") { h.transport.sendHeld }
+    model.send(.approvalAnswered(requestId: "req10", approved: false, remember: false))
+    await pumpUntil("mcp cruzado: el segundo adelanta al primero") { mcpVerdicts(h).count == 1 }
+    h.transport.releaseSend()
+    await pumpUntil("mcp cruzado: ambas contestadas") { mcpVerdicts(h).count == 2 }
+    expectEq(mcpVerdictPairs(h), ["req10:false", "req9:true"], "mcp cruzado: cada id con su verdad")
 }
 
 @MainActor func testStopWhileMCPQueuedAnswersNo() async {

@@ -165,6 +165,9 @@ package final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable 
         var openEntered = false
         var sendFails = false
         var sendAttempts = 0
+        var holdSendMatching: (@Sendable (String) -> Bool)?
+        var sendWaiter: CheckedContinuation<Void, Never>?
+        var sendHeld = false
         var closeCount = 0
         var openReturned = 0
     }
@@ -236,12 +239,40 @@ package final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable 
         for event in events { box.yield(event) }
     }
 
+    /// The first frame matching `predicate` suspends before it lands in
+    /// `sent` until `releaseSend()`, so a test can let a later frame overtake
+    /// it: the crossing the scheduler only produces sometimes.
+    package func holdSend(matching predicate: @escaping @Sendable (String) -> Bool) {
+        state.withLock { $0.holdSendMatching = predicate }
+    }
+    package var sendHeld: Bool { state.withLock { $0.sendHeld } }
+    package func releaseSend() {
+        let waiter = state.withLock { s -> CheckedContinuation<Void, Never>? in
+            defer { s.sendWaiter = nil }
+            return s.sendWaiter
+        }
+        waiter?.resume()
+    }
+
     package func send(_ json: String) async throws {
-        try state.withLock { s in
+        let hold = try state.withLock { s -> Bool in
             s.sendAttempts += 1
             if s.sendFails { throw VoiceTransportError.unreachable }
-            s.sent.append(json)
+            guard let matches = s.holdSendMatching, matches(json) else {
+                s.sent.append(json)
+                return false
+            }
+            s.holdSendMatching = nil
+            return true
         }
+        guard hold else { return }
+        await withCheckedContinuation { waiter in
+            state.withLock { s in
+                s.sendWaiter = waiter
+                s.sendHeld = true
+            }
+        }
+        state.withLock { $0.sent.append(json) }
     }
     package func events() -> AsyncStream<RealtimeEvent> { state.withLock { $0.box.stream } }
     package func close() async {
