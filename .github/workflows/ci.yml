@@ -23,6 +23,9 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Gate 0 diffs against origin/$GITHUB_BASE_REF; a shallow clone lacks it.
+          fetch-depth: 0
       - name: Show toolchain
         run: swift --version
       - name: Run gates

@@ -1,0 +1,1 @@
+- **Cada PR exige su fragmento de changelog (2026-10-01).** El primer gate de `scripts/gates.sh` falla en segundos si el PR no agrega exactamente un archivo en `changelog.d/` o si edita `CHANGELOG.md` a mano; solo el ensamblado de wave puede tocarlo.

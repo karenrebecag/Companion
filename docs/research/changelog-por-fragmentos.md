@@ -105,3 +105,5 @@ Contextos: CI en macos-26 (job gates, evento pull_request y push a main), `scrip
 | 7 | news fragments de pip y towncrier | PyPA, Twisted | sha fijados | 2026-10-01 | high |
 
 [KAREN:chat 2026-10-01] Todos los PR llevan fragmento; se ensamblan al cerrar cada wave.
+
+Reutilizado (2026-10-02) por chore/changelog-fragmentos-gate (PR #93, parte B): el Gate 0 que exige exactamente un fragmento por PR es la parte B de este mismo brief. Al rebasarse sobre main, el checkout fijado por SHA de ci-cola-macos (#81) se conserva y se le agrega fetch-depth: 0. No se investigo nada nuevo.
