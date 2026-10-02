@@ -130,32 +130,43 @@ private let openCall = ToolCallRef(
         #expect(tools.executeCalls.isEmpty, "the late yes acted for a closed session")
     }
 
-    // Q1 is Karen's open question. This only records what happens today
-    // with the real actor when the user presses to answer by voice: the
-    // press cuts the turn, so the guard's own check is part of why nothing
-    // runs. It is not evidence of how main behaved before this change.
-    @Test @MainActor func characterizationASpokenYesToAParentSheetInClassicActsOnNothing() async {
+    // Q1, Karen's D1 (a): a spoken "sí" to an announced parent sheet in
+    // classic approves nothing and cuts nothing. The voice says the click is
+    // needed and the sheet stays, waiting for it. Real actor, so a cut would
+    // end the wait and show here as a sheet no longer parked.
+    @Test @MainActor func aSpokenYesToAnAnnouncedParentSheetAsksForTheClickAndKeepsIt() async {
         let approvals = Approvals(clock: RealtimeClock())
         let (h, tools) = sheetRig(approvals: approvals)
         let seen = SessionEventBox(h.session.events)
+        let classic = await h.session.classic
+        classic.slowToolWait = {
+            do { try await Task.sleep(for: .seconds(600)) } catch {}
+        }
         await h.session.hold()
         await pumpUntil("listening") { h.watch.latest.state == .listening }
         await h.session.release()
-        // `.thinking` comes before the tool call; pressing then would cut the
-        // turn too early and hand the call to the "sí" turn instead.
-        await pumpUntilAsync("the turn waits on the sheet") {
-            seen.events.contains { if case .job(.approvalRequested, _) = $0 { true } else { false } }
+        let question = Escalation.approvalAskedSpoken(.es)
+        await pumpUntil("the voice asks") { h.synth.queue.contains(question) }
+        h.synth.yield(.finished)
+        await pumpUntilAsync("the question counts as said") {
+            await h.session.pendingApprovalSeen?.announcedAt != nil
         }
 
+        h.clock.now += 1
         h.transcriber.stoppedText = "sí"
         await h.session.hold()
         await pumpUntil("listening for the answer") { h.watch.latest.state == .listening }
         await h.session.release()
-        await h.session.awaitClassicTurn()
+        let needsClick = Escalation.approvalNeedsClickSpoken(.es)
+        await pumpUntil("the voice asks for the click") { h.synth.queue.contains(needsClick) }
 
-        #expect(tools.executeCalls.isEmpty, "a spoken yes opened the page: Q1's premise is wrong")
+        #expect(tools.executeCalls.isEmpty, "a spoken yes opened the page")
+        #expect(!seen.events.contains(.approvalWithdrawn(requestId: "r1")), "the yes cut the turn")
+        #expect(!seen.events.contains(.approvalSpoken(requestId: "r1", approved: true)))
+        #expect(h.watch.latest.sheetParked, "the turn still waits for the click")
         let stillParked = await approvals.resolve(requestId: "r1", approved: false)
-        #expect(!stillParked, "the press left the sheet parked instead of ending the wait")
+        #expect(stillParked, "the yes ended the wait instead of leaving it to the click")
+        await h.session.awaitClassicTurn()
     }
 
     @Test func theRealActorDeniesAWaitWhoseCallerWasCancelled() async {
