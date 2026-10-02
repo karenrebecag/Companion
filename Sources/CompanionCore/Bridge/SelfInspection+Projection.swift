@@ -4,6 +4,18 @@ import Foundation
 // count, a length or a flag. An initializer that takes free text keeps its
 // length and drops the text.
 
+/// Names that come from outside the app: the client an agent declared and a
+/// tool name an MCP server chose. They go out, but capped, so a long one
+/// cannot come back as a payload aimed at the next agent that reads it. The
+/// same ceiling the bridge puts on the client name it logs.
+package enum InspectionName {
+    package static let maxScalars = 32
+
+    package static func capped(_ name: String) -> String {
+        String(String.UnicodeScalarView(name.unicodeScalars.prefix(maxScalars)))
+    }
+}
+
 package struct SessionInspection: Sendable, Encodable, Equatable {
     package let kind: String
     package let phase: String?
@@ -41,14 +53,14 @@ package struct SessionInspection: Sendable, Encodable, Equatable {
         jobSteps = p.job?.steps.count ?? 0
         jobGoalLength = p.job?.goal?.count ?? 0
         queuedJobs = p.queued.count
-        approvalToolName = p.approval?.toolName
+        approvalToolName = p.approval.map { InspectionName.capped($0.toolName) }
         approvalIsMCP = p.approval?.isMCP
         approvalQueueSize = p.approvalQueue.count
         notice = p.notice.map(inspectionCaseName)
         cards = p.cards.map(inspectionCaseName)
         interruption = p.interruption.map(inspectionCaseName)
         targetCount = p.targets.count
-        handsLentTo = p.handsLentTo
+        handsLentTo = p.handsLentTo.map(InspectionName.capped)
         handsActing = p.handsActing
         hasReceipt = p.receipt != nil
     }
@@ -79,8 +91,8 @@ package struct IslandInspection: Sendable, Encodable, Equatable {
         light = inspectionCaseName(state.light)
         action = state.action.map(inspectionCaseName)
         showsStop = state.showsStop
-        approvalToolName = state.approval?.toolName
-        hands = state.hands
+        approvalToolName = state.approval.map { InspectionName.capped($0.toolName) }
+        hands = state.hands.map(InspectionName.capped)
         hasReceipt = state.receipt != nil
         partialLength = state.partial?.count ?? 0
     }
