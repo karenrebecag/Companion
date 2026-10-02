@@ -320,14 +320,19 @@ package actor VoiceSession: VoiceControlling {
         realtime.onMCPApproval = { [weak self] request in
             Task { [weak self] in await self?.noteMCPApproval(request) }
         }
-        // The parent's `open_url` gate reaches the sheet through the job
-        // seam and is parked for the spoken "yes", like a job's request.
+        // The parent's gates reach the sheet through the job seam. In classic
+        // the voice asks the question once the turn rests on it, as for a
+        // job; a spoken "yes" still never approves it (20c D1), only the
+        // click does.
         let presenter = thread
         let parentGuard = ParentToolGuard(
             approvals: approvals,
             onRequest: { [weak self] request in
                 eventBox.yield(.job(.approvalRequested(request)))
-                Task { [weak self] in await self?.noteApproval(request) }
+                Task { [weak self] in
+                    await self?.noteApproval(request)
+                    await self?.askApprovalAloud(request)
+                }
             },
             onRemembered: { name, approved in
                 await presenter.appendStatus(ParentToolCopy.remembered(
@@ -343,6 +348,7 @@ package actor VoiceSession: VoiceControlling {
             })
         realtime.parentGuard = parentGuard
         classic.parentGuard = parentGuard
+        classic.isTurnParked = { [weak self] in await self?.machine.snapshot.sheetParked ?? false }
     }
 
     package func setSpeed(_ speed: Double) async {
