@@ -39,7 +39,7 @@ extension IslandView {
         }
     }
 
-    /// A reply landing under the island is a result card shown; the model
+    /// A reply landing under the island is shown to the user; the model
     /// hears it, and later whether it was opened or left alone (16h-3).
     func reportReplyShown(_ id: UUID?) {
         guard let id else { return }
