@@ -8,8 +8,8 @@ Hoy el navegador se toca por Accesibilidad (`look`/`click`/`scroll` de 16a) y se
 
 ## 2. Cómo lo hace Incredible (análisis estático, 2026-09-28)
 
-- Manifiesto `com.incredible.bridge_auth.json` en `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/` con 3 ids de extensión permitidos; host `~/.incredible/bridge-auth-host.sh`; secreto en archivo `~/.incredible/bridge-secret`. La extensión pide el secreto al host y después habla con la app por un canal local.
-- Se reportó un puerto `37423`, pero **no aparece en los strings del binario**: no verificado.
+- Un manifiesto de mensajería nativa en la carpeta de Chrome con 3 ids de extensión permitidos y un host que entrega un secreto guardado en un archivo de su carpeta de datos (rutas y nombres en la referencia local). La extensión pide el secreto al host y después habla con la app por un canal local.
+- Se reportó un puerto TCP fijo, pero **no se encontró en la app**: no verificado.
 - Tools: `navigate`, `click`, `read` (selector `>>>` que atraviesa frames), `read_pdf`, pestañas de varios perfiles Chromium, `watch`/PiP. Filtra campos sensibles dentro de la extensión. Soporta Chrome, Edge, Arc y Brave.
 - **Se toma**: extensión MV3 + native messaging, el filtrado dentro del navegador, `>>>` y ids de elemento que caducan con cada `read`.
 - **No se toma**: el secreto en un archivo que dura para siempre, ni el puerto TCP.

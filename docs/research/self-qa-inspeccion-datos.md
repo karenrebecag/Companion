@@ -63,9 +63,6 @@ Recomendacion por prueba:
 - El corte del pipeline clasico enhebra el parcial dicho como mensaje del asistente [repo:Sources/CompanionServices/Voice/Classic/ClassicRuntime.swift:447]
 - La aceptacion en vivo del corte incluye "continua sin repetir", una propiedad del contenido [repo:docs/specs/voz-corte-al-hablar.md:70]
 - La spec del corte fija cero `response.create` al reconectar como criterio de test [repo:docs/specs/voz-corte-al-hablar.md:38]
-- Incredible 0.2.36 (cadenas del binario): sus herramientas de red del navegador devuelven "Request metadata only", sin cuerpos de respuesta [repo:docs/research/evidence/incredible-0.2.36-privacidad-strings-2026-10-01.txt:3]
-- Incredible: sus prompts de informes internos piden no incluir datos de la usuaria y describir su forma ("describe their shape instead") [repo:docs/research/evidence/incredible-0.2.36-privacidad-strings-2026-10-01.txt:5]
-- Incredible: aparece como cliente MCP de servidores ajenos; no se hallo cadena de que se exponga como servidor a agentes externos [repo:docs/research/evidence/incredible-0.2.36-privacidad-strings-2026-10-01.txt:8]
 Contextos: app release instalada en /Applications (donde corre el puente y las tools companion_*); cliente MCP externo (Claude Code por el shim de companion-mcp, cuyo modelo corre en la nube del proveedor del agente); `swift test` y CI (fakes, sin ventana ni red); bundle debug (no instalado en esta Mac).
 
 ## 3. Fuentes primarias
@@ -125,7 +122,7 @@ Contextos: app release instalada en /Applications (donde corre el puente y las t
 - ASSUMPTION: una medida de solapamiento (por ejemplo, proporcion de n-gramas del parcial repetidos al inicio de la continuacion) separa "continua" de "repite" en espanol e ingles. prueba: tres cortes reales con wifi, comparar la medida con lo que oye Karen
 - ASSUMPTION: `NLLanguageRecognizer` acierta el idioma de respuestas cortas (una o dos frases) en es/en. prueba: test con 20 respuestas cortas reales de cada idioma
 - ASSUMPTION: el shim de `companion-mcp` pasa el resultado tal cual y no anade contenido propio. prueba: leer su manejo de `tools/call`
-- ASSUMPTION: Incredible no ofrece a agentes externos una superficie de inspeccion de si mismo; solo se miraron cadenas del binario. prueba: ninguna barata; queda como pista de confianza media
+- ASSUMPTION: Incredible no ofrece a agentes externos una superficie de inspeccion de si mismo, y sus herramientas de red del navegador devuelven solo metadatos de la peticion; solo se miraron cadenas de la app (referencia local). prueba: ninguna barata; queda como pista de confianza media
 - [NEEDS CLARIFICATION: el encargo cita "la prueba de texto" pero R2 impide que el agente teclee en Companion; se confirma que la frase del guion la teclea o la dice Karen?]
 - [NEEDS CLARIFICATION: se acepta que la decision "contenido nunca, salvo log principal" se revise solo cuando una prueba nueva no quepa en igualdad o rasgo derivado (disparador de D7)?]
 
@@ -155,7 +152,7 @@ Contextos: app release instalada en /Applications (donde corre el puente y las t
 | 8 | NLLanguageRecognizer | Apple Developer Documentation | SDK actual | 2026-10-01 | high |
 | 9 | CryptoKit HMAC | Apple Developer Documentation | SDK actual | 2026-10-01 | high |
 | 10 | LLM01:2025 Prompt Injection | OWASP GenAI Security Project | 2025 | 2026-10-01 | high |
-| 11 | Incredible.app 0.2.36, cadenas del binario `Contents/MacOS/incredible` | Norditech, binario instalado | 0.2.36 | 2026-10-01 | medium (solo cadenas, sin flujo) |
+| 11 | Incredible.app 0.2.36, cadenas de la app instalada (solo consulta local) | Norditech, app instalada | 0.2.36 | 2026-10-01 | medium (solo cadenas, sin flujo) |
 | 12 | Codigo y specs del repo (Memory, ConversationStore, ChatViewModel+Persistence, IslandState, IslandEvents, Log, TranscriptDebugLog, voz-corte-al-hablar) | companion-next | d563ca3 | 2026-10-01 | high |
 
 Reutilizado (2026-10-01) por feat/self-qa-inspeccion-core (PR #90) tras rebasarse sobre main: clasifica el caso nuevo `IslandState.Line.approvalWithdrawn` (de #87, tarjeta con titulo y cuerpo fijos localizados) como sin texto, segun D5 de este brief (copia del catalogo de la app, no datos de la usuaria). No se investigo nada nuevo.

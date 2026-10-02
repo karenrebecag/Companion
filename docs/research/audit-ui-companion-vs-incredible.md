@@ -51,11 +51,11 @@ ratchet por archivo), `gates.sh` (padding/spacing/cornerRadius/copy literales
 bloqueados), y tests de fundamento (`DesignFoundationTests`: contraste AA,
 rampa, ratios de escala). Un literal nuevo no compila la suite.
 
-**Incredible.** Tailwind v4 `@theme` con tokens completos y bien nombrados
-(`radius-control` 14, `spacing-gutter` 56, sombras por elevación, 4 curvas).
-Sin evidencia de ratchet ni de tests de fundamento (no medible desde fuera).
-Todo en px fijos; **cero escala de usuario** (el `webview_zoom` de Tauri existe
-y nadie lo llama).
+**Incredible.** Tailwind v4 con tokens completos y bien nombrados (radios,
+espaciados semánticos, sombras por elevación, 4 curvas; valores en la
+referencia local). Sin evidencia de ratchet ni de tests de fundamento (no
+medible desde fuera). Todo en px fijos; **cero escala de usuario** (el zoom del
+webview de Tauri existe y nadie lo llama).
 
 **Deuda nuestra, contada:** 43 infracciones en baseline (AttachmentViews 12,
 HeaderView 11 — muerta, ThreadView 8 — muerta); 16 `.system(size:)` con
@@ -70,7 +70,7 @@ son fragmentación.
 
 **Veredicto:** ganamos en gobernanza, ellos en economía (una sola fuente de
 tokens por superficie). Nuestra fragmentación de tintas es el equivalente del
-`btn-primary` azul heredado de ellos: capas históricas sin retirar.
+botón primario azul heredado de ellos: capas históricas sin retirar.
 
 ---
 
@@ -79,8 +79,8 @@ tokens por superficie). Nuestra fragmentación de tintas es el equivalente del
 **Incredible (medido).** Un kit por superficie con variantes cva: botón
 (solid/ghost/danger/icon en 2 tamaños), badge (6 tonos), keycap (sm/lg),
 switch (md/sm), select, menú, tarjeta elevada / action card / glow card. La
-isla (`ov-*`, `ci-*`, `ovx-*`, `wf-*`) reusa la misma lógica con tinta oscura.
-Su único fósil visible: `btn-primary` azul (8 apariciones, heredado).
+isla reusa la misma lógica con tinta oscura. Su único fósil visible: un botón
+primario azul heredado, casi sin uso.
 
 **Companion.** 157 vistas en 114 archivos, planas (solo `Orb/` tiene carpeta).
 Hay reuso real de primitivas — `AppButton` 33 usos, `SettingsRow` 21,
@@ -117,8 +117,8 @@ una vista); `SessionMachine` vive en Core puro y la isla deriva su estado con
 `IslandState.from(...)` — funciones puras testeadas (SessionMachineTests,
 TurnMachine*, HUDContractTests con libro de 11 puertas que falla si una puerta
 cita un test inexistente). 15 `@Observable` por dominio, ningún ViewModel-dios
-(el ChatViewModel de 777 líneas ya se partió en 7 extensiones). El `spine`
-de Incredible (task_projection, work_ledger en jsonl) es el mismo patrón;
+(el ChatViewModel de 777 líneas ya se partió en 7 extensiones). El libro
+de trabajo de Incredible (proyección de tareas) es el mismo patrón;
 lo suyo no es inspeccionable más allá de nombres de módulo.
 
 **Cobertura visual (gana Incredible).** Ellos: cada estado tiene superficie y
@@ -136,7 +136,7 @@ medidos:
 - Estados de carga/vacío bien cubiertos en Apps (fases `.failed` con copy
   localizado) y Ajustes; `home.empty` existe.
 
-**Pendiente de catálogo (16m-3..7):** adjuntos en isla (tarjetas 84×102, pila
+**Pendiente de catálogo (16m-3..7):** adjuntos en isla (tarjetas verticales, pila
 de capturas, drop zone), dictado como tarjeta, contenedor visual
 (gráfica/Mermaid), answer-card con rejilla de avisos (límite, actualización,
 consentimiento, sesión, diagnóstico), menciones y comentarios.
@@ -146,17 +146,17 @@ consentimiento, sesión, diagnóstico), menciones y comentarios.
 ## 4. Motion
 
 **Companion.** Centralizado y **presupuestado**: `MotionTime` (6 tiempos),
-`MotionCurve` (standard/settle/glide/bounce — las mismas 4 curvas medidas de
-Incredible), 9 muelles nombrados con overshoot/settle calculados,
+`MotionCurve` (standard/settle/glide/bounce — las mismas 4 curvas de
+Incredible, valores en la referencia local), 9 muelles nombrados con overshoot/settle calculados,
 `IslandMotionBudget` por movimiento (duración, blur, offset y variante
 reducida), coreografía de isla en fases con `steps()` puro, y
 `MotionBudgetTests` que verifica las reglas M1-M8. Solo 3 curvas literales en
 todo el árbol (2 son `MotionTime × k`, 1 en baseline); `easeIn/easeOut`: 0,
 bloqueado por regla. reduceMotion: 93 referencias en 18 archivos.
 
-**Incredible.** 4 curvas nombradas y morphs finos observados (isla 0.26 s,
-settle 0.2 s, halo que sigue al cursor 0.9 s). No medible si tienen
-presupuesto o tests.
+**Incredible.** 4 curvas nombradas y morphs finos observados (la isla
+morfea rápido, el halo que sigue al cursor es lento; tiempos en la referencia
+local). No medible si tienen presupuesto o tests.
 
 **Huecos nuestros:** `CompanionRootView` (13 `withAnimation`), `SettingsView`
 (4), `Dropdown` y `MainSidebar` animan sin leer `accessibilityReduceMotion`
@@ -181,7 +181,7 @@ verifican de frente (ellos ocultan la IA en su servidor — opción que no
 existe para un producto sin backend).
 
 **La isla como app.** Paridad estructural lograda (15g/16i/16m-1/2): campo con
-orb y clip en hover, tarjetas de resultado con "Ver →", popup rico ovx
+orb y clip en hover, tarjetas de resultado con "Ver →", popup rico
 completo (tablas, callouts, código con copiar/plegar, tareas, chips, stats y
 gráficas Swift Charts), estados de trabajo, menú, luz ámbar/verde, errores con
 frase y salida. Diferencias que quedan: su clip adjunta en la isla (nuestro
@@ -190,7 +190,7 @@ los 10 min es producto suyo (nuestro rollover de 5 min es equivalente parcial).
 
 **Aprobaciones.** Nuestra hoja muestra el comando completo, auto-deny 60 s,
 "Permitir" sin atajo de teclado (hallazgo de seguridad propio: Return no
-aprueba sin leer). Su `action-gate` puntúa riesgo por acción (leer no
+aprueba sin leer). Su compuerta de acciones puntúa riesgo por acción (leer no
 pregunta, crear confirma, borrar exige aprobación) — la nuestra es equivalente
 por política de tools, no por puntuación.
 
@@ -208,8 +208,8 @@ componentes pinneados a los valores medidos (`IncredibleComponentsTests`,
 `IncredibleWindowTests`, `AnswerPopupRichTests`, `Island16m2Tests`). Cuando el
 CSS y la captura difieren, gana la captura (regla establecida en 16n).
 
-Donde ellos siguen delante: **interlineado por escalón** (10 pasos, 1.06-1.5)
-contra nuestros 2 con nombre (`bodyLead`, `codeLead`) + los del popup ovx;
+Donde ellos siguen delante: **interlineado por escalón** (10 pasos)
+contra nuestros 2 con nombre (`bodyLead`, `codeLead`) + los del popup rico;
 su escala de 10 tamaños con papel nombrado contra nuestros 5 + micro-pasos.
 Donde nosotros: escala del usuario (ellos: ninguna), tema claro/oscuro
 completo por roles semánticos (su isla es solo oscura, su ventana solo clara

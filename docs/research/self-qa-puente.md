@@ -82,8 +82,8 @@ Restricciones de seguridad que este cambio no puede relajar (se repiten como cri
 - Los campos de claves usan `SecureField`, que AX expone como campo seguro [repo:Sources/CompanionUI/DesignSystem/Controls.swift:189]
 - `AXScreen` ya pulsa con `kAXPressAction`, que es como pulsaria cualquier otro cliente AX [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:241]
 - `AXScreen` activa `AXManualAccessibility` antes del primer escaneo de cada app, porque algunos arboles solo se construyen para un cliente que lo pide [repo:Sources/CompanionServices/Accessibility/AXScreen.swift:212]
-- Incredible, segun el analisis estatico de 20b, excluye sus ventanas de la captura (`capture_exclusion`) y no se le encontro un rechazo explicito de actuar sobre si mismo [repo:docs/specs/wave-20b-qa-en-vivo.md:25]
-- Re-verificado en esta corrida sobre Incredible 0.2.36: el binario contiene `crates/desktop-host-support/src/capture_exclusion_macos.rs`, `setSharingType:` y el aviso "capture exclusion NOT applied (Incredible's own windows may appear in the recording)"; un prompt dice "Skip utilities and background tools: ... and Incredible itself"; no hay `accessibilityIdentifier` ni un servidor de pruebas (detalle en la seccion 11, fuente 17) [repo:docs/research/evidence/incredible-0.2.36-strings-2026-10-01.txt:1]
+- Incredible, segun el analisis estatico de 20b, excluye sus ventanas de la captura  y no se le encontro un rechazo explicito de actuar sobre si mismo [repo:docs/specs/wave-20b-qa-en-vivo.md:25]
+- Re-verificado en esta corrida sobre Incredible 0.2.36: la app excluye sus propias ventanas de la captura y avisa cuando no lo logra; no expone identificadores de accesibilidad ni un servidor de pruebas (detalle en la seccion 11, fuente 17; referencia local) [repo:docs/specs/wave-20b-qa-en-vivo.md:25]
 - La app que Karen usa es el release instalado en `/Applications`; no hay segunda copia [repo:CLAUDE.md:50]
 - `bundle.sh` empaqueta debug por defecto y solo el release se instala en `/Applications` [repo:scripts/bundle.sh:8]
 - El shim MCP vive en un repo hermano, `companion-mcp` [repo:docs/specs/wave-17-puente-mcp.md:4]
@@ -167,7 +167,7 @@ Contextos: app release instalada en /Applications (com.karen.companion, la que K
 - Bien hecho, en el propio repo: las paginas de Ajustes ya tienen un identificador estable independiente del idioma, reutilizable como argumento de una tool de navegacion [repo:Sources/CompanionUI/Settings/SettingsInventory.swift:5]
 - Anti-ejemplo, buscar por etiqueta visible: el UI test de CodeEdit busca "Active Task", que deja de existir al cambiar el idioma; un QA bilingue tiene que localizar por identificador [ref:https://github.com/CodeEditApp/CodeEdit/blob/fa2aebd86373211c78626074b53ab75010767575/CodeEditUITests/Features/ActivityViewer/Tasks/TasksMenuUITests.swift#L32-L35@fa2aebd86373211c78626074b53ab75010767575]
 - Anti-ejemplo, literal fuera del catalogo: el aviso de actualizacion ignora el idioma elegido y el test de catalogos no lo ve [repo:Sources/CompanionApp/CompanionMainWindow.swift:93]
-- Anti-ejemplo, ocultar ventanas con la constante legacy de AppKit, que es lo que el binario de Incredible llama via `setSharingType` [doc:https://developer.apple.com/tutorials/data/documentation/appkit/nswindow/sharingtype-swift.enum/none.json@macOS26-sdk-docs]
+- Anti-ejemplo, ocultar ventanas con la constante legacy de AppKit, que es lo que Incredible usa para excluir sus ventanas [doc:https://developer.apple.com/tutorials/data/documentation/appkit/nswindow/sharingtype-swift.enum/none.json@macOS26-sdk-docs]
 
 ## 8. Trampas
 
@@ -239,7 +239,7 @@ Contextos: app release instalada en /Applications (com.karen.companion, la que K
 | 14 | appium-mac2-driver FBFindElementCommands.m | Appium | 71e46ec | 2026-10-01 | high |
 | 15 | CodeEdit TaskDropDownView.swift, App.swift, TasksMenuUITests.swift | CodeEditApp | fa2aebd | 2026-10-01 | high |
 | 16 | flutter_driver extension.dart | Flutter (Google) | 16bf22f | 2026-10-01 | high |
-| 17 | Incredible.app 0.2.36, analisis estatico: grep de cadenas en `Contents/MacOS/incredible` y `accessibility-helper` (capture_exclusion, setSharingType, "Incredible itself"; sin accessibilityIdentifier ni servidor de pruebas) | Norditech, binario instalado | 0.2.36 | 2026-10-01 | medium (solo cadenas, sin logica) |
+| 17 | Incredible.app 0.2.36, analisis estatico de cadenas (exclusion de captura, sin identificadores de accesibilidad ni servidor de pruebas; solo consulta local) | Norditech, binario instalado | 0.2.36 | 2026-10-01 | medium (solo cadenas, sin logica) |
 | 18 | Issue "app controls expose no accessibility labels to the AX API", SpaceTrucker2196/henge | GitHub, tercero | abierta | 2026-10-01 | low (pista, no evidencia) |
 | 19 | Specs del repo: wave-15g (borrada en d13a9f1), 17, 20b, 20c, 20d | companion-next | d563ca3 (HEAD del worktree) | 2026-10-01 | high |
 

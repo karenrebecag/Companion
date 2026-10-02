@@ -1,27 +1,23 @@
 # Auditoría v2: qué hace Incredible en 7 decisiones abiertas de Companion
 
-Fecha: 2026-09-29. Solo lectura. No se copió código, prompts ni textos de Incredible a Companion.
-Las citas de Incredible son cadenas cortas (80 caracteres como máximo) usadas como evidencia.
-No se abrió nada de `~/.incredible`.
+Fecha: 2026-09-29. Solo lectura. No se copió código, prompts ni textos de Incredible a Companion, y este
+brief ya no cita cadenas, nombres de archivos del bundle, posiciones ni nombres internos de comandos o
+eventos: lo que Incredible hace se describe en palabras, y el detalle solo se consulta en la referencia
+local. No se abrió nada de `~/.incredible`.
 
 ## Fuentes y método
 
-- Frontend: `scratchpad/inc16k/` (1607 chunks). Chunks que importan: `overlay-DstkIEbM.js` (isla),
-  `firstRun-CdIWn2zA.js` (bloques de tarjeta `pc-*`, superficie presentada `pds-*`, render de
-  Mermaid), `main-BL-DABKy.js` (ventana principal, apps, feedback), `activation-CS5E0WYH.js`
-  (wrappers de invoke), `rendererJankWatch-CSVshx_T.js` (wrappers de MCP y diagnóstico),
-  `mermaid.core-CFcdHjNT.js`. Las posiciones `@N` son offsets de carácter dentro del chunk.
-- Backend: `strings -n 6` de `/Applications/Incredible.app/Contents/MacOS/incredible` y búsqueda por
-  bytes con Python. También `Info.plist`, `otool -L` de los tres binarios y las entitlements.
+- Frontend y backend de la app instalada, inspeccionados en solo lectura, más sus metadatos de empaquetado
+  y de permisos (referencia local para el detalle).
 - Companion: `companion-next-ui-gap-f`, HEAD `d5b170b`. Árbol idéntico a `origin/feat/ui-gap`
   (`8efc1dd`): `git diff --stat HEAD origin/feat/ui-gap` sale vacío.
 
 Nota de arquitectura, necesaria para leer todo lo demás: Incredible no usa un modelo realtime
 speech-to-speech. Tiene un orquestador de voz (STT, LLM, TTS) que no ejecuta nada por sí mismo.
-Delega en agentes de fondo (`tell_agent`, `stop_agent`), y los agentes llaman a los conectores
-dentro de una celda Python con `mcp(intent, slug, args)`. Lo que el usuario decide aparece como
-tarjeta en la isla. En Incredible, "durante la voz" significa "mientras hay una sesión de voz y
-trabajan agentes"; no existe un equivalente al `mcp_approval_request` del lado del servidor.
+Delega en agentes de fondo, y los agentes llaman a los conectores dentro de una celda Python. Lo que el
+usuario decide aparece como tarjeta en la isla. En Incredible, "durante la voz" significa "mientras hay
+una sesión de voz y trabajan agentes"; no existe un equivalente al `mcp_approval_request` del lado del
+servidor.
 
 ---
 
@@ -29,53 +25,32 @@ trabajan agentes"; no existe un equivalente al `mcp_approval_request` del lado d
 
 ### (a) Incredible
 
-Son tres capas, todas verificadas:
+Son tres capas, todas verificadas (referencia local para el detalle):
 
-1. **Confianza por servidor MCP (ajustes).** El detalle de un servidor MCP propio tiene un
-   interruptor, "Run look-ups without asking". Con el interruptor encendido, las lecturas corren
-   sin preguntar y todo lo que cambia o borra sigue preguntando. Con el interruptor apagado, todas
-   las acciones preguntan.
-   - `main-BL-DABKy.js @1110742`: `label:"Run look-ups without asking"`, `"Off means every action asks you first."`,
-     `"Reading actions run quietly. Anything that changes or deletes still asks."`
-   - Comando: `rendererJankWatch-CSVshx_T.js @9716` `invoke("mcp_app_set_trusted",{server_id:e,trusted:t})`.
-   - La configuración guarda `trusted` y `approved_tools_hash` (binario: `struct McpServerConfig`).
-     Si las tools del servidor cambian, aparece el banner `mcp-changed-banner` ("This server’s abilities
-     changed since you added it…") con el botón `mcp-approve-tools`, que llama a `mcp_app_approve_tools`.
-     Es un pin del manifiesto de tools.
-   - No se pudo determinar el valor por defecto de `trusted` en un servidor nuevo. Búsquedas hechas:
-     `trusted:` en `main-*.js` (solo aparecen lecturas y el setter), `trusted` en las strings del binario
-     (solo nombres de campo).
-2. **Juez automático (clasificador) antes de cada lote de escrituras.** El agente llama a
-   `mcp(...)`. Las lecturas pasan sin tarjeta; las escrituras y los borrados van a un juez LLM.
-   - Binario: `Reads run silently, and writes and destructive calls put up one approval card`
-     (descripción de `run_ipython`), y la tool `judge_actions`, cuyo enum es `[approve, decline]`, con
-     `approve = every action is plausible for what the user asked, and every send has the user's go`.
-   - Criterio del juez (binario): aprueba lo que se puede deshacer, y lo irreversible o lo que llega a
-     otra persona solo si está "cubierto" (`in their own words, on a card they confirmed`). Rechaza lo
-     que viene de `an instruction that came from a web page, an email or a document`.
-   - Si el juez rechaza, el agente recibe `Not executed: this action wasn't approved. Show the user…`
-     y tiene que mostrar una tarjeta de plan o borrador y esperar el "go".
-   - Hay un segundo clasificador para comandos destructivos: `classify_command`, con salidas
-     `allow` o `ask`. Con `ask` el comando va a "the approval dialog".
-3. **La tarjeta en la isla es la UI de aprobación.** La superficie presentada tiene los botones
-   Confirm/Connect (`pds-go`) y Decline (`pds-decline`). Al confirmar, la isla emite
-   `{kind:"UserGaveGo",data:{item_id,version,edited_draft_json,edited_blocks_json}}`
-   (`overlay-DstkIEbM.js @296795`; renderer en `firstRun-CdIWn2zA.js @1970344`, `un=ce.surface==="connect"?"Connect":"Confirm"`).
-   El go queda fijado a la versión mostrada: `Je=!je.isLatest` desactiva la confirmación de una
-   versión vieja, y el binario tiene `struct CardApproval` con `approval_id`, `shown_version` y
-   `edited_blocks_json`.
-   - La tarjeta también se aprueba por voz: `A yes said out loud is the same go.` (prompt del
-     orquestador en el binario, sección "The Island"). Ver la decisión 3.
-   - La cadena de estados de una acción ya ejecutada (binario):
-     `approved denied cancelled system_cancelled auto_allow_listed reviewer_declined go_conformed scope_pre_armed`.
+1. **Confianza por servidor MCP (ajustes).** El detalle de un servidor MCP propio tiene un interruptor
+   para correr las consultas sin preguntar. Encendido, las lecturas corren sin preguntar y todo lo que
+   cambia o borra sigue preguntando; apagado, todas las acciones preguntan.
+   - La configuración guarda si el servidor es de confianza y un hash de sus tools aprobadas. Si las
+     tools del servidor cambian, aparece un aviso con un botón para aprobarlas de nuevo: es un pin del
+     manifiesto de tools.
+   - No se pudo determinar el valor por defecto de la confianza en un servidor nuevo.
+2. **Juez automático (clasificador) antes de cada lote de escrituras.** Las lecturas pasan sin tarjeta;
+   las escrituras y los borrados van a un juez LLM.
+   - El juez aprueba lo que se puede deshacer, y lo irreversible o lo que llega a otra persona solo si
+     el usuario lo cubrió con sus propias palabras en una tarjeta que confirmó. Rechaza lo que viene de
+     una instrucción incrustada en una web, un correo o un documento.
+   - Si el juez rechaza, el agente tiene que mostrar una tarjeta de plan o borrador y esperar el "go".
+   - Hay un segundo clasificador para comandos destructivos, con dos salidas: permitir o preguntar.
+3. **La tarjeta en la isla es la UI de aprobación.** Tiene botones de confirmar (o conectar) y de
+   rechazar. Al confirmar, la isla emite un evento de "go" que lleva el elemento y su versión, y el go
+   queda fijado a la versión mostrada: una versión vieja ya no se puede confirmar.
+   - La tarjeta también se aprueba por voz: un sí dicho en voz alta vale como go. Ver la decisión 3.
+   - Las acciones ya ejecutadas tienen una cadena de estados (aprobada, denegada, cancelada, rechazada
+     por el revisor, etc.).
 
-No se encontró el componente del "approval dialog" del clasificador de comandos. `approval-dialog`,
-`mcp-action-card`, `approval-strip` y `approval-menu` solo aparecen como selectores en la lista de
-hit-rects (`overlay-DstkIEbM.js @291379`) y en `rendererJankWatch`. No hay ningún
-`"data-testid":"approval-dialog"` que los defina en ninguno de los 1607 chunks
-(`grep -F '"data-testid":"approval-dialog"'` no da resultados). Las tarjetas de aprobación que sí
-existen en código son `UploadApprovalCard` (subidas de archivos, "Don't allow" / "Always allow",
-Escape = no) y `pds-go`/`pds-decline`.
+No se encontró el componente del diálogo de aprobación del clasificador de comandos. Las tarjetas de
+aprobación que sí existen en código son la de subida de archivos ("No permitir" / "Permitir siempre",
+Escape = no) y la del go.
 
 ### (b) Companion hoy
 
@@ -98,13 +73,12 @@ Escape = no) y `pds-go`/`pds-decline`.
 1. Llevar el `mcpApprovalRequest` a la misma cola que ve la hoja. Basta con emitir
    `.job(.approvalRequested(request))` como hace `ParentToolGuard` (`VoiceSession.swift:289-294`) y
    responder con `RealtimeCodec.mcpApprovalResponse` cuando la hoja resuelva. Con eso la aprobación
-   se hace con clic, que es lo que Incredible hace con `pds-go`/`pds-decline`.
-2. Opcional, para igualar el interruptor "Run look-ups without asking": un `Bool` por servidor en
+   se hace con clic, que es lo que Incredible hace con los botones de su tarjeta.
+2. Opcional, para igualar su interruptor de consultas sin preguntar: un `Bool` por servidor en
    `MCPServerConfig` que, cuando está activo, mande `require_approval` en su forma por nombre
    (`{"never":{"tool_names":[…]}}`) solo para las tools marcadas `readOnlyHint`. Si no hay anotación,
    la tool se queda en `always`.
-3. Opcional: fijar un hash del manifiesto de tools y avisar cuando cambie, como hace
-   `approved_tools_hash`.
+3. Opcional: fijar un hash del manifiesto de tools y avisar cuando cambie, como hace Incredible.
 
 ### (d) ¿Debilita un invariante?
 
@@ -113,7 +87,7 @@ Escape = no) y `pds-go`/`pds-decline`.
   ("el sí nunca aprueba escrituras `app:`") no aplica, porque el `toolName` es `server/tool`, no
   `app:`. Pero la razón de ese invariante (F-D, `VoiceSessionApprovals.swift:76-80`: la salida de un
   servidor puede inyectar un "sí") es idéntica para un MCP externo. Incredible compensa esa vía con
-  el juez LLM (`judge_actions`) y con el go fijado a una versión; Companion no tiene ninguna de las
+  el juez LLM y con el go fijado a una versión; Companion no tiene ninguna de las
   dos cosas. Recomendación: poner la hoja y pasar la rama MCP por `SpokenYes.admits`, que en
   realtime devuelve `false`. Eso cierra el HACK por la condición que su propio comentario da como
   trigger ("when a sheet exists for MCP approvals").
@@ -124,29 +98,20 @@ Escape = no) y `pds-go`/`pds-decline`.
 
 ### (a) Incredible
 
-**Hay varios controles y cada uno para una cosa distinta. Ninguno para "todo".**
+**Hay varios controles y cada uno para una cosa distinta. Ninguno para "todo".** (referencia local para el detalle)
 
-- **Orbe o píldora de la isla, "Click to stop"** (`overlay-DstkIEbM.js`: `"Click to stop"` en el
-  tooltip; `onIslandOrbStop:()=>{je({kind:"UserPressedAbort"})}` @283054; también en
-  `island-listen-cancel` @163339 y en el estado `Processing` @165488). `UserPressedAbort` interrumpe
-  **el turno del orquestador**: el habla y el pensamiento. Los agentes siguen trabajando. Evidencia
-  en el binario: `autonomous turn suppressed post-abort; reports remain queued` y
-  `(Your previous turn was interrupted — the user pressed abort.` Aprobaciones y ediciones
-  pendientes: `Skill-edit approval was cancelled (steer / abort / app teardown)` y
-  `Approval request was cancelled (steer / abort / app teardown). Cell did not run.`
-- **Parar una tarea concreta**: `{kind:"UserStoppedTask",data:{agent_id:E}}`
-  (`overlay-DstkIEbM.js @209195`). Es por agente.
-- **Parar la ejecución de un workflow**: `UserStoppedWorkflowRun` (`workflow-run-island-stop`,
-  `workflow-blind-card-stop`).
-- **Por voz**: el orquestador tiene la tool `stop_agent`, cuya descripción en el binario dice
-  `Stop one running agent; others keep running.` y
-  `For "stop everything", stop each running agent in the same turn.` Una tarea programada se para
-  "for this run only". El prompt dice `Stop means stop.` y aclara que parar no deshace nada.
-- **Cancelar la acción de conector en vuelo**: `InterruptReason::UserCancelledAction`, con el texto
-  `The user cancelled the in-flight Connector action; do not retry` y el efecto `CancelTool`.
-- FAQ de la ventana principal (`main-BL-DABKy.js @136065`): `Click the pill and it stops on the spot.`
-  La redirección se hace con otro hold. `Finished work stays put.`
-- Al agente parado le llega el motivo `The user pressed stop; do not auto-restart this work.`
+- **Orbe o píldora de la isla ("Click to stop"):** interrumpe **el turno del orquestador**, el habla y el
+  pensamiento. Los agentes siguen trabajando y sus reportes quedan en cola. Las aprobaciones y ediciones
+  pendientes se cancelan.
+- **Parar una tarea concreta:** por agente.
+- **Parar la ejecución de un workflow.**
+- **Por voz:** el orquestador puede parar un agente a la vez; para "parar todo" para cada uno en el mismo
+  turno. Una tarea programada se para solo por esta corrida. Parar no deshace nada.
+- **Cancelar la acción de conector en vuelo:** el agente recibe que el usuario la canceló y que no debe
+  reintentarla.
+- La ayuda de la ventana principal dice que un clic en la píldora para en el acto, que redirigir se hace
+  con otro hold y que el trabajo terminado se queda.
+- Al agente parado le llega que no debe reiniciar el trabajo solo.
 
 ### (b) Companion hoy
 
@@ -174,7 +139,7 @@ Separar los dos frenos:
    `stop()`.
 2. El freno de la tarea: `chat.cancelJob()` para el job y su cola. Incredible para por agente, pero
    como la cola de Companion es serial, "la tarea" equivale al job actual.
-3. `stop_job` por voz ya se parece a `stop_agent` y se queda igual.
+3. `stop_job` por voz ya se parece al parar-agente de Incredible y se queda igual.
 
 Hoy `IslandView+Status.swift:136-141` ya elige entre job y sesión, pero la rama de sesión termina
 igualmente en `stop()`, que cancela jobs.
@@ -185,8 +150,7 @@ No toca ninguno de los tres. Sí pierde una propiedad de seguridad que Companion
 la lista: hoy el freno de voz **deniega las aprobaciones pendientes** (`SessionMachine.swift:456-459`).
 Si se iguala a Incredible, que solo interrumpe el turno, una hoja pendiente sobreviviría al "para".
 Recomendación: si se separan los frenos, que el freno de voz siga denegando las aprobaciones
-pendientes. Incredible hace algo equivalente, porque su abort cancela la aprobación de celda en curso
-("Approval request was cancelled (steer / abort …)").
+pendientes. Incredible hace algo equivalente, porque su abort cancela la aprobación de celda en curso.
 
 ---
 
@@ -194,24 +158,18 @@ pendientes. Incredible hace algo equivalente, porque su abort cancela la aprobac
 
 ### (a) Incredible
 
-- **Un sí aprueba**: `A yes said out loud is the same go.` El orquestador, con el ejemplo
-  "Looks good, send it", quita la tarjeta con `set_island` y llama a `tell_agent` en la misma
-  respuesta. También puede dar el go "for anything the user has agreed to".
-- **La voz no lee la tarjeta entera.** Dice una frase ("with one spoken sentence"). La tarjeta lleva
-  el texto exacto que se va a mandar y el usuario lo lee ahí ("A card the user decides on carries the
-  whole thing"). Los nombres de archivo y las rutas "are never spoken; the card shows them". El
-  ejemplo del prompt es una pregunta corta ("Want it sent?").
+- **Un sí aprueba.** El orquestador, ante un "looks good, send it", quita la tarjeta y le pasa el go al
+  agente en la misma respuesta. También puede dar el go para lo que el usuario ya aceptó.
+- **La voz no lee la tarjeta entera.** Dice una frase corta; la tarjeta lleva el texto exacto que se va a
+  mandar y el usuario lo lee ahí. Los nombres de archivo y las rutas no se dicen: los muestra la tarjeta.
 - **Restricciones.** Todas son a nivel de modelo; no hay ninguna compuerta determinista.
   - El orquestador interpreta el sí. No existe una regla que ate el sí a que la pregunta haya sonado
     antes, como hace el `announcedAt` de Companion.
-  - El juez (`judge_actions`) vuelve a comprobar la cobertura sobre `<conversation>` y
-    `<confirmed_cards>`, y rechaza lo que viene de una web, un correo o un documento.
-  - El go por clic va fijado a `item_id` y `version`. El go hablado viaja como texto en `context`
-    ("The user confirmed these words, send them exactly…").
-  - Aparecen los campos `voice_pending`, `voice_turn`, `voice_line` y `CardVoice::{Pending,Ready}` en
-    `PresentedItem`. **No se pudo determinar** si limitan el sí hablado. Búsquedas: `card voice`,
-    `voice_line`, `CardVoice` y `voice_turn` en las strings; solo salen nombres de campo y de variante,
-    ningún mensaje de log ni texto de política.
+  - El juez vuelve a comprobar la cobertura sobre la conversación y las tarjetas confirmadas, y rechaza
+    lo que viene de una web, un correo o un documento.
+  - El go por clic va fijado al elemento y a la versión. El go hablado viaja como texto de contexto.
+  - Hay campos de estado de voz en las tarjetas presentadas. **No se pudo determinar** si limitan el sí
+    hablado: solo se encontraron nombres de campo, ningún mensaje de log ni texto de política.
 
 ### (b) Companion hoy
 
@@ -246,21 +204,14 @@ con una frase" en clásico, con el anuncio.
 
 ### (a) Incredible
 
-**Incredible no tiene ninguna función de ubicación.**
+**Incredible no tiene ninguna función de ubicación.** (referencia local para cómo se comprobó)
 
-- No enlaza CoreLocation: `otool -L` da 0 coincidencias en `incredible`, `accessibility-helper` e
-  `incredible-screenrec`.
-- No tiene `NSLocation*UsageDescription` en `Info.plist` (grep con 0 coincidencias).
-- No tiene la entitlement de ubicación. Las que tiene son `apple-events`, `allow-jit`,
-  `allow-unsigned-executable-memory`, `disable-library-validation` y `device.audio-input`.
-- No hay ajuste. En el frontend, `geolocation`, `CoreLocation`, `user_location`, `your location` y
-  `share location` solo aparecen en ejemplos de conectores ("Find coffee shops near me", "share
-  location" de WhatsApp).
-- **Al modelo le llega la hora local con su desfase UTC**: binario, `<current_time>` con formato
-  `%A … (%:z`. No le llega ciudad ni coordenadas.
-- Las búsquedas cercanas no tienen un sitio propio: van a conectores de lugares
-  (`main-BL-DABKy.js`: `"Find places by talking… see what's nearby"`) o al navegador del usuario. La
-  ubicación la infiere el servicio, o el agente pregunta.
+- No enlaza CoreLocation en ninguno de sus tres binarios.
+- No declara permiso de ubicación en su `Info.plist` ni la entitlement correspondiente.
+- No hay ajuste. En el frontend, ubicación solo aparece en ejemplos de conectores.
+- **Al modelo le llega la hora local con su desfase UTC.** No le llega ciudad ni coordenadas.
+- Las búsquedas cercanas no tienen un sitio propio: van a conectores de lugares o al navegador del
+  usuario. La ubicación la infiere el servicio, o el agente pregunta.
 
 ### (b) Companion hoy
 
@@ -301,28 +252,17 @@ lo refuerza, porque el interruptor pasa a significar lo que dice.
 
 ### (a) Incredible
 
-- **No tiene atajos numéricos.**
-  - El bloque `choice` (`firstRun-CdIWn2zA.js @1863513`) pinta un badge con el número de la opción
-    (`Dc(z)??X+1` en `pc-opt-badge`), pero ese número es solo visual.
-  - Búsquedas sin resultado: `Digit[0-9]`, `key>="1"`, `[1-9]` en regex, `parseInt(…key)` y
-    `.key==="<dígito>"` en `firstRun`, `overlay`, `main`, `TurnStage` y `ShowStage`.
-  - Todas las comparaciones de tecla que existen: `Enter`, `Escape`, espacio, flechas, `Home`, `End`,
-    `Tab`, y `q`/`Q` en `main`.
-  - La página de atajos (`firstRun @1373671`) solo trae `chat_input`, `capture_clipboard`,
-    `capture_screenshot` y `clear_attachments`, además de push-to-talk y manos libres.
-  - Los `Digit0-9` del binario son tablas de keycodes de librerías (tao, rdev).
-- **Elegir tiene dos pasos.** Un clic selecciona (en la variante radio sustituye la selección) y el
-  botón **Confirm** (`pc-choice-submit`) envía. Hay multiselección y un campo "Or write your own
-  answer…" (`allowText`). El texto de estado dice "Choose one or write your own".
-- **Adónde va la respuesta.** Al agente que preguntó: en el orquestador, `Answered: give the answer
-  to the agent that asked, in context`, con el evento `UserSubmittedBlockValue` o
-  `UserAnsweredAgentQuestion`.
-- **Tools tras elegir.** El agente conserva el acceso a todos los conectores ("Your agents reach
-  everything… every connected service"). Responder no es un go: la lista de lo que el usuario hace
-  sobre una tarjeta separa `Confirmed` (el go) de `Answered`. Si después hay que mandar algo, el
-  juez sigue pidiendo tarjeta de plan o borrador. **Lo que no se pudo determinar** es si el juez
-  cuenta una respuesta como "cover" porque aparece en `<conversation>`. Solo se tiene el texto
-  genérico del juez, que habla de "in their own words, on a card they confirmed".
+- **No tiene atajos numéricos.** El bloque de opciones pinta un badge con el número de la opción, pero es
+  solo visual. Se buscaron comparaciones de tecla con dígitos en todos los chunks sin resultado; las
+  teclas que sí se leen son Enter, Escape, espacio, flechas, Home, End y Tab. La página de atajos solo
+  trae unos pocos atajos de captura y de voz.
+- **Elegir tiene dos pasos.** Un clic selecciona (en la variante radio sustituye la selección) y un botón
+  Confirmar envía. Hay multiselección y un campo para escribir una respuesta propia.
+- **Adónde va la respuesta.** Al agente que preguntó, en contexto.
+- **Tools tras elegir.** El agente conserva el acceso a todos los conectores. Responder no es un go: el
+  orquestador separa lo "confirmado" (el go) de lo "respondido". Si después hay que mandar algo, el juez
+  sigue pidiendo tarjeta de plan o borrador. **Lo que no se pudo determinar** es si el juez cuenta una
+  respuesta como cobertura porque aparece en la conversación.
 
 ### (b) Companion hoy
 
@@ -368,29 +308,22 @@ lo refuerza, porque el interruptor pasa a significar lo que dice.
 
 ### (a) Incredible
 
-- **Destino: su propio backend, no correo.**
-  - `activation-CS5E0WYH.js`: `invoke("bug_report_submit",{description,diagnostics_attached,selected_traces,topics,mood,screenshots})`.
-  - El binario sube el paquete a almacenamiento `diagnostics/storage/v1/object/` en
-    `https://db.incredible.one` (Supabase), crea una fila en `/rest/v1/diagnostics_uploads`
-    (`bucket_date`, `bundle_id`, `object_path`, `app_version`, `file_count`, `total_bytes`) y llama a
-    las funciones `bug-report` y `diagnostics-notify`.
-  - El reporte queda guardado (`feedback-reports`; `FeedbackReportRow` tiene `topics`, `message`,
-    `screenshotCount`, `intercomConversationId`, `createdAtMs` y `mood`). Las respuestas se hacen por
-    Intercom (`onOpenIntercomConversation`).
-  - Si falla la subida del diagnóstico, se manda el reporte sin él: `feedback diagnostics upload failed (sending feedback without it)`.
-- **Campos del modal** (`main-BL-DABKy.js @139980`):
-  - Ánimo: 5 opciones (Frustrated, Disappointed, Neutral, Happy, Love it).
-  - Temas: 6 chips (Talking, Browser work, Apps, Scheduled tasks, Dictation, Something else).
-  - Texto: hasta 5000 caracteres (`Qo=5e3`).
-  - **Capturas: hasta 3** (`Qn=3`), de 4 MB cada una como máximo (`Zl=4*1024*1024`). Se añaden con
-    el selector de archivos o pegándolas; viajan en base64 con `name` y `mime_type`.
-- **Segundo paso, "Include what happened?"**: Skip / Include. Si se incluye el diagnóstico, el texto
-  dice `Your words, what Incredible did, what came back from your apps and the AI models, and anything it looked at on your screen. Nothing is edited out.`
-  y `Deleted after 30 days.`, con un enlace a `incredible.one/privacy#usage-diagnostics`.
-- **Versión y SO.** La versión de la app va en `diagnostics_uploads.app_version`, es decir, con el
-  diagnóstico. **No se pudo determinar** si el cuerpo de `bug-report` lleva la versión del SO.
-  `os_version` solo aparece junto a la telemetría de producto (`product_telemetry_desktop_host`,
-  `macosapp_versionos_version…`). Búsquedas: `os_version`, `osVersion`, `macos_version`.
+- **Destino: su propio backend, no correo.** El reporte y su paquete de diagnóstico se suben a su
+  almacenamiento en Supabase, se registran en una tabla de subidas y disparan funciones de reporte y de
+  notificación. El reporte queda guardado y las respuestas se hacen por Intercom. Si falla la subida del
+  diagnóstico, se manda el reporte sin él. (referencia local para el detalle)
+- **Campos del modal:**
+  - Ánimo: 5 opciones, de frustrado a "love it".
+  - Temas: 6 chips (hablar, navegador, apps, tareas programadas, dictado, otro).
+  - Texto: tope de 5000 caracteres.
+  - **Capturas: hasta 3**, de 4 MB cada una como máximo. Se añaden con el selector de archivos o
+    pegándolas.
+- **Segundo paso, "¿incluir lo que pasó?":** omitir o incluir. Si se incluye el diagnóstico, el texto
+  explica que incluye lo que dijo la usuaria, lo que hizo la app, lo que devolvieron las apps y los
+  modelos y lo que miró en pantalla, sin editar nada, que se borra a los 30 días y enlaza a su política
+  de privacidad.
+- **Versión y SO.** La versión de la app va con el diagnóstico. **No se pudo determinar** si el reporte
+  lleva la versión del SO; solo aparece junto a la telemetría de producto.
 
 ### (b) Companion hoy
 
@@ -427,59 +360,24 @@ tiene que excluir `ContextBlock` o recortar `<user_location>`.
 
 ### (a) Incredible
 
-- **Versión**: `mermaid.core-CFcdHjNT.js` contiene `"11.17.2"`. Se importa bajo demanda desde
-  `firstRun-CdIWn2zA.js @1888319` (`import("./mermaid.core-CFcdHjNT.js")`).
-- **Configuración del chat** (la aplica `e.initialize` una sola vez, con una bandera):
-  - `startOnLoad:false`
-  - `securityLevel:"strict"`
-  - **`theme:"base"`**
-  - `fontFamily` con la pila del sistema (`-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`)
-  - `flowchart:{curve:"basis",padding:14,useMaxWidth:!0}`
-  - `sequence:{useMaxWidth:!0,mirrorActors:!1}`
-- **`themeVariables`** (paleta oscura):
-
-  | Variable | Valor |
-  |---|---|
-  | `darkMode` | true |
-  | `background` | transparent |
-  | `fontSize` | 13px |
-  | `primaryColor` | #1e1e26 |
-  | `primaryBorderColor` | rgba(255,255,255,.18) |
-  | `primaryTextColor` | rgba(255,255,255,.94) |
-  | `secondaryColor` / `secondaryBorderColor` | #191920 / .12 |
-  | `tertiaryColor` / `tertiaryBorderColor` | #15151b / .10 |
-  | `lineColor` | rgba(255,255,255,.32) |
-  | `textColor` | .82 |
-  | `edgeLabelBackground` | #14141a |
-  | `clusterBkg` / `clusterBorder` | .03 / .10 |
-  | `noteBkgColor` / `noteTextColor` / `noteBorderColor` | #23232c / .90 / .14 |
-  | `primaryColorAccent` | #4a9cff |
-  | `pie1-8` | #4a9cff #8b80ff #4cc2b4 #f0a93b #f06b9b #56c596 #c08bff #ffd166 |
-  | `pieStrokeColor` | #14141a |
-  | `pieStrokeWidth` | 2px |
-  | `pieTitleTextColor` / `pieSectionTextColor` | .94 / .96 |
-
-- **Qué es el tema "default".** Es la configuración por defecto de la librería
-  (`mermaid.core @230519`: `theme:"default"`, `maxTextSize:5e4`, `maxEdges:500`,
-  `securityLevel:"strict"`, y `secure:[…"maxTextSize"…"maxEdges"]`). El chat sobrescribe el tema con
-  `"base"` y no toca `maxTextSize` ni `maxEdges`, así que esos siguen en 50000 y 500 por defecto.
-- **Render.** Primero `parse(code)` y después `render("ovx-mmd-N", code)`; el SVG se inserta con
-  `innerHTML` en `div.ovx-mermaid-body` (`role="img"`, `aria-label="Diagram"`). Si falla, cae a un
-  bloque de código con `lang:"mermaid"`.
-- **Contenedor.**
-  - `figure.ovx-visual.ovx-visual-mermaid` (`firstRun-BOTAwJJ8.css`):
-    `padding:14px 16px 12px`, fondo `var(--ovx-fill)`, borde de 1px `var(--ovx-line)`, radio
-    `var(--overlay-radius-inner, 12px)` y margen `10px 0 14px`.
-  - El cuerpo tiene `overflow-x:auto;text-align:center`, y el SVG `max-width:100%;height:auto`.
-  - No hay alto fijo: el alto lo da el SVG.
-- **Herramientas.** Arriba a la derecha y visibles al pasar el ratón (`.ovx-visual-tools`): dos
-  botones con menú.
-  - "Copy image" y "Download PNG". Cada uno con dos opciones: "With background" y "Transparent".
-  - El rasterizado es a 2x con 18 px de margen (`Tee(e,t,n=2,o=18)`), y el archivo se llama
-    `<título-o-kind>.png`.
-  - **No hay herramienta de ver, ampliar ni pantalla completa.** Las únicas clases `ovx-visual-*` son
-    `btn`, `caret`, `control`, `menu`, `menu-icon`, `menu-item`, `title` y `tools`. No se encontró
-    `expand`, `zoom` ni `fullscreen`.
+- **Versión:** 11.17.2 de la librería, cargada bajo demanda.
+- **Configuración del chat** (se aplica una sola vez): sin render automático al cargar, nivel de
+  seguridad estricto, **tema "base"**, la pila de fuentes del sistema, curva suave y padding moderado en
+  los flowcharts, y ancho máximo sin actores espejo en los diagramas de secuencia.
+- **Paleta:** oscura, con fondo transparente, tonos oscuros para nodos y clusters, bordes y líneas como
+  velos de blanco, acento azul y una paleta de ocho colores para los pies con trazo del color del fondo
+  (referencia local para los valores).
+- **Qué es el tema "default".** Es el tema por defecto de la librería; el chat lo sobrescribe con "base" y
+  no toca los límites de tamaño de texto y de aristas, que siguen en los valores por defecto de la librería.
+- **Render.** Primero se valida el código y después se renderiza; el SVG se inserta en un cuerpo con rol
+  de imagen y etiqueta "Diagram". Si falla, cae a un bloque de código.
+- **Contenedor.** Figura con relleno, borde y radio como los demás visuales de la isla, con
+  desplazamiento horizontal si no cabe y SVG que ocupa como máximo el ancho. No hay alto fijo: lo da el
+  SVG.
+- **Herramientas.** Arriba a la derecha, visibles al pasar el ratón: "Copy image" y "Download PNG", cada
+  una con opción de fondo o transparente. Se rasteriza al doble con un margen y el archivo toma el
+  título o el tipo del diagrama.
+  - **No hay herramienta de ver, ampliar ni pantalla completa.**
 
 ### (b) Companion hoy
 
@@ -512,10 +410,10 @@ con `innerHTML` queda contenida. Es lo mismo que ya pide D3.
 
 | Decisión | Incredible (evidencia) | Companion hoy | Cambio | Riesgo |
 |---|---|---|---|---|
-| 1. Aprobación MCP en voz | Interruptor por servidor "Run look-ups without asking" (`main @1110742`, `mcp_app_set_trusted`); juez LLM `judge_actions` para escrituras; tarjeta en la isla con `pds-go`/`pds-decline` y `UserGaveGo{item_id,version}`; pin del manifiesto (`approved_tools_hash`, `mcp_app_approve_tools`). El sí hablado también vale | `require_approval:"always"` (`MCPTools.swift:42`); sin UI; el modelo pregunta en voz alta (`MCPTools.swift:53-66`, `RealtimeRuntime.swift:271-280`); el sí se resuelve por el HACK sin `SpokenYes` (`VoiceSessionApprovals.swift:47-58`) | Llevar la petición MCP a la hoja existente (seam de `ParentToolGuard`, `VoiceSession.swift:289-294`) y pasar el HACK por `SpokenYes.admits`. Opcional: interruptor de lecturas con `readOnlyHint` y pin del manifiesto | La hoja: ninguno. Aceptar el sí hablado como Incredible no viola el invariante `app:` al pie de la letra, pero reabre F-D sin el juez que Incredible tiene. No igualar esa parte |
-| 2. Stop | Varios: el orbe o píldora `UserPressedAbort` corta solo el turno de voz y los agentes siguen ("reports remain queued"); `UserStoppedTask{agent_id}` por tarea; `UserStoppedWorkflowRun`; `stop_agent` por voz, uno a uno ("stop everything" = parar cada uno); `CancelTool` para el conector en vuelo | Un freno único `.stop` (`SessionMachine.swift:251-264`, `450-472`): corta la voz y el hold, cancela job y cola (`JobQueue.cancelAll`, `stopEpoch`, `JobQueue.swift:93-100`) y deniega las aprobaciones pendientes; `stop_job` por voz solo cancela jobs (`VoiceSession.swift:254`) | Separar un freno de voz (`.cancelVoiceOutput`/`.stopListening`, sin `stop()`) del freno de tarea (`cancelJob`) | Ningún invariante. No perder la denegación de aprobaciones al parar la voz (`SessionMachine.swift:456-459`) |
-| 3. Sí hablado | "A yes said out loud is the same go"; la voz dice una frase ("Want it sent?") y la tarjeta lleva el texto exacto; sin compuerta determinista: el orquestador interpreta y el juez comprueba la cobertura; el go por clic va fijado a la versión | `SpokenYes.admits`: nunca en realtime; en clásico solo tras anunciar y con dwell (`Acknowledgement.swift:52-58`); nunca `app:` (`VoiceSessionApprovals.swift:75-84`); la voz no pregunta (`:26-33`) | Igualar solo "la voz pregunta con una frase": llamar a `approvalAnnounced` en clásico | Igualarlo del todo **rompe** "el sí nunca aprueba `app:`". No hacerlo |
-| 4. Ubicación | No existe: sin CoreLocation (`otool -L`), sin `NSLocation*` ni entitlement, sin ajuste; al modelo solo le llega `<current_time>` con desfase UTC; lo cercano va por conectores o por el navegador | Ciudad de Ajustes o de CoreLocation (`UserLocation.swift:55-70`); canal apagable (`ContextSettings.swift:82-85`); `<user_location>` (`ContextBlock.swift:86`); **la búsqueda cercana ignora el canal y pide permiso** (`NativeToolRunner.swift:326-332`) | Hacer que `findPlaces` respete el canal: apagado equivale a `prompting:false` y a `NearMe.needsCity` si no hay ciudad en Ajustes. La paridad literal (quitar la ubicación) no se recomienda | Ninguno; refuerza el invariante de ciudad |
-| 5. Tarjeta de opciones | Sin atajos numéricos (el badge del número es visual; no hay comparaciones de tecla con dígitos en ningún chunk); clic selecciona y **Confirm** envía; multiselección y respuesta libre; la respuesta va al agente como "Answered", que no es go; el agente conserva todos los conectores | Dígitos 1-9 solo con foco tras clic o Tab (`IslandChoiceCard.swift:44-62`, `IslandChoice.swift:33-71`); un paso; va como mensaje `[elección en tarjeta]`; `said=""` (`ChatViewModelTurn.swift:16`), así que la 1.ª petición va sin tools de apps (`AppToolRunner.swift:154`) y las siguientes con todas (`:198`) | Opcional: paso Confirmar. Para igualar las tools: `.allConnected` en turnos de elección, manteniendo `said=""` | Ninguno si `said` sigue vacío; la elección sigue sin ser consentimiento y `app:` sigue pidiendo clic |
-| 6. Feedback | Backend propio: `bug_report_submit` a Supabase `db.incredible.one` (storage + `diagnostics_uploads` + funciones `bug-report` y `diagnostics-notify`), respuestas por Intercom; ánimo (5), temas (6), texto de 5000, **3 capturas** de ≤4 MB (archivo o pegar); diagnóstico opcional (palabras, pantalla, salidas; 30 días); `app_version` con el diagnóstico; SO no determinable | `mailto:` sin destinatario o share `composeEmail` (`SystemFeedbackDelivery.swift:10-27`); ánimo (4), 1000 caracteres, 3 capturas; nada de la máquina (`Feedback.swift:7-14`) | Igualables ya: chips de tema, tope de 5000, pegar imágenes. El destino y el diagnóstico son una decisión de producto | Chips, tope y pegado: ninguno. Un diagnóstico mandaría `<user_location>` si incluye turnos: excluirlo |
-| 7. Mermaid | 11.17.2; chat: `strict`, **`theme:"base"`**, paleta oscura (ver la tabla de la sección 7), `flowchart` basis/14, `sequence` sin espejo; `maxTextSize` 5e4 y `maxEdges` 500 son los valores por defecto de la librería ("default" es solo el tema por defecto de la librería); `figure.ovx-visual` 14/16/12, radio 12, con desplazamiento horizontal; herramientas: copiar imagen y descargar PNG (con fondo o transparente, 2x); sin ver ni ampliar; cae a código si falla | Sin Mermaid; el bloque se pinta como código (`AnswerBlocks.swift:85-92`); 16m-5b pendiente de aprobar la dependencia; las gráficas solo copian CSV (`IslandVisualTools.swift:8-12`) | 16m-5b según D3 con esta misma configuración; herramientas de copiar imagen y descargar PNG | Ninguno de los tres; el riesgo del `WKWebView` se contiene con `strict`, sin red y sin puente |
+| 1. Aprobación MCP en voz | Interruptor por servidor para correr consultas sin preguntar; juez LLM para escrituras; tarjeta en la isla con confirmar y rechazar, y un go fijado a la versión mostrada; pin del manifiesto de tools. El sí hablado también vale | `require_approval:"always"` (`MCPTools.swift:42`); sin UI; el modelo pregunta en voz alta (`MCPTools.swift:53-66`, `RealtimeRuntime.swift:271-280`); el sí se resuelve por el HACK sin `SpokenYes` (`VoiceSessionApprovals.swift:47-58`) | Llevar la petición MCP a la hoja existente (seam de `ParentToolGuard`, `VoiceSession.swift:289-294`) y pasar el HACK por `SpokenYes.admits`. Opcional: interruptor de lecturas con `readOnlyHint` y pin del manifiesto | La hoja: ninguno. Aceptar el sí hablado como Incredible no viola el invariante `app:` al pie de la letra, pero reabre F-D sin el juez que Incredible tiene. No igualar esa parte |
+| 2. Stop | Varios: el orbe o píldora corta solo el turno de voz y los agentes siguen; parar por tarea; parar la ejecución de un workflow; parar por voz, un agente a la vez ("parar todo" = parar cada uno); cancelar el conector en vuelo | Un freno único `.stop` (`SessionMachine.swift:251-264`, `450-472`): corta la voz y el hold, cancela job y cola (`JobQueue.cancelAll`, `stopEpoch`, `JobQueue.swift:93-100`) y deniega las aprobaciones pendientes; `stop_job` por voz solo cancela jobs (`VoiceSession.swift:254`) | Separar un freno de voz (`.cancelVoiceOutput`/`.stopListening`, sin `stop()`) del freno de tarea (`cancelJob`) | Ningún invariante. No perder la denegación de aprobaciones al parar la voz (`SessionMachine.swift:456-459`) |
+| 3. Sí hablado | Un sí dicho en voz alta vale como go; la voz dice una frase corta y la tarjeta lleva el texto exacto; sin compuerta determinista: el orquestador interpreta y el juez comprueba la cobertura; el go por clic va fijado a la versión | `SpokenYes.admits`: nunca en realtime; en clásico solo tras anunciar y con dwell (`Acknowledgement.swift:52-58`); nunca `app:` (`VoiceSessionApprovals.swift:75-84`); la voz no pregunta (`:26-33`) | Igualar solo "la voz pregunta con una frase": llamar a `approvalAnnounced` en clásico | Igualarlo del todo **rompe** "el sí nunca aprueba `app:`". No hacerlo |
+| 4. Ubicación | No existe: sin CoreLocation, sin permiso ni entitlement de ubicación, sin ajuste; al modelo solo le llega la hora local con desfase UTC; lo cercano va por conectores o por el navegador | Ciudad de Ajustes o de CoreLocation (`UserLocation.swift:55-70`); canal apagable (`ContextSettings.swift:82-85`); `<user_location>` (`ContextBlock.swift:86`); **la búsqueda cercana ignora el canal y pide permiso** (`NativeToolRunner.swift:326-332`) | Hacer que `findPlaces` respete el canal: apagado equivale a `prompting:false` y a `NearMe.needsCity` si no hay ciudad en Ajustes. La paridad literal (quitar la ubicación) no se recomienda | Ninguno; refuerza el invariante de ciudad |
+| 5. Tarjeta de opciones | Sin atajos numéricos (el badge del número es visual); clic selecciona y Confirmar envía; multiselección y respuesta libre; la respuesta va al agente como "respondido", que no es go; el agente conserva todos los conectores | Dígitos 1-9 solo con foco tras clic o Tab (`IslandChoiceCard.swift:44-62`, `IslandChoice.swift:33-71`); un paso; va como mensaje `[elección en tarjeta]`; `said=""` (`ChatViewModelTurn.swift:16`), así que la 1.ª petición va sin tools de apps (`AppToolRunner.swift:154`) y las siguientes con todas (`:198`) | Opcional: paso Confirmar. Para igualar las tools: `.allConnected` en turnos de elección, manteniendo `said=""` | Ninguno si `said` sigue vacío; la elección sigue sin ser consentimiento y `app:` sigue pidiendo clic |
+| 6. Feedback | Backend propio (almacenamiento, tabla de subidas y funciones de reporte), respuestas por Intercom; ánimo (5), temas (6), texto de 5000, **3 capturas** de ≤4 MB (archivo o pegar); diagnóstico opcional (palabras, pantalla, salidas; 30 días); SO no determinable | `mailto:` sin destinatario o share `composeEmail` (`SystemFeedbackDelivery.swift:10-27`); ánimo (4), 1000 caracteres, 3 capturas; nada de la máquina (`Feedback.swift:7-14`) | Igualables ya: chips de tema, tope de 5000, pegar imágenes. El destino y el diagnóstico son una decisión de producto | Chips, tope y pegado: ninguno. Un diagnóstico mandaría `<user_location>` si incluye turnos: excluirlo |
+| 7. Mermaid | Versión 11.17.2; en el chat: modo estricto, **tema "base"**, paleta oscura, flowchart con curva suave, secuencia sin espejo; los límites de texto y aristas son los de la librería; figura con desplazamiento horizontal; herramientas: copiar imagen y descargar PNG (con fondo o transparente, al doble); sin ver ni ampliar; cae a código si falla | Sin Mermaid; el bloque se pinta como código (`AnswerBlocks.swift:85-92`); 16m-5b pendiente de aprobar la dependencia; las gráficas solo copian CSV (`IslandVisualTools.swift:8-12`) | 16m-5b según D3 con esta misma configuración; herramientas de copiar imagen y descargar PNG | Ninguno de los tres; el riesgo del `WKWebView` se contiene con `strict`, sin red y sin puente |
