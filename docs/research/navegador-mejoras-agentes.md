@@ -1,6 +1,6 @@
 # Reference Brief: mejoras del control del navegador (extension MV3 + lado host) contra Incredible y agentes de navegador profesionales
 
-Slug: navegador-mejoras-agentes | Nivel: deep | Fecha: 2026-10-02 | Estado: ESCALADO
+Slug: navegador-mejoras-agentes | Nivel: deep | Fecha: 2026-10-02 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-02 ESCALATE
 
@@ -481,3 +481,5 @@ Criterios que toda spec hereda:
 | 18 | incredible-ref accessibility-helper.md (local, solo lectura) | extraccion local de Incredible 0.2.36 | sha256 00d9f9efb8d2 | 2026-10-02 | medium |
 | 19 | incredible-ref README.md (local) | carpeta de referencia | sha256 47d55c41b5ec | 2026-10-02 | high |
 | 20 | Auditoria extension navegador (local) | auditoria 2026-10-02 | sha256 9d429828792f | 2026-10-02 | high |
+
+[KAREN:chat 2026-10-02] Se decide como lo resuelve la referencia local de Incredible y, donde no alcanza, con la recomendacion del brief. K1 si, los siete codigos con target_changed en la lista blanca y copia que nombra la accion siguiente, coordinado con browser-read-menu-abierto. K2 target_changed. K3 si, insercion de texto sin Enter real, solo despues de la prueba en vivo. K4 si. K5 si a browser_select, browser_key con lista cerrada y browser_scroll, Enter con hoja salvo que yo lo haya dicho, y tambien por el puente. K6 si a todo; el trato de ZWJ lo fija la prueba de la spec. K7 si, ADR 010 con la lista cerrada de dominios CDP y su test. K8 si, sacar la pestana del grupo suelta la lease, y se reabre 18b D1: hoja al tomar en el chat una pestana que no nombre. K9 subir el minimo a Chrome 125.
