@@ -137,7 +137,7 @@ test('type uses insertText, and falls back to the native setter with input+chang
 });
 
 // Minimal fake element: only what page.js touches.
-function fake({ tag, attrs = {}, text = '', value = '', ctx = '', execWorks = true, editable = false, labels = null, hidden = false, display = 'block', masked = false }) {
+function fake({ tag, attrs = {}, text = '', value = '', ctx = '', execWorks = true, editable = false, labels = null, hidden = false, display = 'block', masked = false, parent = null, visibility = 'visible' }) {
   const events = [];
   const doc = {
     execCalls: [],
@@ -147,7 +147,7 @@ function fake({ tag, attrs = {}, text = '', value = '', ctx = '', execWorks = tr
       Event: class { constructor(type, init) { this.type = type; this.init = init; } },
       HTMLInputElement: { prototype: {} },
       HTMLTextAreaElement: { prototype: {} },
-      getComputedStyle: () => ({ display, visibility: 'visible', webkitTextSecurity: masked ? 'disc' : 'none' }),
+      getComputedStyle: () => ({ display, visibility, webkitTextSecurity: masked ? 'disc' : 'none' }),
     },
     baseURI: 'https://page.test/dir/',
     execCommand(cmd, _ui, arg) {
@@ -186,7 +186,27 @@ function fake({ tag, attrs = {}, text = '', value = '', ctx = '', execWorks = tr
   });
   Object.defineProperty(el, 'type', { get: () => attrs.type ?? 'text' });
   if (tag === 'input' || tag === 'textarea') el.value = value;
+  el.parentElement = parent;
+  el.ownDisplay = display;
+  el.ownVisibility = visibility;
+  el.checkVisibility = (options) => fakeCheckVisibility(el, options);
   return el;
+}
+
+// Same rule as Element.checkVisibility for what these tests build: no box when
+// the element or an ancestor is `hidden` or `display:none`, and a closed
+// `details` renders only its own `summary`. `visibility:hidden` counts only
+// when asked, as in the real API.
+function fakeCheckVisibility(el, options = {}) {
+  const asksVisibility = options.visibilityProperty === true || options.checkVisibilityCSS === true;
+  if (asksVisibility && el.ownVisibility === 'hidden') return false;
+  let child = null;
+  for (let node = el; node; child = node, node = node.parentElement) {
+    if (node.hidden || node.ownDisplay === 'none') return false;
+    const closedDetails = node.tag === 'details' && !node.hasAttribute('open');
+    if (closedDetails && child && child.tag !== 'summary') return false;
+  }
+  return true;
 }
 
 // ---- Wave 18 review fixes ----
@@ -273,6 +293,47 @@ test('the selector branch skips invisible elements', () => {
   globalThis.document = { querySelectorAll: () => [shown, hiddenEl, none], body: { innerText: '' } };
   const out = page.read(1, 'button', 0);
   assert.deepEqual(out.elements.map((e) => e.label), ['Shown']);
+  delete globalThis.document;
+});
+
+// S4 (brief navegador-mejoras-agentes, H-4b): the element's own style missed
+// a control hidden by an ancestor, so the model was offered buttons it could
+// not see or click.
+test('the fake checkVisibility follows ancestors and closed details', () => {
+  const box = fake({ tag: 'div', display: 'none' });
+  assert.equal(fake({ tag: 'button', parent: box }).checkVisibility(), false);
+  assert.equal(fake({ tag: 'button', parent: fake({ tag: 'div', hidden: true }) }).checkVisibility(), false);
+  assert.equal(fake({ tag: 'button', parent: fake({ tag: 'div', parent: box }) }).checkVisibility(), false);
+  const closed = fake({ tag: 'details' });
+  assert.equal(fake({ tag: 'summary', parent: closed }).checkVisibility(), true);
+  assert.equal(fake({ tag: 'button', parent: fake({ tag: 'summary', parent: closed }) }).checkVisibility(), true);
+  assert.equal(fake({ tag: 'button', parent: closed }).checkVisibility(), false);
+  assert.equal(fake({ tag: 'button', parent: fake({ tag: 'details', attrs: { open: '' } }) }).checkVisibility(), true);
+});
+
+test('a control hidden by an ancestor is not listed, with or without a selector', () => {
+  const shown = fake({ tag: 'button', text: 'Shown' });
+  const underNone = fake({ tag: 'button', text: 'UnderNone', parent: fake({ tag: 'div', display: 'none' }) });
+  const closed = fake({ tag: 'details' });
+  const inClosed = fake({ tag: 'button', text: 'InClosed', parent: closed });
+  const inSummary = fake({ tag: 'button', text: 'InSummary', parent: fake({ tag: 'summary', parent: closed }) });
+  const invisible = fake({ tag: 'button', text: 'Invisible', visibility: 'hidden' });
+  const nodes = [shown, underNone, inClosed, inSummary, invisible];
+  globalThis.document = { querySelectorAll: () => nodes, body: { innerText: '' } };
+  assert.deepEqual(page.read(1, 'button', 0).elements.map((e) => e.label), ['Shown', 'InSummary']);
+  assert.deepEqual(page.read(2, null, 0).elements.map((e) => e.label), ['Shown', 'InSummary']);
+  delete globalThis.document;
+});
+
+test('without checkVisibility the read falls back to the element own style', () => {
+  const bare = (opts) => { const el = fake(opts); delete el.checkVisibility; return el; };
+  const nodes = [
+    bare({ tag: 'button', text: 'Shown' }),
+    bare({ tag: 'button', text: 'None', display: 'none' }),
+    bare({ tag: 'button', text: 'Invisible', visibility: 'hidden' }),
+  ];
+  globalThis.document = { querySelectorAll: () => nodes, body: { innerText: '' } };
+  assert.deepEqual(page.read(1, 'button', 0).elements.map((e) => e.label), ['Shown']);
   delete globalThis.document;
 });
 

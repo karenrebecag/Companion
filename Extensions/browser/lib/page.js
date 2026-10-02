@@ -269,8 +269,16 @@
     }
   }
 
+  // checkVisibility also sees an ancestor's display:none, a closed details and
+  // content-visibility, which the element's own style misses. Opacity is not
+  // checked: hover-revealed controls are transparent until hovered.
+  // HACK: a control with display:contents has no box, so it is not listed.
+  // Ask its children when a real page loses a control that way.
   function isVisible(el) {
     if (el.hidden) return false;
+    if (typeof el.checkVisibility === 'function') {
+      return el.checkVisibility({ checkVisibilityCSS: true, visibilityProperty: true });
+    }
     const win = el.ownerDocument.defaultView;
     const style = win.getComputedStyle(el);
     return style.display !== 'none' && style.visibility !== 'hidden';
