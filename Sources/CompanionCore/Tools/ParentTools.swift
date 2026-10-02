@@ -107,6 +107,12 @@ package enum ParentTool: String, CaseIterable, Sendable, Equatable {
         return (object[key] as? String) ?? ""
     }
 
+    /// Whether a target says anything: the reel and the status line both
+    /// skip a blank one, so neither paints an empty chip.
+    package static func names(_ target: String) -> Bool {
+        !target.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     package var targetKey: String? {
         switch self {
         case .openApp: "name"

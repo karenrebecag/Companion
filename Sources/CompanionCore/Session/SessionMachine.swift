@@ -94,7 +94,10 @@ package struct SessionMachine: Sendable, Equatable {
             // the reel without bound (security review 16m). Upgrade trigger:
             // the first turn that legitimately touches more apps than the
             // cap and needs the full history — then it moves to a summary.
-            for target in targets where !projection.touched.contains(target) {
+            //
+            // look, click and the others name no target: a blank one would
+            // paint an empty chip in the reel.
+            for target in targets.filter(ParentTool.names) where !projection.touched.contains(target) {
                 projection.touched.append(target)
                 if projection.touched.count > Self.touchedCap {
                     projection.touched.removeFirst()
