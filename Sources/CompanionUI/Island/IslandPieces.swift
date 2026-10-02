@@ -199,10 +199,13 @@ struct IslandClearConfirm: View {
     }
 }
 
-/// Where running tasks sit, top right (16f): three slots, the first one
-/// turning while a job runs.
+/// Where a running task sits, top right (16f): three slots, the first one
+/// turning.
 struct IslandSlots: View {
-    let active: Bool
+    /// Only with a task behind them (K7): empty slots read as broken chrome,
+    /// and the bar has no header room for them.
+    static func shown(size: IslandState.Size, jobRunning: Bool) -> Bool { jobRunning && size != .bar }
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var turning = false
 
@@ -212,7 +215,7 @@ struct IslandSlots: View {
                 ZStack {
                     Circle()
                         .strokeBorder(IslandInk.secondary, style: StrokeStyle(lineWidth: Stroke.thin, dash: [3, 4]))
-                    if index == 0, active {
+                    if index == 0 {
                         Circle()
                             .trim(from: 0, to: 0.3)
                             .stroke(IslandInk.text, style: StrokeStyle(lineWidth: Stroke.medium, lineCap: .round))
@@ -228,7 +231,6 @@ struct IslandSlots: View {
                 .frame(width: IslandInk.slotSide, height: IslandInk.slotSide)
             }
         }
-        .accessibilityHidden(!active)
         .accessibilityLabel(Localized.string("island.job"))
     }
 }
