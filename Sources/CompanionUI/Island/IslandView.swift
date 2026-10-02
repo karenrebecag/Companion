@@ -283,8 +283,8 @@ package struct IslandView: View {
             HStack {
                 if let header { header }
                 Spacer(minLength: Space.none)
-                if state.size != .bar {
-                    IslandSlots(active: chat.session.projection.job != nil)
+                if IslandSlots.shown(size: state.size, jobRunning: chat.session.projection.job != nil) {
+                    IslandSlots()
                 }
             }
             .frame(height: geometry.notch.height)
