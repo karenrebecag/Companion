@@ -398,6 +398,7 @@ private actor ParkingApprovals: ApprovalsProvider {
 extension VoiceSession {
     /// Runs on the actor, like the production caller.
     func probeCommit(_ text: String) async { await realtime.commitWithText(text) }
+    func probeThreadCut() async { await realtime.threadCutReply(announce: false) }
     func probeReset() { realtime.reset() }
 }
 
@@ -691,8 +692,9 @@ private func userItems(_ h: VoiceHarness, containing marker: String) -> [String]
     }
 }
 
-/// Cooperative interleaving on the main actor at await points, not cross-thread
-/// races: TSan, not this assertion, is the oracle for those.
+/// Both callers run on the VoiceSession actor; the race is the window where the
+/// drain has taken the cut reply out of the runtime and is still appending it.
+/// The test below holds that window open; this one is the unheld smoke run.
 @Test @MainActor func aDrainRacingTheNextTurnThreadsTheCutReplyOnceAndFirst() async {
     for _ in 0..<10 {
         let h = makeVoiceHarness(online: true)
@@ -706,6 +708,133 @@ private func userItems(_ h: VoiceHarness, containing marker: String) -> [String]
         expectEq(h.thread.turns.map(\.content), [cutWords, "go"], "once, and before the turn that follows it")
         expectEq(userItems(h, containing: "go").filter { $0.contains("reply_cut") }.count, 1, "one note")
     }
+}
+
+@MainActor private final class Flag { var raised = false }
+
+/// The drain is held after it took the cut reply and before the thread has it.
+/// ScriptedThread is not isolated, so without the hold the two appends race on
+/// the global executor and the order is up to the scheduler.
+@Test @MainActor func aTurnCommittedWhileTheCutReplyIsBeingThreadedWaitsForIt() async {
+    let h = makeVoiceHarness(online: true)
+    await dropWhileSpeaking(h, saying: cutWords)
+    let gate = TestGate()
+    h.thread.nextAssistantGate = gate
+    h.player.yieldDrained()
+    await pumpUntil("the drain is appending the cut reply") { gate.entered }
+
+    let started = Flag()
+    let commit = Task { @MainActor in
+        started.raised = true
+        await h.session.probeCommit("go")
+    }
+    await pumpUntil("the commit started") { started.raised }
+    // Nothing observable says the commit is waiting, so this is a bounded
+    // negative wait: a commit that does not wait lands "go" well inside it.
+    let deadline = ContinuousClock.now + .milliseconds(200)
+    while !h.thread.turns.contains(where: { $0.content == "go" }), ContinuousClock.now < deadline {
+        await settle(0.01)
+    }
+    expect(!h.thread.turns.contains { $0.content == "go" }, "the turn waits for the cut reply in flight")
+
+    gate.open()
+    await commit.value
+    // A commit that did not wait has already returned; let the held reply land
+    // so a failure shows the inversion, not a missing reply.
+    await pumpUntil("cut reply threaded") { assistantTurns(h).contains(cutWords) }
+    expectEq(h.thread.turns.map(\.content), [cutWords, "go"], "once, and before the turn that follows it")
+    expectEq(userItems(h, containing: "go").filter { $0.contains("reply_cut") }.count, 1, "one note")
+}
+
+@Test @MainActor func aTurnAfterTheCutReplyLandedDoesNotWait() async {
+    let h = makeVoiceHarness(online: true)
+    await dropWhileSpeaking(h, saying: cutWords)
+    h.player.yieldDrained()
+    await pumpUntil("threaded") { assistantTurns(h) == [cutWords] }
+    // Held while the turn commits: a commit that waited on any assistant
+    // append would not land.
+    let gate = TestGate()
+    h.thread.nextAssistantGate = gate
+    let commit = Task { @MainActor in await h.session.probeCommit("go") }
+    await pumpUntil("the turn lands without waiting") { h.thread.turns.contains { $0.content == "go" } }
+    expect(!gate.entered, "nothing was left to thread")
+    gate.open()
+    await commit.value
+    expectEq(h.thread.turns.map(\.content), [cutWords, "go"], "the reply, then the turn")
+}
+
+/// The drain pump can be cancelled mid-append (the session stopping). The
+/// append must not die with it, or the committed turn lands without the reply.
+@Test @MainActor func aCancelledDrainStillThreadsTheCutReplyBeforeTheNextTurn() async {
+    let h = makeVoiceHarness(online: true)
+    await dropWhileSpeaking(h, saying: cutWords)
+    let gate = TestGate()
+    h.thread.nextAssistantGate = gate
+    let drain = Task { @MainActor in await h.session.probeThreadCut() }
+    await pumpUntil("the drain is appending the cut reply") { gate.entered }
+    drain.cancel()
+
+    let started = Flag()
+    let commit = Task { @MainActor in
+        started.raised = true
+        await h.session.probeCommit("go")
+    }
+    await pumpUntil("the commit started") { started.raised }
+    await settle(0.05)
+    gate.open()
+    await drain.value
+    await commit.value
+    expectEq(h.thread.turns.map(\.content), [cutWords, "go"], "the cancelled drain's reply still lands first")
+}
+
+/// A reset drops the cut nobody started threading, not the one already on its
+/// way: the user heard those words, so they still go before the next turn.
+@Test @MainActor func aResetWhileTheCutReplyIsBeingThreadedKeepsItBeforeTheNextTurn() async {
+    let h = makeVoiceHarness(online: true)
+    await dropWhileSpeaking(h, saying: cutWords)
+    let gate = TestGate()
+    h.thread.nextAssistantGate = gate
+    h.player.yieldDrained()
+    await pumpUntil("the drain is appending the cut reply") { gate.entered }
+    await h.session.probeReset()
+
+    let started = Flag()
+    let commit = Task { @MainActor in
+        started.raised = true
+        await h.session.probeCommit("go")
+    }
+    await pumpUntil("the commit started") { started.raised }
+    await settle(0.05)
+    expect(!h.thread.turns.contains { $0.content == "go" }, "the new session's turn waits for the reply in flight")
+    gate.open()
+    await commit.value
+    await pumpUntil("cut reply threaded") { assistantTurns(h).contains(cutWords) }
+    expectEq(h.thread.turns.map(\.content), [cutWords, "go"], "the heard reply, then the turn")
+    expect(userItems(h, containing: "go").allSatisfy { !$0.contains("reply_cut") }, "no note from the old session")
+}
+
+/// The reconnect and the drain pump both thread a cut reply; when two are in
+/// flight the later one must not land above the earlier.
+@Test @MainActor func twoCutRepliesInFlightLandInTheOrderTheyWereCut() async {
+    let h = makeVoiceHarness(online: true)
+    await dropWhileSpeaking(h, saying: cutWords)
+    let gate = TestGate()
+    h.thread.nextAssistantGate = gate
+    let first = Task { @MainActor in await h.session.probeThreadCut() }
+    await pumpUntil("the first cut is being appended") { gate.entered }
+
+    h.transport.yield(.responseCreated)
+    h.transport.yield(.assistantTranscriptDelta("And the second"))
+    h.transport.yield(.audioDelta(Data([1, 2])))
+    await pumpUntilAsync("second words in flight") { await h.session.realtimeSnapshot().agentSpeech == "And the second" }
+    await h.transport.simulateStreamEnd()
+    await connectionReady(h, 3)
+    let second = Task { @MainActor in await h.session.probeThreadCut() }
+    await settle(0.05)
+    gate.open()
+    await first.value
+    await second.value
+    expectEq(assistantTurns(h), [cutWords, "And the second"], "cut order, not append speed")
 }
 
 // MARK: - The note's text

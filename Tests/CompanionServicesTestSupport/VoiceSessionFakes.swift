@@ -552,7 +552,22 @@ package final class ScriptedThread: ConversationPresenting, @unchecked Sendable 
             _history.append(Turn(role: .user, content: remembered))
         }
     }
+    /// Holds only the next `appendAssistant` and is spent by it, so a reply
+    /// after the held one never blocks a test that forgets to open the gate.
+    package var nextAssistantGate: TestGate? {
+        get { lock.withLock { _nextAssistantGate } }
+        set { lock.withLock { _nextAssistantGate = newValue } }
+    }
+    private var _nextAssistantGate: TestGate?
     package func appendAssistant(_ text: String) async {
+        let gate = lock.withLock {
+            defer { _nextAssistantGate = nil }
+            return _nextAssistantGate
+        }
+        await gate?.wait()
+        // A held append honours its caller's cancellation, as a presenter is
+        // allowed to: an append made inline in a cancelled caller is lost.
+        if gate != nil, Task.isCancelled { return }
         lock.withLock {
             _turns.append(Turn(role: .assistant, content: text))
             _history.append(Turn(role: .assistant, content: text))

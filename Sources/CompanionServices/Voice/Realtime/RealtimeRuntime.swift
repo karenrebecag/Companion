@@ -105,6 +105,10 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// already holds before it joins the thread: threading it earlier would
     /// show the user words their ears have not reached.
     private var unthreadedCut: String?
+    /// A cut reply already out of `unthreadedCut` but still on its way into
+    /// the thread. The append suspends, so a user turn committed meanwhile
+    /// finds nothing to thread and would land above the reply it answers.
+    private var threadingCut: Task<Void, Never>?
     /// The same words, owed to the next user turn as a one-shot note.
     private var cutNote: String?
     /// The current response's full text already reached the thread (its
@@ -131,7 +135,9 @@ final class RealtimeRuntime: @unchecked Sendable {
     func reset() {
         micEnabled = true
         resetConnection()
-        // A new session has no half-said reply to pick up.
+        // A new session has no half-said reply to pick up. One already being
+        // appended (`threadingCut`) stays: the user heard it, and its place is
+        // before the next turn whatever the session.
         unthreadedCut = nil
         cutNote = nil
     }
@@ -177,9 +183,23 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// rest. Safe to call when nothing was cut.
     nonisolated(nonsending) func threadCutReply(announce: Bool) async {
         guard let partial = unthreadedCut else { return }
+        // Cleared before the first await, so a second caller never threads
+        // the same words twice.
         unthreadedCut = nil
-        await thread.appendAssistant(partial)
-        await thread.finishStream()
+        let thread = self.thread
+        // Two cuts can be in flight at once (the reconnect and the drain pump
+        // both thread); each waits for the one before, so they land in order.
+        let earlier = threadingCut
+        // Unstructured on purpose: a cancelled drain pump must not leave the
+        // reply half-threaded while a committed turn waits on it.
+        let append = Task {
+            await earlier?.value
+            await thread.appendAssistant(partial)
+            await thread.finishStream()
+        }
+        threadingCut = append
+        await append.value
+        if threadingCut == append { threadingCut = nil }
         if announce { events?.yield(.replyCut) }
     }
 
@@ -264,8 +284,10 @@ final class RealtimeRuntime: @unchecked Sendable {
     nonisolated(nonsending) func commitWithText(_ text: String, context: TurnContext? = nil) async {
         lastUserText = text
         // A turn that beats the drain must still come after the reply it
-        // answers.
+        // answers, also when the drain took the reply first and is still
+        // appending it: the order cannot rest on the presenter's executor.
         await threadCutReply(announce: false)
+        await threadingCut?.value
         await thread.appendUser(text, context: context)
         Log.app("voice: turn from native text \(text.count) chars")
         // The block goes to the server with THIS turn only; the thread keeps
