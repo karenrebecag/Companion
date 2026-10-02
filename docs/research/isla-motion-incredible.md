@@ -1,6 +1,6 @@
 # Reference Brief: motion y microinteracciones de la isla de Incredible frente a Companion
 
-Slug: isla-motion-incredible | Nivel: standard | Fecha: 2026-10-02 | Estado: ESCALADO
+Slug: isla-motion-incredible | Nivel: standard | Fecha: 2026-10-02 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-02 ESCALATE
 
@@ -261,3 +261,5 @@ Contextos: app instalada (`/Applications/Companion.app`, build release, pantalla
 | 15 | Spec 16f, grabacion de Karen medida cuadro a cuadro | Companion | 2026-09-25 | 2026-10-02 | high |
 | 16 | Briefs incredible-fn-glow-pointer, incredible-ui-detalle, incredible-isla-componentes, incredible-componentes | Companion (segunda mano) | 2026-09-25 a 2026-10-01 | 2026-10-02 | medium |
 | 17 | Referencia local con los valores de Incredible 0.2.36 (no publicada en el repo) | Karen, disco local | 2026-10-02 | 2026-10-02 | high |
+
+[KAREN:chat 2026-10-02] Paridad total con Incredible: en todas las decisiones de este brief se iguala el comportamiento y el valor de Incredible, tomado de la referencia local ~/Desktop/incredible-ref (los extractos no se suben al repo). Toda decision que revierte una regla de seguridad firmada va en su propio ADR con el riesgo escrito y mi firma antes de cualquier codigo. D5b y D12 tambien igualan a Incredible (curva literal; corte instantaneo con reducir movimiento).
