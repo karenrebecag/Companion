@@ -43,6 +43,11 @@ package struct TurnSnapshot: Sendable, Equatable {
     /// connecting → ready race reads it: a release before ready leaves the
     /// mic closed and sends nothing.
     package var holdArmed: Bool
+    /// A classic hold turn rests while its parent tool waits on the sheet,
+    /// so the question can be said and the next press answers it instead of
+    /// cutting. It lives as long as that turn task does: hang-ups and
+    /// failures keep it, and only a cut, a new turn or the resume clear it.
+    package var sheetParked: Bool
 
     package init(
         state: TurnState = .idle,
@@ -57,7 +62,8 @@ package struct TurnSnapshot: Sendable, Equatable {
         echoGuardUntil: TimeInterval = 0,
         classicListenPending: Bool = false,
         failure: TurnFailure? = nil,
-        holdArmed: Bool = false
+        holdArmed: Bool = false,
+        sheetParked: Bool = false
     ) {
         self.state = state
         self.pipeline = pipeline
@@ -72,6 +78,7 @@ package struct TurnSnapshot: Sendable, Equatable {
         self.classicListenPending = classicListenPending
         self.failure = failure
         self.holdArmed = holdArmed
+        self.sheetParked = sheetParked
     }
 
     package static let idle = TurnSnapshot()
@@ -112,6 +119,10 @@ package enum TurnEvent: Sendable, Equatable {
     case holdReleased(hasSpeech: Bool)
     case holdDiscarded
     case interrupt
+    /// The turn's parent tool waits on the sheet, and the round it belongs
+    /// to is over waiting.
+    case sheetParked
+    case sheetResumed
 }
 
 package enum TurnEffect: Sendable, Equatable {
