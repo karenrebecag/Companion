@@ -165,3 +165,9 @@ Reutilizado (2026-10-01) por feat/self-qa-runner (PR-2 de la spec self-qa-inspec
 - El oraculo de igualdad sigue D3 con el limite de PR-1: admision antes de validar, una instancia por proceso.
 - `companion_thread` sigue D4: el idioma se calcula dentro del proceso y solo salen codigo y confianza.
 No se investigo nada nuevo.
+
+Reutilizado (2026-10-02) por feat/self-qa-source (PR-4 de la spec self-qa-inspeccion, sobre main):
+- La fuente de la UI entrega el texto del hilo solo como `ThreadMessageInput`, que no es codificable (D1, D2); el titulo de la conversacion no entra.
+- El espejo guarda la isla tal como se pinto y la frase del catalogo solo para lineas sin contenido (D5); con lineas que llevan texto no guarda copia.
+- Ajustes se leen de las preferencias que ya existen, sin nombrar `UserDefaults` en los archivos `SelfInspection*`.
+No se investigo nada nuevo.
