@@ -45,6 +45,8 @@ private func passiveMachine() -> SessionMachine {
         .approvalAnswered(requestId: "r", approved: true, remember: false),
         .approvalSpoken(requestId: "r", approved: false), .undoPressed(id: UUID()),
         .dictationHidden, .released, .holdConfirmed, .holdCancelled, .partialTranscript("hola"),
+        // P3: clicking the voice line chip engages the island, as in Incredible.
+        .islandEngaged,
     ]
     for interaction in interactions {
         var machine = passiveMachine()
@@ -143,4 +145,19 @@ private func passiveMachine() -> SessionMachine {
     let during = armed(machine.handle(.passiveExpired(armedFor: current?.1 ?? -1)))
     expectEq(machine.projection.presence, .active, "escuchando, sigue activo")
     expectEq(during?.0, 30, "y la espera vuelve a empezar")
+}
+
+// P3: clicking the voice line chip during a quiet turn opens the island on that same
+// turn; it never starts, stops or answers anything.
+@Test func engagingTheIslandKeepsTheTurnAndOpensIt() {
+    var machine = passiveMachine()
+    // Work the companion starts on its own keeps it passive, so the turn is quiet.
+    _ = machine.handle(.job(.started(goal: "x"), from: JobID.mint()))
+    expectEq(machine.projection.presence, .passive, "el turno arranca callado")
+    let before = machine.projection.kind
+    let effects = machine.handle(.islandEngaged)
+    expectEq(machine.projection.presence, .active, "vuelve a activo y la isla lleva el turno")
+    expectEq(machine.projection.kind, before, "el turno sigue igual")
+    expectEq(effects, [.schedulePassive(SessionMachine.defaultPassiveAfter, armedFor: 2)],
+             "solo re-arma la espera")
 }
