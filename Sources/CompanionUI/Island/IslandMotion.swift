@@ -16,13 +16,19 @@ enum IslandMotion {
     }
 
     enum Curve: Equatable {
-        case spring(response: Double, damping: Double)
+        case timing([Double], Double)
         case fade(Double)
 
         var animation: Animation {
             switch self {
-            case .spring(let response, let damping): .spring(response: response, dampingFraction: damping)
+            case .timing(let points, let seconds): MotionCurve.animation(points, seconds)
             case .fade(let seconds): .expoOut(seconds)
+            }
+        }
+
+        var duration: Double {
+            switch self {
+            case .timing(_, let seconds), .fade(let seconds): seconds
             }
         }
     }
@@ -33,46 +39,79 @@ enum IslandMotion {
         let curve: Curve
     }
 
-    /// Phase 1: 51 % of the way in 17 ms, 90 % in 67 ms, no overshoot.
-    static let firstSpring = curve(MotionSpring.islandPill)
-    /// Phase 2 and every resize while open: overshoots ~1.6 %, settles ~150 ms.
-    static let secondSpring = curve(MotionSpring.islandPanel)
-    static let closeSpring = curve(MotionSpring.islandClose)
-
-    private static func curve(_ spring: MotionSpring) -> Curve {
-        .spring(response: spring.response, damping: spring.damping)
-    }
-    /// The pill holds ~25 ms before phase 2 starts.
+    // Incredible 0.2.36 moves the shape with plain curves, not springs (Karen, D5b: the literal curve).
+    /// Opening, and growing while open: one --ease-island curve per step.
+    static let shapeOpen = Curve.timing(MotionCurve.island, 0.33)
+    /// Back to the notch, without overshoot.
+    static let shapeClose = Curve.timing(MotionCurve.standard, 0.28)
+    /// Shrinking while open, without overshoot.
+    static let shapeShrink = Curve.timing(MotionCurve.standard, 0.26)
+    /// The pill holds ~25 ms before phase 2 starts (Karen's recording).
     static let secondPhase = 0.16
-    /// Content rides the growing panel, clipped by it, so the panel is
-    /// never seen open and empty (spec 16i §5, Karen's 18:01 recording).
-    static let contentLead = 0.04
-    /// Leaving, the content fades while the shape already closes.
-    static let closeFade = 0.08
+    /// Content fades in this long after opening starts, clipped by the growing shape,
+    /// so the panel is never seen open and empty (spec 16i §5).
+    static let contentDelay = 0.06
+    /// Leaving, the content fades as long as it took to enter, while the shape already closes.
+    static let closeFade = IslandMotionBudget.contentOut.duration
+
+    /// A resize of the open island that follows its content.
+    static func resize(growing: Bool) -> Curve {
+        growing ? shapeOpen : shapeShrink
+    }
+
+    /// Only a larger area overshoots: a narrower or equal shape must not bounce.
+    static func grows(from current: CGSize, to target: CGSize) -> Bool {
+        target.width * target.height > current.width * current.height
+    }
+
+    enum Event: Equatable {
+        case shape(Stage)
+        case content
+    }
+
+    struct Beat: Equatable {
+        let at: Double
+        let event: Event
+        let curve: Curve?
+    }
+
+    /// Shape steps and the content's entrance on one clock from the moment the size
+    /// changed, so the content can start under a shape that is still growing.
+    static func timeline(
+        from: IslandState.Size, to: IslandState.Size, reduceMotion: Bool, growing: Bool = true
+    ) -> [Beat] {
+        let shape = steps(from: from, to: to, reduceMotion: reduceMotion, growing: growing)
+            .map { Beat(at: $0.delay, event: .shape($0.stage), curve: $0.curve) }
+        guard !rests(to) else { return shape }
+        let content = Beat(at: contentStart(from: from, to: to, reduceMotion: reduceMotion), event: .content, curve: nil)
+        // Stable order: on a tie the shape moves first.
+        return (shape + [content]).enumerated()
+            .sorted { ($0.element.at, $0.offset) < ($1.element.at, $1.offset) }
+            .map(\.element)
+    }
     /// NotchNook's peek: the pointer has to stay this long before it opens,
     /// so crossing the notch on the way to the menu bar opens nothing.
     static let peekDwell = 0.15
 
-    static func steps(from: IslandState.Size, to: IslandState.Size, reduceMotion: Bool) -> [Step] {
+    static func steps(
+        from: IslandState.Size, to: IslandState.Size, reduceMotion: Bool, growing: Bool = true
+    ) -> [Step] {
         let target: Stage = rests(to) ? .notch : .full
         if reduceMotion { return [Step(stage: target, delay: 0, curve: .fade(MotionTime.fast))] }
         switch (rests(from), rests(to)) {
         case (true, false):
-            return [Step(stage: .pill, delay: 0, curve: firstSpring),
-                    Step(stage: .full, delay: secondPhase, curve: secondSpring)]
-        case (false, true):
-            return [Step(stage: .notch, delay: 0, curve: closeSpring)]
+            return [Step(stage: .pill, delay: 0, curve: shapeOpen),
+                    Step(stage: .full, delay: secondPhase, curve: shapeOpen)]
+        case (false, true), (true, true):
+            return [Step(stage: .notch, delay: 0, curve: shapeClose)]
         case (false, false):
-            return [Step(stage: .full, delay: 0, curve: secondSpring)]
-        case (true, true):
-            return [Step(stage: .notch, delay: 0, curve: closeSpring)]
+            return [Step(stage: .full, delay: 0, curve: resize(growing: growing))]
         }
     }
 
     /// When the content starts to fade in, from the moment the size changed.
     static func contentStart(from: IslandState.Size, to: IslandState.Size, reduceMotion: Bool) -> Double {
-        guard !reduceMotion else { return 0 }
-        return (steps(from: from, to: to, reduceMotion: false).last?.delay ?? 0) + contentLead
+        reduceMotion ? 0 : contentDelay
     }
 
     /// How long the panel is open with its content invisible: opening, from
@@ -80,7 +119,7 @@ enum IslandMotion {
     /// from the content leaving until the shape starts to close.
     static func emptyPanel(from: IslandState.Size, to: IslandState.Size) -> Double {
         switch (rests(from), rests(to)) {
-        case (true, false): contentStart(from: from, to: to, reduceMotion: false) - secondPhase
+        case (true, false): max(0, contentStart(from: from, to: to, reduceMotion: false) - secondPhase)
         case (false, true): steps(from: from, to: to, reduceMotion: false).first?.delay ?? 0
         default: 0
         }
@@ -120,17 +159,22 @@ enum IslandMotionBudget {
         let offset: CGFloat
 
         /// Reduce motion: a short fade, nothing travels or blurs (M8).
-        var reduced: Move { Move(duration: min(duration, MotionTime.fast), blur: 0, offset: 0) }
+        var reduced: Move { Move(duration: min(duration, MotionTime.fast), blur: 0, offset: 0, curve: curve) }
+
+        /// The curve it enters with; most moves use the one entry curve (M3).
+        var curve: [Double] = MotionCurve.enter
 
         func animation(reduceMotion: Bool) -> Animation {
-            .expoOut(reduceMotion ? reduced.duration : duration)
+            MotionCurve.animation(curve, reduceMotion ? reduced.duration : duration)
         }
 
         func resolved(reduceMotion: Bool) -> Move { reduceMotion ? reduced : self }
     }
 
-    /// Panel reveal: the content under the shape.
-    static let contentIn = Move(duration: 0.13, blur: 3, offset: 4)
+    /// Panel reveal: the content under the shape, a plain fade as Incredible's.
+    static let contentIn = Move(duration: 0.13, blur: 0, offset: 0, curve: MotionCurve.ease)
+    /// Closing: the same fade back out, at the same time as the shape.
+    static let contentOut = Move(duration: 0.13, blur: 0, offset: 0, curve: MotionCurve.ease)
     /// Text states swap: the status line.
     static let textSwap = Move(duration: 0.15, blur: 2, offset: 4)
     /// Texts reveal: result cards, one after another.

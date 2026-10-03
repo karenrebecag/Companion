@@ -20,6 +20,11 @@ import Testing
     testThePointerOnlyCountsInsideTheShape()
     testOpeningIsShapeFirstThenContent()
     testClosingIsContentFirstThenShape()
+    testAnOpenIslandGrowsWithTheIslandCurveAndShrinksWithoutBounce()
+    testTheContentFadesWithTheCssEase()
+    testTheIslandCurveOvershootsAsIncrediblesDoes()
+    testTheContentFadesInBeforePhaseTwo()
+    testGrowingIsMoreArea()
     testReduceMotionHasNoSpring()
     testWordsArriveAtSpeakingPace()
     testTheReplyIsTheSpokenPartInPlainWords()
@@ -109,12 +114,12 @@ func testTheNotchedScreenWins() {
     expectEq(steps.map(\.stage), [.pill, .full], "abrir: píldora y luego panel")
     expectEq(steps.first?.delay, 0, "abrir: la píldora sale ya")
     expectEq(steps.last?.delay, IslandMotion.secondPhase, "abrir: el panel a los 160 ms")
-    expectEq(steps.first?.curve, .spring(response: 0.14, damping: 1), "abrir: fase 1 sin rebote")
-    expectEq(steps.last?.curve, .spring(response: 0.18, damping: 0.82), "abrir: fase 2 con rebote leve")
-    expect(IslandMotion.contentLead > 0, "abrir: el contenido espera a la forma")
-    expectEq(IslandMotion.contentStart(from: .pebble, to: .nudge, reduceMotion: false),
-             IslandMotion.secondPhase + IslandMotion.contentLead,
-             "abrir: el contenido entra cuando el panel ya va casi llegando")
+    // Incredible 0.2.36: every shape change is one 330 ms --ease-island curve (D5b, literal).
+    expectEq(steps.first?.curve, .timing(MotionCurve.island, 0.33), "abrir: fase 1 con la curva de la isla")
+    expectEq(steps.last?.curve, .timing(MotionCurve.island, 0.33), "abrir: fase 2 con la misma curva")
+    expectEq(MotionCurve.island, [0.22, 1.22, 0.36, 1], "abrir: --ease-island")
+    expectEq(IslandMotion.contentStart(from: .pebble, to: .nudge, reduceMotion: false), 0.06,
+             "abrir: el contenido entra a los 60 ms de empezar a abrir")
     expectEq(IslandMotion.contentStart(from: .pebble, to: .nudge, reduceMotion: true), 0,
              "reducir movimiento: el contenido no espera")
     expectEq(IslandMotion.steps(from: .bar, to: .card, reduceMotion: false).map(\.stage), [.full],
@@ -125,9 +130,64 @@ func testTheNotchedScreenWins() {
     let steps = IslandMotion.steps(from: .card, to: .pebble, reduceMotion: false)
     expectEq(steps.map(\.stage), [.notch], "cerrar: de vuelta a la muesca")
     expectEq(steps.first?.delay, 0, "cerrar: la forma y el contenido se van juntos (16i §5)")
-    expectEq(steps.first?.curve, .spring(response: 0.18, damping: 1), "cerrar: sin rebote")
-    expect(IslandMotion.closeFade < IslandMotionBudget.contentIn.duration,
-           "cerrar: el contenido se va más rápido que entra")
+    expectEq(steps.first?.curve, .timing(MotionCurve.standard, 0.28), "cerrar: 280 ms standard, sin rebote")
+    expectEq(IslandMotion.closeFade, IslandMotionBudget.contentIn.duration,
+             "cerrar: el contenido sale en lo mismo que entra, 130 ms")
+}
+
+@MainActor func testAnOpenIslandGrowsWithTheIslandCurveAndShrinksWithoutBounce() {
+    expectEq(IslandMotion.steps(from: .bar, to: .card, reduceMotion: false, growing: true).first?.curve,
+             .timing(MotionCurve.island, 0.33), "abierta: crecer con la misma curva que abrir")
+    expectEq(IslandMotion.steps(from: .card, to: .bar, reduceMotion: false, growing: false).first?.curve,
+             .timing(MotionCurve.standard, 0.26), "abierta: encoger en 260 ms standard")
+    expectEq(IslandMotion.resize(growing: true), .timing(MotionCurve.island, 0.33), "contenido que crece")
+    expectEq(IslandMotion.resize(growing: false), .timing(MotionCurve.standard, 0.26), "contenido que encoge")
+}
+
+/// Code review (HIGH): the content waited for the loop over the shape's steps, so it
+/// faded in at 160 ms with phase 2 instead of at 60 ms.
+@MainActor func testTheContentFadesInBeforePhaseTwo() {
+    let opening = IslandMotion.timeline(from: .pebble, to: .nudge, reduceMotion: false)
+    expectEq(opening.map(\.at), [0, 0.06, 0.16], "abrir: píldora, contenido, panel")
+    expectEq(opening.map(\.event), [.shape(.pill), .content, .shape(.full)], "abrir: el contenido antes de la fase 2")
+    let closing = IslandMotion.timeline(from: .card, to: .pebble, reduceMotion: false)
+    expectEq(closing.map(\.event), [.shape(.notch)], "cerrar: el contenido no vuelve a entrar")
+    expectEq(IslandMotion.timeline(from: .pebble, to: .nudge, reduceMotion: true).map(\.at), [0, 0],
+             "reducir movimiento: todo a la vez")
+    expectEq(IslandMotion.emptyPanel(from: .pebble, to: .nudge), 0, "abrir: el panel nunca se ve vacío")
+}
+
+@MainActor func testGrowingIsMoreArea() {
+    expect(IslandMotion.grows(from: CGSize(width: 400, height: 100), to: CGSize(width: 400, height: 200)), "más alto crece")
+    expect(!IslandMotion.grows(from: CGSize(width: 400, height: 200), to: CGSize(width: 400, height: 100)), "más bajo encoge")
+    expect(!IslandMotion.grows(from: CGSize(width: 500, height: 100), to: CGSize(width: 400, height: 100)),
+           "solo más angosto encoge, sin sobrepaso")
+    expect(!IslandMotion.grows(from: CGSize(width: 400, height: 100), to: CGSize(width: 400, height: 100)),
+           "igual no rebota")
+}
+
+@MainActor func testTheContentFadesWithTheCssEase() {
+    let move = IslandMotionBudget.contentIn
+    expectEq(move.duration, 0.13, "contenido: 130 ms")
+    expectEq(move.curve, MotionCurve.ease, "contenido: curva ease de CSS")
+    expectEq(IslandMotionBudget.contentOut.duration, 0.13, "contenido: sale en 130 ms")
+    expectEq(IslandMotionBudget.contentOut.curve, MotionCurve.ease, "contenido: sale con ease de CSS")
+    expectEq(IslandMotion.closeFade, IslandMotionBudget.contentOut.duration, "cerrar: el fundido es contentOut")
+    expectEq(MotionCurve.ease, [0.25, 0.1, 0.25, 1], "ease de CSS, no easeInOut")
+    expectEq(move.blur, 0, "contenido: solo fundido, sin desenfoque")
+    expectEq(move.offset, 0, "contenido: solo fundido, sin subir")
+}
+
+@MainActor func testTheIslandCurveOvershootsAsIncrediblesDoes() {
+    let peak = (0...200).map { MotionCurve.value(MotionCurve.island, at: Double($0) / 200) }.max() ?? 0
+    expect(peak > 1.01 && peak < 1.02, "--ease-island sobrepasa ~1,5 %: \(peak)")
+    expect(abs(MotionCurve.settledAt(MotionCurve.island, duration: 0.33) - 0.126) < 0.005,
+           "--ease-island queda a 2 % a los ~126 ms")
+    expect(abs(MotionCurve.value(MotionCurve.standard, at: 1) - 1) < 1e-6, "standard llega")
+    expect(abs(MotionCurve.value(MotionCurve.standard, at: 0)) < 1e-6, "standard arranca en 0")
+    expect(abs(MotionCurve.value([0, 0, 1, 1], at: 0.5) - 0.5) < 1e-6, "lineal: la mitad a la mitad")
+    expect(abs(MotionCurve.value(MotionCurve.ease, at: 0.5) - 0.8024) < 0.001, "ease de CSS en x = 0,5")
+    expectEq(MotionCurve.settledAt([0, 0, 1, 1], duration: 1), 0.98, "lineal: entra al 2 % al 98 %")
 }
 
 @MainActor func testReduceMotionHasNoSpring() {
@@ -179,9 +239,15 @@ func testTheNotchedScreenWins() {
 /// Security review 16f (note): the shape now grows under a still pointer,
 /// so it has to be done moving before the approval guard lets a click in.
 @MainActor func testTheShapeSettlesBeforeAllowCanBeClicked() {
-    let settle = 0.15
-    expect(IslandMotion.secondPhase + settle + IslandMotion.contentLead < ApprovalClickGuard.dwell,
-           "aprobación: la forma y el contenido se asientan antes de que Permitir acepte un clic")
+    let shape = IslandMotion.secondPhase + IslandMotion.shapeOpen.duration
+    let content = IslandMotion.contentStart(from: .pebble, to: .card, reduceMotion: false)
+        + IslandMotionBudget.contentIn.duration
+    expect(max(shape, content) < ApprovalClickGuard.dwell,
+           "aprobación: la forma y el contenido terminan antes de que Permitir acepte un clic")
+    // The approval card can also grow an island that is already open, under a still pointer.
+    let growsOpen = IslandMotion.resize(growing: true).duration
+    expect(max(growsOpen, IslandMotionBudget.approval.duration) < ApprovalClickGuard.dwell,
+           "aprobación: crecer abierta y la tarjeta terminan antes de que Permitir acepte un clic")
 }
 
 /// Code review 16f (HIGH): the click area jumped to the notch the moment
@@ -195,7 +261,8 @@ func testTheNotchedScreenWins() {
     let opening = IslandChrome.hitSizes(current: notch, target: big)
     expectEq(opening.now, big, "abrir: el área crece ya")
     expect(opening.later == nil, "abrir: nada pendiente")
-    expect(IslandChrome.hitShrinkDelay >= MotionSpring.islandClose.settle, "cerrar: espera a que el resorte asiente")
+    expect(IslandChrome.hitShrinkDelay >= IslandMotion.shapeClose.duration, "cerrar: espera a que la forma llegue")
+    expect(IslandChrome.hitShrinkDelay >= IslandMotion.shapeShrink.duration, "encoger: espera a que la forma llegue")
 }
 
 /// Code review 16f (MEDIUM): one "[" used as punctuation stopped every
