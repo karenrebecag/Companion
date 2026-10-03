@@ -234,6 +234,8 @@ package struct IslandView: View {
     var mark: some View {
         Orb(state: .idle, levels: voice.levels, accentColor: Semantic.accent)
             .frame(width: IslandFieldMetrics.orb, height: IslandFieldMetrics.orb)
+            .scaleEffect(IslandMotionBudget.composerOrb.scale(levels: voice.levels, reduceMotion: reduceMotion))
+            .animation(IslandMotionBudget.composerOrb.animation(reduceMotion: reduceMotion), value: voice.levels.agent)
             .gesture(holdGesture)
             .accessibilityLabel(Localized.string("island.pebble"))
     }

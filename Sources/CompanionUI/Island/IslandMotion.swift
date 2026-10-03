@@ -244,6 +244,28 @@ enum IslandMotionBudget {
         rise: .timing(MotionCurve.island, 0.36), leave: .timing(MotionCurve.standard, 0.22),
         fade: .timing(MotionCurve.standard, 0.15), focus: .timing(MotionCurve.standard, 0.22))
 
+    /// Incredible's composer orb swells with the voice speaking back; the mic leaves it still.
+    struct ComposerOrb: Equatable {
+        let gain: Double
+        let follow: IslandMotion.Curve
+
+        /// The level is clamped: a peak past 1 must not inflate the orb past Incredible's size,
+        /// and NaN (which min and max pass through) must not reach the transform.
+        func scale(level: Double, reduceMotion: Bool) -> CGFloat {
+            guard !reduceMotion, !level.isNaN else { return 1 }
+            return CGFloat(1 + gain * min(max(level, 0), 1))
+        }
+
+        /// Incredible zeroes the orb when the audio is the mic: only the voice speaking back moves it.
+        func scale(levels: VoiceLevels, reduceMotion: Bool) -> CGFloat {
+            scale(level: levels.agent, reduceMotion: reduceMotion)
+        }
+
+        func animation(reduceMotion: Bool) -> Animation? { reduceMotion ? nil : follow.animation }
+    }
+
+    static let composerOrb = ComposerOrb(gain: 0.28, follow: .timing(MotionCurve.easeOut, 0.09))
+
     /// transitions.dev menu dropdown: grows from its trigger, leaves faster.
     struct Popover: Equatable {
         let openDuration: Double
