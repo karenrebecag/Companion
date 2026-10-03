@@ -50,6 +50,8 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
   assert.equal(validateCall({ name: 'browser_double_click', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_right_click', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_type', arguments: { tab: 1, generation: 3, element: 2, text: '' } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 1, generation: 3, element: 2 } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_press', arguments: { tab: 1, key: 'Shift+Tab', times: 10, generation: null, element: null } }).ok, true);
   assert.equal(validateCall({ name: 'browser_navigate', arguments: { tab: 1, url: 'https://a.b/' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'https://a.b/' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'http://a.b/x?y=1' } }).ok, true);
@@ -64,6 +66,15 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
     { name: 'browser_double_click', arguments: { tab: 1, element: 2 } },
     { name: 'browser_right_click', arguments: { tab: '1', generation: 3, element: 2 } },
     { name: 'browser_type', arguments: { tab: 1, generation: 3, element: 2 } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'F5', times: 1, generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'enter', times: 1, generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 0, generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 11, generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 1, generation: 3, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 1, generation: null, element: 2 } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 2, generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Space', times: 3, generation: 3, element: 2 } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'javascript:alert(1)' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'file:///etc/passwd' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'not a url' } },

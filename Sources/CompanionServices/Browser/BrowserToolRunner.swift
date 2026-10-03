@@ -85,7 +85,7 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
         switch tool {
         case .tabs: return await tabs()
         case .read: return await read(arguments)
-        case .click, .doubleClick, .rightClick, .type, .navigate: return await write(tool, arguments, argumentsJSON)
+        case .click, .doubleClick, .rightClick, .type, .press, .navigate: return await write(tool, arguments, argumentsJSON)
         case .open: return await open(arguments)
         case .take: return await take(arguments, raw: argumentsJSON)
         case .release: return await release(arguments)

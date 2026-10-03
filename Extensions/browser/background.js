@@ -117,6 +117,7 @@ function dispatch(name, args) {
     case 'browser_double_click': return trustedPress(args, GESTURES.double);
     case 'browser_right_click': return trustedPress(args, GESTURES.right);
     case 'browser_type': return trustedType(args);
+    case 'browser_press': return trustedKeyPress(args);
     case 'browser_navigate': return navigate(args.tab, args.url);
     case 'browser_open': return openTab(args.url);
     case 'browser_take': return serial(() => takeTab(args.tab));
@@ -507,6 +508,30 @@ async function trustedType(args) {
     }
     // The model has to know its line breaks did not go in, or it would report text that is not there.
     return { done: expected.length === Array.from(args.text).length ? 'typed' : TYPED_WITHOUT_BREAKS };
+  }).catch((error) => inputFailed(args.tab, error));
+}
+
+async function trustedKeyPress(args) {
+  const entry = args.element === null ? null : entryFor(args);
+  if (args.element !== null && !entry) return staleElement;
+  const target = entry ? { tabId: args.tab, frameIds: [entry.frameId] } : null;
+  if (target) {
+    try {
+      await inject(target);
+    } catch {
+      return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+    }
+  }
+  if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
+  return cdp.withInput(args.tab, async () => {
+    if (target) {
+      const focus = await inPage(target, (g, id) => globalThis.__companionPage.focus(g, id), [args.generation, entry.localId]);
+      if (!focus) return staleElement;
+      if (focus.error) return focus;
+      if (!focus.focused) return { error: { code: 'not_focused', message: 'the element did not take the keyboard focus' } };
+    }
+    for (let i = 0; i < args.times; i++) await cdp.pressKey(args.tab, args.key);
+    return { done: 'pressed' };
   }).catch((error) => inputFailed(args.tab, error));
 }
 

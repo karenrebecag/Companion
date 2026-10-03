@@ -49,6 +49,18 @@ private let scroll = ParentTool.scroll.spec(.en)
     expectEq(text?.maxBytes, ToolProperty.maxTextBytes, "browser_type: Incredible's text limit")
 }
 
+@Test func thePressKeysAreAnAllowlistInTheHello() {
+    let spec = BrowserTool.press.spec(.en)
+    let key = spec.properties.first { $0.name == "key" }
+    expectEq(key?.allowed, BrowserTool.pressKeys, "browser_press: only the listed keys")
+    expectEq(BrowserTool.pressKeys, ["Enter", "Escape", "Tab", "Shift+Tab", "ArrowUp", "ArrowDown", "ArrowLeft",
+                                     "ArrowRight", "Space", "Backspace", "Delete", "Home", "End", "PageUp", "PageDown"],
+             "the same list as wire.js PRESS_KEYS")
+    expectEq(spec.required, ["tab", "key"], "element and times are optional")
+    expectEq(BridgeArguments.violation(#"{"tab":1,"key":"F5"}"#, spec: spec),
+             "browser_press: `key` must be one of: " + BrowserTool.pressKeys.joined(separator: ", "), "F5 is refused")
+}
+
 @Test func theLimitsAreTheSameInEveryLanguage() {
     for language in [AppLanguage.en, .es] {
         let text = ParentTool.typeText.spec(language).properties.first

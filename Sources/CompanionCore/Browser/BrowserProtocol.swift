@@ -124,11 +124,16 @@ package struct BrowserElement: Sendable, Equatable {
         "disabled", "expanded", "collapsed", "checked", "unchecked", "mixed", "pressed", "selected", "haspopup",
     ]
 
+    /// P4: for a field inside a form, the label of the button its Enter would
+    /// press ("" when that button has none); nil outside a form.
+    package var submit: String?
+
     package init(
         id: Int, frame: Int, role: String, label: String, context: String,
         inputType: String?, autocomplete: String?, value: String?,
         frameOrigin: String? = nil, href: String? = nil, fieldName: String? = nil, fieldId: String? = nil,
-        states: [String] = []
+        states: [String] = [],
+        submit: String? = nil
     ) {
         self.id = id
         self.frame = frame
@@ -143,6 +148,7 @@ package struct BrowserElement: Sendable, Equatable {
         self.fieldName = fieldName
         self.fieldId = fieldId
         self.states = states
+        self.submit = submit
     }
 }
 
@@ -211,6 +217,8 @@ package enum BrowserCommand: Sendable, Equatable {
     case doubleClick(tab: Int, generation: Int, element: Int)
     case rightClick(tab: Int, generation: Int, element: Int)
     case type(tab: Int, generation: Int, element: Int, text: String)
+    /// Without an element the key goes to the page's focus: generation and element are both nil.
+    case press(tab: Int, key: String, times: Int, generation: Int?, element: Int?)
     case navigate(tab: Int, url: URL)
     case open(url: URL)
     case take(tab: Int)

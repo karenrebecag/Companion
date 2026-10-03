@@ -10,6 +10,7 @@ package enum BrowserTool: String, CaseIterable, Sendable {
     case doubleClick = "browser_double_click"
     case rightClick = "browser_right_click"
     case type = "browser_type"
+    case press = "browser_press"
     case navigate = "browser_navigate"
     case open = "browser_open"
     case take = "browser_take"
@@ -17,7 +18,7 @@ package enum BrowserTool: String, CaseIterable, Sendable {
 
     package var isWrite: Bool {
         switch self {
-        case .click, .doubleClick, .rightClick, .type, .navigate, .open, .take, .release: return true
+        case .click, .doubleClick, .rightClick, .type, .press, .navigate, .open, .take, .release: return true
         case .tabs, .read: return false
         }
     }
@@ -28,13 +29,25 @@ package enum BrowserTool: String, CaseIterable, Sendable {
         self == .click || self == .doubleClick || self == .rightClick
     }
 
+    /// Incredible's el.press keys, minus anything that reaches the browser
+    /// itself (shortcuts, function keys). Kept in step with wire.js PRESS_KEYS.
+    package static let pressKeys = [
+        "Enter", "Escape", "Tab", "Shift+Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+        "Space", "Backspace", "Delete", "Home", "End", "PageUp", "PageDown",
+    ]
+    package static let pressMaxTimes = 10
+    /// The gate judges one activation: a second Enter lands wherever the
+    /// first one left the focus. Kept in step with wire.js PRESS_ONCE.
+    package static let pressOnce: Set<String> = ["Enter", "Space"]
+
     package func spec(_ language: AppLanguage) -> ToolSpec {
         ToolSpec(
             name: rawValue,
             description: BrowserCopy.description(self, language) + " " + BrowserCopy.toolDataSuffix(language),
             properties: properties.map {
-                ToolProperty(name: $0.name, type: $0.type, description: BrowserCopy.parameter($0.name, language),
-                             minLength: $0.typed ? 1 : nil, maxBytes: $0.typed ? ToolProperty.maxTextBytes : nil)
+                ToolProperty(name: $0.name, type: $0.type,
+                             description: BrowserCopy.parameter(copyKey($0.name), language),
+                             allowed: $0.allowed, minLength: $0.typed ? 1 : nil, maxBytes: $0.typed ? ToolProperty.maxTextBytes : nil)
             },
             required: properties.filter(\.required).map(\.name))
     }
@@ -45,6 +58,13 @@ package enum BrowserTool: String, CaseIterable, Sendable {
         let required: Bool
         /// Text typed into the page: the same limit as type_text.
         var typed = false
+        var allowed: [String]?
+    }
+
+    /// The press's element is optional and its key is not typed text, so
+    /// both read differently from the shared names.
+    private func copyKey(_ name: String) -> String {
+        self == .press && (name == "element" || name == "key") ? "press_" + name : name
     }
 
     private var properties: [Parameter] {
@@ -55,6 +75,10 @@ package enum BrowserTool: String, CaseIterable, Sendable {
         case .read: return [tab, Parameter(name: "selector", type: "string", required: false)]
         case .click, .doubleClick, .rightClick: return [tab, element]
         case .type: return [tab, element, Parameter(name: "text", type: "string", required: true, typed: true)]
+        case .press:
+            return [tab, Parameter(name: "key", type: "string", required: true, allowed: Self.pressKeys),
+                    Parameter(name: "element", type: "integer", required: false),
+                    Parameter(name: "times", type: "integer", required: false)]
         case .navigate: return [tab, Parameter(name: "url", type: "string", required: true)]
         case .open: return [Parameter(name: "url", type: "string", required: true)]
         case .take, .release: return [tab]
