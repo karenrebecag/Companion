@@ -123,10 +123,12 @@ package struct BridgeCallResult: Codable, Sendable, Equatable {
     package var target: String
     package var tool: String?
 
+    /// The only way a tool outcome becomes a bridge reply, so the screen
+    /// text is cleaned here once for every call path.
     package init(_ outcome: ParentToolOutcome) {
         self.ok = outcome.ok
-        self.output = outcome.output
-        self.target = outcome.target
+        self.output = BridgeScreenText.strip(outcome.output)
+        self.target = BridgeScreenText.strip(outcome.target)
         self.tool = outcome.tool
     }
 
@@ -184,6 +186,10 @@ package enum BridgeCode {
     package static let notControlled = "not_controlled"
     /// Wave 18: the extension did not answer within the call's deadline.
     package static let timeout = "timeout"
+    /// A scoped browser_read whose selector matched nothing, or only hidden
+    /// nodes: an empty page would read as "the menu is empty".
+    package static let selectorNoMatch = "selector_no_match"
+    package static let selectorHidden = "selector_hidden"
     /// The tool exists but Companion's own window is in front, so there is no
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
     package static let selfInFront = "self_in_front"

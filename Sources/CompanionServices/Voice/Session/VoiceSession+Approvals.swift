@@ -86,6 +86,64 @@ extension VoiceSession {
             pendingApproval = nil
             pendingApprovalSeen = nil
         }
+        if parkedParentApproval == requestId { parkedParentApproval = nil }
+    }
+
+    /// A parent gate's sheet: armed and asked like a job's, and remembered as
+    /// the parent's so a press over its question can answer it (2a). Realtime
+    /// never asks and never holds an answer.
+    func noteParentApproval(_ request: ApprovalRequest) async {
+        if machine.snapshot.pipeline != .realtime, !closedApprovals.contains(request.requestId) {
+            parkedParentApproval = request.requestId
+        }
+        await noteApproval(request)
+        await askApprovalAloud(request)
+    }
+
+    /// Karen's D2 (P2): a press over a resting turn whose parent question was
+    /// said answers the sheet instead of cutting the turn. A question not
+    /// said yet is no question, and the press is the cut #87 made.
+    var answerHoldArmed: Bool {
+        guard machine.snapshot.sheetParked, let id = parkedParentApproval,
+              livePendingApproval?.requestId == id,
+              let seen = pendingApprovalSeen, seen.requestId == id, seen.announcedAt != nil
+        else { return false }
+        return true
+    }
+
+    /// The release of an answer hold. True when it settled the hold; false
+    /// hands it back to the ordinary release (the sheet closed meanwhile).
+    func answerParkedSheet(_ requestId: String) async -> Bool {
+        guard machine.snapshot.sheetParked, livePendingApproval?.requestId == requestId else { return false }
+        let generation = holdGeneration
+        await classic.flushEarlyAudio()
+        let words = await classic.stopEar().value.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A newer press owns the session now.
+        guard generation == holdGeneration else { return true }
+        noteHeard(words, pressed: timeline.pressed)
+        guard words.isEmpty || SpokenYes.affirms(words) else {
+            // No answer: these words are a turn of their own, and the new
+            // turn cancels the parked one (#87), and gets the pin the press
+            // held back.
+            classic.parentTools?.beginTurn()
+            classic.leftoverHeard = words
+            commitTimeline()
+            await apply(.holdReleased(hasSpeech: true))
+            return true
+        }
+        screen?.cancel()
+        classic.cancelPressedContext()
+        if words.isEmpty { eventBox.yield(.heardNothing) }
+        // Back at rest before anything answers: the click may land any time.
+        await apply(.holdDiscarded)
+        guard !words.isEmpty else { return true }
+        // The one place a spoken yes is judged, so a later decision about it
+        // changes the rule there, not this path.
+        if await answerPendingApproval(true) == .needsClick {
+            await jobAnnounce(JobAnnouncement(
+                goal: "", outcome: .needsClick, language: configProvider.current.language))
+        }
+        return true
     }
 
     /// The reducer's report of what the sheet shows (C2): a spoken answer
@@ -214,6 +272,13 @@ extension VoiceSession {
         // whole payoff, so app writes take the sheet's click, always.
         if pending.toolName.hasPrefix(ApprovalCopy.appToolPrefix) {
             Log.app("voice: app write approvals need the sheet, not resolve_approval")
+            return false
+        }
+        // Q1 D1 (a): a parent's sheet takes the click whatever its risk, so
+        // the risk list can never be what lets a voice approve one. An ADR
+        // that changes that changes this guard.
+        guard pending.requestId != parkedParentApproval else {
+            Log.app("voice: a parent sheet needs the click, not a spoken yes")
             return false
         }
         // 20c D1: only a request whose worst case is small is the voice's to

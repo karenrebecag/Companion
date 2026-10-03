@@ -24,7 +24,8 @@ private func doneMessage(_ json: String) -> String? {
 
 @Test func everyCodeTheExtensionUsesSurvivesTheAllowlist() {
     let codes = ["stale_id", "secure_field", "invalid_args", "timeout", "frame_too_large",
-                 "busy", "not_connected", "bad_frame", "unknown_method", "bad_token"]
+                 "busy", "not_connected", "bad_frame", "unknown_method", "bad_token",
+                 "selector_no_match", "selector_hidden"]
     for code in codes {
         let body = errorBody(#"{"id":1,"error":{"code":"\#(code)","message":"m"}}"#)
         expectEq(body?.code, code, "allowlist: \(code) passes through")

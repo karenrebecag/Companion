@@ -6,6 +6,7 @@ import SwiftUI
 /// island.
 struct HomePage: View {
     var chat: ChatViewModel
+    var voice: VoiceViewModel
     let onOpen: (ConversationMeta) -> Void
     let onSettings: (SettingsTab) -> Void
 
@@ -26,7 +27,7 @@ struct HomePage: View {
                         {
                             HomeErrorBanner(text: error, onDismiss: chat.dismissError)
                         }
-                        hero
+                        HomeHero(state: voice.snapshot.state)
                         tasks
                     }
                     .frame(maxWidth: .infinity)
@@ -47,30 +48,6 @@ struct HomePage: View {
         let name = UserProfile.ownerName.split(separator: " ").first.map(String.init) ?? ""
         return name.isEmpty ? Localized.string("home.welcome.anon")
             : String(format: Localized.string("home.welcome"), name)
-    }
-
-    // Incredible lays a photo over the right 56 %; ours has none yet, so the
-    // ink ground carries it alone.
-    private var hero: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            HStack(spacing: Space.x2) {
-                Text(Localized.string("home.hero.before"))
-                BrandKeycapView(text: "fn", titleSize: TypeSize.bannerTitle)
-                Text(Localized.string("home.hero.after"))
-            }
-            .font(Fonts.sans(TypeSize.bannerTitle).weight(.semibold))
-            .tracking(Tracking.title, at: TypeSize.bannerTitle)
-            .foregroundStyle(Neutral.white.color)
-            Text(Localized.string("home.hero.body"))
-                .typeRole(.heroBody)
-                .foregroundStyle(Neutral.white.color.opacity(HeroMetrics.bodyAlpha))
-                .frame(maxWidth: HeroMetrics.bodyWidth, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, HeroMetrics.paddingX)
-        .padding(.vertical, HeroMetrics.paddingY + Space.x2)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: HeroMetrics.radius).fill(HeroMetrics.ink.color))
     }
 
     @ViewBuilder

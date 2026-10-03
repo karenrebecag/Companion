@@ -393,11 +393,7 @@ struct AppCard: View {
     private var action: some View {
         switch state {
         case .connected:
-            HStack(spacing: Space.x2) {
-                StatusDot(IslandInk.green)
-                Text(Localized.string("apps.connected")).font(.uiCaption)
-                    .foregroundStyle(Semantic.foreground)
-            }
+            Badge(Localized.string("apps.connected"), variant: .secondary, dot: IslandInk.green)
         case .reconnect:
             AppButton(Localized.string("apps.reconnect"), kind: .secondary, action: onConnect)
         case nil:

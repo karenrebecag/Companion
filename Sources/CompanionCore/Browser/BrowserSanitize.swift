@@ -13,7 +13,7 @@ enum BrowserSanitize {
     private static let allowedCodes: Set<String> = [
         BridgeCode.staleId, BridgeCode.secureField, BridgeCode.invalidArgs, BridgeCode.timeout,
         BridgeCode.frameTooLarge, BridgeCode.busy, BridgeCode.notConnected, BridgeCode.badFrame,
-        BridgeCode.unknownMethod, BridgeCode.badToken,
+        BridgeCode.unknownMethod, BridgeCode.badToken, BridgeCode.selectorNoMatch, BridgeCode.selectorHidden,
     ]
 
     static func code(_ raw: String) -> String {

@@ -182,6 +182,7 @@ function fake({ tag, attrs = {}, text = '', value = '', ctx = '', execWorks = tr
     hasAttribute: (n) => n in attrs,
     focus() { el.focused = true; },
     select() {},
+    querySelectorAll: () => [],
     dispatchEvent(e) { events.push(e); return true; },
   });
   Object.defineProperty(el, 'type', { get: () => attrs.type ?? 'text' });
@@ -474,4 +475,108 @@ test('typedValue reads an input by value and an editable by its text', () => {
   assert.deepEqual(page.typedValue(1, 1), { value: 'Ana' });
   armed(fake({ tag: 'div', attrs: { contenteditable: 'true' }, text: 'Hola', editable: true }));
   assert.deepEqual(page.typedValue(1, 1), { value: 'Hola' });
+});
+
+// ---- A selector read over an open menu or listbox ----
+
+// A [role=menu]/[role=listbox] container whose descendants are `items`; it is not listable itself.
+function container({ role = 'menu', items = [], innerText = '', display = 'block', visible = undefined, shadow = null }) {
+  const box = fake({ tag: 'div', attrs: { role }, display });
+  box.querySelectorAll = (s) => (s === '*' ? items : []);
+  box.innerText = innerText;
+  box.contains = (other) => other === box || items.includes(other);
+  if (visible !== undefined) box.checkVisibility = () => visible;
+  if (shadow) box.shadowRoot = { querySelectorAll: (s) => (s === '*' ? shadow : []) };
+  return box;
+}
+
+function readWith(matches, selector = '[role=menu]') {
+  globalThis.document = { querySelectorAll: () => matches, body: { innerText: 'whole page' } };
+  try {
+    return page.read(1, selector, 0);
+  } finally {
+    delete globalThis.document;
+  }
+}
+
+test('a selector on an open menu lists its items and its text', () => {
+  const one = fake({ tag: 'div', attrs: { role: 'menuitem' }, text: 'Uno' });
+  const two = fake({ tag: 'div', attrs: { role: 'menuitem' }, text: 'Dos' });
+  const out = readWith([container({ items: [one, two], innerText: 'Uno\nDos' })]);
+  assert.deepEqual(out.elements.map((e) => e.label), ['Uno', 'Dos']);
+  assert.deepEqual(out.elements.map((e) => e.id), [1, 2]);
+  assert.equal(out.text, 'Uno\nDos');
+});
+
+test('a selector matching both the menu and its items lists each item once', () => {
+  const one = fake({ tag: 'div', attrs: { role: 'menuitem' }, text: 'Uno' });
+  const two = fake({ tag: 'div', attrs: { role: 'menuitem' }, text: 'Dos' });
+  const menu = container({ items: [one, two], innerText: 'Uno\nDos' });
+  const out = readWith([menu, one, two], '[role=menu], [role=menuitem]');
+  assert.deepEqual(out.elements.map((e) => e.label), ['Uno', 'Dos']);
+  assert.deepEqual(out.elements.map((e) => e.id), [1, 2]);
+  assert.equal(out.text, 'Uno\nDos');
+});
+
+test('a closed menu next to an open one gives neither its items nor its text', () => {
+  const hiddenItem = fake({ tag: 'div', attrs: { role: 'menuitem' }, text: 'x' });
+  const shownItem = fake({ tag: 'div', attrs: { role: 'menuitem' }, text: 'A' });
+  const closed = container({ items: [hiddenItem], innerText: 'SECRET', visible: false });
+  const open = container({ items: [shownItem], innerText: 'A' });
+  const out = readWith([closed, open]);
+  assert.deepEqual(out.elements.map((e) => e.label), ['A']);
+  assert.equal(out.text, 'A');
+});
+
+test('an open menu with nothing listable is an empty menu, not an error', () => {
+  const out = readWith([container({ innerText: 'No hay opciones' })]);
+  assert.equal(out.error, undefined);
+  assert.deepEqual(out.elements, []);
+  assert.equal(out.text, 'No hay opciones');
+});
+
+// A broad selector on a hostile page matches tens of thousands of nodes; comparing every pair hangs the tab.
+test('finding the outermost matches stays linear in the number of matches', () => {
+  let calls = 0;
+  const matches = Array.from({ length: 2000 }, () => {
+    const box = container({ innerText: 'm' });
+    box.contains = (other) => { calls += 1; return other === box; };
+    return box;
+  });
+  readWith(matches, 'div');
+  assert.ok(calls <= matches.length * 2, `contains called ${calls} times for ${matches.length} matches`);
+});
+
+test('a listbox that is a shadow host lists the options in its own shadow root', () => {
+  const opt = fake({ tag: 'div', attrs: { role: 'option' }, text: 'Mexico' });
+  const out = readWith([container({ role: 'listbox', shadow: [opt], innerText: 'Mexico' })], '[role=listbox]');
+  assert.deepEqual(out.elements.map((e) => e.label), ['Mexico']);
+});
+
+test('a container nested in another matched container adds no text twice', () => {
+  const opt = fake({ tag: 'div', attrs: { role: 'option' }, text: 'A' });
+  const inner = container({ role: 'listbox', items: [opt], innerText: 'A' });
+  const outer = container({ role: 'listbox', items: [inner, opt], innerText: 'Pick\nA' });
+  const out = readWith([outer, inner], '[role=listbox]');
+  assert.equal(out.text, 'Pick\nA');
+  assert.deepEqual(out.elements.map((e) => e.label), ['A']);
+});
+
+test('the text of a matched container is cut to the page text limit', () => {
+  const out = readWith([container({ innerText: 'x'.repeat(250000) })]);
+  assert.equal(out.text.length, 200000);
+});
+
+test('nothing matching the selector is an error that names the next step, not an empty page', () => {
+  const out = readWith([]);
+  assert.equal(out.error.code, 'selector_no_match');
+  assert.equal(out.elements, undefined);
+});
+
+test('a closed menu (only hidden matches) is its own error', () => {
+  const one = fake({ tag: 'div', attrs: { role: 'menuitem' }, text: 'Uno' });
+  assert.equal(readWith([container({ items: [one], display: 'none' })]).error.code, 'selector_hidden');
+  assert.equal(readWith([container({ items: [one], visible: false })]).error.code, 'selector_hidden');
+  const hiddenItem = fake({ tag: 'button', text: 'Hidden', hidden: true });
+  assert.equal(readWith([hiddenItem], 'button').error.code, 'selector_hidden');
 });

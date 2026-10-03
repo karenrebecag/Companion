@@ -284,17 +284,66 @@
     return style.display !== 'none' && style.visibility !== 'hidden';
   }
 
+  // checkVisibility also sees an ancestor's display:none or a closed <details>; the guard keeps older
+  // engines and the node test fakes on the element's own style.
+  function isShown(el) {
+    if (!isVisible(el)) return false;
+    return typeof el.checkVisibility === 'function' ? el.checkVisibility() : true;
+  }
+
+  // A selector usually names the open menu or listbox, not its items, so a match stands for its whole
+  // subtree. An empty result must say why, or the model reads "nothing" as "nothing is there".
+  function readMatches(matches) {
+    if (matches.length === 0) {
+      return { error: { code: 'selector_no_match', message: 'nothing matches the selector' } };
+    }
+    const shown = matches.filter(isShown);
+    if (shown.length === 0) {
+      return { error: { code: 'selector_hidden', message: 'everything the selector matches is hidden' } };
+    }
+    const seen = new Set();
+    const nodes = [];
+    const add = (node) => {
+      if (seen.has(node)) return;
+      seen.add(node);
+      nodes.push(node);
+    };
+    for (const match of shown) {
+      if (isListable(match)) add(match);
+      const inside = [];
+      // collect enters the shadow roots of descendants only, so the match's own root is walked here.
+      if (match.shadowRoot) collect(match.shadowRoot, inside);
+      collect(match, inside);
+      inside.forEach(add);
+    }
+    // A match inside another match already gave its text through the outer one's innerText. Matches come
+    // in document order, so a descendant always follows its ancestor: one comparison with the last kept
+    // match suffices, where checking every pair hangs the tab on a broad selector.
+    const outermost = [];
+    for (const match of shown) {
+      const last = outermost[outermost.length - 1];
+      if (last && typeof last.contains === 'function' && last.contains(match)) continue;
+      outermost.push(match);
+    }
+    const text = cutUnits(outermost.map((m) => m.innerText ?? '').filter(Boolean).join('\n'), TEXT_MAX);
+    return { nodes, text };
+  }
+
   // Ids are local to this document; the background renumbers them across frames and tracks the frame.
   function read(generation, selector, frame) {
     const state = stateOf();
     const doc = document;
     let nodes = [];
+    let text = '';
     if (selector == null) {
       collect(doc, nodes);
+      text = cutUnits(doc.body?.innerText, TEXT_MAX);
     } else {
       const segments = parseSelector(selector);
       if (!segments) return { error: { code: 'invalid_args', message: 'invalid selector' } };
-      nodes = resolveSelector(doc, segments).filter((n) => isListable(n) && isVisible(n));
+      const scoped = readMatches(resolveSelector(doc, segments));
+      if (scoped.error) return scoped;
+      ({ nodes, text } = scoped);
     }
     state.generation = generation;
     state.elements = new Map();
@@ -302,8 +351,6 @@
       state.elements.set(i + 1, node);
       return serializeElement(node, i + 1, frame);
     });
-    const scope = selector == null ? doc.body : null;
-    const text = selector == null ? cutUnits(scope?.innerText, TEXT_MAX) : '';
     // Each frame reports its own origin so the app can tell third-party frames from the page.
     return { origin: String(globalThis.location?.origin ?? ''), text, elements };
   }
