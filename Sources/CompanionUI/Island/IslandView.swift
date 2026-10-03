@@ -140,7 +140,6 @@ package struct IslandView: View {
                 .background(GeometryReader { geometry in
                     Color.clear.preference(key: IslandSizeKey.self, value: geometry.size.height)
                 })
-                .modifier(contentMove)
                 .frame(width: shown.width, height: shown.height, alignment: .top)
                 .clipShape(NotchShape(width: shown.width, height: shown.height, radius: radius(notch)))
         }
@@ -278,6 +277,7 @@ package struct IslandView: View {
                 }
             }
             .frame(height: geometry.notch.height)
+            .modifier(contentSlot(.field))
             inner()
         }
         .padding(.horizontal, IslandChrome.shellMargin)
@@ -286,36 +286,42 @@ package struct IslandView: View {
 
     func composer(_ state: IslandState) -> some View {
         VStack(alignment: .leading, spacing: Space.x2) {
-            IslandComposer(
-                draft: $draft, focused: $fieldFocused,
-                // The unpainted line rides on the orb, the one piece that
-                // stands for the voice here.
-                mark: AnyView(mark.accessibilityValue(
-                    IslandCopy.voiceOverOnly(state.line) ? IslandCopy.line(state.line) : "")),
-                onSend: submit, popover: $popover, staged: !chat.pendingAttachments.isEmpty,
-                mentions: mentions)
-                .onExitCommand {
-                    if mentions?.press(.escape) == true { return }
-                    switch IslandEscape.action(popoverOpen: popover != nil) {
-                    case .closePopover: popover = nil
-                    case .dismissField: dismissField()
+            Group {
+                IslandComposer(
+                    draft: $draft, focused: $fieldFocused,
+                    // The unpainted line rides on the orb, the one piece that
+                    // stands for the voice here.
+                    mark: AnyView(mark.accessibilityValue(
+                        IslandCopy.voiceOverOnly(state.line) ? IslandCopy.line(state.line) : "")),
+                    onSend: submit, popover: $popover, staged: !chat.pendingAttachments.isEmpty,
+                    mentions: mentions)
+                    .onExitCommand {
+                        if mentions?.press(.escape) == true { return }
+                        switch IslandEscape.action(popoverOpen: popover != nil) {
+                        case .closePopover: popover = nil
+                        case .dismissField: dismissField()
+                        }
                     }
+                if let mentions, mentions.isOpen { MentionSelectorView(model: mentions) }
+                attachTray
+                if let attachNote {
+                    caption(attachNote)
+                } else if case .none = state.line {} else if let shown = IslandCopy.visibleLine(state.line) {
+                    caption(shown)
                 }
-            if let mentions, mentions.isOpen { MentionSelectorView(model: mentions) }
-            attachTray
-            if let attachNote {
-                caption(attachNote)
-            } else if case .none = state.line {} else if let shown = IslandCopy.visibleLine(state.line) {
-                caption(shown)
+                if confirmingClear {
+                    IslandClearConfirm(onClear: clearHistory, onCancel: { confirmingClear = false })
+                }
             }
-            if confirmingClear {
-                IslandClearConfirm(onClear: clearHistory, onCancel: { confirmingClear = false })
+            .modifier(contentSlot(.field))
+            Group {
+                reply(state)
+                ForEach(Array(results.enumerated()), id: \.element.id) { index, row in
+                    IslandResultCard(result: row.result, onOpen: { openResult(row.id) })
+                        .modifier(IslandLineReveal(index: index))
+                }
             }
-            reply(state)
-            ForEach(Array(results.enumerated()), id: \.element.id) { index, row in
-                IslandResultCard(result: row.result, onOpen: { openResult(row.id) })
-                    .modifier(IslandLineReveal(index: index))
-            }
+            .modifier(contentSlot(.conversation))
         }
     }
 

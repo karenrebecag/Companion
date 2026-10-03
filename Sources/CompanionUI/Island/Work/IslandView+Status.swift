@@ -8,12 +8,16 @@ extension IslandView {
     func status(_ state: IslandState) -> some View {
         if state.line == .dropZones {
             IslandDropZones(zone: geometry.dropZone)
+                .modifier(contentSlot(.card))
         } else if case .receipt(let receipt) = state.line {
             receiptCard(receipt)
+                .modifier(contentSlot(.card))
         } else if case .followUp(let title) = state.line {
             IslandFollowUpRow(title: title, onDrop: { chat.followUp = nil })
+                .modifier(contentSlot(.conversation))
         } else if case .dictationResult(let app, let text) = state.line {
             dictationCard(app: app, text: text)
+                .modifier(contentSlot(.card))
         } else if let notice = IslandNotice.content(for: state.line) {
             IslandNoticeCard(content: notice, onAction: perform,
                              onDismiss: { dismissNotice(state.line) })
@@ -22,6 +26,7 @@ extension IslandView {
                         await chat.expireIslandError(text)
                     }
                 }
+                .modifier(contentSlot(.card))
         } else {
             statusRows(state)
         }
@@ -66,35 +71,39 @@ extension IslandView {
                 // signal. Stopping a live session lives in the menu bar.
                 IslandLight(light: state.light)
             }
-            if let partial = state.partial, !partial.isEmpty {
-                // 16m-2: quieter while the ear can still change it, full
-                // ink once the release fixes it.
-                IslandTranscript(text: partial, fixed: state.meter != .mic)
-            }
-            if let receipt = state.receipt, state.approval == nil {
-                IslandReceiptRow(receipt: receipt) { chat.session.send(.undoPressed(id: receipt.id)) }
-            }
-            if let item = IslandReel.item(chat.session.projection.touched), state.approval == nil {
-                IslandReel(item: item)
-            }
-            if case .job = state.line, let job = chat.session.projection.job {
-                // Waving the checklist away falls back to the small
-                // runcard, never to silence (review 16m).
-                if job.steps.count > WorkStateMetrics.checklistAt,
-                   dismissedChecklist != job.startedAt
-                {
-                    IslandChecklist(job: job, onDismiss: { dismissedChecklist = job.startedAt })
-                } else {
-                    IslandRunCard(job: job)
+            .modifier(contentSlot(.field))
+            Group {
+                if let partial = state.partial, !partial.isEmpty {
+                    // 16m-2: quieter while the ear can still change it, full
+                    // ink once the release fixes it.
+                    IslandTranscript(text: partial, fixed: state.meter != .mic)
                 }
-                let agents = WorkStateMetrics.agents(job.steps)
-                if !agents.isEmpty {
-                    IslandAgentBars(agents: agents)
+                if let receipt = state.receipt, state.approval == nil {
+                    IslandReceiptRow(receipt: receipt) { chat.session.send(.undoPressed(id: receipt.id)) }
+                }
+                if let item = IslandReel.item(chat.session.projection.touched), state.approval == nil {
+                    IslandReel(item: item)
+                }
+                if case .job = state.line, let job = chat.session.projection.job {
+                    // Waving the checklist away falls back to the small
+                    // runcard, never to silence (review 16m).
+                    if job.steps.count > WorkStateMetrics.checklistAt,
+                       dismissedChecklist != job.startedAt
+                    {
+                        IslandChecklist(job: job, onDismiss: { dismissedChecklist = job.startedAt })
+                    } else {
+                        IslandRunCard(job: job)
+                    }
+                    let agents = WorkStateMetrics.agents(job.steps)
+                    if !agents.isEmpty {
+                        IslandAgentBars(agents: agents)
+                    }
+                }
+                if state.meter == .agent || (state.light == .green && state.line == .completed) {
+                    reply(state)
                 }
             }
-            if state.meter == .agent || (state.light == .green && state.line == .completed) {
-                reply(state)
-            }
+            .modifier(contentSlot(.conversation))
             // The sheet animates by its own transition, never by an animation on the
             // stack: the success light keeps its own spring when both change together.
             VStack(spacing: Space.none) {
@@ -111,6 +120,7 @@ extension IslandView {
                     .transition(.islandCard(reduceMotion: reduceMotion))
                 }
             }
+            .modifier(contentSlot(.card))
         }
     }
 

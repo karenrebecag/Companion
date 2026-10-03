@@ -1,0 +1,1 @@
+- **La isla abierta aparece por partes, como la de Incredible (2026-10-03).** El campo entra a los 60 ms, la conversacion a los 90 y las tarjetas a los 120, cada una con su fundido de 130 ms; al cerrar se van todas juntas con la forma. Con reducir movimiento nada espera.
