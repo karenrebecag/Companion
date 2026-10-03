@@ -663,6 +663,75 @@ test('an open menu at the end of the page is listed and read first', () => {
   }
 });
 
+// H-1: the gate approved the label, role and link the read showed. A page that rewrites the same node
+// between the read and the action (a reused list row, a hostile swap) must not get the press.
+function readOne(el) {
+  globalThis.document = { querySelectorAll: () => [el], body: { innerText: '' } };
+  const out = page.read(1, 'button', 0);
+  delete globalThis.document;
+  return out;
+}
+
+test('an element whose label changed since the read is stale, for every action', () => {
+  const el = fake({ tag: 'button', text: 'Siguiente' });
+  assert.equal(readOne(el).elements[0].label, 'Siguiente');
+  el.textContent = 'Eliminar cuenta';
+  assert.equal(page.click(1, 1).error.code, 'stale_id');
+  assert.equal(el.events.length, 0, 'nothing dispatched');
+  assert.equal(page.lookup(globalThis.__companionState, 1, 1).error.code, 'stale_id');
+  assert.equal(page.hitsAt(1, 1, 0, 0), false);
+});
+
+test('an element whose role or link changed since the read is stale', () => {
+  const button = fake({ tag: 'button', text: 'Go' });
+  readOne(button);
+  button.getAttribute = (n) => (n === 'role' ? 'link' : null);
+  assert.equal(page.click(1, 1).error.code, 'stale_id', 'role');
+  const link = fake({ tag: 'a', text: 'Docs', attrs: { href: 'https://page.test/docs' } });
+  readOne(link);
+  link.getAttribute = (n) => (n === 'href' ? 'https://evil.test/pay' : null);
+  assert.equal(page.click(1, 1).error.code, 'stale_id', 'href');
+  assert.equal(button.events.length + link.events.length, 0, 'nothing dispatched');
+});
+
+test('the trusted paths refuse a changed element before touching it', async () => {
+  const button = fake({ tag: 'button', text: 'Siguiente' });
+  readOne(button);
+  button.textContent = 'Pagar ahora';
+  const spot = await page.locate(1, 1, 't');
+  assert.equal(spot.error.code, 'stale_id', 'locate');
+  assert.equal(spot.box, undefined, 'no box to press');
+  assert.equal(page.landed('t'), null, 'no landing armed');
+
+  const field = fake({ tag: 'input', attrs: { placeholder: 'Nombre' } });
+  let selected = 0;
+  field.select = () => { selected++; };
+  globalThis.document = { querySelectorAll: () => [field], body: { innerText: '' } };
+  page.read(1, 'input', 0);
+  delete globalThis.document;
+  field.getAttribute = (n) => (n === 'placeholder' ? 'Contraseña' : null);
+  assert.equal(page.prepareType(1, 1).error.code, 'stale_id', 'prepareType');
+  assert.equal(field.focused, false);
+  assert.equal(selected, 0);
+  assert.equal(page.type(1, 1, 'x').error.code, 'stale_id', 'synthetic type');
+  assert.equal(field.value, '', 'nothing typed');
+  assert.equal(page.typedValue(1, 1).error.code, 'stale_id', 'typedValue');
+});
+
+test('an element inside a frame is checked too', async () => {
+  const el = fake({ tag: 'button', text: 'Go' });
+  readOne(el);
+  // The top document is not the element's own, which is how a same-origin iframe looks to locate.
+  globalThis.document = { querySelectorAll: () => [], body: { innerText: '' } };
+  try {
+    assert.equal((await page.locate(1, 1, 't')).inFrame, true, 'unchanged: still the frame path');
+    el.textContent = 'Delete';
+    assert.equal((await page.locate(1, 1, 't')).error.code, 'stale_id', 'changed: refused');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
 test('the open menu survives the wire cut on a page with 1,500 links', async () => {
   const { trimMessage } = await import('../lib/wire.js');
   pageWithMenuAtTheEnd(1500);
@@ -828,4 +897,39 @@ test('a control inside a disabled fieldset reads disabled, as the browser treats
   const locked = fake({ tag: 'button', text: 'Enviar' });
   locked.matches = (selector) => selector === ':disabled';
   assert.deepEqual(statesOf(locked), ['disabled']);
+});
+
+test('a state built without identities still acts', () => {
+  const el = fake({ tag: 'button', text: 'Go' });
+  globalThis.__companionState = { generation: 1, elements: new Map([[1, el]]) };
+  el.textContent = 'Changed';
+  assert.equal(page.lookup(globalThis.__companionState, 1, 1).element, el);
+});
+
+test('a button that relabels itself after a press needs a fresh read for the next one', () => {
+  const el = fake({ tag: 'button', text: 'Mostrar' });
+  readOne(el);
+  assert.equal(page.click(1, 1).done, 'clicked');
+  el.textContent = 'Ocultar';
+  assert.equal(page.click(1, 1).error.code, 'stale_id', 'chosen: the new label was never judged');
+});
+
+test('an unchanged element still acts, and typing into it does not make it stale', () => {
+  const el = fake({ tag: 'button', text: 'Siguiente' });
+  readOne(el);
+  assert.equal(page.click(1, 1).done, 'clicked');
+  const field = fake({ tag: 'input', attrs: { placeholder: 'Nombre' } });
+  globalThis.document = { querySelectorAll: () => [field], body: { innerText: '' } };
+  page.read(1, 'input', 0);
+  delete globalThis.document;
+  field.value = 'Ana';
+  assert.equal(page.typedValue(1, 1).value, 'Ana', 'the typed value is read back, not refused as a change');
+});
+
+test('an element moved into another dialog or form since the read is stale', () => {
+  const el = fake({ tag: 'button', text: 'Confirmar', ctx: 'Newsletter' });
+  readOne(el);
+  el.closest = () => ({ getAttribute: (n) => (n === 'aria-label' ? 'Confirmar pago' : null), querySelector: () => null });
+  assert.equal(page.click(1, 1).error.code, 'stale_id', 'the gate judged the context too');
+  assert.equal(el.events.length, 0);
 });
