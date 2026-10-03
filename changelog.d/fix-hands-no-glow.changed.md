@@ -1,0 +1,1 @@
+- **El brillo de pantalla ya no se enciende cuando un agente usa las manos, como en Incredible (2026-10-03).** Decision de Karen: el brillo es solo de la voz. Una sesion de manos se detiene desde la barra de menu ("Detener manos").

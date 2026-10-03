@@ -13,21 +13,23 @@ package enum ScreenGlow {
         case off, listening, waiting
     }
 
+    /// The glow belongs to the voice alone, as in Incredible: an agent acting through
+    /// the bridge does not light it (Karen's UX decision, 2026-10-03).
+    package static func mode(_ projection: SessionProjection, enabled: Bool, previous: Mode) -> Mode {
+        mode(projection.kind, enabled: enabled, previous: previous)
+    }
+
     /// Speaking is the answer arriving: the edges have done their job. Waiting only
     /// dims a glow already lit, as in Incredible: a turn that starts by processing
-    /// never lights it. `hands`: an agent is acting through the bridge right now
-    /// (Wave 20b: lit per executed call and dark 4 s after the last, on the
-    /// target's display only). It is the one full-screen mark that someone else is
-    /// driving, so it lights at rest and while processing, even from dark.
-    package static func mode(_ kind: SessionKind, enabled: Bool, hands: Bool = false, previous: Mode) -> Mode {
+    /// never lights it.
+    package static func mode(_ kind: SessionKind, enabled: Bool, previous: Mode) -> Mode {
         guard enabled else { return .off }
         switch kind {
         case .listening: return .listening
         case .processing(.pending), .processing(.thinking),
              .processing(.toolExecuting), .processing(.subAgentRunning):
-            return hands || previous != .off ? .waiting : .off
-        case .idle, .hover: return hands ? .waiting : .off
-        case .processing(.speaking), .processing(.completed): return .off
+            return previous != .off ? .waiting : .off
+        case .idle, .hover, .processing(.speaking), .processing(.completed): return .off
         }
     }
 
@@ -158,32 +160,6 @@ package enum ScreenGlow {
         }
     }
 
-    /// AX frames are global with the origin at the primary display's top-left;
-    /// NSScreen's have it at the primary's bottom-left, so y flips around the
-    /// primary's height (a display below the primary ends up negative).
-    package static func appKitFrame(fromAX frame: CGRect, primaryHeight: CGFloat) -> CGRect {
-        CGRect(x: frame.minX, y: primaryHeight - frame.maxY, width: frame.width, height: frame.height)
-    }
-
-    /// The one display the hands aura belongs on: where most of the target
-    /// window sits (`target` in AppKit space), else where the cursor is
-    /// (Incredible's criterion). Ties go to the first display so exactly
-    /// one panel ever lights.
-    package static func handsOnScreen(
-        screenFrame: CGRect, screens: [CGRect], target: CGRect?, cursor: CGPoint
-    ) -> Bool {
-        if let target {
-            let overlaps = screens.map { area(of: $0.intersection(target)) }
-            if let best = overlaps.max(), best > 0, let index = overlaps.firstIndex(of: best) {
-                return screens[index] == screenFrame
-            }
-        }
-        return screens.first { $0.contains(cursor) } == screenFrame
-    }
-
-    private static func area(of rect: CGRect) -> CGFloat {
-        rect.isNull ? 0 : rect.width * rect.height
-    }
 }
 
 /// Incredible's `screen_glow_enabled`: on unless the user turned it off.

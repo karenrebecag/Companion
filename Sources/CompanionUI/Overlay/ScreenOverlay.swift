@@ -73,7 +73,7 @@ struct ScreenOverlayView: View {
 
     var body: some View {
         let kind = session.projection.kind
-        let next = ScreenGlow.mode(kind, enabled: glowEnabled, hands: handsHere, previous: mode)
+        let next = ScreenGlow.mode(session.projection, enabled: glowEnabled, previous: mode)
         ZStack {
             glow
             // 16o-3: read when the hold starts; one display draws, not all.
@@ -102,19 +102,6 @@ struct ScreenOverlayView: View {
         .animation(ScreenGlow.scaleAnimation(off: off, reduceMotion: reduceMotion), value: mode == .waiting)
         .opacity(off ? 0 : 1)
         .animation(ScreenGlow.opacityAnimation(off: off, reduceMotion: reduceMotion), value: off)
-    }
-
-    /// Read when the projection changes (each call republishes the target),
-    /// so a moved window or cursor is picked up on the next call.
-    private var handsHere: Bool {
-        guard session.projection.handsActing else { return false }
-        let screens = NSScreen.screens.map(\.frame)
-        let primaryHeight = screens.first?.height ?? screenFrame.height
-        let target = session.projection.handsTarget.map {
-            ScreenGlow.appKitFrame(fromAX: $0, primaryHeight: primaryHeight)
-        }
-        return ScreenGlow.handsOnScreen(
-            screenFrame: screenFrame, screens: screens, target: target, cursor: NSEvent.mouseLocation)
     }
 
     private func show(_ next: ScreenGlow.Mode) {
