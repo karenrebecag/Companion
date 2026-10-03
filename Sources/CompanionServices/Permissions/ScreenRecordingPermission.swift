@@ -21,15 +21,40 @@ package struct ScreenRecordingPermission: ScreenRecordingChecking {
         do {
             let content = try await SCShareableContent.excludingDesktopWindows(
                 false, onScreenWindowsOnly: true)
-            return !content.displays.isEmpty
+            let ok = !content.displays.isEmpty
+            if ok { Self.failures.reset() }
+            return ok
         } catch {
-            Log.app("screen-recording: verify failed (\(error.localizedDescription))")
+            let line = "screen-recording: verify failed (\(error.localizedDescription))"
+            if Self.failures.isNew(line) { Log.app(line) }
             return false
         }
     }
 
+    /// Shared across instances: the welcome polls once a second while the
+    /// switch is on and captures fail, and that state can last until relaunch.
+    private static let failures = RepeatFilter()
+
     @discardableResult
     package func request() -> Bool {
         CGRequestScreenCaptureAccess()
+    }
+}
+
+/// Lets a line through only when it differs from the last one let through.
+final class RepeatFilter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var last: String?
+
+    func isNew(_ line: String) -> Bool {
+        lock.withLock {
+            guard line != last else { return false }
+            last = line
+            return true
+        }
+    }
+
+    func reset() {
+        lock.withLock { last = nil }
     }
 }

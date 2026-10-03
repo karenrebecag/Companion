@@ -38,6 +38,10 @@ package struct SystemWelcomeDevices: WelcomeDevices {
         }
     }
 
+    package func verifyScreenCapture() async -> Bool {
+        await screen.verify()
+    }
+
     package func micLevels() -> AsyncStream<Double> {
         AsyncStream { continuation in
             let meter = LevelMeter()

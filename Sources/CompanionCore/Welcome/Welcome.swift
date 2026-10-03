@@ -116,6 +116,10 @@ package protocol WelcomeDevices: Sendable {
     /// The system prompt where there is one; otherwise false, and the row
     /// opens System Settings instead.
     func request(_ permission: WelcomePermission) async -> Bool
+    /// A real capture probe: the Screen Recording switch can be on with
+    /// captures failing (Incredible's "on with verified: false" dead end).
+    /// Never asks for the permission.
+    func verifyScreenCapture() async -> Bool
     /// Microphone level, 0...1, until the consumer stops iterating.
     func micLevels() -> AsyncStream<Double>
     /// Says a short line with the system voice: the welcome speaks before
