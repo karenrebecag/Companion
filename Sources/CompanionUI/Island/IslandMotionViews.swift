@@ -15,18 +15,39 @@ struct IslandMoveModifier: ViewModifier {
     }
 }
 
-extension AnyTransition {
-    /// Text states swap: the old line leaves up, the new one comes from below.
-    static func islandSwap(_ move: IslandMotionBudget.Move) -> AnyTransition {
-        .asymmetric(
-            insertion: .modifier(
-                active: IslandMoveModifier(opacity: 0, blur: move.blur, offset: move.offset),
-                identity: IslandMoveModifier(opacity: 1, blur: 0, offset: 0)),
-            removal: .modifier(
-                active: IslandMoveModifier(opacity: 0, blur: move.blur, offset: -move.offset),
-                identity: IslandMoveModifier(opacity: 1, blur: 0, offset: 0)))
+/// Moves a view by a fraction of its own height: Incredible's header swap travels 120 %
+/// of the line, whatever its font, and a fixed offset in points would not.
+struct IslandRelativeOffset: GeometryEffect {
+    var fraction: CGFloat
+
+    var animatableData: CGFloat {
+        get { fraction }
+        set { fraction = newValue }
     }
 
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: 0, y: fraction * size.height))
+    }
+}
+
+/// The header swap with each property on its own clock, as Incredible's CSS transitions
+/// transform, opacity and filter separately.
+struct IslandHeaderSwapTransition: Transition {
+    let swap: IslandMotionBudget.HeaderSwap
+
+    func body(content: Content, phase: TransitionPhase) -> some View {
+        let place = IslandMotionBudget.HeaderSwap.Phase(phase)
+        let state = swap.state(place)
+        return content
+            .animation(swap.move(leaving: place == .leaving).animation) {
+                $0.modifier(IslandRelativeOffset(fraction: state.travel))
+            }
+            .animation(swap.fade.animation) { $0.opacity(state.opacity) }
+            .animation(swap.focus.animation) { $0.blur(radius: state.blur) }
+    }
+}
+
+extension AnyTransition {
     /// Panel reveal: rises in with a blur; leaves as a quiet fade (M2).
     static func islandReveal(_ move: IslandMotionBudget.Move) -> AnyTransition {
         .asymmetric(

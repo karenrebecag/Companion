@@ -1,0 +1,1 @@
+- **La linea de estado cambia como la cabecera de Incredible (2026-10-02).** Cuando la isla pasa de escuchar a pensar, la linea nueva sube desde abajo (120 % de su altura, 360 ms con la curva de la isla) mientras se aclara y enfoca, y la vieja sale por arriba en 220 ms. Cada propiedad lleva su propio tiempo, como en Incredible.
