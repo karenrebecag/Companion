@@ -324,6 +324,9 @@
 "welcome.guide.accessibility" = "Accessibility settings with the Companion switch turned on";
 "welcome.guide.screenRecording" = "Screen Recording settings with the Companion switch turned on";
 "welcome.guide.speechRecognition" = "A voice waveform turning into lines of text";
+"welcome.guide.complete" = "Every permission is ready";
+"welcome.permission.state.active" = "Current";
+"welcome.permission.state.upcoming" = "Pending";
 "welcome.permissions.title" = "Permissions";
 "welcome.permissions.body" = "Four permissions and you're set. Nothing leaves your Mac unless you talk.";
 "welcome.permission.microphone" = "Microphone";

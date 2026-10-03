@@ -20,6 +20,9 @@ package final class WelcomeModel {
         }
     }
     package private(set) var facts = WelcomeFacts()
+    /// False until the first refresh has read the machine: before it,
+    /// `facts.granted` is an empty placeholder, not "nothing granted".
+    package private(set) var hasRefreshed = false
     package private(set) var level = 0.0
     package private(set) var done: Bool
 
@@ -85,6 +88,7 @@ package final class WelcomeModel {
         }
         facts.granted = granted
         facts.keyReady = keyReady()
+        hasRefreshed = true
         // Incredible's reducer: the step after permissions goes back to them
         // when one is lost, instead of teaching a hold that cannot work.
         let afterPermissions = flow.step == .holdKey || flow.step == .microphone

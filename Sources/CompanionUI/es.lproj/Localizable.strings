@@ -324,6 +324,9 @@
 "welcome.guide.accessibility" = "Ajustes de Accesibilidad con el interruptor de Companion activado";
 "welcome.guide.screenRecording" = "Ajustes de Grabación de pantalla con el interruptor de Companion activado";
 "welcome.guide.speechRecognition" = "Una onda de voz que se convierte en líneas de texto";
+"welcome.guide.complete" = "Todos los permisos están listos";
+"welcome.permission.state.active" = "Activo";
+"welcome.permission.state.upcoming" = "Pendiente";
 "welcome.permissions.title" = "Permisos";
 "welcome.permissions.body" = "Cuatro permisos y listo. Nada sale de tu Mac sin que hables.";
 "welcome.permission.microphone" = "Micrófono";

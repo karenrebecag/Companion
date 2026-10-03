@@ -20,12 +20,8 @@ package struct WelcomeView: View {
         VStack(spacing: Space.none) {
             topBar(step)
             Spacer(minLength: Space.x6)
-            SheetColumn {
-                screen(step)
-                    .frame(maxWidth: .infinity)
-                    .transition(.opacity)
-            }
-            .id(step)
+            column(step)
+                .id(step)
             Spacer(minLength: Space.x6)
             if step != .yourTurn {
                 AppButton(
@@ -80,6 +76,25 @@ package struct WelcomeView: View {
         .frame(height: Space.x8)
         .padding(.horizontal, Space.x6)
         .padding(.top, Space.x6)
+    }
+
+    /// Permissions is two columns, so it reads at the content width; every
+    /// other page keeps the narrow sheet column.
+    @ViewBuilder
+    private func column(_ step: WelcomeStep) -> some View {
+        if step == .permissions {
+            screen(step)
+                .padding(.horizontal, Space.x8)
+                .frame(maxWidth: Container.content)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity)
+        } else {
+            SheetColumn {
+                screen(step)
+                    .frame(maxWidth: .infinity)
+                    .transition(.opacity)
+            }
+        }
     }
 
     @ViewBuilder
