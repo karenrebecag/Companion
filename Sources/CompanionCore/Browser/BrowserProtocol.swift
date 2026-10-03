@@ -206,7 +206,7 @@ package struct BrowserTab: Sendable, Equatable {
 
 package enum BrowserCommand: Sendable, Equatable {
     case tabs
-    case read(tab: Int, selector: String?)
+    case read(tab: Int, query: BrowserQuery)
     case click(tab: Int, generation: Int, element: Int)
     case doubleClick(tab: Int, generation: Int, element: Int)
     case rightClick(tab: Int, generation: Int, element: Int)

@@ -57,9 +57,9 @@ import Testing
     expect(out.output.contains("Bienvenida"), "texto de la pagina")
     expect(!out.output.contains("hunter2"), "el valor de un password nunca sale")
     expect(out.output.hasSuffix(BrowserCopy.toolDataSuffix(.en)), "datos, nunca instrucciones")
-    guard case .read(let tab, let selector)? = rig.channel.sent.first?.command else { Issue.record("no read sent"); return }
+    guard case .read(let tab, let query)? = rig.channel.sent.first?.command else { Issue.record("no read sent"); return }
     expectEq(tab, 12, "pestana")
-    expectEq(selector, "form >>> input", "selector")
+    expectEq(query.selector, "form >>> input", "selector")
     expectEq(rig.channel.sent.first?.timeout, .seconds(15), "lectura: 15 s")
 }
 
@@ -412,4 +412,57 @@ import Testing
     let out = await rig.run("browser_open", #"{"url":"https://crm.example/"}"#, said: "abre crm.example", approve: true)
     expect(out.ok, "opened")
     expect(out.output.contains("still loading"), "says so: \(out.output)")
+}
+
+// H-7 P2a: Incredible reads by finder; browser_read takes the same ways in and sends them as one query.
+private func sentQuery(_ rig: BrowserToolRig) -> BrowserQuery? {
+    guard case .read(_, let query)? = rig.channel.sent.last?.command else { return nil }
+    return query
+}
+
+@Test func theFindersTravelAsOneQuery() async {
+    let rig = makeToolRig()
+    let out = await rig.run("browser_read",
+        #"{"tab":12,"text":"Guardar","exact":true,"role":"button","name":"Guardar","max":5,"max_chars":100}"#)
+    expect(out.ok, "read ok: \(out.output)")
+    expectEq(sentQuery(rig), BrowserQuery(text: "Guardar", exact: true, role: "button", name: "Guardar", max: 5, maxChars: 100),
+             "one query")
+}
+
+@Test func withinNamesAnElementOfTheLastReadOfThatTab() async {
+    let rig = makeToolRig()
+    await rig.read()
+    let out = await rig.run("browser_read", #"{"tab":12,"within":5}"#)
+    expect(out.ok, "read ok: \(out.output)")
+    expectEq(sentQuery(rig)?.within, BrowserElementRef(generation: 3, element: 5), "that read's generation")
+}
+
+@Test func badFinderArgumentsAreRefusedBeforeTheBrowser() async {
+    for arguments in [
+        #"{"tab":12,"name":"Guardar"}"#, #"{"tab":12,"text":"   "}"#, #"{"tab":12,"exact":"yes"}"#,
+        #"{"tab":12,"max":0}"#, #"{"tab":12,"max":501}"#, #"{"tab":12,"max_chars":0}"#, #"{"tab":12,"within":5}"#,
+    ] {
+        let rig = makeToolRig()
+        let out = await rig.run("browser_read", arguments)
+        expect(!out.ok && out.output.hasPrefix(BridgeCode.invalidArgs), "\(arguments): \(out.output)")
+        expect(rig.channel.sent.isEmpty, "\(arguments): nothing sent")
+    }
+    let rig = makeToolRig()
+    await rig.read()
+    let unknown = await rig.run("browser_read", #"{"tab":12,"within":99}"#)
+    expect(!unknown.ok && unknown.output.hasPrefix(BridgeCode.invalidArgs), "an id the last read never gave: \(unknown.output)")
+}
+
+@Test func theReadToolDeclaresTheFinders() {
+    let properties = BrowserTool.read.spec(.en).properties
+    let types = Dictionary(uniqueKeysWithValues: properties.map { ($0.name, $0.type) })
+    expectEq(types, ["tab": "integer", "selector": "string", "text": "string", "exact": "boolean", "role": "string",
+                     "name": "string", "within": "integer", "max": "integer", "max_chars": "integer"], "types")
+    expectEq(BrowserTool.read.spec(.en).required, ["tab"], "only the tab is required")
+    // browser_type's `text` is what to type; on the read it is what to look for, so each needs its own words.
+    for language in AppLanguage.allCases {
+        let readText = BrowserTool.read.spec(language).properties.first { $0.name == "text" }?.description ?? ""
+        let typeText = BrowserTool.type.spec(language).properties.first { $0.name == "text" }?.description ?? ""
+        expect(readText != typeText, "\(language): read text \(readText) vs type text \(typeText)")
+    }
 }

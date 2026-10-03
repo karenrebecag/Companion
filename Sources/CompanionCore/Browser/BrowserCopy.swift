@@ -106,6 +106,22 @@ package enum BrowserCopy {
         case ("dx", .es): return "píxeles a desplazar a la derecha (negativo va a la izquierda)"
         case ("dy", .en): return "pixels to scroll down (negative goes up)"
         case ("dy", .es): return "píxeles a desplazar hacia abajo (negativo sube)"
+        case ("find_text", .en): return "optional: only the controls and lines that say this text"
+        case ("find_text", .es): return "opcional: solo los controles y líneas que dicen este texto"
+        case ("exact", .en): return "optional: text and name must match whole, not as part"
+        case ("exact", .es): return "opcional: texto y nombre deben coincidir enteros, no en parte"
+        case ("role", .en): return "optional: only controls with this role, such as button, link or combobox"
+        case ("role", .es): return "opcional: solo controles con este rol, como button, link o combobox"
+        case ("name", .en): return "optional, with role: the control's name"
+        case ("name", .es): return "opcional, con role: el nombre del control"
+        case ("within", .en):
+            return "optional: an element number from the last browser_read of this tab, a search included; search only inside it"
+        case ("within", .es):
+            return "opcional: un número de elemento de la última browser_read de esta pestaña, búsquedas incluidas; busca solo dentro"
+        case ("max", .en): return "optional: at most this many elements (1-500)"
+        case ("max", .es): return "opcional: como mucho estos elementos (1-500)"
+        case ("max_chars", .en): return "optional: at most this many characters of text"
+        case ("max_chars", .es): return "opcional: como mucho estos caracteres de texto"
         case ("url", .en): return "the http or https address"
         case ("url", .es): return "la dirección http o https"
         default: return name
@@ -134,17 +150,17 @@ package enum BrowserCopy {
         case (BridgeCode.invalidArgs, .en): return "The browser call had invalid arguments."
         case (BridgeCode.invalidArgs, .es): return "La llamada al navegador tenía argumentos inválidos."
         case (BridgeCode.selectorNoMatch, .en):
-            return "Menu or list not found: nothing on the page matches that selector. Open the menu or list and "
-                + "read again, or read again without a selector to see the whole page."
+            return "Menu or list not found: nothing on the page matches that selector or search. Open the menu or "
+                + "list and read again, or read again without a selector or search to see the whole page."
         case (BridgeCode.selectorNoMatch, .es):
-            return "Menú o lista no encontrada: nada en la página coincide con ese selector. Abre el menú o la lista "
-                + "y vuelve a leer, o vuelve a leer sin selector para ver la página completa."
+            return "Menú o lista no encontrada: nada en la página coincide con ese selector o búsqueda. Abre el menú o "
+                + "la lista y vuelve a leer, o vuelve a leer sin selector ni búsqueda para ver la página completa."
         case (BridgeCode.selectorHidden, .en):
-            return "Menu or list hidden: the selector only matches elements that are not shown. Open the menu or "
-                + "list and read again, or read again without a selector to see the whole page."
+            return "Menu or list hidden: the selector or search only matches elements that are not shown. Open "
+                + "the menu or list and read again, or read again without a selector or search to see the whole page."
         case (BridgeCode.selectorHidden, .es):
-            return "Menú o lista oculta: el selector solo coincide con elementos que no se muestran. Abre el menú o "
-                + "la lista y vuelve a leer, o vuelve a leer sin selector para ver la página completa."
+            return "Menú o lista oculta: el selector o la búsqueda solo coinciden con elementos que no se muestran. "
+                + "Abre el menú o la lista y vuelve a leer, o vuelve a leer sin selector ni búsqueda para ver la página completa."
         case (BridgeCode.debuggerRevoked, .en):
             return "The user stopped Companion from controlling this tab. Do not retry: ask the user before "
                 + "taking it again."
