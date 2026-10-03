@@ -5,61 +5,92 @@ import Testing
 
 package final class FakeScreen: ScreenActing, @unchecked Sendable {
     private let lock = NSLock()
-    package var nodes: [ScanNode]
-    package var generation = 0
-    package var route: ClickRoute = .press
-    package private(set) var clicks: [(node: Int, pid: Int32)] = []
-    package private(set) var scrolls: [(node: Int?, direction: ScrollDirection)] = []
-    package private(set) var menus: [[String]] = []
-    package private(set) var pressedTitles: [String] = []
+    private var _nodes: [ScanNode]
+    private var _generation = 0
+    private var _route: ClickRoute = .press
+    private var _clicks: [(node: Int, pid: Int32)] = []
+    private var _scrolls: [(node: Int?, direction: ScrollDirection)] = []
+    private var _menus: [[String]] = []
+    private var _pressedTitles: [String] = []
+    private var _menuTitles: [String]?
+    private var _disabledMenus: Set<String> = []
+
+    package var nodes: [ScanNode] {
+        get { lock.withLock { _nodes } }
+        set { lock.withLock { _nodes = newValue } }
+    }
+    package var generation: Int {
+        get { lock.withLock { _generation } }
+        set { lock.withLock { _generation = newValue } }
+    }
+    package var route: ClickRoute {
+        get { lock.withLock { _route } }
+        set { lock.withLock { _route = newValue } }
+    }
+    package var clicks: [(node: Int, pid: Int32)] { lock.withLock { _clicks } }
+    package var scrolls: [(node: Int?, direction: ScrollDirection)] { lock.withLock { _scrolls } }
+    package var menus: [[String]] { lock.withLock { _menus } }
+    package var pressedTitles: [String] { lock.withLock { _pressedTitles } }
     /// The titles the last path step can match, resolved like the adapter
     /// does (`WindowTitles.bestMatch`); nil means the path is exact.
-    package var menuTitles: [String]?
+    package var menuTitles: [String]? {
+        get { lock.withLock { _menuTitles } }
+        set { lock.withLock { _menuTitles = newValue } }
+    }
     /// Titles of menu items that are greyed out right now.
-    package var disabledMenus: Set<String> = []
+    package var disabledMenus: Set<String> {
+        get { lock.withLock { _disabledMenus } }
+        set { lock.withLock { _disabledMenus = newValue } }
+    }
 
-    package init(_ nodes: [ScanNode]) { self.nodes = nodes }
+    package init(_ nodes: [ScanNode]) { _nodes = nodes }
 
     package func walk(pid: Int32) -> ScreenWalk? {
         lock.withLock {
-            generation += 1
-            return ScreenWalk(nodes: nodes, partial: false, window: "Ventana", generation: generation)
+            _generation += 1
+            return ScreenWalk(nodes: _nodes, partial: false, window: "Ventana", generation: _generation)
         }
     }
 
     package func click(node: Int, generation: Int, pid: Int32, label: String) -> ClickOutcome {
         lock.withLock {
-            guard generation == self.generation else { return .stale }
-            clicks.append((node, pid))
-            return .clicked(route)
+            guard generation == _generation else { return .stale }
+            _clicks.append((node, pid))
+            return .clicked(_route)
         }
     }
 
     package func scroll(node: Int?, generation: Int, direction: ScrollDirection, pid: Int32) -> Bool {
-        lock.withLock { scrolls.append((node, direction)) }
+        lock.withLock { _scrolls.append((node, direction)) }
         return true
     }
 
     package func menuTitle(path: [String], pid: Int32) -> String? {
-        lock.withLock {
-            guard let last = path.last else { return nil }
-            guard let titles = menuTitles else { return last }
-            return WindowTitles.bestMatch(titles, for: last).map { titles[$0] }
-        }
+        lock.withLock { resolvedTitle(path) }
     }
 
     package func menuEnabled(path: [String], pid: Int32) -> Bool {
-        guard let title = menuTitle(path: path, pid: pid) else { return true }
-        return lock.withLock { !disabledMenus.contains(title) }
+        lock.withLock {
+            guard let title = resolvedTitle(path) else { return true }
+            return !_disabledMenus.contains(title)
+        }
     }
 
     package func menu(path: [String], pid: Int32, expecting: String) -> String? {
-        guard menuTitle(path: path, pid: pid) == expecting, menuEnabled(path: path, pid: pid) else { return nil }
         lock.withLock {
-            menus.append(path)
-            pressedTitles.append(expecting)
+            guard let title = resolvedTitle(path), title == expecting,
+                  !_disabledMenus.contains(title) else { return nil }
+            _menus.append(path)
+            _pressedTitles.append(expecting)
+            return expecting
         }
-        return expecting
+    }
+
+    /// Caller holds the lock: NSLock is not reentrant.
+    private func resolvedTitle(_ path: [String]) -> String? {
+        guard let last = path.last else { return nil }
+        guard let titles = _menuTitles else { return last }
+        return WindowTitles.bestMatch(titles, for: last).map { titles[$0] }
     }
 }
 
