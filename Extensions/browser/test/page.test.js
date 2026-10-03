@@ -1291,3 +1291,135 @@ test('an element partly on screen is hit-tested where it shows, not let through 
   assert.deepEqual(asked, [785, 20], 'the centre of the part inside the viewport');
   assert.deepEqual(el.events, []);
 });
+
+// ---- P3: browser_select ----
+
+function fakeSelect(labels, { selected = 0, disabled = [], attrs = {}, off = false } = {}) {
+  const el = fake({ tag: 'select', attrs });
+  el.options = labels.map((label, i) => ({
+    textContent: `  ${label}\n`, value: `v${i}`, disabled: disabled.includes(i), selected: i === selected,
+  }));
+  el.disabled = off;
+  return el;
+}
+
+const picked = (el) => el.options.filter((o) => o.selected).map((o) => o.textContent.trim());
+
+test('select picks the option by its label and fires input then change', () => {
+  const el = fakeSelect(['Argentina', 'México', 'Chile']);
+  assert.deepEqual(page.selectOption(el, 'México'), { done: 'selected' });
+  assert.deepEqual(picked(el), ['México']);
+  assert.deepEqual(el.events.map((e) => e.type), ['input', 'change']);
+  assert.ok(el.events.every((e) => e.init.bubbles && e.init.composed));
+});
+
+test('select matches a label regardless of case and spacing, exact case first', () => {
+  const el = fakeSelect(['Argentina', 'méxico', 'México']);
+  page.selectOption(el, '  méxico  ');
+  assert.deepEqual(picked(el), ['méxico']);
+  const loose = fakeSelect(['Argentina', 'Costa  Rica']);
+  page.selectOption(loose, 'COSTA RICA');
+  assert.deepEqual(picked(loose), ['Costa  Rica']);
+});
+
+// The model only ever sees labels, and the gate judges the words it sent: a value would pick an
+// option whose label nobody judged.
+test('a value never selects: the miss lists the labels and touches nothing', () => {
+  const el = fakeSelect(['Mantener', 'Borrar todo']);
+  const out = page.selectOption(el, 'v1');
+  assert.equal(out.error.code, 'option_not_found');
+  assert.equal(out.error.message, 'Mantener | Borrar todo');
+  assert.deepEqual(picked(el), ['Mantener']);
+  assert.deepEqual(el.events, []);
+});
+
+test('a disabled option neither matches nor is listed', () => {
+  const el = fakeSelect(['Uno', 'Dos', 'Tres'], { disabled: [1] });
+  const out = page.selectOption(el, 'Dos');
+  assert.equal(out.error.code, 'option_not_found');
+  assert.equal(out.error.message, 'Uno | Tres');
+  assert.deepEqual(picked(el), ['Uno']);
+});
+
+// The host cuts an extension message at 300 characters; a label cut there would miss again.
+test('the listed labels fit the host cap whole, each cut to 60', () => {
+  const many = Array.from({ length: 40 }, (_, i) => `Opcion ${i} ${'x'.repeat(100)}`);
+  const out = page.selectOption(fakeSelect(many), 'nada');
+  const listed = out.error.message.split(' | ');
+  assert.ok(Array.from(out.error.message).length <= 280);
+  assert.equal(listed.length, 4);
+  assert.ok(listed.every((label) => Array.from(label).length === 60));
+  const short = page.selectOption(fakeSelect(Array.from({ length: 50 }, (_, i) => `P${i}`)), 'nada');
+  assert.ok(Array.from(short.error.message).length <= 280);
+  assert.ok(short.error.message.endsWith(short.error.message.split(' | ').at(-1)));
+});
+
+test('an option inside a disabled optgroup neither matches nor is listed', () => {
+  const el = fakeSelect(['Uno', 'Dos']);
+  el.options[1].matches = (selector) => selector === ':disabled';
+  const out = page.selectOption(el, 'Dos');
+  assert.deepEqual(out.error, { code: 'option_not_found', message: 'Uno' });
+});
+
+test('select refuses what is not a usable <select> without touching it', () => {
+  const input = fake({ tag: 'input', attrs: { type: 'text' } });
+  assert.equal(page.selectOption(input, 'x').error.code, 'not_selectable');
+  assert.deepEqual(input.events, []);
+  const off = fakeSelect(['Uno', 'Dos'], { off: true });
+  assert.equal(page.selectOption(off, 'Dos').error.code, 'not_selectable');
+  assert.deepEqual(picked(off), ['Uno']);
+  const fieldsetOff = fakeSelect(['Uno', 'Dos']);
+  fieldsetOff.matches = (selector) => selector === ':disabled';
+  assert.equal(page.selectOption(fieldsetOff, 'Dos').error.code, 'not_selectable');
+});
+
+test('select refuses a sensitive select, such as a card expiry month', () => {
+  const el = fakeSelect(['01', '02'], { attrs: { autocomplete: 'cc-exp-month' } });
+  assert.equal(page.selectOption(el, '02').error.code, 'secure_field');
+  assert.deepEqual(picked(el), ['01']);
+  assert.deepEqual(el.events, []);
+});
+
+test('choosing the option already selected fires nothing', () => {
+  const el = fakeSelect(['Uno', 'Dos'], { selected: 1 });
+  assert.deepEqual(page.selectOption(el, 'Dos'), { done: 'selected' });
+  assert.deepEqual(el.events, []);
+});
+
+test('select goes through the generation check like click and type', () => {
+  assert.equal(page.select(999, 1, 'x').error.code, 'stale_id');
+});
+
+// A multi-select keeps what the user already chose: choosing adds one option, it never clears the rest.
+test('in a multi-select choosing adds the option and keeps the others', () => {
+  const el = fakeSelect(['Rojo', 'Verde', 'Azul']);
+  el.multiple = true;
+  el.options[2].selected = true;
+  assert.deepEqual(page.selectOption(el, 'Verde'), { done: 'selected' });
+  assert.deepEqual(picked(el), ['Rojo', 'Verde', 'Azul']);
+  assert.deepEqual(el.events.map((e) => e.type), ['input', 'change']);
+  el.events.length = 0;
+  assert.deepEqual(page.selectOption(el, 'Rojo'), { done: 'selected' });
+  assert.deepEqual(el.events, []);
+});
+
+test('an option label attribute is the label, its text is not', () => {
+  const el = fakeSelect(['MX', 'AR']);
+  el.options[0].label = 'Mexico';
+  el.options[1].label = 'Argentina';
+  assert.deepEqual(page.selectOption(el, 'Argentina'), { done: 'selected' });
+  assert.deepEqual(picked(el), ['AR']);
+  assert.equal(page.selectOption(el, 'MX').error.code, 'option_not_found');
+});
+
+test('with two options of the same label the first is chosen, once', () => {
+  const el = fakeSelect(['Uno', 'Dos', 'Dos'], { selected: 0 });
+  page.selectOption(el, 'Dos');
+  assert.deepEqual(el.options.map((o) => o.selected), [false, true, false]);
+  assert.equal(el.events.length, 2);
+});
+
+test('a list without enabled options misses with nothing to list', () => {
+  const out = page.selectOption(fakeSelect(['Uno'], { disabled: [0] }), 'Uno');
+  assert.deepEqual(out.error, { code: 'option_not_found', message: '' });
+});
