@@ -1,0 +1,1 @@
+- **Los ajustes de fin de turno ahora si cambian cuando Companion deja de escucharte (2026-10-02).** La pausa y la avidez que eliges en Ajustes mueven el cierre del turno en voz realtime; antes se guardaban y no hacian nada. El valor por defecto conserva los tiempos medidos.

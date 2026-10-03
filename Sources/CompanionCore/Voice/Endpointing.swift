@@ -71,6 +71,28 @@ package struct TranscriptEndpointer: Sendable {
         package var maxUtterance: TimeInterval = 45
         package var voiceFloor: Double = 0.06
         package init() {}
+
+        /// The saved turn-detection setting decides how long a settled
+        /// transcript waits before it closes. The realtime conversation
+        /// session never receives the setting: its server VAD stays off
+        /// (Wave 9i) because two deciders raced on this mic, so the local
+        /// endpointer is where the setting acts. The default (700 ms)
+        /// reproduces the delays measured on this mic; the eagerness pairs
+        /// are a spread around that measurement, not measured themselves.
+        package init(turnDetection: TurnDetection) {
+            switch turnDetection {
+            case .serverVAD(let silenceMs):
+                minDelay = Double(silenceMs + 200) / 1000
+                maxDelay = Swift.max(4.0, minDelay + 1.0)
+            case .semanticVAD(let eagerness):
+                switch eagerness {
+                case .low: (minDelay, maxDelay) = (1.4, 5.0)
+                case .auto: (minDelay, maxDelay) = (0.9, 4.0)
+                case .high: (minDelay, maxDelay) = (0.6, 3.0)
+                }
+            }
+            voiceFloor = 0.18
+        }
     }
 
     package enum Verdict: Sendable, Equatable {

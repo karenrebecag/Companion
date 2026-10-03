@@ -295,14 +295,12 @@ extension VoiceSession {
         let text = audit.turnText()
         if transcriptEnd == nil {
             guard !text.isEmpty else { return }
-            // Tuned to measured RMS on this mic (speech 0.3–0.8, floor 0.12):
-            // voiceFloor above the floor so audible speech HOLDS the turn open
-            // even when network deltas lag, and maxDelay generous enough that
-            // a delta hiccup does not cut a sentence in half.
-            var cfg = TranscriptEndpointer.Config()
-            cfg.voiceFloor = 0.18
-            cfg.minDelay = 0.9
-            cfg.maxDelay = 4.0
+            // voiceFloor (0.18) sits above this mic's measured noise floor
+            // (0.12) so audible speech HOLDS the turn open even when network
+            // deltas lag; the delays come from the user's turn-detection
+            // setting, whose default reproduces the measured 0.9 s / 4.0 s.
+            let cfg = TranscriptEndpointer.Config(
+                turnDetection: configProvider.current.voice.turnDetection)
             transcriptEnd = TranscriptEndpointer(config: cfg, start: now())
             await apply(.serverSpeechStarted)
         }

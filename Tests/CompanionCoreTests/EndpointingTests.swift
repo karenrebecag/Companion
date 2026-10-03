@@ -29,6 +29,8 @@ private func drive(_ ep: inout Endpointer, rms: Double,
     testTranscriptEndpointerRevisionNoEsCrecimiento()
     testTranscriptEndpointerQuietClose()
     testTranscriptEndpointerTimeout()
+    testTurnDetectionDrivesEndpointer()
+    testTurnDetectionTableAndEdges()
     testEchoGuard()
     testEchoScrub()
     testEchoGuardWords()
@@ -239,4 +241,76 @@ private func drive(_ ep: inout Endpointer, rms: Double,
            "barge-in: silencio no interrumpe")
     expect(!EchoGuard.isRealInterruption(heard: "sí", agentSaying: "otra cosa"),
            "barge-in: una sola palabra no alcanza")
+}
+
+@MainActor func testTurnDetectionDrivesEndpointer() {
+    let base = TranscriptEndpointer.Config(turnDetection: .serverVAD(silenceMs: 700))
+    expectEq(base.minDelay, 0.9, "turn detection: el valor por defecto conserva los 0.9 s medidos")
+    expectEq(base.maxDelay, 4.0, "turn detection: el valor por defecto conserva los 4.0 s medidos")
+
+    let patient = TranscriptEndpointer.Config(turnDetection: .serverVAD(silenceMs: 1500))
+    let hasty = TranscriptEndpointer.Config(turnDetection: .serverVAD(silenceMs: 200))
+    expect(patient.minDelay > base.minDelay && hasty.minDelay < base.minDelay,
+           "turn detection: la pausa del ajuste mueve el cierre")
+
+    let low = TranscriptEndpointer.Config(turnDetection: .semanticVAD(eagerness: .low))
+    let auto = TranscriptEndpointer.Config(turnDetection: .semanticVAD(eagerness: .auto))
+    let high = TranscriptEndpointer.Config(turnDetection: .semanticVAD(eagerness: .high))
+    expect(low.minDelay > auto.minDelay && auto.minDelay > high.minDelay,
+           "turn detection: la avidez ordena el cierre (baja espera mas)")
+    expect(low.maxDelay > auto.maxDelay && auto.maxDelay > high.maxDelay,
+           "turn detection: la avidez ordena tambien el tope de frase incompleta")
+    expect(high.maxDelay >= high.minDelay,
+           "turn detection: el tope nunca queda bajo el minimo")
+
+    var ep = TranscriptEndpointer(config: high, start: 0)
+    _ = ep.feed(text: "dime la hora", level: 0, at: 1.0)
+    expect(ep.feed(text: "dime la hora", level: 0, at: 1.0 + high.minDelay + 0.05) == .finished,
+           "turn detection: avidez alta cierra donde la baja seguiria escuchando")
+    var lowEp = TranscriptEndpointer(config: low, start: 0)
+    _ = lowEp.feed(text: "dime la hora", level: 0, at: 1.0)
+    expect(lowEp.feed(text: "dime la hora", level: 0, at: 1.0 + high.minDelay + 0.05) == .listening,
+           "turn detection: avidez baja sigue escuchando a esa misma hora")
+}
+
+@MainActor func testTurnDetectionTableAndEdges() {
+    let table: [(TurnDetection, Double, Double)] = [
+        (.serverVAD(silenceMs: 200), 0.4, 4.0),
+        (.serverVAD(silenceMs: 700), 0.9, 4.0),
+        (.serverVAD(silenceMs: 1500), 1.7, 4.0),
+        (.semanticVAD(eagerness: .low), 1.4, 5.0),
+        (.semanticVAD(eagerness: .auto), 0.9, 4.0),
+        (.semanticVAD(eagerness: .high), 0.6, 3.0),
+    ]
+    for (detection, minDelay, maxDelay) in table {
+        let cfg = TranscriptEndpointer.Config(turnDetection: detection)
+        expectEq(cfg.minDelay, minDelay, "tabla \(detection): minDelay")
+        expectEq(cfg.maxDelay, maxDelay, "tabla \(detection): maxDelay")
+        expectEq(cfg.voiceFloor, 0.18, "tabla \(detection): el piso de voz medido no se pierde")
+        expect(cfg.maxDelay >= cfg.minDelay, "tabla \(detection): el tope no baja del minimo")
+    }
+    expect(TranscriptEndpointer.Config(turnDetection: .serverVAD(silenceMs: 3000)).maxDelay
+           > TranscriptEndpointer.Config(turnDetection: .serverVAD(silenceMs: 700)).maxDelay,
+           "tabla: una pausa fuera de rango estira el tope en vez de invertirlo")
+    expectEq(VoiceSettings(turnDetection: .serverVAD(silenceMs: 50)).turnDetection,
+             .serverVAD(silenceMs: 200), "ajustes: la pausa se recorta antes de llegar al endpointer")
+
+    let high = TranscriptEndpointer.Config(turnDetection: .semanticVAD(eagerness: .high))
+    var incomplete = TranscriptEndpointer(config: high, start: 0)
+    _ = incomplete.feed(text: "dime la", level: 0, at: 1.0)
+    expect(incomplete.feed(text: "dime la", level: 0, at: 1.0 + high.minDelay + 0.05) == .listening,
+           "frase colgando: la avidez alta tampoco cierra en el umbral corto")
+    expect(incomplete.feed(text: "dime la", level: 0, at: 1.0 + high.maxDelay + 0.05) == .finished,
+           "frase colgando: cierra al agotar el tope de la avidez")
+
+    var held = TranscriptEndpointer(config: high, start: 0)
+    _ = held.feed(text: "dime la hora", level: 0.2, at: 1.0)
+    expect(held.feed(text: "dime la hora", level: 0.2, at: 1.0 + high.minDelay + 0.05) == .listening,
+           "voz audible sostiene el turno aunque el texto no crezca")
+
+    let low = TranscriptEndpointer.Config(turnDetection: .semanticVAD(eagerness: .low))
+    var lowEp = TranscriptEndpointer(config: low, start: 0)
+    _ = lowEp.feed(text: "dime la hora", level: 0, at: 1.0)
+    expect(lowEp.feed(text: "dime la hora", level: 0, at: 1.0 + low.minDelay + 0.05) == .finished,
+           "avidez baja si cierra, a su propio umbral")
 }
