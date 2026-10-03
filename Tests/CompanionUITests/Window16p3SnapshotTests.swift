@@ -36,7 +36,7 @@ import Testing
             let chat = ChatViewModel(
                 chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
                 store: MemoryConversationStore(), config: Config())
-            try renderHosted(HomePage(chat: chat, onOpen: { _ in }, onSettings: { _ in }),
+            try renderHosted(HomePage(chat: chat, voice: VoiceViewModel(voice: RecordingVoice(), thread: FakePresenter()), onOpen: { _ in }, onSettings: { _ in }),
                              scheme: scheme, size: CGSize(width: 1000, height: 700), to: out, "window-home-\(tag)")
             try render(AppPanel(
                 app: app, state: .connected, accountName: "karen@atom.test", phase: .ready(actions),
