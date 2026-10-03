@@ -986,7 +986,7 @@ test('a state built without identities still acts', () => {
 });
 
 test('a button that relabels itself after a press needs a fresh read for the next one', () => {
-  const el = fake({ tag: 'button', text: 'Mostrar' });
+  const el = uncovered(fake({ tag: 'button', text: 'Mostrar' }));
   readOne(el);
   assert.equal(page.click(1, 1).done, 'clicked');
   el.textContent = 'Ocultar';
@@ -994,7 +994,7 @@ test('a button that relabels itself after a press needs a fresh read for the nex
 });
 
 test('an unchanged element still acts, and typing into it does not make it stale', () => {
-  const el = fake({ tag: 'button', text: 'Siguiente' });
+  const el = uncovered(fake({ tag: 'button', text: 'Siguiente' }));
   readOne(el);
   assert.equal(page.click(1, 1).done, 'clicked');
   const field = fake({ tag: 'input', attrs: { placeholder: 'Nombre' } });
@@ -1014,7 +1014,7 @@ test('an element moved into another dialog or form since the read is stale', () 
 });
 
 test('a visible element is still clicked', () => {
-  const el = armed(fake({ tag: 'button', parent: fake({ tag: 'div' }) }));
+  const el = onScreen(fake({ tag: 'button', parent: fake({ tag: 'div' }) }));
   assert.deepEqual(page.click(1, 1), { done: 'clicked' });
   assert.equal(el.events.length, 5);
 });
@@ -1136,4 +1136,158 @@ test('exact applies to a role finder name too', () => {
     assert.equal(page.read(1, { role: 'button', name: 'Guar', exact: true }, 0).error?.code, 'selector_no_match');
     assert.deepEqual(page.read(2, { role: 'button', name: 'guardar', exact: true }, 0).elements.map((e) => e.label), ['Guardar']);
   });
+});
+
+// H-8: the synthetic click goes to the element itself, whatever sits on top; inside frames and in
+// the fallback it is the only click, so it must refuse what the user could not have clicked.
+function uncovered(el, { topmost = el, frame = null } = {}) {
+  el.getBoundingClientRect = () => ({ left: 10, top: 10, width: 80, height: 20 });
+  el.scrollIntoView = () => {};
+  Object.assign(el.ownerDocument.defaultView, { innerWidth: 800, innerHeight: 600, frameElement: frame });
+  el.ownerDocument.elementFromPoint = () => topmost;
+  return el;
+}
+
+function onScreen(el, options) {
+  return armed(uncovered(el, options));
+}
+
+function overlayNode() {
+  return { tagName: 'DIV', tag: 'div', getAttribute: () => null, hasAttribute: () => false, parentNode: null };
+}
+
+test('a synthetic click on an element under an overlay is refused, with no events', () => {
+  const el = onScreen(fake({ tag: 'button', text: 'Borrar' }), { topmost: overlayNode() });
+  const out = page.click(1, 1);
+  assert.equal(out.error?.code, 'stale_id');
+  assert.match(out.error.message, /covers/);
+  assert.deepEqual(el.events, []);
+});
+
+test('a synthetic click lands when the element, or a part of it, is on top', () => {
+  const el = onScreen(fake({ tag: 'button', text: 'Guardar' }));
+  assert.deepEqual(page.click(1, 1), { done: 'clicked' });
+  const other = fake({ tag: 'button', text: 'Guardar' });
+  const icon = overlayNode();
+  icon.parentNode = other;
+  onScreen(other, { topmost: icon });
+  assert.deepEqual(page.click(1, 1), { done: 'clicked' });
+  assert.equal(el.events.length, 5);
+});
+
+test('a frame covered in the page around it refuses the click inside it', () => {
+  const frame = fake({ tag: 'iframe' });
+  frame.getBoundingClientRect = () => ({ left: 100, top: 200, width: 400, height: 300 });
+  frame.clientLeft = 0;
+  frame.clientTop = 0;
+  let asked = null;
+  frame.ownerDocument.elementFromPoint = (x, y) => { asked = [x, y]; return overlayNode(); };
+  Object.assign(frame.ownerDocument.defaultView, { frameElement: null });
+  const el = onScreen(fake({ tag: 'button', text: 'Enviar' }), { frame });
+  assert.equal(page.click(1, 1).error?.code, 'stale_id');
+  assert.deepEqual(asked, [150, 220], 'the point is translated into the parent page');
+  assert.deepEqual(el.events, []);
+});
+
+test('an element with no box on screen keeps the synthetic click', () => {
+  const el = armed(fake({ tag: 'button', text: 'Oculto en scroll' }));
+  el.getBoundingClientRect = () => ({ left: 0, top: 0, width: 0, height: 0 });
+  el.scrollIntoView = () => {};
+  Object.assign(el.ownerDocument.defaultView, { innerWidth: 800, innerHeight: 600, frameElement: null });
+  assert.deepEqual(page.click(1, 1), { done: 'clicked' });
+});
+
+function frameAt(left, top, { border = [0, 0], parentFrame = null, topmost } = {}) {
+  const frame = fake({ tag: 'iframe' });
+  frame.getBoundingClientRect = () => ({ left, top, width: 400, height: 300 });
+  [frame.clientLeft, frame.clientTop] = border;
+  frame.asked = null;
+  frame.ownerDocument.elementFromPoint = (x, y) => { frame.asked = [x, y]; return topmost ? topmost(frame) : frame; };
+  Object.assign(frame.ownerDocument.defaultView, { frameElement: parentFrame });
+  return frame;
+}
+
+test('a frame that nothing covers still clicks, whether the frame or a child is hit', () => {
+  for (const topmost of [(f) => f, (f) => { const inner = overlayNode(); inner.parentNode = f; return inner; }]) {
+    const frame = frameAt(100, 200, { topmost });
+    const el = onScreen(fake({ tag: 'button', text: 'Enviar' }), { frame });
+    assert.deepEqual(page.click(1, 1), { done: 'clicked' });
+    assert.equal(el.events.length, 5);
+    assert.deepEqual(frame.asked, [150, 220]);
+  }
+});
+
+test('a two-level frame chain adds every offset and border on the way up', () => {
+  const outer = frameAt(1000, 2000, { border: [5, 7], topmost: () => overlayNode() });
+  const inner = frameAt(100, 200, { border: [2, 3], parentFrame: outer });
+  const el = onScreen(fake({ tag: 'button', text: 'Enviar' }), { frame: inner });
+  assert.equal(page.click(1, 1).error?.code, 'stale_id');
+  assert.deepEqual(inner.asked, [152, 223], 'inner frame point, with its border');
+  assert.deepEqual(outer.asked, [1157, 2230], 'outer page point, both offsets and borders');
+  assert.deepEqual(el.events, []);
+});
+
+test('a centre still off screen after scrolling is not hit-tested and keeps the click', () => {
+  const el = onScreen(fake({ tag: 'button', text: 'Lejos' }), { topmost: overlayNode() });
+  el.getBoundingClientRect = () => ({ left: 900, top: 10, width: 80, height: 20 });
+  let asked = false;
+  el.ownerDocument.elementFromPoint = () => { asked = true; return overlayNode(); };
+  assert.deepEqual(page.click(1, 1), { done: 'clicked' });
+  assert.equal(asked, false);
+});
+
+test('a listable wrapper on top is not the element, so the click is refused', () => {
+  const row = fake({ tag: 'a', text: 'Fila', attrs: { href: '/fila' } });
+  row.parentNode = null;
+  const el = onScreen(fake({ tag: 'button', text: 'Borrar' }), { topmost: row });
+  assert.equal(page.click(1, 1).error?.code, 'stale_id');
+  assert.deepEqual(el.events, []);
+});
+
+test('a hidden checkbox whose label is on top is not covered by its own label', () => {
+  const label = overlayNode();
+  label.tagName = 'LABEL';
+  const span = overlayNode();
+  span.parentNode = label;
+  const box = fake({ tag: 'input', attrs: { type: 'checkbox' }, labels: [label] });
+  const el = onScreen(box, { topmost: span });
+  assert.deepEqual(page.click(1, 1), { done: 'clicked' });
+  assert.equal(el.events.length, 5);
+});
+
+test('a label for another field on top still covers the element', () => {
+  const other = overlayNode();
+  other.tagName = 'LABEL';
+  const box = fake({ tag: 'input', attrs: { type: 'checkbox' }, labels: [overlayNode()] });
+  onScreen(box, { topmost: other });
+  assert.equal(page.click(1, 1).error?.code, 'stale_id');
+});
+
+test('a padded and scaled frame maps the point through its content box', () => {
+  const frame = frameAt(100, 200, { border: [2, 3], topmost: () => overlayNode() });
+  frame.ownerDocument.defaultView.getComputedStyle = () => ({ paddingLeft: '10px', paddingTop: '20px' });
+  frame.offsetWidth = 200;
+  const el = onScreen(fake({ tag: 'button', text: 'Enviar' }), { frame });
+  assert.equal(page.click(1, 1).error?.code, 'stale_id');
+  // The box is drawn at twice its layout size, so every inner length doubles on the way out.
+  assert.deepEqual(frame.asked, [100 + (2 + 10 + 50) * 2, 200 + (3 + 20 + 20) * 2]);
+  assert.deepEqual(el.events, []);
+});
+
+test('each refusal is a fresh object the caller can change safely', () => {
+  onScreen(fake({ tag: 'button', text: 'A' }), { topmost: overlayNode() });
+  const first = page.click(1, 1);
+  first.error.message = 'changed';
+  onScreen(fake({ tag: 'button', text: 'B' }), { topmost: overlayNode() });
+  assert.match(page.click(1, 1).error.message, /covers/);
+});
+
+test('an element partly on screen is hit-tested where it shows, not let through by its off-screen centre', () => {
+  const el = onScreen(fake({ tag: 'button', text: 'Medio fuera' }));
+  el.getBoundingClientRect = () => ({ left: 770, top: 10, width: 80, height: 20 });
+  let asked = null;
+  el.ownerDocument.elementFromPoint = (x, y) => { asked = [x, y]; return overlayNode(); };
+  assert.equal(page.click(1, 1).error?.code, 'stale_id');
+  assert.deepEqual(asked, [785, 20], 'the centre of the part inside the viewport');
+  assert.deepEqual(el.events, []);
 });
