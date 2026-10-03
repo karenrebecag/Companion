@@ -96,6 +96,18 @@ package enum BrowserCopy {
         case (BridgeCode.notControlled, .es): return "Esa pestaña no está bajo control: tómala con browser_take o ábrela con browser_open."
         case (BridgeCode.invalidArgs, .en): return "The browser call had invalid arguments."
         case (BridgeCode.invalidArgs, .es): return "La llamada al navegador tenía argumentos inválidos."
+        case (BridgeCode.selectorNoMatch, .en):
+            return "Menu or list not found: nothing on the page matches that selector. Open the menu or list and "
+                + "read again, or read again without a selector to see the whole page."
+        case (BridgeCode.selectorNoMatch, .es):
+            return "Menú o lista no encontrada: nada en la página coincide con ese selector. Abre el menú o la lista "
+                + "y vuelve a leer, o vuelve a leer sin selector para ver la página completa."
+        case (BridgeCode.selectorHidden, .en):
+            return "Menu or list hidden: the selector only matches elements that are not shown. Open the menu or "
+                + "list and read again, or read again without a selector to see the whole page."
+        case (BridgeCode.selectorHidden, .es):
+            return "Menú o lista oculta: el selector solo coincide con elementos que no se muestran. Abre el menú o "
+                + "la lista y vuelve a leer, o vuelve a leer sin selector para ver la página completa."
         case (_, .en): return "The browser failed: \(code)."
         case (_, .es): return "El navegador falló: \(code)."
         }

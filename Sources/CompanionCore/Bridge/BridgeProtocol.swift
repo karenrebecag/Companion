@@ -184,6 +184,10 @@ package enum BridgeCode {
     package static let notControlled = "not_controlled"
     /// Wave 18: the extension did not answer within the call's deadline.
     package static let timeout = "timeout"
+    /// A scoped browser_read whose selector matched nothing, or only hidden
+    /// nodes: an empty page would read as "the menu is empty".
+    package static let selectorNoMatch = "selector_no_match"
+    package static let selectorHidden = "selector_hidden"
     /// The tool exists but Companion's own window is in front, so there is no
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
     package static let selfInFront = "self_in_front"
