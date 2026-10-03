@@ -18,6 +18,9 @@ package protocol InputMonitoringChecking: Sendable {
 /// Screen Recording (Wave 13a): one screenshot per hold, never a stream.
 package protocol ScreenRecordingChecking: Sendable {
     func isGranted() -> Bool
+    /// A real capture probe. The preflight can stay true after a revoke, so
+    /// only this proves the screen is readable. Never raises a prompt.
+    func verify() async -> Bool
     @discardableResult
     func request() -> Bool
 }

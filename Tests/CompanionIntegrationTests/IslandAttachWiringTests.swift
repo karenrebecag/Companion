@@ -15,6 +15,7 @@ private struct FakeScreenPermission: ScreenRecordingChecking {
     let granted: Bool
     let asked = AsyncBox<Bool>()
     func isGranted() -> Bool { granted }
+    func verify() async -> Bool { granted }
     func request() -> Bool {
         asked.result = .success(true)
         return granted
