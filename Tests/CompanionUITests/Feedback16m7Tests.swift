@@ -149,7 +149,7 @@ private func shot(_ n: Int) -> URL { URL(fileURLWithPath: "/tmp/companion-captur
     expectEq(FeedbackMetrics.padding, 32, "16m-7 comentarios: padding 32")
     expectEq(FeedbackMetrics.radius, 28, "16m-7 comentarios: radio 28")
     expectEq(FeedbackMood.allCases.count, 5, "16q-2: cinco estados de ánimo (eran cuatro en 16m-7)")
-    expectEq(Set(FeedbackMood.allCases.map(\.symbol)).count, 5, "16m-7: cada uno con su símbolo, sin emoji")
+    expectEq(Set(FeedbackMood.allCases.map(\.glyph)).count, 5, "16m-7: cada uno con su ícono, sin emoji")
 }
 
 

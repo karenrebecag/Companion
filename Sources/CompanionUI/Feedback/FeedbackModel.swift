@@ -45,15 +45,22 @@ enum FeedbackCopy {
     }
 }
 
+/// An SF Symbol where one exists, a drawn face where SF has none; never
+/// emoji, so every mood follows the text color and size.
+nonisolated enum MoodGlyph: Hashable {
+    case symbol(String)
+    case face(MoodFace)
+}
+
 extension FeedbackMood {
-    /// SF Symbols, not emoji: they follow the text color and scale.
-    var symbol: String {
+    /// Incredible's feedback row: angry, sad and flat faces, a smile, a heart.
+    var glyph: MoodGlyph {
         switch self {
-        case .upset: "exclamationmark.circle"
-        case .love: "heart"
-        case .good: "face.smiling"
-        case .meh: "minus.circle"
-        case .bad: "hand.thumbsdown"
+        case .upset: .face(.angry)
+        case .bad: .face(.sad)
+        case .meh: .face(.meh)
+        case .good: .symbol("face.smiling")
+        case .love: .symbol("heart")
         }
     }
 

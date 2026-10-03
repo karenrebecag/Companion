@@ -84,7 +84,7 @@ struct FeedbackModal: View {
                         model.mood = picked ? nil : mood
                     } label: {
                         VStack(spacing: Space.x1) {
-                            Image(systemName: mood.symbol)
+                            moodIcon(mood.glyph)
                             Text(mood.title).font(GeistFont.uiCaption)
                                 .multilineTextAlignment(.center).lineLimit(2)
                         }
@@ -100,6 +100,14 @@ struct FeedbackModal: View {
                     .accessibilityAddTraits(picked ? .isSelected : [])
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func moodIcon(_ glyph: MoodGlyph) -> some View {
+        switch glyph {
+        case .symbol(let name): Image(systemName: name)
+        case .face(let face): MoodFaceGlyph(face: face)
         }
     }
 
