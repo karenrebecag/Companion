@@ -47,14 +47,32 @@ struct IslandHeaderSwapTransition: Transition {
     }
 }
 
+/// One phase of a card's way in or out.
+struct IslandCardModifier: ViewModifier {
+    let state: IslandMotionBudget.Card.State
+    let anchor: UnitPoint
+
+    func body(content: Content) -> some View {
+        content.opacity(state.opacity).scaleEffect(state.scale, anchor: anchor).offset(y: state.offset)
+    }
+}
+
 extension AnyTransition {
-    /// Panel reveal: rises in with a blur; leaves as a quiet fade (M2).
-    static func islandReveal(_ move: IslandMotionBudget.Move) -> AnyTransition {
-        .asymmetric(
-            insertion: .modifier(
-                active: IslandMoveModifier(opacity: 0, blur: move.blur, offset: move.offset),
-                identity: IslandMoveModifier(opacity: 1, blur: 0, offset: 0)),
-            removal: .opacity)
+    /// Incredible's card: each direction carries its own clock, as its enter and exit
+    /// animations do; reduce motion keeps only a short fade in and leaves at once.
+    static func islandCard(reduceMotion: Bool) -> AnyTransition {
+        let card = IslandMotionBudget.card
+        let plan = card.plan(reduceMotion: reduceMotion)
+        let shown = IslandCardModifier(state: card.state(.shown), anchor: card.anchor)
+        let insertion = AnyTransition.modifier(
+            active: IslandCardModifier(state: plan.from, anchor: card.anchor), identity: shown)
+            .animation(plan.insertion.animation)
+        guard let to = plan.to, let removal = plan.removal else {
+            return .asymmetric(insertion: insertion, removal: .identity)
+        }
+        let leaving = AnyTransition.modifier(
+            active: IslandCardModifier(state: to, anchor: card.anchor), identity: shown)
+        return .asymmetric(insertion: insertion, removal: leaving.animation(removal.animation))
     }
 }
 

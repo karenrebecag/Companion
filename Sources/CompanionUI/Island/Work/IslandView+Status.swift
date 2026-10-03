@@ -95,8 +95,8 @@ extension IslandView {
             if state.meter == .agent || (state.light == .green && state.line == .completed) {
                 reply(state)
             }
-            // Each animation scoped to what it moves: the success light keeps
-            // its own spring when the line and the light change together.
+            // The sheet animates by its own transition, never by an animation on the
+            // stack: the success light keeps its own spring when both change together.
             VStack(spacing: Space.none) {
                 if let request = state.approval {
                     ApprovalSheet(request: request) { approved, remember in
@@ -107,11 +107,10 @@ extension IslandView {
                     // A new request is a new sheet: without the id the
                     // reused view keeps the old ring and toggle (19-1b M1).
                     .id(request.requestId)
-                    .transition(.islandReveal(IslandMotionBudget.approval.resolved(reduceMotion: reduceMotion)))
+                    // The transition carries its own clocks, in and out, like Incredible's card.
+                    .transition(.islandCard(reduceMotion: reduceMotion))
                 }
             }
-            .animation(IslandMotionBudget.approval.animation(reduceMotion: reduceMotion),
-                       value: state.approval?.requestId)
         }
     }
 

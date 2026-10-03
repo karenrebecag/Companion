@@ -1,0 +1,1 @@
+- **La tarjeta de aprobacion entra y sale como las de Incredible (2026-10-03).** Sube 6 pt desde 0,98 de escala en 260 ms con la curva settle, creciendo desde abajo, y se va mas rapido: 200 ms, bajando 4 pt. Con reducir movimiento solo aparece en un fundido de 120 ms y se va al instante.
