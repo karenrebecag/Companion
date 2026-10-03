@@ -123,10 +123,12 @@ package struct BridgeCallResult: Codable, Sendable, Equatable {
     package var target: String
     package var tool: String?
 
+    /// The only way a tool outcome becomes a bridge reply, so the screen
+    /// text is cleaned here once for every call path.
     package init(_ outcome: ParentToolOutcome) {
         self.ok = outcome.ok
-        self.output = outcome.output
-        self.target = outcome.target
+        self.output = BridgeScreenText.strip(outcome.output)
+        self.target = BridgeScreenText.strip(outcome.target)
         self.tool = outcome.tool
     }
 
