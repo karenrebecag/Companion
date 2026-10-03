@@ -107,23 +107,44 @@ final class PointerTrailModel {
     }
 }
 
-/// The trail and the orb over one display, drawn only while listening.
+/// The trail and the hold companion over one display. The companion's box rides the orb
+/// point; the trail is drawn only while the key is down and motion is allowed. Which
+/// display the pointer is on is read every frame, so both follow it across screens.
 struct PointerLayer: View {
     let screenFrame: CGRect
+    let kind: SessionKind
+    let reduceMotion: Bool
+    let companion: HoldCompanionState
     @State private var model = PointerTrailModel()
 
     var body: some View {
         TimelineView(.animation) { timeline in
-            Canvas { context, _ in
-                let time = timeline.date.timeIntervalSinceReferenceDate
-                let global = NSEvent.mouseLocation
-                let cursor = CGPoint(x: global.x - screenFrame.minX, y: screenFrame.maxY - global.y)
-                model.advance(cursor: cursor, at: time)
-                drawTrail(in: &context, at: time)
-                drawOrb(in: &context)
+            let time = timeline.date.timeIntervalSinceReferenceDate
+            let global = NSEvent.mouseLocation
+            ZStack(alignment: .topLeading) {
+                if let orb = advance(global: global, at: time) {
+                    if PointerOrb.shows(kind: kind, reduceMotion: reduceMotion, screen: screenFrame, cursor: global) {
+                        Canvas { context, _ in drawTrail(in: &context, at: time) }
+                    }
+                    HoldCompanion(state: companion, listening: kind == .listening)
+                        .offset(x: orb.x, y: orb.y)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .onDisappear { model.reset() }
+    }
+
+    /// One frame of the follow, or nil off this display; a class, so the walk never writes
+    /// SwiftUI state while drawing.
+    private func advance(global: CGPoint, at time: Double) -> CGPoint? {
+        guard screenFrame.contains(global) else {
+            model.reset()
+            return nil
+        }
+        let cursor = CGPoint(x: global.x - screenFrame.minX, y: screenFrame.maxY - global.y)
+        model.advance(cursor: cursor, at: time)
+        return model.orb ?? cursor
     }
 
     private func drawTrail(in context: inout GraphicsContext, at time: Double) {
@@ -138,15 +159,5 @@ struct PointerLayer: View {
             layer.stroke(path, with: .color(PointerTrail.ink.color),
                          style: StrokeStyle(lineWidth: width, lineCap: .round))
         }
-    }
-
-    private func drawOrb(in context: inout GraphicsContext) {
-        guard let orb = model.orb else { return }
-        let radius = PointerOrb.size / 2
-        let rect = CGRect(x: orb.x - radius, y: orb.y - radius, width: PointerOrb.size, height: PointerOrb.size)
-        let shading = GraphicsContext.Shading.radialGradient(
-            Gradient(colors: [Neutral.white.color, ScreenGlow.colors[3].color, ScreenGlow.colors[0].color]),
-            center: CGPoint(x: orb.x - radius * 0.3, y: orb.y - radius * 0.3), startRadius: 0, endRadius: radius * 1.3)
-        context.fill(Path(ellipseIn: rect), with: shading)
     }
 }
