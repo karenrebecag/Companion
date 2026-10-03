@@ -181,10 +181,10 @@ package struct IslandView: View {
             replyStart = Date()
             reportReplyShown(id)
         }
-        .onChange(of: state.approval?.requestId, initial: true) { _, id in
-            clickGuard = id == nil ? nil : ApprovalClickGuard(shownAt: Date().timeIntervalSince1970)
+        .onChange(of: state.approval?.requestId, initial: true) { _, _ in
             if state.yieldsKeyboard { dismissField() }
         }
+        .onChange(of: clickGuardKey, initial: true) { _, _ in armClickGuard() }
         .onChange(of: chat.session.projection.kind) { _, kind in
             // A release that sent something is the hold, learned.
             if kind == .processing(.pending), !hold.holdLearned { hold.holdLearned = true }

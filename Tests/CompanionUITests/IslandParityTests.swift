@@ -169,8 +169,8 @@ private func notices(_ effects: [SessionEffect]) -> [SessionEffect] {
     expect(!IslandState.from(SessionProjection(), pebbleHidden: false, composing: true).yieldsKeyboard,
            "sin hoja: el campo se queda con el teclado")
     expect(ApprovalSheet.allowShortcut == nil, "hoja: Return nunca aprueba; permitir es un clic")
-    expect(!ApprovalClickGuard.accepts(nil, at: 100, contentVisible: true), "guarda ausente: no acepta (falla cerrada)")
-    expect(ApprovalClickGuard.accepts(ApprovalClickGuard(shownAt: 0), at: 1, contentVisible: true), "guarda pasada: acepta")
+    expect(!ApprovalClickGuard.gate(nil, requestId: "r", contentVisible: true, now: 100).accepts, "guarda ausente: no acepta (falla cerrada)")
+    expect(ApprovalClickGuard.gate(ApprovalClickGuard(shownAt: 0, requestId: "r"), requestId: "r", contentVisible: true, now: 1).accepts, "guarda pasada: acepta")
 }
 
 // Code review 16 (HIGH): clicking another app took the keyboard but nothing
