@@ -180,12 +180,59 @@ enum IslandMotionBudget {
     static let contentOut = Move(duration: 0.13, blur: 0, offset: 0, curve: MotionCurve.ease)
     /// Texts reveal: result cards, one after another.
     static let line = Move(duration: 0.45, blur: 3, offset: 12)
-    /// Panel reveal, small: the approval sheet.
-    static let approval = Move(duration: 0.3, blur: 2, offset: 8)
-
     static let moves: [(String, Move)] = [
-        ("contentIn", contentIn), ("line", line), ("approval", approval),
+        ("contentIn", contentIn), ("line", line),
     ]
+
+    /// Incredible's cards (`.ov-card`): they settle up into place and leave faster, down.
+    struct Card: Equatable {
+        enum Phase: Equatable { case entering, shown, leaving }
+
+        struct State: Equatable {
+            let opacity: Double
+            /// Points on Y, positive is down.
+            let offset: CGFloat
+            let scale: CGFloat
+        }
+
+        let enter: IslandMotion.Curve
+        let exit: IslandMotion.Curve
+        let enterOffset: CGFloat
+        let exitOffset: CGFloat
+        let fromScale: CGFloat
+        /// A confirmation grows from its bottom centre, toward the notch it hangs from.
+        let anchor: UnitPoint
+        /// Reduce motion: Incredible keeps a short linear fade in and drops the exit.
+        let reducedFade: IslandMotion.Curve
+
+        func state(_ phase: Phase) -> State {
+            switch phase {
+            case .entering: State(opacity: 0, offset: enterOffset, scale: fromScale)
+            case .shown: State(opacity: 1, offset: 0, scale: 1)
+            case .leaving: State(opacity: 0, offset: exitOffset, scale: fromScale)
+            }
+        }
+
+        /// Where each direction starts or ends and on which clock; nil removal leaves at once.
+        struct Plan: Equatable {
+            let from: State
+            let insertion: IslandMotion.Curve
+            let to: State?
+            let removal: IslandMotion.Curve?
+        }
+
+        /// Incredible's reduce motion keeps a short fade in and drops the exit.
+        func plan(reduceMotion: Bool) -> Plan {
+            reduceMotion
+                ? Plan(from: State(opacity: 0, offset: 0, scale: 1), insertion: reducedFade, to: nil, removal: nil)
+                : Plan(from: state(.entering), insertion: enter, to: state(.leaving), removal: exit)
+        }
+    }
+
+    static let card = Card(
+        enter: .timing(MotionCurve.settle, 0.26), exit: .timing(MotionCurve.settle, 0.2),
+        enterOffset: 6, exitOffset: 4, fromScale: 0.98, anchor: .bottom,
+        reducedFade: .timing(MotionCurve.linear, 0.12))
 
     /// Incredible's header swap: the new line rises from 120 % of its own height below,
     /// the old one leaves to 120 % above, each property on its own clock.

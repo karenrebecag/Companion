@@ -246,7 +246,7 @@ func testTheNotchedScreenWins() {
            "aprobación: la forma y el contenido terminan antes de que Permitir acepte un clic")
     // The approval card can also grow an island that is already open, under a still pointer.
     let growsOpen = IslandMotion.resize(growing: true).duration
-    expect(max(growsOpen, IslandMotionBudget.approval.duration) < ApprovalClickGuard.dwell,
+    expect(max(growsOpen, IslandMotionBudget.card.enter.duration) < ApprovalClickGuard.dwell,
            "aprobación: crecer abierta y la tarjeta terminan antes de que Permitir acepte un clic")
 }
 

@@ -31,6 +31,8 @@ package enum MotionCurve {
     package static let settle: [Double] = [0.32, 0.72, 0, 1]
     package static let glide: [Double] = [0.22, 1, 0.36, 1]
     package static let bounce: [Double] = [0.34, 1.56, 0.64, 1]
+    /// CSS `linear`: Incredible's reduced-motion fade for a card.
+    package static let linear: [Double] = [0, 0, 1, 1]
     /// Incredible's --ease-island: every change of the island's shape. It overshoots ~1.5 %.
     package static let island: [Double] = [0.22, 1.22, 0.36, 1]
     /// CSS `ease`, which SwiftUI's easeInOut is not: Incredible fades the island's content with it.
