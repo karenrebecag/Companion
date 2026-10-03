@@ -85,7 +85,8 @@ package enum BrowserCodec {
                           active: raw["active"] as? Bool ?? false,
                           controlled: raw["controlled"] as? Bool ?? false,
                           opener: integer(raw["opener"]),
-                          createdAt: (raw["createdAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) })
+                          createdAt: (raw["createdAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) },
+                          loading: raw["loading"] as? Bool ?? false)
     }
 
     private static func page(_ raw: [String: Any]) -> BrowserPage? {

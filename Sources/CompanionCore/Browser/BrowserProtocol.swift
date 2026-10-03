@@ -175,10 +175,13 @@ package struct BrowserTab: Sendable, Equatable {
     /// when the worker did not see it being created.
     package var opener: Int?
     package var createdAt: Date?
+    /// A new tab whose page had not loaded when the extension stopped waiting; without it the
+    /// model would read an empty page right away and report the site as blank. Only `open` sets it.
+    package var loading: Bool
 
     package init(
         id: Int, title: String, url: String, active: Bool,
-        controlled: Bool = false, opener: Int? = nil, createdAt: Date? = nil
+        controlled: Bool = false, opener: Int? = nil, createdAt: Date? = nil, loading: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -187,6 +190,7 @@ package struct BrowserTab: Sendable, Equatable {
         self.controlled = controlled
         self.opener = opener
         self.createdAt = createdAt
+        self.loading = loading
     }
 }
 
