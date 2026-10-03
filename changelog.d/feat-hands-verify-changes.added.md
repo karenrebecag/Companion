@@ -1,0 +1,1 @@
+- **Las manos ahora dicen que cambio despues de actuar (2026-10-02).** Tras un clic, un menu, escribir o pulsar una tecla, Companion espera cerca de 1 s a que la app se asiente y agrega al resultado una linea: ventana o dialogo nuevo, titulo distinto, o "no se observo cambio, no repitas la accion". Antes el modelo solo recibia "mira de nuevo".
