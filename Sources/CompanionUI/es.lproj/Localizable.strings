@@ -372,6 +372,8 @@
 "status.quit" = "Salir";
 "settings.sounds" = "Sonidos";
 "settings.sounds.subtitle" = "Un clic al abrir y cerrar el micrófono, y un pulso mientras piensa.";
+"settings.muteWhileTalking" = "Silenciar el sonido mientras hablas";
+"settings.muteWhileTalking.subtitle" = "La música y los videos se callan mientras Companion te escucha.";
 "settings.screenGlow" = "Brillo de pantalla";
 "settings.screenGlow.subtitle" = "Los bordes de la pantalla se iluminan mientras Companion escucha.";
 "settings.vocabulary" = "Palabras que debe entender bien";

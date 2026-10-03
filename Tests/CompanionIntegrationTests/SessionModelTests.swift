@@ -29,22 +29,37 @@ import CompanionTestKit
         await testTheProvisionalPressAndItsConfirmReachTheVoicePort()
         await testTheWarmSessionHangsUpThroughThePort()
         testOnKindChangeFiresOnlyWhenTheKindActuallyMoves()
+        testKindObserversAllHearEveryTransitionInRegistrationOrder()
     }
 }
 
 /// Wave 17: `BridgeHost` pauses the bridge for any turn of Karen's own and
-/// resumes it at rest by observing `onKindChange` — it must fire exactly
-/// once per real move and never on an event that leaves `kind` where it was.
+/// resumes it at rest by observing the kind — it must fire exactly once per
+/// real move and never on an event that leaves `kind` where it was.
 @MainActor func testOnKindChangeFiresOnlyWhenTheKindActuallyMoves() {
     let session = SessionModel(jobs: nil, approvals: nil)
     var seen: [SessionKind] = []
-    session.onKindChange = { seen.append($0) }
+    session.addKindObserver { seen.append($0) }
     session.send(.hoverEntered)
     expectEq(seen, [.hover], "onKindChange: idle -> hover avisa")
     session.send(.hoverEntered)
     expectEq(seen, [.hover], "onKindChange: sin cambio real, sin aviso otra vez")
     session.send(.hoverLeft)
     expectEq(seen, [.hover, .idle], "onKindChange: hover -> idle avisa")
+}
+
+/// The bridge and the audio coordinator each register on their own: both
+/// hear every transition, in the order they registered.
+@MainActor func testKindObserversAllHearEveryTransitionInRegistrationOrder() {
+    let session = SessionModel(jobs: nil, approvals: nil)
+    var seen: [String] = []
+    session.addKindObserver { seen.append("first:\($0)") }
+    session.addKindObserver { seen.append("second:\($0)") }
+    session.send(.hoverEntered)
+    session.send(.hoverEntered)
+    session.send(.hoverLeft)
+    expectEq(seen, ["first:hover", "second:hover", "first:idle", "second:idle"],
+             "observadores: ambos oyen cada cambio, en orden de registro, sin repetir")
 }
 
 /// 21 (12b). Los efectos del hold llegan al puerto de voz.

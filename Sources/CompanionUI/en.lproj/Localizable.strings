@@ -372,6 +372,8 @@
 "status.quit" = "Quit";
 "settings.sounds" = "Sounds";
 "settings.sounds.subtitle" = "A click when the microphone opens and closes, and a pulse while it thinks.";
+"settings.muteWhileTalking" = "Mute sound while you talk";
+"settings.muteWhileTalking.subtitle" = "Music and video go silent while Companion listens to you.";
 "settings.screenGlow" = "Screen glow";
 "settings.screenGlow.subtitle" = "The edges of the screen light up while Companion listens.";
 "settings.vocabulary" = "Words it should get right";

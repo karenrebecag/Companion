@@ -350,6 +350,30 @@ package enum ThinkingSoundPref {
     }
 }
 
+/// "Mute sound while you talk": music and video go quiet while Companion
+/// listens. Off by default — a missing key must never silence what someone
+/// is playing. Posts on every real change so a mute in progress is given
+/// back at once instead of waiting for the turn to end.
+package enum MuteSoundWhileTalkingPref {
+    nonisolated private static let key = "companion.muteSoundWhileTalking"
+    /// Swappable so a test writes into its own suite, never the user's.
+    nonisolated(unsafe) package static var store: UserDefaults = .standard
+
+    nonisolated package static var enabled: Bool {
+        get { store.object(forKey: key) as? Bool ?? false }
+        set {
+            guard newValue != enabled else { return }
+            store.set(newValue, forKey: key)
+            NotificationCenter.default.post(name: .companionMuteSoundDidChange, object: nil)
+        }
+    }
+}
+
+package extension Notification.Name {
+    nonisolated static let companionMuteSoundDidChange = Notification.Name(
+        "companion.muteSoundDidChange")
+}
+
 /// DM1c-3 (wave-dm1-router.md §8): the "Decidir en local" Settings toggle.
 /// Off by default — a missing key must never turn the router on for someone
 /// who has never seen the switch. `StoredConfigProvider` ORs this with the
