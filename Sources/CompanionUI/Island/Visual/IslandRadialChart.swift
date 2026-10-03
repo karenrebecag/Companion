@@ -1,13 +1,22 @@
 import CompanionCore
 import SwiftUI
 
-/// Radar (one polygon per series over shared axes) and polar area (one
-/// wedge per label, its radius the value). Geometry comes from
-/// RadialGeometry; this file only strokes it.
+/// Radar (one polygon per series over shared axes), polar area (one wedge
+/// per label, its radius the value) and the donut ring. Geometry comes from
+/// RadialGeometry and DonutLayout; this file only strokes it.
 struct IslandRadialChart: View {
     let block: ChartBlock
+    var palette: [String: Int] = [:]
 
     var body: some View {
+        if block.kind == .donut {
+            IslandDonutRing(block: block, palette: palette)
+        } else {
+            axes
+        }
+    }
+
+    private var axes: some View {
         GeometryReader { proxy in
             let size = proxy.size
             let center = CGPoint(x: size.width / 2, y: size.height / 2)

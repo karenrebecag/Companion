@@ -2,18 +2,21 @@ import Charts
 import CompanionCore
 import SwiftUI
 
-/// The drawing itself. Bar, line, area, scatter, pie and donut ride Swift
-/// Charts (system framework, no dependency); polar and radar are Paths,
-/// because Swift Charts has no mark for them. No mark animates: the chart
-/// is a finished message, so there is no motion for Reduce Motion to cut.
+/// The drawing itself. Bar, line, area, scatter and pie ride Swift Charts
+/// (system framework, no dependency); polar and radar are Paths, because
+/// Swift Charts has no mark for them. The donut is Arc's ring, which morphs
+/// per key between datasets where a SectorMark would only cross-fade; it is
+/// the one kind that moves, and it jumps under Reduce Motion.
 struct IslandChartCanvas: View {
     let block: ChartBlock
+    /// The donut's key-to-colour memory, shared with the legend.
+    var palette: [String: Int] = [:]
 
     var body: some View {
         switch block.kind {
-        case .polar, .radar:
-            IslandRadialChart(block: block)
-        case .pie, .donut:
+        case .polar, .radar, .donut:
+            IslandRadialChart(block: block, palette: palette)
+        case .pie:
             sectors
         case .bar, .line, .area, .scatter:
             cartesian
@@ -25,7 +28,6 @@ struct IslandChartCanvas: View {
     private var sectors: some View {
         Chart(Array(IslandChartData.points(block).enumerated()), id: \.offset) { index, point in
             SectorMark(angle: .value("value", point.value),
-                       innerRadius: .ratio(block.kind == .donut ? IslandVisualMetrics.donutInner : 0),
                        angularInset: IslandVisualMetrics.sectorGap)
                 .foregroundStyle(IslandChartInk.color(at: index))
         }

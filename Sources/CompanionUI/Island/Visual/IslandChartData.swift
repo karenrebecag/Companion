@@ -71,9 +71,16 @@ enum IslandChartData {
         }
     }
 
-    static func legend(_ block: ChartBlock) -> [LegendEntry] {
+    /// `palette` is the donut's key-to-colour memory; without one each
+    /// segment takes its colour in data order.
+    static func legend(_ block: ChartBlock, palette: [String: Int] = [:]) -> [LegendEntry] {
         switch block.kind {
-        case .pie, .donut:
+        case .donut:
+            // The ring groups small parts, so the legend names its segments, not the raw labels.
+            let slices = DonutLayout.slices(block)
+            let colors = DonutLayout.palette(palette, keys: slices.map(\.key))
+            return slices.map { LegendEntry(name: $0.label, colorIndex: DonutLayout.colorIndex($0.key, palette: colors)) }
+        case .pie:
             return uniqueLabels(block.labels).prefix(maxLegend).enumerated().map { LegendEntry(name: $1, colorIndex: $0) }
         case .polar:
             return []

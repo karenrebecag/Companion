@@ -614,6 +614,11 @@
 "island.chart.copy" = "Copy the chart data";
 "island.chart.copied" = "Chart data copied";
 "island.chart.categories" = "Categories";
+"island.chart.total" = "Total";
+"island.chart.other" = "Other";
+"island.chart.part" = "%@, %@, %@";
+"island.chart.includes" = "includes %@";
+"island.chart.and" = "and";
 "island.diagram.label" = "Diagram";
 "island.diagram.copy" = "Copy the diagram as an image";
 "island.diagram.copied" = "Diagram image copied";

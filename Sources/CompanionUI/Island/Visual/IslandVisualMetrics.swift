@@ -30,7 +30,6 @@ package enum IslandVisualMetrics {
     package static let minSeriesContrast = 3.0
     package static let lineWidth = Stroke.medium
     package static let areaAlpha = 0.18
-    package static let donutInner = 0.6
     /// The dark seam between two pie slices.
     package static let sectorGap = Stroke.hairline
     /// A polar wedge's fill: the outline carries the colour, the fill only weight.
@@ -48,6 +47,35 @@ package enum IslandVisualMetrics {
     /// the container scrolls sideways; the picture is never shrunk.
     package static let diagramWidth = AnswerPopupMetrics.maxWidth
         - 2 * AnswerPopupMetrics.paddingX - 2 * paddingX
+
+    // The donut ring: Arc's free donut-chart (uiarc.dev, donut-chart.tsx),
+    // since Incredible defines no donut of its own. Pinned in IslandDonutTests.
+    /// Diameter, before the ring scales down to a narrower canvas.
+    package static let donutSize: CGFloat = 208
+    package static let donutThickness: CGFloat = 24
+    /// Room left outside the ring.
+    package static let donutMargin: CGFloat = 7
+    /// The gap between neighbours, the same pixels from the inner edge to the outer.
+    package static let donutGap: CGFloat = 3
+    package static let donutCorner: CGFloat = 4
+    /// The smallest inner radius, so a thick ring on a tiny canvas keeps a hole.
+    package static let donutMinInner: CGFloat = 8
+    /// The centre readout sits this much narrower than the hole.
+    package static let donutReadoutInset: CGFloat = 16
+    package static let donutValueSize: CGFloat = 24
+    /// Parts below this share join "Other", when at least two would.
+    package static let donutGroupBelow = 0.04
+    /// The most segments drawn, counting "Other".
+    package static let donutMaxSegments = 6
+    /// The sweep: each trailing edge leaves this long after the first, a step apart.
+    package static let donutSweepLead = 0.04
+    package static let donutSweepStep = 0.035
+    /// Arc's springs are visualDuration + bounce; as SwiftUI numbers the
+    /// response is visualDuration x 1.2 and the damping fraction 1 - bounce.
+    /// reveal 0.72 s, settle 0.5 s, the count 0.4 s, none of them bounce.
+    package static let donutReveal = MotionSpring(response: 0.864, damping: 1)
+    package static let donutSettle = MotionSpring(response: 0.6, damping: 1)
+    package static let donutCount = MotionSpring(response: 0.48, damping: 1)
 
     package static func canvasHeight(for kind: ChartBlock.Kind) -> CGFloat {
         switch kind {
