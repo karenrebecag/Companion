@@ -35,6 +35,8 @@ package enum MotionCurve {
     package static let island: [Double] = [0.22, 1.22, 0.36, 1]
     /// CSS `ease`, which SwiftUI's easeInOut is not: Incredible fades the island's content with it.
     package static let ease: [Double] = [0.25, 0.1, 0.25, 1]
+    /// CSS `ease-out`: Incredible's composer orb follows the voice with it.
+    package static let easeOut: [Double] = [0, 0, 0.58, 1]
     package static let enter: [Double] = glide
 
     package static func animation(_ curve: [Double], _ duration: Double) -> Animation {

@@ -1,0 +1,1 @@
+- **El orbe del campo late con la voz, como en Incredible (2026-10-03).** Mientras Companion responde en voz, el orbe junto al campo crece hasta 28 % con su nivel, siguiendolo en 90 ms ease-out; el microfono lo deja quieto. Con reducir movimiento no crece.
