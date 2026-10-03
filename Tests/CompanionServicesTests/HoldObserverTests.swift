@@ -235,3 +235,148 @@ private func settle(_ done: () -> Bool) async {
     await hold.tick()
     expectEq(batches.all.count, 0, "perder la lectura un instante no inventa cambios")
 }
+
+// b2b: Incredible's hold reports a dialog when it opens over what the user is on,
+// without counting it as another window.
+@Test func aDialogThatOpensIsObservedOnceAndIsNotAMove() async {
+    let surface = FakeSurface(HoldSurface(app: "Pages", title: "Informe"))
+    let hold = observer(surface, FakePasteboard(changeCount: 1, string: nil))
+    let batches = Batches()
+    await hold.start(generation: 1) { batches.add($0) }
+    surface.current = HoldSurface(app: "Pages", title: "Informe", dialog: "Guardar")
+    await hold.tick()
+    await hold.tick()
+    expectEq(batches.all.last?.events.map(\.event), [.dialogOpened(title: "Guardar")], "solo el dialogo")
+    surface.current = HoldSurface(app: "Pages", title: "Informe")
+    await hold.tick()
+    await hold.tick()
+    expectEq(batches.all.count, 1, "cerrarlo no es nada")
+    surface.current = HoldSurface(app: "Pages", title: "Informe", dialog: "Guardar")
+    await hold.tick()
+    expectEq(batches.all.last?.events.map(\.event),
+             [.dialogOpened(title: "Guardar"), .dialogOpened(title: "Guardar")], "abrirlo otra vez si, y nada mas")
+}
+
+@Test func aDialogAlreadyOpenWhenTheHoldBeganIsNotObserved() async {
+    let surface = FakeSurface(HoldSurface(app: "Pages", title: "Informe", dialog: "Guardar"))
+    let hold = observer(surface, FakePasteboard(changeCount: 1, string: nil))
+    let batches = Batches()
+    await hold.start(generation: 1) { batches.add($0) }
+    await hold.tick()
+    expectEq(batches.all.count, 0, "es el punto de partida")
+}
+
+@Test func aDialogThatCannotBeReadForOneLookIsNotOpenedAgain() async {
+    let surface = FakeSurface(HoldSurface(app: "Pages", title: "Informe", dialog: "Guardar"))
+    let hold = observer(surface, FakePasteboard(changeCount: 1, string: nil))
+    let batches = Batches()
+    await hold.start(generation: 1) { batches.add($0) }
+    surface.current = HoldSurface(app: "Pages", title: nil)
+    await hold.tick()
+    surface.current = HoldSurface(app: "Pages", title: "Informe", dialog: "Guardar")
+    await hold.tick()
+    expectEq(batches.all.count, 0, "una lectura fallida no cierra ni abre nada")
+}
+
+// Code and security review (b2b-1): a path can carry a token too (/reset/<token>), and the
+// overlay never shows it; only the site is kept.
+@Test func aPageAddressKeepsOnlyTheSite() {
+    expectEq(SystemHoldSurface.pageURL("https://mail.google.com/mail/u/0/?token=abc#inbox"),
+             "https://mail.google.com", "sin ruta, query ni fragmento")
+    expectEq(SystemHoldSurface.pageURL("http://example.com"), "http://example.com", "http tambien")
+    expectEq(SystemHoldSurface.pageURL("file:///Users/k/secreto.pdf"), nil, "un archivo no es una pagina")
+    expectEq(SystemHoldSurface.pageURL("javascript:alert(1)"), nil, "ni un script")
+    expectEq(SystemHoldSurface.pageURL("https://user:pw@example.com/a"), "https://example.com",
+             "las credenciales en la direccion nunca se guardan")
+}
+
+// QA review (b2b-1): a dialog is new by where it is, not only by its title.
+@Test func theSameDialogInAnotherAppIsAnotherDialog() async {
+    let surface = FakeSurface(HoldSurface(app: "Pages", title: "Informe", dialog: "Guardar"))
+    let hold = observer(surface, FakePasteboard(changeCount: 1, string: nil))
+    let batches = Batches()
+    await hold.start(generation: 1) { batches.add($0) }
+    surface.current = HoldSurface(app: "Keynote", title: "Charla", dialog: "Guardar")
+    await hold.tick()
+    expectEq(batches.all.last?.events.map(\.event),
+             [.surfaceChanged(app: "Keynote", title: "Charla", url: nil), .dialogOpened(title: "Guardar")],
+             "el movimiento y luego su dialogo, en ese orden")
+}
+
+@Test func oneDialogReplacedByAnotherIsObserved() async {
+    let surface = FakeSurface(HoldSurface(app: "Pages", title: "Informe", dialog: "Guardar"))
+    let hold = observer(surface, FakePasteboard(changeCount: 1, string: nil))
+    let batches = Batches()
+    await hold.start(generation: 1) { batches.add($0) }
+    surface.current = HoldSurface(app: "Pages", title: "Informe", dialog: "Imprimir")
+    await hold.tick()
+    expectEq(batches.all.last?.events.map(\.event), [.dialogOpened(title: "Imprimir")], "el nuevo")
+}
+
+@Test func aNewDialogWhileTheTitleCannotBeReadIsStillObserved() async {
+    let surface = FakeSurface(HoldSurface(app: "Pages", title: "Informe"))
+    let hold = observer(surface, FakePasteboard(changeCount: 1, string: nil))
+    let batches = Batches()
+    await hold.start(generation: 1) { batches.add($0) }
+    surface.current = HoldSurface(app: "Pages", title: nil, dialog: "Otro")
+    await hold.tick()
+    expectEq(batches.all.last?.events.map(\.event), [.dialogOpened(title: "Otro")], "solo el dialogo")
+}
+
+// QA review (b2b-1): the page search has a budget; missing it once is not leaving the page.
+@Test func anAddressThatCannotBeReadForOneLookIsNotAMove() async {
+    let surface = FakeSurface(HoldSurface(app: "Safari", title: "Doc", url: "https://a.com/doc"))
+    let hold = observer(surface, FakePasteboard(changeCount: 1, string: nil))
+    let batches = Batches()
+    await hold.start(generation: 1) { batches.add($0) }
+    surface.current = HoldSurface(app: "Safari", title: "Doc", url: nil)
+    await hold.tick()
+    surface.current = HoldSurface(app: "Safari", title: "Doc", url: "https://a.com/doc")
+    await hold.tick()
+    expectEq(batches.all.count, 0, "la misma pagina")
+    surface.current = HoldSurface(app: "Safari", title: "Doc", url: "https://b.com")
+    await hold.tick()
+    expectEq(batches.all.last?.events.map(\.event),
+             [.surfaceChanged(app: "Safari", title: "Doc", url: "https://b.com")],
+             "otro sitio con el mismo titulo si es un movimiento")
+}
+
+@Test func aPageAddressIsNormalisedAndOddOnesAreRefused() {
+    expectEq(SystemHoldSurface.pageURL("HTTPS://Example.com/a?x=1"), "https://Example.com", "esquema en minusculas")
+    expectEq(SystemHoldSurface.pageURL("http://[::1]:8080/a#f"), "http://[::1]:8080", "puerto e IPv6 sobreviven")
+    expectEq(SystemHoldSurface.pageURL("https://example.com?x=1"), "https://example.com", "sin query")
+    expectEq(SystemHoldSurface.pageURL("https://a.com/reset/abc123"), "https://a.com", "la ruta no se guarda")
+    for odd in ["", "not a url", "http://", "https:///path", "https://user@/x", "ftp://a.com/f", "data:text/plain,hola"] {
+        expectEq(SystemHoldSurface.pageURL(odd), nil, "\(odd) no es una pagina")
+    }
+}
+
+// Code review (b2b-1): a dialog missed for one look is not closed and opened again.
+@Test func aDialogMissedForOneLookIsNotOpenedAgain() async {
+    let surface = FakeSurface(HoldSurface(app: "Pages", title: "Informe"))
+    let hold = observer(surface, FakePasteboard(changeCount: 1, string: nil))
+    let batches = Batches()
+    await hold.start(generation: 1) { batches.add($0) }
+    surface.current = HoldSurface(app: "Pages", title: "Informe", dialog: "Guardar")
+    await hold.tick()
+    surface.current = HoldSurface(app: "Pages", title: "Informe")
+    await hold.tick()
+    surface.current = HoldSurface(app: "Pages", title: "Informe", dialog: "Guardar")
+    await hold.tick()
+    expectEq(batches.all.last?.events.map(\.event), [.dialogOpened(title: "Guardar")], "una sola vez")
+}
+
+// Security review (b2b-1): a hostile page title is kept only as long as anything can show it.
+@Test func aHugeTitleIsCut() async {
+    let surface = FakeSurface(HoldSurface(app: "Safari", title: "a"))
+    let hold = observer(surface, FakePasteboard(changeCount: 1, string: nil))
+    let batches = Batches()
+    await hold.start(generation: 1) { batches.add($0) }
+    let huge = String(repeating: "x", count: 10_000)
+    surface.current = HoldSurface(app: "Safari", title: huge, dialog: huge)
+    await hold.tick()
+    let events = batches.all.last?.events.map(\.event) ?? []
+    expectEq(events, [.surfaceChanged(app: "Safari", title: String(huge.prefix(HoldSurface.textLimit)), url: nil),
+                      .dialogOpened(title: String(huge.prefix(HoldSurface.textLimit)))],
+             "titulo y dialogo cortados a \(HoldSurface.textLimit)")
+}

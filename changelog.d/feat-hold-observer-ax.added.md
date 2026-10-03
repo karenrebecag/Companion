@@ -1,0 +1,1 @@
+- **El hold ve tambien la pagina del navegador y los dialogos que se abren, como Incredible (2026-10-03).** Pasar a otra pestana destella con su titulo o su sitio; un dialogo que se abre (Guardar, Imprimir) destella sin contar como otra ventana. De la direccion solo se guarda el sitio: ni ruta, ni consulta, ni fragmento, ni credenciales.
