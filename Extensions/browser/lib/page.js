@@ -191,6 +191,33 @@
     return cutPoints(el.value ?? '', VALUE_MAX);
   }
 
+  // An open dropdown trigger and a closed one read the same without these, so the model cannot
+  // tell whether its click opened anything, and a disabled control looks pressable.
+  function statesOf(el) {
+    const aria = (name) => el.getAttribute(name);
+    const tag = tagOf(el);
+    const out = [];
+    // :disabled also covers a control inside <fieldset disabled>, which its own property does not.
+    if (el.disabled === true || el.matches?.(':disabled') || aria('aria-disabled') === 'true') out.push('disabled');
+    const expanded = tag === 'summary' && tagOf(el.parentElement ?? {}) === 'details'
+      ? String(el.parentElement.hasAttribute('open'))
+      : aria('aria-expanded');
+    if (expanded === 'true') out.push('expanded');
+    if (expanded === 'false') out.push('collapsed');
+    const type = String(el.type || '').toLowerCase();
+    const checked = tag === 'input' && (type === 'checkbox' || type === 'radio')
+      ? (el.indeterminate ? 'mixed' : String(el.checked === true))
+      : aria('aria-checked');
+    if (checked === 'true') out.push('checked');
+    if (checked === 'false') out.push('unchecked');
+    if (checked === 'mixed') out.push('mixed');
+    if (aria('aria-pressed') === 'true') out.push('pressed');
+    if (aria('aria-selected') === 'true' || (tag === 'option' && el.selected === true)) out.push('selected');
+    const popup = aria('aria-haspopup');
+    if (popup && popup !== 'false') out.push('haspopup');
+    return out;
+  }
+
   function serializeElement(el, id, frame) {
     const field = fieldOf(el);
     return {
@@ -207,6 +234,7 @@
       href: hrefOf(el),
       fieldName: field.name == null ? null : clip(field.name, NAME_MAX),
       fieldId: field.id == null ? null : clip(field.id, NAME_MAX),
+      states: statesOf(el),
     };
   }
 

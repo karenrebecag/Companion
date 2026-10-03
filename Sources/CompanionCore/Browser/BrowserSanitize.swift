@@ -19,6 +19,12 @@ enum BrowserSanitize {
         BridgeCode.unreadablePage, BridgeCode.notTypable,
     ]
 
+    /// A state is a fixed word, never page text: anything else is dropped rather than shown.
+    static func states(_ raw: Any?) -> [String] {
+        let sent = Set((raw as? [Any] ?? []).compactMap { $0 as? String })
+        return BrowserElement.knownStates.filter(sent.contains)
+    }
+
     static func code(_ raw: String) -> String {
         allowedCodes.contains(raw) ? raw : fallbackCode
     }

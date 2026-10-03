@@ -18,6 +18,7 @@ extension BrowserPolicy {
 
     private static func line(_ element: BrowserElement) -> String {
         var text = "[\(element.id)] \(element.role) \"\(escaped(element.label))\""
+        if !element.states.isEmpty { text += " (\(element.states.joined(separator: ", ")))" }
         if let origin = element.frameOrigin {
             text += " (frame \(element.frame), origin \(escaped(origin)))"
         } else if element.frame > 0 {

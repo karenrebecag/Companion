@@ -68,8 +68,8 @@ test('resolveSelector skips a cross-origin iframe (null contentDocument)', () =>
 test('serializer emits exactly the wire shape', () => {
   const el = fake({ tag: 'input', attrs: { type: 'email', autocomplete: 'email', 'aria-label': 'Correo' }, value: 'a@b.c' });
   const out = page.serializeElement(el, 3, 0);
-  assert.deepEqual(Object.keys(out), ['id', 'frame', 'role', 'label', 'context', 'inputType', 'autocomplete', 'value', 'frameOrigin', 'href', 'fieldName', 'fieldId']);
-  assert.deepEqual(out, { id: 3, frame: 0, role: 'textbox', label: 'Correo', context: '', inputType: 'email', autocomplete: 'email', value: 'a@b.c', frameOrigin: null, href: null, fieldName: null, fieldId: null });
+  assert.deepEqual(Object.keys(out), ['id', 'frame', 'role', 'label', 'context', 'inputType', 'autocomplete', 'value', 'frameOrigin', 'href', 'fieldName', 'fieldId', 'states']);
+  assert.deepEqual(out, { id: 3, frame: 0, role: 'textbox', label: 'Correo', context: '', inputType: 'email', autocomplete: 'email', value: 'a@b.c', frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [] });
 });
 
 test('serializer drops the value of sensitive fields and nulls non-inputs', () => {
@@ -80,7 +80,7 @@ test('serializer drops the value of sensitive fields and nulls non-inputs', () =
   assert.equal(cc.value, null);
   assert.equal(cc.frame, 1);
   const btn = page.serializeElement(fake({ tag: 'button', text: '  Guardar ', ctx: 'Perfil' }), 4, 0);
-  assert.deepEqual(btn, { id: 4, frame: 0, role: 'button', label: 'Guardar', context: 'Perfil', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null });
+  assert.deepEqual(btn, { id: 4, frame: 0, role: 'button', label: 'Guardar', context: 'Perfil', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [] });
 });
 
 test('serializer caps label length and never emits undefined', () => {
@@ -771,4 +771,61 @@ test('a selector read is not reordered', () => {
   } finally {
     delete globalThis.document;
   }
+});
+
+// H-7 P1: an open dropdown trigger and a closed one read the same, so the model could not tell
+// whether its click opened anything; a disabled control looked pressable.
+const statesOf = (el) => page.serializeElement(el, 1, 0).states;
+
+test('the read names disabled, expanded and collapsed controls', () => {
+  const off = fake({ tag: 'button', text: 'Enviar' });
+  off.disabled = true;
+  assert.deepEqual(statesOf(off), ['disabled']);
+  assert.deepEqual(statesOf(fake({ tag: 'button', attrs: { 'aria-disabled': 'true' } })), ['disabled']);
+  assert.deepEqual(statesOf(fake({ tag: 'button', attrs: { 'aria-expanded': 'true', 'aria-haspopup': 'menu' } })), ['expanded', 'haspopup']);
+  assert.deepEqual(statesOf(fake({ tag: 'button', attrs: { 'aria-expanded': 'false', 'aria-haspopup': 'true' } })), ['collapsed', 'haspopup']);
+  assert.deepEqual(statesOf(fake({ tag: 'button', attrs: { 'aria-haspopup': 'false' } })), []);
+});
+
+test('the read names checked, unchecked and mixed, native or ARIA', () => {
+  const box = fake({ tag: 'input', attrs: { type: 'checkbox' } });
+  box.checked = true;
+  assert.deepEqual(statesOf(box), ['checked']);
+  box.checked = false;
+  assert.deepEqual(statesOf(box), ['unchecked']);
+  box.indeterminate = true;
+  assert.deepEqual(statesOf(box), ['mixed']);
+  assert.deepEqual(statesOf(fake({ tag: 'div', attrs: { role: 'switch', 'aria-checked': 'true' } })), ['checked']);
+  assert.deepEqual(statesOf(fake({ tag: 'div', attrs: { role: 'checkbox', 'aria-checked': 'false' } })), ['unchecked']);
+  assert.deepEqual(statesOf(fake({ tag: 'button', attrs: { 'aria-pressed': 'true' } })), ['pressed']);
+});
+
+test('the read names a selected tab or option', () => {
+  assert.deepEqual(statesOf(fake({ tag: 'div', attrs: { role: 'tab', 'aria-selected': 'true' } })), ['selected']);
+  const option = fake({ tag: 'option', text: 'Mexico' });
+  option.selected = true;
+  assert.deepEqual(statesOf(option), ['selected']);
+});
+
+test('a summary says whether its details are open', () => {
+  const open = fake({ tag: 'details', attrs: { open: '' } });
+  assert.deepEqual(statesOf(fake({ tag: 'summary', parent: open })), ['expanded']);
+  assert.deepEqual(statesOf(fake({ tag: 'summary', parent: fake({ tag: 'details' }) })), ['collapsed']);
+});
+
+test('a radio reads checked or unchecked, and the native state beats a stale aria-checked', () => {
+  const radio = fake({ tag: 'input', attrs: { type: 'radio' } });
+  radio.checked = true;
+  assert.deepEqual(statesOf(radio), ['checked']);
+  radio.checked = false;
+  assert.deepEqual(statesOf(radio), ['unchecked']);
+  const box = fake({ tag: 'input', attrs: { type: 'checkbox', 'aria-checked': 'false' } });
+  box.checked = true;
+  assert.deepEqual(statesOf(box), ['checked']);
+});
+
+test('a control inside a disabled fieldset reads disabled, as the browser treats it', () => {
+  const locked = fake({ tag: 'button', text: 'Enviar' });
+  locked.matches = (selector) => selector === ':disabled';
+  assert.deepEqual(statesOf(locked), ['disabled']);
 });

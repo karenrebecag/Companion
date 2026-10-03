@@ -178,6 +178,16 @@ private func navigate(_ from: String?, _ raw: String, said: String = "") -> Resu
     expect(!text.contains("truncated") && !text.contains("recortad"), "sin aviso si cabe")
 }
 
+@Test func renderShowsElementStatesAfterTheLabel() {
+    var trigger = element(1, role: "button", label: "Pais")
+    trigger.states = ["collapsed", "haspopup"]
+    var plain = element(2, role: "button", label: "Guardar")
+    plain.states = []
+    let text = BrowserPolicy.render(page([trigger, plain]), maxBytes: 4_000)
+    expect(text.contains(#"[1] button "Pais" (collapsed, haspopup)"#), "states inline: \(text)")
+    expect(text.contains(#"[2] button "Guardar""#) && !text.contains(#""Guardar" ("#), "no empty parentheses")
+}
+
 @Test func renderRespectsMaxBytesAndMarksTruncation() {
     let long = String(repeating: "\u{00E1}\u{1F600}", count: 5_000)
     for language in AppLanguage.allCases {
