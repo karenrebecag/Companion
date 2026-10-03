@@ -1,77 +1,143 @@
+import AppKit
 import CompanionCore
 import CompanionTestKit
-import CompanionUI
+@testable import CompanionUI
 import Foundation
+import SwiftUI
 import Testing
 
 @Test @MainActor func shadcnTokensTests() async {
     testButtonSizeTokens()
-    testButtonColorTokens()
-    testGapTokens()
+    testButtonVariantTokens()
+    testButtonStateResolution()
+    testButtonVariantMappings()
 }
 
+/// shadcn's h-6/8/9/10, px-2/3/4/6 and gap-1/1.5/2 are Companion's own
+/// Space steps; a size that is not one of them would be a second scale.
 @MainActor func testButtonSizeTokens() {
-    // Height ordering
-    expectEq(ButtonSize.xs.height, 24, "xs height is 24")
-    expectEq(ButtonSize.sm.height, 32, "sm height is 32")
-    expectEq(ButtonSize.default.height, 36, "default height is 36")
-    expectEq(ButtonSize.lg.height, 40, "lg height is 40")
-    expect(ButtonSize.xs.height < ButtonSize.sm.height)
-    expect(ButtonSize.sm.height < ButtonSize.default.height)
-    expect(ButtonSize.default.height < ButtonSize.lg.height)
+    expectEq(ButtonSize.xs.height, Space.x6, "xs is h-6")
+    expectEq(ButtonSize.sm.height, Space.x8, "sm is h-8")
+    expectEq(ButtonSize.default.height, Space.x9, "default is h-9")
+    expectEq(ButtonSize.lg.height, Space.x10, "lg is h-10")
 
-    // Padding X
-    expectEq(ButtonSize.xs.paddingX, Space.x2, "xs paddingX is x2")
-    expectEq(ButtonSize.sm.paddingX, Space.x3, "sm paddingX is x3")
-    expectEq(ButtonSize.default.paddingX, Space.x4, "default paddingX is x4")
-    expectEq(ButtonSize.lg.paddingX, Space.x6, "lg paddingX is x6")
+    expectEq(ButtonSize.xs.paddingX, Space.x2, "xs px-2")
+    expectEq(ButtonSize.sm.paddingX, Space.x3, "sm px-3")
+    expectEq(ButtonSize.default.paddingX, Space.x4, "default px-4")
+    expectEq(ButtonSize.lg.paddingX, Space.x6, "lg px-6")
 
-    // Padding Y
-    expectEq(ButtonSize.xs.paddingY, Space.x0_5, "xs paddingY is x0_5")
-    expectEq(ButtonSize.sm.paddingY, Space.x1, "sm paddingY is x1")
-    expectEq(ButtonSize.default.paddingY, Space.x1, "default paddingY is x1")
-    expectEq(ButtonSize.lg.paddingY, Space.x1_5, "lg paddingY is x1_5")
+    expectEq(ButtonSize.xs.gap, Space.x1, "xs gap-1")
+    expectEq(ButtonSize.sm.gap, Space.x1_5, "sm gap-1.5")
+    expectEq(ButtonSize.default.gap, Space.x2, "default gap-2")
+    expectEq(ButtonSize.lg.gap, Space.x2, "lg gap-2")
 
-    // Font sizes
-    expectEq(ButtonSize.xs.fontSize, TypeSize.caption, "xs fontSize is caption")
-    expectEq(ButtonSize.sm.fontSize, TypeSize.caption, "sm fontSize is caption")
-    expectEq(ButtonSize.default.fontSize, TypeSize.body, "default fontSize is body")
-    expectEq(ButtonSize.lg.fontSize, TypeSize.rowTitle, "lg fontSize is rowTitle")
+    expectEq(ButtonSize.xs.fontSize, TypeSize.caption, "xs text-xs")
+    expectEq(ButtonSize.default.fontSize, TypeSize.rowTitle, "default text-sm")
+    expectEq(ButtonSize.lg.fontSize, TypeSize.rowTitle, "lg text-sm")
+    expectEq(ButtonSize.default.radius, Radius.md, "rounded-md")
 }
 
-@MainActor func testButtonColorTokens() {
-    // Default variant
-    expectEq(ButtonColors.default.background, Semantic.primary, "default background is primary")
-    expectEq(ButtonColors.default.foreground, Semantic.primaryForeground, "default foreground is primaryForeground")
-
-    // Destructive variant
-    expectEq(ButtonColors.destructive.background, Semantic.destructive, "destructive background is destructive")
-    expectEq(ButtonColors.destructive.foreground, Semantic.destructiveForeground, "destructive foreground is destructiveForeground")
-    expectEq(ButtonColors.destructive.backgroundHover, Semantic.dangerHover, "destructive hover is dangerHover")
-
-    // Outline variant
-    expectEq(ButtonColors.outline.background, Color.clear, "outline background is clear")
-    expectEq(ButtonColors.outline.foreground, Semantic.foreground, "outline foreground is foreground")
-    expectEq(ButtonColors.outline.backgroundHover, Semantic.hover, "outline hover is hover")
-
-    // Secondary variant
-    expectEq(ButtonColors.secondary.background, Semantic.surfaceSecondary, "secondary background is surfaceSecondary")
-    expectEq(ButtonColors.secondary.foreground, Semantic.foreground, "secondary foreground is foreground")
-
-    // Ghost variant
-    expectEq(ButtonColors.ghost.background, Color.clear, "ghost background is clear")
-    expectEq(ButtonColors.ghost.foreground, Semantic.foreground, "ghost foreground is foreground")
-    expectEq(ButtonColors.ghost.backgroundHover, Semantic.hover, "ghost hover is hover")
-
-    // Link variant
-    expectEq(ButtonColors.link.background, Color.clear, "link background is clear")
-    expectEq(ButtonColors.link.foreground, Semantic.primary, "link foreground is primary")
-    expectEq(ButtonColors.link.backgroundHover, Color.clear, "link hover background is clear")
+/// Semantic roles build a fresh dynamic Color on every read, so equality is
+/// by what they resolve to in each appearance.
+@MainActor func expectSame(_ got: Color?, _ want: Color, _ label: String) {
+    guard let got else { expect(false, label); return }
+    for name in [NSAppearance.Name.aqua, .darkAqua] {
+        var a: [CGFloat] = [], b: [CGFloat] = []
+        NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
+            a = rgba(got); b = rgba(want)
+        }
+        expectEq(a, b, "\(label) (\(name.rawValue))")
+    }
 }
 
-@MainActor func testGapTokens() {
-    // Gap values
-    expectEq(Gap.xs, Space.x1, "xs gap is x1")
-    expectEq(Gap.sm, Space.x2, "sm gap is x2")
-    expectEq(Gap.default, Space.x2, "default gap is x2")
+private func rgba(_ c: Color) -> [CGFloat] {
+    let n = NSColor(c).usingColorSpace(.sRGB) ?? .clear
+    return [n.redComponent, n.greenComponent, n.blueComponent, n.alphaComponent]
+}
+
+/// The opposite check: a hover or ring role that resolves to its rest value
+/// in either appearance would be invisible.
+@MainActor func expectDifferent(_ a: Color, _ b: Color, _ label: String) {
+    for name in [NSAppearance.Name.aqua, .darkAqua] {
+        var x: [CGFloat] = [], y: [CGFloat] = []
+        NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
+            x = rgba(a); y = rgba(b)
+        }
+        expect(x != y, "\(label) (\(name.rawValue))")
+    }
+}
+
+@MainActor func testButtonVariantTokens() {
+    expectSame(ButtonVariant.default.background(hovering: false), Semantic.primary, "default: bg-primary")
+    expectSame(ButtonVariant.default.background(hovering: true), Semantic.primaryHover, "default: hover primary/90")
+    expectSame(ButtonVariant.default.foreground, Semantic.primaryForeground, "default: text-primary-foreground")
+
+    expectSame(ButtonVariant.secondary.background(hovering: false), Semantic.muted, "secondary: bg-secondary")
+    expectSame(ButtonVariant.secondary.background(hovering: true), Semantic.secondaryHover, "secondary: hover /80")
+
+    expectSame(ButtonVariant.destructive.background(hovering: false), Semantic.destructive, "destructive: bg")
+    expectSame(ButtonVariant.destructive.background(hovering: true), Semantic.dangerHover, "destructive: hover")
+    expectSame(ButtonVariant.destructive.foreground, Semantic.destructiveForeground, "destructive: text")
+
+    expectSame(ButtonVariant.outline.background(hovering: false), Semantic.surface, "outline: bg-background")
+    expectSame(ButtonVariant.outline.background(hovering: true), Semantic.hover, "outline: hover accent")
+    expectSame(ButtonVariant.outline.border, Semantic.borderStrong, "outline: border")
+
+    expectSame(ButtonVariant.ghost.background(hovering: false), Color.clear, "ghost: no rest fill")
+    expectSame(ButtonVariant.ghost.background(hovering: true), Semantic.hover, "ghost: hover accent")
+
+    expectSame(ButtonVariant.link.background(hovering: true), Color.clear, "link: never fills")
+    expectSame(ButtonVariant.link.foreground, Semantic.primary, "link: text-primary")
+    expect(ButtonVariant.link.underlinesOnHover, "link underlines on hover")
+
+    for variant in ButtonVariant.allCases where variant != .outline {
+        expect(variant.border == nil, "only outline draws a border: \(variant)")
+        if variant != .link {
+            expect(!variant.underlinesOnHover, "only link underlines: \(variant)")
+        }
+    }
+}
+
+/// Disabled wins over everything; pressing shrinks like every pressable in
+/// the app, and reduce-motion turns the shrink off.
+@MainActor func testButtonStateResolution() {
+    let rest = ButtonLook.resolve(enabled: true, hovering: false, pressed: false, focused: false, reduceMotion: false)
+    expectEq(rest.opacity, 1, "rest: opaque")
+    expectEq(rest.scale, 1, "rest: no scale")
+    expectEq(rest.ring, 0, "rest: no ring")
+
+    let off = ButtonLook.resolve(enabled: false, hovering: true, pressed: true, focused: true, reduceMotion: false)
+    expectEq(off.opacity, StateAlpha.disabled, "disabled: opacity-50")
+    expectEq(off.scale, 1, "disabled: does not respond")
+    expectEq(off.ring, 0, "disabled: no ring")
+    expect(!off.hovering, "disabled: hover ignored")
+
+    let pressed = ButtonLook.resolve(enabled: true, hovering: true, pressed: true, focused: false, reduceMotion: false)
+    expectEq(pressed.scale, PressMotion.pressedScale, "pressed: shrinks")
+    let still = ButtonLook.resolve(enabled: true, hovering: true, pressed: true, focused: false, reduceMotion: true)
+    expectEq(still.scale, 1, "reduce motion: no shrink")
+
+    let focus = ButtonLook.resolve(enabled: true, hovering: false, pressed: false, focused: true, reduceMotion: false)
+    expectEq(focus.ring, Stroke.ring, "focus: 3 pt ring")
+}
+
+/// The app's kinds and Settings' pill roles map onto shadcn variants.
+@MainActor func testButtonVariantMappings() {
+    expectEq(ButtonVariant(pill: .neutral), .secondary, "neutral pill is secondary")
+    expectEq(ButtonVariant(pill: .primary), .default, "primary pill is default")
+    expectEq(ButtonVariant(pill: .destructive), .destructive, "destructive pill is destructive")
+    expectEq(ButtonVariant(kind: .primary), .default, "primary kind")
+    expectEq(ButtonVariant(kind: .neutral), .default, "neutral kind")
+    expectEq(ButtonVariant(kind: .secondary), .secondary, "secondary kind")
+    expectEq(ButtonVariant(kind: .ghost), .ghost, "ghost kind")
+    expectEq(ButtonVariant(kind: .destructive), .destructive, "destructive kind")
+}
+
+/// The values behind the roles, not just the wiring: shadcn's ring is 3 pt
+/// and its hover states are a step away from the rest fill.
+@Test @MainActor func shadcnRoleValues() {
+    expectEq(Stroke.ring, 3, "focus-visible:ring-[3px]")
+    expectDifferent(Semantic.primaryHover, Semantic.primary, "primary/90 differs from primary")
+    expectDifferent(Semantic.secondaryHover, Semantic.muted, "secondary/80 differs from secondary")
+    expectDifferent(Semantic.focusRing, Semantic.accent, "ring/50 is translucent")
 }

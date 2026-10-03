@@ -79,20 +79,12 @@ struct TaskDetailSheet: View {
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
             Spacer()
-            // The sheet's one primary action, in the window's face: the
-            // capsule chip speaks Geist and belongs to the island and welcome.
+            // The sheet's one primary action.
             Button(action: onFollowUp) {
                 Label(Localized.string("task.followUp"), systemImage: "arrowshape.turn.up.left")
-                    .font(.uiLabel.weight(.semibold))
-                    .foregroundStyle(Semantic.primaryForeground)
-                    .padding(.horizontal, Space.x4)
-                    .padding(.vertical, Space.x2)
-                    .background(Capsule().fill(Semantic.primary))
-                    .contentShape(Capsule())
             }
-            .buttonStyle(PressableStyle())
+            .buttonStyle(.shadcn(.default, size: .sm))
             .disabled(!canFollowUp)
-            .opacity(canFollowUp ? 1 : 0.4)
         }
     }
 
