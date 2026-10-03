@@ -44,7 +44,8 @@ private final class KeyDroppingMouth: TTSFetching, @unchecked Sendable {
     let secrets: ScriptedSecrets
     init(secrets: ScriptedSecrets) { self.secrets = secrets }
     func fetch(_ text: String, voice: VoiceID) async throws -> Data {
-        secrets.values.removeValue(forKey: .elevenLabs)
+        // One locked call, not a read-then-write through `values`.
+        try secrets.delete(.elevenLabs)
         return Data("eleven:\(text)".utf8)
     }
     func cacheVariant(voice: VoiceID) -> String { "eleven" }
