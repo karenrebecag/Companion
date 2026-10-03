@@ -27,11 +27,15 @@ private func doneMessage(_ json: String) -> String? {
                  "busy", "not_connected", "bad_frame", "unknown_method", "bad_token",
                  "selector_no_match", "selector_hidden",
                  // Act-time permission refusals reach the model through this path too.
-                 "screen_recording_required", "screen_locked", "foreground_unavailable"]
+                 "screen_recording_required", "screen_locked", "foreground_unavailable",
+                 "permission_required"]
     for code in codes {
         let body = errorBody(#"{"id":1,"error":{"code":"\#(code)","message":"m"}}"#)
         expectEq(body?.code, code, "allowlist: \(code) passes through")
     }
+    // By the constant, so a rename on either side fails here.
+    let permission = errorBody(#"{"id":1,"error":{"code":"\#(BridgeCode.permissionRequired)","message":"m"}}"#)
+    expectEq(permission?.code, BridgeCode.permissionRequired, "allowlist: the permission code by its constant")
 }
 
 @Test func anUnknownOrInjectedErrorCodeBecomesBrowserError() {

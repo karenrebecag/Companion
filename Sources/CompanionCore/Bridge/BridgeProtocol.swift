@@ -204,6 +204,9 @@ package enum BridgeCode {
     package static let screenLocked = "screen_locked"
     /// The window was raised but another app had the front right after.
     package static let foregroundUnavailable = "foreground_unavailable"
+    /// Any privacy permission other than Accessibility or Screen Recording,
+    /// Automation first: Incredible's one code, with the exact pane in words.
+    package static let permissionRequired = "permission_required"
     // Framing errors
     package static let unknownMethod = "unknown_method"
     package static let badFrame = "bad_frame"
