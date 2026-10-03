@@ -26,8 +26,6 @@ package struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
     /// remembered `ls *` authorise `ls; curl … | sh` (security review
     /// 2026-09-05). A command with any shell metacharacter has no key — it
     /// is neither remembered nor answered from memory.
-    private static let shellMetacharacters = CharacterSet(charactersIn: ";&|`$()<>\n\r{}")
-
     package static func from(_ request: ApprovalRequest) -> ApprovalKey? {
         // A remote MCP server names its own tools: a key by name would let
         // its `run_shell` inherit, or plant, a rule the user set for the
@@ -37,10 +35,14 @@ package struct ApprovalKey: Hashable, Sendable, CustomStringConvertible {
         switch request.toolName {
         case NativeTool.runShell.rawValue:
             guard let command = arguments["command"] as? String,
-                  command.unicodeScalars.allSatisfy({ !shellMetacharacters.contains($0) })
+                  command.unicodeScalars.allSatisfy({ !CommandClassifier.shellMetacharacters.contains($0) })
             else { return nil }
             let words = command.split(whereSeparator: { $0.isWhitespace }).map(String.init)
             guard let first = words.first else { return nil }
+            // `file -C` writes a magic file. A remembered `file *` must not cover it.
+            if first == "file", words.dropFirst().contains(where: { $0.hasPrefix("-") }) {
+                return nil
+            }
             if subcommandTools.contains(first), words.count > 1,
                words[1].range(of: "^[a-z][a-z0-9-]*$", options: .regularExpression) != nil {
                 return ApprovalKey(tool: request.toolName, pattern: "\(first) \(words[1]) *")
