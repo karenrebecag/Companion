@@ -38,12 +38,11 @@ private let notch = NotchGeometry.notch(on: ScreenShape(
             expect(empty <= 0.04 + 1e-9, "motion: \(from)→\(to) deja el panel vacío \(empty) s")
         }
     }
-    expectEq(IslandMotion.contentStart(from: .pebble, to: .nudge, reduceMotion: false),
-             IslandMotion.secondPhase + IslandMotion.contentLead,
-             "abrir: el contenido entra con el panel, a +40 ms de la fase 2")
+    expect(IslandMotion.contentStart(from: .pebble, to: .nudge, reduceMotion: false) < IslandMotion.secondPhase,
+           "abrir: el contenido ya entra mientras la forma crece, recortado por ella")
     let closing = IslandMotion.steps(from: .card, to: .pebble, reduceMotion: false)
     expectEq(closing.first?.delay, 0, "cerrar: la forma se recoge a la vez que el contenido se va")
-    expect(IslandMotion.closeFade <= MotionSpring.islandClose.settle,
+    expect(IslandMotion.closeFade <= MotionCurve.settledAt(MotionCurve.standard, duration: IslandMotion.shapeClose.duration),
            "cerrar: el contenido se ha ido antes de que la forma llegue")
 }
 

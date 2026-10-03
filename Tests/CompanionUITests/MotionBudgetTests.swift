@@ -36,18 +36,19 @@ import Testing
 }
 
 @MainActor func testOpeningSettlesInFourHundredMilliseconds() {
-    let shape = IslandMotion.secondPhase + MotionSpring.islandPanel.settle
-    expect(shape <= 0.4, "M2: la forma se asienta en \(shape) s")
+    let open = IslandMotion.shapeOpen
+    let shape = IslandMotion.secondPhase + MotionCurve.settledAt(MotionCurve.island, duration: open.duration)
+    expect(shape <= 0.3, "M2: la forma queda a 2 % en \(shape) s")
     let content = IslandMotion.contentStart(from: .pebble, to: .nudge, reduceMotion: false)
         + IslandMotionBudget.contentIn.duration
     expect(content <= 0.4, "M2: el contenido termina de entrar en \(content) s")
 }
 
 @MainActor func testClosingIsFasterThanOpening() {
-    let close = MotionSpring.islandClose.settle
-    let open = IslandMotion.secondPhase + MotionSpring.islandPanel.settle
-    expect(close <= 0.25, "M2: cerrar en \(close) s")
-    expect(close <= open * 0.75, "M2: cerrar es más rápido que abrir")
+    let close = IslandMotion.shapeClose.duration
+    let open = IslandMotion.secondPhase + IslandMotion.shapeOpen.duration
+    expect(close <= 0.28, "Incredible: cerrar en 280 ms como máximo (\(close) s)")
+    expect(close < open, "cerrar es más rápido que abrir")
 }
 
 @MainActor func testAmplitudesStaySmall() {
@@ -96,6 +97,6 @@ import Testing
 
 /// Code review 16f-2 (LOW): settle left out the envelope's amplitude term.
 @MainActor func testSettleCountsTheEnvelope() {
-    expect(abs(MotionSpring.islandPanel.settle - 0.156) < 0.005,
-           "resorte: el panel se asienta en ~156 ms (\(MotionSpring.islandPanel.settle))")
+    let spring = MotionSpring(response: 0.18, damping: 0.82)
+    expect(abs(spring.settle - 0.156) < 0.005, "resorte: 0,18/0,82 se asienta en ~156 ms (\(spring.settle))")
 }

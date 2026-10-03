@@ -4,7 +4,7 @@ import SwiftUI
 // How the island moves (spec 16f §2.5, §9): the shape first, the content
 // after, and the notch that leans toward the pointer.
 extension IslandView {
-    /// Panel reveal under the shape: rises 4 pt with a blur that clears (§9).
+    /// Panel reveal under the shape: a fade, as Incredible's.
     var contentMove: IslandMoveModifier {
         let move = IslandMotionBudget.contentIn.resolved(reduceMotion: reduceMotion)
         return IslandMoveModifier(
@@ -52,7 +52,9 @@ extension IslandView {
     func move(from: IslandState.Size, to: IslandState.Size) {
         motion?.cancel()
         let notch = geometry.notch
-        let steps = IslandMotion.steps(from: from, to: to, reduceMotion: reduceMotion)
+        let goal = IslandChrome.shapeSize(for: to, contentHeight: contentHeight, notch: notch)
+        let beats = IslandMotion.timeline(
+            from: from, to: to, reduceMotion: reduceMotion, growing: IslandMotion.grows(from: shown, to: goal))
         let reopens = IslandMotion.rests(from) != IslandMotion.rests(to)
         if !IslandPopoverToggle.survives(size: to) {
             popover = nil
@@ -63,33 +65,32 @@ extension IslandView {
             geometry.answer = nil
         }
         if reopens || IslandMotion.rests(to) {
-            withAnimation(reduceMotion ? nil : .expoOut(IslandMotion.closeFade)) {
+            withAnimation(reduceMotion ? nil : IslandMotionBudget.contentOut.animation(reduceMotion: false)) {
                 contentVisible = false
             }
         }
-        let contentAt = IslandMotion.contentStart(from: from, to: to, reduceMotion: reduceMotion)
         motion = Task { @MainActor in
             var clock = 0.0
-            for step in steps {
-                if step.delay > clock {
-                    do { try await Task.sleep(for: .seconds(step.delay - clock)) } catch { return }
-                    clock = step.delay
+            for beat in beats {
+                if beat.at > clock {
+                    do { try await Task.sleep(for: .seconds(beat.at - clock)) } catch { return }
+                    clock = beat.at
                 }
-                let target = IslandChrome.shapeSize(for: to, contentHeight: contentHeight, notch: notch)
-                // Closing under a pointer that is still there lands on the peek.
-                let resting = step.stage == .notch && geometry.peeking
-                    ? IslandChrome.peekSize(notch: notch) : nil
-                withAnimation(step.curve.animation) {
-                    shown = resting ?? IslandChrome.size(of: step.stage, target: target, notch: notch, from: shown)
+                switch beat.event {
+                case .shape(let stage):
+                    let target = IslandChrome.shapeSize(for: to, contentHeight: contentHeight, notch: notch)
+                    // Closing under a pointer that is still there lands on the peek.
+                    let resting = stage == .notch && geometry.peeking ? IslandChrome.peekSize(notch: notch) : nil
+                    withAnimation(beat.curve?.animation) {
+                        shown = resting ?? IslandChrome.size(of: stage, target: target, notch: notch, from: shown)
+                    }
+                    self.stage = stage
+                case .content:
+                    guard !contentVisible else { continue }
+                    withAnimation(IslandMotionBudget.contentIn.animation(reduceMotion: reduceMotion)) {
+                        contentVisible = true
+                    }
                 }
-                stage = step.stage
-            }
-            guard !IslandMotion.rests(to), !contentVisible else { return }
-            if contentAt > clock {
-                do { try await Task.sleep(for: .seconds(contentAt - clock)) } catch { return }
-            }
-            withAnimation(IslandMotionBudget.contentIn.animation(reduceMotion: reduceMotion)) {
-                contentVisible = true
             }
         }
     }
