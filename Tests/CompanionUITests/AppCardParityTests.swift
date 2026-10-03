@@ -160,12 +160,12 @@ private let initialsRows: [InitialsRow] = [
     #expect(hex(Semantic.skeletonFill, .darkAqua) != surface, "dark blocks stand off the card")
 }
 
-/// Swatches are built with NSColor(calibratedRed:), so they read back to
-/// their own hex in generic RGB, not in sRGB.
+/// Swatches are built in sRGB (#220), so a palette hex reads back exactly
+/// only in sRGB.
 private func rgba(_ c: Color, _ name: NSAppearance.Name) -> [Int] {
     var out: [Int] = []
     NSAppearance(named: name)!.performAsCurrentDrawingAppearance {
-        let n = NSColor(c).usingColorSpace(.genericRGB) ?? .clear
+        let n = NSColor(c).usingColorSpace(.sRGB) ?? .clear
         out = [n.redComponent, n.greenComponent, n.blueComponent, n.alphaComponent].map { Int(($0 * 255).rounded()) }
     }
     return out
