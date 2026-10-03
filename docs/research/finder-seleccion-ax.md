@@ -1,6 +1,6 @@
 # Reference Brief: Seleccion de Finder, texto seleccionado y clics para el modo pasivo (b2b-2)
 
-Slug: finder-seleccion-ax | Nivel: standard | Fecha: 2026-10-03 | Estado: ESCALADO
+Slug: finder-seleccion-ax | Nivel: standard | Fecha: 2026-10-03 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-03 ESCALATE
 
@@ -177,10 +177,10 @@ Clics (D3):
 - ASSUMPTION: leer 5000 items seleccionados por AX tarda mas que el presupuesto de un evento pasivo. prueba: carpeta con 5000 archivos, Cmd+A, medir el tiempo de `AXSelectedRows` mas `AXURL` de los primeros 50 y de todos.
 - ASSUMPTION: Terminal, VS Code y Slack no exponen `kAXSelectedTextAttribute` pero si text markers o nada. prueba: seleccionar texto en cada una y leer ambos atributos con Accessibility Inspector, con y sin `AXManualAccessibility`.
 - ASSUMPTION: Incredible lee la seleccion y los clics solo con Accesibilidad (los nombres `AXSelected*Changed` del helper y la falta de cadenas de taps sugieren eso, pero los extractos son parciales). prueba: con Incredible instalado y sin tocar el .app, mirar en Ajustes > Privacidad si Incredible figura en Entrada y en Automatizacion > Finder despues de usarlo con archivos seleccionados.
-- [NEEDS CLARIFICATION: la captura corre todo el tiempo (stream continuo) o solo mientras se sostiene FN, que es donde Incredible pinta los chips de archivo, texto seleccionado y copiado?]
-- [NEEDS CLARIFICATION: si alguna vista de Finder o el escritorio no expone la seleccion por AX, se acepta el aviso de Automatizacion "controlar Finder" como respaldo?]
-- [NEEDS CLARIFICATION: el chip de archivo muestra la ruta completa como Incredible, o solo el nombre como el sensor de portapapeles de Companion?]
-- [NEEDS CLARIFICATION: Incredible tambien emite `typed`, `copied` y `dialog_opened`; b2b-2 se limita a los tres pedidos o los incluye?]
+- Firmado por Karen: solo mientras FN esta pulsada, como Incredible.
+- Firmado por Karen: sin respaldo de Automatizacion por ahora; se decide tras la prueba manual de la seccion 9.
+- Firmado por Karen: ruta completa, como Incredible.
+- Firmado por Karen: b2b-2 cubre clics, seleccion y rutas; copied y dialog_opened van despues (Incredible es el piso). Privacidad: se capturan rutas y texto seleccionado, nunca su contenido en logs.
 
 ## 10. Checklist de estandar
 
