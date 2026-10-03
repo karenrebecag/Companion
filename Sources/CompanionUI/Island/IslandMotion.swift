@@ -226,6 +226,13 @@ enum IslandMotionBudget {
     static let contentOut = Move(duration: 0.13, blur: 0, offset: 0, curve: MotionCurve.ease)
     /// Texts reveal: result cards, one after another.
     static let line = Move(duration: 0.45, blur: 3, offset: 12)
+    /// How long until a sheet that appears is fully seen: the content fade
+    /// and the card's own entrance can overlap, so the longer one is waited.
+    static func revealTime(reduceMotion: Bool) -> TimeInterval {
+        max(contentIn.resolved(reduceMotion: reduceMotion).duration,
+            reduceMotion ? card.reducedFade.duration : card.enter.duration)
+    }
+
     static let moves: [(String, Move)] = [
         ("contentIn", contentIn), ("line", line),
     ]

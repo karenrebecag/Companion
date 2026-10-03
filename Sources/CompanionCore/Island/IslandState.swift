@@ -291,20 +291,58 @@ package struct ApprovalClickGuard: Sendable, Equatable {
     /// Seconds the sheet ignores clicks after appearing.
     package static let dwell: TimeInterval = 0.6
     package let shownAt: TimeInterval
+    /// The request the rest was armed for: another request starts it over.
+    package let requestId: String
 
-    package init(shownAt: TimeInterval) {
+    package init(shownAt: TimeInterval, requestId: String) {
         self.shownAt = shownAt
+        self.requestId = requestId
+    }
+
+    /// The rest counts from when the sheet has finished appearing, not from
+    /// the request or the visibility flag: the island grows first, the content
+    /// fades in after, and the sheet reveals itself on top, so the buttons are
+    /// only fully seen `reveal` seconds later. Hiding the content drops the
+    /// guard; showing it again starts over. `reveal` is the longest of the
+    /// two animations because telling a flip from a fresh request would need
+    /// the insertion time of the sheet, which is the state this avoids.
+    package static func armed(_ current: ApprovalClickGuard?, requestId: String?,
+                              contentVisible: Bool, now: TimeInterval,
+                              reveal: TimeInterval) -> ApprovalClickGuard? {
+        guard let requestId, contentVisible else { return nil }
+        if let current, current.requestId == requestId { return current }
+        return ApprovalClickGuard(shownAt: now + reveal, requestId: requestId)
+    }
+
+    /// What triggers re-arming: one Equatable key, so the view has a single
+    /// observer to break instead of one per input.
+    package struct Key: Equatable, Sendable {
+        package let requestId: String?
+        package let contentVisible: Bool
+
+        package init(requestId: String?, contentVisible: Bool) {
+            self.requestId = requestId
+            self.contentVisible = contentVisible
+        }
+    }
+
+    /// What the sheet needs from the guard: hit testing and the answer come
+    /// from the same call, so the view cannot disagree with itself. The guard
+    /// must belong to the request being answered, and a guard never set means
+    /// not yet safe, never always safe.
+    package struct Gate: Equatable, Sendable {
+        package let takesClicks: Bool
+        package let accepts: Bool
+    }
+
+    package static func gate(_ guard: ApprovalClickGuard?, requestId: String,
+                             contentVisible: Bool, now: TimeInterval) -> Gate {
+        let matches = `guard`?.requestId == requestId
+        return Gate(takesClicks: contentVisible,
+                    accepts: contentVisible && matches && (`guard`?.accepts(at: now) ?? false))
     }
 
     package func accepts(at now: TimeInterval) -> Bool {
         now - shownAt >= Self.dwell
-    }
-
-    /// A guard never set means not yet safe, never always safe. Content that
-    /// is still fading in cannot be seen, so a click on it is never an
-    /// answer, whatever the dwell says (security review 2026-10-03).
-    package static func accepts(_ guard: ApprovalClickGuard?, at now: TimeInterval,
-                                contentVisible: Bool) -> Bool {
-        contentVisible && (`guard`?.accepts(at: now) ?? false)
     }
 }
