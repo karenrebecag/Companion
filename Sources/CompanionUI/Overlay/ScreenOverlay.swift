@@ -65,17 +65,17 @@ struct ScreenOverlayView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     // Observed, so turning it off in Settings mid-hold hides it at once.
     @AppStorage(ScreenGlowPreference.key) private var glowEnabled = true
-    @State private var opacity = 0.0
+    @State private var mode = ScreenGlow.Mode.off
     @State private var running = false
     @State private var stopTask: Task<Void, Never>?
+    @State private var rippleStart: Date?
+    @State private var rippleTask: Task<Void, Never>?
 
     var body: some View {
         let kind = session.projection.kind
-        let target = ScreenGlow.target(kind, enabled: glowEnabled, hands: handsHere)
+        let next = ScreenGlow.mode(kind, enabled: glowEnabled, hands: handsHere, previous: mode)
         ZStack {
-            // The shader draws at full strength; `listening` is the ceiling.
-            ScreenGlowMetalView(running: running, animated: !reduceMotion, onFailure: onFailure)
-                .opacity(opacity / ScreenGlow.listening)
+            glow
             // 16o-3: read when the hold starts; one display draws, not all.
             if PointerOrb.shows(kind: kind, reduceMotion: reduceMotion, screen: screenFrame,
                                 cursor: NSEvent.mouseLocation) {
@@ -85,7 +85,23 @@ struct ScreenOverlayView: View {
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
-        .onChange(of: target, initial: true) { _, new in show(new) }
+        .onChange(of: next, initial: true) { _, new in show(new) }
+    }
+
+    /// Incredible's container: the shader and the ring, turned with the glow, shrunk a hair
+    /// while waiting, and held a moment before fading when it goes off.
+    private var glow: some View {
+        let off = mode == .off
+        return ZStack {
+            ScreenGlowMetalView(running: running, mode: mode, animated: !reduceMotion, onFailure: onFailure)
+            if let rippleStart, !reduceMotion {
+                ScreenGlowRipple(start: rippleStart)
+            }
+        }
+        .scaleEffect(mode == .waiting ? ScreenGlow.waitingScale : 1)
+        .animation(ScreenGlow.scaleAnimation(off: off, reduceMotion: reduceMotion), value: mode == .waiting)
+        .opacity(off ? 0 : 1)
+        .animation(ScreenGlow.opacityAnimation(off: off, reduceMotion: reduceMotion), value: off)
     }
 
     /// Read when the projection changes (each call republishes the target),
@@ -101,16 +117,61 @@ struct ScreenOverlayView: View {
             screenFrame: screenFrame, screens: screens, target: target, cursor: NSEvent.mouseLocation)
     }
 
-    private func show(_ target: Double) {
+    private func show(_ next: ScreenGlow.Mode) {
+        let lighting = mode == .off && next != .off
+        mode = next
         stopTask?.cancel()
-        if target > 0 { running = true }
-        let fade = ScreenGlow.fade(from: opacity, to: target)
-        withAnimation(MotionCurve.animation(MotionCurve.standard, fade)) { opacity = target }
-        guard target == 0 else { return }
-        // The renderer stops once the fade is over: an idle Mac spends no GPU.
+        guard next == .off else {
+            running = true
+            if lighting { ripple() }
+            return
+        }
+        // The renderer stops once the light is gone: an idle Mac spends no GPU.
+        let linger = ScreenGlow.linger(reduceMotion: reduceMotion)
         stopTask = Task { @MainActor in
-            do { try await Task.sleep(for: .seconds(fade)) } catch { return }
+            do { try await Task.sleep(for: .seconds(linger)) } catch { return }
+            // A relight can cancel after the sleep ends but before this runs.
+            guard !Task.isCancelled else { return }
             running = false
         }
+    }
+
+    /// The ring plays once per lighting, then leaves the tree.
+    private func ripple() {
+        rippleTask?.cancel()
+        guard !reduceMotion else { return }
+        rippleStart = Date()
+        rippleTask = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(ScreenGlow.Ripple.duration)) } catch { return }
+            guard !Task.isCancelled else { return }
+            rippleStart = nil
+        }
+    }
+}
+
+/// Two blurred rings that grow from the notch while the glow lights.
+struct ScreenGlowRipple: View {
+    let start: Date
+
+    var body: some View {
+        TimelineView(.animation) { context in
+            let state = ScreenGlow.Ripple.state(at: context.date.timeIntervalSince(start))
+            GeometryReader { proxy in
+                let radius = ScreenGlow.Ripple.radius(in: proxy.size)
+                ZStack {
+                    ring(ScreenGlow.Ripple.outer, radius: radius)
+                    ring(ScreenGlow.Ripple.inner, radius: radius)
+                }
+            }
+            .blur(radius: ScreenGlow.Ripple.blur)
+            .scaleEffect(state.scale, anchor: .top)
+            .opacity(state.opacity)
+        }
+    }
+
+    private func ring(_ stops: [ScreenGlow.Ripple.Stop], radius: CGFloat) -> some View {
+        RadialGradient(
+            stops: stops.map { Gradient.Stop(color: $0.swatch.color.opacity($0.alpha), location: $0.at) },
+            center: .top, startRadius: 0, endRadius: radius)
     }
 }
