@@ -8,7 +8,9 @@ extension NSColor {
         var s = hex.trimmingCharacters(in: .whitespaces)
         if s.hasPrefix("#") { s = String(s.dropFirst()) }
         let v = UInt64(s, radix: 16) ?? 0
-        return NSColor(calibratedRed: CGFloat((v >> 16) & 0xFF) / 255,
+        // CSS hex is sRGB; calibratedRed (generic RGB) rendered every
+        // palette value lighter than its source.
+        return NSColor(srgbRed: CGFloat((v >> 16) & 0xFF) / 255,
                        green: CGFloat((v >> 8) & 0xFF) / 255,
                        blue: CGFloat(v & 0xFF) / 255,
                        alpha: 1)
