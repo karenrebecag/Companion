@@ -65,6 +65,13 @@ extension BridgeSession {
             }
             return .refused(errorLine(id, BridgeCode.unknownTool, "unknown tool: \(call.name)"))
         }
+        // Before the policy: a malformed call spends no budget and raises no sheet.
+        // Every runner offers a spec for each tool it handles; one without a spec is
+        // left unchecked, as before, rather than refused for a schema it never published.
+        if let spec = tools.specs(language()).first(where: { $0.name == call.name }),
+           let problem = BridgeArguments.violation(call.argumentsJSON, spec: spec) {
+            return .refused(errorLine(id, BridgeCode.invalidArgs, problem))
+        }
         let verdict = policy.admit(tool: call.name, now: now())
         onState(policy.state)
         switch verdict {

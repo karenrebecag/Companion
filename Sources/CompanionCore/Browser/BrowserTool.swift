@@ -25,7 +25,8 @@ package enum BrowserTool: String, CaseIterable, Sendable {
             name: rawValue,
             description: BrowserCopy.description(self, language) + " " + BrowserCopy.toolDataSuffix(language),
             properties: properties.map {
-                ToolProperty(name: $0.name, type: $0.type, description: BrowserCopy.parameter($0.name, language))
+                ToolProperty(name: $0.name, type: $0.type, description: BrowserCopy.parameter($0.name, language),
+                             minLength: $0.typed ? 1 : nil, maxBytes: $0.typed ? ToolProperty.maxTextBytes : nil)
             },
             required: properties.filter(\.required).map(\.name))
     }
@@ -34,6 +35,8 @@ package enum BrowserTool: String, CaseIterable, Sendable {
         let name: String
         let type: String
         let required: Bool
+        /// Text typed into the page: the same limit as type_text.
+        var typed = false
     }
 
     private var properties: [Parameter] {
@@ -43,7 +46,7 @@ package enum BrowserTool: String, CaseIterable, Sendable {
         case .tabs: return []
         case .read: return [tab, Parameter(name: "selector", type: "string", required: false)]
         case .click: return [tab, element]
-        case .type: return [tab, element, Parameter(name: "text", type: "string", required: true)]
+        case .type: return [tab, element, Parameter(name: "text", type: "string", required: true, typed: true)]
         case .navigate: return [tab, Parameter(name: "url", type: "string", required: true)]
         case .open: return [Parameter(name: "url", type: "string", required: true)]
         case .take, .release: return [tab]

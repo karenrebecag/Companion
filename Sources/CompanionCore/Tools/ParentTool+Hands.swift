@@ -16,7 +16,8 @@ extension ParentTool {
                     + "the app in front. Never presses Return: call press_key "
                     + "for that.",
                 properties: [ToolProperty(
-                    name: "text", type: "string", description: "the exact text to type")],
+                    name: "text", type: "string", description: "the exact text to type",
+                    minLength: 1, maxBytes: ToolProperty.maxTextBytes)],
                 required: ["text"])
         case (.typeText, .es):
             return ToolSpec(
@@ -25,7 +26,8 @@ extension ParentTool {
                     + "app que está delante. Nunca pulsa Return: para eso, "
                     + "press_key.",
                 properties: [ToolProperty(
-                    name: "text", type: "string", description: "el texto exacto a escribir")],
+                    name: "text", type: "string", description: "el texto exacto a escribir",
+                    minLength: 1, maxBytes: ToolProperty.maxTextBytes)],
                 required: ["text"])
         case (.pressKey, .en):
             return ToolSpec(

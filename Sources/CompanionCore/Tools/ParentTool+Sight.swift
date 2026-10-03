@@ -41,7 +41,8 @@ extension ParentTool {
                 properties: [
                     ToolProperty(
                         name: "direction", type: "string",
-                        description: "up | down | left | right | into_view"),
+                        description: "up | down | left | right | into_view",
+                        allowed: ["up", "down", "left", "right", "into_view"]),
                     ToolProperty(
                         name: "id", type: "integer",
                         description: en ? "optional: a control inside the list"

@@ -1,14 +1,28 @@
 import Foundation
 
 package struct ToolProperty: Sendable, Equatable {
+    /// Incredible's limit for typed text: 1-16000 UTF-8 bytes, no NUL.
+    package static let maxTextBytes = 16_000
+
     package var name: String
     package var type: String
     package var description: String
+    /// Audit M6: the bridge declares these in the hello and checks them where
+    /// the call lands; nil keeps a property exactly as it was on the wire.
+    package var allowed: [String]?
+    package var minLength: Int?
+    package var maxBytes: Int?
 
-    package init(name: String, type: String, description: String) {
+    package init(
+        name: String, type: String, description: String,
+        allowed: [String]? = nil, minLength: Int? = nil, maxBytes: Int? = nil
+    ) {
         self.name = name
         self.type = type
         self.description = description
+        self.allowed = allowed
+        self.minLength = minLength
+        self.maxBytes = maxBytes
     }
 }
 

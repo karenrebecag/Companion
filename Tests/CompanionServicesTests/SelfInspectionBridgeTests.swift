@@ -59,7 +59,7 @@ private func inspection() -> SelfInspectionRunner {
 /// as any other tool; a denial runs nothing.
 @Test @MainActor func firstCompanionCallOpensSessionSheetAndDenialRunsNothing() async {
     for name in companionNames {
-        let tools = FakeParentTools(handledNames: Set(companionNames), specNames: companionNames)
+        let tools = FakeParentTools(handledNames: Set(companionNames), specNames: [], specs: inspection().specs(.en))
         let approvals = ScriptedApprovals(answer: false)
         let bridge = session(tools, approvals: approvals)
         _ = await bridge.handle(line: helloLine(1))
@@ -73,7 +73,7 @@ private func inspection() -> SelfInspectionRunner {
 
 /// R2: the bridge has no words of the user, so the gate always sees "".
 @Test @MainActor func companionCallsReachTheGateWithEmptySaid() async {
-    let tools = FakeParentTools(handledNames: Set(companionNames), specNames: companionNames)
+    let tools = FakeParentTools(handledNames: Set(companionNames), specNames: [], specs: inspection().specs(.en))
     let bridge = session(tools, approvals: ScriptedApprovals(answer: true))
     _ = await bridge.handle(line: helloLine(1))
     for (offset, name) in companionNames.enumerated() {
