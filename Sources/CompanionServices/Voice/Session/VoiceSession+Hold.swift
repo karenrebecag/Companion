@@ -74,7 +74,11 @@ extension VoiceSession {
         let bounced = resumed || (timeline.pressed != nil && timeline.released == nil)
         if !bounced {
             heardThisHold = nil
-            classic.parentTools?.beginTurn()
+            // Only FN answers the voice; the dictation key types.
+            answeringSheet = !dictate && answerHoldArmed ? parkedParentApproval : nil
+            // An answer leaves the parked call's hands where they are: only
+            // a press that starts a turn re-pins them.
+            if answeringSheet == nil { classic.parentTools?.beginTurn() }
             flushTimeline()
             timeline = TurnTimeline()
             timeline.mark(.pressed, at: pressedAt)
@@ -178,6 +182,13 @@ extension VoiceSession {
         guard generation == holdGeneration else { return }
         timeline.mark(.released, at: now())
         guard await rideReleaseTail(generation) else { return }
+        if let sheet = answeringSheet {
+            answeringSheet = nil
+            if await answerParkedSheet(sheet) { return }
+            // The sheet closed under the hold: it is an ordinary turn after
+            // all, and gets the pin its press held back.
+            classic.parentTools?.beginTurn()
+        }
         await completeHold(hasSpeech: hasSpeech)
     }
 
@@ -207,6 +218,7 @@ extension VoiceSession {
             return
         }
         owedHoldWork = nil
+        answeringSheet = nil
         // Esc inside the release tail: the commit it was riding toward is
         // what this discard cancels.
         if releaseTailing {
