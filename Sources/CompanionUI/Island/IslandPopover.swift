@@ -133,14 +133,14 @@ struct IslandVolumeControl: View {
                 .foregroundStyle(IslandInk.secondary)
             // The voice follows the drag; the preference is written once, on
             // release: its setter rewrites every voice field (code review 16i-1).
-            Slider(value: $volume, in: IslandVolume.floor...1) { editing in
+            TrackSlider(
+                value: $volume, in: IslandVolume.floor...1, label: Localized.string("island.tip.volume")
+            ) { editing in
                 guard !editing else { return }
                 var settings = VoiceProfile.settings
                 settings.volume = IslandVolume.clamped(volume)
                 VoiceProfile.settings = settings
             }
-            .tint(IslandInk.text)
-            .accessibilityLabel(Localized.string("island.tip.volume"))
         }
         .padding(Space.x2)
         .onChange(of: volume) { _, value in onChange(IslandVolume.clamped(value)) }

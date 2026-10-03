@@ -21,6 +21,8 @@ package enum MotionTime {
     /// The touched-apps reel swaps its one item at Incredible's pace (local
     /// reference, brief isla-ciclo-y-legibilidad K8).
     package static let reelSwap = 0.65
+    /// A slider's knob growing under the pointer: Incredible's island volume.
+    package static let knob = 0.12
 }
 
 /// The one entry curve (spec 16f §9, M3): a strong ease-out that starts
