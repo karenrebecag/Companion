@@ -349,6 +349,18 @@
     return { done: 'scrolled' };
   }
 
+  // A page's focus handler can hand the focus to another field after we asked for it, and the text
+  // goes wherever the focus is, so the sensitivity check on `el` alone proves nothing. Returns null
+  // when the focus is on `el` (or, for a contenteditable, inside it), else the error to refuse with.
+  function focusLanded(el) {
+    const active = deepActive(el.ownerDocument);
+    if (active === el) return null;
+    // Before the descendant exemption: a password input inside a contenteditable is still a password input.
+    if (active && isSensitive(fieldOf(active))) return { error: { code: 'secure_field', message: 'focus moved to a sensitive field, typing refused' } };
+    if (active && isContentEditableEl(el) && typeof el.contains === 'function' && el.contains(active)) return null;
+    return stale('the focus moved to another element, read the page again');
+  }
+
   function typeIntoElement(el, text) {
     if (isSensitive(fieldOf(el))) return { error: { code: 'secure_field', message: 'sensitive field, typing refused' } };
     const doc = el.ownerDocument;
@@ -362,6 +374,8 @@
     el.focus();
     if (isText && typeof el.select === 'function') el.select();
     else doc.execCommand('selectAll', false);
+    const moved = focusLanded(el);
+    if (moved) return moved;
     const inserted = doc.execCommand('insertText', false, text);
     if (inserted && (!isText || el.value === text)) return { done: 'typed' };
     // Frameworks that ignore execCommand still listen for input/change on the native value.
@@ -823,9 +837,11 @@
     if ((!isText && !isContentEditableEl(el)) || (tag === 'input' && String(el.type || '').toLowerCase() === 'file')) {
       return { error: { code: 'not_typable', message: 'this element cannot take typed text' } };
     }
-    if (el.ownerDocument.activeElement !== el) el.focus();
+    if (deepActive(el.ownerDocument) !== el) el.focus();
     if (isText && typeof el.select === 'function') el.select();
     else el.ownerDocument.execCommand('selectAll', false);
+    const moved = focusLanded(el);
+    if (moved) return moved;
     // Keys cannot carry a line break; a textarea can still take them in one insert.
     return { ready: true, multiline: tag === 'textarea' };
   }
