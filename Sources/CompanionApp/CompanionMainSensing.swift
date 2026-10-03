@@ -204,7 +204,11 @@ func makeSensingAndModel(
             // No executable path means an unstable one: connecting then asks to move the app.
             executable: Bundle.main.executableURL ?? URL(fileURLWithPath: "/")),
         language: { env.configProvider.current.language })
-    let conversationTools = browserHost.conversationTools(parent: parentTools, apps: appTools)
+    // Conversation only, like the connected apps: the bridge never lends it.
+    let windowTools = WindowArrangeRunner(
+        arranging: AXWindowArranger(trust: { accessibility.isTrusted() }))
+    let conversationTools = browserHost.conversationTools(
+        parent: CompositeParentTools([parentTools, windowTools]), apps: appTools)
     let model = ChatViewModel(
         chat: providers.chat, secrets: env.secrets, store: providers.store, config: env.config,
         jobSubmitter: jobs.jobRunner,
