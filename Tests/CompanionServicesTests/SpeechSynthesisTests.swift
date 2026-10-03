@@ -532,23 +532,51 @@ func makeTTSTempDir(_ label: String) -> URL {
 
 enum TTSStubError: Error { case boom }
 
+// The synthesis actor calls these doubles off the test's thread while the
+// test reads them back, so every field goes through one lock (TSan caught
+// `calls` racing in testStopDropsPendingKeepsPrefix).
 final class FakeFetch: TTSFetching, @unchecked Sendable {
-    var calls: [(text: String, voice: VoiceID)] = []
-    var payload: [String: Data] = [:]
-    var error: Error?
+    private let lock = NSLock()
+    private var _calls: [(text: String, voice: VoiceID)] = []
+    private var _payload: [String: Data] = [:]
+    private var _error: Error?
+
+    var calls: [(text: String, voice: VoiceID)] { lock.withLock { _calls } }
+    var payload: [String: Data] {
+        get { lock.withLock { _payload } }
+        set { lock.withLock { _payload = newValue } }
+    }
+    var error: Error? {
+        get { lock.withLock { _error } }
+        set { lock.withLock { _error = newValue } }
+    }
+
     func fetch(_ text: String, voice: VoiceID) async throws -> Data {
-        calls.append((text, voice))
+        let (error, data) = lock.withLock {
+            _calls.append((text, voice))
+            return (_error, _payload[text])
+        }
         if let error { throw error }
-        return payload[text] ?? Data(text.utf8)
+        return data ?? Data(text.utf8)
     }
 }
 
 final class FakeFallback: SystemSpeechFallback, @unchecked Sendable {
-    var spoken: [String] = []
-    var error: Error?
+    private let lock = NSLock()
+    private var _spoken: [String] = []
+    private var _error: Error?
+
+    var spoken: [String] { lock.withLock { _spoken } }
+    var error: Error? {
+        get { lock.withLock { _error } }
+        set { lock.withLock { _error = newValue } }
+    }
+
     func speak(_ text: String) async throws {
-        if let error { throw error }
-        spoken.append(text)
+        try lock.withLock {
+            if let _error { throw _error }
+            _spoken.append(text)
+        }
     }
 }
 
