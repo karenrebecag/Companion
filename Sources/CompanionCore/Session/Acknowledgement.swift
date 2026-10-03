@@ -71,42 +71,94 @@ package enum SpokenYes {
     // yes and cannot tell irony. Upgrade trigger: the approval judge (16q-3)
     // reads the user's words and replaces this.
     package static func affirms(_ said: String) -> Bool {
+        guard let (accented, words) = SpokenAnswer.words(said) else { return false }
+        // "si" is also "if": unaccented, it only counts as the whole answer.
+        if accented.contains("si"), !words.allSatisfy({ $0 == "si" }) { return false }
+        return SpokenAnswer.matches(words, answers: yesWords, polite: politeWords, phrases: phrases)
+    }
+
+    private static let yesWords: Set<String> = [
+        "si", "sip", "dale", "adelante", "hazlo", "permitelo", "aprobado", "apruebalo", "claro", "vale",
+        "ok", "okay", "andale", "sale", "va", "orale", "perfecto",
+        "yes", "yeah", "yep", "sure", "approved", "alright",
+    ]
+    private static let politeWords: Set<String> = ["please"]
+    /// Longest first: "claro que si" is a unit, and "que" is allowed nowhere else.
+    private static let phrases: [SpokenAnswer.Phrase] = [
+        (["claro", "que", "si"], false), (["de", "acuerdo"], false), (["go", "ahead"], false),
+        (["do", "it"], false), (["allow", "it"], false), (["sounds", "good"], false),
+        (["por", "favor"], true),
+    ]
+}
+
+/// classic-spoken-yes-parent-sheet D3: the other answer. A spoken no settles
+/// a sheet without a click (refusing is the safe direction), so it is judged
+/// as narrowly as a yes: anything not foreseen, "no sé" or "¿no?", is no answer.
+// HACK: a word list, like `SpokenYes`. Upgrade trigger: the approval judge
+// (16q-3) reads the user's words and replaces both.
+package enum SpokenNo {
+    package static func refuses(_ said: String) -> Bool {
+        guard let (_, words) = SpokenAnswer.words(said) else { return false }
+        return SpokenAnswer.matches(words, answers: noWords, polite: politeWords, phrases: phrases)
+    }
+
+    private static let noWords: Set<String> = [
+        "no", "nop", "nel", "negativo", "cancela", "cancelalo", "niegalo",
+        "nope", "nah",
+    ]
+    private static let politeWords: Set<String> = ["gracias", "please", "thanks"]
+    /// "mejor" alone is not a no: only inside "mejor no".
+    private static let phrases: [SpokenAnswer.Phrase] = [
+        (["no", "lo", "hagas"], false), (["mejor", "no"], false),
+        (["por", "favor"], true), (["thank", "you"], true),
+    ]
+}
+
+/// The shape both answers share: a few words said, no question, every word
+/// on the answer's own closed list, and at least one real answer word.
+enum SpokenAnswer {
+    typealias Phrase = (words: [String], polite: Bool)
+
+    private static let maxWords = 4
+
+    /// The words as said (accents kept) and folded; nil when the utterance
+    /// cannot be an answer at all.
+    static func words(_ said: String) -> (accented: [String], folded: [String])? {
         let raw = said.split(whereSeparator: \.isWhitespace)
-        guard (1 ... maxWords).contains(raw.count) else { return false }
-        guard !said.contains(where: { $0.isNumber || "?¿".contains($0) }) else { return false }
+        guard (1 ... maxWords).contains(raw.count) else { return nil }
+        guard !said.contains(where: { $0.isNumber || "?¿".contains($0) }) else { return nil }
         var accented: [String] = []
         for word in raw {
             let letters = trimmedToLetters(String(word))
             if letters.isEmpty {
                 // A lone dash or ellipsis says nothing; a symbol or emoji might.
-                guard word.allSatisfy({ $0.isPunctuation }) else { return false }
+                guard word.allSatisfy({ $0.isPunctuation }) else { return nil }
                 continue
             }
             accented.append(letters)
         }
-        let words = accented.map { $0.folding(options: .diacriticInsensitive, locale: nil) }
-        // "si" is also "if": unaccented, it only counts as the whole answer.
-        if accented.contains("si"), !words.allSatisfy({ $0 == "si" }) { return false }
-        return matchesAllowlist(words)
+        return (accented, accented.map { $0.folding(options: .diacriticInsensitive, locale: nil) })
     }
 
-    private static func matchesAllowlist(_ words: [String]) -> Bool {
+    static func matches(
+        _ words: [String], answers: Set<String>, polite: Set<String>, phrases: [Phrase]
+    ) -> Bool {
         var index = 0
-        var sawYes = false
+        var sawAnswer = false
         while index < words.count {
             if let phrase = phrases.first(where: { words[index...].starts(with: $0.words) }) {
-                sawYes = sawYes || !phrase.polite
+                sawAnswer = sawAnswer || !phrase.polite
                 index += phrase.words.count
-            } else if yesWords.contains(words[index]) {
-                sawYes = true
+            } else if answers.contains(words[index]) {
+                sawAnswer = true
                 index += 1
-            } else if politeWords.contains(words[index]) {
+            } else if polite.contains(words[index]) {
                 index += 1
             } else {
                 return false
             }
         }
-        return sawYes
+        return sawAnswer
     }
 
     private static func trimmedToLetters(_ word: String) -> String {
@@ -115,20 +167,6 @@ package enum SpokenYes {
               let last = lowered.lastIndex(where: \.isLetter) else { return "" }
         return String(lowered[first ... last])
     }
-
-    private static let maxWords = 4
-    private static let yesWords: Set<String> = [
-        "si", "sip", "dale", "adelante", "hazlo", "permitelo", "aprobado", "apruebalo", "claro", "vale",
-        "ok", "okay", "andale", "sale", "va", "orale", "perfecto",
-        "yes", "yeah", "yep", "sure", "approved", "alright",
-    ]
-    private static let politeWords: Set<String> = ["please"]
-    /// Longest first: "claro que si" is a unit, and "que" is allowed nowhere else.
-    private static let phrases: [(words: [String], polite: Bool)] = [
-        (["claro", "que", "si"], false), (["de", "acuerdo"], false), (["go", "ahead"], false),
-        (["do", "it"], false), (["allow", "it"], false), (["sounds", "good"], false),
-        (["por", "favor"], true),
-    ]
 }
 
 /// Wave 16h-2 (criterion 2): a job's end is said in a gap, never over the
