@@ -52,8 +52,38 @@ final class ClassicRuntime: @unchecked Sendable {
         /// Bumped when a turn gives up waiting on a stuck predecessor: that
         /// predecessor's late `cutTurn` writes no longer belong to anyone.
         var turnGeneration = 0
+        /// The sheet a spoken "no" refused (classic-spoken-yes-parent-sheet
+        /// D3), set before the refusal reaches the sheet so the round it
+        /// wakes can tell the voice's no from a click's.
+        var refusedByVoice: String?
     }
     private let crossing = Mutex(Crossing())
+
+    /// One slot: request ids are unique, so a mark its round never took
+    /// can never match another sheet.
+    func noteRefusedByVoice(_ requestId: String) {
+        crossing.withLock { $0.refusedByVoice = requestId }
+    }
+
+    func forgetRefusedByVoice(_ requestId: String) {
+        crossing.withLock { state in
+            if state.refusedByVoice == requestId { state.refusedByVoice = nil }
+        }
+    }
+
+    /// Read without spending it: the round stops at the refused call, and
+    /// the turn spends the mark once the round is over.
+    func isRefusedByVoice(_ requestId: String) -> Bool {
+        crossing.withLock { $0.refusedByVoice == requestId }
+    }
+
+    func takeRefusedByVoice(among requestIds: [String]) -> Bool {
+        crossing.withLock { state in
+            guard let id = state.refusedByVoice, requestIds.contains(id) else { return false }
+            state.refusedByVoice = nil
+            return true
+        }
+    }
 
     /// Code review 2026-09-23 (medio): every place that abandons a hold
     /// instead of letting `senseVoice` consume the scan — a fresh press's
@@ -409,9 +439,12 @@ final class ClassicRuntime: @unchecked Sendable {
             if handoff == nil, let found = fromContent {
                 if let fragment = mouth.buffer.drain() { await say(fragment, &mouth) }
                 if !calls.isEmpty, let parentTools {
-                    history += await actAcknowledging(
+                    let acted = await actAcknowledging(
                         calls, said: mouth.saidPart(of: text), heard: heard, using: parentTools,
                         language: language, &mouth, apply: apply)
+                    history += acted.turns
+                    // A refused sheet ends the turn: nothing it proposed goes ahead.
+                    if acted.refusedByVoice { break }
                 }
                 if Task.isCancelled { return await cutTurn(transcript, generation: generation, cut: cut) }
                 // Tool results are perceived input too: a page `web_fetch`
@@ -426,9 +459,11 @@ final class ClassicRuntime: @unchecked Sendable {
             if let handoff {
                 if let fragment = mouth.buffer.drain() { await say(fragment, &mouth) }
                 if !calls.isEmpty, let parentTools {
-                    history += await actAcknowledging(
+                    let acted = await actAcknowledging(
                         calls, said: mouth.saidPart(of: text), heard: heard, using: parentTools,
                         language: language, &mouth, apply: apply)
+                    history += acted.turns
+                    if acted.refusedByVoice { break }
                 }
                 // A cut here still leaves the handoff undelivered: nothing
                 // was promised to the user yet, so no errand starts on their
@@ -446,9 +481,11 @@ final class ClassicRuntime: @unchecked Sendable {
             // What was said before acting is said whole, not glued to the
             // next round's first word.
             if let fragment = mouth.buffer.drain() { await say(fragment, &mouth) }
-            history += await actAcknowledging(
+            let acted = await actAcknowledging(
                 calls, said: mouth.saidPart(of: text), heard: heard, using: parentTools,
                 language: language, &mouth, apply: apply)
+            history += acted.turns
+            if acted.refusedByVoice { break }
             // Code review 2026-09-23 (bajo): the only checkpoint this loop
             // was missing — a press landing mid-`act()` (a non-handoff tool
             // round) used to fall through into the next round's

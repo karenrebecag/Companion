@@ -11,6 +11,14 @@ private enum ToolRace: Sendable {
     case quiet
 }
 
+/// What a round left for the turn loop.
+struct ActedTurns: Sendable {
+    let turns: [Turn]
+    /// The voice's "no" refused one of the round's sheets: the turn ends
+    /// there, without another model round (its line said unless cut).
+    let refusedByVoice: Bool
+}
+
 /// Wave 16h-2 (criterion 1): the turn's own line before work the user would
 /// otherwise wait on in silence. It lives in the runtime, not the reducer:
 /// the reducers decide chrome and capture, the runtime decides words — the
@@ -65,7 +73,7 @@ extension ClassicRuntime {
         _ calls: [ToolCallRef], said text: String, heard: String,
         using parentTools: any ParentToolExecuting, language: AppLanguage,
         _ mouth: inout TurnMouth, apply: @escaping @Sendable (TurnEvent) async -> Void
-    ) async -> [Turn] {
+    ) async -> ActedTurns {
         let line = Acknowledgement.isNeeded(saidSoFar: mouth.said)
             ? calls.first.map { Acknowledgement.working(tool: $0.name, language) } : nil
         let wait = slowToolWait
@@ -120,8 +128,18 @@ extension ClassicRuntime {
         if rested, !Task.isCancelled { await apply(.sheetResumed) }
         // Folded in here, after the racers ended: the round never writes the
         // turn's state while the acknowledgement reads it.
-        guard let round else { return [] }
+        guard let round else { return ActedTurns(turns: [], refusedByVoice: false) }
         Self.absorb(round, into: &mouth)
-        return round.turns
+        // Karen's plan answer 3: after a spoken no the turn ends on the fixed
+        // line alone; a click on Deny still hands the refusal to the model.
+        // Only a sheet that really ended refused: a click to Allow that beat
+        // the voice's no (the reducer dropped it) is the click's.
+        let refused = takeRefusedByVoice(among: round.deniedSheets)
+        // A mark whose sheet ended otherwise is spent with its round.
+        for id in round.shownSheets { forgetRefusedByVoice(id) }
+        if refused, !Task.isCancelled {
+            await sayOwn(Escalation.approvalRefusedSpoken(language), &mouth, apply: apply)
+        }
+        return ActedTurns(turns: round.turns, refusedByVoice: refused)
     }
 }
