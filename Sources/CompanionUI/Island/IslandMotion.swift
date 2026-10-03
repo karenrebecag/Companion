@@ -183,6 +183,13 @@ enum IslandMotionBudget {
     /// Panel reveal, small: the approval sheet.
     static let approval = Move(duration: 0.3, blur: 2, offset: 8)
 
+    /// How long until a sheet that appears is fully seen: the content fade
+    /// and the sheet's own reveal can overlap, so the longer one is waited.
+    static func revealTime(reduceMotion: Bool) -> TimeInterval {
+        max(contentIn.resolved(reduceMotion: reduceMotion).duration,
+            approval.resolved(reduceMotion: reduceMotion).duration)
+    }
+
     static let moves: [(String, Move)] = [
         ("contentIn", contentIn), ("line", line), ("approval", approval),
     ]

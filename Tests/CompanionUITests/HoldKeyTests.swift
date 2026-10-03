@@ -292,18 +292,72 @@ private func request(_ id: String) -> ApprovalRequest {
 /// 26d. Security review 2026-09-06 (medio): la hoja recién aparecida sobre
 /// otra app ignora el clic que ya iba en camino.
 @MainActor func testApprovalClickGuard() {
-    let guardOn = ApprovalClickGuard(shownAt: 10)
+    let guardOn = ApprovalClickGuard(shownAt: 10, requestId: "r1")
+    func accepts(_ g: ApprovalClickGuard?, _ id: String, at now: TimeInterval, visible: Bool) -> Bool {
+        ApprovalClickGuard.gate(g, requestId: id, contentVisible: visible, now: now).accepts
+    }
     expect(!guardOn.accepts(at: 10.2), "hoja: un clic a 200 ms no cuenta")
     expect(guardOn.accepts(at: 11), "hoja: pasado el reposo sí")
     // Hidden-clicks finding: the island grows with the content at opacity 0.
-    expect(!ApprovalClickGuard.accepts(guardOn, at: 11, contentVisible: false),
+    expect(!accepts(guardOn, "r1", at: 11, visible: false),
            "hoja: con el contenido invisible no acepta, aunque pase el reposo")
-    expect(ApprovalClickGuard.accepts(guardOn, at: 11, contentVisible: true),
-           "hoja: visible y pasado el reposo sí")
-    expect(!ApprovalClickGuard.accepts(guardOn, at: 10.2, contentVisible: true),
-           "hoja: visible pero dentro del reposo no")
-    expect(!ApprovalClickGuard.accepts(nil, at: 11, contentVisible: true),
-           "hoja: sin guarda no acepta aunque sea visible")
+    expect(accepts(guardOn, "r1", at: 11, visible: true), "hoja: visible y pasado el reposo sí")
+    expect(!accepts(guardOn, "r1", at: 10.2, visible: true), "hoja: visible pero dentro del reposo no")
+    expect(!accepts(nil, "r1", at: 11, visible: true), "hoja: sin guarda no acepta aunque sea visible")
+    expect(!accepts(guardOn, "r2", at: 11, visible: true), "hoja: la guarda de r1 no responde a r2")
+    expect(!ApprovalClickGuard.gate(guardOn, requestId: "r1", contentVisible: false, now: 11).takesClicks,
+           "cableado: invisible no toma clics")
+    expect(ApprovalClickGuard.gate(guardOn, requestId: "r1", contentVisible: true, now: 10.2).takesClicks,
+           "cableado: visible toma clics; el reposo los descarta en accepts, sin gastarse")
+    // Exact in binary: shownAt 0 makes `now - shownAt` exact.
+    let edge = ApprovalClickGuard(shownAt: 0, requestId: "r1")
+    expect(edge.accepts(at: ApprovalClickGuard.dwell), "reposo: en el dwell exacto acepta")
+    expect(!edge.accepts(at: ApprovalClickGuard.dwell - 0.0001), "reposo: un instante antes no")
+    testApprovalDwellCountsFromVisible()
+}
+
+/// Dwell-visible findings (security on #170): the rest counts from when the
+/// sheet has finished appearing, not from the request or the flag.
+@MainActor func testApprovalDwellCountsFromVisible() {
+    let reveal = 0.3
+    func armed(_ g: ApprovalClickGuard?, _ id: String?, _ visible: Bool, _ now: TimeInterval,
+               reveal: TimeInterval = 0.3) -> ApprovalClickGuard? {
+        ApprovalClickGuard.armed(g, requestId: id, contentVisible: visible, now: now, reveal: reveal)
+    }
+    func accepts(_ g: ApprovalClickGuard?, _ id: String, at now: TimeInterval) -> Bool {
+        ApprovalClickGuard.gate(g, requestId: id, contentVisible: true, now: now).accepts
+    }
+    let hidden = armed(nil, "r1", false, 0)
+    expect(hidden == nil, "reposo: peticion nueva con contenido invisible no arma")
+    expect(!ApprovalClickGuard.gate(hidden, requestId: "r1", contentVisible: false, now: 0.7).accepts,
+           "reposo: un clic a 0,7 s con la hoja aun invisible no acepta")
+
+    // Request arrives with the content already visible at t.
+    let t = 8.0
+    let fresh = armed(nil, "r1", true, t)
+    expect(!accepts(fresh, "r1", at: t + reveal + 0.59), "reposo: t+0,3+0,59 no acepta")
+    expect(accepts(fresh, "r1", at: t + reveal + 0.6 + 0.001), "reposo: t+0,3+0,6 acepta")
+    // Same after the visibility flip.
+    let flipped = armed(hidden, "r1", true, t)
+    expect(!accepts(flipped, "r1", at: t + reveal + 0.59), "reposo: tras el flip, t+0,3+0,59 no acepta")
+    expect(accepts(flipped, "r1", at: t + reveal + 0.6 + 0.001), "reposo: tras el flip, t+0,3+0,6 acepta")
+    // No reveal (reduce motion): as before.
+    expectEq(armed(nil, "r1", true, t, reveal: 0), ApprovalClickGuard(shownAt: t, requestId: "r1"),
+             "reposo: sin revelacion arma desde ahora")
+
+    expectEq(armed(fresh, "r1", true, t + 0.4), fresh, "reposo: mismo estado estable no reinicia el reloj")
+    expect(armed(fresh, "r1", false, t + 0.4) == nil, "reposo: ocultar suelta la guarda")
+    expectEq(armed(armed(fresh, "r1", false, t + 0.4), "r1", true, t + 2),
+             ApprovalClickGuard(shownAt: t + 2 + reveal, requestId: "r1"), "reposo: reaparecer reinicia")
+    expectEq(armed(fresh, "r2", true, t + 1), ApprovalClickGuard(shownAt: t + 1 + reveal, requestId: "r2"),
+             "reposo: otra peticion ya visible arma de nuevo")
+    expect(armed(fresh, nil, true, t + 1) == nil, "reposo: sin peticion no hay guarda")
+
+    for reduce in [false, true] {
+        let moves = [IslandMotionBudget.contentIn, IslandMotionBudget.approval].map { $0.resolved(reduceMotion: reduce).duration }
+        expectEq(IslandMotionBudget.revealTime(reduceMotion: reduce), moves.max() ?? 0,
+                 "reposo: la revelacion es la mayor de las dos (reduce=\(reduce))")
+    }
 }
 
 /// 28 (12c). La island lleva el parcial en Listening y en Pending, y en
