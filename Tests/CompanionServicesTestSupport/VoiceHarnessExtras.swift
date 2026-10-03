@@ -79,7 +79,7 @@ package final class TestConfigProvider: ConfigProviding, @unchecked Sendable {
         echoFreeProbe: { false },
         micSilenceTimeout: 10,
         now: { clock.now },
-        readyTimeout: 1)
+        readyTimeout: harnessReadyTimeout)
     let watch = SnapWatch(session.snapshots)
     return VoiceHarness(
         session: session, transport: transport, mic: mic, player: player,
