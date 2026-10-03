@@ -372,6 +372,7 @@ package enum ParentToolCopy: Sendable {
         if let browser = BrowserTool(rawValue: name) {
             return BrowserCopy.status(browser, outcome, language)
         }
+        if name == WindowArrangeTool.name { return WindowArrangeTool.status(outcome, language) }
         guard outcome.ok else { return failed(outcome, language) }
         if let hands = ParentTool(rawValue: name), hands.isHands {
             return handsStatus(hands, outcome, language)

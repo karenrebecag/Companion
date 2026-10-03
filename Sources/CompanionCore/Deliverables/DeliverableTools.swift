@@ -90,9 +90,10 @@ package enum BridgeScope {
     /// Offered to the user by the parent, never lent over the bridge. The
     /// approval memory is process-wide, so a "remember" given in the chat
     /// would wave an agent's workbook writes through; and sheet_read, being
-    /// safe, would give it every open workbook without a sheet.
+    /// safe, would give it every open workbook without a sheet. Arranging
+    /// windows moves the user's whole desk, so it stays with the user too.
     package static func isLocalOnly(_ name: String) -> Bool {
-        NativeTool.parentDeliverables.contains { $0.rawValue == name }
+        NativeTool.parentDeliverables.contains { $0.rawValue == name } || name == WindowArrangeTool.name
     }
 
     package static func allows(_ name: String) -> Bool { bridgeTools.contains(name) }
@@ -111,5 +112,6 @@ extension ParentTool {
             || BrowserTool(rawValue: toolName) != nil
             || toolName.hasPrefix(ApprovalCopy.appToolPrefix)
             || NativeTool.parentDeliverables.contains { $0.rawValue == toolName }
+            || toolName == WindowArrangeTool.name
     }
 }

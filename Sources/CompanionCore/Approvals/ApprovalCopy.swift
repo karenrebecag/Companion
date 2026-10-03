@@ -47,6 +47,7 @@ package enum ApprovalCopy {
         if let display = parentTool(request.toolName, arguments, language) { return display }
         if let display = nativeTool(request.toolName, arguments, language) { return display }
         if request.toolName.hasPrefix(appToolPrefix) { return appTool(request, language) }
+        if request.toolName == WindowArrangeTool.name { return windowArrange(request, language) }
         return fallback(request.toolName, arguments, language)
     }
 
@@ -66,6 +67,15 @@ package enum ApprovalCopy {
             subject: capped(request.summary.isEmpty ? request.toolName : request.summary),
             preview: request.inputJSON == "{}" ? nil : plainPreview(request.inputJSON),
             showsRemember: false)
+    }
+
+    /// No remember toggle: `ApprovalKey` has no rule for window moves, so a
+    /// ticked box would promise a memory that never happens.
+    private static func windowArrange(_ request: ApprovalRequest, _ language: AppLanguage) -> ApprovalDisplay {
+        ApprovalDisplay(
+            mark: .symbol("rectangle.split.2x1"), lead: word(.allow, language),
+            subject: capped(request.summary.isEmpty ? request.toolName : request.summary),
+            preview: nil, showsRemember: false)
     }
 
     /// A remote server's tool: its name and arguments are the server's and
