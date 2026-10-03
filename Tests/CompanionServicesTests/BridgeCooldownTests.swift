@@ -73,6 +73,7 @@ private let t0 = Date(timeIntervalSince1970: 2_000_000)
     next.send(hello(100))
     let reply = next.readLine() ?? "<silence>"
     expect(reply.contains(BridgeCode.coolingDown), "M2b: el siguiente hello se enfria: \(reply)")
+    expect(reply.contains("Wait 10 min before asking again"), "M1: nombra la espera: \(reply)")
     await nextServe.value
     expect(!next.connection.isOpen, "M2b: y el servidor cierra la conexion")
     expectEq(approvals.requests.count, BridgePolicy.maxDenials, "M2b: el intento N+1 no abre hoja")

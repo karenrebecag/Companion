@@ -69,7 +69,7 @@ extension BridgeSession {
         onState(policy.state)
         switch verdict {
         case .reject(let code):
-            return .refused(errorLine(id, code, rejectionMessage(code)))
+            return .refused(errorLine(id, code, rejectionMessage(code, tool: call.name)))
         case .proceed:
             return await performCall(id: id, call: call, mine: mine)
         case .needsApproval:
@@ -115,7 +115,7 @@ extension BridgeSession {
             if policy.isCoolingDown(now: now()) {
                 Log.bridge("cooling down after repeated denials")
                 return .refused(
-                    errorLine(id, BridgeCode.coolingDown, rejectionMessage(BridgeCode.coolingDown)), close: true)
+                    errorLine(id, BridgeCode.coolingDown, rejectionMessage(BridgeCode.coolingDown, tool: nil)), close: true)
             }
             return .refused(errorLine(id, BridgeCode.deniedByUser, "the user denied the hands"))
         }
@@ -142,7 +142,7 @@ extension BridgeSession {
         onState(policy.state)
         switch verdict {
         case .reject(let code):
-            return .refused(errorLine(id, code, rejectionMessage(code)))
+            return .refused(errorLine(id, code, rejectionMessage(code, tool: call.name)))
         case .needsApproval:
             return .refused(errorLine(id, BridgeCode.busy, "unexpected state"))
         case .proceed:
@@ -195,7 +195,8 @@ extension BridgeSession {
         policy.stop()
         onState(policy.state)
         return .refused(
-            errorLine(id, BridgeCode.coolingDown, rejectionMessage(BridgeCode.coolingDown)), close: true)
+            errorLine(id, BridgeCode.coolingDown,
+                      BridgeMessages.sheetLimit(waitSeconds: parked.secondsUntilRoom())), close: true)
     }
 
     /// Only the user refusing counts: "Corte" (withdrawn by us) and a sheet
@@ -254,24 +255,32 @@ extension BridgeSession {
         case BridgeCode.selfInFront:
             return "Companion is in front; bring the app to act on to the front"
         case BridgeCode.needsAccessibility:
-            return "Accessibility is not granted to Companion"
+            return BridgeMessages.needsAccessibility
         default: return "\(tool) is not available right now"
         }
     }
 
-    func rejectionMessage(_ code: String) -> String {
+    /// `tool` sizes the wait for `rate_limited` (nil on hello, which is never
+    /// rate limited); the session state tells an open sheet apart from another
+    /// agent, which share the code `busy`.
+    func rejectionMessage(_ code: String, tool: String?) -> String {
         switch code {
-        case BridgeCode.busy: return "another session is active"
+        case BridgeCode.busy:
+            return policy.state == .awaitingApproval ? BridgeMessages.sheetOpen : BridgeMessages.anotherAgent
+        case BridgeCode.paused: return BridgeMessages.paused
         case BridgeCode.rateLimited:
-            return "budget exceeded (\(BridgePolicy.budgetPerMinute) actions, "
-                + "\(BridgePolicy.readBudgetPerMinute) reads per minute)"
+            let wait = tool.map { policy.secondsUntilRoom(tool: $0, now: now()) }
+                ?? BridgePolicy.readTools.union(BridgePolicy.writeTools)
+                    .map { policy.secondsUntilRoom(tool: $0, now: now()) }.max() ?? 0
+            return BridgeMessages.rateLimited(waitSeconds: wait)
         case BridgeCode.noSession: return "no active session; send hello first"
         // The state is reachable again by hello (BridgePolicy.helloReceived), so say so: the agent
         // cannot see the denied or expired sheet that closed it.
         case BridgeCode.sessionClosed:
             return "session is closed: the user denied it, the approval sheet expired, or the hands were "
                 + "stopped. Send hello again, then retry the call: it opens a new approval sheet on the Mac"
-        case BridgeCode.coolingDown: return "too many denied requests; try again later"
+        case BridgeCode.coolingDown:
+            return BridgeMessages.coolingDown(waitSeconds: policy.cooldownRemaining(now: now()))
         default: return code
         }
     }

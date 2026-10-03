@@ -113,6 +113,7 @@ private let enter = ToolCallRef(id: "c2", name: "press_key", arguments: #"{"key"
     runner.beginTurn()
     let out = await runner.execute(name: "type_text", argumentsJSON: typing("hola").arguments)
     expect(out.output.hasPrefix("target_changed:"), "otra app que la del turno: rechazado")
+    expect(out.output.contains("front, then retry"), "M1: dice que hacer: \(out.output)")
     expect(hands.injected.isEmpty, "otra app: nada escrito")
 }
 

@@ -168,6 +168,9 @@ package enum BridgeCode {
     package static let noSession = "no_session"
     package static let sessionClosed = "session_closed"
     package static let busy = "busy"
+    /// The user is in a voice turn: the hands come back on their own when it
+    /// ends, unlike `busy`, which means someone else holds them.
+    package static let paused = "paused"
     package static let rateLimited = "rate_limited"
     /// Too many denied approvals in a row: the caller is refused without a
     /// sheet until the window passes (Wave 20c D5).

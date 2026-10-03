@@ -163,6 +163,9 @@ package struct BridgePolicy: Sendable, Equatable {
         case .listed:
             // Another hello while listing tools is fine; stay listed
             return .proceed
+        case .paused:
+            // A voice turn ends on its own; nobody else holds the hands.
+            return .reject(code: BridgeCode.paused)
         default:
             return .reject(code: BridgeCode.busy)
         }
@@ -200,7 +203,7 @@ package struct BridgePolicy: Sendable, Equatable {
         case .closed:
             return .reject(code: BridgeCode.sessionClosed)
         case .paused:
-            return .reject(code: BridgeCode.busy)
+            return .reject(code: BridgeCode.paused)
         case .open(let until):
             // Check expiration
             if let expiry = until, expiry < now {
@@ -216,6 +219,28 @@ package struct BridgePolicy: Sendable, Equatable {
             return Self.spend(&readTimestamps, limit: Self.readBudgetPerMinute, cutoff: cutoff, now: now)
         }
         return Self.spend(&writeTimestamps, limit: Self.budgetPerMinute, cutoff: cutoff, now: now)
+    }
+
+    /// Whole seconds until the budget `tool` draws from has room again; 0
+    /// when it has room now. What a rate-limited agent is told to wait.
+    package func secondsUntilRoom(tool: String, now: Date) -> Int {
+        let isRead = Self.readTools.contains(tool)
+        let stamps = isRead ? readTimestamps : writeTimestamps
+        let limit = isRead ? Self.readBudgetPerMinute : Self.budgetPerMinute
+        return Self.wait(stamps, limit: limit, window: Self.window, now: now)
+    }
+
+    /// Whole seconds until the cool-down lifts; 0 when there is none.
+    package func cooldownRemaining(now: Date) -> Int {
+        Self.wait(denialTimestamps, limit: Self.maxDenials, window: Self.denialWindow, now: now)
+    }
+
+    /// When the window over `stamps` next drops below `limit` entries.
+    package static func wait(_ stamps: [Date], limit: Int, window: TimeInterval, now: Date) -> Int {
+        let live = stamps.filter { $0 > now.addingTimeInterval(-window) }.sorted()
+        guard live.count >= limit else { return 0 }
+        let freedAt = live[live.count - limit].addingTimeInterval(window)
+        return max(0, Int(freedAt.timeIntervalSince(now).rounded(.up)))
     }
 
     /// One sliding window over absolute timestamps: prunes, then records
@@ -287,5 +312,10 @@ package struct BridgeSheetLimit: Sendable, Equatable {
         guard shown.count < BridgePolicy.maxSheetsPerWindow else { return false }
         shown.append(now)
         return true
+    }
+
+    /// Whole seconds until one more sheet may be shown; 0 when one may now.
+    package func secondsUntilRoom(now: Date) -> Int {
+        BridgePolicy.wait(shown, limit: BridgePolicy.maxSheetsPerWindow, window: BridgePolicy.sheetWindow, now: now)
     }
 }

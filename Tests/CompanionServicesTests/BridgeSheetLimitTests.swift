@@ -50,6 +50,9 @@ private func clickTools() -> FakeParentTools {
     pair.send(call(2))
     let reply = pair.readLine() ?? "<silence>"
     expect(reply.contains(BridgeCode.coolingDown), "F1: the next call is refused: \(reply)")
+    // The sheet window, not the denial count: no one denied anything here.
+    expect(reply.contains("approval requests") && reply.contains("Wait 10 min"),
+           "M1: names the sheet limit and its wait: \(reply)")
     pair.closeClient()
     await serving.value
     expectEq(approvals.requests.count, BridgePolicy.maxSheetsPerWindow, "F1: no sheet was raised past the limit")
