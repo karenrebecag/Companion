@@ -320,6 +320,10 @@
 "welcome.keys.cerebras" = "Respuestas en menos de un segundo.";
 "welcome.keys.elevenLabs" = "Una voz más natural.";
 "welcome.keys.local" = "Seguir sin clave, solo en tu Mac";
+"welcome.guide.microphone" = "Cuadro del micrófono con el botón Permitir resaltado";
+"welcome.guide.accessibility" = "Ajustes de Accesibilidad con el interruptor de Companion activado";
+"welcome.guide.screenRecording" = "Ajustes de Grabación de pantalla con el interruptor de Companion activado";
+"welcome.guide.speechRecognition" = "Una onda de voz que se convierte en líneas de texto";
 "welcome.permissions.title" = "Permisos";
 "welcome.permissions.body" = "Cuatro permisos y listo. Nada sale de tu Mac sin que hables.";
 "welcome.permission.microphone" = "Micrófono";
