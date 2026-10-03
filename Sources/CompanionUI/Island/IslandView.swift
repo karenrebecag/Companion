@@ -154,10 +154,12 @@ package struct IslandView: View {
         .onPreferenceChange(IslandSizeKey.self) { height in
             contentHeight = height
             onSize(state.size, height)
-            // A resize while open follows the content with phase 2's spring.
+            // A resize while open follows the content: growing overshoots like opening, shrinking does not.
             guard stage == .full else { return }
-            withAnimation(reduceMotion ? nil : IslandMotion.secondSpring.animation) {
-                shown = IslandChrome.shapeSize(for: state.size, contentHeight: height, notch: notch)
+            let target = IslandChrome.shapeSize(for: state.size, contentHeight: height, notch: notch)
+            let curve = IslandMotion.resize(growing: IslandMotion.grows(from: shown, to: target))
+            withAnimation(reduceMotion ? nil : curve.animation) {
+                shown = target
             }
         }
         .onChange(of: state.size, initial: true) { old, size in

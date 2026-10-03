@@ -102,6 +102,12 @@ package enum Semantic {
     // Primary: Incredible's solid button is pure black on light.
     package static var primary: Color { pair(Neutral.black, Neutral.n50) }
     package static var primaryForeground: Color { pair(Neutral.n50, Neutral.n950) }
+    /// shadcn's hover:bg-primary/90.
+    package static var primaryHover: Color { tint(Neutral.black, 0.9, Neutral.n50, 0.9) }
+    /// shadcn's hover:bg-secondary/80, over the `muted` fill.
+    package static var secondaryHover: Color { pair(Swatch("E9E9E9"), Neutral.n800) }
+    /// shadcn's ring/50: the keyboard-focus halo follows the chosen accent.
+    package static var focusRing: Color { accent.opacity(0.5) }
 
     /// Énfasis elegible. Se lee en cada render, así que basta con que la
     /// vista se reevalúe para que el cambio se propague.
@@ -250,6 +256,8 @@ package enum Radius {
     package static let md: CGFloat = 6
     package static let badge: CGFloat = 8
     package static let chip: CGFloat = 10
+    /// Tailwind's rounded-xl (0.75rem): shadcn's chat bubble.
+    package static let bubble: CGFloat = 12
     package static let control: CGFloat = 14
     package static let lg: CGFloat = 16
     package static let cardSm: CGFloat = 18
@@ -321,6 +329,8 @@ package enum Stroke {
     package static let hairline: CGFloat = 1
     package static let thin: CGFloat = 1.5
     package static let medium: CGFloat = 2
+    /// shadcn's focus-visible:ring-[3px].
+    package static let ring: CGFloat = 3
 }
 
 // Elevation shadows = Incredible's card / raised / popup / modal (16l), one

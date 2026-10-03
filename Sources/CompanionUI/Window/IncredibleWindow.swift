@@ -27,6 +27,8 @@ package enum HeroMetrics {
     package static let keycapScale: CGFloat = 1.25
     /// The body wraps at 34 characters.
     static let bodyWidth: CGFloat = 300
+    /// The orb on the right of the card, at the sheets' hero figure size.
+    package static let orbSize: CGFloat = Container.hero
 }
 
 /// The brand keycap as Incredible draws it in the hero, in em of its own

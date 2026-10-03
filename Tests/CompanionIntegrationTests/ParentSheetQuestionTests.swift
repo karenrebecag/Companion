@@ -11,83 +11,20 @@ import CompanionTestKit
 // counts as asked only when its audio ended (`announcedAt`), the same rule a
 // job's question follows; a press over it leaves it unsaid.
 
-private let parked = ApprovalRequest(
-    requestId: "r1", toolName: "open_url", summary: "open example.com", inputJSON: "{}")
-private let openCall = ToolCallRef(
-    id: "c1", name: "open_url", arguments: #"{"url":"https://example.com"}"#)
-private let question = Escalation.approvalAskedSpoken(.es)
-
-private struct SheetRig {
-    let h: VoiceHarness
-    let tools: FakeParentTools
-    let approvals: ScriptedApprovals
-}
-
-/// The work line never races the sheet here: without it the order of the
-/// turn's own audio and the park would depend on the machine's load.
-/// `slow`, when given, ends the work line's wait; the test must open it
-/// before the round ends, since a `TestGate` does not hear the cancel.
-@MainActor private func sheetRig(
-    firstRound: [ChatDelta] = [.toolCalls([openCall])], slow: TestGate? = nil, slowReturned: Flag? = nil
-) async -> SheetRig {
-    let approvals = ScriptedApprovals(park: true)
-    let tools = FakeParentTools(handledNames: ["open_url"])
-    tools.setScriptedApproval(parked)
-    let h = makeVoiceHarness(key: nil, language: .es, parentTools: tools, approvals: approvals)
-    h.chat.rounds = [firstRound, [.text("Listo.")]]
-    h.transcriber.stoppedText = "abre la pagina"
-    let classic = await h.session.classic
-    if let slow {
-        classic.slowToolWait = {
-            await slow.wait()
-            slowReturned?.raise()
-        }
-    } else {
-        classic.slowToolWait = {
-            do { try await Task.sleep(for: .seconds(600)) } catch {}
-        }
-    }
-    return SheetRig(h: h, tools: tools, approvals: approvals)
-}
-
 private let workLine = Acknowledgement.working(tool: "open_url", .es)
-
-/// Set once the work line's wait has returned, so a negative about the line
-/// is read after its racer had the chance to speak.
-private final class Flag: @unchecked Sendable {
-    private let lock = NSLock()
-    private var raised = false
-    var isRaised: Bool { lock.withLock { raised } }
-    func raise() { lock.withLock { raised = true } }
-}
-
-@MainActor private func holdUntilTheSheet(_ rig: SheetRig) async {
-    await rig.h.session.hold()
-    await pumpUntil("listening") { rig.h.watch.latest.state == .listening }
-    await rig.h.session.release()
-    await pumpUntilAsync("the sheet is up") { !rig.approvals.requests.isEmpty }
-}
-
-@MainActor private func asked(_ h: VoiceHarness) -> Int {
-    h.synth.queue.filter { $0 == question }.count
-}
-
-@MainActor private func announcedAt(_ h: VoiceHarness) async -> TimeInterval? {
-    await h.session.pendingApprovalSeen?.announcedAt
-}
 
 @Suite struct ParentSheetQuestion {
     @Test @MainActor func theRestingTurnAsksOnceAndItCountsOnlyWhenItFinishes() async {
-        let rig = await sheetRig()
-        await holdUntilTheSheet(rig)
-        await pumpUntil("the voice asks") { asked(rig.h) == 1 }
+        let rig = await parentSheetRig()
+        await holdUntilTheParentSheet(rig)
+        await pumpUntil("the voice asks") { timesAsked(rig.h) == 1 }
         #expect(rig.h.watch.latest.state == .idle, "the turn rests while the sheet waits")
         #expect(rig.h.watch.latest.sheetParked)
-        #expect(await announcedAt(rig.h) == nil, "asked is not said: the audio has not ended")
+        #expect(await parentAnnouncedAt(rig.h) == nil, "asked is not said: the audio has not ended")
 
         rig.h.synth.yield(.finished)
-        await pumpUntilAsync("the question counts as said") { await announcedAt(rig.h) != nil }
-        #expect(asked(rig.h) == 1, "one question per sheet")
+        await pumpUntilAsync("the question counts as said") { await parentAnnouncedAt(rig.h) != nil }
+        #expect(timesAsked(rig.h) == 1, "one question per sheet")
 
         // The click: the turn takes its voice back and the reply is heard.
         _ = await rig.approvals.resolve(requestId: "r1", approved: true)
@@ -96,27 +33,27 @@ private final class Flag: @unchecked Sendable {
         await rig.h.session.awaitClassicTurn()
         #expect(rig.tools.executeCalls.count == 1)
         #expect(rig.h.synth.queue.contains { $0.contains("Listo") }, "the reply after the click is spoken")
-        #expect(asked(rig.h) == 1)
+        #expect(timesAsked(rig.h) == 1)
     }
 
     /// The model spoke before calling the tool: its line ends first, then the
     /// question, and only that second end makes it said.
     @Test @MainActor func aLineBeforeTheToolEndsBeforeTheQuestionIsAsked() async {
-        let rig = await sheetRig(firstRound: [.text("Voy a abrirla."), .toolCalls([openCall])])
-        await holdUntilTheSheet(rig)
+        let rig = await parentSheetRig(firstRound: [.text("Voy a abrirla."), .toolCalls([parentOpenCall])])
+        await holdUntilTheParentSheet(rig)
         await pumpUntil("the line plays") { rig.h.watch.latest.state == .speaking }
-        #expect(asked(rig.h) == 0, "the question never talks over the turn's own line")
+        #expect(timesAsked(rig.h) == 0, "the question never talks over the turn's own line")
 
         rig.h.synth.yield(.finished)
-        await pumpUntil("the voice asks") { asked(rig.h) == 1 }
+        await pumpUntil("the voice asks") { timesAsked(rig.h) == 1 }
         #expect(rig.h.watch.latest.state == .idle)
-        #expect(await announcedAt(rig.h) == nil, "the line's end is not the question's")
+        #expect(await parentAnnouncedAt(rig.h) == nil, "the line's end is not the question's")
 
         rig.h.synth.yield(.finished)
-        await pumpUntilAsync("the question counts as said") { await announcedAt(rig.h) != nil }
+        await pumpUntilAsync("the question counts as said") { await parentAnnouncedAt(rig.h) != nil }
         let queue = rig.h.synth.queue
         let line = queue.firstIndex { $0.contains("Voy a abrirla") }
-        let asking = queue.firstIndex(of: question)
+        let asking = queue.firstIndex(of: parentQuestion)
         #expect(line != nil && asking != nil && line! < asking!, "the line, then the question: \(queue)")
         _ = await rig.approvals.resolve(requestId: "r1", approved: true)
         await rig.h.session.awaitClassicTurn()
@@ -126,17 +63,17 @@ private final class Flag: @unchecked Sendable {
     /// so the second is asked in the same gap, and counts on its own end.
     @Test @MainActor func eachSheetOfARoundIsAskedOnItsOwn() async {
         let second = ToolCallRef(id: "c2", name: "open_url", arguments: #"{"url":"https://example.org"}"#)
-        let rig = await sheetRig(firstRound: [.toolCalls([openCall, second])])
-        await holdUntilTheSheet(rig)
-        await pumpUntil("the first question") { asked(rig.h) == 1 }
+        let rig = await parentSheetRig(firstRound: [.toolCalls([parentOpenCall, second])])
+        await holdUntilTheParentSheet(rig)
+        await pumpUntil("the first question") { timesAsked(rig.h) == 1 }
         rig.h.synth.yield(.finished)
-        await pumpUntilAsync("the first counts as said") { await announcedAt(rig.h) != nil }
+        await pumpUntilAsync("the first counts as said") { await parentAnnouncedAt(rig.h) != nil }
 
         // Real request ids are unique; a repeat would read as already closed.
         rig.tools.setScriptedApproval(ApprovalRequest(
             requestId: "r2", toolName: "open_url", summary: "open example.org", inputJSON: "{}"))
         _ = await rig.approvals.resolve(requestId: "r1", approved: true)
-        await pumpUntil("the second question") { asked(rig.h) == 2 }
+        await pumpUntil("the second question") { timesAsked(rig.h) == 2 }
         #expect(rig.h.watch.latest.state == .idle, "still at rest between the round's sheets")
         let seen = await rig.h.session.pendingApprovalSeen
         #expect(seen?.requestId == "r2" && seen?.announcedAt == nil, "the second is not said yet")
@@ -154,9 +91,9 @@ private final class Flag: @unchecked Sendable {
     /// A click that denies still gives the turn its voice back: the model
     /// answers the refusal, and nothing ran.
     @Test @MainActor func aDenyingClickResumesTheTurnAndActsOnNothing() async {
-        let rig = await sheetRig()
-        await holdUntilTheSheet(rig)
-        await pumpUntil("the voice asks") { asked(rig.h) == 1 }
+        let rig = await parentSheetRig()
+        await holdUntilTheParentSheet(rig)
+        await pumpUntil("the voice asks") { timesAsked(rig.h) == 1 }
         rig.h.synth.yield(.finished)
 
         _ = await rig.approvals.resolve(requestId: "r1", approved: false)
@@ -169,9 +106,9 @@ private final class Flag: @unchecked Sendable {
     /// A click while the question still sounds: the resume ends the question
     /// and the turn is the only speaker again.
     @Test @MainActor func aClickDuringTheQuestionEndsItAndTheTurnSpeaks() async {
-        let rig = await sheetRig()
-        await holdUntilTheSheet(rig)
-        await pumpUntil("the voice asks") { asked(rig.h) == 1 }
+        let rig = await parentSheetRig()
+        await holdUntilTheParentSheet(rig)
+        await pumpUntil("the voice asks") { timesAsked(rig.h) == 1 }
 
         _ = await rig.approvals.resolve(requestId: "r1", approved: true)
         await pumpUntil("the voice is the turn's again") { rig.h.watch.latest.state == .speaking }
@@ -184,16 +121,16 @@ private final class Flag: @unchecked Sendable {
     /// A press over the question cuts its audio: unsaid, so a later yes would
     /// be the click's. Words that are no answer then cut the turn (#87).
     @Test @MainActor func aPressOverTheQuestionLeavesItUnsaidAndWordsCutTheTurn() async {
-        let rig = await sheetRig()
+        let rig = await parentSheetRig()
         let seen = SessionEventBox(rig.h.session.events)
-        await holdUntilTheSheet(rig)
-        await pumpUntil("the voice asks") { asked(rig.h) == 1 }
+        await holdUntilTheParentSheet(rig)
+        await pumpUntil("the voice asks") { timesAsked(rig.h) == 1 }
 
         rig.h.transcriber.stoppedText = "mejor busca vuelos"
         await rig.h.session.hold()
         await pumpUntil("listening again") { rig.h.watch.latest.state == .listening }
         rig.h.synth.yield(.finished)
-        #expect(await announcedAt(rig.h) == nil, "a cut question was stamped as said")
+        #expect(await parentAnnouncedAt(rig.h) == nil, "a cut question was stamped as said")
 
         await rig.h.session.release()
         // The scripted actor ignores the cut (brief §8): a late yes stands
@@ -210,10 +147,10 @@ private final class Flag: @unchecked Sendable {
 
     /// Stop at rest still reaches the parked turn: nothing runs, the card goes.
     @Test @MainActor func aStopAtRestActsOnNothingAndWithdrawsTheCard() async {
-        let rig = await sheetRig()
+        let rig = await parentSheetRig()
         let seen = SessionEventBox(rig.h.session.events)
-        await holdUntilTheSheet(rig)
-        await pumpUntil("the voice asks") { asked(rig.h) == 1 }
+        await holdUntilTheParentSheet(rig)
+        await pumpUntil("the voice asks") { timesAsked(rig.h) == 1 }
 
         await rig.h.session.interrupt()
         _ = await rig.approvals.resolve(requestId: "r1", approved: true)
@@ -230,10 +167,10 @@ private final class Flag: @unchecked Sendable {
     /// would talk over it.
     @Test @MainActor func theWorkLineNeverTalksOverTheQuestion() async {
         let slow = TestGate()
-        let returned = Flag()
-        let rig = await sheetRig(slow: slow, slowReturned: returned)
-        await holdUntilTheSheet(rig)
-        await pumpUntil("the voice asks") { asked(rig.h) == 1 }
+        let returned = RaisedFlag()
+        let rig = await parentSheetRig(slow: slow, slowReturned: returned)
+        await holdUntilTheParentSheet(rig)
+        await pumpUntil("the voice asks") { timesAsked(rig.h) == 1 }
         await pumpUntil("the work line's wait began") { slow.entered }
 
         slow.open()
@@ -249,7 +186,7 @@ private final class Flag: @unchecked Sendable {
     /// rest and no question nobody could answer, and its work line stays.
     @Test @MainActor func handsFreeNeitherRestsNorAsks() async {
         let slow = TestGate()
-        let rig = await sheetRig(slow: slow)
+        let rig = await parentSheetRig(slow: slow)
         await rig.h.session.start()
         await pumpUntil("listening") { rig.h.watch.latest.state == .listening }
         await rig.h.session.advance()
@@ -258,10 +195,10 @@ private final class Flag: @unchecked Sendable {
         await pumpUntil("the work line plays") { rig.h.synth.queue.contains(workLine) }
 
         #expect(!rig.h.watch.latest.sheetParked)
-        #expect(asked(rig.h) == 0)
+        #expect(timesAsked(rig.h) == 0)
         _ = await rig.approvals.resolve(requestId: "r1", approved: true)
         await rig.h.session.awaitClassicTurn()
         #expect(rig.tools.executeCalls.count == 1)
-        #expect(asked(rig.h) == 0)
+        #expect(timesAsked(rig.h) == 0)
     }
 }

@@ -20,6 +20,7 @@ package struct CompanionRootView: View {
     private let voicePreview: VoicePreview?
     @State private var showSettings = false
     @State private var settingsTab: SettingsTab = .general
+    @State private var settingsPanel = SettingsPanelModel()
     @State private var chromeTick = 0
     @State private var keyboardMonitor: KeyboardMonitor?
     @State private var dropdowns = DropdownHost()
@@ -85,7 +86,7 @@ package struct CompanionRootView: View {
                     if page == .apps, let apps {
                         AppsPage(apps: apps)
                     } else {
-                        HomePage(chat: chat, onOpen: { task in
+                        HomePage(chat: chat, voice: voice, onOpen: { task in
                             withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { openTask = task }
                         }, onSettings: openSettings)
                     }
@@ -184,41 +185,21 @@ package struct CompanionRootView: View {
             keyboardMonitor = monitor
         }
         .overlay {
+            // WIN-5: Incredible's floating panel, not a modal: no scrim, the
+            // window behind stays usable.
             if showSettings {
-                ZStack {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .overlay(Semantic.scrim)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            dropdowns.dismiss()
-                            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
-                        }
-                    GeometryReader { geo in
-                        let w = min(
-                            SettingsOverlayMetrics.maxWidth,
-                            max(300, geo.size.width - Space.x6))
-                        let h = min(
-                            SettingsOverlayMetrics.maxHeight,
-                            max(320, geo.size.height - Space.x6))
-                        SettingsView(
-                            preview: voicePreview,
-                            chat: chat,
-                            updates: updates,
-                            welcome: welcome,
-                            memory: memory,
-                            browser: browser,
-                            tab: $settingsTab,
-                            onClose: {
-                                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
-                            })
-                        .environment(dropdowns)
-                        .frame(width: w, height: h)
-                        .position(x: geo.size.width / 2, y: geo.size.height / 2)
-                    }
-                }
+                SettingsPanelHost(
+                    model: $settingsPanel, tab: $settingsTab, preview: voicePreview, chat: chat,
+                    updates: updates, welcome: welcome, memory: memory, browser: browser,
+                    onClose: {
+                        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
+                    })
+                .environment(dropdowns)
                 .transition(.opacity)
             }
+        }
+        .onChange(of: showSettings) { _, open in
+            if open { settingsPanel.unfold() }
         }
         .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: showSettings)
         .overlay { feedbackLayer }
