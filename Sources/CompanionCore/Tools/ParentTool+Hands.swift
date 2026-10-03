@@ -251,10 +251,12 @@ package enum HandsGate {
     }
 
     /// The sheet for a destructive click names the button and the app.
-    package static func clickRequest(_ call: ToolCallRef, label: String, app: String) -> ApprovalRequest {
+    package static func clickRequest(
+        _ call: ToolCallRef, label: String, app: String, verb: String = "click"
+    ) -> ApprovalRequest {
         ApprovalRequest(
             requestId: UUID().uuidString, toolName: call.name,
-            summary: "click \(label) in \(app)",
+            summary: "\(verb) \(label) in \(app)",
             inputJSON: encode(["label": label, "app": app]))
     }
 

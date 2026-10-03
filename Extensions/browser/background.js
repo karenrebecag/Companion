@@ -113,7 +113,9 @@ function dispatch(name, args) {
   switch (name) {
     case 'browser_tabs': return tabs();
     case 'browser_read': return readTab(args.tab, args.selector ?? null);
-    case 'browser_click': return trustedClick(args);
+    case 'browser_click': return trustedPress(args, GESTURES.click);
+    case 'browser_double_click': return trustedPress(args, GESTURES.double);
+    case 'browser_right_click': return trustedPress(args, GESTURES.right);
     case 'browser_type': return trustedType(args);
     case 'browser_navigate': return navigate(args.tab, args.url);
     case 'browser_open': return openTab(args.url);
@@ -378,6 +380,7 @@ async function didLand(target, token) {
 }
 
 const coveredElement = { error: { code: 'stale_id', message: 'something covers this element (a dialog or banner); read the page again' } };
+const coveredAfterFirstPress = { error: { code: 'stale_id', message: 'pressed once; something covered the element before the second press, read the page again' } };
 const revokedReply = (error) => ({ error: { code: 'debugger_revoked', message: error.message } });
 // Cancel mid-action, DevTools taking over, or a page Chrome will not let us attach to: the caller
 // needs a stable code, not a raw message under invalid_args.
@@ -394,11 +397,11 @@ const LOCATE_ATTEMPTS = 3;
 // Moves the cursor to the element and presses there with a real mouse, at most ONCE: a press that
 // could not be confirmed may still have landed, and pressing again could buy or send twice.
 // Only locating is retried. Returns 'pressed', 'offscreen' (never pressed), or an error reply.
-async function pressElement(args, entry, target, verb) {
+async function pressElement(args, entry, target, gesture) {
   for (let attempt = 1; attempt <= LOCATE_ATTEMPTS; attempt++) {
     const token = `${Date.now()}-${attempt}`;
-    const spot = await inPage(target, (g, id, t) => globalThis.__companionPage.locate(g, id, t),
-      [args.generation, entry.localId, token]);
+    const spot = await inPage(target, (g, id, t, event) => globalThis.__companionPage.locate(g, id, t, event),
+      [args.generation, entry.localId, token, gesture.landing]);
     if (!spot) return staleElement;
     if (spot.error) return spot;
     if (spot.inFrame) return 'frame';
@@ -407,11 +410,13 @@ async function pressElement(args, entry, target, verb) {
       if (attempt < LOCATE_ATTEMPTS) continue;
       return coveredElement;
     }
-    await showCursor(target, spot.box.x, spot.box.y, `${verb} · ${spot.label || spot.role}`);
-    const still = await inPage(target, (g, id, x, y) => ({ hit: globalThis.__companionPage.hitsAt(g, id, x, y) }),
-      [args.generation, entry.localId, spot.box.x, spot.box.y]);
-    if (!still?.hit) return coveredElement;
-    await cdp.mouseClick(args.tab, spot.box.x, spot.box.y);
+    await showCursor(target, spot.box.x, spot.box.y, `${gesture.verb} · ${spot.label || spot.role}`);
+    const hits = async () => (await inPage(target, (g, id, x, y) => ({ hit: globalThis.__companionPage.hitsAt(g, id, x, y) }),
+      [args.generation, entry.localId, spot.box.x, spot.box.y]))?.hit === true;
+    if (!(await hits())) return coveredElement;
+    // The first press of a double click can open something at that very pixel; the second must not land on it.
+    const whole = await cdp.mouseClick(args.tab, spot.box.x, spot.box.y, { ...gesture.mouse, beforeRepeat: hits });
+    if (!whole) return coveredAfterFirstPress;
     await pressCursor(target);
     if (!(await didLand(target, token))) console.warn('companion: press not confirmed on the element; not repeating it');
     return 'pressed';
@@ -419,11 +424,20 @@ async function pressElement(args, entry, target, verb) {
   return 'offscreen';
 }
 
+// One press of the mouse on an element: the cursor label, the CDP buttons, the event that proves it landed,
+// the page's synthetic stand-in and the reply. A right click lands as contextmenu; it never fires click.
+const GESTURES = {
+  click: { verb: 'Clic', mouse: { button: 'left', count: 1 }, landing: 'click', synthetic: 'click', done: 'clicked' },
+  double: { verb: 'Doble clic', mouse: { button: 'left', count: 2 }, landing: 'click', synthetic: 'doubleClick', done: 'double-clicked' },
+  right: { verb: 'Clic derecho', mouse: { button: 'right', count: 1 }, landing: 'contextmenu', synthetic: 'contextClick', done: 'right-clicked' },
+};
+
 // Only the top frame gets the trusted path: an iframe's box is in its own coordinates, not the tab's.
-async function trustedClick(args) {
+async function trustedPress(args, gesture) {
   const entry = entryFor(args);
   if (!entry) return staleElement;
-  if (entry.frameId !== 0) return act(args, (g, id) => globalThis.__companionPage.click(g, id), []);
+  const synthetic = (g, id, name) => globalThis.__companionPage[name](g, id);
+  if (entry.frameId !== 0) return act(args, synthetic, [gesture.synthetic]);
   const target = { tabId: args.tab, frameIds: [0] };
   try {
     await inject(target);
@@ -432,11 +446,11 @@ async function trustedClick(args) {
   }
   if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
   return cdp.withInput(args.tab, async () => {
-    const pressed = await pressElement(args, entry, target, 'Clic');
-    if (pressed === 'pressed') return { done: 'clicked' };
+    const pressed = await pressElement(args, entry, target, gesture);
+    if (pressed === 'pressed') return { done: gesture.done };
     if (typeof pressed === 'object') return pressed;
     // Never pressed (off-screen or zero-size): the synthetic click targets the element itself, nothing on top of it.
-    const fallback = await inPage(target, (g, id) => globalThis.__companionPage.click(g, id), [args.generation, entry.localId]);
+    const fallback = await inPage(target, synthetic, [args.generation, entry.localId, gesture.synthetic]);
     return fallback ?? staleElement;
   }).catch((error) => inputFailed(args.tab, error));
 }
@@ -475,7 +489,7 @@ async function trustedType(args) {
   if (checked.error) return checked;
   if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
   return cdp.withInput(args.tab, async () => {
-    const pressed = await pressElement(args, entry, target, 'Escribiendo');
+    const pressed = await pressElement(args, entry, target, { ...GESTURES.click, verb: 'Escribiendo' });
     if (pressed === 'frame') return typeSynthetic();
     if (typeof pressed === 'object') return pressed;
     const ready = await prepare();

@@ -231,6 +231,35 @@
     return { done: 'clicked' };
   }
 
+  function doubleClickElement(el) {
+    const win = el.ownerDocument.defaultView;
+    // Pages tell a double click by the click count on the second click and on dblclick, not by timing.
+    for (const detail of [1, 2]) {
+      const init = { bubbles: true, cancelable: true, composed: true, view: win, button: 0, detail };
+      for (const [Ctor, type] of [
+        [win.PointerEvent, 'pointerdown'], [win.MouseEvent, 'mousedown'],
+        [win.PointerEvent, 'pointerup'], [win.MouseEvent, 'mouseup'], [win.MouseEvent, 'click'],
+      ]) {
+        el.dispatchEvent(new Ctor(type, init));
+      }
+    }
+    el.dispatchEvent(new win.MouseEvent('dblclick', { bubbles: true, cancelable: true, composed: true, view: win, button: 0, detail: 2 }));
+    return { done: 'double-clicked' };
+  }
+
+  // A right button press fires contextmenu, not click: a page's own menu opens, and nothing it binds to click runs.
+  function contextClickElement(el) {
+    const win = el.ownerDocument.defaultView;
+    const base = { bubbles: true, cancelable: true, composed: true, view: win, button: 2 };
+    for (const [Ctor, type, buttons] of [
+      [win.PointerEvent, 'pointerdown', 2], [win.MouseEvent, 'mousedown', 2],
+      [win.PointerEvent, 'pointerup', 0], [win.MouseEvent, 'mouseup', 0], [win.MouseEvent, 'contextmenu', 0],
+    ]) {
+      el.dispatchEvent(new Ctor(type, { ...base, buttons }));
+    }
+    return { done: 'right-clicked' };
+  }
+
   function typeIntoElement(el, text) {
     if (isSensitive(fieldOf(el))) return { error: { code: 'secure_field', message: 'sensitive field, typing refused' } };
     const doc = el.ownerDocument;
@@ -407,7 +436,7 @@
 
   // A popover that re-renders between measure and press makes a trusted click land on nothing,
   // so the box has to hold still across two reads before its center is handed to CDP.
-  async function locate(generation, id, token) {
+  async function locate(generation, id, token, landingEvent = 'click') {
     const found = lookup(stateOf(), generation, id);
     if (found.error) return found;
     const el = found.element;
@@ -428,7 +457,7 @@
     // A trusted press goes to whatever is on top at that pixel, not to the element: a decoy or a
     // floating third-party frame there would receive a click nobody approved.
     const blocked = inView && !hitsTarget(el, deepElementFromPoint(document, box.x, box.y));
-    if (inView && !blocked) armLanding(el, token);
+    if (inView && !blocked) armLanding(el, token, landingEvent);
     return { box, inView, blocked, label: labelOf(el), role: roleOf(el) };
   }
 
@@ -459,7 +488,7 @@
   }
 
   // Proof the press reached the element and not an overlay on top of it: the trusted click's path must contain it.
-  function armLanding(el, token) {
+  function armLanding(el, token, landingEvent = 'click') {
     const state = stateOf();
     state.landing = { token, hit: false };
     const listener = (event) => {
@@ -467,7 +496,7 @@
       const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
       state.landing = { token, hit: event.isTrusted === true && path.includes(el) };
     };
-    window.addEventListener('click', listener, { capture: true, once: true });
+    window.addEventListener(landingEvent, listener, { capture: true, once: true });
   }
 
   // null means this document is not the one that was armed: the click navigated, which is a landing.
@@ -504,8 +533,10 @@
 
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
-    clickElement, typeIntoElement, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt,
+    clickElement, doubleClickElement, contextClickElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt,
     click: (generation, id) => act(generation, id, clickElement),
+    doubleClick: (generation, id) => act(generation, id, doubleClickElement),
+    contextClick: (generation, id) => act(generation, id, contextClickElement),
     type: (generation, id, text) => act(generation, id, (el) => typeIntoElement(el, text)),
   };
   globalThis.__companionPage = api;

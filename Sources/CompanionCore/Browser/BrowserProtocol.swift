@@ -198,6 +198,8 @@ package enum BrowserCommand: Sendable, Equatable {
     case tabs
     case read(tab: Int, selector: String?)
     case click(tab: Int, generation: Int, element: Int)
+    case doubleClick(tab: Int, generation: Int, element: Int)
+    case rightClick(tab: Int, generation: Int, element: Int)
     case type(tab: Int, generation: Int, element: Int, text: String)
     case navigate(tab: Int, url: URL)
     case open(url: URL)

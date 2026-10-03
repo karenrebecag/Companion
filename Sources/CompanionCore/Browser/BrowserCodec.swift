@@ -146,6 +146,10 @@ package enum BrowserCodec {
             return (BrowserTool.read.rawValue, ["tab": tab, "selector": selector.map { $0 as Any } ?? NSNull()])
         case .click(let tab, let generation, let element):
             return (BrowserTool.click.rawValue, ["tab": tab, "generation": generation, "element": element])
+        case .doubleClick(let tab, let generation, let element):
+            return (BrowserTool.doubleClick.rawValue, ["tab": tab, "generation": generation, "element": element])
+        case .rightClick(let tab, let generation, let element):
+            return (BrowserTool.rightClick.rawValue, ["tab": tab, "generation": generation, "element": element])
         case .type(let tab, let generation, let element, let text):
             return (BrowserTool.type.rawValue,
                     ["tab": tab, "generation": generation, "element": element, "text": text])

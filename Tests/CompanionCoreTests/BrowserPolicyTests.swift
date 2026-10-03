@@ -213,9 +213,12 @@ private func navigate(_ from: String?, _ raw: String, said: String = "") -> Resu
 
 @Test func browserToolShape() {
     expectEq(BrowserTool.allCases.map(\.rawValue),
-             ["browser_tabs", "browser_read", "browser_click", "browser_type", "browser_navigate",
-              "browser_open", "browser_take", "browser_release"], "nombres")
-    expectEq(BrowserTool.allCases.filter(\.isWrite), [.click, .type, .navigate, .open, .take, .release], "escrituras")
+             ["browser_tabs", "browser_read", "browser_click", "browser_double_click", "browser_right_click",
+              "browser_type", "browser_navigate", "browser_open", "browser_take", "browser_release"], "nombres")
+    expectEq(BrowserTool.allCases.filter(\.isWrite),
+             [.click, .doubleClick, .rightClick, .type, .navigate, .open, .take, .release], "escrituras")
+    expectEq(BrowserTool.allCases.filter(\.isClick), [.click, .doubleClick, .rightClick],
+             "H-7 P5a: las tres pulsaciones comparten la puerta del clic")
     for language in AppLanguage.allCases {
         for tool in BrowserTool.allCases {
             let spec = tool.spec(language)

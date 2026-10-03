@@ -227,6 +227,8 @@ package actor BrowserChannel {
         case .tabs: return .tabs
         case .read: return .read
         case .click: return .click
+        case .doubleClick: return .doubleClick
+        case .rightClick: return .rightClick
         case .type: return .type
         case .navigate: return .navigate
         case .open: return .open
@@ -242,7 +244,8 @@ package actor BrowserChannel {
     ) -> Result<BrowserInbound, ContractError> {
         guard case .success(let inbound) = result else { return result }
         switch (command, inbound) {
-        case (.tabs, .tabs), (.read, .page), (.click, .done), (.type, .done), (.navigate, .done),
+        case (.tabs, .tabs), (.read, .page), (.click, .done), (.doubleClick, .done), (.rightClick, .done),
+             (.type, .done), (.navigate, .done),
              (.open, .opened), (.take, .done), (.release, .done):
             return result
         default:

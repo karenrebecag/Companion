@@ -11,6 +11,7 @@ import Testing
 
 private let browserWrites: Set<String> = [
     "browser_click", "browser_type", "browser_navigate", "browser_open", "browser_take", "browser_release",
+    "browser_double_click", "browser_right_click",
 ]
 private let browserReads: Set<String> = ["browser_tabs", "browser_read"]
 

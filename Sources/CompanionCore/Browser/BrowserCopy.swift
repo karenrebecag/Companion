@@ -41,6 +41,18 @@ package enum BrowserCopy {
             return "Click an element numbered by the last browser_read of that tab. Deleting or sending asks first."
         case (.click, .es):
             return "Pulsa un elemento numerado por la última browser_read de esa pestaña. Borrar o enviar pregunta antes."
+        case (.doubleClick, .en):
+            return "Double-click an element numbered by the last browser_read of that tab, to open or select "
+                + "what a single click does not. Deleting or sending asks first."
+        case (.doubleClick, .es):
+            return "Hace doble clic en un elemento numerado por la última browser_read de esa pestaña, para abrir "
+                + "o seleccionar lo que un clic no alcanza. Borrar o enviar pregunta antes."
+        case (.rightClick, .en):
+            return "Right-click an element numbered by the last browser_read of that tab, to open the page's own "
+                + "context menu; read the tab again to see it. Deleting or sending asks first."
+        case (.rightClick, .es):
+            return "Hace clic derecho en un elemento numerado por la última browser_read de esa pestaña, para abrir "
+                + "el menú contextual de la página; vuelve a leerla para verlo. Borrar o enviar pregunta antes."
         case (.type, .en):
             return "Type text into an element numbered by the last browser_read. Never into password or card fields."
         case (.type, .es):
@@ -175,6 +187,10 @@ extension BrowserCopy {
         case (.read, .es): return "Leí una pestaña del navegador."
         case (.click, .en): return "Clicked in the browser."
         case (.click, .es): return "Pulsé en el navegador."
+        case (.doubleClick, .en): return "Double-clicked in the browser."
+        case (.doubleClick, .es): return "Hice doble clic en el navegador."
+        case (.rightClick, .en): return "Right-clicked in the browser."
+        case (.rightClick, .es): return "Hice clic derecho en el navegador."
         case (.type, .en): return "Typed in the browser."
         case (.type, .es): return "Escribí en el navegador."
         case (.navigate, .en): return "Navigated the browser."

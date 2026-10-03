@@ -67,6 +67,8 @@ private func run(
     let rig = leaseRig()
     for (name, arguments) in [
         ("browser_click", #"{"tab":12,"element":1}"#),
+        ("browser_double_click", #"{"tab":12,"element":1}"#),
+        ("browser_right_click", #"{"tab":12,"element":1}"#),
         ("browser_type", #"{"tab":12,"element":5,"text":"x"}"#),
         ("browser_navigate", #"{"tab":12,"url":"https://crm.example/b"}"#),
     ] {

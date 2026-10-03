@@ -81,6 +81,8 @@ package enum BridgeScope {
         // connected extension. Tabs and read are reads; the rest are writes.
         "browser_tabs", "browser_read", "browser_click", "browser_type", "browser_navigate",
         "browser_open", "browser_take", "browser_release",
+        // H-7 P5a: the click's two variants, on the click's gates.
+        "browser_double_click", "browser_right_click",
         // Self-qa PR-3 (ADR 009): Companion lets an agent inspect it, read
         // only and behind the same session sheet; it never lends the hands.
         "companion_state", "companion_island", "companion_settings", "companion_thread",
