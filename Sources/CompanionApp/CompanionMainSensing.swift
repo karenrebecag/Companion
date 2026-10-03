@@ -67,10 +67,15 @@ func makeSensingAndModel(
     // us; offered only while Accessibility is trusted.
     let receipts = ReceiptRelay()
     let pointer = PointerSampler()
+    // Gap 1: sight waits for one real probe; the preflight alone can be
+    // true with captures failing. The first capture probes, not the launch:
+    // the system's periodic re-approval alert then follows the user's ask.
+    let screenRecording = ScreenRecordingGate(checker: ScreenRecordingPermission(), log: { Log.app($0) })
     let screenSight = ScreenSight(
         capture: ScreenCapture(
             bundleID: Bundle.main.bundleIdentifier ?? "",
-            trusted: { ScreenRecordingPermission().isGranted() }),
+            trusted: { ScreenRecordingPermission().isGranted() },
+            gate: screenRecording),
         vision: ScreenVision(
             secrets: env.secrets, transport: env.transport),
         // Wave 15b-6: same window, read for its text instead of a
