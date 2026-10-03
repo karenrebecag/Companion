@@ -18,6 +18,7 @@ import Testing
     await testArgumentsPassThroughUnchangedAndOpenAppDoesNotDoublePin()
     await testCallBeforeHelloIsNoSession()
     await testCallAfterStopIsSessionClosed()
+    await testSessionClosedNamesTheWayBack()
     await testPauseIsBusyResumeProceedsAndRepins()
     await testUnknownToolIsUnknownTool()
     await testAKnownToolNotReadyNamesTheReason()
@@ -220,6 +221,26 @@ private func waitUntil(timeout: TimeInterval = 2, _ pred: @escaping @Sendable ()
     await s.stop()
     let result = await s.handle(line: callLine(id: 3, name: "look"))
     expect(result.reply.contains(BridgeCode.sessionClosed), "after stop: session_closed")
+}
+
+// Audit H3: after a denied or expired sheet every call read "session is closed" for up to the
+// idle close, with nothing the agent could do. A new hello on the same connection is accepted.
+@MainActor func testSessionClosedNamesTheWayBack() async {
+    let approvals = ScriptedApprovals(answer: false)
+    let s = session(tools: FakeParentTools(), approvals: approvals)
+    _ = await s.handle(line: helloLine(id: 1, token: "tok"))
+    _ = await s.handle(line: callLine(id: 2, name: "look"))
+    let closed = await s.handle(line: callLine(id: 3, name: "look"))
+    expect(closed.reply.contains(BridgeCode.sessionClosed), "after a denial: session_closed")
+    expect(closed.reply.contains("hello again") && closed.reply.contains("retry the call")
+           && closed.reply.contains("sheet"), "session_closed names the way back: \(closed.reply)")
+    let again = await s.handle(line: helloLine(id: 4, token: "tok"))
+    expect(again.reply.contains("\"tools\""), "the new hello lists tools: \(again.reply)")
+    // The promise in the message: the call after that hello asks the user again.
+    let asked = approvals.requests.count
+    let retried = await s.handle(line: callLine(id: 5, name: "look"))
+    expectEq(approvals.requests.count, asked + 1, "the retried call raises a new sheet")
+    expect(!retried.reply.contains(BridgeCode.sessionClosed), "and is judged by it: \(retried.reply)")
 }
 
 @MainActor func testPauseIsBusyResumeProceedsAndRepins() async {
