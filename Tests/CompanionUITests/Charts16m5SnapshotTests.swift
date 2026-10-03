@@ -50,6 +50,7 @@ private let months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun"]
                 .padding(20)
                 .background(AnswerInk.surface)
                 .environment(\.colorScheme, scheme)
+                .environment(\.islandChartSweeps, false)
             let renderer = ImageRenderer(content: view)
             renderer.scale = 2
             guard let image = renderer.nsImage, let tiff = image.tiffRepresentation,

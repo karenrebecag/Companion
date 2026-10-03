@@ -7,18 +7,26 @@ import SwiftUI
 
 struct IslandChartVisual: View {
     let block: ChartBlock
+    /// The donut's colours by key, kept across datasets so a segment the
+    /// ring morphs into its new size keeps the colour the legend shows.
+    @State private var seen: [String: Int] = [:]
+
+    private var palette: [String: Int] {
+        DonutLayout.palette(seen, keys: DonutLayout.slices(block).map(\.key))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
             header
-            IslandChartCanvas(block: block)
+            IslandChartCanvas(block: block, palette: palette)
                 .frame(height: IslandVisualMetrics.canvasHeight(for: block.kind))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(IslandChartSpeech.summary(block))
                 .accessibilityChartDescriptor(IslandChartDescriptor(block: block))
-            IslandChartLegend(entries: IslandChartData.legend(block))
+            IslandChartLegend(entries: IslandChartData.legend(block, palette: palette))
         }
         .islandVisualSurface()
+        .onChange(of: block, initial: true) { seen = palette }
     }
 
     private var header: some View {

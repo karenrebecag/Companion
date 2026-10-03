@@ -613,6 +613,11 @@
 "island.chart.copy" = "Copiar los datos de la gráfica";
 "island.chart.copied" = "Datos de la gráfica copiados";
 "island.chart.categories" = "Categorías";
+"island.chart.total" = "Total";
+"island.chart.other" = "Otros";
+"island.chart.part" = "%@, %@, %@";
+"island.chart.includes" = "incluye %@";
+"island.chart.and" = "y";
 "island.diagram.label" = "Diagrama";
 "island.diagram.copy" = "Copiar el diagrama como imagen";
 "island.diagram.copied" = "Imagen del diagrama copiada";
