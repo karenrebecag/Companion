@@ -120,6 +120,13 @@ struct IslandReel: View {
         }
     }
 
+    /// What VoiceOver reads: the band's name, then the app. Since K9 the
+    /// status line says "Pensando", so the reel is the only place that names
+    /// the app the agent is acting in (security review K9).
+    static func spoken(_ item: String) -> (label: String, value: String) {
+        (Localized.string("island.reel"), item)
+    }
+
     let item: String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -133,7 +140,8 @@ struct IslandReel: View {
         .animation(reduceMotion ? nil : .expoOut(MotionTime.reelSwap), value: item)
         .frame(height: WorkStateMetrics.reelHeight)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Localized.string("island.reel"))
+        .accessibilityLabel(Self.spoken(item).label)
+        .accessibilityValue(Self.spoken(item).value)
     }
 }
 
