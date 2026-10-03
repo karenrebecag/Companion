@@ -154,7 +154,8 @@ struct AppsPage: View {
 
     @ViewBuilder
     private var content: some View {
-        if apps.phase == .setup || editing {
+        let kind = AppsContentKind.of(phase: apps.phase, hasApps: !apps.apps.isEmpty, editing: editing)
+        if kind == .setup {
             // 16k-2d: the catalog is the page even before the function
             // exists — Incredible shows its featured apps from first
             // launch, and a bare form read as a broken page (Karen, en
@@ -171,12 +172,12 @@ struct AppsPage: View {
             seededFeatured
         } else {
             AppField(placeholder: Localized.string("apps.search"), text: $searchText)
-            switch apps.phase {
+            switch kind {
             case .failed(let failure):
                 failed(failure)
-            case .loading where apps.apps.isEmpty:
-                ProgressView().controlSize(.small)
-            default:
+            case .skeleton:
+                AppsCatalogSkeleton()
+            case .catalog, .setup:
                 catalog
             }
         }
