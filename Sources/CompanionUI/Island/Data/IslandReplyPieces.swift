@@ -82,15 +82,16 @@ struct IslandReply: View {
     let text: String
     let startedAt: Date
     let speaking: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Smooth enough for a 150 ms fade per word, a fraction of a display's rate.
+    /// Smooth enough for a 220 ms color settle per word, a fraction of a display's rate.
     private static let frameInterval = 1.0 / 30
 
     var body: some View {
         let words = text.split(separator: " ").map(String.init)
         TimelineView(.animation(minimumInterval: Self.frameInterval, paused: !speaking)) { context in
             let elapsed = context.date.timeIntervalSince(startedAt)
-            Text(Self.painted(words, elapsed: elapsed, speaking: speaking))
+            Text(Self.painted(words, elapsed: elapsed, speaking: speaking, reduceMotion: reduceMotion))
                 .font(Fonts.geist(TypeSize.strong))
                 .lineSpacing(Space.x1)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -99,14 +100,15 @@ struct IslandReply: View {
         .accessibilityLabel(text)
     }
 
-    /// Dim words read as the secondary ink on black; each brightens to full
-    /// over its own fade, so the light glides along the line.
-    private static func painted(_ words: [String], elapsed: Double, speaking: Bool) -> AttributedString {
+    private static func painted(
+        _ words: [String], elapsed: Double, speaking: Bool, reduceMotion: Bool
+    ) -> AttributedString {
         var out = AttributedString()
         for (index, word) in words.enumerated() {
-            let light = IslandReveal.brightness(word: index, elapsed: elapsed, speaking: speaking)
+            let light = IslandReveal.brightness(
+                word: index, elapsed: elapsed, speaking: speaking, reduceMotion: reduceMotion)
             var piece = AttributedString(index == 0 ? word : " " + word)
-            piece.foregroundColor = IslandInk.text.opacity(IslandInk.dimWord + (1 - IslandInk.dimWord) * light)
+            piece.foregroundColor = Neutral.white.color.opacity(IslandMotionBudget.spokenWord.alpha(brightness: light))
             out += piece
         }
         return out
