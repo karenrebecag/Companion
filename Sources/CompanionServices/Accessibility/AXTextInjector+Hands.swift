@@ -69,6 +69,45 @@ extension AXTextInjector: FocusedReading, KeyPressing, WindowRaising {
         return true
     }
 
+    /// A whitelisted chord: its modifiers as the event's own flags, on a
+    /// private source so nothing the user is holding joins them.
+    package func press(chord: KeyChord, pid: Int32) -> Bool {
+        guard trust(), actable(pid) != nil,
+              let source = CGEventSource(stateID: .privateState),
+              let down = CGEvent(keyboardEventSource: source, virtualKey: Self.keyCode(chord.key), keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: Self.keyCode(chord.key), keyDown: false)
+        else { return false }
+        let flags = Self.flags(for: chord.modifiers)
+        down.flags = flags
+        up.flags = flags
+        down.postToPid(pid)
+        up.postToPid(pid)
+        return true
+    }
+
+    static func flags(for modifiers: Set<KeyModifier>) -> CGEventFlags {
+        var flags: CGEventFlags = []
+        if modifiers.contains(.command) { flags.insert(.maskCommand) }
+        if modifiers.contains(.shift) { flags.insert(.maskShift) }
+        if modifiers.contains(.option) { flags.insert(.maskAlternate) }
+        if modifiers.contains(.control) { flags.insert(.maskControl) }
+        return flags
+    }
+
+    /// ANSI virtual key codes for the chord letters (HIToolbox Events.h). The
+    /// letter is the key's position on a US layout: on another layout the
+    /// same physical key may type a different letter, which is why the list
+    /// holds only chords that are harmless whatever they land on.
+    static func keyCode(_ key: ChordKey) -> CGKeyCode {
+        switch key {
+        case .f: 3
+        case .z: 6
+        case .t: 17
+        case .l: 37
+        case .n: 45
+        }
+    }
+
     package func raise(titleContaining title: String, pid: Int32) -> String? {
         guard trust(), let app = actable(pid) else { return nil }
         let application = AXUIElementCreateApplication(pid)

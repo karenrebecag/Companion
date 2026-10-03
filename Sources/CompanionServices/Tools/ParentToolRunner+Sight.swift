@@ -188,15 +188,21 @@ private struct SightAct {
         let raw = (arguments["direction"] as? String ?? "").lowercased()
             .trimmingCharacters(in: .whitespaces)
         guard let direction = ScrollDirection(rawValue: raw) else {
-            return .failed(.invalidArgs("direction must be up or down"), tool: tool.rawValue)
+            return .failed(.invalidArgs(
+                "direction must be one of: " + ScrollDirection.allCases.map(\.rawValue).joined(separator: ", ")),
+                tool: tool.rawValue)
         }
         let scan = hands.scans.scan(for: pid)
         let node = ParentToolRunner.intArgument(arguments["id"]).flatMap { scan?.element(id: $0)?.node }
+        if direction == .intoView, node == nil {
+            return .failed(.invalidArgs("into_view needs the id of a control from your latest look"),
+                           tool: tool.rawValue)
+        }
         guard screen.scroll(node: node, generation: scan?.generation ?? -1, direction: direction, pid: pid)
         else { return fail("not_scrollable", "nothing in the window could be scrolled") }
         Log.app("sight: scroll \(direction.rawValue) pid=\(pid) bundle=\(bundle)")
-        return ParentToolOutcome(ok: true, output: "scrolled \(direction.rawValue); look again",
-                                 tool: tool.rawValue)
+        let done = direction == .intoView ? "brought into view" : "scrolled \(direction.rawValue)"
+        return ParentToolOutcome(ok: true, output: done + "; look again", tool: tool.rawValue)
     }
 
     func menu(_ call: ToolCallRef, _ arguments: [String: Any]) -> ParentToolOutcome {
@@ -204,6 +210,10 @@ private struct SightAct {
         guard !path.isEmpty else { return .failed(.invalidArgs("missing path"), tool: tool.rawValue) }
         guard let resolved = screen.menuTitle(path: path, pid: pid) else {
             return fail("menu_not_found", "no menu item at that path")
+        }
+        guard screen.menuEnabled(path: path, pid: pid) else {
+            return fail("menu_disabled", "the menu item \"\(resolved)\" is greyed out right now; "
+                + "the app may need a selection or another state first")
         }
         if HandsGate.menuNeedsTicket(path: path, resolved: resolved),
            !hands.tickets.redeem(.init(name: call.name, arguments: call.arguments, pid: pid, item: resolved)) {

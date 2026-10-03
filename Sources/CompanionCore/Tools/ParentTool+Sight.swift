@@ -31,12 +31,17 @@ extension ParentTool {
             return ToolSpec(
                 name: rawValue,
                 description: en
-                    ? "Scroll the window in front one page up or down, or the list that "
-                        + "contains the control with this id. Then look again."
-                    : "Desplaza una página arriba o abajo la ventana de delante, o la lista "
-                        + "que contiene el control con ese número. Después, vuelve a mirar.",
+                    ? "Scroll the window in front one page up, down, left or right, or the "
+                        + "list that contains the control with this id. With into_view and an "
+                        + "id, bring that control into view. Then look again."
+                    : "Desplaza una página arriba, abajo, a la izquierda o a la derecha la "
+                        + "ventana de delante, o la lista que contiene el control con ese "
+                        + "número. Con into_view y un número, trae ese control a la vista. "
+                        + "Después, vuelve a mirar.",
                 properties: [
-                    ToolProperty(name: "direction", type: "string", description: "up | down"),
+                    ToolProperty(
+                        name: "direction", type: "string",
+                        description: "up | down | left | right | into_view"),
                     ToolProperty(
                         name: "id", type: "integer",
                         description: en ? "optional: a control inside the list"

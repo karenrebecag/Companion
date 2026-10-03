@@ -52,6 +52,7 @@ private final class LockingKeys: KeyPressing, @unchecked Sendable {
         flag.set()
         return true
     }
+    func press(chord: KeyChord, pid: Int32) -> Bool { press(.return, pid: pid) }
 }
 
 @Test @MainActor func testALockedMacRefusesBeforeActing() async {

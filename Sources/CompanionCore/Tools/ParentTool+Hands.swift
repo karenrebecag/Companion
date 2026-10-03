@@ -7,6 +7,7 @@ import Foundation
 extension ParentTool {
     func handsSpec(_ language: AppLanguage) -> ToolSpec {
         let keys = NamedKey.allCases.map(\.rawValue).joined(separator: ", ")
+        let chords = KeyChord.whitelist.map(\.name).sorted().joined(separator: ", ")
         switch (self, language) {
         case (.typeText, .en):
             return ToolSpec(
@@ -29,18 +30,20 @@ extension ParentTool {
         case (.pressKey, .en):
             return ToolSpec(
                 name: rawValue,
-                description: "Press one key in the app in front, with no "
-                    + "modifiers. Only: \(keys).",
+                description: "Press one key in the app in front, or one shortcut. "
+                    + "Keys: \(keys). Shortcuts: \(chords). Anything else, use menu.",
                 properties: [ToolProperty(
-                    name: "key", type: "string", description: "one of: \(keys)")],
+                    name: "key", type: "string",
+                    description: "a key (\(keys)) or a shortcut like cmd+n")],
                 required: ["key"])
         case (.pressKey, .es):
             return ToolSpec(
                 name: rawValue,
-                description: "Pulsa una tecla en la app que está delante, sin "
-                    + "modificadores. Solo: \(keys).",
+                description: "Pulsa una tecla o un atajo en la app que está delante. "
+                    + "Teclas: \(keys). Atajos: \(chords). Para lo demás, menu.",
                 properties: [ToolProperty(
-                    name: "key", type: "string", description: "una de: \(keys)")],
+                    name: "key", type: "string",
+                    description: "una tecla (\(keys)) o un atajo como cmd+n")],
                 required: ["key"])
         case (.focusWindow, .en):
             return ToolSpec(

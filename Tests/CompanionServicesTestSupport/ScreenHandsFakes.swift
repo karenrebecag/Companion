@@ -16,6 +16,9 @@ package final class FakeHands: TextInjecting, FocusedReading, KeyPressing, Windo
     package private(set) var injected: [(text: String, pid: Int32)] = []
     package private(set) var pressed: [(key: NamedKey, pid: Int32)] = []
     package private(set) var raised: [(title: String, pid: Int32)] = []
+    package private(set) var pressedChords: [(chord: KeyChord, pid: Int32)] = []
+    /// False makes the port report that the event could not be posted.
+    package var chordsPost = true
 
     package init(field: FocusedField? = nil, text: String? = nil, windows: [String] = []) {
         self.field = field
@@ -43,6 +46,11 @@ package final class FakeHands: TextInjecting, FocusedReading, KeyPressing, Windo
         defer { lock.unlock() }
         pressed.append((key, pid))
         return true
+    }
+
+    package func press(chord: KeyChord, pid: Int32) -> Bool {
+        lock.withLock { pressedChords.append((chord, pid)) }
+        return chordsPost
     }
 
     package func raise(titleContaining title: String, pid: Int32) -> String? {
@@ -82,4 +90,36 @@ package func handsRunner(
             trusted: { trusted },
             target: { target.next() },
             bundleID: { _ in bundle }))
+}
+
+/// An app that is launched but not ready yet: its pid shows up after
+/// `pidAfter` reads and its window after `windowAfter`, like a real launch.
+package final class FakeAppWindows: AppWindowProbing, @unchecked Sendable {
+    private let lock = NSLock()
+    private let appPID: Int32
+    private let pidAfter: Int
+    private let windowAfter: Int
+    private var pidReads = 0
+    private var windowReads = 0
+    package var reads: (pid: Int, window: Int) { lock.withLock { (pidReads, windowReads) } }
+
+    package init(pid: Int32, pidAfter: Int = 0, windowAfter: Int = 0) {
+        appPID = pid
+        self.pidAfter = pidAfter
+        self.windowAfter = windowAfter
+    }
+
+    package func pid(ofApp name: String) -> Int32? {
+        lock.withLock {
+            pidReads += 1
+            return pidReads > pidAfter ? appPID : nil
+        }
+    }
+
+    package func hasWindow(pid: Int32) -> Bool {
+        lock.withLock {
+            windowReads += 1
+            return pid == appPID && windowReads > windowAfter
+        }
+    }
 }

@@ -108,9 +108,11 @@ package enum NamedKey: String, Sendable, Equatable, CaseIterable {
     }
 }
 
-/// Posts one key, down and up, with no modifiers, to one process.
+/// Posts one key, down and up, with no modifiers, to one process; or one
+/// whitelisted chord with exactly its modifiers.
 package protocol KeyPressing: Sendable {
     func press(_ key: NamedKey, pid: Int32) -> Bool
+    func press(chord: KeyChord, pid: Int32) -> Bool
 }
 
 /// Raises the window of `pid` whose title contains `title`; the title it

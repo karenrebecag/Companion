@@ -15,6 +15,8 @@ package final class FakeScreen: ScreenActing, @unchecked Sendable {
     /// The titles the last path step can match, resolved like the adapter
     /// does (`WindowTitles.bestMatch`); nil means the path is exact.
     package var menuTitles: [String]?
+    /// Titles of menu items that are greyed out right now.
+    package var disabledMenus: Set<String> = []
 
     package init(_ nodes: [ScanNode]) { self.nodes = nodes }
 
@@ -46,8 +48,13 @@ package final class FakeScreen: ScreenActing, @unchecked Sendable {
         }
     }
 
+    package func menuEnabled(path: [String], pid: Int32) -> Bool {
+        guard let title = menuTitle(path: path, pid: pid) else { return true }
+        return lock.withLock { !disabledMenus.contains(title) }
+    }
+
     package func menu(path: [String], pid: Int32, expecting: String) -> String? {
-        guard menuTitle(path: path, pid: pid) == expecting else { return nil }
+        guard menuTitle(path: path, pid: pid) == expecting, menuEnabled(path: path, pid: pid) else { return nil }
         lock.withLock {
             menus.append(path)
             pressedTitles.append(expecting)
