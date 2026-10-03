@@ -87,21 +87,26 @@ package final class FakeParentTools: ParentToolExecuting, @unchecked Sendable {
     private var unavailable: [String: String]
 
     private let specNames: [String]
+    private let realSpecs: [ToolSpec]
 
+    /// `specs` are real schemas offered as-is, for a test whose calls carry
+    /// arguments the bridge now checks against them.
     package init(
         handledNames: Set<String> = ["look", "click", "type_text", "open_app"],
         specNames: [String] = ["look", "click"],
+        specs: [ToolSpec] = [],
         unavailable: [String: String] = [:],
         scriptedOutcome: ParentToolOutcome = ParentToolOutcome(ok: true, output: "ok", target: "Safari")
     ) {
         self.handledNames = handledNames
         self.specNames = specNames
+        realSpecs = specs
         self.unavailable = unavailable
         self.scriptedOutcome = scriptedOutcome
     }
 
     package func specs(_ language: AppLanguage) -> [ToolSpec] {
-        specNames.map { ToolSpec(name: $0, description: $0, properties: [], required: []) }
+        specNames.map { ToolSpec(name: $0, description: $0, properties: [], required: []) } + realSpecs
     }
 
     package func handles(_ name: String) -> Bool {

@@ -82,17 +82,26 @@ package struct BridgeToolProperty: Codable, Sendable, Equatable {
     package var name: String
     package var type: String
     package var description: String
+    package var allowed: [String]?
+    package var minLength: Int?
+    package var maxBytes: Int?
 
     package init(_ property: ToolProperty) {
         self.name = property.name
         self.type = property.type
         self.description = property.description
+        self.allowed = property.allowed
+        self.minLength = property.minLength
+        self.maxBytes = property.maxBytes
     }
 
     enum CodingKeys: String, CodingKey {
         case name
         case type
         case description
+        case allowed = "enum"
+        case minLength
+        case maxBytes
     }
 }
 

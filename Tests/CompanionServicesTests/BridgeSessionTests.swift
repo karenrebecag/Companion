@@ -32,6 +32,9 @@ import Testing
     await testOnActionFiresForSuccessfulWriteCallsOnly()
     await testOnCallFiresForEverySuccessfulCall()
     await testOversizedLineThroughHandleClosesTheConnection()
+    await testABadArgumentIsInvalidArgsBeforeAnySheet()
+    await testEveryKindOfBadArgumentIsInvalidArgsByName()
+    await testBadArgumentsSpendNoRateBudget()
 }
 
 // MARK: - wire helpers
@@ -494,4 +497,56 @@ private func waitUntil(timeout: TimeInterval = 2, _ pred: @escaping @Sendable ()
 
     expect(result.reply.contains(BridgeCode.frameTooLarge), "handle: too large is frame_too_large")
     expect(result.close, "handle: too large closes the connection, like the transport does")
+}
+
+// MARK: - M6. arguments checked where the call lands
+
+/// A client that skips the shim gets the same refusal, and it costs no
+/// sheet, no rate budget and no execution.
+@MainActor func testABadArgumentIsInvalidArgsBeforeAnySheet() async {
+    let tools = FakeParentTools(handledNames: ["type_text"], specNames: [], specs: [ParentTool.typeText.spec(.en)])
+    let approvals = ScriptedApprovals(answer: true)
+    let s = session(tools: tools, approvals: approvals)
+    _ = await s.handle(line: helloLine(id: 1, token: "tok"))
+    let typo = await s.handle(line: callLine(id: 2, name: "type_text", argumentsJSON: #"{"txet":"hola"}"#))
+    expect(typo.reply.contains(BridgeCode.invalidArgs) && typo.reply.contains("unknown argument `txet`"),
+           "misspelled key: \(typo.reply)")
+    let empty = await s.handle(line: callLine(id: 3, name: "type_text", argumentsJSON: #"{"text":""}"#))
+    expect(empty.reply.contains(BridgeCode.invalidArgs) && empty.reply.contains("1-16000 UTF-8 bytes"),
+           "empty text: \(empty.reply)")
+    expect(approvals.requests.isEmpty, "no sheet was raised")
+    expect(tools.executeCalls.isEmpty, "nothing ran")
+    let good = await s.handle(line: callLine(id: 4, name: "type_text", argumentsJSON: #"{"text":"hola"}"#))
+    expect(good.reply.contains(#""ok":true"#), "a valid call still runs: \(good.reply)")
+}
+
+@MainActor func testEveryKindOfBadArgumentIsInvalidArgsByName() async {
+    let tools = FakeParentTools(
+        handledNames: ["type_text", "scroll"], specNames: [],
+        specs: [ParentTool.typeText.spec(.en), ParentTool.scroll.spec(.en)])
+    let s = session(tools: tools, approvals: ScriptedApprovals(answer: true))
+    _ = await s.handle(line: helloLine(id: 1, token: "tok"))
+    let oversized = String(repeating: "a", count: ToolProperty.maxTextBytes + 1)
+    let calls: [(String, String, String)] = [
+        ("type_text", #"{"text":"a\u0000b"}"#, "`text`"),
+        ("type_text", #"{"text":"\#(oversized)"}"#, "`text`"),
+        ("scroll", #"{"direction":"sideways"}"#, "`direction`"),
+    ]
+    for (offset, (name, arguments, named)) in calls.enumerated() {
+        let out = await s.handle(line: callLine(id: offset + 2, name: name, argumentsJSON: arguments))
+        expect(out.reply.contains(BridgeCode.invalidArgs) && out.reply.contains(named), "\(name): \(out.reply.prefix(200))")
+    }
+    expect(tools.executeCalls.isEmpty, "nothing ran")
+}
+
+/// Thirty writes a minute is the cap; refused calls must not count toward it.
+@MainActor func testBadArgumentsSpendNoRateBudget() async {
+    let tools = FakeParentTools(handledNames: ["type_text"], specNames: [], specs: [ParentTool.typeText.spec(.en)])
+    let s = session(tools: tools, approvals: ScriptedApprovals(answer: true))
+    _ = await s.handle(line: helloLine(id: 1, token: "tok"))
+    for id in 2...40 {
+        _ = await s.handle(line: callLine(id: id, name: "type_text", argumentsJSON: #"{"text":""}"#))
+    }
+    let good = await s.handle(line: callLine(id: 41, name: "type_text", argumentsJSON: #"{"text":"hola"}"#))
+    expect(good.reply.contains(#""ok":true"#), "after 39 refusals a valid write still runs: \(good.reply)")
 }
