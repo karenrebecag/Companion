@@ -10,6 +10,19 @@ package enum WelcomeStep: Int, Sendable, Equatable, CaseIterable {
     /// Only the screens that need hardware can be skipped: a Mac without a
     /// microphone must not be trapped (spec 16c §4).
     package var skippable: Bool { self == .microphone || self == .yourTurn }
+
+    /// Incredible saves the page reached and reopens there, except its intro:
+    /// the cover and the greeting play again from the start.
+    package var resumable: Bool { self != .cover && self != .hello }
+
+    /// Stored by name, not by raw value, so reordering the cases never sends
+    /// a relaunch to the wrong screen.
+    package var savedName: String { String(describing: self) }
+
+    package init?(savedName: String) {
+        guard let step = Self.allCases.first(where: { $0.savedName == savedName }) else { return nil }
+        self = step
+    }
 }
 
 /// The four rows of the one permissions screen.

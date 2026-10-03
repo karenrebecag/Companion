@@ -10,8 +10,11 @@ package final class WelcomeModel {
     /// Above the room's hum, below a normal voice at arm's length.
     static let heardLevel = 0.12
     static let doneKey = "companion.welcome.done"
+    static let stepKey = "companion.welcome.step"
 
-    package private(set) var flow: WelcomeFlow
+    package private(set) var flow: WelcomeFlow {
+        didSet { saveStep() }
+    }
     package private(set) var facts = WelcomeFacts()
     package private(set) var level = 0.0
     package private(set) var done: Bool
@@ -30,7 +33,22 @@ package final class WelcomeModel {
         self.defaults = defaults
         let seen = defaults.bool(forKey: Self.doneKey)
         self.done = seen
-        self.flow = WelcomeFlow.start(welcomeDone: seen)
+        self.flow = seen ? WelcomeFlow.start(welcomeDone: true) : Self.resumed(from: defaults)
+    }
+
+    /// The page the last run reached, so the relaunch macOS asks for after
+    /// Screen Recording lands back on it.
+    private static func resumed(from defaults: UserDefaults) -> WelcomeFlow {
+        guard let name = defaults.string(forKey: stepKey),
+              let step = WelcomeStep(savedName: name), step.resumable else { return WelcomeFlow() }
+        return WelcomeFlow(step: step)
+    }
+
+    /// Like Incredible, only a move into a resumable page writes; going back
+    /// to the intro leaves the last page reached in place.
+    private func saveStep() {
+        guard !done, !flow.finished, flow.step.resumable else { return }
+        defaults.set(flow.step.savedName, forKey: Self.stepKey)
     }
 
     package var canContinue: Bool { flow.canContinue(facts) }
@@ -91,6 +109,7 @@ package final class WelcomeModel {
     /// From Settings: the whole welcome again, from the cover.
     package func reopen() {
         done = false
+        defaults.removeObject(forKey: Self.stepKey)
         flow = WelcomeFlow()
         facts.holdDone = false
         greeted = false
@@ -109,5 +128,6 @@ package final class WelcomeModel {
     private func finish() {
         done = true
         defaults.set(true, forKey: Self.doneKey)
+        defaults.removeObject(forKey: Self.stepKey)
     }
 }

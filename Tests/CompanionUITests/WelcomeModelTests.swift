@@ -14,6 +14,15 @@ import Testing
     await testTheLastScreenWaitsForAHoldThatSentWords()
     await testTheGreetingSpeaksOnce()
     await testFinishingIsRemembered()
+    testAReopenedAppResumesOnTheSavedStep()
+    testTheIntroIsNeverSaved()
+    testFinishingForgetsTheSavedStep()
+    testReopeningFromSettingsStartsOverAndSavesAgain()
+    testAnUnknownSavedStepStartsFromTheCover()
+    testGoingBackToTheIntroKeepsTheSavedStep()
+    testAFinishedWelcomeIgnoresAStaleSavedStep()
+    await testEveryResumableStepResumes()
+    testSavedNamesAreTheOnDiskContract()
 }
 
 private final class FakeWelcomeDevices: WelcomeDevices, @unchecked Sendable {
@@ -118,4 +127,118 @@ private func scratchDefaults() -> UserDefaults {
     again.reopen()
     expectEq(again.flow.step, .cover, "reabrir desde Ajustes: desde la portada")
     expect(!again.done, "reabierta: se muestra")
+}
+
+// Incredible saves the page reached on every move into a resumable page and
+// reopens there: macOS asks for a relaunch after Screen Recording, and the
+// user must land back on the permissions step, not on the cover.
+
+@MainActor func testAReopenedAppResumesOnTheSavedStep() {
+    let defaults = scratchDefaults()
+    let welcome = model(FakeWelcomeDevices(), defaults: defaults)
+    welcome.jump(to: .keys)
+    welcome.next()
+    expectEq(welcome.flow.step, .permissions, "avanza a permisos")
+    let relaunched = model(FakeWelcomeDevices(), defaults: defaults)
+    expectEq(relaunched.flow.step, .permissions, "relanzada: vuelve al paso de permisos")
+    relaunched.back()
+    let again = model(FakeWelcomeDevices(), defaults: defaults)
+    expectEq(again.flow.step, .keys, "volver atrás también se guarda")
+}
+
+@MainActor func testTheIntroIsNeverSaved() {
+    let defaults = scratchDefaults()
+    let welcome = model(FakeWelcomeDevices(), defaults: defaults)
+    welcome.next()
+    expectEq(welcome.flow.step, .hello, "en el saludo")
+    let relaunched = model(FakeWelcomeDevices(), defaults: defaults)
+    expectEq(relaunched.flow.step, .cover, "la introducción empieza otra vez desde la portada")
+}
+
+@MainActor func testFinishingForgetsTheSavedStep() {
+    let defaults = scratchDefaults()
+    let welcome = model(FakeWelcomeDevices(), defaults: defaults)
+    welcome.jump(to: .yourTurn)
+    welcome.skip()
+    expect(welcome.done, "terminada")
+    let relaunched = model(FakeWelcomeDevices(), defaults: defaults)
+    expectEq(relaunched.flow.step, .keys, "terminada: sigue el camino de siempre, no el paso guardado")
+    expect(defaults.object(forKey: WelcomeModel.stepKey) == nil, "terminada: el paso guardado se borra")
+}
+
+@MainActor func testReopeningFromSettingsStartsOverAndSavesAgain() {
+    let defaults = scratchDefaults()
+    let welcome = model(FakeWelcomeDevices(), defaults: defaults)
+    welcome.jump(to: .yourTurn)
+    welcome.skip()
+    welcome.reopen()
+    expectEq(welcome.flow.step, .cover, "reabierta: desde la portada")
+    welcome.jump(to: .microphone)
+    expectEq(defaults.string(forKey: WelcomeModel.stepKey), "microphone", "reabierta: guarda otra vez")
+    let relaunched = model(FakeWelcomeDevices(), defaults: defaults)
+    expectEq(relaunched.flow.step, .keys, "vista antes: relanzar no la reabre")
+    let fresh = scratchDefaults()
+    let first = model(FakeWelcomeDevices(), defaults: fresh)
+    first.jump(to: .microphone)
+    expectEq(model(FakeWelcomeDevices(), defaults: fresh).flow.step, .microphone, "saltar a un paso lo guarda")
+}
+
+@MainActor func testAnUnknownSavedStepStartsFromTheCover() {
+    let defaults = scratchDefaults()
+    defaults.set("gone", forKey: WelcomeModel.stepKey)
+    expectEq(model(FakeWelcomeDevices(), defaults: defaults).flow.step, .cover, "valor desconocido: portada")
+    for value in ["hello", "cover", ""] {
+        defaults.set(value, forKey: WelcomeModel.stepKey)
+        expectEq(model(FakeWelcomeDevices(), defaults: defaults).flow.step, .cover, "no reanudable \"\(value)\": portada")
+    }
+    defaults.set(3, forKey: WelcomeModel.stepKey)
+    expectEq(model(FakeWelcomeDevices(), defaults: defaults).flow.step, .cover, "un número no es un nombre: portada")
+}
+
+@MainActor func testGoingBackToTheIntroKeepsTheSavedStep() {
+    let defaults = scratchDefaults()
+    let welcome = model(FakeWelcomeDevices(), defaults: defaults)
+    welcome.jump(to: .keys)
+    expectEq(defaults.string(forKey: WelcomeModel.stepKey), "keys", "claves: guardado")
+    welcome.back()
+    expectEq(welcome.flow.step, .hello, "atrás al saludo")
+    expectEq(defaults.string(forKey: WelcomeModel.stepKey), "keys", "la introducción no escribe ni borra")
+    expectEq(model(FakeWelcomeDevices(), defaults: defaults).flow.step, .keys, "relanzada: el último paso alcanzado")
+}
+
+@MainActor func testAFinishedWelcomeIgnoresAStaleSavedStep() {
+    let defaults = scratchDefaults()
+    defaults.set(true, forKey: WelcomeModel.doneKey)
+    defaults.set("permissions", forKey: WelcomeModel.stepKey)
+    let welcome = model(FakeWelcomeDevices(), defaults: defaults)
+    expect(welcome.done, "vista")
+    expectEq(welcome.flow.step, .keys, "vista: un paso viejo no la reabre")
+}
+
+@MainActor func testEveryResumableStepResumes() async {
+    let resumable: [WelcomeStep] = [.keys, .permissions, .holdKey, .microphone, .yourTurn]
+    expectEq(WelcomeStep.allCases.filter(\.resumable), resumable, "los reanudables son estos")
+    for step in resumable {
+        let defaults = scratchDefaults()
+        model(FakeWelcomeDevices(), defaults: defaults).jump(to: step)
+        expectEq(model(FakeWelcomeDevices(), defaults: defaults).flow.step, step, "saltar a \(step) y relanzar")
+    }
+    let defaults = scratchDefaults()
+    let walking = model(FakeWelcomeDevices(granted: Set(WelcomePermission.allCases)), defaults: defaults)
+    walking.jump(to: .permissions)
+    await walking.refresh()
+    for expected in [WelcomeStep.holdKey, .microphone] {
+        walking.next()
+        expectEq(walking.flow.step, expected, "next llega a \(expected)")
+        expectEq(model(FakeWelcomeDevices(), defaults: defaults).flow.step, expected, "next a \(expected) se guarda")
+    }
+}
+
+@MainActor func testSavedNamesAreTheOnDiskContract() {
+    for step in WelcomeStep.allCases {
+        expectEq(WelcomeStep(savedName: step.savedName), step, "ida y vuelta: \(step)")
+    }
+    expectEq(WelcomeStep.allCases.map(\.savedName),
+             ["cover", "hello", "keys", "permissions", "holdKey", "microphone", "yourTurn"],
+             "los nombres guardados en disco no cambian")
 }
