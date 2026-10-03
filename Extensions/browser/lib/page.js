@@ -219,6 +219,14 @@
     return { element };
   }
 
+  // Every press and insert goes through here: a menu that closed after the read keeps its items in
+  // the map, and acting on one would report a click or text that landed on nothing.
+  function lookupShown(state, generation, id) {
+    const found = lookup(state, generation, id);
+    if (found.error || isShown(found.element)) return found;
+    return stale('element is hidden now, read the page again');
+  }
+
   function clickElement(el) {
     const win = el.ownerDocument.defaultView;
     const init = { bubbles: true, cancelable: true, composed: true, view: win, button: 0 };
@@ -356,7 +364,7 @@
   }
 
   function act(generation, id, run) {
-    const found = lookup(stateOf(), generation, id);
+    const found = lookupShown(stateOf(), generation, id);
     return found.error ? found : run(found.element);
   }
 
@@ -367,7 +375,7 @@
   // A popover that re-renders between measure and press makes a trusted click land on nothing,
   // so the box has to hold still across two reads before its center is handed to CDP.
   async function locate(generation, id, token) {
-    const found = lookup(stateOf(), generation, id);
+    const found = lookupShown(stateOf(), generation, id);
     if (found.error) return found;
     const el = found.element;
     // A selector read reaches into same-origin iframes; their boxes are in the frame's own coordinates.
@@ -437,7 +445,7 @@
 
   // Runs after the trusted click focused the field; selecting first makes the keys replace, not append.
   function prepareType(generation, id) {
-    const found = lookup(stateOf(), generation, id);
+    const found = lookupShown(stateOf(), generation, id);
     if (found.error) return found;
     const el = found.element;
     if (isSensitive(fieldOf(el))) return { error: { code: 'secure_field', message: 'sensitive field, typing refused' } };

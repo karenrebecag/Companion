@@ -589,3 +589,47 @@ test('prepareType tells the background whether the field keeps line breaks', () 
   armed(fake({ tag: 'input', attrs: { type: 'text' } }));
   assert.equal(page.prepareType(1, 1).multiline, false);
 });
+
+// H-4(b): a menu that closed after the read keeps its items in the map; pressing one must not
+// report a click that landed on nothing.
+function hiddenSinceRead(tag, attrs = {}) {
+  const menu = fake({ tag: 'div' });
+  const el = armed(fake({ tag, attrs, parent: menu }));
+  menu.ownDisplay = 'none';
+  return el;
+}
+
+test('a click on an element hidden since the read is refused as stale, with no events', () => {
+  const el = hiddenSinceRead('button');
+  const out = page.click(1, 1);
+  assert.equal(out.error?.code, 'stale_id');
+  assert.deepEqual(el.events, []);
+});
+
+test('typing into a field hidden since the read is refused as stale, untouched', () => {
+  const el = hiddenSinceRead('input', { type: 'text' });
+  assert.equal(page.type(1, 1, 'x').error?.code, 'stale_id');
+  assert.equal(page.prepareType(1, 1).error?.code, 'stale_id');
+  assert.equal(el.focused, false);
+  assert.equal(el.value, '');
+});
+
+test('locate refuses an element hidden since the read before scrolling to it', async () => {
+  const el = hiddenSinceRead('button');
+  let scrolled = 0;
+  el.scrollIntoView = () => { scrolled++; };
+  globalThis.document = el.ownerDocument;
+  try {
+    const out = await page.locate(1, 1, 't');
+    assert.equal(out.error?.code, 'stale_id');
+    assert.equal(scrolled, 0);
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('a visible element is still clicked', () => {
+  const el = armed(fake({ tag: 'button', parent: fake({ tag: 'div' }) }));
+  assert.deepEqual(page.click(1, 1), { done: 'clicked' });
+  assert.equal(el.events.length, 5);
+});
