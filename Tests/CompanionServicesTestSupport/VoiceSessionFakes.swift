@@ -27,11 +27,24 @@ private struct ScriptedReachability: ReachabilityProbing {
     var isOnline: Bool { get async { online } }
 }
 
+/// The scripted transport delivers its ready events or never does, so the
+/// handshake budget has nothing to measure here except how starved the test
+/// process is. A 1 s budget made a loaded `gates.sh` fall back to classic
+/// mid-start (`.listening + .realtime` never came). Tests of the timeout
+/// itself pass their own small value.
+///
+/// Trap: a harness with empty `autoEvents` never gets ready, so with this
+/// default `session.start()` blocks for 10 minutes. Whoever expects the
+/// timeout must pass an explicit small `readyTimeout`.
+package let harnessReadyTimeout: TimeInterval = 600
+
 @MainActor
 package func makeVoiceHarness(
     key: String? = "sk-test",
+    // Empty means never ready: pair it with an explicit small `readyTimeout`
+    // if the test expects the handshake to give up (see `harnessReadyTimeout`).
     autoEvents: [RealtimeEvent] = [.sessionCreated, .sessionUpdated],
-    readyTimeout: TimeInterval = 1,
+    readyTimeout: TimeInterval = harnessReadyTimeout,
     aec: Bool = false,
     online: Bool = true,
     micSilenceTimeout: TimeInterval = 10,

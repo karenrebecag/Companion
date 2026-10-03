@@ -396,7 +396,7 @@ private struct AlwaysOnline: ReachabilityProbing {
         transport: transport, mic: mic, player: player, transcriber: transcriber,
         synthesizer: synth, chat: chat, secrets: secrets, thread: thread,
         configProvider: provider, memoryStore: memoryStore,
-        reachability: AlwaysOnline(), readyTimeout: 1)
+        reachability: AlwaysOnline(), readyTimeout: harnessReadyTimeout)
     let watch = SnapWatch(session.snapshots)
     return (session, transport, watch, transcriber)
 }

@@ -216,6 +216,36 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     await connectionReady(h, 1)
 }
 
+/// A loaded machine can starve the session's actor for longer than any small
+/// ready budget, so the harness must not carry one that a slow start can
+/// outlive. The ready event is held back and then delivered: realtime has to
+/// still be the pipeline that listens, on the one connection.
+@Test @MainActor func aReadyThatArrivesLateStillLeavesRealtimeListening() async {
+    expect(harnessReadyTimeout > 30, "the harness budget must not be a small one")
+    // WHY: must exceed the old 1 s harness budget, or the hold proves nothing.
+    let heldPastAShortBudget = 1.5
+    let h = makeVoiceHarness(autoEvents: [])
+    // `start` returns only once the handshake settles, so it runs aside.
+    let starting = Task { @MainActor in await h.session.start() }
+    await pumpUntil("open entered") { h.transport.openCount == 1 }
+    await settle(heldPastAShortBudget)
+
+    expect(h.watch.latest.pipeline != .classic, "no fall back to classic while waiting")
+    expect(h.watch.latest.state == .connecting, "still waiting on the handshake")
+
+    h.transport.yield(.sessionCreated)
+    h.transport.yield(.sessionUpdated)
+    await pumpUntil("listening") {
+        h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
+    }
+    expectEq(h.transport.openCount, 1, "no reopen or classic retry")
+    // Failed expectations do not return, so cancel before awaiting: otherwise a
+    // failing run waits out the 600 s ready budget. Once ready, cancelling is a
+    // no-op for `start`, which has settled or returns `didBecomeReady`.
+    starting.cancel()
+    await starting.value
+}
+
 @Test @MainActor func aHangUpDuringAReconnectLeavesTheSessionIdle() async {
     let h = makeVoiceHarness(online: true)
     await startListening(h)

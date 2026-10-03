@@ -119,7 +119,7 @@ final class RecordingWarmSynth: SpeechSynthesizer, @unchecked Sendable {
 }
 
 @MainActor func makeFanOutSession(
-    key: String?, readyTimeout: TimeInterval = 1
+    key: String?, readyTimeout: TimeInterval = harnessReadyTimeout
 ) -> (VoiceSession, RecordingWarmSynth, ScriptedSecrets, SnapWatch) {
     let transport = ScriptedVoiceTransport()
     transport.autoEvents = [.sessionCreated, .sessionUpdated]
