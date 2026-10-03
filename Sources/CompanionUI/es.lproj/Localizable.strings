@@ -702,3 +702,8 @@
 /* Voice: the user interrupted while Companion waited for a permission, so it did nothing */
 "island.approvalWithdrawn.title" = "Me detuve sin hacerlo";
 "island.approvalWithdrawn.body" = "Me interrumpiste mientras esperaba tu permiso, así que no hice nada.";
+/* Settings panel: the floating panel's controls */
+"settings.panel.dock" = "Anclar al borde derecho";
+"settings.panel.undock" = "Volver a flotar";
+"settings.panel.fold" = "Plegar en una píldora";
+"settings.panel.unfold" = "Abrir ajustes";

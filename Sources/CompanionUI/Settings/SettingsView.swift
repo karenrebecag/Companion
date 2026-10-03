@@ -27,6 +27,7 @@ package struct SettingsView: View {
     var browser: BrowserSettingsModel?
     let onClose: () -> Void
     @Binding var tab: SettingsTab
+    let layout: SettingsLayout
     @State private var query = ""
     @State private var highlight: String?
     @State private var highlightTimer: Task<Void, Never>?
@@ -45,6 +46,7 @@ package struct SettingsView: View {
         memory: (any MemoryBrowsing)? = nil,
         browser: BrowserSettingsModel? = nil,
         tab: Binding<SettingsTab> = .constant(.general),
+        layout: SettingsLayout = .sheet,
         onClose: @escaping () -> Void = {}
     ) {
         self.preview = preview
@@ -54,36 +56,16 @@ package struct SettingsView: View {
         self.browser = browser
         self.updates = updates
         self._tab = tab
+        self.layout = layout
         self.onClose = onClose
     }
 
     private let updates: UpdateState?
 
     package var body: some View {
-        HStack(spacing: Space.none) {
-            SettingsSidebar(tab: $tab, query: $query, onPick: jump)
-                .frame(width: SettingsOverlayMetrics.sidebar)
-            Rectangle().fill(Semantic.border).frame(width: Stroke.hairline)
-            ScrollView {
-                page
-                    .padding(Space.x6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .id("\(tab.rawValue)-\(languageTick)")
-                    .transition(ChromeMotion.transition(.modeSwap, reduceMotion: reduceMotion))
-            }
-            .scrollIndicators(.hidden)
-            .environment(\.settingsHighlight, highlight)
+        Group {
+            if layout.showsSidebar { sheetBody } else { compactBody }
         }
-        .background(Semantic.background)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
-        .background(
-            RoundedRectangle(cornerRadius: Radius.xl)
-                .fill(Semantic.background)
-                .elevation(.sheet))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.xl)
-                .stroke(Semantic.border, lineWidth: Stroke.hairline))
-        .overlay(alignment: .topTrailing) { closeButton }
         .overlay {
             if dropdowns.session.isOpen, case .settingsPick = dropdowns.menu {
                 Color.black.opacity(0.001)
@@ -99,6 +81,75 @@ package struct SettingsView: View {
             highlightTimer?.cancel()
         }
         .onAppear { refreshStorage() }
+    }
+
+    /// The sheet: sidebar, hairline, page, in its own rounded surface.
+    private var sheetBody: some View {
+        HStack(spacing: Space.none) {
+            SettingsSidebar(tab: $tab, query: $query, onPick: jump)
+                .frame(width: SettingsOverlayMetrics.sidebar)
+            Rectangle().fill(Semantic.border).frame(width: Stroke.hairline)
+            pageScroll
+        }
+        .background(Semantic.background)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
+        .background(
+            RoundedRectangle(cornerRadius: Radius.xl)
+                .fill(Semantic.background)
+                .elevation(.sheet))
+        .overlay(
+            RoundedRectangle(cornerRadius: Radius.xl)
+                .stroke(Semantic.border, lineWidth: Stroke.hairline))
+        .overlay(alignment: .topTrailing) { closeButton }
+    }
+
+    /// The floating panel: the page chips replace the sidebar and the panel
+    /// supplies the surface, the header and the close.
+    private var compactBody: some View {
+        VStack(spacing: Space.none) {
+            SettingsSearchField(query: $query, onSubmit: submitFirst)
+                .padding(.horizontal, SettingsPanelMetrics.paddingX)
+                .padding(.bottom, Space.x2)
+            ScrollView(.horizontal) {
+                HStack(spacing: Space.x1) {
+                    ForEach(SettingsTab.allCases, id: \.self) { page in
+                        Button { withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { tab = page } } label: {
+                            Label(page.title, systemImage: page.symbol)
+                        }
+                        .buttonStyle(.shadcn(tab == page ? .secondary : .ghost, size: .sm))
+                        .accessibilityAddTraits(tab == page ? .isSelected : [])
+                    }
+                }
+                .padding(.horizontal, SettingsPanelMetrics.paddingX)
+            }
+            .scrollIndicators(.hidden)
+            if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                pageScroll
+            } else {
+                ScrollView {
+                    SettingsSearchResults(query: query, onPick: jump)
+                        .padding(layout.pagePadding)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+    }
+
+    private func submitFirst() {
+        if let first = SettingsSearch.match(query, in: SettingsInventory.searchEntries).first { jump(first) }
+    }
+
+    private var pageScroll: some View {
+        ScrollView {
+            page
+                .padding(layout.pagePadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .id("\(tab.rawValue)-\(languageTick)")
+                .transition(ChromeMotion.transition(.modeSwap, reduceMotion: reduceMotion))
+        }
+        .scrollIndicators(.hidden)
+        .environment(\.settingsHighlight, highlight)
     }
 
     @ViewBuilder private var page: some View {
@@ -201,16 +252,20 @@ struct SettingsSidebar: View {
     let onPick: (SettingsSearch.Entry) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private func submitFirst() {
+        if let first = SettingsSearch.match(query, in: SettingsInventory.searchEntries).first { onPick(first) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x1) {
-            searchField
+            SettingsSearchField(query: $query, onSubmit: submitFirst)
                 .padding(.bottom, Space.x3)
             if query.trimmingCharacters(in: .whitespaces).isEmpty {
                 group(SettingsTab.firstGroup)
                 Spacer().frame(height: Space.x4)
                 group(SettingsTab.secondGroup)
             } else {
-                results
+                SettingsSearchResults(query: query, onPick: onPick)
             }
             Spacer(minLength: Space.x4)
             Text(String(format: Localized.string("settings.sidebar.version"), SettingsVersion.current))
@@ -220,28 +275,6 @@ struct SettingsSidebar: View {
         }
         .padding(Space.x4)
         .frame(maxHeight: .infinity, alignment: .top)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: Space.x2) {
-            Image(systemName: "magnifyingglass")
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .accessibilityHidden(true)
-            TextField(Localized.string("settings.search.placeholder"), text: $query)
-                .textFieldStyle(.plain)
-                .font(.uiLabel)
-                .onSubmit {
-                    if let first = SettingsSearch.match(query, in: SettingsInventory.searchEntries).first {
-                        onPick(first)
-                    }
-                }
-        }
-        .padding(.horizontal, Space.x3)
-        .padding(.vertical, Space.x2)
-        // A text field in a capsule, not a button: CapsuleChipStyle has
-        // nothing to style here.
-        .background(Capsule().fill(Semantic.muted))
     }
 
     private func group(_ pages: [SettingsTab]) -> some View {
@@ -270,7 +303,39 @@ struct SettingsSidebar: View {
         }
     }
 
-    @ViewBuilder private var results: some View {
+}
+
+/// Search over the settings inventory: the field and its results, shared by
+/// the sheet's sidebar and the panel's top.
+struct SettingsSearchField: View {
+    @Binding var query: String
+    let onSubmit: () -> Void
+
+    var body: some View {
+        HStack(spacing: Space.x2) {
+            Image(systemName: "magnifyingglass")
+                .font(.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+                .accessibilityHidden(true)
+            TextField(Localized.string("settings.search.placeholder"), text: $query)
+                .textFieldStyle(.plain)
+                .font(.uiLabel)
+                .onSubmit(onSubmit)
+        }
+        .padding(.horizontal, Space.x3)
+        .padding(.vertical, Space.x2)
+        // A text field in a capsule, not a button: CapsuleChipStyle has
+        // nothing to style here.
+        .background(Capsule().fill(Semantic.muted))
+    }
+
+}
+
+struct SettingsSearchResults: View {
+    let query: String
+    let onPick: (SettingsSearch.Entry) -> Void
+
+    @ViewBuilder var body: some View {
         let found = SettingsSearch.match(query, in: SettingsInventory.searchEntries)
         if found.isEmpty {
             Text(String(format: Localized.string("settings.search.none"), query))
