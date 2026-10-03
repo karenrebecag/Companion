@@ -31,10 +31,36 @@ package enum MotionCurve {
     package static let settle: [Double] = [0.32, 0.72, 0, 1]
     package static let glide: [Double] = [0.22, 1, 0.36, 1]
     package static let bounce: [Double] = [0.34, 1.56, 0.64, 1]
+    /// Incredible's --ease-island: every change of the island's shape. It overshoots ~1.5 %.
+    package static let island: [Double] = [0.22, 1.22, 0.36, 1]
+    /// CSS `ease`, which SwiftUI's easeInOut is not: Incredible fades the island's content with it.
+    package static let ease: [Double] = [0.25, 0.1, 0.25, 1]
     package static let enter: [Double] = glide
 
     package static func animation(_ curve: [Double], _ duration: Double) -> Animation {
         .timingCurve(curve[0], curve[1], curve[2], curve[3], duration: duration)
+    }
+
+    /// Progress of a cubic Bezier at time fraction `x`, as CSS samples it, so the
+    /// rules can be checked on a curve the way they are on a spring.
+    package static func value(_ curve: [Double], at x: Double) -> Double {
+        func point(_ t: Double, _ a: Double, _ b: Double) -> Double {
+            3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t
+        }
+        var low = 0.0
+        var high = 1.0
+        for _ in 0..<50 {
+            let mid = (low + high) / 2
+            if point(mid, curve[0], curve[2]) < x { low = mid } else { high = mid }
+        }
+        return point((low + high) / 2, curve[1], curve[3])
+    }
+
+    /// Seconds until the curve stays within 2 % of the target, the same measure as `MotionSpring.settle`.
+    package static func settledAt(_ curve: [Double], duration: Double) -> Double {
+        let samples = 1000
+        let last = (0...samples).last { abs(value(curve, at: Double($0) / Double(samples)) - 1) > 0.02 } ?? 0
+        return Double(last) / Double(samples) * duration
     }
 }
 
@@ -70,10 +96,6 @@ package struct MotionSpring: Sendable, Equatable {
     package static let sheet = MotionSpring(response: 0.32, damping: 0.86)
     package static let select = MotionSpring(response: 0.3, damping: 0.9)
     package static let press = MotionSpring(response: 0.25, damping: 0.9)
-    /// The island (spec 16f §4): pill, panel, close.
-    package static let islandPill = MotionSpring(response: 0.14, damping: 1)
-    package static let islandPanel = MotionSpring(response: 0.18, damping: 0.82)
-    package static let islandClose = MotionSpring(response: 0.18, damping: 1)
     /// The "done" light: the only small bob outside the panel (M4).
     package static let success = MotionSpring(response: 0.35, damping: 0.8)
     /// The notch leaning toward the pointer (spec 16i §11): NotchNook's peek
@@ -85,9 +107,7 @@ package struct MotionSpring: Sendable, Equatable {
     package static let lively: [(String, MotionSpring)] = [("islandPeek", islandPeek)]
 
     package static let all: [(String, MotionSpring)] = [
-        ("hover", hover), ("sheet", sheet), ("select", select), ("press", press),
-        ("islandPill", islandPill), ("islandPanel", islandPanel), ("islandClose", islandClose),
-        ("success", success),
+        ("hover", hover), ("sheet", sheet), ("select", select), ("press", press), ("success", success),
     ]
 }
 

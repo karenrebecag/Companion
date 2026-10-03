@@ -8,7 +8,7 @@ import Testing
 
 /// Semantic roles build a fresh dynamic Color on every read, so equality is
 /// by what they resolve to in each appearance.
-@MainActor private func expectSame(_ got: Color?, _ want: Color, _ label: String) {
+@MainActor private func badgeSame(_ got: Color?, _ want: Color, _ label: String) {
     guard let got else { expect(false, label); return }
     for name in [NSAppearance.Name.aqua, .darkAqua] {
         var a: [CGFloat] = [], b: [CGFloat] = []
@@ -44,16 +44,16 @@ private func rgba(_ c: Color) -> [CGFloat] {
 }
 
 @Test @MainActor func badgeVariantRoles() {
-    expectSame(BadgeVariant.default.background, Semantic.primary, "default: bg-primary")
-    expectSame(BadgeVariant.default.foreground, Semantic.primaryForeground, "default: text")
-    expectSame(BadgeVariant.secondary.background, Semantic.muted, "secondary: bg-secondary")
-    expectSame(BadgeVariant.secondary.foreground, Semantic.foreground, "secondary: text")
-    expectSame(BadgeVariant.destructive.background, Semantic.destructive, "destructive: bg")
-    expectSame(BadgeVariant.destructive.foreground, Semantic.destructiveForeground, "destructive: text")
-    expectSame(BadgeVariant.outline.background, .clear, "outline: transparent")
-    expectSame(BadgeVariant.outline.border, Semantic.borderStrong, "outline: border")
-    expectSame(BadgeVariant.ghost.background, .clear, "ghost: transparent")
-    expectSame(BadgeVariant.link.foreground, Semantic.primary, "link: text-primary")
+    badgeSame(BadgeVariant.default.background, Semantic.primary, "default: bg-primary")
+    badgeSame(BadgeVariant.default.foreground, Semantic.primaryForeground, "default: text")
+    badgeSame(BadgeVariant.secondary.background, Semantic.muted, "secondary: bg-secondary")
+    badgeSame(BadgeVariant.secondary.foreground, Semantic.foreground, "secondary: text")
+    badgeSame(BadgeVariant.destructive.background, Semantic.destructive, "destructive: bg")
+    badgeSame(BadgeVariant.destructive.foreground, Semantic.destructiveForeground, "destructive: text")
+    badgeSame(BadgeVariant.outline.background, .clear, "outline: transparent")
+    badgeSame(BadgeVariant.outline.border, Semantic.borderStrong, "outline: border")
+    badgeSame(BadgeVariant.ghost.background, .clear, "ghost: transparent")
+    badgeSame(BadgeVariant.link.foreground, Semantic.primary, "link: text-primary")
     for variant in BadgeVariant.allCases where variant != .outline {
         expect(variant.border == nil, "only outline has a border: \(variant)")
     }

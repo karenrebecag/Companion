@@ -12,6 +12,10 @@ struct SettingsYouPage: View {
     @State private var fontDelta = TypeScale.delta
     @State private var appearance = AppearancePreference.stored
 
+    static var appearanceOptions: [(AppearancePreference, String)] {
+        AppearancePreference.allCases.map { ($0, $0.label) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
             SettingsPageHeader(title: SettingsTab.you.title, blurb: Localized.string("settings.you.blurb"))
@@ -43,11 +47,7 @@ struct SettingsYouPage: View {
             }
             SettingsCard(label: Localized.string("settings.you.looks")) {
                 SettingsRow(title: Localized.string("settings.app.appearance"), key: "settings.app.appearance") {
-                    SettingsItem(
-                        title: "", value: appearance.label,
-                        options: AppearancePreference.allCases.map { ($0, $0.label) },
-                        id: "settings.app.appearance"
-                    ) { appearance = $0 }
+                    SegmentedToggle(options: Self.appearanceOptions, selection: $appearance)
                 }
                 SettingsRow(
                     title: Localized.string("settings.app.textSize"),
