@@ -251,7 +251,8 @@ extension ParentToolRunner {
         if let spoken = hands.turn.pin(for: pid), spoken != pid {
             Log.app("hands: \(tool.rawValue) target_changed since the user spoke pid=\(pid)")
             return .failed(Self.handsError(
-                "target_changed", "the app in front is not the one the user was in"),
+                "target_changed", "the app in front is not the one the user was in; "
+                    + "ask the user to bring that app to the front, then retry"),
                 tool: tool.rawValue)
         }
         let bundle = hands.bundleID(pid)
@@ -314,6 +315,9 @@ private struct HandsAct {
     let bundle: String
     let tool: ParentTool
 
+    /// The front app moved mid-action: its ids are no longer worth anything.
+    static let appMoved = "the app in front changed; call look again, then act on the app you mean"
+
     private func fail(_ code: String, _ message: String, target: String = "") -> ParentToolOutcome {
         Log.app("hands: \(tool.rawValue) \(code) pid=\(pid) bundle=\(bundle)")
         return .failed(ParentToolRunner.handsError(code, message), target: target, tool: tool.rawValue)
@@ -353,7 +357,7 @@ private struct HandsAct {
         case .failure(let error): return fail(error.code, error.message)
         case .success(let found): target = found
         }
-        guard !moved else { return fail("target_changed", "the app in front changed") }
+        guard !moved else { return fail("target_changed", Self.appMoved) }
         // What the field holds before typing, read the way `read_focused`
         // reads it: the proof is that the text shows up MORE times after.
         let before = hands.reader.read(pid: pid).map {
@@ -366,9 +370,9 @@ private struct HandsAct {
                 ok: true, output: "typed \(count) chars" + TypedProof.unverifiedNote,
                 tool: tool.rawValue, fieldPID: pid, typedBefore: before)
         case .failed(.needsAccessibility):
-            return fail("needs_accessibility", "Accessibility is not granted")
+            return fail("needs_accessibility", BridgeMessages.needsAccessibility)
         case .failed(.fieldGone):
-            return fail("target_changed", "the app is no longer in front")
+            return fail("target_changed", Self.appMoved)
         case .failed(.refused):
             return fail("refused", "the field did not accept the text")
         }
@@ -381,7 +385,7 @@ private struct HandsAct {
         } catch {
             return .failed(error, tool: tool.rawValue)
         }
-        guard !moved else { return fail("target_changed", "the app in front changed", target: key.rawValue) }
+        guard !moved else { return fail("target_changed", Self.appMoved, target: key.rawValue) }
         guard hands.keys.press(key, pid: pid) else {
             return fail("refused", "the key could not be sent", target: key.rawValue)
         }
@@ -393,7 +397,7 @@ private struct HandsAct {
     func raise(_ arguments: [String: Any]) -> ParentToolOutcome {
         let query = (arguments["title"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return .failed(.invalidArgs("missing title"), tool: tool.rawValue) }
-        guard !moved else { return fail("target_changed", "the app in front changed", target: query) }
+        guard !moved else { return fail("target_changed", Self.appMoved, target: query) }
         guard let title = hands.windows.raise(titleContaining: query, pid: pid) else {
             return fail("window_not_found", "no window whose title contains \"\(query)\"", target: query)
         }
@@ -406,7 +410,7 @@ private struct HandsAct {
         case .failure(let error): return fail(error.code, error.message)
         case .success: break
         }
-        guard !moved else { return fail("target_changed", "the app in front changed") }
+        guard !moved else { return fail("target_changed", Self.appMoved) }
         guard let text = hands.reader.read(pid: pid) else {
             return fail("no_focused_field", "the focused field has no readable text")
         }

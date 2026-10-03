@@ -91,6 +91,7 @@ private func call(_ name: String, _ json: String) -> ToolCallRef {
     let out = await runner.execute(name: "type_text", argumentsJSON: #"{"text":"hola"}"#)
     expect(!out.ok, "movida: rechazada")
     expect(out.output.hasPrefix("target_changed:"), "movida: código estable")
+    expect(out.output.contains("look again"), "M1: dice que hacer: \(out.output)")
     expect(hands.injected.isEmpty, "movida: nada inyectado")
 }
 

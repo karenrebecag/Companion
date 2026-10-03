@@ -267,7 +267,7 @@ package actor BridgeSession {
         switch verdict {
         case .reject(let code):
             Log.bridge("hello rejected: \(code)")
-            return (errorLine(id, code, rejectionMessage(code)), code == BridgeCode.coolingDown)
+            return (errorLine(id, code, rejectionMessage(code, tool: nil)), code == BridgeCode.coolingDown)
         case .needsApproval:
             // BridgePolicy.helloReceived never asks for approval (the sheet
             // moves to the first `call`, §9-4); kept for exhaustiveness.

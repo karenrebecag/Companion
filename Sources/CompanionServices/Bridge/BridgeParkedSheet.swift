@@ -31,6 +31,11 @@ final class BridgeParkedSheet: @unchecked Sendable {
         }
     }
 
+    /// Seconds until the sheet limit lets one more sheet through.
+    func secondsUntilRoom() -> Int {
+        lock.withLock { limit.secondsUntilRoom(now: now()) }
+    }
+
     /// Takes the sheet to withdraw it and remembers that WE did, so the
     /// resulting denial is not mistaken for the user's.
     func takeForWithdrawal() -> ApprovalRequest? {

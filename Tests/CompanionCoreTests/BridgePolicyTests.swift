@@ -21,6 +21,12 @@ import Testing
     testDeniedThenAdmitFails()
     testBudgetSurvivesHelloByeReconnect()
     testHelloWhileListedProceedsStaysListed()
+    testSecondsUntilRoomNamesTheWait()
+    testCooldownRemainingNamesTheWait()
+    testSheetLimitNamesTheWait()
+    testReadBudgetNamesItsOwnWait()
+    testWaitAtTheWindowEdges()
+    testHelloWhilePausedIsPaused()
 }
 
 private func testCallBeforeHello() {
@@ -109,7 +115,7 @@ private func testPauseRejectsCalls() {
     guard case .reject(let code) = verdict else {
         return expect(false, "pause: should reject")
     }
-    expectEq(code, BridgeCode.busy, "pause: code is busy")
+    expectEq(code, BridgeCode.paused, "pause: its own code, not busy")
 }
 
 private func testResumeAllowsCalls() {
@@ -372,4 +378,76 @@ private func testBudgetSurvivesHelloByeReconnect() {
     guard case .proceed = afterWindow else {
         return expect(false, "past the window: should proceed once the old writes expire")
     }
+}
+
+private func testSecondsUntilRoomNamesTheWait() {
+    var policy = BridgePolicy()
+    let start = Date()
+    _ = policy.helloReceived(now: start)
+    _ = policy.admit(tool: "click", now: start)
+    policy.approved(until: nil, now: start)
+    for i in 0..<BridgePolicy.budgetPerMinute {
+        _ = policy.admit(tool: "click", now: start.addingTimeInterval(Double(i) * 0.1))
+    }
+    let later = start.addingTimeInterval(10)
+    guard case .reject(let code) = policy.admit(tool: "click", now: later) else {
+        return expect(false, "budget spent: should reject")
+    }
+    expectEq(code, BridgeCode.rateLimited, "budget spent: rate_limited")
+    expectEq(policy.secondsUntilRoom(tool: "click", now: later), 50, "the oldest action ages out in 50 s")
+    expectEq(policy.secondsUntilRoom(tool: "look", now: later), 0, "reads have their own room")
+}
+
+private func testCooldownRemainingNamesTheWait() {
+    var policy = BridgePolicy()
+    let start = Date()
+    for i in 0..<BridgePolicy.maxDenials { policy.recordDenial(now: start.addingTimeInterval(Double(i) * 60)) }
+    let later = start.addingTimeInterval(200)
+    expect(policy.isCoolingDown(now: later), "three denials: cooling down")
+    expectEq(policy.cooldownRemaining(now: later), 400, "until the oldest denial leaves the ten minutes")
+    expectEq(BridgePolicy().cooldownRemaining(now: later), 0, "no denials: no wait")
+}
+
+private func testSheetLimitNamesTheWait() {
+    var limit = BridgeSheetLimit()
+    let start = Date()
+    for i in 0..<BridgePolicy.maxSheetsPerWindow { _ = limit.admit(now: start.addingTimeInterval(Double(i))) }
+    let later = start.addingTimeInterval(100)
+    expect(!limit.admit(now: later), "limit spent")
+    expectEq(limit.secondsUntilRoom(now: later), 500, "until the oldest sheet leaves the window")
+}
+
+private func testReadBudgetNamesItsOwnWait() {
+    var policy = BridgePolicy()
+    let start = Date()
+    _ = policy.helloReceived(now: start)
+    _ = policy.admit(tool: "look", now: start)
+    policy.approved(until: nil, now: start)
+    for _ in 0..<BridgePolicy.readBudgetPerMinute { _ = policy.admit(tool: "look", now: start) }
+    let later = start.addingTimeInterval(20)
+    expectEq(policy.admit(tool: "look", now: later), .reject(code: BridgeCode.rateLimited), "reads spent")
+    expectEq(policy.secondsUntilRoom(tool: "look", now: later), 40, "the read window's wait")
+    expectEq(policy.secondsUntilRoom(tool: "click", now: later), 0, "actions still have room")
+}
+
+private func testWaitAtTheWindowEdges() {
+    let now = Date()
+    let at = { (seconds: Double) in now.addingTimeInterval(-seconds) }
+    expectEq(BridgePolicy.wait([at(60), at(1)], limit: 2, window: 60, now: now), 0,
+             "a stamp exactly a window old has left it")
+    expectEq(BridgePolicy.wait([at(1)], limit: 2, window: 60, now: now), 0, "one short of the limit: no wait")
+    expectEq(BridgePolicy.wait([at(59.5), at(1)], limit: 2, window: 60, now: now), 1,
+             "half a second to go rounds up to one")
+    expectEq(BridgePolicy.wait([at(50), at(30), at(10)], limit: 2, window: 60, now: now), 30,
+             "over the limit: waits for enough of them to leave")
+}
+
+private func testHelloWhilePausedIsPaused() {
+    var policy = BridgePolicy()
+    let now = Date()
+    _ = policy.helloReceived(now: now)
+    _ = policy.admit(tool: "look", now: now)
+    policy.approved(until: nil, now: now)
+    policy.pause()
+    expectEq(policy.helloReceived(now: now), .reject(code: BridgeCode.paused), "a voice turn is not another agent")
 }

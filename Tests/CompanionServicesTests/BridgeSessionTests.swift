@@ -19,10 +19,13 @@ import Testing
     await testCallBeforeHelloIsNoSession()
     await testCallAfterStopIsSessionClosed()
     await testSessionClosedNamesTheWayBack()
-    await testPauseIsBusyResumeProceedsAndRepins()
+    await testPauseIsPausedResumeProceedsAndRepins()
     await testUnknownToolIsUnknownTool()
     await testAKnownToolNotReadyNamesTheReason()
     await testThirtyFirstWriteIsRateLimited()
+    await testSixtyFirstReadIsRateLimitedWithItsOwnWait()
+    await testBusyNamesAnOpenSheetApartFromAnotherAgent()
+    await testHelloDuringAVoiceTurnIsPaused()
     await testByeClosesAndNextHelloProceeds()
     await testLogNeverLeaksArgumentsOrOutput()
     await testStopWithdrawsPendingSheetAndClosesSession()
@@ -243,7 +246,7 @@ private func waitUntil(timeout: TimeInterval = 2, _ pred: @escaping @Sendable ()
     expect(!retried.reply.contains(BridgeCode.sessionClosed), "and is judged by it: \(retried.reply)")
 }
 
-@MainActor func testPauseIsBusyResumeProceedsAndRepins() async {
+@MainActor func testPauseIsPausedResumeProceedsAndRepins() async {
     let tools = FakeParentTools()
     let s = session(tools: tools, approvals: ScriptedApprovals(answer: true))
     _ = await s.handle(line: helloLine(id: 1, token: "tok"))
@@ -252,7 +255,8 @@ private func waitUntil(timeout: TimeInterval = 2, _ pred: @escaping @Sendable ()
 
     await s.pause()
     let paused = await s.handle(line: callLine(id: 3, name: "look"))
-    expect(paused.reply.contains(BridgeCode.busy), "paused: busy")
+    expect(paused.reply.contains(BridgeCode.paused), "paused: its own code: \(paused.reply)")
+    expect(paused.reply.contains("retry"), "paused: says to retry")
 
     await s.resume()
     expectEq(tools.beginTurnCount, 2, "resume: beginTurn called again")
@@ -283,6 +287,7 @@ private func waitUntil(timeout: TimeInterval = 2, _ pred: @escaping @Sendable ()
     tools.setUnavailable(["click": "needs_accessibility", "see": "not_available"])
     let ax = await s.handle(line: callLine(id: 4, name: "click"))
     expect(ax.reply.contains("needs_accessibility"), "sin Accesibilidad: needs_accessibility")
+    expect(ax.reply.contains("Privacy & Security > Accessibility"), "M1: nombra la ruta: \(ax.reply)")
     let none = await s.handle(line: callLine(id: 5, name: "see"))
     expect(none.reply.contains(BridgeCode.notAvailable), "sin respaldo: not_available")
 }
@@ -302,6 +307,57 @@ private func waitUntil(timeout: TimeInterval = 2, _ pred: @escaping @Sendable ()
     }
     let result31 = await s.handle(line: callLine(id: 40, name: "click"))
     expect(result31.reply.contains(BridgeCode.rateLimited), "write 31: rate_limited")
+    // The real clock moves between calls, so the exact figure can be 1 min or just under it; what
+    // must hold is that it is the minute of the action window, not "retry at once".
+    expect(result31.reply.contains(", then retry") && !result31.reply.contains("Wait 1 s,"),
+           "M1: names the action window's wait: \(result31.reply)")
+}
+
+@MainActor func testSixtyFirstReadIsRateLimitedWithItsOwnWait() async {
+    let tools = FakeParentTools(handledNames: ["look"])
+    let s = session(tools: tools, approvals: ScriptedApprovals(answer: true))
+    _ = await s.handle(line: helloLine(id: 1, token: "tok"))
+    for i in 0 ..< BridgePolicy.readBudgetPerMinute {
+        _ = await s.handle(line: callLine(id: i + 2, name: "look"))
+    }
+    let over = await s.handle(line: callLine(id: 100, name: "look"))
+    expect(over.reply.contains(BridgeCode.rateLimited), "read 61: rate_limited")
+    // Sized from the read budget: the write budget is empty and would say 1 s.
+    expect(over.reply.contains(", then retry") && !over.reply.contains("Wait 1 s,"),
+           "M1: the read budget's wait: \(over.reply)")
+}
+
+@MainActor func testBusyNamesAnOpenSheetApartFromAnotherAgent() async {
+    let tools = FakeParentTools()
+    let approvals = ScriptedApprovals(park: true)
+    let s = session(tools: tools, approvals: approvals)
+    _ = await s.handle(line: helloLine(id: 1, token: "tok"))
+    let parked = Task { await s.handle(line: callLine(id: 2, name: "look")) }
+    await waitUntil { !approvals.requests.isEmpty }
+    let waiting = await s.handle(line: callLine(id: 3, name: "look"))
+    expect(waiting.reply.contains(BridgeCode.busy), "sheet up: busy")
+    expect(waiting.reply.contains("approval sheet is open"), "M1: names the sheet: \(waiting.reply)")
+    let again = await s.handle(line: helloLine(id: 4, token: "tok"))
+    expect(again.reply.contains("approval sheet is open"), "M1: a hello meanwhile too: \(again.reply)")
+    await s.stop()
+    _ = await parked.value
+
+    let open = session(tools: FakeParentTools(), approvals: ScriptedApprovals(answer: true))
+    _ = await open.handle(line: helloLine(id: 1, token: "tok"))
+    _ = await open.handle(line: callLine(id: 2, name: "look"))
+    let other = await open.handle(line: helloLine(id: 3, token: "tok"))
+    expect(other.reply.contains(BridgeCode.busy), "session open: a second hello is busy")
+    expect(other.reply.contains("Another agent"), "M1: names the other agent: \(other.reply)")
+    expect(!other.reply.contains("approval sheet"), "and not a sheet")
+}
+
+@MainActor func testHelloDuringAVoiceTurnIsPaused() async {
+    let s = session(tools: FakeParentTools(), approvals: ScriptedApprovals(answer: true))
+    _ = await s.handle(line: helloLine(id: 1, token: "tok"))
+    _ = await s.handle(line: callLine(id: 2, name: "look"))
+    await s.pause()
+    let hello = await s.handle(line: helloLine(id: 3, token: "tok"))
+    expect(hello.reply.contains(BridgeCode.paused), "M1: a voice turn is paused, not busy: \(hello.reply)")
 }
 
 @MainActor func testByeClosesAndNextHelloProceeds() async {
