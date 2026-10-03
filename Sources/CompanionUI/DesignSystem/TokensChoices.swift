@@ -250,6 +250,8 @@ package enum Radius {
     package static let md: CGFloat = 6
     package static let badge: CGFloat = 8
     package static let chip: CGFloat = 10
+    /// Tailwind's rounded-xl (0.75rem): shadcn's chat bubble.
+    package static let bubble: CGFloat = 12
     package static let control: CGFloat = 14
     package static let lg: CGFloat = 16
     package static let cardSm: CGFloat = 18

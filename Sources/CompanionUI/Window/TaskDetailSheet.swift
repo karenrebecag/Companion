@@ -17,9 +17,10 @@ struct TaskDetailSheet: View {
             HStack(alignment: .top, spacing: Space.x4) {
                 VStack(alignment: .leading, spacing: Space.x3) {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: Space.x3) {
-                            ForEach(TaskThread.visible(messages)) { message in
-                                bubble(message)
+                        VStack(alignment: .leading, spacing: MessageMetrics.gap) {
+                            Marker(TaskThread.markerLabel(ago: HomeCopy.ago(task.updatedAt)), systemImage: "clock", variant: .separator)
+                            ForEach(TaskThread.rows(messages)) { row in
+                                bubble(row)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -51,25 +52,13 @@ struct TaskDetailSheet: View {
         }
     }
 
-    @ViewBuilder
-    private func bubble(_ message: ChatMessage) -> some View {
-        if message.role == .user {
-            HStack {
-                Spacer(minLength: Space.x8)
-                Text(message.text)
-                    .font(.uiBody)
-                    .foregroundStyle(IslandInk.text)
-                    .padding(.horizontal, Space.x4)
-                    .padding(.vertical, Space.x3)
-                    .background(RoundedRectangle(cornerRadius: Radius.xl).fill(IslandInk.panel))
-                    .textSelection(.enabled)
+    private func bubble(_ row: TaskThread.Row) -> some View {
+        ChatBubble(variant: row.variant, align: row.align) {
+            if row.message.role == .user {
+                Text(row.message.text).textSelection(.enabled)
+            } else {
+                MarkdownView(text: row.message.text)
             }
-        } else {
-            MarkdownView(text: message.text)
-                .padding(.horizontal, Space.x4)
-                .padding(.vertical, Space.x3)
-                .background(RoundedRectangle(cornerRadius: Radius.xl).fill(Semantic.muted))
-                .padding(.trailing, Space.x8)
         }
     }
 
@@ -130,5 +119,22 @@ enum TaskThread {
     /// user's turns and the replies, as Incredible's conversation does.
     static func visible(_ messages: [ChatMessage]) -> [ChatMessage] {
         messages.filter { !$0.isStatus }
+    }
+
+    struct Row: Identifiable {
+        let message: ChatMessage
+        var id: UUID { message.id }
+        var variant: BubbleVariant { BubbleVariant(role: message.role) }
+        var align: MessageAlign { MessageAlign(role: message.role) }
+    }
+
+    static func rows(_ messages: [ChatMessage]) -> [Row] {
+        visible(messages).map(Row.init)
+    }
+
+    /// The marker carries the task's last update, so it says so: the time
+    /// alone would read as when the thread began.
+    static func markerLabel(ago: String) -> String {
+        "\(Localized.string("task.updated")): \(ago)"
     }
 }
