@@ -6,37 +6,46 @@ import Foundation
 /// that a failed action never waited.
 package final class FakeChangeWatcher: AXChangeWatching, @unchecked Sendable {
     private let lock = NSLock()
-    package var report: ChangeReport
-    package private(set) var begun: [Int32] = []
-    package private(set) var settled = 0
-    package private(set) var cancelled = 0
-    package private(set) var order: [String] = []
-    package private(set) var timings: [SettleTiming] = []
+    private var _report: ChangeReport
+    private var _begun: [Int32] = []
+    private var _settled = 0
+    private var _cancelled = 0
+    private var _order: [String] = []
+    private var _timings: [SettleTiming] = []
+    package var report: ChangeReport {
+        get { lock.withLock { _report } }
+        set { lock.withLock { _report = newValue } }
+    }
+    package var begun: [Int32] { lock.withLock { _begun } }
+    package var settled: Int { lock.withLock { _settled } }
+    package var cancelled: Int { lock.withLock { _cancelled } }
+    package var order: [String] { lock.withLock { _order } }
+    package var timings: [SettleTiming] { lock.withLock { _timings } }
 
     package init(report: ChangeReport = ChangeReport(changes: [], watching: true)) {
-        self.report = report
+        _report = report
     }
 
     package func begin(pid: Int32) -> any AXChangeWatch {
         lock.withLock {
-            begun.append(pid)
-            order.append("begin")
+            _begun.append(pid)
+            _order.append("begin")
         }
         return Watch(owner: self)
     }
 
-    package func note(_ event: String) { lock.withLock { order.append(event) } }
+    package func note(_ event: String) { lock.withLock { _order.append(event) } }
 
     private struct Watch: AXChangeWatch {
         let owner: FakeChangeWatcher
         func settle(_ timing: SettleTiming) async -> ChangeReport {
             owner.lock.withLock {
-                owner.settled += 1
-                owner.timings.append(timing)
-                owner.order.append("settle")
+                owner._settled += 1
+                owner._timings.append(timing)
+                owner._order.append("settle")
+                return owner._report
             }
-            return owner.report
         }
-        func cancel() { owner.lock.withLock { owner.cancelled += 1 } }
+        func cancel() { owner.lock.withLock { owner._cancelled += 1 } }
     }
 }

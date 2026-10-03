@@ -4,22 +4,30 @@ import Foundation
 import Testing
 
 package final class TestSecretStore: SecretStore, @unchecked Sendable {
+    // The MainActor writes while actors and tasks read.
+    private let lock = NSLock()
     private var values: [SecretKey: String]
-    package var failDeletes = false
+    private var _failDeletes = false
+    package var failDeletes: Bool {
+        get { lock.withLock { _failDeletes } }
+        set { lock.withLock { _failDeletes = newValue } }
+    }
 
     package init(_ values: [SecretKey: String] = [:]) {
         self.values = values
     }
 
-    package func read(_ key: SecretKey) throws -> String? { values[key] }
+    package func read(_ key: SecretKey) throws -> String? { lock.withLock { values[key] } }
 
     package func write(_ key: SecretKey, value: String) throws {
-        values[key] = value
+        lock.withLock { values[key] = value }
     }
 
     package func delete(_ key: SecretKey) throws {
-        if failDeletes { throw SecretStoreError.denied }
-        values.removeValue(forKey: key)
+        try lock.withLock {
+            if _failDeletes { throw SecretStoreError.denied }
+            values.removeValue(forKey: key)
+        }
     }
 }
 

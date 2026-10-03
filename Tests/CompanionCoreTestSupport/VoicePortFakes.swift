@@ -64,15 +64,34 @@ package final class FakePlayer: PCMPlaying, @unchecked Sendable {
 
 package final class FakeTranscriber: Transcriber, @unchecked Sendable {
     package init() {}
-    package var authorized = false, locale = "", stoppedText = ""
-    package var appended: [MicFrame] = []
+    // The runtime calls this from detached tasks and the stop queue while the
+    // test rewrites stoppedText between turns.
+    private let lock = NSLock()
+    private var _authorized = false, _locale = "", _stoppedText = ""
+    private var _appended: [MicFrame] = []
+    package var authorized: Bool {
+        get { lock.withLock { _authorized } }
+        set { lock.withLock { _authorized = newValue } }
+    }
+    package var locale: String {
+        get { lock.withLock { _locale } }
+        set { lock.withLock { _locale = newValue } }
+    }
+    package var stoppedText: String {
+        get { lock.withLock { _stoppedText } }
+        set { lock.withLock { _stoppedText = newValue } }
+    }
+    package var appended: [MicFrame] {
+        get { lock.withLock { _appended } }
+        set { lock.withLock { _appended = newValue } }
+    }
     package var isAuthorized: Bool { authorized }
     private let box = StreamBox<String>()
     package var partials: AsyncStream<String> { box.stream }
     package var currentText: String { stoppedText }
-    package func requestAuthorization() async -> Bool { authorized = true; return authorized }
+    package func requestAuthorization() async -> Bool { lock.withLock { _authorized = true; return _authorized } }
     package func start(localeIdentifier: String) async throws { locale = localeIdentifier }
-    package func append(_ frame: MicFrame) async { appended.append(frame) }
+    package func append(_ frame: MicFrame) async { lock.withLock { _appended.append(frame) } }
     package func stop() async -> String { box.finish(); return stoppedText }
     package func yieldPartial(_ text: String) { box.yield(text) }
 }
@@ -116,13 +135,32 @@ package final class FakeVoice: VoiceControlling, @unchecked Sendable {
 
 package final class FakePresenter: ConversationPresenting, @unchecked Sendable {
     package init() {}
-    package var turns: [Turn] = [], status: [String] = [], stream = "", finished = false
-    package func historyTurns() async -> [Turn] { turns }
-    package func appendUser(_ text: String) async { turns.append(Turn(role: .user, content: text)) }
-    package func appendAssistant(_ text: String) async {
-        turns.append(Turn(role: .assistant, content: text))
+    // appendStatus runs on the global executor while the view-model tests poll
+    // `status` from the main actor.
+    private let lock = NSLock()
+    private var _turns: [Turn] = [], _status: [String] = [], _stream = "", _finished = false
+    package var turns: [Turn] {
+        get { lock.withLock { _turns } }
+        set { lock.withLock { _turns = newValue } }
     }
-    package func appendStatus(_ text: String) async { status.append(text) }
+    package var status: [String] {
+        get { lock.withLock { _status } }
+        set { lock.withLock { _status = newValue } }
+    }
+    package var stream: String {
+        get { lock.withLock { _stream } }
+        set { lock.withLock { _stream = newValue } }
+    }
+    package var finished: Bool {
+        get { lock.withLock { _finished } }
+        set { lock.withLock { _finished = newValue } }
+    }
+    package func historyTurns() async -> [Turn] { turns }
+    package func appendUser(_ text: String) async { lock.withLock { _turns.append(Turn(role: .user, content: text)) } }
+    package func appendAssistant(_ text: String) async {
+        lock.withLock { _turns.append(Turn(role: .assistant, content: text)) }
+    }
+    package func appendStatus(_ text: String) async { lock.withLock { _status.append(text) } }
     package func showStream(_ text: String) async { stream = text }
     package func finishStream() async { finished = true }
 }
