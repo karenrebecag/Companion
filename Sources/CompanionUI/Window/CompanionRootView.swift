@@ -18,9 +18,8 @@ package struct CompanionRootView: View {
     var chat: ChatViewModel
     var voice: VoiceViewModel
     private let voicePreview: VoicePreview?
-    @State private var showSettings = false
+    @State private var settingsSheet = SettingsSheetModel()
     @State private var settingsTab: SettingsTab = .general
-    @State private var settingsPanel = SettingsPanelModel()
     @State private var chromeTick = 0
     @State private var keyboardMonitor: KeyboardMonitor?
     @State private var dropdowns = DropdownHost()
@@ -142,10 +141,10 @@ package struct CompanionRootView: View {
         .onExitCommand {
             if let request = chat.session.projection.approval {
                 chat.answerApproval(false, requestId: request.requestId)
-            } else if showSettings, dropdowns.session.isOpen {
+            } else if settingsSheet.isOpen, dropdowns.session.isOpen {
                 withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
-            } else if showSettings {
-                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
+            } else if settingsSheet.isOpen {
+                if settingsSheet.escape() == .close { closeSettings() }
             } else if dropdowns.session.isOpen {
                 withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
             } else if voice.isActive {
@@ -171,7 +170,7 @@ package struct CompanionRootView: View {
                 case .hangUp:
                     voice.hangUp()
                 case .settings:
-                    withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = true }
+                    presentSettings()
                 case .newConversation:
                     voice.hangUp()
                     chat.newConversation()
@@ -185,30 +184,21 @@ package struct CompanionRootView: View {
             keyboardMonitor = monitor
         }
         .overlay {
-            // WIN-5: Incredible's floating panel, not a modal: no scrim, the
-            // window behind stays usable.
-            if showSettings {
-                SettingsPanelHost(
-                    model: $settingsPanel, tab: $settingsTab, preview: voicePreview, chat: chat,
+            if settingsSheet.isOpen {
+                SettingsSheetHost(
+                    model: $settingsSheet, tab: $settingsTab, preview: voicePreview, chat: chat,
                     updates: updates, welcome: welcome, memory: memory, browser: browser,
-                    onClose: {
-                        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = false }
-                    })
+                    onClose: closeSettings)
                 .environment(dropdowns)
-                .transition(.opacity)
             }
         }
-        .onChange(of: showSettings) { _, open in
-            if open { settingsPanel.unfold() }
-        }
-        .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: showSettings)
         .overlay { feedbackLayer }
         .overlay { taskSheet }
         .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: openTask?.id)
         .onChange(of: openTask?.id) { _, id in
             openTaskMessages = id.map(chat.transcript) ?? []
         }
-        .modifier(ScreenReport(page: page, settingsOpen: showSettings, settingsTab: settingsTab, mirror: mirror))
+        .modifier(ScreenReport(page: page, settingsOpen: settingsSheet.isOpen, settingsTab: settingsTab, mirror: mirror))
         .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenApps)
         ) { note in
@@ -227,7 +217,7 @@ package struct CompanionRootView: View {
             // The island names the page it means: keys live in privacy, the
             // shortcuts in general; the menu opens at the top.
             settingsTab = (note.object as? String).flatMap(SettingsTab.init(rawValue:)) ?? .general
-            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = true }
+            presentSettings()
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .companionChromeDidChange)
@@ -312,7 +302,31 @@ package struct CompanionRootView: View {
 
     private func openSettings(_ tab: SettingsTab) {
         settingsTab = tab
-        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { showSettings = true }
+        presentSettings()
+    }
+
+    /// Mounted first, settled on the next turn: in one transaction the sheet
+    /// would appear already in place and the entrance would never play.
+    private func presentSettings() {
+        guard settingsSheet.open(animated: !reduceMotion) else { return }
+        Task { @MainActor in
+            withAnimation(ChromeMotion.animation(SettingsSheetMetrics.motion, reduceMotion: reduceMotion)) { settingsSheet.settle() }
+        }
+    }
+
+    /// The sheet stays mounted, and reported open, until its exit has played.
+    private func closeSettings() {
+        guard settingsSheet.canClose else { return }
+        dropdowns.dismiss()
+        guard !reduceMotion else {
+            _ = settingsSheet.close(animated: false)
+            return
+        }
+        withAnimation(ChromeMotion.animation(SettingsSheetMetrics.motion, reduceMotion: reduceMotion)) {
+            _ = settingsSheet.close(animated: true)
+        } completion: {
+            settingsSheet.finishClose()
+        }
     }
 
     @ViewBuilder
