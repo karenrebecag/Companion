@@ -157,7 +157,13 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
         sheets.app = .excel
         sheets.failure = .needsPermission
         let perm = try await runner.execute(tool: "sheet_read", arguments: ["range": "A1"], approved: false)
-        expect(perm.output.hasPrefix("needs_permission"), "hoja: sin Automatización dice dónde darla")
+        expect(perm.output.hasPrefix("permission_required: "), "hoja: sin Automatización usa el código de Incredible")
+        expect(perm.output.contains("System Settings > Privacy & Security > Automation"),
+               "hoja: y nombra el panel exacto")
+        let writeDenied = try await runner.execute(tool: "sheet_write",
+                                                   arguments: ["range": "A1", "values": #"[["x"]]"#,
+                                                               "workbook": "/tmp/libro.numbers"], approved: true)
+        expect(writeDenied.output.hasPrefix(BridgeCode.permissionRequired + ": "), "hoja: escribir sin Automatización, igual")
         sheets.failure = .unsavedDocument
         let unsaved = try await runner.execute(tool: "sheet_write",
                                                arguments: ["range": "A1", "values": #"[["x"]]"#,

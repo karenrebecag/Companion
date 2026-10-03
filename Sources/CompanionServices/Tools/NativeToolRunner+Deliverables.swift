@@ -155,8 +155,7 @@ extension NativeToolRunner {
         case .noOpenDocument?: code = noSheet.output
         case .workbookChanged?: code = "workbook_changed: the workbook in front is not the one that was approved; nothing was written"
         case .unsavedDocument?: code = "unsaved_document: ask the user to save the workbook once, so a backup can be made"
-        case .needsPermission?: code = "needs_permission: allow Companion to control the app in System Settings > "
-            + "Privacy & Security > Automation"
+        case .needsPermission?: code = BridgeCode.permissionRequired + ": " + BridgeMessages.automationRequired
         case .appFailed?, nil: code = "app_failed: the spreadsheet app did not accept the command"
         }
         return ToolResult(ok: false, output: code)

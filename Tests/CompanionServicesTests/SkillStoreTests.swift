@@ -124,4 +124,10 @@ private func skill(_ name: String, _ description: String = "Does it. Use when as
         expect(body.contains("## What Companion cannot do yet"),
                "bundle \(honest): dice lo que aún no puede — que el modelo no invente")
     }
+    // The model reads the code from the skill and the runner answers with the
+    // constant: if the two drift, the model is told about a code it never sees.
+    let excel = bundled.first { $0.name == "excel-live" }?.content ?? ""
+    expect(excel.contains("`\(BridgeCode.permissionRequired)`"), "excel-live: nombra el código que la hoja devuelve")
+    expect(excel.contains("Privacy & Security > Automation"), "excel-live: y el panel")
+    expect(!excel.contains("needs_permission"), "excel-live: sin el código viejo")
 }

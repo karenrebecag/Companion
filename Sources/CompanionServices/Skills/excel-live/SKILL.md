@@ -21,7 +21,7 @@ Companion talks to Excel and Numbers directly, on the sheet the user is looking 
 
 - `no_open_document`: ask the user to open the workbook.
 - `unsaved_document`: ask them to save it once, so a backup can exist.
-- `needs_permission`: they allow Companion under System Settings, Privacy & Security, Automation.
+- `permission_required`: they turn on the spreadsheet app under Companion in System Settings > Privacy & Security > Automation.
 - `invalid_args`: fix the range or the shape of `values` and try once more.
 
 ## What Companion cannot do yet

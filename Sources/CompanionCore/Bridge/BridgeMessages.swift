@@ -36,6 +36,12 @@ package enum BridgeMessages {
         "Companion does not have Screen Recording permission. Ask the user to turn it on in "
             + "System Settings > Privacy & Security > Screen & System Audio Recording, then retry."
 
+    /// macOS lists each app Companion may control under Companion's row, so
+    /// the pane alone is not enough: the switch to flip is the app's.
+    package static let automationRequired =
+        "Companion is not allowed to control that app. Ask the user to turn it on under Companion in "
+            + "System Settings > Privacy & Security > Automation, then retry."
+
     package static let screenLocked =
         "The Mac is locked. Ask the user to unlock it, then call look before retrying."
 

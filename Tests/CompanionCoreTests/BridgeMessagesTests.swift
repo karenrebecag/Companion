@@ -18,6 +18,7 @@ import Testing
         (BridgeMessages.lockedDuringAction, "outcome is unknown"),
         (BridgeMessages.selfInFront, "to the front"),
         (BridgeMessages.foregroundUnavailable, "call look before retrying"),
+        (BridgeMessages.automationRequired, "then retry"),
     ]
     for (message, nextStep) in expected {
         expect(!message.contains("\n"), "one line: \(message)")
@@ -29,6 +30,8 @@ import Testing
            "the sheet limit counts sheets, not denials")
     expect(BridgeMessages.needsAccessibility.contains("Privacy & Security > Accessibility"),
            "names where the switch is")
+    expect(BridgeMessages.automationRequired.contains("System Settings > Privacy & Security > Automation"),
+           "Automation names its pane")
 }
 
 @Test func bridgeMessageDurations() {
