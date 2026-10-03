@@ -47,6 +47,9 @@ package enum MotionCurve {
         func point(_ t: Double, _ a: Double, _ b: Double) -> Double {
             3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t
         }
+        // Bisection leaves a residue at the ends; a word at rest must read exactly unlit.
+        if x <= 0 { return 0 }
+        if x >= 1 { return 1 }
         var low = 0.0
         var high = 1.0
         for _ in 0..<50 {

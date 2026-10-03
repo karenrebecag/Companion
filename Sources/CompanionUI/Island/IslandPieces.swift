@@ -27,8 +27,6 @@ enum IslandInk {
     static let cardRadius: CGFloat = AnswerOptionMetrics.radius
     static let lightSide: CGFloat = 8
     static let slotSide: CGFloat = 22
-    /// A word not yet said: the secondary ink's weight on black.
-    static let dimWord: Double = 0.62
     static let sendSide: CGFloat = IslandMetrics.sendSide
     static let barWidth: CGFloat = 3
     static let chipVertical: CGFloat = 6
