@@ -527,16 +527,30 @@ package final class ScriptedChat: ChatProvider, @unchecked Sendable {
 }
 
 package final class ScriptedSecrets: SecretStore, @unchecked Sendable {
-    package var values: [SecretKey: String]
-    /// 12c: a Keychain read can be a prompt; prewarm must not count one.
-    package var reads = 0
-    package init(_ values: [SecretKey: String] = [:]) { self.values = values }
-    package func read(_ key: SecretKey) throws -> String? {
-        reads += 1
-        return values[key]
+    // Locked: a mouth drops a key from the synthesis task while the router
+    // and the test read the store from theirs (same shape TSan caught in
+    // the synthesis doubles).
+    private let lock = NSLock()
+    private var _values: [SecretKey: String]
+    private var _reads = 0
+    package var values: [SecretKey: String] {
+        get { lock.withLock { _values } }
+        set { lock.withLock { _values = newValue } }
     }
-    package func write(_ key: SecretKey, value: String) throws { values[key] = value }
-    package func delete(_ key: SecretKey) throws { values.removeValue(forKey: key) }
+    /// 12c: a Keychain read can be a prompt; prewarm must not count one.
+    package var reads: Int {
+        get { lock.withLock { _reads } }
+        set { lock.withLock { _reads = newValue } }
+    }
+    package init(_ values: [SecretKey: String] = [:]) { self._values = values }
+    package func read(_ key: SecretKey) throws -> String? {
+        lock.withLock {
+            _reads += 1
+            return _values[key]
+        }
+    }
+    package func write(_ key: SecretKey, value: String) throws { lock.withLock { _values[key] = value } }
+    package func delete(_ key: SecretKey) throws { lock.withLock { _ = _values.removeValue(forKey: key) } }
 }
 
 package final class ScriptedThread: ConversationPresenting, @unchecked Sendable {
