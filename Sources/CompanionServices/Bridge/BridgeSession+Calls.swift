@@ -266,7 +266,11 @@ extension BridgeSession {
             return "budget exceeded (\(BridgePolicy.budgetPerMinute) actions, "
                 + "\(BridgePolicy.readBudgetPerMinute) reads per minute)"
         case BridgeCode.noSession: return "no active session; send hello first"
-        case BridgeCode.sessionClosed: return "session is closed"
+        // The state is reachable again by hello (BridgePolicy.helloReceived), so say so: the agent
+        // cannot see the denied or expired sheet that closed it.
+        case BridgeCode.sessionClosed:
+            return "session is closed: the user denied it, the approval sheet expired, or the hands were "
+                + "stopped. Send hello again, then retry the call: it opens a new approval sheet on the Mac"
         case BridgeCode.coolingDown: return "too many denied requests; try again later"
         default: return code
         }
