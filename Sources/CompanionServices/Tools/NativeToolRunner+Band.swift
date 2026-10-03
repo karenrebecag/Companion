@@ -14,7 +14,40 @@ extension NativeToolRunner {
             let facts = ActionFacts(rangeHasValues: await rangeHasValues(arguments))
             return ActionBand.classify(toolName: tool, arguments: arguments, facts: facts)
         }
+        if tool == NativeTool.runShell.rawValue, let command = arguments["command"] as? String,
+           CommandClassifier.isGit(command) {
+            let facts = ActionFacts(gitConfigInert: await gitConfigInert())
+            return ActionBand.classify(toolName: tool, arguments: arguments, facts: facts)
+        }
         return fileBand(tool: tool, arguments: arguments)
+    }
+
+    /// Repo-scoped keys git only stores. Anything else in the repo's own
+    /// config (core.fsmonitor, filter.*, diff.*, pager.*, include*) may name
+    /// a program a "read" runs, so an unknown key keeps the sheet.
+    private static let inertGitKey = try! NSRegularExpression(pattern:
+        #"^(core\.(repositoryformatversion|filemode|bare|logallrefupdates|ignorecase|precomposeunicode|symlinks)"#
+        + #"|remote\.[^=]+\.(url|fetch|pushurl|tagopt|prune)|branch\.[^=]+\.(remote|merge|rebase)"#
+        + #"|user\.(name|email)|extensions\.(worktreeconfig|objectformat)|init\.defaultbranch)=.*$"#)
+
+    /// The user's global and system config are their own; only the repo's
+    /// local and worktree scopes arrive with a clone. A config git cannot read
+    /// counts as not inert.
+    func gitConfigInert() async -> Bool {
+        guard let workdir else { return false }
+        let outcome = await ProcessGroupRunner.run(
+            executable: "/usr/bin/git", arguments: ["config", "--show-scope", "--list"],
+            cwd: workdir, timeout: 5)
+        guard outcome.exitCode == 0, !outcome.timedOut else { return false }
+        for line in outcome.stdout.split(separator: "\n") {
+            let parts = line.split(separator: "\t", maxSplits: 1)
+            guard parts.count == 2 else { return false }
+            guard parts[0] == "local" || parts[0] == "worktree" else { continue }
+            let entry = String(parts[1]).lowercased()
+            let range = NSRange(entry.startIndex..., in: entry)
+            if Self.inertGitKey.firstMatch(in: entry, range: range) == nil { return false }
+        }
+        return true
     }
 
     /// Split from `actionBand` because `ParentToolRunner.approval(for:)` is

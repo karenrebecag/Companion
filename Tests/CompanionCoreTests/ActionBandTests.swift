@@ -13,6 +13,7 @@ import Testing
     testOpenURLActsOnlyForASaidHost()
     testHandsRiseWhenDestructiveOrInATerminal()
     testShellBridgeAndUnknownAreCritical()
+    testShellReadsActAndTheRestAsk()
     testAppToolsNeedConfirmation()
 }
 
@@ -84,6 +85,20 @@ func testShellBridgeAndUnknownAreCritical() {
         expectEq(band(tool, [:], ActionFacts(pathExists: false, inWorkZone: true, rangeHasValues: false, hostSaid: true)),
                  .critical, "crítica: \(tool)")
     }
+}
+
+func testShellReadsActAndTheRestAsk() {
+    expectEq(band("run_shell", ["command": "ls -la"]), .act, "ls no cambia nada")
+    // A repo's own config can name a command git runs on status/diff
+    // (core.fsmonitor, filter.*, diff.*.textconv): silence needs the runner
+    // to have seen that config holds nothing executable.
+    expectEq(band("run_shell", ["command": "git status"]), .critical, "git sin mirar la config del repo: hoja")
+    expectEq(band("run_shell", ["command": "git status"], ActionFacts(gitConfigInert: true)), .act,
+             "git status con config del repo inerte: sin hoja")
+    expectEq(band("run_shell", ["command": "git push"], ActionFacts(gitConfigInert: true)), .critical,
+             "una config inerte no vuelve lectura un push")
+    expectEq(band("run_shell", ["command": "rm x"]), .critical, "rm sigue pidiendo hoja")
+    expectEq(band("run_shell", ["command": "ls; rm x"]), .critical, "un compuesto no hereda el silencio de ls")
 }
 
 func testAppToolsNeedConfirmation() {

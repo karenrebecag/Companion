@@ -48,7 +48,9 @@ private struct Documents: DocumentRendering {
     let edit = await runner.actionBand(tool: "edit_file", arguments: ["path": "notes.txt"])
     expectEq(edit, .critical, "editar siempre modifica lo que hay")
     let shell = await runner.actionBand(tool: "run_shell", arguments: ["command": "ls"])
-    expectEq(shell, .critical, "shell: crítico")
+    expectEq(shell, .act, "ls: lectura, sin hoja")
+    let destructive = await runner.actionBand(tool: "run_shell", arguments: ["command": "rm -rf x"])
+    expectEq(destructive, .critical, "rm: sigue pidiendo hoja")
 
     let link = dir.appendingPathComponent("escape")
     try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "/tmp")
@@ -99,4 +101,76 @@ private struct Documents: DocumentRendering {
     expectEq(unread, .critical, "rango que no se pudo leer: sube")
     let badRange = await runner.actionBand(tool: "sheet_write", arguments: ["range": "zz", "values": "[]"])
     expectEq(badRange, .critical, "rango inválido: sube")
+}
+
+/// A cloned repo's .git/config can make `git status` run a program
+/// (core.fsmonitor). The runner reads that config before letting git act.
+@Test func gitReadsActOnlyWhenTheRepoConfigIsInert() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("gitband-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { do { try FileManager.default.removeItem(at: dir) } catch {} }
+    let root = dir.resolvingSymlinksInPath().path
+    let git = Process()
+    git.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+    git.arguments = ["init", "-q", root]
+    try git.run()
+    git.waitUntilExit()
+    let runner = NativeToolRunner(
+        workdir: root, places: nil, documents: Documents(), sheets: Sheets(rows: [["", ""]]))
+
+    let clean = await runner.actionBand(tool: "run_shell", arguments: ["command": "git status"])
+    expectEq(clean, .act, "repo recien creado: git status sin hoja")
+
+    let config = URL(fileURLWithPath: root).appendingPathComponent(".git/config")
+    let base = try String(contentsOf: config, encoding: .utf8)
+    let hostile = base + "[core]\n\tfsmonitor = /tmp/pwn.sh\n"
+    try hostile.write(to: config, atomically: true, encoding: .utf8)
+    let armed = await runner.actionBand(tool: "run_shell", arguments: ["command": "git status"])
+    expectEq(armed, .critical, "core.fsmonitor en el repo: git status pide hoja")
+
+    let ls = await runner.actionBand(tool: "run_shell", arguments: ["command": "ls"])
+    expectEq(ls, .act, "la config de git no toca a ls")
+
+    // Each section that can name a program, and an include that could hide one.
+    for (section, body) in [("filter \"x\"", "clean = /tmp/pwn.sh"), ("diff \"x\"", "textconv = /tmp/pwn.sh"),
+                            ("include", "path = /tmp/other.cfg"), ("core", "pager = /tmp/pwn.sh"),
+                            ("alias", "st = !/tmp/pwn.sh"), ("includeIf \"gitdir:/\"", "path = /tmp/x.cfg"),
+                            ("core", "sshCommand = /tmp/pwn.sh"), ("core", "hooksPath = /tmp/hooks"),
+                            ("user", "name = \"a\\n[core]\\n\\tfsmonitor = /tmp/pwn.sh\""),
+                            ("core", "= sin clave")] {
+        try (base + "[\(section)]\n\t\(body)\n").write(to: config, atomically: true, encoding: .utf8)
+        let band = await runner.actionBand(tool: "run_shell", arguments: ["command": "git diff"])
+        expectEq(band, .critical, "\(section) en el repo: git diff pide hoja")
+    }
+}
+
+@Test func gitReadsActOutsideARepo() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("nogit-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { do { try FileManager.default.removeItem(at: dir) } catch {} }
+    let runner = NativeToolRunner(
+        workdir: dir.resolvingSymlinksInPath().path, places: nil, documents: Documents(),
+        sheets: Sheets(rows: [["", ""]]))
+    let band = await runner.actionBand(tool: "run_shell", arguments: ["command": "git status"])
+    expectEq(band, .act, "fuera de un repo no hay config local que ejecute nada")
+}
+
+@Test func gitReadsStillActWithAnOrdinaryClone() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("clone-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { do { try FileManager.default.removeItem(at: dir) } catch {} }
+    let root = dir.resolvingSymlinksInPath().path
+    for args in [["init", "-q"], ["remote", "add", "origin", "https://github.com/a/b.git"],
+                 ["config", "branch.main.remote", "origin"], ["config", "branch.main.merge", "refs/heads/main"],
+                 ["config", "user.name", "Karen"]] {
+        let git = Process()
+        git.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        git.arguments = args
+        git.currentDirectoryURL = dir
+        try git.run()
+        git.waitUntilExit()
+    }
+    let runner = NativeToolRunner(workdir: root, places: nil, documents: Documents(), sheets: Sheets(rows: [["", ""]]))
+    let band = await runner.actionBand(tool: "run_shell", arguments: ["command": "git log --oneline"])
+    expectEq(band, .act, "un clon normal (remote, branch, user) sigue sin hoja")
 }

@@ -26,10 +26,15 @@ package struct ActionFacts: Sendable, Equatable {
     package var destructiveTarget: Bool
     /// The front app takes commands: typing there is running them.
     package var inTerminal: Bool
+    /// The repo's own git config names no program git could run on a read
+    /// (core.fsmonitor, filter.*, diff.*.textconv). A cloned repo carries its
+    /// .git/config, so `git status` there is not a read until this is seen.
+    package var gitConfigInert: Bool
 
     package init(
         pathExists: Bool = true, inWorkZone: Bool = false, rangeHasValues: Bool? = nil,
-        hostSaid: Bool = false, destructiveTarget: Bool = false, inTerminal: Bool = false
+        hostSaid: Bool = false, destructiveTarget: Bool = false, inTerminal: Bool = false,
+        gitConfigInert: Bool = false
     ) {
         self.pathExists = pathExists
         self.inWorkZone = inWorkZone
@@ -37,6 +42,7 @@ package struct ActionFacts: Sendable, Equatable {
         self.hostSaid = hostSaid
         self.destructiveTarget = destructiveTarget
         self.inTerminal = inTerminal
+        self.gitConfigInert = gitConfigInert
     }
 }
 
@@ -74,6 +80,13 @@ extension ActionBand {
             return facts.rangeHasValues == false ? .act : .critical
         case ParentTool.openURL.rawValue:
             return facts.hostSaid ? .act : .confirm
+        case NativeTool.runShell.rawValue:
+            // A plain read cannot change the disk. Ask is never a denial:
+            // every other command still takes the sheet.
+            guard let command = arguments["command"] as? String,
+                  CommandClassifier.classify(command) == .allow else { return .critical }
+            if CommandClassifier.isGit(command), !facts.gitConfigInert { return .critical }
+            return .act
         default:
             return toolName.hasPrefix(ApprovalCopy.appToolPrefix) ? .confirm : .critical
         }

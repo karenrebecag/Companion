@@ -656,8 +656,9 @@ final class RoundsProvider: ChatProvider, @unchecked Sendable {
 @MainActor func testDenialIsAnInstructionNotAnError() async {
     let dir = scratchDir("denied-live")
     defer { try? FileManager.default.removeItem(at: dir) }
+    // A write: a plain read like `ls` runs with no sheet since the classifier.
     let provider = RoundsProvider(rounds: [
-        [.toolCalls([ToolCallRef(id: "a", name: "run_shell", arguments: #"{"command":"ls"}"#)])],
+        [.toolCalls([ToolCallRef(id: "a", name: "run_shell", arguments: #"{"command":"touch a"}"#)])],
         [.text("ok")],
     ])
     let executor = NativeExecutor(
