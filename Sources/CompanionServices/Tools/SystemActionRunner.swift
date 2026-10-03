@@ -21,14 +21,14 @@ package final class SystemActionRunner: SystemActing, Sendable {
     private let selfBundleID: String
     private let selfPID: pid_t
     private let frontmostOtherPID: @Sendable () -> pid_t?
-    private let emptyTrashScript: @Sendable () -> Bool
+    private let emptyTrashScript: @Sendable () -> SystemActResult
     private let runningApplication: @Sendable (pid_t) -> (any AppTerminating)?
 
     package init(
         selfBundleID: String,
         selfPID: pid_t = ProcessInfo.processInfo.processIdentifier,
         frontmostOtherPID: @escaping @Sendable () -> pid_t?,
-        emptyTrashScript: @escaping @Sendable () -> Bool = SystemActionRunner.runEmptyTrashScript,
+        emptyTrashScript: @escaping @Sendable () -> SystemActResult = SystemActionRunner.runEmptyTrashScript,
         runningApplication: @escaping @Sendable (pid_t) -> (any AppTerminating)? = {
             NSRunningApplication(processIdentifier: $0)
         }
@@ -52,14 +52,14 @@ package final class SystemActionRunner: SystemActing, Sendable {
         }
     }
 
-    package func act(_ plan: Plan) async -> Bool {
+    package func act(_ plan: Plan) async -> SystemActResult {
         switch plan.action {
         case .system where plan.args["op"] == .text("empty_trash"):
             return emptyTrashScript()
         case .shortcut where plan.args["shortcut"] == .text("quit_app"):
-            return quitFrontmostOtherApp()
+            return quitFrontmostOtherApp() ? .done : .failed
         default:
-            return false
+            return .failed
         }
     }
 
@@ -75,14 +75,25 @@ package final class SystemActionRunner: SystemActing, Sendable {
     }
 
     /// Automation permission is prompted the first time this runs; a denial
-    /// or any other AppleScript error is a failure, spoken and never
-    /// retried (DecisionGate's ledger), not silently swallowed.
-    package static func runEmptyTrashScript() -> Bool {
+    /// names the switch to flip, and any other AppleScript error is a
+    /// failure, never retried (DecisionGate's ledger) nor silently swallowed.
+    package static func runEmptyTrashScript() -> SystemActResult {
         guard let script = NSAppleScript(
             source: "tell application \"Finder\" to empty trash")
-        else { return false }
+        else { return .failed }
         var error: NSDictionary?
         script.executeAndReturnError(&error)
-        return error == nil
+        return emptyTrashResult(error)
+    }
+
+    package static func emptyTrashResult(_ error: NSDictionary?) -> SystemActResult {
+        guard let error else { return .done }
+        let number = (error[NSAppleScript.errorNumber] as? NSNumber)?.intValue
+        if number == AppleEventSheets.notPermitted {
+            Log.app("system: empty_trash refused by Automation")
+            return .permissionRequired(app: "Finder")
+        }
+        Log.app("system: empty_trash failed code=\(number.map(String.init) ?? "none")")
+        return .failed
     }
 }
