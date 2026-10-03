@@ -1,0 +1,1 @@
+- **Dibujos que explican cada permiso (2026-10-03).** Hay un dibujo propio, sin imágenes, para micrófono, accesibilidad, grabación de pantalla y reconocimiento de voz. Muestra dónde se concede cada uno y quedan listos para acompañar las filas de permisos de la bienvenida.

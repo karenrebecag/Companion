@@ -320,6 +320,10 @@
 "welcome.keys.cerebras" = "Answers in under a second.";
 "welcome.keys.elevenLabs" = "A more natural voice.";
 "welcome.keys.local" = "Continue without a key, on this Mac only";
+"welcome.guide.microphone" = "Microphone dialog with the Allow button highlighted";
+"welcome.guide.accessibility" = "Accessibility settings with the Companion switch turned on";
+"welcome.guide.screenRecording" = "Screen Recording settings with the Companion switch turned on";
+"welcome.guide.speechRecognition" = "A voice waveform turning into lines of text";
 "welcome.permissions.title" = "Permissions";
 "welcome.permissions.body" = "Four permissions and you're set. Nothing leaves your Mac unless you talk.";
 "welcome.permission.microphone" = "Microphone";
