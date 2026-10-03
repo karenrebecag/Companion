@@ -22,6 +22,9 @@ import CompanionTestKit
     await testDecisionTaskWithoutJobsFallsBackToChat()
     await testWithoutAttachDecisionTheClassicPathIsUnchanged()
     await testDecisionConfirmThenYesEmptiesTrashOnce()
+    await testDecisionConfirmThenYesWithoutAutomationSaysWhereToTurnItOn(.es)
+    await testDecisionConfirmThenYesWithoutAutomationSaysWhereToTurnItOn(.en)
+    await testARouterFailureIsNeverSpokenAsDone()
     await testDecisionConfirmThenYesThenLaterYesReachesChat()
     await testDecisionConfirmThenNoDeclinesWithoutActing()
     await testDecisionConfirmThenUnclearUtteranceRoutesNormally()
@@ -250,6 +253,71 @@ import CompanionTestKit
     await pumpUntil("si: se habla el resultado") { h.synth.queue.contains("Listo.") }
     expect(h.thread.turns.contains { $0.role == .assistant && $0.content == "Hecho: system." },
            "si: el hilo lleva el resultado completo")
+}
+
+/// The -1743 follow-up: Finder refused because Companion lacks Automation.
+/// The user must hear where to turn it on, never the quick "Listo." that
+/// would say the trash was emptied.
+@MainActor func testDecisionConfirmThenYesWithoutAutomationSaysWhereToTurnItOn(_ language: AppLanguage) async {
+    setenv("COMPANION_DECISION", "1", 1)
+    defer { unsetenv("COMPANION_DECISION") }
+    let system = RecordingSystemActing()
+    system.actResult = .permissionRequired(app: "Finder")
+    let gate = DecisionGate(
+        provider: trashProvider(), arbiter: NoArbiter(),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        system: system, world: { DecisionWorld() }, budget: .seconds(2))
+    let h = makeVoiceHarness(language: language)
+    await h.session.attachDecision(gate)
+
+    h.transcriber.stoppedText = "vacia la papelera"
+    await h.session.hold()
+    await pumpUntil("automation: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    let question = DecisionCopy.question(
+        for: Plan(utterance: "", action: .system, args: ["op": .text("empty_trash")], confidence: 1,
+                  risk: .irreversible, disposition: .confirm), language)
+    await pumpUntil("automation: pregunta") { h.synth.queue.contains(question) }
+
+    h.transcriber.stoppedText = "si"
+    await h.session.hold()
+    await pumpUntil("automation: listening 2") { h.watch.latest.state == .listening }
+    await h.session.release()
+    let line = DecisionCopy.automationRequired(app: "Finder", language)
+    await pumpUntil("automation: dice donde activarlo (\(language))") { h.synth.queue.contains(line) }
+    expect(!h.synth.queue.contains(DecisionCopy.quickAck(language)), "un fallo nunca suena a hecho")
+    expect(h.thread.turns.contains { $0.role == .assistant && $0.content == line }, "el hilo lleva lo mismo")
+    expectEq(system.actCount, 1, "se intento una vez")
+}
+
+/// The quick ack is for success only: any failed router action (here an
+/// app that would not open) says what happened, even with nothing cached.
+@MainActor func testARouterFailureIsNeverSpokenAsDone() async {
+    setenv("COMPANION_DECISION", "1", 1)
+    defer { unsetenv("COMPANION_DECISION") }
+    let opener = FakeWorkspaceOpener(installed: ["Safari"])
+    opener.failure = ContractError(code: "open_failed", message: "could not open")
+    let provider = ScriptedDecision { question in
+        switch question.id {
+        case DecisionHead.action: return peaked("open_app", question.offeredIds)
+        case DecisionHead.app: return peaked("Safari", question.offeredIds)
+        default: return nil
+        }
+    }
+    let gate = DecisionGate(
+        provider: provider, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
+        world: { DecisionWorld(apps: ["Safari"], sites: []) }, budget: .seconds(2))
+    let h = makeVoiceHarness()
+    await h.session.attachDecision(gate)
+    h.transcriber.stoppedText = "abre Safari"
+    await h.session.hold()
+    await pumpUntil("fallo: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("fallo: el hilo lleva el resultado") { h.thread.turns.contains { $0.role == .assistant } }
+    let said = h.thread.turns.last { $0.role == .assistant }?.content ?? ""
+    await pumpUntil("fallo: se habla el resultado") { h.synth.queue.contains(said) }
+    expect(!h.synth.queue.contains("Done."), "un fallo nunca suena a hecho: \(h.synth.queue)")
+    expect(said.hasPrefix("Could not"), "dice que no pudo: \(said)")
 }
 
 /// wave-dm1-router.md §8: a confirmation is answered by the very NEXT turn
@@ -487,7 +555,7 @@ import CompanionTestKit
         frontmostOtherPID: { 111 },  // somehow the sensor reported our own pid
         runningApplication: { _ in app })
     let ok = await runner.act(closedSetPlan(action: .shortcut, key: "shortcut", value: "quit_app"))
-    expect(!ok, "el pid propio nunca se termina")
+    expectEq(ok, .failed, "el pid propio nunca se termina")
     expectEq(app.terminateCount, 0, "terminate() jamas se llamo")
 }
 
@@ -498,7 +566,7 @@ import CompanionTestKit
         frontmostOtherPID: { 222 },  // a different pid, but somehow the same bundle
         runningApplication: { _ in app })
     let ok = await runner.act(closedSetPlan(action: .shortcut, key: "shortcut", value: "quit_app"))
-    expect(!ok, "el bundle id propio nunca se termina")
+    expectEq(ok, .failed, "el bundle id propio nunca se termina")
     expectEq(app.terminateCount, 0, "terminate() jamas se llamo")
 }
 
@@ -509,8 +577,25 @@ import CompanionTestKit
         frontmostOtherPID: { 4242 },
         runningApplication: { pid in pid == 4242 ? app : nil })
     let ok = await runner.act(closedSetPlan(action: .shortcut, key: "shortcut", value: "quit_app"))
-    expect(ok, "termina la app que estaba al frente")
+    expectEq(ok, .done, "termina la app que estaba al frente")
     expectEq(app.terminateCount, 1, "terminate() se llamo una vez")
+}
+
+/// NSAppleScript reports a refusal by Automation as -1743; nothing else is that answer.
+@Test func dm1c4EmptyTrashReadsTheAutomationRefusalFromTheScriptError() {
+    expectEq(SystemActionRunner.emptyTrashResult(nil), .done, "sin error: hecho")
+    expectEq(SystemActionRunner.emptyTrashResult([NSAppleScript.errorNumber: -1743]),
+             .permissionRequired(app: "Finder"), "-1743: falta Automatizacion para Finder")
+    expectEq(SystemActionRunner.emptyTrashResult([NSAppleScript.errorNumber: -128]), .failed, "otro error: fallo")
+    expectEq(SystemActionRunner.emptyTrashResult([:]), .failed, "un error sin numero: fallo")
+}
+
+@Test func dm1c4EmptyTrashHandsBackWhatTheScriptSaid() async {
+    let runner = SystemActionRunner(
+        selfBundleID: "com.karen.companion", frontmostOtherPID: { nil },
+        emptyTrashScript: { .permissionRequired(app: "Finder") })
+    let result = await runner.act(closedSetPlan(action: .system, key: "op", value: "empty_trash"))
+    expectEq(result, .permissionRequired(app: "Finder"), "el runner no aplana el motivo a un Bool")
 }
 
 // MARK: - fakes and helpers
@@ -582,11 +667,11 @@ final class RecordingSystemActing: SystemActing, @unchecked Sendable {
     private let lock = NSLock()
     private var _actCount = 0
     var supportsAnswer = true
-    var actResult = true
+    var actResult: SystemActResult = .done
     var actCount: Int { lock.withLock { _actCount } }
 
     func supports(_ plan: Plan) -> Bool { supportsAnswer }
-    func act(_ plan: Plan) async -> Bool {
+    func act(_ plan: Plan) async -> SystemActResult {
         lock.withLock { _actCount += 1 }
         return actResult
     }

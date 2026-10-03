@@ -18,7 +18,17 @@ extension ArbiterClient: Arbitrating {}
 /// path unchanged, exactly as wave-dm1-router.md §8 requires for DM1c-1.
 package protocol SystemActing: Sendable {
     func supports(_ plan: Plan) -> Bool
-    func act(_ plan: Plan) async -> Bool
+    func act(_ plan: Plan) async -> SystemActResult
+}
+
+/// A refusal by a privacy permission is kept apart from any other failure:
+/// the user can fix it in one switch, and only hearing which one lets them.
+package enum SystemActResult: Sendable, Equatable {
+    case done
+    case failed
+    /// Automation (Apple Events -1743): `app` is the one Companion was not
+    /// allowed to control.
+    case permissionRequired(app: String)
 }
 
 /// A `.confirm(plan)` step, held open until the next hold turn answers it.
@@ -123,9 +133,7 @@ package actor DecisionGate {
             guard let system, DecisionRoute.validClosedSet(plan) else {
                 return .passThrough(.noExecutor)
             }
-            guard await system.act(plan) else { return .passThrough(.failed) }
-            let call = ToolCallRef(id: UUID().uuidString, name: plan.action.rawValue, arguments: "")
-            return .acted(ParentToolOutcome(ok: true, output: "done"), call)
+            return Self.outcome(of: await system.act(plan), plan)
         case .confirm(let plan):
             guard DecisionRoute.validClosedSet(plan) else { return .passThrough(.noExecutor) }
             pending = PendingConfirmation(plan: plan, attemptId: UUID().uuidString, createdAt: now())
@@ -184,16 +192,27 @@ package actor DecisionGate {
         let (nextLedger, already) = ledger.recording(key, attempt: confirmation.attemptId)
         ledger = nextLedger
         if !already {
-            let ok = await system.act(confirmation.plan)
-            let call = ToolCallRef(
-                id: UUID().uuidString, name: confirmation.plan.action.rawValue, arguments: "")
-            confirmedOutcome = ok
-                ? .acted(ParentToolOutcome(ok: true, output: "done"), call)
-                : .passThrough(.failed)
+            confirmedOutcome = Self.outcome(of: await system.act(confirmation.plan), confirmation.plan)
         }
         let outcome = confirmedOutcome ?? .passThrough(.failed)
         clearPending()
         return outcome
+    }
+
+    /// A permission refusal is acted, not passed: passed, the model would
+    /// hear a bare "sí" with no idea what it answered.
+    private static func outcome(of result: SystemActResult, _ plan: Plan) -> DecisionOutcome {
+        let call = ToolCallRef(id: UUID().uuidString, name: plan.action.rawValue, arguments: "")
+        switch result {
+        case .done:
+            return .acted(ParentToolOutcome(ok: true, output: "done"), call)
+        case .failed:
+            return .passThrough(.failed)
+        case .permissionRequired(let app):
+            return .acted(ParentToolOutcome(
+                ok: false, output: BridgeCode.permissionRequired + ": " + BridgeMessages.automationRequired,
+                target: app), call)
+        }
     }
 
     private func clearPending() {

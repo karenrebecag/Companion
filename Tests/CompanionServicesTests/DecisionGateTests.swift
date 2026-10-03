@@ -338,7 +338,7 @@ import Testing
 
     let withExecutor = DecisionGate(
         provider: directedNone, arbiter: confirming, tools: tools,
-        system: FakeSystemActing(supportsAnswer: true, actAnswer: true),
+        system: FakeSystemActing(supportsAnswer: true, actAnswer: .done),
         world: { world }, budget: .seconds(1))
     let confirmStep = await withExecutor.plan("vacia la papelera", canDelegate: false)
     guard case .confirm(let confirmedPlan) = confirmStep else {
@@ -348,6 +348,51 @@ import Testing
     expectEq(confirmedPlan.confidence, 0.99, "el 0.99 de N2 llega intacto al plan")
     let outcome = await withExecutor.run(confirmStep, utterance: "vacia la papelera", language: .es)
     expectEq(outcome, .confirm("¿Vacío la papelera?"), "la pregunta se arma con la copia de Core")
+}
+
+/// A refused Automation is an answer to say, not a pass to the model: the
+/// model would hear a bare "sí" with nothing to go on.
+@Test func aRefusedAutomationIsActedWithPermissionRequired() async {
+    let plan = Plan(
+        utterance: "vacia la papelera", action: .system, args: ["op": .text("empty_trash")],
+        confidence: 0.9, risk: .irreversible, disposition: .confirm)
+    for (answer, expected) in [(SystemActResult.permissionRequired(app: "Finder"), true), (.failed, false)] {
+        let gate = DecisionGate(
+            provider: ScriptedDecision { _ in nil }, arbiter: FakeArbiter(result: nil),
+            tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+            system: FakeSystemActing(supportsAnswer: true, actAnswer: answer),
+            world: { DecisionWorld() }, budget: .seconds(1))
+        let outcome = await gate.run(.system(plan), utterance: "vacia la papelera", language: .es)
+        guard expected else {
+            expectEq(outcome, .passThrough(.failed), "otro fallo sigue pasando")
+            continue
+        }
+        guard case .acted(let result, _) = outcome else { Issue.record("esperaba acted, fue \(outcome)"); continue }
+        expect(!result.ok, "no se hizo")
+        expect(result.output.hasPrefix(BridgeCode.permissionRequired), "permission_required: \(result.output)")
+        expectEq(result.target, "Finder", "la app que hay que permitir")
+    }
+}
+
+/// The confirmed attempt ran once and failed on the permission: a second "sí"
+/// is not an answer to anything open and never tries the trash again.
+@Test func aConfirmedPermissionFailureIsNotTriedAgain() async {
+    let plan = Plan(
+        utterance: "vacia la papelera", action: .system, args: ["op": .text("empty_trash")],
+        confidence: 0.9, risk: .irreversible, disposition: .confirm)
+    let system = RecordingSystemActing()
+    system.actResult = .permissionRequired(app: "Finder")
+    let gate = DecisionGate(
+        provider: ScriptedDecision { _ in nil }, arbiter: FakeArbiter(result: nil),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()), system: system,
+        world: { DecisionWorld() }, budget: .seconds(1))
+    _ = await gate.run(.confirm(plan), utterance: "vacia la papelera", language: .es)
+    let first = await gate.answerConfirmation("si")
+    guard case .acted(let result, _)? = first else { Issue.record("esperaba acted, fue \(String(describing: first))"); return }
+    expect(!result.ok && result.target == "Finder", "el permiso que falta")
+    let second = await gate.answerConfirmation("si")
+    expect(second == nil, "nada abierto: el segundo si no responde nada")
+    expectEq(system.actCount, 1, "la papelera se intento una sola vez")
 }
 
 // MARK: - fakes and helpers
@@ -364,10 +409,10 @@ private struct FakeArbiter: Arbitrating {
 
 private struct FakeSystemActing: SystemActing {
     var supportsAnswer: Bool
-    var actAnswer: Bool
+    var actAnswer: SystemActResult
 
     func supports(_ plan: Plan) -> Bool { supportsAnswer }
-    func act(_ plan: Plan) async -> Bool { actAnswer }
+    func act(_ plan: Plan) async -> SystemActResult { actAnswer }
 }
 
 private func makePlan(

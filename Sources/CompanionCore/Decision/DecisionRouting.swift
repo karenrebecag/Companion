@@ -200,7 +200,26 @@ package enum DecisionCopy: Sendable {
     package static func acted(
         _ outcome: ParentToolOutcome, tool: String, _ language: AppLanguage
     ) -> String {
-        ParentToolCopy.status(tool, outcome, language)
+        // The browser reports other permissions under the same code, with its own copy.
+        if !outcome.ok, outcome.output.hasPrefix(BridgeCode.permissionRequired), BrowserTool(rawValue: tool) == nil {
+            return automationRequired(app: outcome.target, language)
+        }
+        return ParentToolCopy.status(tool, outcome, language)
+    }
+
+    /// Spoken, so the pane is said as words; macOS lists each controlled app
+    /// under Companion's row, so the switch is named, not only the pane.
+    package static func automationRequired(app: String, _ language: AppLanguage) -> String {
+        switch language {
+        case .en:
+            let name = app.isEmpty ? "that app" : app
+            return "I'm not allowed to control \(name). Turn it on in System Settings, Privacy & Security, "
+                + "Automation: the \(name) switch under Companion."
+        case .es:
+            let name = app.isEmpty ? "esa app" : app
+            return "No tengo permiso para controlar \(name). Actívalo en Ajustes del Sistema, Privacidad y "
+                + "seguridad, Automatización: el interruptor de \(name) debajo de Companion."
+        }
     }
 
     package static func question(for plan: Plan, _ language: AppLanguage) -> String {

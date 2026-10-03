@@ -564,6 +564,12 @@ final class ClassicRuntime: @unchecked Sendable {
             return
         case .acted(let result, let call):
             threaded = DecisionCopy.acted(result, tool: call.name, language)
+            // The quick "Listo." would tell the user a failure worked: a
+            // failure always says what happened, cached or not.
+            guard result.ok else {
+                spoken = threaded
+                break
+            }
             // 15b-3: the router's own reply must sound inside the 1.5s
             // budget — from disk if it is there, "Listo."/"Done." if not,
             // with the specific text warmed in the background for next time.
