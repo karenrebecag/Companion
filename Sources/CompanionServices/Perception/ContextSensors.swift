@@ -372,10 +372,8 @@ package final class FocusedWindowSensor: FocusedWindowSensing, @unchecked Sendab
         return title(pid)
     }
 
-    package static func title(of pid: pid_t, timeout: Float? = nil) -> String? {
+    package static func title(of pid: pid_t) -> String? {
         let app = AXUIElementCreateApplication(pid)
-        // Set on the app element, it bounds every call made through it, the window's too.
-        if let timeout { AXUIElementSetMessagingTimeout(app, timeout) }
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
               let window = value, CFGetTypeID(window) == AXUIElementGetTypeID()
