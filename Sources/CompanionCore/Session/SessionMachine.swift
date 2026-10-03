@@ -102,7 +102,11 @@ package struct SessionMachine: Sendable, Equatable {
             //
             // look, click and the others name no target: a blank one would
             // paint an empty chip in the reel.
-            for target in targets.filter(ParentTool.names) where !projection.touched.contains(target) {
+            //
+            // A repeat moves to the end: the reel shows the app touched last,
+            // where the agent is acting now (brief isla-ciclo-y-legibilidad K8).
+            for target in targets.filter(ParentTool.names) {
+                projection.touched.removeAll { $0 == target }
                 projection.touched.append(target)
                 if projection.touched.count > Self.touchedCap {
                     projection.touched.removeFirst()
