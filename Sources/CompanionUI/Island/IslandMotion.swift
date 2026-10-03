@@ -140,12 +140,15 @@ enum IslandReveal {
         return min(words, 1 + Int(max(elapsed, 0) * wordsPerSecond))
     }
 
-    /// 0 dim, 1 bright. Each word fades in over `wordFade` from its own
-    /// moment, so the light travels along the line instead of stepping (M1).
-    static func brightness(word: Int, elapsed: Double, speaking: Bool) -> Double {
+    /// 0 unsaid, 1 said. A said word's color settles from its own moment, as Incredible's
+    /// CSS color transition does, so the light travels along the line instead of stepping.
+    static func brightness(word: Int, elapsed: Double, speaking: Bool, reduceMotion: Bool = false) -> Double {
         guard speaking else { return 1 }
-        let start = Double(word) / wordsPerSecond
-        return min(max((elapsed - start) / IslandMotionBudget.wordFade, 0), 1)
+        let since = elapsed - Double(word) / wordsPerSecond
+        // Incredible drops the transition under reduce motion: the word turns at once.
+        if reduceMotion { return since > 0 ? 1 : 0 }
+        let spoken = IslandMotionBudget.spokenWord
+        return MotionCurve.value(spoken.curve, at: min(max(since / spoken.duration, 0), 1))
     }
 }
 
@@ -266,7 +269,18 @@ enum IslandMotionBudget {
     /// The orb turning into the stop button while it speaks.
     static let iconSwap = IconSwap(duration: 0.2, fromScale: 0.25, blur: 2)
 
-    static let wordFade = 0.15
+    /// Incredible's spoken reply: the muted ink until a word is said, the primary one after.
+    struct SpokenWord: Equatable {
+        /// White alphas on the black island.
+        let unsaid: Double
+        let said: Double
+        let curve: [Double]
+        let duration: Double
+
+        func alpha(brightness: Double) -> Double { unsaid + (said - unsaid) * brightness }
+    }
+
+    static let spokenWord = SpokenWord(unsaid: 0.48, said: 0.94, curve: MotionCurve.settle, duration: 0.22)
     static let lineStep = 0.04
     /// Past the fifth line the rest arrive together: a list must not crawl.
     static let maxStaggered = 5

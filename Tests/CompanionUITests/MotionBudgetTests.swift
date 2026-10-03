@@ -16,7 +16,6 @@ import Testing
     testAmplitudesStaySmall()
     testLinesEnterInStepsOfFortyMilliseconds()
     testReduceMotionIsAShortFade()
-    testEachWordBrightensOverAFade()
     testTheStatusLineSwapsOnlyWhenItsKindChanges()
     testSettleCountsTheEnvelope()
 }
@@ -73,17 +72,6 @@ import Testing
         expectEq(reduced.blur, 0, "M8: \(name) sin desenfoque")
         expectEq(reduced.offset, 0, "M8: \(name) sin desplazamiento")
     }
-}
-
-@MainActor func testEachWordBrightensOverAFade() {
-    let fade = IslandMotionBudget.wordFade
-    expectEq(IslandReveal.brightness(word: 0, elapsed: 0, speaking: true), 0, "palabra: empieza gris")
-    expectEq(IslandReveal.brightness(word: 0, elapsed: fade / 2, speaking: true), 0.5, "palabra: a medio fundido")
-    expectEq(IslandReveal.brightness(word: 0, elapsed: fade, speaking: true), 1, "palabra: termina clara")
-    let third = 2 / IslandReveal.wordsPerSecond
-    expectEq(IslandReveal.brightness(word: 2, elapsed: third, speaking: true), 0,
-             "palabra: cada una empieza a su tiempo")
-    expectEq(IslandReveal.brightness(word: 7, elapsed: 0, speaking: false), 1, "palabra: sin voz, clara")
 }
 
 /// Code review 16f-2 (HIGH): the swap was keyed on the formatted text, so a

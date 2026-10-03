@@ -1,0 +1,1 @@
+- **Las palabras de la respuesta se encienden como en Incredible (2026-10-03).** Mientras responde en voz, cada palabra espera en gris (blanco al 48 %) y al decirse pasa a blanco al 94 % en 220 ms con la curva settle. Con reducir movimiento cambia al instante.
