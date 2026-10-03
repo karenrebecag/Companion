@@ -116,7 +116,7 @@ function dispatch(name, args) {
     case 'browser_click': return trustedClick(args);
     case 'browser_type': return trustedType(args);
     case 'browser_navigate': return navigate(args.tab, args.url);
-    case 'browser_open': return serial(() => openTab(args.url));
+    case 'browser_open': return openTab(args.url);
     case 'browser_take': return serial(() => takeTab(args.tab));
     case 'browser_release': return serial(() => releaseTab(args.tab));
     default: return Promise.resolve({ error: { code: 'invalid_args', message: 'unknown tool' } });
@@ -176,18 +176,73 @@ async function takeTab(tabId) {
   return { done: 'taken' };
 }
 
+// Incredible's observation budget: past it the page is reported as still loading, not waited on.
+const LOAD_BUDGET_MS = 5000;
+const STILL_LOADING = 'still loading';
+
+// Starts listening before the navigation does, so a page that finishes first is not missed.
+function watchLoad() {
+  const started = new Set();
+  const loaded = new Set();
+  const gone = new Set();
+  let waiting = null;
+  const answer = (tabId, outcome) => { if (waiting?.tabId === tabId) waiting.finish(outcome); };
+  const onUpdated = (tabId, change) => {
+    if (change.status === 'loading') started.add(tabId);
+    // A complete before this navigation's own loading belongs to the page being replaced.
+    if (change.status === 'complete' && started.has(tabId)) {
+      loaded.add(tabId);
+      answer(tabId, 'loaded');
+    }
+  };
+  const onRemoved = (tabId) => {
+    gone.add(tabId);
+    answer(tabId, 'gone');
+  };
+  chrome.tabs.onUpdated.addListener(onUpdated);
+  chrome.tabs.onRemoved.addListener(onRemoved);
+  const stop = () => {
+    chrome.tabs.onUpdated.removeListener(onUpdated);
+    chrome.tabs.onRemoved.removeListener(onRemoved);
+  };
+  const until = (tabId) => {
+    const known = loaded.has(tabId) ? 'loaded' : gone.has(tabId) ? 'gone' : null;
+    if (known) {
+      stop();
+      return Promise.resolve(known);
+    }
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => waiting.finish('loading'), LOAD_BUDGET_MS);
+      waiting = { tabId, finish: (outcome) => { clearTimeout(timer); stop(); resolve(outcome); } };
+    });
+  };
+  return { until, stop, started: (tabId) => started.has(tabId) };
+}
+
+// Only the tab and its group need the queue; waiting for the page inside it would hold every
+// take, release and open behind one slow site.
 async function openTab(url) {
-  const created = await chrome.tabs.create({ url, active: false });
+  const { created, load } = await serial(() => createInGroup(url));
+  const outcome = await load.until(created.id);
+  if (outcome === 'gone') return staleTab;
+  const { id, title, url: shown, active } = sanitizeTab({ ...created, url: created.url || created.pendingUrl || url });
+  return { tab: { id, title, url: shown, active, loading: outcome === 'loading' } };
+}
+
+async function createInGroup(url) {
+  const load = watchLoad();
+  let created;
   try {
+    created = await chrome.tabs.create({ url, active: false });
     await putInGroup(created);
   } catch (error) {
+    load.stop();
     // An ungrouped tab would sit in the user's window with no owner to ever release it.
-    await chrome.tabs.remove(created.id).catch(() => {});
+    if (created) await chrome.tabs.remove(created.id).catch(() => {});
     throw error;
   }
   await cdp.ensureAttached(created.id).catch((error) => console.warn('companion: debugger attach failed', error?.message));
-  const { id, title, url: shown, active } = sanitizeTab({ ...created, url: created.url || created.pendingUrl || url });
-  return { tab: { id, title, url: shown, active } };
+  return { created, load };
 }
 
 async function releaseTab(tabId) {
@@ -421,13 +476,33 @@ async function trustedType(args) {
 }
 
 async function navigate(tabId, url) {
+  const load = watchLoad();
   try {
     await chrome.tabs.update(tabId, { url });
   } catch (error) {
+    load.stop();
     return { error: { code: 'invalid_args', message: 'no such tab' } };
   }
   tabState.delete(tabId);
-  return { done: 'navigated' };
+  // A jump to an anchor in the same page never reports loading: it is done once the address shows it.
+  // HACK: a reload of the very address shown relies on Chrome marking the tab loading by the time
+  // update resolves. If such a reload is reported as navigated too early, wait for its loading instead.
+  const now = await chrome.tabs.get(tabId).catch(() => null);
+  if (!load.started(tabId) && now?.status === 'complete' && sameAddress(now.url, url)) {
+    load.stop();
+    return { done: 'navigated' };
+  }
+  const outcome = await load.until(tabId);
+  if (outcome === 'gone') return staleTab;
+  return { done: outcome === 'loaded' ? 'navigated' : STILL_LOADING };
+}
+
+function sameAddress(a, b) {
+  try {
+    return new URL(a).href === new URL(b).href;
+  } catch {
+    return false;
+  }
 }
 
 chrome.tabs.onRemoved.addListener((tabId) => {

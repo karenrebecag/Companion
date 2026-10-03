@@ -84,7 +84,11 @@ extension BrowserToolRunner {
         case .success(.opened(_, let opened)):
             leases.acquire(tab: opened.id, caller: caller)
             return ParentToolOutcome(
-                ok: true, output: "opened tab \(opened.id) in the background; read it with browser_read",
+                ok: true,
+                output: opened.loading
+                    ? "opened tab \(opened.id) in the background; it is still loading, so wait a moment, then read it "
+                        + "with browser_read"
+                    : "opened tab \(opened.id) in the background; read it with browser_read",
                 target: url.absoluteString, tool: tool.rawValue)
         case .success:
             return fail(tool, BridgeCode.badFrame, "unexpected reply")

@@ -13,6 +13,8 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
     private var failure: ContractError?
     private var nextOpened = 40
     private var staleReads: Set<Int> = []
+    private var navigateNote: String?
+    private var openedLoading = false
 
     init(pages: [BrowserPage] = [], tabs: [BrowserTab] = [], failure: ContractError? = nil) {
         self.pages = Dictionary(uniqueKeysWithValues: pages.map { ($0.tab, $0) })
@@ -46,6 +48,9 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
         return gate
     }
 
+    /// What the extension says once a navigation or a new tab ran out of its load budget.
+    func stillLoading() { lock.withLock { navigateNote = "still loading"; openedLoading = true } }
+
     /// The extension answers `stale_id` to a read of this tab, as for a tab that is gone.
     func goneOnRead(_ tab: Int) { lock.withLock { _ = staleReads.insert(tab) } }
     func setTabs(_ tabs: [BrowserTab]) { lock.withLock { tabList = tabs } }
@@ -68,6 +73,7 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
     private func reply(_ command: BrowserCommand, timeout: Duration) -> Result<BrowserInbound, ContractError> {
         log.append((command, timeout))
         if let failure { return .failure(failure) }
+        if case .navigate = command, let navigateNote { return .success(.done(id: 1, message: navigateNote)) }
         switch command {
         case .tabs: return .success(.tabs(id: 1, tabList))
         case .read(let tab, _):
@@ -76,7 +82,8 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
             return .success(.page(id: 1, page))
         case .open(let url):
             nextOpened += 1
-            return .success(.opened(id: 1, BrowserTab(id: nextOpened, title: "", url: url.absoluteString, active: false)))
+            return .success(.opened(id: 1, BrowserTab(
+                id: nextOpened, title: "", url: url.absoluteString, active: false, loading: openedLoading)))
         case .release:
             if let releaseFailure { return .failure(releaseFailure) }
             return .success(.done(id: 1, message: "ok"))

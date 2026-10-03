@@ -166,10 +166,16 @@ extension BrowserToolRunner {
         switch await channel.send(.navigate(tab: tab, url: url), timeout: Self.navigateTimeout) {
         case .failure(let error):
             return failed(tool, error)
-        case .success:
+        case .success(let reply):
             forget(tab)
+            // A read right after a slow navigation sees the old or an empty page, and the model would report that.
+            let stillLoading: Bool
+            if case .done(_, BrowserCopy.stillLoading) = reply { stillLoading = true } else { stillLoading = false }
             return ParentToolOutcome(
-                ok: true, output: "navigating tab \(tab); read it again once it has loaded",
+                ok: true,
+                output: stillLoading
+                    ? "tab \(tab) is still loading; wait a moment, then read it with browser_read"
+                    : "navigated tab \(tab) and it loaded; read it with browser_read",
                 target: url.absoluteString, tool: tool.rawValue)
         }
     }

@@ -40,6 +40,23 @@ import Testing
     }
 }
 
+// H-6: the host words its reply on this flag, so it must survive decoding and default to loaded.
+@Test func codecCarriesWhetherTheOpenedTabIsStillLoading() {
+    let loading = #"{"id":5,"result":{"tab":{"id":123,"title":"","url":"https://x.test/","active":false,"loading":true}}}"#
+    guard case .success(.opened(_, let tab)) = BrowserCodec.decode(line: loading) else { Issue.record("no tab"); return }
+    expect(tab.loading, "loading survives")
+    let older = #"{"id":5,"result":{"tab":{"id":123,"title":"","url":"https://x.test/","active":false}}}"#
+    guard case .success(.opened(_, let plain)) = BrowserCodec.decode(line: older) else { Issue.record("no tab"); return }
+    expect(!plain.loading, "an extension that does not say is taken as loaded")
+}
+
+// The host matches the navigate note exactly; a rename on either side would turn "still loading"
+// back into "loaded" without any test noticing.
+@Test func theStillLoadingNoteMatchesTheExtension() {
+    let source = scriptText("Extensions/browser/background.js")
+    expect(source.contains("const STILL_LOADING = '\(BrowserCopy.stillLoading)';"), "the extension sends the same text")
+}
+
 @Test func codecDecodesTheOpenedTab() {
     let line = #"{"id":5,"result":{"tab":{"id":123,"title":"","url":"https://x.test/","active":false}}}"#
     let want = BrowserTab(id: 123, title: "", url: "https://x.test/", active: false)

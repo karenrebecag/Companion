@@ -176,6 +176,9 @@ extension BrowserCopy {
         }
     }
 
+    /// The extension's exact note for a navigation that ran out of its load budget.
+    package static let stillLoading = "still loading"
+
     /// The sheet a bridge agent's `browser_take` raises.
     package static func takeSummary(title: String, _ language: AppLanguage) -> String {
         switch language {

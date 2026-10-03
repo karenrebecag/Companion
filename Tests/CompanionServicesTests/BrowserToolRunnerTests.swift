@@ -344,3 +344,30 @@ import Testing
     expect(!log.contains("Eliminar"), "logs: nunca etiquetas")
     expect(log.contains("tool=browser_click"), "logs: la tool se nombra")
 }
+
+// H-6: "read it again once it has loaded" gave the model no way to know when; the extension now
+// waits, and the reply says which way the wait ended.
+@Test func aNavigationThatLoadedSaysToReadNow() async {
+    let rig = makeToolRig()
+    await rig.read()
+    let out = await rig.run("browser_navigate", #"{"tab":12,"url":"https://crm.example/reports"}"#)
+    expect(out.ok, "runs")
+    expect(out.output.contains("loaded") && !out.output.contains("still loading"), "loaded: \(out.output)")
+}
+
+@Test func aNavigationStillLoadingSaysSo() async {
+    let rig = makeToolRig()
+    await rig.read()
+    rig.channel.stillLoading()
+    let out = await rig.run("browser_navigate", #"{"tab":12,"url":"https://crm.example/reports"}"#)
+    expect(out.ok, "still a success: the page is on its way")
+    expect(out.output.contains("still loading"), "says so: \(out.output)")
+}
+
+@Test func aNewTabStillLoadingSaysSo() async {
+    let rig = makeToolRig()
+    rig.channel.stillLoading()
+    let out = await rig.run("browser_open", #"{"url":"https://crm.example/"}"#, said: "abre crm.example", approve: true)
+    expect(out.ok, "opened")
+    expect(out.output.contains("still loading"), "says so: \(out.output)")
+}

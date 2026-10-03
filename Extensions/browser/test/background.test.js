@@ -21,6 +21,20 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
     attachError: null,
     page: null,
     cursor: undefined,
+    // A test sets this to keep page loads from finishing until it calls `finishLoad`.
+    holdLoads: false,
+  };
+  const updated = [];
+  state.updatedListeners = updated;
+  state.finishLoad = (id) => { for (const fn of [...updated]) fn(id, { status: 'complete' }, {}); };
+  // Chrome reports loading as the navigation starts, then complete; a test can hold the second.
+  const loadStarted = (id) => {
+    for (const fn of [...updated]) fn(id, { status: 'loading' }, {});
+    if (!state.holdLoads) queueMicrotask(() => state.finishLoad(id));
+  };
+  state.closeTab = (id) => {
+    state.tabs = state.tabs.filter((t) => t.id !== id);
+    for (const fn of [...registered.removed]) fn(id, {});
   };
   const trip = (name, args) => { if (state.failWhen(name, args)) throw new Error(`${name} failed`); };
   const created = [];
@@ -29,7 +43,10 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
   const findTab = (id) => state.tabs.find((t) => t.id === id);
   const ports = [];
   const registered = { alarm: [], startup: [], installed: [], removed: [], forbidden: [], detach: [] };
-  const listener = (bucket) => ({ addListener: (fn) => bucket.push(fn) });
+  const listener = (bucket) => ({
+    addListener: (fn) => bucket.push(fn),
+    removeListener: (fn) => { if (bucket.includes(fn)) bucket.splice(bucket.indexOf(fn), 1); },
+  });
   const chrome = {
     runtime: {
       id: EXTENSION_ID,
@@ -65,12 +82,22 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
         if (!tab) throw new Error('No tab with id: ' + id);
         return { ...tab };
       },
-      update: async () => ({}),
+      update: async (id, props = {}) => {
+        state.calls.push(['tabs.update', id]);
+        trip('tabs.update', id);
+        // The page that was still loading finishes after the listener is up but before the new one starts.
+        if (state.staleComplete) state.finishLoad(id);
+        if (state.sameDocument) Object.assign(findTab(id), { status: 'complete', url: props.url });
+        else loadStarted(id);
+        return {};
+      },
       create: async ({ url, active }) => {
         state.calls.push(['tabs.create', { url, active }]);
+        trip('tabs.create', { url, active });
         const tab = { id: state.nextTab++, index: state.tabs.length, groupId: -1, windowId: 1, active: Boolean(active), title: '', url: '', pendingUrl: url };
         state.tabs.push(tab);
         for (const fn of created) fn({ ...tab });
+        loadStarted(tab.id);
         return { ...tab };
       },
       group: async ({ groupId, tabIds, createProperties }) => {
@@ -104,6 +131,10 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
       },
       onRemoved: listener(registered.removed),
       onCreated: { addListener: (fn) => created.push(fn) },
+      onUpdated: {
+        addListener: (fn) => updated.push(fn),
+        removeListener: (fn) => { updated.splice(updated.indexOf(fn), 1); },
+      },
     },
     tabGroups: {
       query: async (filter = {}) => state.groups.filter((g) => filter.windowId === undefined || g.windowId === filter.windowId).map((g) => ({ ...g })),
@@ -289,7 +320,7 @@ const ours = (state) => state.groups.filter((g) => g.title === 'Companion');
 test('browser_open creates a background tab and puts it in a new Companion group', async () => {
   const { ports, state } = await boot({ tabs: userTabs() });
   const reply = await ask(ports[0], 20, 'browser_open', { url: 'https://a.example/x' });
-  assert.deepEqual(reply.result, { tab: { id: 100, title: '', url: 'https://a.example/x', active: false } });
+  assert.deepEqual(reply.result, { tab: { id: 100, title: '', url: 'https://a.example/x', active: false, loading: false } });
   assert.deepEqual(state.calls.find((c) => c[0] === 'tabs.create'), ['tabs.create', { url: 'https://a.example/x', active: false }]);
   const [group] = ours(state);
   assert.equal(group.color, 'blue');
@@ -821,4 +852,156 @@ test('the cursor is removed from every controlled tab when the app goes away', a
   rig.ports[0].hangUp();
   for (let i = 0; i < 5; i++) await settle();
   assert.equal(seen.destroyed, 1);
+});
+
+// H-6: open and navigate answered before the page loaded, so an immediate read saw an empty or old
+// page. Like Incredible, they now wait within a five-second budget and say when it ran out.
+test('browser_navigate answers navigated once the page has loaded', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.holdLoads = true;
+  rig.ports[0].receive(call(90, 'browser_navigate', { tab: 3, url: 'https://a.example/y' }));
+  await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 90), [], 'no answer while the page loads');
+  rig.state.finishLoad(3);
+  await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 90)[0].result, { done: 'navigated' });
+});
+
+test('browser_navigate says still loading when the budget runs out', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.holdLoads = true;
+  rig.ports[0].receive(call(91, 'browser_navigate', { tab: 3, url: 'https://a.example/y' }));
+  await settle();
+  mock.timers.tick(4999);
+  await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 91), []);
+  mock.timers.tick(1);
+  await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 91)[0].result, { done: 'still loading' });
+});
+
+test('another tab finishing its load does not end the wait', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.holdLoads = true;
+  rig.ports[0].receive(call(92, 'browser_navigate', { tab: 3, url: 'https://a.example/y' }));
+  await settle();
+  rig.state.finishLoad(2);
+  await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 92), []);
+  rig.state.finishLoad(3);
+  await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 92)[0].result, { done: 'navigated' });
+});
+
+test('browser_open waits for the new tab to load and says when it is still loading', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.holdLoads = true;
+  rig.ports[0].receive(call(93, 'browser_open', { url: 'https://a.example/x' }));
+  await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 93), []);
+  mock.timers.tick(5000);
+  await settle();
+  assert.equal(answersTo(rig.ports[0], 93)[0].result.tab.loading, true);
+});
+
+test('a page that loads before the wait starts still counts as loaded', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const reply = await ask(rig.ports[0], 94, 'browser_open', { url: 'https://a.example/x' });
+  assert.equal(reply.result.tab.loading, false);
+});
+
+// A service worker that keeps one listener per call slows every tab update for its whole life.
+test('the load listener is removed however open and navigate end', async () => {
+  const cases = [
+    ['navigate loads', async (rig) => { await ask(rig.ports[0], 95, 'browser_navigate', { tab: 3, url: 'https://a.example/y' }); }],
+    ['navigate runs out', async (rig) => {
+      rig.state.holdLoads = true;
+      rig.ports[0].receive(call(96, 'browser_navigate', { tab: 3, url: 'https://a.example/y' }));
+      await settle();
+      mock.timers.tick(5000);
+      await settle();
+    }],
+    ['open loads', async (rig) => { await ask(rig.ports[0], 97, 'browser_open', { url: 'https://a.example/x' }); }],
+    ['open cannot group', async (rig) => {
+      rig.state.failWhen = (name) => name === 'tabs.group';
+      await ask(rig.ports[0], 98, 'browser_open', { url: 'https://a.example/x' });
+    }],
+    ['open cannot create', async (rig) => {
+      rig.state.failWhen = (name) => name === 'tabs.create';
+      await ask(rig.ports[0], 99, 'browser_open', { url: 'https://a.example/x' });
+      assert.ok(!rig.state.calls.some((c) => c[0] === 'tabs.remove'), 'nothing to close');
+    }],
+  ];
+  for (const [name, run] of cases) {
+    const rig = await boot({ tabs: userTabs() });
+    await run(rig);
+    assert.equal(rig.state.updatedListeners.length, 0, name);
+    mock.timers.reset();
+  }
+});
+
+test('navigating a tab that is gone answers invalid_args at once, with no wait left behind', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.failWhen = (name) => name === 'tabs.update';
+  const reply = await ask(rig.ports[0], 100, 'browser_navigate', { tab: 3, url: 'https://a.example/y' });
+  assert.equal(reply.error.code, 'invalid_args');
+  assert.equal(rig.state.updatedListeners.length, 0);
+  mock.timers.tick(5000);
+  await settle();
+  assert.equal(answersTo(rig.ports[0], 100).length, 1, 'no second answer when the budget would have run out');
+});
+
+test('the old page finishing after the navigation was asked for does not count as the new one loading', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.holdLoads = true;
+  rig.state.staleComplete = true;
+  rig.ports[0].receive(call(101, 'browser_navigate', { tab: 3, url: 'https://a.example/y' }));
+  await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 101), [], 'still waiting for the new page');
+  rig.state.finishLoad(3);
+  await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 101)[0].result, { done: 'navigated' });
+});
+
+test('a jump within the same page counts as loaded without waiting out the budget', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.sameDocument = true;
+  const reply = await ask(rig.ports[0], 102, 'browser_navigate', { tab: 3, url: 'https://x.example/#faq' });
+  assert.deepEqual(reply.result, { done: 'navigated' });
+  assert.equal(rig.state.updatedListeners.length, 0);
+});
+
+test('a tab closed while it loads answers stale_id, never navigated or still loading', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.holdLoads = true;
+  rig.ports[0].receive(call(103, 'browser_navigate', { tab: 3, url: 'https://a.example/y' }));
+  await settle();
+  rig.state.closeTab(3);
+  await settle();
+  assert.equal(answersTo(rig.ports[0], 103)[0].error?.code, 'stale_id');
+  assert.equal(rig.state.updatedListeners.length, 0);
+});
+
+test('a new tab closed while it loads answers stale_id', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.holdLoads = true;
+  rig.ports[0].receive(call(104, 'browser_open', { url: 'https://a.example/x' }));
+  await settle();
+  rig.state.closeTab(100);
+  await settle();
+  assert.equal(answersTo(rig.ports[0], 104)[0].error?.code, 'stale_id');
+});
+
+test('a slow page does not hold the next open behind it', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.holdLoads = true;
+  rig.ports[0].receive(call(105, 'browser_open', { url: 'https://a.example/' }));
+  rig.ports[0].receive(call(106, 'browser_open', { url: 'https://b.example/' }));
+  await settle();
+  await settle();
+  assert.equal(rig.state.calls.filter((c) => c[0] === 'tabs.create').length, 2, 'both tabs were created while the first still loads');
+  rig.state.finishLoad(101);
+  await settle();
+  assert.equal(answersTo(rig.ports[0], 106)[0].result.tab.loading, false, 'the second answers on its own load');
+  assert.deepEqual(answersTo(rig.ports[0], 105), [], 'the first is still waiting');
 });
