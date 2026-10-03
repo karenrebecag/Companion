@@ -427,6 +427,12 @@ async function trustedType(args) {
     if (!ready) return staleElement;
     if (ready.error) return ready;
     if (ready.multiline && /[\r\n]/.test(args.text)) return typeLines(args, entry, target, typeSynthetic);
+    // HACK: prepareType re-checked the focus after the press, but the keys go to whatever holds the
+    // focus when each one arrives. Two things can still move it: an async timer (setTimeout focus
+    // handler) firing between that reply and the first key, and a keydown handler mid-typing. A
+    // re-check here would only shrink the first window by one round trip. Real fix when a page is
+    // seen doing it: CDP Input.insertText after a DOM.focus pinned to the node, or abort on a
+    // read-back that shows the text landed elsewhere.
     await cdp.typeText(args.tab, args.text);
     const expected = Array.from(args.text).filter((ch) => !isControl(ch)).join('');
     const after = await inPage(target, (g, id) => globalThis.__companionPage.typedValue(g, id), [args.generation, entry.localId]);

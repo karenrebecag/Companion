@@ -668,6 +668,32 @@ test('a refusal on the insert path is passed through, never reported as typed', 
   assert.equal(reply.error.code, 'stale_id');
 });
 
+test('a multi-line text whose focus moved is refused before the first line and never read back', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyField(rig, { prepare: { ready: true, multiline: true } });
+  let readBacks = 0;
+  rig.state.page.typedValue = () => { readBacks++; return { value: '' }; };
+  rig.state.page.type = (g, id, text) => { log.synthetic.push(text); return { error: { code: 'secure_field', message: 'sensitive field, typing refused' } }; };
+  const reply = await ask(rig.ports[0], 80, 'browser_type', { tab: 3, generation, element: 1, text: 'a\nb' });
+  assert.equal(reply.error.code, 'secure_field');
+  assert.equal(readBacks, 0);
+  assert.equal(keysSent(rig.state), '');
+});
+
+// The press is a real click: its handlers are the likeliest thing to move the focus.
+test('a focus that moved because of the click sends no key', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyField(rig);
+  const moved = { error: { code: 'secure_field', message: 'focus moved to a sensitive field, typing refused' } };
+  rig.state.page.prepareType = () => (log.prepared++ === 0 ? { ready: true } : moved);
+  const reply = await ask(rig.ports[0], 81, 'browser_type', { tab: 3, generation, element: 1, text: 'hunter2' });
+  assert.equal(reply.error.code, 'secure_field');
+  assert.equal(presses(rig.state).length, 1);
+  assert.equal(log.prepared, 2, 'checked again after the press');
+  assert.equal(keysSent(rig.state), '');
+  assert.deepEqual(log.synthetic, []);
+});
+
 test('a sensitive field is refused before any input reaches the page', async () => {
   const rig = await boot({ tabs: userTabs() });
   const { generation } = await readyField(rig, { prepare: { error: { code: 'secure_field', message: 'sensitive field, typing refused' } } });
