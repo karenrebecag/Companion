@@ -287,8 +287,11 @@ package struct ApprovalClickGuard: Sendable, Equatable {
         now - shownAt >= Self.dwell
     }
 
-    /// A guard never set means not yet safe, never always safe.
-    package static func accepts(_ guard: ApprovalClickGuard?, at now: TimeInterval) -> Bool {
-        `guard`?.accepts(at: now) ?? false
+    /// A guard never set means not yet safe, never always safe. Content that
+    /// is still fading in cannot be seen, so a click on it is never an
+    /// answer, whatever the dwell says (security review 2026-10-03).
+    package static func accepts(_ guard: ApprovalClickGuard?, at now: TimeInterval,
+                                contentVisible: Bool) -> Bool {
+        contentVisible && (`guard`?.accepts(at: now) ?? false)
     }
 }
