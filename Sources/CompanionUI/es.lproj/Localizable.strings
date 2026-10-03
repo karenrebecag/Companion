@@ -52,6 +52,7 @@
 "voice.fail.sessionDropped" = "La sesión de voz se cayó.";
 "voice.fail.networkUnavailable" = "No hay conexión a internet. Verifica tu red.";
 "voice.fail.accessibilityDenied" = "Sin permiso de Accesibilidad no pude escribir en el campo. Tus palabras fueron al chat.";
+"voice.fail.screenRecordingDenied" = "Ya no puedo ver la pantalla. Activa Companion en Ajustes del Sistema > Privacidad y seguridad > Grabación de pantalla y audio del sistema.";
 "voice.preview.failed" = "No se pudo reproducir la muestra. Revisa tu conexión.";
 
 /* Ajustes */

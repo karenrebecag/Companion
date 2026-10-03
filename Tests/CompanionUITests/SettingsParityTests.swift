@@ -52,7 +52,7 @@ private func words(_ text: String) -> [String] {
                    "welcome.permissions.body", "welcome.holdKey.body", "welcome.yourTurn.body"]
     let failures = ["micDenied", "micUnavailable", "micSilent", "notHeard", "speechEngine", "speechDenied",
                     "accessibilityDenied", "noProviders", "quotaExceeded", "sessionDropped",
-                    "networkUnavailable"].map { "voice.fail." + $0 }
+                    "networkUnavailable", "screenRecordingDenied"].map { "voice.fail." + $0 }
     let island = ["island.ask", "island.clear.ask", "island.action.keys", "island.couldntHear"] + failures
     let keys = SettingsInventory.visibleKeys + IslandMenuItem.allCases.map { "island.menu." + $0.rawValue }
         + welcome + island

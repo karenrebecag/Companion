@@ -33,6 +33,8 @@ package struct SessionMachine: Sendable, Equatable {
 
     /// The pointer is over the dictation card (16m-4): it does not expire.
     var dictationHeld = false
+    /// Once per run: a lost grant stays lost until the user acts in Settings.
+    var screenRecordingCardShown = false
     var voice = TurnSnapshot.idle
     var typedBusy = false
     /// The key is down but still under the tap threshold: the mic is open
@@ -270,6 +272,12 @@ package struct SessionMachine: Sendable, Equatable {
             let card = Self.card(for: failure)
             projection.notice = card
             projection.cards = [card]
+        case .screenRecordingLost:
+            guard !screenRecordingCardShown else { return [] }
+            screenRecordingCardShown = true
+            let card = Self.card(for: TurnFailure.screenRecordingDenied)
+            projection.notice = card
+            projection.cards = [card]
         case .actionDone(let receipt):
             projection.receipt = receipt
             effects.append(.scheduleReceiptExpiry(id: receipt.id, UndoReceipt.undoWindow))
@@ -383,7 +391,7 @@ package struct SessionMachine: Sendable, Equatable {
 
     static func card(for failure: TurnFailure) -> SessionCard {
         switch failure {
-        case .micDenied, .speechDenied, .accessibilityDenied: .permission(failure)
+        case .micDenied, .speechDenied, .accessibilityDenied, .screenRecordingDenied: .permission(failure)
         case .notHeard, .micSilent: .couldntHear
         default: .failure(failure)
         }

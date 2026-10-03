@@ -170,3 +170,34 @@ private final class SlowScreenRecording: ScreenRecordingChecking, @unchecked Sen
         continuation?.resume(returning: captured)
     }
 }
+
+@Test func screenRecordingGateSignalsALossOncePerLoss() async {
+    let fake = FakeScreenRecording(granted: true, captures: true)
+    let losses = LossCount()
+    let gate = ScreenRecordingGate(checker: fake)
+    gate.onLost { losses.add() }
+    await gate.verify()
+    fake.captures = false
+    await gate.captureFailed()
+    expectEq(losses.count, 1, "verified -> stale is a loss")
+    await gate.captureFailed()
+    expectEq(losses.count, 1, "staying stale is the same loss")
+    fake.captures = true
+    await gate.verify()
+    fake.granted = false
+    await gate.captureFailed()
+    expectEq(losses.count, 2, "recovered, then revoked: a new loss")
+
+    let never = LossCount()
+    let fresh = ScreenRecordingGate(checker: FakeScreenRecording(granted: true, captures: false))
+    fresh.onLost { never.add() }
+    await fresh.verify()
+    expectEq(never.count, 0, "never worked is not a loss: the welcome owns that")
+}
+
+private final class LossCount: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    func add() { lock.withLock { value += 1 } }
+    var count: Int { lock.withLock { value } }
+}

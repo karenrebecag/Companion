@@ -216,6 +216,8 @@ package enum SessionEvent: Sendable, Equatable {
     case dictationCardCopied
     /// The hold wanted to dictate and could not; the words went to Companion.
     case dictationFailed(DictationFailure)
+    /// Gap 1c: the sight's grant worked and stopped working.
+    case screenRecordingLost
     /// Wave 17: the bridge's session opened (or closed, `nil`) for this
     /// client. Independent of the turn machinery — a bridge session can sit
     /// open across many idle moments.

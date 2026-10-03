@@ -52,6 +52,7 @@
 "voice.fail.sessionDropped" = "The voice session dropped.";
 "voice.fail.networkUnavailable" = "No internet connection. Check your network.";
 "voice.fail.accessibilityDenied" = "No Accessibility permission, so I could not type into the field. I sent your words to the chat instead.";
+"voice.fail.screenRecordingDenied" = "I can no longer see the screen. Turn on Companion in System Settings > Privacy & Security > Screen & System Audio Recording.";
 "voice.preview.failed" = "The sample could not play. Check your connection.";
 
 /* Settings */

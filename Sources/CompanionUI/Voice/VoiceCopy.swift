@@ -19,6 +19,7 @@ package enum VoiceCopy {
         case .speechEngine: Localized.string("voice.fail.speechEngine")
         case .speechDenied: Localized.string("voice.fail.speechDenied")
         case .accessibilityDenied: Localized.string("voice.fail.accessibilityDenied")
+        case .screenRecordingDenied: Localized.string("voice.fail.screenRecordingDenied")
         case .noProviders: Localized.string("voice.fail.noProviders")
         case .quotaExceeded: Localized.string("voice.fail.quotaExceeded")
         case .sessionDropped: Localized.string("voice.fail.sessionDropped")
@@ -34,6 +35,7 @@ package enum VoiceCopy {
         case .micDenied: PermissionSettingsLink.microphone
         case .speechDenied: PermissionSettingsLink.speechRecognition
         case .accessibilityDenied: PermissionSettingsLink.accessibility
+        case .screenRecordingDenied: PermissionSettingsLink.screenRecording
         default: nil
         }
     }

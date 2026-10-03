@@ -151,6 +151,9 @@ func makeSensingAndModel(
     receipts.connect { receipt in
         Task { @MainActor in sessionModel.send(.actionDone(receipt)) }
     }
+    screenRecording.onLost {
+        Task { @MainActor in sessionModel.send(.screenRecordingLost) }
+    }
     let undoer = ActionUndoer(sheets: AppleEventSheets())
     sessionModel.onUndo = { receipt in
         guard let step = receipt.undo else { return }
