@@ -112,6 +112,26 @@ test('click dispatches the full sequence with bubbles and composed', () => {
   }
 });
 
+test('a synthetic double click is two clicks counted 1 and 2, then dblclick', () => {
+  const el = fake({ tag: 'button' });
+  assert.deepEqual(page.doubleClickElement(el), { done: 'double-clicked' });
+  const clicks = el.events.filter((e) => e.type === 'click' || e.type === 'dblclick');
+  assert.deepEqual(clicks.map((e) => [e.type, e.init.detail]), [['click', 1], ['click', 2], ['dblclick', 2]]);
+  assert.equal(el.events.filter((e) => e.type === 'mousedown').length, 2, 'two presses');
+});
+
+test('a synthetic right click presses the right button and asks for the context menu, never a click', () => {
+  const el = fake({ tag: 'button' });
+  assert.deepEqual(page.contextClickElement(el), { done: 'right-clicked' });
+  assert.deepEqual(el.events.map((e) => e.type), ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'contextmenu']);
+  for (const e of el.events) {
+    assert.equal(e.init.button, 2, `${e.type}: the right button`);
+    assert.equal(e.init.bubbles, true);
+  }
+  const held = Object.fromEntries(el.events.map((e) => [e.type, e.init.buttons]));
+  assert.deepEqual([held.pointerdown, held.mousedown, held.pointerup, held.mouseup], [2, 2, 0, 0], 'held while down, released after');
+});
+
 test('type refuses secure_field on sensitive elements without touching them', () => {
   const el = fake({ tag: 'input', attrs: { type: 'password' } });
   const out = page.typeIntoElement(el, 'x');
@@ -406,6 +426,25 @@ test('the serialized value is clipped to 200 code points', () => {
   const out = page.serializeElement(fake({ tag: 'input', attrs: { type: 'text' }, value: 'v'.repeat(199) + '😀😀' }), 1, 0);
   assert.equal(Array.from(out.value).length, 200);
   assert.ok(!SURROGATE.test(out.value));
+});
+
+test('a right click is proven landed by its trusted contextmenu, and a click does not prove it', () => {
+  const listeners = {};
+  const saved = globalThis.window;
+  globalThis.window = { addEventListener: (type, fn) => { listeners[type] = fn; } };
+  try {
+    const el = fake({ tag: 'button' });
+    page.armLanding(el, 'r1', 'contextmenu');
+    assert.equal(listeners.click, undefined, 'nothing listens for a click a right press never fires');
+    assert.equal(page.landed('r1'), false, 'not landed before the press');
+    listeners.contextmenu({ isTrusted: true, composedPath: () => [el] });
+    assert.equal(page.landed('r1'), true);
+    page.armLanding(el, 'r2', 'contextmenu');
+    listeners.contextmenu({ isTrusted: false, composedPath: () => [el] });
+    assert.equal(page.landed('r2'), false, 'a page-made event is no proof');
+  } finally {
+    globalThis.window = saved;
+  }
 });
 
 test('the point under the cursor hits the target when it is the target or inside it', () => {

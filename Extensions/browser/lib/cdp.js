@@ -120,10 +120,17 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     return run;
   }
 
-  async function mouseClick(tabId, x, y) {
+  // Chrome reads a double click from two press pairs whose clickCount climbs 1, 2; one pair counted 2 is not one.
+  // `beforeRepeat` answers whether the next press may go: false stops the gesture and the call returns false.
+  async function mouseClick(tabId, x, y, { button = 'left', count = 1, beforeRepeat = null } = {}) {
+    const held = button === 'right' ? 2 : 1;
     await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 });
-    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 });
-    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 });
+    for (let clickCount = 1; clickCount <= count; clickCount++) {
+      if (clickCount > 1 && beforeRepeat && !(await beforeRepeat())) return false;
+      await send(tabId, 'Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button, buttons: held, clickCount });
+      await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button, buttons: 0, clickCount });
+    }
+    return true;
   }
 
   // keyDown/char/keyUp per character: live search, autocomplete and validation hear real keys.

@@ -7,6 +7,8 @@ package enum BrowserTool: String, CaseIterable, Sendable {
     case tabs = "browser_tabs"
     case read = "browser_read"
     case click = "browser_click"
+    case doubleClick = "browser_double_click"
+    case rightClick = "browser_right_click"
     case type = "browser_type"
     case navigate = "browser_navigate"
     case open = "browser_open"
@@ -15,9 +17,15 @@ package enum BrowserTool: String, CaseIterable, Sendable {
 
     package var isWrite: Bool {
         switch self {
-        case .click, .type, .navigate, .open, .take, .release: return true
+        case .click, .doubleClick, .rightClick, .type, .navigate, .open, .take, .release: return true
         case .tabs, .read: return false
         }
+    }
+
+    /// The three presses on an element: a double click or a right click does
+    /// whatever a click on that element would and more, so they share its gate.
+    package var isClick: Bool {
+        self == .click || self == .doubleClick || self == .rightClick
     }
 
     package func spec(_ language: AppLanguage) -> ToolSpec {
@@ -45,7 +53,7 @@ package enum BrowserTool: String, CaseIterable, Sendable {
         switch self {
         case .tabs: return []
         case .read: return [tab, Parameter(name: "selector", type: "string", required: false)]
-        case .click: return [tab, element]
+        case .click, .doubleClick, .rightClick: return [tab, element]
         case .type: return [tab, element, Parameter(name: "text", type: "string", required: true, typed: true)]
         case .navigate: return [tab, Parameter(name: "url", type: "string", required: true)]
         case .open: return [Parameter(name: "url", type: "string", required: true)]

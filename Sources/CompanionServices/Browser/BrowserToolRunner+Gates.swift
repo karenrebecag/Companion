@@ -33,7 +33,7 @@ extension BrowserToolRunner {
               let page = cachedPage(tab), let element = page.elements.first(where: { $0.id == id })
         else { return nil }
         let verdict: HandsVerdict
-        if tool == .click {
+        if tool.isClick {
             verdict = BrowserPolicy.clickVerdict(element, said: said, pageOrigin: page.origin)
         } else {
             guard let text = arguments["text"] as? String else { return nil }
@@ -48,8 +48,8 @@ extension BrowserToolRunner {
             tickets.issue(ticket)
             return nil
         case .ask:
-            let request = tool == .click
-                ? HandsGate.clickRequest(call, label: Self.shown(element.label), app: page.origin)
+            let request = tool.isClick
+                ? HandsGate.clickRequest(call, label: Self.shown(element.label), app: page.origin, verb: Self.verb(tool))
                 : HandsGate.request(call, app: page.origin, commandApp: false)
             tickets.park(ticket, id: request.requestId)
             return request
@@ -127,9 +127,16 @@ extension BrowserToolRunner {
             return needsApproval(tool, adopted: adopted)
         }
         guard await tabIsStillAt(tab, origin: page.origin) else { return leftItsOrigin(tool, tab) }
-        let command: BrowserCommand = tool == .click
-            ? .click(tab: tab, generation: page.generation, element: id)
-            : .type(tab: tab, generation: page.generation, element: id, text: text)
+        // Exhaustive on purpose: a new tool must choose its command here, not fall into a click.
+        let command: BrowserCommand
+        switch tool {
+        case .click: command = .click(tab: tab, generation: page.generation, element: id)
+        case .doubleClick: command = .doubleClick(tab: tab, generation: page.generation, element: id)
+        case .rightClick: command = .rightClick(tab: tab, generation: page.generation, element: id)
+        case .type: command = .type(tab: tab, generation: page.generation, element: id, text: text)
+        case .tabs, .read, .navigate, .open, .take, .release:
+            return fail(tool, BridgeCode.invalidArgs, "\(tool.rawValue) does not act on an element")
+        }
         switch await channel.send(command, timeout: Self.actTimeout) {
         case .failure(let error):
             if error.code == BridgeCode.staleId { forget(tab) }
@@ -143,9 +150,9 @@ extension BrowserToolRunner {
                         + "again, and tell the user the line breaks are missing",
                     target: page.origin, tool: tool.rawValue)
             }
-            let verb = tool == .click ? "clicked" : "typed into"
+            let done = tool == .type ? "typed into" : Self.verb(tool, past: true)
             return ParentToolOutcome(
-                ok: true, output: "\(verb) [\(id)]; read the tab again to see the result",
+                ok: true, output: "\(done) [\(id)]; read the tab again to see the result",
                 target: page.origin, tool: tool.rawValue)
         }
     }
@@ -223,6 +230,16 @@ extension BrowserToolRunner {
         ApprovalTickets.Ticket(
             name: BrowserTool.navigate.rawValue, arguments: arguments, pid: Int32(clamping: tab),
             item: origin ?? "")
+    }
+
+    /// The press as the sheet and the result name it. Exhaustive, so a new
+    /// tool is named here rather than borrowing "click".
+    private static func verb(_ tool: BrowserTool, past: Bool = false) -> String {
+        switch tool {
+        case .doubleClick: return past ? "double-clicked" : "double-click"
+        case .rightClick: return past ? "right-clicked" : "right-click"
+        case .click, .tabs, .read, .type, .navigate, .open, .take, .release: return past ? "clicked" : "click"
+        }
     }
 
     private static func shown(_ label: String) -> String {

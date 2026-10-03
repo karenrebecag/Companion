@@ -504,8 +504,12 @@ async function readyButton(rig, spot, { landed = true } = {}) {
   const clicked = [];
   rig.state.page = {
     read: () => ({ origin: 'https://a.example', text: 'Go', elements: [{ id: 1, frame: 0, role: 'button', label: 'Go', context: '', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null }] }),
-    locate: () => { rig.state.locates = (rig.state.locates ?? 0) + 1; return typeof spot === 'function' ? spot() : spot; },
-    hitsAt: () => rig.state.stillHits ?? true,
+    locate: (...args) => {
+      rig.state.locates = (rig.state.locates ?? 0) + 1;
+      rig.state.landingEvent = args[3];
+      return typeof spot === 'function' ? spot() : spot;
+    },
+    hitsAt: () => (typeof rig.state.stillHits === 'function' ? rig.state.stillHits() : rig.state.stillHits ?? true),
     landed: () => landed,
     click: () => { clicked.push(1); return { done: 'clicked' }; },
   };
@@ -523,6 +527,100 @@ test('a trusted click presses once at the element center and answers clicked', a
   assert.equal(presses(rig.state).length, 1);
   assert.deepEqual([presses(rig.state)[0][2].x, presses(rig.state)[0][2].y], [40, 60]);
 });
+
+const pressParams = (state) => presses(state).map(([, , params]) => params);
+
+test('a trusted double click presses twice at the center, counted 1 then 2', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  const reply = await ask(rig.ports[0], 151, 'browser_double_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'double-clicked' });
+  assert.deepEqual(pressParams(rig.state).map((p) => [p.button, p.clickCount, p.x, p.y]),
+    [['left', 1, 40, 60], ['left', 2, 40, 60]]);
+  assert.equal(rig.state.locates, 1, 'located once: the second press is the same gesture, not a retry');
+  assert.equal(rig.state.landingEvent, 'click', 'a double click lands as a click');
+});
+
+test('a trusted right click presses once with the right button', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  const reply = await ask(rig.ports[0], 152, 'browser_right_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'right-clicked' });
+  assert.deepEqual(pressParams(rig.state).map((p) => [p.button, p.buttons, p.clickCount]), [['right', 2, 1]]);
+  assert.equal(rig.state.landingEvent, 'contextmenu', 'its landing is proven by contextmenu, which a right click fires');
+});
+
+test('a double click whose first press covered the element does not press it a second time', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  let checks = 0;
+  rig.state.stillHits = () => ++checks === 1;
+  const reply = await ask(rig.ports[0], 157, 'browser_double_click', { tab: 3, generation, element: 1 });
+  assert.equal(presses(rig.state).length, 1, 'the second press would land on what the first one opened');
+  assert.equal(reply.error.code, 'stale_id');
+  assert.match(reply.error.message, /pressed once/);
+});
+
+test('a double click whose landing cannot be confirmed is still two presses, never repeated', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, clicked } = await readyButton(rig, onScreen, { landed: false });
+  const reply = await ask(rig.ports[0], 158, 'browser_double_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'double-clicked' });
+  assert.equal(presses(rig.state).length, 2);
+  assert.equal(rig.state.locates, 1);
+  assert.equal(clicked.length, 0, 'no synthetic click on top');
+});
+
+for (const [id, name, method, done] of [
+  [159, 'browser_double_click', 'doubleClick', 'double-clicked'],
+  [160, 'browser_right_click', 'contextClick', 'right-clicked'],
+]) {
+  test(`${name} on an element inside a frame uses its own synthetic gesture there`, async () => {
+    const rig = await boot({ tabs: userTabs() });
+    const run = rig.chrome.scripting.executeScript;
+    // The read reports the element from frame 2, so the action must go back to frame 2.
+    rig.chrome.scripting.executeScript = async (opts) => {
+      const out = await run(opts);
+      return opts.target.allFrames ? out.map((hit) => ({ ...hit, frameId: 2 })) : out;
+    };
+    const { generation, clicked } = await readyButton(rig, onScreen);
+    const synthetic = [];
+    rig.state.page[method] = () => { synthetic.push(method); return { done }; };
+    const reply = await ask(rig.ports[0], id, name, { tab: 3, generation, element: 1 });
+    assert.deepEqual(reply.result, { done });
+    assert.deepEqual(synthetic, [method]);
+    assert.equal(clicked.length, 0, 'never a plain click');
+    assert.equal(presses(rig.state).length, 0, 'a frame box is not in the tab\'s coordinates');
+  });
+}
+
+for (const [id, name] of [[153, 'browser_double_click'], [154, 'browser_right_click']]) {
+  test(`${name} never presses an element something else covers`, async () => {
+    const rig = await boot({ tabs: userTabs() });
+    const { generation, clicked } = await readyButton(rig, { ...onScreen, blocked: true });
+    const reply = await ask(rig.ports[0], id, name, { tab: 3, generation, element: 1 });
+    assert.equal(reply.error.code, 'stale_id');
+    assert.equal(presses(rig.state).length, 0, 'no press');
+    assert.equal(clicked.length, 0, 'no synthetic click');
+  });
+}
+
+for (const [id, name, method, done] of [
+  [155, 'browser_double_click', 'doubleClick', 'double-clicked'],
+  [156, 'browser_right_click', 'contextClick', 'right-clicked'],
+]) {
+  test(`${name} off screen gets its own synthetic gesture, not a plain click`, async () => {
+    const rig = await boot({ tabs: userTabs() });
+    const { generation, clicked } = await readyButton(rig, { ...onScreen, inView: false });
+    const synthetic = [];
+    rig.state.page[method] = () => { synthetic.push(method); return { done }; };
+    const reply = await ask(rig.ports[0], id, name, { tab: 3, generation, element: 1 });
+    assert.deepEqual(reply.result, { done });
+    assert.deepEqual(synthetic, [method], 'its own synthetic gesture');
+    assert.equal(clicked.length, 0, 'never a plain click');
+    assert.equal(presses(rig.state).length, 0, 'no mouse press off screen');
+  });
+}
 
 test('an element something else covers is never pressed with the mouse', async () => {
   const rig = await boot({ tabs: userTabs() });
@@ -630,6 +728,7 @@ test('trusted typing presses the field once and sends every printable key', asyn
   const reply = await ask(rig.ports[0], 71, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
   assert.deepEqual(reply.result, { done: 'typed' });
   assert.equal(presses(rig.state).length, 1);
+  assert.deepEqual(presses(rig.state).map(([, , p]) => [p.button, p.clickCount]), [['left', 1]], 'one plain left press focuses it');
   assert.equal(keysSent(rig.state), 'Ana');
 });
 
