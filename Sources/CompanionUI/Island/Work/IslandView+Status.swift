@@ -39,12 +39,18 @@ extension IslandView {
                         IslandStatusText(line: state.line)
                             .shimmering(active: IslandCopy.shimmers(state.line))
                             .id(IslandCopy.swapKey(state.line))
-                            .transition(.islandSwap(IslandMotionBudget.textSwap.resolved(reduceMotion: reduceMotion)))
+                            .transition(IslandMotionBudget.headerSwap.travels(reduceMotion: reduceMotion)
+                                ? AnyTransition(IslandHeaderSwapTransition(swap: IslandMotionBudget.headerSwap))
+                                : AnyTransition.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                // The lines travel 120 % of their height: outside the row they must not show.
+                .clipped()
                 .modifier(IslandVoiceOverLine(line: state.line))
-                .animation(IslandMotionBudget.textSwap.animation(reduceMotion: reduceMotion),
+                // Each property carries its own curve; this only keeps the leaving line alive
+                // until the slowest of them is done.
+                .animation(IslandMotionBudget.headerSwap.lifetime(reduceMotion: reduceMotion).animation,
                            value: IslandCopy.swapKey(state.line))
                 if let action = state.action {
                     Button(IslandCopy.action(action)) { perform(action) }

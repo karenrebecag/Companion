@@ -175,16 +175,71 @@ enum IslandMotionBudget {
     static let contentIn = Move(duration: 0.13, blur: 0, offset: 0, curve: MotionCurve.ease)
     /// Closing: the same fade back out, at the same time as the shape.
     static let contentOut = Move(duration: 0.13, blur: 0, offset: 0, curve: MotionCurve.ease)
-    /// Text states swap: the status line.
-    static let textSwap = Move(duration: 0.15, blur: 2, offset: 4)
     /// Texts reveal: result cards, one after another.
     static let line = Move(duration: 0.45, blur: 3, offset: 12)
     /// Panel reveal, small: the approval sheet.
     static let approval = Move(duration: 0.3, blur: 2, offset: 8)
 
     static let moves: [(String, Move)] = [
-        ("contentIn", contentIn), ("textSwap", textSwap), ("line", line), ("approval", approval),
+        ("contentIn", contentIn), ("line", line), ("approval", approval),
     ]
+
+    /// Incredible's header swap: the new line rises from 120 % of its own height below,
+    /// the old one leaves to 120 % above, each property on its own clock.
+    struct HeaderSwap: Equatable {
+        enum Phase: Equatable {
+            case entering, shown, leaving
+
+            init(_ phase: TransitionPhase) {
+                switch phase {
+                case .willAppear: self = .entering
+                case .didDisappear: self = .leaving
+                default: self = .shown
+                }
+            }
+        }
+
+        struct State: Equatable {
+            /// Fractions of the line's own height; positive is down.
+            let travel: CGFloat
+            let opacity: Double
+            let blur: CGFloat
+        }
+
+        let travel: CGFloat
+        let blur: CGFloat
+        let rise: IslandMotion.Curve
+        let leave: IslandMotion.Curve
+        let fade: IslandMotion.Curve
+        let focus: IslandMotion.Curve
+
+        func state(_ phase: Phase) -> State {
+            switch phase {
+            case .entering: State(travel: travel, opacity: 0, blur: blur)
+            case .shown: State(travel: 0, opacity: 1, blur: 0)
+            case .leaving: State(travel: -travel, opacity: 0, blur: blur)
+            }
+        }
+
+        /// The old line leaves faster than the new one rises.
+        func move(leaving: Bool) -> IslandMotion.Curve { leaving ? leave : rise }
+
+        /// How long the swap is on screen: its slowest property.
+        var longest: Double { [rise, leave, fade, focus].map(\.duration).max() ?? 0 }
+
+        /// The animation that keeps the leaving line alive until its slowest property ends.
+        func lifetime(reduceMotion: Bool) -> IslandMotion.Curve {
+            reduceMotion ? .fade(MotionTime.fast) : .timing(MotionCurve.standard, longest)
+        }
+
+        /// Reduce motion swaps the line with a fade only: travel and blur are motion.
+        func travels(reduceMotion: Bool) -> Bool { !reduceMotion }
+    }
+
+    static let headerSwap = HeaderSwap(
+        travel: 1.2, blur: 2,
+        rise: .timing(MotionCurve.island, 0.36), leave: .timing(MotionCurve.standard, 0.22),
+        fade: .timing(MotionCurve.standard, 0.15), focus: .timing(MotionCurve.standard, 0.22))
 
     /// transitions.dev menu dropdown: grows from its trigger, leaves faster.
     struct Popover: Equatable {
