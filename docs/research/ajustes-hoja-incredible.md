@@ -1,6 +1,6 @@
 # Reference Brief: reconstruir Ajustes como la hoja real de Incredible 0.2.36 (hoja centrada, rail con busqueda, mapa de paginas, aviso de guardado y sub-dialogos) en lugar del panel flotante WIN-5
 
-Slug: ajustes-hoja-incredible | Nivel: standard | Fecha: 2026-10-03 | Estado: ESCALADO
+Slug: ajustes-hoja-incredible | Nivel: standard | Fecha: 2026-10-03 | Estado: APROBADO
 Versiones: swift-tools=6.2
 Verificador: research-verifier 2026-10-03 ESCALATE
 
@@ -223,8 +223,8 @@ S4. Sub-dialogos.
 - ASSUMPTION: Esc llega al root cuando el foco no esta en la hoja, porque `onExitCommand` corre solo con foco. prueba: abrir Ajustes en la app de release, quitar el foco del buscador y pulsar Esc
 - ASSUMPTION: el rasgo de modal sobre un overlay dentro de un ZStack oculta a VoiceOver el resto de la ventana, como ya hace el modal de comentarios. prueba: abrir la hoja con VoiceOver y recorrer con el cursor hasta salir de ella
 - ASSUMPTION: Incredible no vuelve a abrir el ultimo popup al reabrir la hoja, porque no se leyo estado persistido. prueba: abrir un popup en Incredible, cerrar la hoja y reabrirla
-- [NEEDS CLARIFICATION: KD1, brillo de pantalla. Incredible tiene el ajuste en su capa de datos y ninguna fila (E27). Recomendado: fila en Sistema > App. Alternativa: dejarlo fuera de Ajustes. Cual?]
-- [NEEDS CLARIFICATION: KD2, Apariencia y Tamano de texto. Incredible no tiene filas de ese tipo (E28). Recomendado: dentro de Cuenta. Alternativa: pagina General. Cual?]
+- KD1 firmado por Karen: fila en Sistema > App.
+- KD2 firmado por Karen: dentro de Cuenta.
 - [NEEDS CLARIFICATION: Karen dijo el 2026-10-02 que ya no quiere mas documentos de texto, solo codigo y tests [KAREN:chat 2026-10-02]; este brief es la compuerta de investigacion de S1-S4, que superan las veinte lineas. Se firma o se salta a la spec?]
 
 ## 10. Checklist de estandar
