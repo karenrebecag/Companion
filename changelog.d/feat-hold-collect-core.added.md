@@ -1,0 +1,1 @@
+- **Lo que se toca mientras se sostiene la tecla ya tiene modelo (2026-10-03).** Cada observacion (pestana, ventana, clic, texto seleccionado, archivos, copiado, dialogo) se vuelve un item como en Incredible; archivos, selecciones y copias se apilan de a tres y se tejen en la transcripcion donde llegaron.
