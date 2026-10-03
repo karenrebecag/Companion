@@ -323,6 +323,10 @@ private final class GatedPlayer: PCMPlaying, @unchecked Sendable {
         h.transport.yield(.assistantTranscriptDelta("hola mundo"))
         h.transport.yield(.audioDelta(audio(ms: 400)))
         await pumpUntil("the reply is a caption") { watch.latest.words.count == 2 }
+        // The words can show before the audio chunk is anchored: a test that
+        // then moves the fake player's position would anchor the chunk at the
+        // moved position, and the reply would never reach its end.
+        await pumpUntil("the audio is queued") { !h.player.played.isEmpty }
         return watch
     }
 
