@@ -134,7 +134,15 @@ extension BrowserToolRunner {
         case .failure(let error):
             if error.code == BridgeCode.staleId { forget(tab) }
             return failed(tool, error)
-        case .success:
+        case .success(let reply):
+            // Without this the model reports a multi-paragraph text that went in as one line.
+            if case .done(_, BrowserCopy.typedWithoutLineBreaks) = reply {
+                return ParentToolOutcome(
+                    ok: true,
+                    output: "typed into [\(id)] without its line breaks, so the text is on one line; read the tab "
+                        + "again, and tell the user the line breaks are missing",
+                    target: page.origin, tool: tool.rawValue)
+            }
             let verb = tool == .click ? "clicked" : "typed into"
             return ParentToolOutcome(
                 ok: true, output: "\(verb) [\(id)]; read the tab again to see the result",

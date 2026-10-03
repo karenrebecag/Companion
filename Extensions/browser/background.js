@@ -386,6 +386,22 @@ async function trustedClick(args) {
   }).catch((error) => inputFailed(args.tab, error));
 }
 
+// The host matches this exact text to tell the model its line breaks did not go in.
+const TYPED_WITHOUT_BREAKS = 'typed without line breaks';
+
+// One insert keeps the breaks keys would drop; the read-back decides whether they really went in.
+async function typeLines(args, entry, target, typeSynthetic) {
+  const typed = await typeSynthetic();
+  if (!typed || typed.error) return typed ?? staleElement;
+  const after = await inPage(target, (g, id) => globalThis.__companionPage.typedValue(g, id), [args.generation, entry.localId]);
+  // A textarea stores every line ending as \n.
+  const wanted = args.text.replace(/\r\n?/g, '\n');
+  // Only a value that is the text minus its breaks proves they were dropped; a cut or reformatted
+  // value is not "on one line", so it keeps the unverified answer the old way always gave.
+  const lostBreaks = after && !after.error && after.value !== wanted && after.value === wanted.replace(/\n/g, '');
+  return { done: lostBreaks ? TYPED_WITHOUT_BREAKS : 'typed' };
+}
+
 async function trustedType(args) {
   const entry = entryFor(args);
   if (!entry) return staleElement;
@@ -410,13 +426,18 @@ async function trustedType(args) {
     const ready = await prepare();
     if (!ready) return staleElement;
     if (ready.error) return ready;
+    if (ready.multiline && /[\r\n]/.test(args.text)) return typeLines(args, entry, target, typeSynthetic);
     await cdp.typeText(args.tab, args.text);
     const expected = Array.from(args.text).filter((ch) => !isControl(ch)).join('');
     const after = await inPage(target, (g, id) => globalThis.__companionPage.typedValue(g, id), [args.generation, entry.localId]);
     // A field that swallowed the keys (masked inputs, some editors) still gets the value the old way.
-    if (!after || after.error || after.value !== expected) return typeSynthetic();
+    if (!after || after.error || after.value !== expected) {
+      const typed = await typeSynthetic();
+      // This field is not multi-line, so the old way drops the breaks just as the keys did.
+      return typed?.done && /[\r\n]/.test(args.text) ? { done: TYPED_WITHOUT_BREAKS } : typed;
+    }
     // The model has to know its line breaks did not go in, or it would report text that is not there.
-    return { done: expected.length === Array.from(args.text).length ? 'typed' : 'typed (line breaks and control keys were left out)' };
+    return { done: expected.length === Array.from(args.text).length ? 'typed' : TYPED_WITHOUT_BREAKS };
   }).catch((error) => inputFailed(args.tab, error));
 }
 

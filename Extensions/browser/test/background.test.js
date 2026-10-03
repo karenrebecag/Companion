@@ -595,7 +595,63 @@ test('typing never sends Return, Escape or any other control key, and says so', 
   assert.equal(keysSent(rig.state), 'ab');
   const keys = rig.state.cdp.filter(([, method]) => method === 'Input.dispatchKeyEvent').map(([, , p]) => p.key);
   for (const forbidden of ['Enter', '\n', '\r', '\u001b', 'Escape', '\u007f']) assert.ok(!keys.includes(forbidden), forbidden);
-  assert.match(reply.result.done, /left out/);
+  assert.equal(reply.result.done, 'typed without line breaks');
+});
+
+// H-5: keys cannot carry a line break, but a textarea takes the whole text in one insert.
+test('multi-line text into a textarea keeps its line breaks', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const text = 'Hola Ana,\n\nGracias.\nKaren';
+  const { generation, log } = await readyField(rig, { prepare: { ready: true, multiline: true }, readBack: text });
+  const reply = await ask(rig.ports[0], 74, 'browser_type', { tab: 3, generation, element: 1, text });
+  assert.deepEqual(reply.result, { done: 'typed' });
+  assert.deepEqual(log.synthetic, [text], 'the whole text, breaks included, in one insert');
+  assert.equal(keysSent(rig.state), '', 'no key-by-key typing that would drop them');
+  assert.equal(presses(rig.state).length, 1, 'the field was still pressed first');
+});
+
+test('a textarea that did not keep the breaks is reported as without line breaks', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { prepare: { ready: true, multiline: true }, readBack: 'HolaAna' });
+  const reply = await ask(rig.ports[0], 75, 'browser_type', { tab: 3, generation, element: 1, text: 'Hola\nAna' });
+  assert.equal(reply.result.done, 'typed without line breaks');
+});
+
+test('a field that rejected the keys and then lost the breaks in the fallback says so', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyField(rig, { readBack: 'garbled' });
+  const reply = await ask(rig.ports[0], 76, 'browser_type', { tab: 3, generation, element: 1, text: 'a\nb' });
+  assert.deepEqual(log.synthetic, ['a\nb'], 'the old way ran');
+  assert.equal(reply.result.done, 'typed without line breaks');
+});
+
+test('Windows line endings count as kept when the textarea stored them as \\n', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { prepare: { ready: true, multiline: true }, readBack: 'a\nb' });
+  const reply = await ask(rig.ports[0], 77, 'browser_type', { tab: 3, generation, element: 1, text: 'a\r\nb' });
+  assert.deepEqual(reply.result, { done: 'typed' });
+});
+
+test('old Mac line endings count as kept when the textarea stored them as \\n', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { prepare: { ready: true, multiline: true }, readBack: 'a\nb' });
+  const reply = await ask(rig.ports[0], 77, 'browser_type', { tab: 3, generation, element: 1, text: 'a\rb' });
+  assert.deepEqual(reply.result, { done: 'typed' });
+});
+
+test('a textarea that cut the text short is never reported as on one line', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { prepare: { ready: true, multiline: true }, readBack: 'Hola' });
+  const reply = await ask(rig.ports[0], 79, 'browser_type', { tab: 3, generation, element: 1, text: 'Hola\nAna' });
+  assert.notEqual(reply.result.done, 'typed without line breaks');
+});
+
+test('a refusal on the insert path is passed through, never reported as typed', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { prepare: { ready: true, multiline: true }, readBack: 'a\nb' });
+  rig.state.page.type = () => ({ error: { code: 'stale_id', message: 'element changed since the read, read the page again' } });
+  const reply = await ask(rig.ports[0], 78, 'browser_type', { tab: 3, generation, element: 1, text: 'a\nb' });
+  assert.equal(reply.error.code, 'stale_id');
 });
 
 test('a sensitive field is refused before any input reaches the page', async () => {
