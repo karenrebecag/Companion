@@ -10,6 +10,8 @@ package enum BrowserTool: String, CaseIterable, Sendable {
     case doubleClick = "browser_double_click"
     case rightClick = "browser_right_click"
     case type = "browser_type"
+    case scroll = "browser_scroll"
+    case hover = "browser_hover"
     case navigate = "browser_navigate"
     case open = "browser_open"
     case take = "browser_take"
@@ -17,7 +19,7 @@ package enum BrowserTool: String, CaseIterable, Sendable {
 
     package var isWrite: Bool {
         switch self {
-        case .click, .doubleClick, .rightClick, .type, .navigate, .open, .take, .release: return true
+        case .click, .doubleClick, .rightClick, .type, .scroll, .hover, .navigate, .open, .take, .release: return true
         case .tabs, .read: return false
         }
     }
@@ -27,6 +29,16 @@ package enum BrowserTool: String, CaseIterable, Sendable {
     package var isClick: Bool {
         self == .click || self == .doubleClick || self == .rightClick
     }
+
+    /// They move the view or the pointer and change nothing the page holds, so
+    /// no sheet; they still need control of the tab and count as writes.
+    package var skipsApproval: Bool {
+        self == .scroll || self == .hover
+    }
+
+    /// Pixels per axis in one call: a few screens, so a runaway loop pages
+    /// through a document instead of flinging to its end.
+    package static let scrollLimit = 20_000
 
     package func spec(_ language: AppLanguage) -> ToolSpec {
         ToolSpec(
@@ -55,6 +67,11 @@ package enum BrowserTool: String, CaseIterable, Sendable {
         case .read: return [tab, Parameter(name: "selector", type: "string", required: false)]
         case .click, .doubleClick, .rightClick: return [tab, element]
         case .type: return [tab, element, Parameter(name: "text", type: "string", required: true, typed: true)]
+        case .scroll:
+            return [tab, Parameter(name: "dx", type: "integer", required: false),
+                    Parameter(name: "dy", type: "integer", required: false),
+                    Parameter(name: "element", type: "integer", required: false)]
+        case .hover: return [tab, element]
         case .navigate: return [tab, Parameter(name: "url", type: "string", required: true)]
         case .open: return [Parameter(name: "url", type: "string", required: true)]
         case .take, .release: return [tab]

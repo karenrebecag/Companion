@@ -22,9 +22,10 @@ import Testing
     let rig = makeToolRig()
     expectEq(rig.runner.specs(.en).map(\.name),
              ["browser_tabs", "browser_read", "browser_click", "browser_double_click", "browser_right_click",
-              "browser_type", "browser_navigate", "browser_open", "browser_take", "browser_release"],
-             "diez tools (18b anade open, take, release; H-7 P5a doble clic y clic derecho)")
-    expectEq(rig.runner.specs(.es).count, 10, "tambien en espanol")
+              "browser_type", "browser_scroll", "browser_hover", "browser_navigate", "browser_open", "browser_take",
+              "browser_release"],
+             "doce tools (18b open, take, release; H-7 P5a doble clic y clic derecho; P5b desplazar y puntero)")
+    expectEq(rig.runner.specs(.es).count, 12, "tambien en espanol")
     expect(rig.runner.handles("browser_click"), "atiende sus tools")
     expect(!rig.runner.handles("look"), "y solo las suyas")
     expect(!rig.runner.handles("click"), "click de Accesibilidad no es suyo")
