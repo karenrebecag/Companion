@@ -465,7 +465,7 @@ test('prepareType focuses a text field and selects its content so the keys repla
   const el = armed(fake({ tag: 'input', attrs: { type: 'text' }, value: 'old' }));
   let selected = 0;
   el.select = () => { selected++; };
-  assert.deepEqual(page.prepareType(1, 1), { ready: true });
+  assert.deepEqual(page.prepareType(1, 1), { ready: true, multiline: false });
   assert.equal(el.focused, true);
   assert.equal(selected, 1);
 });
@@ -579,4 +579,11 @@ test('a closed menu (only hidden matches) is its own error', () => {
   assert.equal(readWith([container({ items: [one], visible: false })]).error.code, 'selector_hidden');
   const hiddenItem = fake({ tag: 'button', text: 'Hidden', hidden: true });
   assert.equal(readWith([hiddenItem], 'button').error.code, 'selector_hidden');
+});
+
+test('prepareType tells the background whether the field keeps line breaks', () => {
+  armed(fake({ tag: 'textarea' }));
+  assert.equal(page.prepareType(1, 1).multiline, true);
+  armed(fake({ tag: 'input', attrs: { type: 'text' } }));
+  assert.equal(page.prepareType(1, 1).multiline, false);
 });

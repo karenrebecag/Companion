@@ -449,7 +449,8 @@
     if (el.ownerDocument.activeElement !== el) el.focus();
     if (isText && typeof el.select === 'function') el.select();
     else el.ownerDocument.execCommand('selectAll', false);
-    return { ready: true };
+    // Keys cannot carry a line break; a textarea can still take them in one insert.
+    return { ready: true, multiline: tag === 'textarea' };
   }
 
   function typedValue(generation, id) {

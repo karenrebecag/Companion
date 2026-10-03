@@ -33,6 +33,9 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
     private var writeFailure: ContractError?
     func failWrites(with error: ContractError) { lock.withLock { writeFailure = error } }
 
+    private var writeNote = "ok"
+    func answerWrites(with note: String) { lock.withLock { writeNote = note } }
+
     private var releaseFailure: ContractError?
     func failReleases(with error: ContractError) { lock.withLock { releaseFailure = error } }
 
@@ -84,7 +87,7 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
             return .success(.done(id: 1, message: "ok"))
         case .click, .type, .navigate:
             if let writeFailure { return .failure(writeFailure) }
-            return .success(.done(id: 1, message: "ok"))
+            return .success(.done(id: 1, message: writeNote))
         }
     }
 }

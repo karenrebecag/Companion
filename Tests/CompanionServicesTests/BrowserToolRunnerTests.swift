@@ -229,6 +229,21 @@ import Testing
     expect(rig.channel.writes.isEmpty, "cero escrituras")
 }
 
+/// H-5: the extension says when the field could not take the line breaks; the model must hear it, or it
+/// reports a three-paragraph email that went in as one line.
+@Test func typingThatLostItsLineBreaksSaysSo() async {
+    let rig = makeToolRig()
+    await rig.read()
+    rig.channel.answerWrites(with: BrowserCopy.typedWithoutLineBreaks)
+    let out = await rig.run("browser_type", #"{"tab":12,"element":5,"text":"Hola\nAna"}"#)
+    expect(out.ok, "it did type: \(out.output)")
+    expect(out.output.contains("line breaks"), "names what is missing: \(out.output)")
+    expect(out.output.contains("tell the user"), "and what to do: \(out.output)")
+    rig.channel.answerWrites(with: "typed")
+    let whole = await rig.run("browser_type", #"{"tab":12,"element":5,"text":"Ana"}"#)
+    expect(!whole.output.contains("line breaks"), "a whole text says nothing extra: \(whole.output)")
+}
+
 @Test func typingPlainTextActsAndAnAddressNotSaidAsks() async {
     let rig = makeToolRig()
     await rig.read()

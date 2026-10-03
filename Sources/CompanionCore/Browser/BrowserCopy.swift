@@ -78,6 +78,9 @@ package enum BrowserCopy {
         }
     }
 
+    /// The extension's exact note for a field that took the text without its line breaks.
+    package static let typedWithoutLineBreaks = "typed without line breaks"
+
     /// One line per code the model recovers by; an unknown code is named so
     /// it is never swallowed.
     package static func failure(code: String, _ language: AppLanguage) -> String {
