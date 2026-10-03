@@ -156,6 +156,12 @@ package enum Semantic {
     package static var hoverSubtle: Color { tint(Neutral.black, StateAlpha.hover, Neutral.n50, 0.04) }
     /// The ghost button's fill.
     package static var wash: Color { tint(Neutral.black, StateAlpha.active, Neutral.n50, 0.1) }
+    /// The welcome name field's own steps, not shared with StateAlpha: ink at
+    /// 6 % at rest, 8 % under the pointer (`fieldWashHover`), and the 10 %
+    /// halo around it when focused (Incredible's .fr-name-input).
+    package static var fieldWash: Color { tint(Neutral.black, 0.06, Neutral.n50, 0.08) }
+    package static var fieldWashHover: Color { tint(Neutral.black, 0.08, Neutral.n50, 0.1) }
+    package static var fieldHalo: Color { tint(Neutral.black, 0.10, Neutral.n50, 0.14) }
     package static var dangerWash: Color {
         tint(Palette.danger, StateAlpha.dangerWash, Swatch("F87171"), 0.16)
     }
@@ -245,9 +251,16 @@ package enum Container {
     package static let content: CGFloat = 960
     /// Hero figure height inside a sheet.
     package static let hero: CGFloat = 200
+    /// The hero where the screen also carries a form: at the window's
+    /// minimum height the 50 pt name field no longer fits under the full one.
+    package static let heroCompact: CGFloat = 160
     /// The approval sheet: wide enough for a phrase plus its preview,
     /// narrow enough to read as an interruption, not a window (19-1).
     package static let approval: CGFloat = 420
+    /// The welcome's name form tops out here (Incredible's .fr-name-form).
+    package static let nameForm: CGFloat = 340
+    /// Both gutters of the sheet column: the form's 100vw - 64.
+    package static let nameFormMargin: CGFloat = 64
 }
 
 // Border radius, Incredible's named corners (16k).
@@ -278,6 +291,9 @@ package enum ControlMetrics {
     package static let switchSmallThumb: CGFloat = 12
     package static let switchPad: CGFloat = 2
     package static let selectSmallHeight: CGFloat = 34
+    /// The welcome's name field (Incredible's .fr-name-input).
+    package static let nameFieldHeight: CGFloat = 50
+    package static let nameFieldInset: CGFloat = 18
 }
 
 // Type sizes: la escala por papel de Incredible (16k), medida en su CSS.
@@ -317,6 +333,8 @@ package enum Tracking {
     /// Incredible's page and banner titles.
     package static let title: CGFloat = -0.02
     package static let snug: CGFloat = -0.01
+    /// Text typed into the welcome's name field.
+    package static let input: CGFloat = -0.005
     package static let normal: CGFloat = 0
     package static let wide: CGFloat = 0.025
     /// Uppercase labels.

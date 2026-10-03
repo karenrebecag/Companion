@@ -30,6 +30,8 @@ package struct WelcomeView: View {
                     enabled: welcome.canContinue
                 ) { welcome.next() }
                 .frame(maxWidth: Container.sheet)
+                // Test seam for the layout tests; inert in production.
+                .reportsFrame(.continueButton)
                 .padding(.horizontal, Space.x8)
                 .padding(.bottom, Space.x8)
             }
