@@ -191,6 +191,10 @@ function fake({ tag, attrs = {}, text = '', value = '', ctx = '', execWorks = tr
   el.ownDisplay = display;
   el.ownVisibility = visibility;
   el.checkVisibility = (options) => fakeCheckVisibility(el, options);
+  el.contains = (node) => {
+    for (let at = node; at; at = at.parentElement) if (at === el) return true;
+    return false;
+  };
   return el;
 }
 
@@ -588,4 +592,144 @@ test('prepareType tells the background whether the field keeps line breaks', () 
   assert.equal(page.prepareType(1, 1).multiline, true);
   armed(fake({ tag: 'input', attrs: { type: 'text' } }));
   assert.equal(page.prepareType(1, 1).multiline, false);
+});
+
+// H-4(a): menus, dialogs and popovers mount in portals at the end of <body>, so a cut in DOM order
+// drops exactly what the user just opened.
+function pageWithMenuAtTheEnd(linkCount) {
+  const links = Array.from({ length: linkCount }, (_, i) => fake({ tag: 'a', text: `Link ${i}`, attrs: { href: `/l${i}` } }));
+  const menu = fake({ tag: 'div', attrs: { role: 'menu' } });
+  const items = ['Perfil', 'Cerrar sesion'].map((label) => fake({ tag: 'button', text: label, parent: menu }));
+  menu.innerText = 'Perfil\nCerrar sesion';
+  const body = links.map((l) => l.textContent).join('\n') + '\n' + menu.innerText;
+  globalThis.document = {
+    querySelectorAll: (selector) => (selector === '*' ? [...links, menu, ...items] : [menu]),
+    body: { innerText: body },
+  };
+  return { links, items };
+}
+
+test('an open menu at the end of the page is listed and read first', () => {
+  pageWithMenuAtTheEnd(3);
+  try {
+    const out = page.read(1, null, 0);
+    assert.deepEqual(out.elements.slice(0, 2).map((e) => e.label), ['Perfil', 'Cerrar sesion']);
+    assert.equal(out.elements.length, 5, 'nothing dropped, only reordered');
+    assert.equal(out.elements[0].id, 1, 'ids follow the new order');
+    assert.ok(out.text.startsWith('Perfil\nCerrar sesion'), 'the menu text comes first');
+    assert.equal(out.text.split('Cerrar sesion').length, 2, 'the menu text is not repeated');
+    assert.equal(page.lookup(globalThis.__companionState, 1, 1).element.textContent, 'Perfil');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('the open menu survives the wire cut on a page with 1,500 links', async () => {
+  const { trimMessage } = await import('../lib/wire.js');
+  pageWithMenuAtTheEnd(1500);
+  try {
+    const read = page.read(1, null, 0);
+    const message = { id: 1, result: { page: { tab: 3, url: 'https://x.test', title: 'T', generation: 1, truncated: false, ...read } } };
+    const sent = trimMessage(message);
+    assert.equal(sent.result.page.truncated, true, 'the page really was cut');
+    const labels = sent.result.page.elements.map((e) => e.label);
+    assert.ok(labels.includes('Cerrar sesion'), 'the menu item made it');
+    assert.ok(sent.result.page.text.includes('Cerrar sesion'), 'so did its text');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('a page with no open overlay keeps document order', () => {
+  const a = fake({ tag: 'button', text: 'A' });
+  const b = fake({ tag: 'button', text: 'B' });
+  globalThis.document = { querySelectorAll: (s) => (s === '*' ? [a, b] : []), body: { innerText: 'A B' } };
+  try {
+    const out = page.read(1, null, 0);
+    assert.deepEqual(out.elements.map((e) => e.label), ['A', 'B']);
+    assert.equal(out.text, 'A B');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+// Builds a page whose overlay query answers with exactly `overlays`, as the real selector would.
+function pageWith({ before = [], overlays = [], after = [], body }) {
+  const all = [...before, ...overlays.flatMap((o) => [o.node, ...o.items]), ...after];
+  for (const o of overlays) o.node.innerText = o.text;
+  globalThis.document = {
+    querySelectorAll: (selector) => (selector === '*' ? all : selector === 'button' ? all.filter((n) => n.tag === 'button') : overlays.map((o) => o.node)),
+    body: { innerText: body },
+  };
+}
+
+function overlay(role, labels, { parent = null, display = 'block' } = {}) {
+  const node = fake({ tag: 'div', attrs: { role }, parent, display });
+  return { node, items: labels.map((label) => fake({ tag: 'button', text: label, parent: node })), text: labels.join('\n') };
+}
+
+test('a closed menu is not promoted, and its text stays where it was', () => {
+  const link = fake({ tag: 'a', text: 'Inicio', attrs: { href: '/' } });
+  const closed = overlay('menu', ['Oculto'], { display: 'none' });
+  const open = overlay('dialog', ['Aceptar']);
+  pageWith({ before: [link], overlays: [closed, open], body: 'Inicio\nAceptar' });
+  try {
+    const out = page.read(1, null, 0);
+    assert.deepEqual(out.elements.map((e) => e.label), ['Aceptar', 'Inicio']);
+    assert.ok(out.text.startsWith('Aceptar'));
+    assert.ok(!out.text.includes('Oculto'));
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('two open overlays are each promoted once, in page order', () => {
+  const link = fake({ tag: 'a', text: 'Inicio', attrs: { href: '/' } });
+  const first = overlay('menu', ['Uno']);
+  const second = overlay('dialog', ['Dos']);
+  pageWith({ before: [link], overlays: [first, second], body: 'Inicio\nUno\nDos' });
+  try {
+    const out = page.read(1, null, 0);
+    assert.deepEqual(out.elements.map((e) => e.label), ['Uno', 'Dos', 'Inicio']);
+    assert.equal(out.text.split('Uno').length, 2);
+    assert.equal(out.text.split('Dos').length, 2);
+    assert.ok(out.text.indexOf('Uno') < out.text.indexOf('Dos'));
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('a listbox inside an open dialog is read once, through the dialog', () => {
+  const dialog = overlay('dialog', ['Guardar']);
+  const list = overlay('listbox', ['Opcion'], { parent: dialog.node });
+  dialog.text = 'Guardar\nOpcion';
+  pageWith({ before: [fake({ tag: 'a', text: 'Inicio', attrs: { href: '/' } })], overlays: [dialog, list], body: 'Inicio\nGuardar\nOpcion' });
+  try {
+    const out = page.read(1, null, 0);
+    assert.deepEqual(out.elements.map((e) => e.label), ['Guardar', 'Opcion', 'Inicio']);
+    assert.equal(out.text.split('Opcion').length, 2, 'the inner text is not repeated');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('overlay text missing from the body is still put first and the body is left whole', () => {
+  const open = overlay('dialog', ['Aceptar']);
+  pageWith({ overlays: [open], body: 'Cuerpo de la pagina' });
+  try {
+    assert.equal(page.read(1, null, 0).text, 'Aceptar\n\nCuerpo de la pagina');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('a selector read is not reordered', () => {
+  const first = fake({ tag: 'button', text: 'Antes' });
+  const open = overlay('menu', ['Menu']);
+  pageWith({ before: [first], overlays: [open], body: 'Antes\nMenu' });
+  try {
+    assert.deepEqual(page.read(1, 'button', 0).elements.map((e) => e.label), ['Antes', 'Menu']);
+  } finally {
+    delete globalThis.document;
+  }
 });

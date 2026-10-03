@@ -12,8 +12,14 @@ package enum BrowserCopy {
 
     package static func truncationNote(_ language: AppLanguage = .en) -> String {
         switch language {
-        case .en: return "[cut: the page has more than this]"
-        case .es: return "[recortado: la página tiene más que esto]"
+        case .en:
+            return "[cut: the page has more than this. What is not listed may still be there: read again with a "
+                + "selector for the part you need, such as the open menu or dialog ([role=menu], [role=dialog], dialog) "
+                + "or a section]"
+        case .es:
+            return "[recortado: la página tiene más que esto. Lo que no aparece puede seguir ahí: vuelve a leer con un "
+                + "selector para la parte que necesitas, como el menú o diálogo abierto ([role=menu], [role=dialog], "
+                + "dialog) o una sección]"
         }
     }
 
