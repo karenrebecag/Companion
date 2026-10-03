@@ -75,3 +75,12 @@ import Testing
     expect(Date().timeIntervalSince(start) < 0.5, "un nombre enorme se corta sin recorrerlo entero")
     expectEq(item.count, WorkStateMetrics.reelItemMax, "y sale con el tope")
 }
+
+// Security review K9: with the line saying "Pensando", VoiceOver must hear
+// the app from the reel; its fixed label used to hide the chip's text.
+@Test @MainActor func voiceOverHearsTheAppInTheReel() {
+    let spoken = IslandReel.spoken("Safari")
+    expectEq(spoken.value, "Safari", "VoiceOver lee la app del carrete")
+    expect(!spoken.label.isEmpty && spoken.label != "island.reel", "y conserva el nombre de la banda, no la clave")
+    expectEq(IslandReel.spoken("Notes").value, "Notes", "el valor sigue al item, no queda fijo")
+}
