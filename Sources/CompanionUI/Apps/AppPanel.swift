@@ -12,6 +12,10 @@ package enum AppPanelMetrics {
     package static let maxHeight: CGFloat = 700
     package static let leftWidth: CGFloat = 430
     package static let icon: CGFloat = 44
+    /// Incredible's two waits sit at different gaps: gap-2 beside
+    /// "Loading…", gap-1.5 beside "Disconnecting…".
+    package static let loadingGap: CGFloat = Space.x2
+    package static let disconnectingGap: CGFloat = Space.x1_5
 }
 
 struct AppPanel: View {
@@ -115,12 +119,12 @@ struct AppPanel: View {
                 }
             }
         case .disconnecting:
-            HStack(spacing: Space.x2) {
-                ProgressView().controlSize(.small)
+            HStack(spacing: AppPanelMetrics.disconnectingGap) {
+                LoaderArc()
                 Text(Localized.string("apps.panel.disconnecting"))
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
+                    .font(Fonts.sans(TypeSize.body).weight(.medium))
             }
+            .foregroundStyle(Semantic.textMuted)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Localized.string("apps.panel.disconnecting"))
         case .failed(let failure):
@@ -154,12 +158,12 @@ struct AppPanel: View {
     private var connectedActions: some View {
         switch phase {
         case .idle, .loading:
-            HStack(spacing: Space.x2) {
-                ProgressView().controlSize(.small)
+            HStack(spacing: AppPanelMetrics.loadingGap) {
+                LoaderArc()
                 Text(Localized.string("apps.panel.loading"))
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
+                    .font(Fonts.sans(TypeSize.body))
             }
+            .foregroundStyle(Semantic.textMuted)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(Localized.string("apps.panel.loading"))
         case .failed(let failure):

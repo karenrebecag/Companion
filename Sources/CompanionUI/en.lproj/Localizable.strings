@@ -497,7 +497,8 @@
 "apps.panel.emptyListed" = "%@ didn't list any actions just now. Reconnect it, or try again.";
 "apps.panel.search" = "Search %ld actions";
 "apps.panel.noMatches" = "No action matches that search.";
-"apps.panel.loading" = "Loading actions…";
+"apps.loading" = "Loading apps";
+"apps.panel.loading" = "Loading…";
 "apps.group.leer" = "Read";
 "apps.group.leer.note" = "Only reads. Nothing in the app changes.";
 "apps.group.crearYCambiar" = "Create and change";

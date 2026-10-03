@@ -497,7 +497,8 @@
 "apps.panel.emptyListed" = "%@ no listó acciones ahora mismo. Reconéctala o inténtalo de nuevo.";
 "apps.panel.search" = "Buscar %ld acciones";
 "apps.panel.noMatches" = "Ninguna acción coincide con esa búsqueda.";
-"apps.panel.loading" = "Cargando acciones…";
+"apps.loading" = "Cargando apps";
+"apps.panel.loading" = "Cargando…";
 "apps.group.leer" = "Leer";
 "apps.group.leer.note" = "Solo lee. Nada cambia en la app.";
 "apps.group.crearYCambiar" = "Crear y cambiar";
