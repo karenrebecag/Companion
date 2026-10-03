@@ -53,7 +53,8 @@ package func makeVoiceHarness(
     // tail's own tests pass it explicitly.
     releaseTail: TimeInterval = 0,
     screen: (any ScreenSeeing)? = nil,
-    debugTranscripts: Bool = false
+    debugTranscripts: Bool = false,
+    turnDetection: TurnDetection = .serverVAD(silenceMs: 700)
 ) -> VoiceHarness {
     let transport = ScriptedVoiceTransport()
     transport.autoEvents = autoEvents
@@ -69,7 +70,7 @@ package func makeVoiceHarness(
     let thread = ScriptedThread()
     let clock = TestClock()
     let provider = StaticConfigProvider(
-        Config(voice: VoiceSettings(mode: voiceMode), ownerFirstName: "Karen", language: language,
+        Config(voice: VoiceSettings(turnDetection: turnDetection, mode: voiceMode), ownerFirstName: "Karen", language: language,
                debugTranscripts: debugTranscripts))
     let session = VoiceSession(
         transport: transport,

@@ -10,6 +10,7 @@ import CompanionTestKit
 @Test @MainActor func voiceConfigBridgeTests() async {
     await testConfigProviderReadAtSessionOpen()
     await testTurnDetectionIsNullSoOpenAIDoesNotListen()
+    await testEagernessMovesTheRealtimeTurnClose()
     await testOwnerNameReachesCodec()
     await testSpeedCanChangeInHotSession()
     await testAECToggleRearmVeto()
@@ -45,6 +46,35 @@ import CompanionTestKit
     }
     expectEq(spanish.transcriber.locale, "es-MX",
              "oído: el español no pierde lo que ya funcionaba")
+}
+
+/// The saved eagerness has to reach the local endpointer that closes a
+/// realtime turn: the settle window after the text stops growing differs.
+@MainActor private func turnStillOpen(eagerness: Eagerness, silence: TimeInterval) async -> Bool {
+    let ear = ScriptedTranscriber()
+    let h = makeVoiceHarness(
+        realtimeEar: ear, turnDetection: .semanticVAD(eagerness: eagerness))
+    await h.session.start()
+    await pumpUntil("endpointer: listening") {
+        h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
+    }
+    await pumpUntilAsync("endpointer: ear up") { ear.started }
+    h.clock.now = 10
+    ear.yieldPartial("dime la hora")
+    h.mic.yield(MicFrame(pcm16le24k: Data([0x01, 0x00]), rms: 0.02))
+    await pumpUntil("endpointer: turn opened") { h.watch.latest.state == .listening }
+    await settle(0.05)
+    h.clock.now = 10 + silence
+    h.mic.yield(MicFrame(pcm16le24k: Data([0x01, 0x00]), rms: 0.02))
+    await settle(0.15)
+    return h.watch.latest.state == .listening
+}
+
+@MainActor func testEagernessMovesTheRealtimeTurnClose() async {
+    let highOpen = await turnStillOpen(eagerness: .high, silence: 0.75)
+    let lowOpen = await turnStillOpen(eagerness: .low, silence: 0.75)
+    expect(!highOpen, "eagerness alta: a 0.75 s de texto quieto el turno ya cerro")
+    expect(lowOpen, "eagerness baja: a 0.75 s de texto quieto sigue escuchando")
 }
 
 // MARK: - ConfigProviding protocol
