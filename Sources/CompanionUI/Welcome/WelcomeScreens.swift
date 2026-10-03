@@ -30,10 +30,11 @@ struct WelcomeHeading: View {
 struct WelcomeOrb: View {
     var state: TurnState = .idle
     var level = 0.0
+    var size = Container.hero
 
     var body: some View {
         Orb(state: state, levels: VoiceLevels(mic: level, agent: 0), accentColor: Semantic.foreground)
-            .frame(width: Container.hero, height: Container.hero)
+            .frame(width: size, height: size)
             .frame(maxWidth: .infinity)
             .accessibilityHidden(true)
     }
@@ -56,13 +57,8 @@ struct WelcomeHello: View {
 
     var body: some View {
         VStack(spacing: Space.x6) {
-            WelcomeOrb(state: .speaking, level: 0.3)
-            WelcomeHeading(
-                title: Localized.string("welcome.hello.title"),
-                body_: Localized.string("welcome.hello.body"))
-            AppField(
-                placeholder: Localized.string("welcome.hello.name"),
-                text: $name, neutral: true)
+            WelcomeOrb(state: .speaking, level: 0.3, size: Container.heroCompact)
+            WelcomeNameForm(name: $name)
                 .onChange(of: name) { _, value in
                     UserProfile.ownerName = value.trimmingCharacters(in: .whitespaces)
                 }
