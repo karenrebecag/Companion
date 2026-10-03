@@ -35,6 +35,7 @@ import Testing
     await testABadArgumentIsInvalidArgsBeforeAnySheet()
     await testEveryKindOfBadArgumentIsInvalidArgsByName()
     await testBadArgumentsSpendNoRateBudget()
+    await testAnOversizedOutputIsCappedOnTheWire()
 }
 
 // MARK: - wire helpers
@@ -549,4 +550,16 @@ private func waitUntil(timeout: TimeInterval = 2, _ pred: @escaping @Sendable ()
     }
     let good = await s.handle(line: callLine(id: 41, name: "type_text", argumentsJSON: #"{"text":"hola"}"#))
     expect(good.reply.contains(#""ok":true"#), "after 39 refusals a valid write still runs: \(good.reply)")
+}
+
+// MARK: - M7. what goes back fits one line and says when it was cut
+
+@MainActor func testAnOversizedOutputIsCappedOnTheWire() async {
+    let huge = ParentToolOutcome(ok: true, output: String(repeating: "\"/\n", count: 60_000), target: "Notes")
+    let tools = FakeParentTools(handledNames: ["look"], scriptedOutcome: huge)
+    let s = session(tools: tools, approvals: ScriptedApprovals(answer: true))
+    _ = await s.handle(line: helloLine(id: 1, token: "tok"))
+    let reply = await s.handle(line: callLine(id: 2, name: "look")).reply
+    expect(reply.utf8.count <= BridgeCodec.maxLineBytes, "one line: \(reply.utf8.count) bytes")
+    expect(reply.contains("result is partial"), "the agent is told it was cut")
 }
