@@ -89,7 +89,7 @@ package struct SessionProjection: Sendable, Equatable {
     package var cards: [SessionCard] = []
     /// What the parent's hands are on right now ("Safari", a URL).
     package var targets: [String] = []
-    /// Every app this TURN has touched, in order of first touch (16m-2):
+    /// Every app this TURN has touched, in order of last touch (16m-2, K8):
     /// the reel outlives `parentActed`, and a new turn starts it fresh.
     package var touched: [String] = []
     /// Kept until the session leaves Idle again, so a Settings link outlives

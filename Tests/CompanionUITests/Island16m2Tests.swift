@@ -12,6 +12,10 @@ import Testing
     testStepFinishedMarksItsStep()
     testStepFailureSurvivesOnTheStep()
     testReelAccumulatesAcrossRounds()
+    testReelShowsTheAppTouchedLast()
+    testARepeatAtTheCapEvictsNothing()
+    testOneRoundKeepsItsOrderAndBlanksStayOut()
+    testReelIsCappedPerTurn()
     testReelClearsWithTheNextTurn()
 }
 
@@ -82,9 +86,47 @@ func testReelAccumulatesAcrossRounds() {
     _ = machine.handle(.parentActed)
     _ = machine.handle(.parentActing(targets: ["Safari", "Slack"]))
     _ = machine.handle(.parentActed)
-    expectEq(machine.projection.touched, ["Slack", "Safari"],
-             "16m-2: el carrete acumula sin duplicar, en orden de primer toque")
+    // K8: the reel shows the app touched LAST, so a repeat moves to the end.
+    expectEq(machine.projection.touched, ["Safari", "Slack"],
+             "16m-2: el carrete acumula sin duplicar, en orden de ultimo toque")
     expectEq(machine.projection.targets, [], "16m-2: targets sigue siendo solo la ronda viva")
+}
+
+func testReelShowsTheAppTouchedLast() {
+    var machine = SessionMachine()
+    _ = machine.handle(.typedSubmitted)
+    for app in ["Safari", "Notas", "Safari"] {
+        _ = machine.handle(.parentActing(targets: [app]))
+        _ = machine.handle(.parentActed)
+    }
+    expectEq(machine.projection.touched, ["Notas", "Safari"], "K8: volver a Safari lo pone al final")
+    expectEq(machine.projection.touched.last, "Safari", "K8: el carrete muestra la app donde actua")
+}
+
+func testARepeatAtTheCapEvictsNothing() {
+    var machine = SessionMachine()
+    _ = machine.handle(.typedSubmitted)
+    let apps = (0 ..< SessionMachine.touchedCap).map { "app-\($0)" }
+    for app in apps {
+        _ = machine.handle(.parentActing(targets: [app]))
+        _ = machine.handle(.parentActed)
+    }
+    _ = machine.handle(.parentActing(targets: ["app-0"]))
+    expectEq(machine.projection.touched, Array(apps.dropFirst()) + ["app-0"],
+             "K8: volver a la mas vieja con el carrete lleno la mueve al final sin sacar a nadie")
+    _ = machine.handle(.parentActing(targets: ["app-0"]))
+    expectEq(machine.projection.touched, Array(apps.dropFirst()) + ["app-0"], "K8: repetir la ultima no cambia nada")
+}
+
+func testOneRoundKeepsItsOrderAndBlanksStayOut() {
+    var machine = SessionMachine()
+    _ = machine.handle(.typedSubmitted)
+    _ = machine.handle(.parentActing(targets: ["A", "B", "A"]))
+    expectEq(machine.projection.touched, ["B", "A"], "K8: un repetido dentro de la ronda queda al final")
+    _ = machine.handle(.parentActing(targets: ["", "X", "Y"]))
+    expectEq(machine.projection.touched, ["B", "A", "X", "Y"], "K8: dos nuevas conservan su orden; el vacio no entra")
+    _ = machine.handle(.parentActing(targets: [""]))
+    expectEq(machine.projection.touched.last, "Y", "K8: una ronda sin nombre no reordena")
 }
 
 func testReelClearsWithTheNextTurn() {
@@ -128,4 +170,5 @@ func testReelIsCappedPerTurn() {
     expectEq(machine.projection.touched.count, SessionMachine.touchedCap,
              "16m-2: el carrete tiene tope")
     expectEq(machine.projection.touched.last, "app-29", "16m-2: lo nuevo entra")
+    expectEq(machine.projection.touched.first, "app-\(30 - SessionMachine.touchedCap)", "16m-2: sale lo mas viejo")
 }
