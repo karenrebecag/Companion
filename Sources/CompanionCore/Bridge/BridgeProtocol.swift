@@ -259,6 +259,8 @@ package enum BridgeCode {
     /// no enabled option carries that label (the message lists the labels).
     package static let notSelectable = "not_selectable"
     package static let optionNotFound = "option_not_found"
+    /// P4: the element would not take the keyboard focus, so the key was not sent.
+    package static let notFocused = "not_focused"
     /// The tool exists but Companion's own window is in front, so there is no
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
     package static let selfInFront = "self_in_front"

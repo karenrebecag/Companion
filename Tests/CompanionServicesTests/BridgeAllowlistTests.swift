@@ -108,6 +108,8 @@ private func selfInspection() -> SelfInspectionRunner {
         "browser_select",
         // H-7 P5b: move the view or the pointer; no sheet, still the write budget.
         "browser_scroll", "browser_hover",
+        // P4: a write, gated like a click for Enter and Space.
+        "browser_press",
         // Self-qa PR-3: added deliberately, read-only, behind the same sheet.
         "companion_state", "companion_island", "companion_settings", "companion_thread",
         "companion_last_message_matches", "companion_log",

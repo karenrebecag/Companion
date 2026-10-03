@@ -87,6 +87,8 @@ package enum BridgeScope {
         "browser_select",
         // H-7 P5b: move the view or the pointer; no sheet, still the write budget.
         "browser_scroll", "browser_hover",
+        // P4: a key press, gated like a click when it activates or submits.
+        "browser_press",
         // Self-qa PR-3 (ADR 009): Companion lets an agent inspect it, read
         // only and behind the same session sheet; it never lends the hands.
         "companion_state", "companion_island", "companion_settings", "companion_thread",
