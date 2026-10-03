@@ -137,7 +137,7 @@ extension IslandView {
         case .mic:
             Orb(state: .listening, levels: voice.levels, accentColor: Semantic.accent)
                 .frame(width: IslandChrome.meterSide, height: IslandChrome.meterSide)
-            IslandWaveBars(level: voice.levels.mic)
+            VoiceLevelWaveform(amplitude: voice.levels.mic)
         case .agent:
             // Icon swap: while it speaks the orb is the brake.
             ZStack {
@@ -150,7 +150,7 @@ extension IslandView {
                 }
             }
             .animation(.expoOut(IslandMotionBudget.iconSwap.duration), value: IslandStop.asOrb(state))
-            IslandWaveBars(level: voice.levels.agent)
+            // No waveform while it speaks, as in Incredible: the orb carries the voice.
         }
     }
 

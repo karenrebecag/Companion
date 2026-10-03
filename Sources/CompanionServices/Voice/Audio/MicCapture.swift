@@ -303,7 +303,7 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
                 let v = Double(src[i]) / 32768
                 sum += v * v
             }
-            return min(sqrt(sum / Double(count)) * 6, 1)
+            return min(sqrt(sum / Double(count)) * WaveformHistory.micMeterGain, 1)
         }
     }
 }

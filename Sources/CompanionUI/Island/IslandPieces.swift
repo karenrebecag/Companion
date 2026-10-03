@@ -28,7 +28,6 @@ enum IslandInk {
     static let lightSide: CGFloat = 8
     static let slotSide: CGFloat = 22
     static let sendSide: CGFloat = IslandMetrics.sendSide
-    static let barWidth: CGFloat = 3
     static let chipVertical: CGFloat = 6
     /// Incredible's dropdowns sit a step lighter than the panel they open from.
     static var popover: Color { Neutral.n800.color }
@@ -71,33 +70,6 @@ struct IslandLight: View {
         case .amber: IslandInk.amber
         case .green: IslandInk.green
         }
-    }
-}
-
-/// The listening pill: bars that follow the microphone, no status words.
-struct IslandWaveBars: View {
-    let level: Double
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private static let weights: [Double] = [0.45, 0.8, 1, 0.7, 0.4]
-    private static let minHeight: CGFloat = 4
-    private static let maxHeight: CGFloat = 20
-
-    var body: some View {
-        HStack(spacing: IslandInk.barWidth) {
-            ForEach(Self.weights.indices, id: \.self) { index in
-                Capsule()
-                    .fill(IslandInk.text)
-                    .frame(width: IslandInk.barWidth, height: height(Self.weights[index]))
-            }
-        }
-        .frame(height: Self.maxHeight)
-        .animation(reduceMotion ? nil : .expoOut(MotionTime.follow), value: level)
-        .accessibilityHidden(true)
-    }
-
-    private func height(_ weight: Double) -> CGFloat {
-        let live = min(max(level, 0), 1) * weight
-        return Self.minHeight + (Self.maxHeight - Self.minHeight) * CGFloat(live)
     }
 }
 
