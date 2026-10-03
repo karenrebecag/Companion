@@ -30,6 +30,9 @@ package enum WorkStateMetrics {
     package static let checklistAt = 5
     /// The reel of touched apps is a 26-pt band.
     package static let reelHeight: CGFloat = 26
+    /// The reel's item is model-chosen text: past this many characters it
+    /// is cut, so the chip and VoiceOver carry the same bounded string.
+    package static let reelItemMax = 60
     /// Live transcription: 14/500 at 72 %, settling to 94 % once fixed.
     package static let transcriptSize: CGFloat = 14
     package static let transcriptLeading: CGFloat = 1.5
@@ -82,7 +85,39 @@ struct IslandTranscript: View {
 /// and an empty target painted an empty chip.
 struct IslandReel: View {
     static func item(_ touched: [String]) -> String? {
-        touched.last { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        touched.lazy.map(shown).last { !$0.isEmpty }
+    }
+
+    /// Invisible characters (bidi overrides, zero-width, blank glyphs) can
+    /// hide part of a model-chosen name from the eye and from VoiceOver, so
+    /// they go; breaks become spaces so words stay apart. The scalar budget
+    /// bounds combining marks, which a grapheme count alone lets through
+    /// (security and QA review #212).
+    private static func shown(_ target: String) -> String {
+        var kept = String.UnicodeScalarView()
+        var budget = WorkStateMetrics.reelItemMax * 4
+        for scalar in target.unicodeScalars {
+            guard let next = Self.kept(scalar) else { continue }
+            kept.append(next)
+            budget -= 1
+            if budget == 0 { break }
+        }
+        let visible = String(kept).split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        guard visible.count > WorkStateMetrics.reelItemMax else { return visible }
+        let cut = String(visible.prefix(WorkStateMetrics.reelItemMax - 1))
+        return cut.trimmingCharacters(in: .whitespaces) + "…"
+    }
+
+    private static func kept(_ scalar: Unicode.Scalar) -> Unicode.Scalar? {
+        let properties = scalar.properties
+        switch properties.generalCategory {
+        case .lineSeparator, .paragraphSeparator: return " "
+        case .control: return properties.isWhitespace ? " " : nil
+        case .format: return nil
+        default:
+            // U+2800 renders blank but is not default-ignorable.
+            return properties.isDefaultIgnorableCodePoint || scalar == "\u{2800}" ? nil : scalar
+        }
     }
 
     let item: String
