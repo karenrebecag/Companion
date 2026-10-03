@@ -20,6 +20,7 @@ import Testing
     testEncodeHasNoTrailingNewline()
     testBridgeToolSpecFromToolSpec()
     testBridgeCallResultFromOutcome()
+    testBridgeCallResultDropsInvisibleCharacters()
     testArgumentsRoundTrip()
 }
 
@@ -258,4 +259,19 @@ private func testArgumentsRoundTrip() {
     let reparsed = try? JSONSerialization.jsonObject(with: json.data(using: .utf8) ?? Data()) as? [String: Any]
     expectEq(reparsed?["name"] as? String, "Safari", "round trip: name preserved")
     expectEq((reparsed?["extra"] as? NSNumber)?.intValue, 123, "round trip: extra preserved")
+}
+
+// MCP audit H6: what a bridge call returns is screen content, read by an outside agent. Characters
+// that render as nothing or reorder text hide instructions from a person reading the same screen.
+private func testBridgeCallResultDropsInvisibleCharacters() {
+    let hidden = "Inbox\u{E0049}\u{E0067}\u{202E}evil\u{202C}\u{200B}ok\u{07}\u{FEFF}\u{180F}"
+    let result = BridgeCallResult(ParentToolOutcome(ok: true, output: hidden + "\nline\tcell",
+                                                    target: "Mail\u{2066}x\u{2069}"))
+    expectEq(result.output, "Inboxevilok\nline\tcell", "output keeps text, newlines and tabs only")
+    expectEq(result.target, "Mailx", "target is cleaned too")
+
+    // Same set as the shim: breaks survive as newlines, emoji presentation and private use stay.
+    let breaks = BridgeCallResult(ParentToolOutcome(ok: true, output: "a\r\nb\u{2028}c\u{2029}d\u{2764}\u{FE0F}\u{E000}",
+                                                    target: ""))
+    expectEq(breaks.output, "a\nb\nc\nd\u{2764}\u{FE0F}\u{E000}", "breaks become newlines, FE0F and private use kept")
 }
