@@ -24,6 +24,9 @@ package struct ScreenHands: Sendable {
     /// What changed after a hand acted. Nil keeps the older "look again"
     /// results, which is what every test without an observer expects.
     let changes: (any AXChangeWatching)?
+    /// Checked right before a capture: `see` without it fails silently.
+    let screenRecording: @Sendable () -> Bool
+    let locked: @Sendable () -> Bool
     let tickets = ApprovalTickets()
     let turn = TurnTarget()
     let scans = ScanMemory()
@@ -39,11 +42,15 @@ package struct ScreenHands: Sendable {
         selfInFront: @escaping @Sendable () -> Bool = { false },
         screen: (any ScreenActing)? = nil,
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
-        changes: (any AXChangeWatching)? = nil
+        changes: (any AXChangeWatching)? = nil,
+        screenRecording: @escaping @Sendable () -> Bool = { true },
+        locked: @escaping @Sendable () -> Bool = { false }
     ) {
         self.screen = screen
         self.see = see
         self.changes = changes
+        self.screenRecording = screenRecording
+        self.locked = locked
         self.injector = injector
         self.reader = reader
         self.keys = keys
@@ -65,7 +72,8 @@ package struct ScreenHands: Sendable {
             injector: ax, reader: ax, keys: ax, windows: ax,
             trusted: { ax.isTrusted() }, target: target,
             bundleID: { AXTextInjector.bundleID(of: $0) }, selfInFront: selfInFront,
-            screen: screen, see: see, changes: changes)
+            screen: screen, see: see, changes: changes,
+            screenRecording: { ScreenRecordingPermission().isGranted() }, locked: { SessionLock.isLocked() })
     }
 }
 
@@ -240,9 +248,19 @@ extension ParentToolRunner {
     func runHands(
         _ tool: ParentTool, _ call: ToolCallRef, _ arguments: [String: Any]
     ) async -> ParentToolOutcome {
-        guard let hands = readyHands else {
-            return .failed(Self.handsError("needs_accessibility", "Accessibility is not granted"),
+        guard let hands = installedHands else {
+            return .failed(Self.handsError(BridgeCode.notAvailable, "no hands on this Mac"), tool: tool.rawValue)
+        }
+        if hands.locked() {
+            Log.app("hands: \(tool.rawValue) refused, session locked")
+            return .failed(Self.handsError(BridgeCode.screenLocked, BridgeMessages.screenLocked), tool: tool.rawValue)
+        }
+        guard hands.trusted() else {
+            return .failed(Self.handsError(BridgeCode.needsAccessibility, BridgeMessages.needsAccessibility),
                            tool: tool.rawValue)
+        }
+        guard !hands.selfInFront() else {
+            return .failed(Self.handsError(BridgeCode.selfInFront, BridgeMessages.selfInFront), tool: tool.rawValue)
         }
         guard let pid = hands.target(), pid != Self.ownPID else {
             return .failed(Self.handsError("no_target", "no app in front other than Companion"),
@@ -271,19 +289,27 @@ extension ParentToolRunner {
                 "approval_required", "a command app needs approval for typing or Return"),
                 tool: tool.rawValue)
         }
-        if tool == .see { return await runSee(arguments, hands: hands, pid: pid) }
-        if tool.isSight {
-            return await runSight(tool, call, arguments, hands: hands, pid: pid, bundle: bundle ?? "-")
+        let outcome: ParentToolOutcome
+        if tool == .see {
+            outcome = await runSee(arguments, hands: hands, pid: pid)
+        } else if tool.isSight {
+            outcome = await runSight(tool, call, arguments, hands: hands, pid: pid, bundle: bundle ?? "-")
+        } else {
+            let act = HandsAct(hands: hands, pid: pid, bundle: bundle ?? "-", tool: tool)
+            switch tool {
+            case .typeText: outcome = await hands.observing(pid: pid, titles: false) { await act.type(arguments) }
+            case .pressKey: outcome = await hands.observing(pid: pid) { act.press(arguments) }
+            case .focusWindow: outcome = act.raise(arguments)
+            case .readFocused: outcome = act.read()
+            case .openApp, .openURL, .openFile, .listApps, .readSkill, .look, .click, .scroll, .menu, .see:
+                outcome = .failed(.notFound("not a hands tool: \(tool.rawValue)"), tool: tool.rawValue)
+            }
         }
-        let act = HandsAct(hands: hands, pid: pid, bundle: bundle ?? "-", tool: tool)
-        switch tool {
-        case .typeText: return await hands.observing(pid: pid, titles: false) { await act.type(arguments) }
-        case .pressKey: return await hands.observing(pid: pid) { act.press(arguments) }
-        case .focusWindow: return act.raise(arguments)
-        case .readFocused: return act.read()
-        case .openApp, .openURL, .openFile, .listApps, .readSkill, .look, .click, .scroll, .menu, .see:
-            return .failed(.notFound("not a hands tool: \(tool.rawValue)"), tool: tool.rawValue)
-        }
+        // A lock that landed while acting: whatever happened, nobody saw it.
+        guard tool.changesSomething, hands.locked() else { return outcome }
+        Log.app("hands: \(tool.rawValue) session locked during the action pid=\(pid)")
+        return .failed(Self.handsError(BridgeCode.screenLocked, BridgeMessages.lockedDuringAction),
+                       target: outcome.target, tool: tool.rawValue)
     }
 }
 
@@ -400,6 +426,9 @@ private struct HandsAct {
         guard !moved else { return fail("target_changed", Self.appMoved, target: query) }
         guard let title = hands.windows.raise(titleContaining: query, pid: pid) else {
             return fail("window_not_found", "no window whose title contains \"\(query)\"", target: query)
+        }
+        guard !moved else {
+            return fail(BridgeCode.foregroundUnavailable, BridgeMessages.foregroundUnavailable, target: title)
         }
         Log.app("hands: focus_window raised pid=\(pid) bundle=\(bundle)")
         return ParentToolOutcome(ok: true, output: "raised \(title)", target: title, tool: tool.rawValue)
