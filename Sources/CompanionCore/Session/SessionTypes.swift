@@ -69,6 +69,11 @@ package enum VoiceStatus: Sendable, Equatable {
     case off, connecting, live, muted
 }
 
+/// P1: whether the user has been with the companion lately (Incredible's presence).
+package enum Presence: Sendable, Equatable {
+    case active, passive
+}
+
 package struct SessionProjection: Sendable, Equatable {
     package var kind: SessionKind = .idle
     package var voice: VoiceStatus = .off
@@ -127,6 +132,9 @@ package struct SessionProjection: Sendable, Equatable {
     /// 16h-2 (S2): a job's end is sounding or waiting for its gap, so a Stop
     /// at rest has something to silence.
     package var announcing: Bool = false
+    /// P1: Incredible's presence. Passive after the user's wait with no
+    /// interaction; what the companion does on its own never wakes it.
+    package var presence: Presence = .active
 
     package var approval: ApprovalRequest? { approvalQueue.first }
 
@@ -200,6 +208,10 @@ package enum SessionEvent: Sendable, Equatable {
     case pendingTimedOut
     /// The warm session rested with the mic taken for too long.
     case voiceIdleExpired
+    /// P1: the user's "Automatic passive mode" wait, in seconds; 0 is never.
+    case passiveAfterChanged(TimeInterval)
+    /// P1: a wait armed by `schedulePassive` ran out; stale arms are ignored.
+    case passiveExpired(armedFor: Int)
     /// The ear's running hypothesis for the hold (Wave 12c).
     case partialTranscript(String)
     /// Wave 12e: the hold will dictate into this app (decided at press).
@@ -277,6 +289,8 @@ package enum SessionEffect: Sendable, Equatable {
     /// A hold session rests with the mic closed but the hardware taken:
     /// after this long, hang up (security review 2026-09-06).
     case scheduleVoiceIdleExpiry(TimeInterval)
+    /// P1: go passive after this long unless an interaction arms a new wait.
+    case schedulePassive(TimeInterval, armedFor: Int)
     /// Close the voice session whole: socket, player and the microphone.
     case hangUpVoice
     case logTransition(from: SessionKind, to: SessionKind)

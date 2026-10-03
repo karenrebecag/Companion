@@ -146,6 +146,7 @@ func makeSensingAndModel(
     let sessionModel = SessionModel(
         jobs: jobs.jobRunner, approvals: jobs.approvals, voice: voicePort, log: { Log.app($0) })
     sessionModel.islandEvents = islandEvents
+    sessionModel.armPresence()
     // Wave 20d B: what ran without the sheet reaches the island with its
     // undo; the press is the user's alone.
     receipts.connect { receipt in

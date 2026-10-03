@@ -1,0 +1,1 @@
+- **Companion pasa a modo pasivo tras 10 minutos sin interaccion, como Incredible (2026-10-03).** Cualquier interaccion (sostener o tocar la tecla, pasar sobre la isla, escribir, responder una hoja, detener) lo vuelve activo; lo que Companion hace por su cuenta no cuenta. Todavia no cambia nada en pantalla: es la base de que una respuesta en pasivo no abra la isla.
