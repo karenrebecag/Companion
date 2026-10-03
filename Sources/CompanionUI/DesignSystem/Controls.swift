@@ -10,6 +10,7 @@ package struct AppButton: View {
     let title: String
     var kind: AppButtonKind = .primary
     var shape: AppButtonShape = .standard
+    var size: ButtonSize = .default
     var fullWidth = false
     var enabled: Bool = true
     /// 19-1b: an optional glyph before the label ("checkmark" on Allow).
@@ -23,6 +24,7 @@ package struct AppButton: View {
         _ title: String,
         kind: AppButtonKind = .primary,
         shape: AppButtonShape = .standard,
+        size: ButtonSize = .default,
         fullWidth: Bool = false,
         enabled: Bool = true,
         systemImage: String? = nil,
@@ -31,6 +33,7 @@ package struct AppButton: View {
         self.title = title
         self.kind = kind
         self.shape = shape
+        self.size = size
         self.fullWidth = fullWidth
         self.enabled = enabled
         self.systemImage = systemImage
@@ -39,25 +42,10 @@ package struct AppButton: View {
 
     package var body: some View {
         Button(action: action) {
-            // The welcome button speaks Geist like the rest of that sheet.
-            HStack(spacing: Space.x1) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(Fonts.sans(fontSize, face: .system).weight(.semibold))
-                }
-                Text(title)
-                    .font(Fonts.sans(fontSize, face: shape == .pill ? .geist : .system).weight(.semibold))
-                    .tracking(shape == .pill ? Tracking.snug : 0, at: fontSize)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: fullWidth ? .infinity : nil)
-            .padding(.horizontal, paddingX)
-            .frame(height: height)
+            if shape == .pill { pillLabel } else { shadcnLabel }
         }
-        .buttonStyle(
-            AppButtonStyle(
-                kind: kind, enabled: enabled,
-                hovering: hovering, focused: focused))
+        .buttonStyle(shape: shape, kind: kind, size: size, enabled: enabled,
+                     hovering: hovering, focused: focused)
         .disabled(!enabled)
         .onHover { hovering = $0 }
         // 19-1c: a CTA under the pointer says so (Karen, feedback en vivo).
@@ -69,20 +57,60 @@ package struct AppButton: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    private var isWash: Bool { kind == .secondary || kind == .ghost }
-
-    private var fontSize: CGFloat {
-        if shape == .pill { return TypeSize.heroBody }
-        return isWash ? TypeSize.body : TypeSize.rowTitle
+    /// The window's buttons are shadcn's; the style supplies font and box.
+    private var shadcnLabel: some View {
+        HStack(spacing: size.gap) {
+            if let systemImage { Image(systemName: systemImage) }
+            Text(title)
+        }
+        .frame(maxWidth: fullWidth ? .infinity : nil)
     }
 
-    private var paddingX: CGFloat {
-        if shape == .pill { return ButtonMetrics.welcomePadding }
-        return isWash ? ButtonMetrics.ghostPadding : ButtonMetrics.padding
+    /// The welcome sheet keeps its own Geist pill.
+    private var pillLabel: some View {
+        HStack(spacing: Space.x1) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(Fonts.sans(fontSize, face: .system).weight(.semibold))
+            }
+            Text(title)
+                .font(Fonts.sans(fontSize, face: .geist).weight(.semibold))
+                .tracking(Tracking.snug, at: fontSize)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: fullWidth ? .infinity : nil)
+        .padding(.horizontal, ButtonMetrics.welcomePadding)
+        .frame(height: ButtonMetrics.welcomeHeight)
     }
 
-    private var height: CGFloat {
-        shape == .pill ? ButtonMetrics.welcomeHeight : ButtonMetrics.height
+    private var fontSize: CGFloat { TypeSize.heroBody }
+}
+
+private extension View {
+    @ViewBuilder
+    func buttonStyle(
+        shape: AppButtonShape, kind: AppButtonKind, size: ButtonSize,
+        enabled: Bool, hovering: Bool, focused: Bool
+    ) -> some View {
+        if shape == .pill {
+            buttonStyle(AppButtonStyle(
+                kind: kind, enabled: enabled, hovering: hovering, focused: focused))
+        } else {
+            buttonStyle(.shadcn(ButtonVariant(kind: kind), size: size))
+        }
+    }
+}
+
+extension ButtonVariant {
+    /// The app's four kinds are shadcn's variants; `neutral` is the same
+    /// solid ink as primary on surfaces that must stay black and white.
+    package init(kind: AppButtonKind) {
+        switch kind {
+        case .primary, .neutral: self = .default
+        case .secondary: self = .secondary
+        case .destructive: self = .destructive
+        case .ghost: self = .ghost
+        }
     }
 }
 

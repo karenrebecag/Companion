@@ -90,56 +90,33 @@ enum SettingsPillKind {
     case destructive
 }
 
-/// Incredible's button (40 high, grows on hover), not a capsule chip: the
-/// chip is the smaller Geist control of the island and the welcome.
+/// A settings action in shadcn's button: the pill's three roles map onto
+/// its variants.
 struct SettingsPill: View {
     let title: String
     var kind: SettingsPillKind = .neutral
     var symbol: String? = nil
     var enabled = true
     let action: () -> Void
-    @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: Space.x1_5) {
-                if let symbol {
-                    Image(systemName: symbol).font(Fonts.sans(fontSize).weight(.semibold))
-                }
-                Text(title).font(Fonts.sans(fontSize).weight(.semibold))
+            HStack(spacing: ButtonSize.default.gap) {
+                if let symbol { Image(systemName: symbol) }
+                Text(title)
             }
-            .lineLimit(1)
-            .padding(.horizontal, kind == .primary ? ButtonMetrics.padding : ButtonMetrics.ghostPadding)
-            .frame(height: ButtonMetrics.height)
-            .foregroundStyle(ink)
-            .background(Capsule().fill(fill))
-            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.shadcn(ButtonVariant(pill: kind)))
         .disabled(!enabled)
-        .opacity(enabled ? 1 : StateAlpha.disabled)
-        .scaleEffect(grows ? ButtonMetrics.hoverScale : 1)
-        .onHover { hovering = $0 }
-        .animation(MotionCurve.animation(MotionCurve.settle, ButtonMetrics.duration), value: hovering)
     }
+}
 
-    private var fontSize: CGFloat { kind == .primary ? TypeSize.rowTitle : TypeSize.body }
-
-    private var grows: Bool { enabled && hovering && kind != .destructive }
-
-    private var ink: Color {
-        switch kind {
-        case .neutral: Semantic.foreground
-        case .primary: Semantic.primaryForeground
-        case .destructive: Semantic.dangerHover
-        }
-    }
-
-    private var fill: Color {
-        switch kind {
-        case .neutral: Semantic.wash
-        case .primary: Semantic.primary
-        case .destructive: hovering ? Semantic.dangerWashHover : Semantic.dangerWash
+extension ButtonVariant {
+    init(pill: SettingsPillKind) {
+        switch pill {
+        case .neutral: self = .secondary
+        case .primary: self = .default
+        case .destructive: self = .destructive
         }
     }
 }
