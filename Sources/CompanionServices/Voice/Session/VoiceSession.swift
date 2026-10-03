@@ -8,6 +8,7 @@ package actor VoiceSession: VoiceControlling {
     /// events, the parent's hands, a permission settled by voice. One stream
     /// where there were six closures; the session reducer reads it.
     package nonisolated let events: AsyncStream<SessionEvent>
+    package nonisolated let captions: AsyncStream<CaptionSnapshot>
 
     var machine = TurnMachine()
     let transport: any VoiceTransport
@@ -255,6 +256,9 @@ package actor VoiceSession: VoiceControlling {
             transcriber: transcriber, synthesizer: synthesizer,
             chat: chat, thread: thread)
         self.realtime.parentTools = parentTools
+        let captionFeed = CaptionFeed(player: player)
+        self.captions = captionFeed.snapshots
+        self.realtime.captions = captionFeed
         self.classic.parentTools = parentTools
         self.classic.screen = screen
         self.approvals = approvals

@@ -50,6 +50,7 @@ package final class FakePlayer: PCMPlaying, @unchecked Sendable {
     package init() {}
     package var shared: Bool?, played: [Data] = []
     package var flushed = false, stopped = false, hasPending = false
+    package var position = PlaybackPosition.zero
     private let drainBox = StreamBox<Void>()
     private let levelBox = StreamBox<Double>()
     package var drained: AsyncStream<Void> { drainBox.stream }
@@ -102,6 +103,8 @@ package final class FakeVoice: VoiceControlling, @unchecked Sendable {
     private let levelBox = StreamBox<VoiceLevels>()
     package var snapshots: AsyncStream<TurnSnapshot> { snapBox.stream }
     package var levels: AsyncStream<VoiceLevels> { levelBox.stream }
+    private let captionBox = StreamBox<CaptionSnapshot>()
+    package var captions: AsyncStream<CaptionSnapshot> { captionBox.stream }
     package func start() async { started = true }
     package func advance() async { advanced = true }
     package func hangUp() async { hungUp = true; snapBox.finish(); levelBox.finish() }
@@ -112,6 +115,7 @@ package final class FakeVoice: VoiceControlling, @unchecked Sendable {
     package var pushed: [AttachmentRef] = []
     package func yieldSnapshot(_ snapshot: TurnSnapshot) { snapBox.yield(snapshot) }
     package func yieldLevels(_ value: VoiceLevels) { levelBox.yield(value) }
+    package func yieldCaption(_ value: CaptionSnapshot) { captionBox.yield(value) }
 }
 
 package final class FakePresenter: ConversationPresenting, @unchecked Sendable {

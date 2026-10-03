@@ -288,4 +288,5 @@ final class VoicePortBox: VoiceControlling, @unchecked Sendable {
     func approvalFront(requestId: String?) async { await session?.approvalFront(requestId: requestId) }
     var snapshots: AsyncStream<TurnSnapshot> { session?.snapshots ?? AsyncStream { $0.finish() } }
     var levels: AsyncStream<VoiceLevels> { session?.levels ?? AsyncStream { $0.finish() } }
+    var captions: AsyncStream<CaptionSnapshot> { session?.captions ?? AsyncStream { $0.finish() } }
 }

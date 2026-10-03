@@ -6,6 +6,8 @@ import Observation
 package final class VoiceViewModel {
     package private(set) var snapshot: TurnSnapshot = .idle
     package private(set) var levels = VoiceLevels(mic: 0, agent: 0)
+    /// The spoken reply, word by word as it is heard (gap 2).
+    package private(set) var caption = CaptionSnapshot.empty
     package private(set) var statusText: String?
     /// Adapts the controls: button to interrupt on speakers, clean flow on
     /// headphones. Defaults to tapOnly until the route watcher reports.
@@ -95,6 +97,12 @@ package final class VoiceViewModel {
                 self.levels = value
             }
         }
+        tasks.captions = Task { [weak self] in
+            guard let self else { return }
+            for await value in self.voice.captions {
+                self.caption = value
+            }
+        }
     }
 
     private func applyRoute(echoFree: Bool) {
@@ -138,11 +146,13 @@ package final class VoiceViewModel {
 private final class Tasks: @unchecked Sendable {
     var snapshots: Task<Void, Never>?
     var levels: Task<Void, Never>?
+    var captions: Task<Void, Never>?
     var route: Task<Void, Never>?
 
     deinit {
         snapshots?.cancel()
         levels?.cancel()
+        captions?.cancel()
         route?.cancel()
     }
 }

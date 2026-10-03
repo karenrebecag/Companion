@@ -80,6 +80,9 @@ final class RealtimeRuntime: @unchecked Sendable {
     /// Diagnostic microscope, set by the session. Observes turn boundaries and
     /// the model's goal; never affects the path.
     var audit: VoiceAudit?
+    /// The reply as a caption (gap 2), set by the session. Every flush of
+    /// the player passes through here, and so must the caption's cut.
+    var captions: CaptionFeed?
 
     var micEnabled = true
     var didBecomeReady = false
@@ -215,6 +218,7 @@ final class RealtimeRuntime: @unchecked Sendable {
         }
         if preempting {
             await send(RealtimeCodec.responseCancel())
+            await captions?.cut()
             await player.flush()
             // The server processes in order: the cancel lands first.
             await send(RealtimeCodec.responseCreate())
@@ -316,12 +320,14 @@ final class RealtimeRuntime: @unchecked Sendable {
         cuts += 1
         parentCall?.cancel()
         await send(RealtimeCodec.responseCancel())
+        await captions?.cut()
         await player.flush()
     }
 
     nonisolated(nonsending) func close(mic: any MicCapturing) async {
         reset()
         await transport.close()
+        await captions?.cut()
         await player.stop()
         await mic.stop()
     }
@@ -349,6 +355,7 @@ final class RealtimeRuntime: @unchecked Sendable {
         state: TurnState
     ) async -> [TurnEvent] {
         Log.app("voice: server \(event.traceName)")
+        await captions?.observe(event)
         switch event {
         case .sessionCreated:
             await flushPendingUpdate()
@@ -458,9 +465,11 @@ final class RealtimeRuntime: @unchecked Sendable {
         case .serverError(let message):
             Log.app("voice: realtime error \(message)")
             if VoiceFailureMapping.isQuota(message) {
+                await captions?.cut()
                 return [.turnFailed(.quotaExceeded)]
             }
             if message.lowercased().contains("session") {
+                await captions?.cut()
                 return [.turnFailed(.sessionDropped)]
             }
             return []

@@ -45,6 +45,8 @@ package protocol PCMPlaying: Sendable {
     func stop() async
     /// Live volume (0...1): the slider must not wait for an app relaunch.
     func setVolume(_ volume: Double) async
+    /// What has been heard so far, for captions that follow the voice.
+    var position: PlaybackPosition { get async }
     var hasPending: Bool { get async }
     var drained: AsyncStream<Void> { get }
     var levels: AsyncStream<Double> { get }
@@ -165,9 +167,14 @@ package protocol VoiceControlling: Sendable {
     func approvalFront(requestId: String?) async
     var snapshots: AsyncStream<TurnSnapshot> { get }
     var levels: AsyncStream<VoiceLevels> { get }
+    /// The spoken reply, word by word as it is heard (gap 2).
+    var captions: AsyncStream<CaptionSnapshot> { get }
 }
 
 extension VoiceControlling {
+    /// A voice without captions (the classic one, a test fake) shows the
+    /// plain reply: an empty stream is the honest answer, not a missing one.
+    package var captions: AsyncStream<CaptionSnapshot> { AsyncStream { $0.finish() } }
     package func hold() async {}
     package func holdProvisionally() async { await hold() }
     package func confirmHold() async {}

@@ -82,16 +82,21 @@ struct IslandReply: View {
     let text: String
     let startedAt: Date
     let speaking: Bool
+    /// When each word was really said (gap 2), from a live caption; nil
+    /// keeps the three-words-a-second clock.
+    var said: [Double?]?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Smooth enough for a 220 ms color settle per word, a fraction of a display's rate.
     private static let frameInterval = 1.0 / 30
 
     var body: some View {
-        let words = text.split(separator: " ").map(String.init)
+        let words = Self.words(text)
         TimelineView(.animation(minimumInterval: Self.frameInterval, paused: !speaking)) { context in
             let elapsed = context.date.timeIntervalSince(startedAt)
-            Text(Self.painted(words, elapsed: elapsed, speaking: speaking, reduceMotion: reduceMotion))
+            // `said` is wall-clock epoch seconds, the clock this timeline runs on.
+            Text(Self.painted(words, elapsed: elapsed, speaking: speaking, reduceMotion: reduceMotion,
+                              said: said, now: context.date.timeIntervalSince1970))
                 .font(Fonts.geist(TypeSize.strong))
                 .lineSpacing(Space.x1)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -100,12 +105,19 @@ struct IslandReply: View {
         .accessibilityLabel(text)
     }
 
+    static func words(_ text: String) -> [String] {
+        text.split(separator: " ").map(String.init)
+    }
+
     private static func painted(
-        _ words: [String], elapsed: Double, speaking: Bool, reduceMotion: Bool
+        _ words: [String], elapsed: Double, speaking: Bool, reduceMotion: Bool,
+        said: [Double?]?, now: Double
     ) -> AttributedString {
         var out = AttributedString()
         for (index, word) in words.enumerated() {
-            let light = IslandReveal.brightness(
+            let light = said.map {
+                IslandReveal.brightness(saidAt: index < $0.count ? $0[index] : nil, now: now, reduceMotion: reduceMotion)
+            } ?? IslandReveal.brightness(
                 word: index, elapsed: elapsed, speaking: speaking, reduceMotion: reduceMotion)
             var piece = AttributedString(index == 0 ? word : " " + word)
             piece.foregroundColor = Neutral.white.color.opacity(IslandMotionBudget.spokenWord.alpha(brightness: light))
