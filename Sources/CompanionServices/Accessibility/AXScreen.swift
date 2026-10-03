@@ -288,15 +288,32 @@ package final class AXScreen: ScreenActing, @unchecked Sendable {
     package func scroll(node: Int?, generation: Int, direction: ScrollDirection, pid: Int32) -> Bool {
         guard trust(), actable(pid) != nil else { return false }
         let start = node.flatMap { handle(node: $0, generation: generation, pid: pid) }
+        if direction == .intoView {
+            // The control itself, not its scroll area: that is the one the
+            // action brings into view.
+            guard let target = start else { return false }
+            return AXUIElementPerformAction(target, "AXScrollToVisible" as CFString) == .success
+        }
         guard let area = start.flatMap(scrollArea(above:)) ?? firstScrollArea(pid: pid) else { return false }
-        let action = direction == .down ? "AXScrollDownByPage" : "AXScrollUpByPage"
-        if AXUIElementPerformAction(area, action as CFString) == .success { return true }
-        guard let bar = AXRead.element(kAXVerticalScrollBarAttribute, of: area),
+        if AXUIElementPerformAction(area, Self.pageAction(direction) as CFString) == .success { return true }
+        let horizontal = direction == .left || direction == .right
+        guard let bar = AXRead.element(
+                horizontal ? kAXHorizontalScrollBarAttribute : kAXVerticalScrollBarAttribute, of: area),
               let current = AXRead.number(kAXValueAttribute, of: bar)
         else { return false }
-        let step = direction == .down ? 0.25 : -0.25
+        let step = direction == .down || direction == .right ? 0.25 : -0.25
         let next = min(1, max(0, current + step)) as CFNumber
         return AXUIElementSetAttributeValue(bar, kAXValueAttribute as CFString, next) == .success
+    }
+
+    static func pageAction(_ direction: ScrollDirection) -> String {
+        switch direction {
+        case .up: "AXScrollUpByPage"
+        case .down: "AXScrollDownByPage"
+        case .left: "AXScrollLeftByPage"
+        case .right: "AXScrollRightByPage"
+        case .intoView: "AXScrollToVisible"
+        }
     }
 
     private func scrollArea(above element: AXUIElement) -> AXUIElement? {
@@ -329,10 +346,24 @@ package final class AXScreen: ScreenActing, @unchecked Sendable {
         resolveMenu(path: path, pid: pid)?.title
     }
 
+    package func menuEnabled(path: [String], pid: Int32) -> Bool {
+        guard let target = resolveMenu(path: path, pid: pid) else { return true }
+        return Self.enabled(target.item)
+    }
+
+    /// An item that does not say it is disabled is enabled: only an explicit
+    /// false blocks the press.
+    private static func enabled(_ item: AXUIElement) -> Bool {
+        isEnabled(AXRead.number(kAXEnabledAttribute, of: item))
+    }
+
+    static func isEnabled(_ attribute: Double?) -> Bool { attribute != 0 }
+
     package func menu(path: [String], pid: Int32, expecting: String) -> String? {
         // Resolved again at press time: the menu may have changed since the
         // gate classified `expecting`, and only that title was approved.
         guard let target = resolveMenu(path: path, pid: pid), target.title == expecting,
+              Self.enabled(target.item),
               AXUIElementPerformAction(target.item, kAXPressAction as CFString) == .success
         else { return nil }
         return target.title

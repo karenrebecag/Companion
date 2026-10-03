@@ -194,7 +194,9 @@ package enum ScreenRoles {
 // MARK: - Ports
 
 package enum ScrollDirection: String, Sendable, Equatable, CaseIterable {
-    case up, down
+    case up, down, left, right
+    /// Brings one control into the visible part of its scroll area; needs an id.
+    case intoView = "into_view"
 }
 
 /// How a click landed, in Incredible's order: the element's own press
@@ -227,4 +229,11 @@ package protocol ScreenActing: Sendable {
     /// (the title the gate classified); nil when a step did not match, the
     /// menu changed, or the press failed.
     func menu(path: [String], pid: Int32, expecting: String) -> String?
+    /// False when the item `path` resolves to is greyed out: pressing it does
+    /// nothing, and the model must be told instead of shown a success.
+    func menuEnabled(path: [String], pid: Int32) -> Bool
+}
+
+extension ScreenActing {
+    package func menuEnabled(path: [String], pid: Int32) -> Bool { true }
 }

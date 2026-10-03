@@ -143,14 +143,47 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
             // The user asked for this app to come up: the hands follow it
             // for the rest of the turn instead of refusing it as a switch.
             // The per-call check that the front did not move still holds.
-            if outcome.ok { hands?.turn.release() }
-            return outcome
+            guard outcome.ok else { return outcome }
+            guard tool == .openApp, let hands, let launch = hands.launch else {
+                hands?.turn.release()
+                return outcome
+            }
+            return await settleLaunch(outcome, hands: hands, launch: launch)
         case .listApps: return listApps()
         case .readSkill: return readSkill(arguments)
         case .typeText, .pressKey, .focusWindow, .readFocused, .look, .click, .scroll, .menu, .see:
             let call = ToolCallRef(id: "", name: name, arguments: argumentsJSON)
             return await runHands(tool, call, arguments)
         }
+    }
+
+    /// An opened app is not ready until it is the front one and has a window:
+    /// typing a moment earlier lands in the app the user was in. The turn is
+    /// pinned to the launched pid, so a late activation cannot move it back.
+    private func settleLaunch(
+        _ outcome: ParentToolOutcome, hands: ScreenHands, launch: any AppWindowProbing
+    ) async -> ParentToolOutcome {
+        let name = outcome.target
+        let pid = await hands.windowWait.wait {
+            guard let pid = launch.pid(ofApp: name), launch.hasWindow(pid: pid),
+                  hands.target() == pid else { return nil }
+            return pid
+        }
+        guard let pid else {
+            hands.turn.release()
+            // A cut turn is not an app without a window: say which it was.
+            if Task.isCancelled {
+                return .failed(Self.handsError("cancelled", "the turn was cut before \(name) was ready"),
+                               target: name)
+            }
+            Log.app("hands: open_app window_not_ready")
+            return .failed(Self.handsError(
+                "window_not_ready",
+                "\(name) was opened but has no window in front yet; look, or try again in a moment"),
+                target: name)
+        }
+        hands.turn.begin(pid)
+        return outcome
     }
 
     package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {

@@ -27,6 +27,10 @@ package struct ScreenHands: Sendable {
     /// Checked right before a capture: `see` without it fails silently.
     let screenRecording: @Sendable () -> Bool
     let locked: @Sendable () -> Bool
+    /// open_app's view of the app it launched; nil leaves open_app returning
+    /// as soon as the launch was requested.
+    let launch: (any AppWindowProbing)?
+    let windowWait: WindowWait
     let tickets = ApprovalTickets()
     let turn = TurnTarget()
     let scans = ScanMemory()
@@ -44,13 +48,17 @@ package struct ScreenHands: Sendable {
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
         changes: (any AXChangeWatching)? = nil,
         screenRecording: @escaping @Sendable () -> Bool = { true },
-        locked: @escaping @Sendable () -> Bool = { false }
+        locked: @escaping @Sendable () -> Bool = { false },
+        launch: (any AppWindowProbing)? = nil,
+        windowWait: WindowWait = .standard
     ) {
         self.screen = screen
         self.see = see
         self.changes = changes
         self.screenRecording = screenRecording
         self.locked = locked
+        self.launch = launch
+        self.windowWait = windowWait
         self.injector = injector
         self.reader = reader
         self.keys = keys
@@ -73,7 +81,8 @@ package struct ScreenHands: Sendable {
             trusted: { ax.isTrusted() }, target: target,
             bundleID: { AXTextInjector.bundleID(of: $0) }, selfInFront: selfInFront,
             screen: screen, see: see, changes: changes,
-            screenRecording: { ScreenRecordingPermission().isGranted() }, locked: { SessionLock.isLocked() })
+            screenRecording: { ScreenRecordingPermission().isGranted() }, locked: { SessionLock.isLocked() },
+            launch: screen)
     }
 }
 
@@ -405,9 +414,15 @@ private struct HandsAct {
     }
 
     func press(_ arguments: [String: Any]) -> ParentToolOutcome {
+        let raw = arguments["key"] as? String ?? ""
+        switch KeyChord.parse(raw) {
+        case .refused(let error): return .failed(error, tool: tool.rawValue)
+        case .chord(let chord): return press(chord: chord)
+        case .plain: break
+        }
         let key: NamedKey
         do {
-            key = try NamedKey.parse(arguments["key"] as? String ?? "")
+            key = try NamedKey.parse(raw)
         } catch {
             return .failed(error, tool: tool.rawValue)
         }
@@ -418,6 +433,21 @@ private struct HandsAct {
         Log.app("hands: press_key \(key.rawValue) pid=\(pid) bundle=\(bundle)")
         return ParentToolOutcome(
             ok: true, output: "pressed \(key.rawValue)", target: key.rawValue, tool: tool.rawValue)
+    }
+
+    /// A shortcut is a command to the app, not text: a terminal or an agent
+    /// chat gets none of them, however harmless the letter looks.
+    private func press(chord: KeyChord) -> ParentToolOutcome {
+        guard !CommandApps.isCommandApp(bundleID: bundle) else {
+            return fail("chord_not_allowed", "shortcuts are not sent to a command app", target: chord.name)
+        }
+        guard !moved else { return fail("target_changed", "the app in front changed", target: chord.name) }
+        guard hands.keys.press(chord: chord, pid: pid) else {
+            return fail("refused", "the shortcut could not be sent", target: chord.name)
+        }
+        Log.app("hands: press_key chord pid=\(pid) bundle=\(bundle)")
+        return ParentToolOutcome(
+            ok: true, output: "pressed \(chord.name)", target: chord.name, tool: tool.rawValue)
     }
 
     func raise(_ arguments: [String: Any]) -> ParentToolOutcome {
