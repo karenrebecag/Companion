@@ -115,11 +115,20 @@ package struct BrowserElement: Sendable, Equatable {
     /// (otp, pin, cvv...) can run here too.
     package var fieldName: String?
     package var fieldId: String?
+    /// Words from `knownStates` only, in that order. The page sets them, so they are a hint for
+    /// the model and never an input to a verdict: a page could mark its own Delete as disabled.
+    package var states: [String]
+
+    /// The order the model reads them in, whatever order the page produced.
+    package static let knownStates = [
+        "disabled", "expanded", "collapsed", "checked", "unchecked", "mixed", "pressed", "selected", "haspopup",
+    ]
 
     package init(
         id: Int, frame: Int, role: String, label: String, context: String,
         inputType: String?, autocomplete: String?, value: String?,
-        frameOrigin: String? = nil, href: String? = nil, fieldName: String? = nil, fieldId: String? = nil
+        frameOrigin: String? = nil, href: String? = nil, fieldName: String? = nil, fieldId: String? = nil,
+        states: [String] = []
     ) {
         self.id = id
         self.frame = frame
@@ -133,6 +142,7 @@ package struct BrowserElement: Sendable, Equatable {
         self.href = href
         self.fieldName = fieldName
         self.fieldId = fieldId
+        self.states = states
     }
 }
 

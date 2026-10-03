@@ -110,7 +110,7 @@ package enum BrowserCodec {
             inputType: raw["inputType"] as? String, autocomplete: raw["autocomplete"] as? String,
             value: raw["value"] as? String, frameOrigin: raw["frameOrigin"] as? String,
             href: raw["href"] as? String, fieldName: raw["fieldName"] as? String,
-            fieldId: raw["fieldId"] as? String)
+            fieldId: raw["fieldId"] as? String, states: BrowserSanitize.states(raw["states"]))
     }
 
     // MARK: Encode
