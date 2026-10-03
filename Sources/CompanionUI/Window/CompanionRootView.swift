@@ -85,7 +85,7 @@ package struct CompanionRootView: View {
                     if page == .apps, let apps {
                         AppsPage(apps: apps)
                     } else {
-                        HomePage(chat: chat, onOpen: { task in
+                        HomePage(chat: chat, voice: voice, onOpen: { task in
                             withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { openTask = task }
                         }, onSettings: openSettings)
                     }
