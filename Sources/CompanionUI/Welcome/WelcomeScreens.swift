@@ -176,27 +176,46 @@ struct WelcomeKeys: View {
 struct WelcomePermissions: View {
     var welcome: WelcomeModel
     @Environment(\.openURL) private var openURL
+    /// The group whose Allow was pressed last; the guide follows it until
+    /// that permission is granted.
+    @State private var acting: WelcomePermission?
 
     var body: some View {
-        VStack(spacing: Space.x5) {
-            WelcomeHeading(
-                title: Localized.string("welcome.permissions.title"),
-                body_: Localized.string("welcome.permissions.body"))
-            VStack(spacing: Space.none) {
-                ForEach(WelcomePermission.allCases, id: \.self) { permission in
-                    row(permission)
-                    if permission != WelcomePermission.allCases.last { Divider() }
+        let granted = welcome.facts.granted
+        let active = PermissionGuide.active(granted: granted, acting: acting)
+        // Nothing state-dependent is drawn before the first read of the
+        // machine, so a resume neither flashes wrong states nor pops badges.
+        if let states = PermissionGuide.states(granted: granted, acting: acting, hydrated: welcome.hasRefreshed) {
+            HStack(alignment: .center, spacing: Space.x8) {
+                // The minimum window is shorter than the four groups; a shorter
+                // column is centred against the guide.
+                GeometryReader { viewport in
+                    ScrollView {
+                        VStack(spacing: Space.x5) {
+                            WelcomeHeading(
+                                title: Localized.string("welcome.permissions.title"),
+                                body_: Localized.string("welcome.permissions.body"))
+                            VStack(spacing: Space.x3) {
+                                ForEach(WelcomePermission.allCases, id: \.self) { permission in
+                                    group(permission, state: states[permission] ?? .upcoming)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: viewport.size.height)
+                    }
+                    .scrollIndicators(.hidden)
                 }
+                .frame(maxWidth: .infinity)
+                PermissionGuideAside(active: active)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, Space.x4)
-            .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Semantic.surface))
-            .overlay(RoundedRectangle(cornerRadius: Radius.lg).stroke(Semantic.border, lineWidth: Stroke.hairline))
         }
     }
 
-    private func row(_ permission: WelcomePermission) -> some View {
-        let granted = welcome.facts.granted.contains(permission)
+    private func group(_ permission: WelcomePermission, state: PermissionGuide.GroupState) -> some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.cardSm, style: .continuous)
         return HStack(spacing: Space.x3) {
+            PermissionStepBadge(number: PermissionGuide.number(of: permission), state: state)
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text(Localized.string("welcome.permission." + permission.rawValue))
                     .font(GeistFont.uiLabel).foregroundStyle(Semantic.foreground)
@@ -204,23 +223,79 @@ struct WelcomePermissions: View {
                     .font(GeistFont.uiCaption).foregroundStyle(Semantic.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .accessibilityElement(children: .combine)
             Spacer(minLength: Space.x2)
-            if granted {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(Semantic.foreground)
-                    .accessibilityLabel(Localized.string("permission.granted"))
-            } else {
-                Button(Localized.string("welcome.permission.allow")) {
-                    Task {
-                        await welcome.request(permission)
-                        // The prompt shows once; after a deny only Settings can.
-                        if !welcome.facts.granted.contains(permission) { openURL(permission.settingsLink) }
-                    }
-                }
-                .buttonStyle(CapsuleChipStyle(ink: .choice(selected: true), density: .regular))
+            if state != .granted {
+                Button(Localized.string("welcome.permission.allow")) { allow(permission) }
+                    .buttonStyle(CapsuleChipStyle(ink: .choice(selected: true), density: .regular))
             }
         }
-        .padding(.vertical, Space.x3)
+        .padding(Space.x5)
+        .background(shape.fill(state == .active ? Semantic.surfaceSecondary : Semantic.surface))
+        .overlay(shape.stroke(Semantic.border, lineWidth: Stroke.hairline))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func allow(_ permission: WelcomePermission) {
+        acting = permission
+        Task {
+            await welcome.request(permission)
+            // The prompt shows once; after a deny only Settings can.
+            if !welcome.facts.granted.contains(permission) { openURL(permission.settingsLink) }
+            acting = PermissionGuide.acting(
+                afterFinishing: permission, current: acting, granted: welcome.facts.granted)
+        }
+    }
+}
+
+/// The 24 px numbered circle; granted, it turns green and pops once.
+struct PermissionStepBadge: View {
+    let number: Int
+    let state: PermissionGuide.GroupState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pops = 0
+
+    var body: some View {
+        Circle().fill(fill)
+            .frame(width: Space.x6, height: Space.x6)
+            .overlay {
+                if state == .granted {
+                    Image(systemName: "checkmark").font(GeistFont.uiCaption).bold()
+                } else {
+                    Text(verbatim: String(number)).font(GeistFont.uiCaption)
+                }
+            }
+            .foregroundStyle(state == .active ? Semantic.background : Semantic.foreground)
+            .keyframeAnimator(initialValue: CGFloat(1), trigger: pops) { content, scale in
+                content.scaleEffect(scale)
+            } keyframes: { _ in Self.bounceTrack }
+            .onChange(of: state) { old, new in
+                if PermissionGuide.bounces(from: old, to: new, reduceMotion: reduceMotion) { pops += 1 }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(PermissionGuide.stepLabel(number: number))
+            .accessibilityValue(PermissionGuide.stateLabel(state))
+    }
+
+    private static let samples = 12
+
+    private static var bounceTrack: some Keyframes<CGFloat> {
+        let scales: [CGFloat] = PermissionGuide.bounceScales(count: samples)
+        let step: Double = MotionTime.stepGranted / Double(samples - 1)
+        return KeyframeTrack {
+            MoveKeyframe(scales[0])
+            for scale in scales.dropFirst() {
+                LinearKeyframe(scale, duration: step)
+            }
+        }
+    }
+
+    private var fill: Color {
+        switch state {
+        case .active: Semantic.foreground
+        case .granted: Semantic.successMuted
+        case .upcoming: Semantic.surfaceSecondary
+        }
     }
 }
 

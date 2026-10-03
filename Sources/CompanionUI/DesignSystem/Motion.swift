@@ -23,6 +23,12 @@ package enum MotionTime {
     package static let reelSwap = 0.65
     /// A slider's knob growing under the pointer: Incredible's island volume.
     package static let knob = 0.12
+    /// The permission guide's art swaps with a fade (Incredible's fr-permission-fade).
+    package static let permissionFade = panel
+    /// A page's first frame lands with an overshoot (Incredible's fr-land).
+    package static let land = 0.46
+    /// A permission's step circle pops when it is granted (Incredible's fr-perm-granted).
+    package static let stepGranted = 0.36
 }
 
 /// The one entry curve (spec 16f §9, M3): a strong ease-out that starts
