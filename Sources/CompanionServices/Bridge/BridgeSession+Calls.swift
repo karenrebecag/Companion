@@ -253,7 +253,7 @@ extension BridgeSession {
     private func unavailableMessage(_ code: String, tool: String) -> String {
         switch code {
         case BridgeCode.selfInFront:
-            return "Companion is in front; bring the app to act on to the front"
+            return BridgeMessages.selfInFront
         case BridgeCode.needsAccessibility:
             return BridgeMessages.needsAccessibility
         default: return "\(tool) is not available right now"

@@ -13,6 +13,11 @@ import Testing
         (BridgeMessages.sheetOpen, "then retry"),
         (BridgeMessages.anotherAgent, "then send hello again"),
         (BridgeMessages.needsAccessibility, "then retry"),
+        (BridgeMessages.screenRecordingRequired, "then retry"),
+        (BridgeMessages.screenLocked, "then call look before retrying"),
+        (BridgeMessages.lockedDuringAction, "outcome is unknown"),
+        (BridgeMessages.selfInFront, "to the front"),
+        (BridgeMessages.foregroundUnavailable, "call look before retrying"),
     ]
     for (message, nextStep) in expected {
         expect(!message.contains("\n"), "one line: \(message)")

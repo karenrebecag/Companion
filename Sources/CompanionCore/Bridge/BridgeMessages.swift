@@ -32,6 +32,22 @@ package enum BridgeMessages {
         "Companion does not have Accessibility permission. Ask the user to turn it on in "
             + "System Settings > Privacy & Security > Accessibility, then retry."
 
+    package static let screenRecordingRequired =
+        "Companion does not have Screen Recording permission. Ask the user to turn it on in "
+            + "System Settings > Privacy & Security > Screen & System Audio Recording, then retry."
+
+    package static let screenLocked =
+        "The Mac is locked. Ask the user to unlock it, then call look before retrying."
+
+    package static let lockedDuringAction =
+        "The Mac locked during the action, so its outcome is unknown. Ask the user to unlock it, "
+            + "then call look before retrying."
+
+    package static let selfInFront = "Companion is in front; bring the app to act on to the front"
+
+    package static let foregroundUnavailable =
+        "The window did not stay in front, so call look before retrying."
+
     /// Seconds under a minute, whole minutes (rounded up) past it; never 0,
     /// so the agent is not told to retry at once.
     static func duration(_ seconds: Int) -> String {

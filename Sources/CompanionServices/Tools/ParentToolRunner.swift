@@ -59,6 +59,9 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         self.sheets = sheets
     }
 
+    /// Wired at all, ready or not: a call can then say why it cannot act.
+    var installedHands: ScreenHands? { hands }
+
     var readyHands: ScreenHands? {
         guard let hands, hands.trusted(), !hands.selfInFront() else { return nil }
         return hands
@@ -126,6 +129,11 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         }
         switch tool {
         case .openApp, .openURL, .openFile:
+            // Opened behind the lock screen, it would be a success nobody saw.
+            if hands?.locked() == true {
+                return .failed(ContractError(code: BridgeCode.screenLocked, message: BridgeMessages.screenLocked),
+                               tool: tool.rawValue)
+            }
             let outcome: ParentToolOutcome
             switch tool {
             case .openApp: outcome = await openApp(arguments)

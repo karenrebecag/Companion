@@ -197,6 +197,13 @@ package enum BridgeCode {
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
     package static let selfInFront = "self_in_front"
     package static let needsAccessibility = "needs_accessibility"
+    /// `see` needs pixels, and Screen Recording is what grants them.
+    package static let screenRecordingRequired = "screen_recording_required"
+    /// The session is locked: nothing on screen can be read or acted on, and
+    /// an action caught by the lock has an outcome nobody saw.
+    package static let screenLocked = "screen_locked"
+    /// The window was raised but another app had the front right after.
+    package static let foregroundUnavailable = "foreground_unavailable"
     // Framing errors
     package static let unknownMethod = "unknown_method"
     package static let badFrame = "bad_frame"

@@ -82,6 +82,11 @@ extension ParentToolRunner {
         guard let see = hands.see else {
             return .failed(Self.handsError("no_vision", "no screen vision"), tool: ParentTool.see.rawValue)
         }
+        guard hands.screenRecording() else {
+            Log.app("sight: see refused, no Screen Recording pid=\(pid)")
+            return .failed(Self.handsError(BridgeCode.screenRecordingRequired, BridgeMessages.screenRecordingRequired),
+                           tool: ParentTool.see.rawValue)
+        }
         let app = hands.reader.focusedField(pid: pid)?.app
         let request = SeeRequest(
             app: app, question: arguments["question"] as? String, pid: pid)
@@ -90,6 +95,12 @@ extension ParentToolRunner {
             return .failed(Self.handsError(
                 "no_capture", "no screen capture (Screen Recording off, or no OpenAI key)"),
                 tool: ParentTool.see.rawValue)
+        }
+        // Locked while capturing: the pixels may be the lock screen, so they never reach the model.
+        guard !hands.locked() else {
+            Log.app("sight: see dropped, session locked during the capture pid=\(pid)")
+            return .failed(Self.handsError(BridgeCode.screenLocked, BridgeMessages.screenLocked),
+                           tool: ParentTool.see.rawValue)
         }
         let lines = [brief.summary].compactMap { $0 } + brief.snippets.map { "- " + $0.text }
         Log.app("sight: see snippets=\(brief.snippets.count) pid=\(pid)")
