@@ -20,6 +20,9 @@ package enum TurnFailure: Sendable, Equatable {
     /// Wave 12e: dictation could not type into the field. A permission,
     /// fixed in System Settings, not a broken voice.
     case accessibilityDenied
+    /// Gap 1c: Screen Recording worked and stopped (revoked, or broken until
+    /// a relaunch). Without it the sight would just go quiet.
+    case screenRecordingDenied
 }
 
 package struct TurnSnapshot: Sendable, Equatable {

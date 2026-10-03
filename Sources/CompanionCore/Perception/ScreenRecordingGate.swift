@@ -21,6 +21,7 @@ package final class ScreenRecordingGate: @unchecked Sendable {
     /// landed cannot overwrite it.
     private var epoch = 0
     private var lastProbe: Date?
+    private var lost: (@Sendable () -> Void)?
 
     package init(
         checker: any ScreenRecordingChecking,
@@ -33,6 +34,12 @@ package final class ScreenRecordingGate: @unchecked Sendable {
         self.now = now
         self.log = log
         current = checker.isGranted() ? .grantedUnverified : .notGranted
+    }
+
+    /// Set after construction: the session that shows the card is built
+    /// after the sight that owns this gate.
+    package func onLost(_ handler: @escaping @Sendable () -> Void) {
+        lock.withLock { lost = handler }
     }
 
     package var status: ScreenRecordingStatus { lock.withLock { current } }
@@ -86,6 +93,9 @@ package final class ScreenRecordingGate: @unchecked Sendable {
             return (previous, current)
         }
         if previous != next { log("screen-recording: \(previous.rawValue) -> \(next.rawValue)") }
+        // Only a grant that worked and stopped is a loss; one that never
+        // worked is the welcome's to explain.
+        if previous == .verified, next != .verified, let lost = lock.withLock({ self.lost }) { lost() }
         return next
     }
 }
