@@ -1,0 +1,1 @@
+- **Theme tokens for shadcn components (2026-10-02).** Extended design system with ButtonSize, ButtonColors, and Gap tokens mapping shadcn's sizing and color variants to Companion's space and semantic color scales.
