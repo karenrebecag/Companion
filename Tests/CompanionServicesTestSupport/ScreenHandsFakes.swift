@@ -1,6 +1,7 @@
 import CompanionCore
 import CompanionCoreTestSupport
 import CompanionServices
+import CompanionTestKit
 import Foundation
 
 // Wave 15g. Fakes de los puertos de las manos: nada toca otra app; cada
@@ -8,17 +9,18 @@ import Foundation
 
 package final class FakeHands: TextInjecting, FocusedReading, KeyPressing, WindowRaising,
     @unchecked Sendable {
-    private let lock = NSLock()
-    package var field: FocusedField?
-    package var text: String?
-    package var windows: [String] = []
-    package var injectResult: InjectionResult?
-    package private(set) var injected: [(text: String, pid: Int32)] = []
-    package private(set) var pressed: [(key: NamedKey, pid: Int32)] = []
-    package private(set) var raised: [(title: String, pid: Int32)] = []
-    package private(set) var pressedChords: [(chord: KeyChord, pid: Int32)] = []
+    // The runner calls these off the main actor while the test reads the
+    // recordings and sets the config; every field is behind its own lock.
+    @Guarded package var field: FocusedField?
+    @Guarded package var text: String?
+    @Guarded package var windows: [String] = []
+    @Guarded package var injectResult: InjectionResult?
+    @Guarded package private(set) var injected: [(text: String, pid: Int32)] = []
+    @Guarded package private(set) var pressed: [(key: NamedKey, pid: Int32)] = []
+    @Guarded package private(set) var raised: [(title: String, pid: Int32)] = []
+    @Guarded package private(set) var pressedChords: [(chord: KeyChord, pid: Int32)] = []
     /// False makes the port report that the event could not be posted.
-    package var chordsPost = true
+    @Guarded package var chordsPost = true
 
     package init(field: FocusedField? = nil, text: String? = nil, windows: [String] = []) {
         self.field = field
@@ -27,38 +29,37 @@ package final class FakeHands: TextInjecting, FocusedReading, KeyPressing, Windo
     }
 
     package func inject(_ text: String, into field: FocusedField) async -> InjectionResult {
-        lock.withLock { injected.append((text, field.pid)) }
+        injected.append((text, field.pid))
         return injectResult ?? .injected(text.count, via: .ax)
     }
 
     package func focusedField(pid: Int32) -> FocusedField? {
-        guard let field, field.pid == pid else { return nil }
-        return field
+        let current = field
+        guard let current, current.pid == pid else { return nil }
+        return current
     }
 
     package func read(pid: Int32) -> String? {
-        guard let field, field.pid == pid, !field.secure else { return nil }
+        let current = field
+        guard let current, current.pid == pid, !current.secure else { return nil }
         return text
     }
 
     package func press(_ key: NamedKey, pid: Int32) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
         pressed.append((key, pid))
         return true
     }
 
     package func press(chord: KeyChord, pid: Int32) -> Bool {
-        lock.withLock { pressedChords.append((chord, pid)) }
+        pressedChords.append((chord, pid))
         return chordsPost
     }
 
     package func raise(titleContaining title: String, pid: Int32) -> String? {
-        guard let index = WindowTitles.match(windows, containing: title) else { return nil }
-        lock.lock()
-        defer { lock.unlock() }
-        raised.append((windows[index], pid))
-        return windows[index]
+        let current = windows
+        guard let index = WindowTitles.match(current, containing: title) else { return nil }
+        raised.append((current[index], pid))
+        return current[index]
     }
 }
 

@@ -398,7 +398,7 @@ package final class ScriptedTranscriber: Transcriber, @unchecked Sendable {
     @Guarded package var locale = ""
     @Guarded package var started = false
     @Guarded package var stoppedText = ""
-    package var grantsAuthorization = true
+    @Guarded package var grantsAuthorization = true
     @Guarded package var stops = 0
     @Guarded package var appended: [MicFrame] = []
     package var isAuthorized: Bool { authorized }
@@ -407,16 +407,18 @@ package final class ScriptedTranscriber: Transcriber, @unchecked Sendable {
     package var currentText: String { stoppedText }
 
     /// Seconds the speech prompt takes to answer.
-    package var authorizationDelay: TimeInterval = 0
+    @Guarded package var authorizationDelay: TimeInterval = 0
     package func requestAuthorization() async -> Bool {
-        if authorizationDelay > 0 { try? await Task.sleep(for: .seconds(authorizationDelay)) }
+        let delay = authorizationDelay
+        if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
         authorized = grantsAuthorization
         return authorized
     }
     /// Seconds the on-device ear takes to come up after the mic.
-    package var startDelay: TimeInterval = 0
+    @Guarded package var startDelay: TimeInterval = 0
     package func start(localeIdentifier: String) async throws {
-        if startDelay > 0 { try? await Task.sleep(for: .seconds(startDelay)) }
+        let delay = startDelay
+        if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
         locale = localeIdentifier
         started = true
         running = true
@@ -428,20 +430,27 @@ package final class ScriptedTranscriber: Transcriber, @unchecked Sendable {
         guard running else { return }
         appended.append(frame)
     }
-    package var clearOnStop = false
+    @Guarded package var clearOnStop = false
     /// Seconds `stop()` waits for the recognizer's final, like the real
     /// ear's `TranscriptFinalizer` bound; `running` goes false only after
     /// it, the way the real `halt()` kills whatever recognition is live
     /// by then — including one a newer hold started meanwhile.
-    package var stopDelay: TimeInterval = 0
+    @Guarded package var stopDelay: TimeInterval = 0
     /// Per-call delays, consumed in order before `stopDelay` applies: a
     /// slow first stop followed by an instant one.
-    package var stopDelays: [TimeInterval] = []
+    private let stopDelayQueue = LockedBox<[TimeInterval]>([])
+    package var stopDelays: [TimeInterval] {
+        get { stopDelayQueue.value }
+        set { stopDelayQueue.value = newValue }
+    }
     @Guarded package private(set) var running = false
     package func stop() async -> String {
         stops += 1
         let text = stoppedText
-        let delay = stopDelays.isEmpty ? stopDelay : stopDelays.removeFirst()
+        // The emptiness check and the pop share one lock: overlapping stops
+        // must not both take the same entry or pop an empty list.
+        let queued = stopDelayQueue.withLock { $0.isEmpty ? nil : $0.removeFirst() }
+        let delay = queued ?? stopDelay
         if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
         running = false
         if clearOnStop { stoppedText = "" }
