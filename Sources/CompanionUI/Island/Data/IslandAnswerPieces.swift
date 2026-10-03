@@ -102,23 +102,13 @@ package enum ReferentLine {
     }
 }
 
-/// "Abriendo" followed by a chip per target; any other line stays text.
+/// The status words. Acting no longer chips its targets here: the reel
+/// under the line carries the app (K9).
 struct IslandStatusText: View {
     let line: IslandState.Line
 
     var body: some View {
-        if case .acting(let targets) = line,
-           case let parts = ReferentLine.parts(targets, language: Localized.language()),
-           !parts.referents.isEmpty
-        {
-            HStack(spacing: Space.x1) {
-                Text(parts.verb)
-                    .font(GeistFont.uiLabel)
-                    .foregroundStyle(IslandInk.text)
-                ForEach(parts.referents, id: \.self) { ReferentChip(text: $0) }
-            }
-            .accessibilityElement(children: .combine)
-        } else if let shown = IslandCopy.visibleLine(line) {
+        if let shown = IslandCopy.visibleLine(line) {
             Text(shown)
                 .font(GeistFont.uiLabel)
                 .foregroundStyle(IslandInk.text)

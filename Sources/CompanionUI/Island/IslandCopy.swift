@@ -19,8 +19,9 @@ enum IslandCopy {
         case .holdHint: Localized.string("island.hint")
         case .keyBlocked: Localized.string("island.keyBlocked")
         case .pending: Localized.string("island.pending")
-        case .thinking: Localized.string("island.thinking")
-        case .acting(let targets): ParentToolCopy.acting(targets, Localized.language())
+        // Acting reads as thinking and names no app (brief
+        // isla-ciclo-y-legibilidad K9, Karen): the app is the reel's item.
+        case .thinking, .acting: Localized.string("island.thinking")
         case .speaking: Localized.string("island.speaking")
         case .job(let goal, _, let steps):
             // "0 steps" is noise: the count appears once there is one.
@@ -77,7 +78,8 @@ enum IslandCopy {
         switch line {
         case .permission(let failure), .failure(let failure): "failure-\(failure)"
         case .job: "job"
-        case .acting: "acting"
+        // Same words as thinking: swapping them out and back in is noise.
+        case .thinking, .acting: "thinking"
         case .dictating: "dictating"
         case .dictated: "dictated"
         case .dictationResult: "dictationResult"
