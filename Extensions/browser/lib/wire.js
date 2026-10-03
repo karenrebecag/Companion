@@ -43,6 +43,7 @@ const SHAPES = {
   browser_double_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
   browser_right_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
   browser_type: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.text === 'string',
+  browser_select: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.option === 'string',
   browser_navigate: (a) => isInt(a.tab) && isHttpURL(a.url),
   browser_open: (a) => isHttpURL(a.url),
   browser_take: (a) => isInt(a.tab),

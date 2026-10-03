@@ -50,6 +50,7 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
   assert.equal(validateCall({ name: 'browser_double_click', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_right_click', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_type', arguments: { tab: 1, generation: 3, element: 2, text: '' } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_select', arguments: { tab: 1, generation: 3, element: 2, option: 'México' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_navigate', arguments: { tab: 1, url: 'https://a.b/' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'https://a.b/' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'http://a.b/x?y=1' } }).ok, true);
@@ -64,6 +65,9 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
     { name: 'browser_double_click', arguments: { tab: 1, element: 2 } },
     { name: 'browser_right_click', arguments: { tab: '1', generation: 3, element: 2 } },
     { name: 'browser_type', arguments: { tab: 1, generation: 3, element: 2 } },
+    { name: 'browser_select', arguments: { tab: 1, generation: 3, element: 2 } },
+    { name: 'browser_select', arguments: { tab: 1, generation: 3, element: 2, option: 3 } },
+    { name: 'browser_select', arguments: { tab: 1, element: 2, option: 'x' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'javascript:alert(1)' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'file:///etc/passwd' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'not a url' } },

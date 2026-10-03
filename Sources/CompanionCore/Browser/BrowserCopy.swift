@@ -57,6 +57,12 @@ package enum BrowserCopy {
             return "Type text into an element numbered by the last browser_read. Never into password or card fields."
         case (.type, .es):
             return "Escribe texto en un elemento numerado por la última browser_read. Nunca en contraseñas ni tarjetas."
+        case (.select, .en):
+            return "Choose an option of a dropdown list (a <select>) numbered by the last browser_read, by the "
+                + "option's label as the page shows it. Choosing something that deletes or sends asks first."
+        case (.select, .es):
+            return "Elige una opción de una lista desplegable (un <select>) numerada por la última browser_read, "
+                + "por la etiqueta de la opción tal como la muestra la página. Elegir algo que borre o envíe pregunta antes."
         case (.navigate, .en):
             return "Open an http or https address in a tab you control. Going to another site than the one shown asks first."
         case (.navigate, .es):
@@ -90,6 +96,8 @@ package enum BrowserCopy {
         case ("element", .es): return "número de elemento de la última browser_read"
         case ("text", .en): return "the exact text to type"
         case ("text", .es): return "el texto exacto a escribir"
+        case ("option", .en): return "the label of the option to choose, as the page shows it"
+        case ("option", .es): return "la etiqueta de la opción a elegir, tal como la muestra la página"
         case ("url", .en): return "the http or https address"
         case ("url", .es): return "la dirección http o https"
         default: return name
@@ -148,11 +156,23 @@ package enum BrowserCopy {
             return "Esta página no se puede leer (ajustes del navegador, un visor de PDF o una tienda). "
                 + "Dile a la persona, o busca la información por otra vía."
         case (BridgeCode.notTypable, .en):
-            return "That element does not take typed text (for example a dropdown list). Choose another "
-                + "element, or ask the user to pick the option."
+            return "That element does not take typed text. For a dropdown list use browser_select; otherwise "
+                + "choose another element."
         case (BridgeCode.notTypable, .es):
-            return "Ese elemento no admite texto (por ejemplo, una lista desplegable). Elige otro elemento, o "
-                + "pide a la persona que elija la opción."
+            return "Ese elemento no admite texto. Para una lista desplegable usa browser_select; si no, elige "
+                + "otro elemento."
+        case (BridgeCode.notSelectable, .en):
+            return "That element is not a dropdown list you can choose in (or it is disabled). Choose another "
+                + "element, or click the list to open it and read the tab again."
+        case (BridgeCode.notSelectable, .es):
+            return "Ese elemento no es una lista desplegable en la que se pueda elegir (o está desactivada). Elige "
+                + "otro elemento, o pulsa la lista para abrirla y vuelve a leer la pestaña."
+        case (BridgeCode.optionNotFound, .en):
+            return "No enabled option of that list has that label. Use one of the labels below exactly; if the one "
+                + "you want is not there, read the tab again."
+        case (BridgeCode.optionNotFound, .es):
+            return "Ninguna opción activa de esa lista tiene esa etiqueta. Usa una de las de abajo tal cual; si la "
+                + "que buscas no está, vuelve a leer la pestaña."
         case (_, .en): return "The browser failed: \(code)."
         case (_, .es): return "El navegador falló: \(code)."
         }
@@ -193,6 +213,8 @@ extension BrowserCopy {
         case (.rightClick, .es): return "Hice clic derecho en el navegador."
         case (.type, .en): return "Typed in the browser."
         case (.type, .es): return "Escribí en el navegador."
+        case (.select, .en): return "Chose an option in the browser."
+        case (.select, .es): return "Elegí una opción en el navegador."
         case (.navigate, .en): return "Navigated the browser."
         case (.navigate, .es): return "Navegué en el navegador."
         case (.open, .en): return "Opened a background tab."

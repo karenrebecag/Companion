@@ -207,6 +207,10 @@ package enum BridgeCode {
     package static let debuggerUnavailable = "debugger_unavailable"
     package static let unreadablePage = "unreadable_page"
     package static let notTypable = "not_typable"
+    /// browser_select's refusals: the element is not a usable `<select>`, or
+    /// no enabled option carries that label (the message lists the labels).
+    package static let notSelectable = "not_selectable"
+    package static let optionNotFound = "option_not_found"
     /// The tool exists but Companion's own window is in front, so there is no
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
     package static let selfInFront = "self_in_front"

@@ -331,6 +331,51 @@
     return { done: 'typed' };
   }
 
+  const OPTION_MAX = 60;
+  // Under the host's 300-character cap on an extension message, so the last label arrives whole.
+  const OPTIONS_BUDGET = 280;
+  const squash = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+  const optionLabel = (o) => squash(typeof o.label === 'string' ? o.label : o.textContent);
+
+  // By label only: the read never shows an option's value, and the gate judged the words the model
+  // sent, so a value would choose an option whose label nobody judged.
+  function selectOption(el, wanted) {
+    if (tagOf(el) !== 'select') return { error: { code: 'not_selectable', message: 'this element is not a list of options' } };
+    if (isSensitive(fieldOf(el))) return { error: { code: 'secure_field', message: 'sensitive field, choosing refused' } };
+    // A disabled fieldset disables its controls without setting their own flag.
+    if (el.disabled === true || (typeof el.matches === 'function' && el.matches(':disabled'))) {
+      return { error: { code: 'not_selectable', message: 'this list is disabled' } };
+    }
+    const all = Array.from(el.options ?? []);
+    // A disabled <optgroup> disables its options without setting their own flag.
+    const usable = all.filter((o) => !o.disabled && !(typeof o.matches === 'function' && o.matches(':disabled')));
+    const want = squash(wanted);
+    const match = usable.find((o) => optionLabel(o) === want)
+      ?? usable.find((o) => optionLabel(o).toLowerCase() === want.toLowerCase());
+    if (!match) {
+      const listed = [];
+      let used = 0;
+      for (const o of usable) {
+        const label = clip(optionLabel(o), OPTION_MAX);
+        const cost = Array.from(label).length + (listed.length ? 3 : 0);
+        if (used + cost > OPTIONS_BUDGET) break;
+        listed.push(label);
+        used += cost;
+      }
+      return { error: { code: 'option_not_found', message: listed.join(' | ') } };
+    }
+    // A real choice of the same option fires nothing, and a change handler may act on every event.
+    // A multi-select keeps what the user already chose there.
+    if (el.multiple ? match.selected : all.every((o) => o.selected === (o === match))) return { done: 'selected' };
+    if (el.multiple) match.selected = true;
+    else for (const o of all) o.selected = o === match;
+    const win = el.ownerDocument.defaultView;
+    const init = { bubbles: true, composed: true };
+    el.dispatchEvent(new win.Event('input', init));
+    el.dispatchEvent(new win.Event('change', init));
+    return { done: 'selected' };
+  }
+
   function stateOf() {
     globalThis.__companionState = globalThis.__companionState || { generation: -1, elements: new Map() };
     return globalThis.__companionState;
@@ -580,11 +625,12 @@
 
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
-    clickElement, doubleClickElement, contextClickElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt,
+    clickElement, doubleClickElement, contextClickElement, typeIntoElement, selectOption, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt,
     click: (generation, id) => act(generation, id, clickElement),
     doubleClick: (generation, id) => act(generation, id, doubleClickElement),
     contextClick: (generation, id) => act(generation, id, contextClickElement),
     type: (generation, id, text) => act(generation, id, (el) => typeIntoElement(el, text)),
+    select: (generation, id, option) => act(generation, id, (el) => selectOption(el, option)),
   };
   globalThis.__companionPage = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
