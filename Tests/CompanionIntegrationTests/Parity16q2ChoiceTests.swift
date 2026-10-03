@@ -300,7 +300,7 @@ private final class CardTap: ParentToolExecuting, @unchecked Sendable {
     expectEq(tap.typed, [], "16q-2: y no como palabras suyas: noteTurn no recibe la etiqueta")
     expectEq(tap.saidAtGate, [""], "16q-2: la compuerta recibe said vacio: una eleccion no es consentimiento")
     expect(service.calls.isEmpty, "16q-2: la escritura espera su hoja")
-    vm.answerApproval(false)
+    vm.answerPendingApproval(false)
     await pumpUntil("16q-2: idle") { !vm.busy }
     expect(service.calls.isEmpty, "16q-2: con no, no se escribe")
 }

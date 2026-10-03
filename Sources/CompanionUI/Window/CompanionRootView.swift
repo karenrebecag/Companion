@@ -140,8 +140,8 @@ package struct CompanionRootView: View {
         .dropdownPortal(host: dropdowns)
         .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: dropdowns.menu)
         .onExitCommand {
-            if chat.session.projection.approval != nil {
-                chat.answerApproval(false)
+            if let request = chat.session.projection.approval {
+                chat.answerApproval(false, requestId: request.requestId)
             } else if showSettings, dropdowns.session.isOpen {
                 withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
             } else if showSettings {
@@ -261,9 +261,7 @@ package struct CompanionRootView: View {
                         .fill(.ultraThinMaterial)
                         .overlay(Semantic.scrim)
                         .ignoresSafeArea()
-                    ApprovalSheet(request: request) { approved, remember in
-                        chat.answerApproval(approved, remember: remember)
-                    }
+                    ApprovalSheet(request: request, answer: chat.approvalAnswer(for: request))
                     // A new request is a new sheet: without the id, SwiftUI
                     // reuses the view and the countdown ring (and the
                     // remember toggle) inherit the previous request's state

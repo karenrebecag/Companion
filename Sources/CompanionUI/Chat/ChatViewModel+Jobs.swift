@@ -139,8 +139,26 @@ extension ChatViewModel {
     /// `remember` is the sheet's toggle (Wave 10c 3B.3). The reducer decides
     /// whether refusing this step stops the whole job (10c 3B.4) and where
     /// the answer travels; the thread only says what happened.
-    package func answerApproval(_ approved: Bool, remember: Bool = false) {
-        guard let request = pendingApproval else { return }
+    /// The closure a sheet hands its buttons, bound to the request it was built
+    /// for. Both sheet hosts use it, so the binding cannot drift between them.
+    package func approvalAnswer(for request: ApprovalRequest) -> (Bool, Bool) -> Void {
+        { [self] approved, remember in
+            answerApproval(approved, remember: remember, requestId: request.requestId)
+        }
+    }
+
+    /// `requestId` is the request the clicked sheet was showing: a click that
+    /// outlived its sheet must not answer the request that replaced it, and
+    /// the dwell guard alone only narrows that window.
+    package func answerApproval(_ approved: Bool, remember: Bool = false, requestId: String) {
+        guard let request = pendingApproval else {
+            log("approval: ignored an answer for \(requestId); nothing is pending")
+            return
+        }
+        guard request.requestId == requestId else {
+            log("approval: ignored an answer for \(requestId); \(request.requestId) is pending")
+            return
+        }
         let own = timeline(of: chatJobID)
         let effects = session.send(.approvalAnswered(
             requestId: request.requestId, approved: approved, remember: remember))

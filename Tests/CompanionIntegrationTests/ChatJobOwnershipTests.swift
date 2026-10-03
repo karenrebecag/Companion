@@ -57,7 +57,7 @@ private let voiceJob = JobID("voz")
     vm.receive(.job(.started(goal: "buscar vuelos"), from: voiceJob))
     vm.receive(.job(.approvalRequested(ApprovalRequest(
         requestId: "v1", toolName: "run_shell", summary: "ls", inputJSON: "{}")), from: voiceJob))
-    vm.answerApproval(false)
+    vm.answerPendingApproval(false)
     expect(vm.job == nil, "dueño: negar su primer paso para el encargo de voz")
     expect(!recorded(vm, "buscar vuelos"), "dueño: sin registro suyo en el hilo del chat")
     expect(!vm.cancelledJob, "dueño: ni marca parado al chat")

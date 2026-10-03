@@ -102,7 +102,7 @@ extension IslandView {
                     ApprovalSheet(request: request) { approved, remember in
                         guard ApprovalClickGuard.accepts(clickGuard, at: Date().timeIntervalSince1970)
                         else { return }
-                        chat.answerApproval(approved, remember: remember)
+                        chat.approvalAnswer(for: request)(approved, remember)
                     }
                     // A new request is a new sheet: without the id the
                     // reused view keeps the old ring and toggle (19-1b M1).

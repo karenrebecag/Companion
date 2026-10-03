@@ -62,3 +62,17 @@ import Testing
         chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
         store: MemoryConversationStore(), config: Config())
 }
+
+extension ChatViewModel {
+    /// Answers the sheet that is up right now. Failing when none is pending
+    /// keeps a test from silently answering "" and passing for the wrong reason.
+    @MainActor package func answerPendingApproval(
+        _ approved: Bool, remember: Bool = false
+    ) {
+        guard let id = pendingApproval?.requestId else {
+            expect(false, "answerPendingApproval: no approval is pending")
+            return
+        }
+        answerApproval(approved, remember: remember, requestId: id)
+    }
+}
