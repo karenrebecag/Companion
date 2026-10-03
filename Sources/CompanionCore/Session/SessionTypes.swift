@@ -117,12 +117,12 @@ package struct SessionProjection: Sendable, Equatable {
     /// so the island can key a one-shot pulse animation off a value that
     /// keeps changing instead of a bare "it happened" flag.
     package var handsPulse: Int = 0
-    /// Wave 20b: an executed bridge call happened within the linger. Drives
-    /// the screen aura; `handsLentTo` (the chip) is the permission, this is
-    /// the activity.
+    /// Wave 20b: an executed bridge call happened within the linger.
+    /// `handsLentTo` is the permission, this is the activity; self-inspection
+    /// reports it. It no longer lights the glow (Karen, 2026-10-03).
     package var handsActing: Bool = false
     /// Where the last call acted, in Accessibility's global top-left space.
-    /// Nil when the target app exposed no window; the aura then follows the cursor.
+    /// Nothing draws it since the glow left the hands.
     package var handsTarget: CGRect?
     /// 16h-2 (S2): a job's end is sounding or waiting for its gap, so a Stop
     /// at rest has something to silence.

@@ -67,8 +67,9 @@ extension IslandView {
                 }
                 // 19-1c: the "Manos"/"Detener manos" chip left the island
                 // (Karen, feedback en vivo): during the sheet it duplicated
-                // "No permitir", and at rest the screen aura is the hands
-                // signal. Stopping a live session lives in the menu bar.
+                // "No permitir". Since the glow stopped marking the hands
+                // (Karen, 2026-10-03, as in Incredible), the menu bar is where
+                // a live session shows and stops.
                 IslandLight(light: state.light)
             }
             .modifier(contentSlot(.field))
