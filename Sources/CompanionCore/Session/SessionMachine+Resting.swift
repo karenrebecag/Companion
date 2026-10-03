@@ -185,7 +185,7 @@ extension SessionMachine {
              .released, .holdConfirmed, .holdCancelled, .partialTranscript,
              .approvalAnswered, .approvalSpoken, .undoPressed, .noticeDismissed,
              .dictationCardHover, .dictationCardCopied, .dictationHidden,
-             .stop, .stopVoice, .stopJob:
+             .stop, .stopVoice, .stopJob, .islandEngaged:
             true
         default:
             false
