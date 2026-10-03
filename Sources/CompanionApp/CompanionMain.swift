@@ -61,6 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Wave 17: the local MCP bridge for Claude Code, off unless the setting
     /// is on. Read by `presentWindow` (the status menu's "Detener manos").
     var bridgeHost: BridgeHost?
+    var otherAudio: OtherAudioMuteCoordinator?
     /// Wave 18: the browser link; listens only once a browser was connected.
     var browserHost: BrowserHost?
     /// Self-qa (ADR 009): what the island and the window last painted. The
@@ -77,6 +78,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         holdKey?.stop()
         dictationTap?.stop()
         browserHost?.stop()
+        // The PR6b tap is an object of this process and dies with it, so a
+        // crash cannot leave the system muted; this only covers the orderly
+        // quit, and the unmute is queued best effort, not awaited.
+        otherAudio?.shutdown()
         ProcessRegistry.shared.terminateAll()
     }
 
@@ -161,6 +166,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onSessionBoundary: { [browserHost = sensing.browserHost] in browserHost.bridgeSessionChanged() })
         bridgeHost.apply(enabled: HandsLendingPreference.enabled)
         self.bridgeHost = bridgeHost
+        installOtherAudioMuting(sessionModel: sensing.sessionModel)
         NotificationCenter.default.addObserver(
             forName: .companionHandsLendingDidChange, object: nil, queue: .main
         ) { _ in
@@ -170,6 +176,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: .companionStopHands, object: nil, queue: .main
         ) { _ in
             Task { @MainActor in bridgeHost.stopHands() }
+        }
+    }
+
+    /// PR6a: the decision and the switch are live; the no-op adapter swaps for
+    /// the Core Audio one without touching this wiring.
+    private func installOtherAudioMuting(sessionModel: SessionModel) {
+        let coordinator = OtherAudioMuteCoordinator(
+            muter: NoOpOtherAudioMuting(), isEnabled: { MuteSoundWhileTalkingPref.enabled })
+        otherAudio = coordinator
+        sessionModel.addKindObserver { coordinator.observe($0) }
+        NotificationCenter.default.addObserver(
+            forName: .companionMuteSoundDidChange, object: nil, queue: .main
+        ) { _ in
+            Task { @MainActor in coordinator.preferenceDidChange() }
         }
     }
 

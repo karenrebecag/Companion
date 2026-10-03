@@ -49,6 +49,8 @@ package enum SettingsInventory {
                subtitleKey: "settings.app.talk.dictationKey.subtitle"),
         Option(tab: .general, titleKey: "settings.app.language", subtitleKey: "settings.app.language.subtitle"),
         Option(tab: .general, titleKey: "settings.sounds", subtitleKey: "settings.sounds.subtitle"),
+        Option(tab: .general, titleKey: "settings.muteWhileTalking",
+               subtitleKey: "settings.muteWhileTalking.subtitle"),
         Option(tab: .general, titleKey: "settings.screenGlow", subtitleKey: "settings.screenGlow.subtitle"),
         Option(tab: .voice, titleKey: "settings.voice.voice", subtitleKey: "settings.voice.blurb"),
         Option(tab: .vocabulary, titleKey: "settings.vocabulary", subtitleKey: "settings.vocabulary.subtitle"),

@@ -53,6 +53,8 @@ import Testing
     testWorkdirPreferenceLabel()
     testWorkdirRejectsUnboundedRoots()
     testDecisionPreferenceDefaultsOffAndRoundTrips()
+    testMuteSoundWhileTalkingDefaultsOffAndRoundTrips()
+    testMuteSoundWhileTalkingPostsOncePerRealChange()
 }
 
 /// DM1c-3 (wave-dm1-router.md §8): missing key reads as off — the router
@@ -219,4 +221,45 @@ private struct FailingSampler: VoiceSampling {
     func play(_ text: String, voice: VoiceID) async throws {
         throw ChatError.unreachable
     }
+}
+
+/// A missing key must not silence the user's music: the setting is opt-in.
+@MainActor func testMuteSoundWhileTalkingDefaultsOffAndRoundTrips() {
+    let suite = "companion.tests.muteSoundWhileTalking"
+    MuteSoundWhileTalkingPref.store = UserDefaults(suiteName: suite)!
+    defer {
+        MuteSoundWhileTalkingPref.store.removePersistentDomain(forName: suite)
+        MuteSoundWhileTalkingPref.store = .standard
+    }
+    MuteSoundWhileTalkingPref.store.removePersistentDomain(forName: suite)
+
+    expect(!MuteSoundWhileTalkingPref.enabled, "silenciar al hablar: sin clave, arranca apagado")
+    MuteSoundWhileTalkingPref.enabled = true
+    expect(MuteSoundWhileTalkingPref.enabled, "silenciar al hablar: round-trip enciende")
+    MuteSoundWhileTalkingPref.enabled = false
+    expect(!MuteSoundWhileTalkingPref.enabled, "silenciar al hablar: round-trip apaga")
+}
+
+/// The coordinator restores on this note; a repeat of the same value must not
+/// wake it, and a real change in either direction must.
+@MainActor func testMuteSoundWhileTalkingPostsOncePerRealChange() {
+    let suite = "companion.tests.muteSoundWhileTalking.posts"
+    MuteSoundWhileTalkingPref.store = UserDefaults(suiteName: suite)!
+    defer {
+        MuteSoundWhileTalkingPref.store.removePersistentDomain(forName: suite)
+        MuteSoundWhileTalkingPref.store = .standard
+    }
+    MuteSoundWhileTalkingPref.store.removePersistentDomain(forName: suite)
+    var posts = 0
+    let token = NotificationCenter.default.addObserver(
+        forName: .companionMuteSoundDidChange, object: nil, queue: nil
+    ) { _ in posts += 1 }
+    defer { NotificationCenter.default.removeObserver(token) }
+
+    MuteSoundWhileTalkingPref.enabled = true
+    expectEq(posts, 1, "silenciar al hablar: encender publica")
+    MuteSoundWhileTalkingPref.enabled = true
+    expectEq(posts, 1, "silenciar al hablar: repetir true no publica")
+    MuteSoundWhileTalkingPref.enabled = false
+    expectEq(posts, 2, "silenciar al hablar: apagar publica")
 }

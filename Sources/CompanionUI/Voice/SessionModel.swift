@@ -27,10 +27,17 @@ package final class SessionModel {
     /// 16h-3: where the island's events wait for the next turn.
     package var islandEvents: (any IslandEventSink)?
     /// Wave 17: "the voice wins" — `BridgeHost` pauses the bridge for any
-    /// turn of Karen's own and resumes it back at rest. `send(_:)` is the
-    /// only place `projection.kind` changes, so it is the only place that
-    /// needs to notice.
-    package var onKindChange: (@MainActor (SessionKind) -> Void)?
+    /// turn of Karen's own and resumes it back at rest; the audio coordinator
+    /// listens too. `send(_:)` is the only place `projection.kind` changes,
+    /// so it is the only place that needs to notice. A list, not one slot:
+    /// each consumer registers on its own and none can replace another.
+    private var kindObservers: [@MainActor (SessionKind) -> Void] = []
+
+    /// Called in registration order, once per real change of kind.
+    package func addKindObserver(_ observer: @escaping @MainActor (SessionKind) -> Void) {
+        kindObservers.append(observer)
+    }
+
     /// The user pressed Undo on a receipt (Wave 20d B). The composition root
     /// wires the adapter that takes the action back.
     package var onUndo: (@MainActor (UndoReceipt) -> Void)?
@@ -59,7 +66,7 @@ package final class SessionModel {
         let effects = machine.handle(event)
         projection = machine.projection
         if projection.kind != previousKind {
-            onKindChange?(projection.kind)
+            for observer in kindObservers { observer(projection.kind) }
         }
         // Anything that moved the chrome off Completed owns it now; a late
         // timer must not drag a new turn back to Idle.

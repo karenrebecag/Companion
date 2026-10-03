@@ -73,6 +73,7 @@ struct SettingsGeneralPage: View {
     /// deciding dictation.
     @State private var dictationKey = VoiceProfile.settings.dictationKey
     @State private var sounds = InterfaceSound.enabled && ThinkingSoundPref.enabled
+    @State private var muteWhileTalking = MuteSoundWhileTalkingPref.enabled
     @State private var screenGlow = ScreenGlowPreference.enabled()
     @State private var context = ContextSettingsModel()
 
@@ -110,6 +111,14 @@ struct SettingsGeneralPage: View {
                     SettingsSwitch(label: Localized.string("settings.sounds"), isOn: $sounds)
                 }
                 SettingsRow(
+                    title: Localized.string("settings.muteWhileTalking"),
+                    subtitle: Localized.string("settings.muteWhileTalking.subtitle"),
+                    key: "settings.muteWhileTalking"
+                ) {
+                    SettingsSwitch(
+                        label: Localized.string("settings.muteWhileTalking"), isOn: $muteWhileTalking)
+                }
+                SettingsRow(
                     title: Localized.string("settings.screenGlow"),
                     subtitle: Localized.string("settings.screenGlow.subtitle"),
                     key: "settings.screenGlow"
@@ -119,6 +128,7 @@ struct SettingsGeneralPage: View {
             }
         }
         .onChange(of: screenGlow) { _, on in ScreenGlowPreference.set(on) }
+        .onChange(of: muteWhileTalking) { _, on in MuteSoundWhileTalkingPref.enabled = on }
         .onChange(of: sounds) { _, on in
             InterfaceSound.enabled = on
             ThinkingSoundPref.enabled = on

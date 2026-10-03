@@ -83,7 +83,7 @@ final class BridgeHost {
         // and must not pause the bridge on a mouse pass. `resume()` fires
         // once, on the first non-turn kind after a turn, so it re-pins on
         // whatever app she left in front without re-pinning on every hover.
-        sessionModel.onKindChange = { [weak self, weak session] kind in
+        sessionModel.addKindObserver { [weak self, weak session] kind in
             guard let self, let session else { return }
             let isTurn = kind.isUsersTurn
             defer { self.lastKindWasTurn = isTurn }
