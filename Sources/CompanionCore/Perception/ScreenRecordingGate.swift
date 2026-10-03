@@ -38,6 +38,13 @@ package final class ScreenRecordingGate: @unchecked Sendable {
     package var status: ScreenRecordingStatus { lock.withLock { current } }
     package var sightReady: Bool { status == .verified }
 
+    /// The state with the preflight read live: a capture the preflight
+    /// refuses never reaches the gate, so a revoke would otherwise keep
+    /// reading as whatever the last probe saw.
+    package var grantedStatus: ScreenRecordingStatus {
+        checker.isGranted() ? status : .notGranted
+    }
+
     @discardableResult
     package func verify() async -> ScreenRecordingStatus {
         let started = lock.withLock { () -> Int in
