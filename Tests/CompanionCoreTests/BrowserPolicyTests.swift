@@ -191,6 +191,16 @@ private func navigate(_ from: String?, _ raw: String, said: String = "") -> Resu
     expect(tiny.utf8.count <= 8, "tope diminuto no revienta")
 }
 
+// H-4(a): a cut read must say how to reach what was cut, or the model reads "not listed" as
+// "not there" and decides the menu never opened.
+@Test func theCutNoteSaysHowToReachWhatWasCut() {
+    for language in AppLanguage.allCases {
+        let note = BrowserCopy.truncationNote(language)
+        expect(note.contains("selector"), "\(language): names the selector route")
+        expect(note.contains("[role=menu]") && note.contains("[role=dialog]"), "\(language): names the open menu or dialog")
+    }
+}
+
 @Test func renderIsValidUTF8AtTheCut() {
     for cap in 200...230 {
         let text = BrowserPolicy.render(page([], text: String(repeating: "\u{1F600}", count: 300)), maxBytes: cap)

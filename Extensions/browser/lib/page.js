@@ -330,6 +330,46 @@
   }
 
   // Ids are local to this document; the background renumbers them across frames and tracks the frame.
+  const OVERLAY = 'dialog[open], [aria-modal="true"], [role="dialog"], [role="alertdialog"], [role="menu"], '
+    + '[role="listbox"], :popover-open';
+
+  // A page with a menu per row would otherwise make every element test against every overlay.
+  const MAX_OVERLAYS = 20;
+
+  // Menus, dialogs and popovers mount in portals at the end of <body>, and the wire keeps the first
+  // elements and text when it cuts: in DOM order, what the user just opened is the first thing lost.
+  // HACK: an overlay inside a shadow root is not found, so it keeps its DOM place. Walk the shadow
+  // roots here when a real page loses an open menu that way.
+  function overlayFirst(doc, nodes) {
+    const body = String(doc.body?.innerText ?? '');
+    const outermost = [];
+    for (const candidate of doc.querySelectorAll(OVERLAY)) {
+      if (outermost.length === MAX_OVERLAYS) break;
+      // A listbox inside an open dialog is already in the dialog's text; keeping both reads it twice.
+      if (!isVisible(candidate) || outermost.some((kept) => kept.contains(candidate))) continue;
+      outermost.push(candidate);
+    }
+    if (outermost.length === 0) return { nodes, text: body };
+    const roots = new Set(outermost);
+    const insideOverlay = (node) => {
+      for (let at = node.parentElement; at; at = at.parentElement) if (roots.has(at)) return true;
+      return false;
+    };
+    const front = nodes.filter(insideOverlay);
+    const rest = nodes.filter((node) => !insideOverlay(node));
+    let remaining = body;
+    const parts = [];
+    for (const overlay of outermost) {
+      const part = String(overlay.innerText ?? '');
+      if (!part) continue;
+      parts.push(part);
+      // The portal sits at the end of the body text too, so its last copy is the one to drop.
+      const at = remaining.lastIndexOf(part);
+      if (at >= 0) remaining = remaining.slice(0, at) + remaining.slice(at + part.length);
+    }
+    return { nodes: [...front, ...rest], text: [...parts, remaining].join('\n\n') };
+  }
+
   function read(generation, selector, frame) {
     const state = stateOf();
     const doc = document;
@@ -337,7 +377,8 @@
     let text = '';
     if (selector == null) {
       collect(doc, nodes);
-      text = cutUnits(doc.body?.innerText, TEXT_MAX);
+      ({ nodes, text } = overlayFirst(doc, nodes));
+      text = cutUnits(text, TEXT_MAX);
     } else {
       const segments = parseSelector(selector);
       if (!segments) return { error: { code: 'invalid_args', message: 'invalid selector' } };
