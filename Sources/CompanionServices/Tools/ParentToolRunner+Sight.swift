@@ -107,9 +107,9 @@ extension ParentToolRunner {
         let sight = SightAct(hands: hands, screen: screen, pid: pid, bundle: bundle, tool: tool)
         switch tool {
         case .look: return sight.look()
-        case .click: return sight.click(call, arguments)
+        case .click: return await hands.observing(pid: pid) { sight.click(call, arguments) }
         case .scroll: return sight.scroll(arguments)
-        default: return sight.menu(call, arguments)
+        default: return await hands.observing(pid: pid) { sight.menu(call, arguments) }
         }
     }
 }
@@ -160,8 +160,11 @@ private struct SightAct {
         switch screen.click(node: element.node, generation: scan.generation, pid: pid, label: element.label) {
         case .clicked(let route):
             Log.app("sight: click id=\(id) via=\(route.rawValue) pid=\(pid) bundle=\(bundle)")
+            // With an observer the result ends with what changed; without
+            // one the model is the only eyes left.
+            let next = hands.changes == nil ? "; look again to see the result" : "."
             return ParentToolOutcome(
-                ok: true, output: "clicked [\(id)] \(element.kind) \"\(element.label)\"; look again to see the result",
+                ok: true, output: "clicked [\(id)] \(element.kind) \"\(element.label)\"" + next,
                 tool: tool.rawValue)
         case .stale:
             return fail("stale_id", "the window changed since that look; look again")

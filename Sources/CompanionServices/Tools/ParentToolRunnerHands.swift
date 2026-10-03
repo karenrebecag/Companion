@@ -21,6 +21,9 @@ package struct ScreenHands: Sendable {
     let screen: (any ScreenActing)?
     /// 16a-3: a capture described by vision, for questions about pixels.
     let see: (@Sendable (SeeRequest) async -> ScreenBrief?)?
+    /// What changed after a hand acted. Nil keeps the older "look again"
+    /// results, which is what every test without an observer expects.
+    let changes: (any AXChangeWatching)?
     let tickets = ApprovalTickets()
     let turn = TurnTarget()
     let scans = ScanMemory()
@@ -35,10 +38,12 @@ package struct ScreenHands: Sendable {
         bundleID: @escaping @Sendable (Int32) -> String?,
         selfInFront: @escaping @Sendable () -> Bool = { false },
         screen: (any ScreenActing)? = nil,
-        see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil
+        see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
+        changes: (any AXChangeWatching)? = nil
     ) {
         self.screen = screen
         self.see = see
+        self.changes = changes
         self.injector = injector
         self.reader = reader
         self.keys = keys
@@ -53,13 +58,14 @@ package struct ScreenHands: Sendable {
     package init(
         ax: AXTextInjector, screen: AXScreen, target: @escaping @Sendable () -> Int32?,
         selfInFront: @escaping @Sendable () -> Bool = { false },
-        see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil
+        see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
+        changes: (any AXChangeWatching)? = nil
     ) {
         self.init(
             injector: ax, reader: ax, keys: ax, windows: ax,
             trusted: { ax.isTrusted() }, target: target,
             bundleID: { AXTextInjector.bundleID(of: $0) }, selfInFront: selfInFront,
-            screen: screen, see: see)
+            screen: screen, see: see, changes: changes)
     }
 }
 
@@ -270,13 +276,33 @@ extension ParentToolRunner {
         }
         let act = HandsAct(hands: hands, pid: pid, bundle: bundle ?? "-", tool: tool)
         switch tool {
-        case .typeText: return await act.type(arguments)
-        case .pressKey: return act.press(arguments)
+        case .typeText: return await hands.observing(pid: pid, titles: false) { await act.type(arguments) }
+        case .pressKey: return await hands.observing(pid: pid) { act.press(arguments) }
         case .focusWindow: return act.raise(arguments)
         case .readFocused: return act.read()
         case .openApp, .openURL, .openFile, .listApps, .readSkill, .look, .click, .scroll, .menu, .see:
             return .failed(.notFound("not a hands tool: \(tool.rawValue)"), tool: tool.rawValue)
         }
+    }
+}
+
+extension ScreenHands {
+    /// Runs one hand action and closes its result with what changed. The
+    /// watch opens before the action so nothing it causes is missed, and a
+    /// failed action never pays the wait: nothing happened to observe.
+    func observing(
+        pid: Int32, titles: Bool = true, _ act: () async -> ParentToolOutcome
+    ) async -> ParentToolOutcome {
+        guard let changes else { return await act() }
+        let watch = changes.begin(pid: pid)
+        var outcome = await act()
+        guard outcome.ok else {
+            watch.cancel()
+            return outcome
+        }
+        let report = await watch.settle(.standard)
+        outcome.output += "\n" + ChangeSummary.line(report, titles: titles)
+        return outcome
     }
 }
 
