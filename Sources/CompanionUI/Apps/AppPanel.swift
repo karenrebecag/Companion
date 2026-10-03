@@ -79,12 +79,8 @@ struct AppPanel: View {
         switch state {
         case .connected:
             VStack(alignment: .leading, spacing: Space.x3) {
-                HStack(spacing: Space.x2) {
-                    StatusDot(IslandInk.green)
-                    Text(accountName ?? Localized.string("apps.connected")).font(.uiCaption)
-                        .foregroundStyle(Semantic.foreground)
-                        .lineLimit(1)
-                }
+                Badge(accountName ?? Localized.string("apps.connected"),
+                      variant: .secondary, dot: IslandInk.green)
                 disconnectSection
             }
         case .reconnect:
