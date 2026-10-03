@@ -24,6 +24,8 @@ package final class SessionModel {
     private var noticeExpiry: Task<Void, Never>?
     private var handsGlowExpiry: Task<Void, Never>?
     private var receiptExpiry: Task<Void, Never>?
+    /// P1: the wait before passive; each interaction replaces it.
+    private var passiveExpiry: Task<Void, Never>?
     /// 16h-3: where the island's events wait for the next turn.
     package var islandEvents: (any IslandEventSink)?
     /// Wave 17: "the voice wins" — `BridgeHost` pauses the bridge for any
@@ -148,6 +150,9 @@ package final class SessionModel {
         case .scheduleVoiceIdleExpiry(let delay):
             voiceIdle?.cancel()
             voiceIdle = timer(delay, then: .voiceIdleExpired)
+        case .schedulePassive(let delay, let armedFor):
+            passiveExpiry?.cancel()
+            passiveExpiry = timer(delay, then: .passiveExpired(armedFor: armedFor))
         case .hangUpVoice:
             guard let voice else { return }
             Task { await voice.hangUp() }

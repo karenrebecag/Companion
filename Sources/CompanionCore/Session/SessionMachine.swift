@@ -50,6 +50,9 @@ package struct SessionMachine: Sendable, Equatable {
     /// the chrome reaches rest, never mid-step.
     var turnReceipt: ActionReceipt?
     var receiptPublished = false
+    /// P1: the user's wait before passive (0: never) and the arm now running.
+    var passiveAfter: TimeInterval = 0
+    var passiveArm = 0
 
     package init() {}
 
@@ -58,7 +61,7 @@ package struct SessionMachine: Sendable, Equatable {
     /// or answers a request that is no longer there (16q-1 review, M2).
     package mutating func handle(_ event: SessionEvent) -> [SessionEffect] {
         let queued = projection.approvalQueue.map(\.requestId)
-        var effects = reduce(event)
+        var effects = reduce(event) + presence(after: event)
         let still = Set(projection.approvalQueue.map(\.requestId))
         effects += queued.filter { !still.contains($0) }.map { .approvalClosed(requestId: $0) }
         // C2: a spoken answer lands only on the front; the voice is told
@@ -240,6 +243,7 @@ package struct SessionMachine: Sendable, Equatable {
             }
         case .pendingTimedOut:
             if projection.kind == .processing(.pending) { projection.kind = restingKind() }
+        case .passiveAfterChanged, .passiveExpired: break
         case .voiceIdleExpired:
             // A notice still sounding keeps the warm session: hanging up
             // would cut it mid-sentence (review 16h-2 S1). It tries again.
