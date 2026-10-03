@@ -143,6 +143,7 @@ extension AppDelegate {
         holdSettings.mainInFront = window.isKeyWindow
         // Before the island: at the same level, the later window stays on top.
         screenOverlays = ScreenOverlays(session: sessionModel, onFailure: { Log.app($0) })
+        followHolds(sessionModel)
         let islandGeometry = IslandGeometry()
         let recentFiles = RecentFiles()
         let diagramRenderer = WebKitDiagramRenderer()

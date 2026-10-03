@@ -49,6 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var island: IslandPanel?
     /// Set by `presentWindow`.
     var screenOverlays: ScreenOverlays?
+    /// Incredible's hold observations, following the session's hold. Set by `presentWindow`.
+    var holdSync: HoldObservationSync?
     /// Set by `presentWindow`.
     var statusMenu: StatusBarMenu?
     /// Set by `presentWindow`, read by `startHoldKeyIfAllowed` below.

@@ -1,0 +1,1 @@
+- **Mientras se sostiene la tecla, Companion ve a donde vas y que copias, como Incredible (2026-10-03).** Cada cambio de app o ventana destella en la pildora del cursor y cada texto copiado se apila sobre ella y entra en la transcripcion donde iba la voz. Solo durante el hold; lo que marca un gestor de contrasenas nunca se lee, y nada de lo observado va a los logs.
