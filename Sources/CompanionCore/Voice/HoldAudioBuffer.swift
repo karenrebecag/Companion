@@ -20,7 +20,7 @@ package struct HoldAudioBuffer: Sendable, Equatable {
     /// sits above this mic's measured ambient noise floor (0.12, see
     /// `VoiceSessionPumps.driveTurn`) and comfortably below real speech
     /// (0.3-0.8, same measurement) — a conservative gate, not a guess.
-    private static let speechRMSThreshold = 0.2
+    package static let speechRMSThreshold = 0.2
     /// A single loud frame (a click, a chair creak) must not pass the gate;
     /// real speech holds several frames above threshold.
     private static let minSpeechFrames = 3

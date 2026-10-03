@@ -396,6 +396,41 @@ private func inUnitRange(_ value: Double) -> Bool {
         #expect(marks == [WaveformMark(x: 97.5, sample: history.sample(for: 1))])
     }
 
+    // Reduce Motion never pushes a column, so whatever the live column holds
+    // must come from the latest frame, not from everything since the strip appeared.
+    @Test func withoutScrollTheLiveColumnGoesBackToADotWhenTheVoiceStops() {
+        var history = WaveformHistory()
+        history.ingest(level: WaveformHistory.level(meter: 0.6), voiced: true)
+        for _ in 0 ..< 5 {
+            history.ingest(level: WaveformHistory.level(meter: 0.12), voiced: false)
+        }
+        let marks = history.marks(width: 100, scrolls: false)
+        #expect(marks.count == 1)
+        #expect(marks.first?.sample == 0, "\(marks)")
+    }
+
+    @Test func withoutScrollAVoicedLatestFrameIsABar() {
+        var history = WaveformHistory()
+        history.ingest(level: WaveformHistory.level(meter: 0.12), voiced: false)
+        history.ingest(level: WaveformHistory.level(meter: 0.6), voiced: true)
+        let sample = history.marks(width: 100, scrolls: false).first?.sample ?? 0
+        #expect(WaveformHistory.column(sample, gate: WaveformHistory.gate, height: 26) != .dot)
+    }
+
+    @Test func withoutScrollOrDetectorTheGateReadsTheLatestFrame() {
+        var history = WaveformHistory()
+        history.ingest(level: 1)
+        history.ingest(level: 0.05)
+        #expect(history.marks(width: 100, scrolls: false) == [WaveformMark(x: 97.5, sample: 0)])
+    }
+
+    @Test func scrollingTheLiveColumnStillShowsTheLoudestFrameOfTheColumn() {
+        var history = WaveformHistory()
+        history.ingest(level: 1, voiced: true)
+        history.ingest(level: 0.05, voiced: false)
+        #expect(history.marks(width: 100, scrolls: true).last?.sample == history.sample(for: 1))
+    }
+
     @Test func scrollingDrawsTheHistoryThenTheLiveColumn() {
         var history = WaveformHistory()
         columns(3, level: 0, into: &history)
