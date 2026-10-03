@@ -631,6 +631,17 @@ test('an element something else covers is never pressed with the mouse', async (
   assert.equal(reply.error.code, 'stale_id');
 });
 
+// H-1: the page refuses an element that changed since the read; the background must not press it anyway.
+test('an element that changed since the read is never pressed, trusted or synthetic', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const changed = { error: { code: 'stale_id', message: 'element changed since the read, read the page again' } };
+  const { generation, clicked } = await readyButton(rig, changed);
+  const reply = await ask(rig.ports[0], 54, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+  assert.equal(clicked.length, 0);
+});
+
 test('a press whose landing cannot be confirmed is not pressed again nor clicked synthetically', async () => {
   const rig = await boot({ tabs: userTabs() });
   const { generation, clicked } = await readyButton(rig, onScreen, { landed: false });
@@ -730,6 +741,16 @@ test('trusted typing presses the field once and sends every printable key', asyn
   assert.equal(presses(rig.state).length, 1);
   assert.deepEqual(presses(rig.state).map(([, , p]) => [p.button, p.clickCount]), [['left', 1]], 'one plain left press focuses it');
   assert.equal(keysSent(rig.state), 'Ana');
+});
+
+test('a field that changed since the read gets no keys at all', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const changed = { error: { code: 'stale_id', message: 'element changed since the read, read the page again' } };
+  const { generation, log } = await readyField(rig, { prepare: changed });
+  const reply = await ask(rig.ports[0], 73, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(inputCalls(rig.state).length, 0);
+  assert.deepEqual(log.synthetic, []);
 });
 
 test('typing never sends Return, Escape or any other control key, and says so', async () => {

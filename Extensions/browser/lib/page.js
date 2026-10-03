@@ -240,10 +240,19 @@
 
   const stale = (message) => ({ error: { code: 'stale_id', message } });
 
+  // What the read showed and the gate judged (label, context, link). The value is left out: typing
+  // changes it on purpose; a sensitive field is re-checked live before any key.
+  function identityOf(el) {
+    return [roleOf(el), labelOf(el), contextOf(el), hrefOf(el) ?? ''].join('\u0000');
+  }
+
   function lookup(state, generation, id) {
     if (!state || state.generation !== generation) return stale('generation is out of date, read the page again');
     const element = state.elements.get(id);
     if (!element || element.isConnected === false) return stale('element is gone, read the page again');
+    // A reused or rewritten node keeps its id and stays connected; acting on it would press what nobody approved.
+    const seen = state.identities?.get(id);
+    if (seen !== undefined && identityOf(element) !== seen) return stale('element changed since the read, read the page again');
     return { element };
   }
 
@@ -445,8 +454,10 @@
     }
     state.generation = generation;
     state.elements = new Map();
+    state.identities = new Map();
     const elements = nodes.map((node, i) => {
       state.elements.set(i + 1, node);
+      state.identities.set(i + 1, identityOf(node));
       return serializeElement(node, i + 1, frame);
     });
     // Each frame reports its own origin so the app can tell third-party frames from the page.
