@@ -4,12 +4,10 @@ import SwiftUI
 // How the island moves (spec 16f §2.5, §9): the shape first, the content
 // after, and the notch that leans toward the pointer.
 extension IslandView {
-    /// Panel reveal under the shape: a fade, as Incredible's.
-    var contentMove: IslandMoveModifier {
-        let move = IslandMotionBudget.contentIn.resolved(reduceMotion: reduceMotion)
-        return IslandMoveModifier(
-            opacity: contentVisible ? 1 : 0, blur: contentVisible ? 0 : move.blur,
-            offset: contentVisible ? 0 : move.offset)
+    /// Panel reveal under the shape: each slot fades on its own beat, as Incredible's.
+    func contentSlot(_ slot: IslandMotion.Slot) -> IslandSlotReveal {
+        IslandSlotReveal(visible: contentVisible,
+                         fade: IslandMotion.slotFade(slot, showing: contentVisible, reduceMotion: reduceMotion))
     }
 
     /// The black shape that continues the notch. At rest it is the notch,
@@ -65,9 +63,8 @@ extension IslandView {
             geometry.answer = nil
         }
         if reopens || IslandMotion.rests(to) {
-            withAnimation(reduceMotion ? nil : IslandMotionBudget.contentOut.animation(reduceMotion: false)) {
-                contentVisible = false
-            }
+            // Each slot carries its own fade out.
+            contentVisible = false
         }
         motion = Task { @MainActor in
             var clock = 0.0
@@ -87,9 +84,8 @@ extension IslandView {
                     self.stage = stage
                 case .content:
                     guard !contentVisible else { continue }
-                    withAnimation(IslandMotionBudget.contentIn.animation(reduceMotion: reduceMotion)) {
-                        contentVisible = true
-                    }
+                    // Each slot carries its own fade in and its own wait.
+                    contentVisible = true
                 }
             }
         }

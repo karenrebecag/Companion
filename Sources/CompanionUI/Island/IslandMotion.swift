@@ -109,9 +109,44 @@ enum IslandMotion {
         }
     }
 
-    /// When the content starts to fade in, from the moment the size changed.
-    static func contentStart(from: IslandState.Size, to: IslandState.Size, reduceMotion: Bool) -> Double {
-        reduceMotion ? 0 : contentDelay
+    /// Incredible reveals the open island in three slots, in this order.
+    enum Slot: Int, CaseIterable {
+        case field, conversation, card
+    }
+
+    /// Incredible's slots reveal 30 ms apart.
+    static let slotStep = 0.03
+
+    /// How long a slot waits after the content beat.
+    static func slotDelay(_ slot: Slot, reduceMotion: Bool) -> Double {
+        reduceMotion ? 0 : Double(slot.rawValue) * slotStep
+    }
+
+    /// When a slot starts to fade in, from the moment the size changed.
+    static func contentStart(from: IslandState.Size, to: IslandState.Size, reduceMotion: Bool,
+                             slot: Slot = .field) -> Double {
+        reduceMotion ? 0 : contentDelay + slotDelay(slot, reduceMotion: false)
+    }
+
+    struct SlotFade: Equatable {
+        let delay: Double
+        let duration: Double
+        let curve: [Double]
+
+        var animation: Animation { MotionCurve.animation(curve, duration).delay(delay) }
+    }
+
+    /// Opening, each slot on its own beat; closing, all of them at once with the shape.
+    /// Reduce motion leaves without a fade, as the island always has.
+    static func slotFade(_ slot: Slot, showing: Bool, reduceMotion: Bool) -> SlotFade? {
+        if showing {
+            let move = IslandMotionBudget.contentIn.resolved(reduceMotion: reduceMotion)
+            return SlotFade(delay: slotDelay(slot, reduceMotion: reduceMotion), duration: move.duration,
+                            curve: move.curve)
+        }
+        if reduceMotion { return nil }
+        let move = IslandMotionBudget.contentOut
+        return SlotFade(delay: 0, duration: move.duration, curve: move.curve)
     }
 
     /// How long the panel is open with its content invisible: opening, from

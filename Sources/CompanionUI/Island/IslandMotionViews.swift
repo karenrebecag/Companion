@@ -47,6 +47,17 @@ struct IslandHeaderSwapTransition: Transition {
     }
 }
 
+/// One slot of the open island fading on its own beat. Scoped to the opacity, so the
+/// slot's clock wins over whatever transaction flipped `visible`.
+struct IslandSlotReveal: ViewModifier {
+    let visible: Bool
+    let fade: IslandMotion.SlotFade?
+
+    func body(content: Content) -> some View {
+        content.animation(fade?.animation) { $0.opacity(visible ? 1 : 0) }
+    }
+}
+
 /// One phase of a card's way in or out.
 struct IslandCardModifier: ViewModifier {
     let state: IslandMotionBudget.Card.State
