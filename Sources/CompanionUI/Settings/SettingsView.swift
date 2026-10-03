@@ -5,9 +5,6 @@ import SwiftUI
 package enum SettingsOverlayMetrics {
     /// The history overlay still uses the old square bound.
     package static let maxSide: CGFloat = 560
-    /// 16g: the sidebar widens the sheet; the height stays a sheet's.
-    package static let maxWidth: CGFloat = 780
-    package static let maxHeight: CGFloat = 620
     package static let sidebar: CGFloat = 200
     package static let cardHeight: CGFloat = 68
     package static let avatar: CGFloat = Space.x8 + Space.x1
@@ -27,8 +24,7 @@ package struct SettingsView: View {
     var browser: BrowserSettingsModel?
     let onClose: () -> Void
     @Binding var tab: SettingsTab
-    let layout: SettingsLayout
-    @State private var query = ""
+    @Binding var query: String
     @State private var highlight: String?
     @State private var highlightTimer: Task<Void, Never>?
     @State private var confirmPurge = false
@@ -46,7 +42,7 @@ package struct SettingsView: View {
         memory: (any MemoryBrowsing)? = nil,
         browser: BrowserSettingsModel? = nil,
         tab: Binding<SettingsTab> = .constant(.general),
-        layout: SettingsLayout = .sheet,
+        query: Binding<String> = .constant(""),
         onClose: @escaping () -> Void = {}
     ) {
         self.preview = preview
@@ -56,16 +52,14 @@ package struct SettingsView: View {
         self.browser = browser
         self.updates = updates
         self._tab = tab
-        self.layout = layout
+        self._query = query
         self.onClose = onClose
     }
 
     private let updates: UpdateState?
 
     package var body: some View {
-        Group {
-            if layout.showsSidebar { sheetBody } else { compactBody }
-        }
+        sheetBody
         .overlay {
             if dropdowns.session.isOpen, case .settingsPick = dropdowns.menu {
                 Color.black.opacity(0.001)
@@ -83,56 +77,13 @@ package struct SettingsView: View {
         .onAppear { refreshStorage() }
     }
 
-    /// The sheet: sidebar, hairline, page, in its own rounded surface.
+    /// Sidebar, hairline, page; the sheet host supplies the surface and the close.
     private var sheetBody: some View {
         HStack(spacing: Space.none) {
             SettingsSidebar(tab: $tab, query: $query, onPick: jump)
                 .frame(width: SettingsOverlayMetrics.sidebar)
             Rectangle().fill(Semantic.border).frame(width: Stroke.hairline)
             pageScroll
-        }
-        .background(Semantic.background)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
-        .background(
-            RoundedRectangle(cornerRadius: Radius.xl)
-                .fill(Semantic.background)
-                .elevation(.sheet))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.xl)
-                .stroke(Semantic.border, lineWidth: Stroke.hairline))
-        .overlay(alignment: .topTrailing) { closeButton }
-    }
-
-    /// The floating panel: the page chips replace the sidebar and the panel
-    /// supplies the surface, the header and the close.
-    private var compactBody: some View {
-        VStack(spacing: Space.none) {
-            SettingsSearchField(query: $query, onSubmit: submitFirst)
-                .padding(.horizontal, SettingsPanelMetrics.paddingX)
-                .padding(.bottom, Space.x2)
-            ScrollView(.horizontal) {
-                HStack(spacing: Space.x1) {
-                    ForEach(SettingsTab.allCases, id: \.self) { page in
-                        Button { withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { tab = page } } label: {
-                            Label(page.title, systemImage: page.symbol)
-                        }
-                        .buttonStyle(.shadcn(tab == page ? .secondary : .ghost, size: .sm))
-                        .accessibilityAddTraits(tab == page ? .isSelected : [])
-                    }
-                }
-                .padding(.horizontal, SettingsPanelMetrics.paddingX)
-            }
-            .scrollIndicators(.hidden)
-            if query.trimmingCharacters(in: .whitespaces).isEmpty {
-                pageScroll
-            } else {
-                ScrollView {
-                    SettingsSearchResults(query: query, onPick: jump)
-                        .padding(layout.pagePadding)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .scrollIndicators(.hidden)
-            }
         }
     }
 
@@ -143,7 +94,7 @@ package struct SettingsView: View {
     private var pageScroll: some View {
         ScrollView {
             page
-                .padding(layout.pagePadding)
+                .padding(Space.x6)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .id("\(tab.rawValue)-\(languageTick)")
                 .transition(ChromeMotion.transition(.modeSwap, reduceMotion: reduceMotion))
@@ -171,14 +122,6 @@ package struct SettingsView: View {
                 chat: chat, updates: updates, welcome: welcome, storageLabel: storageLabel,
                 confirmPurge: $confirmPurge, onClose: onClose, onAppear: refreshStorage)
         }
-    }
-
-    private var closeButton: some View {
-        CloseButton {
-            dropdowns.dismiss()
-            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { onClose() }
-        }
-        .padding(Space.x4)
     }
 
     /// A search result opens its page and lights the row for a moment, so
@@ -376,6 +319,6 @@ enum SettingsVersion {
 #Preview {
     SettingsView(onClose: {})
         .environment(DropdownHost())
-        .frame(width: SettingsOverlayMetrics.maxWidth, height: SettingsOverlayMetrics.maxHeight)
+        .frame(width: SettingsSheetMetrics.maxWidth, height: SettingsSheetMetrics.maxHeight)
 }
 #endif

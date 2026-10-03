@@ -35,7 +35,7 @@ import Testing
         expectEq(SettingsTab.allCases.map(\.title),
                  ["General", "Voice", "Vocabulary", "Memory", "You", "Privacy", "System"], "settings: names en")
     }
-    expect(SettingsOverlayMetrics.maxWidth > SettingsOverlayMetrics.maxSide, "ajustes: la barra ensancha la hoja")
+    expect(SettingsSheetMetrics.maxWidth > SettingsOverlayMetrics.maxSide, "ajustes: la hoja es mas ancha que el historial")
 }
 
 @MainActor func testEveryOptionHasAPage() {
