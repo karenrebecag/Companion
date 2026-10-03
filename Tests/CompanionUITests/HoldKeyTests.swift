@@ -295,6 +295,15 @@ private func request(_ id: String) -> ApprovalRequest {
     let guardOn = ApprovalClickGuard(shownAt: 10)
     expect(!guardOn.accepts(at: 10.2), "hoja: un clic a 200 ms no cuenta")
     expect(guardOn.accepts(at: 11), "hoja: pasado el reposo sí")
+    // Hidden-clicks finding: the island grows with the content at opacity 0.
+    expect(!ApprovalClickGuard.accepts(guardOn, at: 11, contentVisible: false),
+           "hoja: con el contenido invisible no acepta, aunque pase el reposo")
+    expect(ApprovalClickGuard.accepts(guardOn, at: 11, contentVisible: true),
+           "hoja: visible y pasado el reposo sí")
+    expect(!ApprovalClickGuard.accepts(guardOn, at: 10.2, contentVisible: true),
+           "hoja: visible pero dentro del reposo no")
+    expect(!ApprovalClickGuard.accepts(nil, at: 11, contentVisible: true),
+           "hoja: sin guarda no acepta aunque sea visible")
 }
 
 /// 28 (12c). La island lleva el parcial en Listening y en Pending, y en

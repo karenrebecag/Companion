@@ -100,10 +100,14 @@ extension IslandView {
             VStack(spacing: Space.none) {
                 if let request = state.approval {
                     ApprovalSheet(request: request) { approved, remember in
-                        guard ApprovalClickGuard.accepts(clickGuard, at: Date().timeIntervalSince1970)
+                        guard ApprovalClickGuard.accepts(clickGuard, at: Date().timeIntervalSince1970,
+                                                   contentVisible: contentVisible)
                         else { return }
                         chat.approvalAnswer(for: request)(approved, remember)
                     }
+                    // The window grows before the content fades in: until it
+                    // is visible the buttons take no clicks at all.
+                    .allowsHitTesting(contentVisible)
                     // A new request is a new sheet: without the id the
                     // reused view keeps the old ring and toggle (19-1b M1).
                     .id(request.requestId)
