@@ -23,6 +23,11 @@ package enum SkeletonMotion {
     }
 }
 
+package enum SkeletonFill {
+    /// Arc's skeleton puts its blocks at 38 % of the strong border.
+    package static let darkMix = 0.38
+}
+
 /// One placeholder shape. Decorative: the container it sits in carries the
 /// single "loading" label.
 struct SkeletonBlock: View {
@@ -33,7 +38,7 @@ struct SkeletonBlock: View {
 
     var body: some View {
         RoundedRectangle(cornerRadius: radius)
-            .fill(Semantic.surfaceSecondary)
+            .fill(Semantic.skeletonFill)
             .frame(maxWidth: width, minHeight: height, maxHeight: height)
             .opacity(opacity)
             .accessibilityHidden(true)

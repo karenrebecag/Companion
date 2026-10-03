@@ -26,6 +26,34 @@ private final class StalledApps: AppsService, @unchecked Sendable {
     }
 }
 
+/// A loaded catalog: one connected app, one to reconnect, the rest new,
+/// so every card trailing state shows in one frame.
+private final class ReadyApps: AppsService, @unchecked Sendable {
+    private let catalogApps = [
+        CatalogApp(slug: "slack", name: "Slack",
+                   description: "Send messages, search channels and keep a team in the loop.", icon: nil),
+        CatalogApp(slug: "notion", name: "Notion",
+                   description: "Read and write pages and databases in your workspace.", icon: nil),
+        CatalogApp(slug: "linear", name: "Linear", description: "Create and update issues.", icon: nil),
+        CatalogApp(slug: "gmail", name: "Gmail",
+                   description: "Read, search and draft email without leaving the conversation, across every label.",
+                   icon: nil),
+    ]
+    func catalog(query: String, after: String?) async throws -> CatalogPage {
+        CatalogPage(apps: catalogApps, total: 2400, next: nil)
+    }
+    func accounts() async throws -> [ConnectedAccount] {
+        [ConnectedAccount(id: "a1", app: "slack", name: "karen@atom.test", state: .connected),
+         ConnectedAccount(id: "a2", app: "notion", name: nil, state: .reconnect)]
+    }
+    func connectLink(app: String) async throws -> URL { throw AppsFailure.unexpected }
+    func tools(app: String) async throws -> [AppAction] { [] }
+    func disconnect(account: String) async throws {}
+    func call(app: String, tool: String, argumentsJSON: String, approved: Bool) async throws -> AppCallResult {
+        throw AppsFailure.unexpected
+    }
+}
+
 @Test(.enabled(if: ProcessInfo.processInfo.environment["COMPANION_SNAPSHOTS"] != nil,
                "gallery: only with COMPANION_SNAPSHOTS=<dir>, like the other galleries"))
 @MainActor func appsLoadingSnapshots() async throws {
@@ -42,6 +70,7 @@ private final class StalledApps: AppsService, @unchecked Sendable {
             for scheme in [ColorScheme.light, .dark] {
                 let tag = (scheme == .light ? "light" : "dark") + suffix
                 try await renderCatalogLoading(scheme: scheme, to: out, "apps-catalog-loading-\(tag)")
+                try await renderCatalogReady(scheme: scheme, to: out, "apps-catalog-ready-\(tag)")
                 for (name, phase, disconnect) in [
                     ("actions-loading", AppsModel.ActionsPhase.loading, AppsModel.DisconnectPhase.idle),
                     ("disconnecting", .ready([]), .disconnecting),
@@ -56,6 +85,20 @@ private final class StalledApps: AppsService, @unchecked Sendable {
             }
         }
     }
+}
+
+@MainActor private func renderCatalogReady(scheme: ColorScheme, to out: URL, _ name: String) async throws {
+    let apps = AppsModel(
+        secrets: TestSecretStore(), hostSecrets: TestHostSecretStore(),
+        defaults: UserDefaults(suiteName: "apps-shots-\(UUID().uuidString)")!,
+        makeService: { _, _ in ReadyApps() })
+    #expect(apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64)))
+    await apps.load()
+    guard apps.phase == .ready else {
+        Issue.record("apps-card: \(name) never reached .ready")
+        return
+    }
+    try renderHosted(AppsPage(apps: apps), scheme: scheme, size: CGSize(width: 1000, height: 760), to: out, name)
 }
 
 @MainActor private func renderCatalogLoading(scheme: ColorScheme, to out: URL, _ name: String) async throws {

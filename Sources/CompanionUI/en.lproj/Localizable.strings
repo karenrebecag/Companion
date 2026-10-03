@@ -472,7 +472,7 @@
 "apps.total" = "%ld apps";
 "apps.none" = "No app matches that search.";
 "apps.more" = "Show more (%ld left)";
-"apps.connect" = "+ Connect";
+"apps.connect" = "Connect";
 "apps.reconnect" = "Reconnect";
 "apps.connected" = "Connected";
 "apps.retry" = "Try again";

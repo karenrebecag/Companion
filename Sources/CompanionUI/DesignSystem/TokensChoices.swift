@@ -98,6 +98,24 @@ package enum Semantic {
     package static var border: Color { pair(Palette.borderDefault, Neutral.n800) }
     package static var borderStrong: Color { pair(Palette.borderInput, Neutral.n700) }
     package static var borderChrome: Color { pair(Palette.borderChrome, Neutral.n800) }
+    /// Incredible's connector card under the pointer (border-black/[0.14]).
+    /// Incredible has no dark theme; white at the same strength mirrors it.
+    package static var cardHoverBorder: Color { tint(Neutral.black, 0.14, Neutral.white, 0.14) }
+
+    // Status pills
+    /// Incredible has no dark pill; dark reuses the island's signal green as
+    /// ink over a wash of itself so the pill still reads as "on".
+    package static var connectedWash: Color { tint(Palette.connectedWash, 1, Palette.signalGreen, 0.14) }
+    package static var connectedInk: Color { pair(Palette.connectedInk, Palette.signalGreen) }
+
+    // Skeleton
+    /// Light is Incredible's bg-surface-secondary. Incredible defines no dark
+    /// value, so dark takes Arc's skeleton contrast rule instead: the strong
+    /// border mixed over the card surface the blocks sit on (n700 and n900
+    /// are borderStrong's and surface's dark sides). surfaceSecondary's own
+    /// dark side sat one step off the card and all but vanished.
+    package static var skeletonFill: Color { pair(Palette.surfaceSecondary, skeletonDark) }
+    private static let skeletonDark = ColorMix.oklab(Neutral.n700, over: Neutral.n900, amount: SkeletonFill.darkMix)
 
     // Primary: Incredible's solid button is pure black on light.
     package static var primary: Color { pair(Neutral.black, Neutral.n50) }

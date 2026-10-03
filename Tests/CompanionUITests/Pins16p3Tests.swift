@@ -117,10 +117,11 @@ private let linePitchTolerance: CGFloat = 0.5
 }
 
 @MainActor func testAppsPins() {
-    expectEq([AppsMetrics.icon, AppsMetrics.iconRadius, AppsMetrics.cardMinHeight,
-              AppsMetrics.gridGap, AppsMetrics.formWidth],
-             [40, 6, 132, 16, 460],
-             "16p-3 apps: icono 40, radio md, tarjeta 132, gap 16, formulario 460 (propios)")
+    // The card's own icon and height moved to AppCardMetrics (Incredible's
+    // connector card, AppCardParityTests); these stay Companion's.
+    expectEq([AppsMetrics.iconRadius, AppsMetrics.gridGap, AppsMetrics.formWidth],
+             [6, 16, 460],
+             "16p-3 apps: radio md, gap 16, formulario 460 (propios)")
     expectEq(AppsMetrics.searchPause, 0.3, "16p-3 apps: 0,3 s de pausa antes de buscar")
 }
 

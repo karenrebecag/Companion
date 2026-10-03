@@ -9,9 +9,7 @@ package enum AppsMetrics {
     // None of these are in docs/research: Incredible's Apps grid was read for
     // its structure, not its pixels. Own values, pinned in Pins16p3Tests so a
     // later capture overrules them on purpose.
-    package static let icon: CGFloat = 40
     package static let iconRadius: CGFloat = Radius.md
-    package static let cardMinHeight: CGFloat = 132
     package static let gridGap: CGFloat = Space.x4
     package static let formWidth: CGFloat = 460
     /// Typing pause before a search goes out; not motion, a request budget.
@@ -213,13 +211,9 @@ struct AppsPage: View {
                     .monospacedDigit()
                     .foregroundStyle(Semantic.mutedForeground)
             }
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: AppsMetrics.gridGap),
-                                GridItem(.flexible(), spacing: AppsMetrics.gridGap)],
-                      spacing: AppsMetrics.gridGap) {
-                ForEach(CatalogSeed.filtered(searchText, language: Localized.language())) { app in
-                    AppCard(app: app, state: nil,
-                            onOpen: { editing = true }, onConnect: { editing = true })
-                }
+            AppsGrid(items: CatalogSeed.filtered(searchText, language: Localized.language())) { app in
+                AppCard(app: app, state: nil,
+                        onOpen: { editing = true }, onConnect: { editing = true })
             }
         }
     }
@@ -289,13 +283,9 @@ struct AppsPage: View {
     }
 
     private func grid(_ items: [CatalogApp]) -> some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: AppsMetrics.gridGap),
-                            GridItem(.flexible(), spacing: AppsMetrics.gridGap)],
-                  spacing: AppsMetrics.gridGap) {
-            ForEach(items) { app in
-                AppCard(app: app, state: apps.state(of: app.slug),
-                        onOpen: { apps.open(app) }, onConnect: { apps.start(app) })
-            }
+        AppsGrid(items: items) { app in
+            AppCard(app: app, state: apps.state(of: app.slug),
+                    onOpen: { apps.open(app) }, onConnect: { apps.start(app) })
         }
     }
 
@@ -340,86 +330,57 @@ struct AppsPage: View {
     }
 }
 
-struct AppCard: View {
-    let app: CatalogApp
-    let state: ConnectedAccount.State?
-    let onOpen: () -> Void
-    let onConnect: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.x3) {
-            HStack(spacing: Space.x3) {
-                AppIconView(icon: app.icon, size: AppsMetrics.icon, padding: Space.x1_5)
-                Text(app.name)
-                    .font(Fonts.sans(TypeSize.rowTitle).weight(.semibold))
-                    .foregroundStyle(Semantic.foreground)
-                    .lineLimit(1)
-                Spacer(minLength: Space.none)
-            }
-            if let description = app.description, !description.isEmpty {
-                Text(description)
-                    .typeRole(.micro)
-                    .foregroundStyle(Semantic.mutedForeground)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: Space.none)
-            action
-        }
-        .padding(CardChrome.padding)
-        .frame(maxWidth: .infinity, minHeight: AppsMetrics.cardMinHeight, alignment: .topLeading)
-        .background(Semantic.surface)
-        .clipShape(RoundedRectangle(cornerRadius: CardChrome.radius))
-        .overlay(RoundedRectangle(cornerRadius: CardChrome.radius)
-            .strokeBorder(Semantic.borderChrome, lineWidth: Stroke.hairline))
-        .contentShape(Rectangle())
-        // The Conectar/Reconectar button below is its own Button and keeps
-        // its own action; SwiftUI resolves a tap inside it before this one.
-        .onTapGesture(perform: onOpen)
-        // A tap-only Rectangle is invisible to keyboard and VoiceOver: the
-        // card reads as one button whose default action opens it, with
-        // Conectar kept as a named action (review 19-1c).
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction(.default, onOpen)
-        .accessibilityActions {
-            if state != .connected {
-                Button(Localized.string(state == .reconnect ? "apps.reconnect" : "apps.connect"),
-                       action: onConnect)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var action: some View {
-        switch state {
-        case .connected:
-            Badge(Localized.string("apps.connected"), variant: .secondary, dot: IslandInk.green)
-        case .reconnect:
-            AppButton(Localized.string("apps.reconnect"), kind: .secondary, action: onConnect)
-        case nil:
-            AppButton(Localized.string("apps.connect"), kind: .secondary, action: onConnect)
-        }
-    }
-}
-
 /// Third-party marks load from the catalog's URL; none is kept in the repo.
 /// Shared by the card and the panel, which only differ in size.
 struct AppIconView: View {
     let icon: URL?
     let size: CGFloat
     let padding: CGFloat
+    var radius: CGFloat = AppsMetrics.iconRadius
+    var fill: Color = Semantic.hover
+    /// With a name, a missing mark shows its first two letters, as
+    /// Incredible's card does; without one, the generic glyph.
+    var name: String?
 
     var body: some View {
         AsyncImage(url: icon) { image in
             image.resizable().scaledToFit()
         } placeholder: {
-            Image(systemName: "square.grid.2x2").foregroundStyle(Semantic.mutedForeground)
+            placeholder
         }
         .padding(padding)
         .frame(width: size, height: size)
-        .background(RoundedRectangle(cornerRadius: AppsMetrics.iconRadius).fill(Semantic.hover))
+        .background(RoundedRectangle(cornerRadius: radius).fill(fill))
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var placeholder: some View {
+        if let name, let initials = Self.initials(of: name) {
+            Text(initials)
+                .font(Fonts.sans(AppCardMetrics.initialsSize).weight(.bold))
+                .foregroundStyle(Semantic.textMuted)
+                .fixedSize()
+        } else {
+            Image(systemName: "square.grid.2x2").foregroundStyle(Semantic.mutedForeground)
+        }
+    }
+
+    /// Incredible's `name.slice(0,2).toUpperCase()`, bounded: trimmed, whole
+    /// graphemes only (while they fit its two UTF-16 units), at most two
+    /// characters after uppercasing ("ß" grows), nil when nothing is left.
+    static func initials(of name: String) -> String? {
+        var units = 0
+        var taken = ""
+        for character in name.trimmingCharacters(in: .whitespacesAndNewlines) {
+            let width = character.utf16.count
+            if !taken.isEmpty && units + width > 2 { break }
+            taken.append(character)
+            units += width
+            if units >= 2 { break }
+        }
+        let mark = String(taken.uppercased().prefix(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+        return mark.isEmpty ? nil : mark
     }
 }
 
