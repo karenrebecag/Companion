@@ -53,8 +53,10 @@ jobs:
     # Swift needs a macOS runner and took 14-112 min per run; on PRs it held
     # most of the 5 macOS slots and starved gates. It runs on main, weekly and
     # on demand only. matrix is not readable in a job-level if, hence its own job.
+    # Not on push either: with many merges a day each run held a macOS slot for
+    # over an hour and the runner kept losing contact, so gates sat queued.
     name: Analyze (swift)
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     # Same image as ci.yml: Package.swift needs Swift 6.2+.
     runs-on: macos-26
     timeout-minutes: 120
