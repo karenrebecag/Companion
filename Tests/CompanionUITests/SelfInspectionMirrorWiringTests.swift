@@ -15,6 +15,7 @@ import Testing
 private final class NoDevices: WelcomeDevices, @unchecked Sendable {
     func granted(_ permission: WelcomePermission) async -> Bool { true }
     func request(_ permission: WelcomePermission) async -> Bool { false }
+    func verifyScreenCapture() async -> Bool { true }
     func micLevels() -> AsyncStream<Double> { AsyncStream { $0.finish() } }
     func greet(_ text: String, language: AppLanguage) async {}
 }

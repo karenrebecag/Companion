@@ -23,12 +23,31 @@ import Testing
     testAFinishedWelcomeIgnoresAStaleSavedStep()
     await testEveryResumableStepResumes()
     testSavedNamesAreTheOnDiskContract()
+    await testScreenRecordingCountsOnlyOnceACaptureWorked()
+    await testThePollProbesUntilACaptureWorks()
+    await testARelaunchOntoPermissionsAsksAgainOnce()
+    await testWithoutTheRelaunchRefocusNeverAsks()
+    await testLeavingPermissionsDisarmsTheSecondAsk()
+    await testTheSecondAskNeedsTheSwitchOn()
+    await testTappingAllowProbesAfterTheAsk()
+    await testALostGrantDropsTheRowUntilProbedAgain()
+    await testLosingAPermissionAfterTheStepGoesBack()
+    await testRefocusAndAllowProbeAVerifiedRowAfresh()
+    await testAnyLostPermissionSendsTheNextStepsBack()
+    await testThePollNeverSpendsTheSecondAsk()
+    await testGoingBackToPermissionsDoesNotRearm()
+    await testADenialAtThePromptLeavesTheRowOff()
+    await testTwoRefocusesAtOnceAskOnce()
 }
 
 private final class FakeWelcomeDevices: WelcomeDevices, @unchecked Sendable {
     private let lock = NSLock()
     private var grants: Set<WelcomePermission>
     private var said: [String] = []
+    private var asked: [WelcomePermission] = []
+    private var probes = 0
+    private var _captures = true
+    private var _denies = false
     let levels: [Double]
 
     init(granted: Set<WelcomePermission> = [], levels: [Double] = []) {
@@ -37,12 +56,32 @@ private final class FakeWelcomeDevices: WelcomeDevices, @unchecked Sendable {
     }
 
     var greetings: [String] { lock.withLock { said } }
+    var requests: [WelcomePermission] { lock.withLock { asked } }
+    var verifies: Int { lock.withLock { probes } }
+    var captures: Bool {
+        get { lock.withLock { _captures } }
+        set { lock.withLock { _captures = newValue } }
+    }
     func grant(_ permission: WelcomePermission) { lock.withLock { _ = grants.insert(permission) } }
+    func revoke(_ permission: WelcomePermission) { lock.withLock { _ = grants.remove(permission) } }
+    var denies: Bool {
+        get { lock.withLock { _denies } }
+        set { lock.withLock { _denies = newValue } }
+    }
 
     func granted(_ permission: WelcomePermission) async -> Bool { lock.withLock { grants.contains(permission) } }
     func request(_ permission: WelcomePermission) async -> Bool {
-        lock.withLock { _ = grants.insert(permission) }
-        return true
+        lock.withLock {
+            asked.append(permission)
+            if !_denies { _ = grants.insert(permission) }
+            return !_denies
+        }
+    }
+    func verifyScreenCapture() async -> Bool {
+        lock.withLock {
+            probes += 1
+            return _captures
+        }
     }
     func micLevels() -> AsyncStream<Double> {
         let values = levels
@@ -241,4 +280,217 @@ private func scratchDefaults() -> UserDefaults {
     expectEq(WelcomeStep.allCases.map(\.savedName),
              ["cover", "hello", "keys", "permissions", "holdKey", "microphone", "yourTurn"],
              "los nombres guardados en disco no cambian")
+}
+
+// Gap 1b: Incredible's permissions step counts Screen Recording only when it
+// is granted AND a capture was verified, asks again once when the app
+// reopened straight onto that step, and sends a later step back to it when a
+// permission is lost.
+
+/// The app relaunched onto the saved permissions step, as macOS asks after
+/// Screen Recording is granted.
+@MainActor private func relaunchedOnPermissions(_ devices: FakeWelcomeDevices) -> WelcomeModel {
+    let defaults = scratchDefaults()
+    model(FakeWelcomeDevices(), defaults: defaults).jump(to: .permissions)
+    let welcome = model(devices, defaults: defaults)
+    expectEq(welcome.flow.step, .permissions, "relanzada en permisos")
+    return welcome
+}
+
+@MainActor func testScreenRecordingCountsOnlyOnceACaptureWorked() async {
+    let devices = FakeWelcomeDevices(granted: [.screenRecording])
+    devices.captures = false
+    let welcome = model(devices)
+    welcome.jump(to: .permissions)
+    await welcome.refresh()
+    expect(!welcome.facts.granted.contains(.screenRecording), "pantalla: concedido sin captura no cuenta")
+    expect(welcome.screenRecordingUnverified, "pantalla: encendido sin funcionar es su propio estado")
+    devices.captures = true
+    await welcome.refocused()
+    expect(welcome.facts.granted.contains(.screenRecording), "pantalla: al volver, una captura que funciona cuenta")
+    expect(!welcome.screenRecordingUnverified, "pantalla: verificado")
+}
+
+@MainActor func testThePollProbesUntilACaptureWorks() async {
+    let devices = FakeWelcomeDevices(granted: [.screenRecording])
+    devices.captures = false
+    let welcome = model(devices)
+    welcome.jump(to: .permissions)
+    await welcome.refresh()
+    await welcome.refresh()
+    expectEq(devices.verifies, 2, "sondeo de 1 s: sin verificar, prueba en cada vuelta")
+    devices.captures = true
+    await welcome.refresh()
+    await welcome.refresh()
+    await welcome.refresh()
+    expectEq(devices.verifies, 3, "verificado: el sondeo deja de probar")
+    expect(devices.requests.isEmpty, "sondeo: no pide nada")
+}
+
+@MainActor func testARelaunchOntoPermissionsAsksAgainOnce() async {
+    let devices = FakeWelcomeDevices(granted: [.screenRecording])
+    devices.captures = false
+    let welcome = relaunchedOnPermissions(devices)
+    await welcome.refocused()
+    expectEq(devices.requests, [.screenRecording], "relanzada: pide otra vez")
+    await welcome.refocused()
+    expectEq(devices.requests.count, 1, "solo una vez")
+}
+
+@MainActor func testWithoutTheRelaunchRefocusNeverAsks() async {
+    let devices = FakeWelcomeDevices(granted: [.screenRecording])
+    devices.captures = false
+    let welcome = model(devices)
+    welcome.jump(to: .permissions)
+    await welcome.refocused()
+    await welcome.refocused()
+    expect(devices.requests.isEmpty, "llegar al paso caminando no arma el segundo pedido")
+    expectEq(devices.verifies, 2, "al volver: vuelve a probar")
+}
+
+@MainActor func testLeavingPermissionsDisarmsTheSecondAsk() async {
+    let devices = FakeWelcomeDevices(granted: [.screenRecording])
+    devices.captures = false
+    let welcome = relaunchedOnPermissions(devices)
+    welcome.jump(to: .holdKey)
+    welcome.jump(to: .permissions)
+    await welcome.refocused()
+    expect(devices.requests.isEmpty, "salir del paso desarma")
+}
+
+@MainActor func testTheSecondAskNeedsTheSwitchOn() async {
+    let devices = FakeWelcomeDevices()
+    let welcome = relaunchedOnPermissions(devices)
+    await welcome.refocused()
+    expect(devices.requests.isEmpty, "sin el interruptor encendido no pide solo")
+    devices.grant(.screenRecording)
+    devices.captures = false
+    await welcome.refocused()
+    expectEq(devices.requests, [.screenRecording], "encendido y sin captura: pide")
+}
+
+@MainActor func testTappingAllowProbesAfterTheAsk() async {
+    let devices = FakeWelcomeDevices()
+    let welcome = model(devices)
+    welcome.jump(to: .permissions)
+    await welcome.request(.screenRecording)
+    expectEq(devices.requests, [.screenRecording], "tocar Permitir pide")
+    expectEq(devices.verifies, 1, "y prueba una captura")
+    expect(welcome.facts.granted.contains(.screenRecording), "verificado")
+}
+
+@MainActor func testALostGrantDropsTheRowUntilProbedAgain() async {
+    let devices = FakeWelcomeDevices(granted: [.screenRecording])
+    let welcome = model(devices)
+    welcome.jump(to: .permissions)
+    await welcome.refresh()
+    expect(welcome.facts.granted.contains(.screenRecording), "verificado")
+    devices.revoke(.screenRecording)
+    await welcome.refresh()
+    expect(!welcome.facts.granted.contains(.screenRecording), "revocado sale de la fila")
+    devices.grant(.screenRecording)
+    devices.captures = false
+    await welcome.refresh()
+    expect(!welcome.facts.granted.contains(.screenRecording), "concedido de nuevo: vuelve a probar y no basta")
+    expectEq(devices.verifies, 2, "una prueba nueva tras la concesión nueva")
+}
+
+@MainActor func testLosingAPermissionAfterTheStepGoesBack() async {
+    let devices = FakeWelcomeDevices(granted: Set(WelcomePermission.allCases))
+    let welcome = model(devices)
+    welcome.jump(to: .permissions)
+    await welcome.refresh()
+    welcome.next()
+    expectEq(welcome.flow.step, .holdKey, "con todo concedido avanza")
+    devices.revoke(.microphone)
+    await welcome.refocused()
+    expectEq(welcome.flow.step, .permissions, "perdido después: vuelve a permisos")
+    devices.grant(.microphone)
+    await welcome.refresh()
+    welcome.jump(to: .yourTurn)
+    devices.revoke(.accessibility)
+    await welcome.refocused()
+    expectEq(welcome.flow.step, .yourTurn, "en tu turno no retrocede (Incredible solo desde el paso siguiente)")
+}
+
+@MainActor func testRefocusAndAllowProbeAVerifiedRowAfresh() async {
+    let devices = FakeWelcomeDevices(granted: [.screenRecording])
+    let welcome = model(devices)
+    welcome.jump(to: .permissions)
+    await welcome.refresh()
+    await welcome.refresh()
+    expectEq(devices.verifies, 1, "verificado: el sondeo no vuelve a probar")
+    await welcome.refocused()
+    expectEq(devices.verifies, 2, "al volver: prueba aunque ya estaba verificado")
+    devices.captures = false
+    await welcome.refocused()
+    expect(!welcome.facts.granted.contains(.screenRecording), "al volver: una captura rota saca la fila")
+    expect(welcome.screenRecordingUnverified, "al volver: encendido sin funcionar")
+    devices.captures = true
+    await welcome.refresh()
+    expectEq(devices.verifies, 4, "sin verificar: el sondeo vuelve a probar")
+    await welcome.request(.screenRecording)
+    expectEq(devices.verifies, 5, "tocar Permitir: prueba aunque ya estaba verificado")
+}
+
+@MainActor func testAnyLostPermissionSendsTheNextStepsBack() async {
+    for step in [WelcomeStep.holdKey, .microphone] {
+        for lost in WelcomePermission.allCases {
+            let devices = FakeWelcomeDevices(granted: Set(WelcomePermission.allCases))
+            let welcome = model(devices)
+            welcome.jump(to: .permissions)
+            await welcome.refresh()
+            welcome.jump(to: step)
+            devices.revoke(lost)
+            await welcome.refresh()
+            expectEq(welcome.flow.step, .permissions, "\(step) sin \(lost): vuelve a permisos")
+        }
+    }
+}
+
+@MainActor func testThePollNeverSpendsTheSecondAsk() async {
+    let devices = FakeWelcomeDevices(granted: [.screenRecording])
+    devices.captures = false
+    let welcome = relaunchedOnPermissions(devices)
+    await welcome.refresh()
+    await welcome.refresh()
+    await welcome.refresh()
+    expect(devices.requests.isEmpty, "el sondeo nunca pide")
+    await welcome.refocused()
+    expectEq(devices.requests, [.screenRecording], "el segundo pedido sigue armado para el foco")
+}
+
+@MainActor func testGoingBackToPermissionsDoesNotRearm() async {
+    let devices = FakeWelcomeDevices(granted: Set(WelcomePermission.allCases))
+    let welcome = relaunchedOnPermissions(devices)
+    await welcome.refresh()
+    welcome.next()
+    expectEq(welcome.flow.step, .holdKey, "avanza")
+    devices.revoke(.microphone)
+    await welcome.refresh()
+    expectEq(welcome.flow.step, .permissions, "vuelve a permisos")
+    devices.captures = false
+    await welcome.refocused()
+    expect(devices.requests.isEmpty, "volver por un permiso perdido no es un relanzamiento")
+}
+
+@MainActor func testADenialAtThePromptLeavesTheRowOff() async {
+    let devices = FakeWelcomeDevices()
+    devices.denies = true
+    let welcome = model(devices)
+    welcome.jump(to: .permissions)
+    await welcome.request(.screenRecording)
+    expect(!welcome.facts.granted.contains(.screenRecording), "negado: la fila sigue apagada")
+    expect(!welcome.screenRecordingUnverified, "negado: no es encendido sin funcionar")
+    expectEq(devices.verifies, 0, "negado: sin permiso no hay sondeo")
+}
+
+@MainActor func testTwoRefocusesAtOnceAskOnce() async {
+    let devices = FakeWelcomeDevices(granted: [.screenRecording])
+    devices.captures = false
+    let welcome = relaunchedOnPermissions(devices)
+    async let first: Void = welcome.refocused()
+    async let second: Void = welcome.refocused()
+    _ = await (first, second)
+    expectEq(devices.requests.count, 1, "el paso y el foco juntos piden una sola vez")
 }

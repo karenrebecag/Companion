@@ -1,3 +1,4 @@
+import AppKit
 import CompanionCore
 import SwiftUI
 
@@ -42,6 +43,11 @@ package struct WelcomeView: View {
         .environment(\.colorScheme, step == .yourTurn ? .dark : .light)
         .animation(.springSheet, value: step)
         .task(id: step) { await watch(step) }
+        // Coming back from System Settings is when a Screen Recording switch
+        // flipped there can be verified (Incredible's focus listener).
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await welcome.refocused() }
+        }
         .onChange(of: chat.session.projection.kind) { _, kind in
             welcome.observe(kind)
             if welcome.canContinue, step == .yourTurn { welcome.next() }
@@ -91,7 +97,9 @@ package struct WelcomeView: View {
 
     /// What each screen waits on, for as long as it is on screen.
     private func watch(_ step: WelcomeStep) async {
-        await welcome.refresh()
+        // Incredible runs its focus check as the step appears too: a relaunch
+        // onto permissions asks again without waiting for a focus change.
+        if step == .permissions { await welcome.refocused() } else { await welcome.refresh() }
         switch step {
         case .hello:
             await welcome.greet()

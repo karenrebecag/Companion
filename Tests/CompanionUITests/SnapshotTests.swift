@@ -115,6 +115,7 @@ import Testing
 private final class StillDevices: WelcomeDevices, @unchecked Sendable {
     func granted(_ permission: WelcomePermission) async -> Bool { permission != .screenRecording }
     func request(_ permission: WelcomePermission) async -> Bool { false }
+    func verifyScreenCapture() async -> Bool { false }
     func micLevels() -> AsyncStream<Double> { AsyncStream { $0.finish() } }
     func greet(_ text: String, language: AppLanguage) async {}
 }

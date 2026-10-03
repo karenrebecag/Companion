@@ -13,7 +13,11 @@ package final class WelcomeModel {
     static let stepKey = "companion.welcome.step"
 
     package private(set) var flow: WelcomeFlow {
-        didSet { saveStep() }
+        didSet {
+            saveStep()
+            // Incredible's second ask is only for the relaunch onto this step.
+            if flow.step != .permissions { reaskArmed = false }
+        }
     }
     package private(set) var facts = WelcomeFacts()
     package private(set) var level = 0.0
@@ -23,6 +27,12 @@ package final class WelcomeModel {
     private let keyReady: () -> Bool
     private let defaults: UserDefaults
     private var greeted = false
+    /// Incredible's 1 s poll asks for the verified flag on every tick until
+    /// the step is complete; once a capture worked there is nothing to ask.
+    @ObservationIgnored private var screenVerified = false
+    /// Armed only when the app opened straight onto the saved permissions
+    /// step, the relaunch macOS asks for after Screen Recording.
+    @ObservationIgnored private var reaskArmed: Bool
 
     package init(
         devices: any WelcomeDevices, keyReady: @escaping () -> Bool,
@@ -33,7 +43,9 @@ package final class WelcomeModel {
         self.defaults = defaults
         let seen = defaults.bool(forKey: Self.doneKey)
         self.done = seen
-        self.flow = seen ? WelcomeFlow.start(welcomeDone: true) : Self.resumed(from: defaults)
+        let flow = seen ? WelcomeFlow.start(welcomeDone: true) : Self.resumed(from: defaults)
+        self.flow = flow
+        self.reaskArmed = flow.step == .permissions
     }
 
     /// The page the last run reached, so the relaunch macOS asks for after
@@ -53,18 +65,53 @@ package final class WelcomeModel {
 
     package var canContinue: Bool { flow.canContinue(facts) }
 
+    /// The switch is on and a real capture failed. Kept apart from "not
+    /// granted" because Incredible treats it as its own dead end: flipping
+    /// the switch again does nothing until the app relaunches.
+    package private(set) var screenRecordingUnverified = false
+
     package func refresh() async {
         var granted: Set<WelcomePermission> = []
         for permission in WelcomePermission.allCases where await devices.granted(permission) {
             granted.insert(permission)
         }
+        if granted.contains(.screenRecording) {
+            if !screenVerified { screenVerified = await devices.verifyScreenCapture() }
+            if !screenVerified { granted.remove(.screenRecording) }
+            screenRecordingUnverified = !screenVerified
+        } else {
+            screenVerified = false
+            screenRecordingUnverified = false
+        }
         facts.granted = granted
         facts.keyReady = keyReady()
+        // Incredible's reducer: the step after permissions goes back to them
+        // when one is lost, instead of teaching a hold that cannot work.
+        let afterPermissions = flow.step == .holdKey || flow.step == .microphone
+        if afterPermissions, !granted.isSuperset(of: WelcomePermission.allCases) {
+            flow = WelcomeFlow(step: .permissions)
+        }
     }
 
     package func request(_ permission: WelcomePermission) async {
         _ = await devices.request(permission)
+        if permission == .screenRecording { screenVerified = false }
         await refresh()
+    }
+
+    /// Coming back from System Settings is when a switch flipped there can
+    /// be checked, so the probe starts over; and a relaunch onto this step
+    /// with the switch on and no capture gets Incredible's one more ask.
+    package func refocused() async {
+        guard flow.step == .permissions else {
+            await refresh()
+            return
+        }
+        screenVerified = false
+        await refresh()
+        guard reaskArmed, screenRecordingUnverified else { return }
+        reaskArmed = false
+        await request(.screenRecording)
     }
 
     /// Runs until the stream ends or the task is cancelled (the screen left).
