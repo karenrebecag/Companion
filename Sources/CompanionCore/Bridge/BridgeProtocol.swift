@@ -202,6 +202,11 @@ package enum BridgeCode {
     /// nodes: an empty page would read as "the menu is empty".
     package static let selectorNoMatch = "selector_no_match"
     package static let selectorHidden = "selector_hidden"
+    // The extension's reasons, kept apart so each gets its own next step.
+    package static let debuggerRevoked = "debugger_revoked"
+    package static let debuggerUnavailable = "debugger_unavailable"
+    package static let unreadablePage = "unreadable_page"
+    package static let notTypable = "not_typable"
     /// The tool exists but Companion's own window is in front, so there is no
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
     package static let selfInFront = "self_in_front"

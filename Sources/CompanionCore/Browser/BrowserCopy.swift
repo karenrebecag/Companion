@@ -111,6 +111,30 @@ package enum BrowserCopy {
         case (BridgeCode.selectorHidden, .es):
             return "Menú o lista oculta: el selector solo coincide con elementos que no se muestran. Abre el menú o "
                 + "la lista y vuelve a leer, o vuelve a leer sin selector para ver la página completa."
+        case (BridgeCode.debuggerRevoked, .en):
+            return "The user stopped Companion from controlling this tab. Do not retry: ask the user before "
+                + "taking it again."
+        case (BridgeCode.debuggerRevoked, .es):
+            return "La persona impidió que Companion controle esta pestaña. No reintentes: pregunta antes de "
+                + "volver a tomarla."
+        case (BridgeCode.debuggerUnavailable, .en):
+            return "Companion could not control this tab; developer tools or another debugger may be open on it. "
+                + "Ask the user to close them, then retry."
+        case (BridgeCode.debuggerUnavailable, .es):
+            return "Companion no pudo controlar esta pestaña; puede haber herramientas de desarrollo u otro "
+                + "depurador abiertos en ella. Pide que los cierren y vuelve a intentar."
+        case (BridgeCode.unreadablePage, .en):
+            return "This page cannot be read (a browser settings page, a PDF viewer or a store page). "
+                + "Tell the user, or find the information another way."
+        case (BridgeCode.unreadablePage, .es):
+            return "Esta página no se puede leer (ajustes del navegador, un visor de PDF o una tienda). "
+                + "Dile a la persona, o busca la información por otra vía."
+        case (BridgeCode.notTypable, .en):
+            return "That element does not take typed text (for example a dropdown list). Choose another "
+                + "element, or ask the user to pick the option."
+        case (BridgeCode.notTypable, .es):
+            return "Ese elemento no admite texto (por ejemplo, una lista desplegable). Elige otro elemento, o "
+                + "pide a la persona que elija la opción."
         case (_, .en): return "The browser failed: \(code)."
         case (_, .es): return "El navegador falló: \(code)."
         }

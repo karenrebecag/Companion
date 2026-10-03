@@ -28,7 +28,9 @@ private func doneMessage(_ json: String) -> String? {
                  "selector_no_match", "selector_hidden",
                  // Act-time permission refusals reach the model through this path too.
                  "screen_recording_required", "screen_locked", "foreground_unavailable",
-                 "permission_required"]
+                 "permission_required",
+                 // H-2/H-3: the extension's own reasons, each with its next step.
+                 "debugger_revoked", "debugger_unavailable", "unreadable_page", "not_typable"]
     for code in codes {
         let body = errorBody(#"{"id":1,"error":{"code":"\#(code)","message":"m"}}"#)
         expectEq(body?.code, code, "allowlist: \(code) passes through")

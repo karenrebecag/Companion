@@ -365,12 +365,12 @@ test('field name and id travel for Core to classify', () => {
 
 test('type refuses non-editable elements and file inputs without touching the DOM', () => {
   const div = fake({ tag: 'div', text: 'keep me' });
-  assert.equal(page.typeIntoElement(div, 'x').error.code, 'invalid_args');
+  assert.equal(page.typeIntoElement(div, 'x').error.code, 'not_typable');
   assert.equal(div.textContent, 'keep me');
   const sel = fake({ tag: 'select', text: 'opts' });
-  assert.equal(page.typeIntoElement(sel, 'x').error.code, 'invalid_args');
+  assert.equal(page.typeIntoElement(sel, 'x').error.code, 'not_typable');
   const file = fake({ tag: 'input', attrs: { type: 'file' } });
-  assert.equal(page.typeIntoElement(file, 'x').error.code, 'invalid_args');
+  assert.equal(page.typeIntoElement(file, 'x').error.code, 'not_typable');
   assert.equal(file.focused, false);
 });
 
@@ -456,9 +456,11 @@ test('prepareType refuses a password or card field before focusing or selecting 
 
 test('prepareType refuses a file input and an element that takes no text', () => {
   armed(fake({ tag: 'input', attrs: { type: 'file' } }));
-  assert.equal(page.prepareType(1, 1).error.code, 'invalid_args');
+  assert.equal(page.prepareType(1, 1).error.code, 'not_typable');
   armed(fake({ tag: 'div' }));
-  assert.equal(page.prepareType(1, 1).error.code, 'invalid_args');
+  assert.equal(page.prepareType(1, 1).error.code, 'not_typable');
+  armed(fake({ tag: 'select', text: 'opts' }));
+  assert.equal(page.prepareType(1, 1).error.code, 'not_typable');
 });
 
 test('prepareType focuses a text field and selects its content so the keys replace it', () => {

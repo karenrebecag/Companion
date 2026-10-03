@@ -15,7 +15,8 @@ enum BrowserSanitize {
         BridgeCode.frameTooLarge, BridgeCode.busy, BridgeCode.notConnected, BridgeCode.badFrame,
         BridgeCode.unknownMethod, BridgeCode.badToken, BridgeCode.selectorNoMatch, BridgeCode.selectorHidden,
         BridgeCode.screenRecordingRequired, BridgeCode.screenLocked, BridgeCode.foregroundUnavailable,
-        BridgeCode.permissionRequired,
+        BridgeCode.permissionRequired, BridgeCode.debuggerRevoked, BridgeCode.debuggerUnavailable,
+        BridgeCode.unreadablePage, BridgeCode.notTypable,
     ]
 
     static func code(_ raw: String) -> String {
