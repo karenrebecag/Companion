@@ -115,7 +115,8 @@ func makeSensingAndModel(
             return ScreenHands(ax: ax, screen: sight, target: { frontmost.lastOtherPID },
                                selfInFront: { frontmost.selfInFront },
                                see: { request in await screenSight.see(request) },
-                               changes: AXChangeWatcher(trust: { accessibility.isTrusted() }))
+                               changes: AXChangeWatcher(trust: { accessibility.isTrusted() }),
+                               gate: screenRecording)
         },
         // Wave 20b D2: with Claude Code installed no delegation reaches the
         // native lane, so the parent carries the deliverables itself.

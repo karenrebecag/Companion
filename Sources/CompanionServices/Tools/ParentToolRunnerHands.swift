@@ -24,8 +24,9 @@ package struct ScreenHands: Sendable {
     /// What changed after a hand acted. Nil keeps the older "look again"
     /// results, which is what every test without an observer expects.
     let changes: (any AXChangeWatching)?
-    /// Checked right before a capture: `see` without it fails silently.
-    let screenRecording: @Sendable () -> Bool
+    /// Read right before a capture and again after an empty one: the
+    /// preflight alone can say on while every capture fails (gap 1).
+    let screenRecording: @Sendable () -> ScreenRecordingStatus
     let locked: @Sendable () -> Bool
     /// open_app's view of the app it launched; nil leaves open_app returning
     /// as soon as the launch was requested.
@@ -47,7 +48,7 @@ package struct ScreenHands: Sendable {
         screen: (any ScreenActing)? = nil,
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
         changes: (any AXChangeWatching)? = nil,
-        screenRecording: @escaping @Sendable () -> Bool = { true },
+        screenRecording: @escaping @Sendable () -> ScreenRecordingStatus = { .verified },
         locked: @escaping @Sendable () -> Bool = { false },
         launch: (any AppWindowProbing)? = nil,
         windowWait: WindowWait = .standard
@@ -74,14 +75,15 @@ package struct ScreenHands: Sendable {
         ax: AXTextInjector, screen: AXScreen, target: @escaping @Sendable () -> Int32?,
         selfInFront: @escaping @Sendable () -> Bool = { false },
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
-        changes: (any AXChangeWatching)? = nil
+        changes: (any AXChangeWatching)? = nil,
+        gate: ScreenRecordingGate
     ) {
         self.init(
             injector: ax, reader: ax, keys: ax, windows: ax,
             trusted: { ax.isTrusted() }, target: target,
             bundleID: { AXTextInjector.bundleID(of: $0) }, selfInFront: selfInFront,
             screen: screen, see: see, changes: changes,
-            screenRecording: { ScreenRecordingPermission().isGranted() }, locked: { SessionLock.isLocked() },
+            screenRecording: { gate.grantedStatus }, locked: { SessionLock.isLocked() },
             launch: screen)
     }
 }

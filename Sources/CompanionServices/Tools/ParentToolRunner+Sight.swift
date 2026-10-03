@@ -82,7 +82,8 @@ extension ParentToolRunner {
         guard let see = hands.see else {
             return .failed(Self.handsError("no_vision", "no screen vision"), tool: ParentTool.see.rawValue)
         }
-        guard hands.screenRecording() else {
+        // Unverified still tries: the capture is what verifies the grant.
+        guard hands.screenRecording() != .notGranted else {
             Log.app("sight: see refused, no Screen Recording pid=\(pid)")
             return .failed(Self.handsError(BridgeCode.screenRecordingRequired, BridgeMessages.screenRecordingRequired),
                            tool: ParentTool.see.rawValue)
@@ -91,10 +92,20 @@ extension ParentToolRunner {
         let request = SeeRequest(
             app: app, question: arguments["question"] as? String, pid: pid)
         guard let brief = await see(request) else {
-            Log.app("sight: see failed pid=\(pid)")
-            return .failed(Self.handsError(
-                "no_capture", "no screen capture (Screen Recording off, or no OpenAI key)"),
-                tool: ParentTool.see.rawValue)
+            // HACK: ScreenCapture reports a failed shot to the gate fire-and-forget, so the
+            // first failure after a revoke the preflight still allows can read verified here
+            // (no_capture). Await that probe if the wrong first answer shows up in the field.
+            let status = hands.screenRecording()
+            Log.app("sight: see failed pid=\(pid) screen-recording=\(status.rawValue)")
+            // Empty without a verified grant: the switch reads on but captures fail,
+            // which only the user can fix in System Settings.
+            guard status == .verified else {
+                return .failed(Self.handsError(
+                    BridgeCode.screenRecordingRequired, BridgeMessages.screenRecordingRequired),
+                    tool: ParentTool.see.rawValue)
+            }
+            return .failed(Self.handsError("no_capture", "no screen capture (nothing to capture, or the capture failed once)"),
+                           tool: ParentTool.see.rawValue)
         }
         // Locked while capturing: the pixels may be the lock screen, so they never reach the model.
         guard !hands.locked() else {

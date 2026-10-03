@@ -29,7 +29,7 @@ private final class LockingHands: TextInjecting, @unchecked Sendable {
 private func runner(
     _ hands: FakeHands, injector: (any TextInjecting)? = nil, keys: (any KeyPressing)? = nil,
     target: ScriptedTarget = ScriptedTarget([7]), trusted: Bool = true, selfInFront: Bool = false,
-    screenRecording: Bool = true, locked: @escaping @Sendable () -> Bool = { false },
+    screenRecording: ScreenRecordingStatus = .verified, locked: @escaping @Sendable () -> Bool = { false },
     screen: FakeScreen? = nil, see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
     workspace: FakeWorkspaceOpener = FakeWorkspaceOpener()
 ) -> ParentToolRunner {
@@ -77,7 +77,7 @@ private final class LockingKeys: KeyPressing, @unchecked Sendable {
 @Test @MainActor func testSeeWithoutScreenRecordingNamesThePermission() async {
     let hands = FakeHands(field: FocusedField(app: "Notes", pid: 7))
     let asked = LockFlag()
-    let out = await runner(hands, screenRecording: false, see: { _ in
+    let out = await runner(hands, screenRecording: .notGranted, see: { _ in
         asked.set()
         return nil
     }).execute(name: "see", argumentsJSON: "{}")
@@ -217,3 +217,82 @@ private final class LockingKeys: KeyPressing, @unchecked Sendable {
     }
 }
 
+// Gap 1: the switch can read on while captures fail. Only a missing grant
+// refuses up front; a capture that came back empty without a verified grant
+// is the permission, not a vague no_capture.
+@Test @MainActor func seeWithTheGrantUnverifiedStillTriesTheCapture() async {
+    let asked = LockFlag()
+    let out = await runner(FakeHands(field: FocusedField(app: "Notes", pid: 7)),
+                           screenRecording: .grantedUnverified, see: { _ in
+        asked.set()
+        return ScreenBrief(summary: "a window")
+    }).execute(name: "see", argumentsJSON: "{}")
+    expect(asked.isSet && out.ok, "unverified: the capture is what verifies it: \(out.output)")
+}
+
+@Test @MainActor func anEmptyCaptureWithoutAVerifiedGrantNamesThePermission() async {
+    for status in [ScreenRecordingStatus.grantedUnverified, .stale] {
+        let asked = LockFlag()
+        let out = await runner(FakeHands(field: FocusedField(app: "Notes", pid: 7)),
+                               screenRecording: status, see: { _ in
+            asked.set()
+            return nil
+        }).execute(name: "see", argumentsJSON: "{}")
+        expect(asked.isSet, "\(status): the capture was tried before naming the permission")
+        expect(out.output == "\(BridgeCode.screenRecordingRequired): \(BridgeMessages.screenRecordingRequired)",
+               "\(status): \(out.output)")
+    }
+}
+
+/// Answers each status in turn, as the gate moves while the capture runs.
+private final class StatusScript: @unchecked Sendable {
+    private let lock = NSLock()
+    private var queue: [ScreenRecordingStatus]
+    init(_ queue: [ScreenRecordingStatus]) { self.queue = queue }
+    func next() -> ScreenRecordingStatus { lock.withLock { queue.count > 1 ? queue.removeFirst() : queue[0] } }
+}
+
+@Test @MainActor func anEmptyCaptureIsJudgedByTheStatusAfterIt() async {
+    let call = { (statuses: [ScreenRecordingStatus]) async -> String in
+        let script = StatusScript(statuses)
+        let hands = FakeHands(field: FocusedField(app: "Notes", pid: 7))
+        return await ParentToolRunner(
+            workspace: FakeWorkspaceOpener(),
+            hands: ScreenHands(
+                injector: hands, reader: hands, keys: hands, windows: hands,
+                trusted: { true }, target: { 7 }, bundleID: { _ in "com.apple.Notes" },
+                see: { _ in nil }, screenRecording: { script.next() }))
+            .execute(name: "see", argumentsJSON: "{}").output
+    }
+    let verifiedDuring = await call([.grantedUnverified, .verified])
+    expect(verifiedDuring.hasPrefix("no_capture:"), "verified by the capture's own probe: \(verifiedDuring)")
+    let lostDuring = await call([.verified, .stale])
+    expect(lostDuring.hasPrefix("\(BridgeCode.screenRecordingRequired):"), "lost during the capture: \(lostDuring)")
+}
+
+@Test @MainActor func anEmptyCaptureWithAVerifiedGrantIsNoCapture() async {
+    let out = await runner(FakeHands(field: FocusedField(app: "Notes", pid: 7)), see: { _ in nil })
+        .execute(name: "see", argumentsJSON: "{}")
+    expect(out.output.hasPrefix("no_capture:"), "verified: not the permission: \(out.output)")
+    expect(!out.output.contains("Screen Recording"), "does not blame the permission: \(out.output)")
+}
+
+@Test @MainActor func theAppsHandsReadTheGate() async {
+    let checker = FakeScreenRecording(granted: true, captures: false)
+    let gate = ScreenRecordingGate(checker: checker)
+    let hands = ScreenHands(
+        ax: AXTextInjector(selfBundleID: "com.karen.companion", trust: { true })!,
+        screen: AXScreen(selfBundleID: "com.karen.companion", trust: { true }),
+        target: { 7 }, gate: gate)
+    expectEq(hands.screenRecording(), .grantedUnverified, "hands: the gate's state, not the preflight")
+    _ = await gate.verify()
+    expectEq(hands.screenRecording(), .grantedUnverified, "a failed probe stays unverified")
+    checker.captures = true
+    _ = await gate.verify()
+    expectEq(hands.screenRecording(), .verified, "hands: follow the gate")
+    // A capture refused by the preflight never reaches the gate, so a revoke
+    // must read through it or see would blame vision for good.
+    checker.granted = false
+    expectEq(hands.screenRecording(), .notGranted, "hands: a revoke the gate has not probed yet")
+    expectEq(checker.requests, 0, "reading the gate never asks")
+}
