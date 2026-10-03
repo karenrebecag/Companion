@@ -239,7 +239,7 @@
     const isText = tag === 'input' || tag === 'textarea';
     const unfit = !isText && !isContentEditableEl(el);
     if (unfit || (tag === 'input' && String(el.type || '').toLowerCase() === 'file')) {
-      return { error: { code: 'invalid_args', message: 'this element cannot take typed text' } };
+      return { error: { code: 'not_typable', message: 'this element cannot take typed text' } };
     }
     el.focus();
     if (isText && typeof el.select === 'function') el.select();
@@ -444,7 +444,7 @@
     const tag = tagOf(el);
     const isText = tag === 'input' || tag === 'textarea';
     if ((!isText && !isContentEditableEl(el)) || (tag === 'input' && String(el.type || '').toLowerCase() === 'file')) {
-      return { error: { code: 'invalid_args', message: 'this element cannot take typed text' } };
+      return { error: { code: 'not_typable', message: 'this element cannot take typed text' } };
     }
     if (el.ownerDocument.activeElement !== el) el.focus();
     if (isText && typeof el.select === 'function') el.select();

@@ -242,7 +242,7 @@ async function run(target, func, args) {
 
 async function readTab(tabId, selector) {
   const tab = await chrome.tabs.get(tabId).catch(() => null);
-  if (!tab) return { error: { code: 'invalid_args', message: 'no such tab' } };
+  if (!tab) return staleTab;
   await cdp.ensureAttached(tabId).catch(() => {});
   generationCounter = nextGeneration(generationCounter, Date.now());
   const generation = generationCounter;
@@ -252,7 +252,7 @@ async function readTab(tabId, selector) {
   try {
     await inject(target);
   } catch (error) {
-    return { error: { code: 'invalid_args', message: 'this tab cannot be read: ' + String(error?.message ?? error).slice(0, 120) } };
+    return { error: { code: 'unreadable_page', message: 'this tab cannot be read: ' + String(error?.message ?? error).slice(0, 120) } };
   }
   const frames = await run(target, (g, s, f) => globalThis.__companionPage.read(g, s, f), [generation, selector, null]);
   const built = buildPage(tab, tabId, generation, selector, frames);

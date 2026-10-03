@@ -333,6 +333,20 @@ test('browser_take on a missing tab is stale_id', async () => {
   assert.equal(reply.error.code, 'stale_id');
 });
 
+// H-3: a read the browser cannot serve names why, so the host can pick the next step.
+test('browser_read on a missing tab is stale_id, so the host lets the lease go', async () => {
+  const { ports } = await boot({ tabs: userTabs() });
+  const reply = await ask(ports[0], 32, 'browser_read', { tab: 999 });
+  assert.equal(reply.error.code, 'stale_id');
+});
+
+test('a page the browser will not let us read is unreadable_page, not invalid_args', async () => {
+  const { ports, chrome } = await boot({ tabs: userTabs() });
+  chrome.scripting.executeScript = async () => { throw new Error('Cannot access a chrome:// URL'); };
+  const reply = await ask(ports[0], 33, 'browser_read', { tab: 3 });
+  assert.equal(reply.error.code, 'unreadable_page');
+});
+
 test('browser_release puts the tab back at its original index', async () => {
   const { ports, state } = await boot({ tabs: userTabs() });
   await ask(ports[0], 32, 'browser_take', { tab: 3 });

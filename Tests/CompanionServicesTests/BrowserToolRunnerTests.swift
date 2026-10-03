@@ -108,6 +108,31 @@ import Testing
     expect(out.output.contains("read the tab again"), "con la guia de volver a leer")
 }
 
+/// H-2/H-3: each reason the extension gives reaches the model as its own copy, not "the browser failed".
+@Test func eachExtensionReasonComesBackWithItsNextStep() async {
+    for code in [BridgeCode.debuggerRevoked, BridgeCode.debuggerUnavailable, BridgeCode.unreadablePage,
+                 BridgeCode.notTypable] {
+        let rig = makeToolRig()
+        await rig.read()
+        rig.channel.failWrites(with: ContractError(code: code, message: "page wording, never shown"))
+        let out = await rig.run("browser_click", #"{"tab":12,"element":1}"#)
+        expect(!out.ok && out.output.contains(code), "\(code): the code: \(out.output)")
+        expect(out.output.contains(BrowserCopy.failure(code: code, .en)), "\(code): its copy: \(out.output)")
+        expect(!out.output.contains("page wording"), "\(code): the extension's wording stays out")
+    }
+}
+
+/// A read of a tab that is gone lets the lease go, so a later write needs a new take.
+@Test func aReadOfAGoneTabReleasesTheLease() async {
+    let rig = makeToolRig()
+    rig.channel.goneOnRead(12)
+    let read = await rig.run("browser_read", #"{"tab":12}"#)
+    expect(!read.ok && read.output.contains(BridgeCode.staleId), "gone tab: stale_id: \(read.output)")
+    let click = await rig.run("browser_click", #"{"tab":12,"element":1}"#)
+    expect(click.output.contains(BridgeCode.notControlled), "the lease is gone: \(click.output)")
+    expect(rig.channel.writes.isEmpty, "nothing sent")
+}
+
 // MARK: - criterion 3: click
 
 @Test func clickOnEliminarNotSaidAsksAndADenialSendsNoFrame() async {
