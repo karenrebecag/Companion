@@ -169,7 +169,7 @@ private struct SlowExecutor: Executor {
         requestId: "r2", toolName: "write_file",
         summary: "", inputJSON: "{\"path\":\"a.txt\"}")
     vm.receiveJobEvent(JobEvent.approvalRequested(request), from: nil)
-    vm.answerApproval(true)
+    vm.answerPendingApproval(true)
     expect(vm.pendingApproval == nil, "permiso: la hoja se cierra al responder")
     await pumpUntil("permiso: la respuesta llega al especialista") {
         submitter.resolved == [ResolvedCall(id: "r2", approved: true)]

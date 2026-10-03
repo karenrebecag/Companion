@@ -21,7 +21,7 @@ private let typing = ToolCallRef(id: "c1", name: "type_text", arguments: #"{"tex
         rig.vm.send()
         await pumpUntil("the sheet is up") { rig.vm.pendingApproval != nil }
 
-        rig.vm.answerApproval(true)
+        rig.vm.answerPendingApproval(true)
         await rig.waitForTheCut()
 
         #expect(await rig.leftoverIsRefused(), "the cut chat turn's yes is still spendable")

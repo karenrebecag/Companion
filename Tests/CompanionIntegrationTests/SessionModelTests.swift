@@ -217,7 +217,7 @@ private func request(_ id: String) -> ApprovalRequest {
     }
     await pumpUntil("niega: arranca") { vm.job != nil }
     vm.receiveJobEvent(.approvalRequested(request("a1")), from: vm.chatJobID)
-    vm.answerApproval(false)
+    vm.answerPendingApproval(false)
     await pumpUntil("niega: para") { submitter.cancelled }
     expectEq(vm.session.projection.kind, .idle, "niega: idle")
     expect(vm.messages.contains { $0.text == ChatCopy.jobStopped }, "niega: el hilo dice parado")

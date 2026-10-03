@@ -74,13 +74,13 @@ import Testing
     vm.onAppear()
     vm.receiveJobEvent(.approvalRequested(ApprovalRequest(
         requestId: "r1", toolName: "run_shell", summary: "ls", inputJSON: "{}")), from: nil)
-    vm.answerApproval(true)
+    vm.answerPendingApproval(true)
     expectEq(notices.queue.visible.last?.text, ChatCopy.approvalAnswer(true),
              "toast: permiso resuelto avisa")
     expectEq(sound.played.last, .confirm, "toast: permiso concedido confirma")
     vm.receiveJobEvent(.approvalRequested(ApprovalRequest(
         requestId: "r2", toolName: "run_shell", summary: "ls", inputJSON: "{}")), from: nil)
-    vm.answerApproval(false)
+    vm.answerPendingApproval(false)
     expectEq(notices.queue.visible.last?.level, .error,
              "toast: permiso denegado es error")
 }

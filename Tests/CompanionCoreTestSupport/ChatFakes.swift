@@ -336,12 +336,18 @@ package final class WatchfulSubmitter: JobSubmitter, @unchecked Sendable {
     private var _remembered: [Bool] = []
     /// Wave 10c: what the sheet asked to remember, per answer.
     package var remembered: [Bool] { lock.lock(); defer { lock.unlock() }; return _remembered }
-    package func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
-        record(remember)
+    private var _resolved: [(requestId: String, approved: Bool)] = []
+    /// Which request each answer reached, so a test can tell A's answer from B's.
+    package var resolved: [(requestId: String, approved: Bool)] {
+        lock.lock(); defer { lock.unlock() }; return _resolved
     }
-    private func record(_ remember: Bool) {
+    package func resolveApproval(requestId: String, approved: Bool, remember: Bool) async {
+        record(remember, requestId: requestId, approved: approved)
+    }
+    private func record(_ remember: Bool, requestId: String, approved: Bool) {
         lock.lock(); defer { lock.unlock() }
         _remembered.append(remember)
+        _resolved.append((requestId, approved))
     }
     package var isBusy: Bool { get async { false } }
 }

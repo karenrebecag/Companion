@@ -44,7 +44,7 @@ private final class NoteTap: ParentToolExecuting, @unchecked Sendable {
     await pumpUntil("16m-6 gate: la hoja aparece para una elección") { vm.pendingApproval != nil }
     expectEq(vm.pendingApproval?.toolName, "open_url", "16m-6 gate: la hoja es de open_url")
     expect(opener.openedURLs.isEmpty, "16m-6 gate: nada se abrió sin contestar")
-    vm.answerApproval(false)
+    vm.answerPendingApproval(false)
     await pumpUntil("16m-6 gate: idle") { !vm.busy }
     expect(opener.openedURLs.isEmpty, "16m-6 gate: con no, sigue sin abrirse")
 
@@ -67,7 +67,7 @@ private final class NoteTap: ParentToolExecuting, @unchecked Sendable {
     queued.choose("Abrir evil.com")
     await pumpUntil("16m-6 gate: la hoja desde la cola") { queued.pendingApproval != nil }
     expect(queuedOpener.openedURLs.isEmpty, "16m-6 gate: una elección que sale de la cola tampoco abre sin hoja")
-    queued.answerApproval(false)
+    queued.answerPendingApproval(false)
     await pumpUntil("16m-6 gate: cola idle") { !queued.busy && queued.queued.isEmpty }
 }
 

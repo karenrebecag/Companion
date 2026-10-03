@@ -759,7 +759,7 @@ private func openEvil(_ id: String = "c1") -> ChatDelta {
     expectEq(vm.pendingApproval?.toolName, "open_url", "puerta: la hoja es para open_url")
     expect(opener.openedURLs.isEmpty, "puerta: nada se abrió antes de contestar")
     expect(vm.busy, "puerta: el turno sigue vivo mientras espera")
-    vm.answerApproval(true)
+    vm.answerPendingApproval(true)
     await pumpUntil("puerta: idle") { !vm.busy }
     expectEq(opener.openedURLs.map(\.absoluteString), ["https://evil.example/?q=1"], "puerta: con sí, se abre")
     expect(vm.pendingApproval == nil, "puerta: la hoja se cierra")
@@ -775,7 +775,7 @@ private func openEvil(_ id: String = "c1") -> ChatDelta {
     vm.draft = "resume esto"
     vm.send()
     await pumpUntil("no: la hoja") { vm.pendingApproval != nil }
-    vm.answerApproval(false)
+    vm.answerPendingApproval(false)
     await pumpUntil("no: idle") { !vm.busy }
     expect(opener.openedURLs.isEmpty, "no: no se abrió")
     let answer = chat.histories.last?.first { $0.role == .tool }
@@ -859,10 +859,10 @@ private func openEvil(_ id: String = "c1") -> ChatDelta {
     vm.send()
     await pumpUntilAsync("cola: dos pendientes") { await approvals.requested.count == 1 }
     expectEq(vm.pendingApproval?.requestId, "job-1", "cola: la primera sigue al frente")
-    vm.answerApproval(true)
+    vm.answerPendingApproval(true)
     await pumpUntilAsync("cola: la primera resuelta") { (await approvals.resolutions).contains { $0.id == "job-1" } }
     expectEq(vm.pendingApproval?.toolName, "open_url", "cola: ahora toca la puerta")
-    vm.answerApproval(true)
+    vm.answerPendingApproval(true)
     await pumpUntil("cola: idle") { !vm.busy }
     expectEq(opener.openedURLs.count, 1, "cola: la segunda también se contestó")
 }
