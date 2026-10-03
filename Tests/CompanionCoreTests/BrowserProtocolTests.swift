@@ -186,8 +186,13 @@ private func object(_ line: String) -> [String: Any] {
     let url = URL(string: "https://x.test/a/b")!
     let cases: [(BrowserCommand, String, [String: String])] = [
         (.tabs, "browser_tabs", [:]),
-        (.read(tab: 12, selector: nil), "browser_read", ["tab": "12"]),
-        (.read(tab: 12, selector: "a >>> b"), "browser_read", ["tab": "12", "selector": "a >>> b"]),
+        (.read(tab: 12, query: BrowserQuery()), "browser_read", ["tab": "12"]),
+        (.read(tab: 12, query: BrowserQuery(selector: "a >>> b")), "browser_read", ["tab": "12", "selector": "a >>> b"]),
+        (.read(tab: 12, query: BrowserQuery(
+            text: "Pais", exact: true, role: "combobox", name: "Pais",
+            within: BrowserElementRef(generation: 3, element: 4), max: 5, maxChars: 100)), "browser_read",
+         ["tab": "12", "text": "Pais", "exact": "1", "role": "combobox", "name": "Pais", "generation": "3", "within": "4",
+          "max": "5", "maxChars": "100"]),
         (.click(tab: 12, generation: 3, element: 5), "browser_click", ["tab": "12", "generation": "3", "element": "5"]),
         (.doubleClick(tab: 12, generation: 3, element: 5), "browser_double_click",
          ["tab": "12", "generation": "3", "element": "5"]),
@@ -212,7 +217,7 @@ private func object(_ line: String) -> [String: Any] {
         expectEq(flat, want, "\(name): arguments")
         expect(!line.contains("\\/"), "\(name): la URL no escapa la barra")
     }
-    let read = object(BrowserCodec.encode(.call(id: 1, .read(tab: 2, selector: nil))))
+    let read = object(BrowserCodec.encode(.call(id: 1, .read(tab: 2, query: BrowserQuery()))))
     let args = (read["params"] as? [String: Any])?["arguments"] as? [String: Any]
     expect(args?["selector"] is NSNull, "selector nulo va como null")
 }

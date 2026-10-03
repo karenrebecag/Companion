@@ -112,7 +112,7 @@ async function handleInbound(message) {
 function dispatch(name, args) {
   switch (name) {
     case 'browser_tabs': return tabs();
-    case 'browser_read': return readTab(args.tab, args.selector ?? null);
+    case 'browser_read': return readTab(args);
     case 'browser_click': return trustedPress(args, GESTURES.click);
     case 'browser_double_click': return trustedPress(args, GESTURES.double);
     case 'browser_right_click': return trustedPress(args, GESTURES.right);
@@ -297,22 +297,50 @@ async function run(target, func, args) {
   return results.filter((r) => r && r.result);
 }
 
-async function readTab(tabId, selector) {
+// Incredible's finders travel as one query; the page applies them where it reads.
+function readQuery(args) {
+  return {
+    selector: args.selector ?? null, text: args.text ?? null, exact: args.exact === true,
+    role: args.role ?? null, name: args.name ?? null, max: args.max ?? null, maxChars: args.maxChars ?? null,
+  };
+}
+
+// A miss in every frame is the answer; "only hidden here" beats "nothing here", since it names the next step.
+function missEverywhere(frames) {
+  const errors = frames.map((f) => f.result?.error).filter(Boolean);
+  if (errors.length === 0 || errors.length < frames.length) return null;
+  return errors.find((e) => e.code === 'selector_hidden') ?? errors.find((e) => e.code === 'selector_no_match') ?? errors[0];
+}
+
+async function readTab(args) {
+  const tabId = args.tab;
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab) return staleTab;
+  const query = readQuery(args);
+  let target;
+  if (args.within != null) {
+    const entry = entryFor({ tab: tabId, generation: args.generation, element: args.within });
+    if (!entry) return staleElement;
+    Object.assign(query, { withinGeneration: args.generation, withinLocal: entry.localId });
+    target = { tabId, frameIds: [entry.frameId] };
+  } else {
+    // With a selector only the top frame runs: it descends into same-origin iframes itself, and
+    // running every frame would return the same nodes once per frame.
+    target = query.selector == null ? { tabId, allFrames: true } : { tabId, frameIds: [0] };
+  }
   await cdp.ensureAttached(tabId).catch(() => {});
   generationCounter = nextGeneration(generationCounter, Date.now());
   const generation = generationCounter;
-  // With a selector only the top frame runs: it descends into same-origin iframes itself, and
-  // running every frame would return the same nodes once per frame.
-  const target = selector == null ? { tabId, allFrames: true } : { tabId, frameIds: [0] };
   try {
     await inject(target);
   } catch (error) {
     return { error: { code: 'unreadable_page', message: 'this tab cannot be read: ' + String(error?.message ?? error).slice(0, 120) } };
   }
-  const frames = await run(target, (g, s, f) => globalThis.__companionPage.read(g, s, f), [generation, selector, null]);
-  const built = buildPage(tab, tabId, generation, selector, frames);
+  const frames = await run(target, (g, q, f) => globalThis.__companionPage.read(g, q, f), [generation, query, null]);
+  const miss = query.text != null || query.role != null ? missEverywhere(frames) : null;
+  if (miss) return { error: miss };
+  const scoped = query.selector != null || args.within != null;
+  const built = buildPage(tab, tabId, generation, scoped, frames, { max: query.max, maxChars: query.maxChars });
   if (built.error) return built;
   tabState.set(tabId, { generation, map: built.map });
   return { page: built.page };

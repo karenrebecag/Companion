@@ -977,3 +977,122 @@ test('a visible element is still clicked', () => {
   assert.deepEqual(page.click(1, 1), { done: 'clicked' });
   assert.equal(el.events.length, 5);
 });
+
+// H-7 P2a: Incredible reads by finder (find_by_text, find_by_role, scoped el.find, max, max_chars)
+// instead of serializing the whole page; browser_read gains the same ways in.
+function finderPage(bodyText = 'Bienvenida\nTu pedido se envio\nAyuda') {
+  const save = fake({ tag: 'button', text: 'Guardar' });
+  const remove = fake({ tag: 'button', text: 'Borrar' });
+  const help = fake({ tag: 'a', text: 'Ayuda', attrs: { href: '/ayuda' } });
+  const menu = fake({ tag: 'div', attrs: { role: 'menu' } });
+  const logout = fake({ tag: 'button', text: 'Cerrar sesion', parent: menu });
+  menu.ownDisplay = 'none';
+  const all = [save, remove, help, menu, logout];
+  globalThis.document = { querySelectorAll: (s) => (s === '*' ? all : []), body: { innerText: bodyText } };
+  return { save, remove, help, menu, logout };
+}
+
+function withPage(build, run) {
+  const nodes = build();
+  try {
+    return run(nodes);
+  } finally {
+    delete globalThis.document;
+  }
+}
+
+test('a text finder lists the controls named by it and the page lines that say it', () => {
+  withPage(finderPage, () => {
+    const byLabel = page.read(1, { text: 'guardar' }, 0);
+    assert.deepEqual(byLabel.elements.map((e) => e.label), ['Guardar']);
+    const byLine = page.read(2, { text: 'pedido' }, 0);
+    assert.deepEqual(byLine.elements, []);
+    assert.equal(byLine.text, 'Tu pedido se envio');
+  });
+});
+
+test('exact text must match the whole name or line, ignoring case and spacing', () => {
+  withPage(finderPage, () => {
+    assert.deepEqual(page.read(1, { text: 'guardar', exact: true }, 0).elements.map((e) => e.label), ['Guardar']);
+    assert.equal(page.read(2, { text: 'Guar', exact: true }, 0).error?.code, 'selector_no_match');
+  });
+});
+
+test('a role finder with a name picks that control only', () => {
+  withPage(finderPage, () => {
+    const out = page.read(1, { role: 'button', name: 'borrar' }, 0);
+    assert.deepEqual(out.elements.map((e) => e.label), ['Borrar']);
+    assert.deepEqual(page.read(2, { role: 'link' }, 0).elements.map((e) => e.label), ['Ayuda']);
+  });
+});
+
+test('a finder that only matches hidden controls says so, like a hidden selector', () => {
+  withPage(finderPage, () => {
+    assert.equal(page.read(1, { text: 'cerrar sesion' }, 0).error?.code, 'selector_hidden');
+    assert.equal(page.read(2, { text: 'nada de esto' }, 0).error?.code, 'selector_no_match');
+  });
+});
+
+test('within reads inside an element from the last read, and a stale one is refused', () => {
+  withPage(() => {
+    const nodes = finderPage();
+    nodes.menu.ownDisplay = 'block';
+    nodes.menu.querySelectorAll = () => [nodes.logout];
+    nodes.menu.innerText = 'Cerrar sesion';
+    globalThis.__companionState = { generation: 1, elements: new Map([[4, nodes.menu]]) };
+    return nodes;
+  }, () => {
+    const out = page.read(2, { withinGeneration: 1, withinLocal: 4 }, 0);
+    assert.deepEqual(out.elements.map((e) => e.label), ['Cerrar sesion']);
+    assert.equal(out.text, 'Cerrar sesion');
+    assert.equal(page.read(3, { withinGeneration: 1, withinLocal: 4 }, 0).error?.code, 'stale_id', 'the read moved on');
+  });
+});
+
+test('max and maxChars cap what comes back', () => {
+  withPage(finderPage, () => {
+    const out = page.read(1, { max: 2, maxChars: 10 }, 0);
+    assert.equal(out.elements.length, 2);
+    assert.equal(out.text, 'Bienvenida');
+  });
+});
+
+test('a read with no selector and no finder is the whole page, as before', () => {
+  withPage(finderPage, () => {
+    assert.deepEqual(page.read(1, {}, 0).elements.map((e) => e.label), ['Guardar', 'Borrar', 'Ayuda']);
+    assert.deepEqual(page.read(2, null, 0).elements.map((e) => e.label), ['Guardar', 'Borrar', 'Ayuda']);
+  });
+});
+
+test('a finder inside within or a selector searches only that part', () => {
+  withPage(() => {
+    const nodes = finderPage();
+    const dialog = fake({ tag: 'div', attrs: { role: 'dialog' } });
+    const close = fake({ tag: 'button', text: 'Cerrar', parent: dialog });
+    const keep = fake({ tag: 'button', text: 'Seguir', parent: dialog });
+    dialog.querySelectorAll = (s) => (s === '*' ? [close, keep] : s === 'button' ? [close, keep] : []);
+    dialog.innerText = 'Cerrar\nSeguir';
+    const base = globalThis.document.querySelectorAll;
+    globalThis.document.querySelectorAll = (s) => (s === '[role=dialog]' ? [dialog] : base(s));
+    return { ...nodes, dialog };
+  }, ({ dialog }) => {
+    const armDialog = () => { globalThis.__companionState = { generation: 1, elements: new Map([[9, dialog]]) }; };
+    armDialog();
+    const inside = page.read(2, { withinGeneration: 1, withinLocal: 9, role: 'button', name: 'cerrar' }, 0);
+    assert.deepEqual(inside.elements.map((e) => e.label), ['Cerrar']);
+    armDialog();
+    assert.equal(page.read(3, { withinGeneration: 1, withinLocal: 9, text: 'Guardar' }, 0).error?.code, 'selector_no_match',
+      'a control outside the element does not count');
+    const bySelector = page.read(4, { selector: '[role=dialog]', text: 'seguir' }, 0);
+    assert.deepEqual(bySelector.elements.map((e) => e.label), ['Seguir']);
+    assert.equal(page.read(5, { selector: '[role=dialog]', text: 'cerrar sesion' }, 0).error?.code, 'selector_no_match',
+      'a hidden control outside the selector is not "only hidden here"');
+  });
+});
+
+test('exact applies to a role finder name too', () => {
+  withPage(finderPage, () => {
+    assert.equal(page.read(1, { role: 'button', name: 'Guar', exact: true }, 0).error?.code, 'selector_no_match');
+    assert.deepEqual(page.read(2, { role: 'button', name: 'guardar', exact: true }, 0).elements.map((e) => e.label), ['Guardar']);
+  });
+});

@@ -444,22 +444,79 @@
     return { nodes: [...front, ...rest], text: [...parts, remaining].join('\n\n') };
   }
 
-  function read(generation, selector, frame) {
+
+  // Incredible's finders: by text, by role and name, inside an element. Names and lines compare
+  // without case or runs of spacing, since the model types what it read, not the markup.
+  const squash = (value) => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const says = (value, wanted, exact) => (exact ? squash(value) === squash(wanted) : squash(value).includes(squash(wanted)));
+  const hasFinder = (q) => q.text != null || q.role != null;
+
+  function fits(node, q) {
+    if (q.role != null && roleOf(node) !== String(q.role).toLowerCase()) return false;
+    if (q.name != null && !says(labelOf(node), q.name, q.exact)) return false;
+    // textContent, not innerText: innerText lays the page out again for every control tested.
+    // HACK: only the first 4 KB of a control's text is searched, so nested wrappers stay linear. Raise it
+    // when a real control's name sits deeper than that.
+    if (q.text != null && !says(labelOf(node), q.text, q.exact) && !says(String(node.textContent ?? '').slice(0, 4096), q.text, q.exact)) return false;
+    return true;
+  }
+
+  // An empty answer must say why, as a selector's does: "nothing here" and "only hidden here" lead
+  // the model to different next steps.
+  function find(nodes, text, q, scopes) {
+    const matched = nodes.filter((node) => fits(node, q));
+    const lines = q.text == null ? [] : text.split('\n').filter((line) => line.trim() && says(line, q.text, q.exact));
+    if (matched.length > 0 || lines.length > 0) {
+      const own = q.text == null ? matched.map((node) => String(node.innerText ?? node.textContent ?? '').trim()).filter(Boolean) : lines;
+      return { nodes: matched, text: own.join('\n') };
+    }
+    // Only the part searched counts: a hidden control elsewhere would wrongly say "it is here, hidden".
+    const anyHidden = scopes.some((root) => [root, ...Array.from(root.querySelectorAll('*'))]
+      .some((node) => node.tagName && isListable(node) && !isVisible(node) && fits(node, q)));
+    return anyHidden
+      ? { error: { code: 'selector_hidden', message: 'everything the search matches is hidden' } }
+      : { error: { code: 'selector_no_match', message: 'nothing matches the search' } };
+  }
+
+  function scopeOf(q, state) {
+    if (q.withinLocal == null) return { root: document };
+    const found = lookup(state, q.withinGeneration, q.withinLocal);
+    return found.error ? found : { root: found.element };
+  }
+
+  function read(generation, query, frame) {
+    const q = query == null || typeof query === 'string' ? { selector: query ?? null } : query;
     const state = stateOf();
     const doc = document;
+    const scope = scopeOf(q, state);
+    if (scope.error) return scope;
     let nodes = [];
     let text = '';
-    if (selector == null) {
+    if (q.selector == null && scope.root === doc && !hasFinder(q)) {
       collect(doc, nodes);
       ({ nodes, text } = overlayFirst(doc, nodes));
-      text = cutUnits(text, TEXT_MAX);
     } else {
-      const segments = parseSelector(selector);
-      if (!segments) return { error: { code: 'invalid_args', message: 'invalid selector' } };
-      const scoped = readMatches(resolveSelector(doc, segments));
+      let scoped;
+      let roots = [scope.root];
+      if (q.selector != null) {
+        const segments = parseSelector(q.selector);
+        if (!segments) return { error: { code: 'invalid_args', message: 'invalid selector' } };
+        roots = resolveSelector(scope.root, segments);
+        scoped = readMatches(roots);
+      } else if (scope.root !== doc) {
+        scoped = readMatches([scope.root]);
+      } else {
+        const all = [];
+        collect(doc, all);
+        scoped = { nodes: all, text: String(doc.body?.innerText ?? '') };
+      }
+      if (scoped.error) return scoped;
+      if (hasFinder(q)) scoped = find(scoped.nodes, scoped.text, q, roots);
       if (scoped.error) return scoped;
       ({ nodes, text } = scoped);
     }
+    if (Number.isInteger(q.max) && q.max > 0) nodes = nodes.slice(0, q.max);
+    text = cutUnits(text, Number.isInteger(q.maxChars) && q.maxChars > 0 ? Math.min(q.maxChars, TEXT_MAX) : TEXT_MAX);
     state.generation = generation;
     state.elements = new Map();
     state.identities = new Map();

@@ -154,9 +154,15 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
     scripting: {
       executeScript: async ({ target, func, args, files }) => {
         if (files || !func) return [];
-        globalThis.__companionPage = state.page;
         globalThis.__companionCursor = state.cursor;
-        return [{ frameId: target.frameIds?.[0] ?? 0, result: await func(...(args ?? [])) }];
+        // An all-frames run also answers from each frame a test adds in `state.frames`.
+        const pages = target.allFrames ? [[0, state.page], ...(state.frames ?? [])] : [[target.frameIds?.[0] ?? 0, state.page]];
+        const out = [];
+        for (const [frameId, page] of pages) {
+          globalThis.__companionPage = page;
+          out.push({ frameId, result: await func(...(args ?? [])) });
+        }
+        return out;
       },
     },
     debugger: {
@@ -1194,4 +1200,88 @@ test('a slow page does not hold the next open behind it', async () => {
   await settle();
   assert.equal(answersTo(rig.ports[0], 106)[0].result.tab.loading, false, 'the second answers on its own load');
   assert.deepEqual(answersTo(rig.ports[0], 105), [], 'the first is still waiting');
+});
+
+// H-7 P2a: the finder fields reach the page as one query; within names an element of the last read.
+function recordingPage(rig, elements = 1) {
+  const queries = [];
+  rig.state.page = {
+    read: (g, q) => {
+      queries.push(q);
+      return {
+        origin: 'https://a.example', text: 'Go',
+        elements: Array.from({ length: elements }, (_, i) => ({ id: i + 1, frame: 0, role: 'button', label: `B${i + 1}`, context: '', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null })),
+      };
+    },
+  };
+  return queries;
+}
+
+test('the finder fields reach the page as one query', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const queries = recordingPage(rig);
+  await ask(rig.ports[0], 110, 'browser_read', { tab: 3, text: 'Go', exact: true, role: 'button', name: 'Go', maxChars: 50 });
+  assert.deepEqual(queries[0], { selector: null, text: 'Go', exact: true, role: 'button', name: 'Go', max: null, maxChars: 50 });
+});
+
+test('within reads inside an element of the last read, in its own frame', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const queries = recordingPage(rig);
+  const first = await ask(rig.ports[0], 111, 'browser_read', { tab: 3 });
+  const generation = first.result.page.generation;
+  await ask(rig.ports[0], 112, 'browser_read', { tab: 3, generation, within: 1 });
+  assert.equal(queries[1].withinGeneration, generation);
+  assert.equal(queries[1].withinLocal, 1);
+});
+
+test('within an element of an old read is refused as stale, before the page runs', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const queries = recordingPage(rig);
+  const first = await ask(rig.ports[0], 113, 'browser_read', { tab: 3 });
+  const reply = await ask(rig.ports[0], 114, 'browser_read', { tab: 3, generation: first.result.page.generation - 1, within: 1 });
+  assert.equal(reply.error?.code, 'stale_id');
+  assert.equal(queries.length, 1);
+});
+
+test('a finder that misses everywhere passes the page answer through', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.page = { read: () => ({ error: { code: 'selector_hidden', message: 'everything the search matches is hidden' } }) };
+  const reply = await ask(rig.ports[0], 115, 'browser_read', { tab: 3, text: 'Cerrar' });
+  assert.equal(reply.error?.code, 'selector_hidden');
+});
+
+test('max caps the elements of the merged page', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  recordingPage(rig, 4);
+  const reply = await ask(rig.ports[0], 116, 'browser_read', { tab: 3, max: 2 });
+  assert.deepEqual(reply.result.page.elements.map((e) => e.label), ['B1', 'B2']);
+});
+
+const missing = (code) => ({ read: () => ({ error: { code, message: 'm' } }) });
+const oneButton = (label) => ({ read: () => ({ origin: 'https://a.example', text: label, elements: [{ id: 1, frame: 0, role: 'button', label, context: '', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null }] }) });
+
+test('a finder that matches in one frame and misses in another answers with the match', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.page = missing('selector_no_match');
+  rig.state.frames = [[7, oneButton('Cerrar')]];
+  const reply = await ask(rig.ports[0], 117, 'browser_read', { tab: 3, text: 'Cerrar' });
+  assert.equal(reply.error, undefined);
+  assert.deepEqual(reply.result.page.elements.map((e) => e.label), ['Cerrar']);
+});
+
+test('a finder that misses in every frame names hidden over nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.page = missing('selector_no_match');
+  rig.state.frames = [[7, missing('selector_hidden')]];
+  const reply = await ask(rig.ports[0], 118, 'browser_read', { tab: 3, text: 'Cerrar' });
+  assert.equal(reply.error?.code, 'selector_hidden');
+});
+
+test('maxChars caps the text of every frame together', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.page = oneButton('Primero');
+  rig.state.frames = [[7, oneButton('Segundo')]];
+  const reply = await ask(rig.ports[0], 119, 'browser_read', { tab: 3, maxChars: 10 });
+  assert.equal(Array.from(reply.result.page.text).length, 10);
+  assert.ok(reply.result.page.text.startsWith('Primero'));
 });
