@@ -28,29 +28,24 @@ struct SettingsElevenLabsVoice: View {
 
     @ViewBuilder private var picker: some View {
         caption(Localized.string("settings.voice.eleven.blurb"))
-        SettingsItem(
-            title: Localized.string("settings.voice.eleven.voice"),
-            value: model.selectedPreset?.name
-                ?? Localized.string("settings.voice.eleven.custom.label"),
-            options: ElevenLabsMouth.presets.map { ($0, $0.name) }
-        ) { preset in
-            model.select(preset)
-        }
-        HStack(alignment: .bottom, spacing: Space.x2) {
-            AppField(
-                title: Localized.string("settings.voice.eleven.custom"),
-                placeholder: Localized.string("settings.voice.eleven.custom.placeholder"),
-                text: $model.customField,
-                onSubmit: { model.applyCustom() })
-            AppButton(
-                Localized.string("settings.voice.eleven.custom.apply"), kind: .ghost,
-                enabled: !model.customField.trimmingCharacters(in: .whitespaces).isEmpty,
-                action: { model.applyCustom() })
-        }
-        if let error = model.errorText {
-            Text(error)
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.destructive)
+        RadioCards(
+            label: Localized.string("settings.voice.eleven.voice"),
+            options: ElevenLabsVoiceCards.options(storedVoiceID: model.voiceID),
+            selection: Binding(get: { model.shownChoice }, set: { model.choose($0) }))
+        if model.shownChoice == .custom {
+            HStack(alignment: .bottom, spacing: Space.x2) {
+                AppField(
+                    title: Localized.string("settings.voice.eleven.custom"),
+                    placeholder: Localized.string("settings.voice.eleven.custom.placeholder"),
+                    text: $model.customField,
+                    error: model.errorText,
+                    messagesInHint: true,
+                    onSubmit: { model.applyCustom() })
+                AppButton(
+                    Localized.string("settings.voice.eleven.custom.apply"), kind: .ghost,
+                    enabled: !model.customField.trimmingCharacters(in: .whitespaces).isEmpty,
+                    action: { model.applyCustom() })
+            }
         }
         if let preview {
             AppButton(
@@ -67,8 +62,25 @@ struct SettingsElevenLabsVoice: View {
 
     private func caption(_ text: String) -> some View {
         Text(text)
-            .font(.uiCaption)
+            .typeRole(.micro)
             .foregroundStyle(Semantic.mutedForeground)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+enum ElevenLabsVoiceCards {
+    /// One card per preset, then Custom, which shows a stored id in full so
+    /// it can be told apart from the presets.
+    static func options(storedVoiceID: String) -> [RadioCardOption<ElevenLabsVoiceChoice>] {
+        let presets = ElevenLabsMouth.presets.map { preset in
+            RadioCardOption(
+                value: ElevenLabsVoiceChoice.preset(preset.id), label: preset.name,
+                meta: preset.id == Config.defaultElevenLabsVoiceID
+                    ? Localized.string("settings.voice.eleven.default") : nil)
+        }
+        let isPreset = ElevenLabsMouth.presets.contains { $0.id == storedVoiceID }
+        return presets + [RadioCardOption(
+            value: .custom, label: Localized.string("settings.voice.eleven.custom.label"),
+            description: isPreset ? nil : storedVoiceID)]
     }
 }

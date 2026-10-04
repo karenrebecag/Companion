@@ -21,6 +21,13 @@ package enum ElevenLabsVoicePreference {
     }
 }
 
+/// What the voice cards show as chosen: a preset by voice id, or the Custom
+/// card, which stands for any id that is not a preset.
+package enum ElevenLabsVoiceChoice: Hashable, Sendable {
+    case preset(String)
+    case custom
+}
+
 /// Wave 15f-6: Settings › Voz, the ElevenLabs voice. Same shape as
 /// `KeysSettingsModel`: `secrets` arrives from `.onAppear` and `refresh()`
 /// is the only Keychain read, so opening the app never touches it. Only
@@ -33,10 +40,35 @@ package final class ElevenLabsVoiceModel {
     package private(set) var voiceID: String
     package var customField = ""
     package private(set) var errorText: String?
+    /// Choosing Custom opens the field without touching the stored voice.
+    package private(set) var customOpen = false
 
     package init(secrets: (any SecretStore)? = nil) {
         self.secrets = secrets
         voiceID = ElevenLabsVoicePreference.voiceID
+        prefillCustomField()
+    }
+
+    package var shownChoice: ElevenLabsVoiceChoice {
+        customOpen || selectedPreset == nil ? .custom : .preset(voiceID)
+    }
+
+    package func choose(_ choice: ElevenLabsVoiceChoice) {
+        switch choice {
+        case .preset(let id):
+            guard let preset = ElevenLabsMouth.presets.first(where: { $0.id == id }) else { return }
+            customOpen = false
+            select(preset)
+        case .custom:
+            customOpen = true
+        }
+    }
+
+    /// A stored custom id shows in the field, so Custom is editable, not
+    /// blank. Only init does it: a later refresh would refill a field the
+    /// person emptied on purpose.
+    private func prefillCustomField() {
+        if selectedPreset == nil { customField = voiceID }
     }
 
     package var selectedPreset: ElevenLabsVoicePreset? {
@@ -72,6 +104,9 @@ package final class ElevenLabsVoiceModel {
             errorText = Localized.string("settings.voice.eleven.invalid")
             return
         }
+        // The stored voice now decides the card: a preset's own id marks that
+        // preset, any other id keeps Custom.
+        customOpen = false
         store(customField)
     }
 
