@@ -45,7 +45,7 @@ private let edgeCases: [EdgeCase] = [
     EdgeCase("fragment", endpoint: goodEndpoint + "#top", valid: false),
     EdgeCase("dot path", endpoint: goodEndpoint + "/.", valid: false),
     EdgeCase("slash then empty fragment", endpoint: goodEndpoint + "/#", valid: false),
-    EdgeCase("uppercase scheme (pinned)", endpoint: "HTTPS://X.VERCEL.APP", valid: false),
+    EdgeCase("uppercase scheme (#227)", endpoint: "HTTPS://X.VERCEL.APP", valid: true),
     EdgeCase("uppercase host", endpoint: "https://X.Vercel.App", valid: true),
     EdgeCase("IDN host (pinned)", endpoint: "https://bücher.example", valid: true),
     EdgeCase("space in host", endpoint: "https://x vercel.app", valid: false),

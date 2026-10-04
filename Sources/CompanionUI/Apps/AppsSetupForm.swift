@@ -19,7 +19,7 @@ struct AppsSetupBanner: View {
                     .font(.uiLabel.weight(.semibold))
                     .foregroundStyle(Semantic.foreground)
                 Text(Localized.string("apps.seed.banner"))
-                    .font(.uiCaption)
+                    .typeRole(.micro)
                     .foregroundStyle(Semantic.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -126,7 +126,7 @@ struct AppsSetupCard: View {
                      messagesInHint: true, onSubmit: onSubmit)
             if let failure = flow.failure {
                 Text(AppsSetupCopy.failure(failure))
-                    .font(.uiCaption)
+                    .typeRole(.micro)
                     .foregroundStyle(Semantic.destructive)
                     .fixedSize(horizontal: false, vertical: true)
                     .transition(motion.messageTransition)
