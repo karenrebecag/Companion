@@ -38,10 +38,14 @@ package final class ScreenOverlays {
     private var panels: [ScreenOverlayPanel] = []
     private var observer: NSObjectProtocol?
     private let makeContent: (CGRect) -> AnyView
+    /// One for every display: the hold is one gesture, whichever screen the pointer is on.
+    package let holdCompanion = HoldCompanionModel()
 
     package init(session: SessionModel, onFailure: @escaping (String) -> Void) {
+        let companion = holdCompanion
         makeContent = { frame in
-            AnyView(ScreenOverlayView(session: session, screenFrame: frame, onFailure: onFailure))
+            AnyView(ScreenOverlayView(session: session, companion: companion, screenFrame: frame,
+                                      onFailure: onFailure))
         }
         rebuild()
         observer = NotificationCenter.default.addObserver(
@@ -60,6 +64,7 @@ package final class ScreenOverlays {
 
 struct ScreenOverlayView: View {
     let session: SessionModel
+    let companion: HoldCompanionModel
     let screenFrame: CGRect
     let onFailure: (String) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -76,16 +81,17 @@ struct ScreenOverlayView: View {
         let next = ScreenGlow.mode(session.projection, enabled: glowEnabled, previous: mode)
         ZStack {
             glow
-            // 16o-3: read when the hold starts; one display draws, not all.
-            if PointerOrb.shows(kind: kind, reduceMotion: reduceMotion, screen: screenFrame,
-                                cursor: NSEvent.mouseLocation) {
-                PointerLayer(screenFrame: screenFrame)
+            // 16o-3: one display draws, the one the pointer is on, checked every frame inside.
+            if HoldCompanion.mounts(listening: kind == .listening, mounted: companion.state.mounted) {
+                PointerLayer(screenFrame: screenFrame, kind: kind, reduceMotion: reduceMotion,
+                             companion: companion.state)
             }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .accessibilityHidden(true)
         .onChange(of: next, initial: true) { _, new in show(new) }
+        .onChange(of: kind == .listening, initial: true) { _, now in companion.listening(now) }
     }
 
     /// Incredible's container: the shader and the ring, turned with the glow, shrunk a hair
