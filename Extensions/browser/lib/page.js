@@ -218,6 +218,30 @@
     return out;
   }
 
+  // Implicit submission presses the form's default button, so that button's label is what an Enter in
+  // the field would do. '' is a form with no submit button; null is a field outside any form.
+  // The default is the first submit control the form owns in tree order: form.elements includes the
+  // ones tied in by form="id", and .type reports an invalid or missing button type as submit. A
+  // disabled default still is the default (Enter then submits nothing), so it is not skipped.
+  function submitOf(el, field) {
+    if (field.type === null || field.type === 'select' || !el.form) return null;
+    const button = Array.from(el.form.elements ?? []).find((node) => {
+      const tag = tagOf(node);
+      const type = String(node.type ?? '').toLowerCase();
+      return (tag === 'button' || tag === 'input') && (type === 'submit' || type === 'image');
+    });
+    return button ? buttonLabel(button) : '';
+  }
+
+  // labelOf treats every <input> as a field; a submit or image input shows its value or alt instead,
+  // and with neither the browser shows "Submit", which is what it does.
+  function buttonLabel(button) {
+    const own = labelOf(button);
+    if (own || tagOf(button) !== 'input') return own;
+    const shown = attr(button, 'value') || attr(button, 'alt');
+    return shown ? clip(shown, LABEL_MAX) : String(button.type ?? '').toLowerCase() === 'submit' ? 'Submit' : '';
+  }
+
   function serializeElement(el, id, frame) {
     const field = fieldOf(el);
     return {
@@ -235,6 +259,7 @@
       fieldName: field.name == null ? null : clip(field.name, NAME_MAX),
       fieldId: field.id == null ? null : clip(field.id, NAME_MAX),
       states: statesOf(el),
+      submit: submitOf(el, field),
     };
   }
 
@@ -393,6 +418,19 @@
     el.dispatchEvent(new win.Event('input', init));
     el.dispatchEvent(new win.Event('change', init));
     return { done: 'selected' };
+  }
+
+  // Open shadow roots keep their own activeElement; the document only sees the host.
+  function deepActive(doc) {
+    let node = doc.activeElement ?? null;
+    while (node && node.shadowRoot && node.shadowRoot.activeElement) node = node.shadowRoot.activeElement;
+    return node;
+  }
+
+  // A trusted key lands on whatever holds the focus, so it only goes out once the element holds it.
+  function focusElement(el) {
+    if (typeof el.focus === 'function') el.focus({ preventScroll: false });
+    return { focused: deepActive(el.ownerDocument) === el };
   }
 
   function stateOf() {
@@ -749,7 +787,7 @@
 
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
-    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt, selectOption,
+    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt, selectOption, focusElement,
     click: (generation, id) => act(generation, id, clickUncovered),
     doubleClick: (generation, id) => act(generation, id, doubleClickElement),
     contextClick: (generation, id) => act(generation, id, contextClickElement),
@@ -758,6 +796,7 @@
     viewport: () => ({ w: window.innerWidth, h: window.innerHeight }),
     type: (generation, id, text) => act(generation, id, (el) => typeIntoElement(el, text)),
     select: (generation, id, option) => act(generation, id, (el) => selectOption(el, option)),
+    focus: (generation, id) => act(generation, id, focusElement),
   };
   globalThis.__companionPage = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

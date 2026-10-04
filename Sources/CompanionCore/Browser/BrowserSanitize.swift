@@ -19,6 +19,7 @@ enum BrowserSanitize {
         BridgeCode.unreadablePage, BridgeCode.notTypable,
         BridgeCode.notFileInput, BridgeCode.fileAccessRequired, BridgeCode.fileTooLarge,
         BridgeCode.notSelectable, BridgeCode.optionNotFound,
+        BridgeCode.notFocused,
     ]
 
     /// A state is a fixed word, never page text: anything else is dropped rather than shown.

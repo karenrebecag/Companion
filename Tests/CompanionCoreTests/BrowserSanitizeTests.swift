@@ -31,8 +31,8 @@ private func doneMessage(_ json: String) -> String? {
                  "permission_required",
                  // H-2/H-3: the extension's own reasons, each with its next step.
                  "debugger_revoked", "debugger_unavailable", "unreadable_page", "not_typable",
-                 // P3: browser_select's two refusals.
-                 "not_selectable", "option_not_found"]
+                 // P3: browser_select's two refusals; P4: a key held back because the element would not take the focus.
+                 "not_selectable", "option_not_found", "not_focused"]
     for code in codes {
         let body = errorBody(#"{"id":1,"error":{"code":"\#(code)","message":"m"}}"#)
         expectEq(body?.code, code, "allowlist: \(code) passes through")

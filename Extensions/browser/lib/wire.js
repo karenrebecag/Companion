@@ -45,6 +45,18 @@ function isHttpURL(raw) {
 // Pixels per axis in one scroll; the host refuses more, this only keeps a forged call from flinging the page.
 const SCROLL_LIMIT = 20000;
 const isPixels = (v) => isInt(v) && Math.abs(v) <= SCROLL_LIMIT;
+// Kept in step with BrowserTool.pressKeys on the host.
+export const PRESS_KEYS = Object.freeze([
+  'Enter', 'Escape', 'Tab', 'Shift+Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+  'Space', 'Backspace', 'Delete', 'Home', 'End', 'PageUp', 'PageDown',
+]);
+export const PRESS_MAX_TIMES = 10;
+// The gate judged one activation; a second Enter lands wherever the first one left the focus.
+const PRESS_ONCE = Object.freeze(['Enter', 'Space']);
+
+const pressTimes = (a) => isInt(a.times) && a.times >= 1
+  && a.times <= (PRESS_ONCE.includes(a.key) ? 1 : PRESS_MAX_TIMES);
+const pressTarget = (a) => (a.generation === null && a.element === null) || (isInt(a.generation) && isInt(a.element));
 
 const SHAPES = {
   browser_tabs: () => true,
@@ -62,6 +74,7 @@ const SHAPES = {
   browser_scroll: (a) => isInt(a.tab) && (a.element != null
     ? isInt(a.generation) && isInt(a.element) && a.dx == null && a.dy == null
     : isPixels(a.dx) && isPixels(a.dy)),
+  browser_press: (a) => isInt(a.tab) && PRESS_KEYS.includes(a.key) && pressTimes(a) && pressTarget(a),
   browser_type: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.text === 'string',
   browser_select: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.option === 'string',
   browser_navigate: (a) => isInt(a.tab) && isHttpURL(a.url),

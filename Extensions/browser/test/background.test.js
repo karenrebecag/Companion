@@ -1,5 +1,6 @@
 import test, { mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { PRESS_KEYS } from '../lib/wire.js';
 
 const EXTENSION_ID = 'gaipfdnbliibnfchgcnamnjpfgkilnll';
 let importCount = 0;
@@ -1423,4 +1424,90 @@ test('the page refusal of a select comes back as its code', async () => {
   const read = await ask(rig.ports[0], 93, 'browser_read', { tab: 3 });
   const reply = await ask(rig.ports[0], 94, 'browser_select', { tab: 3, generation: read.result.page.generation, element: 1, option: 'Peru' });
   assert.deepEqual(reply.error, { code: 'option_not_found', message: 'Argentina | Chile' });
+});
+
+// ---- P4: browser_press ----
+
+async function pressPage(rig, { focused = true } = {}) {
+  const log = { focused: 0 };
+  rig.state.page = {
+    read: () => ({ origin: 'https://a.example', text: '', elements: [{ id: 1, frame: 0, role: 'textbox', label: 'Buscar', context: '', inputType: 'text', autocomplete: null, value: '', frameOrigin: null, href: null, fieldName: null, fieldId: null, submit: 'Buscar' }] }),
+    focus: () => { log.focused++; return { focused }; },
+  };
+  const read = await ask(rig.ports[0], 80, 'browser_read', { tab: 3 });
+  return { generation: read.result.page.generation, log };
+}
+
+const keyEvents = (state) => state.cdp.filter(([, method]) => method === 'Input.dispatchKeyEvent').map(([, , p]) => p);
+
+test('a press on an element focuses it, then sends the trusted key the asked number of times', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await pressPage(rig);
+  const reply = await ask(rig.ports[0], 81, 'browser_press', { tab: 3, key: 'Enter', times: 1, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'pressed' });
+  assert.equal(log.focused, 1);
+  const events = keyEvents(rig.state);
+  assert.deepEqual(events.map((e) => e.type), ['keyDown', 'keyUp']);
+  await ask(rig.ports[0], 88, 'browser_press', { tab: 3, key: 'Tab', times: 2, generation, element: 1 });
+  assert.deepEqual(keyEvents(rig.state).slice(2).map((e) => e.type), ['rawKeyDown', 'keyUp', 'rawKeyDown', 'keyUp']);
+  assert.deepEqual([events[0].key, events[0].code, events[0].windowsVirtualKeyCode, events[0].text], ['Enter', 'Enter', 13, '\r']);
+});
+
+test('a key that types nothing goes down raw, and Shift+Tab carries the Shift modifier', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await pressPage(rig);
+  await ask(rig.ports[0], 82, 'browser_press', { tab: 3, key: 'Escape', times: 1, generation: null, element: null });
+  await ask(rig.ports[0], 83, 'browser_press', { tab: 3, key: 'Shift+Tab', times: 1, generation: null, element: null });
+  const events = keyEvents(rig.state);
+  assert.deepEqual(events.map((e) => [e.type, e.key, e.text, e.modifiers ?? 0]), [
+    ['rawKeyDown', 'Escape', undefined, 0], ['keyUp', 'Escape', undefined, 0],
+    ['rawKeyDown', 'Tab', undefined, 8], ['keyUp', 'Tab', undefined, 8],
+  ]);
+});
+
+test('Space carries its text so it activates, like a real key', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await pressPage(rig);
+  await ask(rig.ports[0], 87, 'browser_press', { tab: 3, key: 'Space', times: 1, generation, element: 1 });
+  const [down] = keyEvents(rig.state);
+  assert.deepEqual([down.type, down.key, down.code, down.windowsVirtualKeyCode, down.text], ['keyDown', ' ', 'Space', 32, ' ']);
+});
+
+// A key in the allowlist the CDP table did not know would pass validation and fail at the press.
+test('every key the wire accepts is one the extension can press', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await pressPage(rig);
+  let id = 300;
+  for (const key of PRESS_KEYS) {
+    const reply = await ask(rig.ports[0], id++, 'browser_press', { tab: 3, key, times: 1, generation: null, element: null });
+    assert.deepEqual(reply.result, { done: 'pressed' }, key);
+  }
+  assert.equal(keyEvents(rig.state).filter((e) => e.type === 'keyUp').length, PRESS_KEYS.length);
+});
+
+test('without an element the key goes to the page focus and nothing is focused first', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { log } = await pressPage(rig);
+  const reply = await ask(rig.ports[0], 84, 'browser_press', { tab: 3, key: 'ArrowDown', times: 3, generation: null, element: null });
+  assert.deepEqual(reply.result, { done: 'pressed' });
+  assert.equal(log.focused, 0);
+  assert.equal(keyEvents(rig.state).filter((e) => e.type === 'rawKeyDown').length, 3);
+});
+
+// A key sent while the focus is elsewhere lands on whatever holds it: an Enter nobody approved.
+test('an element that does not take the focus gets not_focused and no key', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await pressPage(rig, { focused: false });
+  const reply = await ask(rig.ports[0], 85, 'browser_press', { tab: 3, key: 'Enter', times: 1, generation, element: 1 });
+  assert.equal(reply.error.code, 'not_focused');
+  assert.deepEqual(keyEvents(rig.state), []);
+});
+
+test('a press on an element of an old read is stale and sends no key', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await pressPage(rig);
+  const reply = await ask(rig.ports[0], 86, 'browser_press', { tab: 3, key: 'Enter', times: 1, generation: generation - 1, element: 1 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(log.focused, 0);
+  assert.deepEqual(keyEvents(rig.state), []);
 });

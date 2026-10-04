@@ -155,6 +155,18 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     }
   }
 
+  // Only Enter and Space carry text: that is what makes them submit and activate, where the
+  // others reach the page as bare key presses.
+  async function pressKey(tabId, name) {
+    const spec = KEYS[name];
+    if (!spec) throw new Error(`unknown key ${name}`);
+    const base = { key: spec.key, code: spec.code, windowsVirtualKeyCode: spec.vk, modifiers: spec.modifiers ?? 0 };
+    await send(tabId, 'Input.dispatchKeyEvent', spec.text
+      ? { ...base, type: 'keyDown', text: spec.text }
+      : { ...base, type: 'rawKeyDown' });
+    await send(tabId, 'Input.dispatchKeyEvent', { ...base, type: 'keyUp' });
+  }
+
   api.debugger?.onDetach?.addListener((source, reason) => {
     if (!Number.isInteger(source.tabId)) return;
     attached.delete(source.tabId);
@@ -165,8 +177,27 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     }
   });
 
-  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, mouseMove, mouseWheel, typeText, isRevoked };
+  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, mouseMove, mouseWheel, typeText, pressKey, isRevoked };
 }
+
+const SHIFT = 8;
+const KEYS = Object.freeze({
+  Enter: { key: 'Enter', code: 'Enter', vk: 13, text: '\r' },
+  Space: { key: ' ', code: 'Space', vk: 32, text: ' ' },
+  Escape: { key: 'Escape', code: 'Escape', vk: 27 },
+  Tab: { key: 'Tab', code: 'Tab', vk: 9 },
+  'Shift+Tab': { key: 'Tab', code: 'Tab', vk: 9, modifiers: SHIFT },
+  ArrowUp: { key: 'ArrowUp', code: 'ArrowUp', vk: 38 },
+  ArrowDown: { key: 'ArrowDown', code: 'ArrowDown', vk: 40 },
+  ArrowLeft: { key: 'ArrowLeft', code: 'ArrowLeft', vk: 37 },
+  ArrowRight: { key: 'ArrowRight', code: 'ArrowRight', vk: 39 },
+  Backspace: { key: 'Backspace', code: 'Backspace', vk: 8 },
+  Delete: { key: 'Delete', code: 'Delete', vk: 46 },
+  Home: { key: 'Home', code: 'Home', vk: 36 },
+  End: { key: 'End', code: 'End', vk: 35 },
+  PageUp: { key: 'PageUp', code: 'PageUp', vk: 33 },
+  PageDown: { key: 'PageDown', code: 'PageDown', vk: 34 },
+});
 
 export function isControl(ch) {
   const code = ch.codePointAt(0);
