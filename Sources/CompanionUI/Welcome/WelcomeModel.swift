@@ -25,6 +25,7 @@ package final class WelcomeModel {
     package private(set) var hasRefreshed = false
     package private(set) var level = 0.0
     package private(set) var done: Bool
+    package private(set) var soundCheck = SoundCheck.unchecked
 
     private let devices: any WelcomeDevices
     private let keyReady: () -> Bool
@@ -36,6 +37,12 @@ package final class WelcomeModel {
     /// Armed only when the app opened straight onto the saved permissions
     /// step, the relaunch macOS asks for after Screen Recording.
     @ObservationIgnored private var reaskArmed: Bool
+    /// Slider moves reach the Mac one after another: a drag sends many, and
+    /// the last one written must be the last one moved to.
+    @ObservationIgnored private var volumeWrites: Task<Void, Never>?
+    /// Bumped by every slider move so a read that started before it cannot
+    /// land afterwards and put the old level back.
+    @ObservationIgnored private var volumeWriteGeneration = 0
 
     package init(
         devices: any WelcomeDevices, keyReady: @escaping () -> Bool,
@@ -134,8 +141,72 @@ package final class WelcomeModel {
         facts.holdDone = true
     }
 
+    /// Incredible reads the volume once, before the first spoken line.
+    package func checkSound() async {
+        guard soundCheck == .unchecked else { return }
+        soundCheck = SoundCheck.start(await devices.outputVolume())
+    }
+
+    /// Incredible hears the volume keys through an event; a short poll is
+    /// the same answer without a CoreAudio listener in the view. False when
+    /// the screen was left meanwhile, so the greeting never speaks elsewhere.
+    package func holdForSoundCheck(
+        poll: Duration = .milliseconds(500),
+        sleep: (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+    ) async -> Bool {
+        await checkSound()
+        while soundCheck.holdsGreeting {
+            do { try await sleep(poll) } catch { return false }
+            await rereadVolume()
+        }
+        return !Task.isCancelled
+    }
+
+    /// The volume keys or the menu bar can raise it while the card is up.
+    package func rereadVolume() async {
+        guard soundCheck.holdsGreeting else { return }
+        let generation = volumeWriteGeneration
+        let reading = await devices.outputVolume()
+        guard generation == volumeWriteGeneration else { return }
+        soundCheck = soundCheck.reading(reading)
+    }
+
+    /// Muted is left alone: the slider moves the level, never the mute.
+    package func setVolume(_ level: Double) {
+        guard case .showing(let current) = soundCheck, !current.muted else { return }
+        volumeWriteGeneration += 1
+        soundCheck = soundCheck.reading(OutputVolume(level: level, muted: false))
+        // Crossing 30 removes the card before the release, so the release
+        // never reaches `probe()`: the Pop plays after the write instead.
+        let probeAfter = soundCheck == .passed
+        let devices = devices
+        let previous = volumeWrites
+        volumeWrites = Task {
+            await previous?.value
+            await devices.setOutputVolume(level)
+            if probeAfter { await devices.playProbe() }
+        }
+    }
+
+    func volumeWritesSettled() async {
+        await volumeWrites?.value
+    }
+
+    /// Letting go of the slider plays a sound at the new level.
+    package func probe() async {
+        guard case .showing(let current) = soundCheck, !current.muted else { return }
+        await volumeWrites?.value
+        await devices.playProbe()
+    }
+
+    /// "I can hear it" and "Continue anyway" both move on, as in Incredible.
+    package func confirmSound() {
+        guard soundCheck.holdsGreeting else { return }
+        soundCheck = .passed
+    }
+
     package func greet() async {
-        guard !greeted else { return }
+        guard !greeted, !soundCheck.holdsGreeting else { return }
         greeted = true
         let name = UserProfile.ownerName.trimmingCharacters(in: .whitespaces)
         let line = name.isEmpty
@@ -164,6 +235,7 @@ package final class WelcomeModel {
         flow = WelcomeFlow()
         facts.holdDone = false
         greeted = false
+        soundCheck = .unchecked
     }
 
     /// Seen before, and the key went missing: only the key screen again.
