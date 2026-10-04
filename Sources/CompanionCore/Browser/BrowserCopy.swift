@@ -99,6 +99,9 @@ package enum BrowserCopy {
     /// The extension's exact note for a field that took the text without its line breaks.
     package static let typedWithoutLineBreaks = "typed without line breaks"
 
+    /// The one cap figure: the failure copy and the policy's message both read it.
+    package static var maxMegabytes: Int { AttachmentPolicy.maxBytes / (1024 * 1024) }
+
     /// One line per code the model recovers by; an unknown code is named so
     /// it is never swallowed.
     package static func failure(code: String, _ language: AppLanguage) -> String {
@@ -153,6 +156,28 @@ package enum BrowserCopy {
         case (BridgeCode.notTypable, .es):
             return "Ese elemento no admite texto (por ejemplo, una lista desplegable). Elige otro elemento, o "
                 + "pide a la persona que elija la opción."
+        case (BridgeCode.notFileInput, .en):
+            return "That element is not a file field. Read the tab again and choose the file input."
+        case (BridgeCode.notFileInput, .es):
+            return "Ese elemento no es un campo de archivo. Vuelve a leer la pestaña y elige el campo de archivo."
+        case (BridgeCode.fileAccessRequired, .en):
+            return "Allow access to file URLs for the Companion extension, then retry."
+        case (BridgeCode.fileAccessRequired, .es):
+            return "Permite el acceso a URLs de archivo de la extensión de Companion y vuelve a intentar."
+        case (BridgeCode.fileTooLarge, .en):
+            return "That file is larger than \(maxMegabytes) MB. Choose a smaller file."
+        case (BridgeCode.fileTooLarge, .es):
+            return "Ese archivo pesa más de \(maxMegabytes) MB. Elige uno más pequeño."
+        // `denied_path` and `not_found` already exist for the parent's tools.
+        // Here they mean the upload, so the next step is another file, not another app.
+        case ("denied_path", .en):
+            return "That path cannot be uploaded. Choose a document in your home folder, outside Library and hidden folders."
+        case ("denied_path", .es):
+            return "Esa ruta no se puede subir. Elige un documento en tu carpeta personal, fuera de Library y de carpetas ocultas."
+        case ("not_found", .en):
+            return "That file was not found. Check the path and choose another."
+        case ("not_found", .es):
+            return "No se encontró ese archivo. Revisa la ruta y elige otro."
         case (_, .en): return "The browser failed: \(code)."
         case (_, .es): return "El navegador falló: \(code)."
         }
@@ -234,5 +259,58 @@ extension BrowserCopy {
         case .en: return "An outside agent wants to control the tab \u{AB}\(title)\u{BB}"
         case .es: return "Un agente externo quiere controlar la pestaña \u{AB}\(title)\u{BB}"
         }
+    }
+
+    /// The critical sheet for `browser_set_files`. The words are the whole
+    /// ask: a spoken yes cannot answer it, so nothing here is paraphrased.
+    /// `host` and `label` arrive already shortened; the path is the resolved
+    /// file and is not cut.
+    package static func setFilesSheet(
+        name: String, bytes: Int64, host: String, label: String, path: String,
+        _ language: AppLanguage
+    ) -> (lead: String, subject: String, trail: String, preview: String) {
+        let subject = "\u{AB}\(name)\u{BB} (\(byteCount(bytes)))"
+        switch language {
+        case .en:
+            return (
+                "Upload", subject, "to \(host)",
+                "Field: \u{AB}\(label)\u{BB}\nFile: \(path)\nThe site gets a copy of this file. This cannot be undone."
+            )
+        case .es:
+            return (
+                "Subir", subject, "a \(host)",
+                "Campo: \u{AB}\(label)\u{BB}\nArchivo: \(path)\nEl sitio recibe una copia del archivo. No se puede deshacer."
+            )
+        }
+    }
+
+    /// The sheet for a `browser_set_files` whose path, host or size did not
+    /// parse: the action is still named, so it never reads as a generic tool.
+    package static func setFilesMalformedTitle(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "Upload a file to a page"
+        case .es: return "Subir un archivo a una página"
+        }
+    }
+
+    /// Binary units, so 240 KiB of CV reads as the "240 KB" the sheet shows.
+    /// The decimal point is built by hand: `String(format:)` follows the locale
+    /// and would turn the audit line into "1,5 KB" on a Spanish Mac.
+    private static func byteCount(_ bytes: Int64) -> String {
+        let value = bytes < 0 ? 0 : bytes
+        let units: [(size: Int64, suffix: String)] = [(1024, "KB"), (1024 * 1024, "MB"), (1024 * 1024 * 1024, "GB")]
+        if value < 1024 { return "\(value) B" }
+        for (index, unit) in units.enumerated() {
+            // Divide before scaling: `value * 10` traps near Int64.max. The
+            // remainder is under one unit, so its own scaling cannot overflow.
+            let whole = value / unit.size
+            let remainder = value % unit.size
+            let tenths = whole * 10 + (remainder * 10 + unit.size / 2) / unit.size
+            // Rounding to 1024 of this unit is 1 of the next: "1024 KB" never shows.
+            if tenths >= 10240 && index < units.count - 1 { continue }
+            if tenths % 10 == 0 { return "\(tenths / 10) \(unit.suffix)" }
+            return "\(tenths / 10).\(tenths % 10) \(unit.suffix)"
+        }
+        return "\(value) B"
     }
 }
