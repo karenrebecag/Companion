@@ -33,6 +33,11 @@ private func elevenURL(_ voice: String) -> String {
     await testAnInvalidCustomIDIsRefusedAndNotPersisted()
     testAValidCustomIDIsTrimmedAndPersisted()
     testTheElevenLabsSectionNeedsTheKey()
+    testTheCardsFollowTheStoredVoice()
+    testChoosingCustomOpensTheFieldWithoutChangingTheVoice()
+    await testTheCardsNameTheDefaultAndAStoredCustomVoice()
+    await testApplyingAPresetIdMarksItsCardAndClearsTheError()
+    testAnUnknownPresetChoiceChangesNothing()
     await testTheElevenLabsSectionCopy()
     await testTheSampleGoesThroughTheRouterWithTheChosenVoice()
     await testWithoutAKeyTheSampleGoesThroughOpenAI()
@@ -126,6 +131,111 @@ private func elevenURL(_ voice: String) -> String {
     expect(!model.hasKey, "sección: borrar la clave la esconde de nuevo")
 }
 
+/// The radio cards show what the mouth will use: a preset's card, or the
+/// Custom card for an id outside the list.
+@MainActor func testTheCardsFollowTheStoredVoice() {
+    let restore = isolatedPreference("cards")
+    defer { restore() }
+    let model = ElevenLabsVoiceModel()
+    expectEq(model.shownChoice, .preset(anaMaria), "cards: sin valor, Ana María")
+    model.choose(.preset(regina))
+    expectEq(ElevenLabsVoicePreference.voiceID, regina, "cards: elegir la tarjeta guarda la voz")
+    expectEq(model.shownChoice, .preset(regina), "cards: Regina marcada")
+    model.customField = "XyZ0123456789"
+    model.applyCustom()
+    expectEq(model.shownChoice, .custom, "cards: un id propio marca Personalizada")
+}
+
+/// Choosing the Custom card only opens the field: the voice changes when a
+/// valid id is applied, never on the click, so a stray arrow key cannot
+/// silence the current voice.
+@MainActor func testChoosingCustomOpensTheFieldWithoutChangingTheVoice() {
+    let restore = isolatedPreference("custom-open")
+    defer { restore() }
+    let model = ElevenLabsVoiceModel()
+    model.choose(.custom)
+    expectEq(model.shownChoice, .custom, "custom: la tarjeta se marca")
+    expect(model.customOpen, "custom: el campo aparece")
+    expectEq(ElevenLabsVoicePreference.voiceID, anaMaria, "custom: la voz no cambia al hacer clic")
+    model.choose(.preset(regina))
+    expect(!model.customOpen, "custom: elegir un preset cierra el campo")
+    expectEq(ElevenLabsVoicePreference.voiceID, regina, "custom: el preset queda guardado")
+    model.choose(.custom)
+    model.customField = "../v1"
+    model.applyCustom()
+    expectEq(ElevenLabsVoicePreference.voiceID, regina, "custom: un id malo no reemplaza la voz")
+    expect(model.customOpen, "custom: el campo sigue abierto para corregirlo")
+}
+
+@MainActor func testTheCardsNameTheDefaultAndAStoredCustomVoice() async {
+    let restore = isolatedPreference("card-meta")
+    defer { restore() }
+    await Localized.scoped(to: .es) {
+        let cards = ElevenLabsVoiceCards.options(storedVoiceID: anaMaria)
+        expectEq(cards.map(\.value), ElevenLabsMouth.presets.map { .preset($0.id) } + [.custom],
+                 "cards: los seis presets y Personalizada al final")
+        expectEq(cards.map(\.label), ElevenLabsMouth.presets.map(\.name)
+                 + [Localized.string("settings.voice.eleven.custom.label")],
+                 "cards: el nombre de cada voz y Personalizada")
+        expectEq(cards.first?.meta, Localized.string("settings.voice.eleven.default"),
+                 "cards: Ana María dice Predeterminada")
+        expect(cards.dropFirst().allSatisfy { $0.meta == nil }, "cards: solo el default lleva meta")
+        expectEq(cards.last?.description, nil, "cards: sin id propio, Personalizada no muestra id")
+
+        let custom = ElevenLabsVoiceCards.options(storedVoiceID: "XyZ0123456789")
+        expectEq(custom.last?.description, "XyZ0123456789", "cards: el id propio entero, sin recortar")
+
+        ElevenLabsVoicePreference.voiceID = "XyZ0123456789"
+        expectEq(ElevenLabsVoiceModel().customField, "XyZ0123456789",
+                 "cards: el campo arranca con el id guardado")
+
+        let typing = ElevenLabsVoiceModel()
+        typing.customField = "Typed123"
+        typing.refresh()
+        expectEq(typing.customField, "Typed123", "cards: refresh no pisa lo que se está escribiendo")
+
+        let emptied = ElevenLabsVoiceModel()
+        emptied.customField = ""
+        emptied.refresh()
+        expectEq(emptied.customField, "", "cards: refresh no rellena un campo que se vació a propósito")
+    }
+}
+
+/// A valid id that is a preset's own is that preset: the card follows the
+/// stored voice, and the earlier refusal stops showing.
+@MainActor func testApplyingAPresetIdMarksItsCardAndClearsTheError() async {
+    let restore = isolatedPreference("apply-preset")
+    defer { restore() }
+    await Localized.scoped(to: .es) {
+        let model = ElevenLabsVoiceModel()
+        model.choose(.custom)
+        model.customField = "../v1"
+        model.applyCustom()
+        expectEq(model.errorText, Localized.string("settings.voice.eleven.invalid"),
+                 "apply: un id malo muestra el error")
+        model.customField = regina
+        model.applyCustom()
+        expectEq(ElevenLabsVoicePreference.voiceID, regina, "apply: la voz es Regina")
+        expectEq(model.shownChoice, .preset(regina), "apply: el id de un preset marca su tarjeta")
+        expectEq(model.errorText, nil, "apply: el id válido borra el error")
+    }
+}
+
+/// The guard in choose(_:) pins the stored voice to the presets.
+@MainActor func testAnUnknownPresetChoiceChangesNothing() {
+    let restore = isolatedPreference("unknown-preset")
+    defer { restore() }
+    let model = ElevenLabsVoiceModel()
+    model.choose(.preset(regina))
+    model.choose(.custom)
+    for bad in ["nope", "../v1"] {
+        model.choose(.preset(bad))
+        expectEq(ElevenLabsVoicePreference.voiceID, regina, "unknown: la voz guardada no cambia (\(bad))")
+        expect(model.customOpen, "unknown: el campo sigue abierto (\(bad))")
+        expectEq(model.errorText, nil, "unknown: sin error nuevo (\(bad))")
+    }
+}
+
 @MainActor func testTheElevenLabsSectionCopy() async {
     for (language, noKey) in [
         (AppLanguage.es, "Sin clave de ElevenLabs se usa la voz de OpenAI de arriba."),
@@ -137,7 +247,7 @@ private func elevenURL(_ voice: String) -> String {
             for key in ["settings.voice.eleven.header", "settings.voice.eleven.blurb",
                         "settings.voice.eleven.custom", "settings.voice.eleven.custom.placeholder",
                         "settings.voice.eleven.custom.apply", "settings.voice.eleven.custom.label",
-                        "settings.voice.eleven.invalid"] {
+                        "settings.voice.eleven.invalid", "settings.voice.eleven.default"] {
                 expect(Localized.string(key) != key, "copy: \(key) existe (\(language))")
             }
         }

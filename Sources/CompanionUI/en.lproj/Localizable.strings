@@ -154,6 +154,7 @@
 "settings.voice.eleven.custom.placeholder" = "ElevenLabs voice id";
 "settings.voice.eleven.custom.apply" = "Use";
 "settings.voice.eleven.custom.label" = "Custom";
+"settings.voice.eleven.default" = "Default";
 "settings.voice.eleven.invalid" = "That voice id is not valid: letters and digits only, up to 64.";
 "settings.voice.patience" = "Patience";
 "settings.voice.patience.blurb" = "Gives up the turn once you have been silent this long.";
