@@ -44,6 +44,8 @@ package struct BridgePolicy: Sendable, Equatable {
         "browser_double_click",
         "browser_right_click",
         "browser_type",
+        "browser_scroll",
+        "browser_hover",
         "browser_navigate",
         "browser_open",
         "browser_take",

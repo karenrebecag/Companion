@@ -117,6 +117,8 @@ function dispatch(name, args) {
     case 'browser_double_click': return trustedPress(args, GESTURES.double);
     case 'browser_right_click': return trustedPress(args, GESTURES.right);
     case 'browser_type': return trustedType(args);
+    case 'browser_hover': return trustedPress(args, GESTURES.hover);
+    case 'browser_scroll': return args.element != null ? scrollToElement(args) : trustedScroll(args);
     case 'browser_navigate': return navigate(args.tab, args.url);
     case 'browser_open': return openTab(args.url);
     case 'browser_take': return serial(() => takeTab(args.tab));
@@ -414,6 +416,10 @@ async function pressElement(args, entry, target, gesture) {
     const hits = async () => (await inPage(target, (g, id, x, y) => ({ hit: globalThis.__companionPage.hitsAt(g, id, x, y) }),
       [args.generation, entry.localId, spot.box.x, spot.box.y]))?.hit === true;
     if (!(await hits())) return coveredElement;
+    if (!gesture.mouse) {
+      await cdp.mouseMove(args.tab, spot.box.x, spot.box.y);
+      return 'pressed';
+    }
     // The first press of a double click can open something at that very pixel; the second must not land on it.
     const whole = await cdp.mouseClick(args.tab, spot.box.x, spot.box.y, { ...gesture.mouse, beforeRepeat: hits });
     if (!whole) return coveredAfterFirstPress;
@@ -430,6 +436,8 @@ const GESTURES = {
   click: { verb: 'Clic', mouse: { button: 'left', count: 1 }, landing: 'click', synthetic: 'click', done: 'clicked' },
   double: { verb: 'Doble clic', mouse: { button: 'left', count: 2 }, landing: 'click', synthetic: 'doubleClick', done: 'double-clicked' },
   right: { verb: 'Clic derecho', mouse: { button: 'right', count: 1 }, landing: 'contextmenu', synthetic: 'contextClick', done: 'right-clicked' },
+  // No button: the pointer only arrives, so there is no landing to prove and nothing to repeat.
+  hover: { verb: 'Señalando', mouse: null, landing: null, synthetic: 'hover', done: 'hovered' },
 };
 
 // Only the top frame gets the trusted path: an iframe's box is in its own coordinates, not the tab's.
@@ -452,6 +460,28 @@ async function trustedPress(args, gesture) {
     // Never pressed (off-screen or zero-size): the synthetic click targets the element itself, nothing on top of it.
     const fallback = await inPage(target, synthetic, [args.generation, entry.localId, gesture.synthetic]);
     return fallback ?? staleElement;
+  }).catch((error) => inputFailed(args.tab, error));
+}
+
+async function scrollToElement(args) {
+  return act(args, (g, id) => globalThis.__companionPage.scrollTo(g, id), []);
+}
+
+// The wheel goes to the middle of the viewport, where the page's main scroller almost always is.
+async function trustedScroll(args) {
+  const target = { tabId: args.tab, frameIds: [0] };
+  try {
+    await inject(target);
+  } catch {
+    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+  }
+  if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
+  return cdp.withInput(args.tab, async () => {
+    const view = await inPage(target, () => globalThis.__companionPage.viewport(), []);
+    const x = Math.max(1, Math.round((view?.w ?? 2) / 2));
+    const y = Math.max(1, Math.round((view?.h ?? 2) / 2));
+    await cdp.mouseWheel(args.tab, x, y, args.dx, args.dy);
+    return { done: 'scrolled' };
   }).catch((error) => inputFailed(args.tab, error));
 }
 

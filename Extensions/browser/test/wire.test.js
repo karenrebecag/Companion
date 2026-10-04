@@ -49,6 +49,10 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
   assert.equal(validateCall({ name: 'browser_click', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_double_click', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_right_click', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_hover', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_scroll', arguments: { tab: 1, dx: 0, dy: 600 } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_scroll', arguments: { tab: 1, dx: -20000, dy: 20000 } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_scroll', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_type', arguments: { tab: 1, generation: 3, element: 2, text: '' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_navigate', arguments: { tab: 1, url: 'https://a.b/' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'https://a.b/' } }).ok, true);
@@ -63,6 +67,12 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
     { name: 'browser_click', arguments: { tab: 1, generation: 3 } },
     { name: 'browser_double_click', arguments: { tab: 1, element: 2 } },
     { name: 'browser_right_click', arguments: { tab: '1', generation: 3, element: 2 } },
+    { name: 'browser_hover', arguments: { tab: 1, element: 2 } },
+    { name: 'browser_scroll', arguments: { tab: 1 } },
+    { name: 'browser_scroll', arguments: { tab: 1, dx: 0, dy: 20001 } },
+    { name: 'browser_scroll', arguments: { tab: 1, dx: 1.5, dy: 0 } },
+    { name: 'browser_scroll', arguments: { tab: 1, dy: 100 } },
+    { name: 'browser_scroll', arguments: { tab: 1, generation: 3, element: 2, dx: 0, dy: 10 } },
     { name: 'browser_type', arguments: { tab: 1, generation: 3, element: 2 } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'javascript:alert(1)' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'file:///etc/passwd' } },

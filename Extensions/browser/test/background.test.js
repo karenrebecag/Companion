@@ -621,6 +621,114 @@ for (const [id, name, method, done] of [
     assert.equal(presses(rig.state).length, 0, 'no mouse press off screen');
   });
 }
+// --- H-7 P5b: hover and scroll ------------------------------------------------------------------------
+
+const mouseEvents = (state, type) => state.cdp.filter(([, method, params]) => method === 'Input.dispatchMouseEvent' && params.type === type).map(([, , p]) => p);
+
+test('a trusted hover moves the pointer to the element center and presses nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, clicked } = await readyButton(rig, onScreen);
+  const reply = await ask(rig.ports[0], 161, 'browser_hover', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'hovered' });
+  assert.deepEqual(mouseEvents(rig.state, 'mouseMoved').map((p) => [p.x, p.y, p.buttons]), [[40, 60, 0]]);
+  assert.equal(presses(rig.state).length, 0, 'a hover never presses');
+  assert.equal(clicked.length, 0);
+  assert.equal(rig.state.landingEvent, null, 'no click landing is armed for a hover');
+});
+
+test('a hover over an element something else covers moves nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, { ...onScreen, blocked: true });
+  const reply = await ask(rig.ports[0], 162, 'browser_hover', { tab: 3, generation, element: 1 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(mouseEvents(rig.state, 'mouseMoved').length, 0);
+});
+
+test('a hover off screen uses the synthetic hover, never a press', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, clicked } = await readyButton(rig, { ...onScreen, inView: false });
+  const hovered = [];
+  rig.state.page.hover = () => { hovered.push(1); return { done: 'hovered' }; };
+  const reply = await ask(rig.ports[0], 163, 'browser_hover', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'hovered' });
+  assert.equal(hovered.length, 1);
+  assert.equal(clicked.length, 0);
+  assert.equal(mouseEvents(rig.state, 'mouseMoved').length, 0);
+});
+
+test('a hover on an element inside a frame uses the synthetic hover in that frame', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const run = rig.chrome.scripting.executeScript;
+  const frames = [];
+  rig.chrome.scripting.executeScript = async (opts) => {
+    if (opts.func && !opts.target.allFrames) frames.push(opts.target.frameIds?.[0]);
+    const out = await run(opts);
+    return opts.target.allFrames ? out.map((hit) => ({ ...hit, frameId: 2 })) : out;
+  };
+  const { generation, clicked } = await readyButton(rig, onScreen);
+  const hovered = [];
+  rig.state.page.hover = () => { hovered.push(1); return { done: 'hovered' }; };
+  const reply = await ask(rig.ports[0], 167, 'browser_hover', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'hovered' });
+  assert.equal(hovered.length, 1);
+  assert.equal(frames.at(-1), 2, 'run in the frame the read found it in');
+  assert.equal(clicked.length, 0);
+  assert.equal(mouseEvents(rig.state, 'mouseMoved').length, 0, 'a frame box is not in the tab\'s coordinates');
+});
+
+test('a scroll by an offset wheels at the middle of the viewport', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await readyButton(rig, onScreen);
+  rig.state.page.viewport = () => ({ w: 1000, h: 800 });
+  const reply = await ask(rig.ports[0], 164, 'browser_scroll', { tab: 3, dx: -40, dy: 600 });
+  assert.deepEqual(reply.result, { done: 'scrolled' });
+  assert.deepEqual(mouseEvents(rig.state, 'mouseWheel').map((p) => [p.x, p.y, p.deltaX, p.deltaY]), [[500, 400, -40, 600]]);
+  assert.equal(presses(rig.state).length, 0);
+  assert.equal(mouseEvents(rig.state, 'mouseMoved').length, 0, 'the wheel carries its own point; no hover over whatever is there');
+});
+
+test('a scroll whose viewport cannot be read still wheels, at the top-left corner', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await readyButton(rig, onScreen);
+  rig.state.page.viewport = () => null;
+  const reply = await ask(rig.ports[0], 168, 'browser_scroll', { tab: 3, dx: 0, dy: 300 });
+  assert.deepEqual(reply.result, { done: 'scrolled' });
+  assert.deepEqual(mouseEvents(rig.state, 'mouseWheel').map((p) => [p.x, p.y]), [[1, 1]]);
+});
+
+test('a scroll on a tab the page script cannot reach is stale and wheels nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await readyButton(rig, onScreen);
+  const run = rig.chrome.scripting.executeScript;
+  rig.chrome.scripting.executeScript = async (opts) => {
+    if (opts.files) throw new Error('Cannot access contents of the page');
+    return run(opts);
+  };
+  const reply = await ask(rig.ports[0], 169, 'browser_scroll', { tab: 3, dx: 0, dy: 300 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(mouseEvents(rig.state, 'mouseWheel').length, 0);
+});
+
+test('a scroll after the user stopped Companion on that tab is refused', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await readyButton(rig, onScreen);
+  rig.state.page.viewport = () => ({ w: 1000, h: 800 });
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+  const reply = await ask(rig.ports[0], 165, 'browser_scroll', { tab: 3, dx: 0, dy: 300 });
+  assert.equal(reply.error.code, 'debugger_revoked');
+  assert.equal(mouseEvents(rig.state, 'mouseWheel').length, 0);
+});
+
+test('a scroll to an element brings that element into view in its own frame', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  const scrolled = [];
+  rig.state.page.scrollTo = (g, id) => { scrolled.push([g, id]); return { done: 'scrolled' }; };
+  const reply = await ask(rig.ports[0], 166, 'browser_scroll', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'scrolled' });
+  assert.equal(scrolled.length, 1);
+  assert.equal(mouseEvents(rig.state, 'mouseWheel').length, 0, 'no wheel: the element is brought into view itself');
+});
 
 test('an element something else covers is never pressed with the mouse', async () => {
   const rig = await boot({ tabs: userTabs() });
