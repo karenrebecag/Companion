@@ -20,7 +20,7 @@ struct SettingsYouPage: View {
         VStack(alignment: .leading, spacing: Space.x5) {
             SettingsPageHeader(title: SettingsTab.you.title, blurb: Localized.string("settings.you.blurb"))
             SettingsCard {
-                profileRow
+                profileRow.settingsSearchTarget("settings.you.photo")
                 SettingsRow(title: Localized.string("settings.you.name"), key: "settings.you.name") {
                     TextField(Localized.string("settings.you.name.placeholder"), text: $ownerName)
                         .textFieldStyle(.plain)
@@ -149,7 +149,6 @@ struct SettingsTextRow: View {
     var key: String? = nil
     let placeholder: String
     @Binding var text: String
-    @Environment(\.settingsHighlight) private var highlight
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x2) {
@@ -166,7 +165,7 @@ struct SettingsTextRow: View {
         }
         .padding(.horizontal, Space.x4)
         .padding(.vertical, Space.x3)
-        .background(key != nil && key == highlight ? Semantic.hover : Color.clear)
+        .settingsSearchTarget(key)
     }
 }
 
@@ -183,7 +182,7 @@ struct SettingsVocabularyPage: View {
             SettingsPageHeader(
                 title: SettingsTab.vocabulary.title, blurb: Localized.string("settings.vocabulary.subtitle"))
             example
-            SettingsCard {
+            SettingsCard(key: "settings.vocabulary") {
                 addRow
                 ForEach(words, id: \.self) { word in
                     SettingsRow(title: word) {
