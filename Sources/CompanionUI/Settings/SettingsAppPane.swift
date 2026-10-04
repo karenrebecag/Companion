@@ -53,7 +53,7 @@ struct SettingsPrivacyPage: View {
                 }
             }
             if let welcome {
-                SettingsCard(label: Localized.string("settings.permissions")) {
+                SettingsCard(label: Localized.string("settings.permissions"), key: "settings.permissions") {
                     ForEach(WelcomePermission.allCases, id: \.self) { permission in
                         SettingsPermissionRow(model: PermissionRowModel(
                             kind: permission.rowKind,
@@ -62,7 +62,7 @@ struct SettingsPrivacyPage: View {
                 }
             }
             if let browser { SettingsBrowserCard(model: browser) }
-            SettingsCard(label: Localized.string("settings.keys.label")) {
+            SettingsCard(label: Localized.string("settings.keys.label"), key: "settings.keys.header") {
                 keysBlock.padding(Space.x4)
             }
         }
