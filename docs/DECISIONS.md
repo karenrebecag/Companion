@@ -490,3 +490,36 @@ al pintar: lo que se inspecciona es lo pintado, no una reconstruccion. Mientras
 Karen habla el puente esta en pausa, asi que la secuencia de un turno se lee
 despues, del log. Disparador de revision: una prueba cuyo oraculo no quepa en
 metadato, igualdad o rasgo derivado (D7 de self-qa-inspeccion-datos).
+
+## ADR 010 — Subir un archivo local a una pagina por CDP
+
+**Fecha:** 2026-10-03 · **Estado:** PROPUESTO (plan h7-p8-browser-set-files D1-D9, pendientes de firma de Karen; brief navegador-mejoras-agentes K5)
+
+**Contexto.** Los formularios que piden un archivo (un CV, una factura) se
+quedan a medio llenar: las manos del navegador escriben y hacen clic, pero un
+`<input type=file>` no acepta texto. Hoy la extension solo usa los dominios CDP
+`Page`, `Emulation` e `Input`.
+
+**Decision propuesta.** `browser_set_files` pone UN archivo local en un input
+de archivo de la ultima lectura. La extension suma cuatro metodos CDP:
+`DOM.getDocument`, `DOM.querySelectorAll`, `DOM.describeNode` y
+`DOM.setFileInputFiles`; el navegador lee el archivo por ruta, ningun byte
+cruza el puerto nativo. Sin `Runtime.evaluate`. La ruta la juzga Swift
+(`BrowserFilePolicy` sobre `ParentToolPolicy.homePath`): bajo `$HOME`, sin
+componentes ocultos, sin `~/Library`, sin bibliotecas de Fotos, sin llaves ni
+bovedas, solo archivos regulares, tope de `AttachmentPolicy.maxBytes`. Cada
+subida abre la hoja critica, nunca se recuerda ni se resuelve con un si
+hablado, y el ticket queda atado a elemento, origen y la identidad del archivo
+(ruta resuelta, tamano, mtime, inode). Nunca envia el formulario.
+
+**Lo que no se hizo.** Ni bytes por el puerto (tope de 1 MB y una copia del
+archivo en transito), ni el selector de macOS (D1: la hoja es el
+consentimiento), ni inputs ocultos o paginas que solo abren el selector (P8b,
+`Page.setInterceptFileChooserDialog`).
+
+**Consecuencias.** Es la primera tool que saca el contenido de un archivo de
+la Mac hacia un tercero; la hoja dice que el sitio recibe una copia y que no se
+deshace. Requiere que la usuaria active "Permitir acceso a URLs de archivo" en
+la extension (`file_access_required`). Disparador de revision: una pagina real
+que necesite varios archivos o un input oculto, o cualquier pedido de ampliar
+el alcance mas alla de `$HOME`.
