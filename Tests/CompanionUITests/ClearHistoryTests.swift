@@ -171,11 +171,11 @@ struct ClearHistoryUITests {
             "settings.history.label": "Data",
             "settings.history.row": "Clear chat history",
             "settings.history.row.subtitle":
-                "Erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and your files are not touched.",
+                "Erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and your files are not touched. Claude Code and Hermes keep their own history.",
             "settings.history.action": "Clear…",
             "settings.history.title": "Clear your chat history?",
             "settings.history.blurb":
-                "This erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and anything saved to your files stay as they are. There's no undo.",
+                "This erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and anything saved to your files stay as they are. Claude Code and Hermes keep their own history. There's no undo.",
             "settings.history.cancel": "Cancel",
             "settings.history.confirm": "Clear chat history",
             "settings.history.clearing": "Clearing…",
@@ -186,11 +186,11 @@ struct ClearHistoryUITests {
             "settings.history.label": "Datos",
             "settings.history.row": "Borrar historial de chats",
             "settings.history.row.subtitle":
-                "Borra de este equipo tus chats con Companion y las tareas iniciadas en ellos. No toca las apps conectadas, el dictado ni tus archivos.",
+                "Borra de este equipo tus chats con Companion y las tareas iniciadas en ellos. No toca las apps conectadas, el dictado ni tus archivos. Claude Code y Hermes guardan su propio historial.",
             "settings.history.action": "Borrar…",
             "settings.history.title": "¿Borrar tu historial de chats?",
             "settings.history.blurb":
-                "Esto borra de este equipo tus chats con Companion y las tareas iniciadas en ellos. Las apps conectadas, el dictado y todo lo guardado en tus archivos se quedan como están. No se puede deshacer.",
+                "Esto borra de este equipo tus chats con Companion y las tareas iniciadas en ellos. Las apps conectadas, el dictado y todo lo guardado en tus archivos se quedan como están. Claude Code y Hermes guardan su propio historial. No se puede deshacer.",
             "settings.history.cancel": "Cancelar",
             "settings.history.confirm": "Borrar historial de chats",
             "settings.history.clearing": "Borrando…",
@@ -207,6 +207,132 @@ struct ClearHistoryUITests {
 
     @Test func dialogIsAsWideAsIncrediblesAlert() {
         expectEq(HistoryClearDialog.maxWidth, 440, "the alert dialog is 440 wide")
+    }
+
+    @Test func islandKeepsTheDestructiveClearEntry() {
+        // Incredible's island menu has Clear history in red and runs the same
+        // real clear, so the entry stays.
+        expect(IslandMenuItem.allCases.contains(.clearHistory), "the island keeps Clear history")
+        expect(IslandMenuItem.clearHistory.destructive, "the entry stays the destructive one")
+    }
+
+    @Test @MainActor func askingAloneErasesNothing() async throws {
+        let (store, model) = try await seededIsland()
+        let id = model.conversationId
+        var flow = IslandClearFlow()
+        expect(!flow.asking, "nothing is asked before the entry is chosen")
+
+        flow.ask()
+
+        expect(flow.asking, "choosing the entry asks")
+        expectEq(store.clears, 0, "the question is not the clear")
+        expectEq(model.messages.count, 1, "the messages are untouched")
+        expectEq(model.conversationId, id, "the thread is untouched")
+    }
+
+    @Test @MainActor func cancellingClearsNothingAndStopsAsking() async throws {
+        let (store, model) = try await seededIsland()
+        var flow = IslandClearFlow()
+        flow.ask()
+
+        flow.cancel()
+
+        expect(!flow.asking, "cancel closes the question")
+        expectEq(store.clears, 0, "cancel does not clear")
+        expectEq(model.messages.count, 1, "cancel keeps the messages")
+    }
+
+    @Test @MainActor func confirmingRunsTheSameHistoryCutAndStopsAsking() async throws {
+        let (store, model) = try await seededIsland()
+        let id = model.conversationId
+        var flow = IslandClearFlow()
+        flow.ask()
+
+        flow.confirm(chat: model)
+
+        expect(!flow.asking, "a done clear closes the question")
+        expectEq(store.clears, 1, "yes runs the history cut, not a new chat")
+        expect(model.messages.isEmpty, "the live thread is empty")
+        expect(model.conversationId != id, "the deleted id is not the live thread")
+        expect(try store.load(id) == nil, "the stored chat is gone")
+    }
+
+    @Test @MainActor func failedConfirmKeepsAskingAndSaysSo() async throws {
+        let (store, model) = try await seededIsland()
+        let kept = model.conversationId
+        store.clearError = PersistenceError.io
+        var flow = IslandClearFlow()
+        flow.ask()
+
+        await Localized.scoped(to: .en) {
+            flow.confirm(chat: model)
+            expectEq(
+                model.errorText, Localized.string("settings.history.error"),
+                "a failed clear says so on the island")
+        }
+
+        expect(flow.asking, "the question stays so she can retry")
+        expectEq(store.clears, 1, "the cut was tried")
+        expectEq(model.conversationId, kept, "a failed clear keeps the thread")
+        expectEq(model.messages.count, 1, "a failed clear keeps the messages")
+    }
+
+    @Test @MainActor func choosingTheMenuEntryOnlyAsks() async throws {
+        let (store, model) = try await seededIsland()
+        let id = model.conversationId
+        let voice = VoiceViewModel(voice: RecordingVoice(), thread: FakePresenter())
+        let hold = HoldSettingsModel(permission: FakeAccessibility(trusted: true))
+        let view = IslandView(
+            chat: model, voice: voice, hold: hold, onShowMain: {}, onSize: { _, _ in },
+            updates: nil)
+
+        view.choose(.clearHistory)
+
+        expectEq(store.clears, 0, "picking the menu entry is the question, not the clear")
+        expectEq(model.messages.count, 1, "the messages are untouched")
+        expectEq(model.conversationId, id, "the thread is untouched")
+    }
+
+    @MainActor private func seededIsland() async throws -> (ScriptedHistoryStore, ChatViewModel) {
+        let store = ScriptedHistoryStore()
+        let model = ChatViewModel(
+            chat: FakeChatProvider(),
+            secrets: TestSecretStore([.openAI: "sk-test"]),
+            store: store,
+            config: .default)
+        await model.appendUser("hello")
+        return (store, model)
+    }
+
+    @Test @MainActor func islandConfirmUsesTheSettingsWords() async {
+        await Localized.scoped(to: .en) {
+            expectEq(
+                Localized.string("island.clear.ask"),
+                Localized.string("settings.history.title"),
+                "the island asks the same question")
+            expectEq(
+                Localized.string("island.clear.yes"),
+                Localized.string("settings.history.confirm"),
+                "the island confirms with the same words")
+            expectEq(
+                Localized.string("island.clear.no"),
+                Localized.string("settings.history.cancel"),
+                "the island cancels with the same words")
+        }
+        await Localized.scoped(to: .es) {
+            expectEq(
+                Localized.string("island.clear.ask"),
+                Localized.string("settings.history.title"),
+                "la isla pregunta lo mismo")
+            expectEq(
+                Localized.string("island.clear.yes"),
+                Localized.string("settings.history.confirm"),
+                "la isla confirma con las mismas palabras")
+            expectEq(
+                Localized.string("island.clear.no"),
+                Localized.string("settings.history.cancel"),
+                "la isla cancela con las mismas palabras")
+        }
     }
 }
 

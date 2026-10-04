@@ -28,6 +28,10 @@ package final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
     /// this: a process that starts, prints nothing and dies.
     private var resumedFromStore = false
     private var sawInitialized = false
+    /// The store generation the process and `sessionId` belong to. The
+    /// provider caches this executor for the app's life, so a clear that
+    /// moved the generation must be noticed here, not by a new instance.
+    private var generation: Int
 
     package init(
         workdir: String,
@@ -46,6 +50,7 @@ package final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         self.sessions = sessions
         self.language = language
         self.skills = skills
+        self.generation = sessions?.currentGeneration() ?? 0
 
         self.descriptor = ExecutorDescriptor(
             id: ExecutorID(rawValue: "claude-code"),
@@ -61,6 +66,7 @@ package final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         events: AsyncStream<JobEvent>.Continuation
     ) async throws -> JobResult {
         try Task.checkCancellation()
+        await forgetIfCleared()
         do {
             return try await attempt(job, events: events)
         } catch ExecutorError.staleSession {
@@ -280,6 +286,23 @@ package final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         return fresh
     }
 
+    /// A clear erased the thread this process and `sessionId` still hold.
+    /// Ending the process and dropping the id makes the next launch start
+    /// clean instead of resuming an erased task.
+    private func forgetIfCleared() async {
+        guard let current = sessions?.currentGeneration() else { return }
+        let stale = lock.withLock { () -> (any ProcessHandle)? in
+            guard current != generation else { return nil }
+            generation = current
+            sessionId = nil
+            resumedFromStore = false
+            sawInitialized = false
+            defer { handle = nil }
+            return handle
+        }
+        await stale?.terminate()
+    }
+
     private func dropProcess() async {
         let dead = lock.withLock { () -> (any ProcessHandle)? in
             defer { handle = nil }
@@ -288,10 +311,12 @@ package final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         await dead?.terminate()
     }
 
-    /// The store is the durable truth; the in-memory id covers a run with no
-    /// store wired (tests, and the native-only composition).
+    /// The store is the durable truth. The in-memory id covers only a run
+    /// with no store wired (tests, and the native-only composition): with a
+    /// store, a nil answer means the thread was cleared or never saved, and
+    /// the id in memory may be the one a clear just erased.
     private func effectiveSession() -> String? {
-        let saved = sessions?.session(for: sessionKey)
+        let saved = sessions.map { $0.session(for: sessionKey) }
             ?? lock.withLock { sessionId }
         return ExecutorSessions.effective(saved, for: descriptor.id)
     }

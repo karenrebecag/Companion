@@ -224,10 +224,10 @@
 "settings.privacy.lendHands.subtitle" = "Claude Code and other local agents can look at the screen and act through Companion. Each session asks first; sensitive actions ask again.";
 "settings.history.label" = "Data";
 "settings.history.row" = "Clear chat history";
-"settings.history.row.subtitle" = "Erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and your files are not touched.";
+"settings.history.row.subtitle" = "Erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and your files are not touched. Claude Code and Hermes keep their own history.";
 "settings.history.action" = "Clear…";
 "settings.history.title" = "Clear your chat history?";
-"settings.history.blurb" = "This erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and anything saved to your files stay as they are. There's no undo.";
+"settings.history.blurb" = "This erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and anything saved to your files stay as they are. Claude Code and Hermes keep their own history. There's no undo.";
 "settings.history.cancel" = "Cancel";
 "settings.history.confirm" = "Clear chat history";
 "settings.history.clearing" = "Clearing…";
@@ -271,8 +271,8 @@
 "island.menu.shortcuts" = "Shortcuts";
 "island.menu.feedback" = "Send feedback";
 "island.menu.clearHistory" = "Clear history";
-"island.clear.ask" = "Clear the island's history? The conversation stays in Conversations.";
-"island.clear.yes" = "Clear";
+"island.clear.ask" = "Clear your chat history?";
+"island.clear.yes" = "Clear chat history";
 "island.clear.no" = "Cancel";
 "island.result.open" = "View →";
 "island.reel" = "Apps touched this turn";

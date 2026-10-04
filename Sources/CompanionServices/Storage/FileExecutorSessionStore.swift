@@ -8,22 +8,37 @@ import Foundation
 package final class FileExecutorSessionStore: ExecutorSessionStoring, @unchecked Sendable {
     private let fileURL: URL
     private let lock = NSLock()
+    private let epoch: ExecutorSessionEpoch
 
     package init(fileURL: URL) {
         self.fileURL = fileURL
+        // The history clear bumps this same counter, keyed by this path.
+        self.epoch = ExecutorSessionEpochs.shared(file: fileURL)
+    }
+
+    package func currentGeneration() -> Int {
+        epoch.current()
     }
 
     package func session(for key: ExecutorSessionKey) -> String? {
-        lock.withLock { load()[key.executor.rawValue]?[key.workdir] }
+        // Same lock as a clear, so a read never sees the file mid-move.
+        epoch.withLock {
+            lock.withLock { load()[key.executor.rawValue]?[key.workdir] }
+        }
     }
 
     package func set(_ id: String?, for key: ExecutorSessionKey) {
-        lock.withLock {
-            var all = load()
-            var byWorkdir = all[key.executor.rawValue] ?? [:]
-            byWorkdir[key.workdir] = id
-            all[key.executor.rawValue] = byWorkdir
-            save(all)
+        // A job pins the generation it started with. Writing after a clear
+        // would put the erased task back where --resume can find it.
+        let seen = ExecutorSessionWrite.generation ?? epoch.current()
+        epoch.write(seen: seen) {
+            lock.withLock {
+                var all = load()
+                var byWorkdir = all[key.executor.rawValue] ?? [:]
+                byWorkdir[key.workdir] = id
+                all[key.executor.rawValue] = byWorkdir
+                save(all)
+            }
         }
     }
 

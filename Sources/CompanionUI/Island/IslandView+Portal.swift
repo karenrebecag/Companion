@@ -66,14 +66,9 @@ extension IslandView {
             FeedbackRequest.raise()
             NotificationCenter.default.post(name: .companionOpenFeedback, object: nil)
         case .clearHistory:
-            confirmingClear = true
+            // The island menu has Clear history in red, as Incredible's does,
+            // and its yes runs the same real clear as Settings.
+            clearFlow.ask()
         }
-    }
-
-    /// The thread leaves the island; the conversation stays archived in
-    /// Conversations, as a new conversation always leaves it.
-    func clearHistory() {
-        confirmingClear = false
-        chat.newConversation()
     }
 }
