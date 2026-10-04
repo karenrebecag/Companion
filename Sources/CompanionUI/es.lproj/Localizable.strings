@@ -723,3 +723,26 @@
 "settings.panel.undock" = "Volver a flotar";
 "settings.panel.fold" = "Plegar en una píldora";
 "settings.panel.unfold" = "Abrir ajustes";
+
+/* Settings: reset permissions and relaunch (ON-18) */
+"settings.resetPermissions.title" = "Restablecer permisos de Companion";
+"settings.resetPermissions.body" = "Borra los permisos que diste en este Mac y reinicia Companion para pedirlos de nuevo.";
+"settings.resetPermissions.button" = "Restablecer…";
+"settings.resetPermissions.dialog.title" = "¿Restablecer permisos?";
+"settings.resetPermissions.dialog.resets" = "Solo restablece permisos: %@. Companion se reinicia y te los pide de nuevo.";
+"settings.resetPermissions.dialog.keeps" = "Todo lo demás se queda igual: tus ajustes, claves, conversaciones y el resto.";
+"settings.resetPermissions.dialog.prompt" = "Escribe %@ para confirmar.";
+"settings.resetPermissions.dialog.confirm" = "Restablecer y reiniciar";
+"settings.resetPermissions.dialog.cancel" = "Cancelar";
+"settings.resetPermissions.dialog.running" = "Restableciendo permisos…";
+"settings.resetPermissions.error" = "No se pudieron restablecer los permisos, así que Companion no se reinició. Revisa Privacidad y seguridad en Ajustes del Sistema para ver qué sigue concedido.";
+"settings.resetPermissions.error.resetFirst" = "No se pudo restablecer %@, así que Companion no se reinició. Antes no se había restablecido nada. Inténtalo de nuevo o quita los permisos a mano en Ajustes del Sistema > Privacidad y seguridad.";
+"settings.resetPermissions.error.resetPartial" = "No se pudo restablecer %@, así que Companion no se reinició. Estos permisos ya se restablecieron: %@. Inténtalo de nuevo para terminar el resto.";
+"settings.resetPermissions.error.relaunch" = "Los permisos se restablecieron, pero Companion no pudo volver a abrirse. Ábrelo de nuevo a mano y te los pedirá.";
+"settings.resetPermissions.service.microphone" = "Micrófono";
+"settings.resetPermissions.service.speechRecognition" = "Reconocimiento de voz";
+"settings.resetPermissions.service.screenCapture" = "Grabación de pantalla";
+"settings.resetPermissions.service.accessibility" = "Accesibilidad";
+"settings.resetPermissions.service.listenEvent" = "Monitoreo de entrada";
+"settings.resetPermissions.service.addressBook" = "Contactos";
+"settings.resetPermissions.service.appleEvents" = "Automatización";
