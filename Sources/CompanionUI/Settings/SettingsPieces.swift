@@ -8,6 +8,8 @@ import SwiftUI
 /// A group of rows with a hairline between them; the label sits above.
 struct SettingsCard<Content: View>: View {
     var label: String? = nil
+    /// A search entry that names the whole card, not one of its rows.
+    var key: String? = nil
     @ViewBuilder var content: () -> Content
 
     var body: some View {
@@ -37,6 +39,7 @@ struct SettingsCard<Content: View>: View {
                 RoundedRectangle(cornerRadius: Radius.card)
                     .stroke(Semantic.border, lineWidth: Stroke.hairline))
         }
+        .settingsSearchTarget(key)
     }
 }
 
@@ -47,7 +50,6 @@ struct SettingsRow<Trailing: View>: View {
     var subtitle: String? = nil
     var key: String? = nil
     @ViewBuilder var trailing: () -> Trailing
-    @Environment(\.settingsHighlight) private var highlight
 
     var body: some View {
         HStack(alignment: .center, spacing: Space.x4) {
@@ -67,8 +69,7 @@ struct SettingsRow<Trailing: View>: View {
         }
         .padding(.horizontal, Space.x4)
         .padding(.vertical, Space.x3)
-        .background(key != nil && key == highlight ? Semantic.hover : Color.clear)
-        .animation(.expoOut(MotionTime.panel), value: highlight)
+        .settingsSearchTarget(key)
     }
 }
 
@@ -173,17 +174,5 @@ struct SettingsPageHeader: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-    }
-}
-
-private struct SettingsHighlightKey: EnvironmentKey {
-    static let defaultValue: String? = nil
-}
-
-extension EnvironmentValues {
-    /// The inventory key a search just jumped to; its row lights briefly.
-    var settingsHighlight: String? {
-        get { self[SettingsHighlightKey.self] }
-        set { self[SettingsHighlightKey.self] = newValue }
     }
 }
