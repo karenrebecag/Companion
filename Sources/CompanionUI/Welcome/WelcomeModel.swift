@@ -25,6 +25,9 @@ package final class WelcomeModel {
     package private(set) var hasRefreshed = false
     package private(set) var level = 0.0
     package private(set) var done: Bool
+    /// One per greeting, counted when it starts speaking: the view plays
+    /// Incredible's intro burst on each change (it marks the start of the cue).
+    package private(set) var bursts = 0
 
     private let devices: any WelcomeDevices
     private let keyReady: () -> Bool
@@ -137,6 +140,7 @@ package final class WelcomeModel {
     package func greet() async {
         guard !greeted else { return }
         greeted = true
+        bursts += 1
         let name = UserProfile.ownerName.trimmingCharacters(in: .whitespaces)
         let line = name.isEmpty
             ? Localized.string("welcome.greeting")
