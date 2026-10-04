@@ -492,8 +492,9 @@ const frameAtPoint = { error: { code: 'stale_id', message: 'an embedded frame or
 const dragInFrame = { error: { code: 'stale_id', message: 'dragging inside a frame is not supported; read the page again' } };
 
 // Fails closed: a page that cannot answer is not a point known to be clear.
-async function pointClear(target, point, token) {
-  const at = await inPage(target, (x, y, t) => globalThis.__companionPage.pointAt(x, y, t), [point.x, point.y, token]);
+async function pointClear(target, point, token, phase) {
+  const at = await inPage(target, (x, y, t, p) => globalThis.__companionPage.pointAt(x, y, t, p),
+    [point.x, point.y, token, phase]);
   return at?.frame === false && at.same === true;
 }
 
@@ -541,17 +542,19 @@ async function trustedDrag(args) {
     }
     const view = await inPage(target, () => globalThis.__companionPage.viewport(), []);
     if (!inside(view, drop)) return offPage;
-    const token = `${Date.now()}-drop`;
+    const token = `${Date.now()}-drag`;
     const hits = async (id, point) => (await inPage(target,
       (g, local, x, y) => ({ hit: globalThis.__companionPage.hitsAt(g, local, x, y) }),
       [args.generation, id, point.x, point.y]))?.hit === true;
     // The yes covered dropping onto that element; something else at the drop point would get it instead.
-    const clear = async () => (await pointClear(target, drop, token))
+    // Both ends: a frame inside the source would take the press as surely as one at the drop point.
+    const clear = async (phase) => (await pointClear(target, spot.box, `${token}-source`, phase))
+      && (await pointClear(target, drop, `${token}-drop`, phase))
       && (!goal || await hits(goal.localId, drop)) && await hits(entry.localId, spot.box);
-    if (!(await clear())) return coveredElement;
+    if (!(await clear('mark'))) return coveredElement;
     await showCursor(target, spot.box.x, spot.box.y, `Arrastrando · ${spot.label || spot.role}`);
     // The page had the whole glide to slip a frame, an overlay or another control under either end.
-    if (!(await clear())) return coveredElement;
+    if (!(await clear('check'))) return coveredElement;
     await cdp.mouseDrag(args.tab, spot.box, drop);
     return { done: 'dragged' };
   }).catch((error) => inputFailed(args.tab, error));
@@ -570,10 +573,10 @@ async function trustedClickAt(args) {
     const view = await inPage(target, () => globalThis.__companionPage.viewport(), []);
     if (!inside(view, point)) return offPage;
     const token = `${Date.now()}-point`;
-    if (!(await pointClear(target, point, token))) return frameAtPoint;
+    if (!(await pointClear(target, point, token, 'mark'))) return frameAtPoint;
     await showCursor(target, point.x, point.y, 'Clic');
     // The page had the whole glide to put a frame or a different control under the point.
-    if (!(await pointClear(target, point, token))) return frameAtPoint;
+    if (!(await pointClear(target, point, token, 'check'))) return frameAtPoint;
     await cdp.mouseClick(args.tab, point.x, point.y);
     await pressCursor(target);
     return { done: 'clicked' };
