@@ -31,9 +31,22 @@ final class AppsSetupController {
             }
             return
         }
-        guard apps.configure(endpoint: endpoint, key: key) else {
+        switch await apps.configure(endpoint: endpoint, key: key) {
+        case .saved:
+            break
+        // The rules gate submit with configure's own checks, so .invalid
+        // only means they drifted apart; saying "not saved" is still true.
+        case .invalid, .storageFailed:
             flow.finish(.storageFailed)
             announce(AppsSetupCopy.failure(.storage))
+            return
+        case .rejected(let failure):
+            flow.finish(.serverFailed(failure))
+            announce(AppsSetupCopy.failure(.server(failure)))
+            return
+        case .busy:
+            // The check already running will answer for the model.
+            flow.finish(.notStarted)
             return
         }
         // The page used to load after the form closed; loading here lets a

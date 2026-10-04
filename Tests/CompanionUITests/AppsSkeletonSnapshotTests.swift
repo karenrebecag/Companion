@@ -92,7 +92,7 @@ private final class ReadyApps: AppsService, @unchecked Sendable {
         secrets: TestSecretStore(), hostSecrets: TestHostSecretStore(),
         defaults: UserDefaults(suiteName: "apps-shots-\(UUID().uuidString)")!,
         makeService: { _, _ in ReadyApps() })
-    #expect(apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64)))
+    #expect(await apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64)) == .saved)
     await apps.load()
     guard apps.phase == .ready else {
         Issue.record("apps-card: \(name) never reached .ready")
@@ -106,7 +106,7 @@ private final class ReadyApps: AppsService, @unchecked Sendable {
         secrets: TestSecretStore(), hostSecrets: TestHostSecretStore(),
         defaults: UserDefaults(suiteName: "apps-shots-\(UUID().uuidString)")!,
         makeService: { _, _ in StalledApps() })
-    #expect(apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64)))
+    #expect(await apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64)) == .saved)
     let loading = Task { await apps.load() }
     defer { loading.cancel() }
     // Bounded: a model that never reaches .loading must fail the gallery,

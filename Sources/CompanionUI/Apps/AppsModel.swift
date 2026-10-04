@@ -70,6 +70,11 @@ package final class AppsModel {
     /// `finishConnecting()`; each attempt captures its own value and is
     /// stale the moment it no longer matches.
     private var connectEpoch = 0
+    /// Bumped each time configure() swaps in a new service, mirroring
+    /// `connectEpoch`: every call captures the service before it awaits, so
+    /// an answer from the replaced function must not land on the new setup.
+    private var setupEpoch = 0
+    private var checkingSetup = false
 
     private let secrets: any SecretStore
     /// 20c D6: the function's key lives here, bound to the endpoint's host;
@@ -93,6 +98,9 @@ package final class AppsModel {
     /// The UI layer has no logger of its own; the credential moves report
     /// their non-fatal failures through the composition root's.
     private let log: @Sendable (String) -> Void
+    /// The voice runner re-pulls its tool cache on this; injected so a test
+    /// can count it without a process-wide observer other suites also hit.
+    private let notifyAppsChanged: @MainActor () -> Void
 
     package init(
         secrets: any SecretStore,
@@ -107,7 +115,10 @@ package final class AppsModel {
         openBrowser: @escaping @Sendable (URL) -> Void = { NSWorkspace.shared.open($0) },
         readMCP: (@Sendable () -> MCPFileRead)? = nil,
         saveMCP: (@Sendable ([MCPServerConfig]) throws -> Void)? = nil,
-        log: @escaping @Sendable (String) -> Void = { _ in }
+        log: @escaping @Sendable (String) -> Void = { _ in },
+        notifyAppsChanged: @escaping @MainActor () -> Void = {
+            NotificationCenter.default.post(name: .companionAppsChanged, object: nil)
+        }
     ) {
         self.secrets = secrets
         self.hostSecrets = hostSecrets
@@ -120,6 +131,7 @@ package final class AppsModel {
         self.readMCP = readMCP
         self.saveMCP = saveMCP
         self.log = log
+        self.notifyAppsChanged = notifyAppsChanged
     }
 
     // 16k-4 "Añádelo aquí": the user's own MCP servers, shown and edited
@@ -213,22 +225,88 @@ package final class AppsModel {
         apps.filter { accounts[$0.slug] == nil }
     }
 
-    /// Saves the function's address and key; false when either is not one.
+    /// What a setup attempt did. `invalid` and `storageFailed` stay apart
+    /// from `rejected` so the form can tell "fix what you typed" or "the
+    /// Keychain refused" from "the function said no".
+    package enum SetupOutcome: Equatable, Sendable {
+        case saved
+        case invalid
+        case storageFailed
+        /// Nothing was stored: the setup that was there keeps working.
+        case rejected(AppsFailure)
+        /// Another setup is still being checked; nothing was stored.
+        case busy
+    }
+
+    /// Saves the function's address and key. Over an existing setup the
+    /// function must accept the new pair first: writing before it answers
+    /// is what used to let a typo erase a working key.
     @discardableResult
-    package func configure(endpoint text: String, key: String) -> Bool {
+    package func configure(endpoint text: String, key: String) async -> SetupOutcome {
         let trimmedKey = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let url = AppsEndpoint.validated(text), trimmedKey.count >= Self.minimumKeyLength else { return false }
-        guard let host = SecretHost.of(url: url.absoluteString) else { return false }
+        guard let url = AppsEndpoint.validated(text), trimmedKey.count >= Self.minimumKeyLength else { return .invalid }
+        guard let host = SecretHost.of(url: url.absoluteString) else { return .invalid }
+        // One check at a time, refused rather than superseded: two checks in
+        // flight would save in whichever order the network answered, and
+        // previousHost is read at save time, so the loser could delete the
+        // winner's key. The forms lock while saving, so only a programmatic
+        // double call ever sees this.
+        guard !checkingSetup else { return .busy }
+        let candidate = makeService(url, trimmedKey)
+        // A first setup has nothing to lose, so it is stored as before and
+        // a wrong first key shows on the first load.
+        if hasSetupToLose(host: host) {
+            checkingSetup = true
+            let failure = await refusal(of: candidate)
+            checkingSetup = false
+            if let failure { return .rejected(failure) }
+        }
         do {
             try AppsCredentials.save(
                 trimmedKey, host: host, previousHost: SecretHost.of(url: endpoint),
                 legacy: secrets, bound: hostSecrets, log: log)
         } catch {
-            return false
+            return .storageFailed
         }
         defaults.set(url.absoluteString, forKey: Self.endpointDefault)
-        service = makeService(url, trimmedKey)
-        return true
+        setupEpoch += 1
+        // The panel, its spinners and any connect attempt belong to the
+        // replaced function. Their pending answers are dropped by the epoch
+        // guards, so nothing would ever clear them; only load() re-runs.
+        closePanel()
+        finishConnecting()
+        connectError = nil
+        service = candidate
+        return .saved
+    }
+
+    /// A stored endpoint is not the only working setup: with defaults
+    /// cleared, a key bound to this host (or still flat) answers once the
+    /// address is typed again, and save() would overwrite or delete it. A
+    /// Keychain that cannot be read counts as a setup, so it gets the check.
+    private func hasSetupToLose(host: String) -> Bool {
+        if AppsEndpoint.validated(endpoint) != nil { return true }
+        do {
+            return try hostSecrets.read(.appsKey, host: host) != nil || secrets.read(.companionApps) != nil
+        } catch {
+            return true
+        }
+    }
+
+    /// Nil only when the function answered the catalog, the call load()
+    /// makes first. Every failure keeps the old setup: offline, a rate
+    /// limit or missing settings stop the function before its key check
+    /// (companion-apps lib/route.mjs), so they vouch for nothing, and
+    /// `unreachable` cannot tell offline from a mistyped address. A
+    /// cancelled check stores nothing, even if the answer was yes; the forms'
+    /// Tasks are unstructured, so this guards programmatic callers.
+    private func refusal(of candidate: any AppsService) async -> AppsFailure? {
+        do {
+            _ = try await candidate.catalog(query: "", after: nil)
+            return Task.isCancelled ? .unexpected : nil
+        } catch {
+            return error as? AppsFailure ?? .unexpected
+        }
     }
 
     /// Code review 16k-2a (HIGH): catalog() and accounts() run concurrently
@@ -242,12 +320,13 @@ package final class AppsModel {
             phase = .setup
             return
         }
+        let setup = setupEpoch
         phase = .loading
         async let catalogResult = catalogAttempt(service, query: query, after: nil)
         async let marksResult = accountsSnapshot(service)
         let (result, marks) = await (catalogResult, marksResult)
         // A search typed while this page was in flight owns the list now.
-        guard query == self.query else { return }
+        guard query == self.query, setupEpoch == setup else { return }
         switch result {
         case .success(let page):
             apps = page.apps
@@ -277,11 +356,14 @@ package final class AppsModel {
     /// The Connect Link for the browser, or nil with the failure shown.
     package func connect(_ slug: String) async -> URL? {
         guard let service = currentService() else { return nil }
+        let setup = setupEpoch
         do {
             let url = try await service.connectLink(app: slug)
+            guard setupEpoch == setup else { return nil }
             connectError = nil
             return url
         } catch {
+            guard setupEpoch == setup else { return nil }
             connectError = error as? AppsFailure ?? .unexpected
             return nil
         }
@@ -309,13 +391,14 @@ package final class AppsModel {
     /// §9.6: "Connect X to see everything it can do" is the whole panel).
     package func actions(of app: CatalogApp) async {
         guard state(of: app.slug) == .connected, let service = currentService() else { return }
+        let setup = setupEpoch
         actionsPhase = .loading
         do {
             let actions = try await service.tools(app: app.slug)
-            guard selected?.slug == app.slug else { return }
+            guard selected?.slug == app.slug, setupEpoch == setup else { return }
             actionsPhase = .ready(actions)
         } catch {
-            guard selected?.slug == app.slug else { return }
+            guard selected?.slug == app.slug, setupEpoch == setup else { return }
             actionsPhase = .failed(error as? AppsFailure ?? .unexpected)
         }
     }
@@ -348,16 +431,19 @@ package final class AppsModel {
         guard let app = selected, let account = accounts[app.slug], let service = currentService() else { return }
         disconnectPhase = .disconnecting
         let epoch = panelEpoch
+        let setup = setupEpoch
         do {
             try await service.disconnect(account: account.id)
         } catch {
-            guard panelEpoch == epoch else { return }
+            guard panelEpoch == epoch, setupEpoch == setup else { return }
             disconnectPhase = .failed(error as? AppsFailure ?? .unexpected)
             return
         }
-        guard panelEpoch == epoch else { return }
-        accounts = await accountsSnapshot(service)
-        NotificationCenter.default.post(name: .companionAppsChanged, object: nil)
+        guard panelEpoch == epoch, setupEpoch == setup else { return }
+        let refreshed = await accountsSnapshot(service)
+        guard setupEpoch == setup else { return }
+        accounts = refreshed
+        notifyAppsChanged()
         guard panelEpoch == epoch else { return }
         disconnectPhase = .idle
     }
@@ -465,7 +551,7 @@ package final class AppsModel {
                 accounts[app.slug] = match
                 // 16k-3: the voice runner re-pulls its tool cache now, not
                 // when the TTL happens to expire.
-                NotificationCenter.default.post(name: .companionAppsChanged, object: nil)
+                notifyAppsChanged()
             }
             apply(match != nil ? .accountSeen : .accountMissing)
         }
@@ -506,10 +592,11 @@ package final class AppsModel {
     }
 
     private func fetch(_ service: any AppsService, query: String, after: String?) async {
+        let setup = setupEpoch
         do {
             let page = try await service.catalog(query: query, after: after)
             // A search typed while this page was in flight owns the list now.
-            guard query == self.query else { return }
+            guard query == self.query, setupEpoch == setup else { return }
             apps = after == nil ? page.apps : apps + page.apps
             total = page.total
             next = page.next
@@ -519,6 +606,7 @@ package final class AppsModel {
                 open(app)
             }
         } catch {
+            guard setupEpoch == setup else { return }
             phase = .failed(error as? AppsFailure ?? .unexpected)
         }
     }
