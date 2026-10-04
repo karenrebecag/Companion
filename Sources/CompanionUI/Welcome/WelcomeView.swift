@@ -55,6 +55,19 @@ package struct WelcomeView: View {
             keys.secrets = chat.secrets
             keys.refresh()
         }
+        .overlay(alignment: .bottomTrailing) {
+            if welcome.musicAvailable {
+                WelcomeMusicToggle(playing: !welcome.musicMuted) { welcome.toggleMusic() }
+                    .padding(Space.x7)
+            }
+        }
+        .task(id: welcome.musicPlaying) { await welcome.syncMusic() }
+        .background(WindowVisibilityReader { welcome.setWindowShown($0) })
+        // The task above is cancelled with the view, so the stop is sent here.
+        .onDisappear {
+            welcome.setWindowShown(false)
+            Task { await welcome.syncMusic() }
+        }
     }
 
     private func topBar(_ step: WelcomeStep) -> some View {

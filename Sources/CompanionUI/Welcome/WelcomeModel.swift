@@ -1,3 +1,4 @@
+import AppKit
 import CompanionCore
 import Foundation
 import Observation
@@ -17,6 +18,9 @@ package final class WelcomeModel {
             saveStep()
             // Incredible's second ask is only for the relaunch onto this step.
             if flow.step != .permissions { reaskArmed = false }
+            // Incredible resets the mute once the step leaves its music pages
+            // (createFirstRunIO-Dv00aAyF.js @35812, hook `ds`).
+            if !flow.step.hasMusic { musicMuted = voiceOverRunning() }
         }
     }
     package private(set) var facts = WelcomeFacts()
@@ -25,10 +29,30 @@ package final class WelcomeModel {
     package private(set) var hasRefreshed = false
     package private(set) var level = 0.0
     package private(set) var done: Bool
+    /// Music is on by default like Incredible's, except under VoiceOver: a
+    /// screen reader user hears the speech over it (WCAG 1.4.2). Never
+    /// persisted: every launch starts from that default.
+    package private(set) var musicMuted: Bool
+    /// False while the window is hidden or the view is gone.
+    package private(set) var windowShown = true
+
+    package var musicPlaying: Bool {
+        WelcomeMusic.plays(step: flow.step, muted: musicMuted, shown: windowShown, finished: done || flow.finished)
+    }
+
+    /// The keys-only resume (welcome done, key missing) is not onboarding:
+    /// no music and no toggle there.
+    package var musicAvailable: Bool { flow.step.hasMusic && !done && !flow.finished }
 
     private let devices: any WelcomeDevices
     private let keyReady: () -> Bool
     private let defaults: UserDefaults
+    private let voiceOverRunning: () -> Bool
+    /// What the machine was last told, so a re-render never restarts a fade.
+    @ObservationIgnored private var musicSent = false
+    /// The tail of the chain of sends: a cancelled caller leaves its call in
+    /// flight, so ordering lives here and not in the views' tasks.
+    @ObservationIgnored private var musicSends: Task<Void, Never>?
     private var greeted = false
     /// Incredible's 1 s poll asks for the verified flag on every tick until
     /// the step is complete; once a capture worked there is nothing to ask.
@@ -39,11 +63,14 @@ package final class WelcomeModel {
 
     package init(
         devices: any WelcomeDevices, keyReady: @escaping () -> Bool,
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        voiceOverRunning: @escaping () -> Bool = { NSWorkspace.shared.isVoiceOverEnabled }
     ) {
         self.devices = devices
         self.keyReady = keyReady
         self.defaults = defaults
+        self.voiceOverRunning = voiceOverRunning
+        self.musicMuted = voiceOverRunning()
         let seen = defaults.bool(forKey: Self.doneKey)
         self.done = seen
         let flow = seen ? WelcomeFlow.start(welcomeDone: true) : Self.resumed(from: defaults)
@@ -151,6 +178,38 @@ package final class WelcomeModel {
     }
 
     package func back() { flow.back() }
+
+    package func toggleMusic() { musicMuted.toggle() }
+
+    package func setWindowShown(_ shown: Bool) { windowShown = shown }
+
+    /// Queues a send behind the previous one. Each link reconciles to the
+    /// model's state when it runs, not when it was queued, so a mute flipped
+    /// while an earlier call was in flight cannot leave a stale play behind.
+    /// The link is unstructured on purpose: cancelling the caller (the view's
+    /// task) must not abandon a half-sent change. A failed engine start is
+    /// not retried until the wanted state flips (no output device).
+    package func syncMusic() async {
+        let previous = musicSends
+        let link = Task { [self] in
+            await previous?.value
+            await reconcileMusic()
+        }
+        musicSends = link
+        await link.value
+    }
+
+    func musicSendsSettled() async {
+        await musicSends?.value
+    }
+
+    /// Tells the machine only when the answer changed.
+    private func reconcileMusic() async {
+        let playing = musicPlaying
+        guard playing != musicSent else { return }
+        musicSent = playing
+        await devices.setMusic(playing: playing)
+    }
 
     package func skip() {
         flow.skip()
