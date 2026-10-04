@@ -394,6 +394,7 @@
 /* Wave 16g: Settings with a sidebar */
 "settings.search.placeholder" = "Buscar en ajustes…";
 "settings.search.none" = "Nada con «%@».";
+"settings.group.account" = "Cuenta";
 "settings.sidebar.version" = "Versión %@";
 "settings.change" = "Cambiar";
 "settings.you.looks" = "Cómo se ve";

@@ -149,8 +149,12 @@ private final class StillDevices: WelcomeDevices, @unchecked Sendable {
     }
     return AnyView(HStack(alignment: .top, spacing: Space.none) {
         SettingsSidebar(tab: .constant(tab), query: .constant(""), onPick: { _ in })
-            .frame(width: SettingsOverlayMetrics.sidebar)
-        page.padding(Space.x6).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(width: SettingsRailMetrics.width)
+        page
+            .padding(.leading, SettingsPaneMetrics.leading)
+            .padding(.trailing, SettingsPaneMetrics.trailing)
+            .padding(.top, SettingsPaneMetrics.top)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
     .background(Semantic.background).environment(DropdownHost()))
 }
