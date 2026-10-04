@@ -102,6 +102,26 @@ private func page(_ elements: [BrowserElement], text: String = "", truncated: Bo
              .act, "una direccion dicha actua")
 }
 
+/// P3: an option is a value typed with the page's words and, through the list's change handler, a
+/// button in disguise, so it answers to both rules.
+@Test func selectVerdictJudgesTheOptionAsTypedTextAndAsAClick() {
+    let list = element(role: "combobox", label: "Pais", inputType: "select")
+    expectEq(BrowserPolicy.selectVerdict(list, option: "México", said: ""), .act, "una opcion llana actua")
+    expectEq(BrowserPolicy.selectVerdict(list, option: "Eliminar todo", said: ""), .ask,
+             "una opcion destructiva pregunta")
+    expectEq(BrowserPolicy.selectVerdict(list, option: "https://evil.test/x", said: ""), .ask,
+             "una direccion que nadie dijo pregunta")
+    let bulk = element(role: "combobox", label: "Eliminar", inputType: "select")
+    expectEq(BrowserPolicy.selectVerdict(bulk, option: "Cuenta 1", said: ""), .ask,
+             "la lista que borra pregunta por cualquier opcion")
+    expectEq(BrowserPolicy.selectVerdict(list, option: "   ", said: ""), .ask, "una opcion sin palabras pregunta")
+    expectEq(BrowserPolicy.selectVerdict(list, option: "Eliminar todo", said: "elimina todo"), .act,
+             "pedida con una palabra de la misma familia actua")
+    let month = element(role: "combobox", label: "Mes", inputType: "select", autocomplete: "cc-exp-month")
+    expectEq(BrowserPolicy.selectVerdict(month, option: "02", said: "elige 02"), .refuse(BridgeCode.secureField),
+             "una lista sensible se rechaza")
+}
+
 @Test func handsGateTypeVerdictKeepsTheAddressRule() {
     expectEq(HandsGate.typeVerdict(text: "hola", said: ""), .act, "texto llano")
     expectEq(HandsGate.typeVerdict(text: "www.evil.test", said: "escribe hola"), .ask, "direccion no dicha")
@@ -224,10 +244,10 @@ private func navigate(_ from: String?, _ raw: String, said: String = "") -> Resu
 @Test func browserToolShape() {
     expectEq(BrowserTool.allCases.map(\.rawValue),
              ["browser_tabs", "browser_read", "browser_click", "browser_double_click", "browser_right_click",
-              "browser_type", "browser_scroll", "browser_hover", "browser_navigate", "browser_open", "browser_take",
-              "browser_release"], "nombres")
+              "browser_type", "browser_select", "browser_scroll", "browser_hover", "browser_navigate", "browser_open",
+              "browser_take", "browser_release"], "nombres")
     expectEq(BrowserTool.allCases.filter(\.isWrite),
-             [.click, .doubleClick, .rightClick, .type, .scroll, .hover, .navigate, .open, .take, .release],
+             [.click, .doubleClick, .rightClick, .type, .select, .scroll, .hover, .navigate, .open, .take, .release],
              "escrituras")
     expectEq(BrowserTool.allCases.filter(\.isClick), [.click, .doubleClick, .rightClick],
              "H-7 P5a: las tres pulsaciones comparten la puerta del clic")

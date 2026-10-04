@@ -117,6 +117,7 @@ function dispatch(name, args) {
     case 'browser_double_click': return trustedPress(args, GESTURES.double);
     case 'browser_right_click': return trustedPress(args, GESTURES.right);
     case 'browser_type': return trustedType(args);
+    case 'browser_select': return act(args, (g, id, option) => globalThis.__companionPage.select(g, id, option), [args.option]);
     case 'browser_hover': return trustedPress(args, GESTURES.hover);
     case 'browser_scroll': return args.element != null ? scrollToElement(args) : trustedScroll(args);
     case 'browser_navigate': return navigate(args.tab, args.url);

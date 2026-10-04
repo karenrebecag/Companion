@@ -30,7 +30,9 @@ private func doneMessage(_ json: String) -> String? {
                  "screen_recording_required", "screen_locked", "foreground_unavailable",
                  "permission_required",
                  // H-2/H-3: the extension's own reasons, each with its next step.
-                 "debugger_revoked", "debugger_unavailable", "unreadable_page", "not_typable"]
+                 "debugger_revoked", "debugger_unavailable", "unreadable_page", "not_typable",
+                 // P3: browser_select's two refusals.
+                 "not_selectable", "option_not_found"]
     for code in codes {
         let body = errorBody(#"{"id":1,"error":{"code":"\#(code)","message":"m"}}"#)
         expectEq(body?.code, code, "allowlist: \(code) passes through")

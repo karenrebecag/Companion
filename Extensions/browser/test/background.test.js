@@ -1393,3 +1393,34 @@ test('maxChars caps the text of every frame together', async () => {
   assert.equal(Array.from(reply.result.page.text).length, 10);
   assert.ok(reply.result.page.text.startsWith('Primero'));
 });
+
+// P3: a native <select> has no trusted path to drive (its list is the browser's, not the page's),
+// so the choice is made in the page and no input event goes out.
+test('browser_select chooses in the page by the read generation, without trusted input', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const chosen = [];
+  rig.state.page = {
+    read: () => ({ origin: 'https://a.example', text: '', elements: [{ id: 1, frame: 0, role: 'combobox', label: 'Pais', context: '', inputType: 'select', autocomplete: null, value: 'Chile', frameOrigin: null, href: null, fieldName: null, fieldId: null }] }),
+    select: (g, id, option) => { chosen.push([g, id, option]); return { done: 'selected' }; },
+  };
+  const read = await ask(rig.ports[0], 90, 'browser_read', { tab: 3 });
+  const generation = read.result.page.generation;
+  const reply = await ask(rig.ports[0], 91, 'browser_select', { tab: 3, generation, element: 1, option: 'México' });
+  assert.deepEqual(reply.result, { done: 'selected' });
+  assert.deepEqual(chosen, [[generation, 1, 'México']]);
+  assert.deepEqual(inputCalls(rig.state), []);
+  const stale = await ask(rig.ports[0], 92, 'browser_select', { tab: 3, generation: generation - 1, element: 1, option: 'México' });
+  assert.equal(stale.error.code, 'stale_id');
+  assert.equal(chosen.length, 1);
+});
+
+test('the page refusal of a select comes back as its code', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.page = {
+    read: () => ({ origin: 'https://a.example', text: '', elements: [{ id: 1, frame: 0, role: 'combobox', label: 'Pais', context: '', inputType: 'select', autocomplete: null, value: '', frameOrigin: null, href: null, fieldName: null, fieldId: null }] }),
+    select: () => ({ error: { code: 'option_not_found', message: 'Argentina | Chile' } }),
+  };
+  const read = await ask(rig.ports[0], 93, 'browser_read', { tab: 3 });
+  const reply = await ask(rig.ports[0], 94, 'browser_select', { tab: 3, generation: read.result.page.generation, element: 1, option: 'Peru' });
+  assert.deepEqual(reply.error, { code: 'option_not_found', message: 'Argentina | Chile' });
+});

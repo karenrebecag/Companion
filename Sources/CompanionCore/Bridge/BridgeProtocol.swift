@@ -255,6 +255,10 @@ package enum BridgeCode {
     /// Larger than `AttachmentPolicy.maxBytes`. The browser reads the file
     /// itself, so this is the only bound before the page receives it.
     package static let fileTooLarge = "file_too_large"
+    /// browser_select's refusals: the element is not a usable `<select>`, or
+    /// no enabled option carries that label (the message lists the labels).
+    package static let notSelectable = "not_selectable"
+    package static let optionNotFound = "option_not_found"
     /// The tool exists but Companion's own window is in front, so there is no
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
     package static let selfInFront = "self_in_front"

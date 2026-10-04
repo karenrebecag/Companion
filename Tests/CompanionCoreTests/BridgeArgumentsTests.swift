@@ -49,6 +49,13 @@ private let scroll = ParentTool.scroll.spec(.en)
     expectEq(text?.maxBytes, ToolProperty.maxTextBytes, "browser_type: Incredible's text limit")
 }
 
+@Test func theBrowsersOptionCarriesTheSameLimit() {
+    let option = BrowserTool.select.spec(.en).properties.first { $0.name == "option" }
+    expectEq(option?.minLength, 1, "browser_select: at least one character")
+    expectEq(option?.maxBytes, ToolProperty.maxTextBytes, "browser_select: the text limit")
+    expectEq(BrowserTool.select.spec(.en).required, ["tab", "element", "option"], "all three are required")
+}
+
 @Test func theLimitsAreTheSameInEveryLanguage() {
     for language in [AppLanguage.en, .es] {
         let text = ParentTool.typeText.spec(language).properties.first

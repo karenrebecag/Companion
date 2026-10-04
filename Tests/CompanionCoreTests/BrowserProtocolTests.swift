@@ -203,6 +203,8 @@ private func object(_ line: String) -> [String: Any] {
         (.scrollTo(tab: 12, generation: 3, element: 5), "browser_scroll", ["tab": "12", "generation": "3", "element": "5"]),
         (.type(tab: 12, generation: 3, element: 5, text: "hola \u{1F600} \"q\""), "browser_type",
          ["tab": "12", "generation": "3", "element": "5", "text": "hola \u{1F600} \"q\""]),
+        (.select(tab: 12, generation: 3, element: 8, option: "México \"q\""), "browser_select",
+         ["tab": "12", "generation": "3", "element": "8", "option": "México \"q\""]),
         (.navigate(tab: 12, url: url), "browser_navigate", ["tab": "12", "url": "https://x.test/a/b"]),
     ]
     for (command, name, want) in cases {

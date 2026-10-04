@@ -70,6 +70,7 @@ private func run(
         ("browser_double_click", #"{"tab":12,"element":1}"#),
         ("browser_right_click", #"{"tab":12,"element":1}"#),
         ("browser_type", #"{"tab":12,"element":5,"text":"x"}"#),
+        ("browser_select", #"{"tab":12,"element":5,"option":"x"}"#),
         ("browser_navigate", #"{"tab":12,"url":"https://crm.example/b"}"#),
     ] {
         let (out, asked) = await run(rig.chat, name, arguments)

@@ -153,6 +153,9 @@ package enum BrowserCodec {
         case .type(let tab, let generation, let element, let text):
             return (BrowserTool.type.rawValue,
                     ["tab": tab, "generation": generation, "element": element, "text": text])
+        case .select(let tab, let generation, let element, let option):
+            return (BrowserTool.select.rawValue,
+                    ["tab": tab, "generation": generation, "element": element, "option": option])
         case .scroll(let tab, let dx, let dy):
             return (BrowserTool.scroll.rawValue, ["tab": tab, "dx": dx, "dy": dy])
         case .scrollTo(let tab, let generation, let element):

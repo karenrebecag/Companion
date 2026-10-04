@@ -83,6 +83,8 @@ package enum BridgeScope {
         "browser_open", "browser_take", "browser_release",
         // H-7 P5a: the click's two variants, on the click's gates.
         "browser_double_click", "browser_right_click",
+        // P3: picks a native <select> option, gated like browser_type.
+        "browser_select",
         // H-7 P5b: move the view or the pointer; no sheet, still the write budget.
         "browser_scroll", "browser_hover",
         // Self-qa PR-3 (ADR 009): Companion lets an agent inspect it, read

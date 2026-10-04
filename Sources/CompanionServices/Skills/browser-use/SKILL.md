@@ -21,6 +21,7 @@ These tools exist only while the extension is connected. If `browser_tabs` is no
 - `browser_read(tab, selector?)` returns the tab's text and its elements, each with a number. `>>>` in a selector crosses frames and shadow roots.
 - `browser_click(tab, element)` and `browser_type(tab, element, text)` act on a numbered element.
 - `browser_double_click(tab, element)` and `browser_right_click(tab, element)` press it twice, or with the right button to open the page's own menu; they ask wherever a click on that element would.
+- `browser_select(tab, element, option)` chooses an option of a dropdown list (a `<select>`) by the label the page shows. A label that is not there answers `option_not_found` with the labels the list has.
 - `browser_scroll(tab, dx, dy)` scrolls by pixels, or `browser_scroll(tab, element)` brings a numbered element into view; `browser_hover(tab, element)` moves the pointer over it to show a menu or tooltip. Neither asks; read the tab again afterwards.
 - `browser_navigate(tab, url)` opens an http or https address in a tab.
 
