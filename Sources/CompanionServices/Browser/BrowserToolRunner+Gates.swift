@@ -1,7 +1,7 @@
 import CompanionCore
 import Foundation
 
-/// The gates of the three browser writes. A write runs only against a ticket
+/// The gates of the browser writes on a page. A write runs only against a ticket
 /// the gate issued (or parked and the sheet granted) for that exact call, and
 /// the ticket is bound to the page it was judged against, so a denied call
 /// finds none and the extension never hears about it.
@@ -33,9 +33,14 @@ extension BrowserToolRunner {
               let page = cachedPage(tab), let element = page.elements.first(where: { $0.id == id })
         else { return nil }
         let verdict: HandsVerdict
-        if tool.isClick {
+        switch tool {
+        case .click, .doubleClick, .rightClick:
             verdict = BrowserPolicy.clickVerdict(element, said: said, pageOrigin: page.origin)
-        } else {
+        case .select:
+            // Only a list takes an option: no sheet for a call `execute` refuses anyway.
+            guard Self.isList(element), let option = arguments["option"] as? String else { return nil }
+            verdict = BrowserPolicy.selectVerdict(element, option: option, said: said, pageOrigin: page.origin)
+        default:
             guard let text = arguments["text"] as? String else { return nil }
             verdict = BrowserPolicy.typeVerdict(element, text: text, said: said, pageOrigin: page.origin)
         }
@@ -48,9 +53,20 @@ extension BrowserToolRunner {
             tickets.issue(ticket)
             return nil
         case .ask:
-            let request = tool.isClick
-                ? HandsGate.clickRequest(call, label: Self.shown(element.label), app: page.origin, verb: Self.verb(tool))
-                : HandsGate.request(call, app: page.origin, commandApp: false)
+            let request: ApprovalRequest
+            switch tool {
+            case .click, .doubleClick, .rightClick:
+                request = HandsGate.clickRequest(call, label: Self.shown(element.label), app: page.origin, verb: Self.verb(tool))
+            case .select:
+                let option = Self.shown(arguments["option"] as? String ?? "")
+                let list = Self.shown(element.label)
+                request = ApprovalRequest(
+                    requestId: UUID().uuidString, toolName: call.name,
+                    summary: "choose \(option) in \(list) on \(page.origin)",
+                    inputJSON: Self.sheetJSON(["option": option, "list": list, "app": page.origin]))
+            default:
+                request = HandsGate.request(call, app: page.origin, commandApp: false)
+            }
             tickets.park(ticket, id: request.requestId)
             return request
         }
@@ -111,16 +127,20 @@ extension BrowserToolRunner {
             return fail(tool, BridgeCode.invalidArgs, "missing or invalid element")
         }
         var text = ""
-        if tool == .type {
-            guard let typed = arguments["text"] as? String else {
-                return fail(tool, BridgeCode.invalidArgs, "missing text")
+        if tool == .type || tool == .select {
+            let key = tool == .type ? "text" : "option"
+            guard let typed = arguments[key] as? String else {
+                return fail(tool, BridgeCode.invalidArgs, "missing \(key)")
             }
             text = typed
         }
         guard let page = cachedPage(tab), let element = page.elements.first(where: { $0.id == id }) else {
             return fail(tool, BridgeCode.staleId, BrowserCopy.failure(code: BridgeCode.staleId, language()))
         }
-        if tool == .type, BrowserPolicy.isSensitive(element) {
+        if tool == .select, !Self.isList(element) {
+            return fail(tool, BridgeCode.notSelectable, BrowserCopy.failure(code: BridgeCode.notSelectable, language()))
+        }
+        if tool == .type || tool == .select, BrowserPolicy.isSensitive(element) {
             return fail(tool, BridgeCode.secureField, BrowserCopy.failure(code: BridgeCode.secureField, language()))
         }
         guard tickets.redeem(Self.ticket(tool.rawValue, raw, tab: tab, element: element, page: page)) else {
@@ -134,12 +154,14 @@ extension BrowserToolRunner {
         case .doubleClick: command = .doubleClick(tab: tab, generation: page.generation, element: id)
         case .rightClick: command = .rightClick(tab: tab, generation: page.generation, element: id)
         case .type: command = .type(tab: tab, generation: page.generation, element: id, text: text)
+        case .select: command = .select(tab: tab, generation: page.generation, element: id, option: text)
         case .tabs, .read, .navigate, .open, .take, .release:
             return fail(tool, BridgeCode.invalidArgs, "\(tool.rawValue) does not act on an element")
         }
         switch await channel.send(command, timeout: Self.actTimeout) {
         case .failure(let error):
             if error.code == BridgeCode.staleId { forget(tab) }
+            if error.code == BridgeCode.optionNotFound { return missedOption(error) }
             return failed(tool, error)
         case .success(let reply):
             // Without this the model reports a multi-paragraph text that went in as one line.
@@ -150,7 +172,7 @@ extension BrowserToolRunner {
                         + "again, and tell the user the line breaks are missing",
                     target: page.origin, tool: tool.rawValue)
             }
-            let done = tool == .type ? "typed into" : Self.verb(tool, past: true)
+            let done = tool == .type ? "typed into" : tool == .select ? "chose an option in" : Self.verb(tool, past: true)
             return ParentToolOutcome(
                 ok: true, output: "\(done) [\(id)]; read the tab again to see the result",
                 target: page.origin, tool: tool.rawValue)
@@ -193,6 +215,34 @@ extension BrowserToolRunner {
                     : "navigated tab \(tab) and it loaded; read it with browser_read",
                 target: url.absoluteString, tool: tool.rawValue)
         }
+    }
+
+    /// Incredible lists the options on a miss. The labels are the page's
+    /// words, already cut to one short line by `BrowserSanitize`, so they go
+    /// after the copy and are declared data like any read.
+    private func missedOption(_ error: ContractError) -> ParentToolOutcome {
+        let copy = BrowserCopy.failure(code: error.code, language())
+        let message = error.message.isEmpty
+            ? copy
+            : copy + " " + error.message + " " + BrowserCopy.toolDataSuffix(language())
+        return fail(.select, error.code, message)
+    }
+
+    /// Clipped like a click's sheet: the raw arguments would put up to the
+    /// whole text limit of the model's option on the sheet.
+    private static func sheetJSON(_ fields: [String: String]) -> String {
+        do {
+            let data = try JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys])
+            return String(decoding: data, as: UTF8.self)
+        } catch {
+            // Only strings go in; unreachable, and an empty sheet input still asks.
+            return "{}"
+        }
+    }
+
+    /// The extension's own word for a `<select>`: what `browser_select` can drive.
+    private static func isList(_ element: BrowserElement) -> Bool {
+        element.inputType == "select"
     }
 
     /// Fails closed: a tab that cannot be found, or an origin that cannot be
@@ -238,7 +288,7 @@ extension BrowserToolRunner {
         switch tool {
         case .doubleClick: return past ? "double-clicked" : "double-click"
         case .rightClick: return past ? "right-clicked" : "right-click"
-        case .click, .tabs, .read, .type, .navigate, .open, .take, .release: return past ? "clicked" : "click"
+        case .click, .tabs, .read, .type, .select, .navigate, .open, .take, .release: return past ? "clicked" : "click"
         }
     }
 

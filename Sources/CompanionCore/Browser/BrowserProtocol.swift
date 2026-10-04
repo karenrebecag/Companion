@@ -211,6 +211,7 @@ package enum BrowserCommand: Sendable, Equatable {
     case doubleClick(tab: Int, generation: Int, element: Int)
     case rightClick(tab: Int, generation: Int, element: Int)
     case type(tab: Int, generation: Int, element: Int, text: String)
+    case select(tab: Int, generation: Int, element: Int, option: String)
     case navigate(tab: Int, url: URL)
     case open(url: URL)
     case take(tab: Int)

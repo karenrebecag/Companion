@@ -23,6 +23,17 @@ extension BrowserPolicy {
         return HandsGate.typeVerdict(text: text, said: said)
     }
 
+    /// An option is a value typed in the page's words and, through the list's
+    /// change handler, a button in disguise ("Bulk actions: Delete"), so it
+    /// answers to both rules; the list's own label is the click's context.
+    package static func selectVerdict(
+        _ element: BrowserElement, option: String, said: String, pageOrigin: String? = nil
+    ) -> HandsVerdict {
+        let typed = typeVerdict(element, text: option, said: said, pageOrigin: pageOrigin)
+        guard typed == .act else { return typed }
+        return HandsGate.clickVerdict(label: option, context: element.label + " " + element.context, said: said)
+    }
+
     private static func leavesPageOrigin(_ element: BrowserElement, pageOrigin: String?) -> Bool {
         guard let frameOrigin = element.frameOrigin else { return false }
         guard let pageOrigin else { return true }
