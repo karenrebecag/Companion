@@ -381,6 +381,7 @@ package final class ScriptedPlayer: PCMPlaying, @unchecked Sendable {
     @Guarded package var stopped = false
     @Guarded package var hasPending = false
     @Guarded package var volumes: [Double] = []
+    @Guarded package var position = PlaybackPosition.zero
     private let drainBox = StreamBox<Void>()
     private let levelBox = StreamBox<Double>()
     package var drained: AsyncStream<Void> { drainBox.stream }

@@ -187,6 +187,7 @@ private final class SilentPlayer: PCMPlaying, @unchecked Sendable {
     func flush() async {}
     func stop() async {}
     var hasPending: Bool { get async { false } }
+    var position: PlaybackPosition { get async { .zero } }
     var drained: AsyncStream<Void> { AsyncStream { $0.finish() } }
     var levels: AsyncStream<Double> { AsyncStream { $0.finish() } }
 }

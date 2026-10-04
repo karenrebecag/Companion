@@ -137,7 +137,9 @@ extension VoiceSession {
                     event, state: machine.snapshot.state)
                 for next in follow { await apply(next) }
             }
-            // Stream ended unexpectedly while session was active.
+            // Stream ended unexpectedly while session was active. The reply
+            // it carried will never finish: its caption goes with it.
+            await realtime.captions?.cut()
             // Only handle stream end if still in active realtime states (not already failed/idle).
             let state = machine.snapshot.state
             guard isCurrent(generation), state == .listening || state == .speaking else { return }
@@ -317,6 +319,7 @@ extension VoiceSession {
         for await _ in player.drained {
             if Task.isCancelled { return }
             await apply(.playerDrained)
+            await realtime.captions?.drained()
             await realtime.threadCutReply(announce: true)
         }
     }

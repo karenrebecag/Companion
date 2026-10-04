@@ -23,6 +23,7 @@ package actor RealtimePlayer: PCMPlaying {
     private var started = false
     private var pending = 0
     private var epoch = 0
+    private var counter = PlaybackCounter()
 
     package init(
         makeEngine: @escaping () -> AVAudioEngine = { AVAudioEngine() },
@@ -57,6 +58,10 @@ package actor RealtimePlayer: PCMPlaying {
 
     package var hasPending: Bool { pending > 0 }
 
+    package var position: PlaybackPosition {
+        counter.position(playerSample: playerSample())
+    }
+
     package func setVolume(_ volume: Double) async {
         self.volume = Float(min(max(volume, 0), 1))
         graph.node?.volume = self.volume
@@ -65,6 +70,7 @@ package actor RealtimePlayer: PCMPlaying {
     package func start(sharedEngine: Bool) async throws {
         epoch += 1
         pending = 0
+        counter.reset()
         started = false
         graph.node?.stop()
         if graph.ownsEngine {
@@ -138,6 +144,7 @@ package actor RealtimePlayer: PCMPlaying {
         }
         let rms = min(sqrt(sum / Float(frames)) * 4, 1)
         pending += 1
+        counter.schedule(frames: Int64(frames), playerSample: playerSample())
         levelBox.yield(Double(rms))
         let captured = epoch
         node.scheduleBuffer(buf, completionHandler: {
@@ -149,6 +156,8 @@ package actor RealtimePlayer: PCMPlaying {
         guard started, let node = graph.node else { return }
         epoch += 1
         pending = 0
+        // stop() rewinds the node's clock to zero; the count restarts with it.
+        counter.reset()
         node.stop()
         node.play()
         levelBox.yield(0)
@@ -158,6 +167,7 @@ package actor RealtimePlayer: PCMPlaying {
     package func stop() async {
         epoch += 1
         pending = 0
+        counter.reset()
         started = false
         graph.node?.stop()
         graph.detachNode()
@@ -166,6 +176,19 @@ package actor RealtimePlayer: PCMPlaying {
             graph.engine?.stop()
         }
         graph.engine = nil
+    }
+
+    /// The node's own clock, nil until it has rendered once.
+    private func playerSample() -> Int64? {
+        guard started, let node = graph.node,
+              let rendered = node.lastRenderTime,
+              // An invalid render time is an ObjC exception inside
+              // playerTime(forNodeTime:), which Swift cannot catch.
+              rendered.isSampleTimeValid || rendered.isHostTimeValid,
+              let time = node.playerTime(forNodeTime: rendered),
+              time.isSampleTimeValid
+        else { return nil }
+        return time.sampleTime
     }
 
     private func bufferDidFinish(epoch: Int) {

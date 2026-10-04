@@ -179,7 +179,18 @@ enum IslandReveal {
     /// CSS color transition does, so the light travels along the line instead of stepping.
     static func brightness(word: Int, elapsed: Double, speaking: Bool, reduceMotion: Bool = false) -> Double {
         guard speaking else { return 1 }
-        let since = elapsed - Double(word) / wordsPerSecond
+        return light(since: elapsed - Double(word) / wordsPerSecond, reduceMotion: reduceMotion)
+    }
+
+    /// Gap 2: the same settle from the moment the voice really said the word
+    /// (the caption's `saidAt`); nil is not said yet. The clock above is
+    /// only for a reply with no audio timeline behind it.
+    static func brightness(saidAt: Double?, now: Double, reduceMotion: Bool = false) -> Double {
+        guard let saidAt else { return 0 }
+        return light(since: now - saidAt, reduceMotion: reduceMotion)
+    }
+
+    private static func light(since: Double, reduceMotion: Bool) -> Double {
         // Incredible drops the transition under reduce motion: the word turns at once.
         if reduceMotion { return since > 0 ? 1 : 0 }
         let spoken = IslandMotionBudget.spokenWord
