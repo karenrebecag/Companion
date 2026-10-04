@@ -57,6 +57,18 @@ package enum BrowserCopy {
             return "Type text into an element numbered by the last browser_read. Never into password or card fields."
         case (.type, .es):
             return "Escribe texto en un elemento numerado por la última browser_read. Nunca en contraseñas ni tarjetas."
+        case (.scroll, .en):
+            return "Scroll a tab you control by dx and dy pixels (positive dy goes down), or bring an element "
+                + "of the last browser_read into view with element. Read the tab again to see what came into view."
+        case (.scroll, .es):
+            return "Desplaza una pestaña que controlas dx y dy píxeles (dy positivo baja), o trae a la vista un "
+                + "elemento de la última browser_read con element. Vuelve a leerla para ver lo que apareció."
+        case (.hover, .en):
+            return "Move the pointer over an element numbered by the last browser_read, to open a menu or tooltip "
+                + "that only shows on hover. Read the tab again to see it."
+        case (.hover, .es):
+            return "Pasa el puntero sobre un elemento numerado por la última browser_read, para abrir un menú o "
+                + "una ayuda que solo aparece al pasar por encima. Vuelve a leerla para verlo."
         case (.navigate, .en):
             return "Open an http or https address in a tab you control. Going to another site than the one shown asks first."
         case (.navigate, .es):
@@ -90,6 +102,10 @@ package enum BrowserCopy {
         case ("element", .es): return "número de elemento de la última browser_read"
         case ("text", .en): return "the exact text to type"
         case ("text", .es): return "el texto exacto a escribir"
+        case ("dx", .en): return "pixels to scroll right (negative goes left)"
+        case ("dx", .es): return "píxeles a desplazar a la derecha (negativo va a la izquierda)"
+        case ("dy", .en): return "pixels to scroll down (negative goes up)"
+        case ("dy", .es): return "píxeles a desplazar hacia abajo (negativo sube)"
         case ("url", .en): return "the http or https address"
         case ("url", .es): return "la dirección http o https"
         default: return name
@@ -193,6 +209,10 @@ extension BrowserCopy {
         case (.rightClick, .es): return "Hice clic derecho en el navegador."
         case (.type, .en): return "Typed in the browser."
         case (.type, .es): return "Escribí en el navegador."
+        case (.scroll, .en): return "Scrolled in the browser."
+        case (.scroll, .es): return "Desplacé la página en el navegador."
+        case (.hover, .en): return "Moved the pointer in the browser."
+        case (.hover, .es): return "Pasé el puntero en el navegador."
         case (.navigate, .en): return "Navigated the browser."
         case (.navigate, .es): return "Navegué en el navegador."
         case (.open, .en): return "Opened a background tab."

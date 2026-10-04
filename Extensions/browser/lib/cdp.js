@@ -133,6 +133,16 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     return true;
   }
 
+  async function mouseMove(tabId, x, y) {
+    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 });
+  }
+
+  // A wheel scrolls whatever is scrollable under the point, as a trackpad does, not only the document.
+  // It carries its own point: moving the pointer there first would hover whatever sits at the center.
+  async function mouseWheel(tabId, x, y, deltaX, deltaY) {
+    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX, deltaY });
+  }
+
   // keyDown/char/keyUp per character: live search, autocomplete and validation hear real keys.
   // Control characters are dropped: a real Return submits and Escape or Backspace edit, and none of
   // that is what typing was approved for.
@@ -155,7 +165,7 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     }
   });
 
-  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, typeText, isRevoked };
+  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, mouseMove, mouseWheel, typeText, isRevoked };
 }
 
 export function isControl(ch) {

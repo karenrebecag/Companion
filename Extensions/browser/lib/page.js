@@ -305,6 +305,25 @@
     return { done: 'right-clicked' };
   }
 
+  // Enter, then move: menus that open on hover listen to either, and nothing is pressed.
+  function hoverElement(el) {
+    const win = el.ownerDocument.defaultView;
+    const init = { bubbles: true, cancelable: true, composed: true, view: win, button: 0, buttons: 0 };
+    for (const [Ctor, type] of [
+      [win.PointerEvent, 'pointerover'], [win.PointerEvent, 'pointerenter'],
+      [win.MouseEvent, 'mouseover'], [win.MouseEvent, 'mouseenter'],
+      [win.PointerEvent, 'pointermove'], [win.MouseEvent, 'mousemove'],
+    ]) {
+      el.dispatchEvent(new Ctor(type, init));
+    }
+    return { done: 'hovered' };
+  }
+
+  function scrollToElement(el) {
+    el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    return { done: 'scrolled' };
+  }
+
   function typeIntoElement(el, text) {
     if (isSensitive(fieldOf(el))) return { error: { code: 'secure_field', message: 'sensitive field, typing refused' } };
     const doc = el.ownerDocument;
@@ -504,7 +523,8 @@
     // A trusted press goes to whatever is on top at that pixel, not to the element: a decoy or a
     // floating third-party frame there would receive a click nobody approved.
     const blocked = inView && !hitsTarget(el, deepElementFromPoint(document, box.x, box.y));
-    if (inView && !blocked) armLanding(el, token, landingEvent);
+    // A hover passes no landing event: there is no press whose landing could be proven.
+    if (inView && !blocked && landingEvent) armLanding(el, token, landingEvent);
     return { box, inView, blocked, label: labelOf(el), role: roleOf(el) };
   }
 
@@ -580,10 +600,13 @@
 
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
-    clickElement, doubleClickElement, contextClickElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt,
+    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt,
     click: (generation, id) => act(generation, id, clickElement),
     doubleClick: (generation, id) => act(generation, id, doubleClickElement),
     contextClick: (generation, id) => act(generation, id, contextClickElement),
+    hover: (generation, id) => act(generation, id, hoverElement),
+    scrollTo: (generation, id) => act(generation, id, scrollToElement),
+    viewport: () => ({ w: window.innerWidth, h: window.innerHeight }),
     type: (generation, id, text) => act(generation, id, (el) => typeIntoElement(el, text)),
   };
   globalThis.__companionPage = api;

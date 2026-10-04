@@ -132,6 +132,22 @@ test('a synthetic right click presses the right button and asks for the context 
   assert.deepEqual([held.pointerdown, held.mousedown, held.pointerup, held.mouseup], [2, 2, 0, 0], 'held while down, released after');
 });
 
+test('a synthetic hover enters and moves over the element, and never presses it', () => {
+  const el = fake({ tag: 'button' });
+  assert.deepEqual(page.hoverElement(el), { done: 'hovered' });
+  assert.deepEqual(el.events.map((e) => e.type),
+    ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'pointermove', 'mousemove']);
+  for (const e of el.events) assert.equal(e.init.buttons, 0, `${e.type}: no button held`);
+});
+
+test('scrolling to an element centers it without animating', () => {
+  const el = fake({ tag: 'section' });
+  let asked = null;
+  el.scrollIntoView = (options) => { asked = options; };
+  assert.deepEqual(page.scrollToElement(el), { done: 'scrolled' });
+  assert.deepEqual(asked, { block: 'center', inline: 'nearest', behavior: 'instant' });
+});
+
 test('type refuses secure_field on sensitive elements without touching them', () => {
   const el = fake({ tag: 'input', attrs: { type: 'password' } });
   const out = page.typeIntoElement(el, 'x');
@@ -426,6 +442,31 @@ test('the serialized value is clipped to 200 code points', () => {
   const out = page.serializeElement(fake({ tag: 'input', attrs: { type: 'text' }, value: 'v'.repeat(199) + '😀😀' }), 1, 0);
   assert.equal(Array.from(out.value).length, 200);
   assert.ok(!SURROGATE.test(out.value));
+});
+
+test('locating for a hover arms no landing, while locating for a click does', async () => {
+  const el = fake({ tag: 'button', text: 'Menu' });
+  const doc = el.ownerDocument;
+  el.scrollIntoView = () => {};
+  el.getBoundingClientRect = () => ({ left: 10, top: 20, width: 40, height: 20 });
+  const listeners = [];
+  const saved = { window: globalThis.window, document: globalThis.document, state: globalThis.__companionState };
+  globalThis.window = { innerWidth: 800, innerHeight: 600, addEventListener: (type) => listeners.push(type) };
+  globalThis.document = doc;
+  doc.elementFromPoint = () => el;
+  globalThis.__companionState = { generation: 4, elements: new Map([[1, el]]) };
+  try {
+    const hover = await page.locate(4, 1, 'h1', null);
+    assert.equal(hover.inView, true);
+    assert.equal(hover.blocked, false);
+    assert.deepEqual(listeners, [], 'nothing armed for a hover');
+    await page.locate(4, 1, 'c1', 'click');
+    assert.deepEqual(listeners, ['click'], 'a click arms its landing');
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.document = saved.document;
+    globalThis.__companionState = saved.state;
+  }
 });
 
 test('a right click is proven landed by its trusted contextmenu, and a click does not prove it', () => {

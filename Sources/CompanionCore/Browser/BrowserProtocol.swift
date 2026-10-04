@@ -211,6 +211,10 @@ package enum BrowserCommand: Sendable, Equatable {
     case doubleClick(tab: Int, generation: Int, element: Int)
     case rightClick(tab: Int, generation: Int, element: Int)
     case type(tab: Int, generation: Int, element: Int, text: String)
+    case scroll(tab: Int, dx: Int, dy: Int)
+    /// Scroll so a read element is in view: the same tool on the wire, told apart by its arguments.
+    case scrollTo(tab: Int, generation: Int, element: Int)
+    case hover(tab: Int, generation: Int, element: Int)
     case navigate(tab: Int, url: URL)
     case open(url: URL)
     case take(tab: Int)

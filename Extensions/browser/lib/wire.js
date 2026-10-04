@@ -36,12 +36,21 @@ function isHttpURL(raw) {
   }
 }
 
+// Pixels per axis in one scroll; the host refuses more, this only keeps a forged call from flinging the page.
+const SCROLL_LIMIT = 20000;
+const isPixels = (v) => isInt(v) && Math.abs(v) <= SCROLL_LIMIT;
+
 const SHAPES = {
   browser_tabs: () => true,
   browser_read: (a) => isInt(a.tab) && (a.selector == null || typeof a.selector === 'string'),
   browser_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
   browser_double_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
   browser_right_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
+  browser_hover: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
+  // Either an element of the last read or an offset, never both.
+  browser_scroll: (a) => isInt(a.tab) && (a.element != null
+    ? isInt(a.generation) && isInt(a.element) && a.dx == null && a.dy == null
+    : isPixels(a.dx) && isPixels(a.dy)),
   browser_type: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.text === 'string',
   browser_navigate: (a) => isInt(a.tab) && isHttpURL(a.url),
   browser_open: (a) => isHttpURL(a.url),
