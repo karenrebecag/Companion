@@ -404,6 +404,86 @@ test('field name and id travel for Core to classify', () => {
   assert.equal(out.fieldId, 'f1');
 });
 
+test('a file input reads as role file, and an explicit role still wins', () => {
+  assert.equal(page.serializeElement(fake({ tag: 'input', attrs: { type: 'file' } }), 1, 0).role, 'file');
+  assert.equal(page.serializeElement(fake({ tag: 'input', attrs: { type: 'FILE' } }), 1, 0).role, 'file');
+  assert.equal(page.serializeElement(fake({ tag: 'input', attrs: { type: 'file', role: 'button' } }), 1, 0).role, 'button');
+  assert.equal(page.serializeElement(fake({ tag: 'input', attrs: { type: 'text' } }), 1, 0).role, 'textbox');
+});
+
+function fileEl() {
+  const attrs = { type: 'file' };
+  const el = fake({ tag: 'input', attrs });
+  el.setAttribute = (name, value) => { attrs[name] = String(value); };
+  el.removeAttribute = (name) => { delete attrs[name]; };
+  el.getAttribute = (name) => (Object.prototype.hasOwnProperty.call(attrs, name) ? attrs[name] : null);
+  return el;
+}
+
+test('markFileInput sets a one-time data-companion-file uuid', () => {
+  const el = armed(fileEl());
+  const first = page.markFileInput(1, 1);
+  const second = page.markFileInput(1, 1);
+  assert.match(first.marker, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  assert.equal(el.getAttribute('data-companion-file'), second.marker);
+  assert.notEqual(first.marker, second.marker);
+});
+
+test('markFileInput on a stale id does not write the attribute', () => {
+  const el = fileEl();
+  let wrote = 0;
+  el.setAttribute = () => { wrote++; };
+  armed(el);
+  assert.equal(page.markFileInput(2, 1).error.code, 'stale_id');
+  assert.equal(page.markFileInput(1, 9).error.code, 'stale_id');
+  assert.equal(wrote, 0);
+});
+
+test('clearFileMark removes the attribute and a stale id does not throw', () => {
+  const el = armed(fileEl());
+  const { marker } = page.markFileInput(1, 1);
+  assert.equal(page.clearFileMark(1, 1, marker).cleared, true);
+  assert.equal(el.getAttribute('data-companion-file'), null);
+  assert.equal(page.clearFileMark(9, 1, marker).error.code, 'stale_id');
+});
+
+test('clearFileMark touches only the element it marked, and only while the marker is still ours', () => {
+  const el = armed(fileEl());
+  const lookalike = fileEl();
+  const { marker } = page.markFileInput(1, 1);
+  lookalike.setAttribute('data-companion-file', marker);
+  assert.equal(page.clearFileMark(1, 1, marker).cleared, true);
+  assert.equal(el.getAttribute('data-companion-file'), null);
+  assert.equal(lookalike.getAttribute('data-companion-file'), marker, 'a page-added element was swept');
+
+  page.markFileInput(1, 1);
+  el.setAttribute('data-companion-file', 'set-by-the-page');
+  page.clearFileMark(1, 1, marker);
+  assert.equal(el.getAttribute('data-companion-file'), 'set-by-the-page', 'a value the page wrote was removed');
+});
+
+test('fileSetOn accepts exactly one file whose name is the path base name', () => {
+  const el = armed(fileEl());
+  el.files = [{ name: 'cv.pdf' }];
+  assert.deepEqual(page.fileSetOn(1, 1, '/Users/karen/Documents/cv.pdf'), { done: 'files-set' });
+  el.files = [{ name: '/Users/karen/Documents/cv.pdf' }];
+  assert.equal(page.fileSetOn(1, 1, '/Users/karen/Documents/cv.pdf').error.code, 'target_changed');
+});
+
+test('fileSetOn returns target_changed when the file list does not match', () => {
+  const el = armed(fileEl());
+  for (const files of [undefined, null, [], [{ name: 'other.pdf' }], [{ name: 'cv.pdf' }, { name: 'b.pdf' }], [{}]]) {
+    el.files = files;
+    assert.equal(page.fileSetOn(1, 1, '/Users/karen/Documents/cv.pdf').error.code, 'target_changed', JSON.stringify(files));
+  }
+  el.files = [{ name: 'cv.pdf' }];
+  assert.equal(page.fileSetOn(1, 1, '/Users/karen/Documents/').error.code, 'target_changed');
+  const gone = fileEl();
+  gone.isConnected = false;
+  armed(gone);
+  assert.equal(page.fileSetOn(1, 1).error.code, 'stale_id');
+});
+
 test('type refuses non-editable elements and file inputs without touching the DOM', () => {
   const div = fake({ tag: 'div', text: 'keep me' });
   assert.equal(page.typeIntoElement(div, 'x').error.code, 'not_typable');
@@ -2151,4 +2231,27 @@ test('within a closed menu lists its items marked hidden only when asked', () =>
   } finally {
     delete globalThis.document;
   }
+});
+
+test('fileSetOn compares names after NFC normalisation, and keeps % and # literal', () => {
+  const el = armed(fileEl());
+  const nfd = 'Résumé.pdf';
+  const nfc = 'Résumé.pdf';
+  el.files = [{ name: nfc }];
+  assert.deepEqual(page.fileSetOn(1, 1, `/Users/karen/Documents/${nfd}`), { done: 'files-set' });
+  el.files = [{ name: nfd }];
+  assert.deepEqual(page.fileSetOn(1, 1, `/Users/karen/Documents/${nfc}`), { done: 'files-set' });
+  for (const name of ['100%.pdf', 'a#1.pdf', 'a%20b.pdf']) {
+    el.files = [{ name }];
+    assert.deepEqual(page.fileSetOn(1, 1, `/tmp/${name}`), { done: 'files-set' }, name);
+  }
+  el.files = [{ name: 'a b.pdf' }];
+  assert.equal(page.fileSetOn(1, 1, '/tmp/a%20b.pdf').error.code, 'target_changed');
+});
+
+test('the marker markFileInput mints is accepted by the CDP selector builder', async () => {
+  armed(fileEl());
+  const { marker } = page.markFileInput(1, 1);
+  const { markerSelector } = await import('../lib/cdp.js');
+  assert.equal(markerSelector(marker), `[data-companion-file="${marker}"]`);
 });

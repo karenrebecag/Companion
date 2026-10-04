@@ -104,10 +104,20 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     if (revoked.delete(tabId)) persist();
   }
 
+  // One stream per tab for trusted input and file setting. Interleaving a click with
+  // setFileInputFiles would focus the tab and rewrite the DOM at the same time.
+  function serial(tabId, fn) {
+    const previous = queues.get(tabId) ?? Promise.resolve();
+    const run = previous.catch(() => {}).then(fn);
+    const settled = run.catch(() => {});
+    queues.set(tabId, settled);
+    settled.then(() => { if (queues.get(tabId) === settled) queues.delete(tabId); });
+    return run;
+  }
+
   // Focus emulation lets trusted input land in a tab that is not the focused one.
   function withInput(tabId, fn) {
-    const previous = queues.get(tabId) ?? Promise.resolve();
-    const run = previous.catch(() => {}).then(async () => {
+    return serial(tabId, async () => {
       await ensureAttached(tabId);
       await send(tabId, 'Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
       try {
@@ -116,10 +126,96 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
         await send(tabId, 'Emulation.setFocusEmulationEnabled', { enabled: false }).catch(() => {});
       }
     });
-    const settled = run.catch(() => {});
-    queues.set(tabId, settled);
-    settled.then(() => { if (queues.get(tabId) === settled) queues.delete(tabId); });
-    return run;
+  }
+
+  // The one pierced walk is the only lookup: a shortcut through the top document would let a page
+  // plant a second marker inside a shadow root and have it go unseen. Frame documents are skipped,
+  // since a frame is a different target from the element the read approved.
+  async function markedNodes(tabId, selector, pinnedOrigin) {
+    const deep = await send(tabId, 'DOM.getDocument', { depth: -1, pierce: true });
+    if (originOf(deep?.root?.documentURL) !== pinnedOrigin) return [];
+    const seen = new Set();
+    const walk = async (node, frameDocument) => {
+      if (!node || frameDocument || !Number.isInteger(node.nodeId)) return;
+      if (node.nodeType === 9 || node.nodeType === 11 || node.shadowRootType) {
+        for (const id of await queryAll(tabId, node.nodeId, selector)) seen.add(id);
+      }
+      for (const child of node.children ?? []) await walk(child, false);
+      for (const shadow of node.shadowRoots ?? []) await walk(shadow, false);
+      if (node.contentDocument) await walk(node.contentDocument, true);
+    };
+    await walk(deep?.root, false);
+    return [...seen];
+  }
+
+  async function queryAll(tabId, nodeId, selector) {
+    const out = await send(tabId, 'DOM.querySelectorAll', { nodeId, selector });
+    return Array.isArray(out?.nodeIds) ? out.nodeIds.filter((id) => Number.isInteger(id)) : [];
+  }
+
+  async function mainFrame(tabId) {
+    const tree = await send(tabId, 'Page.getFrameTree');
+    const frame = tree?.frameTree?.frame;
+    return { loaderId: frame?.loaderId, origin: originOf(frame?.url) };
+  }
+
+  const changed = { error: { code: 'target_changed', message: 'the file field no longer matches the read' } };
+
+  // Only a gone debugger is the debugger's fault; a node or argument error means the field is not
+  // the one that was approved, and a refused file read is the file-access toggle.
+  function setFailure(error) {
+    const message = String(error?.message ?? error);
+    if (/detach|not attached|closed|no tab/i.test(message)) throw error;
+    if (/not allowed/i.test(message)) return { error: { code: 'file_access_required', message: 'Allow access to file URLs' } };
+    return changed;
+  }
+
+  // `mark` stamps the page and answers `{ marker }` or an error reply. It runs only after the pin,
+  // inside the same queue slot: the page can read the marker the moment it exists, so a pin taken
+  // later could already describe an attacker's document that was handed the marker in its URL.
+  // `check` confirms the file landed and `clear` removes the marker; both stay in the slot so a
+  // queued click cannot run against a page that still carries the marker.
+  function setFileInputFiles(tabId, path, { mark, check, clear }) {
+    return serial(tabId, async () => {
+      try {
+        await ensureAttached(tabId);
+        const pinned = await mainFrame(tabId);
+        if (!pinned.loaderId || !pinned.origin) return changed;
+        const stamp = await mark();
+        if (!stamp || stamp.error) return stamp;
+        const selector = markerSelector(stamp.marker);
+        if (!selector) return changed;
+        const target = await locateInput(tabId, selector, pinned.origin);
+        if (target.error) return target;
+        const now = await mainFrame(tabId);
+        if (now.loaderId !== pinned.loaderId || now.origin !== pinned.origin) return changed;
+        try {
+          await send(tabId, 'DOM.setFileInputFiles', { nodeId: target.nodeId, files: [path] });
+        } catch (error) {
+          return setFailure(error);
+        }
+        return await check();
+      } finally {
+        await clear();
+      }
+    });
+  }
+
+  // The one marked node, or the reply that refuses it. Walk and describe errors map like the set's.
+  async function locateInput(tabId, selector, origin) {
+    try {
+      const ids = await markedNodes(tabId, selector, origin);
+      if (ids.length !== 1) return changed;
+      const described = await send(tabId, 'DOM.describeNode', { nodeId: ids[0] });
+      const node = described?.node;
+      const tag = String(node?.nodeName ?? '').toLowerCase();
+      if (tag !== 'input' || attrValue(node, 'type').toLowerCase() !== 'file') {
+        return { error: { code: 'not_file_input', message: 'the element is not a file input' } };
+      }
+      return { nodeId: ids[0] };
+    } catch (error) {
+      return setFailure(error);
+    }
   }
 
   // Chrome reads a double click from two press pairs whose clickCount climbs 1, 2; one pair counted 2 is not one.
@@ -197,7 +293,32 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     }
   });
 
-  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, mouseDrag, mouseMove, mouseWheel, typeText, pressKey, isRevoked };
+  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, mouseDrag, mouseMove, mouseWheel, typeText, pressKey, isRevoked, setFileInputFiles };
+}
+
+// The marker is a uuid we minted. Anything else would change the selector, not the attribute value.
+export function markerSelector(marker) {
+  if (typeof marker !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(marker)) return null;
+  return `[data-companion-file="${marker}"]`;
+}
+
+// Opaque origins serialize as "null"; two of them are not the same place, so they never pin.
+function originOf(url) {
+  try {
+    const origin = new URL(url).origin;
+    return origin === 'null' ? null : origin;
+  } catch {
+    return null;
+  }
+}
+
+function attrValue(node, name) {
+  const list = node?.attributes;
+  if (!Array.isArray(list)) return '';
+  for (let i = 0; i + 1 < list.length; i += 2) {
+    if (String(list[i]).toLowerCase() === name) return String(list[i + 1] ?? '');
+  }
+  return '';
 }
 
 const SHIFT = 8;

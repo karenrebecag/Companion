@@ -18,6 +18,8 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
     // A test sets this to make a chrome call throw: (name, args) => boolean.
     failWhen: () => false,
     cdp: [],
+    // One ordered log across the page stand-in and the CDP fake, so a test can assert the order.
+    events: [],
     debugTargets: [],
     attachError: null,
     page: null,
@@ -76,6 +78,13 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
       onConnect: listener(registered.forbidden),
     },
     alarms: { create() {}, onAlarm: listener(registered.alarm) },
+    extension: {
+      isAllowedFileSchemeAccess(cb) {
+        const allowed = state.fileSchemeAccess === true;
+        if (typeof cb === 'function') cb(allowed);
+        return Promise.resolve(allowed);
+      },
+    },
     tabs: {
       query: query ?? (async (filter = {}) => state.tabs.filter((t) => filter.groupId === undefined || t.groupId === filter.groupId).map((t) => ({ ...t }))),
       get: async (id) => {
@@ -174,7 +183,18 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
         chrome.runtime.lastError = undefined;
       },
       detach(target, cb) { state.calls.push(['debugger.detach', target.tabId]); cb(); },
-      sendCommand(target, method, params, cb) { state.cdp.push([target.tabId, method, params]); cb({}); },
+      sendCommand(target, method, params, cb) {
+        state.cdp.push([target.tabId, method, params]);
+        state.events.push(method);
+        const failure = typeof state.cdpError === 'function' ? state.cdpError(method, params) : null;
+        if (failure) {
+          chrome.runtime.lastError = { message: failure };
+          cb();
+          chrome.runtime.lastError = undefined;
+          return;
+        }
+        cb(state.cdpResult?.(method, params) ?? {});
+      },
       getTargets(cb) { cb(state.debugTargets); },
       onDetach: listener(registered.detach),
     },
@@ -2067,4 +2087,588 @@ test('a drag onto an id the read never listed is stale as unknown_element and pr
   const reply = await ask(rig.ports[0], 391, 'browser_drag', { tab: 3, generation, element: 1, to: 99 });
   assert.deepEqual(reasonOf(reply), ['stale_id', 'unknown_element']);
   assert.equal(presses(rig.state).length, 0);
+});
+
+// --- browser_set_files (P8 PR-2) -------------------------------------------------------------------
+
+const FILE_MARK = '11111111-1111-4111-8111-111111111111';
+const FILE_PATH = '/Users/karen/Documents/cv.pdf';
+const FILE_SELECTOR = `[data-companion-file="${FILE_MARK}"]`;
+
+function pierceTree() {
+  return {
+    nodeId: 1,
+    nodeType: 9,
+    nodeName: '#document',
+    children: [{
+      nodeId: 3,
+      nodeType: 1,
+      nodeName: 'HTML',
+      children: [{
+        nodeId: 4,
+        nodeType: 1,
+        nodeName: 'BODY',
+        children: [
+          {
+            nodeId: 10,
+            nodeType: 1,
+            nodeName: 'IFRAME',
+            contentDocument: {
+              nodeId: 50,
+              nodeType: 9,
+              nodeName: '#document',
+              children: [{ nodeId: 51, nodeType: 1, nodeName: 'INPUT' }],
+            },
+          },
+          {
+            nodeId: 11,
+            nodeType: 1,
+            nodeName: 'X-APP',
+            shadowRoots: [{ nodeId: 2, nodeType: 11, shadowRootType: 'open' }],
+          },
+        ],
+      }],
+    }],
+  };
+}
+
+const FILE_TOP_URL = 'https://a.example/page';
+
+// The marker sits in the top document unless a test says otherwise. A pierced document returns `top`
+// from its own document node, `shadow` from the shadow root and `frame` from a frame document that
+// must never be queried. `trees` are the successive Page.getFrameTree answers (the last one repeats).
+function scriptDom(state, {
+  top = [7], shadow = [], frame = [77], nodeName = 'INPUT', type = 'file', docUrl = FILE_TOP_URL,
+  trees = [{ loaderId: 'L1', url: FILE_TOP_URL }],
+} = {}) {
+  state.queries = [];
+  let treeReads = 0;
+  state.cdpResult = (method, params) => {
+    if (method === 'Page.getFrameTree') {
+      const frame = trees[Math.min(treeReads++, trees.length - 1)];
+      return { frameTree: { frame: { id: 'main', ...frame } } };
+    }
+    if (method === 'DOM.getDocument') {
+      return { root: { ...pierceTree(), documentURL: docUrl } };
+    }
+    if (method === 'DOM.querySelectorAll') {
+      state.queries.push(params.nodeId);
+      if (params.nodeId === 50) return { nodeIds: frame };
+      if (params.nodeId === 2) return { nodeIds: shadow };
+      if (params.nodeId === 1) return { nodeIds: top };
+      return { nodeIds: [] };
+    }
+    if (method === 'DOM.describeNode') {
+      return { node: { nodeId: params.nodeId, nodeName, attributes: type == null ? [] : ['type', type] } };
+    }
+    return {};
+  };
+}
+
+async function readyFile(rig, { marker = FILE_MARK, fileSetOn = null, frame = 0, clearThrows = false } = {}) {
+  const log = { marks: 0, clears: 0, checks: [], clearArgs: [] };
+  const events = rig.state.events;
+  rig.state.fileSchemeAccess = true;
+  rig.state.page = {
+    read: () => ({
+      origin: 'https://a.example', text: '',
+      elements: [{ id: 1, frame, role: 'file', label: 'CV', context: '', inputType: 'file', autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null }],
+    }),
+    markFileInput: () => { events.push('markFileInput'); log.marks++; return { marker }; },
+    locate: () => onScreen,
+    hitsAt: () => true,
+    landed: () => true,
+    click: () => ({ done: 'clicked' }),
+    clearFileMark: async (_g, _id, mark) => {
+      if (rig.state.holdClear) await rig.state.holdClear;
+      events.push('clearFileMark');
+      log.clears++;
+      log.clearArgs.push(mark);
+      if (clearThrows) throw new Error('page gone');
+      return { cleared: true };
+    },
+    fileSetOn: (_g, _id, path) => {
+      events.push('fileSetOn');
+      log.checks.push(path);
+      return fileSetOn ? fileSetOn(path) : { done: 'files-set' };
+    },
+  };
+  if (frame !== 0) {
+    // The read learns an element's frame from the frame that ran the script, not from the payload.
+    const run = rig.chrome.scripting.executeScript;
+    rig.chrome.scripting.executeScript = async (details) => {
+      const out = await run(details);
+      return details.target.allFrames ? out.map((hit) => ({ ...hit, frameId: frame })) : out;
+    };
+  }
+  const read = await ask(rig.ports[0], 400, 'browser_read', { tab: 3 });
+  return { generation: read.result.page.generation, log };
+}
+
+const setFiles = (port, id, generation, path = FILE_PATH) => ask(port, id, 'browser_set_files', { tab: 3, generation, element: 1, path });
+const domMethods = (state) => state.cdp.filter(([, method]) => method.startsWith('DOM.')).map(([, method]) => method);
+const trace = (state) => state.events.filter((e) => e !== 'Page.enable' && e !== 'Page.setWebLifecycleState');
+const placedCount = (state) => state.cdp.filter(([, method]) => method === 'DOM.setFileInputFiles').length;
+
+// Whatever the outcome, the marker comes off last and exactly once, after the one mark.
+function assertMarkerLifecycle(state, log, label = '') {
+  assert.equal(log.marks, 1, `marks ${label}`);
+  assert.equal(log.clears, 1, `clears ${label}`);
+  assert.equal(trace(state).at(-1), 'clearFileMark', `clear is last ${label}`);
+  assert.deepEqual(log.clearArgs, [FILE_MARK], `clear names the marker it set ${label}`);
+}
+
+test('file scheme access off answers file_access_required and touches neither the page nor CDP', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  rig.state.fileSchemeAccess = false;
+  const before = rig.state.cdp.length;
+  const reply = await setFiles(rig.ports[0], 410, generation);
+  assert.deepEqual(reply.error, { code: 'file_access_required', message: 'Allow access to file URLs' });
+  assert.equal(log.marks, 0);
+  assert.equal(log.clears, 0);
+  assert.deepEqual(log.checks, []);
+  assert.deepEqual(trace(rig.state), []);
+  assert.equal(rig.state.cdp.length, before, 'a CDP command was sent');
+});
+
+test('a missing file-scheme API fails closed as file_access_required', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.chrome.extension.isAllowedFileSchemeAccess = undefined;
+  const reply = await ask(rig.ports[0], 411, 'browser_set_files', { tab: 3, generation: 1, element: 1, path: FILE_PATH });
+  assert.equal(reply.error.code, 'file_access_required');
+});
+
+test('a relative path is invalid_args and never marks the field', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  const reply = await setFiles(rig.ports[0], 412, generation, 'cv.pdf');
+  assert.equal(reply.error.code, 'invalid_args');
+  assert.equal(log.marks, 0);
+  assert.equal(log.clears, 0);
+});
+
+test('a stale element is stale_id and never marks the field', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  const reply = await setFiles(rig.ports[0], 413, generation + 50);
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(log.marks, 0);
+});
+
+test('setting a file after the user cancels the banner does not mark the field', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+  const reply = await setFiles(rig.ports[0], 414, generation);
+  assert.equal(reply.error.code, 'debugger_revoked');
+  assert.equal(log.marks, 0);
+  assert.equal(log.clears, 0);
+});
+
+test('an element read inside a subframe is target_changed before anything is marked or sent', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig, { frame: 2 });
+  scriptDom(rig.state);
+  const before = rig.state.cdp.length;
+  const reply = await setFiles(rig.ports[0], 433, generation);
+  assert.equal(reply.error.code, 'target_changed');
+  assert.equal(log.marks, 0);
+  assert.equal(log.clears, 0);
+  assert.equal(rig.state.cdp.length, before, 'a CDP command was sent');
+  assert.deepEqual(trace(rig.state), []);
+});
+
+test('a file set runs pin, mark, one pierced walk, describe, re-pin, set, check, clear in that order', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  scriptDom(rig.state, { top: [7] });
+  const reply = await setFiles(rig.ports[0], 415, generation);
+  assert.deepEqual(reply.result, { done: 'files-set' });
+  assert.deepEqual(trace(rig.state), [
+    'Page.getFrameTree', 'markFileInput', 'DOM.getDocument',
+    'DOM.querySelectorAll', 'DOM.querySelectorAll',
+    'DOM.describeNode', 'Page.getFrameTree', 'DOM.setFileInputFiles',
+    'fileSetOn', 'clearFileMark',
+  ]);
+  assertMarkerLifecycle(rig.state, log, 'happy path');
+  const docs = rig.state.cdp.filter(([, method]) => method === 'DOM.getDocument');
+  assert.deepEqual(docs.map(([, , params]) => params), [{ depth: -1, pierce: true }]);
+  assert.deepEqual(rig.state.queries, [1, 2]);
+  const query = rig.state.cdp.find(([, method]) => method === 'DOM.querySelectorAll');
+  assert.deepEqual(query[2], { nodeId: 1, selector: FILE_SELECTOR });
+  assert.deepEqual(rig.state.cdp.find(([, method]) => method === 'DOM.describeNode')[2], { nodeId: 7 });
+  assert.deepEqual(rig.state.cdp.find(([, method]) => method === 'DOM.setFileInputFiles')[2], { nodeId: 7, files: [FILE_PATH] });
+  assert.deepEqual(log.checks, [FILE_PATH]);
+  assert.equal(rig.state.cdp.some(([, method]) => method === 'Runtime.evaluate'), false);
+  assert.equal(rig.state.cdp.some(([, method]) => method === 'Emulation.setFocusEmulationEnabled'), false);
+});
+
+test('type=FILE on an input element is still a file input', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyFile(rig);
+  scriptDom(rig.state, { top: [7], nodeName: 'input', type: 'FILE' });
+  const reply = await setFiles(rig.ports[0], 416, generation);
+  assert.deepEqual(reply.result, { done: 'files-set' });
+});
+
+test('a marker only in a shadow root is found, and frame documents are not queried', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  scriptDom(rig.state, { top: [], shadow: [9], frame: [77] });
+  const reply = await setFiles(rig.ports[0], 417, generation);
+  assert.deepEqual(reply.result, { done: 'files-set' });
+  assert.equal(rig.state.queries.includes(50), false, 'frame document was queried');
+  const placed = rig.state.cdp.find(([, method]) => method === 'DOM.setFileInputFiles');
+  assert.equal(placed[2].nodeId, 9);
+  assertMarkerLifecycle(rig.state, log, 'shadow');
+});
+
+test('the same node reported by the document and its shadow root is still one match', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyFile(rig);
+  scriptDom(rig.state, { top: [9], shadow: [9] });
+  const reply = await setFiles(rig.ports[0], 418, generation);
+  assert.deepEqual(reply.result, { done: 'files-set' });
+  assert.equal(placedCount(rig.state), 1);
+});
+
+test('no match, a frame-only match, or more than one match across scopes is target_changed and nothing is set', async () => {
+  for (const [id, script] of [
+    [419, { top: [], shadow: [], frame: [77] }],
+    [420, { top: [7, 8] }],
+    [421, { top: [], shadow: [7, 8] }],
+    [434, { top: [7], shadow: [8] }],
+  ]) {
+    const rig = await boot({ tabs: userTabs() });
+    const { generation, log } = await readyFile(rig);
+    scriptDom(rig.state, script);
+    const reply = await setFiles(rig.ports[0], id, generation);
+    assert.equal(reply.error.code, 'target_changed', JSON.stringify(script));
+    assert.equal(placedCount(rig.state), 0);
+    assert.equal(log.checks.length, 0);
+    assertMarkerLifecycle(rig.state, log, JSON.stringify(script));
+    // boot enables the timer mock; a second enable in the same test throws.
+    mock.timers.reset();
+  }
+});
+
+test('a document Chrome returns with no root or no frame tree is target_changed', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  rig.state.cdpResult = (method) => (method === 'Page.getFrameTree'
+    ? { frameTree: { frame: { id: 'main', loaderId: 'L1', url: FILE_TOP_URL } } } : {});
+  const reply = await setFiles(rig.ports[0], 422, generation);
+  assert.equal(reply.error.code, 'target_changed');
+  assertMarkerLifecycle(rig.state, log, 'no root');
+  mock.timers.reset();
+  const bare = await boot({ tabs: userTabs() });
+  const ready = await readyFile(bare);
+  bare.state.cdpResult = () => ({});
+  assert.equal((await setFiles(bare.ports[0], 460, ready.generation)).error.code, 'target_changed');
+  assert.equal(ready.log.marks, 0, 'marked without a pin');
+});
+
+test('a node that is not an input type=file is not_file_input and the file is not set', async () => {
+  for (const [id, nodeName, type] of [
+    [424, 'BUTTON', 'submit'],
+    [425, 'INPUT', 'text'],
+    [426, 'INPUT', null],
+    [427, 'DIV', 'file'],
+  ]) {
+    const rig = await boot({ tabs: userTabs() });
+    const { generation, log } = await readyFile(rig);
+    scriptDom(rig.state, { top: [7], nodeName, type });
+    const reply = await setFiles(rig.ports[0], id, generation);
+    assert.equal(reply.error.code, 'not_file_input', `${nodeName}/${type}`);
+    assert.equal(reply.error.message, 'the element is not a file input');
+    assert.equal(placedCount(rig.state), 0);
+    assert.equal(log.checks.length, 0);
+    assertMarkerLifecycle(rig.state, log, `${nodeName}/${type}`);
+    mock.timers.reset();
+  }
+});
+
+test('a marker that is not a uuid is target_changed and does not query the DOM', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig, { marker: 'not-a-uuid' });
+  scriptDom(rig.state);
+  const reply = await setFiles(rig.ports[0], 428, generation);
+  assert.equal(reply.error.code, 'target_changed');
+  assert.equal(domMethods(rig.state).length, 0);
+  assert.equal(log.clears, 1);
+  assert.equal(trace(rig.state).at(-1), 'clearFileMark');
+});
+
+test('a file list that does not match is target_changed after the set, and the marker is still cleared', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig, {
+    fileSetOn: () => ({ error: { code: 'target_changed', message: 'the file field does not hold the file' } }),
+  });
+  scriptDom(rig.state, { top: [7] });
+  const reply = await setFiles(rig.ports[0], 429, generation);
+  assert.equal(reply.error.code, 'target_changed');
+  assert.equal(placedCount(rig.state), 1);
+  assertMarkerLifecycle(rig.state, log, 'file list mismatch');
+});
+
+test('a navigation between the first and the second frame tree read is target_changed and nothing is set', async () => {
+  const same = { loaderId: 'L1', url: FILE_TOP_URL };
+  for (const [id, label, script] of [
+    [435, 'new loader', { trees: [same, { loaderId: 'L2', url: FILE_TOP_URL }] }],
+    [436, 'new origin', { trees: [same, { loaderId: 'L1', url: 'https://evil.example/page' }] }],
+    [437, 'origin is not a string prefix', { trees: [same, { loaderId: 'L1', url: 'https://a.example.evil.example/' }] }],
+    [438, 'document url on another origin', { docUrl: 'https://a.example.evil.example/page' }],
+    [439, 'document url that does not parse', { docUrl: 'not a url' }],
+    [440, 'no document url', { docUrl: null }],
+  ]) {
+    const rig = await boot({ tabs: userTabs() });
+    const { generation, log } = await readyFile(rig);
+    scriptDom(rig.state, { top: [7], ...script });
+    const reply = await setFiles(rig.ports[0], id, generation);
+    assert.equal(reply.error.code, 'target_changed', label);
+    assert.equal(placedCount(rig.state), 0, label);
+    assert.equal(log.checks.length, 0, label);
+    assertMarkerLifecycle(rig.state, log, label);
+    mock.timers.reset();
+  }
+});
+
+test('a page that navigates to another origin right after the mark, carrying the marker, is never given the file', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  scriptDom(rig.state, { top: [7], docUrl: 'https://evil.example/' });
+  const script = rig.state.cdpResult;
+  rig.state.cdpResult = (method, params) => (method === 'Page.getFrameTree' && rig.state.events.includes('markFileInput')
+    ? { frameTree: { frame: { id: 'main', loaderId: 'L2', url: 'https://evil.example/' } } }
+    : script(method, params));
+  const reply = await setFiles(rig.ports[0], 457, generation);
+  assert.equal(reply.error.code, 'target_changed');
+  assert.equal(placedCount(rig.state), 0, 'the file went to the attacker origin');
+  assertMarkerLifecycle(rig.state, log, 'navigated after mark');
+});
+
+test('a pin read that fails marks nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  scriptDom(rig.state, { top: [7] });
+  rig.state.cdpError = (method) => (method === 'Page.getFrameTree' ? 'boom' : null);
+  const reply = await setFiles(rig.ports[0], 458, generation);
+  assert.ok(reply.error);
+  assert.equal(log.marks, 0);
+  assert.equal(log.clears, 0);
+  assert.deepEqual(trace(rig.state), ['Page.getFrameTree']);
+});
+
+test('an unusable pin (opaque or unparseable origin) marks nothing', async () => {
+  for (const [id, url] of [[459, 'about:blank'], [461, 'nope']]) {
+    const rig = await boot({ tabs: userTabs() });
+    const { generation, log } = await readyFile(rig);
+    scriptDom(rig.state, { top: [7], trees: [{ loaderId: 'L1', url }] });
+    const reply = await setFiles(rig.ports[0], id, generation);
+    assert.equal(reply.error.code, 'target_changed', url);
+    assert.equal(log.marks, 0);
+    assert.equal(log.clears, 0);
+    mock.timers.reset();
+  }
+});
+
+test('a same-document path change on the same origin and loader still sets the file', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyFile(rig);
+  scriptDom(rig.state, { top: [7], trees: [{ loaderId: 'L1', url: FILE_TOP_URL }, { loaderId: 'L1', url: 'https://a.example/other#x' }] });
+  const reply = await setFiles(rig.ports[0], 443, generation);
+  assert.deepEqual(reply.result, { done: 'files-set' });
+});
+
+test('errors from DOM.setFileInputFiles map to a code that names the real cause', async () => {
+  for (const [id, message, code] of [
+    [444, 'Inspector detached', 'debugger_unavailable'],
+    [445, 'Debugger is not attached to the tab with id: 3.', 'debugger_unavailable'],
+    [446, 'Detached while handling command.', 'debugger_unavailable'],
+    [447, 'Target closed', 'debugger_unavailable'],
+    [448, 'Could not find node with given id', 'target_changed'],
+    [449, 'Invalid parameters', 'target_changed'],
+    [450, 'Node is not a file input', 'target_changed'],
+    [451, 'Not allowed', 'file_access_required'],
+    [452, 'Something nobody has seen', 'target_changed'],
+  ]) {
+    const rig = await boot({ tabs: userTabs() });
+    const { generation, log } = await readyFile(rig);
+    scriptDom(rig.state, { top: [7] });
+    rig.state.cdpError = (method) => (method === 'DOM.setFileInputFiles' ? message : null);
+    const reply = await setFiles(rig.ports[0], id, generation);
+    assert.equal(reply.error.code, code, message);
+    assert.equal(log.checks.length, 0, message);
+    assertMarkerLifecycle(rig.state, log, message);
+    mock.timers.reset();
+  }
+});
+
+test('a debugger that cannot attach is debugger_unavailable and nothing is marked', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'target_closed');
+  rig.state.attachError = 'Another debugger is already attached to the tab with id: 3.';
+  const reply = await setFiles(rig.ports[0], 453, generation);
+  assert.equal(reply.error.code, 'debugger_unavailable');
+  assert.deepEqual(trace(rig.state), []);
+  assert.equal(log.marks, 0);
+  assert.equal(log.clears, 0);
+});
+
+test('a Cancel on the banner in the middle of a set is debugger_revoked and the marker is cleared', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyFile(rig);
+  scriptDom(rig.state, { top: [7] });
+  const script = rig.state.cdpResult;
+  let canceled = false;
+  rig.state.cdpResult = (method, params) => {
+    if (method === 'DOM.describeNode') {
+      canceled = true;
+      for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+    }
+    return script(method, params);
+  };
+  rig.state.cdpError = () => (canceled ? 'Debugger is not attached to the tab with id: 3.' : null);
+  const reply = await setFiles(rig.ports[0], 454, generation);
+  assert.equal(reply.error.code, 'debugger_revoked');
+  assert.equal(placedCount(rig.state), 0);
+  assertMarkerLifecycle(rig.state, log, 'revoked');
+});
+
+test('a marker removal that fails does not change the answer', async () => {
+  for (const [id, script, expected] of [
+    [455, { top: [7] }, (reply) => assert.deepEqual(reply.result, { done: 'files-set' })],
+    [456, { top: [] }, (reply) => assert.equal(reply.error.code, 'target_changed')],
+  ]) {
+    const rig = await boot({ tabs: userTabs() });
+    const { generation, log } = await readyFile(rig, { clearThrows: true });
+    scriptDom(rig.state, script);
+    expected(await setFiles(rig.ports[0], id, generation));
+    assert.equal(log.clears, 1);
+    mock.timers.reset();
+  }
+});
+
+// Fires the callback later, the way Chrome does, instead of in the same tick.
+const fileSchemeAnswer = async (rig, id, impl, ticks = 0) => {
+  rig.chrome.extension.isAllowedFileSchemeAccess = impl;
+  rig.ports[0].receive(call(id, 'browser_set_files', { tab: 3, generation: 1, element: 1, path: FILE_PATH }));
+  for (let i = 0; i < 3; i++) await settle();
+  if (ticks) mock.timers.tick(ticks);
+  for (let i = 0; i < 3; i++) await settle();
+  return answersTo(rig.ports[0], id)[0];
+};
+
+test('a file-scheme answer that arrives later is used, not the timeout', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyFile(rig);
+  scriptDom(rig.state, { top: [7] });
+  rig.chrome.extension.isAllowedFileSchemeAccess = (cb) => { setTimeout(() => cb(true), 1500); };
+  rig.ports[0].receive(call(462, 'browser_set_files', { tab: 3, generation, element: 1, path: FILE_PATH }));
+  for (let i = 0; i < 3; i++) await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 462), [], 'answered before Chrome did');
+  mock.timers.tick(1500);
+  for (let i = 0; i < 12; i++) await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 462)[0].result, { done: 'files-set' });
+});
+
+test('a file-scheme call that never answers settles as file_access_required after the timeout', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { log } = await readyFile(rig);
+  const reply = await fileSchemeAnswer(rig, 463, () => new Promise(() => {}), 3000);
+  assert.equal(reply.error.code, 'file_access_required');
+  assert.equal(log.marks, 0);
+});
+
+test('a throwing or rejecting file-scheme call is file_access_required', async () => {
+  for (const [id, impl] of [
+    [464, () => { throw new Error('boom'); }],
+    [465, () => Promise.reject(new Error('boom'))],
+  ]) {
+    const rig = await boot({ tabs: userTabs() });
+    await readyFile(rig);
+    const reply = await fileSchemeAnswer(rig, id, impl);
+    assert.equal(reply.error.code, 'file_access_required');
+    mock.timers.reset();
+  }
+});
+
+async function queuedClickOrder(script, id) {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyFile(rig);
+  scriptDom(rig.state, script);
+  let release;
+  rig.state.holdClear = new Promise((resolve) => { release = resolve; });
+  rig.ports[0].receive(call(id, 'browser_set_files', { tab: 3, generation, element: 1, path: FILE_PATH }));
+  for (let i = 0; i < 6; i++) await settle();
+  rig.ports[0].receive(call(id + 1, 'browser_click', { tab: 3, generation, element: 1 }));
+  for (let i = 0; i < 6; i++) await settle();
+  release();
+  for (let i = 0; i < 12; i++) await settle();
+  return trace(rig.state);
+}
+
+test('a click queued behind a set does not start until the check and the marker removal are done', async () => {
+  for (const [id, script, tail] of [
+    [466, { top: [7] }, ['fileSetOn', 'clearFileMark']],
+    [468, { top: [] }, ['clearFileMark']],
+  ]) {
+    const order = await queuedClickOrder(script, id);
+    const clear = order.indexOf('clearFileMark');
+    const click = order.indexOf('Emulation.setFocusEmulationEnabled');
+    assert.ok(clear > -1 && click > -1, JSON.stringify(order));
+    assert.ok(click > clear, `click started before the marker was removed: ${JSON.stringify(order)}`);
+    assert.deepEqual(order.slice(clear - tail.length + 1, clear + 1), tail);
+    mock.timers.reset();
+  }
+});
+
+test('errors from the walk or the describe go through the same mapping as the set', async () => {
+  for (const [id, failing, message, code] of [
+    [470, 'DOM.querySelectorAll', 'Could not find node with given id', 'target_changed'],
+    [471, 'DOM.describeNode', 'Could not find node with given id', 'target_changed'],
+    [472, 'DOM.querySelectorAll', 'Inspector detached', 'debugger_unavailable'],
+    [473, 'DOM.describeNode', 'Debugger is not attached to the tab with id: 3.', 'debugger_unavailable'],
+  ]) {
+    const rig = await boot({ tabs: userTabs() });
+    const { generation, log } = await readyFile(rig);
+    scriptDom(rig.state, { top: [7] });
+    rig.state.cdpError = (method) => (method === failing ? message : null);
+    const reply = await setFiles(rig.ports[0], id, generation);
+    assert.equal(reply.error.code, code, `${failing}: ${message}`);
+    assert.equal(placedCount(rig.state), 0);
+    assertMarkerLifecycle(rig.state, log, failing);
+    mock.timers.reset();
+  }
+});
+
+test('a file set waits behind a click already running on the same tab', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  rig.state.fileSchemeAccess = true;
+  rig.state.page.markFileInput = () => ({ marker: FILE_MARK });
+  rig.state.page.clearFileMark = () => ({ cleared: true });
+  rig.state.page.fileSetOn = () => ({ done: 'files-set' });
+  scriptDom(rig.state, { top: [7] });
+  let release;
+  const send = rig.chrome.debugger.sendCommand;
+  rig.chrome.debugger.sendCommand = (target, method, params, cb) => {
+    if (method === 'Input.dispatchMouseEvent' && params.type === 'mousePressed' && !release) {
+      release = () => send(target, method, params, cb);
+      return;
+    }
+    send(target, method, params, cb);
+  };
+  rig.ports[0].receive(call(431, 'browser_click', { tab: 3, generation, element: 1 }));
+  await settle();
+  rig.ports[0].receive(call(432, 'browser_set_files', { tab: 3, generation, element: 1, path: FILE_PATH }));
+  for (let i = 0; i < 4; i++) await settle();
+  assert.equal(rig.state.cdp.some(([, method]) => method === 'DOM.getDocument'), false);
+  release();
+  for (let i = 0; i < 8; i++) await settle();
+  assert.deepEqual(answersTo(rig.ports[0], 432)[0].result, { done: 'files-set' });
+  const order = rig.state.cdp.map(([, method, params]) => (method === 'Input.dispatchMouseEvent' ? params.type : method));
+  assert.ok(order.indexOf('DOM.getDocument') > order.indexOf('mousePressed'));
 });

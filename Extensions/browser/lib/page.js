@@ -128,6 +128,8 @@
       const t = String(el.type || 'text').toLowerCase();
       if (t === 'button' || t === 'submit' || t === 'reset' || t === 'image') return 'button';
       if (t === 'checkbox' || t === 'radio') return t;
+      // A file input is not a text box: typing into it is refused, and the model has to ask to set a file.
+      if (t === 'file') return 'file';
       return 'textbox';
     }
     return 'generic';
@@ -388,6 +390,44 @@
     if (active && isSensitive(fieldOf(active))) return { error: { code: 'secure_field', message: 'focus moved to a sensitive field, typing refused' } };
     if (active && isContentEditableEl(el) && typeof el.contains === 'function' && el.contains(active)) return null;
     return stale('the focus moved to another element, read the page again');
+  }
+
+  const FILE_MARK = 'data-companion-file';
+
+  // CDP finds the node by this attribute. The isolated world already holds the element from the read,
+  // so the marker does not need Runtime.evaluate.
+  function markFileInput(generation, id) {
+    const found = lookup(stateOf(), generation, id);
+    if (found.error) return found;
+    const marker = globalThis.crypto.randomUUID();
+    found.element.setAttribute(FILE_MARK, marker);
+    return { marker };
+  }
+
+  // Only the element the read approved, and only while the value is the one we wrote: a page that
+  // replaced it owns the attribute now.
+  function clearFileMark(generation, id, marker) {
+    const found = lookup(stateOf(), generation, id);
+    if (found.error) return found;
+    if (found.element.getAttribute(FILE_MARK) === marker) found.element.removeAttribute(FILE_MARK);
+    return { cleared: true };
+  }
+
+  // setFileInputFiles can report success for a node that is no longer the approved field.
+  // The file list is the page's own record of what landed; the browser only exposes the base name.
+  function fileSetOn(generation, id, path) {
+    const found = lookup(stateOf(), generation, id);
+    if (found.error) return found;
+    const files = found.element.files;
+    // macOS paths are often NFD while the File name arrives NFC; the same name must not read as a miss.
+    const name = files && files.length === 1 && files[0] ? String(files[0].name ?? '').normalize('NFC') : '';
+    const raw = String(path ?? '');
+    const slash = raw.lastIndexOf('/');
+    const expected = (slash === -1 ? raw : raw.slice(slash + 1)).normalize('NFC');
+    if (!expected || name !== expected) {
+      return { error: { code: 'target_changed', message: 'the file field does not hold the file' } };
+    }
+    return { done: 'files-set' };
   }
 
   function typeIntoElement(el, text) {
@@ -908,7 +948,7 @@
 
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
-    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt, selectOption, boxOf, pointAt, focusElement,
+    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt, selectOption, boxOf, pointAt, focusElement, markFileInput, clearFileMark, fileSetOn,
     click: (generation, id) => act(generation, id, clickUncovered),
     doubleClick: (generation, id) => act(generation, id, doubleClickElement),
     contextClick: (generation, id) => act(generation, id, contextClickElement),

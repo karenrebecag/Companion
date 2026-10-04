@@ -57,6 +57,7 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
   assert.equal(validateCall({ name: 'browser_select', arguments: { tab: 1, generation: 3, element: 2, option: 'México' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 1, generation: 3, element: 2 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_press', arguments: { tab: 1, key: 'Shift+Tab', times: 10, generation: null, element: null } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_set_files', arguments: { tab: 1, generation: 3, element: 2, path: '/Users/karen/Documents/cv.pdf' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_navigate', arguments: { tab: 1, url: 'https://a.b/' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'https://a.b/' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'http://a.b/x?y=1' } }).ok, true);
@@ -89,6 +90,10 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
     { name: 'browser_press', arguments: { tab: 1, key: 'Enter', generation: null, element: null } },
     { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 2, generation: null, element: null } },
     { name: 'browser_press', arguments: { tab: 1, key: 'Space', times: 3, generation: 3, element: 2 } },
+    { name: 'browser_set_files', arguments: { tab: 1, generation: 3, element: 2 } },
+    { name: 'browser_set_files', arguments: { tab: 1, generation: 3, element: 2, path: 'cv.pdf' } },
+    { name: 'browser_set_files', arguments: { tab: 1, generation: 3, element: 2, path: '/tmp/a\0b' } },
+    { name: 'browser_set_files', arguments: { tab: 1, generation: 3, element: 2, path: '/tmp/a\nb' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'javascript:alert(1)' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'file:///etc/passwd' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'not a url' } },
@@ -105,6 +110,41 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
     { name: 'browser_release', arguments: { tab: 'x' } },
   ]) {
     const r = validateCall(bad);
+    assert.equal(r.ok, false, JSON.stringify(bad));
+    assert.equal(r.error.code, 'invalid_args');
+  }
+});
+
+test('browser_set_files path is one absolute path of at most 4096 chars', () => {
+  const args = (path) => ({ name: 'browser_set_files', arguments: { tab: 1, generation: 2, element: 3, path } });
+  assert.equal(validateCall(args('/Users/karen/Documents/cv.pdf')).ok, true);
+  assert.equal(validateCall(args('/' + 'a'.repeat(4095))).ok, true);
+  for (const path of [
+    '/' + 'a'.repeat(4096),
+    'cv.pdf',
+    './cv.pdf',
+    '../cv.pdf',
+    '~/Documents/cv.pdf',
+    '',
+    '/tmp/a\0b',
+    '/tmp/a\nb',
+    '/tmp/a\rb',
+    'C:\\Users\\karen\\cv.pdf',
+    5,
+    null,
+  ]) {
+    const r = validateCall(args(path));
+    assert.equal(r.ok, false, JSON.stringify(path));
+    assert.equal(r.error.code, 'invalid_args');
+  }
+  for (const bad of [
+    { tab: '1', generation: 2, element: 3, path: '/a' },
+    { tab: 1.5, generation: 2, element: 3, path: '/a' },
+    { tab: 1, generation: 2, element: 3 },
+    { tab: 1, generation: 2, path: '/a' },
+    { tab: 1, element: 3, path: '/a' },
+  ]) {
+    const r = validateCall({ name: 'browser_set_files', arguments: bad });
     assert.equal(r.ok, false, JSON.stringify(bad));
     assert.equal(r.error.code, 'invalid_args');
   }

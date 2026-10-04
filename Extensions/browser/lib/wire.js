@@ -32,6 +32,16 @@ const isBool = (v) => typeof v === 'boolean';
 const isCount = (v) => Number.isInteger(v) && v > 0;
 const optional = (v, check) => v == null || check(v);
 
+// Shape only: Core owns the path policy. A NUL or a newline would not be one path, and the native
+// frame will not carry more than this.
+const PATH_MAX = 4096;
+
+function isAbsolutePath(raw) {
+  if (typeof raw !== 'string' || raw.length === 0 || raw.length > PATH_MAX) return false;
+  if (raw.includes('\0') || raw.includes('\n') || raw.includes('\r')) return false;
+  return raw.startsWith('/');
+}
+
 // Core polices origins, but a scheme other than http(s) must never reach chrome.tabs.update.
 function isHttpURL(raw) {
   if (typeof raw !== 'string') return false;
@@ -87,6 +97,7 @@ const SHAPES = {
   browser_click_at: (a) => isInt(a.tab) && isInt(a.generation) && isPoint(a.x) && isPoint(a.y),
   browser_type: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.text === 'string',
   browser_select: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.option === 'string',
+  browser_set_files: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && isAbsolutePath(a.path),
   browser_navigate: (a) => isInt(a.tab) && isHttpURL(a.url),
   browser_open: (a) => isHttpURL(a.url),
   browser_take: (a) => isInt(a.tab),

@@ -9,6 +9,7 @@ const HOST = 'com.karen.companion.browser';
 const PROTOCOL = 1;
 const CALL_TIMEOUT_MS = 12000;
 const BACKOFF_START_MS = 1000;
+const FILE_SCHEME_BUDGET_MS = 3000;
 
 // No chrome.runtime.onMessageExternal and no window.message listener: the native port is the only way in.
 
@@ -126,6 +127,7 @@ function dispatch(name, args) {
     case 'browser_press': return trustedKeyPress(args);
     case 'browser_drag': return trustedDrag(args);
     case 'browser_click_at': return trustedClickAt(args);
+    case 'browser_set_files': return setFiles(args);
     case 'browser_navigate': return navigate(args.tab, args.url);
     case 'browser_open': return openTab(args.url);
     case 'browser_take': return serial(() => takeTab(args.tab));
@@ -748,6 +750,71 @@ async function trustedKeyPress(args) {
     for (let i = 0; i < args.times; i++) await cdp.pressKey(args.tab, args.key);
     return { done: 'pressed' };
   }).catch((error) => inputFailed(args.tab, error));
+}
+
+// DOM.setFileInputFiles reads the path as a file URL. Chrome blocks that unless the user turned on
+// "Allow access to file URLs" for this extension; a failed set would look like a miss.
+function fileSchemeAllowed() {
+  const ask = chrome.extension?.isAllowedFileSchemeAccess;
+  if (typeof ask !== 'function') return Promise.resolve(false);
+  return new Promise((resolve) => {
+    let settled = false;
+    // A call that never answers would hang the tool; failing closed tells the user what to check.
+    const timer = setTimeout(() => finish(false), FILE_SCHEME_BUDGET_MS);
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value === true);
+    };
+    try {
+      const out = ask((allowed) => finish(allowed));
+      if (out && typeof out.then === 'function') out.then(finish, () => finish(false));
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+async function setFiles(args) {
+  if (!(await fileSchemeAllowed())) {
+    return { error: { code: 'file_access_required', message: 'Allow access to file URLs' } };
+  }
+  const entry = entryFor(args);
+  if (!entry) return staleEntry(args);
+  // CDP resolves the marker in the top document only, so a field read inside a frame cannot be targeted.
+  if (entry.frameId !== 0) return { error: { code: 'target_changed', message: 'the file field is inside a frame' } };
+  const target = { tabId: args.tab, frameIds: [0] };
+  try {
+    await inject(target);
+  } catch {
+    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+  }
+  if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
+  // The marker is how CDP finds the node. CDP runs the check and the removal inside its per-tab slot,
+  // so a thrown debugger error cannot leave the marker for the next call to match as well.
+  let marker = null;
+  const here = [args.generation, entry.localId];
+  try {
+    return await cdp.setFileInputFiles(args.tab, args.path, {
+      mark: async () => {
+        const stamp = await inPage(target, (g, id) => globalThis.__companionPage.markFileInput(g, id), here);
+        if (stamp?.marker) marker = stamp.marker;
+        return stamp ?? frameGone();
+      },
+      check: async () => (await inPage(
+        target,
+        (g, id, path) => globalThis.__companionPage.fileSetOn(g, id, path),
+        [...here, args.path],
+      )) ?? frameGone(),
+      clear: async () => {
+        if (!marker) return;
+        await inPage(target, (g, id, mark) => globalThis.__companionPage.clearFileMark(g, id, mark), [...here, marker]).catch(() => {});
+      },
+    });
+  } catch (error) {
+    return await inputFailed(args.tab, error);
+  }
 }
 
 async function navigate(tabId, url) {
