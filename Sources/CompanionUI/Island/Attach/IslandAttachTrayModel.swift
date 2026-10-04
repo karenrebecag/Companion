@@ -14,11 +14,14 @@ import ImageIO
 package struct IslandAttachFailure: Sendable, Equatable, Identifiable {
     package let id: UUID
     package let name: String
+    /// Why it was refused, in the user's words; nil when the cause is unknown.
+    package let reason: String?
 
     /// Named the way a staged file is: no path, no direction controls.
-    package init(name: String, id: UUID = UUID()) {
+    package init(name: String, reason: String? = nil, id: UUID = UUID()) {
         self.id = id
         self.name = AttachmentPolicy.sanitizedFileName(name)
+        self.reason = reason
     }
 
     package static func removing(_ id: UUID, from failures: [IslandAttachFailure]) -> [IslandAttachFailure] {
@@ -43,6 +46,11 @@ package enum IslandAttachCardItem: Sendable, Equatable, Identifiable {
         case .staged(let ref): ref.name
         case .failed(let failure): failure.name
         }
+    }
+
+    package var failureReason: String? {
+        if case .failed(let failure) = self { return failure.reason }
+        return nil
     }
 
     package var isError: Bool {

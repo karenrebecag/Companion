@@ -155,6 +155,7 @@ struct IslandAttachCard: View {
                 .offset(x: IslandAttachMetrics.removeOffset, y: -IslandAttachMetrics.removeOffset)
         }
         .onHover { hovering = $0 }
+        .help(item.failureReason ?? "")
         // The card must not swallow the remove control: the key and VoiceOver
         // reach that button on its own, so the card adds no action of its own.
         .accessibilityElement(children: .contain)
@@ -202,7 +203,9 @@ struct IslandAttachCard: View {
     }
 
     private var label: String {
-        item.isError ? String(format: Localized.string("island.attach.failed"), item.name) : item.name
+        guard item.isError else { return item.name }
+        let failed = String(format: Localized.string("island.attach.failed"), item.name)
+        return [failed, item.failureReason].compactMap { $0 }.joined(separator: ". ")
     }
 }
 

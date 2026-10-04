@@ -99,10 +99,18 @@ package enum AttachmentPolicy: Sendable {
         0x061C, 0x200E, 0x200F, 0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069,
     ]
 
+    /// Control and format characters (newline, tab, zero-width) hide or
+    /// split a name just as direction controls reorder it.
+    private static func isHidden(_ scalar: Unicode.Scalar) -> Bool {
+        bidiControls.contains(scalar.value)
+            || scalar.properties.generalCategory == .control
+            || scalar.properties.generalCategory == .format
+    }
+
     package static func sanitizedFileName(_ name: String) -> String {
         let base = URL(fileURLWithPath: name).lastPathComponent
         let visible = String(String.UnicodeScalarView(
-            base.unicodeScalars.filter { !bidiControls.contains($0.value) }))
+            base.unicodeScalars.filter { !isHidden($0) }))
         let cleaned = visible.replacingOccurrences(of: ":", with: "_")
         return cleaned.isEmpty || cleaned == "/" || cleaned == "." || cleaned == ".."
             ? "file" : cleaned

@@ -10,12 +10,52 @@ import SwiftUI
 // takes the pointer it gets the drag, otherwise this one does. Both answer
 // through the same target, so the zones behave the same either way.
 
+/// The highlight a drag lights, apart from AppKit so enter, exit and drop
+/// can be tested without a dragging session.
+struct IslandDropHighlight: Equatable {
+    private(set) var dropping = false
+    private(set) var zone: IslandDropZone?
+
+    enum Entry: Equatable {
+        case began, continued, ignored
+    }
+
+    /// A drag with no files lights nothing and leaves an active drag as it
+    /// was. Only `.began` is a new drag, so it is the one announced.
+    mutating func enter(hasFiles: Bool) -> Entry {
+        guard hasFiles else { return .ignored }
+        let entry: Entry = dropping ? .continued : .began
+        dropping = true
+        return entry
+    }
+
+    mutating func move(to zone: IslandDropZone?) -> Bool {
+        guard dropping else { return false }
+        self.zone = zone
+        return true
+    }
+
+    mutating func end() {
+        dropping = false
+        zone = nil
+    }
+
+    /// Where a drop lands, then the highlight is gone. Dropped before the
+    /// card opened there is no zone yet and asking is the default.
+    mutating func drop() -> IslandDropZone {
+        let landed = zone ?? IslandDropZone.fallback
+        end()
+        return landed
+    }
+}
+
 /// Reads a drag and says what it means for the island. One per window; the
 /// geometry they share is the single source of truth.
 @MainActor
 final class IslandDropTarget {
     private let geometry: IslandGeometry
     private var leaving: Task<Void, Never>?
+    private var highlight = IslandDropHighlight()
 
     init(geometry: IslandGeometry) {
         self.geometry = geometry
@@ -28,17 +68,32 @@ final class IslandDropTarget {
     static let types: [NSPasteboard.PasteboardType] = [.fileURL]
 
     func entered(_ info: any NSDraggingInfo, screenPoint: CGPoint, card: CGRect) -> NSDragOperation {
-        guard !Self.files(info).isEmpty else { return [] }
+        let entry = highlight.enter(hasFiles: !Self.files(info).isEmpty)
+        guard entry != .ignored else { return [] }
         leaving?.cancel()
-        geometry.dropping = true
+        if entry == .began { announce() }
         return updated(screenPoint: screenPoint, card: card)
     }
 
     func updated(screenPoint: CGPoint, card: CGRect) -> NSDragOperation {
-        guard geometry.dropping else { return [] }
+        guard highlight.move(to: IslandDropZone.at(screenPoint, in: card)) else { return [] }
         leaving?.cancel()
-        geometry.dropZone = IslandDropZone.at(screenPoint, in: card)
+        sync()
         return .copy
+    }
+
+    /// The zones are painted, not focused, so VoiceOver would not say that
+    /// the notch now takes the file.
+    private func announce() {
+        sync()
+        NSAccessibility.post(element: NSApplication.shared, notification: .announcementRequested,
+                             userInfo: [.announcement: Localized.string("island.drop.a11y"),
+                                        .priority: NSAccessibilityPriorityLevel.high.rawValue])
+    }
+
+    private func sync() {
+        geometry.dropping = highlight.dropping
+        geometry.dropZone = highlight.zone
     }
 
     func exited() {
@@ -51,13 +106,13 @@ final class IslandDropTarget {
 
     private func end() {
         leaving?.cancel()
-        geometry.dropping = false
-        geometry.dropZone = nil
+        highlight.end()
+        sync()
     }
 
     func perform(_ info: any NSDraggingInfo) -> Bool {
         let urls = Self.files(info)
-        let zone = geometry.dropZone ?? IslandDropZone.fallback
+        let zone = highlight.drop()
         end()
         guard !urls.isEmpty, let onDrop = geometry.onDrop else { return false }
         onDrop(urls, zone)
@@ -73,15 +128,41 @@ final class IslandDropTarget {
         return (read as? [URL]) ?? []
     }
 
-    static func regularFiles(_ urls: [URL]) -> [URL] {
-        urls.filter { url in
-            do {
-                let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-                return IslandDropFilter.keeps(isRegularFile: values.isRegularFile == true,
-                                              isSymbolicLink: values.isSymbolicLink == true)
-            } catch {
-                return false
-            }
+    /// Why a dropped URL is or is not an attachment: a read that throws
+    /// (vanished, no permission) is not a folder and must not be called one.
+    static func verdict(_ url: URL) -> IslandDropVerdict {
+        do {
+            let values = try url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+            return IslandDropFilter.keeps(isRegularFile: values.isRegularFile == true,
+                                          isSymbolicLink: values.isSymbolicLink == true)
+                ? .ok : .notFile
+        } catch {
+            return .unreadable
+        }
+    }
+
+    static func sort(_ urls: [URL]) -> (files: [URL], refused: [(url: URL, verdict: IslandDropVerdict)]) {
+        var files: [URL] = []
+        var refused: [(url: URL, verdict: IslandDropVerdict)] = []
+        for url in urls {
+            let verdict = verdict(url)
+            if verdict == .ok { files.append(url) } else { refused.append((url, verdict)) }
+        }
+        return (files, refused)
+    }
+
+    static func regularFiles(_ urls: [URL]) -> [URL] { sort(urls).files }
+}
+
+enum IslandDropVerdict: Equatable {
+    case ok, notFile, unreadable
+
+    /// The honest words for a refusal; nil when nothing was refused.
+    var refusal: String? {
+        switch self {
+        case .ok: nil
+        case .notFile: Localized.string("island.attach.notFile")
+        case .unreadable: ChatCopy.attachFailed(.unreadable)
         }
     }
 }

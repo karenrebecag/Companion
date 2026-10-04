@@ -587,6 +587,8 @@
 "island.attach.failed" = "I couldn't attach %@";
 "island.attach.pickerUnavailable" = "I couldn't open the file picker.";
 "island.drop.title" = "Drop the file";
+"island.drop.a11y" = "Drop to attach";
+"island.attach.notFile" = "That is a folder or a link, not a file I can attach.";
 "island.drop.ask" = "Ask about it";
 "island.drop.airDrop" = "AirDrop";
 "island.drop.airDropUnavailable" = "AirDrop isn't available right now.";
