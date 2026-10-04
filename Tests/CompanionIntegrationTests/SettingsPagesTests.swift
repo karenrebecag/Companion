@@ -25,27 +25,19 @@ import Testing
 }
 
 @MainActor func testTheSidebarHasSevenPages() async {
-    expectEq(SettingsTab.allCases, [.general, .voice, .vocabulary, .memory, .you, .privacy, .system],
-             "ajustes: las siete páginas, en el orden de la barra")
-    await Localized.scoped(to: .es) {
-        expectEq(SettingsTab.allCases.map(\.title),
-                 ["General", "Voz", "Vocabulario", "Memoria", "Tú", "Privacidad", "Sistema"], "ajustes: nombres es")
-    }
-    await Localized.scoped(to: .en) {
-        expectEq(SettingsTab.allCases.map(\.title),
-                 ["General", "Voice", "Vocabulary", "Memory", "You", "Privacy", "System"], "settings: names en")
-    }
+    // S2 of ajustes-hoja-incredible moved the map to Incredible's; SettingsMapTests pins names and order.
+    expectEq(SettingsTab.allCases.count, 7, "ajustes: las siete páginas")
     expect(SettingsSheetMetrics.maxWidth > SettingsOverlayMetrics.maxSide, "ajustes: la hoja es mas ancha que el historial")
 }
 
 @MainActor func testEveryOptionHasAPage() {
     let pages = Dictionary(grouping: SettingsInventory.options, by: \.tab)
-    for page in [SettingsTab.general, .voice, .vocabulary, .you, .privacy] {
+    for page in [SettingsTab.general, .voice, .vocabulary, .system, .you, .privacy] {
         expect(!(pages[page] ?? []).isEmpty, "ajustes: \(page) tiene opciones")
     }
-    expect(pages[.memory] == nil && pages[.system] == nil, "ajustes: memoria y sistema son paneles, no opciones")
+    expect(pages[.memory] == nil, "ajustes: memoria es un panel, no opciones")
     let panelPages = Set(SettingsInventory.panels.map(\.tab))
-    expect(panelPages.isSuperset(of: [.memory, .system, .privacy]), "ajustes: cada panel dice su página")
+    expect(panelPages.isSuperset(of: [.memory, .system, .privacy, .you]), "ajustes: cada panel dice su página")
     expectEq(SettingsInventory.options.first { $0.titleKey == "settings.vocabulary" }?.tab, .vocabulary,
              "ajustes: el vocabulario tiene su página")
 }

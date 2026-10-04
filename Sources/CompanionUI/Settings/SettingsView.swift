@@ -160,13 +160,13 @@ package struct SettingsView: View {
         case .memory:
             SettingsMemoryPage(memory: memory)
         case .you:
-            SettingsYouPage()
+            SettingsYouPage(welcome: welcome, onClose: onClose)
         case .privacy:
             SettingsPrivacyPage(chat: chat, welcome: welcome, browser: browser)
         case .system:
             SettingsSystemPage(
-                chat: chat, updates: updates, welcome: welcome, storageLabel: storageLabel,
-                confirmPurge: $confirmPurge, onClose: onClose, onAppear: refreshStorage)
+                chat: chat, updates: updates, storageLabel: storageLabel,
+                confirmPurge: $confirmPurge, onAppear: refreshStorage)
         }
     }
 

@@ -59,11 +59,11 @@
 "settings.title" = "Ajustes";
 "action.close" = "Cerrar";
 "settings.tab.general" = "General";
-"settings.tab.voice" = "Voz";
+"settings.tab.voice" = "Companion";
 "settings.tab.vocabulary" = "Vocabulario";
 "settings.tab.memory" = "Memoria";
-"settings.tab.you" = "Tú";
-"settings.tab.privacy" = "Privacidad";
+"settings.tab.you" = "Cuenta";
+"settings.tab.privacy" = "Datos y privacidad";
 "settings.tab.system" = "Sistema";
 "settings.you.header" = "TÚ";
 "settings.you.blurb" = "Companion usa esto para conocerte. Se guarda solo, y aplica desde tu siguiente mensaje.";
@@ -377,8 +377,8 @@
 "status.settings" = "Ajustes…";
 "status.checkUpdates" = "Buscar actualización…";
 "status.quit" = "Salir";
-"settings.sounds" = "Sonidos";
-"settings.sounds.subtitle" = "Un clic al abrir y cerrar el micrófono, y un pulso mientras piensa.";
+"settings.muteEffects" = "Silenciar efectos de sonido";
+"settings.muteEffects.subtitle" = "Sin el clic al abrir y cerrar el micrófono ni el pulso mientras piensa.";
 "settings.muteWhileTalking" = "Silenciar el sonido mientras hablas";
 "settings.muteWhileTalking.subtitle" = "La música y los videos se callan mientras Companion te escucha.";
 "settings.screenGlow" = "Brillo de pantalla";
@@ -399,7 +399,10 @@
 "settings.you.looks" = "Cómo se ve";
 "settings.context.label" = "Qué puede mirar";
 "settings.keys.label" = "Claves";
+"settings.system.app" = "App";
+"settings.system.sound" = "Sonido";
 "settings.system.about" = "Acerca de";
+"settings.system.data" = "Datos";
 "settings.system.danger" = "Zona de peligro";
 "settings.system.open" = "Abrir";
 "settings.system.purge" = "Vaciar…";

@@ -4,8 +4,8 @@ import Foundation
 /// The sidebar's pages (Wave 16g). The raw value is an identifier: the island
 /// and the menus name a page with it, so it never follows the language.
 package enum SettingsTab: String, CaseIterable, Equatable {
-    case general, voice, vocabulary, memory
-    case you, privacy, system
+    case general, voice, vocabulary, memory, system
+    case you, privacy
 
     package var title: String {
         Localized.string("settings.tab.\(rawValue)")
@@ -23,9 +23,21 @@ package enum SettingsTab: String, CaseIterable, Equatable {
         }
     }
 
-    /// Where the sidebar draws its gap: what it does above, whose it is below.
-    package static let firstGroup: [SettingsTab] = [.general, .voice, .vocabulary, .memory]
-    package static let secondGroup: [SettingsTab] = [.you, .privacy, .system]
+    /// Incredible's map (S2 of ajustes-hoja-incredible): the app above, the account below.
+    package static let firstGroup: [SettingsTab] = [.general, .voice, .vocabulary, .memory, .system]
+    package static let secondGroup: [SettingsTab] = [.you, .privacy]
+
+    /// Ids that older callers, and Incredible's own deep links, use for a page
+    /// that has another id here. Pages Companion has no backend for resolve to nil.
+    private static let aliases: [String: SettingsTab] = [
+        "preferences": .general, "tools": .general, "microphone": .general, "updates": .general,
+        "shortcuts": .general, "incredible": .voice, "companion": .voice, "personalization": .you,
+        "account": .you, "dictionary": .vocabulary, "permissions": .privacy, "data": .privacy,
+    ]
+
+    package static func resolve(_ id: String) -> SettingsTab? {
+        SettingsTab(rawValue: id) ?? aliases[id]
+    }
 }
 
 /// What Settings shows (Wave 16d), declared once so a test can hold the line
@@ -48,10 +60,10 @@ package enum SettingsInventory {
         Option(tab: .general, titleKey: "settings.app.talk.dictationKey",
                subtitleKey: "settings.app.talk.dictationKey.subtitle"),
         Option(tab: .general, titleKey: "settings.app.language", subtitleKey: "settings.app.language.subtitle"),
-        Option(tab: .general, titleKey: "settings.sounds", subtitleKey: "settings.sounds.subtitle"),
-        Option(tab: .general, titleKey: "settings.muteWhileTalking",
+        Option(tab: .system, titleKey: "settings.screenGlow", subtitleKey: "settings.screenGlow.subtitle"),
+        Option(tab: .system, titleKey: "settings.muteWhileTalking",
                subtitleKey: "settings.muteWhileTalking.subtitle"),
-        Option(tab: .general, titleKey: "settings.screenGlow", subtitleKey: "settings.screenGlow.subtitle"),
+        Option(tab: .system, titleKey: "settings.muteEffects", subtitleKey: "settings.muteEffects.subtitle"),
         Option(tab: .voice, titleKey: "settings.voice.voice", subtitleKey: "settings.voice.blurb"),
         Option(tab: .vocabulary, titleKey: "settings.vocabulary", subtitleKey: "settings.vocabulary.subtitle"),
         Option(tab: .you, titleKey: "settings.you.name", subtitleKey: nil),
@@ -77,7 +89,7 @@ package enum SettingsInventory {
         Panel(tab: .privacy, titleKey: "settings.browser.header"),
         Panel(tab: .system, titleKey: "settings.app.version"),
         Panel(tab: .system, titleKey: "settings.app.attachments"),
-        Panel(tab: .system, titleKey: "settings.welcome.again"),
+        Panel(tab: .you, titleKey: "settings.welcome.again"),
     ]
 
     package static var panelKeys: [String] { panels.map(\.titleKey) }

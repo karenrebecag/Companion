@@ -2,8 +2,11 @@ import AppKit
 import CompanionCore
 import SwiftUI
 
-/// Settings › Tú (Wave 16g): who you are on top, then how the app looks.
+/// Settings › Cuenta: who you are on top, then how the app looks (KD2), then
+/// replaying the welcome, which Incredible keeps here as "Replay the tour".
 struct SettingsYouPage: View {
+    var welcome: WelcomeModel? = nil
+    var onClose: () -> Void = {}
     @State private var ownerName = UserProfile.ownerName
     @State private var about = UserProfile.about
     @State private var instructions = UserProfile.instructions
@@ -54,6 +57,16 @@ struct SettingsYouPage: View {
                     subtitle: Localized.string("settings.app.textSize.subtitle"),
                     key: "settings.app.textSize"
                 ) { fontStepper }
+            }
+            if let welcome {
+                SettingsCard {
+                    SettingsRow(title: Localized.string("settings.welcome.again"), key: "settings.welcome.again") {
+                        SettingsPill(title: Localized.string("settings.system.open")) {
+                            welcome.reopen()
+                            onClose()
+                        }
+                    }
+                }
             }
         }
         .onChange(of: ownerName) { persistProfile() }
