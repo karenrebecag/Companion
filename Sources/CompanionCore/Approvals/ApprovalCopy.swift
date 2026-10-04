@@ -127,6 +127,7 @@ package enum ApprovalCopy {
             NativeTool.runShell.rawValue: ("ejecutar un comando", "run a command"),
             NativeTool.writeFile.rawValue: ("escribir un archivo", "write a file"),
             NativeTool.editFile.rawValue: ("editar un archivo", "edit a file"),
+            NativeTool.deleteFile.rawValue: ("borrar un archivo o carpeta", "delete a file or folder"),
         ]
         guard let noun = nouns[tool] else { return tool }
         return language == .es ? noun.es : noun.en
@@ -216,6 +217,15 @@ package enum ApprovalCopy {
                 mark: .symbol("square.and.pencil"),
                 lead: word(writes ? .writeFile : .editFile, language),
                 subject: filename(path), preview: path, showsRemember: true)
+        case .deleteFile:
+            // "Delete", with the Trash and the permanent fallback in the trail:
+            // the sheet cannot know file from folder, so the wording covers
+            // both. No remember: `ApprovalKey.from` has no key for it, on purpose.
+            let path = value(arguments, "path").map { plainPreview($0, keepingLayout: false) }
+            return ApprovalDisplay(
+                mark: .symbol("trash"), lead: word(.deleteFile, language),
+                subject: path.map(filename) ?? tool,
+                trail: deleteTrail(language), preview: path, showsRemember: false)
         case .sheetWrite:
             guard let range = value(arguments, "range") else { return nil }
             // Wave 20c D4: the workbook and every cell, uncut. The workbook
@@ -287,6 +297,13 @@ package enum ApprovalCopy {
         return value
     }
 
+    private static func deleteTrail(_ language: AppLanguage) -> String {
+        switch language {
+        case .es: "a la Papelera, o para siempre si la Papelera no está disponible. Una carpeta va con todo lo que contiene."
+        case .en: "to the Trash, or permanently if the Trash is not available. A folder goes with everything inside it."
+        }
+    }
+
     private static func filename(_ path: String) -> String {
         let component = (path as NSString).lastPathComponent
         return capped(component.isEmpty ? path : component)
@@ -305,7 +322,7 @@ package enum ApprovalCopy {
 
     private enum Word {
         case open, openApp, openFile, typeIn, activeField, press, pressKey
-        case chooseMenu, run, writeFile, editFile, allow, someClient, writeSheet
+        case chooseMenu, run, writeFile, editFile, deleteFile, allow, someClient, writeSheet
     }
 
     private static func word(_ word: Word, _ language: AppLanguage) -> String {
@@ -332,6 +349,8 @@ package enum ApprovalCopy {
         case (.writeFile, .en): "Write the file"
         case (.editFile, .es): "Editar el archivo"
         case (.editFile, .en): "Edit the file"
+        case (.deleteFile, .es): "Borrar"
+        case (.deleteFile, .en): "Delete"
         case (.allow, .es): "Permitir"
         case (.allow, .en): "Allow"
         case (.writeSheet, .es): "Escribir en la hoja"

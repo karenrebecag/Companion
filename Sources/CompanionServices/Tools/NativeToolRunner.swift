@@ -39,6 +39,9 @@ package struct NativeToolRunner: Sendable {
     /// captures the intent and then dies).
     let documents: (any DocumentRendering)?
     let sheets: (any SpreadsheetDriving)?
+    let disposal: FileDisposal
+    /// The one home folder every delete rule is judged against.
+    let home: String
     /// A skill body is a few hundred lines; a 10 MB read_file cap is not a
     /// cap for this.
     static let maxSkillBody = 40_000
@@ -59,6 +62,8 @@ package struct NativeToolRunner: Sendable {
         documents: (any DocumentRendering)? = nil,
         sheets: (any SpreadsheetDriving)? = nil,
         location: UserLocationSource? = nil,
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        disposal: FileDisposal = .system,
         // Fail closed: a caller that forgets to wire the switch gets "off".
         locationChannelOn: @escaping @Sendable () -> Bool = { false }
     ) {
@@ -73,6 +78,8 @@ package struct NativeToolRunner: Sendable {
         self.skills = skills
         self.documents = documents
         self.sheets = sheets
+        self.disposal = disposal
+        self.home = home.resolvingSymlinksInPath().path
     }
 
     /// What the model is allowed to see it has. A tool whose backing is not
@@ -119,6 +126,8 @@ package struct NativeToolRunner: Sendable {
             return try writeFile(arguments: arguments)
         case .editFile:
             return try editFile(arguments: arguments)
+        case .deleteFile:
+            return deleteFile(arguments: arguments)
         case .runShell:
             return await runShell(arguments: arguments)
         case .webFetch:

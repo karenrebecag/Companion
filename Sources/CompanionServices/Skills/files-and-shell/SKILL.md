@@ -25,7 +25,7 @@ The specialist's discipline. Every job that touches the disk follows it.
 ## Commands
 
 - One command per `run_shell`, short, with its output read before the next.
-- Destructive commands (`rm`, `mv` over an existing file, `git reset`, anything with `--force`) need the user's words in this conversation naming the target. Otherwise propose it and stop.
+- To delete a file or folder use `delete_file`, not `rm`: it asks first and sends it to the Trash. Other destructive commands (`mv` over an existing file, `git reset`, anything with `--force`) need the user's words in this conversation naming the target. Otherwise propose it and stop.
 - Never `sudo`, never install packages, never change shell configuration files.
 - A command that hangs is stopped by Companion after a minute; keep them short.
 

@@ -11,6 +11,7 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
     case readFile = "read_file"
     case writeFile = "write_file"
     case editFile = "edit_file"
+    case deleteFile = "delete_file"
     case runShell = "run_shell"
     case webFetch = "web_fetch"
     case webSearch = "web_search"
@@ -23,7 +24,7 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
         switch self {
         case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch, .sheetRead:
             return .safe
-        case .writeFile, .editFile, .runShell, .createDocument, .sheetWrite:
+        case .writeFile, .editFile, .deleteFile, .runShell, .createDocument, .sheetWrite:
             return .requiresApproval
         }
     }
@@ -101,6 +102,19 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
                                  description: "replacement text"),
                 ],
                 required: ["path", "old_string", "new_string"]
+            )
+        case .deleteFile:
+            return ToolSpec(
+                name: "delete_file",
+                description: "Delete a file or folder after the user approves. It goes to the "
+                    + "Trash, where the user can put it back; only if the Trash is "
+                    + "unavailable is it deleted permanently, and the result says which "
+                    + "happened. Use this instead of rm.",
+                properties: [
+                    ToolProperty(name: "path", type: "string",
+                                 description: "path to the file or folder to delete"),
+                ],
+                required: ["path"]
             )
         case .runShell:
             return ToolSpec(

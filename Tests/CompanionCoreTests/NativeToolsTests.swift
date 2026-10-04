@@ -17,9 +17,9 @@ import Testing
 // Ninth to eleventh: create_document, sheet_read, sheet_write (Wave 20), after
 // "a PDF of the report" ended in a .md on any Mac without pandoc.
 @Test @MainActor
-func nativeToolEnumHasAllElevenTools() {
+func nativeToolEnumHasAllTwelveTools() {
     let allCases = NativeTool.allCases
-    expectEq(allCases.count, 11, "exactly 11 native tools")
+    expectEq(allCases.count, 12, "exactly 12 native tools")
 }
 
 @Test @MainActor
@@ -28,7 +28,7 @@ func nativeToolEnumContainsRequiredTools() {
     let required = Set([
         "find_places", "list_directory", "read_file", "write_file",
         "edit_file", "run_shell", "web_fetch", "web_search",
-        "create_document", "sheet_read", "sheet_write",
+        "create_document", "sheet_read", "sheet_write", "delete_file",
     ])
     expectEq(toolNames, required, "has all required tools")
 }
