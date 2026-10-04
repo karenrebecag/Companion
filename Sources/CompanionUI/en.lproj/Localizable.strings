@@ -879,3 +879,24 @@
 "orb.listening" = "Listening";
 "orb.thinking" = "Thinking";
 "orb.speaking" = "Speaking";
+/* WIN-4 content flag. Set to "1" only after the four placeholder quotes below are replaced by real ones, with the speaker's consent and a verifiable source. */
+"welcome.testimonials.enabled" = "0";
+/* WIN-4: testimonials carousel. PLACEHOLDERS: swap for real quotes before shipping, never Incredible's text. */
+"welcome.testimonials.label" = "Testimonials";
+"welcome.testimonials.dot" = "Show quote %d";
+"welcome.testimonial.1.quote" = "A real quote from someone who uses Companion goes here.";
+"welcome.testimonial.1.ending" = "Replace it before publishing.";
+"welcome.testimonial.1.name" = "Example name 1";
+"welcome.testimonial.1.role" = "Role, company";
+"welcome.testimonial.2.quote" = "A real quote from someone who uses Companion goes here.";
+"welcome.testimonial.2.ending" = "Replace it before publishing.";
+"welcome.testimonial.2.name" = "Example name 2";
+"welcome.testimonial.2.role" = "Role, company";
+"welcome.testimonial.3.quote" = "A real quote from someone who uses Companion goes here.";
+"welcome.testimonial.3.ending" = "Replace it before publishing.";
+"welcome.testimonial.3.name" = "Example name 3";
+"welcome.testimonial.3.role" = "Role, company";
+"welcome.testimonial.4.quote" = "A real quote from someone who uses Companion goes here.";
+"welcome.testimonial.4.ending" = "Replace it before publishing.";
+"welcome.testimonial.4.name" = "Example name 4";
+"welcome.testimonial.4.role" = "Role, company";
