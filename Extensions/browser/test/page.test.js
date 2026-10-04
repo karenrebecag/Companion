@@ -68,8 +68,8 @@ test('resolveSelector skips a cross-origin iframe (null contentDocument)', () =>
 test('serializer emits exactly the wire shape', () => {
   const el = fake({ tag: 'input', attrs: { type: 'email', autocomplete: 'email', 'aria-label': 'Correo' }, value: 'a@b.c' });
   const out = page.serializeElement(el, 3, 0);
-  assert.deepEqual(Object.keys(out), ['id', 'frame', 'role', 'label', 'context', 'inputType', 'autocomplete', 'value', 'frameOrigin', 'href', 'fieldName', 'fieldId', 'states']);
-  assert.deepEqual(out, { id: 3, frame: 0, role: 'textbox', label: 'Correo', context: '', inputType: 'email', autocomplete: 'email', value: 'a@b.c', frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [] });
+  assert.deepEqual(Object.keys(out), ['id', 'frame', 'role', 'label', 'context', 'inputType', 'autocomplete', 'value', 'frameOrigin', 'href', 'fieldName', 'fieldId', 'states', 'submit']);
+  assert.deepEqual(out, { id: 3, frame: 0, role: 'textbox', label: 'Correo', context: '', inputType: 'email', autocomplete: 'email', value: 'a@b.c', frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [], submit: null });
 });
 
 test('serializer drops the value of sensitive fields and nulls non-inputs', () => {
@@ -80,7 +80,7 @@ test('serializer drops the value of sensitive fields and nulls non-inputs', () =
   assert.equal(cc.value, null);
   assert.equal(cc.frame, 1);
   const btn = page.serializeElement(fake({ tag: 'button', text: '  Guardar ', ctx: 'Perfil' }), 4, 0);
-  assert.deepEqual(btn, { id: 4, frame: 0, role: 'button', label: 'Guardar', context: 'Perfil', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [] });
+  assert.deepEqual(btn, { id: 4, frame: 0, role: 'button', label: 'Guardar', context: 'Perfil', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [], submit: null });
 });
 
 test('serializer caps label length and never emits undefined', () => {
@@ -205,7 +205,8 @@ function fake({ tag, attrs = {}, text = '', value = '', ctx = '', execWorks = tr
     querySelectorAll: () => [],
     dispatchEvent(e) { events.push(e); return true; },
   });
-  Object.defineProperty(el, 'type', { get: () => attrs.type ?? 'text' });
+  // A <button> with no type, or an invalid one, is a submit button, as the DOM reports it.
+  Object.defineProperty(el, 'type', { get: () => (tag === 'button' ? (['button', 'reset'].includes(attrs.type) ? attrs.type : 'submit') : attrs.type ?? 'text') });
   if (tag === 'input' || tag === 'textarea') el.value = value;
   el.parentElement = parent;
   el.ownDisplay = display;
@@ -976,4 +977,75 @@ test('a visible element is still clicked', () => {
   const el = armed(fake({ tag: 'button', parent: fake({ tag: 'div' }) }));
   assert.deepEqual(page.click(1, 1), { done: 'clicked' });
   assert.equal(el.events.length, 5);
+});
+
+// ---- P4: browser_press ----
+
+// Enter in a field submits its form: the gate judges that press by the form's submit button.
+const formOf = (...elements) => ({ elements });
+
+test('a field in a form carries the label of the button its Enter would press', () => {
+  const send = fake({ tag: 'button', text: 'Enviar' });
+  const field = fake({ tag: 'input', attrs: { type: 'text' } });
+  field.form = formOf(field, send);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Enviar');
+  const bare = fake({ tag: 'input', attrs: { type: 'text' } });
+  bare.form = formOf(bare);
+  assert.equal(page.serializeElement(bare, 1, 0).submit, '');
+  const select = fake({ tag: 'select' });
+  select.form = formOf(select, send);
+  assert.equal(page.serializeElement(select, 1, 0).submit, null);
+  assert.equal(page.serializeElement(fake({ tag: 'input', attrs: { type: 'text' } }), 1, 0).submit, null);
+  assert.equal(page.serializeElement(send, 1, 0).submit, null);
+});
+
+// form.elements also holds the buttons tied to the form by form="id" from outside it, in tree order.
+test('the default button is the first submit control the form owns, not a plain button', () => {
+  const plain = fake({ tag: 'button', text: 'Mostrar', attrs: { type: 'button' } });
+  const reset = fake({ tag: 'input', text: '', attrs: { type: 'reset', value: 'Limpiar' } });
+  const send = fake({ tag: 'button', text: 'Enviar' });
+  const later = fake({ tag: 'input', attrs: { type: 'submit', 'aria-label': 'Guardar' } });
+  const field = fake({ tag: 'textarea' });
+  field.form = formOf(field, plain, reset, send, later);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Enviar');
+  const invalid = fake({ tag: 'button', text: 'Enviar pago', attrs: { type: 'foo' } });
+  const decoy = fake({ tag: 'button', text: 'Buscar', attrs: { type: 'submit' } });
+  field.form = formOf(field, invalid, decoy);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Enviar pago');
+  // A disabled default button still is the default: Enter then submits nothing, and its label is the cautious one.
+  const off = fake({ tag: 'button', text: 'Pagar' });
+  off.disabled = true;
+  field.form = formOf(field, off, decoy);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Pagar');
+  const image = fake({ tag: 'input', attrs: { type: 'image', alt: 'Buscar' } });
+  field.form = formOf(field, plain, image);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Buscar');
+  const valued = fake({ tag: 'input', attrs: { type: 'submit', value: 'Enviar' } });
+  field.form = formOf(field, valued);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Enviar');
+  const bare = fake({ tag: 'input', attrs: { type: 'submit' } });
+  field.form = formOf(field, bare);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Submit');
+});
+
+test('focus reports whether the element really took the keyboard focus', () => {
+  const button = fake({ tag: 'button', text: 'OK' });
+  button.focus = () => { button.ownerDocument.activeElement = button; };
+  assert.deepEqual(page.focusElement(button), { focused: true });
+  const inert = fake({ tag: 'div', text: 'row' });
+  inert.focus = () => {};
+  assert.deepEqual(page.focusElement(inert), { focused: false });
+});
+
+test('focus follows an open shadow root to the element that holds it', () => {
+  const host = fake({ tag: 'my-field' });
+  const inner = fake({ tag: 'input', attrs: { type: 'text' } });
+  host.shadowRoot = { activeElement: inner };
+  inner.ownerDocument = host.ownerDocument;
+  inner.focus = () => { host.ownerDocument.activeElement = host; };
+  assert.deepEqual(page.focusElement(inner), { focused: true });
+});
+
+test('focus goes through the generation check', () => {
+  assert.equal(page.focus(999, 1).error.code, 'stale_id');
 });

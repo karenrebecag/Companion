@@ -36,12 +36,26 @@ function isHttpURL(raw) {
   }
 }
 
+// Kept in step with BrowserTool.pressKeys on the host.
+export const PRESS_KEYS = Object.freeze([
+  'Enter', 'Escape', 'Tab', 'Shift+Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+  'Space', 'Backspace', 'Delete', 'Home', 'End', 'PageUp', 'PageDown',
+]);
+export const PRESS_MAX_TIMES = 10;
+// The gate judged one activation; a second Enter lands wherever the first one left the focus.
+const PRESS_ONCE = Object.freeze(['Enter', 'Space']);
+
+const pressTimes = (a) => isInt(a.times) && a.times >= 1
+  && a.times <= (PRESS_ONCE.includes(a.key) ? 1 : PRESS_MAX_TIMES);
+const pressTarget = (a) => (a.generation === null && a.element === null) || (isInt(a.generation) && isInt(a.element));
+
 const SHAPES = {
   browser_tabs: () => true,
   browser_read: (a) => isInt(a.tab) && (a.selector == null || typeof a.selector === 'string'),
   browser_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
   browser_double_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
   browser_right_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
+  browser_press: (a) => isInt(a.tab) && PRESS_KEYS.includes(a.key) && pressTimes(a) && pressTarget(a),
   browser_type: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.text === 'string',
   browser_navigate: (a) => isInt(a.tab) && isHttpURL(a.url),
   browser_open: (a) => isHttpURL(a.url),

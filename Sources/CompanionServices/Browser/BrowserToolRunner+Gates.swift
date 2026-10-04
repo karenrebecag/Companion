@@ -23,6 +23,7 @@ extension BrowserToolRunner {
         // or the refusal in `execute` would find a ticket waiting.
         guard tool != .release, mayAct(tab) else { return nil }
         if tool == .navigate { return navigateApproval(call, tab: tab, arguments: arguments, said: said) }
+        if tool == .press { return pressApproval(call, tab: tab, arguments: arguments, said: said) }
         return elementApproval(call, tool: tool, tab: tab, arguments: arguments, said: said)
     }
 
@@ -95,10 +96,11 @@ extension BrowserToolRunner {
         // A child adopted by this very call was never judged by the gate.
         let adopted = !wasControlled
         if tool == .navigate { return await navigate(tab: tab, arguments: arguments, raw: raw, adopted: adopted) }
+        if tool == .press { return await press(tab: tab, arguments: arguments, raw: raw, adopted: adopted) }
         return await act(tool, tab: tab, arguments: arguments, raw: raw, adopted: adopted)
     }
 
-    private func needsApproval(_ tool: BrowserTool, adopted: Bool) -> ParentToolOutcome {
+    func needsApproval(_ tool: BrowserTool, adopted: Bool) -> ParentToolOutcome {
         fail(tool, "approval_required", adopted
             ? "tab is yours now (opened by a page you control); call again so it can be approved"
             : "this action needs approval before it runs")
@@ -134,7 +136,7 @@ extension BrowserToolRunner {
         case .doubleClick: command = .doubleClick(tab: tab, generation: page.generation, element: id)
         case .rightClick: command = .rightClick(tab: tab, generation: page.generation, element: id)
         case .type: command = .type(tab: tab, generation: page.generation, element: id, text: text)
-        case .tabs, .read, .navigate, .open, .take, .release:
+        case .tabs, .read, .press, .navigate, .open, .take, .release:
             return fail(tool, BridgeCode.invalidArgs, "\(tool.rawValue) does not act on an element")
         }
         switch await channel.send(command, timeout: Self.actTimeout) {
@@ -197,7 +199,7 @@ extension BrowserToolRunner {
 
     /// Fails closed: a tab that cannot be found, or an origin that cannot be
     /// compared, is not a tab that stayed where it was read.
-    private func tabIsStillAt(_ tab: Int, origin: String) async -> Bool {
+    func tabIsStillAt(_ tab: Int, origin: String) async -> Bool {
         guard !origin.isEmpty else { return false }
         let asOf = leases.sequence
         guard case .success(.tabs(_, let tabs)) = await channel.send(.tabs, timeout: Self.actTimeout)
@@ -208,7 +210,7 @@ extension BrowserToolRunner {
         return BrowserPolicy.sameOrigin(current.url, origin)
     }
 
-    private func leftItsOrigin(_ tool: BrowserTool, _ tab: Int) -> ParentToolOutcome {
+    func leftItsOrigin(_ tool: BrowserTool, _ tab: Int) -> ParentToolOutcome {
         forget(tab)
         return fail(tool, BridgeCode.staleId, BrowserCopy.failure(code: BridgeCode.staleId, language()))
     }
@@ -238,11 +240,11 @@ extension BrowserToolRunner {
         switch tool {
         case .doubleClick: return past ? "double-clicked" : "double-click"
         case .rightClick: return past ? "right-clicked" : "right-click"
-        case .click, .tabs, .read, .type, .navigate, .open, .take, .release: return past ? "clicked" : "click"
+        case .click, .tabs, .read, .type, .press, .navigate, .open, .take, .release: return past ? "clicked" : "click"
         }
     }
 
-    private static func shown(_ label: String) -> String {
+    static func shown(_ label: String) -> String {
         label.isEmpty ? "(unnamed control)" : String(oneLine(label).prefix(sheetLabel))
     }
 }

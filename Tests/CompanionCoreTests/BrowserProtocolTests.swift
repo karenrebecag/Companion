@@ -120,6 +120,15 @@ private let helloLine = #"{"id":1,"method":"hello","params":{"extension":"abc","
     expectEq(BrowserCodec.decode(line: line), .success(.page(id: 7, page)), "page")
 }
 
+/// P4: the gate judges an Enter in a field by the form's submit button, so its label travels with the field.
+@Test func codecDecodesTheSubmitLabelOfAField() {
+    let line = #"{"id":7,"result":{"page":{"tab":12,"origin":"https://x.test","url":"https://x.test/a","title":"T","text":"","generation":3,"truncated":false,"elements":[{"id":1,"frame":0,"role":"textbox","label":"Para","context":"","inputType":"text","autocomplete":null,"value":"","submit":"Enviar"},{"id":2,"frame":0,"role":"button","label":"Enviar","context":"","inputType":null,"autocomplete":null,"value":null,"submit":null}]}}}"#
+    guard case .success(.page(_, let page)) = BrowserCodec.decode(line: line) else {
+        Issue.record("page did not decode"); return
+    }
+    expectEq(page.elements.map(\.submit), ["Enviar", nil], "el campo lleva el boton que su Enter pulsaria")
+}
+
 @Test func codecDecodesDoneAndError() {
     expectEq(BrowserCodec.decode(line: #"{"id":9,"result":{"done":"clicked"}}"#),
              .success(.done(id: 9, message: "clicked")), "done")
@@ -195,6 +204,10 @@ private func object(_ line: String) -> [String: Any] {
          ["tab": "12", "generation": "3", "element": "5"]),
         (.type(tab: 12, generation: 3, element: 5, text: "hola \u{1F600} \"q\""), "browser_type",
          ["tab": "12", "generation": "3", "element": "5", "text": "hola \u{1F600} \"q\""]),
+        (.press(tab: 12, key: "Enter", times: 2, generation: 3, element: 5), "browser_press",
+         ["tab": "12", "key": "Enter", "times": "2", "generation": "3", "element": "5"]),
+        (.press(tab: 12, key: "Escape", times: 1, generation: nil, element: nil), "browser_press",
+         ["tab": "12", "key": "Escape", "times": "1"]),
         (.navigate(tab: 12, url: url), "browser_navigate", ["tab": "12", "url": "https://x.test/a/b"]),
     ]
     for (command, name, want) in cases {
@@ -215,6 +228,9 @@ private func object(_ line: String) -> [String: Any] {
     let read = object(BrowserCodec.encode(.call(id: 1, .read(tab: 2, selector: nil))))
     let args = (read["params"] as? [String: Any])?["arguments"] as? [String: Any]
     expect(args?["selector"] is NSNull, "selector nulo va como null")
+    let press = object(BrowserCodec.encode(.call(id: 1, .press(tab: 2, key: "Tab", times: 1, generation: nil, element: nil))))
+    let pressArgs = (press["params"] as? [String: Any])?["arguments"] as? [String: Any]
+    expect(pressArgs?["generation"] is NSNull && pressArgs?["element"] is NSNull, "sin elemento: ambos van como null")
 }
 
 @Test func codecCallRoundtripsThroughNativeFrame() throws {

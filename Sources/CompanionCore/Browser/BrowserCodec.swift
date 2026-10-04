@@ -110,7 +110,8 @@ package enum BrowserCodec {
             inputType: raw["inputType"] as? String, autocomplete: raw["autocomplete"] as? String,
             value: raw["value"] as? String, frameOrigin: raw["frameOrigin"] as? String,
             href: raw["href"] as? String, fieldName: raw["fieldName"] as? String,
-            fieldId: raw["fieldId"] as? String, states: BrowserSanitize.states(raw["states"]))
+            fieldId: raw["fieldId"] as? String, states: BrowserSanitize.states(raw["states"]),
+            submit: raw["submit"] as? String)
     }
 
     // MARK: Encode
@@ -153,6 +154,11 @@ package enum BrowserCodec {
         case .type(let tab, let generation, let element, let text):
             return (BrowserTool.type.rawValue,
                     ["tab": tab, "generation": generation, "element": element, "text": text])
+        case .press(let tab, let key, let times, let generation, let element):
+            return (BrowserTool.press.rawValue,
+                    ["tab": tab, "key": key, "times": times,
+                     "generation": generation.map { $0 as Any } ?? NSNull(),
+                     "element": element.map { $0 as Any } ?? NSNull()])
         case .navigate(let tab, let url):
             return (BrowserTool.navigate.rawValue, ["tab": tab, "url": url.absoluteString])
         case .open(let url):

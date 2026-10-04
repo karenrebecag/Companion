@@ -16,7 +16,7 @@ enum BrowserSanitize {
         BridgeCode.unknownMethod, BridgeCode.badToken, BridgeCode.selectorNoMatch, BridgeCode.selectorHidden,
         BridgeCode.screenRecordingRequired, BridgeCode.screenLocked, BridgeCode.foregroundUnavailable,
         BridgeCode.permissionRequired, BridgeCode.debuggerRevoked, BridgeCode.debuggerUnavailable,
-        BridgeCode.unreadablePage, BridgeCode.notTypable,
+        BridgeCode.unreadablePage, BridgeCode.notTypable, BridgeCode.notFocused,
     ]
 
     /// A state is a fixed word, never page text: anything else is dropped rather than shown.

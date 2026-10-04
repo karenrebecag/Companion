@@ -57,6 +57,13 @@ package enum BrowserCopy {
             return "Type text into an element numbered by the last browser_read. Never into password or card fields."
         case (.type, .es):
             return "Escribe texto en un elemento numerado por la última browser_read. Nunca en contraseñas ni tarjetas."
+        case (.press, .en):
+            return "Press a key in a tab you control, on an element numbered by the last browser_read or, without "
+                + "one, wherever the page's focus is. Enter or Space that sends, deletes or pays asks first."
+        case (.press, .es):
+            return "Pulsa una tecla en una pestaña que controlas, sobre un elemento numerado por la última "
+                + "browser_read o, sin él, donde esté el foco de la página. Un Enter o Espacio que envía, borra o "
+                + "paga pregunta antes."
         case (.navigate, .en):
             return "Open an http or https address in a tab you control. Going to another site than the one shown asks first."
         case (.navigate, .es):
@@ -90,6 +97,12 @@ package enum BrowserCopy {
         case ("element", .es): return "número de elemento de la última browser_read"
         case ("text", .en): return "the exact text to type"
         case ("text", .es): return "el texto exacto a escribir"
+        case ("press_key", .en): return "the key to press"
+        case ("press_key", .es): return "la tecla a pulsar"
+        case ("press_element", .en): return "optional element number from the last browser_read; it gets the focus first"
+        case ("press_element", .es): return "número de elemento opcional de la última browser_read; recibe el foco antes"
+        case ("times", .en): return "how many times, 1 to 10 (Enter and Space only once); 1 when left out"
+        case ("times", .es): return "cuántas veces, de 1 a 10 (Enter y Espacio solo una); 1 si se omite"
         case ("url", .en): return "the http or https address"
         case ("url", .es): return "la dirección http o https"
         default: return name
@@ -153,6 +166,12 @@ package enum BrowserCopy {
         case (BridgeCode.notTypable, .es):
             return "Ese elemento no admite texto (por ejemplo, una lista desplegable). Elige otro elemento, o "
                 + "pide a la persona que elija la opción."
+        case (BridgeCode.notFocused, .en):
+            return "That element does not take the keyboard focus, so no key was sent. Use browser_click on it, "
+                + "or press without an element after clicking where the key should go."
+        case (BridgeCode.notFocused, .es):
+            return "Ese elemento no recibe el foco del teclado, así que no se pulsó nada. Usa browser_click sobre "
+                + "él, o pulsa sin elemento después de hacer clic donde va la tecla."
         case (_, .en): return "The browser failed: \(code)."
         case (_, .es): return "El navegador falló: \(code)."
         }
@@ -193,6 +212,8 @@ extension BrowserCopy {
         case (.rightClick, .es): return "Hice clic derecho en el navegador."
         case (.type, .en): return "Typed in the browser."
         case (.type, .es): return "Escribí en el navegador."
+        case (.press, .en): return "Pressed a key in the browser."
+        case (.press, .es): return "Pulsé una tecla en el navegador."
         case (.navigate, .en): return "Navigated the browser."
         case (.navigate, .es): return "Navegué en el navegador."
         case (.open, .en): return "Opened a background tab."
