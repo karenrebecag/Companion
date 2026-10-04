@@ -109,6 +109,53 @@ package struct WelcomeFlow: Sendable, Equatable {
     }
 }
 
+/// The Mac's output as the menu bar's volume reads it, 0...1.
+package struct OutputVolume: Sendable, Equatable {
+    package let level: Double
+    package let muted: Bool
+
+    package init(level: Double, muted: Bool) {
+        self.level = level
+        self.muted = muted
+    }
+}
+
+/// Incredible's first-run sound check (WIN-8): before the first spoken line
+/// a Mac too quiet to hear it gets a card that asks to turn it up.
+package enum SoundCheck: Sendable, Equatable {
+    case unchecked
+    case showing(OutputVolume)
+    case passed
+
+    /// Incredible's QC (15 of 100): below it the card shows.
+    package static let showBelow = 0.15
+    /// Incredible's GC (30 of 100): a reading this loud clears the card,
+    /// higher than the bar to show it so a level hovering at 15 doesn't flicker.
+    package static let clearsAt = 0.30
+
+    /// The first reading. A Mac with no output to read is never kept behind
+    /// the card, as Incredible skips it when the volume is unknown.
+    package static func start(_ volume: OutputVolume?) -> SoundCheck {
+        guard let volume, volume.muted || volume.level < showBelow else { return .passed }
+        return .showing(volume)
+    }
+
+    /// A later reading while the card is up; muted never clears it, since
+    /// nothing is heard whatever the level.
+    package func reading(_ volume: OutputVolume?) -> SoundCheck {
+        guard case .showing = self, let volume else { return self }
+        return !volume.muted && volume.level >= Self.clearsAt ? .passed : .showing(volume)
+    }
+
+    /// Before the first read resolves the screen is empty: showing the hello
+    /// then would flash it and offer Continue past a card about to appear.
+    package var showsHello: Bool { self == .passed }
+
+    package var holdsGreeting: Bool {
+        if case .showing = self { true } else { false }
+    }
+}
+
 /// What the welcome needs from the machine. One port so the view never
 /// touches AVFoundation, and a fake can drive every screen in tests.
 package protocol WelcomeDevices: Sendable {
@@ -125,6 +172,19 @@ package protocol WelcomeDevices: Sendable {
     /// Says a short line with the system voice: the welcome speaks before
     /// any key exists.
     func greet(_ text: String, language: AppLanguage) async
+    /// The output volume, or nil when there is no output device to ask.
+    func outputVolume() async -> OutputVolume?
+    /// Moves the system volume; never touches mute.
+    func setOutputVolume(_ level: Double) async
+    /// A short sound through the system output, so a moved slider is heard.
+    func playProbe() async
+}
+
+package extension WelcomeDevices {
+    /// A machine that can't read its output skips the sound check.
+    func outputVolume() async -> OutputVolume? { nil }
+    func setOutputVolume(_ level: Double) async {}
+    func playProbe() async {}
 }
 
 package extension WelcomePermission {
