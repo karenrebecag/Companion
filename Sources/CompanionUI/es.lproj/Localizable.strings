@@ -734,3 +734,25 @@
 "settings.panel.undock" = "Volver a flotar";
 "settings.panel.fold" = "Plegar en una píldora";
 "settings.panel.unfold" = "Abrir ajustes";
+
+/* WIN-4 content flag. Set to "1" only after the four placeholder quotes below are replaced by real ones, with the speaker's consent and a verifiable source. */
+"welcome.testimonials.enabled" = "0";
+/* WIN-4: testimonials carousel. PLACEHOLDERS: swap for real quotes before shipping, never Incredible's text. */
+"welcome.testimonials.label" = "Testimonios";
+"welcome.testimonials.dot" = "Mostrar cita %d";
+"welcome.testimonial.1.quote" = "Aquí va una cita real de alguien que usa Companion.";
+"welcome.testimonial.1.ending" = "Reemplázala antes de publicar.";
+"welcome.testimonial.1.name" = "Nombre de ejemplo 1";
+"welcome.testimonial.1.role" = "Rol, empresa";
+"welcome.testimonial.2.quote" = "Aquí va una cita real de alguien que usa Companion.";
+"welcome.testimonial.2.ending" = "Reemplázala antes de publicar.";
+"welcome.testimonial.2.name" = "Nombre de ejemplo 2";
+"welcome.testimonial.2.role" = "Rol, empresa";
+"welcome.testimonial.3.quote" = "Aquí va una cita real de alguien que usa Companion.";
+"welcome.testimonial.3.ending" = "Reemplázala antes de publicar.";
+"welcome.testimonial.3.name" = "Nombre de ejemplo 3";
+"welcome.testimonial.3.role" = "Rol, empresa";
+"welcome.testimonial.4.quote" = "Aquí va una cita real de alguien que usa Companion.";
+"welcome.testimonial.4.ending" = "Reemplázala antes de publicar.";
+"welcome.testimonial.4.name" = "Nombre de ejemplo 4";
+"welcome.testimonial.4.role" = "Rol, empresa";

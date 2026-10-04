@@ -9,31 +9,34 @@ package struct WelcomeView: View {
     var welcome: WelcomeModel
     @Bindable var chat: ChatViewModel
     @State private var keys = KeysSettingsModel()
+    /// Lets the gated snapshot test render the aside while the shipped flag
+    /// is off; production callers leave it nil.
+    var testimonialsOverride: Bool?
 
     package init(welcome: WelcomeModel, chat: ChatViewModel) {
         self.welcome = welcome
         self.chat = chat
     }
 
+    init(welcome: WelcomeModel, chat: ChatViewModel, testimonialsOverride: Bool?) {
+        self.init(welcome: welcome, chat: chat)
+        self.testimonialsOverride = testimonialsOverride
+    }
+
     package var body: some View {
         let step = welcome.flow.step
-        VStack(spacing: Space.none) {
-            topBar(step)
-            Spacer(minLength: Space.x6)
-            column(step)
-                .id(step)
-            Spacer(minLength: Space.x6)
-            if step != .yourTurn {
-                AppButton(
-                    Localized.string(step == .cover ? "welcome.start" : "welcome.continue"),
-                    kind: .neutral, shape: .pill, fullWidth: true,
-                    enabled: welcome.canContinue
-                ) { welcome.next() }
-                .frame(maxWidth: Container.sheet)
-                // Test seam for the layout tests; inert in production.
-                .reportsFrame(.continueButton)
-                .padding(.horizontal, Space.x8)
-                .padding(.bottom, Space.x8)
+        GeometryReader { proxy in
+            let wide = TestimonialCarousel.showsAside(
+                step: step, width: proxy.size.width,
+                enabled: testimonialsOverride ?? TestimonialCarousel.enabled)
+            HStack(spacing: Space.none) {
+                content(step)
+                    .frame(width: wide ? proxy.size.width * TestimonialCarousel.formShare : nil)
+                if wide {
+                    // Incredible's aside keeps a 12 pt margin on three sides; the form column is its fourth.
+                    WelcomeTestimonialsAside()
+                        .padding([.top, .trailing, .bottom], Space.x3)
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -55,6 +58,29 @@ package struct WelcomeView: View {
             keys.secrets = chat.secrets
             keys.refresh()
         }
+    }
+
+    private func content(_ step: WelcomeStep) -> some View {
+        VStack(spacing: Space.none) {
+            topBar(step)
+            Spacer(minLength: Space.x6)
+            column(step)
+                .id(step)
+            Spacer(minLength: Space.x6)
+            if step != .yourTurn {
+                AppButton(
+                    Localized.string(step == .cover ? "welcome.start" : "welcome.continue"),
+                    kind: .neutral, shape: .pill, fullWidth: true,
+                    enabled: welcome.canContinue
+                ) { welcome.next() }
+                .frame(maxWidth: Container.sheet)
+                // Test seam for the layout tests; inert in production.
+                .reportsFrame(.continueButton)
+                .padding(.horizontal, Space.x8)
+                .padding(.bottom, Space.x8)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func topBar(_ step: WelcomeStep) -> some View {
