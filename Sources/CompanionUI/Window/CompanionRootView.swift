@@ -210,7 +210,7 @@ package struct CompanionRootView: View {
         ) { note in
             // The island names the page it means: keys live in privacy, the
             // shortcuts in general; the menu opens at the top.
-            settingsTab = (note.object as? String).flatMap(SettingsTab.init(rawValue:)) ?? .general
+            settingsTab = (note.object as? String).flatMap(SettingsTab.resolve) ?? .general
             presentSettings()
         }
         .onReceive(

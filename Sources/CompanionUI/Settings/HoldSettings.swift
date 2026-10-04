@@ -62,9 +62,8 @@ package final class HoldSettingsModel {
     }
 }
 
-/// Settings › General (Wave 16g): the key to talk, the key to dictate, the
-/// language and the sounds, as one card of rows. The vocabulary moved to its
-/// own page; the mark and the hands-free shortcut stay out, as in 16d.
+/// Settings › General (Wave 16g): the key to talk, the key to dictate and the
+/// language. The sounds and the glow moved to Sistema with Incredible's map (S2).
 struct SettingsGeneralPage: View {
     /// Owns the Accessibility permission dictation needs.
     let accessibility: (any AccessibilityChecking)?
@@ -72,9 +71,6 @@ struct SettingsGeneralPage: View {
     /// 15b-1/15b-2: FN is always the agent now; this is the only thing left
     /// deciding dictation.
     @State private var dictationKey = VoiceProfile.settings.dictationKey
-    @State private var sounds = InterfaceSound.enabled && ThinkingSoundPref.enabled
-    @State private var muteWhileTalking = MuteSoundWhileTalkingPref.enabled
-    @State private var screenGlow = ScreenGlowPreference.enabled()
     @State private var context = ContextSettingsModel()
 
     var body: some View {
@@ -103,35 +99,7 @@ struct SettingsGeneralPage: View {
                     SettingsPermissionRow(model: context.accessibilityRow)
                 }
                 SettingsLanguageLine(onChange: onLanguageChange)
-                SettingsRow(
-                    title: Localized.string("settings.sounds"),
-                    subtitle: Localized.string("settings.sounds.subtitle"),
-                    key: "settings.sounds"
-                ) {
-                    SettingsSwitch(label: Localized.string("settings.sounds"), isOn: $sounds)
-                }
-                SettingsRow(
-                    title: Localized.string("settings.muteWhileTalking"),
-                    subtitle: Localized.string("settings.muteWhileTalking.subtitle"),
-                    key: "settings.muteWhileTalking"
-                ) {
-                    SettingsSwitch(
-                        label: Localized.string("settings.muteWhileTalking"), isOn: $muteWhileTalking)
-                }
-                SettingsRow(
-                    title: Localized.string("settings.screenGlow"),
-                    subtitle: Localized.string("settings.screenGlow.subtitle"),
-                    key: "settings.screenGlow"
-                ) {
-                    SettingsSwitch(label: Localized.string("settings.screenGlow"), isOn: $screenGlow)
-                }
             }
-        }
-        .onChange(of: screenGlow) { _, on in ScreenGlowPreference.set(on) }
-        .onChange(of: muteWhileTalking) { _, on in MuteSoundWhileTalkingPref.enabled = on }
-        .onChange(of: sounds) { _, on in
-            InterfaceSound.enabled = on
-            ThinkingSoundPref.enabled = on
         }
         .onAppear {
             context.accessibility = accessibility
