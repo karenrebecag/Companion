@@ -19,7 +19,10 @@ extension IslandView {
             dictationCard(app: app, text: text)
                 .modifier(contentSlot(.card))
         } else if let notice = IslandNotice.content(for: state.line) {
-            IslandNoticeCard(content: notice, onAction: perform,
+            IslandNoticeCard(content: notice,
+                             pausesClock: NoticeHoverRule.viewPauses(state.line),
+                             onHover: { chat.session.send(.noticeCardHover($0)) },
+                             onAction: perform,
                              onDismiss: { dismissNotice(state.line) })
                 .task(id: IslandNotice.expiringChatError(state.line)) {
                     if let text = IslandNotice.expiringChatError(state.line) {

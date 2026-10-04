@@ -38,26 +38,28 @@ private func card(_ text: DictatedText = "palabra secreta") -> SessionMachine {
 @Test func aCardUnderThePointerDoesNotExpire() {
     var machine = card()
     expectEq(machine.handle(.dictationCardHover(true)),
-             [.scheduleCompletedExpiry(SessionMachine.dictationHoverCap)],
-             "16m-4: el puntero encima alarga el reloj al tope, no lo quita")
+             [.pauseCompletedExpiry],
+             "K4: el puntero pausa el reloj, no lo reinicia")
     let rested = machine.handle(.voice(warm))
-    expectEq(rested.filter { if case .scheduleCompletedExpiry = $0 { true } else { false } },
-             [.scheduleCompletedExpiry(SessionMachine.dictationHoverCap)],
-             "16m-4: rest() con el puntero encima rearma el tope, no los 12 s")
+    expectEq(rested.filter { if case .pauseCompletedExpiry = $0 { true } else { false } },
+             [.pauseCompletedExpiry],
+             "K4: rest() con el puntero encima no rearma el plazo")
+    expect(rested.filter { if case .scheduleCompletedExpiry = $0 { true } else { false } }.isEmpty,
+           "K4: rest() en pausa no arma un plazo nuevo")
     expectEq(machine.handle(.dictationCardHover(false)),
-             [.scheduleCompletedExpiry(SessionMachine.dictationCardDelay)],
-             "16m-4: al salir el puntero el reloj vuelve a los 12 s")
+             [.resumeCompletedExpiry],
+             "K4: al salir el puntero el reloj sigue donde iba")
 }
 
 @Test func copyingRearmsTheCardsClock() {
     var machine = card()
     expectEq(machine.handle(.dictationCardCopied),
              [.scheduleCompletedExpiry(SessionMachine.dictationCardDelay)],
-             "16m-4: copiar rearma los 12 s")
+             "K4: copiar, con el puntero fuera, arma el plazo entero")
     _ = machine.handle(.dictationCardHover(true))
     expectEq(machine.handle(.dictationCardCopied),
-             [.scheduleCompletedExpiry(SessionMachine.dictationHoverCap)],
-             "16m-4: copiar con el puntero encima conserva el tope")
+             [.scheduleCompletedExpiry(SessionMachine.dictationCardDelay), .pauseCompletedExpiry],
+             "K4: copiar con el puntero encima deja el plazo nuevo en pausa")
 }
 
 @Test func cardEventsOutsideTheCardDoNothing() {
@@ -98,17 +100,21 @@ final class RecordingSleeper: @unchecked Sendable {
     session.send(.released)
     session.send(.dictated(app: "Slack", text: "hola"))
     // The release armed the pending clock; the card's arrival cancels it and
-    // arms its own 12 s.
+    // arms its own delay.
     await pumpUntil("tarjeta: reloj armado") {
         sleeper.delays.count == 2 && sleeper.cancelled == 1
             && sleeper.delays.last == SessionMachine.dictationCardDelay
     }
     session.send(.dictationCardHover(true))
-    await pumpUntil("tarjeta: el hover cambia el reloj por el tope") {
-        sleeper.cancelled == 2 && sleeper.delays.last == SessionMachine.dictationHoverCap
+    await pumpUntil("K4: el puntero pausa y arma el techo") {
+        sleeper.cancelled == 2 && sleeper.delays.last == SessionMachine.countdownPauseCeiling
     }
     session.send(.dictationCardHover(false))
-    await pumpUntil("tarjeta: al salir se rearma") { sleeper.delays.count == 4 }
+    await pumpUntil("K4: al salir sigue con lo que quedaba") {
+        sleeper.cancelled == 3
+            && (sleeper.delays.last ?? 0) > 0
+            && (sleeper.delays.last ?? 0) <= SessionMachine.dictationCardDelay
+    }
     session.send(.dictationHidden)
     await pumpUntil("tarjeta: ocultar cancela el reloj") { sleeper.cancelled == 4 }
     expectEq(session.projection.kind, .idle, "tarjeta: y la isla descansa")
@@ -273,21 +279,33 @@ final class LineSink: @unchecked Sendable {
     expectEq(board.string(forType: .string), "palabra secreta", "16m-4: y el texto sigue ahí")
 }
 
-// MARK: - Safeguard: a lost hover-out must not keep private words up for ever
+// MARK: - K4: a hover with no leave holds the card, as Incredible pauses
 
-@Test @MainActor func aLostHoverOutStillExpiresAtTheCap() async {
-    expect(SessionMachine.dictationHoverCap > SessionMachine.dictationCardDelay,
-           "16m-4: el tope es más largo que el plazo normal")
+@Test @MainActor func aHoverWithoutLeaveHoldsTheCard() async {
     let sleeper = ManualSleeper()
     let session = SessionModel(jobs: nil, approvals: nil, sleep: sleeper.sleep)
     session.send(.pressed)
     session.send(.released)
     session.send(.dictated(app: "Slack", text: "palabra secreta"))
+    await pumpUntil("K4: reloj armado") { sleeper.armed(SessionMachine.dictationCardDelay) == 1 }
     session.send(.dictationCardHover(true))
-    await pumpUntil("tope: el reloj del tope armado") { sleeper.armed(SessionMachine.dictationHoverCap) == 1 }
+    await pumpUntil("K4: la pausa armó su techo") {
+        sleeper.armed(SessionMachine.countdownPauseCeiling) == 1
+    }
+    expectEq(session.projection.kind, .processing(.completed),
+             "K4: sin salir el puntero la tarjeta no caduca")
+    expectEq(session.projection.dictatedText, "palabra secreta", "K4: y conserva las palabras")
+    session.send(.dictationCardHover(false))
+    // Cancelled waits stay pending until fire(), so pending >= 1 is already
+    // true from the ceiling. The remainder is the latest delay, and its
+    // waiter is registered in the same step.
+    await pumpUntil("K4: al salir hay un reloj") {
+        guard let last = sleeper.delays.last else { return false }
+        return last > 0 && last <= SessionMachine.dictationCardDelay
+    }
     sleeper.fire()
-    await pumpUntil("tope: la tarjeta caduca sin hover(false)") { session.projection.kind == .idle }
-    expectEq(session.projection.dictatedText, nil, "16m-4: y suelta las palabras")
+    await pumpUntil("K4: ese reloj sí la retira") { session.projection.kind == .idle }
+    expectEq(session.projection.dictatedText, nil, "K4: y suelta las palabras")
 }
 
 // MARK: - The release prefix is derived, not repeated
