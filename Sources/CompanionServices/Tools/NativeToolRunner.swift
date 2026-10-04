@@ -39,6 +39,9 @@ package struct NativeToolRunner: Sendable {
     /// captures the intent and then dies).
     let documents: (any DocumentRendering)?
     let sheets: (any SpreadsheetDriving)?
+    /// Where the copies around a save of the user's file are kept. Absent: no
+    /// snapshots (the composition root builds the real store, like `skills`).
+    let versions: FileVersions?
     let disposal: FileDisposal
     /// The one home folder every delete rule is judged against.
     let home: String
@@ -61,6 +64,7 @@ package struct NativeToolRunner: Sendable {
         skills: SkillsLocation? = nil,
         documents: (any DocumentRendering)? = nil,
         sheets: (any SpreadsheetDriving)? = nil,
+        versions: FileVersions? = nil,
         location: UserLocationSource? = nil,
         home: URL = FileManager.default.homeDirectoryForCurrentUser,
         disposal: FileDisposal = .system,
@@ -78,6 +82,7 @@ package struct NativeToolRunner: Sendable {
         self.skills = skills
         self.documents = documents
         self.sheets = sheets
+        self.versions = versions
         self.disposal = disposal
         self.home = home.resolvingSymlinksInPath().path
     }

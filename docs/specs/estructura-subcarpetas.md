@@ -96,7 +96,7 @@ Cambios al mapa por la auditoria:
 | Browser/ | BrowserChannel, BrowserHost, BrowserHostRelay, BrowserLeases, BrowserRelayIO, BrowserToolRunner (+2), NativeHostInstaller |
 | Bridge/ | BridgeListener, BridgeParkedSheet, BridgePaths, BridgePeer, BridgeSession, BridgeSession+Calls, BridgeSocketSupport |
 | Apps/ | AppToolRunner, HTTPAppsService, MCPConfigFile |
-| Deliverables/ | PDFRenderer, AppleEventSheets, DocumentBackup, DiagramFileWriter, DiagramPNG, WebKitDiagramRenderer |
+| Deliverables/ | PDFRenderer, AppleEventSheets, DiagramFileWriter, DiagramPNG, WebKitDiagramRenderer |
 | Storage/ | ConversationStore, FileMemoryStore, FileExecutorSessionStore, SkillStore, AttachmentStore |
 | Platform/ | KeychainBackend, KeychainSecretStore, CachingSecretStore, Log, UpdateChecker, LegacyURLCachePurge, Services |
 

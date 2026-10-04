@@ -32,7 +32,7 @@ private final class FakeSheets: SpreadsheetDriving, @unchecked Sendable {
     func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]] { blank ? [[""]] : [["Mes", "Ventas"]] }
     func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String) async throws -> SheetWriteReceipt {
         lock.withLock { _writes += 1 }
-        return SheetWriteReceipt(backupPath: "/tmp/libro-backup.xlsx", readBack: [["1"]])
+        return SheetWriteReceipt(readBack: [["1"]])
     }
 }
 
@@ -58,9 +58,16 @@ private func workdir() throws -> URL {
     return url
 }
 
-private func runner(workdir: String? = nil, sheets: FakeSheets = FakeSheets()) -> ParentToolRunner {
+private func runner(
+    workdir: String? = nil, sheets: FakeSheets = FakeSheets(), versions: FileVersions? = nil
+) -> ParentToolRunner {
     ParentToolRunner(workspace: FakeWorkspaceOpener(installed: [], running: []),
-                     workdir: workdir, documents: FakeDocuments(), sheets: sheets)
+                     workdir: workdir, documents: FakeDocuments(), sheets: sheets, versions: versions)
+}
+
+private func tempStore() -> (store: FileVersions, root: URL) {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("pd-store-\(UUID().uuidString)")
+    return (FileVersions(root: root), root)
 }
 
 @MainActor func testTheToolsFollowTheirBacking() {
@@ -89,7 +96,9 @@ private func runner(workdir: String? = nil, sheets: FakeSheets = FakeSheets()) -
 @MainActor func testADocumentRunsOnlyWithItsTicket() async throws {
     let dir = try workdir()
     defer { do { try FileManager.default.removeItem(at: dir) } catch {} }
-    let r = runner(workdir: dir.path)
+    let (store, storeRoot) = tempStore()
+    defer { do { try FileManager.default.removeItem(at: storeRoot) } catch {} }
+    let r = runner(workdir: dir.path, versions: store)
     let file = dir.appendingPathComponent("informe.pdf").path
     // Wave 20d B: only replacing a file asks, so the file is already there.
     try Data("previo".utf8).write(to: URL(fileURLWithPath: file))
@@ -110,6 +119,9 @@ private func runner(workdir: String? = nil, sheets: FakeSheets = FakeSheets()) -
     r.granted(again)
     let done = await r.execute(name: "create_document", argumentsJSON: documentArgs)
     expect(done.ok && FileManager.default.fileExists(atPath: file), "create_document: con el sí, escribe en la carpeta")
+    expectEq(store.versions(of: file).map(\.trigger), [.preSave, .postSave], "create_document: pre y post en el almacen inyectado")
+    expectEq(try String(contentsOf: store.versions(of: file)[0].url, encoding: .utf8), "previo",
+             "create_document: la version previa es el original")
 
     let replay = await r.execute(name: "create_document", argumentsJSON: documentArgs)
     expect(!replay.ok, "create_document: el ticket se gasta una vez")
@@ -126,14 +138,18 @@ private final class Receipts: @unchecked Sendable {
     let dir = try workdir()
     defer { do { try FileManager.default.removeItem(at: dir) } catch {} }
     let heard = Receipts()
+    let (store, storeRoot) = tempStore()
+    defer { do { try FileManager.default.removeItem(at: storeRoot) } catch {} }
     let r = ParentToolRunner(workspace: FakeWorkspaceOpener(installed: [], running: []),
                              workdir: dir.path, documents: FakeDocuments(), sheets: FakeSheets(),
-                             onAct: { heard.add($0) })
+                             versions: store, onAct: { heard.add($0) })
     let call = ToolCallRef(id: "n", name: "create_document", arguments: documentArgs)
     expect(await r.actsWithoutSheet(call), "documento nuevo: sin hoja")
     let done = await r.execute(name: "create_document", argumentsJSON: documentArgs)
     expect(done.ok && FileManager.default.fileExists(atPath: dir.appendingPathComponent("informe.pdf").path),
            "documento nuevo: se entrega")
+    expectEq(store.versions(of: dir.appendingPathComponent("informe.pdf").path).map(\.trigger), [.postSave],
+             "documento nuevo: solo la version posterior, en el almacen inyectado")
     expectEq(heard.all.map(\.kind), [.created], "documento nuevo: avisa a la isla")
     expectEq(heard.all.first?.subject, "informe.pdf", "documento nuevo: con su nombre")
     let again = ToolCallRef(id: "m", name: "create_document", arguments: documentArgs)

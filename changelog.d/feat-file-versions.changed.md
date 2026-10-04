@@ -1,0 +1,2 @@
+- **Companion guarda versiones de tus archivos en un almacen privado, sin dejar copias a su lado (2026-10-04).**
+  Documentos: una copia antes y otra despues de guardar; hojas: una antes de escribir. Se conservan hasta 20 copias por archivo, 30 dias, 50 MB por copia y 1 GB en total, en su carpeta privada; si no puede guardar una, la escritura sigue y el modelo lo dice. Ya no aparecen archivos `-backup-` junto a los tuyos.
