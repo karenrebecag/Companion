@@ -6,10 +6,26 @@ package final class ConversationStore: ConversationStoring, Sendable {
 
     private let directory: URL
     private let cap: Int
+    private static let trashPrefix = ".companion-history-clear-"
 
-    package init(directory: URL, cap: Int = ConversationStore.cap) {
+    private let makeDirectory: @Sendable (URL) throws -> Void
+
+    package static let defaultMakeDirectory: @Sendable (URL) throws -> Void = { url in
+        try FileManager.default.createDirectory(
+            at: url, withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700])
+    }
+
+    /// `makeDirectory` is a seam: the put-back after a failed recreate cannot
+    /// be reached on a real disk without breaking the folder it restores.
+    package init(
+        directory: URL, cap: Int = ConversationStore.cap,
+        makeDirectory: @escaping @Sendable (URL) throws -> Void = ConversationStore.defaultMakeDirectory
+    ) {
         self.directory = directory
         self.cap = cap
+        self.makeDirectory = makeDirectory
+        Self.sweepLeftovers(beside: directory)
     }
 
     package func list() throws -> [ConversationMeta] {
@@ -51,6 +67,17 @@ package final class ConversationStore: ConversationStoring, Sendable {
         prune()
     }
 
+    /// Tasks started in chats are these conversation files. There is no
+    /// second task directory. The rename is the cut: deleting files one by
+    /// one can stop halfway and leave some chats behind. A failure before
+    /// the cut keeps every chat and throws; one after it counts as cleared and
+    /// leaves the old folder for the next sweep, never a partial set back in
+    /// the live folder.
+    package func clearHistory() throws {
+        Self.sweepLeftovers(beside: directory)
+        try replaceConversationDirectory()
+    }
+
     package func load(_ id: String) throws -> ConversationRecord? {
         let url = try fileURL(for: id)
         guard FileManager.default.fileExists(atPath: url.path) else {
@@ -82,10 +109,68 @@ package final class ConversationStore: ConversationStoring, Sendable {
             && !id.contains("..")
     }
 
+    private func replaceConversationDirectory() throws {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: directory.path) else { return }
+        let trash = directory.deletingLastPathComponent()
+            .appendingPathComponent(Self.trashPrefix + UUID().uuidString, isDirectory: true)
+        do {
+            try fm.moveItem(at: directory, to: trash)
+        } catch {
+            throw PersistenceError.io
+        }
+        do {
+            try ensureDirectory()
+        } catch {
+            putBack(trash)
+            throw PersistenceError.io
+        }
+        do {
+            try fm.removeItem(at: trash)
+        } catch {
+            // The rename already cut every chat from the live folder: the
+            // clear happened, and the leftover is the sweep's to remove.
+            Log.chat("could not remove the old conversations folder; the next clear sweeps it")
+        }
+    }
+
+    /// Only when nothing was deleted yet: the folder moved aside goes back.
+    private func putBack(_ trash: URL) {
+        let fm = FileManager.default
+        do {
+            if fm.fileExists(atPath: directory.path) { try fm.removeItem(at: directory) }
+            try fm.moveItem(at: trash, to: directory)
+        } catch {
+            Log.chat("could not put the conversations folder back")
+        }
+    }
+
+    /// What a crash or a failed removal left beside the live folder.
+    private static func sweepLeftovers(beside directory: URL) {
+        let fm = FileManager.default
+        let parent = directory.deletingLastPathComponent()
+        let siblings: [URL]
+        do {
+            siblings = try fm.contentsOfDirectory(at: parent, includingPropertiesForKeys: nil)
+        } catch {
+            // A parent that does not exist yet is the first run, not a failure.
+            if fm.fileExists(atPath: parent.path) {
+                Log.chat("could not list the folder to sweep for leftovers")
+            }
+            return
+        }
+        for url in siblings where url.lastPathComponent.hasPrefix(trashPrefix) {
+            do {
+                try fm.removeItem(at: url)
+            } catch {
+                Log.chat("could not sweep a leftover conversations folder")
+            }
+        }
+    }
+
     private func ensureDirectory() throws {
         do {
-            try FileManager.default.createDirectory(
-                at: directory, withIntermediateDirectories: true)
+            try makeDirectory(directory)
         } catch {
             throw PersistenceError.io
         }

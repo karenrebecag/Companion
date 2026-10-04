@@ -222,6 +222,17 @@
 "settings.context.screen.subtitle" = "It looks at the screen only when you ask, never at its own windows. The image is not stored.";
 "settings.privacy.lendHands" = "Lend your hands to other agents";
 "settings.privacy.lendHands.subtitle" = "Claude Code and other local agents can look at the screen and act through Companion. Each session asks first; sensitive actions ask again.";
+"settings.history.label" = "Data";
+"settings.history.row" = "Clear chat history";
+"settings.history.row.subtitle" = "Erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and your files are not touched.";
+"settings.history.action" = "Clear…";
+"settings.history.title" = "Clear your chat history?";
+"settings.history.blurb" = "This erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and anything saved to your files stay as they are. There's no undo.";
+"settings.history.cancel" = "Cancel";
+"settings.history.confirm" = "Clear chat history";
+"settings.history.clearing" = "Clearing…";
+"settings.history.error" = "That didn't work. Try again in a moment.";
+"settings.history.a11y" = "Clear your chat history";
 "permission.screenRecording.title" = "Screen Recording";
 "permission.screenRecording.body" = "To see the screen when you ask. It never records or keeps what it sees.";
 "permission.accessibility.title" = "Accessibility";

@@ -222,6 +222,17 @@
 "settings.context.screen.subtitle" = "Mira la pantalla solo cuando se lo pides, sin sus propias ventanas. La imagen no se guarda.";
 "settings.privacy.lendHands" = "Prestar las manos a otros agentes";
 "settings.privacy.lendHands.subtitle" = "Claude Code y otros agentes locales pueden mirar la pantalla y actuar a través de Companion. Cada sesión pide permiso primero; las acciones sensibles vuelven a pedirlo.";
+"settings.history.label" = "Datos";
+"settings.history.row" = "Borrar historial de chats";
+"settings.history.row.subtitle" = "Borra de este equipo tus chats con Companion y las tareas iniciadas en ellos. No toca las apps conectadas, el dictado ni tus archivos.";
+"settings.history.action" = "Borrar…";
+"settings.history.title" = "¿Borrar tu historial de chats?";
+"settings.history.blurb" = "Esto borra de este equipo tus chats con Companion y las tareas iniciadas en ellos. Las apps conectadas, el dictado y todo lo guardado en tus archivos se quedan como están. No se puede deshacer.";
+"settings.history.cancel" = "Cancelar";
+"settings.history.confirm" = "Borrar historial de chats";
+"settings.history.clearing" = "Borrando…";
+"settings.history.error" = "Eso no funcionó. Inténtalo de nuevo en un momento.";
+"settings.history.a11y" = "Borrar tu historial de chats";
 "permission.screenRecording.title" = "Grabación de pantalla";
 "permission.screenRecording.body" = "Para ver la pantalla cuando se lo pides. Nunca graba ni guarda lo que ve.";
 "permission.accessibility.title" = "Accesibilidad";
