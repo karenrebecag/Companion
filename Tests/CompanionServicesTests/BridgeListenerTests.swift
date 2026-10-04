@@ -139,7 +139,13 @@ private func pollUntil(timeout: TimeInterval = 2, _ probe: @escaping @Sendable (
     let connection = await waitForConnection { box.get() }
     expect(connection != nil, "oversized: the listener accepted the client")
 
-    try client.send(String(repeating: "x", count: 70_000))
+    // Far past the limit so the listener hangs up before the client has
+    // written everything: at 70 KB that only happened sometimes, and CI run
+    // 37167290991 failed on it as `writeFailed`. That hang-up is the
+    // behaviour under test, so only it is tolerated.
+    do {
+        try client.send(String(repeating: "x", count: 1_000_000))
+    } catch PosixTestClientError.peerClosed {}
     let reply = client.readLine()
     expect(reply?.contains(BridgeCode.frameTooLarge) == true, "oversized: frame_too_large")
     expect(client.waitForEOF(), "oversized: the connection closes")
@@ -338,7 +344,7 @@ final class Box<T>: @unchecked Sendable {
 }
 
 /// A minimal blocking Unix-socket client, POSIX like the listener under
-/// test. A receive timeout keeps a stalled read from hanging the suite.
+/// test. Send and receive timeouts keep a stalled peer from hanging the suite.
 final class PosixTestClient {
     private let fd: Int32
 
@@ -374,9 +380,13 @@ final class PosixTestClient {
             throw PosixTestClientError.connect(err)
         }
         var timeout = timeval(tv_sec: 2, tv_usec: 0)
-        _ = withUnsafePointer(to: &timeout) { ptr in
-            Darwin.setsockopt(
-                socketFD, SOL_SOCKET, SO_RCVTIMEO, ptr, socklen_t(MemoryLayout<timeval>.size))
+        // The send side too: a listener that stops reading without closing
+        // would otherwise block a large write and hang the suite.
+        for option in [SO_RCVTIMEO, SO_SNDTIMEO] {
+            _ = withUnsafePointer(to: &timeout) { ptr in
+                Darwin.setsockopt(
+                    socketFD, SOL_SOCKET, option, ptr, socklen_t(MemoryLayout<timeval>.size))
+            }
         }
         self.fd = socketFD
     }
@@ -387,11 +397,24 @@ final class PosixTestClient {
 
     /// Raw bytes, not necessarily valid UTF-8 or JSON — for exercising the
     /// framing layer directly (M3: an invalid-UTF-8 line).
+    /// A blocking stream write can still return short (the peer hung up
+    /// mid-line), so it loops, and a hang-up is told apart from other errors.
     func sendRaw(_ bytes: [UInt8]) throws {
-        let sent = bytes.withUnsafeBufferPointer { ptr in
-            Darwin.write(fd, ptr.baseAddress, ptr.count)
+        var offset = 0
+        while offset < bytes.count {
+            let sent = bytes.withUnsafeBufferPointer { ptr in
+                Darwin.write(fd, ptr.baseAddress! + offset, ptr.count - offset)
+            }
+            if sent > 0 {
+                offset += sent
+                continue
+            }
+            if sent < 0, errno == EINTR { continue }
+            if sent < 0, errno == EPIPE || errno == ECONNRESET {
+                throw PosixTestClientError.peerClosed
+            }
+            throw PosixTestClientError.writeFailed
         }
-        guard sent == bytes.count else { throw PosixTestClientError.writeFailed }
     }
 
     /// Reads to the next `\n`, EOF, or the socket's receive timeout.
@@ -420,4 +443,5 @@ enum PosixTestClientError: Error {
     case pathTooLong
     case connect(Int32)
     case writeFailed
+    case peerClosed
 }
