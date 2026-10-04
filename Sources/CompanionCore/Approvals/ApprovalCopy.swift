@@ -48,6 +48,9 @@ package enum ApprovalCopy {
         if let display = nativeTool(request.toolName, arguments, language) { return display }
         if request.toolName.hasPrefix(appToolPrefix) { return appTool(request, language) }
         if request.toolName == WindowArrangeTool.name { return windowArrange(request, language) }
+        if request.toolName == "browser_set_files" {
+            return setFiles(arguments, language) ?? malformedSetFiles(arguments, language)
+        }
         return fallback(request.toolName, arguments, language)
     }
 
@@ -67,6 +70,104 @@ package enum ApprovalCopy {
             subject: capped(request.summary.isEmpty ? request.toolName : request.summary),
             preview: request.inputJSON == "{}" ? nil : plainPreview(request.inputJSON),
             showsRemember: false)
+    }
+
+    /// No remember: handing a file to a site has no `ApprovalKey`, so a ticked
+    /// box would promise a memory that never happens. The host is cut in the
+    /// middle, same rule as a link, because the registrable domain sits at the
+    /// end. The label is page text (`plainPreview`) and capped at 120; the
+    /// path is what is uploaded and is not cut.
+    private static func setFiles(
+        _ arguments: [String: Any], _ language: AppLanguage
+    ) -> ApprovalDisplay? {
+        guard let path = value(arguments, "path"),
+              let host = value(arguments, "host"),
+              let bytes = int64(arguments, "bytes"), bytes >= 0
+        else { return nil }
+        let shownPath = plainPreview(path, keepingLayout: false)
+        let leaf = (shownPath as NSString).lastPathComponent
+        let parts = BrowserCopy.setFilesSheet(
+            name: cappedName(unquoted(leaf.isEmpty ? shownPath : leaf)), bytes: bytes,
+            host: capped(plainPreview(host, keepingLayout: false)),
+            label: fieldLabel(arguments["label"] as? String ?? ""), path: shownPath, language)
+        return ApprovalDisplay(
+            mark: .symbol("arrow.up.doc"), lead: parts.lead,
+            subject: capped(parts.subject), trail: parts.trail,
+            preview: parts.preview, showsRemember: false)
+    }
+
+    /// Bad arguments are still an upload ask. The generic fallback would offer
+    /// remember and print the raw path; this sheet names the action, never
+    /// remembers, and shows whatever path came as plain text.
+    private static func malformedSetFiles(
+        _ arguments: [String: Any], _ language: AppLanguage
+    ) -> ApprovalDisplay {
+        ApprovalDisplay(
+            mark: .symbol("arrow.up.doc"), lead: nil,
+            subject: BrowserCopy.setFilesMalformedTitle(language), trail: nil,
+            preview: value(arguments, "path").map { plainPreview($0, keepingLayout: false) },
+            showsRemember: false)
+    }
+
+    /// A field name longer than this is page text filling the sheet. 120, not
+    /// the 80 of a subject: the label is a secondary line, and the host cap
+    /// must not eat a name that still fits.
+    private static let fieldLabelLimit = 120
+
+    /// The sheet quotes name and label with guillemets: one inside the text
+    /// would close the quote early and let the rest pose as the sheet's words.
+    private static func unquoted(_ text: String) -> String {
+        text.filter { $0 != "\u{AB}" && $0 != "\u{BB}" }
+    }
+
+    /// The name alone is cut, in the middle so the extension stays: cutting
+    /// the whole subject would take the size or the quote with it.
+    private static let nameLimit = 40
+
+    private static func cappedName(_ rawName: String) -> String {
+        let name = limitingMarks(rawName)
+        guard name.count > nameLimit else { return name }
+        return name.prefix(nameLimit / 2) + "…" + name.suffix(nameLimit / 2 - 1)
+    }
+
+    private static let marksPerCluster = 4
+
+    private static let markCategories: Set<Unicode.GeneralCategory> = [
+        .nonspacingMark, .spacingMark, .enclosingMark,
+    ]
+
+    /// `Character` counts cap a cluster as one, so one base letter with
+    /// thousands of combining marks is a single "character" that no cap ever
+    /// cuts and that floods the sheet. Marks past a few per run are dropped:
+    /// real scripts stack fewer than this.
+    private static func limitingMarks(_ text: String) -> String {
+        var run = 0
+        var kept = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            if markCategories.contains(scalar.properties.generalCategory) {
+                run += 1
+                if run > marksPerCluster { continue }
+            } else {
+                run = 0
+            }
+            kept.append(scalar)
+        }
+        return String(kept)
+    }
+
+    private static func fieldLabel(_ raw: String) -> String {
+        let clean = limitingMarks(unquoted(plainPreview(raw, keepingLayout: false)))
+        guard clean.count > fieldLabelLimit else { return clean }
+        return clean.prefix(fieldLabelLimit - 1) + "…"
+    }
+
+    /// JSON numbers arrive as `NSNumber`, and so does `true`. A boolean is
+    /// not a size.
+    private static func int64(_ arguments: [String: Any], _ key: String) -> Int64? {
+        guard let number = arguments[key] as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID()
+        else { return nil }
+        return number.int64Value
     }
 
     /// No remember toggle: `ApprovalKey` has no rule for window moves, so a
@@ -314,7 +415,7 @@ package enum ApprovalCopy {
     /// `paypal.com.<filler>.evil.net` must show `evil.net`, not hide it
     /// behind the ellipsis (security review 19-1).
     private static func capped(_ value: String) -> String {
-        let flat = value.replacingOccurrences(
+        let flat = limitingMarks(value).replacingOccurrences(
             of: "[\\r\\n]+", with: " ", options: .regularExpression)
         guard flat.count > 80 else { return flat }
         return flat.prefix(40) + "…" + flat.suffix(39)
