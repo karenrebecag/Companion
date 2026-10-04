@@ -78,8 +78,9 @@ extension AppDelegate {
             mouth: TTSVoiceSampler(fetcher: mouth, playback: DataSpeechPlayback()))
         self.voicePreview = preview
 
-        // Update check: once per day, after launch settles; a hit shows the
-        // W3 toast and lights the Settings row. Silence on any failure.
+        // Update check: once per day, after launch settles; a hit lights the
+        // Settings row and is announced once: the island's card, or the
+        // window's toast when the card is suppressed. Silence on any failure.
         let checker = UpdateChecker(transport: env.transport)
         let updates = UpdateState(checkNow: {
             guard let info = await checker.checkNow() else { return nil }
@@ -90,7 +91,15 @@ extension AppDelegate {
             try? await Task.sleep(for: .seconds(3))
             guard let info = await checker.checkIfDue() else { return }
             updates.found(.init(tag: info.tag, pageURL: info.pageURL))
-            model.toast("Versión \(info.tag) disponible — Ajustes → Sistema")
+            let surface = UpdateAnnouncement.surface(
+                tag: info.tag, mainInFront: holdSettings.mainInFront, islandHidden: holdSettings.pebbleHidden,
+                voiceOn: sessionModel.projection.voice != .off,
+                // found() published it; a nil tag here means it was already waved away.
+                dismissedTag: updates.noticeTag == nil ? info.tag : nil)
+            // The toast lives in this window: with the island hidden, voice off and the
+            // window behind, it can expire unseen. The Settings row and the later island
+            // card are the fallback.
+            if surface == .toast { model.toast(UpdateAnnouncement.toastText(tag: info.tag)) }
         }
 
         let window = NSWindow(

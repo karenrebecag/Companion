@@ -657,6 +657,7 @@
 "island.notice.update.body" = "Descarga la nueva versión desde su página de lanzamiento.";
 "island.notice.update.action" = "Actualizar";
 "island.notice.update.later" = "Después";
+"update.toast" = "Versión %@ disponible. Ve a Ajustes > Sistema.";
 
 /* Wave 16m-5a: gráficas en la isla */
 "island.chart.kind.bar" = "Gráfica de barras";
