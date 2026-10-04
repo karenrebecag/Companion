@@ -45,10 +45,15 @@ package enum BrowserTool: String, CaseIterable, Sendable {
             name: rawValue,
             description: BrowserCopy.description(self, language) + " " + BrowserCopy.toolDataSuffix(language),
             properties: properties.map {
-                ToolProperty(name: $0.name, type: $0.type, description: BrowserCopy.parameter($0.name, language),
+                ToolProperty(name: $0.name, type: $0.type, description: BrowserCopy.parameter(copyKey($0.name), language),
                              minLength: $0.typed ? 1 : nil, maxBytes: $0.typed ? ToolProperty.maxTextBytes : nil)
             },
             required: properties.filter(\.required).map(\.name))
+    }
+
+    /// browser_type's `text` is what to type; the read's is what to look for, under the same name.
+    private func copyKey(_ name: String) -> String {
+        self == .read && name == "text" ? "find_text" : name
     }
 
     private struct Parameter {
@@ -64,7 +69,10 @@ package enum BrowserTool: String, CaseIterable, Sendable {
         let element = Parameter(name: "element", type: "integer", required: true)
         switch self {
         case .tabs: return []
-        case .read: return [tab, Parameter(name: "selector", type: "string", required: false)]
+        case .read:
+            return [tab] + [("selector", "string"), ("text", "string"), ("exact", "boolean"), ("role", "string"),
+                            ("name", "string"), ("within", "integer"), ("max", "integer"), ("max_chars", "integer")]
+                .map { Parameter(name: $0.0, type: $0.1, required: false) }
         case .click, .doubleClick, .rightClick: return [tab, element]
         case .type: return [tab, element, Parameter(name: "text", type: "string", required: true, typed: true)]
         case .scroll:

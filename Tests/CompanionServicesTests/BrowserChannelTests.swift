@@ -283,7 +283,7 @@ func browserTabsReply(_ id: Int) -> String {
     let client = try await browserConnected(rig)
 
     let first = Task { await rig.channel.send(.tabs, timeout: .seconds(30)) }
-    let second = Task { await rig.channel.send(.read(tab: 1, selector: nil), timeout: .seconds(30)) }
+    let second = Task { await rig.channel.send(.read(tab: 1, query: BrowserQuery()), timeout: .seconds(30)) }
     _ = (await client.line())
     _ = (await client.line())
     client.close()
@@ -379,7 +379,7 @@ func browserTabsReply(_ id: Int) -> String {
         try client.send(browserHello())
         _ = (await client.line())
         _ = await browserWaitFor { rig.presence.connected }
-        let call = Task { await rig.channel.send(.read(tab: 12, selector: nil), timeout: .seconds(5)) }
+        let call = Task { await rig.channel.send(.read(tab: 12, query: BrowserQuery()), timeout: .seconds(5)) }
         guard let id = browserCallID((await client.line())) else { return }
         let page = #"{"id":\#(id),"result":{"page":{"tab":12,"origin":"https://bank.example","url":"https://bank.example/a","title":"\#(secret)","text":"\#(secret)","generation":1,"truncated":false,"elements":[]}}}"#
         try client.send(page)
