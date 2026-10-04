@@ -90,6 +90,11 @@ package struct IslandState: Sendable, Equatable {
     /// Wave 20d B: why it can stay silent before acting is that the way back is
     /// here for five seconds.
     package var receipt: UndoReceipt?
+    /// P2: a turn the companion runs while the user is away (passive). The island
+    /// stays at rest, as in Incredible, and the voice line chip carries the turn.
+    package var quietTurn = false
+    /// A quiet turn's reply is not on the island: the model must not be told it was seen.
+    package var reportsReplyShown: Bool { !quietTurn }
     /// The sheet replaced the field: the panel must hand the keyboard back,
     /// or the next Return meant for the draft answers the sheet (security
     /// review 16, critical).
@@ -158,6 +163,14 @@ package struct IslandState: Sendable, Equatable {
                 size: .bar, meter: .mic,
                 line: p.dictation.map { .dictating($0) } ?? .none,
                 showsStop: !p.holding, partial: p.partial)
+        // P2: away from the user (passive) a turn does not open the island, as in
+        // Incredible; a dictation is the user's own and always shows. The sheet,
+        // the undo and the hands are applied below, so they still open it.
+        case .processing where p.presence == .passive && p.dictation == nil:
+            state = atRest(p, pebbleHidden: pebbleHidden)
+            state.quietTurn = true
+            // Something running is never invisible, even on an island the user hid.
+            if state.size == .hidden { state.size = .pebble }
         case .processing(let phase):
             state = processing(phase, p)
         }
