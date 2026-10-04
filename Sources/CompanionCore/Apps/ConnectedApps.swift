@@ -135,7 +135,11 @@ package enum AppsEndpoint {
     package static func validated(_ text: String) -> URL? {
         var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         while trimmed.hasSuffix("/") { trimmed.removeLast() }
-        guard let url = URL(string: trimmed), url.scheme == "https",
+        // Schemes are case-insensitive (RFC 3986 §3.1); rewriting to the
+        // lowercase form keeps one stored spelling per function.
+        guard var parts = URLComponents(string: trimmed), parts.scheme?.lowercased() == "https" else { return nil }
+        parts.scheme = "https"
+        guard let url = parts.url, url.scheme == "https",
               let host = url.host, !host.isEmpty,
               url.user == nil, url.password == nil,
               url.query == nil, url.fragment == nil, url.path.isEmpty

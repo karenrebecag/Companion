@@ -120,6 +120,33 @@ private func data(_ json: String) -> Data { Data(json.utf8) }
         == "https://x.vercel.app/api/apps?q=sl%20ack")
 }
 
+// URL schemes are case-insensitive (RFC 3986 §3.1), and a pasted or
+// autocapitalised "HTTPS://" is still https. The stored address is the
+// canonical lowercase form, so the key's host binding never sees two
+// spellings of one function.
+@Test(arguments: ["HTTPS://companion-apps.vercel.app", "Https://companion-apps.vercel.app/", " hTTpS://companion-apps.vercel.app "])
+func connectedAppsEndpointSchemeIgnoresCase(_ text: String) {
+    #expect(AppsEndpoint.validated(text)?.absoluteString == "https://companion-apps.vercel.app")
+}
+
+@Test func connectedAppsEndpointUppercaseStillRefusesClearText() {
+    #expect(AppsEndpoint.validated("HTTP://companion-apps.vercel.app") == nil)
+    #expect(AppsEndpoint.validated("HTTPS://user:pw@x.vercel.app") == nil)
+    #expect(AppsEndpoint.validated("HTTPS://x.vercel.app/api") == nil)
+    #expect(AppsEndpoint.validated("HTTPS://x.vercel.app:8443")?.absoluteString == "https://x.vercel.app:8443")
+}
+
+// The check now parses with URLComponents rather than URL; these pin that
+// the swap is no more lenient. An escaped host is the one two parsers can
+// read as two different hosts, so the key could follow the wrong one.
+@Test(arguments: [
+    "HTTPS://x.vercel.app?q=1", "HTTPS://x.vercel.app#f", "HTTPS://",
+    "HTTPS://a.com%2Fx", "HTTPS://a.com%40evil.com", #"HTTPS://a.com\@evil.com"#,
+])
+func connectedAppsEndpointUppercaseRefusesWhatLowercaseRefuses(_ text: String) {
+    #expect(AppsEndpoint.validated(text) == nil)
+}
+
 // Wave 16k-2c: DELETE /api/accounts?id=apn_... (pinned from companion-apps
 // api/accounts.mjs) answers `{ disconnected: id }`; a not-yours or missing
 // id comes back as the function's ordinary error shape.
