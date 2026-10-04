@@ -1,5 +1,12 @@
 import Foundation
 
+/// The reducer's time source. Equality ignores it: two machines are the same
+/// state whatever clock feeds them.
+struct SessionClock: Sendable, Equatable {
+    let now: @Sendable () -> Date
+    static func == (_: SessionClock, _: SessionClock) -> Bool { true }
+}
+
 /// 16h-2: the specialist's jobs in the session reducer. Split from
 /// SessionMachine.swift: this file is the one place that knows which job an
 /// event belongs to, and the one rule for whether a job or her turn is in
@@ -66,24 +73,38 @@ extension SessionMachine {
         case .started(let goal):
             guard !isOver(id) else { return [] }
             start(goal, id)
-        case .stepStarted(let tool, let summary):
+        case .stepStarted(let tool, let summary, let stepID):
             guard !isOver(id) else { return [] }
-            append(JobTimeline.step(tool, summary), id)
+            append(timed(JobTimeline.step(tool, summary), stepID), id)
         case .thought(let text):
             guard !isOver(id) else { return [] }
-            append(JobStepInfo(tool: JobSteps.Thinking.tool, label: text), id)
-        case .stepFinished(let tool, let ok):
+            // A thought has no duration to wait for: open, it would read as
+            // running until the job ends.
+            var thought = timed(JobStepInfo(tool: JobSteps.Thinking.tool, label: text), nil)
+            thought.done = true
+            thought.finishedAt = thought.startedAt
+            append(thought, id)
+        case .stepFinished(let tool, let ok, let stepID):
             guard !isOver(id) else { return [] }
-            // The runcard paints each step's fate (16m-2): the OLDEST still
-            // running step of that tool is the one this answers.
-            // HACK: name-only pairing. Parallel runs of one tool that finish
-            // out of order mark the wrong row. Upgrade trigger: the first
-            // executor that reports a tool-use id — carry it through
-            // stepStarted/stepFinished and match on it instead.
+            // The runcard paints each step's fate (16m-2). With an id the end
+            // answers exactly its own row, so parallel runs of one tool each
+            // close theirs; an end whose start never came is ignored.
+            let finishedAt = clock.now()
             timeline(id) { job in
-                if let index = job.steps.firstIndex(where: { $0.tool == tool && !$0.done }) {
+                // A minted id belongs to the reducer, never to a producer, so
+                // a stream id that happens to spell it closes nothing.
+                let open: (JobStepInfo) -> Bool = stepID.map { wanted in
+                    { $0.id == wanted && !$0.minted && !$0.done }
+                } ?? { $0.tool == tool && !$0.done }
+                // HACK: name-only pairing for id-less producers (Hermes, the
+                // parent's own steps): correct only while they run one call of
+                // a tool at a time and always finish what they start. Upgrade
+                // trigger: an id-less producer that runs the same tool in
+                // parallel gets ids.
+                if let index = job.steps.firstIndex(where: open) {
                     job.steps[index].done = true
                     job.steps[index].failed = !ok
+                    job.steps[index].finishedAt = finishedAt
                 }
             }
         }
@@ -198,7 +219,7 @@ extension SessionMachine {
 
     private mutating func start(_ goal: String, _ id: JobID?) {
         guard let job = projection.job else {
-            projection.job = JobTimeline(goal: goal, id: id)
+            projection.job = JobTimeline(goal: goal, startedAt: clock.now(), id: id)
             begin()
             projection.kind = .processing(.subAgentRunning)
             return
@@ -213,8 +234,19 @@ extension SessionMachine {
         if let index = projection.queued.firstIndex(where: { $0.id == id }) {
             projection.queued[index].goal = goal
         } else {
-            projection.queued.append(JobTimeline(goal: goal, id: id))
+            projection.queued.append(JobTimeline(goal: goal, startedAt: clock.now(), id: id))
         }
+    }
+
+    /// Stamps the step with its start and an id: the stream's own, or a
+    /// counter-based one flagged `minted` when the producer has none.
+    private mutating func timed(_ step: JobStepInfo, _ stepID: String?) -> JobStepInfo {
+        var step = step
+        step.startedAt = clock.now()
+        stepsMinted += 1
+        step.id = stepID ?? "local-\(stepsMinted)"
+        step.minted = stepID == nil
+        return step
     }
 
     /// A voice-born job only exists as events: a step before its name still
@@ -223,7 +255,7 @@ extension SessionMachine {
     private mutating func append(_ step: JobStepInfo, _ id: JobID?) {
         if timeline(id, { $0.steps.append(step) }) { return }
         guard projection.job == nil else { return }
-        projection.job = JobTimeline(goal: nil, steps: [step], id: id)
+        projection.job = JobTimeline(goal: nil, startedAt: clock.now(), steps: [step], id: id)
         projection.kind = .processing(.subAgentRunning)
     }
 
