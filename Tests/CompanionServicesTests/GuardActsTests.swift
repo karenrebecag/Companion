@@ -15,7 +15,7 @@ private final class Sheets: SpreadsheetDriving, @unchecked Sendable {
     func workbook(_ app: SheetApp) async throws -> String { "/tmp/libro.xlsx" }
     func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]] { cells }
     func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String) async throws -> SheetWriteReceipt {
-        SheetWriteReceipt(backupPath: "/tmp/b.xlsx", readBack: [])
+        SheetWriteReceipt(readBack: [])
     }
 }
 

@@ -22,6 +22,8 @@ struct LaunchEnvironment {
     let probe: LiveCapabilityProbe
     let memoryStore: FileMemoryStore
     let skillsLocation: SkillsLocation
+    /// Built once here and handed down; nothing else resolves the real store.
+    let fileVersions: FileVersions
     let skillStore: SkillStore
     let configProvider: StoredConfigProvider
     let config: Config
@@ -106,7 +108,8 @@ func makeLaunchEnvironment() -> LaunchEnvironment {
     return LaunchEnvironment(
         home: home, support: support, secrets: secrets, hostSecrets: keychain, appsPin: appsPin,
         transport: transport, probe: probe, memoryStore: memoryStore, skillsLocation: skillsLocation,
-        skillStore: skillStore, configProvider: configProvider, config: config,
+        fileVersions: FileVersions.standard(), skillStore: skillStore,
+        configProvider: configProvider, config: config,
         permissionReset: ProcessPermissionResetter(
             bundleID: Bundle.main.bundleIdentifier ?? "",
             bundlePath: Bundle.main.bundleURL.path))

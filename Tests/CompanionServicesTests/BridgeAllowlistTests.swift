@@ -22,7 +22,7 @@ private struct NoSheets: SpreadsheetDriving {
     func workbook(_ app: SheetApp) async throws -> String { "" }
     func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]] { [] }
     func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String) async throws -> SheetWriteReceipt {
-        SheetWriteReceipt(backupPath: "", readBack: [])
+        SheetWriteReceipt(readBack: [])
     }
 }
 
