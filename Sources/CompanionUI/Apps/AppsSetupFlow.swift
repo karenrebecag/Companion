@@ -60,6 +60,9 @@ package struct AppsSetupFlow: Equatable {
     package enum Outcome: Equatable, Sendable {
         case saved, storageFailed
         case serverFailed(AppsFailure)
+        /// Another save was still being checked, so nothing was tried; the
+        /// form goes back to editing rather than staying locked.
+        case notStarted
 
         /// The save is only proven once the function answers the first load.
         package static func after(load phase: AppsModel.Phase) -> Outcome {
@@ -107,6 +110,7 @@ package struct AppsSetupFlow: Equatable {
         case .saved: phase = .confirmed
         case .storageFailed: phase = .failed(.storage)
         case .serverFailed(let failure): phase = .failed(.server(failure))
+        case .notStarted: phase = .editing
         }
     }
 
