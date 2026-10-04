@@ -214,3 +214,14 @@ test('sanitizeTab adds controlled, opener and createdAt with safe defaults', () 
   assert.equal(sanitizeTab({ id: 3, openerTabId: 'x' }, { controlled: 'yes', createdAt: 'x' }).opener, null);
   assert.equal(sanitizeTab({ id: 3 }, { controlled: 'yes', createdAt: 'x' }).createdAt, null);
 });
+
+// H-7 P2a: the finders travel as typed fields; anything else is refused before the page sees it.
+test('browser_read accepts the finder fields with their types and refuses the rest', () => {
+  const ok = (args) => validateCall({ name: 'browser_read', arguments: { tab: 1, ...args } }).ok;
+  assert.equal(ok({ text: 'Guardar', exact: true, role: 'button', name: 'Guardar', max: 5, maxChars: 100 }), true);
+  assert.equal(ok({ generation: 3, within: 2 }), true);
+  for (const bad of [{ text: 5 }, { exact: 'yes' }, { role: 1 }, { name: [] }, { max: 0 }, { max: 1.5 }, { maxChars: -1 },
+    { within: 2 }, { generation: 3, within: 'x' }, { text: '  ' }, { name: 'Guardar' }]) {
+    assert.equal(ok(bad), false, JSON.stringify(bad));
+  }
+});

@@ -137,16 +137,13 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
             return fail(.read, BridgeCode.invalidArgs, "missing or invalid tab")
         }
         if let denied = await requireControl(.read, tab) { return denied }
-        var selector: String?
-        if let raw = arguments["selector"], !(raw is NSNull) {
-            guard let text = raw as? String else {
-                return fail(.read, BridgeCode.invalidArgs, "selector must be a string")
-            }
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            selector = trimmed.isEmpty ? nil : trimmed
+        let query: BrowserQuery
+        switch readQuery(arguments, tab: tab) {
+        case .query(let parsed): query = parsed
+        case .refused(let refused): return refused
         }
         let epoch = presence.epoch
-        switch await channel.send(.read(tab: tab, selector: selector), timeout: Self.readTimeout) {
+        switch await channel.send(.read(tab: tab, query: query), timeout: Self.readTimeout) {
         case .failure(let error):
             if error.code == BridgeCode.staleId { lost(tab) }
             return failed(.read, error)

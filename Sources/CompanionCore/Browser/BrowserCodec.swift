@@ -142,8 +142,8 @@ package enum BrowserCodec {
         switch command {
         case .tabs:
             return (BrowserTool.tabs.rawValue, [:])
-        case .read(let tab, let selector):
-            return (BrowserTool.read.rawValue, ["tab": tab, "selector": selector.map { $0 as Any } ?? NSNull()])
+        case .read(let tab, let query):
+            return (BrowserTool.read.rawValue, query.wireArguments.merging(["tab": tab]) { _, tab in tab })
         case .click(let tab, let generation, let element):
             return (BrowserTool.click.rawValue, ["tab": tab, "generation": generation, "element": element])
         case .doubleClick(let tab, let generation, let element):
