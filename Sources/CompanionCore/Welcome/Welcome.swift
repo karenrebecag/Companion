@@ -15,6 +15,13 @@ package enum WelcomeStep: Int, Sendable, Equatable, CaseIterable {
     /// the cover and the greeting play again from the start.
     package var resumable: Bool { self != .cover && self != .hello }
 
+    /// Incredible plays music on its signup/permissions/ready pages
+    /// (createFirstRunIO-Dv00aAyF.js @35812, hook `ds`), which are the key,
+    /// permissions and hold-key screens here. Not the cover or the greeting
+    /// (the voice speaks there), not the microphone test (it needs a quiet
+    /// room), not the last turn (Incredible's has none either).
+    package var hasMusic: Bool { self == .keys || self == .permissions || self == .holdKey }
+
     /// Stored by name, not by raw value, so reordering the cases never sends
     /// a relaunch to the wrong screen.
     package var savedName: String { String(describing: self) }
@@ -22,6 +29,14 @@ package enum WelcomeStep: Int, Sendable, Equatable, CaseIterable {
     package init?(savedName: String) {
         guard let step = Self.allCases.first(where: { $0.savedName == savedName }) else { return nil }
         self = step
+    }
+}
+
+/// Whether the welcome's background music should be sounding. Pure so the
+/// model, the view and the tests all ask the same question.
+package enum WelcomeMusic {
+    package static func plays(step: WelcomeStep, muted: Bool, shown: Bool, finished: Bool) -> Bool {
+        step.hasMusic && !muted && shown && !finished
     }
 }
 
@@ -125,6 +140,13 @@ package protocol WelcomeDevices: Sendable {
     /// Says a short line with the system voice: the welcome speaks before
     /// any key exists.
     func greet(_ text: String, language: AppLanguage) async
+    /// Starts or stops the background music; idempotent. Machines that
+    /// cannot play (fakes, previews) keep the default and stay silent.
+    func setMusic(playing: Bool) async
+}
+
+package extension WelcomeDevices {
+    func setMusic(playing: Bool) async {}
 }
 
 package extension WelcomePermission {

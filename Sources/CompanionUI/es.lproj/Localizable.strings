@@ -301,6 +301,9 @@
 "welcome.continue" = "Continuar";
 "welcome.back" = "Atrás";
 "welcome.skip" = "Saltar";
+"welcome.music" = "Música de fondo";
+"welcome.music.on" = "Activada";
+"welcome.music.off" = "Desactivada";
 "welcome.stepOf" = "Paso %d de %d";
 "welcome.greeting" = "Hola, soy Companion. Vamos a dejarme lista.";
 "welcome.greeting.name" = "Hola, %@. Soy Companion. Vamos a dejarme lista.";
