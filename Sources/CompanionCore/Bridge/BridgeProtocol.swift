@@ -132,13 +132,52 @@ package struct BridgeCallResult: Codable, Sendable, Equatable {
     package var target: String
     package var tool: String?
 
+    /// After stripping, only newline and tab remain as controls, so JSON
+    /// escaping at most doubles a byte: both caps together stay under the
+    /// 64 KB line the shim refuses past.
+    package static let maxOutputBytes = 24_000
+    package static let maxTargetBytes = 1_000
+    /// "result is partial" is the phrase an agent learns to narrow on.
+    package static let truncationNote =
+        "\n(truncated: the result is partial. Narrow the request to a smaller part, then retry.)"
+
     /// The only way a tool outcome becomes a bridge reply, so the screen
-    /// text is cleaned here once for every call path.
+    /// text is cleaned and capped here once for every call path.
     package init(_ outcome: ParentToolOutcome) {
         self.ok = outcome.ok
-        self.output = BridgeScreenText.strip(outcome.output)
-        self.target = BridgeScreenText.strip(outcome.target)
+        let output = BridgeScreenText.strip(outcome.output)
+        let kept = Self.prefix(output, bytes: Self.maxOutputBytes)
+        self.output = output.utf8.count > Self.maxOutputBytes ? kept + Self.truncationNote : output
+        self.target = Self.prefix(BridgeScreenText.strip(outcome.target), bytes: Self.maxTargetBytes)
         self.tool = outcome.tool
+    }
+
+    /// Whole characters only: a cut through a multibyte one would not decode.
+    private static func prefix(_ text: String, bytes limit: Int) -> String {
+        guard text.utf8.count > limit else { return text }
+        var kept = ""
+        var used = 0
+        for character in text {
+            let size = character.utf8.count
+            guard used + size <= limit else { break }
+            kept.append(character)
+            used += size
+        }
+        // A first character bigger than the cap (a base with thousands of
+        // combining marks) would leave nothing: fall back to whole scalars.
+        return kept.isEmpty ? scalarPrefix(text, bytes: limit) : kept
+    }
+
+    private static func scalarPrefix(_ text: String, bytes limit: Int) -> String {
+        var kept = String.UnicodeScalarView()
+        var used = 0
+        for scalar in text.unicodeScalars {
+            let size = String(scalar).utf8.count
+            guard used + size <= limit else { break }
+            kept.append(scalar)
+            used += size
+        }
+        return String(kept)
     }
 
     package init(ok: Bool, output: String, target: String, tool: String? = nil) {
