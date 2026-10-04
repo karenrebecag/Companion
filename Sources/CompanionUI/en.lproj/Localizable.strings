@@ -300,6 +300,9 @@
 "welcome.continue" = "Continue";
 "welcome.back" = "Back";
 "welcome.skip" = "Skip";
+"welcome.music" = "Background music";
+"welcome.music.on" = "On";
+"welcome.music.off" = "Off";
 "welcome.stepOf" = "Step %d of %d";
 "welcome.greeting" = "Hi, I'm Companion. Let's get me ready.";
 "welcome.greeting.name" = "Hi, %@. I'm Companion. Let's get me ready.";
