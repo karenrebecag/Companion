@@ -472,7 +472,7 @@
 "apps.total" = "%ld apps";
 "apps.none" = "Ninguna app coincide con esa búsqueda.";
 "apps.more" = "Mostrar más (%ld restantes)";
-"apps.connect" = "+ Conectar";
+"apps.connect" = "Conectar";
 "apps.reconnect" = "Volver a conectar";
 "apps.connected" = "Conectada";
 "apps.retry" = "Reintentar";

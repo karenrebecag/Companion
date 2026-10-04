@@ -2,18 +2,19 @@ import CompanionCore
 import SwiftUI
 
 /// Incredible 0.2.36's `connectors-skeleton` (local reference): what the
-/// Apps page shows while the first catalog page is on its way. Its cards are
-/// the connector card's silhouette, not AppCard's, because that is what
-/// Incredible draws.
+/// Apps page shows while the first catalog page is on its way. The lines are
+/// the skeleton's own; the box is AppCard's, because Incredible's skeleton
+/// box (p-6, a 52 icon) is a few points off its own card and the list would
+/// jump when it lands.
 package enum AppsSkeletonMetrics {
     package static let cards = 8
     package static let columns = 2
     package static let gridTop: CGFloat = Space.x1
-    package static let cardPadding: CGFloat = Space.x6
-    package static let cardRadius: CGFloat = Radius.card
-    package static let cardGap: CGFloat = Space.x4
-    package static let icon: CGFloat = 52
-    package static let iconRadius: CGFloat = Radius.xl
+    package static let cardPadding: CGFloat = AppCardMetrics.padding
+    package static let cardRadius: CGFloat = AppCardMetrics.radius
+    package static let cardGap: CGFloat = AppCardMetrics.gap
+    package static let icon: CGFloat = AppCardMetrics.icon
+    package static let iconRadius: CGFloat = AppCardMetrics.iconRadius
     /// Tailwind's plain `rounded` resolves to Incredible's --radius (10).
     package static let lineRadius: CGFloat = Radius.chip
     package static let titleHeight: CGFloat = Space.x3_5
@@ -85,5 +86,7 @@ struct AppsCatalogSkeleton: View {
         .clipShape(RoundedRectangle(cornerRadius: AppsSkeletonMetrics.cardRadius))
         .overlay(RoundedRectangle(cornerRadius: AppsSkeletonMetrics.cardRadius)
             .strokeBorder(Semantic.borderChrome, lineWidth: Stroke.hairline))
+        // Same lift as the AppCard it stands in for, so the swap does not flicker.
+        .elevation(.hover)
     }
 }

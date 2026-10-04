@@ -21,6 +21,9 @@ package enum Palette {
     package static let dangerHover = Swatch("B91C1C")
     /// The island's live/success green and the dark switch's "on".
     package static let signalGreen = Swatch("78D6A8")
+    /// Incredible's "Connected" pill on the connector card: green ink on a green wash.
+    package static let connectedWash = Swatch("E3F1E8")
+    package static let connectedInk = Swatch("2C7A4B")
     /// Links and focus only: Incredible's buttons are black.
     package static let link = Swatch("007AFF")
 }
