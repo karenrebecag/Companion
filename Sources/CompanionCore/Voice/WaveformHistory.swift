@@ -52,6 +52,8 @@ package struct WaveformHistory: Sendable {
     private var peak = 0.0
     private var latest = 0.0
     private var voiced = false
+    /// The latest frame's own flag, for a live column that never gets pushed.
+    private var latestVoiced = false
     /// Once a voice detector speaks, its flag replaces the gate for good.
     private var hasDetector = false
 
@@ -85,6 +87,7 @@ package struct WaveformHistory: Sendable {
         let level = raw.isFinite ? min(max(raw, 0), 1) : 0
         latest = level
         peak = max(peak, level)
+        latestVoiced = flag ?? false
         if let flag {
             hasDetector = true
             voiced = voiced || flag
@@ -92,12 +95,20 @@ package struct WaveformHistory: Sendable {
     }
 
     package func isVoiced(_ level: Double) -> Bool {
-        hasDetector ? voiced : level > Self.gate
+        isVoiced(level, flag: voiced)
+    }
+
+    private func isVoiced(_ level: Double, flag: Bool) -> Bool {
+        hasDetector ? flag : level > Self.gate
     }
 
     /// 0 for silence; otherwise a height in (gate, 1] by distance to the peak.
     package func sample(for level: Double) -> Double {
-        guard isVoiced(level) else { return 0 }
+        sample(for: level, flag: voiced)
+    }
+
+    private func sample(for level: Double, flag: Bool) -> Double {
+        guard isVoiced(level, flag: flag) else { return 0 }
         let amplitude = Self.amplitude(level: level)
         let decibels = 20 * log10(max(amplitude, 1e-6) / max(reference, Self.peakFloor))
         let position = min(max((decibels + Self.window) / Self.window, 0), 1)
@@ -134,6 +145,10 @@ package struct WaveformHistory: Sendable {
     /// What a frame draws: the history only while it scrolls, then the live
     /// column, which follows the voice even when motion is reduced.
     package func marks(width: Double, scrolls: Bool) -> [WaveformMark] {
+        // Without scrolling no column is ever pushed, so the column's peak and
+        // flag would hold the loudest voice since the strip appeared; the
+        // latest frame alone is what is live (brief decision D4).
+        let live = scrolls ? sample(for: current) : sample(for: latest, flag: latestVoiced)
         var marks: [WaveformMark] = []
         if scrolls {
             for index in samples.indices {
@@ -141,7 +156,7 @@ package struct WaveformHistory: Sendable {
                 marks.append(WaveformMark(x: x, sample: samples[index]))
             }
         }
-        marks.append(WaveformMark(x: Self.headX(width: width), sample: sample(for: current)))
+        marks.append(WaveformMark(x: Self.headX(width: width), sample: live))
         return marks.filter { $0.x >= -Self.barWidth }
     }
 
