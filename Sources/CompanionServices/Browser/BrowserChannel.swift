@@ -232,6 +232,8 @@ package actor BrowserChannel {
         case .type: return .type
         case .scroll, .scrollTo: return .scroll
         case .hover: return .hover
+        case .dragTo, .dragBy: return .drag
+        case .clickAt: return .clickAt
         case .navigate: return .navigate
         case .open: return .open
         case .take: return .take
@@ -248,7 +250,7 @@ package actor BrowserChannel {
         switch (command, inbound) {
         case (.tabs, .tabs), (.read, .page), (.click, .done), (.doubleClick, .done), (.rightClick, .done),
              (.type, .done), (.navigate, .done),
-             (.scroll, .done), (.scrollTo, .done), (.hover, .done),
+             (.scroll, .done), (.scrollTo, .done), (.hover, .done), (.dragTo, .done), (.dragBy, .done), (.clickAt, .done),
              (.open, .opened), (.take, .done), (.release, .done):
             return result
         default:

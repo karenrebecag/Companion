@@ -85,6 +85,8 @@ package enum BridgeScope {
         "browser_double_click", "browser_right_click",
         // H-7 P5b: move the view or the pointer; no sheet, still the write budget.
         "browser_scroll", "browser_hover",
+        // H-7 P7: drag judged on both ends, click_at always asks.
+        "browser_drag", "browser_click_at",
         // Self-qa PR-3 (ADR 009): Companion lets an agent inspect it, read
         // only and behind the same session sheet; it never lends the hands.
         "companion_state", "companion_island", "companion_settings", "companion_thread",

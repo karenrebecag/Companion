@@ -39,6 +39,8 @@ function isHttpURL(raw) {
 // Pixels per axis in one scroll; the host refuses more, this only keeps a forged call from flinging the page.
 const SCROLL_LIMIT = 20000;
 const isPixels = (v) => isInt(v) && Math.abs(v) <= SCROLL_LIMIT;
+// A viewport coordinate: no screen is wider than this, so a bigger number is a forged or broken call.
+const isPoint = (v) => isInt(v) && v >= 0 && v <= SCROLL_LIMIT;
 
 const SHAPES = {
   browser_tabs: () => true,
@@ -51,6 +53,11 @@ const SHAPES = {
   browser_scroll: (a) => isInt(a.tab) && (a.element != null
     ? isInt(a.generation) && isInt(a.element) && a.dx == null && a.dy == null
     : isPixels(a.dx) && isPixels(a.dy)),
+  // Onto another element of the read, or by an offset that goes somewhere; never both.
+  browser_drag: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && (a.to != null
+    ? isInt(a.to) && a.to !== a.element && a.dx == null && a.dy == null
+    : isPixels(a.dx) && isPixels(a.dy) && (a.dx !== 0 || a.dy !== 0)),
+  browser_click_at: (a) => isInt(a.tab) && isInt(a.generation) && isPoint(a.x) && isPoint(a.y),
   browser_type: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.text === 'string',
   browser_navigate: (a) => isInt(a.tab) && isHttpURL(a.url),
   browser_open: (a) => isHttpURL(a.url),

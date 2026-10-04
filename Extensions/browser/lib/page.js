@@ -530,6 +530,44 @@
     return node;
   }
 
+  // A drag's drop point is measured where the page is: scrolling to the target would move the source the
+  // press already holds.
+  function boxOf(generation, id) {
+    const found = lookup(stateOf(), generation, id);
+    if (found.error) return found;
+    const el = found.element;
+    if (el.ownerDocument !== document) return { inFrame: true };
+    const r = el.getBoundingClientRect();
+    const box = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const inView = r.width > 0 && r.height > 0 && box.x >= 0 && box.y >= 0
+      && box.x <= window.innerWidth && box.y <= window.innerHeight;
+    return { box, inView };
+  }
+
+  const EMBEDS = new Set(['iframe', 'frame', 'object', 'embed']);
+  // What each press saw at its point before the cursor glide, by token; weak, so a gone node is not kept alive.
+  const pointMarks = new Map();
+  const POINT_MARKS_MAX = 16;
+
+  // A press at a bare point goes to the innermost node there, so the frame test walks out from it through
+  // shadow hosts: an embedded frame, or anything inside one, belongs to a page nobody read. The token pairs the
+  // look before the glide with the one right before the press, so a node that slid in between is caught.
+  function pointAt(x, y, token) {
+    const node = deepElementFromPoint(document, x, y);
+    let frame = false;
+    for (let at = node; at; at = at.parentNode ?? at.parentElement ?? at.host ?? null) {
+      if (at.tagName && EMBEDS.has(tagOf(at))) { frame = true; break; }
+    }
+    if (token == null) return { frame, same: true };
+    const seen = pointMarks.get(token);
+    if (!seen) {
+      if (pointMarks.size >= POINT_MARKS_MAX) pointMarks.clear();
+      pointMarks.set(token, node ? new WeakRef(node) : null);
+      return { frame, same: true };
+    }
+    return { frame, same: (seen?.deref() ?? null) === (node ?? null) };
+  }
+
   // Re-checked right before the press: the page had the whole cursor glide to slip something on top.
   function hitsAt(generation, id, x, y) {
     const found = lookup(stateOf(), generation, id);
@@ -592,7 +630,7 @@
 
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
-    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt,
+    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt, boxOf, pointAt,
     click: (generation, id) => act(generation, id, clickElement),
     doubleClick: (generation, id) => act(generation, id, doubleClickElement),
     contextClick: (generation, id) => act(generation, id, contextClickElement),

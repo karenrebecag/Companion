@@ -224,3 +224,25 @@ test('sanitizeTab adds controlled, opener and createdAt with safe defaults', () 
   assert.equal(sanitizeTab({ id: 3, openerTabId: 'x' }, { controlled: 'yes', createdAt: 'x' }).opener, null);
   assert.equal(sanitizeTab({ id: 3 }, { controlled: 'yes', createdAt: 'x' }).createdAt, null);
 });
+
+// H-7 P7: a drag names one way to move, a point stays a whole non-negative pixel.
+test('validateCall takes a drag onto an element or by an offset, and a click at a point', () => {
+  const ok = (name, args) => validateCall({ name, arguments: args }).ok;
+  assert.equal(ok('browser_drag', { tab: 1, generation: 3, element: 2, to: 5 }), true);
+  assert.equal(ok('browser_drag', { tab: 1, generation: 3, element: 2, dx: -20000, dy: 0 }), true);
+  assert.equal(ok('browser_click_at', { tab: 1, generation: 3, x: 0, y: 20000 }), true);
+  for (const args of [
+    { tab: 1, generation: 3, element: 2 },
+    { tab: 1, generation: 3, element: 2, to: 2 },
+    { tab: 1, generation: 3, element: 2, to: 5, dx: 1, dy: 0 },
+    { tab: 1, generation: 3, element: 2, dx: 0, dy: 0 },
+    { tab: 1, generation: 3, element: 2, dx: 20001, dy: 0 },
+    { tab: 1, element: 2, to: 5 },
+  ]) assert.equal(ok('browser_drag', args), false, JSON.stringify(args));
+  for (const args of [
+    { tab: 1, generation: 3, x: -1, y: 0 },
+    { tab: 1, generation: 3, x: 1.5, y: 0 },
+    { tab: 1, generation: 3, x: 0, y: 20001 },
+    { tab: 1, x: 0, y: 0 },
+  ]) assert.equal(ok('browser_click_at', args), false, JSON.stringify(args));
+});

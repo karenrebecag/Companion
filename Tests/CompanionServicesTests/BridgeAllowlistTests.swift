@@ -106,6 +106,8 @@ private func selfInspection() -> SelfInspectionRunner {
         "browser_double_click", "browser_right_click",
         // H-7 P5b: move the view or the pointer; no sheet, still the write budget.
         "browser_scroll", "browser_hover",
+        // H-7 P7: drag on both ends' gates; a point always asks.
+        "browser_drag", "browser_click_at",
         // Self-qa PR-3: added deliberately, read-only, behind the same sheet.
         "companion_state", "companion_island", "companion_settings", "companion_thread",
         "companion_last_message_matches", "companion_log",

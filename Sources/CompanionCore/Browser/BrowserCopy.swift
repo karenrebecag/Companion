@@ -69,6 +69,21 @@ package enum BrowserCopy {
         case (.hover, .es):
             return "Pasa el puntero sobre un elemento numerado por la última browser_read, para abrir un menú o "
                 + "una ayuda que solo aparece al pasar por encima. Vuelve a leerla para verlo."
+        case (.drag, .en):
+            return "Drag an element numbered by the last browser_read onto another (to) or by dx and dy pixels, "
+                + "to reorder a list, move a card or a slider. Onto an element it asks when either end would ask "
+                + "for a click; by an offset it always asks."
+        case (.drag, .es):
+            return "Arrastra un elemento numerado por la última browser_read sobre otro (to) o dx y dy píxeles, "
+                + "para reordenar una lista, mover una tarjeta o un deslizador. Sobre un elemento pregunta si "
+                + "alguno de los dos extremos lo pediría para un clic; por píxeles siempre pregunta."
+        case (.clickAt, .en):
+            return "Click a point x, y of the visible page, for what no element number reaches (a canvas or a map). "
+                + "The point must come from a browser_read less than a minute old. It always asks first."
+        case (.clickAt, .es):
+            return "Pulsa un punto x, y de la página visible, para lo que ningún número de elemento alcanza (un "
+                + "lienzo o un mapa). El punto debe salir de una browser_read de hace menos de un minuto. "
+                + "Siempre pregunta antes."
         case (.navigate, .en):
             return "Open an http or https address in a tab you control. Going to another site than the one shown asks first."
         case (.navigate, .es):
@@ -102,10 +117,16 @@ package enum BrowserCopy {
         case ("element", .es): return "número de elemento de la última browser_read"
         case ("text", .en): return "the exact text to type"
         case ("text", .es): return "el texto exacto a escribir"
-        case ("dx", .en): return "pixels to scroll right (negative goes left)"
-        case ("dx", .es): return "píxeles a desplazar a la derecha (negativo va a la izquierda)"
-        case ("dy", .en): return "pixels to scroll down (negative goes up)"
-        case ("dy", .es): return "píxeles a desplazar hacia abajo (negativo sube)"
+        case ("dx", .en): return "pixels to the right (negative goes left)"
+        case ("dx", .es): return "píxeles hacia la derecha (negativo va a la izquierda)"
+        case ("dy", .en): return "pixels down (negative goes up)"
+        case ("dy", .es): return "píxeles hacia abajo (negativo sube)"
+        case ("to", .en): return "element number from the last browser_read to drop onto"
+        case ("to", .es): return "número de elemento de la última browser_read sobre el que soltar"
+        case ("x", .en): return "pixels from the left edge of the visible page"
+        case ("x", .es): return "píxeles desde el borde izquierdo de la página visible"
+        case ("y", .en): return "pixels from the top edge of the visible page"
+        case ("y", .es): return "píxeles desde el borde superior de la página visible"
         case ("url", .en): return "the http or https address"
         case ("url", .es): return "la dirección http o https"
         default: return name
@@ -213,6 +234,10 @@ extension BrowserCopy {
         case (.scroll, .es): return "Desplacé la página en el navegador."
         case (.hover, .en): return "Moved the pointer in the browser."
         case (.hover, .es): return "Pasé el puntero en el navegador."
+        case (.drag, .en): return "Dragged in the browser."
+        case (.drag, .es): return "Arrastré en el navegador."
+        case (.clickAt, .en): return "Clicked a point in the browser."
+        case (.clickAt, .es): return "Pulsé un punto en el navegador."
         case (.navigate, .en): return "Navigated the browser."
         case (.navigate, .es): return "Navegué en el navegador."
         case (.open, .en): return "Opened a background tab."

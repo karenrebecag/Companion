@@ -10,7 +10,7 @@ import Testing
     expectEq(BrowserTool.take.rawValue, "browser_take", "take")
     expectEq(BrowserTool.release.rawValue, "browser_release", "release")
     for tool in [BrowserTool.open, .take, .release] { expect(tool.isWrite, "\(tool.rawValue) es escritura") }
-    expectEq(BrowserTool.allCases.count, 12, "doce tools (H-7 P5a doble clic y clic derecho, P5b desplazar y pasar el puntero)")
+    expectEq(BrowserTool.allCases.count, 14, "catorce tools (H-7 P5a doble y derecho, P5b desplazar y puntero, P7 arrastrar y clic en punto)")
 }
 
 @Test func theNewToolsSpecifyTheirArgumentsInBothLanguages() {

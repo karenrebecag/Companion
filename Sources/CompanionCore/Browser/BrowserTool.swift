@@ -12,6 +12,8 @@ package enum BrowserTool: String, CaseIterable, Sendable {
     case type = "browser_type"
     case scroll = "browser_scroll"
     case hover = "browser_hover"
+    case drag = "browser_drag"
+    case clickAt = "browser_click_at"
     case navigate = "browser_navigate"
     case open = "browser_open"
     case take = "browser_take"
@@ -19,7 +21,9 @@ package enum BrowserTool: String, CaseIterable, Sendable {
 
     package var isWrite: Bool {
         switch self {
-        case .click, .doubleClick, .rightClick, .type, .scroll, .hover, .navigate, .open, .take, .release: return true
+        case .click, .doubleClick, .rightClick, .type, .scroll, .hover, .drag, .clickAt, .navigate, .open, .take,
+             .release:
+            return true
         case .tabs, .read: return false
         }
     }
@@ -39,6 +43,14 @@ package enum BrowserTool: String, CaseIterable, Sendable {
     /// Pixels per axis in one call: a few screens, so a runaway loop pages
     /// through a document instead of flinging to its end.
     package static let scrollLimit = 20_000
+
+    /// The largest viewport coordinate click_at takes; no screen is wider, so
+    /// a bigger number is a mistake, not a place on the page.
+    package static let pointLimit = 20_000
+
+    /// How long the read that click_at's point and drag's target come from
+    /// stays good, as in Incredible: after it the page may have moved under them.
+    package static let readFreshness: TimeInterval = 60
 
     package func spec(_ language: AppLanguage) -> ToolSpec {
         ToolSpec(
@@ -72,6 +84,13 @@ package enum BrowserTool: String, CaseIterable, Sendable {
                     Parameter(name: "dy", type: "integer", required: false),
                     Parameter(name: "element", type: "integer", required: false)]
         case .hover: return [tab, element]
+        case .drag:
+            return [tab, element, Parameter(name: "to", type: "integer", required: false),
+                    Parameter(name: "dx", type: "integer", required: false),
+                    Parameter(name: "dy", type: "integer", required: false)]
+        case .clickAt:
+            return [tab, Parameter(name: "x", type: "integer", required: true),
+                    Parameter(name: "y", type: "integer", required: true)]
         case .navigate: return [tab, Parameter(name: "url", type: "string", required: true)]
         case .open: return [Parameter(name: "url", type: "string", required: true)]
         case .take, .release: return [tab]
