@@ -11,6 +11,10 @@ struct SettingsElevenLabsVoice: View {
     let fallbackVoice: VoiceID
 
     @State private var model = ElevenLabsVoiceModel()
+    // Pages also render in tests that never open the sheet.
+    @Environment(SettingsSaveCenter.self) private var saves: SettingsSaveCenter?
+    // Writes must persist with or without a sheet around the page.
+    @State private var unhosted = SettingsSaveCenter()
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
@@ -31,7 +35,7 @@ struct SettingsElevenLabsVoice: View {
         RadioCards(
             label: Localized.string("settings.voice.eleven.voice"),
             options: ElevenLabsVoiceCards.options(storedVoiceID: model.voiceID),
-            selection: Binding(get: { model.shownChoice }, set: { model.choose($0) }))
+            selection: Binding(get: { model.shownChoice }, set: { choose($0) }))
         if model.shownChoice == .custom {
             HStack(alignment: .bottom, spacing: Space.x2) {
                 AppField(
@@ -40,11 +44,11 @@ struct SettingsElevenLabsVoice: View {
                     text: $model.customField,
                     error: model.errorText,
                     messagesInHint: true,
-                    onSubmit: { model.applyCustom() })
+                    onSubmit: applyCustom)
                 AppButton(
                     Localized.string("settings.voice.eleven.custom.apply"), kind: .ghost,
                     enabled: !model.customField.trimmingCharacters(in: .whitespaces).isEmpty,
-                    action: { model.applyCustom() })
+                    action: applyCustom)
             }
         }
         if let preview {
@@ -58,6 +62,19 @@ struct SettingsElevenLabsVoice: View {
                 preview.playMouth(fallbackVoice)
             }
         }
+    }
+
+    private func choose(_ choice: ElevenLabsVoiceChoice) {
+        if case .preset(let id) = choice,
+           let preset = ElevenLabsMouth.presets.first(where: { $0.id == id }) {
+            (saves ?? unhosted).chooseElevenLabs(model, preset)
+        } else {
+            model.choose(choice)
+        }
+    }
+
+    private func applyCustom() {
+        (saves ?? unhosted).applyElevenLabsCustom(model)
     }
 
     private func caption(_ text: String) -> some View {

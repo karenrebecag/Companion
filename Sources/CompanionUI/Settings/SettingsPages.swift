@@ -7,10 +7,15 @@ import SwiftUI
 struct SettingsYouPage: View {
     var welcome: WelcomeModel? = nil
     var onClose: () -> Void = {}
-    @State private var ownerName = UserProfile.ownerName
-    @State private var about = UserProfile.about
-    @State private var instructions = UserProfile.instructions
-    @State private var city = UserProfile.city
+    // Pages also render in tests that never open the sheet.
+    @Environment(SettingsSaveCenter.self) private var saves: SettingsSaveCenter?
+    // Writes must persist with or without a sheet around the page.
+    @State private var unhosted = SettingsSaveCenter()
+    @State private var nameSlot = SettingsSaveSlot(committed: UserProfile.ownerName)
+    @State private var aboutSlot = SettingsSaveSlot(committed: UserProfile.about)
+    @State private var instructionsSlot = SettingsSaveSlot(committed: UserProfile.instructions)
+    @State private var citySlot = SettingsSaveSlot(committed: UserProfile.city)
+    @State private var avatarError: String?
     @State private var avatar = UserProfile.avatarImage
     @State private var fontDelta = TypeScale.delta
     @State private var appearance = AppearancePreference.stored
@@ -25,28 +30,36 @@ struct SettingsYouPage: View {
             SettingsCard {
                 profileRow.settingsSearchTarget("settings.you.photo")
                 SettingsRow(title: Localized.string("settings.you.name"), key: "settings.you.name") {
-                    TextField(Localized.string("settings.you.name.placeholder"), text: $ownerName)
-                        .textFieldStyle(.plain)
-                        .font(.uiLabel)
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: Container.hero)
+                    field(
+                        Localized.string("settings.you.name.placeholder"),
+                        text: binding(.name, $nameSlot),
+                        error: nameSlot.error,
+                        onEnd: { endEditing(.name, $nameSlot) })
                 }
                 SettingsRow(
                     title: Localized.string("settings.you.city"),
-                    subtitle: Localized.string("settings.you.city.subtitle"), key: "settings.you.city"
+                    subtitle: description(
+                        beside: citySlot.error, Localized.string("settings.you.city.subtitle")),
+                    key: "settings.you.city"
                 ) {
-                    TextField(Localized.string("settings.you.city.placeholder"), text: $city)
-                        .textFieldStyle(.plain)
-                        .font(.uiLabel)
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: Container.hero)
+                    field(
+                        Localized.string("settings.you.city.placeholder"),
+                        text: binding(.city, $citySlot),
+                        error: citySlot.error,
+                        onEnd: { endEditing(.city, $citySlot) })
                 }
                 SettingsTextRow(
                     title: Localized.string("settings.you.about"), key: "settings.you.about",
-                    placeholder: Localized.string("settings.you.about.placeholder"), text: $about)
+                    placeholder: Localized.string("settings.you.about.placeholder"),
+                    text: binding(.about, $aboutSlot),
+                    error: aboutSlot.error,
+                    onEnd: { endEditing(.about, $aboutSlot) })
                 SettingsTextRow(
                     title: Localized.string("settings.you.instructions"), key: "settings.you.instructions",
-                    placeholder: Localized.string("settings.you.instructions.placeholder"), text: $instructions)
+                    placeholder: Localized.string("settings.you.instructions.placeholder"),
+                    text: binding(.instructions, $instructionsSlot),
+                    error: instructionsSlot.error,
+                    onEnd: { endEditing(.instructions, $instructionsSlot) })
             }
             SettingsCard(label: Localized.string("settings.you.looks")) {
                 SettingsRow(title: Localized.string("settings.app.appearance"), key: "settings.app.appearance") {
@@ -69,10 +82,6 @@ struct SettingsYouPage: View {
                 }
             }
         }
-        .onChange(of: ownerName) { persistProfile() }
-        .onChange(of: about) { persistProfile() }
-        .onChange(of: instructions) { persistProfile() }
-        .onChange(of: city) { persistProfile() }
         .onChange(of: appearance) { _, pref in
             AppearancePreference.stored = pref
             if let window = NSApp.keyWindow { WindowChrome.applyAppearance(window) }
@@ -86,12 +95,13 @@ struct SettingsYouPage: View {
         HStack(spacing: Space.x4) {
             avatarThumb
             VStack(alignment: .leading, spacing: Space.x1) {
-                Text(ownerName.isEmpty ? Localized.string("settings.you.photo") : ownerName)
+                Text(nameSlot.shown.isEmpty ? Localized.string("settings.you.photo") : nameSlot.shown)
                     .font(.uiSubtitle)
                     .foregroundStyle(Semantic.foreground)
-                Text(Localized.string("settings.you.photo.subtitle"))
+                Text(SettingsSaveRow.subtitle(
+                    error: avatarError, description: Localized.string("settings.you.photo.subtitle")))
                     .font(.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
+                    .foregroundStyle(photoFailed ? Semantic.destructive : Semantic.mutedForeground)
             }
             Spacer(minLength: Space.x3)
             SettingsPill(title: Localized.string("settings.change"), action: pickAvatar)
@@ -134,13 +144,61 @@ struct SettingsYouPage: View {
         }
     }
 
-    // No notification per keystroke: only the avatar posts, since it is the
-    // only thing other views observe; the text is read on demand.
-    private func persistProfile() {
-        UserProfile.ownerName = ownerName
-        UserProfile.about = about
-        UserProfile.instructions = instructions
-        UserProfile.city = city
+    private var photoFailed: Bool {
+        if let avatarError, !avatarError.isEmpty { return true }
+        return false
+    }
+
+    /// The description stays only while the helper would still show it.
+    /// An error replaces it, so the row does not say both.
+    private func description(beside error: String?, _ description: String) -> String? {
+        guard let error, !error.isEmpty else {
+            return SettingsSaveRow.subtitle(error: error, description: description)
+        }
+        return nil
+    }
+
+    private func field(
+        _ placeholder: String, text: Binding<String>, error: String?, onEnd: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .trailing, spacing: Space.x1) {
+            TextField(placeholder, text: text)
+                .textFieldStyle(.plain)
+                .font(.uiLabel)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: Container.hero)
+                .onEditingEnd(onEnd)
+            if let error, !error.isEmpty {
+                Text(SettingsSaveRow.subtitle(error: error, description: ""))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.destructive)
+                    .multilineTextAlignment(.trailing)
+            }
+        }
+    }
+
+    private var center: SettingsSaveCenter { saves ?? unhosted }
+
+    /// Persists on every keystroke; the notice waits for the end of the edit.
+    /// A revert writes the previous text back through this same binding.
+    private func binding(
+        _ field: SettingsProfileField, _ slot: Binding<SettingsSaveSlot<String>>
+    ) -> Binding<String> {
+        Binding(
+            get: { slot.wrappedValue.shown },
+            set: { next in
+                var copy = slot.wrappedValue
+                center.commit(field.kind, &copy, next: next, timing: .onEndEditing, write: field.write)
+                slot.wrappedValue = copy
+            })
+    }
+
+    private func endEditing(
+        _ field: SettingsProfileField, _ slot: Binding<SettingsSaveSlot<String>>
+    ) {
+        var copy = slot.wrappedValue
+        center.endEditing(field.kind, &copy)
+        slot.wrappedValue = copy
     }
 
     private func pickAvatar() {
@@ -150,8 +208,32 @@ struct SettingsYouPage: View {
         panel.allowedContentTypes = [.image]
         panel.begin { response in
             guard response == .OK, let url = panel.url else { return }
-            if UserProfile.setAvatar(from: url) { avatar = UserProfile.avatarImage }
+            avatarError = center.avatarSet(saved: UserProfile.setAvatar(from: url))
+            if avatarError == nil { avatar = UserProfile.avatarImage }
         }
+    }
+}
+
+/// Focus loss, submit or the field leaving the screen ends an edit, so the
+/// page can announce it once; the settle is idempotent.
+private struct EditingEnd: ViewModifier {
+    let perform: () -> Void
+    @FocusState private var focused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .focused($focused)
+            .onChange(of: focused) { _, isFocused in
+                if !isFocused { perform() }
+            }
+            .onSubmit(perform)
+            .onDisappear(perform: perform)
+    }
+}
+
+private extension View {
+    func onEditingEnd(_ perform: @escaping () -> Void) -> some View {
+        modifier(EditingEnd(perform: perform))
     }
 }
 
@@ -162,6 +244,8 @@ struct SettingsTextRow: View {
     var key: String? = nil
     let placeholder: String
     @Binding var text: String
+    var error: String? = nil
+    var onEnd: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x2) {
@@ -175,6 +259,13 @@ struct SettingsTextRow: View {
                 .lineLimit(2 ... 6)
                 .padding(Space.x3)
                 .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Semantic.muted))
+                .onEditingEnd(onEnd)
+            if let error, !error.isEmpty {
+                Text(error)
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.destructive)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(.horizontal, Space.x4)
         .padding(.vertical, Space.x3)

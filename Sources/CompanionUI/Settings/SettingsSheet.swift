@@ -119,6 +119,7 @@ struct SettingsSheetHost: View {
     let onClose: () -> Void
 
     @Environment(DropdownHost.self) private var dropdowns
+    @State private var saves = SettingsSaveCenter()
 
     static var closeLabel: String { Localized.string("settings.close") }
 
@@ -147,6 +148,7 @@ struct SettingsSheetHost: View {
         return SettingsView(
             preview: preview, chat: chat, updates: updates, welcome: welcome,
             memory: memory, browser: browser, tab: $tab, query: $model.query, onClose: onClose)
+            .environment(saves)
             .background(Semantic.background)
             .clipShape(shape)
             .background(shape.fill(Semantic.background).elevation(SettingsSheetMetrics.elevation))
@@ -157,6 +159,10 @@ struct SettingsSheetHost: View {
                     onClose()
                 }
                 .padding(SettingsSheetMetrics.closeInset)
+            }
+            // Outside the clip: the popup shadow would be cut off inside it.
+            .overlay(alignment: .bottomTrailing) {
+                SettingsSaveNoticeOverlay(visible: saves.notice.visible)
             }
             .accessibilityElement(children: .contain)
             .accessibilityAddTraits(.isModal)

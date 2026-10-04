@@ -781,3 +781,7 @@
 "welcome.sound.slider" = "Mac volume";
 "welcome.sound.heard" = "I can hear Companion";
 "welcome.sound.anyway" = "Continue anyway";
+
+/* Settings sheet: the save notice, and the row when a write does not stick */
+"settings.save.saved" = "Saved";
+"settings.save.failed" = "That did not save. The previous value is back. Try again.";
