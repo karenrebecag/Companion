@@ -393,6 +393,7 @@
 /* Wave 16g: Settings with a sidebar */
 "settings.search.placeholder" = "Search settings…";
 "settings.search.none" = "Nothing matches “%@”.";
+"settings.group.account" = "Account";
 "settings.sidebar.version" = "Version %@";
 "settings.change" = "Change";
 "settings.you.looks" = "How it looks";

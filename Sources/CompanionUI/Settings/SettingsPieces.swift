@@ -163,7 +163,8 @@ struct SettingsPageHeader: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x1) {
             Text(title)
-                .font(.uiSubtitle)
+                .font(Fonts.sans(SettingsPaneMetrics.titleSize).weight(.semibold))
+                .tracking(Tracking.title, at: SettingsPaneMetrics.titleSize)
                 .foregroundStyle(Semantic.foreground)
             if let blurb {
                 Text(blurb)
