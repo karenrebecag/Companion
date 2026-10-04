@@ -770,3 +770,11 @@
 "settings.resetPermissions.service.listenEvent" = "Input Monitoring";
 "settings.resetPermissions.service.addressBook" = "Contacts";
 "settings.resetPermissions.service.appleEvents" = "Automation";
+
+/* WIN-8: the first-run sound check */
+"welcome.sound.title" = "Can you hear Companion?";
+"welcome.sound.body" = "Your Mac's volume is low. Turn it up so you can hear Companion speak.";
+"welcome.sound.muted" = "Your Mac is muted. Unmute it to hear Companion speak.";
+"welcome.sound.slider" = "Mac volume";
+"welcome.sound.heard" = "I can hear Companion";
+"welcome.sound.anyway" = "Continue anyway";
