@@ -53,6 +53,14 @@ package final class ManualSleeper: @unchecked Sendable {
     /// fire that runs first is lost for good. Wait on this before firing.
     package func armed(_ seconds: TimeInterval) -> Int { lock.withLock { armedDelays.filter { $0 == seconds }.count } }
 
+    /// 4.9 is not a binary-exact delay. Callers that subtract elapsed time
+    /// compare with a tolerance instead of `==`.
+    package func armed(near seconds: TimeInterval, tolerance: TimeInterval) -> Int {
+        lock.withLock { armedDelays.filter { abs($0 - seconds) <= tolerance }.count }
+    }
+
+    package var delays: [TimeInterval] { lock.withLock { armedDelays } }
+
     package func sleep(_ seconds: TimeInterval) async throws {
         await withCheckedContinuation { continuation in
             lock.withLock { armedDelays.append(seconds); waiters.append(continuation) }
