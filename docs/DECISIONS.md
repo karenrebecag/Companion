@@ -493,7 +493,7 @@ metadato, igualdad o rasgo derivado (D7 de self-qa-inspeccion-datos).
 
 ## ADR 010 — Subir un archivo local a una pagina por CDP
 
-**Fecha:** 2026-10-03 · **Estado:** PROPUESTO (plan h7-p8-browser-set-files D1-D9, pendientes de firma de Karen; brief navegador-mejoras-agentes K5)
+**Fecha:** 2026-10-03 · **Estado:** PROPUESTO (plan h7-p8-browser-set-files D1-D9 con la recomendacion del planner y opcion B del mecanismo, elegidas por Karen 2026-10-04 segun relay de OrquestadorPrincipal, no verificado en esta sesion; brief navegador-mejoras-agentes K5)
 
 **Contexto.** Los formularios que piden un archivo (un CV, una factura) se
 quedan a medio llenar: las manos del navegador escriben y hacen clic, pero un
@@ -501,16 +501,29 @@ quedan a medio llenar: las manos del navegador escriben y hacen clic, pero un
 `Page`, `Emulation` e `Input`.
 
 **Decision propuesta.** `browser_set_files` pone UN archivo local en un input
-de archivo de la ultima lectura. La extension suma cuatro metodos CDP:
-`DOM.getDocument`, `DOM.querySelectorAll`, `DOM.describeNode` y
-`DOM.setFileInputFiles`; el navegador lee el archivo por ruta, ningun byte
-cruza el puerto nativo. Sin `Runtime.evaluate`. La ruta la juzga Swift
-(`BrowserFilePolicy` sobre `ParentToolPolicy.homePath`): bajo `$HOME`, sin
-componentes ocultos, sin `~/Library`, sin bibliotecas de Fotos, sin llaves ni
-bovedas, solo archivos regulares, tope de `AttachmentPolicy.maxBytes`. Cada
+de archivo de la ultima lectura. La extension suma cinco metodos CDP, en este
+orden: `Page.getFrameTree` (fija `loaderId` y origen antes de marcar),
+`DOM.getDocument` (`depth:-1, pierce:true`), `DOM.querySelectorAll` (documento
+y shadow roots, nunca frames), `DOM.describeNode`, `Page.getFrameTree` otra vez
+justo antes de `DOM.setFileInputFiles`. El navegador lee el archivo por ruta,
+ningun byte cruza el puerto nativo. Sin `Runtime.evaluate`. La ruta la juzga
+Swift (`BrowserFilePolicy` sobre `ParentToolPolicy.homePath`, D2: todo `$HOME`):
+sin componentes ocultos, sin `~/Library`, sin bibliotecas de Fotos, sin llaves
+ni bovedas, solo archivos regulares, tope de `AttachmentPolicy.maxBytes`. Cada
 subida abre la hoja critica, nunca se recuerda ni se resuelve con un si
-hablado, y el ticket queda atado a elemento, origen y la identidad del archivo
-(ruta resuelta, tamano, mtime, inode). Nunca envia el formulario.
+hablado.
+
+**Que garantiza el binding.** El ticket queda atado al origen, al documento
+(mismo `loaderId` antes de marcar y antes de subir, y el `documentURL` en ese
+origen) y a la identidad del archivo (ruta resuelta, tamano, mtime, inode).
+El elemento exacto es mejor esfuerzo: se ubica con un marcador de un solo uso
+que la pagina puede ver y mover, se exige una sola coincidencia en todo el
+documento y que sea `INPUT type=file` del frame principal. Riesgo residual
+aceptado (MEDIUM): una pagina hostil del mismo origen puede llevar el archivo a
+otro campo de esa misma pagina; nunca a otro origen ni a otro documento. El
+camino para cerrar ese residuo es la opcion A (objectId desde el mundo aislado
+de la extension), en investigacion (`docs/research/p8-binding-mundo-aislado.md`).
+Nunca envia el formulario.
 
 **Lo que no se hizo.** Ni bytes por el puerto (tope de 1 MB y una copia del
 archivo en transito), ni el selector de macOS (D1: la hoja es el
