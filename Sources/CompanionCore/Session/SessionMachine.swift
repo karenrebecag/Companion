@@ -247,7 +247,7 @@ package struct SessionMachine: Sendable, Equatable {
             }
         case .pendingTimedOut:
             if projection.kind == .processing(.pending) { projection.kind = restingKind() }
-        case .passiveAfterChanged, .passiveExpired: break
+        case .passiveAfterChanged, .passiveExpired, .islandEngaged: break
         case .voiceIdleExpired:
             // A notice still sounding keeps the warm session: hanging up
             // would cut it mid-sentence (review 16h-2 S1). It tries again.
