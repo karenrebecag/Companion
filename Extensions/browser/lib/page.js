@@ -518,6 +518,53 @@
     return node;
   }
 
+  const covered = () => ({ error: { code: 'stale_id', message: 'something covers this element (a dialog or banner); read the page again' } });
+
+  // A styled checkbox or radio hides the input and draws its label on top: the label is how a person
+  // presses it, so being under its own label is not being covered.
+  function reachable(el, topmost) {
+    return hitsTarget(el, topmost) || Array.from(el.labels ?? []).some((label) => hitsTarget(label, topmost));
+  }
+
+  // The synthetic click is dispatched on the element itself, so an overlay never stops it; inside
+  // frames and in the trusted path's fallback it is the only click, and it must refuse what the user
+  // could not have pressed. Each same-origin frame up the chain is checked in its parent's coordinates.
+  // HACK: a cross-origin parent hides its frameElement, so every cross-origin frame (ads, payments,
+  // sign-in) is unchecked against overlays in the page around it. Hit-test the frame's box from the
+  // top document in the background before the synthetic click once the agent acts in such frames.
+  function isCovered(el) {
+    el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+    const r = el.getBoundingClientRect();
+    let win = el.ownerDocument.defaultView;
+    // Only the part on screen is tested: a centre pushed just off screen must not skip the check.
+    const left = Math.max(r.left, 0);
+    const top = Math.max(r.top, 0);
+    const right = Math.min(r.left + r.width, win.innerWidth);
+    const bottom = Math.min(r.top + r.height, win.innerHeight);
+    // Nothing on screen leaves nothing to hit-test; that case keeps the click it always had.
+    if (!(right > left && bottom > top)) return false;
+    let x = (left + right) / 2;
+    let y = (top + bottom) / 2;
+    let target = el;
+    for (;;) {
+      if (!reachable(target, deepElementFromPoint(target.ownerDocument, x, y))) return true;
+      const frame = win.frameElement;
+      if (!frame) return false;
+      // The frame's document starts inside its border and padding, and a CSS transform scales it.
+      const box = frame.getBoundingClientRect();
+      const style = frame.ownerDocument.defaultView.getComputedStyle(frame);
+      const scale = frame.offsetWidth > 0 ? box.width / frame.offsetWidth : 1;
+      x = box.left + ((frame.clientLeft || 0) + (parseFloat(style.paddingLeft) || 0) + x) * scale;
+      y = box.top + ((frame.clientTop || 0) + (parseFloat(style.paddingTop) || 0) + y) * scale;
+      target = frame;
+      win = frame.ownerDocument.defaultView;
+    }
+  }
+
+  function clickUncovered(el) {
+    return isCovered(el) ? covered() : clickElement(el);
+  }
+
   // Re-checked right before the press: the page had the whole cursor glide to slip something on top.
   function hitsAt(generation, id, x, y) {
     const found = lookup(stateOf(), generation, id);
@@ -581,7 +628,7 @@
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
     clickElement, doubleClickElement, contextClickElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt,
-    click: (generation, id) => act(generation, id, clickElement),
+    click: (generation, id) => act(generation, id, clickUncovered),
     doubleClick: (generation, id) => act(generation, id, doubleClickElement),
     contextClick: (generation, id) => act(generation, id, contextClickElement),
     type: (generation, id, text) => act(generation, id, (el) => typeIntoElement(el, text)),
