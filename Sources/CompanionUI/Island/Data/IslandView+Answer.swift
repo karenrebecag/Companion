@@ -12,8 +12,12 @@ extension IslandView {
            let message = chat.messages.first(where: { $0.id == id })
         {
             let blocks = AnswerBlocks.blocks(from: message.text)
+            // The channel card is not in the text. Without it here, "Ver"
+            // would open a popup that does not contain the result.
+            let channel = Self.channelCard(on: message)
             AnswerPopupView(
                 blocks: blocks,
+                card: channel,
                 // The notch sits centered on its screen, so twice its midX
                 // IS the screen width the 76 % cap wants.
                 screenWidth: geometry.notch.midX * 2,
@@ -61,7 +65,7 @@ extension IslandView {
     func openResult(_ id: UUID) {
         resultAttention.attended()
         guard let message = chat.messages.first(where: { $0.id == id }),
-              AnswerBlocks.isRich(AnswerBlocks.blocks(from: message.text))
+              Self.opensInPopup(message)
         else {
             onShowMain()
             return

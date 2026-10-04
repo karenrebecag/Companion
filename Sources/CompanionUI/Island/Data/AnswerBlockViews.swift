@@ -9,6 +9,9 @@ import SwiftUI
 /// The popup: a close affordance, then the blocks, scrolling when tall.
 struct AnswerPopupView: View {
     let blocks: [AnswerBlock]
+    /// A result that arrived beside the text. Nil for a fence, which is
+    /// already one of `blocks`.
+    var card: Card? = nil
     let screenWidth: CGFloat
     let maxHeight: CGFloat
     let onClose: () -> Void
@@ -46,7 +49,7 @@ struct AnswerPopupView: View {
     }
 
     private var list: some View {
-        AnswerBlockList(blocks: blocks)
+        AnswerBlockList(card: card, blocks: blocks)
             .frame(maxWidth: .infinity, alignment: .leading)
             .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) {
                 contentHeight = $0
@@ -55,10 +58,14 @@ struct AnswerPopupView: View {
 }
 
 struct AnswerBlockList: View {
+    var card: Card? = nil
     let blocks: [AnswerBlock]
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
+            if let card {
+                CardView(card: card)
+            }
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 AnswerBlockView(block: block)
             }

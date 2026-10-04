@@ -1,0 +1,1 @@
+- **"Ver →" en la isla solo abre lo que el popup puede mostrar (2026-10-04).** Una tarjeta de datos que llega aparte del texto ahora se dibuja en el popup; una galeria queda fuera a proposito hasta validar sus rutas, y un bloque de galeria o de opciones ya no genera una fila "Ver" que abria JSON crudo.
