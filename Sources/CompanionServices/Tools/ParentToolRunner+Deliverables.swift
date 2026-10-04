@@ -12,6 +12,7 @@ extension ParentToolRunner {
             switch tool {
             case .createDocument: documents != nil
             case .sheetRead, .sheetWrite: sheets != nil
+            case .listFileHistory, .restoreFileVersion: versions != nil
             default: false
             }
         }
@@ -22,9 +23,10 @@ extension ParentToolRunner {
               tool.riskLevel == .requiresApproval else { return nil }
         // Refused in execute: nothing to approve.
         if tool == .sheetWrite, Self.unnamedApp(call.arguments) { return nil }
+        let shown = tool == .restoreFileVersion ? nativeRunner.restoreSheetJSON(call.arguments) : call.arguments
         let request = ApprovalRequest(
             requestId: UUID().uuidString, toolName: call.name,
-            summary: "Tool requires user approval", inputJSON: call.arguments)
+            summary: "Tool requires user approval", inputJSON: shown)
         deliverableTickets.park(Self.ticket(call.name, call.arguments), id: request.requestId)
         return request
     }

@@ -77,7 +77,9 @@ private func tempStore() -> (store: FileVersions, root: URL) {
         expect(!names.contains(tool.rawValue) && !bare.handles(tool.rawValue),
                "padre: sin backing no se ofrece \(tool.rawValue)")
     }
-    let backed = runner()
+    let (store, storeRoot) = tempStore()
+    defer { do { try FileManager.default.removeItem(at: storeRoot) } catch {} }
+    let backed = runner(versions: store)
     let offered = Set(backed.specs(.es).map(\.name))
     for tool in NativeTool.parentDeliverables {
         expect(offered.contains(tool.rawValue) && backed.handles(tool.rawValue),
