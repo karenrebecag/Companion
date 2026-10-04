@@ -154,6 +154,7 @@
 "settings.voice.eleven.custom.placeholder" = "voice id de ElevenLabs";
 "settings.voice.eleven.custom.apply" = "Usar";
 "settings.voice.eleven.custom.label" = "Personalizada";
+"settings.voice.eleven.default" = "Predeterminada";
 "settings.voice.eleven.invalid" = "Ese voice id no es válido: solo letras y números, hasta 64.";
 "settings.voice.patience" = "Paciencia";
 "settings.voice.patience.blurb" = "Cede el turno cuando llevas este silencio sin hablar.";
