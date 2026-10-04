@@ -16,6 +16,7 @@ struct SettingsPrivacyPage: View {
     /// show up here until the page reappears — same tradeoff `sounds` and
     /// `screenGlow` already make on this page's sibling.
     @State private var lendHands = HandsLendingPreference.enabled
+    @Environment(\.openSettingsDialog) private var openSettingsDialog
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
@@ -52,12 +53,16 @@ struct SettingsPrivacyPage: View {
                     SettingsSwitch(label: Localized.string("settings.privacy.lendHands"), isOn: $lendHands)
                 }
             }
-            if let welcome {
-                SettingsCard(label: Localized.string("settings.permissions"), key: "settings.permissions") {
-                    ForEach(WelcomePermission.allCases, id: \.self) { permission in
-                        SettingsPermissionRow(model: PermissionRowModel(
-                            kind: permission.rowKind,
-                            granted: welcome.facts.granted.contains(permission)))
+            if welcome != nil {
+                SettingsCard(label: Localized.string("settings.permissions")) {
+                    SettingsRow(
+                        title: Localized.string("settings.permissions"),
+                        subtitle: Localized.string("settings.dialog.permissions.subline"),
+                        key: "settings.permissions"
+                    ) {
+                        SettingsPill(title: Localized.string("settings.dialog.open")) {
+                            openSettingsDialog(.permissions)
+                        }
                     }
                 }
             }
@@ -212,7 +217,6 @@ struct SettingsSystemPage: View {
     var chat: ChatViewModel?
     var updates: UpdateState?
     let storageLabel: String
-    @Binding var confirmPurge: Bool
     /// Attachments change while other pages are open; read on each visit.
     var onAppear: () -> Void = {}
     let history: HistoryClearModel
@@ -220,6 +224,7 @@ struct SettingsSystemPage: View {
     @State private var muteWhileTalking = MuteSoundWhileTalkingPref.enabled
     @State private var screenGlow = ScreenGlowPreference.enabled()
     @Environment(\.openURL) private var openURL
+    @Environment(\.openSettingsDialog) private var openSettingsDialog
 
     /// The row only asks; the dialog and its model do the deleting.
     func pressClearRow() { history.present() }
@@ -282,7 +287,7 @@ struct SettingsSystemPage: View {
                 SettingsPill(
                     title: Localized.string("settings.system.purge"), kind: .destructive,
                     enabled: chat?.hasStoredAttachments ?? false
-                ) { confirmPurge = true }
+                ) { openSettingsDialog(.purgeAttachments) }
             }
         default:
             EmptyView()

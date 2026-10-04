@@ -145,7 +145,7 @@ private final class StillDevices: WelcomeDevices, @unchecked Sendable {
     case .system:
         page = AnyView(SettingsSystemPage(
             chat: chat(), updates: nil, storageLabel: "12 MB",
-            confirmPurge: .constant(false), history: HistoryClearModel()))
+            history: HistoryClearModel()))
     }
     return AnyView(HStack(alignment: .top, spacing: Space.none) {
         SettingsSidebar(tab: .constant(tab), query: .constant(""), onPick: { _ in })

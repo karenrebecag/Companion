@@ -86,7 +86,7 @@ import Testing
         // Production always passes these two; their cards are what the entries name.
         .privacy: AnyView(SettingsPrivacyPage(chat: nil, welcome: quietWelcome(), browser: quietBrowser())),
         .system: AnyView(SettingsSystemPage(
-            chat: nil, updates: nil, storageLabel: "", confirmPurge: .constant(false),
+            chat: nil, updates: nil, storageLabel: "",
             onAppear: {}, history: HistoryClearModel())),
     ]
     for tab in SettingsTab.allCases {

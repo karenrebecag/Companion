@@ -165,7 +165,6 @@
 "settings.voice.eagerness.low" = "Baja";
 "settings.voice.eagerness.auto" = "Auto";
 "settings.voice.eagerness.high" = "Alta";
-"settings.purge.blurb" = "Se borran las copias de todo lo que has adjuntado, %@. Las conversaciones que las citaban se quedan sin ellas y el texto se conserva.";
 
 /* Vistas */
 "approval.autodeny" = "Si no respondes, se deniega solo.";
@@ -882,3 +881,12 @@
 "orb.listening" = "Escuchando";
 "orb.thinking" = "Pensando";
 "orb.speaking" = "Hablando";
+
+/* Settings dialogs. local reference; brief ajustes-hoja-incredible S4 */
+"settings.dialog.open" = "Abrir";
+"settings.dialog.cancel" = "Cancelar";
+"settings.dialog.shortcuts.title" = "Atajos";
+"settings.dialog.shortcuts.subline" = "Las teclas que ejecutan cada acción. Aquí se muestran, no se editan.";
+"settings.dialog.shortcuts.unset" = "Sin asignar";
+"settings.dialog.permissions.subline" = "Lo que Companion puede usar en esta Mac.";
+"settings.dialog.purge.subline" = "Se borran las copias de todo lo que has adjuntado. Las conversaciones que las citaban se quedan sin ellas y el texto se conserva.";

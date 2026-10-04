@@ -31,12 +31,12 @@ package struct SettingsView: View {
     let onClose: () -> Void
     @Binding var tab: SettingsTab
     @Binding var query: String
+    @Binding var dialogs: SettingsDialogStack
     @State private var band: SettingsBand?
     /// The row a pick is looking for; the nonce restarts the search on a new pick.
     @State private var jumpTarget: String?
     @State private var jumpNonce = 0
     @State private var presentRows: Set<String> = []
-    @State private var confirmPurge = false
     @State private var history = HistoryClearModel()
     @State private var storageLabel = Localized.string("settings.storage.empty")
     /// Bumped on a language change: every string on screen repaints at once.
@@ -53,6 +53,7 @@ package struct SettingsView: View {
         browser: BrowserSettingsModel? = nil,
         tab: Binding<SettingsTab> = .constant(.general),
         query: Binding<String> = .constant(""),
+        dialogs: Binding<SettingsDialogStack> = .constant(SettingsDialogStack()),
         onClose: @escaping () -> Void = {}
     ) {
         self.preview = preview
@@ -63,6 +64,7 @@ package struct SettingsView: View {
         self.updates = updates
         self._tab = tab
         self._query = query
+        self._dialogs = dialogs
         self.onClose = onClose
     }
 
@@ -70,6 +72,7 @@ package struct SettingsView: View {
 
     package var body: some View {
         sheetBody
+        .environment(\.openSettingsDialog, openDialog)
         .overlay {
             if dropdowns.session.isOpen, case .settingsPick = dropdowns.menu {
                 Color.black.opacity(0.001)
@@ -78,8 +81,11 @@ package struct SettingsView: View {
                     }
             }
         }
-        .overlay { purgeConfirm }
         .overlay { HistoryClearDialog(model: history, chat: chat) }
+        .overlay {
+            SettingsDialogLayer(
+                stack: $dialogs, permissions: permissionModels, onConfirm: purgeStoredFiles)
+        }
         .dropdownPortal(host: dropdowns)
         .onDisappear {
             dropdowns.dismiss()
@@ -154,7 +160,10 @@ package struct SettingsView: View {
     @ViewBuilder private var page: some View {
         switch tab {
         case .general:
-            SettingsGeneralPage(accessibility: chat?.accessibility, onLanguageChange: languageChanged)
+            VStack(alignment: .leading, spacing: Space.x5) {
+                SettingsGeneralPage(accessibility: chat?.accessibility, onLanguageChange: languageChanged)
+                SettingsDialogLinks(ids: [.shortcuts], open: openDialog)
+            }
         case .voice:
             SettingsVoiceSection(preview: preview, secrets: chat?.secrets)
         case .vocabulary:
@@ -168,7 +177,7 @@ package struct SettingsView: View {
         case .system:
             SettingsSystemPage(
                 chat: chat, updates: updates, storageLabel: storageLabel,
-                confirmPurge: $confirmPurge, onAppear: refreshStorage, history: history)
+                onAppear: refreshStorage, history: history)
         }
     }
 
@@ -182,6 +191,30 @@ package struct SettingsView: View {
         band = nil
         jumpTarget = SettingsSearchJump.target(for: entry)
         jumpNonce += 1
+        if let dialog = SettingsDialogID.opened(by: entry.id) {
+            openDialog(dialog)
+        }
+    }
+
+    private func openDialog(_ id: SettingsDialogID) {
+        dropdowns.dismiss()
+        dialogs.present(id)
+    }
+
+    /// The same real action the old blurred confirmation ran.
+    private func purgeStoredFiles() {
+        _ = dialogs.confirm {
+            chat?.purgeStoredAttachments()
+            refreshStorage()
+        }
+    }
+
+    private var permissionModels: [PermissionRowModel] {
+        WelcomePermission.allCases.map { permission in
+            PermissionRowModel(
+                kind: permission.rowKind,
+                granted: welcome?.facts.granted.contains(permission) ?? false)
+        }
     }
 
     private func languageChanged() {
@@ -191,45 +224,6 @@ package struct SettingsView: View {
 
     private func refreshStorage() {
         storageLabel = chat?.attachmentsStorageLabel ?? Localized.string("settings.storage.empty")
-    }
-
-    @ViewBuilder
-    private var purgeConfirm: some View {
-        if confirmPurge {
-            ZStack {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Semantic.scrim)
-                    .onTapGesture { confirmPurge = false }
-                VStack(alignment: .leading, spacing: Space.x3) {
-                    Text(Localized.string("settings.purge.title"))
-                        .font(.uiSubtitle)
-                        .foregroundStyle(Semantic.foreground)
-                    Text(String(format: Localized.string("settings.purge.blurb"), storageLabel))
-                        .font(.uiCaption)
-                        .foregroundStyle(Semantic.mutedForeground)
-                        .fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: Space.x2) {
-                        Spacer()
-                        SettingsPill(title: Localized.string("settings.purge.cancel")) { confirmPurge = false }
-                        SettingsPill(title: Localized.string("settings.purge.confirm"), kind: .destructive) {
-                            chat?.purgeStoredAttachments()
-                            refreshStorage()
-                            confirmPurge = false
-                        }
-                    }
-                }
-                .padding(Space.x5)
-                .frame(maxWidth: Container.sheet)
-                .background(
-                    RoundedRectangle(cornerRadius: Radius.card)
-                        .fill(Semantic.surfaceOverlay)
-                        .elevation(.sheet))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Radius.card)
-                        .stroke(Semantic.border, lineWidth: Stroke.hairline))
-            }
-        }
     }
 }
 

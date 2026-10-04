@@ -67,7 +67,7 @@ struct ClearHistoryUITests {
         let history = HistoryClearModel()
         let page = SettingsSystemPage(
             chat: nil, updates: nil, storageLabel: "",
-            confirmPurge: .constant(false), history: history)
+            history: history)
         expect(!history.presented, "the dialog starts closed")
         page.pressClearRow()
         expect(history.presented, "the row's button opens the confirmation")
