@@ -252,14 +252,30 @@ extension BrowserToolRunner {
     /// Fails closed: a tab that cannot be found, or an origin that cannot be
     /// compared, is not a tab that stayed where it was read.
     func tabIsStillAt(_ tab: Int, origin: String) async -> Bool {
-        guard !origin.isEmpty else { return false }
+        guard !origin.isEmpty, let live = await liveURL(tab) else { return false }
+        return BrowserPolicy.sameOrigin(live, origin)
+    }
+
+    /// A point or a drag lands on whatever is drawn there, so the origin is too
+    /// coarse: a link, a redirect or a pushState to another path of the same
+    /// site is another screen. Only the fragment may differ, as an anchor jump
+    /// leaves the page as it was read.
+    func tabIsStillOn(_ tab: Int, url: String) async -> Bool {
+        guard !url.isEmpty, let live = await liveURL(tab) else { return false }
+        return Self.withoutFragment(live) == Self.withoutFragment(url)
+    }
+
+    private func liveURL(_ tab: Int) async -> String? {
         let asOf = leases.sequence
         guard case .success(.tabs(_, let tabs)) = await channel.send(.tabs, timeout: Self.actTimeout)
-        else { return false }
+        else { return nil }
         leases.noteListing(tabs, asOf: asOf)
-        guard let current = tabs.first(where: { $0.id == tab }), !current.url.isEmpty
-        else { return false }
-        return BrowserPolicy.sameOrigin(current.url, origin)
+        guard let current = tabs.first(where: { $0.id == tab }), !current.url.isEmpty else { return nil }
+        return current.url
+    }
+
+    private static func withoutFragment(_ url: String) -> String {
+        url.firstIndex(of: "#").map { String(url[..<$0]) } ?? url
     }
 
     func leftItsOrigin(_ tool: BrowserTool, _ tab: Int) -> ParentToolOutcome {

@@ -266,6 +266,17 @@ test('validateCall takes a drag onto an element or by an offset, and a click at 
     { tab: 1, element: 2, to: 5 },
   ]) assert.equal(ok('browser_drag', args), false, JSON.stringify(args));
   for (const args of [
+    { tab: 1, generation: 3, element: 2, dx: Number.MIN_SAFE_INTEGER, dy: 0 },
+    { tab: 1, generation: 3, element: 2, dx: Number.MAX_SAFE_INTEGER, dy: 0 },
+    { tab: 1, generation: 3, element: 2, dx: 0, dy: Number.MIN_SAFE_INTEGER },
+    { tab: 1, generation: 3, element: 2, dx: 0, dy: Number.MAX_SAFE_INTEGER },
+    { tab: 1, generation: 3, element: 2, dx: 0, dy: -20001 },
+    { tab: 1, generation: 3, element: 2, dx: 10.5, dy: 0 },
+    { tab: 1, generation: 3, element: 2, dx: '10', dy: 0 },
+    { tab: 1, generation: 3, element: 2, to: null },
+    { tab: 1, generation: 3, element: 2, dx: null, dy: 5 },
+  ]) assert.equal(ok('browser_drag', args), false, JSON.stringify(args));
+  for (const args of [
     { tab: 1, generation: 3, x: -1, y: 0 },
     { tab: 1, generation: 3, x: 1.5, y: 0 },
     { tab: 1, generation: 3, x: 0, y: 20001 },

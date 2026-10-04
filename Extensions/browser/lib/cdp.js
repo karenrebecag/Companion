@@ -139,10 +139,16 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
   async function mouseDrag(tabId, from, to, steps = DRAG_STEPS) {
     await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y, button: 'none', buttons: 0 });
     await send(tabId, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1 });
-    for (let step = 1; step <= steps; step++) {
-      const x = from.x + ((to.x - from.x) * step) / steps;
-      const y = from.y + ((to.y - from.y) * step) / steps;
-      await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'left', buttons: 1 });
+    let at = from;
+    try {
+      for (let step = 1; step <= steps; step++) {
+        at = { x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps };
+        await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y, button: 'left', buttons: 1 });
+      }
+    } catch (error) {
+      // A button left down would stay down in the page; the move's error is the one worth reporting.
+      await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: at.x, y: at.y, button: 'left', buttons: 0, clickCount: 1 }).catch(() => {});
+      throw error;
     }
     await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1 });
   }
