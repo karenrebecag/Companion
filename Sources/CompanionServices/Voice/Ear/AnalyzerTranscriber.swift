@@ -32,11 +32,17 @@ package struct TranscriberAssets: Sendable, Equatable {
     package var nothingToInstall: Bool
     /// `SpeechTranscriber.installedLocales` lists the locale.
     package var localeInstalled: Bool
+    /// The engine has a model for this locale at all. Dictation can name a
+    /// language it lacks; that is not a download to wait for.
+    package var supported: Bool
 
-    package init(status: String, nothingToInstall: Bool, localeInstalled: Bool) {
+    package init(
+        status: String, nothingToInstall: Bool, localeInstalled: Bool, supported: Bool = true
+    ) {
         self.status = status
         self.nothingToInstall = nothingToInstall
         self.localeInstalled = localeInstalled
+        self.supported = supported
     }
 
     /// Code review 2026-09-24 (alto): live, `status` said missing for a
@@ -67,6 +73,9 @@ package actor AnalyzerTranscriber: Transcriber {
 
     private let engine: any TranscriberEngine
     private let vocabulary: @Sendable () -> [String]
+    /// The interface's locale, read when the dictation locale has no model:
+    /// a hold in a language the engine cannot hear would end deaf.
+    private let fallbackLocale: @Sendable () -> String
     /// The bound on the analyzer's own final; past it the last partial is
     /// the answer, the same contract the old ear kept (15c-1).
     private let finalizeTimeout: TimeInterval
@@ -99,10 +108,14 @@ package actor AnalyzerTranscriber: Transcriber {
     package init(
         engine: any TranscriberEngine,
         vocabulary: @escaping @Sendable () -> [String],
+        fallbackLocale: @escaping @Sendable () -> String = {
+            AppLanguage.en.speechLocaleIdentifier
+        },
         finalizeTimeout: TimeInterval = 0.5
     ) {
         self.engine = engine
         self.vocabulary = vocabulary
+        self.fallbackLocale = fallbackLocale
         self.finalizeTimeout = finalizeTimeout
     }
 
@@ -115,11 +128,34 @@ package actor AnalyzerTranscriber: Transcriber {
         let owner = generation
         await halt()
         guard owner == generation else { return }
-        let locale = Self.locale(localeIdentifier)
+        var locale = Self.locale(localeIdentifier)
         active = true
+        var checked: TranscriberAssets?
         if !ready.contains(locale) {
-            let assets = await engine.assets(localeIdentifier: locale)
+            let found = await engine.assets(localeIdentifier: locale)
             guard owner == generation else { return }
+            if found.supported, !found.isReady,
+               let ready = await readyFallback(besides: locale) {
+                // A language picked a moment ago has no model yet: this hold
+                // listens in the fallback and the pick installs in the
+                // background, so a later hold hears it.
+                guard owner == generation else { return }
+                Log.app("ear=apple locale=\(locale) assets=missing fallback=\(ready)")
+                let picked = locale
+                Task { await self.prepare(localeIdentifier: picked) }
+                locale = ready
+            } else if found.supported {
+                checked = found
+            } else {
+                locale = Self.locale(fallbackLocale())
+                Log.app("ear=apple locale=unsupported fallback=\(locale)")
+                if !ready.contains(locale) {
+                    checked = await engine.assets(localeIdentifier: locale)
+                    guard owner == generation else { return }
+                }
+            }
+        }
+        if let assets = checked {
             guard assets.isReady else {
                 // A hold before the model is on disk would wait ~52 s; it
                 // ends as "no te oí" instead and the install starts meanwhile.
@@ -201,6 +237,17 @@ package actor AnalyzerTranscriber: Transcriber {
         return text
     }
 
+    /// The fallback locale when its model is on disk, else nil.
+    private func readyFallback(besides locale: String) async -> String? {
+        let fallback = Self.locale(fallbackLocale())
+        guard fallback != locale else { return nil }
+        if ready.contains(fallback) { return fallback }
+        let assets = await engine.assets(localeIdentifier: fallback)
+        guard assets.supported, assets.isReady else { return nil }
+        ready.insert(fallback)
+        return fallback
+    }
+
     /// Downloads the on-device model for `localeIdentifier` when missing —
     /// once per locale in flight. Called at launch and by a hold that found
     /// the model absent.
@@ -208,7 +255,18 @@ package actor AnalyzerTranscriber: Transcriber {
         let locale = Self.locale(localeIdentifier)
         guard !ready.contains(locale), installing.insert(locale).inserted else { return }
         defer { installing.remove(locale) }
-        guard await !engine.assets(localeIdentifier: locale).isReady else {
+        let found = await engine.assets(localeIdentifier: locale)
+        guard found.supported else {
+            let fallback = Self.locale(fallbackLocale())
+            // One hop: a fallback that is itself unsupported ends here.
+            guard fallback != locale else {
+                Log.app("ear=apple assets=unsupported locale=\(locale)")
+                return
+            }
+            await prepare(localeIdentifier: fallback)
+            return
+        }
+        guard !found.isReady else {
             ready.insert(locale)
             return
         }

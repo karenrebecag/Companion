@@ -76,6 +76,7 @@ struct SettingsGeneralPage: View {
     @State private var muteWhileTalking = MuteSoundWhileTalkingPref.enabled
     @State private var screenGlow = ScreenGlowPreference.enabled()
     @State private var context = ContextSettingsModel()
+    @State private var dictationLanguages = SpokenLanguagePreference.dictationCodes()
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
@@ -103,6 +104,7 @@ struct SettingsGeneralPage: View {
                     SettingsPermissionRow(model: context.accessibilityRow)
                 }
                 SettingsLanguageLine(onChange: onLanguageChange)
+                DictationLanguageLine(codes: $dictationLanguages)
                 SettingsRow(
                     title: Localized.string("settings.sounds"),
                     subtitle: Localized.string("settings.sounds.subtitle"),
@@ -136,6 +138,7 @@ struct SettingsGeneralPage: View {
         .onAppear {
             context.accessibility = accessibility
             context.refreshTrust()
+            dictationLanguages = SpokenLanguagePreference.dictationCodes()
         }
         .task {
             // The dictation row answers a grant made in System Settings.
@@ -161,6 +164,215 @@ enum HoldCopy {
         case .off: Localized.string("settings.app.talk.dictationKey.off")
         case .rightOption: Localized.string("settings.app.talk.dictationKey.rightOption")
         case .rightCommand: Localized.string("settings.app.talk.dictationKey.rightCommand")
+        }
+    }
+}
+
+/// The settings menu commits one row. Dictation keeps up to five codes, so
+/// this trigger opens a multi-select popover instead of that menu. The wide
+/// settings popup is not on this branch (local reference; Incredible
+/// language pickers).
+// HACK: a 320pt popover with a search field stands in for Incredible's wide
+// popup, and the Speaking row uses a menu without search. Both are tight for
+// thirty languages. Replace them with the wide settings popup when it lands.
+struct DictationLanguageLine: View {
+    @Binding var codes: [String]
+    @State private var open = false
+    @State private var query = ""
+
+    private var pill: String {
+        if codes.isEmpty {
+            return Localized.string("settings.dictation.language.auto")
+        }
+        return codes.map { Localized.string("spoken.language.\($0)") }
+            .joined(separator: " · ")
+    }
+
+    private var visible: [SpokenLanguagePreference.Entry] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return SpokenLanguagePreference.catalog }
+        return SpokenLanguagePreference.catalog.filter { entry in
+            entry.code.localizedCaseInsensitiveContains(needle)
+                || entry.englishName.localizedCaseInsensitiveContains(needle)
+                || entry.nativeName.localizedCaseInsensitiveContains(needle)
+                || Localized.string("spoken.language.\(entry.code)")
+                    .localizedCaseInsensitiveContains(needle)
+        }
+    }
+
+    var body: some View {
+        SettingsRow(
+            title: Localized.string("settings.dictation.language"),
+            subtitle: Localized.string("settings.dictation.language.subtitle"),
+            key: "settings.dictation.language"
+        ) {
+            Button {
+                open = true
+            } label: {
+                HStack(spacing: SelectMetrics.gap) {
+                    Text(pill)
+                        .font(Fonts.sans(TypeSize.body).weight(.medium))
+                        .foregroundStyle(Semantic.foreground)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.uiMicro)
+                        .foregroundStyle(Semantic.faintForeground)
+                }
+                .padding(.horizontal, SelectMetrics.paddingX)
+                .frame(height: SelectMetrics.height)
+                .background(Semantic.wash)
+                .clipShape(RoundedRectangle(cornerRadius: SelectMetrics.radius))
+                .contentShape(RoundedRectangle(cornerRadius: SelectMetrics.radius))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(pill))
+            .popover(isPresented: $open, arrowEdge: .bottom) {
+                picker
+            }
+        }
+        .onChange(of: open) { _, isOpen in
+            if !isOpen { query = "" }
+        }
+    }
+
+    private var picker: some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            TextField(Localized.string("settings.dictation.language.search"), text: $query)
+                .textFieldStyle(.roundedBorder)
+            if codes.isEmpty, query.isEmpty {
+                Text(Localized.string("settings.dictation.language.empty"))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !codes.isEmpty {
+                Text(Localized.string("settings.dictation.language.selected"))
+                    .font(.uiMicro)
+                    .foregroundStyle(Semantic.mutedForeground)
+                ForEach(codes, id: \.self) { code in
+                    Button {
+                        toggle(code)
+                    } label: {
+                        HStack {
+                            Text(Localized.string("spoken.language.\(code)"))
+                                .font(.uiLabel)
+                                .foregroundStyle(Semantic.foreground)
+                            Spacer()
+                            Image(systemName: "xmark")
+                                .font(.uiMicro)
+                                .foregroundStyle(Semantic.faintForeground)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text(Localized.string("spoken.language.\(code)")))
+                }
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: Space.x1) {
+                    if visible.isEmpty {
+                        Text(String(
+                            format: Localized.string("settings.dictation.language.none"),
+                            SpokenLanguagePreference.catalog.count))
+                            .font(.uiCaption)
+                            .foregroundStyle(Semantic.mutedForeground)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    ForEach(visible, id: \.code) { entry in
+                        languageRow(entry)
+                    }
+                }
+            }
+            .frame(maxHeight: 280)
+        }
+        .padding(Space.x3)
+        .frame(width: 320)
+    }
+
+    private func languageRow(_ entry: SpokenLanguagePreference.Entry) -> some View {
+        let selected = codes.contains(entry.code)
+        return Button {
+            toggle(entry.code)
+        } label: {
+            HStack(spacing: Space.x2) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(Localized.string("spoken.language.\(entry.code)"))
+                        .font(.uiLabel)
+                        .foregroundStyle(Semantic.foreground)
+                    if !entry.nativeName.isEmpty {
+                        Text(entry.nativeName)
+                            .font(.uiCaption)
+                            .foregroundStyle(Semantic.mutedForeground)
+                    }
+                }
+                Spacer(minLength: Space.x2)
+                if selected {
+                    Image(systemName: "checkmark")
+                        .font(.uiMicro)
+                        .foregroundStyle(Semantic.foreground)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!selected && codes.count >= SpokenLanguagePreference.maxDictation)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func toggle(_ code: String) {
+        var next = codes
+        if let index = next.firstIndex(of: code) {
+            next.remove(at: index)
+        } else if next.count < SpokenLanguagePreference.maxDictation {
+            next.append(code)
+        } else {
+            return
+        }
+        SpokenLanguagePreference.setDictation(next)
+        codes = SpokenLanguagePreference.dictationCodes()
+    }
+}
+
+struct SpeechLanguageLine: View {
+    @Binding var choice: String
+    let dictation: [String]
+
+    private var interface: AppLanguage { Localized.language() }
+
+    private var autoLabel: String {
+        SpeechLanguageCopy.autoLabel(dictation: dictation, interface: interface)
+    }
+
+    private var pill: String {
+        SpeechLanguageCopy.pill(choice: choice, dictation: dictation, interface: interface)
+    }
+
+    private var subtitle: String {
+        SpeechLanguageCopy.subtitle(choice: choice, dictation: dictation, interface: interface)
+    }
+
+    private var options: [(String, String)] {
+        [(SpokenLanguagePreference.automatic, autoLabel)]
+            + SpokenLanguagePreference.catalog.map { entry in
+                (entry.code, Localized.string("spoken.language.\(entry.code)"))
+            }
+    }
+
+    var body: some View {
+        SettingsRow(
+            title: Localized.string("settings.speech.language"),
+            subtitle: subtitle,
+            key: "settings.speech.language"
+        ) {
+            SettingsItem(
+                title: "",
+                value: pill,
+                options: options,
+                id: "settings.speech.language"
+            ) { picked in
+                SpokenLanguagePreference.setSpeech(picked)
+                choice = SpokenLanguagePreference.speechCode()
+            }
         }
     }
 }

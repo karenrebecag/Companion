@@ -180,6 +180,17 @@ final class ClassicRuntime: @unchecked Sendable {
     /// 15f-2: judges each sentence's language before the mouth says it;
     /// injectable so tests do not depend on the system's model.
     var languageRecognizer: any LanguageRecognizing = NaturalLanguageRecognizer()
+    /// The resolved Speaking language for the app's interface language,
+    /// read per turn so a change in Settings reaches the next hold.
+    var speechCode: @Sendable (AppLanguage) -> String = {
+        SpokenLanguagePreference.resolvedSpeechCode(interface: $0)
+    }
+    /// The locale the on-device ear listens in, for the interface language:
+    /// the first dictation language, else the interface's own. Read at every
+    /// start so a change in Settings reaches the next hold.
+    var earLocale: @Sendable (AppLanguage) -> String = {
+        SpokenLanguagePreference.onDeviceLocale(interface: $0)
+    }
     /// Code review 2026-09-24 (alto): the listen that owns the mic and the
     /// ear. A tap's late teardown used to stop the NEXT hold's mic after
     /// its own awaits; it now re-checks ownership after each one. Also the
@@ -227,8 +238,7 @@ final class ClassicRuntime: @unchecked Sendable {
         if let stopping = ear.pendingStop { _ = await stopping.value }
         guard owner == ear.current else { return }
         do {
-            try await transcriber.start(
-                localeIdentifier: language.speechLocaleIdentifier)
+            try await transcriber.start(localeIdentifier: earLocale(language))
         } catch {
             return await failListen(.speechEngine, apply: apply)
         }
@@ -325,8 +335,7 @@ final class ClassicRuntime: @unchecked Sendable {
             if endsHold { return await apply(.hangUp) }
             await apply(.classicListenArmed)
             do {
-                try await transcriber.start(
-                    localeIdentifier: language.speechLocaleIdentifier)
+                try await transcriber.start(localeIdentifier: earLocale(language))
             } catch {
                 Log.app("voice: classic ear restart failed")
             }
@@ -367,11 +376,15 @@ final class ClassicRuntime: @unchecked Sendable {
         // 15d-7 language instruction, which the thread (and the bubble) never
         // see — only the request does. It sits right before the words, after
         // the block: screen text in another language must not come between.
-        let block = context.map { ContextBlock.render($0, language: language) } ?? ""
+        let speaking = speechCode(language)
+        let block = context.map {
+            ContextBlock.render($0, language: language, speaking: speaking)
+        } ?? ""
         // The facts are in the prompt now: only here are they spent.
         if let context { sensor?.acknowledgeIslandEvents(through: context.islandEventsThrough) }
         if let last = history.indices.last, history[last].role == .user {
-            let spoken = ContextBlock.languageInstruction(language) + "\n\n" + heard
+            let spoken = ContextBlock.languageInstruction(language, speaking: speaking)
+                + "\n\n" + heard
             history[last].content = ContextBlock.wrap(spoken, with: block)
         }
         // 16k-3: the words decide which connected app's tools travel this
@@ -386,7 +399,8 @@ final class ClassicRuntime: @unchecked Sendable {
         // 15g-5: the context is in hand and the first chat request leaves
         // next — `commit→context` is the fan-out's share of the wait.
         await markTimeline?(.contextReady)
-        var mouth = TurnMouth(language: language, recognizer: languageRecognizer, heard: heard)
+        var mouth = TurnMouth(
+            language: language, speaking: speaking, recognizer: languageRecognizer, heard: heard)
         for round in 1 ... Self.maxParentRounds {
             var text = ""
             var calls: [ToolCallRef] = []

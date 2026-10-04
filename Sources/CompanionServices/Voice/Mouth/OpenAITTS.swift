@@ -11,35 +11,45 @@ package struct OpenAITTSClient: TTSFetching, Sendable {
     private let secrets: any SecretStore
     private let transport: any ChatTransport
     private let speed: Double
-    private let instructions: String
+    private let instructionsOverride: String?
+    /// Read per request. The mouth is built once at launch, so a captured
+    /// instruction would ignore the next change in Settings
+    /// (local reference; Incredible language pickers).
+    private let speechCode: @Sendable () -> String
 
-    /// No default language on purpose, as `AVSpeechFallback`: a call site
-    /// that forgot it would speak Spanish style notes to an English reply.
+    /// `language` is the interface language: what Automatic falls back to
+    /// when `speechCode` is not given, so an untouched Settings still speaks
+    /// the app's language.
     package init(
         secrets: any SecretStore, transport: any ChatTransport,
-        language: AppLanguage, speed: Double = OpenAITTSClient.defaultSpeed,
+        language: AppLanguage,
+        speechCode: (@Sendable () -> String)? = nil,
+        defaults: UserDefaults = .standard,
+        speed: Double = OpenAITTSClient.defaultSpeed,
         instructions: String? = nil
     ) {
         self.secrets = secrets
         self.transport = transport
         self.speed = speed
-        self.instructions = instructions ?? Self.defaultInstructions(language)
+        self.instructionsOverride = instructions
+        self.speechCode = speechCode
+            ?? SpokenLanguagePreference.speechCodeProvider(interface: language, defaults: defaults)
     }
 
     package static func defaultInstructions(_ language: AppLanguage) -> String {
-        switch language {
-        case .es:
-            "Habla en español de México, conversacional, ágil y natural, sin pausas teatrales."
-        case .en:
-            "Speak in American English, conversational, brisk and natural, with no theatrical pauses."
-        }
+        SpokenLanguagePreference.instructions(for: language.rawValue)
+    }
+
+    private func resolvedInstructions() -> String {
+        if let instructionsOverride { return instructionsOverride }
+        return SpokenLanguagePreference.instructions(for: speechCode())
     }
 
     /// Audio cached under one style must never be replayed under another,
     /// so the key carries everything that changes the sound. Instructions
     /// go in hashed: the key names a file on disk.
     package func cacheVariant(voice: VoiceID) -> String {
-        "\(Self.model)|\(voice.rawValue)|\(speed)|\(PhraseCache.fnv1a(instructions))"
+        "\(Self.model)|\(voice.rawValue)|\(speed)|\(PhraseCache.fnv1a(resolvedInstructions()))"
     }
 
     /// Non-streaming: only `prewarm` calls this, in the background, never on
@@ -95,7 +105,7 @@ package struct OpenAITTSClient: TTSFetching, Sendable {
             "voice": voice.rawValue,
             "response_format": "pcm",
             "speed": speed,
-            "instructions": instructions,
+            "instructions": resolvedInstructions(),
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
@@ -269,17 +279,22 @@ private final class StreamGraph: @unchecked Sendable {
 }
 
 package struct AVSpeechFallback: SystemSpeechFallback, Sendable {
-    /// No default on purpose: this voice only speaks when the network is
-    /// gone, so a call site that forgets the language would be discovered by
-    /// the one user who can least afford it.
-    private let language: AppLanguage
+    /// `language` stays required so a call site cannot drop it. The locale
+    /// is read per utterance: this fallback is built once, with the mouth
+    /// (local reference; Incredible language pickers).
+    private let speechCode: @Sendable () -> String
 
-    package init(language: AppLanguage) {
-        self.language = language
+    package init(
+        language: AppLanguage,
+        speechCode: (@Sendable () -> String)? = nil,
+        defaults: UserDefaults = .standard
+    ) {
+        self.speechCode = speechCode
+            ?? SpokenLanguagePreference.speechCodeProvider(interface: language, defaults: defaults)
     }
 
     package var voiceLocaleIdentifier: String {
-        language.speechLocaleIdentifier
+        SpokenLanguagePreference.regionalIdentifier(for: speechCode())
     }
 
     package func speak(_ text: String) async throws {

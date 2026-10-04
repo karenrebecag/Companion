@@ -11,6 +11,10 @@ struct SettingsVoiceSection: View {
     var secrets: (any SecretStore)? = nil
 
     @State private var settings = VoiceProfile.settings
+    /// Automatic speaking follows the first dictation language, so the row
+    /// needs both lists. Re-read on appear: Dictation is edited on General.
+    @State private var dictationLanguages = SpokenLanguagePreference.dictationCodes()
+    @State private var speechLanguage = SpokenLanguagePreference.speechCode()
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
@@ -29,6 +33,7 @@ struct SettingsVoiceSection: View {
                         }
                     }
                 }
+                SpeechLanguageLine(choice: $speechLanguage, dictation: dictationLanguages)
             }
             if let error = preview?.errorText {
                 Text(error)
@@ -39,6 +44,10 @@ struct SettingsVoiceSection: View {
                 SettingsElevenLabsVoice(preview: preview, secrets: secrets, fallbackVoice: settings.voice)
                     .padding(Space.x4)
             }
+        }
+        .onAppear {
+            dictationLanguages = SpokenLanguagePreference.dictationCodes()
+            speechLanguage = SpokenLanguagePreference.speechCode()
         }
     }
 

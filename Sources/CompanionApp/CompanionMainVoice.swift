@@ -54,10 +54,18 @@ func makeVoicePipeline(
     // 15f-7a: ElevenLabs when its key and a voice are set, OpenAI
     // otherwise — decided per sentence, so a key saved in Settings
     // takes effect on the next hold and nothing reads the Keychain here.
-    let openAIMouth = OpenAITTSClient(secrets: env.secrets, transport: env.transport, language: env.config.language)
+    // The interface language is read live: Automatic follows it, and the
+    // user can change it without rebuilding the mouths.
+    let speechCode: @Sendable () -> String = {
+        SpokenLanguagePreference.resolvedSpeechCode(interface: env.configProvider.current.language)
+    }
+    let openAIMouth = OpenAITTSClient(
+        secrets: env.secrets, transport: env.transport, language: env.config.language,
+        speechCode: speechCode)
     let mouth = MouthRouter(
         elevenLabs: ElevenLabsTTSClient(
             secrets: env.secrets, transport: env.transport, language: env.config.language,
+            speechCode: speechCode,
             voiceID: { env.configProvider.current.elevenLabsVoiceID }),
         openAI: openAIMouth, secrets: env.secrets,
         voiceID: { env.configProvider.current.elevenLabsVoiceID })
@@ -65,7 +73,7 @@ func makeVoicePipeline(
         cache: PhraseCache(directory: caches),
         fetcher: mouth,
         playback: DataSpeechPlayback(),
-        fallback: AVSpeechFallback(language: env.config.language),
+        fallback: AVSpeechFallback(language: env.config.language, speechCode: speechCode),
         voice: env.config.voice.voice)
     // DM1c-2 (wave-dm1-router.md §8): N1 decides locally, in front of the
     // classic hold — off by default (`Config.decision.enabled`). N2's own
@@ -104,10 +112,13 @@ func makeVoicePipeline(
                 + VocabularyPreference.words
                 + sensing.workspaceOpener.runningApplications()
                 + installedApps.names()
-        })
+        },
+        // A dictation language the on-device engine lacks falls back to the
+        // interface's own, read live like the rest of the language settings.
+        fallbackLocale: { env.configProvider.current.language.speechLocaleIdentifier })
     // The model is a one-time ~52 s download; started now so the first
     // hold does not end in "no te oí" waiting for it.
-    let earLocale = env.config.language.speechLocaleIdentifier
+    let earLocale = SpokenLanguagePreference.onDeviceLocale(interface: env.config.language)
     Task.detached { await ear.prepare(localeIdentifier: earLocale) }
     let session = VoiceSession(
         transport: RealtimeWSTransport(),

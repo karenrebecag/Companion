@@ -28,7 +28,8 @@ private func speechBody(_ request: URLRequest?) -> [String: Any] {
     let secrets = ScriptedSecrets([.openAI: "sk-test"])
     let spanish = "Habla en español de México, conversacional, ágil y natural, sin pausas teatrales."
 
-    let es = OpenAITTSClient(secrets: secrets, transport: transport, language: .es)
+    let es = OpenAITTSClient(
+        secrets: secrets, transport: transport, language: .es, speechCode: { "es" })
     do {
         _ = try await es.fetch("Ya quedó, ¿algo más?", voice: .marin)
     } catch {
@@ -41,7 +42,8 @@ private func speechBody(_ request: URLRequest?) -> [String: Any] {
     expectEq(fetched["response_format"] as? String, "pcm", "cuerpo es: sigue en pcm")
     expectEq(fetched["voice"] as? String, "marin", "cuerpo es: la voz")
 
-    let en = OpenAITTSClient(secrets: secrets, transport: transport, language: .en)
+    let en = OpenAITTSClient(
+        secrets: secrets, transport: transport, language: .en, speechCode: { "en" })
     do {
         for try await _ in en.stream("Done.", voice: .cedar) {}
     } catch {
@@ -73,11 +75,14 @@ private func speechBody(_ request: URLRequest?) -> [String: Any] {
 @Test @MainActor func testTheCacheKeyCarriesVoiceSpeedAndInstructions() async {
     let transport = ScriptedTransport()
     let secrets = ScriptedSecrets([.openAI: "sk-test"])
-    let base = OpenAITTSClient(secrets: secrets, transport: transport, language: .es)
+    let base = OpenAITTSClient(
+        secrets: secrets, transport: transport, language: .es, speechCode: { "es" })
     let slower = OpenAITTSClient(
-        secrets: secrets, transport: transport, language: .es, speed: 1.0)
+        secrets: secrets, transport: transport, language: .es, speechCode: { "es" },
+        speed: 1.0)
     let plain = OpenAITTSClient(
-        secrets: secrets, transport: transport, language: .es, instructions: "Otra.")
+        secrets: secrets, transport: transport, language: .es, speechCode: { "es" },
+        instructions: "Otra.")
     let variant = base.cacheVariant(voice: .marin)
     expect(!variant.isEmpty, "clave: el cliente real declara su estilo")
     expectEq(variant, base.cacheVariant(voice: .marin), "clave: estable")

@@ -27,7 +27,8 @@ package struct AppleSpeechEngine: TranscriberEngine {
     package func assets(localeIdentifier: String) async -> TranscriberAssets {
         guard let locale = await supported(localeIdentifier) else {
             return TranscriberAssets(
-                status: "unsupportedLocale", nothingToInstall: false, localeInstalled: false)
+                status: "unsupportedLocale", nothingToInstall: false, localeInstalled: false,
+                supported: false)
         }
         let module = Self.transcriber(locale)
         let status = await AssetInventory.status(forModules: [module])

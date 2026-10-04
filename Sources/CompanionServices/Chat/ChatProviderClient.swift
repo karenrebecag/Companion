@@ -17,6 +17,9 @@ package final class ChatProviderClient: ChatProvider, Sendable {
     /// Read at request time too: switching language in Settings has to reach
     /// the next message, not the next launch.
     private let languageSource: (@Sendable () -> AppLanguage)?
+    /// The resolved Speaking language, read per request like the language;
+    /// only the hold's voice prompt uses it.
+    private let speakingSource: (@Sendable () -> String)?
     /// Read at request time, like the profile: memory written at the close of
     /// one session must reach the very next message (9j-2).
     private let memorySource: (@Sendable () -> String)?
@@ -50,6 +53,7 @@ package final class ChatProviderClient: ChatProvider, Sendable {
         ownerInstructions: String = "",
         profileSource: (@Sendable () -> (name: String, about: String, instructions: String))? = nil,
         languageSource: (@Sendable () -> AppLanguage)? = nil,
+        speakingSource: (@Sendable () -> String)? = nil,
         memorySource: (@Sendable () -> String)? = nil,
         skillsSource: (@Sendable () -> String)? = nil,
         catalog: [ProviderDescriptor] = ProviderDescriptor.catalog,
@@ -70,6 +74,7 @@ package final class ChatProviderClient: ChatProvider, Sendable {
         self.ownerInstructions = ownerInstructions
         self.profileSource = profileSource
         self.languageSource = languageSource
+        self.speakingSource = speakingSource
         self.memorySource = memorySource
         self.skillsSource = skillsSource
         self.catalog = catalog
@@ -169,6 +174,7 @@ package final class ChatProviderClient: ChatProvider, Sendable {
                         memory: memorySource?() ?? "",
                         skills: skillsSource?() ?? "",
                         voice: voice,
+                        speaking: speakingSource?(),
                         transport: transport,
                         resolveAttachment: resolveAttachment,
                         yield: { continuation.yield($0) })

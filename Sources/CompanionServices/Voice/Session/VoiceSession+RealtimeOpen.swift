@@ -46,7 +46,7 @@ extension VoiceSession {
         // and the ear comes up alongside the socket, not after it; the
         // first word of a hold used to fall in that gap.
         startFramePump()
-        let locale = config.language.speechLocaleIdentifier
+        let locale = classic.earLocale(config.language)
         earTask = Task { [weak self] in await self?.beginEar(locale: locale) }
         realtime.prepareSessionUpdate(
             config: config, history: await classic.thread.historyTurns(),

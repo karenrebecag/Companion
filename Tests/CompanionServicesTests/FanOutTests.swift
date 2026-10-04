@@ -79,7 +79,8 @@ import CompanionTestKit
     let transport = ScriptedTransport()
     transport.stub(url: "https://api.openai.com/v1/models", ScriptedReply(status: 200))
     let secrets = ScriptedSecrets([.openAI: "sk-test"])
-    let client = OpenAITTSClient(secrets: secrets, transport: transport, language: .es)
+    let client = OpenAITTSClient(
+        secrets: secrets, transport: transport, language: .es, speechCode: { "es" })
     await client.warm()
     let request = transport.requests.last
     expectEq(request?.url?.absoluteString, "https://api.openai.com/v1/models", "warm: endpoint")

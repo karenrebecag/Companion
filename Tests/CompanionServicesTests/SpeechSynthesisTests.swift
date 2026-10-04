@@ -28,10 +28,14 @@ import CompanionTestKit
 /// menos puede permitirse que le contesten en otro idioma. Estaba fijada en
 /// es-MX: el mismo bug del reconocedor, en el otro extremo del turno.
 @MainActor func testTheOfflineVoiceSpeaksTheUserLanguage() {
-    expectEq(AVSpeechFallback(language: .en).voiceLocaleIdentifier, "en-US",
-             "respaldo: a quien eligió inglés se le contesta en inglés")
-    expectEq(AVSpeechFallback(language: .es).voiceLocaleIdentifier, "es-MX",
-             "respaldo: el español conserva la voz que ya tenía")
+    withSpokenSuite { suite in
+        expectEq(
+            AVSpeechFallback(language: .en, defaults: suite).voiceLocaleIdentifier,
+            "en-US", "respaldo: a quien eligió inglés se le contesta en inglés")
+        expectEq(
+            AVSpeechFallback(language: .es, defaults: suite).voiceLocaleIdentifier,
+            "es-MX", "respaldo: el español conserva la voz que ya tenía")
+    }
 }
 
 @MainActor func testPhraseCache() {
