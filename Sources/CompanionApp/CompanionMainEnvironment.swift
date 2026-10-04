@@ -25,6 +25,9 @@ struct LaunchEnvironment {
     let skillStore: SkillStore
     let configProvider: StoredConfigProvider
     let config: Config
+    /// ON-18: handed to the Settings row that resets permissions. Built from
+    /// the running bundle, so it can only ever reset this app's grants.
+    let permissionReset: any PermissionResetting
 }
 
 /// Verbatim from the top of the old `applicationDidFinishLaunching`.
@@ -103,5 +106,8 @@ func makeLaunchEnvironment() -> LaunchEnvironment {
     return LaunchEnvironment(
         home: home, support: support, secrets: secrets, hostSecrets: keychain, appsPin: appsPin,
         transport: transport, probe: probe, memoryStore: memoryStore, skillsLocation: skillsLocation,
-        skillStore: skillStore, configProvider: configProvider, config: config)
+        skillStore: skillStore, configProvider: configProvider, config: config,
+        permissionReset: ProcessPermissionResetter(
+            bundleID: Bundle.main.bundleIdentifier ?? "",
+            bundlePath: Bundle.main.bundleURL.path))
 }
