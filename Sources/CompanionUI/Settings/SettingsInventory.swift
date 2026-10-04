@@ -53,6 +53,8 @@ package enum SettingsInventory {
         Option(tab: .general, titleKey: "settings.app.talk.hold", subtitleKey: "settings.app.talk.hold.subtitle"),
         Option(tab: .general, titleKey: "settings.app.talk.dictationKey",
                subtitleKey: "settings.app.talk.dictationKey.subtitle"),
+        Option(tab: .general, titleKey: "settings.microphone",
+               subtitleKey: "settings.microphone.subtitle"),
         Option(tab: .general, titleKey: "settings.app.language", subtitleKey: "settings.app.language.subtitle"),
         Option(tab: .general, titleKey: "settings.sounds", subtitleKey: "settings.sounds.subtitle"),
         Option(tab: .general, titleKey: "settings.muteWhileTalking",

@@ -175,6 +175,8 @@ package actor VoiceSession: VoiceControlling {
     /// on the other pipeline needs a new pump (code review 16j-2).
     var partialPipeline: VoicePipeline?
     var earTask: Task<Void, Never>?
+    /// Follows the mic when it moves itself onto another input mid-session.
+    var micRestartTask: Task<Void, Never>?
     /// Wave 12e: the field this hold dictates into, decided at press; and
     /// why it could not, when the words go to Companion instead.
     let fieldProbe: (any FocusedFieldProbing)?

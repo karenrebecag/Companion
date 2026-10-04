@@ -168,6 +168,15 @@ private final class LevelMeter: @unchecked Sendable {
     func start(_ continuation: AsyncStream<Double>.Continuation) -> Bool {
         let engine = AVAudioEngine()
         let input = engine.inputNode
+        // The meter has to listen to the microphone the app will use: the
+        // format below is read from whichever device the unit is pinned to.
+        if let unit = input.audioUnit {
+            let target = MicChoice.target(
+                preference: MicDevices.store.load(), snapshot: AudioDevicePin.inputSnapshot())
+            if !AudioDevicePin.pinInput(unit, target: target) {
+                Log.app("welcome: meter could not pin the chosen input")
+            }
+        }
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             Log.app("welcome: meter=no-input")

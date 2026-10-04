@@ -347,6 +347,39 @@ package final class ScriptedMic: MicCapturing, @unchecked Sendable {
     package var startError: VoiceTransportError?
     private let box = StreamBox<MicFrame>()
     package var frames: AsyncStream<MicFrame> { box.stream }
+    private let restartHub = RestartHub()
+    package func subscribeRestarts() -> AsyncStream<MicRestart> { restartHub.open() }
+    package func emitRestart(_ event: MicRestart) { restartHub.yield(event) }
+    /// Emitted from inside `start()`: a restart that lands while the session
+    /// is still opening, before it could have been listening for it.
+    package var restartsDuringStart: [MicRestart] = []
+    /// `start()` emits `restartsDuringStart`, then suspends until
+    /// `releaseStart()`: a restart that lands while the mic is still coming up,
+    /// with the session's open provably parked on this await.
+    private struct StartGate {
+        var hold = false
+        var waiter: CheckedContinuation<Void, Never>?
+        var entered = false
+        var released = false
+    }
+    private let startGate = LockedBox(StartGate())
+    package var holdStart: Bool {
+        get { startGate.withLock { $0.hold } }
+        set { startGate.withLock { $0.hold = newValue } }
+    }
+    /// True once `start()` is parked on the gate with its waiter stored: only
+    /// then can a test rely on `releaseStart()` finding someone to wake.
+    package var startEntered: Bool { startGate.withLock { $0.entered } }
+    /// Remembered when it lands before `start()` parks, so a release that wins
+    /// the race can never leave `start()` suspended forever.
+    package func releaseStart() {
+        let waiter = startGate.withLock { g -> CheckedContinuation<Void, Never>? in
+            g.released = true
+            defer { g.waiter = nil }
+            return g.waiter
+        }
+        waiter?.resume()
+    }
 
     package func requestAccess() async -> Bool {
         accessAsked = true
@@ -359,6 +392,18 @@ package final class ScriptedMic: MicCapturing, @unchecked Sendable {
     package func start() async throws {
         if startDelay > 0 { try? await Task.sleep(for: .seconds(startDelay)) }
         if let startError { throw startError }
+        for event in restartsDuringStart { restartHub.yield(event) }
+        if holdStart {
+            await withCheckedContinuation { waiter in
+                let alreadyReleased = startGate.withLock { g -> Bool in
+                    g.entered = true
+                    if g.released { return true }
+                    g.waiter = waiter
+                    return false
+                }
+                if alreadyReleased { waiter.resume() }
+            }
+        }
         if started, !stopped { startedWithoutStop = true }
         started = true
         stopped = false
@@ -372,10 +417,31 @@ package final class ScriptedMic: MicCapturing, @unchecked Sendable {
     }
 }
 
+/// One live stream per subscription, like the real mic's feed: an event with
+/// no subscriber is dropped, and a new subscriber replaces the old one.
+private final class RestartHub: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: AsyncStream<MicRestart>.Continuation?
+
+    func open() -> AsyncStream<MicRestart> {
+        let (stream, next) = AsyncStream.makeStream(of: MicRestart.self)
+        let previous = lock.withLock { () -> AsyncStream<MicRestart>.Continuation? in
+            defer { continuation = next }
+            return continuation
+        }
+        previous?.finish()
+        return stream
+    }
+
+    func yield(_ event: MicRestart) { lock.withLock { continuation }?.yield(event) }
+}
+
 package final class ScriptedPlayer: PCMPlaying, @unchecked Sendable {
     package init() {}
 
     @Guarded package var shared: Bool?
+    /// Every `start`, in order: a restarted mic must re-attach the player.
+    @Guarded package var sharedStarts: [Bool] = []
     @Guarded package var played: [Data] = []
     @Guarded package var flushed = false
     @Guarded package var stopped = false
@@ -387,7 +453,16 @@ package final class ScriptedPlayer: PCMPlaying, @unchecked Sendable {
     package var drained: AsyncStream<Void> { drainBox.stream }
     package var levels: AsyncStream<Double> { levelBox.stream }
 
-    package func start(sharedEngine: Bool) async throws { shared = sharedEngine }
+    /// Thrown by every `start` after the first: the open succeeds, a re-attach
+    /// onto a restarted mic's engine is what fails.
+    package var startError: VoiceTransportError?
+    package func start(sharedEngine: Bool) async throws {
+        if let startError, !sharedStarts.isEmpty { throw startError }
+        // Like the real player: a restart drops the queued audio and says so.
+        if hasPending { yieldDrained() }
+        shared = sharedEngine
+        sharedStarts.append(sharedEngine)
+    }
     package func play(_ pcm16le24k: Data) async {
         played.append(pcm16le24k)
         hasPending = true

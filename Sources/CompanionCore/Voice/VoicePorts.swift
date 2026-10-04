@@ -21,6 +21,13 @@ package enum VoiceTransportError: Error, Sendable, Equatable {
     case timeout, unauthorized, closed, unreachable
 }
 
+/// What a mic that moved itself to another input tells the session: the
+/// engine it was built on is gone, so anything attached to it must follow.
+package enum MicRestart: Sendable, Equatable {
+    case restarted(echoCancellation: Bool)
+    case failed
+}
+
 package protocol MicCapturing: Sendable {
     func requestAccess() async -> Bool
     func start() async throws
@@ -30,12 +37,17 @@ package protocol MicCapturing: Sendable {
     /// or asking for it (Wave 12c). Default: nothing.
     func prewarm() async
     var frames: AsyncStream<MicFrame> { get }
+    /// Mid-session restarts onto another input. Default: never. A method, not
+    /// a property: each call replaces the previous consumer, and a getter
+    /// that does that on every read is a trap.
+    func subscribeRestarts() -> AsyncStream<MicRestart>
     var hasEchoCancellation: Bool { get async }
     var receivedBuffer: Bool { get async }
 }
 
 extension MicCapturing {
     package func prewarm() async {}
+    package func subscribeRestarts() -> AsyncStream<MicRestart> { AsyncStream { $0.finish() } }
 }
 
 package protocol PCMPlaying: Sendable {

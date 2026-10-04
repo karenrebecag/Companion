@@ -1,4 +1,5 @@
 import AudioToolbox
+import CompanionCore
 import CoreAudio
 import Foundation
 
@@ -27,13 +28,44 @@ enum AudioDevicePin {
         return (input, output)
     }
 
-    /// Plain AUHAL input: pin only the input bus to the built-in mic. After a
-    /// failed VPIO attempt the process default can stay glued to the broken
-    /// aggregate (input reads 3ch instead of the built-in mic's 1ch) and the
-    /// graph starts but never delivers a buffer.
-    static func pinInput(_ unit: AudioUnit) -> Bool {
-        guard let pair = builtInPair() else { return false }
-        return setDevice(unit, device: pair.input, element: 1)
+    /// Plain AUHAL input. Leaving the unit unpinned lets a failed
+    /// voice-processing attempt glue the process to a broken aggregate, so a
+    /// target that cannot be resolved still pins what the system would use.
+    static func pinInput(_ unit: AudioUnit, target: MicTarget) -> Bool {
+        guard let device = captureInput(target: target) else { return false }
+        return pinInput(unit, device: device)
+    }
+
+    static func pinInput(_ unit: AudioUnit, device: AudioDeviceID) -> Bool {
+        setDevice(unit, device: device, element: 1)
+    }
+
+    /// The input a target resolves to right now. The order lives in
+    /// `MicInputChooser`, where it is tested.
+    static func captureInput(target: MicTarget) -> AudioDeviceID? {
+        let candidates = allDevices().compactMap { device -> MicInputCandidate? in
+            let channels = channelCount(device, scope: kAudioObjectPropertyScopeInput)
+            guard channels > 0 else { return nil }
+            let transport = transportType(device)
+            let kind: MicInputCandidate.Kind = switch transport {
+            case kAudioDeviceTransportTypeBuiltIn: .builtIn
+            case kAudioDeviceTransportTypeAggregate: .aggregate
+            default: .other
+            }
+            return MicInputCandidate(
+                id: device,
+                uid: copyString(device, selector: kAudioDevicePropertyDeviceUID) ?? "",
+                inputChannels: channels, kind: kind)
+        }
+        return MicInputChooser.choose(
+            target: target, candidates: candidates,
+            defaultID: defaultDevice(kAudioHardwarePropertyDefaultInputDevice))
+    }
+
+    /// Voice processing aggregates a pair. The speaker stays the built-in one
+    /// when it exists: a headset output has its own echo path.
+    static func captureOutput() -> AudioDeviceID? {
+        builtInPair()?.output ?? defaultOutputDevice()
     }
 
     /// Both buses, both devices, before init — partial pinning can fail if
@@ -100,8 +132,12 @@ enum AudioDevicePin {
     }
 
     private static func defaultOutputDevice() -> AudioDeviceID? {
+        defaultDevice(kAudioHardwarePropertyDefaultOutputDevice)
+    }
+
+    private static func defaultDevice(_ selector: AudioObjectPropertySelector) -> AudioDeviceID? {
         var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mSelector: selector,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain)
         var device = AudioDeviceID(0)
@@ -110,6 +146,38 @@ enum AudioDevicePin {
             AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device
         ) == noErr, device != 0 else { return nil }
         return device
+    }
+
+    /// Inputs the settings list can offer. Aggregates are skipped: they are
+    /// the HAL's mix, not a device a person can plug back in.
+    static func inputSnapshot() -> MicDeviceSnapshot {
+        let devices = allDevices().compactMap { device -> MicInput? in
+            if transportType(device) == kAudioDeviceTransportTypeAggregate { return nil }
+            guard channelCount(device, scope: kAudioObjectPropertyScopeInput) > 0 else { return nil }
+            guard let uid = copyString(device, selector: kAudioDevicePropertyDeviceUID),
+                  !uid.isEmpty else { return nil }
+            let name = copyString(device, selector: kAudioObjectPropertyName) ?? uid
+            return MicInput(
+                id: uid, name: name,
+                builtIn: transportType(device) == kAudioDeviceTransportTypeBuiltIn)
+        }
+        let defaultName = defaultDevice(kAudioHardwarePropertyDefaultInputDevice)
+            .flatMap { copyString($0, selector: kAudioObjectPropertyName) }
+        return MicDeviceSnapshot(devices: devices, systemDefaultName: defaultName)
+    }
+
+    private static func copyString(
+        _ object: AudioObjectID, selector: AudioObjectPropertySelector
+    ) -> String? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var value: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        guard AudioObjectGetPropertyData(object, &address, 0, nil, &size, &value) == noErr,
+              let value else { return nil }
+        return value.takeRetainedValue() as String
     }
 
     private static func transportType(_ device: AudioDeviceID) -> UInt32 {

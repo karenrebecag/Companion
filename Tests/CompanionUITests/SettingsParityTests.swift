@@ -32,13 +32,15 @@ private func words(_ text: String) -> [String] {
     // 16h-3: eighteen — "Tu ciudad" in Tú (spec 16h criterion 8) and its
     // context switch in Privacidad are the two additions to the line.
     // PR6a: nineteen — "Silenciar el sonido mientras hablas" next to Sounds.
-    expect(options.count <= 19, "ajustes: \(options.count) opciones, máximo 19")
-    // The three additions the ceiling was raised for: naming them keeps
-    // a later addition from riding on their headroom.
+    // Microphone: twenty — the General row that picks the input.
+    expect(options.count <= 20, "ajustes: \(options.count) opciones, máximo 20")
+    // The additions the ceiling was raised for: naming them keeps a later
+    // addition from riding on their headroom.
     let added = [
         "settings.you.city": "16h-3",
         "settings.context.location": "16h-3",
         "settings.muteWhileTalking": "PR6a",
+        "settings.microphone": "microfono",
     ]
     for (key, label) in added {
         expect(options.contains { $0.titleKey == key }, "ajustes: la opción de \(label) \(key) sigue en el inventario")
