@@ -32,9 +32,19 @@ private func words(_ text: String) -> [String] {
     // 16h-3: eighteen — "Tu ciudad" in Tú (spec 16h criterion 8) and its
     // context switch in Privacidad are the two additions to the line.
     // PR6a: nineteen — "Silenciar el sonido mientras hablas" next to Sounds.
-    expect(options.count <= 19, "ajustes: \(options.count) opciones, máximo 19")
-    // The three additions the ceiling was raised for: naming them keeps
-    // a later addition from riding on their headroom.
+    // Exact, not a ceiling: a ceiling lets one addition ride on another's headroom.
+    // A new option edits this list and says why in the comment above.
+    let named = [
+        "settings.app.talk.hold", "settings.app.talk.dictationKey", "settings.app.language",
+        "settings.screenGlow", "settings.muteWhileTalking", "settings.muteEffects",
+        "settings.voice.voice", "settings.vocabulary",
+        "settings.you.name", "settings.you.photo", "settings.you.city", "settings.you.about",
+        "settings.you.instructions", "settings.app.appearance", "settings.app.textSize",
+        "settings.context.screen", "settings.context.documents", "settings.context.location",
+        "settings.privacy.lendHands",
+    ]
+    expectEq(options.map(\.titleKey).sorted(), named.sorted(), "ajustes: \(options.count) opciones, las \(named.count) nombradas")
+    // Naming each addition keeps a later one from riding on their headroom.
     let added = [
         "settings.you.city": "16h-3",
         "settings.context.location": "16h-3",

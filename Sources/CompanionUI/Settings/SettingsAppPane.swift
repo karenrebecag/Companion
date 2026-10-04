@@ -170,7 +170,7 @@ struct SettingsPrivacyPage: View {
 }
 
 /// Sistema's sections, in Incredible's order (S2 of ajustes-hoja-incredible).
-/// The danger zone joins when its row does; an empty section is not drawn.
+/// The danger zone joins with #228's ResetPermissionsRow; an empty section is not drawn.
 package enum SettingsSystemSection: CaseIterable, Equatable {
     case app, sound, about, data
 
@@ -242,32 +242,38 @@ struct SettingsSystemPage: View {
         }
     }
 
-    private static let drawn: Set<String> = [
-        "settings.screenGlow", "settings.muteWhileTalking", "settings.muteEffects",
-        "settings.app.version", SettingsInventory.clearHistoryRowID, "settings.app.attachments",
-    ]
+    /// One case per row `row(_:)` draws. The switch below is exhaustive over it, so
+    /// a row cannot be drawn without being listed here, and `draws` reads this list.
+    private enum Row: String {
+        case screenGlow = "settings.screenGlow"
+        case muteWhileTalking = "settings.muteWhileTalking"
+        case muteEffects = "settings.muteEffects"
+        case version = "settings.app.version"
+        case clearHistory = "settings-clear-history"
+        case attachments = "settings.app.attachments"
+    }
 
-    /// The rows `row(_:)` knows how to draw; a section key outside it would draw nothing.
-    static func draws(_ key: String) -> Bool { drawn.contains(key) }
+    /// A section key outside `Row` would draw nothing.
+    static func draws(_ key: String) -> Bool { Row(rawValue: key) != nil }
 
     @ViewBuilder private func row(_ key: String) -> some View {
-        switch key {
-        case "settings.screenGlow":
+        switch Row(rawValue: key) {
+        case .screenGlow:
             SettingsRow(
                 title: Localized.string(key), subtitle: Localized.string("settings.screenGlow.subtitle"), key: key
             ) { SettingsSwitch(label: Localized.string(key), isOn: $screenGlow) }
-        case "settings.muteWhileTalking":
+        case .muteWhileTalking:
             SettingsRow(
                 title: Localized.string(key), subtitle: Localized.string("settings.muteWhileTalking.subtitle"),
                 key: key
             ) { SettingsSwitch(label: Localized.string(key), isOn: $muteWhileTalking) }
-        case "settings.muteEffects":
+        case .muteEffects:
             SettingsRow(
                 title: Localized.string(key), subtitle: Localized.string("settings.muteEffects.subtitle"), key: key
             ) { SettingsSwitch(label: Localized.string(key), isOn: SettingsSystemSection.effectsMuted($sounds)) }
-        case "settings.app.version":
+        case .version:
             SettingsRow(title: Localized.string(key), subtitle: SettingsVersion.current, key: key) { updateControl }
-        case SettingsInventory.clearHistoryRowID:
+        case .clearHistory:
             SettingsRow(
                 title: Localized.string("settings.history.row"),
                 subtitle: Localized.string("settings.history.row.subtitle"),
@@ -277,14 +283,14 @@ struct SettingsSystemPage: View {
                     pressClearRow()
                 }
             }
-        case "settings.app.attachments":
+        case .attachments:
             SettingsRow(title: Localized.string(key), subtitle: storageLabel, key: key) {
                 SettingsPill(
                     title: Localized.string("settings.system.purge"), kind: .destructive,
                     enabled: chat?.hasStoredAttachments ?? false
                 ) { confirmPurge = true }
             }
-        default:
+        case nil:
             EmptyView()
         }
     }

@@ -13,7 +13,14 @@ import Testing
     testEveryOptionHasAPage()
     testSearchIgnoresCaseAndAccents()
     testSearchRanksTitlesFirst()
+    testSearchRanksPrefixThenKeywordThenPage()
     await testSearchFindsEveryOptionInBothLanguages()
+    await testSearchFindsEveryRowInBothLanguages()
+    await testEveryAliasFindsItsTarget()
+    await testSearchCrossesLanguagesAndAccents()
+    testSearchRanksByBestFieldThenInputOrder()
+    testSearchCapsALongQuery()
+    await testSearchIndexHoldsEveryRowAndPageOnce()
     testVocabularyAddsAndRemovesOneWord()
     try testMemoryListsNotesAndSessionsNewestFirst()
     try testForgettingMovesOnlyThatEntry()
@@ -62,6 +69,128 @@ func testSearchRanksTitlesFirst() {
     ]
     expectEq(SettingsSearch.match("hablar", in: entries).map(\.id), ["title", "sub"],
              "buscar: el título pesa más que el subtítulo")
+}
+
+func testSearchRanksPrefixThenKeywordThenPage() {
+    let entries = [
+        SettingsSearch.Entry(
+            id: "settings.tab.system", page: "system", title: "Sistema", subtitle: "",
+            keywords: ["equipo"], pageTitle: "Sistema"),
+        SettingsSearch.Entry(
+            id: "keyword", page: "system", title: "Otro", subtitle: "",
+            keywords: ["resplandor"], pageTitle: "Cuenta"),
+        SettingsSearch.Entry(
+            id: "byPage", page: "system", title: "Foto", subtitle: "",
+            keywords: [], pageTitle: "Sistema"),
+    ]
+    expectEq(SettingsSearch.match("sistema", in: entries).map(\.id), ["settings.tab.system", "byPage"],
+             "buscar: la pagina queda sobre una fila que solo coincide por su pagina")
+    expectEq(SettingsSearch.match("resplandor", in: entries).map(\.id), ["keyword"],
+             "buscar: una palabra clave encuentra la fila")
+    expect(SettingsSearch.match("illo", in: [
+        SettingsSearch.Entry(id: "row", page: "system", title: "Brillo", subtitle: ""),
+    ]).isEmpty, "buscar: el medio de una palabra no cuenta")
+    let labeled = [
+        SettingsSearch.Entry(
+            id: "row", page: "system", title: "Sistema de sonido", subtitle: "", pageTitle: "Sistema"),
+        SettingsSearch.Entry(
+            id: "settings.tab.system", page: "system", title: "Sistema", subtitle: "", pageTitle: "Sistema"),
+    ]
+    expectEq(SettingsSearch.match("sistema", in: labeled).map(\.id), ["row", "settings.tab.system"],
+             "buscar: el nombre de la fila queda sobre el de la pagina")
+}
+
+@MainActor func testSearchFindsEveryRowInBothLanguages() async {
+    for language in [AppLanguage.es, .en] {
+        await Localized.scoped(to: language) {
+            let entries = SettingsInventory.searchEntries
+            // The search hits the title, but panels with a `rowId` are indexed by it.
+            let rows: [(titleKey: String, entryId: String, tab: SettingsTab)] =
+                SettingsInventory.options.map { ($0.titleKey, $0.titleKey, $0.tab) }
+                + SettingsInventory.panels.map { ($0.titleKey, $0.rowId ?? $0.titleKey, $0.tab) }
+            expect(!rows.isEmpty, "buscar: hay filas")
+            for row in rows {
+                let title = Localized.string(row.titleKey)
+                let found = SettingsSearch.match(title, in: entries)
+                expect(found.contains { $0.id == row.entryId && $0.page == row.tab.rawValue },
+                       "\(language): «\(title)» se encuentra")
+            }
+        }
+    }
+}
+
+@MainActor func testEveryAliasFindsItsTarget() async {
+    expect(!SettingsInventory.extraKeywords.isEmpty, "buscar: hay alias")
+    for language in [AppLanguage.es, .en] {
+        await Localized.scoped(to: language) {
+            let entries = SettingsInventory.searchEntries
+            for (key, words) in SettingsInventory.extraKeywords {
+                for word in words {
+                    expect(SettingsSearch.match(word, in: entries).contains { $0.id == key },
+                           "\(language): «\(word)» encuentra \(key)")
+                }
+            }
+        }
+    }
+}
+
+@MainActor func testSearchCrossesLanguagesAndAccents() async {
+    // The title in the other language still finds the row.
+    let spanishTitle = await Localized.scoped(to: .es) { Localized.string("settings.app.language") }
+    await Localized.scoped(to: .en) {
+        let found = SettingsSearch.match(spanishTitle, in: SettingsInventory.searchEntries)
+        expect(found.contains { $0.id == "settings.app.language" }, "buscar: «\(spanishTitle)» en ingles halla el idioma")
+    }
+    await Localized.scoped(to: .es) {
+        let entries = SettingsInventory.searchEntries
+        for word in ["micrófono", "microfono", "MICRÓFONO"] {
+            expect(SettingsSearch.match(word, in: entries).contains { $0.id == "settings.app.talk.dictationKey" },
+                   "buscar: «\(word)» encuentra la tecla de dictado")
+        }
+    }
+}
+
+func testSearchRanksByBestFieldThenInputOrder() {
+    let title = SettingsSearch.Entry(id: "A", page: "x", title: "Brillo", subtitle: "")
+    let keyword = SettingsSearch.Entry(id: "B", page: "x", title: "Otro", subtitle: "", keywords: ["brillante"])
+    expectEq(SettingsSearch.match("bri", in: [keyword, title]).map(\.id), ["A", "B"],
+             "buscar: el titulo antes que la palabra clave")
+    // Title plus page must not beat two keyword hits: the weakest word decides first.
+    let wide = SettingsSearch.Entry(id: "wide", page: "x", title: "Sonido", subtitle: "", pageTitle: "Brillo")
+    let tight = SettingsSearch.Entry(
+        id: "tight", page: "x", title: "Otro", subtitle: "", keywords: ["sonido", "brillo"])
+    expectEq(SettingsSearch.match("sonido brillo", in: [wide, tight]).map(\.id), ["tight", "wide"],
+             "buscar: dos palabras clave pesan mas que titulo y pagina")
+    let half = SettingsSearch.Entry(id: "half", page: "x", title: "Sonido", subtitle: "")
+    expectEq(SettingsSearch.match("sonido brillo", in: [half, tight]).map(\.id), ["tight"],
+             "buscar: una fila que solo coincide con una palabra queda fuera")
+    let ties = (0..<50).map { SettingsSearch.Entry(id: "t\($0)", page: "x", title: "Sonido", subtitle: "") }
+    expectEq(SettingsSearch.match("son", in: ties).map(\.id), ties.map(\.id), "buscar: un empate conserva el orden")
+}
+
+func testSearchCapsALongQuery() {
+    let entries = [
+        SettingsSearch.Entry(id: "a", page: "x", title: "Sonido", subtitle: ""),
+        SettingsSearch.Entry(id: "b", page: "x", title: "Brillo", subtitle: ""),
+    ]
+    let long = "sonido" + String(repeating: " ", count: 10_000) + "zzz"
+    // The cap is proved by equality with the capped prefix; a wall-clock bound
+    // would flake on a loaded machine.
+    expectEq(SettingsSearch.match(long, in: entries).map(\.id), SettingsSearch.match(String(long.prefix(64)), in: entries).map(\.id),
+             "buscar: una consulta enorme vale lo que sus primeros 64 caracteres")
+    let nine = "s so son soni sonid sonido s so zzz"
+    expectEq(SettingsSearch.match(nine, in: entries).map(\.id), ["a"], "buscar: solo cuentan las primeras 8 palabras")
+}
+
+@MainActor func testSearchIndexHoldsEveryRowAndPageOnce() async {
+    await Localized.scoped(to: .es) {
+        let expected = SettingsInventory.options.map(\.titleKey)
+            + SettingsInventory.panels.map { $0.rowId ?? $0.titleKey }
+            + SettingsTab.allCases.map { "settings.tab.\($0.rawValue)" }
+        let ids = SettingsInventory.searchEntries.map(\.id)
+        expectEq(ids.sorted(), expected.sorted(), "buscar: el indice es filas, paneles y una pagina por pestana")
+        expectEq(Set(ids).count, ids.count, "buscar: sin ids repetidos")
+    }
 }
 
 @MainActor func testSearchFindsEveryOptionInBothLanguages() async {
