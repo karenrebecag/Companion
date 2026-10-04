@@ -125,7 +125,9 @@ private func request(_ tool: String, _ json: String) -> ApprovalRequest {
         .createDocument: #"{"path":"~/informes/q3.pdf","document":"{}"}"#,
         .sheetWrite: #"{"range":"B2:C3","values":"[[1,2],[3,4]]","app":"excel","workbook":"/tmp/a.xlsx"}"#,
     ]
-    for tool in NativeTool.allCases where tool.riskLevel == .requiresApproval {
+    // delete_file is the one risky tool that is never remembered, on purpose:
+    // DeleteFileToolTests pins it.
+    for tool in NativeTool.allCases where tool.riskLevel == .requiresApproval && tool != .deleteFile {
         expect(ApprovalKey.from(request(tool.rawValue, samples[tool] ?? "{}")) != nil,
                "cobertura: \(tool.rawValue) tiene clave")
     }

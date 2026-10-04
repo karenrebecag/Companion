@@ -65,7 +65,7 @@ package enum JobSteps: Sendable {
             case "Bash", "run_shell": commands += 1
             case "list_directory", "find_places": searches += 1
             case "Read", "Write", "Edit", "NotebookEdit",
-                 "read_file", "write_file", "edit_file":
+                 "read_file", "write_file", "edit_file", "delete_file":
                 if let path = path(of: step) {
                     files.insert((path as NSString).lastPathComponent)
                 } else {
