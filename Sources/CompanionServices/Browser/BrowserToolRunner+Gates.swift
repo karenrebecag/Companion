@@ -24,6 +24,8 @@ extension BrowserToolRunner {
         guard tool != .release, mayAct(tab) else { return nil }
         if tool == .navigate { return navigateApproval(call, tab: tab, arguments: arguments, said: said) }
         if tool == .press { return pressApproval(call, tab: tab, arguments: arguments, said: said) }
+        if tool == .drag { return dragApproval(call, tab: tab, arguments: arguments, said: said) }
+        if tool == .clickAt { return clickAtApproval(call, tab: tab, arguments: arguments) }
         return elementApproval(call, tool: tool, tab: tab, arguments: arguments, said: said)
     }
 
@@ -157,7 +159,7 @@ extension BrowserToolRunner {
         case .rightClick: command = .rightClick(tab: tab, generation: page.generation, element: id)
         case .type: command = .type(tab: tab, generation: page.generation, element: id, text: text)
         case .select: command = .select(tab: tab, generation: page.generation, element: id, option: text)
-        case .tabs, .read, .scroll, .hover, .press, .navigate, .open, .take, .release:
+        case .tabs, .read, .scroll, .hover, .press, .drag, .clickAt, .navigate, .open, .take, .release:
             return fail(tool, BridgeCode.invalidArgs, "\(tool.rawValue) does not act on an element")
         }
         switch await channel.send(command, timeout: Self.actTimeout) {
@@ -290,7 +292,8 @@ extension BrowserToolRunner {
         switch tool {
         case .doubleClick: return past ? "double-clicked" : "double-click"
         case .rightClick: return past ? "right-clicked" : "right-click"
-        case .click, .tabs, .read, .type, .select, .scroll, .hover, .press, .navigate, .open, .take, .release:
+        case .click, .tabs, .read, .type, .select, .scroll, .hover, .press, .drag, .clickAt, .navigate, .open, .take,
+             .release:
             return past ? "clicked" : "click"
         }
     }

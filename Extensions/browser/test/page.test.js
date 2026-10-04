@@ -1495,3 +1495,63 @@ test('focus follows an open shadow root to the element that holds it', () => {
 test('focus goes through the generation check', () => {
   assert.equal(page.focus(999, 1).error.code, 'stale_id');
 });
+
+// H-7 P7: the drop point is measured where the page is, never scrolled to: scrolling to the target would
+// move the source the press already holds.
+test('boxOf measures an element without scrolling, and says when it is off screen', () => {
+  const el = fake({ tag: 'li', text: 'Destino' });
+  let scrolled = 0;
+  el.scrollIntoView = () => { scrolled++; };
+  el.getBoundingClientRect = () => ({ left: 100, top: 200, width: 40, height: 20 });
+  const saved = { window: globalThis.window, document: globalThis.document, state: globalThis.__companionState };
+  globalThis.window = { innerWidth: 800, innerHeight: 600 };
+  globalThis.document = el.ownerDocument;
+  globalThis.__companionState = { generation: 4, elements: new Map([[1, el]]) };
+  try {
+    assert.deepEqual(page.boxOf(4, 1), { box: { x: 120, y: 210 }, inView: true });
+    el.getBoundingClientRect = () => ({ left: 100, top: 900, width: 40, height: 20 });
+    assert.equal(page.boxOf(4, 1).inView, false);
+    assert.equal(page.boxOf(3, 1).error.code, 'stale_id', 'another read');
+    assert.equal(scrolled, 0);
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.document = saved.document;
+    globalThis.__companionState = saved.state;
+  }
+});
+
+// The press goes to the innermost node at the point: a frame wrapped in a shadow root, or a node inside an
+// embed's fallback, still belongs to a page nobody read.
+test('pointAt finds an embedded frame at a point through shadow roots and ancestors', () => {
+  const saved = globalThis.document;
+  const at = (node) => { globalThis.document = { elementFromPoint: () => node }; return page.pointAt(10, 10, null); };
+  try {
+    for (const [tag, frame] of [['iframe', true], ['frame', true], ['object', true], ['embed', true], ['canvas', false]]) {
+      assert.equal(at(fake({ tag })).frame, frame, tag);
+    }
+    const host = fake({ tag: 'x-card' });
+    host.shadowRoot = { elementFromPoint: () => fake({ tag: 'iframe' }) };
+    assert.equal(at(host).frame, true, 'an iframe inside a shadow root');
+    const embed = fake({ tag: 'object' });
+    assert.equal(at(fake({ tag: 'span', parent: embed })).frame, true, 'inside an embed');
+    assert.equal(at(null).frame, false, 'nothing there');
+  } finally {
+    globalThis.document = saved;
+  }
+});
+
+test('pointAt says whether the node at a point is the one it saw under the same token', () => {
+  const saved = globalThis.document;
+  const first = fake({ tag: 'canvas' });
+  const other = fake({ tag: 'button', text: 'Pagar' });
+  try {
+    globalThis.document = { elementFromPoint: () => first };
+    assert.equal(page.pointAt(10, 10, 'p1').same, true, 'first look');
+    assert.equal(page.pointAt(10, 10, 'p1').same, true, 'still the canvas');
+    globalThis.document = { elementFromPoint: () => other };
+    assert.equal(page.pointAt(10, 10, 'p1').same, false, 'something else slid in');
+    assert.equal(page.pointAt(10, 10, 'p2').same, true, 'a new token starts over');
+  } finally {
+    globalThis.document = saved;
+  }
+});

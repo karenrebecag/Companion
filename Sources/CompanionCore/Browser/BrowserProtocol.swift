@@ -224,6 +224,11 @@ package enum BrowserCommand: Sendable, Equatable {
     case hover(tab: Int, generation: Int, element: Int)
     /// Without an element the key goes to the page's focus: generation and element are both nil.
     case press(tab: Int, key: String, times: Int, generation: Int?, element: Int?)
+    case dragTo(tab: Int, generation: Int, element: Int, to: Int)
+    /// Drag by an offset: the same tool on the wire, told apart by its arguments.
+    case dragBy(tab: Int, generation: Int, element: Int, dx: Int, dy: Int)
+    /// A viewport point, bound to the read it was taken from by its generation.
+    case clickAt(tab: Int, generation: Int, x: Int, y: Int)
     case navigate(tab: Int, url: URL)
     case open(url: URL)
     case take(tab: Int)

@@ -35,6 +35,9 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
     private let presence: BrowserPresence
     private let lock = NSLock()
     private var pages: [Int: BrowserPage] = [:]
+    /// When each cached page was read: click_at and a drag target trust a read only so long.
+    private var readAt: [Int: Date] = [:]
+    let now: @Sendable () -> Date
     private var seenEpoch: Int
 
     /// Alone, a runner has its own lease and is the conversation's.
@@ -52,13 +55,14 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
     init(
         channel: any BrowserCommanding, presence: BrowserPresence,
         language: @escaping @Sendable () -> AppLanguage = { .en },
-        leases: BrowserLeases, caller: String
+        leases: BrowserLeases, caller: String, now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.channel = channel
         self.presence = presence
         self.language = language
         self.leases = leases
         self.caller = caller
+        self.now = now
         self.seenEpoch = presence.epoch
     }
 
@@ -88,6 +92,8 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
         case .click, .doubleClick, .rightClick, .type, .select, .press, .navigate: return await write(tool, arguments, argumentsJSON)
         case .scroll: return await scroll(arguments)
         case .hover: return await hover(arguments)
+        case .drag: return await drag(arguments, raw: argumentsJSON)
+        case .clickAt: return await clickAt(arguments, raw: argumentsJSON)
         case .open: return await open(arguments)
         case .take: return await take(arguments, raw: argumentsJSON)
         case .release: return await release(arguments)
@@ -176,7 +182,24 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
         return lock.withLock { pages[tab] }
     }
 
-    func forget(_ tab: Int) { lock.withLock { pages[tab] = nil } }
+    func forget(_ tab: Int) {
+        lock.withLock {
+            pages[tab] = nil
+            readAt[tab] = nil
+        }
+    }
+
+    /// The cached page, only while its read is young enough to point at.
+    func freshPage(_ tab: Int) -> BrowserPage? {
+        syncEpoch()
+        let current = now()
+        return lock.withLock {
+            guard let page = pages[tab], let read = readAt[tab],
+                  current.timeIntervalSince(read) <= BrowserTool.readFreshness
+            else { return nil }
+            return page
+        }
+    }
 
     /// The extension says the tab is gone: nobody owns it any more.
     func lost(_ tab: Int) {
@@ -197,6 +220,7 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
             guard current != seenEpoch else { return }
             seenEpoch = current
             pages.removeAll()
+            readAt.removeAll()
             tickets.reset()
         }
     }
@@ -205,10 +229,15 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
     /// the old session and is not kept.
     private func remember(_ page: BrowserPage, epoch: Int) {
         syncEpoch()
+        let read = now()
         lock.withLock {
             guard epoch == seenEpoch else { return }
-            if pages[page.tab] == nil, pages.count >= Self.cacheLimit { pages.removeAll() }
+            if pages[page.tab] == nil, pages.count >= Self.cacheLimit {
+                pages.removeAll()
+                readAt.removeAll()
+            }
             pages[page.tab] = page
+            readAt[page.tab] = read
         }
     }
 

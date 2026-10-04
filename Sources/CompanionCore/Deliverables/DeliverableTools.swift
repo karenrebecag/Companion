@@ -89,6 +89,8 @@ package enum BridgeScope {
         "browser_scroll", "browser_hover",
         // P4: a key press, gated like a click when it activates or submits.
         "browser_press",
+        // H-7 P7: drag judged on both ends, click_at always asks.
+        "browser_drag", "browser_click_at",
         // Self-qa PR-3 (ADR 009): Companion lets an agent inspect it, read
         // only and behind the same session sheet; it never lends the hands.
         "companion_state", "companion_island", "companion_settings", "companion_thread",

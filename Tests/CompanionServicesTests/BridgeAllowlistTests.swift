@@ -110,6 +110,8 @@ private func selfInspection() -> SelfInspectionRunner {
         "browser_scroll", "browser_hover",
         // P4: a write, gated like a click for Enter and Space.
         "browser_press",
+        // H-7 P7: drag on both ends' gates; a point always asks.
+        "browser_drag", "browser_click_at",
         // Self-qa PR-3: added deliberately, read-only, behind the same sheet.
         "companion_state", "companion_island", "companion_settings", "companion_thread",
         "companion_last_message_matches", "companion_log",
