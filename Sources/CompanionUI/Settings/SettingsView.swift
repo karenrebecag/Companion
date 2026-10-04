@@ -5,13 +5,21 @@ import SwiftUI
 package enum SettingsOverlayMetrics {
     /// The history overlay still uses the old square bound.
     package static let maxSide: CGFloat = 560
-    package static let sidebar: CGFloat = 200
     package static let cardHeight: CGFloat = 68
     package static let avatar: CGFloat = Space.x8 + Space.x1
     package static let bigAvatar: CGFloat = 56
     package static let stepHit: CGFloat = Space.x8
     /// How long a row stays lit after a search lands on it.
     package static let highlightSeconds: Double = 1.6
+}
+
+/// The content pane beside the rail (Incredible's gutter and header air).
+package enum SettingsPaneMetrics {
+    package static let leading: CGFloat = Space.x14
+    package static let trailing: CGFloat = 96
+    package static let top: CGFloat = 44
+    package static let bottom: CGFloat = Space.x10
+    package static let titleSize: CGFloat = TypeSize.dialogTitle
 }
 
 /// Settings (Wave 16g): a sheet with a sidebar and a search, one page at a
@@ -80,21 +88,20 @@ package struct SettingsView: View {
     /// Sidebar, hairline, page; the sheet host supplies the surface and the close.
     private var sheetBody: some View {
         HStack(spacing: Space.none) {
-            SettingsSidebar(tab: $tab, query: $query, onPick: jump)
-                .frame(width: SettingsOverlayMetrics.sidebar)
-            Rectangle().fill(Semantic.border).frame(width: Stroke.hairline)
+            SettingsSidebar(tab: $tab, query: $query, onPick: jump, approvalPending: chat?.pendingApproval != nil)
+                .frame(width: SettingsRailMetrics.width)
+            Rectangle().fill(Semantic.borderChrome).frame(width: Stroke.hairline)
             pageScroll
         }
-    }
-
-    private func submitFirst() {
-        if let first = SettingsSearch.match(query, in: SettingsInventory.searchEntries).first { jump(first) }
     }
 
     private var pageScroll: some View {
         ScrollView {
             page
-                .padding(Space.x6)
+                .padding(.leading, SettingsPaneMetrics.leading)
+                .padding(.trailing, SettingsPaneMetrics.trailing)
+                .padding(.top, SettingsPaneMetrics.top)
+                .padding(.bottom, SettingsPaneMetrics.bottom)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .id("\(tab.rawValue)-\(languageTick)")
                 .transition(ChromeMotion.transition(.modeSwap, reduceMotion: reduceMotion))
@@ -183,126 +190,6 @@ package struct SettingsView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: Radius.card)
                         .stroke(Semantic.border, lineWidth: Stroke.hairline))
-            }
-        }
-    }
-}
-
-/// Search on top, the pages in two groups, the version at the bottom.
-struct SettingsSidebar: View {
-    @Binding var tab: SettingsTab
-    @Binding var query: String
-    let onPick: (SettingsSearch.Entry) -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private func submitFirst() {
-        if let first = SettingsSearch.match(query, in: SettingsInventory.searchEntries).first { onPick(first) }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.x1) {
-            SettingsSearchField(query: $query, onSubmit: submitFirst)
-                .padding(.bottom, Space.x3)
-            if query.trimmingCharacters(in: .whitespaces).isEmpty {
-                group(SettingsTab.firstGroup)
-                Spacer().frame(height: Space.x4)
-                group(SettingsTab.secondGroup)
-            } else {
-                SettingsSearchResults(query: query, onPick: onPick)
-            }
-            Spacer(minLength: Space.x4)
-            Text(String(format: Localized.string("settings.sidebar.version"), SettingsVersion.current))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .padding(.horizontal, Space.x2)
-        }
-        .padding(Space.x4)
-        .frame(maxHeight: .infinity, alignment: .top)
-    }
-
-    private func group(_ pages: [SettingsTab]) -> some View {
-        ForEach(pages, id: \.self) { page in
-            Button {
-                withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { tab = page }
-            } label: {
-                HStack(spacing: Space.x2) {
-                    Image(systemName: page.symbol)
-                        .font(.uiLabel)
-                        .frame(width: Space.x5)
-                        .accessibilityHidden(true)
-                    Text(page.title).font(.uiLabel)
-                    Spacer(minLength: Space.none)
-                }
-                .foregroundStyle(tab == page ? Semantic.foreground : Semantic.mutedForeground)
-                .padding(.horizontal, Space.x2)
-                .padding(.vertical, Space.x2)
-                .background(
-                    RoundedRectangle(cornerRadius: Radius.md)
-                        .fill(tab == page ? Semantic.muted : Color.clear))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(tab == page ? .isSelected : [])
-        }
-    }
-
-}
-
-/// Search over the settings inventory: the field and its results, shared by
-/// the sheet's sidebar and the panel's top.
-struct SettingsSearchField: View {
-    @Binding var query: String
-    let onSubmit: () -> Void
-
-    var body: some View {
-        HStack(spacing: Space.x2) {
-            Image(systemName: "magnifyingglass")
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .accessibilityHidden(true)
-            TextField(Localized.string("settings.search.placeholder"), text: $query)
-                .textFieldStyle(.plain)
-                .font(.uiLabel)
-                .onSubmit(onSubmit)
-        }
-        .padding(.horizontal, Space.x3)
-        .padding(.vertical, Space.x2)
-        // A text field in a capsule, not a button: CapsuleChipStyle has
-        // nothing to style here.
-        .background(Capsule().fill(Semantic.muted))
-    }
-
-}
-
-struct SettingsSearchResults: View {
-    let query: String
-    let onPick: (SettingsSearch.Entry) -> Void
-
-    @ViewBuilder var body: some View {
-        let found = SettingsSearch.match(query, in: SettingsInventory.searchEntries)
-        if found.isEmpty {
-            Text(String(format: Localized.string("settings.search.none"), query))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .padding(.horizontal, Space.x2)
-        } else {
-            ForEach(found.prefix(8), id: \.id) { entry in
-                Button { onPick(entry) } label: {
-                    VStack(alignment: .leading, spacing: Space.none) {
-                        Text(entry.title)
-                            .font(.uiLabel)
-                            .foregroundStyle(Semantic.foreground)
-                            .lineLimit(1)
-                        Text(SettingsTab(rawValue: entry.page)?.title ?? "")
-                            .font(.uiCaption)
-                            .foregroundStyle(Semantic.mutedForeground)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Space.x2)
-                    .padding(.vertical, Space.x1)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
             }
         }
     }
