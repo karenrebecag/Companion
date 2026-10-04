@@ -15,6 +15,9 @@ package struct AppButton: View {
     var enabled: Bool = true
     /// 19-1b: an optional glyph before the label ("checkmark" on Allow).
     var systemImage: String?
+    /// Arc button `loading`: the spinner takes the glyph's place while the
+    /// action runs. The caller also disables the button.
+    var busy = false
     let action: () -> Void
 
     @State private var hovering = false
@@ -28,6 +31,7 @@ package struct AppButton: View {
         fullWidth: Bool = false,
         enabled: Bool = true,
         systemImage: String? = nil,
+        busy: Bool = false,
         action: @escaping () -> Void
     ) {
         self.title = title
@@ -37,6 +41,7 @@ package struct AppButton: View {
         self.fullWidth = fullWidth
         self.enabled = enabled
         self.systemImage = systemImage
+        self.busy = busy
         self.action = action
     }
 
@@ -60,7 +65,11 @@ package struct AppButton: View {
     /// The window's buttons are shadcn's; the style supplies font and box.
     private var shadcnLabel: some View {
         HStack(spacing: size.gap) {
-            if let systemImage { Image(systemName: systemImage) }
+            if busy {
+                LoaderArc()
+            } else if let systemImage {
+                Image(systemName: systemImage)
+            }
             Text(title)
         }
         .frame(maxWidth: fullWidth ? .infinity : nil)
@@ -173,11 +182,21 @@ package struct AppField: View {
     var title: String?
     var placeholder: String
     @Binding var text: String
+    /// Arc input's helper row: what the value should be, before anything is wrong.
+    var description: String? = nil
     var error: String? = nil
     var secure = false
+    /// Arc input's readOnly: the value cannot change under a save in flight.
+    var readOnly = false
+    /// How the helper and error rows enter; only seen when the caller animates them.
+    var messageTransition: AnyTransition = .opacity
     /// Neutral chrome: the focus ring in ink instead of the app accent, for
     /// surfaces that stay black-and-white (the welcome sheet).
     var neutral = false
+    /// Opt-in Arc input reading: the title names the field and the helper or
+    /// error is its hint. Off, the field reads as it always has, so callers
+    /// that did not ask (Settings, Welcome, search) are not changed by it.
+    var messagesInHint = false
     var onSubmit: (() -> Void)? = nil
 
     @FocusState private var focused: Bool
@@ -187,17 +206,25 @@ package struct AppField: View {
         title: String? = nil,
         placeholder: String,
         text: Binding<String>,
+        description: String? = nil,
         error: String? = nil,
         secure: Bool = false,
+        readOnly: Bool = false,
+        messageTransition: AnyTransition = .opacity,
         neutral: Bool = false,
+        messagesInHint: Bool = false,
         onSubmit: (() -> Void)? = nil
     ) {
         self.title = title
         self.placeholder = placeholder
         self._text = text
+        self.description = description
         self.error = error
         self.secure = secure
+        self.readOnly = readOnly
+        self.messageTransition = messageTransition
         self.neutral = neutral
+        self.messagesInHint = messagesInHint
         self.onSubmit = onSubmit
     }
 
@@ -221,7 +248,7 @@ package struct AppField: View {
             }
             .textFieldStyle(.plain)
             .font(.uiBody)
-            .foregroundStyle(Semantic.foreground)
+            .foregroundStyle(readOnly ? Semantic.mutedForeground : Semantic.foreground)
             .padding(.horizontal, Space.x3)
             .padding(.vertical, Space.x2)
             .background(Semantic.surface)
@@ -239,13 +266,55 @@ package struct AppField: View {
                 }
             }
             .onHover { hovering = $0 }
+            // Not .disabled: that greys the value out and drops it from
+            // VoiceOver's reading. The value stays readable; only input stops.
+            .allowsHitTesting(!readOnly)
+            .onChange(of: readOnly) { _, locked in
+                if locked { focused = false }
+            }
+            .modifier(FieldAccessibilityModifier(spec: accessibilitySpec))
             if let error, !error.isEmpty {
                 Text(error)
                     .font(.uiCaption)
                     .foregroundStyle(Semantic.destructive)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityHidden(messagesInHint)
+                    .transition(messageTransition)
+            } else if let description, !description.isEmpty {
+                Text(description)
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityHidden(messagesInHint)
+                    .transition(messageTransition)
             }
         }
+    }
+
+    /// SwiftUI has no aria-invalid; the hint opens with the word instead.
+    package static func hint(description: String?, error: String?) -> String {
+        if let error, !error.isEmpty { return String(format: Localized.string("field.invalid"), error) }
+        return description ?? ""
+    }
+
+    /// The visible title, then the placeholder, then a generic name: never empty.
+    package static func label(title: String?, placeholder: String) -> String {
+        if let title, !title.isEmpty { return title }
+        return placeholder.isEmpty ? Localized.string("field.unnamed") : placeholder
+    }
+
+    /// nil leaves SwiftUI's own reading untouched.
+    package static func accessibility(
+        messagesInHint: Bool, title: String?, placeholder: String, description: String?, error: String?
+    ) -> FieldAccessibility? {
+        guard messagesInHint else { return nil }
+        return FieldAccessibility(label: label(title: title, placeholder: placeholder),
+                                  hint: hint(description: description, error: error))
+    }
+
+    package var accessibilitySpec: FieldAccessibility? {
+        Self.accessibility(messagesInHint: messagesInHint, title: title, placeholder: placeholder,
+                           description: description, error: error)
     }
 
     private func fieldStroke(_ look: ControlLook) -> Color {
@@ -253,6 +322,25 @@ package struct AppField: View {
         case .destructive: Semantic.destructive
         case .border: Semantic.border
         case .none: Color.clear
+        }
+    }
+}
+
+package struct FieldAccessibility: Equatable, Sendable {
+    package let label: String
+    package let hint: String
+}
+
+private struct FieldAccessibilityModifier: ViewModifier {
+    let spec: FieldAccessibility?
+
+    func body(content: Content) -> some View {
+        if let spec {
+            content
+                .accessibilityLabel(spec.label)
+                .accessibilityHint(spec.hint)
+        } else {
+            content
         }
     }
 }

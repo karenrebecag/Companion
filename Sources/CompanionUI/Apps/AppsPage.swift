@@ -159,12 +159,10 @@ struct AppsPage: View {
             // launch, and a bare form read as a broken page (Karen, en
             // vivo). The seed renders the same grid; Conectar routes here.
             if editing {
-                AppsSetupForm(apps: apps, initialEndpoint: apps.endpoint) {
-                    editing = false
-                    Task { await apps.load() }
-                }
+                // The form loads the catalog itself before confirming.
+                AppsSetupForm(apps: apps, initialEndpoint: apps.endpoint) { editing = false }
             } else {
-                setupBanner
+                AppsSetupBanner { editing = true }
             }
             AppField(placeholder: Localized.string("apps.search"), text: $searchText)
             seededFeatured
@@ -179,24 +177,6 @@ struct AppsPage: View {
                 catalog
             }
         }
-    }
-
-    /// One slim row, not a page: the function is a step, never the show.
-    private var setupBanner: some View {
-        HStack(spacing: Space.x3) {
-            Text(Localized.string("apps.seed.banner"))
-                .typeRole(.micro)
-                .foregroundStyle(Semantic.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer()
-            AppButton(Localized.string("apps.seed.configure"), kind: .secondary) { editing = true }
-        }
-        .padding(.horizontal, Space.x4)
-        .padding(.vertical, Space.x3)
-        .background(Semantic.surface)
-        .clipShape(RoundedRectangle(cornerRadius: CardChrome.radius))
-        .overlay(RoundedRectangle(cornerRadius: CardChrome.radius)
-            .strokeBorder(Semantic.borderChrome, lineWidth: Stroke.hairline))
     }
 
     private var seededFeatured: some View {
@@ -381,50 +361,5 @@ struct AppIconView: View {
         }
         let mark = String(taken.uppercased().prefix(2)).trimmingCharacters(in: .whitespacesAndNewlines)
         return mark.isEmpty ? nil : mark
-    }
-}
-
-/// The function's address and key. The key field never shows what is
-/// stored: a save clears it.
-struct AppsSetupForm: View {
-    var apps: AppsModel
-    @State private var endpoint: String
-    @State private var key = ""
-    @State private var error: String?
-    let onSaved: () -> Void
-
-    init(apps: AppsModel, initialEndpoint: String, onSaved: @escaping () -> Void) {
-        self.apps = apps
-        self._endpoint = State(initialValue: initialEndpoint)
-        self.onSaved = onSaved
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.x4) {
-            Text(Localized.string("apps.setup.title"))
-                .font(.uiLabel.weight(.semibold))
-                .foregroundStyle(Semantic.foreground)
-            Text(Localized.string("apps.setup.body"))
-                .typeRole(.body)
-                .foregroundStyle(Semantic.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
-            AppField(title: Localized.string("apps.setup.endpoint"),
-                     placeholder: Localized.string("apps.setup.endpoint.placeholder"), text: $endpoint)
-            AppField(title: Localized.string("apps.setup.key"),
-                     placeholder: Localized.string("apps.setup.key.placeholder"),
-                     text: $key, error: error, secure: true, onSubmit: save)
-            AppButton(Localized.string("apps.setup.save"), action: save)
-        }
-        .frame(maxWidth: AppsMetrics.formWidth, alignment: .leading)
-    }
-
-    private func save() {
-        guard apps.configure(endpoint: endpoint, key: key) else {
-            error = Localized.string("apps.setup.invalid")
-            return
-        }
-        key = ""
-        error = nil
-        onSaved()
     }
 }
