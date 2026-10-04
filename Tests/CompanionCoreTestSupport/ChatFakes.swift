@@ -207,6 +207,10 @@ package final class MemoryConversationStore: ConversationStoring, @unchecked Sen
     package func load(_ id: String) throws -> ConversationRecord? {
         records[id]
     }
+
+    package func clearHistory() throws {
+        records.removeAll()
+    }
 }
 
 package final class FakeChatProvider: ChatProvider, @unchecked Sendable {

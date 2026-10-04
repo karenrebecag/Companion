@@ -28,6 +28,7 @@ package struct SettingsView: View {
     @State private var highlight: String?
     @State private var highlightTimer: Task<Void, Never>?
     @State private var confirmPurge = false
+    @State private var history = HistoryClearModel()
     @State private var storageLabel = Localized.string("settings.storage.empty")
     /// Bumped on a language change: every string on screen repaints at once.
     @State private var languageTick = 0
@@ -69,6 +70,7 @@ package struct SettingsView: View {
             }
         }
         .overlay { purgeConfirm }
+        .overlay { HistoryClearDialog(model: history, chat: chat) }
         .dropdownPortal(host: dropdowns)
         .onDisappear {
             dropdowns.dismiss()
@@ -120,7 +122,8 @@ package struct SettingsView: View {
         case .system:
             SettingsSystemPage(
                 chat: chat, updates: updates, welcome: welcome, storageLabel: storageLabel,
-                confirmPurge: $confirmPurge, onClose: onClose, onAppear: refreshStorage)
+                confirmPurge: $confirmPurge, onClose: onClose, onAppear: refreshStorage,
+                history: history)
         }
     }
 

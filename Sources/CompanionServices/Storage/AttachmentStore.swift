@@ -223,8 +223,11 @@ package final class AttachmentStore: AttachmentStoring, Sendable {
     }
 
     private func isUnderRoot(_ url: URL) -> Bool {
-        let rootPath = root.standardizedFileURL.path
-        let path = url.path
+        // A directory listing returns resolved paths, so a root behind a
+        // symlink (/var, a linked home) would otherwise match nothing and
+        // purge() would silently keep every copy.
+        let rootPath = root.resolvingSymlinksInPath().path
+        let path = url.resolvingSymlinksInPath().path
         return path == rootPath || path.hasPrefix(rootPath + "/")
     }
 
