@@ -1733,3 +1733,56 @@ test('a page that cannot say what is at the point is not pressed', async () => {
   assert.equal(drop.error.code, 'stale_id');
   assert.equal(presses(rig.state).length, 0);
 });
+
+test('a drag source covered only once the cursor arrives is not pressed', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  let sourceChecks = 0;
+  rig.state.stillHits = (id) => id !== 1 || ++sourceChecks === 1;
+  const reply = await ask(rig.ports[0], 204, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.ok(sourceChecks >= 2, 'checked again right before the press');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a frame under the drag source is not pressed into', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig, { frame: (x, y) => ({ frame: x === 40 && y === 60, same: true }) });
+  const reply = await ask(rig.ports[0], 205, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a drop point at the page edge or left of it is refused, and the last pixel is not', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig, { view: { w: 1000, h: 800 } });
+  const edge = await ask(rig.ports[0], 206, 'browser_drag', { tab: 3, generation, element: 1, dx: 960, dy: 0 });
+  assert.equal(edge.error.code, 'stale_id', 'x equal to the width');
+  const left = await ask(rig.ports[0], 207, 'browser_drag', { tab: 3, generation, element: 1, dx: -100, dy: 0 });
+  assert.equal(left.error.code, 'stale_id', 'left of the page');
+  assert.equal(presses(rig.state).length, 0);
+  const last = await ask(rig.ports[0], 208, 'browser_drag', { tab: 3, generation, element: 1, dx: 959, dy: 0 });
+  assert.deepEqual(last.result, { done: 'dragged' });
+});
+
+test('each press marks its point before the glide and checks it right before pressing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const phases = [];
+  const generation = await readyPair(rig, { frame: (x, y, token, phase) => { phases.push(phase); return { frame: false, same: true }; } });
+  await ask(rig.ports[0], 209, 'browser_click_at', { tab: 3, generation, x: 400, y: 300 });
+  assert.deepEqual(phases, ['mark', 'check']);
+});
+
+test('a drag marks both ends before the glide and checks each against its own mark before pressing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const looks = [];
+  const generation = await readyPair(rig, { frame: (x, y, token, phase) => { looks.push({ x, y, token, phase }); return { frame: false, same: true }; } });
+  const reply = await ask(rig.ports[0], 210, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.deepEqual(reply.result, { done: 'dragged' });
+  assert.deepEqual(looks.map((l) => l.phase), ['mark', 'mark', 'check', 'check']);
+  const [sourceMark, dropMark, sourceCheck, dropCheck] = looks;
+  assert.deepEqual([sourceMark.x, sourceMark.y, dropMark.x, dropMark.y], [40, 60, 200, 300], 'source, then drop point');
+  assert.notEqual(sourceMark.token, dropMark.token, 'one mark per end');
+  assert.equal(sourceCheck.token, sourceMark.token);
+  assert.equal(dropCheck.token, dropMark.token);
+});

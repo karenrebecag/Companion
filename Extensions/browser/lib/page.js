@@ -668,10 +668,22 @@
     return { box, inView, blocked, label: labelOf(el), role: roleOf(el) };
   }
 
-  function deepElementFromPoint(doc, x, y) {
+  // A closed root hides from the page but not from an extension. Only the frame test opens it: a read cannot
+  // list what is inside a closed root, so a click hit test that went in would refuse the host it read.
+  function shadowOf(node, closed) {
+    if (node.shadowRoot) return node.shadowRoot;
+    if (!closed) return null;
+    try {
+      return globalThis.chrome?.dom?.openOrClosedShadowRoot?.(node) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  function deepElementFromPoint(doc, x, y, { closed = false } = {}) {
     let node = doc.elementFromPoint(x, y);
-    while (node && node.shadowRoot) {
-      const inner = node.shadowRoot.elementFromPoint(x, y);
+    for (let root = node && shadowOf(node, closed); root; root = node && shadowOf(node, closed)) {
+      const inner = root.elementFromPoint(x, y);
       if (!inner || inner === node) break;
       node = inner;
     }
@@ -739,27 +751,30 @@
     return { box, inView };
   }
 
-  const EMBEDS = new Set(['iframe', 'frame', 'object', 'embed']);
+  const EMBEDS = new Set(['iframe', 'frame', 'object', 'embed', 'fencedframe', 'portal']);
   // What each press saw at its point before the cursor glide, by token; weak, so a gone node is not kept alive.
   const pointMarks = new Map();
   const POINT_MARKS_MAX = 16;
 
   // A press at a bare point goes to the innermost node there, so the frame test walks out from it through
   // shadow hosts: an embedded frame, or anything inside one, belongs to a page nobody read. The token pairs the
-  // look before the glide with the one right before the press, so a node that slid in between is caught.
-  function pointAt(x, y, token) {
-    const node = deepElementFromPoint(document, x, y);
+  // look before the glide ('mark') with the one right before the press ('check'), so a node that slid in
+  // between is caught; a check with no mark fails closed, and each check spends its mark.
+  function pointAt(x, y, token, phase) {
+    const node = deepElementFromPoint(document, x, y, { closed: true });
     let frame = false;
     for (let at = node; at; at = at.parentNode ?? at.parentElement ?? at.host ?? null) {
       if (at.tagName && EMBEDS.has(tagOf(at))) { frame = true; break; }
     }
     if (token == null) return { frame, same: true };
-    const seen = pointMarks.get(token);
-    if (!seen) {
+    if (phase === 'mark') {
       if (pointMarks.size >= POINT_MARKS_MAX) pointMarks.clear();
       pointMarks.set(token, node ? new WeakRef(node) : null);
       return { frame, same: true };
     }
+    if (!pointMarks.has(token)) return { frame, same: false };
+    const seen = pointMarks.get(token);
+    pointMarks.delete(token);
     return { frame, same: (seen?.deref() ?? null) === (node ?? null) };
   }
 
