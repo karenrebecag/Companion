@@ -1,0 +1,2 @@
+- **Accion "Restablecer permisos de Companion" lista para Ajustes (2026-10-03).**
+  Borra, servicio por servicio, los permisos de privacidad que Companion pidio (microfono, reconocimiento de voz, grabacion de pantalla, accesibilidad, monitoreo de entrada, contactos y automatizacion) y reinicia la app para pedirlos de nuevo; si un reinicio de permiso falla, no reinicia. Falta que Ajustes monte la fila.

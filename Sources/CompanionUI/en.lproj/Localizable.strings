@@ -732,3 +732,26 @@
 "island.approvalWithdrawn.body" = "You interrupted me while I was waiting for your OK, so I didn't do anything.";
 /* Settings sheet: the close button's label */
 "settings.close" = "Close settings";
+
+/* Settings: reset permissions and relaunch (ON-18) */
+"settings.resetPermissions.title" = "Reset Companion's permissions";
+"settings.resetPermissions.body" = "Clears the permissions you gave on this Mac and relaunches Companion so it asks for them again. Permissions only.";
+"settings.resetPermissions.button" = "Reset…";
+"settings.resetPermissions.dialog.title" = "Reset permissions?";
+"settings.resetPermissions.dialog.resets" = "This resets permissions only: %@. Companion relaunches and asks for them again.";
+"settings.resetPermissions.dialog.keeps" = "Kept as they are: your settings, keys, conversations and everything else.";
+"settings.resetPermissions.dialog.prompt" = "Type %@ to confirm.";
+"settings.resetPermissions.dialog.confirm" = "Reset and relaunch";
+"settings.resetPermissions.dialog.cancel" = "Cancel";
+"settings.resetPermissions.dialog.running" = "Resetting permissions…";
+"settings.resetPermissions.error" = "Couldn't reset the permissions, so Companion was not relaunched. Check Privacy & Security in System Settings to see what is still granted.";
+"settings.resetPermissions.error.resetFirst" = "Couldn't reset %@, so Companion was not relaunched. Nothing was reset before it. Try again, or remove the permissions by hand in System Settings > Privacy & Security.";
+"settings.resetPermissions.error.resetPartial" = "Couldn't reset %@, so Companion was not relaunched. These permissions were already reset: %@. Try again to finish the rest.";
+"settings.resetPermissions.error.relaunch" = "The permissions were reset, but Companion could not reopen itself. Open Companion again by hand and it will ask for them.";
+"settings.resetPermissions.service.microphone" = "Microphone";
+"settings.resetPermissions.service.speechRecognition" = "Speech Recognition";
+"settings.resetPermissions.service.screenCapture" = "Screen Recording";
+"settings.resetPermissions.service.accessibility" = "Accessibility";
+"settings.resetPermissions.service.listenEvent" = "Input Monitoring";
+"settings.resetPermissions.service.addressBook" = "Contacts";
+"settings.resetPermissions.service.appleEvents" = "Automation";
