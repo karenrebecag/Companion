@@ -55,6 +55,10 @@ package struct WelcomeView: View {
             keys.secrets = chat.secrets
             keys.refresh()
         }
+        .overlay(alignment: .top) {
+            WelcomeSignalBurst(trigger: welcome.bursts)
+                .environment(\.colorScheme, step == .yourTurn ? .dark : .light)
+        }
     }
 
     private func topBar(_ step: WelcomeStep) -> some View {
