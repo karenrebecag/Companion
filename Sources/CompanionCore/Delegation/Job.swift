@@ -46,8 +46,10 @@ package enum JobEvent: Sendable, Equatable {
     /// anonymous — which is exactly what made "why did it search instead of
     /// create?" undiagnosable.
     case started(goal: String)
-    case stepStarted(tool: String, summary: String)
-    case stepFinished(tool: String, ok: Bool)
+    /// `id` pairs a step's end with its start. Nil for producers that have no
+    /// id of their own: their end then closes the oldest open step of the tool.
+    case stepStarted(tool: String, summary: String, id: String? = nil)
+    case stepFinished(tool: String, ok: Bool, id: String? = nil)
     case approvalRequested(ApprovalRequest)
     case thought(String)
     /// What the interface should paint, straight from the tool that produced

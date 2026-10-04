@@ -72,7 +72,8 @@ func claudeCodeExecutorEmitsStepEvents() throws {
 
         let transcript = [
             #"{"type":"system","subtype":"init","session_id":"s-1"}"#,
-            #"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"WebSearch","input":{"query":"test"}}]}}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tu-1","name":"WebSearch","input":{"query":"test"}}]}}"#,
+            #"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tu-1","content":"ok"}]}}"#,
             #"{"type":"result","result":"ok","is_error":false}"#
         ]
         launcher.setResponseTranscript(transcript)
@@ -95,13 +96,38 @@ func claudeCodeExecutorEmitsStepEvents() throws {
         if case .stepStarted = event { return true }
         return false
     }
-    let hasStepFinished = result.contains { event in
-        if case .stepFinished = event { return true }
-        return false
+    let finished = result.compactMap { event -> String? in
+        if case .stepFinished(_, let ok, let id) = event { return "\(id ?? "-"):\(ok)" }
+        return nil
     }
 
     expect(hasStepStarted, "emits stepStarted")
-    expect(hasStepFinished, "emits stepFinished")
+    expectEq(finished, ["tu-1:true"], "emits one stepFinished, paired by the tool_use id")
+}
+
+@Test @MainActor
+func claudeCodeExecutorClosesStepsOnlyOnTheirResult() throws {
+    let result = try runAsync {
+        let launcher = StubProcessLauncher()
+        let executor = ClaudeCodeExecutor(
+            workdir: "/tmp/test", executablePath: "/stub/bin/claude",
+            processLauncher: launcher, approvals: InstantApprovals(approved: false))
+        let (events, sink) = AsyncStream<JobEvent>.makeStream()
+        launcher.setResponseTranscript([
+            #"{"type":"system","subtype":"init","session_id":"s-1"}"#,
+            #"{"type":"assistant","message":{"content":[{"type":"tool_use","id":"a","name":"Bash","input":{"command":"ls"}},{"type":"tool_use","id":"b","name":"Bash","input":{"command":"pwd"}}]}}"#,
+            #"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"b","is_error":true,"content":"x"}]}}"#,
+            #"{"type":"result","result":"ok","is_error":false}"#,
+        ])
+        let collector = Task { var all: [JobEvent] = []; for await e in events { all.append(e) }; return all }
+        _ = try await executor.run(JobRequest(id: "job-1", goal: "t", context: ""), events: sink)
+        sink.finish()
+        return await collector.value
+    }
+    let started = result.compactMap { if case .stepStarted(_, _, let id) = $0 { id } else { nil } }
+    let finished = result.compactMap { if case .stepFinished(_, let ok, let id) = $0 { "\(id ?? "-"):\(ok)" } else { nil } }
+    expectEq(started, ["a", "b"], "both parallel tool_use start, with their ids")
+    expectEq(finished, ["b:false"], "only the answered call ends; a stays open")
 }
 
 @Test @MainActor

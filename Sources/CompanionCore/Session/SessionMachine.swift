@@ -43,6 +43,8 @@ package struct SessionMachine: Sendable, Equatable {
     var screenRecordingCardShown = false
     var voice = TurnSnapshot.idle
     var typedBusy = false
+    /// Ids minted for steps whose producer sent none; never reused in a session.
+    var stepsMinted = 0
     /// The key is down but still under the tap threshold: the mic is open
     /// locally, nothing has left the machine and no reply has been cut.
     var provisional = false
@@ -60,7 +62,13 @@ package struct SessionMachine: Sendable, Equatable {
     var passiveAfter: TimeInterval = 0
     var passiveArm = 0
 
-    package init() {}
+    /// Where step times come from. Injected so Core never reads the wall clock
+    /// in the reducer and tests can move time by hand.
+    let clock: SessionClock
+
+    package init(clock: @escaping @Sendable () -> Date = { Date() }) {
+        self.clock = SessionClock(now: clock)
+    }
 
     /// Every request that leaves the sheet during an event, by any road, is
     /// reported once (`approvalClosed`), so the voice session never announces
