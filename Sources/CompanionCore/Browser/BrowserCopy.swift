@@ -103,6 +103,12 @@ package enum BrowserCopy {
             return "Pulsa un punto x, y de la página visible, para lo que ningún número de elemento alcanza (un "
                 + "lienzo o un mapa). El punto debe salir de una browser_read de hace menos de un minuto. "
                 + "Siempre pregunta antes."
+        case (.setFiles, .en):
+            return "Put one local file into a file field numbered by the last browser_read of that tab. "
+                + "It always asks, and a spoken yes cannot approve it. It never submits the form."
+        case (.setFiles, .es):
+            return "Pone un archivo local en un campo de archivo numerado por la última browser_read de esa pestaña. "
+                + "Siempre pregunta, y un sí hablado no lo aprueba. Nunca envía el formulario."
         case (.navigate, .en):
             return "Open an http or https address in a tab you control. Going to another site than the one shown asks first."
         case (.navigate, .es):
@@ -176,6 +182,8 @@ package enum BrowserCopy {
         case ("hidden", .es):
             return "opcional: lista también los elementos que no se renderizan (display none, visibility hidden, details cerrado), cada uno va marcado `hidden`; "
                 + "una acción sobre él se rechaza mientras siga oculto; que no lleve marca no prueba que esté en pantalla"
+        case ("path", .en): return "path of the one file to upload, under your home folder"
+        case ("path", .es): return "ruta del único archivo a subir, dentro de tu carpeta personal"
         case ("url", .en): return "the http or https address"
         case ("url", .es): return "la dirección http o https"
         default: return name
@@ -341,6 +349,8 @@ extension BrowserCopy {
         case (.drag, .es): return "Arrastré en el navegador."
         case (.clickAt, .en): return "Clicked a point in the browser."
         case (.clickAt, .es): return "Pulsé un punto en el navegador."
+        case (.setFiles, .en): return "Uploaded a file in the browser."
+        case (.setFiles, .es): return "Subí un archivo en el navegador."
         case (.navigate, .en): return "Navigated the browser."
         case (.navigate, .es): return "Navegué en el navegador."
         case (.open, .en): return "Opened a background tab."

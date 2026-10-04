@@ -32,27 +32,28 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
 
     let channel: any BrowserCommanding
     let language: @Sendable () -> AppLanguage
-    let tickets = ApprovalTickets()
+    let tickets: ApprovalTickets
     let leases: BrowserLeases
     let caller: String
     static let titleLimit = 120
+    let now: @Sendable () -> Date
     private let presence: BrowserPresence
     private let lock = NSLock()
     /// Oldest first; the last one is the tab's latest read.
     private var pages: [Int: [BrowserPage]] = [:]
-    /// When each cached page was read: click_at and a drag target trust a read only so long.
+    /// When each cached page was read: click_at, a drag target and an upload trust a read only so long.
     private var readAt: [Int: Date] = [:]
-    let now: @Sendable () -> Date
     private var seenEpoch: Int
 
     /// Alone, a runner has its own lease and is the conversation's.
     package convenience init(
         channel: any BrowserCommanding, presence: BrowserPresence,
-        language: @escaping @Sendable () -> AppLanguage = { .en }
+        language: @escaping @Sendable () -> AppLanguage = { .en },
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.init(
             channel: channel, presence: presence, language: language,
-            leases: BrowserLeases(epoch: presence.epoch), caller: Self.chatCaller)
+            leases: BrowserLeases(epoch: presence.epoch), caller: Self.chatCaller, now: now)
     }
 
     /// The host builds one lease and hands it to both runners, each with its
@@ -68,6 +69,8 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
         self.leases = leases
         self.caller = caller
         self.now = now
+        // The ticket's minute runs on the runner's clock, like the read's.
+        self.tickets = ApprovalTickets(now: now)
         self.seenEpoch = presence.epoch
     }
 
@@ -99,6 +102,7 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
         case .hover: return await hover(arguments)
         case .drag: return await drag(arguments, raw: argumentsJSON)
         case .clickAt: return await clickAt(arguments, raw: argumentsJSON)
+        case .setFiles: return await setFiles(arguments, argumentsJSON)
         case .open: return await open(arguments)
         case .take: return await take(arguments, raw: argumentsJSON)
         case .release: return await release(arguments)
@@ -250,6 +254,7 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
         let read = now()
         lock.withLock {
             guard epoch == seenEpoch else { return }
+            // A stamp kept after its page was dropped would look like a fresh read.
             if pages[page.tab] == nil, pages.count >= Self.cacheLimit {
                 pages.removeAll()
                 readAt.removeAll()

@@ -16,6 +16,7 @@ package enum BrowserTool: String, CaseIterable, Sendable {
     case press = "browser_press"
     case drag = "browser_drag"
     case clickAt = "browser_click_at"
+    case setFiles = "browser_set_files"
     case navigate = "browser_navigate"
     case open = "browser_open"
     case take = "browser_take"
@@ -23,8 +24,8 @@ package enum BrowserTool: String, CaseIterable, Sendable {
 
     package var isWrite: Bool {
         switch self {
-        case .click, .doubleClick, .rightClick, .type, .select, .scroll, .hover, .press, .drag, .clickAt, .navigate, .open,
-             .take, .release:
+        case .click, .doubleClick, .rightClick, .type, .select, .scroll, .hover, .press, .drag, .clickAt, .setFiles,
+             .navigate, .open, .take, .release:
             return true
         case .tabs, .read: return false
         }
@@ -121,6 +122,7 @@ package enum BrowserTool: String, CaseIterable, Sendable {
         case .clickAt:
             return [tab, Parameter(name: "x", type: "integer", required: true),
                     Parameter(name: "y", type: "integer", required: true)]
+        case .setFiles: return [tab, element, Parameter(name: "path", type: "string", required: true)]
         case .navigate: return [tab, Parameter(name: "url", type: "string", required: true)]
         case .open: return [Parameter(name: "url", type: "string", required: true)]
         case .take, .release: return [tab]
