@@ -82,12 +82,11 @@ import Testing
         .voice: AnyView(SettingsVoiceSection(preview: nil)),
         .vocabulary: AnyView(SettingsVocabularyPage()),
         .memory: AnyView(SettingsMemoryPage(memory: nil)),
-        .you: AnyView(SettingsYouPage()),
+        .you: AnyView(SettingsYouPage(welcome: quietWelcome())),
         // Production always passes these two; their cards are what the entries name.
         .privacy: AnyView(SettingsPrivacyPage(chat: nil, welcome: quietWelcome(), browser: quietBrowser())),
         .system: AnyView(SettingsSystemPage(
-            chat: nil, updates: nil, welcome: quietWelcome(), storageLabel: "", confirmPurge: .constant(false),
-            onClose: {}, onAppear: {})),
+            chat: nil, updates: nil, storageLabel: "", confirmPurge: .constant(false), onAppear: {})),
     ]
     for tab in SettingsTab.allCases {
         let view = try #require(pages[tab], "\(tab): la prueba monta la pagina")

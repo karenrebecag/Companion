@@ -39,6 +39,7 @@ private func words(_ text: String) -> [String] {
         "settings.you.city": "16h-3",
         "settings.context.location": "16h-3",
         "settings.muteWhileTalking": "PR6a",
+        "settings.muteEffects": "S2a (Sonidos, invertido)",
     ]
     for (key, label) in added {
         expect(options.contains { $0.titleKey == key }, "ajustes: la opción de \(label) \(key) sigue en el inventario")
