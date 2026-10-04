@@ -12,6 +12,8 @@ private final class FakeApps: AppsService, @unchecked Sendable {
     var pages: [String: CatalogPage] = [:]
     var accountsResult: Result<[ConnectedAccount], AppsFailure> = .success([])
     var catalogFailure: AppsFailure?
+    /// Fails only these queries, so a test can break the load while a search succeeds.
+    var failingQueries: Set<String> = []
     var queries: [(String, String?)] = []
     var connectFailure: AppsFailure?
     var slowPages = false
@@ -30,6 +32,7 @@ private final class FakeApps: AppsService, @unchecked Sendable {
         queries.append((query, after))
         if slowPages { try await Task.sleep(for: .milliseconds(50)) }
         if let catalogFailure { throw catalogFailure }
+        if failingQueries.contains(query) { throw AppsFailure.unreachable }
         return pages["\(query)|\(after ?? "")"] ?? CatalogPage(apps: [], total: 0, next: nil)
     }
 
@@ -429,6 +432,71 @@ private final class AppsManualSleeper: @unchecked Sendable {
     #expect(apps.state(of: "slack") == .connected)
     await apps.actions(of: slack)
     #expect(apps.actionsPhase != .idle, "now connected, loading actually runs — never stuck")
+}
+
+// A search typed while the first load is in flight owns the list; the load
+// landing afterwards must not overwrite the filtered page with the unfiltered
+// one, but the connected marks are not the search's to drop.
+@Test @MainActor func appsModelLoadLandingAfterASearchKeepsTheFilteredList() async {
+    let fake = FakeApps()
+    fake.pages["|"] = CatalogPage(apps: [app("slack"), app("gmail")], total: 2, next: nil)
+    fake.pages["sla|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
+    fake.gateAccounts = true
+    let (apps, _) = model(fake)
+    await configureSaved(apps)
+    let loadTask = Task { await apps.load() }
+    await pumpUntil("busqueda: accounts() de load queda detenido") { fake.gatedAccountsCallCount == 1 }
+
+    await apps.search("sla")
+    fake.releaseAccounts()
+    await loadTask.value
+
+    #expect(apps.query == "sla")
+    #expect(apps.apps.map(\.slug) == ["slack"], "the late unfiltered page must not win")
+    #expect(apps.total == 1)
+    #expect(apps.phase == .ready)
+    #expect(apps.state(of: "slack") == .connected, "search never refreshes the marks, so load must")
+    #expect(fake.queries.map(\.0).contains("") && fake.queries.map(\.0).contains("sla"))
+}
+
+@Test @MainActor func appsModelFailingLoadAfterASearchKeepsTheSearchList() async {
+    let fake = FakeApps()
+    fake.pages["sla|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
+    fake.failingQueries = [""]
+    fake.gateAccounts = true
+    let (apps, _) = model(fake)
+    await configureSaved(apps)
+    let loadTask = Task { await apps.load() }
+    await pumpUntil("busqueda: accounts() de load queda detenido") { fake.gatedAccountsCallCount == 1 }
+
+    await apps.search("sla")
+    fake.releaseAccounts()
+    await loadTask.value
+
+    #expect(apps.apps.map(\.slug) == ["slack"])
+    #expect(apps.phase == .ready, "the superseded load's failure is not the list's failure")
+}
+
+@Test @MainActor func appsModelSearchClearedBeforeLoadLandsAppliesTheLoad() async {
+    let fake = FakeApps()
+    fake.pages["|"] = CatalogPage(apps: [app("slack"), app("gmail")], total: 2, next: nil)
+    fake.pages["sla|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
+    fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
+    fake.gateAccounts = true
+    let (apps, _) = model(fake)
+    await configureSaved(apps)
+    let loadTask = Task { await apps.load() }
+    await pumpUntil("busqueda: accounts() de load queda detenido") { fake.gatedAccountsCallCount == 1 }
+
+    await apps.search("sla")
+    await apps.search("")
+    fake.releaseAccounts()
+    await loadTask.value
+
+    #expect(apps.apps.map(\.slug) == ["slack", "gmail"])
+    #expect(apps.phase == .ready)
+    #expect(apps.state(of: "slack") == .connected)
 }
 
 // Code review 16k-1 (HIGH): two taps on "Show more" fetch one page, once.
