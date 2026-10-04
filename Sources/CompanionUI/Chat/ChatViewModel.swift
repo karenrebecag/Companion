@@ -122,6 +122,12 @@ package final class ChatViewModel: ConversationPresenting {
     /// A safety, not a goal: normal use is one or two rounds.
     static let maxParentRounds = ParentToolCopy.maxRounds
     var conversationId = UUID().uuidString
+    /// Moves only when the history is cleared. Work that started before a
+    /// clear compares it, so a thread switch never drops anything.
+    var historyEpoch = 0
+    /// Jobs a clear stopped. A voice job has no run loop of ours to compare
+    /// epochs in, so its late events are recognised by id.
+    var jobsStoppedByClear: Set<JobID> = []
     var inFlight: Task<Void, Never>?
     /// The thread's own clock (Wave 15a): the last write, `persist()` or
     /// `restore()`; nil while the thread is empty. Ephemeral rollover reads

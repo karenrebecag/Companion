@@ -124,7 +124,7 @@ lo suyo no es inspeccionable más allá de nombres de módulo.
 **Cobertura visual (gana Incredible).** Ellos: cada estado tiene superficie y
 ningún estado tiene texto de estado (barras, brillo, tarjetas que se
 auto-cierran, luz ámbar/verde). Nosotros ya tenemos el equivalente en la isla
-(16f/16i/16m-2: transcripción viva/fija, carrete, runcard, checklist, barras
+(16f/16i/16m-2: transcripción viva/fija, carrete, runcard, registro de pasos (no un checklist), barras
 de agentes, luz, "no te oí" 6 s, aviso con salida) pero quedan huecos
 medidos:
 
@@ -139,7 +139,8 @@ medidos:
 **Pendiente de catálogo (16m-3..7):** adjuntos en isla (tarjetas verticales, pila
 de capturas, drop zone), dictado como tarjeta, contenedor visual
 (gráfica/Mermaid), answer-card con rejilla de avisos (límite, actualización,
-consentimiento, sesión, diagnóstico), menciones y comentarios.
+consentimiento, sesión, diagnóstico) y menciones. Lo que se listaba como "comentarios" es el modal de
+feedback, que ya existe (`Sources/CompanionUI/Feedback/FeedbackModal.swift`).
 
 ---
 

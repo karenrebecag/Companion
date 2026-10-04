@@ -25,13 +25,14 @@ package struct NativeExecutor: Executor, Sendable {
         skillsSource: (@Sendable () -> String)? = nil,
         documents: (any DocumentRendering)? = nil,
         sheets: (any SpreadsheetDriving)? = nil,
+        versions: FileVersions? = nil,
         disposal: FileDisposal = .system
     ) {
         self.descriptor = descriptor
         self.chatProvider = chatProvider
         self.toolRunner = NativeToolRunner(
             workdir: config.workdir, webSearch: webSearch, language: config.language,
-            skills: skills, documents: documents, sheets: sheets,
+            skills: skills, documents: documents, sheets: sheets, versions: versions,
             disposal: disposal)
         self.config = config
         self.approvals = approvals

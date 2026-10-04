@@ -221,9 +221,12 @@ package enum SessionEvent: Sendable, Equatable {
     case dictated(app: String, text: DictatedText? = nil)
     /// The user waved the result card away.
     case dictationHidden
-    /// The pointer entered (`true`) or left (`false`) the result card: while
-    /// it is over the card the card does not expire.
+    /// The pointer entered (`true`) or left (`false`) the result card: over
+    /// the card the clock pauses, and leaving continues it.
     case dictationCardHover(Bool)
+    /// The pointer entered (`true`) or left a countdown notice. The ring and
+    /// the session clock pause together; a notice with no countdown ignores it.
+    case noticeCardHover(Bool)
     /// The card's words were copied: the user is still reading it.
     case dictationCardCopied
     /// The hold wanted to dictate and could not; the words went to Companion.
@@ -272,6 +275,14 @@ package enum SessionEffect: Sendable, Equatable {
     case resolveApproval(requestId: String, approved: Bool, remember: Bool)
     case scheduleCompletedExpiry(TimeInterval)
     case scheduleNoticeExpiry(TimeInterval)
+    /// Freeze the completed clock where it is. A second pause changes nothing.
+    case pauseCompletedExpiry
+    /// Continue the completed clock from the time it had left.
+    case resumeCompletedExpiry
+    /// Freeze the notice clock where it is. A second pause changes nothing.
+    case pauseNoticeExpiry
+    /// Continue the notice clock from the time it had left.
+    case resumeNoticeExpiry
     /// 16h-3: a fact about the island for the model, decided by the reducer.
     case islandEvent(IslandEvent)
     case scheduleHandsGlowExpiry(TimeInterval)

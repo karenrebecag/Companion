@@ -101,7 +101,7 @@ func makeJobInfrastructure(
         skills: env.skillsLocation,
         skillsSource: { env.configProvider.current.skills },
         documents: NativeDocumentRenderer(),
-        sheets: AppleEventSheets())
+        sheets: AppleEventSheets(), versions: env.fileVersions)
     // The real provider probes for claude and hermes; without them the
     // catalog is just the native executor and nothing changes (ADR 001).
     let sessions = FileExecutorSessionStore(

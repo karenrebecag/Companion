@@ -34,7 +34,7 @@ extension ParentToolRunner {
     /// before it writes, and without a sheet or a ticket a range that filled
     /// in between is refused.
     // HACK: the read and the write are two Apple Events, so a cell typed in
-    // that gap is overwritten (the saved-workbook backup is the net). Upgrade
+    // that gap is overwritten (the version kept before the write is the net). Upgrade
     // trigger: an "only if empty" flag on `SpreadsheetDriving.write`.
     package func actsWithoutSheet(_ call: ToolCallRef) async -> Bool {
         guard let arguments = ToolArguments.parse(call.arguments) else { return false }
@@ -53,7 +53,8 @@ extension ParentToolRunner {
     }
 
     var nativeRunner: NativeToolRunner {
-        NativeToolRunner(workdir: workdir, places: nil, webSearch: nil, documents: documents, sheets: sheets)
+        NativeToolRunner(workdir: workdir, places: nil, webSearch: nil, documents: documents, sheets: sheets,
+                         versions: versions)
     }
 
     /// The sheet for a write names the workbook the runner sees in front, and
