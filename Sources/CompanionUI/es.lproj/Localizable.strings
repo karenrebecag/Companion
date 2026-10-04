@@ -759,3 +759,11 @@
 "settings.resetPermissions.service.listenEvent" = "Monitoreo de entrada";
 "settings.resetPermissions.service.addressBook" = "Contactos";
 "settings.resetPermissions.service.appleEvents" = "Automatización";
+
+/* WIN-8: la prueba de sonido de la bienvenida */
+"welcome.sound.title" = "¿Escuchas a Companion?";
+"welcome.sound.body" = "El volumen de tu Mac está bajo. Súbelo para oír a Companion cuando hable.";
+"welcome.sound.muted" = "Tu Mac está en silencio. Quítale el silencio para oír a Companion.";
+"welcome.sound.slider" = "Volumen de la Mac";
+"welcome.sound.heard" = "Ya escucho a Companion";
+"welcome.sound.anyway" = "Continuar de todos modos";

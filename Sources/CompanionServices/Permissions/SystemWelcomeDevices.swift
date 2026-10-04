@@ -1,4 +1,6 @@
+import AppKit
 @preconcurrency import AVFoundation
+import AudioToolbox
 import CompanionCore
 import Foundation
 @preconcurrency import Speech
@@ -60,6 +62,100 @@ package struct SystemWelcomeDevices: WelcomeDevices {
 
     package func setMusic(playing: Bool) async {
         if playing { music.start() } else { music.stop() }
+    }
+
+    package func outputVolume() async -> OutputVolume? {
+        SystemOutput.read()
+    }
+
+    package func setOutputVolume(_ level: Double) async {
+        SystemOutput.write(level)
+    }
+
+    /// A macOS system sound: Companion ships no audio of its own for this.
+    package func playProbe() async {
+        await MainActor.run {
+            guard let sound = NSSound(named: NSSound.Name(SystemOutput.probeName)) else {
+                Log.app("welcome: probe=missing")
+                return
+            }
+            // A Pop still playing from the last release would drop this play.
+            sound.stop()
+            sound.play()
+        }
+    }
+}
+
+/// The default output device's volume and mute, as the menu bar's slider
+/// reads and moves them. A device without a main volume (some HDMI and
+/// aggregate outputs) reads as nil, and the welcome skips the check.
+private enum SystemOutput {
+    static let probeName = "Pop"
+
+    static func read() -> OutputVolume? {
+        guard let device = defaultDevice() else { return nil }
+        var address = address(kAudioHardwareServiceDeviceProperty_VirtualMainVolume)
+        guard AudioObjectHasProperty(device, &address) else { return nil }
+        var level = Float32(0)
+        var size = UInt32(MemoryLayout<Float32>.size)
+        let status = AudioObjectGetPropertyData(device, &address, 0, nil, &size, &level)
+        guard status == noErr else {
+            Log.app("welcome: volume=read-failed (\(status))")
+            return nil
+        }
+        return OutputVolume(level: min(max(Double(level), 0), 1), muted: muted(device))
+    }
+
+    static func write(_ level: Double) {
+        guard level.isFinite else {
+            Log.app("welcome: volume=not-finite")
+            return
+        }
+        guard let device = defaultDevice() else { return }
+        var address = address(kAudioHardwareServiceDeviceProperty_VirtualMainVolume)
+        var settable = DarwinBoolean(false)
+        guard AudioObjectIsPropertySettable(device, &address, &settable) == noErr, settable.boolValue else {
+            Log.app("welcome: volume=not-settable")
+            return
+        }
+        var value = Float32(min(max(level, 0), 1))
+        let status = AudioObjectSetPropertyData(device, &address, 0, nil, UInt32(MemoryLayout<Float32>.size), &value)
+        if status != noErr { Log.app("welcome: volume=write-failed (\(status))") }
+    }
+
+    /// A device with no mute control is never muted.
+    private static func muted(_ device: AudioObjectID) -> Bool {
+        var address = address(kAudioDevicePropertyMute)
+        guard AudioObjectHasProperty(device, &address) else { return false }
+        var mute = UInt32(0)
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        let status = AudioObjectGetPropertyData(device, &address, 0, nil, &size, &mute)
+        guard status == noErr else {
+            Log.app("welcome: mute=read-failed (\(status))")
+            return false
+        }
+        return mute != 0
+    }
+
+    private static func defaultDevice() -> AudioObjectID? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain)
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device)
+        guard status == noErr, device != kAudioObjectUnknown else {
+            Log.app("welcome: output=none (\(status))")
+            return nil
+        }
+        return device
+    }
+
+    private static func address(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(
+            mSelector: selector, mScope: kAudioDevicePropertyScopeOutput, mElement: kAudioObjectPropertyElementMain)
     }
 }
 
