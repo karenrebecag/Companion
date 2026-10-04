@@ -3,9 +3,10 @@ import Foundation
 
 /// H-7 P7: drag and click_at. A drag presses one element and lets go over
 /// another, so it passes the click's gate on both ends; a point, or a drag by
-/// an offset, has no label at that end to judge, so it always asks. The read that a drag target or a point
-/// comes from goes stale after `BrowserTool.readFreshness`, on navigation or
-/// on another read, and a stale call is refused, never retried.
+/// an offset, has no label at that end to judge, so it always asks. Every call
+/// here acts on the read it was approved against: that read goes stale after
+/// `BrowserTool.readFreshness`, on navigation or on another read, and a stale
+/// call is refused, never retried.
 extension BrowserToolRunner {
     enum DragTarget: Equatable {
         case element(Int)
@@ -26,9 +27,10 @@ extension BrowserToolRunner {
         var verdict = BrowserPolicy.clickVerdict(source, said: said, pageOrigin: page.origin)
         let named: String
         let item: String
+        guard freshPage(tab) != nil else { return nil }
         switch request.target {
         case .element(let to):
-            guard freshPage(tab) != nil, let target = page.elements.first(where: { $0.id == to }) else { return nil }
+            guard let target = page.elements.first(where: { $0.id == to }) else { return nil }
             verdict = Self.stricter(verdict, BrowserPolicy.clickVerdict(target, said: said, pageOrigin: page.origin))
             named = "\(Self.shown(source.label)) to \(Self.shown(target.label))"
             item = Self.dragItem(source, target)
@@ -77,14 +79,14 @@ extension BrowserToolRunner {
         guard let page = cachedPage(tab), let source = page.elements.first(where: { $0.id == request.element }) else {
             return stale(tool)
         }
+        // Checked before the ticket: a yes given a minute ago was for a screen that may be gone.
+        guard freshPage(tab) != nil else { return stale(tool) }
         let command: BrowserCommand
         let item: String
         let done: String
         switch request.target {
         case .element(let to):
             guard let target = page.elements.first(where: { $0.id == to }) else { return stale(tool) }
-            // Checked before the ticket: a yes given a minute ago was for a screen that may be gone.
-            guard freshPage(tab) != nil else { return stale(tool) }
             command = .dragTo(tab: tab, generation: page.generation, element: source.id, to: to)
             item = Self.dragItem(source, target)
             done = "dragged [\(source.id)] to [\(to)]"
@@ -93,10 +95,12 @@ extension BrowserToolRunner {
             item = source.label
             done = "dragged [\(source.id)] by (\(dx), \(dy))"
         }
-        guard tickets.redeem(Self.dragTicket(tool.rawValue, raw, tab: tab, source: source, item: item, page: page)) else {
+        let ticket = Self.dragTicket(tool.rawValue, raw, tab: tab, source: source, item: item, page: page)
+        guard tickets.redeem(ticket) else {
+            if tickets.voidSuperseded(by: ticket) { return stale(tool) }
             return needsApproval(tool, adopted: !wasControlled)
         }
-        guard await tabIsStillAt(tab, origin: page.origin) else { return leftItsOrigin(tool, tab) }
+        guard await tabIsStillOn(tab, url: page.url) else { return leftItsOrigin(tool, tab) }
         return await press(tool, command, tab: tab, target: page.origin, done: done)
     }
 
@@ -111,10 +115,12 @@ extension BrowserToolRunner {
         case .success(let parsed): point = parsed
         }
         guard let page = freshPage(tab) else { return stale(tool) }
-        guard tickets.redeem(Self.pointTicket(tool.rawValue, raw, tab: tab, page: page)) else {
+        let ticket = Self.pointTicket(tool.rawValue, raw, tab: tab, page: page)
+        guard tickets.redeem(ticket) else {
+            if tickets.voidSuperseded(by: ticket) { return stale(tool) }
             return needsApproval(tool, adopted: !wasControlled)
         }
-        guard await tabIsStillAt(tab, origin: page.origin) else { return leftItsOrigin(tool, tab) }
+        guard await tabIsStillOn(tab, url: page.url) else { return leftItsOrigin(tool, tab) }
         return await press(tool, .clickAt(tab: tab, generation: page.generation, x: point.x, y: point.y), tab: tab,
                            target: page.origin, done: "clicked at (\(point.x), \(point.y))")
     }

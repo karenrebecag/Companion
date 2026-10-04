@@ -1498,6 +1498,50 @@ test('something that slides in under the point during the glide stops the press,
   assert.equal(presses(rig.state).length, 0);
 });
 
+// The look at the drop must fail in the check phase, not the mark: a fake that fails the mark never reaches the check.
+const dragSpots = [
+  ['the source point', { element: 1, to: 2 }, { x: 40, y: 60 }],
+  ['the drop point onto an element', { element: 1, to: 2 }, { x: 200, y: 300 }],
+  ['the drop point of an offset', { element: 1, dx: 50, dy: 0 }, { x: 90, y: 60 }],
+];
+
+for (const [what, args, spot] of dragSpots) {
+  test(`a drag is not pressed when something slides in under ${what} only at the check`, async () => {
+    const rig = await boot({ tabs: userTabs() });
+    const phases = [];
+    const generation = await readyPair(rig, { frame: (x, y, token, phase) => {
+      phases.push(phase);
+      return { frame: false, same: !(phase === 'check' && x === spot.x && y === spot.y) };
+    } });
+    const reply = await ask(rig.ports[0], 211, 'browser_drag', { tab: 3, generation, ...args });
+    assert.equal(reply.error?.code, 'stale_id');
+    assert.ok(phases.includes('check'), 'the mark passed, so it was the check that stopped it');
+    assert.equal(presses(rig.state).length, 0, 'nothing pressed');
+    assert.equal(releases(rig.state).length, 0, 'nothing released');
+  });
+
+  test(`a frame that appears under ${what} only at the check stops the drag`, async () => {
+    const rig = await boot({ tabs: userTabs() });
+    const phases = [];
+    const generation = await readyPair(rig, { frame: (x, y, token, phase) => {
+      phases.push(phase);
+      return { frame: phase === 'check' && x === spot.x && y === spot.y, same: true };
+    } });
+    const reply = await ask(rig.ports[0], 213, 'browser_drag', { tab: 3, generation, ...args });
+    assert.equal(reply.error?.code, 'stale_id');
+    assert.ok(phases.includes('check'), 'stopped at the check');
+    assert.equal(presses(rig.state).length, 0, 'nothing pressed');
+  });
+
+  test(`the control: a drag whose ${what} is the same at every look is pressed`, async () => {
+    const rig = await boot({ tabs: userTabs() });
+    const generation = await readyPair(rig, { frame: () => ({ frame: false, same: true }) });
+    const reply = await ask(rig.ports[0], 212, 'browser_drag', { tab: 3, generation, ...args });
+    assert.deepEqual(reply.result, { done: 'dragged' });
+    assert.equal(presses(rig.state).length, 1);
+  });
+}
+
 test('a frame that appears at the point during the glide stops the press', async () => {
   const rig = await boot({ tabs: userTabs() });
   let looks = 0;

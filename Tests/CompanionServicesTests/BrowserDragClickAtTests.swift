@@ -10,14 +10,14 @@ import Testing
 // Incredible, the read that click_at's point and drag's target come from goes
 // stale after 60 s, on navigation or on another read.
 
-private final class TestClock: @unchecked Sendable {
+final class TestClock: @unchecked Sendable {
     private let lock = NSLock()
     private var current = Date(timeIntervalSince1970: 1_000_000)
     var now: Date { lock.withLock { current } }
     func advance(_ seconds: TimeInterval) { lock.withLock { current += seconds } }
 }
 
-private func makeClockRig(_ clock: TestClock, owned: Bool = true) -> BrowserToolRig {
+func makeClockRig(_ clock: TestClock, owned: Bool = true) -> BrowserToolRig {
     let presence = BrowserPresence()
     presence.set(.comet)
     let page = crmPage()
@@ -96,7 +96,7 @@ private func makeClockRig(_ clock: TestClock, owned: Bool = true) -> BrowserTool
     let rig = makeClockRig(clock)
     await rig.read()
     let arguments = #"{"tab":12,"x":40,"y":60}"#
-    if let request = rig.runner.approval(for: rig.call("browser_click_at", arguments), said: "") { rig.runner.granted(request) }
+    grantApproval(rig, "browser_click_at", arguments)
     clock.advance(61)
     let out = await rig.runner.execute(name: "browser_click_at", argumentsJSON: arguments)
     expect(!out.ok && out.output.contains(BridgeCode.staleId), "the yes was for the screen as it was a minute ago")
@@ -166,13 +166,23 @@ private func makeClockRig(_ clock: TestClock, owned: Bool = true) -> BrowserTool
     }
 }
 
-@Test func aDragByAnOffsetNeedsNoFreshRead() async {
+@Test func aDragByAnOffsetNeedsAFreshRead() async {
+    let arguments = #"{"tab":12,"element":1,"dx":0,"dy":200}"#
+    let late = TestClock()
+    let atApproval = makeClockRig(late)
+    await atApproval.read()
+    late.advance(61)
+    expect(atApproval.runner.approval(for: atApproval.call("browser_drag", arguments), said: "") == nil,
+           "a minute-old read has nothing to ask about")
+
     let clock = TestClock()
     let rig = makeClockRig(clock)
     await rig.read()
-    clock.advance(120)
-    let out = await rig.run("browser_drag", #"{"tab":12,"element":1,"dx":0,"dy":200}"#, approve: true)
-    expect(out.ok, "only the source is named, and it is checked by id and origin: \(out.output)")
+    grantApproval(rig, "browser_drag", arguments)
+    clock.advance(61)
+    let out = await rig.runner.execute(name: "browser_drag", argumentsJSON: arguments)
+    expect(!out.ok && out.output.contains(BridgeCode.staleId), "the yes was for a screen a minute old: \(out.output)")
+    expect(rig.channel.writes.isEmpty, "nothing dragged")
 }
 
 @Test func aDragTargetFromAStaleReadIsNotDropped() async {
@@ -185,7 +195,7 @@ private func makeClockRig(_ clock: TestClock, owned: Bool = true) -> BrowserTool
     expect(rig.channel.writes.isEmpty, "nothing dragged")
 }
 
-@Test func aDragTicketFollowsNeitherLabelNorAnotherRead() async {
+@Test func aDragYesDiesWithAnyNewReadOfThePage() async {
     // The control: an unchanged page spends the yes, so each refusal below is the change's doing.
     let unchanged = makeClockRig(TestClock())
     await unchanged.read()
@@ -200,25 +210,31 @@ private func makeClockRig(_ clock: TestClock, owned: Bool = true) -> BrowserTool
         let rig = makeClockRig(TestClock())
         await rig.read()
         let arguments = #"{"tab":12,"element":1,"to":2}"#
-        if let request = rig.runner.approval(for: rig.call("browser_drag", arguments), said: "") { rig.runner.granted(request) }
+        grantApproval(rig, "browser_drag", arguments)
         var swapped = crmPage(generation: 3)
         change(&swapped)
         rig.channel.setPage(swapped)
         await rig.read()
         let after = await rig.runner.execute(name: "browser_drag", argumentsJSON: arguments)
-        expect(!after.ok && after.output.contains("approval_required"), "\(end) relabelled: \(after.output)")
+        expect(!after.ok && after.output.contains(BridgeCode.staleId), "\(end) relabelled: \(after.output)")
         expect(rig.channel.writes.isEmpty, "\(end): nothing dragged")
+        let again = await rig.runner.execute(name: "browser_drag", argumentsJSON: arguments)
+        expect(!again.ok && again.output.contains("approval_required"), "\(end): the old yes is gone: \(again.output)")
+        expect(rig.channel.writes.isEmpty, "\(end): still nothing dragged")
     }
 
     let rig = makeClockRig(TestClock())
     await rig.read()
     let arguments = #"{"tab":12,"element":1,"to":2}"#
-    if let request = rig.runner.approval(for: rig.call("browser_drag", arguments), said: "") { rig.runner.granted(request) }
+    grantApproval(rig, "browser_drag", arguments)
     rig.channel.setPage(crmPage(generation: 4))
     await rig.read()
     let reread = await rig.runner.execute(name: "browser_drag", argumentsJSON: arguments)
-    expect(!reread.ok && reread.output.contains("approval_required"), "same labels, another read: \(reread.output)")
+    expect(!reread.ok && reread.output.contains(BridgeCode.staleId), "same labels, another read: \(reread.output)")
     expect(rig.channel.writes.isEmpty, "nothing dragged")
+    let again = await rig.runner.execute(name: "browser_drag", argumentsJSON: arguments)
+    expect(!again.ok && again.output.contains("approval_required"), "the old yes is gone: \(again.output)")
+    expect(rig.channel.writes.isEmpty, "still nothing dragged")
 }
 
 @Test func aGrantedDragThatWentStaleIsNotDropped() async {
@@ -226,7 +242,7 @@ private func makeClockRig(_ clock: TestClock, owned: Bool = true) -> BrowserTool
     let rig = makeClockRig(clock)
     await rig.read()
     let arguments = #"{"tab":12,"element":1,"to":2}"#
-    if let request = rig.runner.approval(for: rig.call("browser_drag", arguments), said: "") { rig.runner.granted(request) }
+    grantApproval(rig, "browser_drag", arguments)
     clock.advance(61)
     let out = await rig.runner.execute(name: "browser_drag", argumentsJSON: arguments)
     expect(!out.ok && out.output.contains(BridgeCode.staleId), "the yes was for a screen a minute old: \(out.output)")
@@ -235,6 +251,7 @@ private func makeClockRig(_ clock: TestClock, owned: Bool = true) -> BrowserTool
 
 @Test func theReadIsFreshForExactlySixtySeconds() async {
     for (name, arguments) in [("browser_drag", #"{"tab":12,"element":1,"to":2}"#),
+                              ("browser_drag", #"{"tab":12,"element":1,"dx":30,"dy":0}"#),
                               ("browser_click_at", #"{"tab":12,"x":40,"y":60}"#)] {
         let clock = TestClock()
         let rig = makeClockRig(clock)
@@ -258,20 +275,19 @@ private func makeClockRig(_ clock: TestClock, owned: Bool = true) -> BrowserTool
 
     let reread = makeClockRig(TestClock())
     await reread.read()
-    if let request = reread.runner.approval(for: reread.call("browser_click_at", arguments), said: "") {
-        reread.runner.granted(request)
-    }
+    grantApproval(reread, "browser_click_at", arguments)
     reread.channel.setPage(crmPage(generation: 4))
     await reread.read()
     let afterRead = await reread.runner.execute(name: "browser_click_at", argumentsJSON: arguments)
-    expect(!afterRead.ok && afterRead.output.contains("approval_required"), "another read: \(afterRead.output)")
+    expect(!afterRead.ok && afterRead.output.contains(BridgeCode.staleId), "another read: \(afterRead.output)")
     expect(reread.channel.writes.isEmpty, "never clicked")
+    let againRead = await reread.runner.execute(name: "browser_click_at", argumentsJSON: arguments)
+    expect(!againRead.ok && againRead.output.contains("approval_required"), "the old yes is gone: \(againRead.output)")
+    expect(reread.channel.writes.isEmpty, "still never clicked")
 
     let moved = makeClockRig(TestClock())
     await moved.read()
-    if let request = moved.runner.approval(for: moved.call("browser_click_at", arguments), said: "") {
-        moved.runner.granted(request)
-    }
+    grantApproval(moved, "browser_click_at", arguments)
     moved.channel.setTabs([BrowserTab(id: 12, title: "Phish", url: "https://evil.example/", active: true)])
     let afterMove = await moved.runner.execute(name: "browser_click_at", argumentsJSON: arguments)
     expect(!afterMove.ok && afterMove.output.contains(BridgeCode.staleId), "another site now: \(afterMove.output)")
