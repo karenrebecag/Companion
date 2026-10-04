@@ -1333,6 +1333,17 @@ test('the finder fields reach the page as one query', async () => {
   assert.deepEqual(queries[0], { selector: null, text: 'Go', exact: true, role: 'button', name: 'Go', max: null, maxChars: 50 });
 });
 
+test('hidden true reaches the page and anything else keeps the query it always got', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const queries = recordingPage(rig);
+  await ask(rig.ports[0], 1101, 'browser_read', { tab: 3, hidden: true });
+  assert.equal(queries[0].hidden, true);
+  await ask(rig.ports[0], 1102, 'browser_read', { tab: 3, hidden: false });
+  assert.deepEqual(queries[1], { selector: null, text: null, exact: false, role: null, name: null, max: null, maxChars: null });
+  await ask(rig.ports[0], 1103, 'browser_read', { tab: 3 });
+  assert.deepEqual(queries[2], { selector: null, text: null, exact: false, role: null, name: null, max: null, maxChars: null });
+});
+
 test('within reads inside an element of the last read, in its own frame', async () => {
   const rig = await boot({ tabs: userTabs() });
   const queries = recordingPage(rig);

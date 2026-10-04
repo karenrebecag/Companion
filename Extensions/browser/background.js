@@ -312,10 +312,13 @@ async function run(target, func, args) {
 
 // Incredible's finders travel as one query; the page applies them where it reads.
 function readQuery(args) {
-  return {
+  const query = {
     selector: args.selector ?? null, text: args.text ?? null, exact: args.exact === true,
     role: args.role ?? null, name: args.name ?? null, max: args.max ?? null, maxChars: args.maxChars ?? null,
   };
+  // Only a real true opts in, so a default read stays the query the page always got.
+  if (args.hidden === true) query.hidden = true;
+  return query;
 }
 
 // A miss in every frame is the answer; "only hidden here" beats "nothing here", since it names the next step.

@@ -99,7 +99,8 @@ package enum BrowserTool: String, CaseIterable, Sendable {
         case .tabs: return []
         case .read:
             return [tab] + [("selector", "string"), ("text", "string"), ("exact", "boolean"), ("role", "string"),
-                            ("name", "string"), ("within", "integer"), ("max", "integer"), ("max_chars", "integer")]
+                            ("name", "string"), ("within", "integer"), ("max", "integer"), ("max_chars", "integer"),
+                            ("hidden", "boolean")]
                 .map { Parameter(name: $0.0, type: $0.1, required: false) }
         case .click, .doubleClick, .rightClick: return [tab, element]
         case .type: return [tab, element, Parameter(name: "text", type: "string", required: true, typed: true)]
