@@ -586,6 +586,8 @@
 "island.attach.failed" = "No pude adjuntar %@";
 "island.attach.pickerUnavailable" = "No pude abrir el selector de archivos.";
 "island.drop.title" = "Suelta el archivo";
+"island.drop.a11y" = "Suelta para adjuntar";
+"island.attach.notFile" = "Eso es una carpeta o un enlace, no un archivo que pueda adjuntar.";
 "island.drop.ask" = "Pregúntale";
 "island.drop.airDrop" = "AirDrop";
 "island.drop.airDropUnavailable" = "AirDrop no está disponible ahora.";

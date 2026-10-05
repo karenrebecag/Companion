@@ -25,12 +25,20 @@ struct IslandAttachActions {
     var onFail: (IslandAttachFailure) -> Void = { _ in }
 
     func stage(_ url: URL) {
-        guard let ref = chat.attach(url) else {
-            onFail(IslandAttachFailure(name: url.lastPathComponent))
-            return
+        switch chat.attachResult(url) {
+        case .success(let ref):
+            // A live voice session hears about it now, as a window attach does.
+            if voice.isActive { voice.push(ref) }
+        case .failure(let error):
+            refuse(url, reason: ChatCopy.attachFailed(error))
         }
-        // A live voice session hears about it now, as a window attach does.
-        if voice.isActive { voice.push(ref) }
+    }
+
+    /// The card says which file, the line under the field says why: the
+    /// island's toast is not on screen when the drop happens.
+    private func refuse(_ url: URL, reason: String) {
+        onFail(IslandAttachFailure(name: url.lastPathComponent, reason: reason))
+        say(reason)
     }
 
     /// Every file that reaches the island from outside — picked or dropped —
@@ -39,12 +47,11 @@ struct IslandAttachActions {
     /// What the filter keeps out is the user's choice all the same, so it
     /// shows as a card in error instead of vanishing (review 16m-3).
     func stageFiles(_ urls: [URL]) {
-        let kept = Set(IslandDropTarget.regularFiles(urls))
         for url in urls {
-            if kept.contains(url) {
-                stage(url)
+            if let reason = IslandDropTarget.verdict(url).refusal {
+                refuse(url, reason: reason)
             } else {
-                onFail(IslandAttachFailure(name: url.lastPathComponent))
+                stage(url)
             }
         }
     }
@@ -79,9 +86,16 @@ struct IslandAttachActions {
         case .ask:
             stageFiles(urls)
         case .airDrop:
-            let files = IslandDropTarget.regularFiles(urls)
+            let sorted = IslandDropTarget.sort(urls)
+            for (url, verdict) in sorted.refused {
+                refuse(url, reason: verdict.refusal ?? "")
+            }
+            let files = sorted.files
+            // Only a missing service or one that cannot take these files is
+            // AirDrop's fault; refused files already said their own reason.
+            guard !files.isEmpty else { return }
             guard let service = NSSharingService(named: .sendViaAirDrop),
-                  !files.isEmpty, service.canPerform(withItems: files) else {
+                  service.canPerform(withItems: files) else {
                 say(Localized.string("island.drop.airDropUnavailable"))
                 return
             }
@@ -109,6 +123,7 @@ struct IslandAttachActions {
 /// pointer lit with NotchNook's blue.
 struct IslandDropZones: View {
     let zone: IslandDropZone?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: IslandAttachMetrics.rowGap) {
@@ -116,7 +131,11 @@ struct IslandDropZones: View {
                 tile(item, lit: zone == item)
             }
         }
-        .animation(.expoOut(MotionTime.fast), value: zone)
+        // The rim is static; only the lit fill eases, and not at all under
+        // Reduce Motion.
+        .animation(ChromeMotion.animation(.expoOut(MotionTime.fast), reduceMotion: reduceMotion), value: zone)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(Localized.string("island.drop.a11y"))
     }
 
     private func tile(_ item: IslandDropZone, lit: Bool) -> some View {
