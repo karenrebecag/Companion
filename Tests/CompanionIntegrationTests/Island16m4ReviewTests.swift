@@ -82,6 +82,11 @@ final class RecordingSleeper: @unchecked Sendable {
     var delays: [TimeInterval] { lock.withLock { _delays } }
     var cancelled: Int { lock.withLock { _cancelled } }
 
+    /// How many waits of exactly this length registered. Timers register from
+    /// their own tasks, so two sends in a row can land in either order and
+    /// `delays.last` names whichever got there last.
+    func armed(_ seconds: TimeInterval) -> Int { lock.withLock { _delays.filter { $0 == seconds }.count } }
+
     func sleep(_ seconds: TimeInterval) async throws {
         lock.withLock { _delays.append(seconds) }
         do {
@@ -103,11 +108,11 @@ final class RecordingSleeper: @unchecked Sendable {
     // arms its own delay.
     await pumpUntil("tarjeta: reloj armado") {
         sleeper.delays.count == 2 && sleeper.cancelled == 1
-            && sleeper.delays.last == SessionMachine.dictationCardDelay
+            && sleeper.armed(SessionMachine.dictationCardDelay) == 1
     }
     session.send(.dictationCardHover(true))
     await pumpUntil("K4: el puntero pausa y arma el techo") {
-        sleeper.cancelled == 2 && sleeper.delays.last == SessionMachine.countdownPauseCeiling
+        sleeper.cancelled == 2 && sleeper.armed(SessionMachine.countdownPauseCeiling) == 1
     }
     session.send(.dictationCardHover(false))
     await pumpUntil("K4: al salir sigue con lo que quedaba") {
