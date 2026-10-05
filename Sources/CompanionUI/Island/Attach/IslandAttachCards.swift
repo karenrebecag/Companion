@@ -14,6 +14,9 @@ struct IslandAttachTray: View {
     let onDismissFailure: (IslandAttachFailure) -> Void
     /// Pictures already decoded, for renders that cannot wait for the loader.
     var pictures: [UUID: CGImage] = [:]
+    /// For renders only: a test has no pointer or key focus to borrow.
+    var pin: IslandAttachRevealPin? = nil
+    var focusOnAppear = false
 
     @State private var expanded = false
     @State private var width: CGFloat = 0
@@ -61,7 +64,7 @@ struct IslandAttachTray: View {
                                    onOpen: { expanded = true }, onRemove: onRemove)
             }
             ForEach(model.cards) { item in
-                IslandAttachCard(item: item, picture: picture(item), onRemove: { remove(item) })
+                IslandAttachCard(item: item, picture: picture(item), pin: pin, focusOnAppear: focusOnAppear, onRemove: { remove(item) })
             }
         }
         .padding(.top, IslandAttachMetrics.rowPaddingTop)
@@ -92,11 +95,36 @@ private struct IslandRowFade: View {
     }
 }
 
+/// A still of the remove disc. Nil follows the pointer and the key.
+enum IslandAttachRevealPin: Equatable {
+    case rest, hover, focus
+}
+
+enum IslandAttachReveal {
+    /// The disc is up while the pointer is on the card or on the disc itself,
+    /// or the key is on the control. The disc overhangs the card, so its own
+    /// hover counts: in the reference it is a descendant and keeps :hover.
+    /// local reference; Incredible .ci-att-card
+    static func shown(cardHover: Bool, discHover: Bool, focused: Bool) -> Bool {
+        cardHover || discHover || focused
+    }
+
+    /// Nil under Reduce Motion so the disc does not fade in.
+    static func animation(reduceMotion: Bool) -> Animation? {
+        ChromeMotion.animation(
+            MotionCurve.animation(MotionCurve.ease, IslandAttachMetrics.revealSeconds), reduceMotion: reduceMotion)
+    }
+}
+
 /// `ci-att-card`: a picture bleeds to the edge; any other file is a tile
 /// with its type and name; a file the chat refused is washed in error.
 struct IslandAttachCard: View {
     let item: IslandAttachCardItem
     var picture: CGImage?
+    /// For renders only: a test has no pointer or key focus to borrow.
+    var pin: IslandAttachRevealPin? = nil
+    /// For renders only: puts the key on the remove control at mount.
+    var focusOnAppear = false
     let onRemove: () -> Void
 
     @State private var hovering = false
@@ -122,12 +150,15 @@ struct IslandAttachCard: View {
         .overlay(shape.strokeBorder(Neutral.white.color.opacity(IslandAttachMetrics.cardBorder),
                                     lineWidth: Stroke.hairline))
         .overlay(alignment: .topTrailing) {
-            IslandRemoveOnHover(visible: hovering, name: item.name, action: onRemove)
+            IslandRemoveOnHover(hovering: hovering, style: .card, pin: pin, focusOnAppear: focusOnAppear, name: item.name, action: onRemove)
+                // Its centre on the corner, overhanging into the row's padding.
+                .offset(x: IslandAttachMetrics.removeOffset, y: -IslandAttachMetrics.removeOffset)
         }
         .onHover { hovering = $0 }
-        .accessibilityElement(children: .ignore)
+        // The card must not swallow the remove control: the key and VoiceOver
+        // reach that button on its own, so the card adds no action of its own.
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(label)
-        .accessibilityAction(named: String(format: Localized.string("attach.remove"), item.name), onRemove)
     }
 
     private var tile: some View {
@@ -142,6 +173,9 @@ struct IslandAttachCard: View {
             }
             Spacer(minLength: Space.none)
             Text(item.name)
+                // The card is labelled with the name; reading it again inside
+                // the contained children would make VoiceOver say it twice.
+                .accessibilityHidden(true)
                 // Geist at 12 already sets the measured 16 line: nothing added.
                 .font(Fonts.geist(IslandAttachMetrics.nameSize).weight(.medium))
                 .foregroundStyle(IslandInk.text)
@@ -156,6 +190,8 @@ struct IslandAttachCard: View {
     private func badge(overPicture: Bool) -> some View {
         if let ext = IslandAttachLabel.ext(item.name) {
             IslandExtBadge(text: ext, overPicture: overPicture)
+                // Same reason as the name: the card's label already carries it.
+                .accessibilityHidden(true)
         }
     }
 
@@ -195,24 +231,65 @@ struct IslandExtBadge: View {
     }
 }
 
-/// The measured remove circle, shown while the pointer is over its card.
-/// Hidden, it takes no clicks; VoiceOver removes through the card's action.
+/// Where the remove disc sits and how it hides.
+enum IslandRemoveStyle {
+    /// `ci-att-card`: always in the key order and the accessibility tree, only
+    /// its drawing fades. The card places it on its corner.
+    case card
+    /// The capture stack and strip are not cards: the disc is inset, shown only
+    /// under the pointer, and VoiceOver removes through the tile's action.
+    case capture
+
+    /// The card's remove is a real control VoiceOver must reach; a capture
+    /// removes through its tile's action instead.
+    var hidesFromAccessibility: Bool { self == .capture }
+}
+
 struct IslandRemoveOnHover: View {
-    let visible: Bool
+    let hovering: Bool
+    var style: IslandRemoveStyle = .capture
+    var pin: IslandAttachRevealPin? = nil
+    var focusOnAppear = false
     let name: String
     let action: () -> Void
 
+    @State private var keyFocused = false
+    @State private var discHovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var shown: Bool {
+        if let pin {
+            return IslandAttachReveal.shown(cardHover: pin == .hover, discHover: false, focused: pin == .focus)
+        }
+        return IslandAttachReveal.shown(cardHover: hovering, discHover: discHovering, focused: keyFocused)
+    }
+
+    private var label: String { String(format: Localized.string("attach.remove"), name) }
+
     var body: some View {
-        CloseButton(variant: .onMedia,
-                    label: String(format: Localized.string("attach.remove"), name), action: action)
+        Group {
+            switch style {
+            case .card: card
+            case .capture: capture
+            }
+        }
+        .accessibilityHidden(style.hidesFromAccessibility)
+    }
+
+    private var card: some View {
+        IconButton("xmark", label: label, size: .attachmentRemove, tone: .onMedia, pressable: true,
+                   onFocus: { keyFocused = $0 }, revealed: shown, focusOnAppear: focusOnAppear, action: action)
+            .onHover { discHovering = $0 }
+            .animation(IslandAttachReveal.animation(reduceMotion: reduceMotion), value: shown)
+    }
+
+    private var capture: some View {
+        CloseButton(variant: .onMedia, label: label, action: action)
             .padding(Space.x1)
-            .opacity(visible ? 1 : 0)
-            .allowsHitTesting(visible)
-            .accessibilityHidden(true)
+            .opacity(hovering ? 1 : 0)
+            .allowsHitTesting(hovering)
             .animation(ChromeMotion.animation(.expoOut(MotionTime.fast), reduceMotion: reduceMotion),
-                       value: visible)
+                       value: hovering)
     }
 }
 
@@ -245,7 +322,7 @@ struct IslandCaptureStack: View {
                     }
                 }
                 .overlay(alignment: .topTrailing) {
-                    IslandRemoveOnHover(visible: hovering, name: model.top.name) { onRemove(model.top) }
+                    IslandRemoveOnHover(hovering: hovering, name: model.top.name) { onRemove(model.top) }
                 }
         }
         .padding(.trailing, offset(layers))
@@ -302,7 +379,7 @@ private struct IslandStripCapture: View {
     var body: some View {
         IslandCaptureTile(ref: ref, picture: picture)
             .overlay(alignment: .topTrailing) {
-                IslandRemoveOnHover(visible: hovering, name: ref.name, action: onRemove)
+                IslandRemoveOnHover(hovering: hovering, name: ref.name, action: onRemove)
             }
             .onHover { hovering = $0 }
             .accessibilityElement(children: .ignore)
