@@ -24,6 +24,12 @@ export function detectBrowser(nav) {
 }
 
 const isInt = (v) => Number.isInteger(v);
+const isText = (v) => typeof v === 'string';
+// A blank finder would match every control: refused here too, for a caller that skips the app.
+const isSearch = (v) => typeof v === 'string' && v.trim() !== '';
+const isBool = (v) => typeof v === 'boolean';
+const isCount = (v) => Number.isInteger(v) && v > 0;
+const optional = (v, check) => v == null || check(v);
 
 // Core polices origins, but a scheme other than http(s) must never reach chrome.tabs.update.
 function isHttpURL(raw) {
@@ -36,13 +42,48 @@ function isHttpURL(raw) {
   }
 }
 
+// Pixels per axis in one scroll; the host refuses more, this only keeps a forged call from flinging the page.
+const SCROLL_LIMIT = 20000;
+const isPixels = (v) => isInt(v) && Math.abs(v) <= SCROLL_LIMIT;
+// Kept in step with BrowserTool.pressKeys on the host.
+export const PRESS_KEYS = Object.freeze([
+  'Enter', 'Escape', 'Tab', 'Shift+Tab', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+  'Space', 'Backspace', 'Delete', 'Home', 'End', 'PageUp', 'PageDown',
+]);
+export const PRESS_MAX_TIMES = 10;
+// The gate judged one activation; a second Enter lands wherever the first one left the focus.
+const PRESS_ONCE = Object.freeze(['Enter', 'Space']);
+
+const pressTimes = (a) => isInt(a.times) && a.times >= 1
+  && a.times <= (PRESS_ONCE.includes(a.key) ? 1 : PRESS_MAX_TIMES);
+const pressTarget = (a) => (a.generation === null && a.element === null) || (isInt(a.generation) && isInt(a.element));
+// A viewport coordinate: no screen is wider than this, so a bigger number is a forged or broken call.
+const isPoint = (v) => isInt(v) && v >= 0 && v <= SCROLL_LIMIT;
+
 const SHAPES = {
   browser_tabs: () => true,
-  browser_read: (a) => isInt(a.tab) && (a.selector == null || typeof a.selector === 'string'),
+  browser_read: (a) => isInt(a.tab) && optional(a.selector, isText) && optional(a.text, isSearch)
+    && optional(a.exact, isBool) && optional(a.role, isSearch) && optional(a.name, isSearch)
+    && (a.name == null || a.role != null)
+    && optional(a.max, isCount) && optional(a.maxChars, isCount)
+    // within names an element of one read, so it means nothing without that read's generation.
+    && (a.within == null ? true : isInt(a.within) && isInt(a.generation)),
   browser_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
   browser_double_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
   browser_right_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
+  browser_hover: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),
+  // Either an element of the last read or an offset, never both.
+  browser_scroll: (a) => isInt(a.tab) && (a.element != null
+    ? isInt(a.generation) && isInt(a.element) && a.dx == null && a.dy == null
+    : isPixels(a.dx) && isPixels(a.dy)),
+  browser_press: (a) => isInt(a.tab) && PRESS_KEYS.includes(a.key) && pressTimes(a) && pressTarget(a),
+  // Onto another element of the read, or by an offset that goes somewhere; never both.
+  browser_drag: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && (a.to != null
+    ? isInt(a.to) && a.to !== a.element && a.dx == null && a.dy == null
+    : isPixels(a.dx) && isPixels(a.dy) && (a.dx !== 0 || a.dy !== 0)),
+  browser_click_at: (a) => isInt(a.tab) && isInt(a.generation) && isPoint(a.x) && isPoint(a.y),
   browser_type: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.text === 'string',
+  browser_select: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.option === 'string',
   browser_navigate: (a) => isInt(a.tab) && isHttpURL(a.url),
   browser_open: (a) => isHttpURL(a.url),
   browser_take: (a) => isInt(a.tab),
@@ -137,9 +178,10 @@ const originOf = (url) => {
 // Page text can carry a line that looks like a frame header; prefixing it keeps only our own headers authentic.
 const neutralizeFrameHeaders = (text) => String(text).replace(/^\[frame /gm, '> [frame ');
 
-export function buildPage(tab, tabId, generation, selector, frames) {
+// A scoped read (a selector, or inside one element) runs in one frame, so its failure is the answer.
+export function buildPage(tab, tabId, generation, scoped, frames, { max = null, maxChars = null } = {}) {
   const failed = frames.find((f) => f.result.error);
-  if (failed && selector != null) return { error: failed.result.error };
+  if (failed && scoped) return { error: failed.result.error };
   const pageOrigin = originOf(tab.url ?? '');
   const map = new Map();
   const elements = [];
@@ -149,6 +191,7 @@ export function buildPage(tab, tabId, generation, selector, frames) {
     const frameOrigin = frameId === 0 || result.origin === pageOrigin ? null : String(result.origin ?? 'null');
     if (result.text) texts.push(frameId === 0 ? neutralizeFrameHeaders(result.text) : '[frame ' + clipPoints(result.origin, FIELD_MAX) + ']\n' + neutralizeFrameHeaders(result.text));
     for (const el of result.elements) {
+      if (max != null && elements.length >= max) break;
       const id = elements.length + 1;
       map.set(id, { frameId, localId: el.id });
       elements.push({ ...el, id, frame: frameId, frameOrigin });
@@ -161,7 +204,7 @@ export function buildPage(tab, tabId, generation, selector, frames) {
       origin: pageOrigin,
       url: clipPoints(tab.url, FIELD_MAX),
       title: clipPoints(tab.title, FIELD_MAX),
-      text: texts.join('\n'),
+      text: maxChars == null ? texts.join('\n') : clipPoints(texts.join('\n'), maxChars),
       generation,
       elements,
       truncated: false,

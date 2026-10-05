@@ -283,7 +283,7 @@ func browserTabsReply(_ id: Int) -> String {
     let client = try await browserConnected(rig)
 
     let first = Task { await rig.channel.send(.tabs, timeout: .seconds(30)) }
-    let second = Task { await rig.channel.send(.read(tab: 1, selector: nil), timeout: .seconds(30)) }
+    let second = Task { await rig.channel.send(.read(tab: 1, query: BrowserQuery()), timeout: .seconds(30)) }
     _ = (await client.line())
     _ = (await client.line())
     client.close()
@@ -379,7 +379,7 @@ func browserTabsReply(_ id: Int) -> String {
         try client.send(browserHello())
         _ = (await client.line())
         _ = await browserWaitFor { rig.presence.connected }
-        let call = Task { await rig.channel.send(.read(tab: 12, selector: nil), timeout: .seconds(5)) }
+        let call = Task { await rig.channel.send(.read(tab: 12, query: BrowserQuery()), timeout: .seconds(5)) }
         guard let id = browserCallID((await client.line())) else { return }
         let page = #"{"id":\#(id),"result":{"page":{"tab":12,"origin":"https://bank.example","url":"https://bank.example/a","title":"\#(secret)","text":"\#(secret)","generation":1,"truncated":false,"elements":[]}}}"#
         try client.send(page)
@@ -390,4 +390,29 @@ func browserTabsReply(_ id: Int) -> String {
     expect(log.contains("tool=browser_read"), "logs: the tool is named")
     expect(!log.contains("bank.example") && !log.contains("origin="), "logs: neither origin nor host is named")
     expect(log.contains("chars=\(secret.count)"), "logs: only a char count of the text")
+}
+
+// H-7 P5b: scroll, scroll-to and hover answer with done; anything else is a bad frame.
+@Test func scrollAndHoverAcceptDoneAndRefuseAPage() async throws {
+    let rig = try makeBrowserRig()
+    defer { rig.listener.stop() }
+    let client = try await browserConnected(rig)
+    defer { client.close() }
+    let commands: [(BrowserCommand, String)] = [
+        (.scroll(tab: 12, dx: 0, dy: 400), "browser_scroll"),
+        (.scrollTo(tab: 12, generation: 3, element: 5), "browser_scroll"),
+        (.hover(tab: 12, generation: 3, element: 5), "browser_hover"),
+    ]
+    for (command, name) in commands {
+        let done = Task { await rig.channel.send(command, timeout: .seconds(5)) }
+        guard let id = browserCallID((await client.line())) else { expect(false, "\(name): call has an id"); return }
+        try client.send(#"{"id":\#(id),"result":{"done":"ok"}}"#)
+        expectEq(await done.value, .success(.done(id: id, message: "ok")), "\(name): done resolves it")
+        let page = Task { await rig.channel.send(command, timeout: .seconds(5)) }
+        guard let second = browserCallID((await client.line())) else { expect(false, "\(name): call has an id"); return }
+        try client.send(browserTabsReply(second))
+        expectEq(await page.value,
+                 .failure(ContractError(code: BridgeCode.badFrame, message: "Unexpected reply for \(name)")),
+                 "\(name): a reply of another shape is a bad frame")
+    }
 }

@@ -26,7 +26,9 @@ package enum AgentStreamEvent: Sendable, Equatable {
     case initialized(sessionId: String)
     case result(text: String, isError: Bool)
     case approval(ApprovalRequest)
-    case toolUse(name: String, detail: String)
+    case toolUse(id: String?, name: String, detail: String)
+    /// The end of a tool_use: Claude Code reports it on a user message.
+    case toolResult(id: String, isError: Bool)
     case thought(String)
     case ignored
 }
@@ -46,25 +48,34 @@ package enum AgentStreamCodec: Sendable {
     /// init/result/control_request and assistant tool/thinking blocks matter;
     /// hooks, rate limits and plain assistant text are noise on the wire.
     package static func parse(_ line: String) -> AgentStreamEvent {
+        events(line).first ?? .ignored
+    }
+
+    /// Every event one line carries: a message can hold several tool_use
+    /// (parallel calls) or several tool_result, and `parse` keeps only the
+    /// first. Empty for noise.
+    package static func events(_ line: String) -> [AgentStreamEvent] {
         guard let obj = jsonObject(from: line),
               let type = obj["type"] as? String
-        else { return .ignored }
+        else { return [] }
         switch type {
         case "system":
             guard obj["subtype"] as? String == "init",
                   let sid = obj["session_id"] as? String, !sid.isEmpty
-            else { return .ignored }
-            return .initialized(sessionId: sid)
+            else { return [] }
+            return [.initialized(sessionId: sid)]
         case "result":
             // Missing fields are an error so we never announce a false success.
-            return .result(text: obj["result"] as? String ?? "",
-                           isError: jsonBool(obj["is_error"]) ?? true)
+            return [.result(text: obj["result"] as? String ?? "",
+                            isError: jsonBool(obj["is_error"]) ?? true)]
         case "assistant":
             return parseAssistant(obj)
+        case "user":
+            return parseToolResults(obj)
         case "control_request":
-            return parseControl(obj)
+            return [parseControl(obj)].filter { $0 != .ignored }
         default:
-            return .ignored
+            return []
         }
     }
 
@@ -118,24 +129,39 @@ package enum AgentStreamCodec: Sendable {
 
     /// Action beats thought when both arrive in one assistant message:
     /// the visible step of a job is what the specialist did, not what it mused.
-    private static func parseAssistant(_ obj: [String: Any]) -> AgentStreamEvent {
+    private static func parseAssistant(_ obj: [String: Any]) -> [AgentStreamEvent] {
         guard let msg = obj["message"] as? [String: Any],
               let content = msg["content"] as? [[String: Any]]
-        else { return .ignored }
-        for block in content where block["type"] as? String == "tool_use" {
-            let name = block["name"] as? String ?? "?"
+        else { return [] }
+        let uses: [AgentStreamEvent] = content.filter { $0["type"] as? String == "tool_use" }.map { block in
             let input = block["input"] as? [String: Any] ?? [:]
-            return .toolUse(name: name, detail: toolDetail(from: input))
+            let id = (block["id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            return .toolUse(id: id, name: block["name"] as? String ?? "?", detail: toolDetail(from: input))
         }
+        if !uses.isEmpty { return uses }
         for block in content where block["type"] as? String == "thinking" {
             guard let raw = block["thinking"] as? String else { continue }
             let line = raw.split(separator: "\n")
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .first { !$0.isEmpty } ?? ""
             guard !line.isEmpty else { continue }
-            return .thought(String(line.prefix(80)))
+            return [.thought(String(line.prefix(80)))]
         }
-        return .ignored
+        return []
+    }
+
+    /// A result without its tool_use_id cannot be paired with a step, so it
+    /// is dropped rather than guessed onto the wrong row.
+    private static func parseToolResults(_ obj: [String: Any]) -> [AgentStreamEvent] {
+        guard let msg = obj["message"] as? [String: Any],
+              let content = msg["content"] as? [[String: Any]]
+        else { return [] }
+        return content.compactMap { block in
+            guard block["type"] as? String == "tool_result",
+                  let id = block["tool_use_id"] as? String, !id.isEmpty
+            else { return nil }
+            return .toolResult(id: id, isError: jsonBool(block["is_error"]) ?? false)
+        }
     }
 
     private static func parseControl(_ obj: [String: Any]) -> AgentStreamEvent {

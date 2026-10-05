@@ -93,6 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// when this method crossed the 400-line gate — each stage is the
     /// original code verbatim, only wrapped in a factory function.
     func applicationDidFinishLaunching(_ notification: Notification) {
+        RelaunchStartup.awaitPredecessor()
         let env = makeLaunchEnvironment()
         let providers = makeChatProviders(environment: env)
         let jobs = makeJobInfrastructure(environment: env, chat: providers.chat)

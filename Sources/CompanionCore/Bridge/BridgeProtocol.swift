@@ -132,13 +132,52 @@ package struct BridgeCallResult: Codable, Sendable, Equatable {
     package var target: String
     package var tool: String?
 
+    /// After stripping, only newline and tab remain as controls, so JSON
+    /// escaping at most doubles a byte: both caps together stay under the
+    /// 64 KB line the shim refuses past.
+    package static let maxOutputBytes = 24_000
+    package static let maxTargetBytes = 1_000
+    /// "result is partial" is the phrase an agent learns to narrow on.
+    package static let truncationNote =
+        "\n(truncated: the result is partial. Narrow the request to a smaller part, then retry.)"
+
     /// The only way a tool outcome becomes a bridge reply, so the screen
-    /// text is cleaned here once for every call path.
+    /// text is cleaned and capped here once for every call path.
     package init(_ outcome: ParentToolOutcome) {
         self.ok = outcome.ok
-        self.output = BridgeScreenText.strip(outcome.output)
-        self.target = BridgeScreenText.strip(outcome.target)
+        let output = BridgeScreenText.strip(outcome.output)
+        let kept = Self.prefix(output, bytes: Self.maxOutputBytes)
+        self.output = output.utf8.count > Self.maxOutputBytes ? kept + Self.truncationNote : output
+        self.target = Self.prefix(BridgeScreenText.strip(outcome.target), bytes: Self.maxTargetBytes)
         self.tool = outcome.tool
+    }
+
+    /// Whole characters only: a cut through a multibyte one would not decode.
+    private static func prefix(_ text: String, bytes limit: Int) -> String {
+        guard text.utf8.count > limit else { return text }
+        var kept = ""
+        var used = 0
+        for character in text {
+            let size = character.utf8.count
+            guard used + size <= limit else { break }
+            kept.append(character)
+            used += size
+        }
+        // A first character bigger than the cap (a base with thousands of
+        // combining marks) would leave nothing: fall back to whole scalars.
+        return kept.isEmpty ? scalarPrefix(text, bytes: limit) : kept
+    }
+
+    private static func scalarPrefix(_ text: String, bytes limit: Int) -> String {
+        var kept = String.UnicodeScalarView()
+        var used = 0
+        for scalar in text.unicodeScalars {
+            let size = String(scalar).utf8.count
+            guard used + size <= limit else { break }
+            kept.append(scalar)
+            used += size
+        }
+        return String(kept)
     }
 
     package init(ok: Bool, output: String, target: String, tool: String? = nil) {
@@ -207,6 +246,21 @@ package enum BridgeCode {
     package static let debuggerUnavailable = "debugger_unavailable"
     package static let unreadablePage = "unreadable_page"
     package static let notTypable = "not_typable"
+    /// `browser_set_files`: the numbered element is not `<input type=file>`.
+    /// Choosing another number is the recovery; retrying the same one is not.
+    package static let notFileInput = "not_file_input"
+    /// Chrome hides `file:` URLs from the extension until this toggle is on.
+    /// The page never receives the file while it is off.
+    package static let fileAccessRequired = "file_access_required"
+    /// Larger than `AttachmentPolicy.maxBytes`. The browser reads the file
+    /// itself, so this is the only bound before the page receives it.
+    package static let fileTooLarge = "file_too_large"
+    /// browser_select's refusals: the element is not a usable `<select>`, or
+    /// no enabled option carries that label (the message lists the labels).
+    package static let notSelectable = "not_selectable"
+    package static let optionNotFound = "option_not_found"
+    /// P4: the element would not take the keyboard focus, so the key was not sent.
+    package static let notFocused = "not_focused"
     /// The tool exists but Companion's own window is in front, so there is no
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
     package static let selfInFront = "self_in_front"

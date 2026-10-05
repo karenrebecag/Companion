@@ -26,6 +26,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
     let workdir: String?
     let documents: (any DocumentRendering)?
     let sheets: (any SpreadsheetDriving)?
+    let versions: FileVersions?
     let deliverableTickets = ApprovalTickets()
     /// Wave 20d B: told when a deliverable ran without the sheet, so the island
     /// can show it and offer the way back.
@@ -40,6 +41,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         workdir: String? = nil,
         documents: (any DocumentRendering)? = nil,
         sheets: (any SpreadsheetDriving)? = nil,
+        versions: FileVersions? = nil,
         onAct: (@Sendable (UndoReceipt) -> Void)? = nil,
         location: UserLocationSource? = nil,
         // Fail closed: a caller that forgets to wire the switch gets "off".
@@ -57,6 +59,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         self.workdir = workdir
         self.documents = documents
         self.sheets = sheets
+        self.versions = versions
     }
 
     /// Wired at all, ready or not: a call can then say why it cannot act.

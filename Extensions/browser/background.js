@@ -112,11 +112,17 @@ async function handleInbound(message) {
 function dispatch(name, args) {
   switch (name) {
     case 'browser_tabs': return tabs();
-    case 'browser_read': return readTab(args.tab, args.selector ?? null);
+    case 'browser_read': return readTab(args);
     case 'browser_click': return trustedPress(args, GESTURES.click);
     case 'browser_double_click': return trustedPress(args, GESTURES.double);
     case 'browser_right_click': return trustedPress(args, GESTURES.right);
     case 'browser_type': return trustedType(args);
+    case 'browser_select': return act(args, (g, id, option) => globalThis.__companionPage.select(g, id, option), [args.option]);
+    case 'browser_hover': return trustedPress(args, GESTURES.hover);
+    case 'browser_scroll': return args.element != null ? scrollToElement(args) : trustedScroll(args);
+    case 'browser_press': return trustedKeyPress(args);
+    case 'browser_drag': return trustedDrag(args);
+    case 'browser_click_at': return trustedClickAt(args);
     case 'browser_navigate': return navigate(args.tab, args.url);
     case 'browser_open': return openTab(args.url);
     case 'browser_take': return serial(() => takeTab(args.tab));
@@ -297,22 +303,50 @@ async function run(target, func, args) {
   return results.filter((r) => r && r.result);
 }
 
-async function readTab(tabId, selector) {
+// Incredible's finders travel as one query; the page applies them where it reads.
+function readQuery(args) {
+  return {
+    selector: args.selector ?? null, text: args.text ?? null, exact: args.exact === true,
+    role: args.role ?? null, name: args.name ?? null, max: args.max ?? null, maxChars: args.maxChars ?? null,
+  };
+}
+
+// A miss in every frame is the answer; "only hidden here" beats "nothing here", since it names the next step.
+function missEverywhere(frames) {
+  const errors = frames.map((f) => f.result?.error).filter(Boolean);
+  if (errors.length === 0 || errors.length < frames.length) return null;
+  return errors.find((e) => e.code === 'selector_hidden') ?? errors.find((e) => e.code === 'selector_no_match') ?? errors[0];
+}
+
+async function readTab(args) {
+  const tabId = args.tab;
   const tab = await chrome.tabs.get(tabId).catch(() => null);
   if (!tab) return staleTab;
+  const query = readQuery(args);
+  let target;
+  if (args.within != null) {
+    const entry = entryFor({ tab: tabId, generation: args.generation, element: args.within });
+    if (!entry) return staleElement;
+    Object.assign(query, { withinGeneration: args.generation, withinLocal: entry.localId });
+    target = { tabId, frameIds: [entry.frameId] };
+  } else {
+    // With a selector only the top frame runs: it descends into same-origin iframes itself, and
+    // running every frame would return the same nodes once per frame.
+    target = query.selector == null ? { tabId, allFrames: true } : { tabId, frameIds: [0] };
+  }
   await cdp.ensureAttached(tabId).catch(() => {});
   generationCounter = nextGeneration(generationCounter, Date.now());
   const generation = generationCounter;
-  // With a selector only the top frame runs: it descends into same-origin iframes itself, and
-  // running every frame would return the same nodes once per frame.
-  const target = selector == null ? { tabId, allFrames: true } : { tabId, frameIds: [0] };
   try {
     await inject(target);
   } catch (error) {
     return { error: { code: 'unreadable_page', message: 'this tab cannot be read: ' + String(error?.message ?? error).slice(0, 120) } };
   }
-  const frames = await run(target, (g, s, f) => globalThis.__companionPage.read(g, s, f), [generation, selector, null]);
-  const built = buildPage(tab, tabId, generation, selector, frames);
+  const frames = await run(target, (g, q, f) => globalThis.__companionPage.read(g, q, f), [generation, query, null]);
+  const miss = query.text != null || query.role != null ? missEverywhere(frames) : null;
+  if (miss) return { error: miss };
+  const scoped = query.selector != null || args.within != null;
+  const built = buildPage(tab, tabId, generation, scoped, frames, { max: query.max, maxChars: query.maxChars });
   if (built.error) return built;
   tabState.set(tabId, { generation, map: built.map });
   return { page: built.page };
@@ -414,6 +448,10 @@ async function pressElement(args, entry, target, gesture) {
     const hits = async () => (await inPage(target, (g, id, x, y) => ({ hit: globalThis.__companionPage.hitsAt(g, id, x, y) }),
       [args.generation, entry.localId, spot.box.x, spot.box.y]))?.hit === true;
     if (!(await hits())) return coveredElement;
+    if (!gesture.mouse) {
+      await cdp.mouseMove(args.tab, spot.box.x, spot.box.y);
+      return 'pressed';
+    }
     // The first press of a double click can open something at that very pixel; the second must not land on it.
     const whole = await cdp.mouseClick(args.tab, spot.box.x, spot.box.y, { ...gesture.mouse, beforeRepeat: hits });
     if (!whole) return coveredAfterFirstPress;
@@ -430,6 +468,8 @@ const GESTURES = {
   click: { verb: 'Clic', mouse: { button: 'left', count: 1 }, landing: 'click', synthetic: 'click', done: 'clicked' },
   double: { verb: 'Doble clic', mouse: { button: 'left', count: 2 }, landing: 'click', synthetic: 'doubleClick', done: 'double-clicked' },
   right: { verb: 'Clic derecho', mouse: { button: 'right', count: 1 }, landing: 'contextmenu', synthetic: 'contextClick', done: 'right-clicked' },
+  // No button: the pointer only arrives, so there is no landing to prove and nothing to repeat.
+  hover: { verb: 'Señalando', mouse: null, landing: null, synthetic: 'hover', done: 'hovered' },
 };
 
 // Only the top frame gets the trusted path: an iframe's box is in its own coordinates, not the tab's.
@@ -452,6 +492,124 @@ async function trustedPress(args, gesture) {
     // Never pressed (off-screen or zero-size): the synthetic click targets the element itself, nothing on top of it.
     const fallback = await inPage(target, synthetic, [args.generation, entry.localId, gesture.synthetic]);
     return fallback ?? staleElement;
+  }).catch((error) => inputFailed(args.tab, error));
+}
+
+async function scrollToElement(args) {
+  return act(args, (g, id) => globalThis.__companionPage.scrollTo(g, id), []);
+}
+
+// The wheel goes to the middle of the viewport, where the page's main scroller almost always is.
+async function trustedScroll(args) {
+  const target = { tabId: args.tab, frameIds: [0] };
+  try {
+    await inject(target);
+  } catch {
+    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+  }
+  if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
+  return cdp.withInput(args.tab, async () => {
+    const view = await inPage(target, () => globalThis.__companionPage.viewport(), []);
+    const x = Math.max(1, Math.round((view?.w ?? 2) / 2));
+    const y = Math.max(1, Math.round((view?.h ?? 2) / 2));
+    await cdp.mouseWheel(args.tab, x, y, args.dx, args.dy);
+    return { done: 'scrolled' };
+  }).catch((error) => inputFailed(args.tab, error));
+}
+
+const offPage = { error: { code: 'stale_id', message: 'that point is not on the visible page; read the page again' } };
+const frameAtPoint = { error: { code: 'stale_id', message: 'an embedded frame or something new is at that point, so Companion did not press; read the page again' } };
+const dragInFrame = { error: { code: 'stale_id', message: 'dragging inside a frame is not supported; read the page again' } };
+
+// Fails closed: a page that cannot answer is not a point known to be clear.
+async function pointClear(target, point, token, phase) {
+  const at = await inPage(target, (x, y, t, p) => globalThis.__companionPage.pointAt(x, y, t, p),
+    [point.x, point.y, token, phase]);
+  return at?.frame === false && at.same === true;
+}
+
+const inside = (view, point) => !!view && point.x >= 0 && point.y >= 0 && point.x < view.w && point.y < view.h;
+
+async function topFrame(tabId) {
+  const target = { tabId, frameIds: [0] };
+  try {
+    await inject(target);
+  } catch {
+    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+  }
+  if (await cdp.isRevoked(tabId)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
+  return { target };
+}
+
+// HACK: CDP mouse events do not start a native HTML5 drag (draggable="true" with dragstart and drop), so a
+// list built on it sees a press and a release, not a drop. Intercept with Input.setInterceptDrags and replay
+// through Input.dispatchDragEvent once a real page the user needs works that way.
+async function trustedDrag(args) {
+  const entry = entryFor(args);
+  const goal = args.to != null ? entryFor({ ...args, element: args.to }) : null;
+  if (!entry || (args.to != null && !goal)) return staleElement;
+  // Only the top frame: a frame's boxes are in its own coordinates, not the tab's.
+  if (entry.frameId !== 0 || (goal && goal.frameId !== 0)) return dragInFrame;
+  const reached = await topFrame(args.tab);
+  if (reached.error) return reached;
+  const { target } = reached;
+  return cdp.withInput(args.tab, async () => {
+    const spot = await inPage(target, (g, id, t) => globalThis.__companionPage.locate(g, id, t, null),
+      [args.generation, entry.localId, `${Date.now()}-drag`]);
+    if (!spot) return staleElement;
+    if (spot.error) return spot;
+    if (spot.inFrame) return dragInFrame;
+    if (!spot.inView) return offPage;
+    if (spot.blocked) return coveredElement;
+    let drop = { x: spot.box.x + (args.dx ?? 0), y: spot.box.y + (args.dy ?? 0) };
+    if (goal) {
+      const end = await inPage(target, (g, id) => globalThis.__companionPage.boxOf(g, id), [args.generation, goal.localId]);
+      if (!end) return staleElement;
+      if (end.error) return end;
+      if (end.inFrame) return dragInFrame;
+      if (!end.inView) return offPage;
+      drop = end.box;
+    }
+    const view = await inPage(target, () => globalThis.__companionPage.viewport(), []);
+    if (!inside(view, drop)) return offPage;
+    const token = `${Date.now()}-drag`;
+    const hits = async (id, point) => (await inPage(target,
+      (g, local, x, y) => ({ hit: globalThis.__companionPage.hitsAt(g, local, x, y) }),
+      [args.generation, id, point.x, point.y]))?.hit === true;
+    // The yes covered dropping onto that element; something else at the drop point would get it instead.
+    // Both ends: a frame inside the source would take the press as surely as one at the drop point.
+    const clear = async (phase) => (await pointClear(target, spot.box, `${token}-source`, phase))
+      && (await pointClear(target, drop, `${token}-drop`, phase))
+      && (!goal || await hits(goal.localId, drop)) && await hits(entry.localId, spot.box);
+    if (!(await clear('mark'))) return coveredElement;
+    await showCursor(target, spot.box.x, spot.box.y, `Arrastrando · ${spot.label || spot.role}`);
+    // The page had the whole glide to slip a frame, an overlay or another control under either end.
+    if (!(await clear('check'))) return coveredElement;
+    await cdp.mouseDrag(args.tab, spot.box, drop);
+    return { done: 'dragged' };
+  }).catch((error) => inputFailed(args.tab, error));
+}
+
+// A bare point has no element to re-check, so it is bound to the read it came from by its generation and must
+// fall inside the page as it is now, outside any embedded frame.
+async function trustedClickAt(args) {
+  const state = tabState.get(args.tab);
+  if (!state || state.generation !== args.generation) return staleElement;
+  const reached = await topFrame(args.tab);
+  if (reached.error) return reached;
+  const { target } = reached;
+  const point = { x: args.x, y: args.y };
+  return cdp.withInput(args.tab, async () => {
+    const view = await inPage(target, () => globalThis.__companionPage.viewport(), []);
+    if (!inside(view, point)) return offPage;
+    const token = `${Date.now()}-point`;
+    if (!(await pointClear(target, point, token, 'mark'))) return frameAtPoint;
+    await showCursor(target, point.x, point.y, 'Clic');
+    // The page had the whole glide to put a frame or a different control under the point.
+    if (!(await pointClear(target, point, token, 'check'))) return frameAtPoint;
+    await cdp.mouseClick(args.tab, point.x, point.y);
+    await pressCursor(target);
+    return { done: 'clicked' };
   }).catch((error) => inputFailed(args.tab, error));
 }
 
@@ -507,6 +665,30 @@ async function trustedType(args) {
     }
     // The model has to know its line breaks did not go in, or it would report text that is not there.
     return { done: expected.length === Array.from(args.text).length ? 'typed' : TYPED_WITHOUT_BREAKS };
+  }).catch((error) => inputFailed(args.tab, error));
+}
+
+async function trustedKeyPress(args) {
+  const entry = args.element === null ? null : entryFor(args);
+  if (args.element !== null && !entry) return staleElement;
+  const target = entry ? { tabId: args.tab, frameIds: [entry.frameId] } : null;
+  if (target) {
+    try {
+      await inject(target);
+    } catch {
+      return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+    }
+  }
+  if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
+  return cdp.withInput(args.tab, async () => {
+    if (target) {
+      const focus = await inPage(target, (g, id) => globalThis.__companionPage.focus(g, id), [args.generation, entry.localId]);
+      if (!focus) return staleElement;
+      if (focus.error) return focus;
+      if (!focus.focused) return { error: { code: 'not_focused', message: 'the element did not take the keyboard focus' } };
+    }
+    for (let i = 0; i < args.times; i++) await cdp.pressKey(args.tab, args.key);
+    return { done: 'pressed' };
   }).catch((error) => inputFailed(args.tab, error));
 }
 

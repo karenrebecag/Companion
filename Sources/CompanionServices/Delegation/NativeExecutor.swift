@@ -24,13 +24,16 @@ package struct NativeExecutor: Executor, Sendable {
         skills: SkillsLocation? = nil,
         skillsSource: (@Sendable () -> String)? = nil,
         documents: (any DocumentRendering)? = nil,
-        sheets: (any SpreadsheetDriving)? = nil
+        sheets: (any SpreadsheetDriving)? = nil,
+        versions: FileVersions? = nil,
+        disposal: FileDisposal = .system
     ) {
         self.descriptor = descriptor
         self.chatProvider = chatProvider
         self.toolRunner = NativeToolRunner(
             workdir: config.workdir, webSearch: webSearch, language: config.language,
-            skills: skills, documents: documents, sheets: sheets)
+            skills: skills, documents: documents, sheets: sheets, versions: versions,
+            disposal: disposal)
         self.config = config
         self.approvals = approvals
         self.skillsSource = skillsSource
@@ -148,7 +151,10 @@ package struct NativeExecutor: Executor, Sendable {
                 ok: false,
                 output: "invalid_args: could not parse arguments: \(call.arguments)")
         }
-        events.yield(.stepStarted(tool: toolName, summary: "Executing \(toolName)"))
+        events.yield(.stepStarted(
+            tool: toolName,
+            summary: AgentStreamCodec.toolDetail(fromInputJSON: call.arguments),
+            id: call.id))
 
         let risky = riskLevel(tool: toolName) == .requiresApproval
         // Wave 20d B: a step that only adds (a new file in the working folder,
@@ -164,6 +170,9 @@ package struct NativeExecutor: Executor, Sendable {
             // A sheet write runs the arguments the sheet showed, workbook included.
             shown = await toolRunner.approvalArguments(tool: toolName, json: call.arguments)
             guard let bound = Self.boundArguments(shown: shown, original: call.arguments, parsed: arguments) else {
+                // The row opened above must close here, or a later finish of
+                // the same tool would be paired with it.
+                events.yield(.stepFinished(tool: toolName, ok: false, id: call.id))
                 return ToolResult(ok: false, output: "denied: the approved arguments could not be read, so nothing ran")
             }
             runArguments = bound
@@ -204,7 +213,7 @@ package struct NativeExecutor: Executor, Sendable {
         } catch {
             toolResult = ToolResult(ok: false, output: "tool failed: \(error)")
         }
-        events.yield(.stepFinished(tool: toolName, ok: toolResult.ok))
+        events.yield(.stepFinished(tool: toolName, ok: toolResult.ok, id: call.id))
         if acts, toolResult.ok, let receipt = await toolRunner.receipt(tool: toolName, arguments: runArguments) {
             events.yield(.acted(receipt))
         }

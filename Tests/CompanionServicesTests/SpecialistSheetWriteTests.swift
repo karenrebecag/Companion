@@ -16,7 +16,7 @@ private final class ExecSheets: SpreadsheetDriving, @unchecked Sendable {
     func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]] { [["1"]] }
     func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String) async throws -> SheetWriteReceipt {
         lock.withLock { _written.append(workbook) }
-        return SheetWriteReceipt(backupPath: "/tmp/b.xlsx", readBack: [["1"]])
+        return SheetWriteReceipt(readBack: [["1"]])
     }
 }
 

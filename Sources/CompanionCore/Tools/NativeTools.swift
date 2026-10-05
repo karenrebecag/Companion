@@ -11,6 +11,7 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
     case readFile = "read_file"
     case writeFile = "write_file"
     case editFile = "edit_file"
+    case deleteFile = "delete_file"
     case runShell = "run_shell"
     case webFetch = "web_fetch"
     case webSearch = "web_search"
@@ -18,12 +19,15 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
     case createDocument = "create_document"
     case sheetRead = "sheet_read"
     case sheetWrite = "sheet_write"
+    /// H-7 PR4c: the copies kept around a save of the user's file, and the way back.
+    case listFileHistory = "list_file_history"
+    case restoreFileVersion = "restore_file_version"
 
     package var riskLevel: RiskLevel {
         switch self {
-        case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch, .sheetRead:
+        case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch, .sheetRead, .listFileHistory:
             return .safe
-        case .writeFile, .editFile, .runShell, .createDocument, .sheetWrite:
+        case .writeFile, .editFile, .deleteFile, .runShell, .createDocument, .sheetWrite, .restoreFileVersion:
             return .requiresApproval
         }
     }
@@ -102,6 +106,19 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
                 ],
                 required: ["path", "old_string", "new_string"]
             )
+        case .deleteFile:
+            return ToolSpec(
+                name: "delete_file",
+                description: "Delete a file or folder after the user approves. It goes to the "
+                    + "Trash, where the user can put it back; only if the Trash is "
+                    + "unavailable is it deleted permanently, and the result says which "
+                    + "happened. Use this instead of rm.",
+                properties: [
+                    ToolProperty(name: "path", type: "string",
+                                 description: "path to the file or folder to delete"),
+                ],
+                required: ["path"]
+            )
         case .runShell:
             return ToolSpec(
                 name: "run_shell",
@@ -132,7 +149,7 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
                 ],
                 required: ["query"]
             )
-        case .createDocument, .sheetRead, .sheetWrite:
+        case .createDocument, .sheetRead, .sheetWrite, .listFileHistory, .restoreFileVersion:
             return DeliverableTools.spec(self)
         }
     }

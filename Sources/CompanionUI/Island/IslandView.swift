@@ -178,7 +178,7 @@ package struct IslandView: View {
         .onChange(of: geometry.peeking) { _, _ in peek(state) }
         .onChange(of: latestReply?.id) { _, id in
             replyStart = Date()
-            reportReplyShown(id)
+            if state.reportsReplyShown { reportReplyShown(id) }
         }
         .onChange(of: state.approval?.requestId, initial: true) { _, id in
             clickGuard = id == nil ? nil : ApprovalClickGuard(shownAt: Date().timeIntervalSince1970)

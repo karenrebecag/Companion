@@ -1,0 +1,1 @@
+- **En modo pasivo una respuesta de Companion ya no abre la isla, como en Incredible (2026-10-03).** La isla queda en reposo; una hoja de aprobacion, un aviso, el deshacer o las manos siguen abriendola, y un dictado siempre se ve. El chip que lleva la linea de voz llega en el siguiente paso.

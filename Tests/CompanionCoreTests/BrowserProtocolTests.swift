@@ -120,6 +120,15 @@ private let helloLine = #"{"id":1,"method":"hello","params":{"extension":"abc","
     expectEq(BrowserCodec.decode(line: line), .success(.page(id: 7, page)), "page")
 }
 
+/// P4: the gate judges an Enter in a field by the form's submit button, so its label travels with the field.
+@Test func codecDecodesTheSubmitLabelOfAField() {
+    let line = #"{"id":7,"result":{"page":{"tab":12,"origin":"https://x.test","url":"https://x.test/a","title":"T","text":"","generation":3,"truncated":false,"elements":[{"id":1,"frame":0,"role":"textbox","label":"Para","context":"","inputType":"text","autocomplete":null,"value":"","submit":"Enviar"},{"id":2,"frame":0,"role":"button","label":"Enviar","context":"","inputType":null,"autocomplete":null,"value":null,"submit":null}]}}}"#
+    guard case .success(.page(_, let page)) = BrowserCodec.decode(line: line) else {
+        Issue.record("page did not decode"); return
+    }
+    expectEq(page.elements.map(\.submit), ["Enviar", nil], "el campo lleva el boton que su Enter pulsaria")
+}
+
 @Test func codecDecodesDoneAndError() {
     expectEq(BrowserCodec.decode(line: #"{"id":9,"result":{"done":"clicked"}}"#),
              .success(.done(id: 9, message: "clicked")), "done")
@@ -186,15 +195,35 @@ private func object(_ line: String) -> [String: Any] {
     let url = URL(string: "https://x.test/a/b")!
     let cases: [(BrowserCommand, String, [String: String])] = [
         (.tabs, "browser_tabs", [:]),
-        (.read(tab: 12, selector: nil), "browser_read", ["tab": "12"]),
-        (.read(tab: 12, selector: "a >>> b"), "browser_read", ["tab": "12", "selector": "a >>> b"]),
+        (.read(tab: 12, query: BrowserQuery()), "browser_read", ["tab": "12"]),
+        (.read(tab: 12, query: BrowserQuery(selector: "a >>> b")), "browser_read", ["tab": "12", "selector": "a >>> b"]),
+        (.read(tab: 12, query: BrowserQuery(
+            text: "Pais", exact: true, role: "combobox", name: "Pais",
+            within: BrowserElementRef(generation: 3, element: 4), max: 5, maxChars: 100)), "browser_read",
+         ["tab": "12", "text": "Pais", "exact": "1", "role": "combobox", "name": "Pais", "generation": "3", "within": "4",
+          "max": "5", "maxChars": "100"]),
         (.click(tab: 12, generation: 3, element: 5), "browser_click", ["tab": "12", "generation": "3", "element": "5"]),
         (.doubleClick(tab: 12, generation: 3, element: 5), "browser_double_click",
          ["tab": "12", "generation": "3", "element": "5"]),
         (.rightClick(tab: 12, generation: 3, element: 5), "browser_right_click",
          ["tab": "12", "generation": "3", "element": "5"]),
+        (.hover(tab: 12, generation: 3, element: 5), "browser_hover", ["tab": "12", "generation": "3", "element": "5"]),
+        (.dragTo(tab: 12, generation: 3, element: 5, to: 7), "browser_drag",
+         ["tab": "12", "generation": "3", "element": "5", "to": "7"]),
+        (.dragBy(tab: 12, generation: 3, element: 5, dx: 120, dy: -30), "browser_drag",
+         ["tab": "12", "generation": "3", "element": "5", "dx": "120", "dy": "-30"]),
+        (.clickAt(tab: 12, generation: 3, x: 40, y: 60), "browser_click_at",
+         ["tab": "12", "generation": "3", "x": "40", "y": "60"]),
+        (.scroll(tab: 12, dx: -40, dy: 600), "browser_scroll", ["tab": "12", "dx": "-40", "dy": "600"]),
+        (.scrollTo(tab: 12, generation: 3, element: 5), "browser_scroll", ["tab": "12", "generation": "3", "element": "5"]),
         (.type(tab: 12, generation: 3, element: 5, text: "hola \u{1F600} \"q\""), "browser_type",
          ["tab": "12", "generation": "3", "element": "5", "text": "hola \u{1F600} \"q\""]),
+        (.select(tab: 12, generation: 3, element: 8, option: "México \"q\""), "browser_select",
+         ["tab": "12", "generation": "3", "element": "8", "option": "México \"q\""]),
+        (.press(tab: 12, key: "Enter", times: 2, generation: 3, element: 5), "browser_press",
+         ["tab": "12", "key": "Enter", "times": "2", "generation": "3", "element": "5"]),
+        (.press(tab: 12, key: "Escape", times: 1, generation: nil, element: nil), "browser_press",
+         ["tab": "12", "key": "Escape", "times": "1"]),
         (.navigate(tab: 12, url: url), "browser_navigate", ["tab": "12", "url": "https://x.test/a/b"]),
     ]
     for (command, name, want) in cases {
@@ -212,9 +241,12 @@ private func object(_ line: String) -> [String: Any] {
         expectEq(flat, want, "\(name): arguments")
         expect(!line.contains("\\/"), "\(name): la URL no escapa la barra")
     }
-    let read = object(BrowserCodec.encode(.call(id: 1, .read(tab: 2, selector: nil))))
+    let read = object(BrowserCodec.encode(.call(id: 1, .read(tab: 2, query: BrowserQuery()))))
     let args = (read["params"] as? [String: Any])?["arguments"] as? [String: Any]
     expect(args?["selector"] is NSNull, "selector nulo va como null")
+    let press = object(BrowserCodec.encode(.call(id: 1, .press(tab: 2, key: "Tab", times: 1, generation: nil, element: nil))))
+    let pressArgs = (press["params"] as? [String: Any])?["arguments"] as? [String: Any]
+    expect(pressArgs?["generation"] is NSNull && pressArgs?["element"] is NSNull, "sin elemento: ambos van como null")
 }
 
 @Test func codecCallRoundtripsThroughNativeFrame() throws {

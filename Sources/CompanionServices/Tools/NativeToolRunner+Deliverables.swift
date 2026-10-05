@@ -21,10 +21,8 @@ extension NativeToolRunner {
         do {
             try FileManager.default.createDirectory(
                 atPath: (realPath as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
-            let backup = backUpExisting(realPath)
-            if case .failed = backup {
-                return ToolResult(ok: false, output: "The existing file could not be backed up, so it was not replaced")
-            }
+            // Fail-open: a snapshot that cannot be made never stops the save.
+            let previous = versions?.snapshot(realPath, trigger: .preSave) ?? .noPrevious
             let receipt = try await documents.render(spec, format: format, to: URL(fileURLWithPath: realPath))
             // Verified on disk before anything is reported (Incredible's rule too).
             guard FileManager.default.fileExists(atPath: realPath), receipt.bytes > 0 else {
@@ -32,9 +30,9 @@ extension NativeToolRunner {
             }
             let pages = receipt.pages.map { ", \($0) page\($0 == 1 ? "" : "s")" } ?? ""
             Log.app("document: \(format.rawValue) blocks=\(spec.blocks.count) bytes=\(receipt.bytes)")
-            var kept = ""
-            if case .kept(let copy) = backup { kept = ". Backup of the previous file: \(copy)" }
-            return ToolResult(ok: true, output: "Created \(realPath)\(pages), \(receipt.bytes) bytes\(kept)")
+            _ = versions?.snapshot(realPath, trigger: .postSave)
+            return ToolResult(ok: true, output: "Created \(realPath)\(pages), \(receipt.bytes) bytes"
+                + Self.versionNote(previous))
         } catch DocumentError.unsupportedFormat {
             return ToolResult(ok: false, output: "invalid_args: that format is not supported")
         } catch {
@@ -43,18 +41,15 @@ extension NativeToolRunner {
         }
     }
 
-    private enum Backup { case none, kept(String), failed }
-
-    /// A deliverable that already exists is copied aside before it is replaced
-    /// (the same rule as sheet_write); if the copy fails the file stays as it
-    /// is. Wave 20c D4 (M6).
-    private func backUpExisting(_ path: String) -> Backup {
-        guard FileManager.default.fileExists(atPath: path) else { return .none }
-        do {
-            return .kept(try DocumentBackup.copy(of: path))
-        } catch {
-            Log.app("document: backup copy failed")
-            return .failed
+    /// What the model is told about the copy made before a save. Never a path: the
+    /// store is private to the app and the model has no business reading it.
+    static func versionNote(_ outcome: FileVersions.Outcome) -> String {
+        switch outcome {
+        case .saved: "; a previous version was kept"
+        case .noPrevious: ""
+        case .tooLarge: "; no previous version could be kept (it is over the "
+            + "\(FileVersions.defaultMaxBytes / 1024 / 1024) MB limit)"
+        case .failed: "; no previous version could be kept"
         }
     }
 
@@ -91,15 +86,18 @@ extension NativeToolRunner {
             // one that was never named (no sheet bound it) is refused too.
             guard let approved = SheetApproval.workbook(in: arguments),
                   try await sheets.workbook(app) == approved else { throw SheetError.workbookChanged }
+            // Companion never sends Save, so the file on disk only changes when the
+            // user saves: one copy before the write is all there is to keep.
+            let previous = versions?.snapshot(approved, trigger: .preSave) ?? .noPrevious
             let receipt = try await sheets.write(app, range: range, cells: cells, workbook: approved)
             Log.app("sheets: wrote \(app.rawValue) cells=\(range.rows * range.columns)")
             guard !receipt.readBackUnavailable else {
                 return ToolResult(ok: true, output: "Wrote \(range.a1) in \(app.rawValue), but the result could not "
-                    + "be read back: the workbook in front changed right after the write. Check the sheet. "
-                    + "Backup of the saved workbook: \(receipt.backupPath)")
+                    + "be read back: the workbook in front changed right after the write. Check the sheet"
+                    + Self.versionNote(previous))
             }
-            return ToolResult(ok: true, output: "Wrote \(range.a1) in \(app.rawValue). Backup of the saved "
-                + "workbook: \(receipt.backupPath)\nRead back:\n" + Self.render(receipt.readBack, range: range, app: app))
+            return ToolResult(ok: true, output: "Wrote \(range.a1) in \(app.rawValue)"
+                + Self.versionNote(previous) + ".\nRead back:\n" + Self.render(receipt.readBack, range: range, app: app))
         } catch {
             return Self.failure(error)
         }
@@ -109,6 +107,9 @@ extension NativeToolRunner {
     /// that a write would land in, resolved by the runner now. The same JSON
     /// is what runs, so approving and writing name one workbook.
     func approvalArguments(tool: String, json: String) async -> String {
+        // The one binder for a restore, shared with the parent: the model's own
+        // `restore_*` keys never reach a sheet on either lane.
+        if tool == NativeTool.restoreFileVersion.rawValue { return restoreSheetJSON(json) }
         guard tool == NativeTool.sheetWrite.rawValue else { return json }
         // Whatever cannot be resolved below leaves no model-supplied workbook behind.
         guard let sheets, let object = ToolArguments.parse(json),
@@ -154,7 +155,7 @@ extension NativeToolRunner {
         case .invalidValues?: code = "invalid_args: values must be JSON rows of text, numbers or null"
         case .noOpenDocument?: code = noSheet.output
         case .workbookChanged?: code = "workbook_changed: the workbook in front is not the one that was approved; nothing was written"
-        case .unsavedDocument?: code = "unsaved_document: ask the user to save the workbook once, so a backup can be made"
+        case .unsavedDocument?: code = "unsaved_document: ask the user to save the workbook once, so it can be identified and a previous version kept"
         case .needsPermission?: code = BridgeCode.permissionRequired + ": " + BridgeMessages.automationRequired
         case .appFailed?, nil: code = "app_failed: the spreadsheet app did not accept the command"
         }

@@ -146,8 +146,15 @@ extension SessionMachine {
             return rearmPassive()
         case .passiveExpired(let armedFor):
             // Every change and interaction moves the arm, so only the latest wait counts.
-            if armedFor == passiveArm { projection.presence = .passive }
-            return []
+            guard armedFor == passiveArm else { return [] }
+            // A turn in progress keeps its island: the wait starts over instead.
+            switch projection.kind {
+            case .idle, .hover:
+                projection.presence = .passive
+                return []
+            case .listening, .processing:
+                return rearmPassive()
+            }
         default:
             return Self.isInteraction(event) ? rearmPassive() : []
         }

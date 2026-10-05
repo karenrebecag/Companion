@@ -12,12 +12,28 @@ package struct JobStepInfo: Sendable, Equatable, Codable {
     /// the synthesized Codable is enough (review 16m).
     package var done: Bool
     package var failed: Bool
+    /// Pairs the step's end with its start; the stream's tool-use id when
+    /// there is one, otherwise minted by the reducer.
+    package var id: String
+    /// The id came from the reducer, not a producer, so no producer id may
+    /// ever pair with this step.
+    package var minted = false
+    /// Both times come from the reducer's injected clock, never from the
+    /// executor, so a card's durations are testable and replayable.
+    package var startedAt: Date
+    package var finishedAt: Date?
 
-    package init(tool: String, label: String, done: Bool = false, failed: Bool = false) {
+    package init(
+        tool: String, label: String, done: Bool = false, failed: Bool = false,
+        id: String = "", startedAt: Date = .distantPast, finishedAt: Date? = nil
+    ) {
         self.tool = tool
         self.label = label
         self.done = done
         self.failed = failed
+        self.id = id
+        self.startedAt = startedAt
+        self.finishedAt = finishedAt
     }
 }
 
@@ -65,7 +81,7 @@ package enum JobSteps: Sendable {
             case "Bash", "run_shell": commands += 1
             case "list_directory", "find_places": searches += 1
             case "Read", "Write", "Edit", "NotebookEdit",
-                 "read_file", "write_file", "edit_file":
+                 "read_file", "write_file", "edit_file", "delete_file":
                 if let path = path(of: step) {
                     files.insert((path as NSString).lastPathComponent)
                 } else {

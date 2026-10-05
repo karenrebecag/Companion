@@ -56,6 +56,29 @@ enum DeliverableTools {
                                  description: "excel or numbers; omit to use the one in front"),
                 ],
                 required: ["range", "values"])
+        case .listFileHistory:
+            return ToolSpec(
+                name: "list_file_history",
+                description: "List the earlier versions kept of a file the user's documents tools saved "
+                    + "over (a PDF, a workbook): newest first, each with an id, the time and whether it "
+                    + "was kept before or after a save. Use it before restore_file_version.",
+                properties: [
+                    ToolProperty(name: "path", type: "string", description: "path to the file"),
+                ],
+                required: ["path"])
+        case .restoreFileVersion:
+            return ToolSpec(
+                name: "restore_file_version",
+                description: "Put an earlier version of a file back, after the user approves. The file "
+                    + "must exist; a copy of what is there now is kept first, so the restore can be "
+                    + "undone, and if that copy cannot be made nothing is restored. Take the version id "
+                    + "from list_file_history.",
+                properties: [
+                    ToolProperty(name: "path", type: "string", description: "path to the file"),
+                    ToolProperty(name: "version", type: "string",
+                                 description: "a version id exactly as list_file_history gave it"),
+                ],
+                required: ["path", "version"])
         default:
             return ToolSpec(name: tool.rawValue, description: "", properties: [], required: [])
         }
@@ -64,8 +87,9 @@ enum DeliverableTools {
 
 extension NativeTool {
     /// Offered by the parent itself (spec 20b D2): with Claude Code installed
-    /// every delegation goes to it, and it has none of these.
-    package static let parentDeliverables: [NativeTool] = [.createDocument, .sheetRead, .sheetWrite]
+    /// every delegation goes to it, and it has none of these. The history
+    /// tools are here too: they are the way back from the saves above.
+    package static let parentDeliverables: [NativeTool] = [.createDocument, .sheetRead, .sheetWrite, .listFileHistory, .restoreFileVersion]
 }
 
 /// What the MCP bridge may drive (20c D6, M9). An ALLOWLIST: a tool the
@@ -83,6 +107,14 @@ package enum BridgeScope {
         "browser_open", "browser_take", "browser_release",
         // H-7 P5a: the click's two variants, on the click's gates.
         "browser_double_click", "browser_right_click",
+        // P3: picks a native <select> option, gated like browser_type.
+        "browser_select",
+        // H-7 P5b: move the view or the pointer; no sheet, still the write budget.
+        "browser_scroll", "browser_hover",
+        // P4: a key press, gated like a click when it activates or submits.
+        "browser_press",
+        // H-7 P7: drag judged on both ends, click_at always asks.
+        "browser_drag", "browser_click_at",
         // Self-qa PR-3 (ADR 009): Companion lets an agent inspect it, read
         // only and behind the same session sheet; it never lends the hands.
         "companion_state", "companion_island", "companion_settings", "companion_thread",

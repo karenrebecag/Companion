@@ -7,6 +7,8 @@
 
 const VERSION = '1.3';
 const ALREADY_ATTACHED = 'Another debugger is already attached';
+// Enough intermediate moves for a sortable list or a slider to follow the pointer.
+const DRAG_STEPS = 10;
 
 export class RevokedError extends Error {
   constructor(tabId) {
@@ -133,6 +135,34 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     return true;
   }
 
+  // Press, move in steps holding the button, release: a single jump reads as a click elsewhere, not a drag.
+  async function mouseDrag(tabId, from, to, steps = DRAG_STEPS) {
+    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y, button: 'none', buttons: 0 });
+    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1 });
+    let at = from;
+    try {
+      for (let step = 1; step <= steps; step++) {
+        at = { x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps };
+        await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y, button: 'left', buttons: 1 });
+      }
+    } catch (error) {
+      // A button left down would stay down in the page; the move's error is the one worth reporting.
+      await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: at.x, y: at.y, button: 'left', buttons: 0, clickCount: 1 }).catch(() => {});
+      throw error;
+    }
+    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1 });
+  }
+
+  async function mouseMove(tabId, x, y) {
+    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 });
+  }
+
+  // A wheel scrolls whatever is scrollable under the point, as a trackpad does, not only the document.
+  // It carries its own point: moving the pointer there first would hover whatever sits at the center.
+  async function mouseWheel(tabId, x, y, deltaX, deltaY) {
+    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseWheel', x, y, deltaX, deltaY });
+  }
+
   // keyDown/char/keyUp per character: live search, autocomplete and validation hear real keys.
   // Control characters are dropped: a real Return submits and Escape or Backspace edit, and none of
   // that is what typing was approved for.
@@ -145,6 +175,18 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     }
   }
 
+  // Only Enter and Space carry text: that is what makes them submit and activate, where the
+  // others reach the page as bare key presses.
+  async function pressKey(tabId, name) {
+    const spec = KEYS[name];
+    if (!spec) throw new Error(`unknown key ${name}`);
+    const base = { key: spec.key, code: spec.code, windowsVirtualKeyCode: spec.vk, modifiers: spec.modifiers ?? 0 };
+    await send(tabId, 'Input.dispatchKeyEvent', spec.text
+      ? { ...base, type: 'keyDown', text: spec.text }
+      : { ...base, type: 'rawKeyDown' });
+    await send(tabId, 'Input.dispatchKeyEvent', { ...base, type: 'keyUp' });
+  }
+
   api.debugger?.onDetach?.addListener((source, reason) => {
     if (!Number.isInteger(source.tabId)) return;
     attached.delete(source.tabId);
@@ -155,8 +197,27 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     }
   });
 
-  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, typeText, isRevoked };
+  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, mouseDrag, mouseMove, mouseWheel, typeText, pressKey, isRevoked };
 }
+
+const SHIFT = 8;
+const KEYS = Object.freeze({
+  Enter: { key: 'Enter', code: 'Enter', vk: 13, text: '\r' },
+  Space: { key: ' ', code: 'Space', vk: 32, text: ' ' },
+  Escape: { key: 'Escape', code: 'Escape', vk: 27 },
+  Tab: { key: 'Tab', code: 'Tab', vk: 9 },
+  'Shift+Tab': { key: 'Tab', code: 'Tab', vk: 9, modifiers: SHIFT },
+  ArrowUp: { key: 'ArrowUp', code: 'ArrowUp', vk: 38 },
+  ArrowDown: { key: 'ArrowDown', code: 'ArrowDown', vk: 40 },
+  ArrowLeft: { key: 'ArrowLeft', code: 'ArrowLeft', vk: 37 },
+  ArrowRight: { key: 'ArrowRight', code: 'ArrowRight', vk: 39 },
+  Backspace: { key: 'Backspace', code: 'Backspace', vk: 8 },
+  Delete: { key: 'Delete', code: 'Delete', vk: 46 },
+  Home: { key: 'Home', code: 'Home', vk: 36 },
+  End: { key: 'End', code: 'End', vk: 35 },
+  PageUp: { key: 'PageUp', code: 'PageUp', vk: 33 },
+  PageDown: { key: 'PageDown', code: 'PageDown', vk: 34 },
+});
 
 export function isControl(ch) {
   const code = ch.codePointAt(0);

@@ -21,6 +21,10 @@ These tools exist only while the extension is connected. If `browser_tabs` is no
 - `browser_read(tab, selector?)` returns the tab's text and its elements, each with a number. `>>>` in a selector crosses frames and shadow roots.
 - `browser_click(tab, element)` and `browser_type(tab, element, text)` act on a numbered element.
 - `browser_double_click(tab, element)` and `browser_right_click(tab, element)` press it twice, or with the right button to open the page's own menu; they ask wherever a click on that element would.
+- `browser_select(tab, element, option)` chooses an option of a dropdown list (a `<select>`) by the label the page shows. A label that is not there answers `option_not_found` with the labels the list has.
+- `browser_scroll(tab, dx, dy)` scrolls by pixels, or `browser_scroll(tab, element)` brings a numbered element into view; `browser_hover(tab, element)` moves the pointer over it to show a menu or tooltip. Neither asks; read the tab again afterwards.
+- `browser_press(tab, key, element?, times?)` presses Enter, Escape, Tab, the arrows, Space, Backspace, Delete, Home, End or the page keys, on a numbered element (it takes the focus first) or at the page's focus. An Enter that submits a form is judged like a click on its button.
+- `browser_drag(tab, element, to)` drags a numbered element onto another, or `browser_drag(tab, element, dx, dy)` by pixels; onto an element it asks wherever a click on either end would, and by pixels it always asks. `browser_click_at(tab, x, y)` clicks a point of the visible page for what has no number (a canvas, a map); it always asks, and the point must come from a read less than a minute old.
 - `browser_navigate(tab, url)` opens an http or https address in a tab.
 
 Reading, clicking, typing and navigating need control of the tab. A tab you opened is yours; any other one answers `not_controlled`: take it with `browser_take` if the user named it, or open the address with `browser_open`. If it answers `busy`, another agent is using that tab: do not wait for it, open the address in a new tab. Never take a tab just because it is in the list.
