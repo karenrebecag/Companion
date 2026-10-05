@@ -386,8 +386,11 @@ extension ScreenHands {
 }
 
 /// One call of the hands against one captured pid. Logs carry the tool,
-/// counts, pid and bundle id — never the text typed or read.
-private struct HandsAct {
+/// counts, pid and bundle id — never the text typed or read. Marked
+/// internal (not `private`) only so the read-back extension in
+/// `ParentToolRunnerHands+Proof.swift` can call `fail` and read the
+/// captured pid, bundle and tool. Nothing outside this module ever sees it.
+struct HandsAct {
     let hands: ScreenHands
     let pid: Int32
     let bundle: String
@@ -396,7 +399,7 @@ private struct HandsAct {
     /// The front app moved mid-action: its ids are no longer worth anything.
     static let appMoved = "the app in front changed; call look again, then act on the app you mean"
 
-    private func fail(_ code: String, _ message: String, target: String = "") -> ParentToolOutcome {
+    func fail(_ code: String, _ message: String, target: String = "") -> ParentToolOutcome {
         Log.app("hands: \(tool.rawValue) \(code) pid=\(pid) bundle=\(bundle)")
         return .failed(ParentToolRunner.handsError(code, message), target: target, tool: tool.rawValue)
     }
@@ -469,21 +472,19 @@ private struct HandsAct {
         guard !moved else { return fail("target_changed", Self.appMoved) }
         // What the field holds before typing, read the way `read_focused`
         // reads it: the proof is that the text shows up MORE times after.
-        let before = hands.reader.read(pid: pid).map {
-            TypedProof.occurrences(of: text, in: FocusedText.clip($0))
-        }
-        switch await hands.injector.inject(text, into: target) {
-        case .injected(let count, let route):
-            Log.app("hands: type_text typed chars=\(count) via=\(route.rawValue) pid=\(pid)")
-            return ParentToolOutcome(
-                ok: true, output: "typed \(count) chars" + TypedProof.unverifiedNote,
-                tool: tool.rawValue, fieldPID: pid, typedBefore: before)
+        let baseline = hands.reader.read(pid: pid)
+        let before = baseline.map { TypedProof.occurrences(of: text, in: FocusedText.clip($0)) }
+        let first = await hands.injector.inject(text, into: target)
+        switch first {
         case .failed(.needsAccessibility):
             return fail("needs_accessibility", BridgeMessages.needsAccessibility)
         case .failed(.fieldGone):
             return fail("target_changed", Self.appMoved)
         case .failed(.refused):
             return fail("refused", "the field did not accept the text")
+        case .injected(let count, let route):
+            return await verifyLanding(
+                text: text, target: target, count: count, route: route, baseline: baseline, before: before)
         }
     }
 

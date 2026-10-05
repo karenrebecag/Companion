@@ -62,6 +62,15 @@ package final class AXTextInjector: FocusedFieldProbing, TextInjecting, @uncheck
         return await paste(text, pid: field.pid)
     }
 
+    package func paste(_ text: String, into field: FocusedField) async -> InjectionResult {
+        guard trust() else { return .failed(.needsAccessibility) }
+        guard let app = front(), app.pid == field.pid,
+              let element = focusedElement(of: field.pid)
+        else { return .failed(.fieldGone) }
+        guard !AXSecure.isSecure(element) else { return .failed(.refused) }
+        return await paste(text, pid: field.pid)
+    }
+
     // MARK: - Reading the app in front
 
     private struct Front {

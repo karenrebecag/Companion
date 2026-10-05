@@ -87,6 +87,20 @@ package enum InjectionResult: Sendable, Equatable {
 /// target again: the words never land in a different app.
 package protocol TextInjecting: Sendable {
     func inject(_ text: String, into field: FocusedField) async -> InjectionResult
+    /// Same target checks as `inject`, then the pasteboard route: the
+    /// runner falls back to this when the AX selected-text attribute was
+    /// accepted but nothing reached the field. Voice fakes do not need it
+    /// — the default refuses.
+    func paste(_ text: String, into field: FocusedField) async -> InjectionResult
+}
+
+extension TextInjecting {
+    /// Voice fakes do not need a real paste route; refusing is what the
+    /// runner expects when the field is not editable or the call short-
+    /// circuited before it.
+    package func paste(_ text: String, into field: FocusedField) async -> InjectionResult {
+        return .failed(.refused)
+    }
 }
 
 // MARK: - The parent's hands on the screen (Wave 15g)
