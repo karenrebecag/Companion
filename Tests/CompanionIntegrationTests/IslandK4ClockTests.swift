@@ -213,10 +213,16 @@ private final class StepClock: @unchecked Sendable {
     session.send(.dictationCardHover(true))
     session.send(.dictationCardCopied)
     expectEq(session.projection.dictatedText, "hola", "K4: copiar deja las palabras")
+    // Each timer registers from its own task, so under load a ceiling can land
+    // after the leave's delay and `delays.last` lies. Wait for the copy to
+    // re-pause, then count full delays across the leave.
+    await pumpUntil("K4: copiar vuelve a pausar") {
+        sleeper.armed(SessionMachine.countdownPauseCeiling) == 2
+    }
+    let fullBeforeLeaving = sleeper.armed(near: SessionMachine.dictationCardDelay, tolerance: 0.05)
     session.send(.dictationCardHover(false))
     await pumpUntil("K4: al salir el plazo es el entero") {
-        guard let last = sleeper.delays.last else { return false }
-        return abs(last - SessionMachine.dictationCardDelay) <= 0.05
+        sleeper.armed(near: SessionMachine.dictationCardDelay, tolerance: 0.05) == fullBeforeLeaving + 1
     }
     expectEq(sleeper.armed(near: SessionMachine.dictationCardDelay - 1, tolerance: 0.05), 0,
              "K4: no reanuda el resto del reloj que copiar reemplazó")
