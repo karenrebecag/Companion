@@ -2,12 +2,18 @@ import CompanionCore
 import SwiftUI
 
 /// The main window as Incredible draws it (spec 16j §8): a sidebar and a
-/// page. Only sections that already do something are listed; the rest of
-/// Incredible's arrive with their own waves.
+/// page. The new modules hang in the sidebar but route to a single
+/// text-only page until they have their own waves.
 package enum MainPage: Hashable {
     case home
     /// 16k-1: under "Customize", as in Incredible.
     case apps
+    case browser
+    case knowledge
+    case savedTasks
+    case scheduled
+    case autopilot
+    case dictation
 }
 
 /// Only what the window's sheets size themselves by. The sidebar and avatar
@@ -26,12 +32,113 @@ package extension Notification.Name {
     static let companionFollowUp = Notification.Name("companion.followUp")
 }
 
+/// What fills the pane on the right of the sidebar. Home and apps have
+/// their own views; the six new modules share one text-only placeholder.
+/// `.apps` only returns when the apps service is configured; the empty
+/// placeholder had no copy and stranded the user on a blank screen.
+enum DetailPane: Equatable {
+    case home
+    case apps
+    case placeholder(MainPage)
+}
+
+extension DetailPane {
+    static func detailPane(for page: MainPage, appsAvailable: Bool) -> DetailPane {
+        switch page {
+        case .home: return .home
+        case .apps: return appsAvailable ? .apps : .home
+        case .browser, .knowledge, .savedTasks, .scheduled, .autopilot, .dictation:
+            return .placeholder(page)
+        }
+    }
+}
+
+/// Everything the placeholder page needs for one sidebar module, built
+/// once by `MainSidebar.placeholder(for:)`. Non-optional so the view
+/// cannot be asked to render a page that has no copy of its own.
+struct ModulePlaceholder: Equatable {
+    let page: MainPage
+    let symbol: String
+    let titleKey: String
+    let bodyKey: String
+}
+
 struct MainSidebar: View {
     @Binding var page: MainPage
     let onSettings: () -> Void
     let onFeedback: () -> Void
     @State private var avatarImage = UserProfile.avatarImage
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// One sidebar row: a page, its SF Symbol, the catalog key for its
+    /// title, and the catalog key for the body the placeholder page shows
+    /// (nil for home and apps, which have their own views). Symbols live
+    /// here so the test can compare them to the spec without parsing the
+    /// body, and the body key lives here so the placeholder never has to
+    /// re-derive it.
+    struct Entry: Hashable {
+        let page: MainPage
+        let symbol: String
+        let titleKey: String
+        let bodyKey: String?
+    }
+
+    /// A heading plus the entries under it. The home section has no
+    /// heading, which is why headingKey is optional.
+    struct Section: Hashable {
+        let headingKey: String?
+        let entries: [Entry]
+    }
+
+    /// The single source of truth: every section the sidebar draws.
+    /// Tests assert against this so a new page can't sneak in without a
+    /// symbol, a key, a heading slot and a body key.
+    static let sections: [Section] = [
+        Section(headingKey: nil, entries: [
+            Entry(page: .home, symbol: "house", titleKey: "sidebar.home", bodyKey: nil)
+        ]),
+        Section(headingKey: "sidebar.customize", entries: [
+            Entry(page: .apps, symbol: "square.grid.2x2", titleKey: "sidebar.apps", bodyKey: nil),
+            Entry(page: .browser, symbol: "globe", titleKey: "sidebar.browser", bodyKey: "placeholder.browser.body"),
+            Entry(page: .knowledge, symbol: "book", titleKey: "sidebar.knowledge", bodyKey: "placeholder.knowledge.body"),
+        ]),
+        Section(headingKey: "sidebar.superpowers", entries: [
+            Entry(page: .savedTasks, symbol: "cursorarrow.rays", titleKey: "sidebar.savedTasks", bodyKey: "placeholder.savedTasks.body"),
+            Entry(page: .scheduled, symbol: "clock", titleKey: "sidebar.scheduled", bodyKey: "placeholder.scheduled.body"),
+            Entry(page: .autopilot, symbol: "scope", titleKey: "sidebar.autopilot", bodyKey: "placeholder.autopilot.body"),
+            Entry(page: .dictation, symbol: "mic", titleKey: "sidebar.dictation", bodyKey: "placeholder.dictation.body"),
+        ]),
+    ]
+
+    /// The SF Symbol a sidebar row shows for `page`. Returning nil keeps
+    /// the placeholder's caller honest: a page with no sidebar entry has
+    /// no icon to draw.
+    static func symbol(for page: MainPage) -> String? {
+        for section in sections {
+            for entry in section.entries where entry.page == page {
+                return entry.symbol
+            }
+        }
+        return nil
+    }
+
+    /// The full description the placeholder page needs for `page`. Returns
+    /// nil for pages with their own view (home, apps) and for any page the
+    /// sidebar does not list, so the caller can route the navigation back
+    /// to home instead of building an empty placeholder.
+    static func placeholder(for page: MainPage) -> ModulePlaceholder? {
+        for section in sections {
+            for entry in section.entries where entry.page == page {
+                guard let bodyKey = entry.bodyKey else { return nil }
+                return ModulePlaceholder(
+                    page: entry.page,
+                    symbol: entry.symbol,
+                    titleKey: entry.titleKey,
+                    bodyKey: bodyKey)
+            }
+        }
+        return nil
+    }
 
     // 16n: Incredible's sidebar — a #f9f9f9 panel with a #eee edge, the
     // wordmark row, 38 pt rows in a 42 pt band, the account at the bottom.
@@ -45,17 +152,12 @@ struct MainSidebar: View {
                 .padding(.trailing, SidebarMetrics.trailing)
                 .frame(height: SidebarMetrics.logoRow)
                 .padding(.top, SidebarMetrics.titleBar + Space.x3)
-            VStack(spacing: Space.none) {
-                row(.home, symbol: "house", title: Localized.string("sidebar.home"))
+            VStack(alignment: .leading, spacing: Space.none) {
+                ForEach(MainSidebar.sections, id: \.self) { section in
+                    sectionRows(section)
+                }
             }
             .padding(.top, Space.x3)
-            Text(Localized.string("sidebar.customize"))
-                .font(.uiCaption.weight(.medium))
-                .foregroundStyle(Semantic.textMuted)
-                .padding(.leading, SidebarMetrics.logoLeading)
-                .padding(.top, Space.x5)
-                .padding(.bottom, Space.x1)
-            row(.apps, symbol: "square.grid.2x2", title: Localized.string("sidebar.apps"))
             Spacer(minLength: Space.x4)
             profile
         }
@@ -66,6 +168,27 @@ struct MainSidebar: View {
         .onReceive(NotificationCenter.default.publisher(for: .companionProfileDidChange)) { _ in
             avatarImage = UserProfile.avatarImage
         }
+    }
+
+    /// The heading lives on the section, not on every row: a future
+    /// heading-only section still reads as a group label.
+    @ViewBuilder
+    private func sectionRows(_ section: Section) -> some View {
+        if let headingKey = section.headingKey {
+            sectionHeading(headingKey)
+        }
+        ForEach(section.entries, id: \.page) { entry in
+            row(entry.page, symbol: entry.symbol, title: Localized.string(entry.titleKey))
+        }
+    }
+
+    private func sectionHeading(_ key: String) -> some View {
+        Text(Localized.string(key))
+            .font(.uiCaption.weight(.medium))
+            .foregroundStyle(Semantic.textMuted)
+            .padding(.leading, SidebarMetrics.logoLeading)
+            .padding(.top, Space.x5)
+            .padding(.bottom, Space.x1)
     }
 
     private func row(_ target: MainPage, symbol: String, title: String) -> some View {
