@@ -18,14 +18,14 @@ import Testing
     expectEq(rig.runner.unavailability(for: "browser_read"), BridgeCode.notConnected, "criterio 6: dice por que")
 }
 
-@Test func aConnectedExtensionOffersTheEightTools() {
+@Test func aConnectedExtensionOffersTheNineTools() {
     let rig = makeToolRig()
     expectEq(rig.runner.specs(.en).map(\.name),
              ["browser_tabs", "browser_read", "browser_click", "browser_double_click", "browser_right_click",
-              "browser_type", "browser_scroll", "browser_hover", "browser_navigate", "browser_open", "browser_take",
-              "browser_release"],
-             "doce tools (18b open, take, release; H-7 P5a doble clic y clic derecho; P5b desplazar y puntero)")
-    expectEq(rig.runner.specs(.es).count, 12, "tambien en espanol")
+              "browser_type", "browser_select", "browser_scroll", "browser_hover", "browser_press", "browser_drag",
+              "browser_click_at", "browser_navigate", "browser_open", "browser_take", "browser_release"],
+             "dieciseis tools (18b open, take, release; H-7 P5a doble clic y clic derecho; P5b desplazar y puntero; P3 select; P4 press; P7 arrastrar y clic en punto)")
+    expectEq(rig.runner.specs(.es).count, 16, "tambien en espanol")
     expect(rig.runner.handles("browser_click"), "atiende sus tools")
     expect(!rig.runner.handles("look"), "y solo las suyas")
     expect(!rig.runner.handles("click"), "click de Accesibilidad no es suyo")
@@ -294,6 +294,271 @@ import Testing
     await rig.read()
     expect(rig.runner.approval(for: rig.call("browser_type", #"{"tab":12,"element":8,"text":"Ana"}"#), said: "") != nil,
            "escribir en un iframe ajeno pide hoja")
+}
+
+// MARK: - select (P3)
+
+private func pageWithLists() -> BrowserPage {
+    var page = crmPage()
+    page.elements += [
+        webElement(8, "combobox", "Pais", inputType: "select", value: "Chile"),
+        webElement(9, "combobox", "Mes", inputType: "select", autocomplete: "cc-exp-month"),
+        webElement(10, "combobox", "Pais", inputType: "select", frameOrigin: "https://ads.example"),
+    ]
+    return page
+}
+
+// MARK: - press (P4)
+
+private func pageWithAForm() -> BrowserPage {
+    var page = crmPage()
+    page.elements += [
+        BrowserElement(id: 8, frame: 0, role: "textbox", label: "Mensaje", context: "", inputType: "text",
+                       autocomplete: nil, value: "", submit: "Enviar"),
+        BrowserElement(id: 9, frame: 0, role: "searchbox", label: "Buscar", context: "", inputType: "search",
+                       autocomplete: nil, value: "", submit: "Buscar"),
+    ]
+    return page
+}
+
+@Test func selectingAPlainOptionActsAndSendsTheReadGeneration() async {
+    let rig = makeToolRig(page: pageWithLists())
+    await rig.read()
+    let arguments = #"{"tab":12,"element":8,"option":"México"}"#
+    expect(rig.runner.approval(for: rig.call("browser_select", arguments), said: "") == nil, "sin hoja")
+    rig.channel.answerWrites(with: "selected")
+    let out = await rig.run("browser_select", arguments)
+    expect(out.ok, "corre: \(out.output)")
+    expect(out.output.contains("[8]") && out.output.contains("read the tab again"), "guia: \(out.output)")
+    guard case .select(let tab, let generation, let element, let option)? = rig.channel.writes.first else {
+        Issue.record("no select sent"); return
+    }
+    expectEq([tab, generation, element], [12, 3, 8], "pestana, generacion, elemento")
+    expectEq(option, "México", "la opcion tal cual")
+}
+
+@Test func aDestructiveOptionAsksAndADenialSendsNothing() async {
+    let rig = makeToolRig(page: pageWithLists())
+    await rig.read()
+    let arguments = #"{"tab":12,"element":8,"option":"Eliminar todo"}"#
+    expect(rig.runner.approval(for: rig.call("browser_select", arguments), said: "") != nil, "pide hoja")
+    let out = await rig.run("browser_select", arguments, approve: false)
+    expect(!out.ok && out.output.contains("approval_required"), "sin aprobar no corre: \(out.output)")
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
+    let granted = await rig.run("browser_select", arguments, approve: true)
+    expect(granted.ok, "aprobada corre: \(granted.output)")
+}
+
+@Test func theSheetForAnOptionIsClipped() async {
+    let rig = makeToolRig(page: pageWithLists())
+    await rig.read()
+    let long = "Eliminar " + String(repeating: "x", count: 400)
+    let request = rig.runner.approval(for: rig.call("browser_select", #"{"tab":12,"element":8,"option":"\#(long)"}"#),
+                                      said: "")
+    expect(request?.summary.hasPrefix("choose Eliminar") == true, "dice que elige: \(request?.summary ?? "")")
+    expect(request?.summary.contains(long) == false, "resumen recortado")
+    expect(request?.inputJSON.contains(long) == false, "entrada recortada")
+    expect(request?.inputJSON.contains("\"list\":\"Pais\"") == true, "nombra la lista: \(request?.inputJSON ?? "")")
+}
+
+@Test func choosingInAForeignFrameAsks() async {
+    let rig = makeToolRig(page: pageWithLists())
+    await rig.read()
+    expect(rig.runner.approval(for: rig.call("browser_select", #"{"tab":12,"element":10,"option":"Chile"}"#),
+                               said: "") != nil, "una lista en un iframe ajeno pide hoja")
+}
+
+@Test func onlyAListTakesAnOptionAndNothingIsSentOtherwise() async {
+    let rig = makeToolRig(page: pageWithLists())
+    await rig.read()
+    let arguments = #"{"tab":12,"element":5,"option":"Ana"}"#
+    expect(rig.runner.approval(for: rig.call("browser_select", arguments), said: "") == nil,
+           "ninguna hoja para algo que no es una lista")
+    let out = await rig.run("browser_select", arguments, approve: true)
+    expect(!out.ok && out.output.contains(BridgeCode.notSelectable), "not_selectable: \(out.output)")
+    expect(out.output.contains(BrowserCopy.failure(code: BridgeCode.notSelectable, .en)), "con su copy")
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
+}
+
+@Test func aSensitiveListIsRefusedWithoutSending() async {
+    let rig = makeToolRig(page: pageWithLists())
+    await rig.read()
+    let arguments = #"{"tab":12,"element":9,"option":"02"}"#
+    expect(rig.runner.approval(for: rig.call("browser_select", arguments), said: "02") == nil, "sin hoja")
+    let out = await rig.run("browser_select", arguments, said: "02", approve: true)
+    expect(!out.ok && out.output.contains(BridgeCode.secureField), "secure_field: \(out.output)")
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
+}
+
+@Test func aSelectWithoutAnOptionIsInvalidAndSendsNothing() async {
+    let rig = makeToolRig(page: pageWithLists())
+    await rig.read()
+    for arguments in [#"{"tab":12,"element":8}"#, #"{"tab":12,"element":8,"option":3}"#] {
+        let out = await rig.run("browser_select", arguments, approve: true)
+        expect(!out.ok && out.output.contains(BridgeCode.invalidArgs), "invalid_args: \(arguments)")
+    }
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
+}
+
+@Test func escapeAtTheFocusActsAndSendsNoElement() async {
+    let rig = makeToolRig(page: pageWithAForm())
+    await rig.read()
+    let arguments = #"{"tab":12,"key":"Escape"}"#
+    expect(rig.runner.approval(for: rig.call("browser_press", arguments), said: "") == nil, "sin hoja")
+    let out = await rig.run("browser_press", arguments)
+    expect(out.ok && out.output.contains("Escape") && out.output.contains("read the tab again"), "corre: \(out.output)")
+    guard case .press(let tab, let key, let times, let generation, let element)? = rig.channel.writes.first else {
+        Issue.record("no press sent"); return
+    }
+    expectEq(tab, 12, "pestana")
+    expectEq(key, "Escape", "tecla")
+    expectEq(times, 1, "una vez por omision")
+    expect(generation == nil && element == nil, "sin elemento: ninguno")
+}
+
+@Test func anEnterThatWouldSendAsksAndADenialSendsNothing() async {
+    let rig = makeToolRig(page: pageWithAForm())
+    await rig.read()
+    let arguments = #"{"tab":12,"key":"Enter","element":8}"#
+    let request = rig.runner.approval(for: rig.call("browser_press", arguments), said: "")
+    expect(request != nil, "pide hoja")
+    expect(request?.summary.contains("Enviar") == true, "la hoja nombra lo que el Enter pulsaria: \(request?.summary ?? "")")
+    let out = await rig.run("browser_press", arguments, approve: false)
+    expect(!out.ok && out.output.contains("approval_required"), "sin aprobar no corre: \(out.output)")
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
+    let granted = await rig.run("browser_press", #"{"tab":12,"key":"Enter","element":8,"times":1}"#, approve: true)
+    expect(granted.ok, "aprobada corre: \(granted.output)")
+    guard case .press(_, _, _, let generation, let element)? = rig.channel.writes.first else {
+        Issue.record("no press sent"); return
+    }
+    expectEq([generation, element], [3, 8], "la generacion leida y el elemento")
+}
+
+@Test func anEnterInASearchFormActs() async {
+    let rig = makeToolRig(page: pageWithAForm())
+    await rig.read()
+    let out = await rig.run("browser_press", #"{"tab":12,"key":"Enter","element":9}"#)
+    expect(out.ok, "buscar no pregunta: \(out.output)")
+}
+
+@Test func aPressWithoutAReadIsStaleAndSendsNothing() async {
+    let rig = makeToolRig(page: pageWithAForm())
+    let out = await rig.run("browser_press", #"{"tab":12,"key":"Escape"}"#, approve: true)
+    expect(!out.ok && out.output.contains(BridgeCode.staleId), "sin lectura: stale_id: \(out.output)")
+    let unknown = await rig.run("browser_press", #"{"tab":12,"key":"Tab","element":99}"#, approve: true)
+    expect(!unknown.ok && unknown.output.contains(BridgeCode.staleId), "elemento inexistente: stale_id")
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
+}
+
+@Test func aKeyOrCountOutsideTheListIsInvalidAndSendsNothing() async {
+    let rig = makeToolRig(page: pageWithAForm())
+    await rig.read()
+    for arguments in [#"{"tab":12,"key":"F5"}"#, #"{"tab":12}"#, #"{"tab":12,"key":"Tab","times":0}"#,
+                      #"{"tab":12,"key":"Tab","times":11}"#, #"{"tab":12,"key":"Tab","times":true}"#,
+                      #"{"tab":12,"key":"Tab","element":"ocho"}"#] {
+        expect(rig.runner.approval(for: rig.call("browser_press", arguments), said: "") == nil, "sin hoja: \(arguments)")
+        let out = await rig.run("browser_press", arguments, approve: true)
+        expect(!out.ok && out.output.contains(BridgeCode.invalidArgs), "invalid_args: \(arguments): \(out.output)")
+    }
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
+}
+
+/// Incredible lists the options on a miss; the labels are the page's words, so they come as data.
+@Test func aMissedOptionListsThePagesLabelsAsData() async {
+    let rig = makeToolRig(page: pageWithLists())
+    await rig.read()
+    rig.channel.failWrites(with: ContractError(code: BridgeCode.optionNotFound, message: "Argentina | Chile"))
+    let out = await rig.run("browser_select", #"{"tab":12,"element":8,"option":"Peru"}"#)
+    expect(!out.ok && out.output.contains(BridgeCode.optionNotFound), "el codigo: \(out.output)")
+    expect(out.output.contains(BrowserCopy.failure(code: BridgeCode.optionNotFound, .en)), "su copy: \(out.output)")
+    expect(out.output.contains("Argentina | Chile"), "las opciones de la pagina: \(out.output)")
+    expect(out.output.hasSuffix(BrowserCopy.toolDataSuffix(.en)), "declaradas como datos: \(out.output)")
+    rig.channel.failWrites(with: ContractError(code: BridgeCode.notSelectable, message: "page wording, never shown"))
+    let other = await rig.run("browser_select", #"{"tab":12,"element":8,"option":"Peru"}"#)
+    expect(!other.output.contains("page wording"), "otro codigo no trae el texto de la pagina: \(other.output)")
+}
+
+@Test func aMissWithNothingToListIsTheCopyAlone() async {
+    let rig = makeToolRig(page: pageWithLists())
+    await rig.read()
+    rig.channel.failWrites(with: ContractError(code: BridgeCode.optionNotFound, message: ""))
+    let out = await rig.run("browser_select", #"{"tab":12,"element":8,"option":"Peru"}"#)
+    expect(out.output.hasSuffix(BrowserCopy.failure(code: BridgeCode.optionNotFound, .en)), "solo la copy: \(out.output)")
+    expect(!out.output.contains(BrowserCopy.toolDataSuffix(.en)), "sin datos que declarar: \(out.output)")
+}
+
+@Test func aSecretFieldRefusesKeysThatWriteWithoutASheetOrAFrame() async {
+    var page = pageWithAForm()
+    page.elements.append(BrowserElement(id: 10, frame: 0, role: "textbox", label: "Clave", context: "",
+                                        inputType: "password", autocomplete: nil, value: nil, submit: "Entrar"))
+    let rig = makeToolRig(page: page)
+    await rig.read()
+    let arguments = #"{"tab":12,"key":"Backspace","element":10}"#
+    expect(rig.runner.approval(for: rig.call("browser_press", arguments), said: "borra") == nil, "sin hoja")
+    let out = await rig.run("browser_press", arguments, said: "borra", approve: true)
+    expect(!out.ok && out.output.contains(BridgeCode.secureField), "secure_field, no approval_required: \(out.output)")
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
+}
+
+/// The gate judged one activation of one element; a second Enter would land wherever the first left the focus.
+@Test func enterAndSpaceArePressedOnceAndOtherKeysRepeat() async {
+    let rig = makeToolRig(page: pageWithAForm())
+    await rig.read()
+    for arguments in [#"{"tab":12,"key":"Enter","element":9,"times":2}"#, #"{"tab":12,"key":"Space","element":1,"times":3}"#] {
+        let out = await rig.run("browser_press", arguments, approve: true)
+        expect(!out.ok && out.output.contains(BridgeCode.invalidArgs), "invalid_args: \(arguments): \(out.output)")
+    }
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
+    let out = await rig.run("browser_press", #"{"tab":12,"key":"ArrowDown","times":3}"#)
+    expect(out.ok && out.output.contains("3 times"), "una flecha repite: \(out.output)")
+    guard case .press(_, _, let times, _, _)? = rig.channel.writes.first else { Issue.record("no press sent"); return }
+    expectEq(times, 3, "las veces viajan")
+}
+
+@Test func anEnterAtTheFocusAsksAndItsSheetNamesThePage() async {
+    let rig = makeToolRig(page: pageWithAForm())
+    await rig.read()
+    let request = rig.runner.approval(for: rig.call("browser_press", #"{"tab":12,"key":"Enter"}"#), said: "")
+    expect(request?.summary == "press Enter on \(crm)", "resumen sin elemento: \(request?.summary ?? "")")
+    let field = rig.runner.approval(for: rig.call("browser_press", #"{"tab":12,"key":"Enter","element":8}"#), said: "")
+    let input = field.flatMap { ToolArguments.parse($0.inputJSON) } ?? [:]
+    expectEq(input["key"] as? String, "Enter", "tecla")
+    expectEq(input["element"] as? String, "Mensaje", "campo")
+    expectEq(input["submit"] as? String, "Enviar", "boton que pulsa")
+    expectEq(input["app"] as? String, crm, "sitio")
+}
+
+@Test func aPressOnATabThatLeftItsOriginIsStaleAndSendsNothing() async {
+    let rig = makeToolRig(page: pageWithAForm())
+    await rig.read()
+    let arguments = #"{"tab":12,"key":"Enter","element":8}"#
+    if let request = rig.runner.approval(for: rig.call("browser_press", arguments), said: "") {
+        rig.runner.granted(request)
+    }
+    rig.channel.setTabs([BrowserTab(id: 12, title: "Otro", url: "https://evil.example/x", active: false)])
+    let out = await rig.runner.execute(name: "browser_press", argumentsJSON: arguments)
+    expect(!out.ok && out.output.contains(BridgeCode.staleId), "otro sitio: stale_id: \(out.output)")
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
+}
+
+@Test func theExtensionsStaleIdForgetsThePage() async {
+    let rig = makeToolRig(page: pageWithAForm())
+    await rig.read()
+    rig.channel.failWrites(with: ContractError(code: BridgeCode.staleId, message: "gone"))
+    let first = await rig.run("browser_press", #"{"tab":12,"key":"Tab"}"#)
+    expect(!first.ok && first.output.contains(BridgeCode.staleId), "stale_id: \(first.output)")
+    let second = await rig.run("browser_press", #"{"tab":12,"key":"Tab"}"#)
+    expect(!second.ok && second.output.contains(BridgeCode.staleId), "la pagina se olvido: \(second.output)")
+    expectEq(rig.channel.writes.count, 1, "la segunda no sale")
+}
+
+@Test func anElementThatWouldNotTakeTheFocusSaysWhatToDo() async {
+    let rig = makeToolRig(page: pageWithAForm())
+    await rig.read()
+    rig.channel.failWrites(with: ContractError(code: BridgeCode.notFocused, message: "page wording"))
+    let out = await rig.run("browser_press", #"{"tab":12,"key":"Tab","element":1}"#)
+    expect(!out.ok && out.output.contains(BridgeCode.notFocused), "el codigo: \(out.output)")
+    expect(out.output.contains(BrowserCopy.failure(code: BridgeCode.notFocused, .en)), "su copy: \(out.output)")
 }
 
 // MARK: - criterion 4: navigate

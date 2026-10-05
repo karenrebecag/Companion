@@ -230,8 +230,12 @@ package actor BrowserChannel {
         case .doubleClick: return .doubleClick
         case .rightClick: return .rightClick
         case .type: return .type
+        case .select: return .select
         case .scroll, .scrollTo: return .scroll
         case .hover: return .hover
+        case .press: return .press
+        case .dragTo, .dragBy: return .drag
+        case .clickAt: return .clickAt
         case .navigate: return .navigate
         case .open: return .open
         case .take: return .take
@@ -247,8 +251,8 @@ package actor BrowserChannel {
         guard case .success(let inbound) = result else { return result }
         switch (command, inbound) {
         case (.tabs, .tabs), (.read, .page), (.click, .done), (.doubleClick, .done), (.rightClick, .done),
-             (.type, .done), (.navigate, .done),
-             (.scroll, .done), (.scrollTo, .done), (.hover, .done),
+             (.type, .done), (.select, .done), (.press, .done), (.navigate, .done),
+             (.scroll, .done), (.scrollTo, .done), (.hover, .done), (.dragTo, .done), (.dragBy, .done), (.clickAt, .done),
              (.open, .opened), (.take, .done), (.release, .done):
             return result
         default:

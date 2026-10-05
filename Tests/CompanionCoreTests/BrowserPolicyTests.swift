@@ -102,6 +102,141 @@ private func page(_ elements: [BrowserElement], text: String = "", truncated: Bo
              .act, "una direccion dicha actua")
 }
 
+/// P3: an option is a value typed with the page's words and, through the list's change handler, a
+/// button in disguise, so it answers to both rules.
+@Test func selectVerdictJudgesTheOptionAsTypedTextAndAsAClick() {
+    let list = element(role: "combobox", label: "Pais", inputType: "select")
+    expectEq(BrowserPolicy.selectVerdict(list, option: "México", said: ""), .act, "una opcion llana actua")
+    expectEq(BrowserPolicy.selectVerdict(list, option: "Eliminar todo", said: ""), .ask,
+             "una opcion destructiva pregunta")
+    expectEq(BrowserPolicy.selectVerdict(list, option: "https://evil.test/x", said: ""), .ask,
+             "una direccion que nadie dijo pregunta")
+    let bulk = element(role: "combobox", label: "Eliminar", inputType: "select")
+    expectEq(BrowserPolicy.selectVerdict(bulk, option: "Cuenta 1", said: ""), .ask,
+             "la lista que borra pregunta por cualquier opcion")
+    expectEq(BrowserPolicy.selectVerdict(list, option: "   ", said: ""), .ask, "una opcion sin palabras pregunta")
+    expectEq(BrowserPolicy.selectVerdict(list, option: "Eliminar todo", said: "elimina todo"), .act,
+             "pedida con una palabra de la misma familia actua")
+    let month = element(role: "combobox", label: "Mes", inputType: "select", autocomplete: "cc-exp-month")
+    expectEq(BrowserPolicy.selectVerdict(month, option: "02", said: "elige 02"), .refuse(BridgeCode.secureField),
+             "una lista sensible se rechaza")
+}
+
+// MARK: - P4: press
+
+private func field(submit: String?, inputType: String = "text", frameOrigin: String? = nil) -> BrowserElement {
+    BrowserElement(id: 5, frame: 0, role: "textbox", label: "Mensaje", context: "", inputType: inputType,
+                   autocomplete: nil, value: "", frameOrigin: frameOrigin, submit: submit)
+}
+
+private func press(_ key: String, _ target: BrowserElement?, said: String = "") -> HandsVerdict {
+    BrowserPolicy.pressVerdict(key: key, element: target, said: said, pageOrigin: "https://x.test")
+}
+
+/// The pin from the approved plan: an Enter that submits "Send" asks; Escape never does.
+@Test func anEnterThatSubmitsSendAsksAndEscapeNeverDoes() {
+    expectEq(press("Enter", field(submit: "Send")), .ask, "Enter en un campo cuyo formulario envia: pregunta")
+    expectEq(press("Enter", field(submit: "Enviar")), .ask, "tambien en espanol")
+    expectEq(press("Enter", field(submit: "Enviar"), said: "envialo"), .act, "pedido con su palabra: actua")
+    for target in [nil, field(submit: "Send"), element(role: "button", label: "Eliminar")] {
+        expectEq(press("Escape", target), .act, "Escape nunca pregunta")
+    }
+}
+
+@Test func enterAndSpaceOnAControlAreJudgedAsAClick() {
+    expectEq(press("Enter", element(role: "button", label: "Guardar")), .act, "un boton llano actua")
+    expectEq(press("Enter", element(role: "button", label: "Eliminar")), .ask, "uno destructivo pregunta")
+    expectEq(press("Space", element(role: "button", label: "Enviar")), .ask, "Space activa igual que Enter")
+    expectEq(press("Space", element(role: "checkbox", label: "Recordarme")), .act, "una casilla llana actua")
+    expectEq(press("Enter", element(role: "button", label: "")), .ask, "sin etiqueta pregunta, como un clic")
+}
+
+@Test func anEnterInAFieldWithoutAKnownSubmitAsks() {
+    expectEq(press("Enter", field(submit: "Buscar")), .act, "un formulario que busca actua")
+    expectEq(press("Enter", field(submit: nil)), .ask, "fuera de un formulario (un chat) pregunta")
+    expectEq(press("Enter", field(submit: "")), .ask, "un formulario sin boton con nombre pregunta")
+    expectEq(press("Enter", field(submit: "Buscar", inputType: "textarea")), .act, "un textarea igual")
+    expectEq(press("Space", field(submit: "Enviar")), .act, "Space en un campo escribe un espacio")
+}
+
+@Test func enterOrSpaceWithoutAnElementAsks() {
+    expectEq(press("Enter", nil), .ask, "Enter en el foco que nadie leyo pregunta")
+    expectEq(press("Space", nil), .ask, "Space tambien")
+}
+
+@Test func backspaceAndDeleteOnlyActInsideATextField() {
+    expectEq(press("Backspace", field(submit: nil)), .act, "borrar caracteres en un campo actua")
+    expectEq(press("Delete", field(submit: nil)), .act, "Delete en un campo tambien")
+    expectEq(press("Delete", nil), .ask, "Delete en el foco puede borrar un elemento: pregunta")
+    expectEq(press("Backspace", element(role: "row", label: "Correo de Ana")), .ask, "fuera de un campo pregunta")
+}
+
+@Test func movingKeysNeverAsk() {
+    for key in ["Tab", "Shift+Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End",
+                "PageUp", "PageDown"] {
+        expectEq(press(key, nil), .act, "\(key) en el foco actua")
+        expectEq(press(key, field(submit: "Send")), .act, "\(key) en un campo actua")
+    }
+}
+
+/// Typing refuses a secret field; a key that writes or erases there is typing by other means.
+@Test func spaceBackspaceAndDeleteAreRefusedInASensitiveField() {
+    let password = BrowserElement(id: 5, frame: 0, role: "textbox", label: "Clave", context: "", inputType: "password",
+                                  autocomplete: nil, value: nil, submit: "Entrar")
+    let card = BrowserElement(id: 6, frame: 0, role: "textbox", label: "Tarjeta", context: "", inputType: "text",
+                              autocomplete: "cc-number", value: nil, submit: "Pagar")
+    for target in [password, card] {
+        for key in ["Space", "Backspace", "Delete"] {
+            expectEq(press(key, target, said: "borra"), .refuse(BridgeCode.secureField), "\(key) en \(target.label)")
+        }
+        expectEq(press("Tab", target), .act, "salir del campo con Tab actua")
+    }
+    expectEq(press("Enter", password), .act, "Enter en la clave pulsa Entrar, que no es destructivo")
+    expectEq(press("Enter", card), .ask, "Enter en la tarjeta pulsa Pagar: pregunta")
+}
+
+/// Chromium submits the form on Enter in a checkbox, radio, date or range too: the button decides.
+@Test func anEnterOnAnyControlOfAFormIsJudgedByItsButton() {
+    for type in ["checkbox", "radio", "date", "range"] {
+        let control = BrowserElement(id: 5, frame: 0, role: type == "checkbox" ? "checkbox" : "textbox", label: "Recordarme",
+                                     context: "", inputType: type, autocomplete: nil, value: nil, submit: "Enviar pago")
+        expectEq(press("Enter", control), .ask, "Enter en \(type) pulsa Enviar pago: pregunta")
+    }
+    let box = BrowserElement(id: 5, frame: 0, role: "checkbox", label: "Recordarme", context: "", inputType: "checkbox",
+                             autocomplete: nil, value: nil, submit: "Enviar pago")
+    expectEq(press("Space", box), .act, "Space en una casilla la marca, no envia")
+    let submit = BrowserElement(id: 6, frame: 0, role: "button", label: "Guardar", context: "", inputType: "submit",
+                                autocomplete: nil, value: nil, submit: "Enviar pago")
+    expectEq(press("Enter", submit), .act, "un boton de envio se juzga por su propia etiqueta")
+}
+
+/// An arrow changes a list's value or a radio group's choice, which a change handler may act on.
+@Test func anArrowOnAListOrARadioIsJudgedByItsLabel() {
+    let bulk = BrowserElement(id: 5, frame: 0, role: "combobox", label: "Eliminar", context: "", inputType: "select",
+                              autocomplete: nil, value: nil)
+    expectEq(press("ArrowDown", bulk), .ask, "una lista que borra pregunta")
+    let country = BrowserElement(id: 6, frame: 0, role: "combobox", label: "Pais", context: "", inputType: "select",
+                                 autocomplete: nil, value: nil)
+    expectEq(press("ArrowDown", country), .act, "una lista llana actua")
+    expectEq(press("Tab", bulk), .act, "Tab solo mueve el foco")
+}
+
+/// A contenteditable reports no input type, only its role.
+@Test func aContentEditableIsATextField() {
+    let editor = BrowserElement(id: 7, frame: 0, role: "textbox", label: "Mensaje", context: "", inputType: nil,
+                                autocomplete: nil, value: nil, submit: nil)
+    expectEq(press("Backspace", editor), .act, "borrar en el editor actua")
+    expectEq(press("Space", editor), .act, "un espacio en el editor actua")
+    expectEq(press("Enter", editor), .ask, "Enter en un editor fuera de un formulario (un chat) pregunta")
+    let fake = BrowserElement(id: 8, frame: 0, role: "textbox", label: "Borrar", context: "", inputType: "button",
+                              autocomplete: nil, value: nil)
+    expectEq(press("Delete", fake), .ask, "un rol textbox con tipo button no es un campo")
+}
+
+@Test func anyKeyOnAnElementOfAForeignFrameAsks() {
+    expectEq(press("ArrowDown", field(submit: nil, frameOrigin: "https://ads.test")), .ask, "frame ajeno pregunta")
+}
+
 @Test func handsGateTypeVerdictKeepsTheAddressRule() {
     expectEq(HandsGate.typeVerdict(text: "hola", said: ""), .act, "texto llano")
     expectEq(HandsGate.typeVerdict(text: "www.evil.test", said: "escribe hola"), .ask, "direccion no dicha")
@@ -224,10 +359,11 @@ private func navigate(_ from: String?, _ raw: String, said: String = "") -> Resu
 @Test func browserToolShape() {
     expectEq(BrowserTool.allCases.map(\.rawValue),
              ["browser_tabs", "browser_read", "browser_click", "browser_double_click", "browser_right_click",
-              "browser_type", "browser_scroll", "browser_hover", "browser_navigate", "browser_open", "browser_take",
-              "browser_release"], "nombres")
+              "browser_type", "browser_select", "browser_scroll", "browser_hover", "browser_press", "browser_drag",
+              "browser_click_at", "browser_navigate", "browser_open", "browser_take", "browser_release"], "nombres")
     expectEq(BrowserTool.allCases.filter(\.isWrite),
-             [.click, .doubleClick, .rightClick, .type, .scroll, .hover, .navigate, .open, .take, .release],
+             [.click, .doubleClick, .rightClick, .type, .select, .scroll, .hover, .press, .drag, .clickAt, .navigate, .open,
+              .take, .release],
              "escrituras")
     expectEq(BrowserTool.allCases.filter(\.isClick), [.click, .doubleClick, .rightClick],
              "H-7 P5a: las tres pulsaciones comparten la puerta del clic")

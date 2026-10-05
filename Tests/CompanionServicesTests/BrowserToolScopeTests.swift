@@ -10,9 +10,9 @@ import Testing
 // mistake their sheets for a job's.
 
 private let browserWrites: Set<String> = [
-    "browser_click", "browser_type", "browser_navigate", "browser_open", "browser_take", "browser_release",
-    "browser_double_click", "browser_right_click",
-    "browser_scroll", "browser_hover",
+    "browser_click", "browser_type", "browser_select", "browser_navigate", "browser_open", "browser_take",
+    "browser_release", "browser_double_click", "browser_right_click",
+    "browser_scroll", "browser_hover", "browser_press", "browser_drag", "browser_click_at",
 ]
 private let browserReads: Set<String> = ["browser_tabs", "browser_read"]
 

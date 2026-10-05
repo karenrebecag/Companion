@@ -6,9 +6,14 @@ import SwiftUI
 /// consent stack. The countdown ring is the notice's remaining life.
 struct IslandNoticeCard: View {
     let content: IslandNotice.Content
+    /// A chat error draws a ring, but its clock is the view's task: hovering
+    /// must not freeze that ring or tell the session to pause.
+    let pausesClock: Bool
+    let onHover: (Bool) -> Void
     let onAction: (IslandState.Action) -> Void
     let onDismiss: () -> Void
     @State private var shownAt = Date()
+    @State private var pause = NoticePause()
 
     var body: some View {
         IslandNoticeWidth(grid: content.grid) {
@@ -22,6 +27,17 @@ struct IslandNoticeCard: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
         .onAppear { AccessibilityNotification.Announcement(IslandNotice.announcement(content)).post() }
+        .onHover { over in
+            pause.pointerMoved(over, pausesClock: pausesClock, at: Date(), send: onHover)
+        }
+        .onChange(of: content) { _, _ in
+            // A new notice arms its own clock. The ring must not keep the
+            // previous one's paused time; if the pointer is still down, the
+            // fresh clock pauses too.
+            shownAt = Date()
+            pause.reset(at: shownAt)
+            if pause.over, pausesClock { onHover(true) }
+        }
     }
 
     /// Icon column, then the words; the update card adds its actions to the
@@ -110,8 +126,10 @@ struct IslandNoticeCard: View {
     private func ring(_ lifetime: Double) -> some View {
         Button(action: onDismiss) {
             TimelineView(.animation(minimumInterval: IslandInk.ringFrame)) { context in
-                let left = IslandNotice.remaining(
-                    elapsed: context.date.timeIntervalSince(shownAt), lifetime: lifetime)
+                let paused = pausesClock ? pause.accumulated(at: context.date) : 0
+                let left = NoticeRing.fraction(
+                    elapsed: context.date.timeIntervalSince(shownAt),
+                    paused: paused, lifetime: lifetime)
                 ZStack {
                     Circle().stroke(IslandInk.hairline, lineWidth: Stroke.thin)
                     Circle()
@@ -128,5 +146,75 @@ struct IslandNoticeCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Localized.string("island.notice.dismiss"))
+    }
+}
+
+/// The view's pause rule. The same one the reducer uses, so a ring and its
+/// session clock stop together. A chat error is not a session card.
+enum NoticeHoverRule {
+    static func viewPauses(_ line: IslandState.Line) -> Bool {
+        guard let card = sessionCard(line) else { return false }
+        return SessionMachine.pausesOnHover(card)
+    }
+
+    private static func sessionCard(_ line: IslandState.Line) -> SessionCard? {
+        switch line {
+        case .couldntHear: .couldntHear
+        case .permission(let failure): .permission(failure)
+        case .failure(let failure): .failure(failure)
+        case .holdHint: .holdHint
+        case .connectApp(let slug, let name): .connectApp(slug: slug, name: name)
+        case .signInApp(let slug, let name): .signInApp(slug: slug, name: name)
+        case .receipt(let receipt): .receipt(receipt)
+        case .replyCut: .replyCut
+        case .approvalWithdrawn: .approvalWithdrawn
+        default: nil
+        }
+    }
+}
+
+/// Time the pointer has spent over a countdown card. The ring subtracts it
+/// from the elapsed time, so the stroke freezes and then continues.
+struct NoticePause: Equatable {
+    var over = false
+    private var total: TimeInterval = 0
+    private var since: Date?
+
+    /// The pointer is recorded first. `pausesClock` only decides whether the
+    /// session hears about it, so leaving a card with no clock still clears
+    /// the pause the previous card started.
+    mutating func pointerMoved(_ over: Bool, pausesClock: Bool, at date: Date, send: (Bool) -> Void) {
+        hover(over, at: date)
+        guard pausesClock else { return }
+        send(over)
+    }
+
+    mutating func hover(_ over: Bool, at date: Date) {
+        guard over != self.over else { return }
+        if over {
+            since = date
+        } else if let since {
+            total += date.timeIntervalSince(since)
+            self.since = nil
+        }
+        self.over = over
+    }
+
+    /// The next notice starts full. `over` stays, so a pointer that never
+    /// left pauses the new clock immediately.
+    mutating func reset(at date: Date) {
+        total = 0
+        since = over ? date : nil
+    }
+
+    func accumulated(at date: Date) -> TimeInterval {
+        total + (since.map { date.timeIntervalSince($0) } ?? 0)
+    }
+}
+
+/// The ring is the time left, not an animation ending.
+enum NoticeRing {
+    static func fraction(elapsed: TimeInterval, paused: TimeInterval, lifetime: TimeInterval) -> Double {
+        IslandNotice.remaining(elapsed: elapsed - paused, lifetime: lifetime)
     }
 }

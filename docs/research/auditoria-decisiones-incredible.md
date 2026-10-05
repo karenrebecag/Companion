@@ -312,6 +312,9 @@ lo refuerza, porque el interruptor pasa a significar lo que dice.
   almacenamiento en Supabase, se registran en una tabla de subidas y disparan funciones de reporte y de
   notificación. El reporte queda guardado y las respuestas se hacen por Intercom. Si falla la subida del
   diagnóstico, se manda el reporte sin él. (referencia local para el detalle)
+- **No verificable en el extracto local:** Supabase aparece en los bundles solo para la sesión y los
+  eventos; ninguno lo liga al reporte de feedback. Lo verificable es la llamada nativa
+  `bug_report_submit`.
 - **Campos del modal:**
   - Ánimo: 5 opciones, de frustrado a "love it".
   - Temas: 6 chips (hablar, navegador, apps, tareas programadas, dictado, otro).
@@ -330,10 +333,11 @@ lo refuerza, porque el interruptor pasa a significar lo que dice.
 - Destino: `mailto:` sin destinatario, o el servicio de compartir `composeEmail` si hay capturas o el
   texto no cabe (`SystemFeedbackDelivery.swift:10-27`, `FeedbackModel.swift:137-149`,
   `Feedback.swift:81-87`).
-- Campos: ánimo (4: love, good, meh, bad), texto de hasta 1000 caracteres y el número de capturas
-  (`Feedback.swift:3-14`, 42-49). **Nada de la máquina** (`Feedback.swift:7-10`: "no server of ours…
-  nothing about the machine").
-- Capturas: hasta 3, tomadas solo con el botón mediante el recorte de región (`FeedbackModel.swift:41-99`).
+- Campos: ánimo (5: upset, bad, meh, good, love), 6 temas, texto de hasta 5000 caracteres y hasta 3
+  capturas de 4 MB (`Sources/CompanionCore/Blocks/Feedback.swift:5-28`). **Nada de la máquina**
+  (`Feedback.swift:16-19`: "no server of ours… nothing about the machine").
+- Capturas: hasta 3, con el selector de archivos o pegándolas
+  (`Sources/CompanionUI/Feedback/SystemFeedbackDelivery.swift:35-113`).
 
 ### (c) Cambio mínimo para igualarlo
 
@@ -415,5 +419,5 @@ con `innerHTML` queda contenida. Es lo mismo que ya pide D3.
 | 3. Sí hablado | Un sí dicho en voz alta vale como go; la voz dice una frase corta y la tarjeta lleva el texto exacto; sin compuerta determinista: el orquestador interpreta y el juez comprueba la cobertura; el go por clic va fijado a la versión | `SpokenYes.admits`: nunca en realtime; en clásico solo tras anunciar y con dwell (`Acknowledgement.swift:52-58`); nunca `app:` (`VoiceSessionApprovals.swift:75-84`); la voz no pregunta (`:26-33`) | Igualar solo "la voz pregunta con una frase": llamar a `approvalAnnounced` en clásico | Igualarlo del todo **rompe** "el sí nunca aprueba `app:`". No hacerlo |
 | 4. Ubicación | No existe: sin CoreLocation, sin permiso ni entitlement de ubicación, sin ajuste; al modelo solo le llega la hora local con desfase UTC; lo cercano va por conectores o por el navegador | Ciudad de Ajustes o de CoreLocation (`UserLocation.swift:55-70`); canal apagable (`ContextSettings.swift:82-85`); `<user_location>` (`ContextBlock.swift:86`); **la búsqueda cercana ignora el canal y pide permiso** (`NativeToolRunner.swift:326-332`) | Hacer que `findPlaces` respete el canal: apagado equivale a `prompting:false` y a `NearMe.needsCity` si no hay ciudad en Ajustes. La paridad literal (quitar la ubicación) no se recomienda | Ninguno; refuerza el invariante de ciudad |
 | 5. Tarjeta de opciones | Sin atajos numéricos (el badge del número es visual); clic selecciona y Confirmar envía; multiselección y respuesta libre; la respuesta va al agente como "respondido", que no es go; el agente conserva todos los conectores | Dígitos 1-9 solo con foco tras clic o Tab (`IslandChoiceCard.swift:44-62`, `IslandChoice.swift:33-71`); un paso; va como mensaje `[elección en tarjeta]`; `said=""` (`ChatViewModelTurn.swift:16`), así que la 1.ª petición va sin tools de apps (`AppToolRunner.swift:154`) y las siguientes con todas (`:198`) | Opcional: paso Confirmar. Para igualar las tools: `.allConnected` en turnos de elección, manteniendo `said=""` | Ninguno si `said` sigue vacío; la elección sigue sin ser consentimiento y `app:` sigue pidiendo clic |
-| 6. Feedback | Backend propio (almacenamiento, tabla de subidas y funciones de reporte), respuestas por Intercom; ánimo (5), temas (6), texto de 5000, **3 capturas** de ≤4 MB (archivo o pegar); diagnóstico opcional (palabras, pantalla, salidas; 30 días); SO no determinable | `mailto:` sin destinatario o share `composeEmail` (`SystemFeedbackDelivery.swift:10-27`); ánimo (4), 1000 caracteres, 3 capturas; nada de la máquina (`Feedback.swift:7-14`) | Igualables ya: chips de tema, tope de 5000, pegar imágenes. El destino y el diagnóstico son una decisión de producto | Chips, tope y pegado: ninguno. Un diagnóstico mandaría `<user_location>` si incluye turnos: excluirlo |
+| 6. Feedback | Backend propio (almacenamiento, tabla de subidas y funciones de reporte), respuestas por Intercom; ánimo (5), temas (6), texto de 5000, **3 capturas** de ≤4 MB (archivo o pegar); diagnóstico opcional (palabras, pantalla, salidas; 30 días); SO no determinable | `mailto:` sin destinatario o share `composeEmail` (`SystemFeedbackDelivery.swift:10-27`); ánimo (5), temas (6), 5000 caracteres, 3 capturas; nada de la máquina (`Feedback.swift:7-14`) | Ya igualados: chips de tema, tope de 5000, pegar imágenes. El destino y el diagnóstico son una decisión de producto | Chips, tope y pegado: ninguno. Un diagnóstico mandaría `<user_location>` si incluye turnos: excluirlo |
 | 7. Mermaid | Versión 11.17.2; en el chat: modo estricto, **tema "base"**, paleta oscura, flowchart con curva suave, secuencia sin espejo; los límites de texto y aristas son los de la librería; figura con desplazamiento horizontal; herramientas: copiar imagen y descargar PNG (con fondo o transparente, al doble); sin ver ni ampliar; cae a código si falla | Sin Mermaid; el bloque se pinta como código (`AnswerBlocks.swift:85-92`); 16m-5b pendiente de aprobar la dependencia; las gráficas solo copian CSV (`IslandVisualTools.swift:8-12`) | 16m-5b según D3 con esta misma configuración; herramientas de copiar imagen y descargar PNG | Ninguno de los tres; el riesgo del `WKWebView` se contiene con `strict`, sin red y sin puente |

@@ -29,9 +29,14 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
             if case .doubleClick = $0 { return true }
             if case .rightClick = $0 { return true }
             if case .hover = $0 { return true }
+            if case .dragTo = $0 { return true }
+            if case .dragBy = $0 { return true }
+            if case .clickAt = $0 { return true }
             if case .scroll = $0 { return true }
             if case .scrollTo = $0 { return true }
             if case .type = $0 { return true }
+            if case .select = $0 { return true }
+            if case .press = $0 { return true }
             if case .navigate = $0 { return true }
             return false
         }
@@ -97,7 +102,8 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
             return .success(.done(id: 1, message: "ok"))
         case .take:
             return .success(.done(id: 1, message: "ok"))
-        case .click, .doubleClick, .rightClick, .hover, .scroll, .scrollTo, .type, .navigate:
+        case .click, .doubleClick, .rightClick, .hover, .scroll, .scrollTo, .dragTo, .dragBy, .clickAt, .type, .select, .press,
+             .navigate:
             if let writeFailure { return .failure(writeFailure) }
             return .success(.done(id: 1, message: writeNote))
         }

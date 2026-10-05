@@ -48,6 +48,8 @@ package protocol ConversationStoring: Sendable {
     func list() throws -> [ConversationMeta]
     func save(_ record: ConversationRecord) throws
     func load(_ id: String) throws -> ConversationRecord?
+    /// Chats on this computer, and the tasks started inside them. Nothing else.
+    func clearHistory() throws
 }
 
 package struct ConversationMeta: Sendable, Equatable, Identifiable {

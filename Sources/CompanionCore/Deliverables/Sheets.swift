@@ -207,43 +207,14 @@ package enum AppleScriptText {
     }
 }
 
-package enum SheetBackup {
-    /// Next to the workbook, same extension, so it opens the same way. A name
-    /// already taken gets `-2`, `-3`...: two writes in one second must not
-    /// refuse or overwrite each other's copy.
-    package static func path(
-        for document: String, at date: Date,
-        exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
-    ) -> String {
-        let url = URL(fileURLWithPath: document)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let stem = url.deletingPathExtension().lastPathComponent + "-backup-" + formatter.string(from: date)
-        let folder = url.deletingLastPathComponent()
-        func candidate(_ name: String) -> String {
-            folder.appendingPathComponent(name).appendingPathExtension(url.pathExtension).path
-        }
-        var backup = candidate(stem)
-        var attempt = 2
-        while exists(backup) {
-            backup = candidate(stem + "-\(attempt)")
-            attempt += 1
-        }
-        return backup
-    }
-}
-
 package struct SheetWriteReceipt: Sendable, Equatable {
-    package var backupPath: String
     /// A sample read back after the write, for the report.
     package var readBack: [[String]]
     /// The write happened but the workbook in front changed before it could be
     /// read back: the report must not say "nothing was written".
     package var readBackUnavailable: Bool
 
-    package init(backupPath: String, readBack: [[String]], readBackUnavailable: Bool = false) {
-        self.backupPath = backupPath
+    package init(readBack: [[String]], readBackUnavailable: Bool = false) {
         self.readBack = readBack
         self.readBackUnavailable = readBackUnavailable
     }
@@ -255,7 +226,7 @@ package protocol SpreadsheetDriving: Sendable {
     func active() async -> SheetApp?
     func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]]
     /// The saved file of the workbook in front, resolved once so the sheet, the
-    /// backup and the write all name the same one.
+    /// version kept and the write all name the same one.
     func workbook(_ app: SheetApp) async throws -> String
     /// `workbook` is what the user approved: the write aborts, untouched, if
     /// the app no longer has that one in front.

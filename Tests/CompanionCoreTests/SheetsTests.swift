@@ -17,7 +17,6 @@ import Testing
     testAppleScriptTextIsEscaped()
     testAMatrixBecomesAnAppleScriptList()
     testAFlatReadIsReshapedByColumns()
-    testTheBackupNameKeepsTheExtension()
     testTheApprovalShowsWhereAndWhat()
 }
 
@@ -119,14 +118,6 @@ func testAFlatReadIsReshapedByColumns() {
     expectEq(SheetValues.reshape(["a", "b", "c", "d", "e", "f"], columns: 3), [["a", "b", "c"], ["d", "e", "f"]],
              "lectura plana de Numbers: filas de tantas columnas como el rango")
     expectEq(SheetValues.reshape(["a"], columns: 3), [["a", "", ""]], "lectura corta: se rellena")
-}
-
-func testTheBackupNameKeepsTheExtension() {
-    let date = Date(timeIntervalSince1970: 1_790_000_000)
-    let backup = SheetBackup.path(for: "/Users/k/Ventas Q3.xlsx", at: date)
-    expect(backup.hasPrefix("/Users/k/Ventas Q3-backup-"), "copia: junto al libro, con su nombre")
-    expect(backup.hasSuffix(".xlsx"), "copia: conserva la extensión para abrirse igual")
-    expect(!backup.contains(":"), "copia: sin dos puntos en el nombre")
 }
 
 func testTheApprovalShowsWhereAndWhat() {

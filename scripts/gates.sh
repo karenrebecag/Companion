@@ -282,13 +282,24 @@ section "Gate 4 — tests"
 # estructurada y quitar el flag.
 test_flags=""
 [ "${CI:-}" = "true" ] && test_flags="--no-parallel"
-out=$(cd "$ROOT" && swift test $test_flags 2>&1)
+# La salida sale al log mientras corre y se guarda para el resumen: con la
+# salida capturada en una variable, un test colgado tuvo el runner 6 h con el
+# log vacio (corrida 37180243632). Tras GATES_TEST_IDLE_SECONDS sin salida
+# nueva el watchdog imprime el ultimo test, el arbol y una muestra de pila, y
+# mata la corrida con rc 124. 300 s: el silencio mas largo de una corrida
+# sana serial fue 35 s en local (2750 tests, 2026-10-04); el runner de 3 vCPU
+# es mas lento y enlaza los tests sin imprimir nada.
+echo "-- salida de swift test --"
+(cd "$ROOT" && bash "$ROOT/scripts/run-tests-watched.sh" "${GATES_TEST_IDLE_SECONDS:-300}" "$test_out_tmp" \
+    swift test $test_flags)
 rc=$?
+out=$(cat "$test_out_tmp")
+echo "-- fin de la salida de swift test --"
 if [ $rc -eq 0 ]; then
     pass "swift test verde — $(echo "$out" | grep -oE 'with [0-9]+ tests? in [0-9]+ suites?' | tail -1)"
 else
     fail "swift test fallo:"
-    printf '%s\n' "$out" > "$test_out_tmp"
+    [ $rc -eq 124 ] && echo "swift test colgado: el watchdog lo mato (diagnostico arriba)"
     bash "$ROOT/scripts/report-test-failure.sh" "$rc" "$test_out_tmp"
     echo "$out" | tail -20
     # Debugging 2026-09-28: las ultimas 20 lineas casi nunca alcanzan cuando

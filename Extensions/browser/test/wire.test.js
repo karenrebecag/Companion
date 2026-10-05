@@ -54,6 +54,9 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
   assert.equal(validateCall({ name: 'browser_scroll', arguments: { tab: 1, dx: -20000, dy: 20000 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_scroll', arguments: { tab: 1, generation: 3, element: 2 } }).ok, true);
   assert.equal(validateCall({ name: 'browser_type', arguments: { tab: 1, generation: 3, element: 2, text: '' } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_select', arguments: { tab: 1, generation: 3, element: 2, option: 'México' } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 1, generation: 3, element: 2 } }).ok, true);
+  assert.equal(validateCall({ name: 'browser_press', arguments: { tab: 1, key: 'Shift+Tab', times: 10, generation: null, element: null } }).ok, true);
   assert.equal(validateCall({ name: 'browser_navigate', arguments: { tab: 1, url: 'https://a.b/' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'https://a.b/' } }).ok, true);
   assert.equal(validateCall({ name: 'browser_open', arguments: { url: 'http://a.b/x?y=1' } }).ok, true);
@@ -74,6 +77,18 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
     { name: 'browser_scroll', arguments: { tab: 1, dy: 100 } },
     { name: 'browser_scroll', arguments: { tab: 1, generation: 3, element: 2, dx: 0, dy: 10 } },
     { name: 'browser_type', arguments: { tab: 1, generation: 3, element: 2 } },
+    { name: 'browser_select', arguments: { tab: 1, generation: 3, element: 2 } },
+    { name: 'browser_select', arguments: { tab: 1, generation: 3, element: 2, option: 3 } },
+    { name: 'browser_select', arguments: { tab: 1, element: 2, option: 'x' } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'F5', times: 1, generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'enter', times: 1, generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 0, generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 11, generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 1, generation: 3, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 1, generation: null, element: 2 } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Enter', times: 2, generation: null, element: null } },
+    { name: 'browser_press', arguments: { tab: 1, key: 'Space', times: 3, generation: 3, element: 2 } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'javascript:alert(1)' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'file:///etc/passwd' } },
     { name: 'browser_navigate', arguments: { tab: 1, url: 'not a url' } },
@@ -234,4 +249,37 @@ test('browser_read accepts the finder fields with their types and refuses the re
     { within: 2 }, { generation: 3, within: 'x' }, { text: '  ' }, { name: 'Guardar' }]) {
     assert.equal(ok(bad), false, JSON.stringify(bad));
   }
+});
+
+// H-7 P7: a drag names one way to move, a point stays a whole non-negative pixel.
+test('validateCall takes a drag onto an element or by an offset, and a click at a point', () => {
+  const ok = (name, args) => validateCall({ name, arguments: args }).ok;
+  assert.equal(ok('browser_drag', { tab: 1, generation: 3, element: 2, to: 5 }), true);
+  assert.equal(ok('browser_drag', { tab: 1, generation: 3, element: 2, dx: -20000, dy: 0 }), true);
+  assert.equal(ok('browser_click_at', { tab: 1, generation: 3, x: 0, y: 20000 }), true);
+  for (const args of [
+    { tab: 1, generation: 3, element: 2 },
+    { tab: 1, generation: 3, element: 2, to: 2 },
+    { tab: 1, generation: 3, element: 2, to: 5, dx: 1, dy: 0 },
+    { tab: 1, generation: 3, element: 2, dx: 0, dy: 0 },
+    { tab: 1, generation: 3, element: 2, dx: 20001, dy: 0 },
+    { tab: 1, element: 2, to: 5 },
+  ]) assert.equal(ok('browser_drag', args), false, JSON.stringify(args));
+  for (const args of [
+    { tab: 1, generation: 3, element: 2, dx: Number.MIN_SAFE_INTEGER, dy: 0 },
+    { tab: 1, generation: 3, element: 2, dx: Number.MAX_SAFE_INTEGER, dy: 0 },
+    { tab: 1, generation: 3, element: 2, dx: 0, dy: Number.MIN_SAFE_INTEGER },
+    { tab: 1, generation: 3, element: 2, dx: 0, dy: Number.MAX_SAFE_INTEGER },
+    { tab: 1, generation: 3, element: 2, dx: 0, dy: -20001 },
+    { tab: 1, generation: 3, element: 2, dx: 10.5, dy: 0 },
+    { tab: 1, generation: 3, element: 2, dx: '10', dy: 0 },
+    { tab: 1, generation: 3, element: 2, to: null },
+    { tab: 1, generation: 3, element: 2, dx: null, dy: 5 },
+  ]) assert.equal(ok('browser_drag', args), false, JSON.stringify(args));
+  for (const args of [
+    { tab: 1, generation: 3, x: -1, y: 0 },
+    { tab: 1, generation: 3, x: 1.5, y: 0 },
+    { tab: 1, generation: 3, x: 0, y: 20001 },
+    { tab: 1, x: 0, y: 0 },
+  ]) assert.equal(ok('browser_click_at', args), false, JSON.stringify(args));
 });

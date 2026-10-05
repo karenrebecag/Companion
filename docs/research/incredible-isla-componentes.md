@@ -24,7 +24,7 @@ Superficie oscura casi negra con borde tenue, radio grande y ancho limitado a un
 
 - **Pensando, transcripción en vivo y voz hablando:** una línea de texto mediano; la transcripción se ve atenuada mientras llega y más firme al quedar fija; la voz se asienta a opacidad completa.
 - **Línea de tiempo, carrete de iconos de lo que va tocando y barras por subagente.**
-- **Tarjeta de ejecución, checklist y tarjeta de fase:** tarjetas oscuras de radio grande con sombra marcada; el checklist lleva insignia, asa y descarte.
+- **Tarjeta de ejecución, checklist y tarjeta de fase:** tarjetas oscuras de radio grande con sombra marcada; el checklist lleva insignia, asa y descarte. Ese checklist (`ov-wf-checklist`) es un consejo fijo de tres pasos numerados que aparece mientras se graba un workflow, no un checklist de trabajos ni casillas que se marcan; la tarjeta de ejecución solo existe para workflows guardados y aparece al pasar el puntero sobre la píldora (referencia local).
 - **Fuera de este escritorio:** tarjeta con icono de la app, punto, "esperando", reanudar y parar.
 - **Cuenta atrás:** anillo con pista y progreso.
 - **Aviso:** píldora pequeña con tintes distintos para información, error y éxito.
@@ -51,8 +51,10 @@ primario y ghost. Envío automático con cuenta atrás.
 ## 5. Avisos del sistema
 
 Tarjetas con rejilla de icono más texto y acciones: límite de uso, actualización disponible, consentimiento,
-iniciar sesión, diagnóstico, pregunta con opciones y comentarios (modal con estados de ánimo, capturas y
-contador). Anchos y paddings en la referencia local.
+iniciar sesión, diagnóstico y pregunta con opciones. El modal con estados de ánimo, capturas y contador
+es el de **feedback** (enviar una opinión o un error al fabricante), no comentarios entre personas.
+Anchos y paddings en la referencia local; el ancho base del diagnóstico es `min(520px, 70vw)`, y
+`min(420px, 86vw)` es solo el respaldo de pantallas de 560 px o menos.
 
 ## 6. Contra la isla de Companion
 

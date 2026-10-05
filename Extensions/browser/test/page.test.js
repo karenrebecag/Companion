@@ -68,8 +68,8 @@ test('resolveSelector skips a cross-origin iframe (null contentDocument)', () =>
 test('serializer emits exactly the wire shape', () => {
   const el = fake({ tag: 'input', attrs: { type: 'email', autocomplete: 'email', 'aria-label': 'Correo' }, value: 'a@b.c' });
   const out = page.serializeElement(el, 3, 0);
-  assert.deepEqual(Object.keys(out), ['id', 'frame', 'role', 'label', 'context', 'inputType', 'autocomplete', 'value', 'frameOrigin', 'href', 'fieldName', 'fieldId', 'states']);
-  assert.deepEqual(out, { id: 3, frame: 0, role: 'textbox', label: 'Correo', context: '', inputType: 'email', autocomplete: 'email', value: 'a@b.c', frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [] });
+  assert.deepEqual(Object.keys(out), ['id', 'frame', 'role', 'label', 'context', 'inputType', 'autocomplete', 'value', 'frameOrigin', 'href', 'fieldName', 'fieldId', 'states', 'submit']);
+  assert.deepEqual(out, { id: 3, frame: 0, role: 'textbox', label: 'Correo', context: '', inputType: 'email', autocomplete: 'email', value: 'a@b.c', frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [], submit: null });
 });
 
 test('serializer drops the value of sensitive fields and nulls non-inputs', () => {
@@ -80,7 +80,7 @@ test('serializer drops the value of sensitive fields and nulls non-inputs', () =
   assert.equal(cc.value, null);
   assert.equal(cc.frame, 1);
   const btn = page.serializeElement(fake({ tag: 'button', text: '  Guardar ', ctx: 'Perfil' }), 4, 0);
-  assert.deepEqual(btn, { id: 4, frame: 0, role: 'button', label: 'Guardar', context: 'Perfil', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [] });
+  assert.deepEqual(btn, { id: 4, frame: 0, role: 'button', label: 'Guardar', context: 'Perfil', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [], submit: null });
 });
 
 test('serializer caps label length and never emits undefined', () => {
@@ -221,7 +221,8 @@ function fake({ tag, attrs = {}, text = '', value = '', ctx = '', execWorks = tr
     querySelectorAll: () => [],
     dispatchEvent(e) { events.push(e); return true; },
   });
-  Object.defineProperty(el, 'type', { get: () => attrs.type ?? 'text' });
+  // A <button> with no type, or an invalid one, is a submit button, as the DOM reports it.
+  Object.defineProperty(el, 'type', { get: () => (tag === 'button' ? (['button', 'reset'].includes(attrs.type) ? attrs.type : 'submit') : attrs.type ?? 'text') });
   if (tag === 'input' || tag === 'textarea') el.value = value;
   el.parentElement = parent;
   el.ownDisplay = display;
@@ -1290,4 +1291,340 @@ test('an element partly on screen is hit-tested where it shows, not let through 
   assert.equal(page.click(1, 1).error?.code, 'stale_id');
   assert.deepEqual(asked, [785, 20], 'the centre of the part inside the viewport');
   assert.deepEqual(el.events, []);
+});
+
+// ---- P3: browser_select ----
+
+function fakeSelect(labels, { selected = 0, disabled = [], attrs = {}, off = false } = {}) {
+  const el = fake({ tag: 'select', attrs });
+  el.options = labels.map((label, i) => ({
+    textContent: `  ${label}\n`, value: `v${i}`, disabled: disabled.includes(i), selected: i === selected,
+  }));
+  el.disabled = off;
+  return el;
+}
+
+const picked = (el) => el.options.filter((o) => o.selected).map((o) => o.textContent.trim());
+
+test('select picks the option by its label and fires input then change', () => {
+  const el = fakeSelect(['Argentina', 'México', 'Chile']);
+  assert.deepEqual(page.selectOption(el, 'México'), { done: 'selected' });
+  assert.deepEqual(picked(el), ['México']);
+  assert.deepEqual(el.events.map((e) => e.type), ['input', 'change']);
+  assert.ok(el.events.every((e) => e.init.bubbles && e.init.composed));
+});
+
+test('select matches a label regardless of case and spacing, exact case first', () => {
+  const el = fakeSelect(['Argentina', 'méxico', 'México']);
+  page.selectOption(el, '  méxico  ');
+  assert.deepEqual(picked(el), ['méxico']);
+  const loose = fakeSelect(['Argentina', 'Costa  Rica']);
+  page.selectOption(loose, 'COSTA RICA');
+  assert.deepEqual(picked(loose), ['Costa  Rica']);
+});
+
+// The model only ever sees labels, and the gate judges the words it sent: a value would pick an
+// option whose label nobody judged.
+test('a value never selects: the miss lists the labels and touches nothing', () => {
+  const el = fakeSelect(['Mantener', 'Borrar todo']);
+  const out = page.selectOption(el, 'v1');
+  assert.equal(out.error.code, 'option_not_found');
+  assert.equal(out.error.message, 'Mantener | Borrar todo');
+  assert.deepEqual(picked(el), ['Mantener']);
+  assert.deepEqual(el.events, []);
+});
+
+test('a disabled option neither matches nor is listed', () => {
+  const el = fakeSelect(['Uno', 'Dos', 'Tres'], { disabled: [1] });
+  const out = page.selectOption(el, 'Dos');
+  assert.equal(out.error.code, 'option_not_found');
+  assert.equal(out.error.message, 'Uno | Tres');
+  assert.deepEqual(picked(el), ['Uno']);
+});
+
+// The host cuts an extension message at 300 characters; a label cut there would miss again.
+test('the listed labels fit the host cap whole, each cut to 60', () => {
+  const many = Array.from({ length: 40 }, (_, i) => `Opcion ${i} ${'x'.repeat(100)}`);
+  const out = page.selectOption(fakeSelect(many), 'nada');
+  const listed = out.error.message.split(' | ');
+  assert.ok(Array.from(out.error.message).length <= 280);
+  assert.equal(listed.length, 4);
+  assert.ok(listed.every((label) => Array.from(label).length === 60));
+  const short = page.selectOption(fakeSelect(Array.from({ length: 50 }, (_, i) => `P${i}`)), 'nada');
+  assert.ok(Array.from(short.error.message).length <= 280);
+  assert.ok(short.error.message.endsWith(short.error.message.split(' | ').at(-1)));
+});
+
+test('an option inside a disabled optgroup neither matches nor is listed', () => {
+  const el = fakeSelect(['Uno', 'Dos']);
+  el.options[1].matches = (selector) => selector === ':disabled';
+  const out = page.selectOption(el, 'Dos');
+  assert.deepEqual(out.error, { code: 'option_not_found', message: 'Uno' });
+});
+
+test('select refuses what is not a usable <select> without touching it', () => {
+  const input = fake({ tag: 'input', attrs: { type: 'text' } });
+  assert.equal(page.selectOption(input, 'x').error.code, 'not_selectable');
+  assert.deepEqual(input.events, []);
+  const off = fakeSelect(['Uno', 'Dos'], { off: true });
+  assert.equal(page.selectOption(off, 'Dos').error.code, 'not_selectable');
+  assert.deepEqual(picked(off), ['Uno']);
+  const fieldsetOff = fakeSelect(['Uno', 'Dos']);
+  fieldsetOff.matches = (selector) => selector === ':disabled';
+  assert.equal(page.selectOption(fieldsetOff, 'Dos').error.code, 'not_selectable');
+});
+
+test('select refuses a sensitive select, such as a card expiry month', () => {
+  const el = fakeSelect(['01', '02'], { attrs: { autocomplete: 'cc-exp-month' } });
+  assert.equal(page.selectOption(el, '02').error.code, 'secure_field');
+  assert.deepEqual(picked(el), ['01']);
+  assert.deepEqual(el.events, []);
+});
+
+test('choosing the option already selected fires nothing', () => {
+  const el = fakeSelect(['Uno', 'Dos'], { selected: 1 });
+  assert.deepEqual(page.selectOption(el, 'Dos'), { done: 'selected' });
+  assert.deepEqual(el.events, []);
+});
+
+test('select goes through the generation check like click and type', () => {
+  assert.equal(page.select(999, 1, 'x').error.code, 'stale_id');
+});
+
+// A multi-select keeps what the user already chose: choosing adds one option, it never clears the rest.
+test('in a multi-select choosing adds the option and keeps the others', () => {
+  const el = fakeSelect(['Rojo', 'Verde', 'Azul']);
+  el.multiple = true;
+  el.options[2].selected = true;
+  assert.deepEqual(page.selectOption(el, 'Verde'), { done: 'selected' });
+  assert.deepEqual(picked(el), ['Rojo', 'Verde', 'Azul']);
+  assert.deepEqual(el.events.map((e) => e.type), ['input', 'change']);
+  el.events.length = 0;
+  assert.deepEqual(page.selectOption(el, 'Rojo'), { done: 'selected' });
+  assert.deepEqual(el.events, []);
+});
+
+test('an option label attribute is the label, its text is not', () => {
+  const el = fakeSelect(['MX', 'AR']);
+  el.options[0].label = 'Mexico';
+  el.options[1].label = 'Argentina';
+  assert.deepEqual(page.selectOption(el, 'Argentina'), { done: 'selected' });
+  assert.deepEqual(picked(el), ['AR']);
+  assert.equal(page.selectOption(el, 'MX').error.code, 'option_not_found');
+});
+
+test('with two options of the same label the first is chosen, once', () => {
+  const el = fakeSelect(['Uno', 'Dos', 'Dos'], { selected: 0 });
+  page.selectOption(el, 'Dos');
+  assert.deepEqual(el.options.map((o) => o.selected), [false, true, false]);
+  assert.equal(el.events.length, 2);
+});
+
+test('a list without enabled options misses with nothing to list', () => {
+  const out = page.selectOption(fakeSelect(['Uno'], { disabled: [0] }), 'Uno');
+  assert.deepEqual(out.error, { code: 'option_not_found', message: '' });
+});
+
+// ---- P4: browser_press ----
+
+// Enter in a field submits its form: the gate judges that press by the form's submit button.
+const formOf = (...elements) => ({ elements });
+
+test('a field in a form carries the label of the button its Enter would press', () => {
+  const send = fake({ tag: 'button', text: 'Enviar' });
+  const field = fake({ tag: 'input', attrs: { type: 'text' } });
+  field.form = formOf(field, send);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Enviar');
+  const bare = fake({ tag: 'input', attrs: { type: 'text' } });
+  bare.form = formOf(bare);
+  assert.equal(page.serializeElement(bare, 1, 0).submit, '');
+  const select = fake({ tag: 'select' });
+  select.form = formOf(select, send);
+  assert.equal(page.serializeElement(select, 1, 0).submit, null);
+  assert.equal(page.serializeElement(fake({ tag: 'input', attrs: { type: 'text' } }), 1, 0).submit, null);
+  assert.equal(page.serializeElement(send, 1, 0).submit, null);
+});
+
+// form.elements also holds the buttons tied to the form by form="id" from outside it, in tree order.
+test('the default button is the first submit control the form owns, not a plain button', () => {
+  const plain = fake({ tag: 'button', text: 'Mostrar', attrs: { type: 'button' } });
+  const reset = fake({ tag: 'input', text: '', attrs: { type: 'reset', value: 'Limpiar' } });
+  const send = fake({ tag: 'button', text: 'Enviar' });
+  const later = fake({ tag: 'input', attrs: { type: 'submit', 'aria-label': 'Guardar' } });
+  const field = fake({ tag: 'textarea' });
+  field.form = formOf(field, plain, reset, send, later);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Enviar');
+  const invalid = fake({ tag: 'button', text: 'Enviar pago', attrs: { type: 'foo' } });
+  const decoy = fake({ tag: 'button', text: 'Buscar', attrs: { type: 'submit' } });
+  field.form = formOf(field, invalid, decoy);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Enviar pago');
+  // A disabled default button still is the default: Enter then submits nothing, and its label is the cautious one.
+  const off = fake({ tag: 'button', text: 'Pagar' });
+  off.disabled = true;
+  field.form = formOf(field, off, decoy);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Pagar');
+  const image = fake({ tag: 'input', attrs: { type: 'image', alt: 'Buscar' } });
+  field.form = formOf(field, plain, image);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Buscar');
+  const valued = fake({ tag: 'input', attrs: { type: 'submit', value: 'Enviar' } });
+  field.form = formOf(field, valued);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Enviar');
+  const bare = fake({ tag: 'input', attrs: { type: 'submit' } });
+  field.form = formOf(field, bare);
+  assert.equal(page.serializeElement(field, 1, 0).submit, 'Submit');
+});
+
+test('focus reports whether the element really took the keyboard focus', () => {
+  const button = fake({ tag: 'button', text: 'OK' });
+  button.focus = () => { button.ownerDocument.activeElement = button; };
+  assert.deepEqual(page.focusElement(button), { focused: true });
+  const inert = fake({ tag: 'div', text: 'row' });
+  inert.focus = () => {};
+  assert.deepEqual(page.focusElement(inert), { focused: false });
+});
+
+test('focus follows an open shadow root to the element that holds it', () => {
+  const host = fake({ tag: 'my-field' });
+  const inner = fake({ tag: 'input', attrs: { type: 'text' } });
+  host.shadowRoot = { activeElement: inner };
+  inner.ownerDocument = host.ownerDocument;
+  inner.focus = () => { host.ownerDocument.activeElement = host; };
+  assert.deepEqual(page.focusElement(inner), { focused: true });
+});
+
+test('focus goes through the generation check', () => {
+  assert.equal(page.focus(999, 1).error.code, 'stale_id');
+});
+
+// H-7 P7: the drop point is measured where the page is, never scrolled to: scrolling to the target would
+// move the source the press already holds.
+test('boxOf measures an element without scrolling, and says when it is off screen', () => {
+  const el = fake({ tag: 'li', text: 'Destino' });
+  let scrolled = 0;
+  el.scrollIntoView = () => { scrolled++; };
+  el.getBoundingClientRect = () => ({ left: 100, top: 200, width: 40, height: 20 });
+  const saved = { window: globalThis.window, document: globalThis.document, state: globalThis.__companionState };
+  globalThis.window = { innerWidth: 800, innerHeight: 600 };
+  globalThis.document = el.ownerDocument;
+  globalThis.__companionState = { generation: 4, elements: new Map([[1, el]]) };
+  try {
+    assert.deepEqual(page.boxOf(4, 1), { box: { x: 120, y: 210 }, inView: true });
+    el.getBoundingClientRect = () => ({ left: 100, top: 900, width: 40, height: 20 });
+    assert.equal(page.boxOf(4, 1).inView, false);
+    assert.equal(page.boxOf(3, 1).error.code, 'stale_id', 'another read');
+    assert.equal(scrolled, 0);
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.document = saved.document;
+    globalThis.__companionState = saved.state;
+  }
+});
+
+// The press goes to the innermost node at the point: a frame wrapped in a shadow root, or a node inside an
+// embed's fallback, still belongs to a page nobody read.
+test('pointAt finds an embedded frame at a point through shadow roots and ancestors', () => {
+  const saved = globalThis.document;
+  const at = (node) => { globalThis.document = { elementFromPoint: () => node }; return page.pointAt(10, 10, null); };
+  try {
+    for (const [tag, frame] of [['iframe', true], ['frame', true], ['object', true], ['embed', true], ['canvas', false]]) {
+      assert.equal(at(fake({ tag })).frame, frame, tag);
+    }
+    const host = fake({ tag: 'x-card' });
+    host.shadowRoot = { elementFromPoint: () => fake({ tag: 'iframe' }) };
+    assert.equal(at(host).frame, true, 'an iframe inside a shadow root');
+    const embed = fake({ tag: 'object' });
+    assert.equal(at(fake({ tag: 'span', parent: embed })).frame, true, 'inside an embed');
+    assert.equal(at(null).frame, false, 'nothing there');
+  } finally {
+    globalThis.document = saved;
+  }
+});
+
+test('pointAt compares the look right before the press with the one before the glide', () => {
+  const saved = globalThis.document;
+  const first = fake({ tag: 'canvas' });
+  const other = fake({ tag: 'button', text: 'Pagar' });
+  const look = (node, token, phase) => { globalThis.document = { elementFromPoint: () => node }; return page.pointAt(10, 10, token, phase); };
+  try {
+    look(first, 'p1', 'mark');
+    assert.equal(look(first, 'p1', 'check').same, true, 'still the canvas');
+    look(first, 'p2', 'mark');
+    assert.equal(look(other, 'p2', 'check').same, false, 'something else slid in');
+    look(null, 'p3', 'mark');
+    assert.equal(look(other, 'p3', 'check').same, false, 'nothing there before, a button now');
+    assert.equal(look(first, 'p4', 'check').same, false, 'a check with no look before it fails closed');
+    look(first, 'p5', 'mark');
+    look(first, 'p5', 'check');
+    assert.equal(look(first, 'p5', 'check').same, false, 'a look is spent by its check');
+  } finally {
+    globalThis.document = saved;
+  }
+});
+
+test('pointAt sees a frame inside a closed shadow root, and fenced frames and portals', () => {
+  const saved = { document: globalThis.document, chrome: globalThis.chrome };
+  const at = (node) => { globalThis.document = { elementFromPoint: () => node }; return page.pointAt(10, 10, null); };
+  try {
+    const host = fake({ tag: 'x-pay' });
+    const inner = fake({ tag: 'iframe' });
+    const closed = { elementFromPoint: () => inner };
+    globalThis.chrome = { dom: { openOrClosedShadowRoot: (el) => (el === host ? closed : null) } };
+    assert.equal(at(host).frame, true, 'closed shadow root');
+    for (const tag of ['fencedframe', 'portal']) assert.equal(at(fake({ tag })).frame, true, tag);
+  } finally {
+    globalThis.document = saved.document;
+    globalThis.chrome = saved.chrome;
+  }
+});
+
+test('boxOf says a frame element is in a frame, and a zero-size one is not in view', () => {
+  const el = fake({ tag: 'li', text: 'Destino' });
+  const saved = { window: globalThis.window, document: globalThis.document, state: globalThis.__companionState };
+  globalThis.window = { innerWidth: 800, innerHeight: 600 };
+  globalThis.__companionState = { generation: 4, elements: new Map([[1, el]]) };
+  try {
+    globalThis.document = {};
+    assert.deepEqual(page.boxOf(4, 1), { inFrame: true }, 'its own document is not the top one');
+    globalThis.document = el.ownerDocument;
+    el.getBoundingClientRect = () => ({ left: 100, top: 200, width: 0, height: 0 });
+    assert.equal(page.boxOf(4, 1).inView, false, 'zero size');
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.document = saved.document;
+    globalThis.__companionState = saved.state;
+  }
+});
+
+// A read cannot see inside a closed root, so it lists the host; a press on it must still count as landing on it.
+test('a click on a host whose closed root holds its own button still hits the host', () => {
+  const saved = { document: globalThis.document, chrome: globalThis.chrome, state: globalThis.__companionState };
+  const host = fake({ tag: 'x-button', attrs: { role: 'button' }, text: 'Guardar' });
+  const inner = fake({ tag: 'button', text: 'Guardar' });
+  inner.parentNode = { host, parentNode: null };
+  try {
+    globalThis.chrome = { dom: { openOrClosedShadowRoot: (el) => (el === host ? { elementFromPoint: () => inner } : null) } };
+    globalThis.document = { elementFromPoint: () => host };
+    globalThis.__companionState = { generation: 4, elements: new Map([[1, host]]) };
+    assert.equal(page.hitsAt(4, 1, 10, 10), true);
+  } finally {
+    globalThis.document = saved.document;
+    globalThis.chrome = saved.chrome;
+    globalThis.__companionState = saved.state;
+  }
+});
+
+test('pointAt fails closed for a mark evicted by later presses, and survives a throwing shadow root lookup', () => {
+  const saved = { document: globalThis.document, chrome: globalThis.chrome };
+  const node = fake({ tag: 'canvas' });
+  try {
+    globalThis.document = { elementFromPoint: () => node };
+    page.pointAt(10, 10, 'first', 'mark');
+    for (let i = 0; i < 16; i++) page.pointAt(10, 10, `later-${i}`, 'mark');
+    assert.equal(page.pointAt(10, 10, 'first', 'check').same, false, 'its mark was evicted');
+    globalThis.chrome = { dom: { openOrClosedShadowRoot: () => { throw new Error('not an element'); } } };
+    assert.deepEqual(page.pointAt(10, 10, null), { frame: false, same: true });
+  } finally {
+    globalThis.document = saved.document;
+    globalThis.chrome = saved.chrome;
+  }
 });

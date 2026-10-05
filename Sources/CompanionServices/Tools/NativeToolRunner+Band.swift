@@ -7,7 +7,7 @@ import Foundation
 
 extension NativeToolRunner {
     // HACK: two parallel calls to one new path both read "free" and both act;
-    // the second replaces the first with no backup. Upgrade trigger: exclusive
+    // the second replaces the first with no version kept. Upgrade trigger: exclusive
     // create (O_EXCL) in write_file, or serialising a round's writes.
     func actionBand(tool: String, arguments: [String: Any]) async -> ActionBand {
         if tool == NativeTool.sheetWrite.rawValue {
