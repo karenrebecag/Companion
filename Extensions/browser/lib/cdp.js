@@ -7,6 +7,8 @@
 
 const VERSION = '1.3';
 const ALREADY_ATTACHED = 'Another debugger is already attached';
+// Enough intermediate moves for a sortable list or a slider to follow the pointer.
+const DRAG_STEPS = 10;
 
 export class RevokedError extends Error {
   constructor(tabId) {
@@ -133,6 +135,24 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     return true;
   }
 
+  // Press, move in steps holding the button, release: a single jump reads as a click elsewhere, not a drag.
+  async function mouseDrag(tabId, from, to, steps = DRAG_STEPS) {
+    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y, button: 'none', buttons: 0 });
+    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', buttons: 1, clickCount: 1 });
+    let at = from;
+    try {
+      for (let step = 1; step <= steps; step++) {
+        at = { x: from.x + ((to.x - from.x) * step) / steps, y: from.y + ((to.y - from.y) * step) / steps };
+        await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x: at.x, y: at.y, button: 'left', buttons: 1 });
+      }
+    } catch (error) {
+      // A button left down would stay down in the page; the move's error is the one worth reporting.
+      await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: at.x, y: at.y, button: 'left', buttons: 0, clickCount: 1 }).catch(() => {});
+      throw error;
+    }
+    await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseReleased', x: to.x, y: to.y, button: 'left', buttons: 0, clickCount: 1 });
+  }
+
   async function mouseMove(tabId, x, y) {
     await send(tabId, 'Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 });
   }
@@ -177,7 +197,7 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     }
   });
 
-  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, mouseMove, mouseWheel, typeText, pressKey, isRevoked };
+  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, mouseDrag, mouseMove, mouseWheel, typeText, pressKey, isRevoked };
 }
 
 const SHIFT = 8;

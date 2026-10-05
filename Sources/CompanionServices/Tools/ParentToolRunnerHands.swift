@@ -197,6 +197,22 @@ final class ApprovalTickets: @unchecked Sendable {
         }
     }
 
+    /// A yes given for the same call and tab but another read (or another
+    /// label under it) no longer holds. Reports whether one was dropped, so
+    /// the caller can say "stale" instead of asking as if nothing was given.
+    @discardableResult
+    func voidSuperseded(by ticket: Ticket) -> Bool {
+        lock.withLock {
+            func sameCall(_ other: Ticket) -> Bool {
+                other.name == ticket.name && other.arguments == ticket.arguments && other.pid == ticket.pid
+            }
+            let before = granted.count
+            granted.removeAll { sameCall($0.ticket) && $0.ticket != ticket }
+            if let parked = pending, sameCall(parked.ticket), parked.ticket != ticket { pending = nil }
+            return granted.count != before
+        }
+    }
+
     func reset() {
         lock.withLock {
             pending = nil

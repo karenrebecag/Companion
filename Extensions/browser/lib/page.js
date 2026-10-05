@@ -668,10 +668,22 @@
     return { box, inView, blocked, label: labelOf(el), role: roleOf(el) };
   }
 
-  function deepElementFromPoint(doc, x, y) {
+  // A closed root hides from the page but not from an extension. Only the frame test opens it: a read cannot
+  // list what is inside a closed root, so a click hit test that went in would refuse the host it read.
+  function shadowOf(node, closed) {
+    if (node.shadowRoot) return node.shadowRoot;
+    if (!closed) return null;
+    try {
+      return globalThis.chrome?.dom?.openOrClosedShadowRoot?.(node) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  function deepElementFromPoint(doc, x, y, { closed = false } = {}) {
     let node = doc.elementFromPoint(x, y);
-    while (node && node.shadowRoot) {
-      const inner = node.shadowRoot.elementFromPoint(x, y);
+    for (let root = node && shadowOf(node, closed); root; root = node && shadowOf(node, closed)) {
+      const inner = root.elementFromPoint(x, y);
       if (!inner || inner === node) break;
       node = inner;
     }
@@ -723,6 +735,47 @@
 
   function clickUncovered(el) {
     return isCovered(el) ? covered() : clickElement(el);
+  }
+
+  // A drag's drop point is measured where the page is: scrolling to the target would move the source the
+  // press already holds.
+  function boxOf(generation, id) {
+    const found = lookup(stateOf(), generation, id);
+    if (found.error) return found;
+    const el = found.element;
+    if (el.ownerDocument !== document) return { inFrame: true };
+    const r = el.getBoundingClientRect();
+    const box = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const inView = r.width > 0 && r.height > 0 && box.x >= 0 && box.y >= 0
+      && box.x <= window.innerWidth && box.y <= window.innerHeight;
+    return { box, inView };
+  }
+
+  const EMBEDS = new Set(['iframe', 'frame', 'object', 'embed', 'fencedframe', 'portal']);
+  // What each press saw at its point before the cursor glide, by token; weak, so a gone node is not kept alive.
+  const pointMarks = new Map();
+  const POINT_MARKS_MAX = 16;
+
+  // A press at a bare point goes to the innermost node there, so the frame test walks out from it through
+  // shadow hosts: an embedded frame, or anything inside one, belongs to a page nobody read. The token pairs the
+  // look before the glide ('mark') with the one right before the press ('check'), so a node that slid in
+  // between is caught; a check with no mark fails closed, and each check spends its mark.
+  function pointAt(x, y, token, phase) {
+    const node = deepElementFromPoint(document, x, y, { closed: true });
+    let frame = false;
+    for (let at = node; at; at = at.parentNode ?? at.parentElement ?? at.host ?? null) {
+      if (at.tagName && EMBEDS.has(tagOf(at))) { frame = true; break; }
+    }
+    if (token == null) return { frame, same: true };
+    if (phase === 'mark') {
+      if (pointMarks.size >= POINT_MARKS_MAX) pointMarks.clear();
+      pointMarks.set(token, node ? new WeakRef(node) : null);
+      return { frame, same: true };
+    }
+    if (!pointMarks.has(token)) return { frame, same: false };
+    const seen = pointMarks.get(token);
+    pointMarks.delete(token);
+    return { frame, same: (seen?.deref() ?? null) === (node ?? null) };
   }
 
   // Re-checked right before the press: the page had the whole cursor glide to slip something on top.
@@ -787,7 +840,7 @@
 
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
-    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt, selectOption, focusElement,
+    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt, selectOption, boxOf, pointAt, focusElement,
     click: (generation, id) => act(generation, id, clickUncovered),
     doubleClick: (generation, id) => act(generation, id, doubleClickElement),
     contextClick: (generation, id) => act(generation, id, contextClickElement),

@@ -1495,3 +1495,136 @@ test('focus follows an open shadow root to the element that holds it', () => {
 test('focus goes through the generation check', () => {
   assert.equal(page.focus(999, 1).error.code, 'stale_id');
 });
+
+// H-7 P7: the drop point is measured where the page is, never scrolled to: scrolling to the target would
+// move the source the press already holds.
+test('boxOf measures an element without scrolling, and says when it is off screen', () => {
+  const el = fake({ tag: 'li', text: 'Destino' });
+  let scrolled = 0;
+  el.scrollIntoView = () => { scrolled++; };
+  el.getBoundingClientRect = () => ({ left: 100, top: 200, width: 40, height: 20 });
+  const saved = { window: globalThis.window, document: globalThis.document, state: globalThis.__companionState };
+  globalThis.window = { innerWidth: 800, innerHeight: 600 };
+  globalThis.document = el.ownerDocument;
+  globalThis.__companionState = { generation: 4, elements: new Map([[1, el]]) };
+  try {
+    assert.deepEqual(page.boxOf(4, 1), { box: { x: 120, y: 210 }, inView: true });
+    el.getBoundingClientRect = () => ({ left: 100, top: 900, width: 40, height: 20 });
+    assert.equal(page.boxOf(4, 1).inView, false);
+    assert.equal(page.boxOf(3, 1).error.code, 'stale_id', 'another read');
+    assert.equal(scrolled, 0);
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.document = saved.document;
+    globalThis.__companionState = saved.state;
+  }
+});
+
+// The press goes to the innermost node at the point: a frame wrapped in a shadow root, or a node inside an
+// embed's fallback, still belongs to a page nobody read.
+test('pointAt finds an embedded frame at a point through shadow roots and ancestors', () => {
+  const saved = globalThis.document;
+  const at = (node) => { globalThis.document = { elementFromPoint: () => node }; return page.pointAt(10, 10, null); };
+  try {
+    for (const [tag, frame] of [['iframe', true], ['frame', true], ['object', true], ['embed', true], ['canvas', false]]) {
+      assert.equal(at(fake({ tag })).frame, frame, tag);
+    }
+    const host = fake({ tag: 'x-card' });
+    host.shadowRoot = { elementFromPoint: () => fake({ tag: 'iframe' }) };
+    assert.equal(at(host).frame, true, 'an iframe inside a shadow root');
+    const embed = fake({ tag: 'object' });
+    assert.equal(at(fake({ tag: 'span', parent: embed })).frame, true, 'inside an embed');
+    assert.equal(at(null).frame, false, 'nothing there');
+  } finally {
+    globalThis.document = saved;
+  }
+});
+
+test('pointAt compares the look right before the press with the one before the glide', () => {
+  const saved = globalThis.document;
+  const first = fake({ tag: 'canvas' });
+  const other = fake({ tag: 'button', text: 'Pagar' });
+  const look = (node, token, phase) => { globalThis.document = { elementFromPoint: () => node }; return page.pointAt(10, 10, token, phase); };
+  try {
+    look(first, 'p1', 'mark');
+    assert.equal(look(first, 'p1', 'check').same, true, 'still the canvas');
+    look(first, 'p2', 'mark');
+    assert.equal(look(other, 'p2', 'check').same, false, 'something else slid in');
+    look(null, 'p3', 'mark');
+    assert.equal(look(other, 'p3', 'check').same, false, 'nothing there before, a button now');
+    assert.equal(look(first, 'p4', 'check').same, false, 'a check with no look before it fails closed');
+    look(first, 'p5', 'mark');
+    look(first, 'p5', 'check');
+    assert.equal(look(first, 'p5', 'check').same, false, 'a look is spent by its check');
+  } finally {
+    globalThis.document = saved;
+  }
+});
+
+test('pointAt sees a frame inside a closed shadow root, and fenced frames and portals', () => {
+  const saved = { document: globalThis.document, chrome: globalThis.chrome };
+  const at = (node) => { globalThis.document = { elementFromPoint: () => node }; return page.pointAt(10, 10, null); };
+  try {
+    const host = fake({ tag: 'x-pay' });
+    const inner = fake({ tag: 'iframe' });
+    const closed = { elementFromPoint: () => inner };
+    globalThis.chrome = { dom: { openOrClosedShadowRoot: (el) => (el === host ? closed : null) } };
+    assert.equal(at(host).frame, true, 'closed shadow root');
+    for (const tag of ['fencedframe', 'portal']) assert.equal(at(fake({ tag })).frame, true, tag);
+  } finally {
+    globalThis.document = saved.document;
+    globalThis.chrome = saved.chrome;
+  }
+});
+
+test('boxOf says a frame element is in a frame, and a zero-size one is not in view', () => {
+  const el = fake({ tag: 'li', text: 'Destino' });
+  const saved = { window: globalThis.window, document: globalThis.document, state: globalThis.__companionState };
+  globalThis.window = { innerWidth: 800, innerHeight: 600 };
+  globalThis.__companionState = { generation: 4, elements: new Map([[1, el]]) };
+  try {
+    globalThis.document = {};
+    assert.deepEqual(page.boxOf(4, 1), { inFrame: true }, 'its own document is not the top one');
+    globalThis.document = el.ownerDocument;
+    el.getBoundingClientRect = () => ({ left: 100, top: 200, width: 0, height: 0 });
+    assert.equal(page.boxOf(4, 1).inView, false, 'zero size');
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.document = saved.document;
+    globalThis.__companionState = saved.state;
+  }
+});
+
+// A read cannot see inside a closed root, so it lists the host; a press on it must still count as landing on it.
+test('a click on a host whose closed root holds its own button still hits the host', () => {
+  const saved = { document: globalThis.document, chrome: globalThis.chrome, state: globalThis.__companionState };
+  const host = fake({ tag: 'x-button', attrs: { role: 'button' }, text: 'Guardar' });
+  const inner = fake({ tag: 'button', text: 'Guardar' });
+  inner.parentNode = { host, parentNode: null };
+  try {
+    globalThis.chrome = { dom: { openOrClosedShadowRoot: (el) => (el === host ? { elementFromPoint: () => inner } : null) } };
+    globalThis.document = { elementFromPoint: () => host };
+    globalThis.__companionState = { generation: 4, elements: new Map([[1, host]]) };
+    assert.equal(page.hitsAt(4, 1, 10, 10), true);
+  } finally {
+    globalThis.document = saved.document;
+    globalThis.chrome = saved.chrome;
+    globalThis.__companionState = saved.state;
+  }
+});
+
+test('pointAt fails closed for a mark evicted by later presses, and survives a throwing shadow root lookup', () => {
+  const saved = { document: globalThis.document, chrome: globalThis.chrome };
+  const node = fake({ tag: 'canvas' });
+  try {
+    globalThis.document = { elementFromPoint: () => node };
+    page.pointAt(10, 10, 'first', 'mark');
+    for (let i = 0; i < 16; i++) page.pointAt(10, 10, `later-${i}`, 'mark');
+    assert.equal(page.pointAt(10, 10, 'first', 'check').same, false, 'its mark was evicted');
+    globalThis.chrome = { dom: { openOrClosedShadowRoot: () => { throw new Error('not an element'); } } };
+    assert.deepEqual(page.pointAt(10, 10, null), { frame: false, same: true });
+  } finally {
+    globalThis.document = saved.document;
+    globalThis.chrome = saved.chrome;
+  }
+});

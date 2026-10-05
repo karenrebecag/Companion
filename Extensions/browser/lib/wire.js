@@ -57,6 +57,8 @@ const PRESS_ONCE = Object.freeze(['Enter', 'Space']);
 const pressTimes = (a) => isInt(a.times) && a.times >= 1
   && a.times <= (PRESS_ONCE.includes(a.key) ? 1 : PRESS_MAX_TIMES);
 const pressTarget = (a) => (a.generation === null && a.element === null) || (isInt(a.generation) && isInt(a.element));
+// A viewport coordinate: no screen is wider than this, so a bigger number is a forged or broken call.
+const isPoint = (v) => isInt(v) && v >= 0 && v <= SCROLL_LIMIT;
 
 const SHAPES = {
   browser_tabs: () => true,
@@ -75,6 +77,11 @@ const SHAPES = {
     ? isInt(a.generation) && isInt(a.element) && a.dx == null && a.dy == null
     : isPixels(a.dx) && isPixels(a.dy)),
   browser_press: (a) => isInt(a.tab) && PRESS_KEYS.includes(a.key) && pressTimes(a) && pressTarget(a),
+  // Onto another element of the read, or by an offset that goes somewhere; never both.
+  browser_drag: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && (a.to != null
+    ? isInt(a.to) && a.to !== a.element && a.dx == null && a.dy == null
+    : isPixels(a.dx) && isPixels(a.dy) && (a.dx !== 0 || a.dy !== 0)),
+  browser_click_at: (a) => isInt(a.tab) && isInt(a.generation) && isPoint(a.x) && isPoint(a.y),
   browser_type: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.text === 'string',
   browser_select: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element) && typeof a.option === 'string',
   browser_navigate: (a) => isInt(a.tab) && isHttpURL(a.url),
