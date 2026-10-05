@@ -94,7 +94,7 @@ private final class QueryApps: AppsService, @unchecked Sendable {
         secrets: TestSecretStore(), hostSecrets: TestHostSecretStore(),
         defaults: UserDefaults(suiteName: "apps-state-\(UUID().uuidString)")!,
         makeService: { _, _ in service })
-    #expect(apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64)))
+    #expect(await apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64)) == .saved)
     await apps.load()
     await apps.search("zzz")
     // The empty answer is an answer: it reads "no app matches", not a wait.

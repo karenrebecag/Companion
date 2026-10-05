@@ -46,6 +46,7 @@ private let edgeCases: [EdgeCase] = [
     EdgeCase("dot path", endpoint: goodEndpoint + "/.", valid: false),
     EdgeCase("slash then empty fragment", endpoint: goodEndpoint + "/#", valid: false),
     EdgeCase("uppercase scheme (#227)", endpoint: "HTTPS://X.VERCEL.APP", valid: true),
+    EdgeCase("uppercase http", endpoint: "HTTP://X.VERCEL.APP", valid: false),
     EdgeCase("uppercase host", endpoint: "https://X.Vercel.App", valid: true),
     EdgeCase("IDN host (pinned)", endpoint: "https://bücher.example", valid: true),
     EdgeCase("space in host", endpoint: "https://x vercel.app", valid: false),
@@ -93,14 +94,24 @@ private let edgeCases: [EdgeCase] = [
         #expect(minKey == AppsModel.minimumKeyLength)
     }
 
-    @Test(arguments: edgeCases) func rulesAndConfigureAgree(_ row: EdgeCase) {
+    @Test(arguments: edgeCases) func rulesAndConfigureAgree(_ row: EdgeCase) async {
         let apps = AppsModel(
             secrets: TestSecretStore(), hostSecrets: TestHostSecretStore(),
             defaults: UserDefaults(suiteName: "apps-setup-rules-\(UUID().uuidString)")!,
             makeService: { _, _ in NeverApps() })
         let rulesSay = AppsSetupRules.endpointIssue(row.endpoint) == nil && AppsSetupRules.keyIssue(row.key) == nil
         #expect(rulesSay == row.valid, "rules")
-        #expect(apps.configure(endpoint: row.endpoint, key: row.key) == row.valid, "configure")
+        #expect((await apps.configure(endpoint: row.endpoint, key: row.key) == .saved) == row.valid, "configure")
+    }
+
+    @Test func aSaveThatNeverStartedUnlocksTheForm() {
+        var flow = AppsSetupFlow()
+        let started = flow.submit(endpoint: goodEndpoint, key: goodKey)
+        #expect(started)
+        #expect(flow.isReadOnly)
+        flow.finish(.notStarted)
+        #expect(flow.phase == .editing)
+        #expect(!flow.isReadOnly, "another save was being checked; this one can be retried")
     }
 
     // MARK: when errors show

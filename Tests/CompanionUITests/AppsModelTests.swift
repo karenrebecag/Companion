@@ -111,6 +111,14 @@ private final class FakeApps: AppsService, @unchecked Sendable {
     }
 }
 
+/// The first setup on a fresh model; a refused one would leave every test
+/// below running against the setup screen without saying so.
+@MainActor
+private func configureSaved(_ apps: AppsModel, sourceLocation: SourceLocation = #_sourceLocation) async {
+    let outcome = await apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    #expect(outcome == .saved, sourceLocation: sourceLocation)
+}
+
 private func app(_ slug: String) -> CatalogApp {
     CatalogApp(slug: slug, name: slug.capitalized, description: nil, icon: nil)
 }
@@ -179,10 +187,73 @@ private final class AppsManualSleeper: @unchecked Sendable {
     await apps.load()
     #expect(apps.phase == .setup, "sin función: la página la pide")
     #expect(fake.queries.isEmpty, "y no llama a nadie")
-    #expect(!apps.configure(endpoint: "http://x.vercel.app", key: String(repeating: "k", count: 64)),
+    #expect(await apps.configure(endpoint: "http://x.vercel.app", key: String(repeating: "k", count: 64)) == .invalid,
             "http no")
-    #expect(!apps.configure(endpoint: "https://x.vercel.app", key: "corta"), "clave corta no")
-    #expect(apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64)))
+    #expect(await apps.configure(endpoint: "https://x.vercel.app", key: "corta") == .invalid, "clave corta no")
+    #expect(await apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64)) == .saved)
+}
+
+/// #227: an autocapitalised HTTPS:// address is saved in its one lowercase
+/// spelling, and the key is bound to the host the requests will name.
+@Test @MainActor func appsSetupStoresAnUppercaseSchemeInItsLowercaseSpelling() async throws {
+    let hostSecrets = TestHostSecretStore()
+    let (apps, defaults) = model(FakeApps(), hostSecrets: hostSecrets)
+    let key = String(repeating: "k", count: 64)
+    #expect(await apps.configure(endpoint: "HTTPS://x.vercel.app", key: key) == .saved)
+    #expect(defaults.string(forKey: AppsModel.endpointDefault) == "https://x.vercel.app")
+    #expect(try hostSecrets.read(.appsKey, host: "x.vercel.app") == key)
+}
+
+@Test @MainActor func appsSetupRefusesAnUppercaseClearTextAddressAndWritesNothing() async throws {
+    let hostSecrets = TestHostSecretStore()
+    let (apps, defaults) = model(FakeApps(), hostSecrets: hostSecrets)
+    #expect(await apps.configure(endpoint: "HTTP://x.vercel.app", key: String(repeating: "k", count: 64)) == .invalid)
+    #expect(defaults.string(forKey: AppsModel.endpointDefault) == nil)
+    #expect(try hostSecrets.read(.appsKey, host: "x.vercel.app") == nil)
+}
+
+/// Security review of #226: with the endpoint gone from defaults, a key
+/// still waits for its host (flat with its origin recorded, or already
+/// bound) and answers once that address is typed again. A wrong key typed
+/// with it must be checked like any other replacement, not stored over it.
+@Test(arguments: [true, false])
+@MainActor func appsSetupChecksANewKeyWhenOnlyAStoredKeyIsLeft(flat: Bool) async throws {
+    let working = String(repeating: "k", count: 64)
+    let wrong = String(repeating: "w", count: 64)
+    let secrets = flat ? TestSecretStore([.companionApps: working]) : TestSecretStore()
+    let hostSecrets = TestHostSecretStore()
+    if flat {
+        try hostSecrets.write(.appsKeyOrigin, host: AppsCredentials.originSlot, value: "x.vercel.app")
+    } else {
+        try hostSecrets.write(.appsKey, host: "x.vercel.app", value: working)
+    }
+    let refusing = FakeApps()
+    refusing.catalogFailure = .unauthorized
+    let apps = AppsModel(
+        secrets: secrets, hostSecrets: hostSecrets,
+        defaults: UserDefaults(suiteName: "apps-\(UUID().uuidString)")!,
+        makeService: { _, key in key == wrong ? refusing : FakeApps() })
+    #expect(await apps.configure(endpoint: "https://x.vercel.app", key: wrong) == .rejected(.unauthorized))
+    let kept = try hostSecrets.read(.appsKey, host: "x.vercel.app") ?? secrets.read(.companionApps)
+    #expect(kept == working, "the key that still answers for this host survives")
+}
+
+/// A Keychain that cannot say whether a key is stored is treated as holding
+/// one: the replacement is checked rather than written over it blind.
+@Test @MainActor func appsSetupChecksANewKeyWhenTheKeychainCannotBeRead() async throws {
+    let wrong = String(repeating: "w", count: 64)
+    let hostSecrets = TestHostSecretStore()
+    hostSecrets.failReads = true
+    let refusing = FakeApps()
+    refusing.catalogFailure = .unauthorized
+    let defaults = UserDefaults(suiteName: "apps-\(UUID().uuidString)")!
+    let apps = AppsModel(
+        secrets: TestSecretStore(), hostSecrets: hostSecrets, defaults: defaults,
+        makeService: { _, _ in refusing })
+    #expect(await apps.configure(endpoint: "https://x.vercel.app", key: wrong) == .rejected(.unauthorized))
+    hostSecrets.failReads = false
+    #expect(try hostSecrets.read(.appsKey, host: "x.vercel.app") == nil, "nothing was written")
+    #expect(defaults.string(forKey: AppsModel.endpointDefault) == nil)
 }
 
 @Test @MainActor func appsPageListsSearchesAndPages() async {
@@ -194,7 +265,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     let secrets = TestSecretStore()
     let hostSecrets = TestHostSecretStore()
     let (apps, _) = model(fake, secrets: secrets, hostSecrets: hostSecrets)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     #expect(apps.phase == .ready)
     #expect(apps.apps.map(\.slug) == ["slack", "gmail"])
@@ -252,7 +323,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     let fake = FakeApps()
     fake.catalogFailure = .notConfigured(["PIPEDREAM_CLIENT_ID"])
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     #expect(apps.phase == .failed(.notConfigured(["PIPEDREAM_CLIENT_ID"])))
     fake.catalogFailure = nil
@@ -268,7 +339,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
     fake.connectFailure = .rateLimited
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     #expect(await apps.connect("slack") == nil)
     #expect(apps.phase == .ready, "la rejilla sigue")
@@ -287,7 +358,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
                                   description: "List channels", group: .leer)
     fake.toolsResult = .success([listChannels])
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     let slack = app("slack")
     apps.open(slack)
@@ -304,7 +375,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
 @Test @MainActor func appsModelNeverListsToolsForAnUnconnectedApp() async {
     let fake = FakeApps()
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     let gmail = app("gmail")
     apps.open(gmail)
@@ -318,7 +389,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
     fake.toolsResult = .failure(.upstream)
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     let slack = app("slack")
     apps.open(slack)
@@ -343,7 +414,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
     fake.accountsHang = true
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     let loadTask = Task { await apps.load() }
     // The catalog leg resolves fast; accounts() is still hanging here.
     try? await Task.sleep(for: .milliseconds(10))
@@ -366,7 +437,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 2, next: "c2")
     fake.pages["|c2"] = CatalogPage(apps: [app("gmail")], total: 2, next: nil)
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     fake.slowPages = true
     async let first: Void = apps.more()
@@ -384,7 +455,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     let sleeper = AppsManualSleeper()
     let opened = URLSink()
     let (apps, _) = model(fake, sleep: sleeper.sleep, openBrowser: opened.append)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     let slack = app("slack")
 
     apps.start(slack)
@@ -413,7 +484,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     let fake = FakeApps()
     let sleeper = AppsManualSleeper()
     let (apps, _) = model(fake, sleep: sleeper.sleep)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     apps.start(app("slack"))
     await pumpUntil("cierre: primer plazo armado") { sleeper.pending == 1 }
 
@@ -430,7 +501,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.gateAccounts = true
     let sleeper = AppsManualSleeper()
     let (apps, _) = model(fake, sleep: sleeper.sleep)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     let slack = app("slack")
     apps.start(slack)
     await pumpUntil("descarte: primer plazo armado") { sleeper.pending == 1 }
@@ -452,7 +523,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     let sleeper = AppsManualSleeper()
     let opened = URLSink()
     let (apps, _) = model(fake, sleep: sleeper.sleep, openBrowser: opened.append)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     apps.start(app("slack"))
     await pumpUntil("abrir de nuevo: primer plazo armado") { sleeper.pending == 1 }
     #expect(opened.urls.count == 1)
@@ -467,7 +538,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     let clock = PollClock(0)
     let opened = URLSink()
     let (apps, _) = model(fake, sleep: sleeper.sleep, now: clock.now, openBrowser: opened.append)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     apps.start(app("slack"))
     await pumpUntil("reintentar: primer plazo armado") { sleeper.pending == 1 }
 
@@ -487,7 +558,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     let fake = FakeApps()
     fake.connectFailure = .rateLimited
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     apps.start(app("slack"))
     await pumpUntil("falla: connectLink erróneo llega como fallo del modal") {
         if case .failed = apps.connectPhase { return true }
@@ -503,7 +574,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.gateConnectLinkFor = ["slack"]
     let opened = URLSink()
     let (apps, _) = model(fake, openBrowser: opened.append)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     let slack = app("slack")
     let gmail = app("gmail")
 
@@ -532,7 +603,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.gateConnectLinkOnceFor = ["slack"]
     let opened = URLSink()
     let (apps, _) = model(fake, openBrowser: opened.append)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     let slack = app("slack")
 
     apps.start(slack) // attempt A: connectLink parks
@@ -559,7 +630,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     let clock = PollClock(0)
     let opened = URLSink()
     let (apps, _) = model(fake, sleep: sleeper.sleep, now: clock.now, openBrowser: opened.append)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     apps.start(app("slack"))
     await pumpUntil("reintentar doble: primer plazo armado") { sleeper.pending == 1 }
     clock.set(ConnectPoll.overallTimeout + 1)
@@ -603,7 +674,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
         ConnectedAccount(id: "apn_2", app: "gmail", name: nil, state: .reconnect),
     ])
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     #expect(apps.connectedSection.map(\.slug) == ["slack", "gmail"],
             "conectadas antes que las que piden volver a conectar")
@@ -614,7 +685,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     let fake = FakeApps()
     fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     #expect(apps.connectedSection.isEmpty, "sin cuentas, 'Tus apps' no existe")
     #expect(apps.catalogSection.map(\.slug) == ["slack"])
@@ -628,7 +699,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.pages["|"] = CatalogPage(apps: [app("slack")], total: 1, next: nil)
     fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: "karen@x", state: .connected)])
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     let slack = app("slack")
     apps.open(slack)
@@ -656,7 +727,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
     fake.disconnectResult = .failure(.upstream)
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     let slack = app("slack")
     apps.open(slack)
@@ -678,7 +749,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
     fake.gateDisconnect = true
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     let slack = app("slack")
     apps.open(slack)
@@ -709,7 +780,7 @@ private final class AppsManualSleeper: @unchecked Sendable {
     fake.accountsResult = .success([ConnectedAccount(id: "apn_1", app: "slack", name: nil, state: .connected)])
     fake.gateDisconnect = true
     let (apps, _) = model(fake)
-    _ = apps.configure(endpoint: "https://x.vercel.app", key: String(repeating: "k", count: 64))
+    await configureSaved(apps)
     await apps.load()
     let slack = app("slack")
     apps.open(slack)
