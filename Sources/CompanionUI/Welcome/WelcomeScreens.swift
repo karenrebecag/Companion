@@ -1,4 +1,5 @@
 import CompanionCore
+import CompanionUIPro
 import SwiftUI
 
 // Wave 16c: the seven screens. Each says one thing; the container owns the
@@ -31,12 +32,32 @@ struct WelcomeOrb: View {
     var state: TurnState = .idle
     var level = 0.0
     var size = Container.hero
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Orb(state: state, levels: VoiceLevels(mic: level, agent: 0), accentColor: Semantic.foreground)
-            .frame(width: size, height: size)
-            .frame(maxWidth: .infinity)
-            .accessibilityHidden(true)
+        // The welcome text under the orb carries the meaning, so the orb
+        // itself is hidden from VoiceOver rather than given a label.
+        VoiceOrb(
+            state: VoiceOrbState(state),
+            muted: false,
+            inputLevel: Self.levels(state: state, level: level).input,
+            outputLevel: Self.levels(state: state, level: level).output,
+            size: size,
+            palette: .surface(colorScheme: colorScheme),
+            accessibilityLabel: "")
+        .frame(width: size, height: size)
+        .frame(maxWidth: .infinity)
+        .accessibilityHidden(true)
+    }
+
+    /// Welcome has one level, the mic test's or the hello's: it belongs to
+    /// whoever is talking, and nil elsewhere lets the orb rest.
+    static func levels(state: TurnState, level: Double) -> (input: Double?, output: Double?) {
+        switch state {
+        case .listening: (level, nil)
+        case .speaking: (nil, level)
+        default: (nil, nil)
+        }
     }
 }
 
