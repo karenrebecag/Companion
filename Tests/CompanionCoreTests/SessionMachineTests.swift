@@ -63,9 +63,10 @@ import Testing
     expect(!SessionKind.idle.isUsersTurn, "turno: reposo no es turno")
     expect(!SessionKind.hover.isUsersTurn, "turno: el puntero encima no es turno")
     expect(SessionKind.listening.isUsersTurn, "turno: escuchar sí es turno")
-    for phase: SessionPhase in [.pending, .thinking, .speaking, .toolExecuting, .subAgentRunning, .completed] {
+    for phase: SessionPhase in [.pending, .thinking, .speaking, .toolExecuting, .subAgentRunning] {
         expect(SessionKind.processing(phase).isUsersTurn, "turno: procesando (\(phase)) sí es turno")
     }
+    expect(!SessionKind.processing(.completed).isUsersTurn, "turno: asentarse no es turno")
 }
 
 // MARK: - Wave 12b: mantener y soltar
@@ -149,7 +150,7 @@ import Testing
     _ = spoke.handle(voice(.speaking))
     let fx = spoke.handle(voice(.listening, muted: true))
     expectEq(spoke.projection.kind, .processing(.completed), "muted: tras hablar, completed")
-    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.completedDelay)), "muted: con timer")
+    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.settleDelay, floor: SessionMachine.settleFloor)), "muted: con timer")
 
     var pending = SessionMachine()
     _ = pending.handle(.pressed)
@@ -423,7 +424,7 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     expectEq(m.projection.kind, .processing(.speaking), "tecleado: tokens en pantalla")
     let fx = m.handle(.typedReplyFinished)
     expectEq(m.projection.kind, .processing(.completed), "tecleado: completed")
-    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.completedDelay)),
+    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.settleDelay, floor: SessionMachine.settleFloor)),
            "tecleado: se arma el timer")
     _ = m.handle(.completedTimerExpired)
     expectEq(m.projection.kind, .idle, "tecleado: el timer devuelve a idle")
@@ -436,7 +437,7 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     _ = m.handle(.typedSubmitted)
     let fx = m.handle(.typedReplyFinished)
     expectEq(m.projection.kind, .listening, "tecleado+voz: vuelve a listening")
-    expect(!fx.contains(.scheduleCompletedExpiry(SessionMachine.completedDelay)),
+    expect(!fx.contains(.scheduleCompletedExpiry(SessionMachine.settleDelay, floor: SessionMachine.settleFloor)),
            "tecleado+voz: sin timer")
     _ = m.handle(.completedTimerExpired)
     expectEq(m.projection.kind, .listening, "tecleado+voz: un timer tardío no hace nada")
@@ -545,7 +546,7 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     _ = m.handle(.job(.started(goal: "x")))
     let fx = m.handle(.jobFinished(ok: true))
     expectEq(m.projection.kind, .processing(.completed), "fin: completed")
-    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.completedDelay)), "fin: timer")
+    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.settleDelay, floor: SessionMachine.settleFloor)), "fin: timer")
     expect(m.projection.job == nil, "fin: sin tarjeta")
 
     var live = SessionMachine()

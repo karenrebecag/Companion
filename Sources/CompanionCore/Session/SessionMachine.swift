@@ -7,8 +7,10 @@ import Foundation
 /// hands, the specialist's job and the sheet.
 package struct SessionMachine: Sendable, Equatable {
     package internal(set) var projection = SessionProjection()
-    /// Seconds Completed stays on screen before Idle.
-    package static let completedDelay: TimeInterval = 1.5
+    /// 0.2 s, Incredible's settle (local reference; brief isla-ciclo-y-legibilidad K1).
+    package static let settleDelay: TimeInterval = 0.2
+    /// 1.5 s, Incredible's settle floor (local reference; brief isla-ciclo-y-legibilidad K1).
+    package static let settleFloor: TimeInterval = 1.5
     /// How long the hands aura outlives the last executed bridge call: long
     /// enough to bridge the gap between an agent's consecutive steps without
     /// flicker, short enough that an idle-but-open session goes dark.
@@ -26,11 +28,6 @@ package struct SessionMachine: Sendable, Equatable {
     package static let noticeDelay: TimeInterval = 6
     /// 4.9 s, Incredible's dictation countdown (local reference; brief isla-ciclo-y-legibilidad K4).
     package static let dictationCardDelay: TimeInterval = 4.9
-    /// How long a countdown may stay paused before its remainder runs.
-    // HACK: sixty seconds for every clock, then it resumes. Upgrade trigger:
-    // a hover-out that still arrives when the window closes under the pointer,
-    // so a lost leave no longer needs this ceiling.
-    package static let countdownPauseCeiling: TimeInterval = 60
     /// The reel's ceiling per turn (16m-2, security review).
     package static let touchedCap = 12
 
@@ -39,6 +36,12 @@ package struct SessionMachine: Sendable, Equatable {
     /// The pointer is over a countdown notice. A notice armed while this is
     /// set starts paused; the flag drops when that notice leaves.
     var noticeHeld = false
+    /// The pointer is over the panel. A settle armed while this is set starts
+    /// paused. It tracks the pointer, so a new turn does not clear it.
+    var settleHeld = false
+    /// The answer popover is open. Only the expanded card holds the island
+    /// open: a card nobody opened does not, so the view tells the reducer.
+    var answerOpen = false
     /// Once per run: a lost grant stays lost until the user acts in Settings.
     var screenRecordingCardShown = false
     var voice = TurnSnapshot.idle
@@ -88,6 +91,7 @@ package struct SessionMachine: Sendable, Equatable {
     mutating func reduce(_ event: SessionEvent) -> [SessionEffect] {
         let before = projection.kind
         let wasRestingWarm = restingWarm
+        let wasBlocked = settleBlocked
         projection.cards = []
         var effects: [SessionEffect] = []
         switch event {
@@ -134,7 +138,12 @@ package struct SessionMachine: Sendable, Equatable {
             effects += observe(jobEvent, from: id)
         case .jobFinished(_, let id):
             effects += dropApprovals(of: id)
-            guard finish(id) else { return effects }
+            // Not the running job: nothing about the turn changes, but the
+            // sheet it asked on may have just left.
+            guard finish(id) else {
+                return effects + settleOnceUnblocked(
+                    wasCompleted: before == .processing(.completed), wasBlocked: wasBlocked)
+            }
             effects += rest()
         case .approvalAnswered(let id, let approved, let remember):
             let owner = approvalOwners[id]
@@ -167,11 +176,36 @@ package struct SessionMachine: Sendable, Equatable {
             guard remove(id) != nil else { return [] }
             effects.append(.resolveApproval(requestId: id, approved: false, remember: false))
         case .hoverEntered:
+            let fresh = !settleHeld
+            settleHeld = true
             if projection.kind == .idle { projection.kind = .hover }
+            if fresh, showsSettle { effects.append(.pauseCompletedExpiry) }
         case .hoverLeft:
+            let held = settleHeld
+            settleHeld = false
             if projection.kind == .hover { projection.kind = .idle }
+            // The panel's leave is the backstop for a card hover-out SwiftUI
+            // lost when the panel went click-through.
+            let noticeWasHeld = noticeHeld
+            let cardWasHeld = dictationHeld
+            noticeHeld = false
+            dictationHeld = false
+            if noticeWasHeld { effects.append(.resumeNoticeExpiry) }
+            // Under a blocker the paused settle must stay dead: the blocker
+            // leaving arms a fresh one, and a resume here would race it.
+            if (held && showsSettle && !settleBlocked) || (cardWasHeld && showsDictationCard) {
+                effects.append(.resumeCompletedExpiry)
+            }
+        case .answerOpened:
+            answerOpen = true
+        case .answerClosed:
+            answerOpen = false
         case .completedTimerExpired:
-            if projection.kind == .processing(.completed) {
+            // A notice, a sheet or an open answer that arrived during the
+            // settle still needs the island; the last one leaving re-arms it.
+            // The dictation card keeps its own clock whatever is up (K4).
+            if projection.kind == .processing(.completed),
+               projection.dictatedText != nil || !settleBlocked {
                 projection.kind = .idle
                 projection.dictation = nil
                 projection.dictatedText = nil
@@ -356,6 +390,7 @@ package struct SessionMachine: Sendable, Equatable {
         if restingWarm, !wasRestingWarm {
             effects.append(.scheduleVoiceIdleExpiry(Self.voiceIdleTimeout))
         }
+        effects += settleOnceUnblocked(wasCompleted: before == .processing(.completed), wasBlocked: wasBlocked)
         effects += publishReceipt()
         effects = pausingHeldNotice(effects)
         for card in projection.cards {
@@ -392,9 +427,14 @@ package struct SessionMachine: Sendable, Equatable {
         // to it, not to whatever starts now (a job, a bridge step).
         var clearsReceipt = false
         if case .receipt? = projection.notice { clearsReceipt = true }
-        if projection.kind == .idle, !clearsReceipt { turnReceipt = nil }
+        // Completed is over only while a notice holds it there: any other
+        // Completed still has its receipt to publish when it settles.
+        let turnIsOver = projection.kind == .idle
+            || (projection.kind == .processing(.completed) && projection.notice != nil)
+        if turnIsOver, !clearsReceipt { turnReceipt = nil }
         projection.notice = nil
         noticeHeld = false
+        answerOpen = false
         // Whatever receipt was on screen is gone with it; the turn's lines
         // survive and come back at the next rest.
         receiptPublished = false

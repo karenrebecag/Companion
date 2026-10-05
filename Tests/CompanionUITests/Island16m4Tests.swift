@@ -34,16 +34,16 @@ func testDictatedKeepsTheWordsForTheCard() {
     let (machine, effects) = dictated()
     expectEq(machine.projection.dictatedText, "hola qué tal", "16m-4: la tarjeta lee lo pegado")
     expectEq(machine.projection.dictation, "Slack", "16m-4: y dice dónde")
-    expect(effects.contains(.scheduleCompletedExpiry(SessionMachine.dictationCardDelay)),
+    expect(effects.contains(.scheduleCompletedExpiry(SessionMachine.dictationCardDelay, floor: nil)),
            "16m-4: la tarjeta espera lo suyo, no el latido de 1,5 s")
-    expect(SessionMachine.dictationCardDelay > SessionMachine.completedDelay,
+    expect(SessionMachine.dictationCardDelay > SessionMachine.settleDelay,
            "16m-4: da tiempo de copiar")
 }
 
 func testADictationWithoutWordsKeepsTheShortBeat() {
     for empty in [nil, ""] as [DictatedText?] {
         let (machine, effects) = dictated(empty)
-        expect(effects.contains(.scheduleCompletedExpiry(SessionMachine.completedDelay)),
+        expect(effects.contains(.scheduleCompletedExpiry(SessionMachine.settleDelay, floor: SessionMachine.settleFloor)),
                "16m-4: sin texto no hay tarjeta que esperar (\(empty.map { $0.value } ?? "nil"))")
         expectEq(IslandState.from(machine.projection, pebbleHidden: false).line, .dictated("Slack"),
                  "16m-4: sin texto queda la línea «pegado en» (\(empty.map { $0.value } ?? "nil"))")

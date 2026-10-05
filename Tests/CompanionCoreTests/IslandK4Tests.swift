@@ -30,10 +30,10 @@ private func clockEffects(_ effects: [SessionEffect]) -> [SessionEffect] {
 
 @Test func k4DictationCardUsesIncredibleTiming() {
     expectEq(SessionMachine.dictationCardDelay, 4.9, "K4: el dictado dura lo de Incredible")
-    expect(SessionMachine.dictationCardDelay > SessionMachine.completedDelay,
-           "K4: sigue siendo más largo que el latido corto")
+    expect(SessionMachine.dictationCardDelay > SessionMachine.settleDelay,
+           "K4: sigue siendo más largo que el asentamiento")
     let (_, effects) = dictatedCard()
-    expect(effects.contains(.scheduleCompletedExpiry(SessionMachine.dictationCardDelay)),
+    expect(effects.contains(.scheduleCompletedExpiry(SessionMachine.dictationCardDelay, floor: nil)),
            "K4: la tarjeta arma ese plazo, entero")
 }
 
@@ -61,11 +61,11 @@ private func clockEffects(_ effects: [SessionEffect]) -> [SessionEffect] {
 @Test func k4CopyRearmsUnlessThePointerIsOverTheCard() {
     var machine = card()
     expectEq(machine.handle(.dictationCardCopied),
-             [.scheduleCompletedExpiry(SessionMachine.dictationCardDelay)],
+             [.scheduleCompletedExpiry(SessionMachine.dictationCardDelay, floor: nil)],
              "K4: copiar, con el puntero fuera, arma el plazo entero")
     _ = machine.handle(.dictationCardHover(true))
     expectEq(machine.handle(.dictationCardCopied),
-             [.scheduleCompletedExpiry(SessionMachine.dictationCardDelay), .pauseCompletedExpiry],
+             [.scheduleCompletedExpiry(SessionMachine.dictationCardDelay, floor: nil), .pauseCompletedExpiry],
              "K4: copiar con el puntero encima deja el plazo nuevo en pausa")
 }
 
@@ -76,7 +76,7 @@ private func clockEffects(_ effects: [SessionEffect]) -> [SessionEffect] {
     _ = machine.handle(.dictating(app: "Slack"))
     _ = machine.handle(.released)
     let effects = machine.handle(.dictated(app: "Slack", text: "otra"))
-    expect(effects.contains(.scheduleCompletedExpiry(SessionMachine.dictationCardDelay)),
+    expect(effects.contains(.scheduleCompletedExpiry(SessionMachine.dictationCardDelay, floor: nil)),
            "K4: un dictado nuevo arma su plazo entero")
     expect(!effects.contains(.pauseCompletedExpiry), "K4: y no hereda la pausa")
 }
@@ -146,8 +146,6 @@ private func clockEffects(_ effects: [SessionEffect]) -> [SessionEffect] {
            "K4: el comentario del plazo es esa frase")
     expect(!source.contains("dm=4900"), "K4: el comentario no cita la constante del bundle")
     expect(!source.contains("overlay-"), "K4: el comentario no cita el archivo del bundle")
-    expect(source.contains("HACK:"), "K4: el techo de la pausa lleva su marca")
-    expect(source.contains("Upgrade trigger:"), "K4: y dice cuándo se reemplaza")
 }
 
 private func worktreeFile(_ path: String) -> URL {

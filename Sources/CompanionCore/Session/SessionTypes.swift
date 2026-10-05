@@ -12,11 +12,13 @@ package enum SessionKind: Sendable, Equatable {
     /// enviar un chat"): only a hold or a sent chat is Karen's own turn.
     /// `.hover` — the pointer resting on the island — is rest, same as
     /// `.idle`: it must not pause the bridge just because the mouse passed
-    /// over the notch.
+    /// over the notch. Completed is the island settling, and it can be held
+    /// open a long time by a notice, a sheet or an answer: that must not keep
+    /// the bridge paused.
     package var isUsersTurn: Bool {
         switch self {
+        case .processing(.completed), .idle, .hover: false
         case .listening, .processing: true
-        case .idle, .hover: false
         }
     }
 }
@@ -175,6 +177,12 @@ package enum SessionEvent: Sendable, Equatable {
     case hoverEntered
     case hoverLeft
     case completedTimerExpired
+    /// The user opened the answer popover: the one card that holds the
+    /// island open (an answer nobody opened does not).
+    case answerOpened
+    /// The user closed the answer popover: the last thing that could be
+    /// holding the settle back.
+    case answerClosed
     /// A fading notice's six seconds are up (16e).
     /// The notice the clock was armed for. A late clock for a notice that is
     /// gone (or replaced) does nothing: there is no "whichever is up".
@@ -273,7 +281,7 @@ package enum SessionEffect: Sendable, Equatable {
     /// before telling the model an answer was applied.
     case approvalFront(requestId: String?)
     case resolveApproval(requestId: String, approved: Bool, remember: Bool)
-    case scheduleCompletedExpiry(TimeInterval)
+    case scheduleCompletedExpiry(TimeInterval, floor: TimeInterval?)
     case scheduleNoticeExpiry(TimeInterval)
     /// Freeze the completed clock where it is. A second pause changes nothing.
     case pauseCompletedExpiry

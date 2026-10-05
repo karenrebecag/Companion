@@ -8,15 +8,45 @@ extension SessionMachine {
         projection.kind == .processing(.completed) && projection.dictatedText != nil
     }
 
+    /// Completed with no pasted words: the settle, not the dictation card.
+    var showsSettle: Bool {
+        projection.kind == .processing(.completed) && projection.dictatedText == nil
+    }
+
     /// Every road into Completed arms its clock here, so no path can arm the
-    /// short beat over a card (a warm muted snapshot re-enters Completed
-    /// through `rest()`). A pointer already on the card freezes that clock.
-    /// The model runs what was left once the pause hits its ceiling, so a
-    /// hover-out that never arrives cannot leave the words up forever.
+    /// settle over a card (a warm muted snapshot re-enters Completed through
+    /// `rest()`). A pointer already on the panel freezes the settle; a pointer
+    /// already on the card freezes the card. The freeze holds until the pointer
+    /// leaves or a new turn replaces the clock.
     func completedExpiry() -> [SessionEffect] {
-        guard projection.dictatedText != nil else { return [.scheduleCompletedExpiry(Self.completedDelay)] }
+        guard projection.dictatedText != nil else {
+            // A notice, a sheet or an open answer is what is on screen.
+            // The settle would close the island over it. The dictation card
+            // below keeps its own clock even when a notice is up.
+            if settleBlocked { return [] }
+            var effects: [SessionEffect] = [
+                .scheduleCompletedExpiry(Self.settleDelay, floor: Self.settleFloor)]
+            if settleHeld { effects.append(.pauseCompletedExpiry) }
+            return effects
+        }
         if dictationHeld { return [.pauseCompletedExpiry] }
-        return [.scheduleCompletedExpiry(Self.dictationCardDelay)]
+        return [.scheduleCompletedExpiry(Self.dictationCardDelay, floor: nil)]
+    }
+
+    /// Something the settle must not close the island over.
+    var settleBlocked: Bool {
+        projection.notice != nil || projection.approval != nil || answerOpen
+    }
+
+    /// Completed stays open while a blocker is up and nothing re-arms the
+    /// settle when the last one leaves, so any event that does it arms the
+    /// settle, state-based so no list of events can miss a road (a stop, a
+    /// finished job). Only the transition inside Completed counts: a blocker
+    /// that held nothing back must not restart a clock already running, and a
+    /// turn that re-enters Completed through `rest()` is armed by `rest()`.
+    func settleOnceUnblocked(wasCompleted: Bool, wasBlocked: Bool) -> [SessionEffect] {
+        guard wasCompleted, wasBlocked, !settleBlocked, showsSettle else { return [] }
+        return completedExpiry()
     }
 
     /// The pointer pauses the clock already running. Leaving continues it.
@@ -33,8 +63,10 @@ extension SessionMachine {
             dictationHeld = false
             return [.resumeCompletedExpiry]
         case .dictationCardCopied:
-            guard dictationHeld else { return [.scheduleCompletedExpiry(Self.dictationCardDelay)] }
-            return [.scheduleCompletedExpiry(Self.dictationCardDelay), .pauseCompletedExpiry]
+            guard dictationHeld else {
+                return [.scheduleCompletedExpiry(Self.dictationCardDelay, floor: nil)]
+            }
+            return [.scheduleCompletedExpiry(Self.dictationCardDelay, floor: nil), .pauseCompletedExpiry]
         default:
             return []
         }

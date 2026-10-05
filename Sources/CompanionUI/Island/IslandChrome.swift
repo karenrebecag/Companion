@@ -194,6 +194,45 @@ extension NSScreen {
     }
 }
 
+/// Pointer samples for the island. The dwell uses the gap between samples.
+/// The leave is measured from when the level was actually opened, and a
+/// sample kept across a hide does not count as the previous one.
+struct HoverTracker {
+    enum Decision: Equatable {
+        case dwell(TimeInterval)
+        case leave(TimeInterval)
+    }
+
+    private var last: (point: CGPoint, at: Date)?
+    private var openedAt: Date?
+
+    /// Whether a pointer sample is held. Read by tests: it is what decides
+    /// that the next entry dwells `peekDwell` rather than by a stale speed.
+    var hasSample: Bool { last != nil }
+
+    mutating func reset() {
+        last = nil
+        openedAt = nil
+    }
+
+    /// The session was told. Earlier samples are the approach, not the open.
+    mutating func markOpened(at date: Date) {
+        openedAt = date
+    }
+
+    mutating func pointer(at point: CGPoint, now: Date, inside: Bool) -> Decision {
+        let dwell = IslandMotion.entryDwell(
+            from: last?.point, to: point,
+            dt: last.map { now.timeIntervalSince($0.at) } ?? 0)
+        last = (point, now)
+        guard inside else {
+            let openFor = openedAt.map { now.timeIntervalSince($0) } ?? 0
+            return .leave(IslandMotion.leaveDelay(openFor: openFor))
+        }
+        return .dwell(dwell)
+    }
+}
+
 /// A resident projector above every app: non-activating, on every Space,
 /// never the main window. One fixed canvas under the notch; the pointer
 /// passes through it everywhere except over the shape.
@@ -212,6 +251,7 @@ package final class IslandPanel: NSPanel {
     private var hoverSent = false
     private var dwellTask: Task<Void, Never>?
     private var leaveTask: Task<Void, Never>?
+    private(set) var hover = HoverTracker()
     private var monitors: [Any] = []
     private var screenObserver: NSObjectProtocol?
     private let dropTarget: IslandDropTarget
@@ -275,8 +315,10 @@ package final class IslandPanel: NSPanel {
             // Nothing is on screen: nothing takes clicks, nothing is hovered,
             // and the next opening starts from zero rather than a size nobody saw.
             orderOut(nil)
-            endHover()
             setHit(.zero)
+            // Last: `setHit` samples the pointer again, and a sample taken
+            // while hiding would be the approach the next opening is judged by.
+            endHover()
             return
         }
         defer { syncCatcher() }
@@ -316,6 +358,9 @@ package final class IslandPanel: NSPanel {
     /// The display with the notch, or the one with the menu bar. Never
     /// animated: the canvas is placed once per display change.
     private func redock() {
+        // Pick can fail. The session was still told the pointer was here,
+        // so the leave happens before that return.
+        endHover()
         let screens = NSScreen.screens
         guard let index = NotchGeometry.pick(screens.map(\.islandShape)) else { return }
         renotch(NotchGeometry.notch(on: screens[index].islandShape))
@@ -325,6 +370,7 @@ package final class IslandPanel: NSPanel {
     /// is re-derived for the new one, never kept from the old (security
     /// review 16i-1, HIGH).
     func renotch(_ notch: Notch) {
+        endHover()
         geometry.notch = notch
         setFrame(IslandChrome.canvasFrame(for: notch), display: true)
         shrinkTask?.cancel()
@@ -351,27 +397,31 @@ package final class IslandPanel: NSPanel {
     /// Entering, the notch peeks at once and the session hears of it only
     /// if the pointer stays (spec 16i §11).
     func track(_ point: CGPoint) {
+        let now = Date()
         let portal = geometry.portal.map { IslandChrome.portalScreenRect($0, canvas: frame) }
         let answer = geometry.answer.map { IslandChrome.portalScreenRect($0, canvas: frame) }
         let inside = isVisible && IslandChrome.pointerInside(
             point, shape: shape, portal: portal, answer: answer)
         ignoresMouseEvents = IslandChrome.ignoresPointer(inside: inside, isKey: isKeyWindow)
+        let decision = hover.pointer(at: point, now: now, inside: inside)
         if inside {
             leaveTask?.cancel()
             leaveTask = nil
             guard !hovering else { return }
             hovering = true
             setPeeking(true)
+            guard case .dwell(let dwell) = decision else { return }
             dwellTask = Task { @MainActor [weak self] in
-                do { try await Task.sleep(for: .seconds(IslandMotion.peekDwell)) } catch { return }
+                do { try await Task.sleep(for: .seconds(dwell)) } catch { return }
                 // A pointer already on its way out does not open anything.
                 guard let self, self.hovering, self.leaveTask == nil, !self.hoverSent else { return }
                 self.hoverSent = true
+                self.hover.markOpened(at: Date())
                 self.onHover(true)
             }
-        } else if hovering, leaveTask == nil {
+        } else if hovering, leaveTask == nil, case .leave(let delay) = decision {
             leaveTask = Task { @MainActor [weak self] in
-                do { try await Task.sleep(for: .seconds(MotionTime.fast)) } catch { return }
+                do { try await Task.sleep(for: .seconds(delay)) } catch { return }
                 guard let self else { return }
                 self.leaveTask = nil
                 guard self.hovering else { return }
@@ -384,10 +434,15 @@ package final class IslandPanel: NSPanel {
         leaveTask?.cancel()
         leaveTask = nil
         dwellTask?.cancel()
+        let wasHovering = hovering
         hovering = false
+        hover.reset()
         setPeeking(false)
-        guard hoverSent else { return }
         hoverSent = false
+        // A flick over a card that ends before the dwell never told the
+        // session it entered, but the card did: its leave may be lost, and
+        // this is the backstop. A leave nobody entered is harmless.
+        guard wasHovering else { return }
         onHover(false)
     }
 

@@ -175,6 +175,12 @@ package struct IslandView: View {
         .onChange(of: chat.errorText) { _, _ in
             chat.supersedeIslandError(notice: chat.session.projection.notice)
         }
+        .onChange(of: chat.messages.map(\.id)) { _, ids in
+            guard let open = openAnswer else { return }
+            openAnswer = IslandAnswerSignal.reconcile(
+                open: open, messageExists: ids.contains(open), session: chat.session).open
+            if openAnswer == nil { geometry.answer = nil }
+        }
         .onChange(of: geometry.peeking) { _, _ in peek(state) }
         .onChange(of: latestReply?.id) { _, id in
             replyStart = Date()

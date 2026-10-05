@@ -89,9 +89,41 @@ enum IslandMotion {
             .sorted { ($0.element.at, $0.offset) < ($1.element.at, $1.offset) }
             .map(\.element)
     }
-    /// NotchNook's peek: the pointer has to stay this long before it opens,
-    /// so crossing the notch on the way to the menu bar opens nothing.
+    /// 0.15 s, Incredible's hover dwell (local reference; brief isla-ciclo-y-legibilidad K1).
     static let peekDwell = 0.15
+    /// 0.3 s, Incredible's fast hover dwell (local reference; brief isla-ciclo-y-legibilidad K1).
+    static let fastHoverDwell = 0.3
+    /// 450 px/s, Incredible's fast pointer (local reference; brief isla-ciclo-y-legibilidad K1).
+    static let fastPointer = 450.0
+    /// 0.25 s, Incredible's level drop (local reference; brief isla-ciclo-y-legibilidad K1).
+    static let levelDrop = 0.25
+    /// 0.3 s, Incredible's hover hysteresis (local reference; brief isla-ciclo-y-legibilidad K1).
+    static let hoverHysteresis = 0.3
+
+    /// A flick across the notch is not a visit. The first sample has no
+    /// speed, so it keeps the short dwell.
+    static func entryDwell(from last: CGPoint?, to point: CGPoint, dt: TimeInterval) -> TimeInterval {
+        guard let last else { return peekDwell }
+        return hoverDwell(from: last, to: point, dt: dt)
+    }
+
+    static func hoverDwell(pointsPerSecond: Double) -> TimeInterval {
+        pointsPerSecond > fastPointer ? fastHoverDwell : peekDwell
+    }
+
+    static func hoverDwell(from: CGPoint, to: CGPoint, dt: TimeInterval) -> TimeInterval {
+        guard dt > 0 else { return fastHoverDwell }
+        let distance = hypot(to.x - from.x, to.y - from.y)
+        return hoverDwell(pointsPerSecond: distance / dt)
+    }
+
+    /// A level that just opened stays through the hysteresis, and dropping
+    /// never waits less than the drop, so crossing an edge does not flicker.
+    /// Decided in milliseconds: the open is a `Date`, whose absolute seconds
+    /// cannot hold a tenth exactly.
+    static func leaveDelay(openFor seconds: TimeInterval) -> TimeInterval {
+        (max(levelDrop, hoverHysteresis - seconds) * 1_000).rounded() / 1_000
+    }
 
     static func steps(
         from: IslandState.Size, to: IslandState.Size, reduceMotion: Bool, growing: Bool = true

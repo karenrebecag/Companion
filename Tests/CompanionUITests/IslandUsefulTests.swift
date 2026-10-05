@@ -189,6 +189,8 @@ private let notch = NotchGeometry.notch(on: ScreenShape(
 /// Code review 16i-1 (MEDIUM): hiding while hovered left a late leave task
 /// that told the session "left" after the island was back under a still pointer.
 @Test @MainActor func hidingEndsTheHoverAtOnce() async throws {
+    await PanelHoverGate.enter()
+    defer { PanelHoverGate.leave() }
     let notch = hardwareNotch(aux: 662, top: 38)
     var heard: [Bool] = []
     let panel = IslandPanel(content: EmptyView(), geometry: IslandGeometry(notch: notch),
