@@ -37,6 +37,23 @@ enum IslandInk {
     static var blueTile: Color { IslandPalette.accent.color.opacity(0.18) }
     static var stop: Color { Swatch("FF453A").color }
 
+    // Run card (firstRun-BOTAwJJ8.css). Swatch carries no alpha, so the
+    // CSS #rrggbbaa values are split into swatch + opacity.
+    static var runCardBg: Color { Swatch("121317").color }
+    static var runCardShadowNear: Color { Swatch("000000").color.opacity(0x4d / 255) }
+    static var runCardShadowFar: Color { Swatch("000000").color.opacity(0x52 / 255) }
+    static var runGlyphDoneBg: Color { Swatch("7EE2A8").color.opacity(0x2e / 255) }
+    static var runGlyphDoneInk: Color { Swatch("7EE2A8").color }
+    static var runGlyphFailedBg: Color { Swatch("E05A46").color.opacity(0x33 / 255) }
+    static var runGlyphFailedInk: Color { Swatch("F0917F").color }
+    static var runSpinnerTrack: Color { Swatch("7EE2A8").color.opacity(0x40 / 255) }
+    static var runSpinnerArc: Color { Swatch("7EE2A8").color.opacity(0.95) }
+    static var runTitleDone: Color { Swatch("FFFFFF").color.opacity(0x6b / 255) }
+    static var runTitleFailed: Color { Swatch("FFFFFF").color.opacity(0x9e / 255) }
+    static var runTitleLive: Color { Swatch("FFFFFF").color }
+    static var runDurationLive: Color { Swatch("7EE2A8").color.opacity(0xd9 / 255) }
+    static var runDurationFinished: Color { Swatch("FFFFFF").color.opacity(0x66 / 255) }
+
     private static func white(_ alpha: Double) -> Color { Neutral.white.color.opacity(alpha) }
     /// The countdown ring moves a few pixels a second; more frames buy nothing.
     static let ringFrame: Double = 1.0 / 15

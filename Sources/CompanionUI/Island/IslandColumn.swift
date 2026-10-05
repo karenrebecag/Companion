@@ -6,12 +6,15 @@ import SwiftUI
 /// where a ScrollView without an explicit height reports no useful size.
 struct IslandColumn<Content: View>: View {
     let maxHeight: CGFloat
+    /// A growing list keeps its newest end in view when it scrolls.
+    var anchorBottom = false
     @ViewBuilder let content: () -> Content
     @State private var contentHeight: CGFloat = 0
 
     var body: some View {
         if contentHeight > maxHeight {
             ScrollView(.vertical) { measured }
+                .defaultScrollAnchor(anchorBottom ? .bottom : nil)
                 .scrollIndicators(.automatic)
                 .frame(height: maxHeight, alignment: .top)
         } else {

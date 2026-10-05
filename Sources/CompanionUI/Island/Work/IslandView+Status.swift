@@ -89,15 +89,7 @@ extension IslandView {
                     IslandReel(item: item)
                 }
                 if case .job = state.line, let job = chat.session.projection.job {
-                    // Waving the checklist away falls back to the small
-                    // runcard, never to silence (review 16m).
-                    if job.steps.count > WorkStateMetrics.checklistAt,
-                       dismissedChecklist != job.startedAt
-                    {
-                        IslandChecklist(job: job, onDismiss: { dismissedChecklist = job.startedAt })
-                    } else {
-                        IslandRunCard(job: job)
-                    }
+                    runCard(job, shows: runCardShows(state))
                     let agents = WorkStateMetrics.agents(job.steps)
                     if !agents.isEmpty {
                         IslandAgentBars(agents: agents)
@@ -167,6 +159,40 @@ extension IslandView {
         cancelledTask = Task { @MainActor in
             do { try await Task.sleep(for: .seconds(IslandStop.cancelledFor)) } catch { return }
             cancelled = false
+        }
+    }
+
+    /// Hover is read raw and judged against the size it is read at.
+    func runCardShows(_ state: IslandState) -> Bool {
+        guard case .job = state.line else { return false }
+        return RunCardModel.showsCard(rawHover: hoveringWork, size: state.size, focused: fieldFocused)
+    }
+
+    /// One card, only while the pointer is over the island or its field has
+    /// the keyboard: the field is the island's one keyboard stop.
+    @ViewBuilder func runCard(_ job: JobTimeline, shows: Bool) -> some View {
+        Group {
+            if shows {
+                IslandRunCard(job: job)
+                    .transition(reduceMotion ? .identity : .opacity.combined(
+                        with: .offset(y: RunCardMetrics.riseOffset)))
+            }
+        }
+        .animation(reduceMotion ? nil : MotionCurve.animation(
+            MotionCurve.settle, RunCardMetrics.fadeSeconds), value: shows)
+    }
+}
+
+/// The content root's hover target, present only at sizes that show content.
+struct RunCardHoverRegion: ViewModifier {
+    let enabled: Bool
+    @Binding var hovering: Bool
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled {
+            content.contentShape(Rectangle()).onHover { hovering = $0 }
+        } else {
+            content
         }
     }
 }

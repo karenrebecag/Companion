@@ -86,13 +86,6 @@ import Testing
     ]
     try piece(IslandRunCard(job: job), to: out, "island-runcard")
 
-    var long = JobTimeline(goal: "Migrar el blog completo")
-    long.steps = (1 ... 8).map { n in
-        JobStepInfo(tool: n % 2 == 0 ? "Write" : "WebFetch",
-                    label: "Paso \(n): entrada \(n) del blog", done: n < 7)
-    }
-    try piece(IslandChecklist(job: long, onDismiss: {}), to: out, "island-checklist")
-
     try piece(IslandAgentBars(agents: [
         JobStepInfo(tool: "Task", label: "Task: revisar seguridad"),
         JobStepInfo(tool: "Task", label: "Task: escribir tests"),

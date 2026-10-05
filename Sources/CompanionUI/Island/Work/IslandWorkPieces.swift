@@ -3,8 +3,8 @@ import SwiftUI
 
 // Wave 16m-2: the working states, measured on Incredible's overlay CSS
 // (docs/research/incredible-isla-componentes.md §2) — the live transcript's
-// two inks, the reel of touched apps, the runcard with its steps, the
-// checklist for long jobs and the sub-agent bars.
+// two inks, the reel of touched apps, the shared work surface and the
+// sub-agent bars. The run card's pure model is in IslandRunCardModel.swift.
 
 package enum WorkStateMetrics {
     /// wf-runcard: 320–420 wide, 14/16/12 padding, radius 20 over #16161b.
@@ -21,13 +21,6 @@ package enum WorkStateMetrics {
     package static let stepPaddingY: CGFloat = 5
     package static let stepPaddingX: CGFloat = 2
     package static let stepGap: CGFloat = 2
-    /// wf-checklist: 320 wide, 18/20/12 padding.
-    package static let checklistWidth: CGFloat = 320
-    package static let checklistPaddingTop: CGFloat = 18
-    package static let checklistPaddingX: CGFloat = 20
-    package static let checklistPaddingBottom: CGFloat = 12
-    /// Past this many steps the runcard reads as a checklist.
-    package static let checklistAt = 5
     /// The reel of touched apps is a 26-pt band.
     package static let reelHeight: CGFloat = 26
     /// The reel's item is model-chosen text: past this many characters it
@@ -38,20 +31,12 @@ package enum WorkStateMetrics {
     package static let transcriptLeading: CGFloat = 1.5
     package static let transcriptLive = 0.72
     package static let transcriptFixed = 0.94
-    /// The tiny fate marks (check / x) beside a step.
-    package static let markSize: CGFloat = 9
-    /// The checklist paints a window on long jobs, not the whole scroll.
-    package static let checklistVisibleSteps = 12
 
     /// sub-agent-bars: one bar per live agent, gap 10.
     package static let agentGap: CGFloat = 10
 
     package static let runSurface = Color(
         red: 0x16 / 255, green: 0x16 / 255, blue: 0x1B / 255)
-
-    /// The steps a runcard shows are the tail: the card is a window on the
-    /// work, the window's timeline keeps the whole story.
-    package static let runVisibleSteps = 4
 
     /// The live sub-agents: Task steps that have not come back yet.
     package static func agents(_ steps: [JobStepInfo]) -> [JobStepInfo] {
@@ -145,41 +130,6 @@ struct IslandReel: View {
     }
 }
 
-/// One step row: the tool's glyph, its words, and its fate on the right.
-private struct WorkStepRow: View {
-    let step: JobStepInfo
-    let running: Bool
-
-    var body: some View {
-        HStack(spacing: Space.x2) {
-            Image(systemName: JobSteps.icon(for: step.tool))
-                .font(GeistFont.uiMicro)
-                .foregroundStyle(.white.opacity(IslandAlpha.muted))
-                .frame(width: AnswerBlockMetrics.glyphWidth)
-            Text(step.label)
-                .font(Fonts.geist(TypeSize.caption))
-                .foregroundStyle(.white.opacity(
-                    step.done ? IslandAlpha.secondary : IslandAlpha.text))
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer(minLength: Space.none)
-            if step.failed {
-                Image(systemName: "xmark")
-                    .font(Fonts.geist(WorkStateMetrics.markSize).weight(.semibold))
-                    .foregroundStyle(IslandPalette.error.color)
-            } else if step.done {
-                Image(systemName: "checkmark")
-                    .font(Fonts.geist(WorkStateMetrics.markSize).weight(.semibold))
-                    .foregroundStyle(.white.opacity(IslandAlpha.secondary))
-            } else if running {
-                ProgressView().controlSize(.mini)
-            }
-        }
-        .padding(.vertical, WorkStateMetrics.stepPaddingY)
-        .padding(.horizontal, WorkStateMetrics.stepPaddingX)
-    }
-}
-
 /// The dark work surface both cards share.
 struct WorkSurface: ViewModifier {
     var width: CGFloat?
@@ -198,74 +148,148 @@ struct WorkSurface: ViewModifier {
     }
 }
 
-/// The execution card: the goal, then the last few steps with their fate.
+private typealias M = RunCardMetrics
+
+/// The run card: every step of the job with its real state and time. The
+/// card sits in the island's flow and the island grows downward: Companion's
+/// island lives at the notch, so there is no "above" (Incredible's floats
+/// 10 pt above an island at the screen bottom, firstRun-BOTAwJJ8.css @394242).
 struct IslandRunCard: View {
     let job: JobTimeline
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkStateMetrics.stepGap) {
-            if let goal = job.goal, !goal.isEmpty {
-                Text(goal)
-                    .font(Fonts.geist(TypeSize.body).weight(.medium))
-                    .foregroundStyle(.white.opacity(IslandAlpha.text))
-                    .lineLimit(1)
-                    .padding(.bottom, Space.x1)
-            }
-            // Absolute indices: a growing tail must not re-key every row
-            // (review 16m — the spinner jumped identity on each append).
-            let tail = Array(job.steps.enumerated())
-                .suffix(WorkStateMetrics.runVisibleSteps)
-            ForEach(tail, id: \.offset) { index, step in
-                WorkStepRow(step: step, running: index == job.steps.count - 1 && !step.done)
-            }
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            card(now: context.date)
         }
-        .padding(.top, WorkStateMetrics.runPaddingTop)
-        .padding(.horizontal, WorkStateMetrics.runPaddingX)
-        .padding(.bottom, WorkStateMetrics.runPaddingBottom)
-        .modifier(WorkSurface())
+    }
+
+    private func card(now: Date) -> some View {
+        let rows = RunCardModel.rows(steps: job.steps, now: now)
+        return VStack(alignment: .leading, spacing: M.rowGap) {
+            header(now: now)
+            // A deviation from the reference: Incredible's workflows are
+            // bounded and our tool calls are not. The card never caps itself:
+            // the island's own column caps and scrolls it with its siblings.
+            RunCardRowList(rows: rows, spins: RunCardModel.spins(reduceMotion: reduceMotion))
+        }
+        .padding(.top, M.padTop)
+        .padding(.horizontal, M.padSide)
+        .padding(.bottom, M.padBottom)
+        .frame(minWidth: M.minWidth, maxWidth: M.maxWidth, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: M.radius).fill(IslandInk.runCardBg))
+        .shadow(color: IslandInk.runCardShadowNear,
+                radius: M.shadowNearBlur * M.cssBlurToRadius, y: M.shadowNearY)
+        .shadow(color: IslandInk.runCardShadowFar,
+                radius: M.shadowFarBlur * M.cssBlurToRadius, y: M.shadowFarY)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func header(now: Date) -> some View {
+        HStack(spacing: M.headGap) {
+            if let goal = job.goal.map(RunCardModel.goal), !goal.isEmpty {
+                Text(goal)
+                    .font(Fonts.geist(M.titleSize).weight(M.titleWeight))
+                    .foregroundStyle(IslandInk.runTitleLive)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+            Spacer(minLength: Space.none)
+            Text(RunCardModel.meta(jobStartedAt: job.startedAt, now: now))
+                .font(Fonts.geist(M.metaSize).monospacedDigit())
+                .foregroundStyle(.white.opacity(M.metaOpacity))
+        }
+        .padding(.bottom, M.headBottom)
     }
 }
 
-/// The long job's checklist: a done-count badge, every step, a dismiss.
-struct IslandChecklist: View {
-    let job: JobTimeline
-    let onDismiss: () -> Void
+struct RunCardRowList: View {
+    let rows: [RunCardRow]
+    let spins: Bool
 
-    /// "3/7": counts, not copy — the fraction reads the same everywhere.
-    private static func badge(_ steps: [JobStepInfo]) -> String {
-        "\(steps.filter(\.done).count)/\(steps.count)"
+    var body: some View {
+        VStack(alignment: .leading, spacing: M.rowGap) {
+            ForEach(rows) { RunCardRowView(row: $0, spins: spins) }
+        }
+    }
+}
+
+private struct RunCardRowView: View {
+    let row: RunCardRow
+    let spins: Bool
+
+    private var titleInk: Color {
+        switch row.state {
+        case .done: IslandInk.runTitleDone
+        case .failed: IslandInk.runTitleFailed
+        case .live: IslandInk.runTitleLive
+        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkStateMetrics.stepGap) {
-            HStack(spacing: Space.x2) {
-                if let goal = job.goal, !goal.isEmpty {
-                    Text(goal)
-                        .font(Fonts.geist(TypeSize.body).weight(.medium))
-                        .foregroundStyle(.white.opacity(IslandAlpha.text))
-                        .lineLimit(1)
-                }
-                Spacer(minLength: Space.none)
-                Text(Self.badge(job.steps))
-                    .font(Fonts.geist(TypeSize.micro).weight(.semibold))
-                    .foregroundStyle(.white.opacity(IslandAlpha.secondary))
-                    .padding(.horizontal, Space.x2)
-                    .padding(.vertical, WorkStateMetrics.stepPaddingX)
-                    .background(Capsule().fill(.white.opacity(IslandAlpha.tile)))
-                CloseButton(variant: .island, label: Localized.string("island.checklist.dismiss"),
-                            action: onDismiss)
-            }
-            .padding(.bottom, Space.x1)
-            let tail = Array(job.steps.enumerated())
-                .suffix(WorkStateMetrics.checklistVisibleSteps)
-            ForEach(tail, id: \.offset) { index, step in
-                WorkStepRow(step: step, running: index == job.steps.count - 1 && !step.done)
+        HStack(alignment: .top, spacing: M.mainGap) {
+            glyph.padding(.top, M.glyphTop)
+            Text(row.title)
+                .font(Fonts.geist(M.stepTitleSize)
+                    .weight(row.state == .live ? .semibold : .regular))
+                .foregroundStyle(titleInk)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let duration = row.duration {
+                Text(duration)
+                    .font(Fonts.geist(M.durationSize).monospacedDigit())
+                    .foregroundStyle(row.durationIsLive
+                        ? IslandInk.runDurationLive : IslandInk.runDurationFinished)
+                    .padding(.leading, M.durationLead)
             }
         }
-        .padding(.top, WorkStateMetrics.checklistPaddingTop)
-        .padding(.horizontal, WorkStateMetrics.checklistPaddingX)
-        .padding(.bottom, WorkStateMetrics.checklistPaddingBottom)
-        .modifier(WorkSurface(width: WorkStateMetrics.checklistWidth))
+        .padding(.vertical, M.rowPadV)
+        .padding(.horizontal, M.rowPadH)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(Localized.string(RunCardModel.stateKey(row.state)))
+    }
+
+    @ViewBuilder private var glyph: some View {
+        switch RunCardModel.glyph(for: row.state) {
+        case .symbol(let name):
+            Circle().fill(row.state == .failed ? IslandInk.runGlyphFailedBg : IslandInk.runGlyphDoneBg)
+                .frame(width: M.glyphSide, height: M.glyphSide)
+                .overlay(Image(systemName: name)
+                    .font(Fonts.geist(M.glyphFont).weight(M.glyphWeight))
+                    .foregroundStyle(row.state == .failed
+                        ? IslandInk.runGlyphFailedInk : IslandInk.runGlyphDoneInk)
+                    .accessibilityHidden(true))
+        case .spinner:
+            RunCardSpinner(spins: spins).frame(width: M.glyphSide, height: M.glyphSide)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+private struct RunCardSpinner: View {
+    let spins: Bool
+    @State private var turned = false
+
+    var body: some View {
+        Circle().stroke(IslandInk.runSpinnerTrack, lineWidth: M.spinnerStroke)
+            .overlay(Circle().trim(from: 0, to: M.spinnerArcFraction)
+                .stroke(IslandInk.runSpinnerArc, lineWidth: M.spinnerStroke)
+                // trim starts at 3 o'clock; the CSS border-top starts at 12.
+                .rotationEffect(.degrees(-90 + (turned ? 360 : 0))))
+            .frame(width: M.spinnerSide, height: M.spinnerSide)
+            .onAppear { turn(spins) }
+            .onChange(of: spins) { _, now in turn(now) }
+    }
+
+    private func turn(_ spinning: Bool) {
+        if spinning {
+            withAnimation(.linear(duration: M.spinnerPeriod).repeatForever(autoreverses: false)) {
+                turned = true
+            }
+        } else {
+            withAnimation(nil) { turned = false }
+        }
     }
 }
 

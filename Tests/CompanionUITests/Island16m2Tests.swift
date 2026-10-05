@@ -34,9 +34,6 @@ import Testing
              [18, 0.32], "16m-2 runcard: sombra 0 18 48 al 32 %")
     expectEq([WorkStateMetrics.stepPaddingY, WorkStateMetrics.stepPaddingX,
               WorkStateMetrics.stepGap], [5, 2, 2], "16m-2 paso: 5 × 2, gap 2")
-    expectEq([WorkStateMetrics.checklistWidth, WorkStateMetrics.checklistPaddingTop,
-              WorkStateMetrics.checklistPaddingX, WorkStateMetrics.checklistPaddingBottom],
-             [320, 18, 20, 12], "16m-2 checklist: 320 con 18/20/12")
     expectEq(WorkStateMetrics.reelHeight, 26, "16m-2 carrete: banda de 26")
     expectEq([WorkStateMetrics.transcriptSize, WorkStateMetrics.transcriptLeading],
              [14, 1.5], "16m-2 transcripción: 14 con 1.5")
