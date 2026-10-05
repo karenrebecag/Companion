@@ -276,7 +276,6 @@
 "island.clear.no" = "Cancel";
 "island.result.open" = "View →";
 "island.reel" = "Apps touched this turn";
-"island.checklist.dismiss" = "Hide the list";
 "island.answer.close" = "Close the answer";
 "island.answer.copy" = "Copy the code";
 "island.answer.fold" = "Fold the code";
@@ -778,3 +777,6 @@
 "welcome.sound.slider" = "Mac volume";
 "welcome.sound.heard" = "I can hear Companion";
 "welcome.sound.anyway" = "Continue anyway";
+"island.runcard.state.done" = "Done";
+"island.runcard.state.failed" = "Failed";
+"island.runcard.state.running" = "Running";

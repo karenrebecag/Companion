@@ -56,8 +56,8 @@ package struct IslandView: View {
     @State var openAnswer: UUID?
     /// The reply whose question card holds the keyboard, if any.
     @State var focusedChoiceID: UUID?
-    /// The job whose checklist was waved away (16m-2), keyed by its start.
-    @State var dismissedChecklist: Date?
+    /// The pointer is over the working island: the run card shows while it is.
+    @State var hoveringWork = false
     /// Whether the latest result card was ever opened, for the model (16h-3).
     @State var resultAttention = IslandResultAttention()
 
@@ -141,6 +141,13 @@ package struct IslandView: View {
                     Color.clear.preference(key: IslandSizeKey.self, value: geometry.size.height)
                 })
                 .frame(width: shown.width, height: shown.height, alignment: .top)
+                // The content root exists for every open size, so a bare job
+                // has a hover target; the run card is inside it and keeps it.
+                // Only where the region exists: at pebble size it would sit
+                // over the silhouette's notch hold gesture.
+                .modifier(RunCardHoverRegion(
+                    enabled: RunCardModel.hoverRegionExists(size: state.size),
+                    hovering: $hoveringWork))
                 .clipShape(NotchShape(width: shown.width, height: shown.height, radius: radius(notch)))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -160,6 +167,9 @@ package struct IslandView: View {
             withAnimation(reduceMotion ? nil : curve.animation) {
                 shown = target
             }
+        }
+        .onChange(of: state.size) { _, size in
+            hoveringWork = RunCardModel.hoverAfterResize(raw: hoveringWork, newSize: size)
         }
         .onChange(of: state.size, initial: true) { old, size in
             onSize(size, contentHeight)
@@ -222,7 +232,9 @@ package struct IslandView: View {
             shell(state, header: AnyView(IslandHeaderControls(popover: $popover))) { composer(state) }
         case .bar, .card, .wideCard:
             shell(state) {
-                IslandColumn(maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height)) {
+                IslandColumn(
+                    maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height),
+                    anchorBottom: RunCardModel.anchorsColumnBottom(cardVisible: runCardShows(state))) {
                     status(state)
                 }
             }
