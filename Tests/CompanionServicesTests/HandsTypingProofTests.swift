@@ -86,6 +86,20 @@ private func proofHandsRunner(
     expectEq(out.typedBefore, nil, "sin base: el typedBefore queda nil")
 }
 
+@MainActor func testAnEmptyFieldIsVerifiedLikeAnyReadableBaseline() async {
+    // A reader that returns "" for an empty editable field gives the
+    // proof the baseline it needs: occurrences-of-typed-in-baseline is 0,
+    // occurrences-of-typed-in-read-after is 1, so the typing verifies.
+    let hands = FakeHands(field: FocusedField(app: "Notes", pid: 7), text: "")
+    let runner = proofHandsRunner(hands)
+    let out = await runner.execute(name: "type_text", argumentsJSON: #"{"text":"hola"}"#)
+    expect(out.ok, "vacio: ok")
+    expect(out.verified, "vacio: verificado como cualquier base legible: \(out.output)")
+    expectEq(out.typedBefore, 0, "vacio: la base cuenta cero ocurrencias")
+    expect(out.output.contains("(read back, matches)"),
+           "vacio: la salida lleva la marca de verificado: \(out.output)")
+}
+
 @MainActor func testTextAlreadyPresentIsNotMistakenForLanding() async {
     let hands = FakeHands(
         field: FocusedField(app: "Notes", pid: 7),
@@ -119,6 +133,7 @@ private func proofHandsRunner(
     await testSetIgnoredButPasteLandsIsVerifiedAfterOnePaste()
     await testBothIgnoredReportsNotLandedWithoutATypedCount()
     await testAFieldThatCannotBeReadStaysNotReadBack()
+    await testAnEmptyFieldIsVerifiedLikeAnyReadableBaseline()
     await testTextAlreadyPresentIsNotMistakenForLanding()
     await testSecureFieldStillRefusesAndNeverInjectsOrPastes()
     await testAFirstRouteThatWasAlreadyAPasteIsNotPastedAgain()

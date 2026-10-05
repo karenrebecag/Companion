@@ -80,6 +80,8 @@ package final class FakeHands: TextInjecting, FocusedReading, KeyPressing, Windo
         return current
     }
 
+    /// Same contract as the adapter: `text: ""` stands for an empty text
+    /// field, `text: nil` for one nothing can read.
     package func read(pid: Int32) -> String? {
         reads += 1
         let current = field
