@@ -454,6 +454,12 @@
 "home.hero.before" = "Hold";
 "home.hero.after" = "to talk to Companion";
 "home.hero.body" = "Hand off tasks wherever you are. Across your files, your browser and your apps.";
+"home.hero.orb.idle" = "Companion is at rest.";
+"home.hero.orb.listening" = "Listening to you.";
+"home.hero.orb.thinking" = "Thinking about your request.";
+"home.hero.orb.speaking" = "Speaking to you.";
+"home.hero.orb.connecting" = "Connecting the voice session.";
+"home.hero.orb.error" = "The voice ran into a problem.";
 "home.start.title" = "Get started";
 "home.start.count" = "%d of %d";
 "home.start.talk" = "Ask something with fn";

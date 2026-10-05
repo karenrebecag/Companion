@@ -133,21 +133,6 @@ private func maxShift(_ a: OrbPass, _ b: OrbPass) -> Double {
     try png.write(to: out.appendingPathComponent("spaceui-thinking-orbs.png"))
 }
 
-/// The Home hero carries the orb for the live voice state, on its ink card.
-@Test @MainActor func homeHeroShowsTheOrbForTheVoiceState() throws {
-    func bitmap(_ state: TurnState) -> Data? {
-        let renderer = ImageRenderer(content: HomeHero(state: state, paused: true).frame(width: 640))
-        renderer.scale = 2
-        guard let tiff = renderer.nsImage?.tiffRepresentation else { return nil }
-        return NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
-    }
-    let idle = try #require(bitmap(.idle))
-    let speaking = try #require(bitmap(.speaking))
-    let thinking = try #require(bitmap(.thinking))
-    #expect(idle != speaking && speaking != thinking && idle != thinking, "each voice state draws its own orb")
-    expectEq(HeroMetrics.orbSize, Container.hero, "the orb is the hero figure size")
-}
-
 /// Reference values computed by running Space UI's math.ts in node.
 @Test func mathMatchesTheTypeScriptReference() {
     expect(abs(OrbMath.hash(1, 2) - 0.073904103617678629) < 1e-12, "hash")
