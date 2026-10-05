@@ -108,8 +108,10 @@ private final class StepClock: @unchecked Sendable {
     session.send(.heardNothing)
     await pumpUntil("K4: reloj del aviso") { sleeper.armed(SessionMachine.noticeDelay) >= 1 }
     clock.advance(2)
-    session.send(.noticeCardHover(true))
+    // Snapshot before the send: the ceiling registers from its own task and
+    // can beat a snapshot taken after it, leaving the wait for `>` unreachable.
     let ceilings = sleeper.armed(SessionMachine.countdownPauseCeiling)
+    session.send(.noticeCardHover(true))
     await pumpUntil("K4: techo del aviso") { sleeper.armed(SessionMachine.countdownPauseCeiling) > ceilings }
     clock.advance(SessionMachine.countdownPauseCeiling)
     sleeper.fire()
@@ -148,6 +150,7 @@ private final class StepClock: @unchecked Sendable {
     session.send(.heardNothing)
     await pumpUntil("K4: primer aviso") { sleeper.armed(SessionMachine.noticeDelay) == 1 }
     session.send(.noticeCardHover(true))
+    await pumpUntil("K4: techo del primer aviso") { sleeper.armed(SessionMachine.countdownPauseCeiling) == 1 }
     let ceilings = sleeper.armed(SessionMachine.countdownPauseCeiling)
     let second = session.send(.heardNothing)
     expect(second.contains(.pauseNoticeExpiry), "K4: el modelo recibe la pausa del aviso nuevo")
