@@ -23,6 +23,24 @@ package struct HoldObservation: Sendable, Equatable {
     }
 }
 
+/// Everything one hold has observed so far. The whole list travels each time, as in
+/// Incredible, so an item keeps its id from one batch to the next.
+package struct HoldObservationBatch: Sendable, Equatable {
+    package let generation: Int
+    package let events: [HoldObservation]
+
+    package init(generation: Int, events: [HoldObservation]) {
+        self.generation = generation
+        self.events = events
+    }
+}
+
+/// The port the app's hold drives: one generation at a time, started and stopped in order.
+package protocol HoldObserving: AnyObject, Sendable {
+    func start(generation: Int, onBatch: @escaping @Sendable (HoldObservationBatch) -> Void) async
+    func stop() async
+}
+
 /// What the orb shows for one observation. `detail` and `siteURL` carry what the user
 /// touched, whole: they are for the view only, never for logs.
 package struct HoldItem: Sendable, Equatable, Identifiable {

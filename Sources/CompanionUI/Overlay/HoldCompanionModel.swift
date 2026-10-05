@@ -254,6 +254,11 @@ package final class HoldCompanionModel {
         state = state.dictating()
     }
 
+    /// One batch from the hold observer; `words` is how far the transcript has got.
+    package func observe(_ batch: HoldObservationBatch, words: Int) {
+        receive(HoldCollect.items(from: batch.events), generation: batch.generation, words: words)
+    }
+
     package func receive(_ items: [HoldItem], generation: Int, words: Int) {
         let before = state.flashSeq
         state = state.receiving(items, generation: generation, nowMs: now(), words: words,
