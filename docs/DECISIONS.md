@@ -536,3 +536,34 @@ deshace. Requiere que la usuaria active "Permitir acceso a URLs de archivo" en
 la extension (`file_access_required`). Disparador de revision: una pagina real
 que necesite varios archivos o un input oculto, o cualquier pedido de ampliar
 el alcance mas alla de `$HOME`.
+
+## ADR 011 — La transcripcion tejida son segmentos tipados, no la cadena de Incredible
+
+**Fecha:** 2026-10-05 · **Estado:** APROBADO (brief transcript-tejido-hold D2, opcion 2b; firmado por Karen el 2026-10-05)
+
+**Contexto.** La regla de la casa es replicar a Incredible cuando ya resolvio la
+decision. Incredible teje lo que la usuaria hizo con la tecla sostenida en una
+cadena con corchetes que el front vuelve a parsear para pintar los chips, y sus
+chips de archivo muestran solo el nombre (referencia local; brief
+transcript-tejido-hold, seccion 1). Karen decidio que el chip de archivo de la
+transcripcion muestre la ruta completa, cortada al medio. Una cadena reparseada
+no puede cortar al medio una sola corrida dentro de un `Text`, ni llevar la ruta
+sin que la ruta misma rompa el formato de corchetes.
+
+**Decision.** La transcripcion tejida es una lista de segmentos tipados (texto,
+o chip con su `HoldItem`), dispuesta con un `Layout` que envuelve, y el chip de
+archivo es su propia vista con `.truncationMode(.middle)`. Lo visible es lo de
+Incredible: mismo orden por indice de palabra, mismos tres tipos tejidos
+(archivo, seleccion, copiado), misma etiqueta de 42, la misma ventana de cuatro
+lineas. Solo cambia la representacion interna y el chip de archivo, que lleva la
+ruta.
+
+**Lo que no se hizo.** Ni la cadena con corchetes de Incredible (obligaria a
+dejar solo el nombre del archivo y volveria a parsear texto que puede traer
+corchetes del usuario), ni un `AttributedString` con adjuntos (no corta al medio
+un tramo).
+
+**Consecuencias.** `IslandTranscript` cambia de firma: recibe segmentos, no un
+`String`. Las pruebas de la transcripcion pasan a snapshots de segmentos.
+Disparador de revision: si Incredible pasa a mostrar la ruta, o si Karen vuelve
+a solo el nombre, se puede volver a la cadena y retirar este ADR.
