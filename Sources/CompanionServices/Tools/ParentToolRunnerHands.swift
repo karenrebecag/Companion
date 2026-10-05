@@ -290,7 +290,9 @@ extension ParentToolRunner {
         case .ask:
             let app = hands.reader.focusedField(pid: pid)?.app ?? bundle ?? "app"
             let line = command && call.name == ParentTool.pressKey.rawValue
-                ? hands.reader.read(pid: pid).map { String($0.suffix(Self.sheetLine)) } : nil
+                ? hands.reader.read(pid: pid).flatMap { text in
+                    text.isEmpty ? nil : String(text.suffix(Self.sheetLine))
+                } : nil
             let request = HandsGate.request(call, app: app, commandApp: command, line: line)
             hands.tickets.park(ticket, id: request.requestId)
             return request
@@ -549,8 +551,9 @@ struct HandsAct {
         guard let text = hands.reader.read(pid: pid) else {
             return fail("no_focused_field", "the focused field has no readable text")
         }
-        let clipped = FocusedText.clip(text)
-        Log.app("hands: read_focused chars=\(clipped.count) pid=\(pid) bundle=\(bundle)")
-        return ParentToolOutcome(ok: true, output: clipped, tool: tool.rawValue, fieldPID: pid)
+        // "" is a field that is there and empty; nil above is no field at all.
+        let output = text.isEmpty ? "(empty field)" : FocusedText.clip(text)
+        Log.app("hands: read_focused chars=\(output.count) pid=\(pid) bundle=\(bundle)")
+        return ParentToolOutcome(ok: true, output: output, tool: tool.rawValue, fieldPID: pid)
     }
 }

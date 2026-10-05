@@ -140,7 +140,8 @@ package protocol WindowRaising: Sendable {
 /// Companion's own window may be the one in front while it does.
 package protocol FocusedReading: Sendable {
     func focusedField(pid: Int32) -> FocusedField?
-    /// The field's text, clipped; nil for a secure field or no field.
+    /// The field's text, clipped; nil for a secure field or no field, ""
+    /// for an empty text field.
     func read(pid: Int32) -> String?
 }
 
