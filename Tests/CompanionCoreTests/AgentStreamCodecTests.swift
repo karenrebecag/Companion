@@ -169,7 +169,7 @@ import Testing
     """
     let event = AgentStreamCodec.parse(line)
     expectEq(event,
-             AgentStreamEvent.toolUse(name: "WebSearch", detail: "precio del dólar hoy"),
+             AgentStreamEvent.toolUse(id: nil, name: "WebSearch", detail: "precio del dólar hoy"),
              "toolUse: el bloque del stream se captura con su detalle")
 
     expectEq(AgentStreamCodec.stepLabel("WebSearch", "precio del dólar"),
@@ -229,7 +229,7 @@ import Testing
     let both = AgentStreamCodec.parse("""
     {"type":"assistant","message":{"content":[{"type":"thinking","thinking":"pienso"},{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}
     """)
-    expectEq(both, AgentStreamEvent.toolUse(name: "Bash", detail: "ls"),
+    expectEq(both, AgentStreamEvent.toolUse(id: nil, name: "Bash", detail: "ls"),
              "thinking: tool_use manda sobre thought en el mismo mensaje")
 
     expect(AgentStreamCodec.parse(

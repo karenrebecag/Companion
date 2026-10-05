@@ -425,6 +425,7 @@ private final class RepeatingToolProvider: ChatProvider, @unchecked Sendable {
     await testRememberedApprovalSkipsTheSheet()
     await testRememberedDenialNeverRuns()
     await testDenialIsAnInstructionNotAnError()
+    await testNativeStepsCarryTheCallIdAndTheArgument()
 }
 
 private func scratchDir(_ tag: String) -> URL {
@@ -463,6 +464,30 @@ private func scratchDir(_ tag: String) -> URL {
     expectEq(answers.map(\.toolCallID), ["a", "b"], "dos: tool(a) + tool(b), en orden")
     expectEq(answers.map(\.content), ["AAA", "BBB"], "dos: cada respuesta con su contenido")
     expectEq(await seen.steps, ["read_file", "read_file"], "dos: dos pasos en la tarjeta")
+}
+
+/// 5a: el paso nativo se empareja por el id de la llamada y su etiqueta es el
+/// argumento, no "Executing x".
+@MainActor func testNativeStepsCarryTheCallIdAndTheArgument() async {
+    let dir = scratchDir("ids")
+    defer { try? FileManager.default.removeItem(at: dir) }
+    try? "AAA".write(to: dir.appendingPathComponent("a.md"), atomically: true, encoding: .utf8)
+    let provider = RoundsProvider(rounds: [
+        [.toolCalls([ToolCallRef(id: "call-7", name: "read_file", arguments: #"{"path":"/tmp/a.md"}"#)])],
+        [.text("listo")],
+    ])
+    let executor = NativeExecutor(
+        descriptor: ExecutorCatalog.native, chatProvider: provider,
+        config: Config(workdir: dir.path), approvals: InstantApprovals(approved: true))
+    let (stream, sink) = AsyncStream<JobEvent>.makeStream()
+    let seen = RoundEvents(stream)
+    _ = try? await executor.run(JobRequest(id: "j", goal: "lee", context: ""), events: sink)
+    sink.finish()
+    let summaries = await seen.startedSummaries
+    expectEq(summaries, ["/tmp/a.md"], "nativo: la etiqueta es el argumento")
+    expect(!summaries.contains { $0.contains("Executing") }, "nativo: sin el viejo 'Executing x'")
+    expectEq(await seen.startedIDs, ["call-7"], "nativo: el inicio lleva el id de la llamada")
+    expectEq(await seen.finishedIDs, ["call-7"], "nativo: el fin lleva el mismo id")
 }
 
 /// 13. Dos calls idénticas: se ejecuta una; dos `.tool` con el mismo
@@ -553,10 +578,19 @@ final class RoundEvents: Sendable {
     }
     private var events: [JobEvent] { get async { await consumer.value } }
     var steps: [String] {
-        get async { await events.compactMap { if case .stepStarted(let tool, _) = $0 { tool } else { nil } } }
+        get async { await events.compactMap { if case .stepStarted(let tool, _, _) = $0 { tool } else { nil } } }
+    }
+    var startedSummaries: [String] {
+        get async { await events.compactMap { if case .stepStarted(_, let summary, _) = $0 { summary } else { nil } } }
+    }
+    var startedIDs: [String?] {
+        get async { await events.compactMap { if case .stepStarted(_, _, let id) = $0 { .some(id) } else { nil } } }
+    }
+    var finishedIDs: [String?] {
+        get async { await events.compactMap { if case .stepFinished(_, _, let id) = $0 { .some(id) } else { nil } } }
     }
     var finished: [Bool] {
-        get async { await events.compactMap { if case .stepFinished(_, let ok) = $0 { ok } else { nil } } }
+        get async { await events.compactMap { if case .stepFinished(_, let ok, _) = $0 { ok } else { nil } } }
     }
     var approvals: Int {
         get async { await events.filter { if case .approvalRequested = $0 { true } else { false } }.count }

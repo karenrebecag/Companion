@@ -162,7 +162,7 @@ private final class RecordingSheets: SpreadsheetDriving, @unchecked Sendable {
         _ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String
     ) async throws -> SheetWriteReceipt {
         lock.withLock { count += 1 }
-        return SheetWriteReceipt(backupPath: "/tmp/b.xlsx", readBack: [])
+        return SheetWriteReceipt(readBack: [])
     }
 }
 

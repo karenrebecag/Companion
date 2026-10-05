@@ -327,6 +327,21 @@ package enum ApprovalCopy {
                 mark: .symbol("trash"), lead: word(.deleteFile, language),
                 subject: path.map(filename) ?? tool,
                 trail: deleteTrail(language), preview: path, showsRemember: false)
+        case .restoreFileVersion:
+            // No remember (`ApprovalKey.from` has no key for it): it overwrites with old data.
+            // `restore_when` and `restore_real` are the runner's resolution, never the model's:
+            // the parent drops anything the model put there before filling them in.
+            let path = value(arguments, "path").map { plainPreview($0, keepingLayout: false) }
+            let real = value(arguments, "restore_real").map { plainPreview($0, keepingLayout: false) }
+            let when = value(arguments, "restore_when").map { plainPreview($0, keepingLayout: false) }
+            let shown = real ?? path
+            let preview = [path, real].compactMap { $0 }.reduce(into: [String]()) { lines, line in
+                if !lines.contains(line) { lines.append(line) }
+            }.joined(separator: "\n")
+            return ApprovalDisplay(
+                mark: .symbol("clock.arrow.circlepath"), lead: word(.restoreFile, language),
+                subject: shown.map(filename) ?? tool,
+                trail: restoreTrail(when, language), preview: preview.isEmpty ? nil : preview, showsRemember: false)
         case .sheetWrite:
             guard let range = value(arguments, "range") else { return nil }
             // Wave 20c D4: the workbook and every cell, uncut. The workbook
@@ -405,6 +420,15 @@ package enum ApprovalCopy {
         }
     }
 
+    private static func restoreTrail(_ when: String?, _ language: AppLanguage) -> String {
+        switch (language, when) {
+        case (.es, let when?): "con la versión anterior de \(when). Antes se guarda una copia de lo que hay ahora, para poder deshacerlo."
+        case (.es, nil): "con una versión anterior que eligió el asistente; su hora aparece en la respuesta. Antes se guarda una copia de lo que hay ahora, para poder deshacerlo."
+        case (.en, let when?): "with the earlier version from \(when). A copy of what is there now is kept first, so it can be undone."
+        case (.en, nil): "with an earlier version the assistant chose; its time is shown in the reply. A copy of what is there now is kept first, so it can be undone."
+        }
+    }
+
     private static func filename(_ path: String) -> String {
         let component = (path as NSString).lastPathComponent
         return capped(component.isEmpty ? path : component)
@@ -423,7 +447,7 @@ package enum ApprovalCopy {
 
     private enum Word {
         case open, openApp, openFile, typeIn, activeField, press, pressKey
-        case chooseMenu, run, writeFile, editFile, deleteFile, allow, someClient, writeSheet
+        case chooseMenu, run, writeFile, editFile, deleteFile, allow, someClient, writeSheet, restoreFile
     }
 
     private static func word(_ word: Word, _ language: AppLanguage) -> String {
@@ -452,6 +476,8 @@ package enum ApprovalCopy {
         case (.editFile, .en): "Edit the file"
         case (.deleteFile, .es): "Borrar"
         case (.deleteFile, .en): "Delete"
+        case (.restoreFile, .es): "Restaurar"
+        case (.restoreFile, .en): "Restore"
         case (.allow, .es): "Permitir"
         case (.allow, .en): "Allow"
         case (.writeSheet, .es): "Escribir en la hoja"

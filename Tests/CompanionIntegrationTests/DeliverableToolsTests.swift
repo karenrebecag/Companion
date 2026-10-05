@@ -30,7 +30,7 @@ private final class FakeSheets: SpreadsheetDriving, @unchecked Sendable {
     func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String) async throws -> SheetWriteReceipt {
         if let failure { throw failure }
         written = cells
-        return SheetWriteReceipt(backupPath: "/tmp/libro-backup.numbers", readBack: [["a", "1"]])
+        return SheetWriteReceipt(readBack: [["a", "1"]])
     }
 }
 
@@ -140,7 +140,7 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
             tool: "sheet_write",
             arguments: ["range": "A1:B1", "values": #"[["a",1]]"#, "workbook": "/tmp/libro.numbers"], approved: true)
         expect(ok.ok, "hoja: se escribe")
-        expect(ok.output.contains("Backup") && ok.output.contains("Read back"), "hoja: el recibo trae copia y relectura")
+        expect(ok.output.contains("Read back") && !ok.output.contains("-backup-"), "hoja: el recibo trae la relectura, sin copia al lado")
         expectEq(sheets.written?.first, [.text("a"), .number(1)], "hoja: las celdas llegan tipadas")
     } catch {
         expect(false, "hoja: no debe lanzar (\(error))")
@@ -207,20 +207,23 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
 /// Wave 20c D4 (M6): create_document over an existing file keeps the original.
 @MainActor func testADocumentNeverOverwritesInSilence() async {
     let dir = folder()
-    let runner = NativeToolRunner(workdir: dir, places: nil, documents: FakeDocuments())
+    let storeRoot = URL(fileURLWithPath: dir + "-store")
+    defer { do { try FileManager.default.removeItem(at: storeRoot) } catch {} }
+    let store = FileVersions(root: storeRoot)
+    let runner = NativeToolRunner(workdir: dir, places: nil, documents: FakeDocuments(), versions: store)
     let file = dir + "/q3.pdf"
     do {
         let fresh = try await runner.execute(tool: "create_document",
                                              arguments: ["path": "q3.pdf", "document": doc], approved: true)
-        expect(fresh.ok && !fresh.output.contains("Backup"), "documento: uno nuevo no necesita copia")
+        expect(fresh.ok && !fresh.output.contains("previous version"), "documento: uno nuevo no tiene version anterior")
         try Data("ORIGINAL".utf8).write(to: URL(fileURLWithPath: file))
         let again = try await runner.execute(tool: "create_document",
                                              arguments: ["path": "q3.pdf", "document": doc], approved: true)
-        expect(again.ok && again.output.contains("Backup"), "documento: sobre uno existente, el recibo dice la copia")
-        let backups = try FileManager.default.contentsOfDirectory(atPath: dir).filter { $0.contains("-backup-") }
-        expectEq(backups.count, 1, "documento: queda una copia junto al original")
-        let kept = try backups.first.map { try String(contentsOfFile: dir + "/" + $0, encoding: .utf8) }
-        expectEq(kept, "ORIGINAL", "documento: la copia es el original, intacto")
+        expect(again.ok && again.output.contains("a previous version was kept"), "documento: sobre uno existente, el recibo lo dice")
+        let siblings = try FileManager.default.contentsOfDirectory(atPath: dir).filter { $0.contains("-backup-") }
+        expectEq(siblings.count, 0, "documento: ninguna copia junto al original")
+        let kept = try store.versions(of: file).first { $0.trigger == .preSave }.map { try String(contentsOf: $0.url, encoding: .utf8) }
+        expectEq(kept, "ORIGINAL", "documento: la version guardada es el original, intacto")
         expectEq(try String(contentsOfFile: file, encoding: .utf8), "%PDF-fake", "documento: el archivo tiene lo nuevo")
     } catch {
         expect(false, "documento: no debe lanzar (\(error))")

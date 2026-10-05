@@ -81,6 +81,25 @@ extension ChatViewModel {
         noteStopped(own)
     }
 
+    /// The clear takes the tasks with the chats. No "stopped" line: it would
+    /// be the first line of the new thread. Their late events and results are
+    /// dropped on two paths: `runJob` compares the history epoch it started
+    /// in (the chat's own job), and `jobsStoppedByClear` recognises a voice
+    /// job's events by id in `receiveJobEvent`.
+    func stopJobsForClear() {
+        let shown = session.projection
+        for id in ([shown.job?.id] + shown.queued.map(\.id)).compactMap({ $0 }) {
+            jobsStoppedByClear.insert(id)
+            session.send(.stopJob(id))
+        }
+        // A job with no id cannot be stopped by it.
+        if session.projection.job != nil || !session.projection.queued.isEmpty {
+            session.send(.stop)
+        }
+        chatJobID = nil
+        cancelledJob = false
+    }
+
     /// The record first, so what it managed to do survives the stop — the
     /// same promise the reference makes: stopping keeps the work so far.
     /// `own` is the chat's job among the stopped ones; a voice job's stop
@@ -96,6 +115,7 @@ extension ChatViewModel {
     /// One seam for every job event, chat-born or voice-born. The thread
     /// keeps what deserves a line; the session keeps the state.
     package func receiveJobEvent(_ event: JobEvent, from id: JobID?) {
+        if let id, jobsStoppedByClear.contains(id) { return }
         switch event {
         case .started, .stepStarted, .stepFinished, .thought, .acted:
             break
@@ -128,6 +148,8 @@ extension ChatViewModel {
     package func receive(_ event: SessionEvent) {
         if case .job(let jobEvent, let id) = event {
             receiveJobEvent(jobEvent, from: id)
+        } else if case .jobFinished(_, let id) = event, let id, jobsStoppedByClear.contains(id) {
+            return
         } else if case .jobFinished(let ok, let id) = event {
             // A voice job's end records that job, found by its own id.
             end(ok: ok, id: id)
@@ -221,10 +243,15 @@ extension ChatViewModel {
         // round 3).
         let id = startJob(goal: handoff.goal)
         persist()
+        // A clear in the meantime erased the chat this job belongs to: what
+        // it still says has nowhere to go.
+        let epoch = historyEpoch
 
         let (stream, sink) = AsyncStream<JobEvent>.makeStream()
         let pump = Task {
-            for await event in stream { receiveJobEvent(event, from: id) }
+            for await event in stream where historyEpoch == epoch {
+                receiveJobEvent(event, from: id)
+            }
         }
 
         do {
@@ -234,6 +261,7 @@ extension ChatViewModel {
             sink.finish()
             await pump.value
             finishJob(ok: !result.isError, id: id)
+            guard historyEpoch == epoch else { return }
             // Stopped while it was finishing: the answer is no longer wanted.
             guard !cancelledJob else {
                 cancelledJob = false
@@ -260,6 +288,7 @@ extension ChatViewModel {
             sink.finish()
             await pump.value
             finishJob(ok: false, id: id)
+            guard historyEpoch == epoch else { return }
             // A stop is not a failure: cancelJob already wrote the record and
             // said so, and a second notice would read as something breaking.
             guard !cancelledJob else {

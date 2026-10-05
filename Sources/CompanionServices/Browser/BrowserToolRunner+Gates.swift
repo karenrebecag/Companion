@@ -23,6 +23,9 @@ extension BrowserToolRunner {
         // or the refusal in `execute` would find a ticket waiting.
         guard tool != .release, mayAct(tab) else { return nil }
         if tool == .navigate { return navigateApproval(call, tab: tab, arguments: arguments, said: said) }
+        if tool == .press { return pressApproval(call, tab: tab, arguments: arguments, said: said) }
+        if tool == .drag { return dragApproval(call, tab: tab, arguments: arguments, said: said) }
+        if tool == .clickAt { return clickAtApproval(call, tab: tab, arguments: arguments) }
         return elementApproval(call, tool: tool, tab: tab, arguments: arguments, said: said)
     }
 
@@ -111,10 +114,11 @@ extension BrowserToolRunner {
         // A child adopted by this very call was never judged by the gate.
         let adopted = !wasControlled
         if tool == .navigate { return await navigate(tab: tab, arguments: arguments, raw: raw, adopted: adopted) }
+        if tool == .press { return await press(tab: tab, arguments: arguments, raw: raw, adopted: adopted) }
         return await act(tool, tab: tab, arguments: arguments, raw: raw, adopted: adopted)
     }
 
-    private func needsApproval(_ tool: BrowserTool, adopted: Bool) -> ParentToolOutcome {
+    func needsApproval(_ tool: BrowserTool, adopted: Bool) -> ParentToolOutcome {
         fail(tool, "approval_required", adopted
             ? "tab is yours now (opened by a page you control); call again so it can be approved"
             : "this action needs approval before it runs")
@@ -155,7 +159,7 @@ extension BrowserToolRunner {
         case .rightClick: command = .rightClick(tab: tab, generation: page.generation, element: id)
         case .type: command = .type(tab: tab, generation: page.generation, element: id, text: text)
         case .select: command = .select(tab: tab, generation: page.generation, element: id, option: text)
-        case .tabs, .read, .scroll, .hover, .navigate, .open, .take, .release:
+        case .tabs, .read, .scroll, .hover, .press, .drag, .clickAt, .navigate, .open, .take, .release:
             return fail(tool, BridgeCode.invalidArgs, "\(tool.rawValue) does not act on an element")
         }
         switch await channel.send(command, timeout: Self.actTimeout) {
@@ -248,14 +252,30 @@ extension BrowserToolRunner {
     /// Fails closed: a tab that cannot be found, or an origin that cannot be
     /// compared, is not a tab that stayed where it was read.
     func tabIsStillAt(_ tab: Int, origin: String) async -> Bool {
-        guard !origin.isEmpty else { return false }
+        guard !origin.isEmpty, let live = await liveURL(tab) else { return false }
+        return BrowserPolicy.sameOrigin(live, origin)
+    }
+
+    /// A point or a drag lands on whatever is drawn there, so the origin is too
+    /// coarse: a link, a redirect or a pushState to another path of the same
+    /// site is another screen. Only the fragment may differ, as an anchor jump
+    /// leaves the page as it was read.
+    func tabIsStillOn(_ tab: Int, url: String) async -> Bool {
+        guard !url.isEmpty, let live = await liveURL(tab) else { return false }
+        return Self.withoutFragment(live) == Self.withoutFragment(url)
+    }
+
+    private func liveURL(_ tab: Int) async -> String? {
         let asOf = leases.sequence
         guard case .success(.tabs(_, let tabs)) = await channel.send(.tabs, timeout: Self.actTimeout)
-        else { return false }
+        else { return nil }
         leases.noteListing(tabs, asOf: asOf)
-        guard let current = tabs.first(where: { $0.id == tab }), !current.url.isEmpty
-        else { return false }
-        return BrowserPolicy.sameOrigin(current.url, origin)
+        guard let current = tabs.first(where: { $0.id == tab }), !current.url.isEmpty else { return nil }
+        return current.url
+    }
+
+    private static func withoutFragment(_ url: String) -> String {
+        url.firstIndex(of: "#").map { String(url[..<$0]) } ?? url
     }
 
     func leftItsOrigin(_ tool: BrowserTool, _ tab: Int) -> ParentToolOutcome {
@@ -288,12 +308,13 @@ extension BrowserToolRunner {
         switch tool {
         case .doubleClick: return past ? "double-clicked" : "double-click"
         case .rightClick: return past ? "right-clicked" : "right-click"
-        case .click, .tabs, .read, .type, .select, .scroll, .hover, .navigate, .open, .take, .release:
+        case .click, .tabs, .read, .type, .select, .scroll, .hover, .press, .drag, .clickAt, .navigate, .open, .take,
+             .release:
             return past ? "clicked" : "click"
         }
     }
 
-    private static func shown(_ label: String) -> String {
+    static func shown(_ label: String) -> String {
         label.isEmpty ? "(unnamed control)" : String(oneLine(label).prefix(sheetLabel))
     }
 }

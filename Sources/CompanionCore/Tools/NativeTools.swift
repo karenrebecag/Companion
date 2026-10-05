@@ -19,12 +19,15 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
     case createDocument = "create_document"
     case sheetRead = "sheet_read"
     case sheetWrite = "sheet_write"
+    /// H-7 PR4c: the copies kept around a save of the user's file, and the way back.
+    case listFileHistory = "list_file_history"
+    case restoreFileVersion = "restore_file_version"
 
     package var riskLevel: RiskLevel {
         switch self {
-        case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch, .sheetRead:
+        case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch, .sheetRead, .listFileHistory:
             return .safe
-        case .writeFile, .editFile, .deleteFile, .runShell, .createDocument, .sheetWrite:
+        case .writeFile, .editFile, .deleteFile, .runShell, .createDocument, .sheetWrite, .restoreFileVersion:
             return .requiresApproval
         }
     }
@@ -146,7 +149,7 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
                 ],
                 required: ["query"]
             )
-        case .createDocument, .sheetRead, .sheetWrite:
+        case .createDocument, .sheetRead, .sheetWrite, .listFileHistory, .restoreFileVersion:
             return DeliverableTools.spec(self)
         }
     }

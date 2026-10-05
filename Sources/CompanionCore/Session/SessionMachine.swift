@@ -24,19 +24,27 @@ package struct SessionMachine: Sendable, Equatable {
     /// their own, as Incredible's card does (spec 16c §2). A permission or
     /// a failure stays: it carries the way out.
     package static let noticeDelay: TimeInterval = 6
-    /// Seconds the dictation result card waits for a click on copy before
-    /// leaving. Not measured (Incredible's card has a hide button and no
-    /// visible clock): long enough to read a sentence and reach the button.
-    package static let dictationCardDelay: TimeInterval = 12
+    /// 4.9 s, Incredible's dictation countdown (local reference; brief isla-ciclo-y-legibilidad K4).
+    package static let dictationCardDelay: TimeInterval = 4.9
+    /// How long a countdown may stay paused before its remainder runs.
+    // HACK: sixty seconds for every clock, then it resumes. Upgrade trigger:
+    // a hover-out that still arrives when the window closes under the pointer,
+    // so a lost leave no longer needs this ceiling.
+    package static let countdownPauseCeiling: TimeInterval = 60
     /// The reel's ceiling per turn (16m-2, security review).
     package static let touchedCap = 12
 
-    /// The pointer is over the dictation card (16m-4): it does not expire.
+    /// The pointer is over the dictation card: its clock is paused (K4).
     var dictationHeld = false
+    /// The pointer is over a countdown notice. A notice armed while this is
+    /// set starts paused; the flag drops when that notice leaves.
+    var noticeHeld = false
     /// Once per run: a lost grant stays lost until the user acts in Settings.
     var screenRecordingCardShown = false
     var voice = TurnSnapshot.idle
     var typedBusy = false
+    /// Ids minted for steps whose producer sent none; never reused in a session.
+    var stepsMinted = 0
     /// The key is down but still under the tap threshold: the mic is open
     /// locally, nothing has left the machine and no reply has been cut.
     var provisional = false
@@ -54,7 +62,13 @@ package struct SessionMachine: Sendable, Equatable {
     var passiveAfter: TimeInterval = 0
     var passiveArm = 0
 
-    package init() {}
+    /// Where step times come from. Injected so Core never reads the wall clock
+    /// in the reducer and tests can move time by hand.
+    let clock: SessionClock
+
+    package init(clock: @escaping @Sendable () -> Date = { Date() }) {
+        self.clock = SessionClock(now: clock)
+    }
 
     /// Every request that leaves the sheet during an event, by any road, is
     /// reported once (`approvalClosed`), so the voice session never announces
@@ -236,12 +250,14 @@ package struct SessionMachine: Sendable, Equatable {
             // A clock armed for a notice that is gone or replaced does nothing.
             if let notice = projection.notice, Self.fades(notice), armedFor == notice {
                 projection.notice = nil
+                noticeHeld = false
                 seen(notice)
                 if let kind = notice.islandKind { effects.append(.islandEvent(.ignored(kind))) }
             }
         case .noticeDismissed:
             if let notice = projection.notice, Self.fades(notice) {
                 projection.notice = nil
+                noticeHeld = false
                 seen(notice)
                 if let kind = notice.islandKind { effects.append(.islandEvent(.closed(kind))) }
             }
@@ -270,6 +286,8 @@ package struct SessionMachine: Sendable, Equatable {
             effects += completedExpiry()
         case .dictationCardHover, .dictationCardCopied:
             return dictationCardEffects(event)
+        case .noticeCardHover:
+            return noticeCardEffects(event)
         case .dictationHidden:
             guard projection.kind == .processing(.completed), projection.dictatedText != nil
             else { return [] }
@@ -339,6 +357,7 @@ package struct SessionMachine: Sendable, Equatable {
             effects.append(.scheduleVoiceIdleExpiry(Self.voiceIdleTimeout))
         }
         effects += publishReceipt()
+        effects = pausingHeldNotice(effects)
         for card in projection.cards {
             if let kind = card.islandKind { effects.append(.islandEvent(.shown(kind))) }
         }
@@ -375,6 +394,7 @@ package struct SessionMachine: Sendable, Equatable {
         if case .receipt? = projection.notice { clearsReceipt = true }
         if projection.kind == .idle, !clearsReceipt { turnReceipt = nil }
         projection.notice = nil
+        noticeHeld = false
         // Whatever receipt was on screen is gone with it; the turn's lines
         // survive and come back at the next rest.
         receiptPublished = false

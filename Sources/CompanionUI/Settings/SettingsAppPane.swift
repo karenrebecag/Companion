@@ -180,7 +180,11 @@ struct SettingsSystemPage: View {
     let onClose: () -> Void
     /// Attachments change while other pages are open; read on each visit.
     var onAppear: () -> Void = {}
+    let history: HistoryClearModel
     @Environment(\.openURL) private var openURL
+
+    /// The row only asks; the dialog and its model do the deleting.
+    func pressClearRow() { history.present() }
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
@@ -196,6 +200,17 @@ struct SettingsSystemPage: View {
                             welcome.reopen()
                             onClose()
                         }
+                    }
+                }
+            }
+            SettingsCard(label: Localized.string("settings.history.label")) {
+                SettingsRow(
+                    title: Localized.string("settings.history.row"),
+                    subtitle: Localized.string("settings.history.row.subtitle"),
+                    key: SettingsInventory.clearHistoryRowID
+                ) {
+                    SettingsPill(title: Localized.string("settings.history.action"), kind: .destructive) {
+                        pressClearRow()
                     }
                 }
             }

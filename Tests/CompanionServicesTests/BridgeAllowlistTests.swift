@@ -22,7 +22,7 @@ private struct NoSheets: SpreadsheetDriving {
     func workbook(_ app: SheetApp) async throws -> String { "" }
     func read(_ app: SheetApp, range: SheetRange) async throws -> [[String]] { [] }
     func write(_ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook: String) async throws -> SheetWriteReceipt {
-        SheetWriteReceipt(backupPath: "", readBack: [])
+        SheetWriteReceipt(readBack: [])
     }
 }
 
@@ -108,6 +108,10 @@ private func selfInspection() -> SelfInspectionRunner {
         "browser_select",
         // H-7 P5b: move the view or the pointer; no sheet, still the write budget.
         "browser_scroll", "browser_hover",
+        // P4: a write, gated like a click for Enter and Space.
+        "browser_press",
+        // H-7 P7: drag on both ends' gates; a point always asks.
+        "browser_drag", "browser_click_at",
         // Self-qa PR-3: added deliberately, read-only, behind the same sheet.
         "companion_state", "companion_island", "companion_settings", "companion_thread",
         "companion_last_message_matches", "companion_log",

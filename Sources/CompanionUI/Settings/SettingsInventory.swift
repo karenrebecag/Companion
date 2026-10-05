@@ -41,7 +41,13 @@ package enum SettingsInventory {
     package struct Panel: Sendable, Equatable {
         package let tab: SettingsTab
         package let titleKey: String
+        /// The row's own id when it is not the title key; search lights it.
+        package var rowId: String?
+        /// Words the user may type that the title and subtitle do not carry.
+        package var keywords: [String] = []
     }
+
+    package static let clearHistoryRowID = "settings-clear-history"
 
     package static let options: [Option] = [
         Option(tab: .general, titleKey: "settings.app.talk.hold", subtitleKey: "settings.app.talk.hold.subtitle"),
@@ -78,6 +84,8 @@ package enum SettingsInventory {
         Panel(tab: .system, titleKey: "settings.app.version"),
         Panel(tab: .system, titleKey: "settings.app.attachments"),
         Panel(tab: .system, titleKey: "settings.welcome.again"),
+        Panel(tab: .system, titleKey: "settings.history.row", rowId: clearHistoryRowID,
+              keywords: ["clear", "history", "delete", "erase", "conversations", "chats", "reset", "wipe", "forget"]),
     ]
 
     package static var panelKeys: [String] { panels.map(\.titleKey) }
@@ -98,8 +106,8 @@ package enum SettingsInventory {
         }
         + panels.map {
             SettingsSearch.Entry(
-                id: $0.titleKey, page: $0.tab.rawValue, title: Localized.string($0.titleKey),
-                subtitle: $0.tab.title)
+                id: $0.rowId ?? $0.titleKey, page: $0.tab.rawValue, title: Localized.string($0.titleKey),
+                subtitle: $0.tab.title, keywords: $0.keywords)
         }
         + SettingsTab.allCases.map {
             SettingsSearch.Entry(id: "settings.tab.\($0.rawValue)", page: $0.rawValue, title: $0.title, subtitle: "")

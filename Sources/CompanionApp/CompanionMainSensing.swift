@@ -123,6 +123,7 @@ func makeSensingAndModel(
         workdir: env.config.workdir,
         documents: NativeDocumentRenderer(),
         sheets: AppleEventSheets(),
+        versions: env.fileVersions,
         onAct: { receipts.send($0) },
         location: location,
         // 16q-2: the same switch the turn's context reads (pinned by a test and Gate 3).

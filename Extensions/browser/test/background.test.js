@@ -1,5 +1,6 @@
 import test, { mock, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { PRESS_KEYS } from '../lib/wire.js';
 
 const EXTENSION_ID = 'gaipfdnbliibnfchgcnamnjpfgkilnll';
 let importCount = 0;
@@ -1423,4 +1424,409 @@ test('the page refusal of a select comes back as its code', async () => {
   const read = await ask(rig.ports[0], 93, 'browser_read', { tab: 3 });
   const reply = await ask(rig.ports[0], 94, 'browser_select', { tab: 3, generation: read.result.page.generation, element: 1, option: 'Peru' });
   assert.deepEqual(reply.error, { code: 'option_not_found', message: 'Argentina | Chile' });
+});
+
+// ---- P4: browser_press ----
+
+async function pressPage(rig, { focused = true } = {}) {
+  const log = { focused: 0 };
+  rig.state.page = {
+    read: () => ({ origin: 'https://a.example', text: '', elements: [{ id: 1, frame: 0, role: 'textbox', label: 'Buscar', context: '', inputType: 'text', autocomplete: null, value: '', frameOrigin: null, href: null, fieldName: null, fieldId: null, submit: 'Buscar' }] }),
+    focus: () => { log.focused++; return { focused }; },
+  };
+  const read = await ask(rig.ports[0], 80, 'browser_read', { tab: 3 });
+  return { generation: read.result.page.generation, log };
+}
+
+const keyEvents = (state) => state.cdp.filter(([, method]) => method === 'Input.dispatchKeyEvent').map(([, , p]) => p);
+
+test('a press on an element focuses it, then sends the trusted key the asked number of times', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await pressPage(rig);
+  const reply = await ask(rig.ports[0], 81, 'browser_press', { tab: 3, key: 'Enter', times: 1, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'pressed' });
+  assert.equal(log.focused, 1);
+  const events = keyEvents(rig.state);
+  assert.deepEqual(events.map((e) => e.type), ['keyDown', 'keyUp']);
+  await ask(rig.ports[0], 88, 'browser_press', { tab: 3, key: 'Tab', times: 2, generation, element: 1 });
+  assert.deepEqual(keyEvents(rig.state).slice(2).map((e) => e.type), ['rawKeyDown', 'keyUp', 'rawKeyDown', 'keyUp']);
+  assert.deepEqual([events[0].key, events[0].code, events[0].windowsVirtualKeyCode, events[0].text], ['Enter', 'Enter', 13, '\r']);
+});
+
+test('a key that types nothing goes down raw, and Shift+Tab carries the Shift modifier', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await pressPage(rig);
+  await ask(rig.ports[0], 82, 'browser_press', { tab: 3, key: 'Escape', times: 1, generation: null, element: null });
+  await ask(rig.ports[0], 83, 'browser_press', { tab: 3, key: 'Shift+Tab', times: 1, generation: null, element: null });
+  const events = keyEvents(rig.state);
+  assert.deepEqual(events.map((e) => [e.type, e.key, e.text, e.modifiers ?? 0]), [
+    ['rawKeyDown', 'Escape', undefined, 0], ['keyUp', 'Escape', undefined, 0],
+    ['rawKeyDown', 'Tab', undefined, 8], ['keyUp', 'Tab', undefined, 8],
+  ]);
+});
+
+test('Space carries its text so it activates, like a real key', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await pressPage(rig);
+  await ask(rig.ports[0], 87, 'browser_press', { tab: 3, key: 'Space', times: 1, generation, element: 1 });
+  const [down] = keyEvents(rig.state);
+  assert.deepEqual([down.type, down.key, down.code, down.windowsVirtualKeyCode, down.text], ['keyDown', ' ', 'Space', 32, ' ']);
+});
+
+// A key in the allowlist the CDP table did not know would pass validation and fail at the press.
+test('every key the wire accepts is one the extension can press', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  await pressPage(rig);
+  let id = 300;
+  for (const key of PRESS_KEYS) {
+    const reply = await ask(rig.ports[0], id++, 'browser_press', { tab: 3, key, times: 1, generation: null, element: null });
+    assert.deepEqual(reply.result, { done: 'pressed' }, key);
+  }
+  assert.equal(keyEvents(rig.state).filter((e) => e.type === 'keyUp').length, PRESS_KEYS.length);
+});
+
+test('without an element the key goes to the page focus and nothing is focused first', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { log } = await pressPage(rig);
+  const reply = await ask(rig.ports[0], 84, 'browser_press', { tab: 3, key: 'ArrowDown', times: 3, generation: null, element: null });
+  assert.deepEqual(reply.result, { done: 'pressed' });
+  assert.equal(log.focused, 0);
+  assert.equal(keyEvents(rig.state).filter((e) => e.type === 'rawKeyDown').length, 3);
+});
+
+// A key sent while the focus is elsewhere lands on whatever holds it: an Enter nobody approved.
+test('an element that does not take the focus gets not_focused and no key', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await pressPage(rig, { focused: false });
+  const reply = await ask(rig.ports[0], 85, 'browser_press', { tab: 3, key: 'Enter', times: 1, generation, element: 1 });
+  assert.equal(reply.error.code, 'not_focused');
+  assert.deepEqual(keyEvents(rig.state), []);
+});
+
+test('a press on an element of an old read is stale and sends no key', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await pressPage(rig);
+  const reply = await ask(rig.ports[0], 86, 'browser_press', { tab: 3, key: 'Enter', times: 1, generation: generation - 1, element: 1 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(log.focused, 0);
+  assert.deepEqual(keyEvents(rig.state), []);
+});
+
+// --- H-7 P7: drag and click at a point -------------------------------------------------------------------
+
+// Two items in the top frame; the source is located at (40, 60), the target measured at (200, 300).
+async function readyPair(rig, { target = { box: { x: 200, y: 300 }, inView: true }, frame = false, view = { w: 1000, h: 800 } } = {}) {
+  const item = (id, label) => ({ id, frame: 0, role: 'listitem', label, context: '', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null });
+  rig.state.hits = [];
+  rig.state.page = {
+    read: () => ({ origin: 'https://a.example', text: 'Uno Dos', elements: [item(1, 'Uno'), item(2, 'Dos')] }),
+    locate: (...args) => { rig.state.landingEvent = args[3]; return onScreen; },
+    boxOf: () => target,
+    pointAt: (...args) => { rig.state.points = (rig.state.points ?? 0) + 1; return typeof frame === 'function' ? frame(...args) : { frame, same: true }; },
+    viewport: () => view,
+    hitsAt: (g, id, x, y) => { rig.state.hits.push([id, x, y]); return rig.state.stillHits?.(id) ?? true; },
+    landed: () => true,
+  };
+  const read = await ask(rig.ports[0], 70, 'browser_read', { tab: 3 });
+  return read.result.page.generation;
+}
+
+const releases = (state) => mouseEvents(state, 'mouseReleased');
+
+test('a drag onto an element presses the source, moves holding the button and lets go on the target', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  const reply = await ask(rig.ports[0], 171, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.deepEqual(reply.result, { done: 'dragged' });
+  assert.deepEqual(pressParams(rig.state).map((p) => [p.x, p.y, p.button, p.buttons]), [[40, 60, 'left', 1]]);
+  const held = mouseEvents(rig.state, 'mouseMoved').filter((p) => p.buttons === 1);
+  assert.equal(held.length, 10, 'moved in steps, so the page sees a drag and not a jump');
+  const order = rig.state.cdp.filter(([, method]) => method === 'Input.dispatchMouseEvent').map(([, , p]) => p.type + (p.buttons ? '+' : ''));
+  assert.deepEqual(order, ['mouseMoved', 'mousePressed+', ...Array(10).fill('mouseMoved+'), 'mouseReleased']);
+  assert.deepEqual([held.at(-1).x, held.at(-1).y], [200, 300]);
+  assert.deepEqual(releases(rig.state).map((p) => [p.x, p.y, p.buttons]), [[200, 300, 0]]);
+  assert.equal(rig.state.landingEvent, null, 'a drag arms no click landing');
+  assert.ok(rig.state.hits.some(([id, x, y]) => id === 2 && x === 200 && y === 300), 'the target is hit-tested at the drop point');
+});
+
+test('a drag by an offset lets go that far from the source', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  const reply = await ask(rig.ports[0], 172, 'browser_drag', { tab: 3, generation, element: 1, dx: 100, dy: -20 });
+  assert.deepEqual(reply.result, { done: 'dragged' });
+  assert.deepEqual(releases(rig.state).map((p) => [p.x, p.y]), [[140, 40]]);
+});
+
+test('a drag never drops onto an embedded frame', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig, { frame: () => ({ frame: true, same: true }) });
+  const reply = await ask(rig.ports[0], 173, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a drag whose drop point is off the visible page presses nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  const reply = await ask(rig.ports[0], 174, 'browser_drag', { tab: 3, generation, element: 1, dx: 0, dy: 2000 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a drag target that is off screen or covered is not dropped onto', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig, { target: { box: { x: 200, y: 300 }, inView: false } });
+  const off = await ask(rig.ports[0], 175, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(off.error.code, 'stale_id', 'off screen');
+  rig.state.page.boxOf = () => ({ box: { x: 200, y: 300 }, inView: true });
+  rig.state.stillHits = (id) => id !== 2;
+  const covered = await ask(rig.ports[0], 176, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(covered.error.code, 'stale_id', 'something else at the drop point');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a drag with ids of another read is stale and presses nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  const reply = await ask(rig.ports[0], 177, 'browser_drag', { tab: 3, generation: generation - 1, element: 1, to: 2 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a drag inside a frame is refused: its boxes are not in the tab\'s coordinates', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const run = rig.chrome.scripting.executeScript;
+  rig.chrome.scripting.executeScript = async (opts) => {
+    const out = await run(opts);
+    return opts.target.allFrames ? out.map((hit) => ({ ...hit, frameId: 2 })) : out;
+  };
+  const generation = await readyPair(rig);
+  const reply = await ask(rig.ports[0], 178, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a click at a point of the current read presses once there', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  const reply = await ask(rig.ports[0], 181, 'browser_click_at', { tab: 3, generation, x: 400, y: 300 });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+  assert.deepEqual(pressParams(rig.state).map((p) => [p.x, p.y, p.button, p.clickCount]), [[400, 300, 'left', 1]]);
+});
+
+test('a click at a point of another read is stale and presses nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  const reply = await ask(rig.ports[0], 182, 'browser_click_at', { tab: 3, generation: generation + 1, x: 400, y: 300 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a click at a point outside the visible page or on an embedded frame presses nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  let frame = false;
+  const generation = await readyPair(rig, { frame: () => ({ frame, same: true }) });
+  const outside = await ask(rig.ports[0], 183, 'browser_click_at', { tab: 3, generation, x: 1200, y: 300 });
+  assert.equal(outside.error.code, 'stale_id', 'past the right edge');
+  frame = true;
+  const framed = await ask(rig.ports[0], 184, 'browser_click_at', { tab: 3, generation, x: 400, y: 300 });
+  assert.equal(framed.error.code, 'stale_id', 'a frame of another page is at that point');
+  rig.state.page.viewport = () => null;
+  frame = false;
+  const unknown = await ask(rig.ports[0], 185, 'browser_click_at', { tab: 3, generation, x: 400, y: 300 });
+  assert.equal(unknown.error.code, 'stale_id', 'a viewport that cannot be read is not one the point is inside');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a click at a point after the user stopped Companion on that tab is refused', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+  const reply = await ask(rig.ports[0], 186, 'browser_click_at', { tab: 3, generation, x: 400, y: 300 });
+  assert.equal(reply.error.code, 'debugger_revoked');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a drag whose source is covered by the time the cursor arrives presses nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  rig.state.stillHits = (id) => id !== 1;
+  const reply = await ask(rig.ports[0], 187, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a drag target covered during the cursor glide is not dropped onto', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  let targetChecks = 0;
+  rig.state.stillHits = (id) => id !== 2 || ++targetChecks === 1;
+  const reply = await ask(rig.ports[0], 188, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.ok(targetChecks >= 2, 'checked again right before the press');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a source in a frame, off screen or covered, or a target in a frame, is never dragged', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  let id = 190;
+  for (const spot of [{ inFrame: true }, { ...onScreen, inView: false }, { ...onScreen, blocked: true }]) {
+    rig.state.page.locate = () => spot;
+    const reply = await ask(rig.ports[0], id++, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+    assert.equal(reply.error.code, 'stale_id', JSON.stringify(spot));
+  }
+  rig.state.page.locate = () => onScreen;
+  rig.state.page.boxOf = () => ({ inFrame: true });
+  const framed = await ask(rig.ports[0], id++, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(framed.error.code, 'stale_id', 'target in a frame');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a drag after the user stopped Companion on that tab is refused, onto an element or by pixels', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  for (const fn of rig.registered.detach) fn({ tabId: 3 }, 'canceled_by_user');
+  const onto = await ask(rig.ports[0], 195, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  const by = await ask(rig.ports[0], 196, 'browser_drag', { tab: 3, generation, element: 1, dx: 10, dy: 0 });
+  assert.equal(onto.error.code, 'debugger_revoked');
+  assert.equal(by.error.code, 'debugger_revoked');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('something that slides in under the point during the glide stops the press, for a click and a drop', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  let looks = 0;
+  const generation = await readyPair(rig, { frame: () => ({ frame: false, same: ++looks === 1 }) });
+  const click = await ask(rig.ports[0], 197, 'browser_click_at', { tab: 3, generation, x: 400, y: 300 });
+  assert.equal(click.error.code, 'stale_id', 'click at');
+  looks = 0;
+  const drop = await ask(rig.ports[0], 198, 'browser_drag', { tab: 3, generation, element: 1, dx: 50, dy: 0 });
+  assert.equal(drop.error.code, 'stale_id', 'drag by an offset');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+// The look at the drop must fail in the check phase, not the mark: a fake that fails the mark never reaches the check.
+const dragSpots = [
+  ['the source point', { element: 1, to: 2 }, { x: 40, y: 60 }],
+  ['the drop point onto an element', { element: 1, to: 2 }, { x: 200, y: 300 }],
+  ['the drop point of an offset', { element: 1, dx: 50, dy: 0 }, { x: 90, y: 60 }],
+];
+
+for (const [what, args, spot] of dragSpots) {
+  test(`a drag is not pressed when something slides in under ${what} only at the check`, async () => {
+    const rig = await boot({ tabs: userTabs() });
+    const phases = [];
+    const generation = await readyPair(rig, { frame: (x, y, token, phase) => {
+      phases.push(phase);
+      return { frame: false, same: !(phase === 'check' && x === spot.x && y === spot.y) };
+    } });
+    const reply = await ask(rig.ports[0], 211, 'browser_drag', { tab: 3, generation, ...args });
+    assert.equal(reply.error?.code, 'stale_id');
+    assert.ok(phases.includes('check'), 'the mark passed, so it was the check that stopped it');
+    assert.equal(presses(rig.state).length, 0, 'nothing pressed');
+    assert.equal(releases(rig.state).length, 0, 'nothing released');
+  });
+
+  test(`a frame that appears under ${what} only at the check stops the drag`, async () => {
+    const rig = await boot({ tabs: userTabs() });
+    const phases = [];
+    const generation = await readyPair(rig, { frame: (x, y, token, phase) => {
+      phases.push(phase);
+      return { frame: phase === 'check' && x === spot.x && y === spot.y, same: true };
+    } });
+    const reply = await ask(rig.ports[0], 213, 'browser_drag', { tab: 3, generation, ...args });
+    assert.equal(reply.error?.code, 'stale_id');
+    assert.ok(phases.includes('check'), 'stopped at the check');
+    assert.equal(presses(rig.state).length, 0, 'nothing pressed');
+  });
+
+  test(`the control: a drag whose ${what} is the same at every look is pressed`, async () => {
+    const rig = await boot({ tabs: userTabs() });
+    const generation = await readyPair(rig, { frame: () => ({ frame: false, same: true }) });
+    const reply = await ask(rig.ports[0], 212, 'browser_drag', { tab: 3, generation, ...args });
+    assert.deepEqual(reply.result, { done: 'dragged' });
+    assert.equal(presses(rig.state).length, 1);
+  });
+}
+
+test('a frame that appears at the point during the glide stops the press', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  let looks = 0;
+  const generation = await readyPair(rig, { frame: () => ({ frame: ++looks > 1, same: true }) });
+  const reply = await ask(rig.ports[0], 199, 'browser_click_at', { tab: 3, generation, x: 400, y: 300 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a click at the last pixel inside the page is pressed, and at the edge it is not', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig, { view: { w: 1000, h: 800 } });
+  const edge = await ask(rig.ports[0], 200, 'browser_click_at', { tab: 3, generation, x: 1000, y: 300 });
+  assert.equal(edge.error.code, 'stale_id', 'x equal to the width is past the page');
+  const last = await ask(rig.ports[0], 201, 'browser_click_at', { tab: 3, generation, x: 999, y: 799 });
+  assert.deepEqual(last.result, { done: 'clicked' });
+});
+
+test('a page that cannot say what is at the point is not pressed', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig, { frame: () => undefined });
+  const click = await ask(rig.ports[0], 202, 'browser_click_at', { tab: 3, generation, x: 400, y: 300 });
+  const drop = await ask(rig.ports[0], 203, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(click.error.code, 'stale_id');
+  assert.equal(drop.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a drag source covered only once the cursor arrives is not pressed', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  let sourceChecks = 0;
+  rig.state.stillHits = (id) => id !== 1 || ++sourceChecks === 1;
+  const reply = await ask(rig.ports[0], 204, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.ok(sourceChecks >= 2, 'checked again right before the press');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a frame under the drag source is not pressed into', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig, { frame: (x, y) => ({ frame: x === 40 && y === 60, same: true }) });
+  const reply = await ask(rig.ports[0], 205, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a drop point at the page edge or left of it is refused, and the last pixel is not', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig, { view: { w: 1000, h: 800 } });
+  const edge = await ask(rig.ports[0], 206, 'browser_drag', { tab: 3, generation, element: 1, dx: 960, dy: 0 });
+  assert.equal(edge.error.code, 'stale_id', 'x equal to the width');
+  const left = await ask(rig.ports[0], 207, 'browser_drag', { tab: 3, generation, element: 1, dx: -100, dy: 0 });
+  assert.equal(left.error.code, 'stale_id', 'left of the page');
+  assert.equal(presses(rig.state).length, 0);
+  const last = await ask(rig.ports[0], 208, 'browser_drag', { tab: 3, generation, element: 1, dx: 959, dy: 0 });
+  assert.deepEqual(last.result, { done: 'dragged' });
+});
+
+test('each press marks its point before the glide and checks it right before pressing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const phases = [];
+  const generation = await readyPair(rig, { frame: (x, y, token, phase) => { phases.push(phase); return { frame: false, same: true }; } });
+  await ask(rig.ports[0], 209, 'browser_click_at', { tab: 3, generation, x: 400, y: 300 });
+  assert.deepEqual(phases, ['mark', 'check']);
+});
+
+test('a drag marks both ends before the glide and checks each against its own mark before pressing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const looks = [];
+  const generation = await readyPair(rig, { frame: (x, y, token, phase) => { looks.push({ x, y, token, phase }); return { frame: false, same: true }; } });
+  const reply = await ask(rig.ports[0], 210, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
+  assert.deepEqual(reply.result, { done: 'dragged' });
+  assert.deepEqual(looks.map((l) => l.phase), ['mark', 'mark', 'check', 'check']);
+  const [sourceMark, dropMark, sourceCheck, dropCheck] = looks;
+  assert.deepEqual([sourceMark.x, sourceMark.y, dropMark.x, dropMark.y], [40, 60, 200, 300], 'source, then drop point');
+  assert.notEqual(sourceMark.token, dropMark.token, 'one mark per end');
+  assert.equal(sourceCheck.token, sourceMark.token);
+  assert.equal(dropCheck.token, dropMark.token);
 });

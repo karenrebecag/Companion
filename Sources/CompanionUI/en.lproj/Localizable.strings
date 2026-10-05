@@ -222,6 +222,17 @@
 "settings.context.screen.subtitle" = "It looks at the screen only when you ask, never at its own windows. The image is not stored.";
 "settings.privacy.lendHands" = "Lend your hands to other agents";
 "settings.privacy.lendHands.subtitle" = "Claude Code and other local agents can look at the screen and act through Companion. Each session asks first; sensitive actions ask again.";
+"settings.history.label" = "Data";
+"settings.history.row" = "Clear chat history";
+"settings.history.row.subtitle" = "Erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and your files are not touched.";
+"settings.history.action" = "Clear…";
+"settings.history.title" = "Clear your chat history?";
+"settings.history.blurb" = "This erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and anything saved to your files stay as they are. There's no undo.";
+"settings.history.cancel" = "Cancel";
+"settings.history.confirm" = "Clear chat history";
+"settings.history.clearing" = "Clearing…";
+"settings.history.error" = "That didn't work. Try again in a moment.";
+"settings.history.a11y" = "Clear your chat history";
 "permission.screenRecording.title" = "Screen Recording";
 "permission.screenRecording.body" = "To see the screen when you ask. It never records or keeps what it sees.";
 "permission.accessibility.title" = "Accessibility";
@@ -301,6 +312,9 @@
 "welcome.continue" = "Continue";
 "welcome.back" = "Back";
 "welcome.skip" = "Skip";
+"welcome.music" = "Background music";
+"welcome.music.on" = "On";
+"welcome.music.off" = "Off";
 "welcome.stepOf" = "Step %d of %d";
 "welcome.greeting" = "Hi, I'm Companion. Let's get me ready.";
 "welcome.greeting.name" = "Hi, %@. I'm Companion. Let's get me ready.";
@@ -756,3 +770,11 @@
 "settings.resetPermissions.service.listenEvent" = "Input Monitoring";
 "settings.resetPermissions.service.addressBook" = "Contacts";
 "settings.resetPermissions.service.appleEvents" = "Automation";
+
+/* WIN-8: the first-run sound check */
+"welcome.sound.title" = "Can you hear Companion?";
+"welcome.sound.body" = "Your Mac's volume is low. Turn it up so you can hear Companion speak.";
+"welcome.sound.muted" = "Your Mac is muted. Unmute it to hear Companion speak.";
+"welcome.sound.slider" = "Mac volume";
+"welcome.sound.heard" = "I can hear Companion";
+"welcome.sound.anyway" = "Continue anyway";

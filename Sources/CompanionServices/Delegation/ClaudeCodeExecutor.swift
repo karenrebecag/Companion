@@ -146,45 +146,50 @@ package final class ClaudeCodeExecutor: Executor, @unchecked Sendable {
         while let line = await handle.readLine() {
             if Task.isCancelled { break }
 
-            switch AgentStreamCodec.parse(line) {
-            case .initialized(let sid):
-                lock.withLock {
-                    sessionId = sid
-                    sawInitialized = true
+            for event in AgentStreamCodec.events(line) {
+                switch event {
+                case .initialized(let sid):
+                    lock.withLock {
+                        sessionId = sid
+                        sawInitialized = true
+                    }
+                    // The thread the CLI actually opened wins over the one we
+                    // asked for: resuming yesterday's id tomorrow needs this.
+                    sessions?.set(sid, for: sessionKey)
+
+                case .toolUse(let id, let name, let detail):
+                    events.yield(.stepStarted(tool: name, summary: detail, id: id))
+
+                case .toolResult(let id, let isError):
+                    // The tool name is not on the wire here; the id pairs the end.
+                    events.yield(.stepFinished(tool: "", ok: !isError, id: id))
+
+                case .thought(let text):
+                    events.yield(.thought(text))
+
+                case .approval(let approval):
+                    // Wave 16b: in auto mode a question means the classifier was
+                    // not sure. Karen asked for no permission sheets, so the
+                    // safe answer is no, said to the specialist, never to her.
+                    // Tool name only in the log: the input can hold anything.
+                    Log.app("executor: auto-denied \(approval.toolName)")
+                    if let control = AgentStreamCodec.controlResponse(
+                        requestId: approval.requestId,
+                        allow: false,
+                        inputJSON: approval.inputJSON,
+                        message: Self.autoDeniedMessage
+                    ) {
+                        try await handle.sendLine(control)
+                    }
+
+                case .result(let text, let isError):
+                    return JobResult(
+                        output: text, isError: isError,
+                        sessionId: lock.withLock { sessionId })
+
+                case .ignored:
+                    continue
                 }
-                // The thread the CLI actually opened wins over the one we
-                // asked for: resuming yesterday's id tomorrow needs this.
-                sessions?.set(sid, for: sessionKey)
-
-            case .toolUse(let name, let detail):
-                events.yield(.stepStarted(tool: name, summary: detail))
-                events.yield(.stepFinished(tool: name, ok: true))
-
-            case .thought(let text):
-                events.yield(.thought(text))
-
-            case .approval(let approval):
-                // Wave 16b: in auto mode a question means the classifier was
-                // not sure. Karen asked for no permission sheets, so the
-                // safe answer is no, said to the specialist, never to her.
-                // Tool name only in the log: the input can hold anything.
-                Log.app("executor: auto-denied \(approval.toolName)")
-                if let control = AgentStreamCodec.controlResponse(
-                    requestId: approval.requestId,
-                    allow: false,
-                    inputJSON: approval.inputJSON,
-                    message: Self.autoDeniedMessage
-                ) {
-                    try await handle.sendLine(control)
-                }
-
-            case .result(let text, let isError):
-                return JobResult(
-                    output: text, isError: isError,
-                    sessionId: lock.withLock { sessionId })
-
-            case .ignored:
-                continue
             }
         }
 

@@ -75,6 +75,28 @@ package enum BrowserCopy {
         case (.hover, .es):
             return "Pasa el puntero sobre un elemento numerado por la última browser_read, para abrir un menú o "
                 + "una ayuda que solo aparece al pasar por encima. Vuelve a leerla para verlo."
+        case (.press, .en):
+            return "Press a key in a tab you control, on an element numbered by the last browser_read or, without "
+                + "one, wherever the page's focus is. Enter or Space that sends, deletes or pays asks first."
+        case (.press, .es):
+            return "Pulsa una tecla en una pestaña que controlas, sobre un elemento numerado por la última "
+                + "browser_read o, sin él, donde esté el foco de la página. Un Enter o Espacio que envía, borra o "
+                + "paga pregunta antes."
+        case (.drag, .en):
+            return "Drag an element numbered by the last browser_read onto another (to) or by dx and dy pixels, "
+                + "to reorder a list, move a card or a slider. Onto an element it asks when either end would ask "
+                + "for a click; by an offset it always asks."
+        case (.drag, .es):
+            return "Arrastra un elemento numerado por la última browser_read sobre otro (to) o dx y dy píxeles, "
+                + "para reordenar una lista, mover una tarjeta o un deslizador. Sobre un elemento pregunta si "
+                + "alguno de los dos extremos lo pediría para un clic; por píxeles siempre pregunta."
+        case (.clickAt, .en):
+            return "Click a point x, y of the visible page, for what no element number reaches (a canvas or a map). "
+                + "The point must come from a browser_read less than a minute old. It always asks first."
+        case (.clickAt, .es):
+            return "Pulsa un punto x, y de la página visible, para lo que ningún número de elemento alcanza (un "
+                + "lienzo o un mapa). El punto debe salir de una browser_read de hace menos de un minuto. "
+                + "Siempre pregunta antes."
         case (.navigate, .en):
             return "Open an http or https address in a tab you control. Going to another site than the one shown asks first."
         case (.navigate, .es):
@@ -110,10 +132,10 @@ package enum BrowserCopy {
         case ("text", .es): return "el texto exacto a escribir"
         case ("option", .en): return "the label of the option to choose, as the page shows it"
         case ("option", .es): return "la etiqueta de la opción a elegir, tal como la muestra la página"
-        case ("dx", .en): return "pixels to scroll right (negative goes left)"
-        case ("dx", .es): return "píxeles a desplazar a la derecha (negativo va a la izquierda)"
-        case ("dy", .en): return "pixels to scroll down (negative goes up)"
-        case ("dy", .es): return "píxeles a desplazar hacia abajo (negativo sube)"
+        case ("dx", .en): return "pixels to the right (negative goes left)"
+        case ("dx", .es): return "píxeles hacia la derecha (negativo va a la izquierda)"
+        case ("dy", .en): return "pixels down (negative goes up)"
+        case ("dy", .es): return "píxeles hacia abajo (negativo sube)"
         case ("find_text", .en): return "optional: only the controls and lines that say this text"
         case ("find_text", .es): return "opcional: solo los controles y líneas que dicen este texto"
         case ("exact", .en): return "optional: text and name must match whole, not as part"
@@ -130,6 +152,18 @@ package enum BrowserCopy {
         case ("max", .es): return "opcional: como mucho estos elementos (1-500)"
         case ("max_chars", .en): return "optional: at most this many characters of text"
         case ("max_chars", .es): return "opcional: como mucho estos caracteres de texto"
+        case ("press_key", .en): return "the key to press"
+        case ("press_key", .es): return "la tecla a pulsar"
+        case ("press_element", .en): return "optional element number from the last browser_read; it gets the focus first"
+        case ("press_element", .es): return "número de elemento opcional de la última browser_read; recibe el foco antes"
+        case ("times", .en): return "how many times, 1 to 10 (Enter and Space only once); 1 when left out"
+        case ("times", .es): return "cuántas veces, de 1 a 10 (Enter y Espacio solo una); 1 si se omite"
+        case ("to", .en): return "element number from the last browser_read to drop onto"
+        case ("to", .es): return "número de elemento de la última browser_read sobre el que soltar"
+        case ("x", .en): return "pixels from the left edge of the visible page"
+        case ("x", .es): return "píxeles desde el borde izquierdo de la página visible"
+        case ("y", .en): return "pixels from the top edge of the visible page"
+        case ("y", .es): return "píxeles desde el borde superior de la página visible"
         case ("url", .en): return "the http or https address"
         case ("url", .es): return "la dirección http o https"
         default: return name
@@ -230,6 +264,12 @@ package enum BrowserCopy {
         case (BridgeCode.optionNotFound, .es):
             return "Ninguna opción activa de esa lista tiene esa etiqueta. Usa una de las de abajo tal cual; si la "
                 + "que buscas no está, vuelve a leer la pestaña."
+        case (BridgeCode.notFocused, .en):
+            return "That element does not take the keyboard focus, so no key was sent. Use browser_click on it, "
+                + "or press without an element after clicking where the key should go."
+        case (BridgeCode.notFocused, .es):
+            return "Ese elemento no recibe el foco del teclado, así que no se pulsó nada. Usa browser_click sobre "
+                + "él, o pulsa sin elemento después de hacer clic donde va la tecla."
         case (_, .en): return "The browser failed: \(code)."
         case (_, .es): return "El navegador falló: \(code)."
         }
@@ -276,6 +316,12 @@ extension BrowserCopy {
         case (.scroll, .es): return "Desplacé la página en el navegador."
         case (.hover, .en): return "Moved the pointer in the browser."
         case (.hover, .es): return "Pasé el puntero en el navegador."
+        case (.press, .en): return "Pressed a key in the browser."
+        case (.press, .es): return "Pulsé una tecla en el navegador."
+        case (.drag, .en): return "Dragged in the browser."
+        case (.drag, .es): return "Arrastré en el navegador."
+        case (.clickAt, .en): return "Clicked a point in the browser."
+        case (.clickAt, .es): return "Pulsé un punto en el navegador."
         case (.navigate, .en): return "Navigated the browser."
         case (.navigate, .es): return "Navegué en el navegador."
         case (.open, .en): return "Opened a background tab."
