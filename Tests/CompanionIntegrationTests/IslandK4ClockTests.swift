@@ -128,12 +128,15 @@ private final class StepClock: @unchecked Sendable {
     session.send(.dictationCardHover(true))
     await pumpUntil("K4: primer techo") { sleeper.armed(SessionMachine.countdownPauseCeiling) == 1 }
     clock.advance(40)
+    let armedBeforeLeaving = sleeper.delays.count
     session.send(.dictationCardHover(false))
-    await pumpUntil("K4: salió") { sleeper.pending >= 1 }
+    // Cancelled waits stay pending, so `pending` says nothing about the resume.
+    // Each timer registers from its own task off the main actor: if the resume
+    // timer lands after the next ceiling, `delays.last` is not the ceiling.
+    await pumpUntil("K4: salió") { sleeper.delays.count > armedBeforeLeaving }
     session.send(.dictationCardHover(true))
     await pumpUntil("K4: el segundo tramo es lo que quedaba del techo") {
-        guard let last = sleeper.delays.last else { return false }
-        return abs(last - 20) <= 0.05
+        sleeper.armed(near: SessionMachine.countdownPauseCeiling - 40, tolerance: 0.05) == 1
     }
 }
 
