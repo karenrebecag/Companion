@@ -1,3 +1,4 @@
+import AppKit
 import CompanionCore
 import Foundation
 
@@ -13,6 +14,14 @@ package struct ScreenHands: Sendable {
     let trusted: @Sendable () -> Bool
     let target: @Sendable () -> Int32?
     let bundleID: @Sendable (Int32) -> String?
+    /// Bundle id of the browser the extension is currently connected to,
+    /// or nil. The web guard compares this to the target's bundle id to
+    /// decide between the three Chromium outcomes (unsupported, not
+    /// connected, redirect to browser_*).
+    let connectedBrowser: @Sendable () -> String?
+    /// The app's own name reads better to the agent than a bundle id; nil
+    /// falls back to the bundle id.
+    let appName: @Sendable (Int32) -> String?
     /// Typed chat has Companion's own window in front: the field the hands
     /// would need is not the one in front, so they are not offered.
     let selfInFront: @Sendable () -> Bool
@@ -44,6 +53,8 @@ package struct ScreenHands: Sendable {
         trusted: @escaping @Sendable () -> Bool,
         target: @escaping @Sendable () -> Int32?,
         bundleID: @escaping @Sendable (Int32) -> String?,
+        connectedBrowser: @escaping @Sendable () -> String? = { nil },
+        appName: @escaping @Sendable (Int32) -> String? = { _ in nil },
         selfInFront: @escaping @Sendable () -> Bool = { false },
         screen: (any ScreenActing)? = nil,
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
@@ -67,6 +78,8 @@ package struct ScreenHands: Sendable {
         self.trusted = trusted
         self.target = target
         self.bundleID = bundleID
+        self.connectedBrowser = connectedBrowser
+        self.appName = appName
         self.selfInFront = selfInFront
     }
 
@@ -76,12 +89,18 @@ package struct ScreenHands: Sendable {
         selfInFront: @escaping @Sendable () -> Bool = { false },
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
         changes: (any AXChangeWatching)? = nil,
-        gate: ScreenRecordingGate
+        gate: ScreenRecordingGate,
+        connectedBrowser: @escaping @Sendable () -> String? = { nil },
+        appName: @escaping @Sendable (Int32) -> String? = { pid in
+            NSRunningApplication(processIdentifier: pid)?.localizedName
+        }
     ) {
         self.init(
             injector: ax, reader: ax, keys: ax, windows: ax,
             trusted: { ax.isTrusted() }, target: target,
-            bundleID: { AXTextInjector.bundleID(of: $0) }, selfInFront: selfInFront,
+            bundleID: { AXTextInjector.bundleID(of: $0) },
+            connectedBrowser: connectedBrowser, appName: appName,
+            selfInFront: selfInFront,
             screen: screen, see: see, changes: changes,
             screenRecording: { gate.grantedStatus }, locked: { SessionLock.isLocked() },
             launch: screen)
@@ -248,6 +267,12 @@ extension ParentToolRunner {
             return nil
         }
         let bundle = hands.bundleID(pid)
+        // The web guard refuses these two in a Chromium browser; a sheet here
+        // would ask the user to approve something that will be refused. Every
+        // other hands tool keeps its approval there.
+        let guardedByWeb = call.name == ParentTool.typeText.rawValue
+            || call.name == ParentTool.readFocused.rawValue
+        if guardedByWeb, let bundle, AXScreen.chromiumBrowsers.contains(bundle) { return nil }
         let command = CommandApps.isCommandApp(bundleID: bundle)
         if call.name == ParentTool.click.rawValue {
             return clickApproval(call, said: said, hands: hands, pid: pid)
@@ -393,12 +418,43 @@ private struct HandsAct {
         return .success(field)
     }
 
+    /// A Chromium browser in front is the extension's job, not the
+    /// accessibility hands: AX reports success on a web field and the page
+    /// ignores it, so the agent would believe it typed. The three outcomes
+    /// are distinct so the agent can act on each one.
+    private func webGuard() -> ParentToolOutcome? {
+        guard AXScreen.chromiumBrowsers.contains(bundle) else { return nil }
+        let name = BrowserHost.displayName(name: hands.appName(pid), bundle: bundle)
+        if !BrowserHost.supportsExtension(bundle: bundle) {
+            return fail("browser_unsupported",
+                "Companion has no web access in \(name); it works in Google Chrome and Comet. "
+                    + "Do not retry here.")
+        }
+        if let connected = hands.connectedBrowser() {
+            if connected != bundle {
+                let other = BrowserHost.displayName(forBundle: connected)
+                return fail("browser_not_connected",
+                    "Companion's extension is connected to \(other), not \(name); "
+                        + "it serves one browser at a time. Use \(other), or close the extension's "
+                        + "connection there.")
+            }
+            return fail("use_browser_tools",
+                "typing into or reading \(name) goes through the browser tools; "
+                    + "start with browser_tabs, then browser_type / browser_read.")
+        }
+        return fail("browser_not_connected",
+            "\(name) has no Companion extension connected, so Companion cannot type into or "
+                + "read web pages there. Load the Companion extension in \(name), then use "
+                + "browser_tabs.")
+    }
+
     func type(_ arguments: [String: Any]) async -> ParentToolOutcome {
         guard let raw = arguments["text"] as? String, !raw.isEmpty else {
             return .failed(.invalidArgs("missing text"), tool: tool.rawValue)
         }
         let text = HandsGate.stripped(raw)
         guard !text.isEmpty else { return .failed(.invalidArgs("missing text"), tool: tool.rawValue) }
+        if let guarded = webGuard() { return guarded }
         Log.app("hands: type_text chars=\(text.count) pid=\(pid) bundle=\(bundle)")
         let target: FocusedField
         switch field() {
@@ -483,6 +539,7 @@ private struct HandsAct {
     }
 
     func read() -> ParentToolOutcome {
+        if let guarded = webGuard() { return guarded }
         switch field() {
         case .failure(let error): return fail(error.code, error.message)
         case .success: break

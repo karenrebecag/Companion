@@ -21,6 +21,10 @@ package final class FakeHands: TextInjecting, FocusedReading, KeyPressing, Windo
     @Guarded package private(set) var pressedChords: [(chord: KeyChord, pid: Int32)] = []
     /// False makes the port report that the event could not be posted.
     @Guarded package var chordsPost = true
+    /// Read every time the runner reaches for a field or a value, so a
+    /// guard that short-circuits before the reader can be proved.
+    @Guarded package private(set) var fieldLookups = 0
+    @Guarded package private(set) var reads = 0
 
     package init(field: FocusedField? = nil, text: String? = nil, windows: [String] = []) {
         self.field = field
@@ -34,12 +38,14 @@ package final class FakeHands: TextInjecting, FocusedReading, KeyPressing, Windo
     }
 
     package func focusedField(pid: Int32) -> FocusedField? {
+        fieldLookups += 1
         let current = field
         guard let current, current.pid == pid else { return nil }
         return current
     }
 
     package func read(pid: Int32) -> String? {
+        reads += 1
         let current = field
         guard let current, current.pid == pid, !current.secure else { return nil }
         return text
