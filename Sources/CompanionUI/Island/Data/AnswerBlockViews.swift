@@ -64,11 +64,22 @@ struct AnswerBlockList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
             if let card {
-                CardView(card: card)
+                channel(card)
             }
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 AnswerBlockView(block: block)
             }
+        }
+    }
+
+    /// A chart on the channel is the same picture as one in a fence. The
+    /// light card stays the window's (local reference).
+    @ViewBuilder
+    private func channel(_ card: Card) -> some View {
+        if case .chart(let chart) = card.payload {
+            IslandChartVisual(block: chart)
+        } else {
+            CardView(card: card)
         }
     }
 }
