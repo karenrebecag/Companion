@@ -14,7 +14,7 @@ private func scratch() throws -> URL {
     return url.resolvingSymlinksInPath()
 }
 
-private final class TestClock: @unchecked Sendable {
+private final class FileVersionsTestClock: @unchecked Sendable {
     private let lock = NSLock()
     private var seconds: Double
     /// Added after every read, for tests that cannot advance the clock between two snapshots themselves.
@@ -31,7 +31,7 @@ private final class TestClock: @unchecked Sendable {
 
 private func store(
     _ root: URL, versions: Int = 20, bytes: Int = 50 * 1024 * 1024, age: TimeInterval = 30 * 86_400,
-    total: Int = 1 << 30, clock: TestClock = TestClock(1_790_000_000)
+    total: Int = 1 << 30, clock: FileVersionsTestClock = FileVersionsTestClock(1_790_000_000)
 ) -> FileVersions {
     FileVersions(root: root, maxVersions: versions, maxBytes: bytes, maxAge: age, maxTotalBytes: total,
                  now: { clock.now() })
@@ -104,7 +104,7 @@ private func permissions(_ url: URL) throws -> Int {
     let dir = try scratch()
     defer { remove(dir) }
     let file = dir.appendingPathComponent("a.pdf").path
-    let clock = TestClock(1_790_000_000)
+    let clock = FileVersionsTestClock(1_790_000_000)
     let versions = store(dir.appendingPathComponent("store"), versions: 3, clock: clock)
     for index in 1...5 {
         try write("v\(index)", to: file)
@@ -119,7 +119,7 @@ private func permissions(_ url: URL) throws -> Int {
     let dir = try scratch()
     defer { remove(dir) }
     let file = dir.appendingPathComponent("a.pdf").path
-    let clock = TestClock(1_790_000_000)
+    let clock = FileVersionsTestClock(1_790_000_000)
     let versions = FileVersions(root: dir.appendingPathComponent("store"), now: { clock.now() })
     try write("x", to: file)
     for _ in 1...22 {
@@ -136,7 +136,7 @@ private func permissions(_ url: URL) throws -> Int {
     let other = dir.appendingPathComponent("b.pdf").path
     try write("viejo", to: file)
     try write("otro", to: other)
-    let clock = TestClock(1_790_000_000)
+    let clock = FileVersionsTestClock(1_790_000_000)
     let versions = store(dir.appendingPathComponent("store"), clock: clock)
     _ = versions.snapshot(file, trigger: .preSave)
     clock.advance(31 * 86_400)
@@ -152,7 +152,7 @@ private func permissions(_ url: URL) throws -> Int {
     let b = dir.appendingPathComponent("b.pdf").path
     try write("0123456789", to: a)
     try write("abcdefghij", to: b)
-    let clock = TestClock(1_790_000_000)
+    let clock = FileVersionsTestClock(1_790_000_000)
     let versions = store(dir.appendingPathComponent("store"), total: 25, clock: clock)
     _ = versions.snapshot(a, trigger: .preSave)
     clock.advance(1)
@@ -168,7 +168,7 @@ private func permissions(_ url: URL) throws -> Int {
     defer { remove(dir) }
     let file = dir.appendingPathComponent("a.pdf").path
     try write("v1", to: file)
-    let clock = TestClock(1_790_000_000)
+    let clock = FileVersionsTestClock(1_790_000_000)
     let versions = store(dir.appendingPathComponent("store"), clock: clock)
     _ = versions.snapshot(file, trigger: .preSave)
     clock.advance(1)
@@ -223,7 +223,7 @@ private func unwritableRoot(in dir: URL) throws -> URL {
     let root = dir.appendingPathComponent("store")
     let file = dir.appendingPathComponent("q3.pdf").path
     try write("ORIGINAL", to: file)
-    let versions = store(root, clock: TestClock(1_790_000_000, tick: 1))
+    let versions = store(root, clock: FileVersionsTestClock(1_790_000_000, tick: 1))
     let runner = NativeToolRunner(workdir: dir.path, places: nil, documents: FakeDocuments(), versions: versions)
     let result = try await runner.execute(tool: "create_document", arguments: ["path": "q3.pdf", "document": doc],
                                           approved: true)
@@ -319,7 +319,7 @@ private func unwritableRoot(in dir: URL) throws -> URL {
     defer { remove(dir) }
     let file = dir.appendingPathComponent("a.pdf").path
     try write("0123456789", to: file)
-    for clock in [TestClock(1_790_000_000, tick: 1), TestClock(1_790_000_000)] {
+    for clock in [FileVersionsTestClock(1_790_000_000, tick: 1), FileVersionsTestClock(1_790_000_000)] {
         let versions = store(dir.appendingPathComponent("store-\(UUID().uuidString)"), total: 5, clock: clock)
         guard case .saved(let url) = versions.snapshot(file, trigger: .preSave) else {
             Issue.record("tope diminuto: debe devolver .saved"); return
@@ -335,7 +335,7 @@ private func unwritableRoot(in dir: URL) throws -> URL {
     let dir = try scratch()
     defer { remove(dir) }
     let file = dir.appendingPathComponent("a.pdf").path
-    let versions = store(dir.appendingPathComponent("store"), clock: TestClock(1_790_000_000))
+    let versions = store(dir.appendingPathComponent("store"), clock: FileVersionsTestClock(1_790_000_000))
     try write("uno", to: file)
     _ = versions.snapshot(file, trigger: .preSave)
     try write("dos", to: file)
@@ -410,7 +410,7 @@ private struct LockingDocuments: DocumentRendering {
     defer { remove(dir) }
     let file = dir.appendingPathComponent("q3.pdf").path
     try write("ORIGINAL", to: file)
-    let versions = store(dir.appendingPathComponent("store"), clock: TestClock(1_790_000_000, tick: 1))
+    let versions = store(dir.appendingPathComponent("store"), clock: FileVersionsTestClock(1_790_000_000, tick: 1))
     let runner = NativeToolRunner(workdir: dir.path, places: nil, documents: FailingDocuments(), versions: versions)
     let result = try await runner.execute(tool: "create_document", arguments: ["path": "q3.pdf", "document": doc],
                                           approved: true)
@@ -424,7 +424,7 @@ private struct LockingDocuments: DocumentRendering {
     let root = dir.appendingPathComponent("store")
     let file = dir.appendingPathComponent("q3.pdf").path
     try write("ORIGINAL", to: file)
-    let versions = store(root, clock: TestClock(1_790_000_000, tick: 1))
+    let versions = store(root, clock: FileVersionsTestClock(1_790_000_000, tick: 1))
     let runner = NativeToolRunner(workdir: dir.path, places: nil, documents: LockingDocuments(root: root),
                                   versions: versions)
     defer {
@@ -486,7 +486,7 @@ private final class OneShotProvider: ChatProvider, @unchecked Sendable {
     defer { remove(dir) }
     let file = dir.appendingPathComponent("informe.pdf").path
     try write("ORIGINAL", to: file)
-    let versions = store(dir.appendingPathComponent("store"), clock: TestClock(1_790_000_000, tick: 1))
+    let versions = store(dir.appendingPathComponent("store"), clock: FileVersionsTestClock(1_790_000_000, tick: 1))
     let args = "{\"path\":\"informe.pdf\",\"document\":\"{\\\"title\\\":\\\"x\\\",\\\"blocks\\\":[{\\\"type\\\":\\\"paragraph\\\",\\\"text\\\":\\\"hola\\\"}]}\"}"
     let executor = NativeExecutor(
         descriptor: ExecutorCatalog.native,
@@ -507,7 +507,7 @@ private final class OneShotProvider: ChatProvider, @unchecked Sendable {
     let dir = try scratch()
     defer { remove(dir) }
     let root = dir.appendingPathComponent("store")
-    let clock = TestClock(1_790_000_000)
+    let clock = FileVersionsTestClock(1_790_000_000)
     let young = root.appendingPathComponent(String(repeating: "c", count: 24))
     let old = root.appendingPathComponent(String(repeating: "d", count: 24))
     for (folder, age) in [(young, 5.0), (old, 120.0)] {
@@ -540,7 +540,7 @@ private final class OneShotProvider: ChatProvider, @unchecked Sendable {
     let b = dir.appendingPathComponent("b.pdf").path
     try write("a", to: a)
     try write("b", to: b)
-    let clock = TestClock(1_790_000_000)
+    let clock = FileVersionsTestClock(1_790_000_000)
     let versions = store(dir.appendingPathComponent("store"), age: 100, clock: clock)
     _ = versions.snapshot(a, trigger: .preSave)
     clock.advance(100)
