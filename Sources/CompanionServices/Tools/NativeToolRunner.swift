@@ -97,6 +97,7 @@ package struct NativeToolRunner: Sendable {
             case .webSearch: return webSearch?.isConfigured == true
             case .createDocument: return documents != nil
             case .sheetRead, .sheetWrite: return sheets != nil
+            case .listFileHistory, .restoreFileVersion: return versions != nil
             default: return true
             }
         }
@@ -145,6 +146,10 @@ package struct NativeToolRunner: Sendable {
             return await sheetRead(arguments: arguments)
         case .sheetWrite:
             return await sheetWrite(arguments: arguments)
+        case .listFileHistory:
+            return listFileHistory(arguments: arguments)
+        case .restoreFileVersion:
+            return restoreFileVersion(arguments: arguments)
         }
     }
 
@@ -574,7 +579,7 @@ package struct NativeToolRunner: Sendable {
     // MARK: - Path Utilities
 
     /// Resolve symlinks to get the real path on disk, then re-validate.
-    private func resolveRealPath(_ path: String) -> String {
+    func resolveRealPath(_ path: String) -> String {
         let absolutePath = path.hasPrefix("/")
             ? path
             : ((workdir ?? ".") as NSString).appendingPathComponent(path)

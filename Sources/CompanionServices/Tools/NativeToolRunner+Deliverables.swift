@@ -107,6 +107,9 @@ extension NativeToolRunner {
     /// that a write would land in, resolved by the runner now. The same JSON
     /// is what runs, so approving and writing name one workbook.
     func approvalArguments(tool: String, json: String) async -> String {
+        // The one binder for a restore, shared with the parent: the model's own
+        // `restore_*` keys never reach a sheet on either lane.
+        if tool == NativeTool.restoreFileVersion.rawValue { return restoreSheetJSON(json) }
         guard tool == NativeTool.sheetWrite.rawValue else { return json }
         // Whatever cannot be resolved below leaves no model-supplied workbook behind.
         guard let sheets, let object = ToolArguments.parse(json),
