@@ -266,7 +266,15 @@ private func typedTurnWithReceipt(_ machine: inout SessionMachine) {
     _ = run(&machine, .connectAppSuggested(slug: "notion", name: "Notion"))
     finishTurn(&machine)
     expectEq(machine.projection.notice, card, "aviso: conectar la app sigue en pantalla al llegar a reposo")
-    _ = run(&machine, .noticeExpired(card))
+    let expired = run(&machine, .noticeExpired(card))
+    expect(expired.contains(.scheduleCompletedExpiry(
+        SessionMachine.settleDelay, floor: SessionMachine.settleFloor)),
+           "aviso: al irse el aviso el asentamiento se arma")
+    expect(IslandState.from(machine.projection, pebbleHidden: false).line != .receipt(opened),
+           "aviso: el recibo no se ve antes de que el asentamiento cumpla")
+    // The notice held the island open; once it left, the settle re-armed and
+    // its expiry is what brings the island to rest, where the receipt is read.
+    _ = run(&machine, .completedTimerExpired)
     expectEq(machine.projection.notice, .receipt(opened), "aviso: y el recibo sale cuando esa tarjeta se va")
 }
 

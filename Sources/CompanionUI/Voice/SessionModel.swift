@@ -21,6 +21,7 @@ package final class SessionModel {
     private let now: @Sendable () -> TimeInterval
     private var expiry: Task<Void, Never>?
     private var pendingExpiry: Task<Void, Never>?
+    /// Beside the turn. A later turn event cancels it; fulfilling it does not.
     private var voiceIdle: Task<Void, Never>?
     private var noticeExpiry: Task<Void, Never>?
     private var handsGlowExpiry: Task<Void, Never>?
@@ -28,12 +29,10 @@ package final class SessionModel {
     /// P1: the wait before passive; each interaction replaces it.
     private var passiveExpiry: Task<Void, Never>?
     /// What a paused clock still had left. A new schedule replaces it.
+    /// A pause stays frozen until a leave or that replacement: nothing
+    /// resumes it on its own.
     private var completedArm: ClockArm?
     private var noticeArm: ClockArm?
-    /// Fires the remainder when a pause has used up the ceiling. A lost
-    /// hover-out must not leave the card up forever.
-    private var completedCeiling: Task<Void, Never>?
-    private var noticeCeiling: Task<Void, Never>?
     /// 16h-3: where the island's events wait for the next turn.
     package var islandEvents: (any IslandEventSink)?
     /// Wave 17: "the voice wins" — `BridgeHost` pauses the bridge for any
@@ -85,8 +84,6 @@ package final class SessionModel {
         if projection.kind != .processing(.completed) {
             expiry?.cancel()
             expiry = nil
-            completedCeiling?.cancel()
-            completedCeiling = nil
             completedArm = nil
         }
         if projection.kind != .processing(.pending) {
@@ -102,8 +99,6 @@ package final class SessionModel {
         if projection.notice == nil {
             noticeExpiry?.cancel()
             noticeExpiry = nil
-            noticeCeiling?.cancel()
-            noticeCeiling = nil
             noticeArm = nil
         }
         for effect in effects { perform(effect) }
@@ -140,18 +135,16 @@ package final class SessionModel {
                 Task { await jobs.resolveApproval(
                     requestId: id, approved: approved, remember: remember) }
             }
-        case .scheduleCompletedExpiry(let delay):
-            completedCeiling?.cancel()
-            completedCeiling = nil
-            completedArm = engage(delay, event: .completedTimerExpired, running: expiry)
+        case .scheduleCompletedExpiry(let delay, let floor):
+            // The reducer names the floor. The settle has one; a dictation
+            // card passes nil so a leave keeps the remainder it stored.
+            completedArm = engage(delay, event: .completedTimerExpired, running: expiry, floor: floor)
             expiry = timer(delay, then: .completedTimerExpired)
         case .pauseCompletedExpiry:
-            if let (arm, budget) = frozen(completedArm) {
+            if let arm = frozen(completedArm) {
                 completedArm = arm
                 expiry?.cancel()
                 expiry = nil
-                completedCeiling?.cancel()
-                completedCeiling = ceilingTask(budget, release: releaseCompleted)
             }
         case .resumeCompletedExpiry:
             releaseCompleted()
@@ -159,18 +152,14 @@ package final class SessionModel {
             // A second "didn't hear you" gets its own six seconds.
             // Armed for THIS notice: if another took its place, the late
             // clock finds it changed and does nothing.
-            noticeCeiling?.cancel()
-            noticeCeiling = nil
             let event = projection.notice.map { SessionEvent.noticeExpired($0) } ?? .noticeDismissed
             noticeArm = engage(delay, event: event, running: noticeExpiry)
             noticeExpiry = timer(delay, then: event)
         case .pauseNoticeExpiry:
-            if let (arm, budget) = frozen(noticeArm) {
+            if let arm = frozen(noticeArm) {
                 noticeArm = arm
                 noticeExpiry?.cancel()
                 noticeExpiry = nil
-                noticeCeiling?.cancel()
-                noticeCeiling = ceilingTask(budget, release: releaseNotice)
             }
         case .resumeNoticeExpiry:
             releaseNotice()
@@ -228,62 +217,45 @@ package final class SessionModel {
 
     /// `left` set means the wait is frozen. A new `start` drops it, so the
     /// next notice or dictation does not inherit the previous remainder.
-    /// `pausedTotal` is this clock's paused time so far: the ceiling is a
-    /// budget for the clock, not a fresh minute on every hover.
+    /// The settle stores a floor; a leave raises the remainder to it.
     private struct ClockArm {
         var at: TimeInterval
         var delay: TimeInterval
         var left: TimeInterval?
         var event: SessionEvent
-        var pausedTotal: TimeInterval = 0
-        var pauseStarted: TimeInterval?
+        /// Set only for the settle. A leave raises the remainder to it.
+        var floor: TimeInterval?
     }
 
     /// Cancels `running` before the caller stores the new task. No inout:
     /// the task and `now` are both properties of this model.
-    private func engage(_ delay: TimeInterval, event: SessionEvent, running: Task<Void, Never>?) -> ClockArm {
+    private func engage(
+        _ delay: TimeInterval, event: SessionEvent, running: Task<Void, Never>?,
+        floor: TimeInterval? = nil
+    ) -> ClockArm {
         running?.cancel()
-        return ClockArm(at: now(), delay: delay, left: nil, event: event)
+        return ClockArm(at: now(), delay: delay, left: nil, event: event, floor: floor)
     }
 
-    /// A second pause keeps the first remainder. Past the ceiling the timer
-    /// is left running: more hovering must not extend it. `now` is read
-    /// before any task property is stored, so the two accesses do not overlap.
-    private func frozen(_ clock: ClockArm?) -> (ClockArm, TimeInterval)? {
+    /// A second pause keeps the first remainder. `now` is read before the
+    /// caller stores the arm, so the two accesses do not overlap.
+    private func frozen(_ clock: ClockArm?) -> ClockArm? {
         guard var arm = clock, arm.left == nil else { return nil }
-        guard arm.pausedTotal < SessionMachine.countdownPauseCeiling else { return nil }
-        let stamp = now()
-        arm.left = max(0, arm.delay - (stamp - arm.at))
-        arm.pauseStarted = stamp
-        return (arm, SessionMachine.countdownPauseCeiling - arm.pausedTotal)
+        arm.left = max(0, arm.delay - (now() - arm.at))
+        return arm
     }
 
-    private func ceilingTask(
-        _ budget: TimeInterval, release: @escaping @MainActor () -> Void
-    ) -> Task<Void, Never> {
-        Task { [weak self] in
-            guard let self else { return }
-            do { try await self.sleep(budget) } catch { return }
-            guard !Task.isCancelled else { return }
-            release()
-        }
-    }
-
+    /// A pointer leave. The settle's floor raises a short remainder; a card
+    /// with no floor continues from what was stored.
     private func releaseCompleted() {
-        let next = thawed(completedArm)
-        completedCeiling?.cancel()
-        completedCeiling = nil
-        guard let (arm, left, event) = next else { return }
+        guard let (arm, left, event) = thawed(completedArm) else { return }
         expiry?.cancel()
         completedArm = arm
         expiry = timer(left, then: event)
     }
 
     private func releaseNotice() {
-        let next = thawed(noticeArm)
-        noticeCeiling?.cancel()
-        noticeCeiling = nil
-        guard let (arm, left, event) = next else { return }
+        guard let (arm, left, event) = thawed(noticeArm) else { return }
         noticeExpiry?.cancel()
         noticeArm = arm
         noticeExpiry = timer(left, then: event)
@@ -291,14 +263,13 @@ package final class SessionModel {
 
     /// What a resume would arm. Nil when nothing is paused: the running
     /// timer stays. `now` is read here, with no task held inout.
-    private func thawed(_ clock: ClockArm?) -> (ClockArm, TimeInterval, SessionEvent)? {
+    private func thawed(
+        _ clock: ClockArm?
+    ) -> (ClockArm, TimeInterval, SessionEvent)? {
         guard let arm = clock, let left = arm.left else { return nil }
-        var spent = arm.pausedTotal
-        if let started = arm.pauseStarted { spent += max(0, now() - started) }
-        if spent > SessionMachine.countdownPauseCeiling { spent = SessionMachine.countdownPauseCeiling }
-        let next = ClockArm(at: now(), delay: left, left: nil, event: arm.event,
-                            pausedTotal: spent, pauseStarted: nil)
-        return (next, left, arm.event)
+        let remain = max(left, arm.floor ?? 0)
+        let next = ClockArm(at: now(), delay: remain, left: nil, event: arm.event, floor: arm.floor)
+        return (next, remain, arm.event)
     }
 
     private func timer(_ delay: TimeInterval, then event: SessionEvent) -> Task<Void, Never> {

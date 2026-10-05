@@ -59,6 +59,7 @@ extension IslandView {
             // Not waiting for the fade: the click area shrinks with the decision.
             geometry.portal = nil
             // The rich answer dies with the island's rest by the same rule.
+            IslandAnswerSignal.changed(from: openAnswer, to: nil, session: chat.session)
             openAnswer = nil
             geometry.answer = nil
         }

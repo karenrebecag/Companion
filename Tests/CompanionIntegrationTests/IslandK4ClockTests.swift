@@ -29,9 +29,6 @@ private final class StepClock: @unchecked Sendable {
     let elapsed: TimeInterval = 1
     clock.advance(elapsed)
     session.send(.dictationCardHover(true))
-    await pumpUntil("K4: la pausa armó su techo") {
-        sleeper.armed(SessionMachine.countdownPauseCeiling) == 1
-    }
     expectEq(session.projection.kind, .processing(.completed), "K4: en pausa el dictado no caduca")
     expectEq(session.projection.dictatedText, "hola", "K4: y conserva las palabras")
     session.send(.dictationCardHover(false))
@@ -53,9 +50,6 @@ private final class StepClock: @unchecked Sendable {
     let elapsed: TimeInterval = 2
     clock.advance(elapsed)
     session.send(.noticeCardHover(true))
-    await pumpUntil("K4: la pausa del aviso armó su techo") {
-        sleeper.armed(SessionMachine.countdownPauseCeiling) == 1
-    }
     expectEq(session.projection.notice, .couldntHear, "K4: en pausa el aviso sigue")
     session.send(.noticeCardHover(false))
     let left = SessionMachine.noticeDelay - elapsed
@@ -85,61 +79,32 @@ private final class StepClock: @unchecked Sendable {
              "K4: no hereda el resto del aviso pausado")
 }
 
-@Test @MainActor func k4R2ALostHoverResumesAfterThePauseCeiling() async {
+@Test @MainActor func k4R2ALostHoverStaysPaused() async {
     let clock = StepClock()
     let sleeper = ManualSleeper()
     let session = SessionModel(jobs: nil, approvals: nil, sleep: sleeper.sleep, now: clock.now)
     dictated(session)
     await pumpUntil("K4: reloj del dictado") { sleeper.armed(SessionMachine.dictationCardDelay) == 1 }
-    let elapsed: TimeInterval = 1
-    clock.advance(elapsed)
+    clock.advance(1)
+    let armed = sleeper.delays.count
     session.send(.dictationCardHover(true))
-    await pumpUntil("K4: techo del dictado") { sleeper.armed(SessionMachine.countdownPauseCeiling) == 1 }
-    clock.advance(SessionMachine.countdownPauseCeiling)
-    sleeper.fire()
-    let left = SessionMachine.dictationCardDelay - elapsed
-    await pumpUntil("K4: el techo reanuda lo que quedaba") { sleeper.armed(near: left, tolerance: 0.05) == 1 }
-    expectEq(session.projection.kind, .processing(.completed), "K4: el techo no tira las palabras")
-    sleeper.fire()
-    await pumpUntil("K4: lo que quedaba sí las retira") { session.projection.kind == .idle }
+    clock.advance(120)
+    await settle(0.2)
+    expectEq(sleeper.delays.count, armed, "K4: el dictado pausado no se rearma solo")
+    expectEq(session.projection.kind, .processing(.completed), "K4: las palabras siguen")
+    expectEq(session.projection.dictatedText, "hola", "K4: y el texto sigue")
 
     session.send(.pressed)
     session.send(.released)
     session.send(.heardNothing)
     await pumpUntil("K4: reloj del aviso") { sleeper.armed(SessionMachine.noticeDelay) >= 1 }
     clock.advance(2)
-    // Snapshot before the send: the ceiling registers from its own task and
-    // can beat a snapshot taken after it, leaving the wait for `>` unreachable.
-    let ceilings = sleeper.armed(SessionMachine.countdownPauseCeiling)
+    let notices = sleeper.delays.count
     session.send(.noticeCardHover(true))
-    await pumpUntil("K4: techo del aviso") { sleeper.armed(SessionMachine.countdownPauseCeiling) > ceilings }
-    clock.advance(SessionMachine.countdownPauseCeiling)
-    sleeper.fire()
-    await pumpUntil("K4: el aviso sigue con su resto") {
-        sleeper.armed(near: SessionMachine.noticeDelay - 2, tolerance: 0.05) == 1
-    }
-    expectEq(session.projection.notice, .couldntHear, "K4: el techo no borra el aviso")
-}
-
-@Test @MainActor func k4R2PauseBudgetIsTotalPerClock() async {
-    let clock = StepClock()
-    let sleeper = ManualSleeper()
-    let session = SessionModel(jobs: nil, approvals: nil, sleep: sleeper.sleep, now: clock.now)
-    dictated(session)
-    await pumpUntil("K4: reloj") { sleeper.armed(SessionMachine.dictationCardDelay) == 1 }
-    session.send(.dictationCardHover(true))
-    await pumpUntil("K4: primer techo") { sleeper.armed(SessionMachine.countdownPauseCeiling) == 1 }
-    clock.advance(40)
-    let armedBeforeLeaving = sleeper.delays.count
-    session.send(.dictationCardHover(false))
-    // Cancelled waits stay pending, so `pending` says nothing about the resume.
-    // Each timer registers from its own task off the main actor: if the resume
-    // timer lands after the next ceiling, `delays.last` is not the ceiling.
-    await pumpUntil("K4: salió") { sleeper.delays.count > armedBeforeLeaving }
-    session.send(.dictationCardHover(true))
-    await pumpUntil("K4: el segundo tramo es lo que quedaba del techo") {
-        sleeper.armed(near: SessionMachine.countdownPauseCeiling - 40, tolerance: 0.05) == 1
-    }
+    clock.advance(120)
+    await settle(0.2)
+    expectEq(sleeper.delays.count, notices, "K4: el aviso pausado no se rearma solo")
+    expectEq(session.projection.notice, .couldntHear, "K4: el aviso sigue")
 }
 
 @Test @MainActor func k4R2SecondIdenticalNoticeStaysPaused() async {
@@ -150,16 +115,11 @@ private final class StepClock: @unchecked Sendable {
     session.send(.heardNothing)
     await pumpUntil("K4: primer aviso") { sleeper.armed(SessionMachine.noticeDelay) == 1 }
     session.send(.noticeCardHover(true))
-    await pumpUntil("K4: techo del primer aviso") { sleeper.armed(SessionMachine.countdownPauseCeiling) == 1 }
-    let ceilings = sleeper.armed(SessionMachine.countdownPauseCeiling)
     let second = session.send(.heardNothing)
     expect(second.contains(.pauseNoticeExpiry), "K4: el modelo recibe la pausa del aviso nuevo")
     guard second.contains(.pauseNoticeExpiry) else { return }
-    await pumpUntil("K4: el aviso nuevo también tiene techo") {
-        sleeper.armed(SessionMachine.countdownPauseCeiling) > ceilings
-    }
-    sleeper.fire()
-    await pumpUntil("K4: el aviso sigue en pantalla") { session.projection.notice == .couldntHear }
+    await settle(0.2)
+    expectEq(session.projection.notice, .couldntHear, "K4: el aviso sigue en pantalla")
 }
 
 @Test @MainActor func k4R2DoublePauseKeepsTheFirstRemainder() async {
@@ -216,16 +176,10 @@ private final class StepClock: @unchecked Sendable {
     session.send(.dictationCardHover(true))
     session.send(.dictationCardCopied)
     expectEq(session.projection.dictatedText, "hola", "K4: copiar deja las palabras")
-    // Each timer registers from its own task, so under load a ceiling can land
-    // after the leave's delay and `delays.last` lies. Wait for the copy to
-    // re-pause, then count full delays across the leave.
-    await pumpUntil("K4: copiar vuelve a pausar") {
-        sleeper.armed(SessionMachine.countdownPauseCeiling) == 2
-    }
-    let fullBeforeLeaving = sleeper.armed(near: SessionMachine.dictationCardDelay, tolerance: 0.05)
     session.send(.dictationCardHover(false))
     await pumpUntil("K4: al salir el plazo es el entero") {
-        sleeper.armed(near: SessionMachine.dictationCardDelay, tolerance: 0.05) == fullBeforeLeaving + 1
+        guard let last = sleeper.delays.last else { return false }
+        return abs(last - SessionMachine.dictationCardDelay) <= 0.05
     }
     expectEq(sleeper.armed(near: SessionMachine.dictationCardDelay - 1, tolerance: 0.05), 0,
              "K4: no reanuda el resto del reloj que copiar reemplazó")

@@ -275,6 +275,9 @@ package struct IslandState: Sendable, Equatable {
                 line: .job(goal: job?.goal, step: job?.steps.last?.label, steps: job?.steps.count ?? 0),
                 showsStop: true)
         case .completed:
+            // A notice holds the island in Completed instead of letting the
+            // settle drop it to Idle, so Completed has to show it.
+            if p.dictatedText == nil, p.notice != nil { return atRest(p, pebbleHidden: false) }
             guard let app = p.dictation else { return IslandState(size: .bar, line: .completed) }
             // The words are the card; without them the bar only says where.
             guard let text = p.dictatedText, !text.value.isEmpty else {

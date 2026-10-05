@@ -2,6 +2,28 @@ import CompanionCore
 import SwiftUI
 
 // The rich answer that opens under the island (16m-1): the data family.
+
+/// Every open and close of the popover goes through here, so the reducer
+/// hears it from the button, the Escape key and the island's own rest alike.
+enum IslandAnswerSignal {
+    @discardableResult
+    @MainActor
+    static func changed(from old: UUID?, to new: UUID?, session: SessionModel) -> [SessionEffect] {
+        if new != nil { return session.send(.answerOpened) }
+        guard old != nil else { return [] }
+        return session.send(.answerClosed)
+    }
+
+    /// The popover dies with its message (a new conversation): without this
+    /// the reducer would keep holding the island open for a popover nobody sees.
+    @MainActor
+    static func reconcile(
+        open: UUID?, messageExists: Bool, session: SessionModel
+    ) -> (open: UUID?, effects: [SessionEffect]) {
+        guard let open, !messageExists else { return (open, []) }
+        return (nil, changed(from: open, to: nil, session: session))
+    }
+}
 extension IslandView {
     /// The rich answer under the shape (16m-1): a card's "Ver" opens it, ×
     /// or Escape closes it, and its frame joins the click area the way the
@@ -49,6 +71,8 @@ extension IslandView {
     func closeAnswer() {
         resultAttention.attended()
         chat.session.report(.closed(.answer))
+        // The settle was held back by this answer; closing it releases it.
+        IslandAnswerSignal.changed(from: openAnswer, to: nil, session: chat.session)
         withAnimation(.expoOut(IslandMotionBudget.popover.openDuration)) { openAnswer = nil }
         // Not waiting for the fade, same rule as the dropdown: the click
         // area shrinks with the decision.
@@ -66,6 +90,7 @@ extension IslandView {
             onShowMain()
             return
         }
+        IslandAnswerSignal.changed(from: openAnswer, to: id, session: chat.session)
         withAnimation(.expoOut(IslandMotionBudget.popover.openDuration)) { openAnswer = id }
     }
 }
