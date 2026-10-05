@@ -21,6 +21,11 @@ jobs:
     # Package.swift requires; macos-15/Xcode 16.4 tops out at 6.1 and the
     # build died before running a single gate (20 red runs, same cause).
     runs-on: macos-26
+    # A healthy run takes 9-14 min (44 runs on 2026-10-04); a hung test held
+    # the runner 6 h (run 37180243632) and stalled every PR behind it. 30 min
+    # is twice the slowest healthy run. gates.sh kills a silent swift test
+    # first, so this only catches a hang outside Gate 4.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:

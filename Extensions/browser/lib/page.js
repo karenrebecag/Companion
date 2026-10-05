@@ -218,6 +218,30 @@
     return out;
   }
 
+  // Implicit submission presses the form's default button, so that button's label is what an Enter in
+  // the field would do. '' is a form with no submit button; null is a field outside any form.
+  // The default is the first submit control the form owns in tree order: form.elements includes the
+  // ones tied in by form="id", and .type reports an invalid or missing button type as submit. A
+  // disabled default still is the default (Enter then submits nothing), so it is not skipped.
+  function submitOf(el, field) {
+    if (field.type === null || field.type === 'select' || !el.form) return null;
+    const button = Array.from(el.form.elements ?? []).find((node) => {
+      const tag = tagOf(node);
+      const type = String(node.type ?? '').toLowerCase();
+      return (tag === 'button' || tag === 'input') && (type === 'submit' || type === 'image');
+    });
+    return button ? buttonLabel(button) : '';
+  }
+
+  // labelOf treats every <input> as a field; a submit or image input shows its value or alt instead,
+  // and with neither the browser shows "Submit", which is what it does.
+  function buttonLabel(button) {
+    const own = labelOf(button);
+    if (own || tagOf(button) !== 'input') return own;
+    const shown = attr(button, 'value') || attr(button, 'alt');
+    return shown ? clip(shown, LABEL_MAX) : String(button.type ?? '').toLowerCase() === 'submit' ? 'Submit' : '';
+  }
+
   function serializeElement(el, id, frame) {
     const field = fieldOf(el);
     return {
@@ -235,6 +259,7 @@
       fieldName: field.name == null ? null : clip(field.name, NAME_MAX),
       fieldId: field.id == null ? null : clip(field.id, NAME_MAX),
       states: statesOf(el),
+      submit: submitOf(el, field),
     };
   }
 
@@ -254,6 +279,14 @@
     const seen = state.identities?.get(id);
     if (seen !== undefined && identityOf(element) !== seen) return stale('element changed since the read, read the page again');
     return { element };
+  }
+
+  // Every press and insert goes through here: a menu that closed after the read keeps its items in
+  // the map, and acting on one would report a click or text that landed on nothing.
+  function lookupShown(state, generation, id) {
+    const found = lookup(state, generation, id);
+    if (found.error || isShown(found.element)) return found;
+    return stale('element is hidden now, read the page again');
   }
 
   function clickElement(el) {
@@ -297,6 +330,25 @@
     return { done: 'right-clicked' };
   }
 
+  // Enter, then move: menus that open on hover listen to either, and nothing is pressed.
+  function hoverElement(el) {
+    const win = el.ownerDocument.defaultView;
+    const init = { bubbles: true, cancelable: true, composed: true, view: win, button: 0, buttons: 0 };
+    for (const [Ctor, type] of [
+      [win.PointerEvent, 'pointerover'], [win.PointerEvent, 'pointerenter'],
+      [win.MouseEvent, 'mouseover'], [win.MouseEvent, 'mouseenter'],
+      [win.PointerEvent, 'pointermove'], [win.MouseEvent, 'mousemove'],
+    ]) {
+      el.dispatchEvent(new Ctor(type, init));
+    }
+    return { done: 'hovered' };
+  }
+
+  function scrollToElement(el) {
+    el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    return { done: 'scrolled' };
+  }
+
   function typeIntoElement(el, text) {
     if (isSensitive(fieldOf(el))) return { error: { code: 'secure_field', message: 'sensitive field, typing refused' } };
     const doc = el.ownerDocument;
@@ -321,6 +373,64 @@
     el.dispatchEvent(new win.Event('input', init));
     el.dispatchEvent(new win.Event('change', init));
     return { done: 'typed' };
+  }
+
+  const OPTION_MAX = 60;
+  // Under the host's 300-character cap on an extension message, so the last label arrives whole.
+  const OPTIONS_BUDGET = 280;
+  const collapse = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+  const optionLabel = (o) => collapse(typeof o.label === 'string' ? o.label : o.textContent);
+
+  // By label only: the read never shows an option's value, and the gate judged the words the model
+  // sent, so a value would choose an option whose label nobody judged.
+  function selectOption(el, wanted) {
+    if (tagOf(el) !== 'select') return { error: { code: 'not_selectable', message: 'this element is not a list of options' } };
+    if (isSensitive(fieldOf(el))) return { error: { code: 'secure_field', message: 'sensitive field, choosing refused' } };
+    // A disabled fieldset disables its controls without setting their own flag.
+    if (el.disabled === true || (typeof el.matches === 'function' && el.matches(':disabled'))) {
+      return { error: { code: 'not_selectable', message: 'this list is disabled' } };
+    }
+    const all = Array.from(el.options ?? []);
+    // A disabled <optgroup> disables its options without setting their own flag.
+    const usable = all.filter((o) => !o.disabled && !(typeof o.matches === 'function' && o.matches(':disabled')));
+    const want = collapse(wanted);
+    const match = usable.find((o) => optionLabel(o) === want)
+      ?? usable.find((o) => optionLabel(o).toLowerCase() === want.toLowerCase());
+    if (!match) {
+      const listed = [];
+      let used = 0;
+      for (const o of usable) {
+        const label = clip(optionLabel(o), OPTION_MAX);
+        const cost = Array.from(label).length + (listed.length ? 3 : 0);
+        if (used + cost > OPTIONS_BUDGET) break;
+        listed.push(label);
+        used += cost;
+      }
+      return { error: { code: 'option_not_found', message: listed.join(' | ') } };
+    }
+    // A real choice of the same option fires nothing, and a change handler may act on every event.
+    // A multi-select keeps what the user already chose there.
+    if (el.multiple ? match.selected : all.every((o) => o.selected === (o === match))) return { done: 'selected' };
+    if (el.multiple) match.selected = true;
+    else for (const o of all) o.selected = o === match;
+    const win = el.ownerDocument.defaultView;
+    const init = { bubbles: true, composed: true };
+    el.dispatchEvent(new win.Event('input', init));
+    el.dispatchEvent(new win.Event('change', init));
+    return { done: 'selected' };
+  }
+
+  // Open shadow roots keep their own activeElement; the document only sees the host.
+  function deepActive(doc) {
+    let node = doc.activeElement ?? null;
+    while (node && node.shadowRoot && node.shadowRoot.activeElement) node = node.shadowRoot.activeElement;
+    return node;
+  }
+
+  // A trusted key lands on whatever holds the focus, so it only goes out once the element holds it.
+  function focusElement(el) {
+    if (typeof el.focus === 'function') el.focus({ preventScroll: false });
+    return { focused: deepActive(el.ownerDocument) === el };
   }
 
   function stateOf() {
@@ -436,22 +546,79 @@
     return { nodes: [...front, ...rest], text: [...parts, remaining].join('\n\n') };
   }
 
-  function read(generation, selector, frame) {
+
+  // Incredible's finders: by text, by role and name, inside an element. Names and lines compare
+  // without case or runs of spacing, since the model types what it read, not the markup.
+  const squash = (value) => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const says = (value, wanted, exact) => (exact ? squash(value) === squash(wanted) : squash(value).includes(squash(wanted)));
+  const hasFinder = (q) => q.text != null || q.role != null;
+
+  function fits(node, q) {
+    if (q.role != null && roleOf(node) !== String(q.role).toLowerCase()) return false;
+    if (q.name != null && !says(labelOf(node), q.name, q.exact)) return false;
+    // textContent, not innerText: innerText lays the page out again for every control tested.
+    // HACK: only the first 4 KB of a control's text is searched, so nested wrappers stay linear. Raise it
+    // when a real control's name sits deeper than that.
+    if (q.text != null && !says(labelOf(node), q.text, q.exact) && !says(String(node.textContent ?? '').slice(0, 4096), q.text, q.exact)) return false;
+    return true;
+  }
+
+  // An empty answer must say why, as a selector's does: "nothing here" and "only hidden here" lead
+  // the model to different next steps.
+  function find(nodes, text, q, scopes) {
+    const matched = nodes.filter((node) => fits(node, q));
+    const lines = q.text == null ? [] : text.split('\n').filter((line) => line.trim() && says(line, q.text, q.exact));
+    if (matched.length > 0 || lines.length > 0) {
+      const own = q.text == null ? matched.map((node) => String(node.innerText ?? node.textContent ?? '').trim()).filter(Boolean) : lines;
+      return { nodes: matched, text: own.join('\n') };
+    }
+    // Only the part searched counts: a hidden control elsewhere would wrongly say "it is here, hidden".
+    const anyHidden = scopes.some((root) => [root, ...Array.from(root.querySelectorAll('*'))]
+      .some((node) => node.tagName && isListable(node) && !isVisible(node) && fits(node, q)));
+    return anyHidden
+      ? { error: { code: 'selector_hidden', message: 'everything the search matches is hidden' } }
+      : { error: { code: 'selector_no_match', message: 'nothing matches the search' } };
+  }
+
+  function scopeOf(q, state) {
+    if (q.withinLocal == null) return { root: document };
+    const found = lookup(state, q.withinGeneration, q.withinLocal);
+    return found.error ? found : { root: found.element };
+  }
+
+  function read(generation, query, frame) {
+    const q = query == null || typeof query === 'string' ? { selector: query ?? null } : query;
     const state = stateOf();
     const doc = document;
+    const scope = scopeOf(q, state);
+    if (scope.error) return scope;
     let nodes = [];
     let text = '';
-    if (selector == null) {
+    if (q.selector == null && scope.root === doc && !hasFinder(q)) {
       collect(doc, nodes);
       ({ nodes, text } = overlayFirst(doc, nodes));
-      text = cutUnits(text, TEXT_MAX);
     } else {
-      const segments = parseSelector(selector);
-      if (!segments) return { error: { code: 'invalid_args', message: 'invalid selector' } };
-      const scoped = readMatches(resolveSelector(doc, segments));
+      let scoped;
+      let roots = [scope.root];
+      if (q.selector != null) {
+        const segments = parseSelector(q.selector);
+        if (!segments) return { error: { code: 'invalid_args', message: 'invalid selector' } };
+        roots = resolveSelector(scope.root, segments);
+        scoped = readMatches(roots);
+      } else if (scope.root !== doc) {
+        scoped = readMatches([scope.root]);
+      } else {
+        const all = [];
+        collect(doc, all);
+        scoped = { nodes: all, text: String(doc.body?.innerText ?? '') };
+      }
+      if (scoped.error) return scoped;
+      if (hasFinder(q)) scoped = find(scoped.nodes, scoped.text, q, roots);
       if (scoped.error) return scoped;
       ({ nodes, text } = scoped);
     }
+    if (Number.isInteger(q.max) && q.max > 0) nodes = nodes.slice(0, q.max);
+    text = cutUnits(text, Number.isInteger(q.maxChars) && q.maxChars > 0 ? Math.min(q.maxChars, TEXT_MAX) : TEXT_MAX);
     state.generation = generation;
     state.elements = new Map();
     state.identities = new Map();
@@ -465,7 +632,7 @@
   }
 
   function act(generation, id, run) {
-    const found = lookup(stateOf(), generation, id);
+    const found = lookupShown(stateOf(), generation, id);
     return found.error ? found : run(found.element);
   }
 
@@ -476,7 +643,7 @@
   // A popover that re-renders between measure and press makes a trusted click land on nothing,
   // so the box has to hold still across two reads before its center is handed to CDP.
   async function locate(generation, id, token, landingEvent = 'click') {
-    const found = lookup(stateOf(), generation, id);
+    const found = lookupShown(stateOf(), generation, id);
     if (found.error) return found;
     const el = found.element;
     // A selector read reaches into same-origin iframes; their boxes are in the frame's own coordinates.
@@ -496,18 +663,119 @@
     // A trusted press goes to whatever is on top at that pixel, not to the element: a decoy or a
     // floating third-party frame there would receive a click nobody approved.
     const blocked = inView && !hitsTarget(el, deepElementFromPoint(document, box.x, box.y));
-    if (inView && !blocked) armLanding(el, token, landingEvent);
+    // A hover passes no landing event: there is no press whose landing could be proven.
+    if (inView && !blocked && landingEvent) armLanding(el, token, landingEvent);
     return { box, inView, blocked, label: labelOf(el), role: roleOf(el) };
   }
 
-  function deepElementFromPoint(doc, x, y) {
+  // A closed root hides from the page but not from an extension. Only the frame test opens it: a read cannot
+  // list what is inside a closed root, so a click hit test that went in would refuse the host it read.
+  function shadowOf(node, closed) {
+    if (node.shadowRoot) return node.shadowRoot;
+    if (!closed) return null;
+    try {
+      return globalThis.chrome?.dom?.openOrClosedShadowRoot?.(node) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  function deepElementFromPoint(doc, x, y, { closed = false } = {}) {
     let node = doc.elementFromPoint(x, y);
-    while (node && node.shadowRoot) {
-      const inner = node.shadowRoot.elementFromPoint(x, y);
+    for (let root = node && shadowOf(node, closed); root; root = node && shadowOf(node, closed)) {
+      const inner = root.elementFromPoint(x, y);
       if (!inner || inner === node) break;
       node = inner;
     }
     return node;
+  }
+
+  const covered = () => ({ error: { code: 'stale_id', message: 'something covers this element (a dialog or banner); read the page again' } });
+
+  // A styled checkbox or radio hides the input and draws its label on top: the label is how a person
+  // presses it, so being under its own label is not being covered.
+  function reachable(el, topmost) {
+    return hitsTarget(el, topmost) || Array.from(el.labels ?? []).some((label) => hitsTarget(label, topmost));
+  }
+
+  // The synthetic click is dispatched on the element itself, so an overlay never stops it; inside
+  // frames and in the trusted path's fallback it is the only click, and it must refuse what the user
+  // could not have pressed. Each same-origin frame up the chain is checked in its parent's coordinates.
+  // HACK: a cross-origin parent hides its frameElement, so every cross-origin frame (ads, payments,
+  // sign-in) is unchecked against overlays in the page around it. Hit-test the frame's box from the
+  // top document in the background before the synthetic click once the agent acts in such frames.
+  function isCovered(el) {
+    el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+    const r = el.getBoundingClientRect();
+    let win = el.ownerDocument.defaultView;
+    // Only the part on screen is tested: a centre pushed just off screen must not skip the check.
+    const left = Math.max(r.left, 0);
+    const top = Math.max(r.top, 0);
+    const right = Math.min(r.left + r.width, win.innerWidth);
+    const bottom = Math.min(r.top + r.height, win.innerHeight);
+    // Nothing on screen leaves nothing to hit-test; that case keeps the click it always had.
+    if (!(right > left && bottom > top)) return false;
+    let x = (left + right) / 2;
+    let y = (top + bottom) / 2;
+    let target = el;
+    for (;;) {
+      if (!reachable(target, deepElementFromPoint(target.ownerDocument, x, y))) return true;
+      const frame = win.frameElement;
+      if (!frame) return false;
+      // The frame's document starts inside its border and padding, and a CSS transform scales it.
+      const box = frame.getBoundingClientRect();
+      const style = frame.ownerDocument.defaultView.getComputedStyle(frame);
+      const scale = frame.offsetWidth > 0 ? box.width / frame.offsetWidth : 1;
+      x = box.left + ((frame.clientLeft || 0) + (parseFloat(style.paddingLeft) || 0) + x) * scale;
+      y = box.top + ((frame.clientTop || 0) + (parseFloat(style.paddingTop) || 0) + y) * scale;
+      target = frame;
+      win = frame.ownerDocument.defaultView;
+    }
+  }
+
+  function clickUncovered(el) {
+    return isCovered(el) ? covered() : clickElement(el);
+  }
+
+  // A drag's drop point is measured where the page is: scrolling to the target would move the source the
+  // press already holds.
+  function boxOf(generation, id) {
+    const found = lookup(stateOf(), generation, id);
+    if (found.error) return found;
+    const el = found.element;
+    if (el.ownerDocument !== document) return { inFrame: true };
+    const r = el.getBoundingClientRect();
+    const box = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const inView = r.width > 0 && r.height > 0 && box.x >= 0 && box.y >= 0
+      && box.x <= window.innerWidth && box.y <= window.innerHeight;
+    return { box, inView };
+  }
+
+  const EMBEDS = new Set(['iframe', 'frame', 'object', 'embed', 'fencedframe', 'portal']);
+  // What each press saw at its point before the cursor glide, by token; weak, so a gone node is not kept alive.
+  const pointMarks = new Map();
+  const POINT_MARKS_MAX = 16;
+
+  // A press at a bare point goes to the innermost node there, so the frame test walks out from it through
+  // shadow hosts: an embedded frame, or anything inside one, belongs to a page nobody read. The token pairs the
+  // look before the glide ('mark') with the one right before the press ('check'), so a node that slid in
+  // between is caught; a check with no mark fails closed, and each check spends its mark.
+  function pointAt(x, y, token, phase) {
+    const node = deepElementFromPoint(document, x, y, { closed: true });
+    let frame = false;
+    for (let at = node; at; at = at.parentNode ?? at.parentElement ?? at.host ?? null) {
+      if (at.tagName && EMBEDS.has(tagOf(at))) { frame = true; break; }
+    }
+    if (token == null) return { frame, same: true };
+    if (phase === 'mark') {
+      if (pointMarks.size >= POINT_MARKS_MAX) pointMarks.clear();
+      pointMarks.set(token, node ? new WeakRef(node) : null);
+      return { frame, same: true };
+    }
+    if (!pointMarks.has(token)) return { frame, same: false };
+    const seen = pointMarks.get(token);
+    pointMarks.delete(token);
+    return { frame, same: (seen?.deref() ?? null) === (node ?? null) };
   }
 
   // Re-checked right before the press: the page had the whole cursor glide to slip something on top.
@@ -546,7 +814,7 @@
 
   // Runs after the trusted click focused the field; selecting first makes the keys replace, not append.
   function prepareType(generation, id) {
-    const found = lookup(stateOf(), generation, id);
+    const found = lookupShown(stateOf(), generation, id);
     if (found.error) return found;
     const el = found.element;
     if (isSensitive(fieldOf(el))) return { error: { code: 'secure_field', message: 'sensitive field, typing refused' } };
@@ -572,11 +840,16 @@
 
   const api = {
     isSensitive, isListable, parseSelector, resolveSelector, serializeElement, lookup,
-    clickElement, doubleClickElement, contextClickElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt,
-    click: (generation, id) => act(generation, id, clickElement),
+    clickElement, doubleClickElement, contextClickElement, hoverElement, scrollToElement, typeIntoElement, armLanding, read, locate, landed, prepareType, typedValue, hitsTarget, hitsAt, selectOption, boxOf, pointAt, focusElement,
+    click: (generation, id) => act(generation, id, clickUncovered),
     doubleClick: (generation, id) => act(generation, id, doubleClickElement),
     contextClick: (generation, id) => act(generation, id, contextClickElement),
+    hover: (generation, id) => act(generation, id, hoverElement),
+    scrollTo: (generation, id) => act(generation, id, scrollToElement),
+    viewport: () => ({ w: window.innerWidth, h: window.innerHeight }),
     type: (generation, id, text) => act(generation, id, (el) => typeIntoElement(el, text)),
+    select: (generation, id, option) => act(generation, id, (el) => selectOption(el, option)),
+    focus: (generation, id) => act(generation, id, focusElement),
   };
   globalThis.__companionPage = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

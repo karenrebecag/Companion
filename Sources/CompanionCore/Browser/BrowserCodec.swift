@@ -110,7 +110,8 @@ package enum BrowserCodec {
             inputType: raw["inputType"] as? String, autocomplete: raw["autocomplete"] as? String,
             value: raw["value"] as? String, frameOrigin: raw["frameOrigin"] as? String,
             href: raw["href"] as? String, fieldName: raw["fieldName"] as? String,
-            fieldId: raw["fieldId"] as? String, states: BrowserSanitize.states(raw["states"]))
+            fieldId: raw["fieldId"] as? String, states: BrowserSanitize.states(raw["states"]),
+            submit: raw["submit"] as? String)
     }
 
     // MARK: Encode
@@ -142,8 +143,8 @@ package enum BrowserCodec {
         switch command {
         case .tabs:
             return (BrowserTool.tabs.rawValue, [:])
-        case .read(let tab, let selector):
-            return (BrowserTool.read.rawValue, ["tab": tab, "selector": selector.map { $0 as Any } ?? NSNull()])
+        case .read(let tab, let query):
+            return (BrowserTool.read.rawValue, query.wireArguments.merging(["tab": tab]) { _, tab in tab })
         case .click(let tab, let generation, let element):
             return (BrowserTool.click.rawValue, ["tab": tab, "generation": generation, "element": element])
         case .doubleClick(let tab, let generation, let element):
@@ -153,6 +154,27 @@ package enum BrowserCodec {
         case .type(let tab, let generation, let element, let text):
             return (BrowserTool.type.rawValue,
                     ["tab": tab, "generation": generation, "element": element, "text": text])
+        case .select(let tab, let generation, let element, let option):
+            return (BrowserTool.select.rawValue,
+                    ["tab": tab, "generation": generation, "element": element, "option": option])
+        case .scroll(let tab, let dx, let dy):
+            return (BrowserTool.scroll.rawValue, ["tab": tab, "dx": dx, "dy": dy])
+        case .scrollTo(let tab, let generation, let element):
+            return (BrowserTool.scroll.rawValue, ["tab": tab, "generation": generation, "element": element])
+        case .hover(let tab, let generation, let element):
+            return (BrowserTool.hover.rawValue, ["tab": tab, "generation": generation, "element": element])
+        case .press(let tab, let key, let times, let generation, let element):
+            return (BrowserTool.press.rawValue,
+                    ["tab": tab, "key": key, "times": times,
+                     "generation": generation.map { $0 as Any } ?? NSNull(),
+                     "element": element.map { $0 as Any } ?? NSNull()])
+        case .dragTo(let tab, let generation, let element, let to):
+            return (BrowserTool.drag.rawValue, ["tab": tab, "generation": generation, "element": element, "to": to])
+        case .dragBy(let tab, let generation, let element, let dx, let dy):
+            return (BrowserTool.drag.rawValue,
+                    ["tab": tab, "generation": generation, "element": element, "dx": dx, "dy": dy])
+        case .clickAt(let tab, let generation, let x, let y):
+            return (BrowserTool.clickAt.rawValue, ["tab": tab, "generation": generation, "x": x, "y": y])
         case .navigate(let tab, let url):
             return (BrowserTool.navigate.rawValue, ["tab": tab, "url": url.absoluteString])
         case .open(let url):

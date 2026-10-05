@@ -10,7 +10,10 @@ private let reasons: [(code: String, en: String, es: String)] = [
     (BridgeCode.debuggerRevoked, "ask the user", "pregunta"),
     (BridgeCode.debuggerUnavailable, "then retry", "vuelve a intentar"),
     (BridgeCode.unreadablePage, "tell the user", "dile"),
-    (BridgeCode.notTypable, "choose another", "elige otro"),
+    (BridgeCode.notTypable, "browser_select", "browser_select"),
+    (BridgeCode.notSelectable, "choose another", "elige otro"),
+    (BridgeCode.optionNotFound, "read the tab again", "vuelve a leer"),
+    (BridgeCode.notFocused, "browser_click", "browser_click"),
 ]
 
 @Test func everyBrowserReasonNamesTheNextStep() {
@@ -33,7 +36,8 @@ private let reasons: [(code: String, en: String, es: String)] = [
 
 @Test func theCodesAreTheExtensionsSpelling() {
     expectEq([BridgeCode.debuggerRevoked, BridgeCode.debuggerUnavailable, BridgeCode.unreadablePage,
-              BridgeCode.notTypable],
-             ["debugger_revoked", "debugger_unavailable", "unreadable_page", "not_typable"],
+              BridgeCode.notTypable, BridgeCode.notSelectable, BridgeCode.optionNotFound, BridgeCode.notFocused],
+             ["debugger_revoked", "debugger_unavailable", "unreadable_page", "not_typable", "not_selectable",
+              "option_not_found", "not_focused"],
              "wire spelling matches background.js and page.js")
 }

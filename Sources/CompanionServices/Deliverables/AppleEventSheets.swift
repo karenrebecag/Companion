@@ -33,8 +33,9 @@ package struct AppleEventSheets: SpreadsheetDriving {
 
     package func workbook(_ app: SheetApp) async throws -> String {
         let document = try await run(Self.pathScript(app)).stringValue ?? ""
-        // An unsaved workbook has no file to copy; writing without a copy is
-        // exactly what the backup rule exists to prevent.
+        // The approval pins the workbook by its file path, and an unsaved one has
+        // none: nothing to bind the approved write to (and no file to keep a
+        // version of).
         guard document.hasPrefix("/") else { throw SheetError.unsavedDocument }
         return document
     }
@@ -42,24 +43,16 @@ package struct AppleEventSheets: SpreadsheetDriving {
     package func write(
         _ app: SheetApp, range: SheetRange, cells: [[SheetCell]], workbook approved: String
     ) async throws -> SheetWriteReceipt {
-        // Resolved once: the backup is of the workbook the sheet named, and the
-        // write script re-checks that same path in its own Apple Event.
+        // The write script re-checks that same path in its own Apple Event.
         guard try await workbook(app) == approved else { throw SheetError.workbookChanged }
-        let backup: String
-        do {
-            backup = try DocumentBackup.copy(of: approved)
-        } catch {
-            Log.app("sheets: backup copy failed")
-            throw SheetError.appFailed
-        }
         _ = try await run(Self.writeScript(app, range: range, cells: cells, workbook: approved))
         do {
             let readBack = Self.rows(try await run(Self.readScript(app, range: range, workbook: approved)),
                                      range: range, app: app)
-            return SheetWriteReceipt(backupPath: backup, readBack: readBack)
+            return SheetWriteReceipt(readBack: readBack)
         } catch SheetError.workbookChanged {
             // The write already happened: "nothing was written" would be false.
-            return SheetWriteReceipt(backupPath: backup, readBack: [], readBackUnavailable: true)
+            return SheetWriteReceipt(readBack: [], readBackUnavailable: true)
         }
     }
 

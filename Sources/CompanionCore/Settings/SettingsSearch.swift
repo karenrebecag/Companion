@@ -8,12 +8,16 @@ package enum SettingsSearch {
         package let page: String
         package let title: String
         package let subtitle: String
+        package let keywords: [String]
 
-        package init(id: String, page: String, title: String, subtitle: String) {
+        package init(
+            id: String, page: String, title: String, subtitle: String, keywords: [String] = []
+        ) {
             self.id = id
             self.page = page
             self.title = title
             self.subtitle = subtitle
+            self.keywords = keywords
         }
     }
 
@@ -24,7 +28,7 @@ package enum SettingsSearch {
         guard !words.isEmpty else { return [] }
         let found = entries.compactMap { entry -> (Entry, Bool)? in
             let title = normalize(entry.title)
-            let all = title + " " + normalize(entry.subtitle)
+            let all = title + " " + normalize(entry.subtitle) + " " + entry.keywords.map(normalize).joined(separator: " ")
             guard words.allSatisfy(all.contains) else { return nil }
             return (entry, words.allSatisfy(title.contains))
         }

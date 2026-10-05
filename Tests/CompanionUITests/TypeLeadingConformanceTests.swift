@@ -11,7 +11,7 @@ import Testing
 enum TypeLeadingLint {
     /// Files that own the rule. Everything else either has no multi-line Text
     /// or must be listed in `exempt` with its reason.
-    static let covered = ["Apps/AppsPage.swift", "Apps/AppCard.swift", "Apps/AppsSetupForm.swift", "Apps/AppPanel.swift", "Apps/ConnectingSheet.swift", "Window/HomePage.swift", "Window/HomeHero.swift"]
+    static let covered = ["Apps/AppsPage.swift", "Apps/AppCard.swift", "Apps/AppsSetupForm.swift", "Apps/AppPanel.swift", "Apps/ConnectingSheet.swift", "Window/HomePage.swift", "Window/HomeHero.swift", "DesignSystem/RadioCards.swift", "Settings/ResetPermissionsRow.swift"]
 
     /// Not brought under the rule yet, on purpose. Path prefixes relative to
     /// Sources/CompanionUI.

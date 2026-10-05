@@ -33,6 +33,35 @@ extension ChatViewModel {
         }
     }
 
+    /// Cancel leaves the thread and the files. Confirm erases the stored
+    /// chats and the tasks kept in them, then the live thread, so the next
+    /// `persist()` cannot write the deleted id back.
+    package func applyHistoryClear(_ choice: HistoryClearChoice) throws {
+        switch choice {
+        case .cancel:
+            return
+        case .confirm:
+            try store.clearHistory()
+            historyEpoch += 1
+            stopJobsForClear()
+            abandonTurn()
+            dropParentApprovals()
+            queue = []
+            // The app's own copies are part of the chats; files she picked
+            // from elsewhere are not under this root.
+            purgeStoredAttachments()
+            pendingMentions = []
+            followUp = nil
+            errorText = nil
+            draft = ""
+            streaming = ""
+            messages = []
+            lastActivity = nil
+            recents = []
+            conversationId = UUID().uuidString
+        }
+    }
+
     func persist() {
         let stored = messages.map { message -> ConversationMessage in
             let role = message.isStatus ? "status" : (message.role?.rawValue ?? "assistant")

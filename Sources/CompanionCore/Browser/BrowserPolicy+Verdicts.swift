@@ -23,6 +23,73 @@ extension BrowserPolicy {
         return HandsGate.typeVerdict(text: text, said: said)
     }
 
+    /// An option is a value typed in the page's words and, through the list's
+    /// change handler, a button in disguise ("Bulk actions: Delete"), so it
+    /// answers to both rules; the list's own label is the click's context.
+    package static func selectVerdict(
+        _ element: BrowserElement, option: String, said: String, pageOrigin: String? = nil
+    ) -> HandsVerdict {
+        let typed = typeVerdict(element, text: option, said: said, pageOrigin: pageOrigin)
+        guard typed == .act else { return typed }
+        return HandsGate.clickVerdict(label: option, context: element.label + " " + element.context, said: said)
+    }
+
+    /// Enter and Space activate what has the focus, so they are judged as a
+    /// click on it. An Enter in any control of a form (a field, a checkbox, a
+    /// date) submits it, so it is a click on the form's default button, and
+    /// a field with no form or no submit button (a chat box that sends on
+    /// Enter) asks. A key with no element goes into a focus nobody read:
+    /// activating or erasing there asks. A key that writes or erases in a
+    /// secret field is typing there, which is refused. Moving keys act,
+    /// except an arrow on a list or a radio, which changes its value.
+    package static func pressVerdict(
+        key: String, element: BrowserElement?, said: String, pageOrigin: String? = nil
+    ) -> HandsVerdict {
+        if let element, leavesPageOrigin(element, pageOrigin: pageOrigin) { return .ask }
+        guard let element else { return ["Enter", "Space", "Backspace", "Delete"].contains(key) ? .ask : .act }
+        if pressWritesIntoSecret(key: key, element: element) { return .refuse(BridgeCode.secureField) }
+        switch key {
+        case "Enter":
+            if isButton(element) { return clickVerdict(element, said: said, pageOrigin: pageOrigin) }
+            if let submit = element.submit {
+                return submit.isEmpty ? .ask : HandsGate.clickVerdict(label: submit, context: element.context, said: said)
+            }
+            return isTextField(element) ? .ask : clickVerdict(element, said: said, pageOrigin: pageOrigin)
+        case "Space":
+            return isTextField(element) ? .act : clickVerdict(element, said: said, pageOrigin: pageOrigin)
+        case "Backspace", "Delete":
+            return isTextField(element) ? .act : .ask
+        case "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight":
+            let changesValue = ["select", "radio"].contains(element.inputType?.lowercased() ?? "")
+            return changesValue ? HandsGate.clickVerdict(label: element.label, context: element.context, said: said) : .act
+        default:
+            return .act
+        }
+    }
+
+    /// Shared with the runner, which refuses these before spending a ticket.
+    package static func pressWritesIntoSecret(key: String, element: BrowserElement) -> Bool {
+        ["Space", "Backspace", "Delete"].contains(key) && isTextField(element) && isSensitive(element)
+    }
+
+    private static let textInputTypes: Set<String> = [
+        "text", "search", "email", "url", "tel", "number", "password", "textarea",
+    ]
+
+    private static let buttonInputTypes: Set<String> = ["submit", "button", "image", "reset"]
+
+    /// Judged by its own label: what Enter presses is the control itself.
+    private static func isButton(_ element: BrowserElement) -> Bool {
+        if let type = element.inputType?.lowercased() { return buttonInputTypes.contains(type) }
+        return element.role == "button" || element.role == "link"
+    }
+
+    /// A contenteditable reports no input type, only the textbox role.
+    private static func isTextField(_ element: BrowserElement) -> Bool {
+        if let type = element.inputType?.lowercased() { return textInputTypes.contains(type) }
+        return element.role == "textbox"
+    }
+
     private static func leavesPageOrigin(_ element: BrowserElement, pageOrigin: String?) -> Bool {
         guard let frameOrigin = element.frameOrigin else { return false }
         guard let pageOrigin else { return true }

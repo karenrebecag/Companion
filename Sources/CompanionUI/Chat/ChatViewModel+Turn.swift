@@ -71,6 +71,7 @@ extension ChatViewModel {
 
     private func consume(history: [Turn], conversationId id: String, said: String) async {
         guard isCurrent(id) else { return }
+        let epoch = historyEpoch
         var history = history
         do {
             // Up to `maxParentRounds`: stream, act on the parent's tool calls,
@@ -100,6 +101,7 @@ extension ChatViewModel {
                 }
                 history = windowedTurns()
             }
+            guard historyEpoch == epoch else { return }
             persist()
             endTurn()
             drain()
@@ -190,6 +192,7 @@ extension ChatViewModel {
                 text: ParentToolCopy.acting(targets, config.language),
                 recall: recall))
         }
+        let epoch = historyEpoch
         session.send(.parentActing(targets: targets))
         defer { session.send(.parentActed) }
         // Every tool answer first, cards after: a provider validates that
@@ -224,6 +227,9 @@ extension ChatViewModel {
                 proven.append(line)
             }
         }
+        // A clear landed mid-round: the cards and the save belong to a chat
+        // that is gone.
+        guard historyEpoch == epoch else { return }
         if let receipt = ActionReceipt(entries: proven) { session.send(.receipt(receipt)) }
         for card in cards {
             messages.append(ChatMessage(
@@ -240,14 +246,19 @@ extension ChatViewModel {
         _ call: ToolCallRef, said: String, tools: any ParentToolExecuting
     ) async -> ParentToolOutcome? {
         guard let asked = tools.approval(for: call, said: said) else { return nil }
-        let request = await tools.bound(asked)
-        // A remembered "no" outranks the shortcut (see ParentToolGuard).
-        if await tools.actsWithoutSheet(call), await approvals?.remembered(request) != false { return nil }
+        let epoch = historyEpoch
         let denied = ParentToolOutcome.failed(
             .deniedByUser(config.language), target: ParentTool.target(of: call),
             tool: call.name)
+        let request = await tools.bound(asked)
+        // A clear while it waited: nothing here may reach the new thread.
+        guard historyEpoch == epoch else { return denied }
+        // A remembered "no" outranks the shortcut (see ParentToolGuard).
+        if await tools.actsWithoutSheet(call), await approvals?.remembered(request) != false { return nil }
         guard let approvals else { return denied }
-        if let decision = await approvals.remembered(request) {
+        let remembered = await approvals.remembered(request)
+        guard historyEpoch == epoch else { return denied }
+        if let decision = remembered {
             messages.append(ChatMessage(
                 isStatus: true, text: ChatCopy.approvalRemembered(call.name, approved: decision)))
             if decision { tools.granted(request) }
@@ -257,7 +268,8 @@ extension ChatViewModel {
         messages.append(ChatMessage(isStatus: true, text: ChatCopy.approvalPending))
         let response = await approvals.request(request)
         session.send(.approvalSettled(requestId: request.requestId))
-        guard response.approved else { return denied }
+        // A yes given after a clear belongs to a chat that is gone.
+        guard historyEpoch == epoch, response.approved else { return denied }
         tools.granted(request)
         return nil
     }

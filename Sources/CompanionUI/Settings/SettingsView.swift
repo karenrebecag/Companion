@@ -5,16 +5,21 @@ import SwiftUI
 package enum SettingsOverlayMetrics {
     /// The history overlay still uses the old square bound.
     package static let maxSide: CGFloat = 560
-    /// 16g: the sidebar widens the sheet; the height stays a sheet's.
-    package static let maxWidth: CGFloat = 780
-    package static let maxHeight: CGFloat = 620
-    package static let sidebar: CGFloat = 200
     package static let cardHeight: CGFloat = 68
     package static let avatar: CGFloat = Space.x8 + Space.x1
     package static let bigAvatar: CGFloat = 56
     package static let stepHit: CGFloat = Space.x8
     /// How long a row stays lit after a search lands on it.
     package static let highlightSeconds: Double = 1.6
+}
+
+/// The content pane beside the rail (Incredible's gutter and header air).
+package enum SettingsPaneMetrics {
+    package static let leading: CGFloat = Space.x14
+    package static let trailing: CGFloat = 96
+    package static let top: CGFloat = 44
+    package static let bottom: CGFloat = Space.x10
+    package static let titleSize: CGFloat = TypeSize.dialogTitle
 }
 
 /// Settings (Wave 16g): a sheet with a sidebar and a search, one page at a
@@ -27,11 +32,11 @@ package struct SettingsView: View {
     var browser: BrowserSettingsModel?
     let onClose: () -> Void
     @Binding var tab: SettingsTab
-    let layout: SettingsLayout
-    @State private var query = ""
+    @Binding var query: String
     @State private var highlight: String?
     @State private var highlightTimer: Task<Void, Never>?
     @State private var confirmPurge = false
+    @State private var history = HistoryClearModel()
     @State private var storageLabel = Localized.string("settings.storage.empty")
     /// Bumped on a language change: every string on screen repaints at once.
     @State private var languageTick = 0
@@ -46,7 +51,7 @@ package struct SettingsView: View {
         memory: (any MemoryBrowsing)? = nil,
         browser: BrowserSettingsModel? = nil,
         tab: Binding<SettingsTab> = .constant(.general),
-        layout: SettingsLayout = .sheet,
+        query: Binding<String> = .constant(""),
         onClose: @escaping () -> Void = {}
     ) {
         self.preview = preview
@@ -56,16 +61,14 @@ package struct SettingsView: View {
         self.browser = browser
         self.updates = updates
         self._tab = tab
-        self.layout = layout
+        self._query = query
         self.onClose = onClose
     }
 
     private let updates: UpdateState?
 
     package var body: some View {
-        Group {
-            if layout.showsSidebar { sheetBody } else { compactBody }
-        }
+        sheetBody
         .overlay {
             if dropdowns.session.isOpen, case .settingsPick = dropdowns.menu {
                 Color.black.opacity(0.001)
@@ -75,6 +78,7 @@ package struct SettingsView: View {
             }
         }
         .overlay { purgeConfirm }
+        .overlay { HistoryClearDialog(model: history, chat: chat) }
         .dropdownPortal(host: dropdowns)
         .onDisappear {
             dropdowns.dismiss()
@@ -83,67 +87,23 @@ package struct SettingsView: View {
         .onAppear { refreshStorage() }
     }
 
-    /// The sheet: sidebar, hairline, page, in its own rounded surface.
+    /// Sidebar, hairline, page; the sheet host supplies the surface and the close.
     private var sheetBody: some View {
         HStack(spacing: Space.none) {
-            SettingsSidebar(tab: $tab, query: $query, onPick: jump)
-                .frame(width: SettingsOverlayMetrics.sidebar)
-            Rectangle().fill(Semantic.border).frame(width: Stroke.hairline)
+            SettingsSidebar(tab: $tab, query: $query, onPick: jump, approvalPending: chat?.pendingApproval != nil)
+                .frame(width: SettingsRailMetrics.width)
+            Rectangle().fill(Semantic.borderChrome).frame(width: Stroke.hairline)
             pageScroll
         }
-        .background(Semantic.background)
-        .clipShape(RoundedRectangle(cornerRadius: Radius.xl))
-        .background(
-            RoundedRectangle(cornerRadius: Radius.xl)
-                .fill(Semantic.background)
-                .elevation(.sheet))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.xl)
-                .stroke(Semantic.border, lineWidth: Stroke.hairline))
-        .overlay(alignment: .topTrailing) { closeButton }
-    }
-
-    /// The floating panel: the page chips replace the sidebar and the panel
-    /// supplies the surface, the header and the close.
-    private var compactBody: some View {
-        VStack(spacing: Space.none) {
-            SettingsSearchField(query: $query, onSubmit: submitFirst)
-                .padding(.horizontal, SettingsPanelMetrics.paddingX)
-                .padding(.bottom, Space.x2)
-            ScrollView(.horizontal) {
-                HStack(spacing: Space.x1) {
-                    ForEach(SettingsTab.allCases, id: \.self) { page in
-                        Button { withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { tab = page } } label: {
-                            Label(page.title, systemImage: page.symbol)
-                        }
-                        .buttonStyle(.shadcn(tab == page ? .secondary : .ghost, size: .sm))
-                        .accessibilityAddTraits(tab == page ? .isSelected : [])
-                    }
-                }
-                .padding(.horizontal, SettingsPanelMetrics.paddingX)
-            }
-            .scrollIndicators(.hidden)
-            if query.trimmingCharacters(in: .whitespaces).isEmpty {
-                pageScroll
-            } else {
-                ScrollView {
-                    SettingsSearchResults(query: query, onPick: jump)
-                        .padding(layout.pagePadding)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .scrollIndicators(.hidden)
-            }
-        }
-    }
-
-    private func submitFirst() {
-        if let first = SettingsSearch.match(query, in: SettingsInventory.searchEntries).first { jump(first) }
     }
 
     private var pageScroll: some View {
         ScrollView {
             page
-                .padding(layout.pagePadding)
+                .padding(.leading, SettingsPaneMetrics.leading)
+                .padding(.trailing, SettingsPaneMetrics.trailing)
+                .padding(.top, SettingsPaneMetrics.top)
+                .padding(.bottom, SettingsPaneMetrics.bottom)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .id("\(tab.rawValue)-\(languageTick)")
                 .transition(ChromeMotion.transition(.modeSwap, reduceMotion: reduceMotion))
@@ -169,16 +129,9 @@ package struct SettingsView: View {
         case .system:
             SettingsSystemPage(
                 chat: chat, updates: updates, welcome: welcome, storageLabel: storageLabel,
-                confirmPurge: $confirmPurge, onClose: onClose, onAppear: refreshStorage)
+                confirmPurge: $confirmPurge, onClose: onClose, onAppear: refreshStorage,
+                history: history)
         }
-    }
-
-    private var closeButton: some View {
-        CloseButton {
-            dropdowns.dismiss()
-            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { onClose() }
-        }
-        .padding(Space.x4)
     }
 
     /// A search result opens its page and lights the row for a moment, so
@@ -245,126 +198,6 @@ package struct SettingsView: View {
     }
 }
 
-/// Search on top, the pages in two groups, the version at the bottom.
-struct SettingsSidebar: View {
-    @Binding var tab: SettingsTab
-    @Binding var query: String
-    let onPick: (SettingsSearch.Entry) -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private func submitFirst() {
-        if let first = SettingsSearch.match(query, in: SettingsInventory.searchEntries).first { onPick(first) }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.x1) {
-            SettingsSearchField(query: $query, onSubmit: submitFirst)
-                .padding(.bottom, Space.x3)
-            if query.trimmingCharacters(in: .whitespaces).isEmpty {
-                group(SettingsTab.firstGroup)
-                Spacer().frame(height: Space.x4)
-                group(SettingsTab.secondGroup)
-            } else {
-                SettingsSearchResults(query: query, onPick: onPick)
-            }
-            Spacer(minLength: Space.x4)
-            Text(String(format: Localized.string("settings.sidebar.version"), SettingsVersion.current))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .padding(.horizontal, Space.x2)
-        }
-        .padding(Space.x4)
-        .frame(maxHeight: .infinity, alignment: .top)
-    }
-
-    private func group(_ pages: [SettingsTab]) -> some View {
-        ForEach(pages, id: \.self) { page in
-            Button {
-                withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { tab = page }
-            } label: {
-                HStack(spacing: Space.x2) {
-                    Image(systemName: page.symbol)
-                        .font(.uiLabel)
-                        .frame(width: Space.x5)
-                        .accessibilityHidden(true)
-                    Text(page.title).font(.uiLabel)
-                    Spacer(minLength: Space.none)
-                }
-                .foregroundStyle(tab == page ? Semantic.foreground : Semantic.mutedForeground)
-                .padding(.horizontal, Space.x2)
-                .padding(.vertical, Space.x2)
-                .background(
-                    RoundedRectangle(cornerRadius: Radius.md)
-                        .fill(tab == page ? Semantic.muted : Color.clear))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(tab == page ? .isSelected : [])
-        }
-    }
-
-}
-
-/// Search over the settings inventory: the field and its results, shared by
-/// the sheet's sidebar and the panel's top.
-struct SettingsSearchField: View {
-    @Binding var query: String
-    let onSubmit: () -> Void
-
-    var body: some View {
-        HStack(spacing: Space.x2) {
-            Image(systemName: "magnifyingglass")
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .accessibilityHidden(true)
-            TextField(Localized.string("settings.search.placeholder"), text: $query)
-                .textFieldStyle(.plain)
-                .font(.uiLabel)
-                .onSubmit(onSubmit)
-        }
-        .padding(.horizontal, Space.x3)
-        .padding(.vertical, Space.x2)
-        // A text field in a capsule, not a button: CapsuleChipStyle has
-        // nothing to style here.
-        .background(Capsule().fill(Semantic.muted))
-    }
-
-}
-
-struct SettingsSearchResults: View {
-    let query: String
-    let onPick: (SettingsSearch.Entry) -> Void
-
-    @ViewBuilder var body: some View {
-        let found = SettingsSearch.match(query, in: SettingsInventory.searchEntries)
-        if found.isEmpty {
-            Text(String(format: Localized.string("settings.search.none"), query))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .padding(.horizontal, Space.x2)
-        } else {
-            ForEach(found.prefix(8), id: \.id) { entry in
-                Button { onPick(entry) } label: {
-                    VStack(alignment: .leading, spacing: Space.none) {
-                        Text(entry.title)
-                            .font(.uiLabel)
-                            .foregroundStyle(Semantic.foreground)
-                            .lineLimit(1)
-                        Text(SettingsTab(rawValue: entry.page)?.title ?? "")
-                            .font(.uiCaption)
-                            .foregroundStyle(Semantic.mutedForeground)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, Space.x2)
-                    .padding(.vertical, Space.x1)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-}
-
 enum SettingsVersion {
     static var current: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
@@ -376,6 +209,6 @@ enum SettingsVersion {
 #Preview {
     SettingsView(onClose: {})
         .environment(DropdownHost())
-        .frame(width: SettingsOverlayMetrics.maxWidth, height: SettingsOverlayMetrics.maxHeight)
+        .frame(width: SettingsSheetMetrics.maxWidth, height: SettingsSheetMetrics.maxHeight)
 }
 #endif

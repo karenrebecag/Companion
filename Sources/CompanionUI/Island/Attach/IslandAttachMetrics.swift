@@ -38,6 +38,16 @@ package enum IslandAttachMetrics {
     package static let removeFill = Swatch("141519")
     package static let removeFillAlpha = 0.9
     package static let removeBorder = 0.3
+    /// Its ink at rest is white 85 %; under its own pointer the disc goes
+    /// black 85 % and the ink pure white. local reference; Incredible .ci-att-card
+    package static let removeInkAlpha = 0.85
+    package static let removeHoverFill = Neutral.black
+    package static let removeHoverFillAlpha = 0.85
+    /// The disc's centre sits on the card's top-right corner: it overhangs
+    /// the card by this much on both axes, into the row's own padding.
+    package static let removeOffset: CGFloat = 12
+    /// The disc's opacity fade, in `MotionCurve.ease`.
+    package static let revealSeconds = 0.14
 
     /// The chip row: gap 8, padding 12 / 12 / 0 / 0, fading at its end.
     package static let rowGap: CGFloat = 8

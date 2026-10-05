@@ -123,3 +123,24 @@ private func passiveMachine() -> SessionMachine {
              "una espera enorme se corta a un dia")
     expectEq(SessionMachine.maxPassiveAfter, 86_400, "un dia")
 }
+
+// Code review (P2): a turn in progress is never collapsed by the wait running out; the
+// wait starts over and the user's turn keeps its island.
+@Test func theWaitNeverEndsDuringATurn() {
+    var machine = SessionMachine()
+    _ = machine.handle(.passiveAfterChanged(30))
+    let current = armed(machine.handle(.typedSubmitted))
+    let during = armed(machine.handle(.passiveExpired(armedFor: current?.1 ?? -1)))
+    expectEq(machine.projection.presence, .active, "con un turno en curso sigue activo")
+    expectEq(during?.0, 30, "y la espera vuelve a empezar")
+}
+
+// QA review (P2): the same while the user is still talking.
+@Test func theWaitNeverEndsWhileListening() {
+    var machine = SessionMachine()
+    _ = machine.handle(.passiveAfterChanged(30))
+    let current = armed(machine.handle(.pressed))
+    let during = armed(machine.handle(.passiveExpired(armedFor: current?.1 ?? -1)))
+    expectEq(machine.projection.presence, .active, "escuchando, sigue activo")
+    expectEq(during?.0, 30, "y la espera vuelve a empezar")
+}

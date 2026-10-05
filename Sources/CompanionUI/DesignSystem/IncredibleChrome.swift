@@ -93,13 +93,27 @@ package struct IconButton: View {
     var active = false
     /// Gives under the finger like the window's other controls.
     var pressable = false
+    /// The attachment remove reads this: focus only updates a binding that
+    /// sits on the button itself.
+    var onFocus: ((Bool) -> Void)? = nil
+    /// False draws nothing but keeps the button hittable, focusable and in
+    /// the accessibility tree: only the drawing carries the opacity.
+    var revealed = true
+    /// For renders only: Tab reaches a SwiftUI button only when the Mac has
+    /// full keyboard access on, so a test cannot rely on it to focus one.
+    /// This makes it focusable and takes the focus, which exercises the
+    /// focus-to-reveal path but not Tab reachability.
+    var focusOnAppear = false
     let action: () -> Void
 
     @State private var hovering = false
+    @FocusState private var focused: Bool
 
     package init(_ symbol: String, label: String, size: IconButtonSize = .small,
                 tone: IconButtonTone = .window, danger: Bool = false, chip: Bool = false,
                 active: Bool = false, pressable: Bool = false,
+                onFocus: ((Bool) -> Void)? = nil, revealed: Bool = true,
+                focusOnAppear: Bool = false,
                 action: @escaping () -> Void) {
         self.symbol = symbol
         self.label = label
@@ -109,6 +123,9 @@ package struct IconButton: View {
         self.chip = chip
         self.active = active
         self.pressable = pressable
+        self.onFocus = onFocus
+        self.revealed = revealed
+        self.focusOnAppear = focusOnAppear
         self.action = action
     }
 
@@ -120,9 +137,14 @@ package struct IconButton: View {
                 .foregroundStyle(ink)
                 .background(shape.fill(fill))
                 .overlay(shape.strokeBorder(rim, lineWidth: Stroke.hairline))
+                .opacity(revealed ? 1 : 0)
+                // After the opacity, so the unseen disc still takes the click.
                 .contentShape(shape)
         }
         .modifier(IconButtonPress(pressable: pressable))
+        .modifier(IconButtonFocus(track: onFocus != nil, force: focusOnAppear, focused: $focused))
+        .onChange(of: focused) { _, value in onFocus?(value) }
+        .onAppear { if focusOnAppear, onFocus != nil { focused = true } }
         .onHover { hovering = $0 }
         .animation(MotionCurve.animation(MotionCurve.standard, MotionTime.fast), value: hovering)
         .modifier(IconButtonHint(label: label, island: tone != .window))
@@ -147,7 +169,7 @@ package struct IconButton: View {
         case .island:
             return lit ? IslandInk.text : IslandInk.secondary
         case .onMedia:
-            return IslandInk.text
+            return Self.onMediaInk(hovering: hovering)
         }
     }
 
@@ -160,8 +182,20 @@ package struct IconButton: View {
             if active { return IslandInk.chipPressed }
             return size.filled || hovering ? IslandInk.chip : Color.clear
         case .onMedia:
-            return IslandAttachMetrics.removeFill.color.opacity(IslandAttachMetrics.removeFillAlpha)
+            return Self.onMediaFill(hovering: hovering)
         }
+    }
+
+    /// The pointer on the disc itself darkens it: black 85 % under pure white.
+    /// FeedbackModal's close also uses this tone and takes the same look.
+    static func onMediaFill(hovering: Bool) -> Color {
+        hovering
+            ? IslandAttachMetrics.removeHoverFill.color.opacity(IslandAttachMetrics.removeHoverFillAlpha)
+            : IslandAttachMetrics.removeFill.color.opacity(IslandAttachMetrics.removeFillAlpha)
+    }
+
+    static func onMediaInk(hovering: Bool) -> Color {
+        Neutral.white.color.opacity(hovering ? 1 : IslandAttachMetrics.removeInkAlpha)
     }
 
     /// Only the disc over a picture draws a rim: on a photo its edge is the
@@ -176,6 +210,25 @@ private struct IconButtonPress: ViewModifier {
 
     func body(content: Content) -> some View {
         if pressable { content.buttonStyle(PressableStyle()) } else { content.buttonStyle(.plain) }
+    }
+}
+
+/// Focus applied only when a caller asked to hear it, so the other icon
+/// buttons keep the focus they already had.
+private struct IconButtonFocus: ViewModifier {
+    let track: Bool
+    let force: Bool
+    var focused: FocusState<Bool>.Binding
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if track && force {
+            content.focusable().focused(focused)
+        } else if track {
+            content.focused(focused)
+        } else {
+            content
+        }
     }
 }
 
