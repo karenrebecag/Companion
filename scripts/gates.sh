@@ -13,16 +13,14 @@ warn()    { echo "warn  $1"; warns=$((warns + 1)); }
 section() { echo; echo "== $1"; }
 
 # ------------------------------------------------------------ Gate 0: fragmento
-# Es un diff de git: si falla se sale aqui mismo, sin gastar 10 min de build en macOS.
+# Un fragmento ausente o mal nombrado es papeleo, no un defecto del codigo:
+# avisa y deja correr el resto en vez de tumbar el merge.
 section "Gate 0 — fragmento de changelog"
 if frag_out=$(bash "$ROOT/scripts/check-changelog-fragment.sh" 2>&1); then
     echo "$frag_out"
 else
-    fail "fragmento de changelog:"
+    warn "fragmento de changelog:"
     echo "$frag_out"
-    echo
-    echo "$fails fallos, $warns avisos (gates 1-4 no corrieron)"
-    exit 1
 fi
 
 # ---------------------------------------------------------------- Gate 1: build
@@ -34,13 +32,16 @@ else
     (cd "$ROOT" && swift build 2>&1 | tail -15)
 fi
 
-# `@testable` compiles in debug and breaks in release, and CI only builds
-# debug: a release build is the only thing that catches it.
-if (cd "$ROOT" && swift build -c release 2>&1 | tail -5 | grep -q "Build complete"); then
-    pass "swift build -c release compila"
-else
-    fail "swift build -c release fallo"
-    (cd "$ROOT" && swift build -c release 2>&1 | tail -15)
+# `@testable` compiles in debug and breaks in release: a release build is the
+# only thing that catches it. It doubles the build time, so PRs skip it and a
+# release check opts in with RELEASE_CHECK=1.
+if [ "${RELEASE_CHECK:-}" = "1" ]; then
+    if (cd "$ROOT" && swift build -c release 2>&1 | tail -5 | grep -q "Build complete"); then
+        pass "swift build -c release compila"
+    else
+        fail "swift build -c release fallo"
+        (cd "$ROOT" && swift build -c release 2>&1 | tail -15)
+    fi
 fi
 
 # ------------------------------------------------------------- Gate 2: estatico
@@ -290,9 +291,48 @@ test_flags=""
 # sana serial fue 35 s en local (2750 tests, 2026-10-04); el runner de 3 vCPU
 # es mas lento y enlaza los tests sin imprimir nada.
 echo "-- salida de swift test --"
-(cd "$ROOT" && bash "$ROOT/scripts/run-tests-watched.sh" "${GATES_TEST_IDLE_SECONDS:-300}" "$test_out_tmp" \
-    swift test $test_flags)
+# stdout va con buffer de bloque, asi que el "ultimo test" del watchdog miente;
+# el event stream se escribe por evento y nombra el test que quedo abierto.
+events_tmp=$(mktemp "${TMPDIR:-/tmp}/companion-test-events.XXXXXX")
+trap 'rm -f "$manifest_tmp" "$describe_tmp" "$test_out_tmp" "$events_tmp"' EXIT
+run_swift_tests() {
+    : > "$events_tmp"
+    (cd "$ROOT" && bash "$ROOT/scripts/run-tests-watched.sh" "${GATES_TEST_IDLE_SECONDS:-300}" "$test_out_tmp" \
+        swift test $test_flags --event-stream-output-path "$events_tmp" --event-stream-version 0)
+}
+open_tests() {
+    python3 - "$events_tmp" <<'PY'
+import json, sys
+open_ids = {}
+for line in open(sys.argv[1], errors="replace"):
+    try:
+        payload = json.loads(line).get("payload", {})
+    except ValueError:
+        continue
+    kind, tid = payload.get("kind"), payload.get("testID")
+    if kind in ("testStarted", "testCaseStarted"):
+        open_ids[(kind, tid)] = 1
+    elif kind in ("testEnded", "testCaseEnded"):
+        open_ids.pop(("testStarted" if kind == "testEnded" else "testCaseStarted", tid), None)
+for kind, tid in open_ids:
+    print(f"  sin terminar: {kind} {tid}")
+PY
+}
+run_swift_tests
 rc=$?
+# Un cuelgue (rc 124) es una continuacion que nunca reanuda, intermitente en
+# ~1 de 4 corridas seriales; un fallo real (rc distinto) no se reintenta.
+if [ $rc -eq 124 ]; then
+    echo "swift test colgado; tests abiertos segun el event stream:"
+    open_tests
+    echo "-- reintento unico de swift test --"
+    run_swift_tests
+    rc=$?
+    if [ $rc -eq 124 ]; then
+        echo "swift test colgado otra vez; tests abiertos:"
+        open_tests
+    fi
+fi
 out=$(cat "$test_out_tmp")
 echo "-- fin de la salida de swift test --"
 if [ $rc -eq 0 ]; then

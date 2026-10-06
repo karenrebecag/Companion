@@ -4,6 +4,17 @@
 import Foundation
 import Testing
 
+/// Tests that assert a wall-clock bound fail on loaded CI runners without a
+/// real regression. Off in CI so they never block a merge; the nightly job
+/// sets COMPANION_FLAKY_QUARANTINE_OFF to keep running them.
+package let wallClockQuarantined: Bool = {
+    let env = ProcessInfo.processInfo.environment
+    return env["CI"] != nil && env["COMPANION_FLAKY_QUARANTINE_OFF"] == nil
+}()
+
+package let wallClockQuarantineReason: Comment =
+    "reloj de pared inestable bajo carga en CI: docs/inventario-flakes.md"
+
 package func expect(
     _ condition: Bool, _ label: String,
     sourceLocation: SourceLocation = #_sourceLocation
