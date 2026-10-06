@@ -42,7 +42,10 @@ extension IslandView {
             if Self.voiceStage(state) {
                 IslandVoiceStage(voice: voice, text: latestReply.map(Self.replyText) ?? "",
                                  startedAt: replyStart, showsStop: IslandStop.inVoiceStage(state),
+                                 visuals: latestReply.map(Self.inlineVisuals) ?? (nil, []),
                                  orbSpace: orbSpace, onStop: stop)
+                    .environment(\.diagramRenderer, diagrams)
+                    .environment(\.fileSaver, saveFile)
                     .modifier(contentSlot(.field))
             } else {
                 statusRow(state)

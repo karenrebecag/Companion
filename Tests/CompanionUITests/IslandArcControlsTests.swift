@@ -163,3 +163,26 @@ import Testing
     expect(Contrast.ratio(hex: IslandArc.borderStrong.hex, hex: ArcTone.surface.hex)
            > Contrast.ratio(hex: ArcTone.border.hex, hex: ArcTone.surface.hex), "border-strong destaca mas que border")
 }
+
+// Karen: a chart filled half the screen. Inline, it is a share of the notch.
+@Test @MainActor func aChartInTheNotchIsSizedByTheNotch() {
+    let width = IslandFit.threadWidth
+    let room = IslandFit.tallRoom
+    for kind in ChartBlock.Kind.allCases {
+        let height = IslandFit.canvasHeight(for: kind, width: width, room: room)
+        expect(height <= IslandVisualMetrics.canvasHeight(for: kind), "\(kind): nunca mas alto que el popup")
+        expect(height <= room * IslandFit.canvasShare, "\(kind): cabe en el notch con su titulo y leyenda")
+        expect(height < width, "\(kind): mas ancho que alto dentro del notch")
+    }
+    expect(IslandFit.canvasHeight(for: .bar, width: 200, room: room)
+           < IslandFit.canvasHeight(for: .bar, width: width, room: room), "mas angosto, mas bajo")
+    expect(room <= IslandChrome.columnCap, "el hilo con grafica no pasa el tope del notch")
+}
+
+@Test @MainActor func aReplyWithAChartDrawsInlineAndOpensNoPopup() {
+    let chart = ChatMessage(role: .assistant, text: "Ventas",
+                            card: Card(payload: .chart(ChartBlock(kind: .bar, labels: ["a"], series: [.init(values: [1])])), source: .tool))
+    expect(IslandView.drawsInline(chart), "la grafica va dentro del notch")
+    let prose = ChatMessage(role: .assistant, text: "Hola, todo bien.")
+    expect(!IslandView.drawsInline(prose), "la prosa no dibuja nada aparte")
+}

@@ -14,6 +14,11 @@ enum IslandThreadModel {
     // HACK: fixed height leaves room above a single short turn. Measure the rows when the package exposes their height.
     static let height: CGFloat = 300
 
+    /// A visual needs more than a short turn: the thread grows to a share of the notch's cap.
+    static func height(drawsVisual: Bool) -> CGFloat {
+        drawsVisual ? max(height, IslandFit.tallRoom) : height
+    }
+
     static func items(_ messages: [ChatMessage]) -> [AIThreadItem] {
         TaskThread.items(Array(TaskThread.visible(messages).suffix(limit)))
     }
@@ -47,7 +52,11 @@ extension IslandView {
             AIThread(items: items, strings: TaskThread.strings, style: .island) { item in
                 threadReply(item, state)
             }
-            .frame(height: IslandThreadModel.height)
+            .frame(height: IslandThreadModel.height(drawsVisual: chat.messages.contains { message in
+                items.contains { $0.id == message.id.uuidString } && Self.drawsInline(message)
+            }))
+            .environment(\.diagramRenderer, diagrams)
+            .environment(\.fileSaver, saveFile)
         }
         if let latest = latestReply {
             choiceCard(latest)
@@ -70,11 +79,11 @@ extension IslandView {
                 } else {
                     IslandReply(text: text, startedAt: replyStart, speaking: false, look: .thread)
                 }
-                // A card or a diagram does not fit the thread: the window shows it.
-                if results.contains(where: { $0.id == message.id }) {
-                    Text(Localized.string("island.result.open"))
-                        .font(GeistFont.uiCaption)
-                        .foregroundStyle(ArcTone.textSecondary.color)
+                let visuals = Self.inlineVisuals(message)
+                if visuals.card != nil || !visuals.blocks.isEmpty {
+                    IslandInlineVisuals(card: visuals.card, blocks: visuals.blocks,
+                                        width: IslandFit.threadWidth,
+                                        room: IslandThreadModel.height(drawsVisual: true))
                 }
             }
             .contentShape(Rectangle())

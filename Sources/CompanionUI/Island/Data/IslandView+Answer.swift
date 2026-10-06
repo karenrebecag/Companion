@@ -88,8 +88,10 @@ extension IslandView {
     /// window, which shows the same thing bigger.
     func openResult(_ id: UUID) {
         resultAttention.attended()
+        // A reply whose visual is already in the notch has nothing left for
+        // a popup; the window holds the rest.
         guard let message = chat.messages.first(where: { $0.id == id }),
-              Self.opensInPopup(message)
+              Self.opensInPopup(message), !Self.drawsInline(message)
         else {
             onShowMain()
             return
