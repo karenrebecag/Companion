@@ -56,6 +56,9 @@ package struct SettingsSheetModel: Equatable {
     package private(set) var phase: SettingsSheetPhase = .entering
     /// Lives here, not in the view, so Esc can clear it before closing.
     package var query = ""
+    /// Popups and alerts live here for the same reason: the root sees them
+    /// before it decides to close the sheet.
+    package var dialogs = SettingsDialogStack()
 
     package init() {}
 
@@ -67,6 +70,7 @@ package struct SettingsSheetModel: Equatable {
         isOpen = true
         phase = animated ? .entering : .shown
         query = ""
+        dialogs = SettingsDialogStack()
         return animated
     }
 
@@ -82,6 +86,7 @@ package struct SettingsSheetModel: Equatable {
     /// True when the caller must call `finishClose()` once the exit has played.
     package mutating func close(animated: Bool) -> Bool {
         guard canClose else { return false }
+        dialogs = SettingsDialogStack()
         phase = .leaving
         guard animated else {
             isOpen = false
@@ -94,6 +99,12 @@ package struct SettingsSheetModel: Equatable {
     package mutating func finishClose() {
         guard phase == .leaving else { return }
         isOpen = false
+    }
+
+    /// Closes the alert before the popup. The sheet stays open.
+    @discardableResult
+    package mutating func dismissDialog() -> Bool {
+        dialogs.dismissTop()
     }
 
     package mutating func escape() -> SettingsEscape {
@@ -146,7 +157,8 @@ struct SettingsSheetHost: View {
         let shape = RoundedRectangle(cornerRadius: SettingsSheetMetrics.radius)
         return SettingsView(
             preview: preview, chat: chat, updates: updates, welcome: welcome,
-            memory: memory, browser: browser, tab: $tab, query: $model.query, onClose: onClose)
+            memory: memory, browser: browser, tab: $tab, query: $model.query,
+            dialogs: $model.dialogs, onClose: onClose)
             .background(Semantic.background)
             .clipShape(shape)
             .background(shape.fill(Semantic.background).elevation(SettingsSheetMetrics.elevation))

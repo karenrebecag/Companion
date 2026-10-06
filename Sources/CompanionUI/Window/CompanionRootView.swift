@@ -133,16 +133,33 @@ package struct CompanionRootView: View {
         .dropdownPortal(host: dropdowns)
         .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: dropdowns.menu)
         .onExitCommand {
-            if let request = chat.session.projection.approval {
-                chat.answerApproval(false, requestId: request.requestId)
-            } else if settingsSheet.isOpen, dropdowns.session.isOpen {
+            // A dialog sits above the sheet, so it takes Esc before the sheet
+            // clears its search or closes.
+            let target = SettingsExitChain.target(
+                approval: chat.session.projection.approval != nil,
+                settingsOpen: settingsSheet.isOpen,
+                canCloseSheet: settingsSheet.canClose,
+                dropdown: dropdowns.session.isOpen,
+                dialog: settingsSheet.dialogs.isPresented,
+                searchEmpty: settingsSheet.query.isEmpty,
+                voice: voice.isActive)
+            switch target {
+            case .approval:
+                if let request = chat.session.projection.approval {
+                    chat.answerApproval(false, requestId: request.requestId)
+                }
+            case .dropdown:
                 withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
-            } else if settingsSheet.isOpen {
-                if settingsSheet.escape() == .close { closeSettings() }
-            } else if dropdowns.session.isOpen {
-                withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { dropdowns.dismiss() }
-            } else if voice.isActive {
+            case .dialog:
+                _ = settingsSheet.dismissDialog()
+            case .clearSearch:
+                _ = settingsSheet.escape()
+            case .closeSheet:
+                closeSettings()
+            case .voice:
                 voice.hangUp()
+            case .none:
+                break
             }
         }
         .onAppear {
@@ -210,7 +227,7 @@ package struct CompanionRootView: View {
         ) { note in
             // The island names the page it means: keys live in privacy, the
             // shortcuts in general; the menu opens at the top.
-            settingsTab = (note.object as? String).flatMap(SettingsTab.init(rawValue:)) ?? .general
+            settingsTab = (note.object as? String).flatMap(SettingsTab.resolve) ?? .general
             presentSettings()
         }
         .onReceive(

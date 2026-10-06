@@ -1,0 +1,1 @@
+- **Subdiálogos de Ajustes (2026-10-04).** Atajos (solo lectura: se muestran, no se editan) y Permisos abren un popup. La confirmación existente de vaciar los archivos guardados pasa a un diálogo de alerta que borra lo mismo que antes, sin tocar las conversaciones. Esc cierra el diálogo más alto antes que la hoja.

@@ -140,12 +140,12 @@ private final class StillDevices: WelcomeDevices, @unchecked Sendable {
     case .voice: page = AnyView(SettingsVoiceSection(preview: nil))
     case .vocabulary: page = AnyView(SettingsVocabularyPage())
     case .memory: page = AnyView(SettingsMemoryPage(memory: SnapMemory()))
-    case .you: page = AnyView(SettingsYouPage())
+    case .you: page = AnyView(SettingsYouPage(welcome: welcome))
     case .privacy: page = AnyView(SettingsPrivacyPage(chat: chat(), welcome: welcome))
     case .system:
         page = AnyView(SettingsSystemPage(
-            chat: chat(), updates: nil, welcome: welcome, storageLabel: "12 MB",
-            confirmPurge: .constant(false), onClose: {}, history: HistoryClearModel()))
+            chat: chat(), updates: nil, storageLabel: "12 MB",
+            history: HistoryClearModel()))
     }
     return AnyView(HStack(alignment: .top, spacing: Space.none) {
         SettingsSidebar(tab: .constant(tab), query: .constant(""), onPick: { _ in })

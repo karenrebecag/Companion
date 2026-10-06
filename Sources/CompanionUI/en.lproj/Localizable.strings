@@ -59,11 +59,11 @@
 "settings.title" = "Settings";
 "action.close" = "Close";
 "settings.tab.general" = "General";
-"settings.tab.voice" = "Voice";
+"settings.tab.voice" = "Companion";
 "settings.tab.vocabulary" = "Vocabulary";
 "settings.tab.memory" = "Memory";
-"settings.tab.you" = "You";
-"settings.tab.privacy" = "Privacy";
+"settings.tab.you" = "Account";
+"settings.tab.privacy" = "Data and privacy";
 "settings.tab.system" = "System";
 "settings.you.header" = "YOU";
 "settings.you.blurb" = "Companion uses this to know you. It saves itself, and applies from your next message.";
@@ -165,7 +165,6 @@
 "settings.voice.eagerness.low" = "Low";
 "settings.voice.eagerness.auto" = "Auto";
 "settings.voice.eagerness.high" = "High";
-"settings.purge.blurb" = "The copies of everything you attached are deleted, %@. Conversations that cited them are left without them, and the text is kept.";
 
 /* Views */
 "approval.autodeny" = "If you do not answer, it is denied on its own.";
@@ -391,8 +390,8 @@
 "status.settings" = "Settings…";
 "status.checkUpdates" = "Check for updates…";
 "status.quit" = "Quit";
-"settings.sounds" = "Sounds";
-"settings.sounds.subtitle" = "A click when the microphone opens and closes, and a pulse while it thinks.";
+"settings.muteEffects" = "Mute sound effects";
+"settings.muteEffects.subtitle" = "No click when the microphone opens and closes, and no pulse while it thinks.";
 "settings.muteWhileTalking" = "Mute sound while you talk";
 "settings.muteWhileTalking.subtitle" = "Music and video go silent while Companion listens to you.";
 "settings.screenGlow" = "Screen glow";
@@ -413,7 +412,10 @@
 "settings.you.looks" = "How it looks";
 "settings.context.label" = "What it can look at";
 "settings.keys.label" = "Keys";
+"settings.system.app" = "App";
+"settings.system.sound" = "Sound";
 "settings.system.about" = "About";
+"settings.system.data" = "Data";
 "settings.system.danger" = "Danger zone";
 "settings.system.open" = "Open";
 "settings.system.purge" = "Empty…";
@@ -879,3 +881,12 @@
 "orb.listening" = "Listening";
 "orb.thinking" = "Thinking";
 "orb.speaking" = "Speaking";
+
+/* Settings dialogs. local reference; brief ajustes-hoja-incredible S4 */
+"settings.dialog.open" = "Open";
+"settings.dialog.cancel" = "Cancel";
+"settings.dialog.shortcuts.title" = "Shortcuts";
+"settings.dialog.shortcuts.subline" = "The keys that run each action. They are shown here, not edited.";
+"settings.dialog.shortcuts.unset" = "Not set";
+"settings.dialog.permissions.subline" = "What Companion may use on this Mac.";
+"settings.dialog.purge.subline" = "The copies of everything you attached are deleted. Conversations that cited them are left without them, and the text is kept.";

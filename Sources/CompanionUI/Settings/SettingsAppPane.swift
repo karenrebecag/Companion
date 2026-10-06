@@ -16,6 +16,7 @@ struct SettingsPrivacyPage: View {
     /// show up here until the page reappears — same tradeoff `sounds` and
     /// `screenGlow` already make on this page's sibling.
     @State private var lendHands = HandsLendingPreference.enabled
+    @Environment(\.openSettingsDialog) private var openSettingsDialog
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
@@ -52,12 +53,16 @@ struct SettingsPrivacyPage: View {
                     SettingsSwitch(label: Localized.string("settings.privacy.lendHands"), isOn: $lendHands)
                 }
             }
-            if let welcome {
-                SettingsCard(label: Localized.string("settings.permissions"), key: "settings.permissions") {
-                    ForEach(WelcomePermission.allCases, id: \.self) { permission in
-                        SettingsPermissionRow(model: PermissionRowModel(
-                            kind: permission.rowKind,
-                            granted: welcome.facts.granted.contains(permission)))
+            if welcome != nil {
+                SettingsCard(label: Localized.string("settings.permissions")) {
+                    SettingsRow(
+                        title: Localized.string("settings.permissions"),
+                        subtitle: Localized.string("settings.dialog.permissions.subline"),
+                        key: "settings.permissions"
+                    ) {
+                        SettingsPill(title: Localized.string("settings.dialog.open")) {
+                            openSettingsDialog(.permissions)
+                        }
                     }
                 }
             }
@@ -169,19 +174,57 @@ struct SettingsPrivacyPage: View {
 
 }
 
-/// Settings › Sistema (Wave 16g): about, the stored files, the welcome, and
-/// a danger zone that holds the one action here that cannot be undone.
+/// Sistema's sections, in Incredible's order (S2 of ajustes-hoja-incredible).
+/// The danger zone joins when its row does; an empty section is not drawn.
+package enum SettingsSystemSection: CaseIterable, Equatable {
+    case app, sound, about, data
+
+    package var label: String {
+        switch self {
+        case .app: Localized.string("settings.system.app")
+        case .sound: Localized.string("settings.system.sound")
+        case .about: Localized.string("settings.system.about")
+        case .data: Localized.string("settings.system.data")
+        }
+    }
+
+    /// The inventory keys each section holds, top to bottom.
+    package var rows: [String] {
+        switch self {
+        case .app: ["settings.screenGlow"]
+        case .sound: ["settings.muteWhileTalking", "settings.muteEffects"]
+        case .about: ["settings.app.version"]
+        // Both rows erase stored data, so they share Incredible's one "Data" section.
+        case .data: [SettingsInventory.clearHistoryRowID, "settings.app.attachments"]
+        }
+    }
+
+    /// Incredible asks "mute sound effects?"; Companion stores "sounds on".
+    /// Only the view inverts it, so the preference keeps its meaning.
+    package static func effectsMuted(soundsOn: Bool) -> Bool { !soundsOn }
+    package static func soundsOn(effectsMuted: Bool) -> Bool { !effectsMuted }
+
+    /// The switch the page binds: reads and writes `sounds` through the inversion.
+    static func effectsMuted(_ sounds: Binding<Bool>) -> Binding<Bool> {
+        Binding(
+            get: { effectsMuted(soundsOn: sounds.wrappedValue) },
+            set: { sounds.wrappedValue = soundsOn(effectsMuted: $0) })
+    }
+}
+
+/// Settings › Sistema: app, sound, about and data, as Incredible lays them out.
 struct SettingsSystemPage: View {
     var chat: ChatViewModel?
     var updates: UpdateState?
-    var welcome: WelcomeModel?
     let storageLabel: String
-    @Binding var confirmPurge: Bool
-    let onClose: () -> Void
     /// Attachments change while other pages are open; read on each visit.
     var onAppear: () -> Void = {}
     let history: HistoryClearModel
+    @State private var sounds = InterfaceSound.enabled && ThinkingSoundPref.enabled
+    @State private var muteWhileTalking = MuteSoundWhileTalkingPref.enabled
+    @State private var screenGlow = ScreenGlowPreference.enabled()
     @Environment(\.openURL) private var openURL
+    @Environment(\.openSettingsDialog) private var openSettingsDialog
 
     /// The row only asks; the dialog and its model do the deleting.
     func pressClearRow() { history.present() }
@@ -189,44 +232,66 @@ struct SettingsSystemPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
             SettingsPageHeader(title: SettingsTab.system.title)
-            SettingsCard(label: Localized.string("settings.system.about")) {
-                SettingsRow(
-                    title: Localized.string("settings.app.version"), subtitle: SettingsVersion.current,
-                    key: "settings.app.version"
-                ) { updateControl }
-                if let welcome {
-                    SettingsRow(title: Localized.string("settings.welcome.again"), key: "settings.welcome.again") {
-                        SettingsPill(title: Localized.string("settings.system.open")) {
-                            welcome.reopen()
-                            onClose()
-                        }
-                    }
-                }
-            }
-            SettingsCard(label: Localized.string("settings.history.label")) {
-                SettingsRow(
-                    title: Localized.string("settings.history.row"),
-                    subtitle: Localized.string("settings.history.row.subtitle"),
-                    key: SettingsInventory.clearHistoryRowID
-                ) {
-                    SettingsPill(title: Localized.string("settings.history.action"), kind: .destructive) {
-                        pressClearRow()
-                    }
-                }
-            }
-            SettingsCard(label: Localized.string("settings.system.danger")) {
-                SettingsRow(
-                    title: Localized.string("settings.app.attachments"), subtitle: storageLabel,
-                    key: "settings.app.attachments"
-                ) {
-                    SettingsPill(
-                        title: Localized.string("settings.system.purge"), kind: .destructive,
-                        enabled: chat?.hasStoredAttachments ?? false
-                    ) { confirmPurge = true }
+            ForEach(SettingsSystemSection.allCases, id: \.self) { section in
+                SettingsCard(label: section.label) {
+                    ForEach(section.rows, id: \.self) { row($0) }
                 }
             }
         }
         .onAppear(perform: onAppear)
+        .onChange(of: screenGlow) { _, on in ScreenGlowPreference.set(on) }
+        .onChange(of: muteWhileTalking) { _, on in MuteSoundWhileTalkingPref.enabled = on }
+        .onChange(of: sounds) { _, on in
+            InterfaceSound.enabled = on
+            ThinkingSoundPref.enabled = on
+        }
+    }
+
+    private static let drawn: Set<String> = [
+        "settings.screenGlow", "settings.muteWhileTalking", "settings.muteEffects",
+        "settings.app.version", SettingsInventory.clearHistoryRowID, "settings.app.attachments",
+    ]
+
+    /// The rows `row(_:)` knows how to draw; a section key outside it would draw nothing.
+    static func draws(_ key: String) -> Bool { drawn.contains(key) }
+
+    @ViewBuilder private func row(_ key: String) -> some View {
+        switch key {
+        case "settings.screenGlow":
+            SettingsRow(
+                title: Localized.string(key), subtitle: Localized.string("settings.screenGlow.subtitle"), key: key
+            ) { SettingsSwitch(label: Localized.string(key), isOn: $screenGlow) }
+        case "settings.muteWhileTalking":
+            SettingsRow(
+                title: Localized.string(key), subtitle: Localized.string("settings.muteWhileTalking.subtitle"),
+                key: key
+            ) { SettingsSwitch(label: Localized.string(key), isOn: $muteWhileTalking) }
+        case "settings.muteEffects":
+            SettingsRow(
+                title: Localized.string(key), subtitle: Localized.string("settings.muteEffects.subtitle"), key: key
+            ) { SettingsSwitch(label: Localized.string(key), isOn: SettingsSystemSection.effectsMuted($sounds)) }
+        case "settings.app.version":
+            SettingsRow(title: Localized.string(key), subtitle: SettingsVersion.current, key: key) { updateControl }
+        case SettingsInventory.clearHistoryRowID:
+            SettingsRow(
+                title: Localized.string("settings.history.row"),
+                subtitle: Localized.string("settings.history.row.subtitle"),
+                key: SettingsInventory.clearHistoryRowID
+            ) {
+                SettingsPill(title: Localized.string("settings.history.action"), kind: .destructive) {
+                    pressClearRow()
+                }
+            }
+        case "settings.app.attachments":
+            SettingsRow(title: Localized.string(key), subtitle: storageLabel, key: key) {
+                SettingsPill(
+                    title: Localized.string("settings.system.purge"), kind: .destructive,
+                    enabled: chat?.hasStoredAttachments ?? false
+                ) { openSettingsDialog(.purgeAttachments) }
+            }
+        default:
+            EmptyView()
+        }
     }
 
     @ViewBuilder private var updateControl: some View {
