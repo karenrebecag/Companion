@@ -26,6 +26,7 @@ enum ChatSSEAttempt {
         memory: String = "",
         skills: String = "",
         voice: Bool = false,
+        speaking: String? = nil,
         transport: any ChatTransport,
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil,
         yield: @escaping @Sendable (ChatDelta) -> Void
@@ -34,7 +35,7 @@ enum ChatSSEAttempt {
             provider: provider, key: key, history: history, tools: tools,
             settings: settings, ownerFirstName: ownerFirstName,
             about: about, instructions: instructions, language: language,
-            memory: memory, skills: skills, voice: voice,
+            memory: memory, skills: skills, voice: voice, speaking: speaking,
             resolveAttachment: resolveAttachment)
         else { return .failed(.unreachable) }
 
@@ -81,6 +82,7 @@ enum ChatSSEAttempt {
         memory: String = "",
         skills: String = "",
         voice: Bool = false,
+        speaking: String? = nil,
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil
     ) -> URLRequest? {
         guard let url = provider.endpoint else { return nil }
@@ -97,7 +99,7 @@ enum ChatSSEAttempt {
             provider: provider, history: history, tools: tools,
             settings: settings, ownerFirstName: ownerFirstName,
             about: about, instructions: instructions, language: language,
-            memory: memory, skills: skills, voice: voice,
+            memory: memory, skills: skills, voice: voice, speaking: speaking,
             resolveAttachment: resolveAttachment)
         else { return nil }
         request.httpBody = body
@@ -156,6 +158,7 @@ private func makeBody(
     memory: String = "",
     skills: String = "",
     voice: Bool = false,
+    speaking: String? = nil,
     resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
 ) -> Data? {
     let delegateEnabled = tools.contains { $0.name == "delegate" }
@@ -173,7 +176,7 @@ private func makeBody(
             handsEnabled: handsEnabled,
             sightEnabled: tools.contains { $0.name == ParentTool.look.rawValue },
             about: about, instructions: instructions, language: language,
-            memory: memory, skills: skills, voice: voice),
+            memory: memory, skills: skills, voice: voice, speaking: speaking),
     ]]
     let window = max(settings.historyWindow, 0)
     for turn in history.suffix(window) {

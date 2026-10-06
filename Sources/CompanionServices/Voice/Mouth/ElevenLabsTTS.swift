@@ -19,25 +19,34 @@ package struct ElevenLabsTTSClient: TTSFetching, Sendable {
 
     private let secrets: any SecretStore
     private let transport: any ChatTransport
-    private let language: AppLanguage
     /// Read per request, not captured once: the voice is a setting and a
     /// change must reach the next sentence without rebuilding the mouth.
     private let voiceID: @Sendable () -> String
+    /// Same reason as `voiceID`. An unknown code becomes English here so
+    /// the body never carries an empty `language_code`
+    /// (local reference; Incredible language pickers).
+    private let speechCode: @Sendable () -> String
 
     package init(
         secrets: any SecretStore, transport: any ChatTransport,
-        language: AppLanguage, voiceID: @escaping @Sendable () -> String
+        language: AppLanguage,
+        speechCode: (@Sendable () -> String)? = nil,
+        defaults: UserDefaults = .standard,
+        voiceID: @escaping @Sendable () -> String
     ) {
         self.secrets = secrets
         self.transport = transport
-        self.language = language
+        self.speechCode = speechCode
+            ?? SpokenLanguagePreference.speechCodeProvider(interface: language, defaults: defaults)
         self.voiceID = voiceID
     }
 
     /// The OpenAI `VoiceID` is ignored on purpose: ElevenLabs speaks with
-    /// its own voice id, and that is what keys the audio apart.
+    /// its own voice id, and that is what keys the audio apart. So does the
+    /// language: the same phrase spoken as Spanish must not replay as French.
     package func cacheVariant(voice: VoiceID) -> String {
-        "elevenlabs/\(ElevenLabsMouth.model)/\(Self.trimmed(voiceID()))"
+        let code = SpokenLanguagePreference.wireLanguageCode(speechCode())
+        return "elevenlabs/\(ElevenLabsMouth.model)/\(Self.trimmed(voiceID()))/\(code)"
     }
 
     package func fetch(_ text: String, voice: VoiceID) async throws -> Data {
@@ -105,7 +114,7 @@ package struct ElevenLabsTTSClient: TTSFetching, Sendable {
         let body: [String: Any] = [
             "text": text,
             "model_id": ElevenLabsMouth.model,
-            "language_code": language.rawValue,
+            "language_code": SpokenLanguagePreference.wireLanguageCode(speechCode()),
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request

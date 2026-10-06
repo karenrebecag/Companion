@@ -10,6 +10,7 @@ import Testing
 
 @Test @MainActor func settingsParityTests() async {
     testAtMostFifteenOptions()
+    testTheLanguageRowsSitOnTheirPages()
     await testNoVisibleLabelIsJargon()
     await testMenusFollowTheLanguage()
     await testTheMenuBarItemHasFiveEntries()
@@ -32,13 +33,18 @@ private func words(_ text: String) -> [String] {
     // 16h-3: eighteen — "Tu ciudad" in Tú (spec 16h criterion 8) and its
     // context switch in Privacidad are the two additions to the line.
     // PR6a: nineteen — "Silenciar el sonido mientras hablas" next to Sounds.
-    expect(options.count <= 19, "ajustes: \(options.count) opciones, máximo 19")
+    // Language pickers: twenty-one — "Idioma de dictado" (General) and "Idioma
+    // al hablar" (Voz) are the two additions, both copied from Incredible's
+    // settings (E17, E20, E21), where each is a first-class row.
+    expect(options.count <= 21, "ajustes: \(options.count) opciones, máximo 21")
     // The three additions the ceiling was raised for: naming them keeps
     // a later addition from riding on their headroom.
     let added = [
         "settings.you.city": "16h-3",
         "settings.context.location": "16h-3",
         "settings.muteWhileTalking": "PR6a",
+        "settings.dictation.language": "idiomas",
+        "settings.speech.language": "idiomas",
     ]
     for (key, label) in added {
         expect(options.contains { $0.titleKey == key }, "ajustes: la opción de \(label) \(key) sigue en el inventario")
@@ -50,6 +56,16 @@ private func words(_ text: String) -> [String] {
                  "settings.app.accent"] {
         expect(!options.contains { $0.titleKey == gone }, "ajustes: \(gone) vive en Config, no en la UI")
     }
+}
+
+@MainActor func testTheLanguageRowsSitOnTheirPages() {
+    func tab(_ key: String) -> SettingsTab? {
+        SettingsInventory.options.first { $0.titleKey == key }?.tab
+    }
+    expectEq(tab("settings.dictation.language"), .general,
+             "idiomas: el dictado vive en General, como en Incredible")
+    expectEq(tab("settings.speech.language"), .voice,
+             "idiomas: el habla vive en Voz, junto a la voz que la dice")
 }
 
 @MainActor func testNoVisibleLabelIsJargon() async {

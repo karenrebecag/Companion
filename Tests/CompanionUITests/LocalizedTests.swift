@@ -29,6 +29,32 @@ import Testing
              "catálogo: no hay español huérfano de una clave fuente")
 }
 
+/// Los códigos del catálogo, en su orden: el picker, la instrucción de voz y
+/// las claves `spoken.language.*` salen de esta lista, así que un cambio en
+/// ella tiene que ser una decisión y no un efecto secundario.
+@Test func spokenLanguageCatalogIsPinned() {
+    expectEq(SpokenLanguagePreference.catalog.map(\.code), [
+        "en", "es", "fr", "de", "it", "pt", "nl", "sv", "no", "da",
+        "fi", "pl", "ru", "uk", "tr", "ar", "he", "ja", "ko", "zh",
+        "hi", "id", "th", "vi", "cs", "el", "hu", "ro", "bg", "is",
+    ], "idiomas: los códigos del catálogo y su orden")
+}
+
+@Test func everySpokenLanguageIsNamedInBothCatalogsAndNothingElseIs() {
+    let codes = Set(SpokenLanguagePreference.catalog.map(\.code))
+    for language in ["en", "es"] {
+        let strings = catalog(language)
+        for code in SpokenLanguagePreference.catalog.map(\.code) {
+            let name = strings["spoken.language.\(code)"] ?? ""
+            expect(!name.isEmpty, "idiomas \(language): spoken.language.\(code) tiene nombre")
+        }
+        let named = Set(strings.keys.filter { $0.hasPrefix("spoken.language.") }
+            .map { String($0.dropFirst("spoken.language.".count)) })
+        expectEq(named.subtracting(codes), [],
+                 "idiomas \(language): ningún spoken.language.* fuera del catálogo")
+    }
+}
+
 @MainActor func testLookupFollowsTheChosenLanguage() async {
     let english = await Localized.scoped(to: .en) { Localized.string("chat.job.done") }
     let spanish = await Localized.scoped(to: .es) { Localized.string("chat.job.done") }

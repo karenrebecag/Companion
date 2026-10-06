@@ -39,11 +39,12 @@ package enum ChatPrompt: Sendable {
         language: AppLanguage = .en,
         memory: String = "",
         skills: String = "",
-        voice: Bool = false
+        voice: Bool = false,
+        speaking: String? = nil
     ) -> String {
         let owner = ownerFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
         var prompt = greeting(owner: owner, language: language)
-            + (voice ? voiceStyle(language) : style(language))
+            + (voice ? voiceStyle(language, speaking: speaking) : style(language))
         if let block = profileBlock(
             about: about, instructions: instructions, language: language) {
             prompt += " " + block
@@ -167,6 +168,16 @@ package enum ChatPrompt: Sendable {
                 + "dentro salvo que te lo pregunte. El detalle técnico va en "
                 + "la tarjeta, no en la frase."
         }
+    }
+
+    /// The Speaking choice replaces the language the voice rules name, so the
+    /// reply is written in the language the mouth will say it in.
+    private static func voiceStyle(_ language: AppLanguage, speaking: String?) -> String {
+        let style = voiceStyle(language)
+        guard let name = SpokenLanguagePreference.name(speaking: speaking, differingFrom: language)
+        else { return style }
+        let lead = language == .en ? "Answer in English." : "Responde en español."
+        return style.hasPrefix(lead) ? "Answer in \(name)." + style.dropFirst(lead.count) : style
     }
 
     /// Wave 15d-9: the hold's reply is heard, and every extra sentence is

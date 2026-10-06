@@ -110,8 +110,13 @@ struct TurnMouth {
     /// after the reply (a spoken yes the sheet did not take).
     var owedLines: [String] = []
 
-    init(language: AppLanguage, recognizer: any LanguageRecognizing, heard: String) {
-        gate = MouthLanguageGate(language: language, recognizer: recognizer, heard: heard)
+    /// `speaking` is the resolved Speaking code; nil defends the app language.
+    init(
+        language: AppLanguage, speaking: String? = nil,
+        recognizer: any LanguageRecognizing, heard: String
+    ) {
+        gate = MouthLanguageGate(
+            speaking: speaking ?? language.rawValue, recognizer: recognizer, heard: heard)
     }
 
     /// The reply minus what the mouth dropped (foreign reasoning, leaks): the

@@ -31,7 +31,8 @@ private func drain(_ stream: AsyncThrowingStream<Data, Error>) async throws -> D
     transport.stub(url: brianURL, ScriptedReply(status: 200, body: Data([1, 2, 3, 4])))
     let secrets = ScriptedSecrets([.elevenLabs: "  sk_eleven_test_0000  "])
     let es = ElevenLabsTTSClient(
-        secrets: secrets, transport: transport, language: .es, voiceID: { brian })
+        secrets: secrets, transport: transport, language: .es,
+        speechCode: { "es" }, voiceID: { brian })
     expectEq(secrets.reads, 0, "elevenlabs: construir no lee el llavero")
 
     do {
@@ -58,7 +59,8 @@ private func drain(_ stream: AsyncThrowingStream<Data, Error>) async throws -> D
     expect(secrets.reads > 0, "elevenlabs: la clave se lee al pedir")
 
     let en = ElevenLabsTTSClient(
-        secrets: secrets, transport: transport, language: .en, voiceID: { brian })
+        secrets: secrets, transport: transport, language: .en,
+        speechCode: { "en" }, voiceID: { brian })
     do {
         let audio = try await en.fetch("Done.", voice: .cedar)
         expectEq(audio, Data([1, 2, 3, 4]), "elevenlabs: fetch devuelve el cuerpo")
@@ -136,11 +138,13 @@ private func drain(_ stream: AsyncThrowingStream<Data, Error>) async throws -> D
 @Test @MainActor func testTheElevenLabsCacheVariantCarriesModelAndVoice() {
     let secrets = ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"])
     let a = ElevenLabsTTSClient(
-        secrets: secrets, transport: ScriptedTransport(), language: .es, voiceID: { brian })
+        secrets: secrets, transport: ScriptedTransport(), language: .es,
+        speechCode: { "es" }, voiceID: { brian })
     let b = ElevenLabsTTSClient(
-        secrets: secrets, transport: ScriptedTransport(), language: .es, voiceID: { "otraVoz123" })
-    expectEq(a.cacheVariant(voice: .marin), "elevenlabs/eleven_flash_v2_5/\(brian)",
-             "caché: proveedor/modelo/voz")
+        secrets: secrets, transport: ScriptedTransport(), language: .es,
+        speechCode: { "es" }, voiceID: { "otraVoz123" })
+    expectEq(a.cacheVariant(voice: .marin), "elevenlabs/eleven_flash_v2_5/\(brian)/es",
+             "caché: proveedor/modelo/voz/idioma")
     expect(a.cacheVariant(voice: .marin) != b.cacheVariant(voice: .marin),
            "caché: otra voz, otra clave")
     expectEq(a.cacheVariant(voice: .marin), a.cacheVariant(voice: .cedar),

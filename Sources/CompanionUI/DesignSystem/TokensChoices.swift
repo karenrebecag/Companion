@@ -312,6 +312,9 @@ package enum ControlMetrics {
     /// The welcome's name field (Incredible's .fr-name-input).
     package static let nameFieldHeight: CGFloat = 50
     package static let nameFieldInset: CGFloat = 18
+    /// The dictation-language popover: its width and how tall its list grows before it scrolls.
+    package static let languagePickerWidth: CGFloat = 320
+    package static let languageListMaxHeight: CGFloat = 280
 }
 
 // Type sizes: la escala por papel de Incredible (16k), medida en su CSS.

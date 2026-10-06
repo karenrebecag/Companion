@@ -34,6 +34,9 @@ func makeChatProviders(environment env: LaunchEnvironment) -> ChatProviders {
     }
     // One shape for every chat client below: they differ only in which
     // providers they may ask and how patiently.
+    let speakingSource: @Sendable () -> String = {
+        SpokenLanguagePreference.resolvedSpeechCode(interface: env.configProvider.current.language)
+    }
     let makeChat: (
         [ProviderDescriptor], (@Sendable () -> [ProviderDescriptor])?, Int, Bool
     ) -> ChatProviderClient = { catalog, catalogSource, maxAttempts, voice in
@@ -51,6 +54,8 @@ func makeChatProviders(environment env: LaunchEnvironment) -> ChatProviders {
                         live.ownerInstructions)
             },
             languageSource: { env.configProvider.current.language },
+            // Only the hold speaks: the typed chat keeps its own prompt.
+            speakingSource: voice ? speakingSource : nil,
             memorySource: { env.configProvider.current.memory },
             skillsSource: { env.configProvider.current.skills },
             catalog: catalog,

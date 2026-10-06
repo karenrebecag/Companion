@@ -36,10 +36,11 @@ package enum ContextBlock {
     /// small number of characters and the turn needs it more than a
     /// twelfth open document.
     package static func render(
-        _ ctx: TurnContext, language: AppLanguage, timeZone: TimeZone = .current
+        _ ctx: TurnContext, language: AppLanguage, speaking: String? = nil,
+        timeZone: TimeZone = .current
     ) -> String {
         var trimmed = ctx
-        var block = assemble(trimmed, language: language, timeZone: timeZone)
+        var block = assemble(trimmed, language: language, speaking: speaking, timeZone: timeZone)
         while size(block) > Caps.block {
             if trimmed.clipboard != nil {
                 trimmed.clipboard = nil
@@ -59,13 +60,13 @@ package enum ContextBlock {
             } else {
                 break
             }
-            block = assemble(trimmed, language: language, timeZone: timeZone)
+            block = assemble(trimmed, language: language, speaking: speaking, timeZone: timeZone)
         }
         return block
     }
 
     private static func assemble(
-        _ ctx: TurnContext, language: AppLanguage, timeZone: TimeZone
+        _ ctx: TurnContext, language: AppLanguage, speaking: String?, timeZone: TimeZone
     ) -> String {
         let head = "<context source=\"\(ctx.source.rawValue)\" at=\"\(stamp(ctx.timestamp))\">"
         var lines = [head, "  " + frame(language)]
@@ -147,7 +148,7 @@ package enum ContextBlock {
         if let said = ctx.replyCutAfter, !said.isEmpty {
             lines.append("<reply_cut>\(replyCutNote(said, language))</reply_cut>")
         }
-        if let hint = replyHint(ctx.source, language: language) {
+        if let hint = replyHint(ctx.source, language: language, speaking: speaking) {
             lines.append("<how_to_reply>\(hint)</how_to_reply>")
         }
         return lines.joined(separator: "\n")
@@ -169,7 +170,17 @@ package enum ContextBlock {
     /// Wave 15d-7: said right before the transcript, as Incredible does; the
     /// system prompt alone lost to English text on screen and to earlier
     /// turns in the other language.
-    package static func languageInstruction(_ language: AppLanguage) -> String {
+    ///
+    /// `speaking` is the resolved Speaking language: when it is another
+    /// catalog language, the reply is asked for in that one, since the voice
+    /// would otherwise read Spanish text with a French accent.
+    package static func languageInstruction(
+        _ language: AppLanguage, speaking: String? = nil
+    ) -> String {
+        if let name = SpokenLanguagePreference.name(speaking: speaking, differingFrom: language) {
+            return "(Reply only in \(name), regardless of the language on screen "
+                + "or in earlier messages.)"
+        }
         switch language {
         case .es:
             return "(Responde solo en español, sin importar el idioma de la pantalla "
@@ -186,8 +197,13 @@ package enum ContextBlock {
 
     /// The corpus's `<how_to_reply>`: a paragraph read aloud is unbearable.
     /// Typed turns get nothing; the system prompt already says how to talk.
-    package static func replyHint(_ source: TurnSource, language: AppLanguage) -> String? {
+    package static func replyHint(
+        _ source: TurnSource, language: AppLanguage, speaking: String? = nil
+    ) -> String? {
         guard source == .voice else { return nil }
+        if let name = SpokenLanguagePreference.name(speaking: speaking, differingFrom: language) {
+            return "Answer in at most 2 sentences, in \(name), no markdown."
+        }
         switch language {
         case .en: return "Answer in at most 2 sentences, in English, no markdown."
         case .es: return "Responde en máximo 2 frases, en español, sin markdown."

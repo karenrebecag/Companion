@@ -231,6 +231,13 @@ final class FakeTranscriberEngine: TranscriberEngine, @unchecked Sendable {
     @Guarded private(set) var runs: [FakeTranscriberRun] = []
     @Guarded private(set) var contextual: [[String]] = []
     @Guarded private(set) var locales: [String] = []
+    /// Locales the engine has no model for at all, as `supportedLocale`
+    /// answering nil does on the real one.
+    @Guarded var unsupportedLocales: Set<String> = []
+    @Guarded private(set) var installLocales: [String] = []
+    /// Locales that are supported but whose model is not on disk yet; an
+    /// install removes the locale from the set.
+    @Guarded var notInstalledLocales: Set<String> = []
 
     func requestAuthorization() async -> Bool { true }
     var isAuthorized: Bool { true }
@@ -244,6 +251,15 @@ final class FakeTranscriberEngine: TranscriberEngine, @unchecked Sendable {
 
     func assets(localeIdentifier: String) async -> TranscriberAssets {
         assetChecks += 1
+        if unsupportedLocales.contains(localeIdentifier) {
+            return TranscriberAssets(
+                status: "unsupportedLocale", nothingToInstall: false, localeInstalled: false,
+                supported: false)
+        }
+        if notInstalledLocales.contains(localeIdentifier) {
+            return TranscriberAssets(
+                status: "supported", nothingToInstall: false, localeInstalled: false)
+        }
         if let reportedAssets { return reportedAssets }
         return TranscriberAssets(
             status: installed ? "installed" : "supported",
@@ -252,6 +268,8 @@ final class FakeTranscriberEngine: TranscriberEngine, @unchecked Sendable {
 
     func installAssets(localeIdentifier: String) async throws {
         installs += 1
+        installLocales.append(localeIdentifier)
+        notInstalledLocales.remove(localeIdentifier)
         if installDelay > 0 { try await Task.sleep(for: .seconds(installDelay)) }
         installed = true
     }
@@ -259,6 +277,7 @@ final class FakeTranscriberEngine: TranscriberEngine, @unchecked Sendable {
     func begin(
         localeIdentifier: String, contextualStrings: [String]
     ) async throws -> any TranscriberEngineRun {
+        if unsupportedLocales.contains(localeIdentifier) { throw VoiceTransportError.unreachable }
         if let gate = nextBeginGate {
             nextBeginGate = nil
             await gate.wait()

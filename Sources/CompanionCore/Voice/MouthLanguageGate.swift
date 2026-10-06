@@ -53,6 +53,10 @@ package struct MouthLanguageGate: Sendable {
     private static let terminators: Set<Character> = [".", "!", "?", "…"]
 
     package let language: AppLanguage
+    /// The recognizer only knows the app's languages. A spoken language
+    /// outside them can never be confirmed, so every sentence would read as
+    /// foreign: the gate steps aside instead of judging what it cannot hear.
+    private let judges: Bool
     package private(set) var dropped: [String] = []
     private let recognizer: any LanguageRecognizing
     private var inAppLanguage = false
@@ -64,13 +68,25 @@ package struct MouthLanguageGate: Sendable {
     package init(
         language: AppLanguage, recognizer: any LanguageRecognizing, heard: String = ""
     ) {
-        self.language = language
+        self.init(speaking: language.rawValue, recognizer: recognizer, heard: heard)
+    }
+
+    /// `speaking` is the resolved Speaking language: the reply is meant to be
+    /// in it, so it is the one the gate defends.
+    package init(
+        speaking code: String, recognizer: any LanguageRecognizing, heard: String = ""
+    ) {
+        let app = AppLanguage(rawValue: code)
+        language = app ?? .en
+        judges = app != nil
         self.recognizer = recognizer
-        inAppLanguage = Self.verdict(heard, recognizer).map { $0.code == language.rawValue } ?? false
+        inAppLanguage = judges
+            && (Self.verdict(heard, recognizer).map { $0.code == code } ?? false)
     }
 
     /// The cut without its foreign sentences; nil when nothing is left.
     package mutating func admit(_ cut: String) -> String? {
+        guard judges else { return Self.sentences(cut).isEmpty ? nil : cut }
         let sentences = Self.sentences(cut)
         var kept: [String] = []
         for sentence in sentences {

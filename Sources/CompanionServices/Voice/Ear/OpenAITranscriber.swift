@@ -1,6 +1,40 @@
 import CompanionCore
 import Foundation
 
+/// The slice of a websocket the ear uses, so a test can play the server.
+package protocol EarSocket: AnyObject, Sendable {
+    func resume()
+    func send(_ text: String) async throws
+    /// Fire and forget: the config retry and the queued-frame flush have no
+    /// one to throw to.
+    func sendDetached(_ text: String)
+    /// A text frame arrives as its string; any other frame as nil.
+    func receive(_ handler: @escaping @Sendable (Result<String?, Error>) -> Void)
+    func cancel()
+}
+
+private final class URLSessionEarSocket: EarSocket, @unchecked Sendable {
+    private let task: URLSessionWebSocketTask
+
+    init(_ request: URLRequest) {
+        task = NoStoreSession.shared.webSocketTask(with: request)
+    }
+
+    func resume() { task.resume() }
+    func send(_ text: String) async throws { try await task.send(.string(text)) }
+    func sendDetached(_ text: String) { task.send(.string(text)) { _ in } }
+    func cancel() { task.cancel(with: .goingAway, reason: nil) }
+
+    func receive(_ handler: @escaping @Sendable (Result<String?, Error>) -> Void) {
+        task.receive { result in
+            handler(result.map { message in
+                if case .string(let json) = message { return json }
+                return nil
+            })
+        }
+    }
+}
+
 /// The realtime ear: OpenAI's `gpt-live-transcribe` over the realtime
 /// transcription websocket. Chosen by measurement (2026-08-25): on the same
 /// audio it beat Apple es-MX ("prueba" vs "problema") and, unlike Apple, it
@@ -20,7 +54,11 @@ package final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendabl
     private let turnDetection: @Sendable () -> TurnDetection
     private let lock = NSLock()
     private var text = ""
-    private var socket: URLSessionWebSocketTask?
+    private var socket: (any EarSocket)?
+    /// Read once per start: the dictation list can change between sessions,
+    /// never inside one.
+    private let languages: @Sendable () -> [String]
+    private let connect: @Sendable (URLRequest) -> any EarSocket
     private let box = AudioStreamBox<String>()
     private let turnBox = AudioStreamBox<EarTurnEvent>()
     /// Audio spoken during the websocket handshake must not fall on the
@@ -34,7 +72,10 @@ package final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendabl
     /// (frames queued forever waiting for an ack that never comes) is the
     /// worst failure mode this class can have — measured, not hypothetical.
     private var fellBack = false
-    private var language = "en"
+    /// Kept so a rejected config retries the same list, including an
+    /// omitted languages key. A retry that invented a language would bias
+    /// an ear the user left on automatic.
+    private var sessionLanguages: [String] = []
     /// Health trace: every link in the hearing chain must be visible in the
     /// log — a session that heard nothing used to look identical to one where
     /// the user never spoke.
@@ -45,10 +86,18 @@ package final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendabl
         keyProvider: @escaping @Sendable () -> String?,
         turnDetection: @escaping @Sendable () -> TurnDetection = {
             .serverVAD(silenceMs: 700)
+        },
+        languages: @escaping @Sendable () -> [String] = {
+            SpokenLanguagePreference.transcriptionLanguages()
+        },
+        connect: @escaping @Sendable (URLRequest) -> any EarSocket = {
+            URLSessionEarSocket($0)
         }
     ) {
         self.keyProvider = keyProvider
         self.turnDetection = turnDetection
+        self.languages = languages
+        self.connect = connect
     }
 
     package var partials: AsyncStream<String> { box.stream }
@@ -63,7 +112,10 @@ package final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendabl
 
     package func requestAuthorization() async -> Bool { isAuthorized }
 
-    package func start(localeIdentifier: String) async throws {
+    /// `localeIdentifier` is the UI language. Dictation is a separate list,
+    /// empty until the user picks, so this session is not biased toward the
+    /// interface (local reference; Incredible language pickers).
+    package func start(localeIdentifier _: String) async throws {
         halt()
         guard let key = keyProvider() else {
             throw VoiceTransportError.unreachable
@@ -73,20 +125,23 @@ package final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendabl
         else { throw VoiceTransportError.unreachable }
         var request = URLRequest(url: url)
         request.addValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        let task = NoStoreSession.shared.webSocketTask(with: request)
-        lock.withLock { text = "" }
-        socket = task
-        task.resume()
-        receiveLoop(on: task)
-        let hint = Self.languageHint(from: localeIdentifier)
+        let task = connect(request)
+        // One read feeds both the first config and a rejected-config retry,
+        // so the two can never disagree about the list.
+        let chosen = languages()
         lock.withLock {
-            language = hint
+            text = ""
+            sessionLanguages = chosen
             fellBack = false
             sentFrames = 0
             heardAnything = false
         }
-        try await send(Self.sessionUpdateJSON(
-            language: hint, turnDetection: turnDetection()), over: task)
+        socket = task
+        task.resume()
+        receiveLoop(on: task)
+        try await send(
+            Self.sessionUpdateJSON(languages: chosen, turnDetection: turnDetection()),
+            over: task)
     }
 
     package func append(_ frame: MicFrame) async {
@@ -125,36 +180,32 @@ package final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendabl
 
     // MARK: - Wire (pure, tested)
 
-    /// Language hint from a speech locale: "es-MX" → "es". The model handles
-    /// mixed languages on its own; the hint only biases the expected one.
-    static func languageHint(from localeIdentifier: String) -> String {
-        let prefix = localeIdentifier.split(separator: "-").first ?? "en"
-        return prefix.isEmpty ? "en" : String(prefix).lowercased()
-    }
-
     /// `turnDetection: nil` disables server segmentation (the resilience
-    /// fallback: a deaf ear is worse than a heuristic one).
+    /// fallback: a deaf ear is worse than a heuristic one). An empty list
+    /// omits `languages`. Sending [] or [""] would bias the
+    /// ear, or hand it a code that leaves it deaf
+    /// (local reference; Incredible language pickers).
     static func sessionUpdateJSON(
-        language: String, turnDetection: TurnDetection?
+        languages: [String], turnDetection: TurnDetection?
     ) -> String {
-        encode([
+        // gpt-transcribe, NOT gpt-live-transcribe: the live model REJECTS
+        // turn_detection (measured: "Turn detection is not supported for
+        // this transcription model" left the ear deaf), and the probe
+        // showed gpt-transcribe + server VAD segmenting alone with better
+        // accuracy — it got "Créame" where both others heard "Creo".
+        var transcription: [String: Any] = ["model": "gpt-transcribe"]
+        let listed = languages.filter { !$0.isEmpty }
+        if !listed.isEmpty {
+            transcription["languages"] = listed
+        }
+        return encode([
             "type": "session.update",
             "session": [
                 "type": "transcription",
                 "audio": [
                     "input": [
                         "format": ["type": "audio/pcm", "rate": 24000],
-                        "transcription": [
-                            // gpt-transcribe, NOT gpt-live-transcribe: the
-                            // live model REJECTS turn_detection (measured:
-                            // "Turn detection is not supported for this
-                            // transcription model" left the ear deaf), and
-                            // the probe showed gpt-transcribe + server VAD
-                            // segmenting alone with better accuracy — it got
-                            // "Créame" where both others heard "Creo".
-                            "model": "gpt-transcribe",
-                            "languages": [language],
-                        ],
+                        "transcription": transcription,
                         "turn_detection": turnDetection.map {
                             turnDetectionJSON($0) as Any
                         } ?? (NSNull() as Any),
@@ -243,14 +294,14 @@ package final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendabl
 
     // MARK: - Socket plumbing
 
-    private func receiveLoop(on task: URLSessionWebSocketTask) {
+    private func receiveLoop(on task: any EarSocket) {
         task.receive { [weak self] result in
             guard let self, self.socket === task else { return }
             switch result {
             case .failure(let error):
                 Log.app("ear: transcription socket died (\(error.localizedDescription))")
             case .success(let message):
-                if case .string(let json) = message {
+                if let json = message {
                     if let delta = Self.delta(fromEvent: json) {
                         let (next, first): (String, Bool) = self.lock.withLock {
                             self.text += delta
@@ -280,26 +331,25 @@ package final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendabl
         }
     }
 
-    private func send(_ json: String, over task: URLSessionWebSocketTask) async throws {
-        try await task.send(.string(json))
+    private func send(_ json: String, over task: any EarSocket) async throws {
+        try await task.send(json)
     }
 
     /// An error before the session ack means the config was rejected and the
     /// ack will never come — retry once without server VAD so the ear still
     /// hears (the session falls back to its heuristic turn-taking).
-    private func fallBackIfConfigRejected(over task: URLSessionWebSocketTask) {
-        let (retry, hint): (Bool, String) = lock.withLock {
-            guard !ready, !fellBack else { return (false, language) }
+    private func fallBackIfConfigRejected(over task: any EarSocket) {
+        let (retry, chosen): (Bool, [String]) = lock.withLock {
+            guard !ready, !fellBack else { return (false, sessionLanguages) }
             fellBack = true
-            return (true, language)
+            return (true, sessionLanguages)
         }
         guard retry else { return }
         Log.app("ear: config rejected — retrying without server VAD")
-        task.send(.string(Self.sessionUpdateJSON(
-            language: hint, turnDetection: nil))) { _ in }
+        task.sendDetached(Self.sessionUpdateJSON(languages: chosen, turnDetection: nil))
     }
 
-    private func flushQueued(over task: URLSessionWebSocketTask) {
+    private func flushQueued(over task: any EarSocket) {
         let backlog: [String] = lock.withLock {
             ready = true
             defer { queued = [] }
@@ -308,12 +358,12 @@ package final class OpenAITranscriber: SegmentingTranscriber, @unchecked Sendabl
         guard !backlog.isEmpty else { return }
         Log.app("ear: flushing \(backlog.count) queued frames after session ack")
         for payload in backlog {
-            task.send(.string(payload)) { _ in }
+            task.sendDetached(payload)
         }
     }
 
     private func halt() {
-        socket?.cancel(with: .goingAway, reason: nil)
+        socket?.cancel()
         socket = nil
         lock.withLock {
             text = ""
