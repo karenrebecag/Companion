@@ -22,18 +22,16 @@ struct IslandDiagramVisual: View {
     }
 
     var body: some View {
+        let shown = snapshot
         Group {
-            switch model.state {
-            case .failed(let failure):
+            switch shown.face {
+            case .failure(let failure):
                 fallback(failure)
             case .loading:
                 surface(tools: nil) { loading }
-            case .image(let drawn):
-                // Bytes that do not decode are a failure like any other.
-                if let image = Self.decode(drawn) {
-                    surface(tools: drawn) { picture(image, drawn) }
-                } else {
-                    fallback(.unavailable)
+            case .success:
+                if let image = shown.image, let data = shown.data {
+                    surface(tools: data) { picture(image, data) }
                 }
             }
         }
@@ -42,6 +40,23 @@ struct IslandDiagramVisual: View {
         .task(id: block) {
             await model.load(block, renderer: renderer, width: Double(IslandVisualMetrics.diagramWidth))
         }
+    }
+
+    private var snapshot: IslandDiagramSnapshot {
+        let image: NSImage?
+        let data: DiagramImage?
+        switch model.state {
+        case .image(let drawn):
+            image = Self.decode(drawn)
+            data = drawn
+        default:
+            image = nil
+            data = nil
+        }
+        return IslandDiagramSnapshot(
+            face: IslandDiagramChrome.face(model.state, decoded: image != nil),
+            image: image,
+            data: data)
     }
 
     static func decode(_ drawn: DiagramImage) -> NSImage? {
@@ -117,29 +132,118 @@ struct IslandDiagramVisual: View {
     }
 
     private var loading: some View {
-        HStack(spacing: Space.x2) {
-            ProgressView().controlSize(.small)
-            Text(Localized.string("island.diagram.loading"))
-                .font(Fonts.geist(AnswerBlockMetrics.tableSize))
-                .foregroundStyle(AnswerInk.white(AnswerInk.muted))
+        // The house skeleton is the pulse (see Skeleton.swift); the shimmer
+        // sweep is opt-in, and stacking it would run a second clock.
+        SkeletonPulse { opacity in
+            SkeletonBlock(
+                width: nil,
+                height: IslandVisualMetrics.diagramSkeletonHeight,
+                radius: IslandVisualMetrics.radius,
+                opacity: opacity)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(IslandDiagramChrome.loadingLabel())
     }
 
-    /// A timeout says so; every other failure is the same plain note.
-    static func noteKey(_ failure: DiagramFailure) -> String {
-        switch failure {
+    /// No retry control: the model draws again only when `load` is asked,
+    /// and nothing on it is a retry the view can call.
+    private func fallback(_ failure: DiagramFailure) -> some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            alert(failure)
+            AnswerCodeBlock(language: "mermaid", body: block.source)
+        }
+    }
+
+    private func alert(_ failure: DiagramFailure) -> some View {
+        HStack(alignment: .top, spacing: Space.x2) {
+            Image(systemName: IslandDiagramChrome.symbol)
+                .font(Fonts.symbol(IslandVisualMetrics.diagramAlertIcon, weight: .medium))
+                .foregroundStyle(Semantic.danger)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: Space.x1) {
+                Text(IslandDiagramChrome.title(failure))
+                    .font(Fonts.geist(AnswerBlockMetrics.tableSize).weight(.semibold))
+                    .foregroundStyle(Semantic.danger)
+                    .lineLimit(1)
+                Text(IslandDiagramChrome.detail(failure))
+                    .font(Fonts.geist(AnswerBlockMetrics.tableSize))
+                    .foregroundStyle(Semantic.danger)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(Space.x2)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: Radius.md).fill(Semantic.dangerMuted))
+        .accessibilityElement(children: .contain)
+        .onAppear {
+            guard IslandDiagramChrome.announces(.failure(failure)) else { return }
+            AccessibilityNotification.Announcement(IslandDiagramChrome.announcement(failure)).post()
+        }
+    }
+}
+
+private struct IslandDiagramSnapshot {
+    var face: IslandDiagramChrome.Face
+    var image: NSImage?
+    var data: DiagramImage?
+}
+
+enum IslandDiagramChrome {
+    enum Face: Equatable {
+        case loading
+        case failure(DiagramFailure)
+        case success
+    }
+
+    static let symbol = "exclamationmark.triangle.fill"
+
+    static func face(_ state: IslandDiagramModel.State, decoded: Bool) -> Face {
+        switch state {
+        case .loading: .loading
+        case .failed(let failure): .failure(failure)
+        case .image:
+            // Bytes that do not decode are a failure like any other.
+            decoded ? .success : .failure(.unavailable)
+        }
+    }
+
+    static func announces(_ face: Face) -> Bool {
+        if case .failure = face { return true }
+        return false
+    }
+
+    static func loadingLabel(_ language: AppLanguage = Localized.language()) -> String {
+        Localized.string("island.diagram.loading", language: language)
+    }
+
+    static func title(_ failure: DiagramFailure, _ language: AppLanguage = Localized.language()) -> String {
+        parts(failure, language).title
+    }
+
+    static func detail(_ failure: DiagramFailure, _ language: AppLanguage = Localized.language()) -> String {
+        parts(failure, language).detail
+    }
+
+    /// Danger interrupts, the way Arc's alert uses role="alert". VoiceOver
+    /// hears the sentence the diagram already shipped, not a second copy.
+    static func announcement(_ failure: DiagramFailure, language: AppLanguage = Localized.language()) -> String {
+        sentence(failure, language)
+    }
+
+    private static func sentence(_ failure: DiagramFailure, _ language: AppLanguage) -> String {
+        let key = switch failure {
         case .timeout: "island.diagram.timeout"
         case .invalid, .unavailable: "island.diagram.failed"
         }
+        return Localized.string(key, language: language)
     }
 
-    private func fallback(_ failure: DiagramFailure) -> some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            Text(Localized.string(Self.noteKey(failure)))
-                .font(Fonts.geist(AnswerBlockMetrics.tableSize))
-                .foregroundStyle(AnswerInk.white(AnswerInk.secondary))
-            AnswerCodeBlock(language: "mermaid", body: block.source)
-        }
+    /// The catalog keeps one sentence. The alert shows its first clause on
+    /// one line and the rest as the secondary line.
+    private static func parts(_ failure: DiagramFailure, _ language: AppLanguage) -> (title: String, detail: String) {
+        let line = sentence(failure, language)
+        guard let split = line.range(of: ". ") else { return (line, "") }
+        return (String(line[..<split.lowerBound]), String(line[split.upperBound...]))
     }
 }

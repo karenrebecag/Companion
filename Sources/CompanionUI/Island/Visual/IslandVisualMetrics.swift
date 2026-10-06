@@ -20,6 +20,10 @@ package enum IslandVisualMetrics {
     /// drawing instead of sitting on an axis).
     package static let canvas: CGFloat = 240
     package static let radialCanvas: CGFloat = 264
+    /// Not measured: the diagram's loading block, tall enough to hold a small flowchart's place.
+    package static let diagramSkeletonHeight: CGFloat = 120
+    /// Not measured: the failure alert's warning glyph, one step above the 14 pt body text.
+    package static let diagramAlertIcon: CGFloat = 16
 
     // Not measured: values of this session.
     /// Concentric guides a radar and a polar chart read against.

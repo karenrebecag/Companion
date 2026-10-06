@@ -203,6 +203,7 @@
 "settings.app.language.en" = "English";
 "settings.app.language.es" = "Spanish";
 "notices.label" = "Notices";
+"notices.error.prefix" = "Error";
 "job.record" = "Job: %@";
 "map.title" = "Locations";
 "sources.file" = "File";
