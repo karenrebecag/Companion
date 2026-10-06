@@ -9,12 +9,13 @@ struct IslandLiveReply: View {
     let text: String
     let startedAt: Date
     let speaking: Bool
+    var look: IslandReply.Look = .answer
 
     var body: some View {
         if let live = Self.painting(voice.caption) {
-            IslandReply(text: live.text, startedAt: startedAt, speaking: true, said: live.said)
+            IslandReply(text: live.text, startedAt: startedAt, speaking: true, said: live.said, look: look)
         } else if !text.isEmpty {
-            IslandReply(text: text, startedAt: startedAt, speaking: speaking)
+            IslandReply(text: text, startedAt: startedAt, speaking: speaking, look: look)
         }
     }
 

@@ -256,8 +256,8 @@ package struct IslandView: View {
 
     /// The mark in the field row: the one place a mouse hold starts.
     var mark: some View {
-        IslandOrb(state: IslandOrbState.composer(levels: voice.levels), levels: voice.levels,
-                 size: IslandFieldMetrics.orb)
+        IslandVoiceOrb(state: IslandOrbState.composer(levels: voice.levels), levels: voice.levels,
+                       size: IslandFieldMetrics.orb)
             .matchedGeometryEffect(id: IslandOrbTravel.id, in: orbSpace)
             .contentShape(Circle())
             .gesture(holdGesture)
@@ -344,13 +344,8 @@ package struct IslandView: View {
             }
             .modifier(contentSlot(.field))
             VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
-                reply(state)
-                ForEach(Array(results.enumerated()), id: \.element.id) { index, row in
-                    IslandResultCard(result: row.result, onOpen: { openResult(row.id) })
-                        .modifier(IslandLineReveal(index: index))
-                }
+                thread(state)
             }
-            .islandContentColumn()
             .modifier(contentSlot(.conversation))
         }
     }
@@ -366,20 +361,25 @@ package struct IslandView: View {
                     .accessibilityHint(Localized.string("island.reply.open"))
                     .accessibilityAction { openResult(latest.id) }
             }
-            if let choice = IslandChoice.block(in: latest) {
-                IslandChoiceCard(
-                    block: choice,
-                    resolution: { IslandChoice.resolution(of: choice, messageID: latest.id, in: chat.messages) },
-                    queued: { chat.queued },
-                    onChoose: { chat.choose($0) },
-                    onFocus: { gained in
-                        if gained { focusedChoiceID = latest.id } else if focusedChoiceID == latest.id { focusedChoiceID = nil }
-                    })
-                    .id(latest.id)
-            }
+            choiceCard(latest)
         } else {
             // A realtime reply reaches the thread only at transcript.done; until then the caption is all there is.
             IslandLiveReply(voice: voice, text: "", startedAt: replyStart, speaking: false)
+        }
+    }
+
+    @ViewBuilder
+    func choiceCard(_ latest: ChatMessage) -> some View {
+        if let choice = IslandChoice.block(in: latest) {
+            IslandChoiceCard(
+                block: choice,
+                resolution: { IslandChoice.resolution(of: choice, messageID: latest.id, in: chat.messages) },
+                queued: { chat.queued },
+                onChoose: { chat.choose($0) },
+                onFocus: { gained in
+                    if gained { focusedChoiceID = latest.id } else if focusedChoiceID == latest.id { focusedChoiceID = nil }
+                })
+                .id(latest.id)
         }
     }
 

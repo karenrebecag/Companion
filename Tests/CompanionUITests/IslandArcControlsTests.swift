@@ -138,15 +138,6 @@ import Testing
     expectEq(IslandDictationMetrics.copiedTint.hex, ArcTone.success.hex, "copiado: check en success")
 }
 
-@Test @MainActor func aResultIsArcsCard() throws {
-    let result = try #require(IslandResult(reply: "Correo de Ana. Pide el informe del viernes."))
-    let card = IslandResultCard(result: result, onOpen: {}).frame(width: IslandGrid.openColumn)
-    let image = try #require(ImageRenderer(content: card).nsImage)
-    expect(image.size.height > 0, "la tarjeta se dibuja")
-    expectEq(IslandResultCardInk.rim(hover: false).hex, ArcTone.border.hex, "tarjeta: borde")
-    expect(IslandResultCardInk.rim(hover: true).hex != ArcTone.border.hex, "hover: borde mas fuerte")
-}
-
 // Review: a long hint wraps inside Arc's 240 instead of running one line.
 @Test @MainActor func aLongTooltipWrapsWithinItsCap() throws {
     let short = try #require(ImageRenderer(content: IslandTooltipBubble(text: "Enviar")).nsImage)

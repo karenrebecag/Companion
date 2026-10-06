@@ -37,36 +37,14 @@ extension IslandView {
 
     func statusRows(_ state: IslandState) -> some View {
         VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
-            // Arc's grid: the mark in the lead column, the line in the content
-            // column, controls in the trail. Every state uses the same columns.
-            IslandGridRow {
-                leadMark(state)
-            } content: {
-                // Text states swap: "Escucho" leaves up, "Pienso" comes from
-                // below. Keyed on the kind of line, so a job's next step
-                // updates in place instead of swapping.
-                ZStack(alignment: .leading) {
-                    if case .none = state.line {} else {
-                        IslandStatusText(line: state.line)
-                            .shimmering(active: IslandCopy.shimmers(state.line))
-                            .id(IslandCopy.swapKey(state.line))
-                            .transition(IslandMotionBudget.headerSwap.travels(reduceMotion: reduceMotion)
-                                ? AnyTransition(IslandHeaderSwapTransition(swap: IslandMotionBudget.headerSwap))
-                                : AnyTransition.opacity)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                // The lines travel 120 % of their height: outside the row they must not show.
-                .clipped()
-                .modifier(IslandVoiceOverLine(line: state.line))
-                // Each property carries its own curve; this only keeps the leaving line alive
-                // until the slowest of them is done.
-                .animation(IslandMotionBudget.headerSwap.lifetime(reduceMotion: reduceMotion).animation,
-                           value: IslandCopy.swapKey(state.line))
-            } trail: {
-                statusTrail(state)
+            if Self.voiceStage(state) {
+                IslandVoiceStage(voice: voice, text: latestReply.map(Self.replyText) ?? "",
+                                 startedAt: replyStart, showsStop: IslandStop.inVoiceStage(state),
+                                 orbSpace: orbSpace, onStop: stop)
+                    .modifier(contentSlot(.field))
+            } else {
+                statusRow(state)
             }
-            .modifier(contentSlot(.field))
             VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
                 Group {
                     if let partial = state.partial, !partial.isEmpty {
@@ -80,7 +58,9 @@ extension IslandView {
                     if let item = IslandReel.item(chat.session.projection.touched), state.approval == nil {
                         IslandReel(item: item)
                     }
-                    if state.meter == .agent || (state.light == .green && state.line == .completed) {
+                    // While it speaks the voice stage carries the words.
+                    if !Self.voiceStage(state),
+                       state.meter == .agent || (state.light == .green && state.line == .completed) {
                         reply(state)
                     }
                 }
@@ -116,13 +96,52 @@ extension IslandView {
         }
     }
 
+    /// Arc's grid: the mark in the lead column, the line in the content
+    /// column, controls in the trail. Every state but speaking uses the same columns.
+    func statusRow(_ state: IslandState) -> some View {
+        IslandGridRow {
+            leadMark(state)
+        } content: {
+            // Text states swap: "Escucho" leaves up, "Pienso" comes from
+            // below. Keyed on the kind of line, so a job's next step
+            // updates in place instead of swapping.
+            ZStack(alignment: .leading) {
+                if case .none = state.line {} else {
+                    IslandStatusText(line: state.line)
+                        .shimmering(active: IslandCopy.shimmers(state.line))
+                        .id(IslandCopy.swapKey(state.line))
+                        .transition(IslandMotionBudget.headerSwap.travels(reduceMotion: reduceMotion)
+                            ? AnyTransition(IslandHeaderSwapTransition(swap: IslandMotionBudget.headerSwap))
+                            : AnyTransition.opacity)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            // The lines travel 120 % of their height: outside the row they must not show.
+            .clipped()
+            .modifier(IslandVoiceOverLine(line: state.line))
+            // Each property carries its own curve; this only keeps the leaving line alive
+            // until the slowest of them is done.
+            .animation(IslandMotionBudget.headerSwap.lifetime(reduceMotion: reduceMotion).animation,
+                       value: IslandCopy.swapKey(state.line))
+        } trail: {
+            statusTrail(state)
+        }
+        .modifier(contentSlot(.field))
+    }
+
+    /// Speaking takes Arc's voice block; a job keeps its run in the lead
+    /// column, and an offered action keeps the row whose trail holds it.
+    static func voiceStage(_ state: IslandState) -> Bool {
+        state.meter == .agent && !isJob(state.line) && state.action == nil
+    }
+
     /// The lead column's mark: the run's loader during a job, the orb while
     /// it listens, thinks or speaks, and otherwise the status dot, the way
     /// Arc's agent run leads its status with one.
     @ViewBuilder
     func leadMark(_ state: IslandState) -> some View {
         if case .job = state.line, let job = chat.session.projection.job {
-            MorphLoader(status: AgentRunModel.status(job.steps), size: AgentRunMetrics.loader)
+            IslandLoader(status: AgentRunModel.status(job.steps), size: AgentRunMetrics.loader)
                 .foregroundStyle(ArcTone.foreground.color)
         } else if Self.leadHoldsMeter(state) {
             meter(state)
@@ -179,22 +198,13 @@ extension IslandView {
         case .none:
             // Arc's orb gives thinking a look of its own: it contracts into a slow swirl.
             if IslandCopy.shimmers(state.line) {
-                IslandOrb(state: .thinking, size: IslandChrome.meterSide)
+                IslandVoiceOrb(state: .thinking, size: IslandChrome.meterSide)
             }
         case .mic:
             // The orb's ripples carry the mic level; no separate waveform.
-            IslandOrb(state: .listening, levels: voice.levels, size: IslandChrome.meterSide)
+            IslandVoiceOrb(state: .listening, levels: voice.levels, size: IslandChrome.meterSide)
         case .agent:
-            // Icon swap: while it speaks the orb is the brake.
-            ZStack {
-                if IslandStop.asOrb(state) {
-                    IslandStopOrb(action: stop).transition(iconSwap)
-                } else {
-                    IslandOrb(state: .speaking, levels: voice.levels, size: IslandChrome.meterSide)
-                        .transition(iconSwap)
-                }
-            }
-            .animation(.expoOut(IslandMotionBudget.iconSwap.duration), value: IslandStop.asOrb(state))
+            IslandVoiceOrb(state: .speaking, levels: voice.levels, size: IslandChrome.meterSide)
         }
     }
 

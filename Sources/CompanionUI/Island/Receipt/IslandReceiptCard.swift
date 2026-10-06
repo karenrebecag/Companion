@@ -31,7 +31,7 @@ struct IslandReceiptCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: IslandGrid.rowGap) {
             IslandGridRow {
-                MorphLoader(status: .success, size: AgentRunMetrics.loader)
+                IslandLoader(status: .success, size: AgentRunMetrics.loader)
                     // The card announces itself on appear; the check would say it twice.
                     .accessibilityHidden(true)
             } content: {

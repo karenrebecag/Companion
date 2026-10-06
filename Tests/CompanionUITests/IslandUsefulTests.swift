@@ -17,7 +17,7 @@ import Testing
     testThePeekIsLivelyAndWaitsBeforeOpening()
     testOpeningFromThePeekNeverShrinks()
     testPopoversAndTooltipsHaveTheirBudget()
-    testStopIsTheOrbWhileItSpeaks()
+    testStopIsTheVoiceStagesEndWhileItSpeaks()
     testCancelledIsAShortPill()
     await testCouldntHearIsACardWithAWayOut()
     testTheNoticeCountsDown()
@@ -104,13 +104,17 @@ private let notch = NotchGeometry.notch(on: ScreenShape(
     expectEq(IslandMotionBudget.iconSwap.duration, 0.2, "icon swap: 200 ms")
 }
 
-@MainActor func testStopIsTheOrbWhileItSpeaks() {
+@MainActor func testStopIsTheVoiceStagesEndWhileItSpeaks() {
     let speaking = IslandState(size: .bar, meter: .agent, line: .speaking, showsStop: true)
-    expect(IslandStop.asOrb(speaking), "hablando: el orb es el botón rojo de parar")
+    expect(IslandStop.inVoiceStage(speaking), "hablando: parar es el control de fin del bloque de voz")
     expect(!IslandStop.asChip(speaking), "hablando: sin chip repetido")
     let thinking = IslandState(size: .bar, line: .thinking, showsStop: true)
-    expect(!IslandStop.asOrb(thinking), "pensando: el orb no")
+    expect(!IslandStop.inVoiceStage(thinking), "pensando: no hay bloque de voz")
     expect(IslandStop.asChip(thinking), "pensando: el chip Parar")
+    var offering = speaking
+    offering.action = .openKeys
+    expect(!IslandView.voiceStage(offering), "hablando con una accion: la fila la sostiene")
+    expect(IslandStop.asChip(offering), "y el chip Parar sigue en esa fila")
 }
 
 @MainActor func testCancelledIsAShortPill() {

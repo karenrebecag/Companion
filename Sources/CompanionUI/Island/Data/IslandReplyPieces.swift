@@ -1,49 +1,6 @@
 import CompanionCore
 import SwiftUI
 
-/// One reply as a card: a title, one line, "View →" for the rest.
-struct IslandResultCard: View {
-    let result: IslandResult
-    let onOpen: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: Space.x1) {
-                Text(result.title)
-                    .font(Fonts.geist(TypeSize.base).weight(.medium))
-                    .foregroundStyle(IslandInk.text)
-                    .lineLimit(1)
-                if let line = result.line {
-                    Text(line)
-                        .font(GeistFont.uiCaption)
-                        .foregroundStyle(IslandInk.secondary)
-                        .lineLimit(1)
-                }
-                Text(Localized.string("island.result.open"))
-                    .font(GeistFont.uiCaption)
-                    .foregroundStyle(IslandInk.secondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(Space.x3)
-            .background(RoundedRectangle(cornerRadius: IslandInk.cardRadius).fill(IslandInk.field))
-            .overlay(RoundedRectangle(cornerRadius: IslandInk.cardRadius)
-                .strokeBorder(IslandResultCardInk.rim(hover: hovering).color, lineWidth: Stroke.hairline))
-            .contentShape(RoundedRectangle(cornerRadius: IslandInk.cardRadius))
-        }
-        .buttonStyle(PressableStyle())
-        .onHover { hovering = $0 }
-        .animation(ArcMotion.fade(ArcMotion.Duration.fast), value: hovering)
-    }
-}
-
-/// Arc's card: a border at rest, the strong border under the pointer.
-enum IslandResultCardInk {
-    static func rim(hover: Bool) -> Swatch {
-        hover ? IslandArc.borderStrong : ArcTone.border
-    }
-}
-
 /// The reply as the panel shows it: large plain words, no bubble, the whole
 /// spoken reply up to its last `wordCap` words, as Incredible does. Cutting
 /// at the first paragraph and a fixed length left "aquel p…" on screen
@@ -91,13 +48,29 @@ enum IslandReplyText {
 }
 
 struct IslandReply: View {
+    /// Where the words sit: the bar's answer, Arc's two-line voice
+    /// transcript under the orb, or a reply inside the thread.
+    enum Look: Equatable {
+        case answer, transcript, thread
+
+        var size: CGFloat {
+            self == .answer ? TypeSize.strong : TypeSize.base
+        }
+
+        var alignment: TextAlignment { self == .transcript ? .center : .leading }
+
+        var frameAlignment: Alignment { self == .transcript ? .center : .leading }
+    }
+
     let text: String
     let startedAt: Date
     let speaking: Bool
     /// When each word was really said (gap 2), from a live caption; nil
     /// keeps the three-words-a-second clock.
     var said: [Double?]?
+    var look: Look = .answer
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var overflows = false
 
     /// Smooth enough for a 220 ms color settle per word, a fraction of a display's rate.
     private static let frameInterval = 1.0 / 30
@@ -109,13 +82,19 @@ struct IslandReply: View {
             // `said` is wall-clock epoch seconds, the clock this timeline runs on.
             Text(Self.painted(words, elapsed: elapsed, speaking: speaking, reduceMotion: reduceMotion,
                               said: said, now: context.date.timeIntervalSince1970))
-                .font(Fonts.geist(TypeSize.strong))
-                .lineSpacing(Space.x1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .font(Fonts.geist(look.size))
+                .lineSpacing(look == .answer ? Space.x1 : Self.transcriptSpacing)
+                .multilineTextAlignment(look.alignment)
+                .frame(maxWidth: .infinity, alignment: look.frameAlignment)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .modifier(TranscriptCap(enabled: look == .transcript, overflows: $overflows))
         .accessibilityLabel(text)
     }
+
+    /// The transcript look keeps the voice transcript's leading, so its two-line cap holds.
+    static let transcriptSpacing = AnswerBlockMetrics.lineSpacing(
+        size: TypeSize.base, leading: WorkStateMetrics.transcriptLeading)
 
     static func words(_ text: String) -> [String] {
         text.split(separator: " ").map(String.init)

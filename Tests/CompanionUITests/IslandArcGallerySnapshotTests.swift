@@ -103,10 +103,7 @@ func islandArcGallerySnapshots() throws {
                     IslandTooltipBubble(text: "Adjuntar archivos")
                 }
             }
-            panel("Resultado y soltar") {
-                if let result = IslandResult(reply: "Correo de Ana. Pide el informe del viernes.") {
-                    IslandResultCard(result: result, onOpen: {})
-                }
+            panel("Soltar") {
                 IslandDropZones(zone: .ask)
                 ReferentChip(text: "Notas.app")
             }
