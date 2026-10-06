@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { buildPage } from '../lib/wire.js';
 
 // page.js is a classic script (executeScript `files` cannot be a module), so it is loaded as CJS.
 const page = createRequire(import.meta.url)('../lib/page.js');
@@ -924,6 +925,34 @@ test('an element whose role or link changed since the read is stale', () => {
   link.getAttribute = (n) => (n === 'href' ? 'https://evil.test/pay' : null);
   assert.equal(page.click(1, 1).error.code, 'stale_id', 'href');
   assert.equal(button.events.length + link.events.length, 0, 'nothing dispatched');
+});
+
+function tokenLink(href) {
+  const link = fake({ tag: 'a', text: 'Docs', attrs: { href } });
+  link.scrollIntoView = () => {};
+  link.getBoundingClientRect = () => ({ left: 10, top: 20, width: 40, height: 20 });
+  link.ownerDocument.elementFromPoint = () => link;
+  return link;
+}
+
+// The wire hides the token, but identity is judged on the live node: a swapped href is stale even
+// when both versions redact to the same text.
+test('a link whose token changed after the read is stale and nothing is dispatched', () => {
+  const link = tokenLink('https://page.test/login?token=abc');
+  readOne(link);
+  link.getAttribute = (n) => (n === 'href' ? 'https://page.test/login?token=def' : null);
+  assert.equal(page.click(1, 1).error.code, 'stale_id');
+  assert.equal(link.events.length, 0);
+});
+
+test('a read link reaches the wire with its token redacted and still acts on the same id', () => {
+  const link = tokenLink('/login?token=abc');
+  link.ownerDocument.baseURI = 'https://x.test/';
+  const read = readOne(link);
+  const { page: wire } = buildPage({ title: 'T', url: 'https://x.test/' }, 1, 1, null, [{ frameId: 0, result: read }]);
+  assert.equal(wire.elements[0].href, 'https://x.test/login?token=redacted');
+  assert.equal(page.click(wire.elements[0].id, 1).done, 'clicked');
+  assert.equal(link.events.length, 5);
 });
 
 test('the trusted paths refuse a changed element before touching it', async () => {

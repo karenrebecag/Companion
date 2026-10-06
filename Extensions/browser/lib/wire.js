@@ -1,7 +1,10 @@
+import { redactUrl, cleanText, scrubText } from './redact.js';
+
 export const MAX_BYTES = 56 * 1024;
 export const BACKOFF_START_MS = 1000;
 export const BACKOFF_MAX_MS = 30000;
 const FIELD_MAX = 500;
+const ROLE_MAX = 64;
 
 const encoder = new TextEncoder();
 const byteLength = (value) => encoder.encode(JSON.stringify(value)).length;
@@ -14,7 +17,8 @@ export function clipPoints(value, n) {
 
 // The reason is a fixed word naming which check refused; only a string goes out, the host allowlists it.
 export function errorReply(id, code, message, reason) {
-  return typeof reason === 'string' ? { id, error: { code, message, reason } } : { id, error: { code, message } };
+  const clean = cleanText(String(message ?? ''));
+  return typeof reason === 'string' ? { id, error: { code, message: clean, reason } } : { id, error: { code, message: clean } };
 }
 
 export function detectBrowser(nav) {
@@ -159,8 +163,8 @@ export function sanitizeTab(tab, { controlled = false, createdAt = null } = {}) 
   }
   return {
     id: tab?.id,
-    title: clipPoints(tab?.title, FIELD_MAX),
-    url,
+    title: scrubText(clipPoints(tab?.title, FIELD_MAX)),
+    url: redactUrl(url),
     active: Boolean(tab?.active),
     controlled: controlled === true,
     opener: isInt(tab?.openerTabId) ? tab.openerTabId : null,
@@ -181,6 +185,15 @@ const originOf = (url) => {
 // Page text can carry a line that looks like a frame header; prefixing it keeps only our own headers authentic.
 const neutralizeFrameHeaders = (text) => String(text).replace(/^\[frame /gm, '> [frame ');
 
+// Clean first: a hidden character before '[frame ' would otherwise hide the forgery from the
+// neutraliser and then vanish, leaving a header that looks like ours.
+function frameText(frameId, result) {
+  const text = neutralizeFrameHeaders(cleanText(result.text));
+  return frameId === 0 ? text : '[frame ' + cleanText(clipPoints(result.origin, FIELD_MAX)) + ']\n' + text;
+}
+
+const orNull = (value, fn) => (value == null ? null : fn(value));
+
 // A scoped read (a selector, or inside one element) runs in one frame, so its failure is the answer.
 export function buildPage(tab, tabId, generation, scoped, frames, { max = null, maxChars = null } = {}) {
   const failed = frames.find((f) => f.result.error);
@@ -192,12 +205,28 @@ export function buildPage(tab, tabId, generation, scoped, frames, { max = null, 
   for (const { frameId, result } of frames) {
     if (result.error) continue;
     const frameOrigin = frameId === 0 || result.origin === pageOrigin ? null : String(result.origin ?? 'null');
-    if (result.text) texts.push(frameId === 0 ? neutralizeFrameHeaders(result.text) : '[frame ' + clipPoints(result.origin, FIELD_MAX) + ']\n' + neutralizeFrameHeaders(result.text));
+    if (result.text) texts.push(frameText(frameId, result));
     for (const el of result.elements) {
       if (max != null && elements.length >= max) break;
       const id = elements.length + 1;
       map.set(id, { frameId, localId: el.id });
-      elements.push({ ...el, id, frame: frameId, frameOrigin });
+      elements.push({
+        ...el,
+        id,
+        frame: frameId,
+        frameOrigin,
+        // identityOf runs on the live element in page.js, so redacting what is emitted here
+        // cannot make the stale check pass or fail differently.
+        href: orNull(el.href, redactUrl),
+        role: orNull(el.role, (v) => cleanText(clipPoints(v, ROLE_MAX))),
+        autocomplete: orNull(el.autocomplete, (v) => cleanText(clipPoints(v, ROLE_MAX))),
+        label: scrubText(el.label ?? ''),
+        context: scrubText(el.context ?? ''),
+        value: orNull(el.value, scrubText),
+        submit: orNull(el.submit, scrubText),
+        fieldName: orNull(el.fieldName, cleanText),
+        fieldId: orNull(el.fieldId, cleanText),
+      });
     }
   }
   return {
@@ -205,9 +234,9 @@ export function buildPage(tab, tabId, generation, scoped, frames, { max = null, 
     page: {
       tab: tabId,
       origin: pageOrigin,
-      url: clipPoints(tab.url, FIELD_MAX),
-      title: clipPoints(tab.title, FIELD_MAX),
-      text: maxChars == null ? texts.join('\n') : clipPoints(texts.join('\n'), maxChars),
+      url: redactUrl(clipPoints(tab.url, FIELD_MAX)),
+      title: scrubText(clipPoints(tab.title, FIELD_MAX)),
+      text: scrubText(maxChars == null ? texts.join('\n') : clipPoints(texts.join('\n'), maxChars)),
       generation,
       elements,
       truncated: false,
