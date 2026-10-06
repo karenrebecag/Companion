@@ -15,6 +15,7 @@ lib/cursor.js
 lib/groups.js
 lib/page.js
 lib/redact.js
+lib/settle.js
 lib/wire.js
 "
 
