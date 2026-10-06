@@ -181,18 +181,18 @@ extension IslandView {
         case .none:
             // Arc's orb gives thinking a look of its own: it contracts into a slow swirl.
             if IslandCopy.shimmers(state.line) {
-                VoiceOrb(state: .thinking, size: IslandChrome.meterSide)
+                IslandOrb(state: .thinking, size: IslandChrome.meterSide)
             }
         case .mic:
             // The orb's ripples carry the mic level; no separate waveform.
-            VoiceOrb(state: .listening, levels: voice.levels, size: IslandChrome.meterSide)
+            IslandOrb(state: .listening, levels: voice.levels, size: IslandChrome.meterSide)
         case .agent:
             // Icon swap: while it speaks the orb is the brake.
             ZStack {
                 if IslandStop.asOrb(state) {
                     IslandStopOrb(action: stop).transition(iconSwap)
                 } else {
-                    VoiceOrb(state: .speaking, levels: voice.levels, size: IslandChrome.meterSide)
+                    IslandOrb(state: .speaking, levels: voice.levels, size: IslandChrome.meterSide)
                         .transition(iconSwap)
                 }
             }

@@ -3,11 +3,11 @@ import SwiftUI
 
 /// Arc's voice orb on the island: a soft marble whose inner light swirls
 /// while it thinks, swells and ripples with the mic while it listens, and
-/// pulses with the voice while it speaks. The math is `VoiceOrbSimulation`;
+/// pulses with the voice while it speaks. The math is `IslandOrbSimulation`;
 /// this view keeps the clock and paints. Reduce Motion paints one still
 /// frame per state.
-struct VoiceOrb: View {
-    let state: VoiceOrbState
+struct IslandOrb: View {
+    let state: IslandOrbState
     var levels = VoiceLevels(mic: 0, agent: 0)
     /// The side of the slot it sits in. The ripples spread a little past it.
     let size: CGFloat
@@ -18,7 +18,7 @@ struct VoiceOrb: View {
     var still = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var clock = VoiceOrbClock()
+    @State private var clock = IslandOrbClock()
 
     /// The canvas is wider than the slot so the listening ripples are not clipped.
     static let bleed: CGFloat = 1.4
@@ -26,7 +26,7 @@ struct VoiceOrb: View {
     var body: some View {
         Group {
             if reduceMotion || still {
-                canvas(VoiceOrbFrame.still(state))
+                canvas(IslandOrbFrame.still(state))
             } else {
                 TimelineView(.animation) { timeline in
                     canvas(clock.advance(to: timeline.date, state: state, levels: levels))
@@ -40,10 +40,10 @@ struct VoiceOrb: View {
         .accessibilityLabel(Localized.string(label))
     }
 
-    private func canvas(_ frame: VoiceOrbFrame) -> some View {
-        let palette = VoiceOrbPalette(tint: tint, tint2: tint2)
+    private func canvas(_ frame: IslandOrbFrame) -> some View {
+        let palette = IslandOrbPalette(tint: tint, tint2: tint2)
         return Canvas { context, canvasSize in
-            VoiceOrbPainter.draw(in: &context, side: min(canvasSize.width, canvasSize.height),
+            IslandOrbPainter.draw(in: &context, side: min(canvasSize.width, canvasSize.height),
                                  frame: frame, palette: palette)
         }
     }
@@ -59,33 +59,33 @@ struct VoiceOrb: View {
 }
 
 /// One frame's worth of what the painter needs.
-struct VoiceOrbFrame: Sendable {
-    let params: VoiceOrbParams
+struct IslandOrbFrame: Sendable {
+    let params: IslandOrbParams
     let phase: Double
     let swirl: Double
     let level: Double
 
-    static func still(_ state: VoiceOrbState) -> VoiceOrbFrame {
-        VoiceOrbFrame(params: .target(state), phase: 1.2, swirl: 0.6, level: state == .speaking ? 0.35 : 0)
+    static func still(_ state: IslandOrbState) -> IslandOrbFrame {
+        IslandOrbFrame(params: .target(state), phase: 1.2, swirl: 0.6, level: state == .speaking ? 0.35 : 0)
     }
 }
 
 /// The simulation lives in a reference so a frame can step it without
 /// invalidating the view; only the timeline drives redraws.
-@MainActor final class VoiceOrbClock {
-    private var simulation = VoiceOrbSimulation(state: .idle)
+@MainActor final class IslandOrbClock {
+    private var simulation = IslandOrbSimulation(state: .idle)
     private var last: Date?
 
-    func advance(to now: Date, state: VoiceOrbState, levels: VoiceLevels) -> VoiceOrbFrame {
+    func advance(to now: Date, state: IslandOrbState, levels: VoiceLevels) -> IslandOrbFrame {
         let dt = last.map { now.timeIntervalSince($0) } ?? 0
         last = now
         simulation.step(dt: dt, state: state, input: levels.mic, output: levels.agent)
-        return VoiceOrbFrame(params: simulation.current, phase: simulation.phase,
+        return IslandOrbFrame(params: simulation.current, phase: simulation.phase,
                              swirl: simulation.swirlPhase, level: simulation.level)
     }
 }
 
-struct VoiceOrbPalette: Sendable {
+struct IslandOrbPalette: Sendable {
     let foreground: (r: Double, g: Double, b: Double)
     let shade: (r: Double, g: Double, b: Double)
     let tint: (r: Double, g: Double, b: Double)
@@ -97,8 +97,8 @@ struct VoiceOrbPalette: Sendable {
         // The island is black: the marble's dark side is the foreground pulled a third toward it.
         shade = (fg.r * 0.68, fg.g * 0.68, fg.b * 0.68)
         let a = Self.rgb(tint), b = Self.rgb(tint2)
-        self.tint = VoiceOrbGeometry.glow(r: a.r, g: a.g, b: a.b)
-        self.tint2 = VoiceOrbGeometry.glow(r: b.r, g: b.g, b: b.b)
+        self.tint = IslandOrbGeometry.glow(r: a.r, g: a.g, b: a.b)
+        self.tint2 = IslandOrbGeometry.glow(r: b.r, g: b.g, b: b.b)
     }
 
     func color(_ c: (r: Double, g: Double, b: Double), _ alpha: Double) -> Color {
@@ -111,11 +111,11 @@ struct VoiceOrbPalette: Sendable {
     }
 }
 
-enum VoiceOrbPainter {
-    static func draw(in context: inout GraphicsContext, side: CGFloat, frame: VoiceOrbFrame, palette: VoiceOrbPalette) {
+enum IslandOrbPainter {
+    static func draw(in context: inout GraphicsContext, side: CGFloat, frame: IslandOrbFrame, palette: IslandOrbPalette) {
         let p = frame.params
         let c = side / 2
-        let radius = VoiceOrbGeometry.bodyRadius(side: Double(side), params: p, phase: frame.phase, level: frame.level)
+        let radius = IslandOrbGeometry.bodyRadius(side: Double(side), params: p, phase: frame.phase, level: frame.level)
 
         // The listening ripple: two faint outlines that spread with the level.
         if p.ring > 0.01 {
@@ -161,13 +161,13 @@ enum VoiceOrbPainter {
         }
     }
 
-    private static func blob(center c: CGFloat, base: Double, params: VoiceOrbParams,
+    private static func blob(center c: CGFloat, base: Double, params: IslandOrbParams,
                              phase: Double, swirl: Double, level: Double) -> Path {
         var path = Path()
-        let n = VoiceOrbGeometry.points
+        let n = IslandOrbGeometry.points
         for i in 0...n {
             let a = Double(i) / Double(n) * 2 * .pi
-            let r = VoiceOrbGeometry.radius(at: a, base: base, params: params, phase: phase, swirl: swirl, level: level)
+            let r = IslandOrbGeometry.radius(at: a, base: base, params: params, phase: phase, swirl: swirl, level: level)
             let point = CGPoint(x: c + cos(a) * r, y: c + sin(a) * r)
             if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
         }

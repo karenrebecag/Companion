@@ -5,7 +5,7 @@ import Foundation
 // state, each on its own lightly damped spring, and a level meter with a fast
 // attack and a slow release. The view only draws what this computes.
 
-package enum VoiceOrbState: Hashable, Sendable {
+package enum IslandOrbState: Hashable, Sendable {
     case idle, listening, thinking, speaking
 
     package init(_ turn: TurnState) {
@@ -18,19 +18,19 @@ package enum VoiceOrbState: Hashable, Sendable {
     }
 }
 
-extension VoiceOrbState {
+extension IslandOrbState {
     /// Below this the voice speaking back is silence, not speech.
     package static let speechFloor = 0.02
 
     /// The composer's mark speaks with the voice coming back and never with
     /// the mic: the user's own voice must not look like the assistant's.
-    package static func composer(levels: VoiceLevels) -> VoiceOrbState {
+    package static func composer(levels: VoiceLevels) -> IslandOrbState {
         let agent = levels.agent.isFinite ? levels.agent : 0
         return agent > speechFloor ? .speaking : .idle
     }
 }
 
-package struct VoiceOrbParams: Equatable, Sendable {
+package struct IslandOrbParams: Equatable, Sendable {
     package var breath: Double
     package var wobble: Double
     package var speed: Double
@@ -41,36 +41,36 @@ package struct VoiceOrbParams: Equatable, Sendable {
     package var grow: Double
     package var orbit: Double
 
-    package static func target(_ state: VoiceOrbState) -> VoiceOrbParams {
+    package static func target(_ state: IslandOrbState) -> IslandOrbParams {
         switch state {
         case .idle:
-            VoiceOrbParams(breath: 0.022, wobble: 0.02, speed: 0.5, swirl: 0.16, gain: 0, tint: 0.42,
+            IslandOrbParams(breath: 0.022, wobble: 0.02, speed: 0.5, swirl: 0.16, gain: 0, tint: 0.42,
                            ring: 0, grow: 0, orbit: 0.2)
         case .listening:
-            VoiceOrbParams(breath: 0.012, wobble: 0.03, speed: 1.1, swirl: 0.3, gain: 0.16, tint: 0.72,
+            IslandOrbParams(breath: 0.012, wobble: 0.03, speed: 1.1, swirl: 0.3, gain: 0.16, tint: 0.72,
                            ring: 1, grow: 0.03, orbit: 0.24)
         case .thinking:
-            VoiceOrbParams(breath: 0.008, wobble: 0.075, speed: 0.8, swirl: 1.7, gain: 0, tint: 0.6,
+            IslandOrbParams(breath: 0.008, wobble: 0.075, speed: 0.8, swirl: 1.7, gain: 0, tint: 0.6,
                            ring: 0, grow: -0.08, orbit: 0.36)
         case .speaking:
-            VoiceOrbParams(breath: 0.008, wobble: 0.035, speed: 1.35, swirl: 0.4, gain: 0.14, tint: 0.92,
+            IslandOrbParams(breath: 0.008, wobble: 0.035, speed: 1.35, swirl: 0.4, gain: 0.14, tint: 0.92,
                            ring: 0, grow: 0.02, orbit: 0.2)
         }
     }
 
-    fileprivate static let keys: [WritableKeyPath<VoiceOrbParams, Double>] = [
+    fileprivate static let keys: [WritableKeyPath<IslandOrbParams, Double>] = [
         \.breath, \.wobble, \.speed, \.swirl, \.gain, \.tint, \.ring, \.grow, \.orbit,
     ]
 
-    fileprivate static let zero = VoiceOrbParams(breath: 0, wobble: 0, speed: 0, swirl: 0, gain: 0, tint: 0,
+    fileprivate static let zero = IslandOrbParams(breath: 0, wobble: 0, speed: 0, swirl: 0, gain: 0, tint: 0,
                                                  ring: 0, grow: 0, orbit: 0)
 }
 
 /// The orb's running state: where each value is, how fast it moves, the
 /// two clocks the shape turns on and the level it shows.
-package struct VoiceOrbSimulation: Sendable {
-    package private(set) var current: VoiceOrbParams
-    private var velocity = VoiceOrbParams.zero
+package struct IslandOrbSimulation: Sendable {
+    package private(set) var current: IslandOrbParams
+    private var velocity = IslandOrbParams.zero
     package private(set) var phase: Double = 0
     package private(set) var swirlPhase: Double = 0
     package var level: Double = 0
@@ -81,12 +81,12 @@ package struct VoiceOrbSimulation: Sendable {
     /// A frame longer than this (a stall, a background tab) is treated as this.
     package static let maxFrame = 0.05
 
-    package init(state: VoiceOrbState) { current = .target(state) }
+    package init(state: IslandOrbState) { current = .target(state) }
 
-    package mutating func step(dt raw: Double, state: VoiceOrbState, input: Double, output: Double) {
+    package mutating func step(dt raw: Double, state: IslandOrbState, input: Double, output: Double) {
         let dt = min(Self.maxFrame, max(0, raw.isFinite ? raw : 0))
-        let target = VoiceOrbParams.target(state)
-        for key in VoiceOrbParams.keys {
+        let target = IslandOrbParams.target(state)
+        for key in IslandOrbParams.keys {
             let force = Self.stiffness * (target[keyPath: key] - current[keyPath: key])
                 - Self.damping * velocity[keyPath: key]
             velocity[keyPath: key] += force * dt
@@ -109,13 +109,13 @@ package struct VoiceOrbSimulation: Sendable {
     }
 }
 
-package enum VoiceOrbGeometry {
+package enum IslandOrbGeometry {
     package static let points = 96
     /// The body's radius as a share of the canvas side; the ripples spread past it.
     package static let bodyShare = 0.3
 
     /// The blob's edge at one angle: a slow wobble plus a voice-driven ripple.
-    package static func radius(at a: Double, base: Double, params p: VoiceOrbParams,
+    package static func radius(at a: Double, base: Double, params p: IslandOrbParams,
                                phase ph: Double, swirl sw: Double, level: Double) -> Double {
         let wobble = p.wobble * (0.62 * sin(2 * a + sw * 1.4 + ph * 0.6) + 0.3 * sin(3 * a - ph * 1.3)
             + 0.16 * sin(5 * a + ph * 2.1))
@@ -124,7 +124,7 @@ package enum VoiceOrbGeometry {
     }
 
     /// The body's base radius this frame: it breathes, grows with its state and swells with the level.
-    package static func bodyRadius(side: Double, params p: VoiceOrbParams, phase ph: Double, level: Double) -> Double {
+    package static func bodyRadius(side: Double, params p: IslandOrbParams, phase ph: Double, level: Double) -> Double {
         side * bodyShare * (1 + p.grow + p.breath * sin(ph * 1.6) + level * p.gain)
     }
 

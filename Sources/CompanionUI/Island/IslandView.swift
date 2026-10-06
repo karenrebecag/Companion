@@ -252,7 +252,7 @@ package struct IslandView: View {
 
     /// The mark in the field row: the one place a mouse hold starts.
     var mark: some View {
-        VoiceOrb(state: VoiceOrbState.composer(levels: voice.levels), levels: voice.levels,
+        IslandOrb(state: IslandOrbState.composer(levels: voice.levels), levels: voice.levels,
                  size: IslandFieldMetrics.orb)
             .matchedGeometryEffect(id: IslandOrbTravel.id, in: orbSpace)
             .contentShape(Circle())
