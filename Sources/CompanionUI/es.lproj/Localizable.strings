@@ -454,6 +454,12 @@
 "home.hero.before" = "Mantén";
 "home.hero.after" = "para hablar con Companion";
 "home.hero.body" = "Pídele cosas desde donde estés: tus archivos, tu navegador y tus apps.";
+"home.hero.orb.idle" = "Companion está en reposo.";
+"home.hero.orb.listening" = "Te está escuchando.";
+"home.hero.orb.thinking" = "Pensando tu pedido.";
+"home.hero.orb.speaking" = "Hablándote.";
+"home.hero.orb.connecting" = "Conectando la sesión de voz.";
+"home.hero.orb.error" = "La voz tuvo un problema.";
 "home.start.title" = "Primeros pasos";
 "home.start.count" = "%d de %d";
 "home.start.talk" = "Pide algo con fn";

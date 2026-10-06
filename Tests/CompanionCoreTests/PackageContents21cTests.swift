@@ -74,7 +74,10 @@ private func copiedExtension() throws -> (root: URL, dst: URL) {
 /// `<bundle>/<folder>:Sources/<target>/<folder>` for every `.copy` in Package.swift.
 private func packageCopyResources() throws -> [String] {
     let manifest = scriptText("Package.swift")
-    let target = try NSRegularExpression(pattern: #"name: "(\w+)"[^)]*?resources: \[([^\]]*)\]"#)
+    // Bounded by the next target, not by the first ")": a dependency such as
+    // .product(name:package:) sits between a target's name and its resources.
+    let target = try NSRegularExpression(
+        pattern: #"\.(?:executableTarget|target|testTarget)\(\s*name: "(\w+)"(?:(?!\.(?:executableTarget|target|testTarget)\()[\s\S])*?resources: \[([^\]]*)\]"#)
     let copy = try NSRegularExpression(pattern: #"\.copy\("([^"]+)"\)"#)
     var found: [String] = []
     for match in target.matches(in: manifest, range: NSRange(manifest.startIndex..., in: manifest)) {

@@ -1,0 +1,27 @@
+name: CompanionUIPro access
+description: Loads the read-only deploy key so SwiftPM can clone the private CompanionUIPro package.
+inputs:
+  deploy-key:
+    description: Private half of the CompanionUIPro deploy key.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Load deploy key
+      shell: bash
+      env:
+        DEPLOY_KEY: ${{ inputs.deploy-key }}
+      run: |
+        set -euo pipefail
+        if [ -z "$DEPLOY_KEY" ]; then
+          echo "::error::UIPRO_DEPLOY_KEY is empty; SwiftPM cannot clone CompanionUIPro"
+          exit 1
+        fi
+        mkdir -p ~/.ssh && chmod 700 ~/.ssh
+        # Pinned from `gh api meta`, not ssh-keyscan: a scan trusts whatever answers first.
+        echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >> ~/.ssh/known_hosts
+        eval "$(ssh-agent -s)"
+        # A pipe, not <<<: bash 3.2 backs a here-string with a temp file on disk.
+        printf '%s\n' "$DEPLOY_KEY" | ssh-add -
+        echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+        echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
