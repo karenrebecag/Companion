@@ -120,6 +120,8 @@ import Testing
              "hilo: la tarjeta se guarda entera aparte de lo dicho")
     expectEq(MarkdownSplitter.proseWithoutCards(pieces.joined()).contains("companion"), false,
              "voz: lo dicho no arrastra el encabezado de la tarjeta")
+    expectEq(MarkdownSplitter.cardFences("```companion:chart\n{\"kind\":\"bar\"}"),
+             "```companion:chart\n{\"kind\":\"bar\"}\n```", "hilo: una tarjeta sin cierre al final se cierra")
     var plain = HandoffInText()
     expectEq(plain.feed(#"Ok {"goal":"x"}"#).handoff?.goal, "x", "scanner: fuera de un bloque sigue detectando")
 }

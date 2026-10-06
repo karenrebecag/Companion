@@ -512,8 +512,12 @@ final class ClassicRuntime: @unchecked Sendable {
         if !mouth.spoken.isEmpty {
             let said = mouth.said
             transcript?.said(said)
+            // Counts only, never content: tells an empty card turn from an empty reply.
+            Log.app("mouth: stored chars=\(mouth.spoken.count) fences=\(mouth.spoken.components(separatedBy: "```").count - 1) said=\(said.count) cards=\(MarkdownSplitter.cardFences(mouth.spoken).count)")
             await thread.appendAssistant(mouth.stored)
             await thread.finishStream()
+        } else {
+            Log.app("mouth: stored nothing, the reply had no text")
         }
         if Task.isCancelled { return await cutTurn(transcript, generation: generation, cut: cut) }
         await apply(.replyCompleted)
