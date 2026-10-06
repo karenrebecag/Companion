@@ -325,3 +325,32 @@ private func object(_ line: String) -> [String: Any] {
     expectEq(words.subtracting(BrowserElement.knownStates), [], "every word survives the codec")
     expectEq(Set(BrowserElement.knownStates).subtracting(words), [], "no allowlisted word the extension never sends")
 }
+
+
+@Test func codecDecodesTheTabTheUserIsLookingAt() {
+    let line = #"{"id":8,"result":{"tabs":[{"id":12,"title":"A","url":"https://a.test/","active":true,"youAreHere":true},{"id":13,"title":"B","url":"https://b.test/","active":true}]}}"#
+    guard case .success(.tabs(_, let tabs)) = BrowserCodec.decode(line: line) else {
+        Issue.record("tabs did not decode"); return
+    }
+    expectEq(tabs.map(\.youAreHere), [true, false], "present marks it, absent means no mark")
+}
+
+@Test func codecDecodesATabTheSiteOpenedAndKeepsTheDoneText() {
+    let line = #"{"id":9,"result":{"done":"clicked","spawned":{"tab":44,"title":"Receipt\nPDF"}}}"#
+    expectEq(BrowserCodec.decode(line: line),
+             .success(.doneWithTab(id: 9, message: "clicked", BrowserSpawned(tab: 44, title: "Receipt PDF"))),
+             "spawned decodes, its title cleaned to one line")
+    let long = String(repeating: "x", count: 500)
+    let capped = #"{"id":9,"result":{"done":"clicked","spawned":{"tab":44,"title":"\#(long)"}}}"#
+    guard case .success(.doneWithTab(_, _, let spawned)) = BrowserCodec.decode(line: capped) else {
+        Issue.record("spawned did not decode"); return
+    }
+    expectEq(spawned.title.count, 60, "title capped at the 60 characters the sanitiser allows")
+}
+
+@Test func codecIgnoresAMalformedSpawnedFieldAndKeepsTheDone() {
+    for bad in [#""spawned":null"#, #""spawned":{"tab":"x","title":"t"}"#, #""spawned":"nope""#, #""spawned":{"title":"t"}"#] {
+        expectEq(BrowserCodec.decode(line: #"{"id":9,"result":{"done":"clicked",\#(bad)}}"#),
+                 .success(.done(id: 9, message: "clicked")), "plain done: \(bad)")
+    }
+}

@@ -160,7 +160,7 @@ export function trimMessage(message, budget = MAX_BYTES) {
 }
 
 // A tab url can carry tokens in its query or fragment, and browser_tabs lists every tab, not just the one in use.
-export function sanitizeTab(tab, { controlled = false, createdAt = null } = {}) {
+export function sanitizeTab(tab, { controlled = false, createdAt = null, youAreHere = false } = {}) {
   let url = '';
   try {
     const u = new URL(tab?.url ?? '');
@@ -180,6 +180,7 @@ export function sanitizeTab(tab, { controlled = false, createdAt = null } = {}) 
     controlled: controlled === true,
     opener: isInt(tab?.openerTabId) ? tab.openerTabId : null,
     createdAt: isInt(createdAt) ? createdAt : null,
+    youAreHere: youAreHere === true,
   };
 }
 

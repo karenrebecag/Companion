@@ -140,6 +140,7 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
             leases.noteListing(tabs, asOf: asOf)
             let lines = tabs.map {
                 "[\($0.id)] \(Self.oneLine($0.title)) — \(Self.oneLine($0.url))" + ($0.active ? " (active)" : "")
+                    + ($0.youAreHere ? " " + BrowserCopy.youAreHere(language()) : "")
                     + ownership(of: $0.id)
             }
             let body = lines.isEmpty ? "no open tabs" : lines.joined(separator: "\n")

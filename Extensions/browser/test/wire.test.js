@@ -270,16 +270,18 @@ test('buildPage clips title and url and surfaces a selector error', () => {
   assert.equal(bad.error.code, 'invalid_args');
 });
 
-test('sanitizeTab adds controlled, opener and createdAt with safe defaults', () => {
+test('sanitizeTab adds controlled, opener, createdAt and youAreHere with safe defaults', () => {
   assert.deepEqual(sanitizeTab({ id: 1, title: 'T', url: 'https://x.test/', active: false }), {
-    id: 1, title: 'T', url: 'https://x.test/', active: false, controlled: false, opener: null, createdAt: null,
+    id: 1, title: 'T', url: 'https://x.test/', active: false, controlled: false, opener: null, createdAt: null, youAreHere: false,
   });
-  const t = sanitizeTab({ id: 2, url: 'https://x.test/', openerTabId: 7 }, { controlled: true, createdAt: 1700000000000 });
+  const t = sanitizeTab({ id: 2, url: 'https://x.test/', openerTabId: 7 }, { controlled: true, createdAt: 1700000000000, youAreHere: true });
   assert.equal(t.controlled, true);
   assert.equal(t.opener, 7);
   assert.equal(t.createdAt, 1700000000000);
-  assert.equal(sanitizeTab({ id: 3, openerTabId: 'x' }, { controlled: 'yes', createdAt: 'x' }).opener, null);
+  assert.equal(t.youAreHere, true);
+  assert.equal(sanitizeTab({ id: 3, openerTabId: 'x' }, { controlled: 'yes', createdAt: 'x', youAreHere: 'x' }).opener, null);
   assert.equal(sanitizeTab({ id: 3 }, { controlled: 'yes', createdAt: 'x' }).createdAt, null);
+  assert.equal(sanitizeTab({ id: 3 }, {}).youAreHere, false, 'omitted is false');
 });
 
 // H-7 P2a: the finders travel as typed fields; anything else is refused before the page sees it.

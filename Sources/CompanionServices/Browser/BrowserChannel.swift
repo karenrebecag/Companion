@@ -169,7 +169,7 @@ package actor BrowserChannel {
     private func route(_ inbound: BrowserInbound, on connection: BridgeConnection) {
         switch inbound {
         case .tabs(let id, _), .opened(let id, _), .page(let id, _), .done(let id, _),
-             .doneUnconfirmed(let id, _):
+             .doneUnconfirmed(let id, _), .doneWithTab(let id, _, _), .doneWithTabUnconfirmed(let id, _, _):
             resolve(id, .success(inbound))
         case .error(let id, let body):
             guard let id else {

@@ -79,10 +79,18 @@ package enum BrowserCodec {
         if let done = result["done"] as? String {
             let message = BrowserSanitize.done(done)
             // Only a real JSON boolean: a string or a number must not flip the warning on.
-            if let flag = result["unconfirmed"] as? NSNumber, CFGetTypeID(flag) == CFBooleanGetTypeID(), flag.boolValue {
-                return .success(.doneUnconfirmed(id: id, message: message))
+            var unconfirmed = false
+            if let flag = result["unconfirmed"] as? NSNumber, CFGetTypeID(flag) == CFBooleanGetTypeID() {
+                unconfirmed = flag.boolValue
             }
-            return .success(.done(id: id, message: message))
+            // A malformed spawned field is dropped: the action itself still succeeded.
+            guard let raw = result["spawned"] as? [String: Any], let tab = integer(raw["tab"]) else {
+                return .success(unconfirmed ? .doneUnconfirmed(id: id, message: message) : .done(id: id, message: message))
+            }
+            let spawned = BrowserSpawned(tab: tab, title: BrowserSanitize.spawnedTitle(raw["title"] as? String ?? ""))
+            return .success(unconfirmed
+                ? .doneWithTabUnconfirmed(id: id, message: message, spawned)
+                : .doneWithTab(id: id, message: message, spawned))
         }
         return fail(BridgeCode.badFrame, "Unknown result")
     }
@@ -94,7 +102,8 @@ package enum BrowserCodec {
                           controlled: raw["controlled"] as? Bool ?? false,
                           opener: integer(raw["opener"]),
                           createdAt: (raw["createdAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) },
-                          loading: raw["loading"] as? Bool ?? false)
+                          loading: raw["loading"] as? Bool ?? false,
+                          youAreHere: raw["youAreHere"] as? Bool ?? false)
     }
 
     private static func page(_ raw: [String: Any]) -> BrowserPage? {

@@ -4,6 +4,7 @@ import {
 } from './lib/wire.js';
 import { GROUP_TITLE, groupPlan, releasePlan, cleanupPlan, recordCreated } from './lib/groups.js';
 import { createCdp, isControl } from './lib/cdp.js';
+import { isSpawnTool, createSpawnWatcher, applySpawnRestore } from './lib/spawned.js';
 
 const HOST = 'com.karen.companion.browser';
 const PROTOCOL = 1;
@@ -31,6 +32,11 @@ const taken = new Map();
 let createdAt = new Map();
 // Group changes read then write Chrome state; running two at once could create two Companion groups.
 let groupChain = Promise.resolve();
+// Per call id, the watch that listens for a tab the action opened in the same window.
+const spawnWatcher = createSpawnWatcher({ chrome: globalThis.chrome });
+// Time spent waiting for the action's spawn. Short enough that an action that did not
+// open a tab still feels instant; long enough that a site-spawned tab arrives first.
+const SPAWN_AWAIT_MS = 250;
 const serial = (fn) => {
   const run = groupChain.then(fn, fn);
   groupChain = run.catch(() => {});
@@ -102,7 +108,7 @@ async function handleInbound(message) {
     if (replies.claim(id)) send(errorReply(id, 'timeout', 'the tab did not answer in time'));
   }, CALL_TIMEOUT_MS);
   try {
-    const result = await dispatch(checked.name, checked.args);
+    const result = await runWithSpawnWatch(id, checked.name, checked.args, () => dispatch(checked.name, checked.args));
     if (!replies.claim(id)) return;
     if (result.error) send(errorReply(id, result.error.code, result.error.message, result.error.reason));
     else send({ id, result });
@@ -110,6 +116,23 @@ async function handleInbound(message) {
     if (replies.claim(id)) send(errorReply(id, 'invalid_args', String(error?.message ?? error)));
   } finally {
     clearTimeout(timer);
+  }
+}
+
+// Five tools can cause a page to open a new tab; the rest cannot. Wrapping the
+// dispatch in a watch lets the reply carry a `spawned` field for a caught tab; the
+// host words it, because it ignores the extension's done text for element actions.
+async function runWithSpawnWatch(id, name, args, run) {
+  if (!isSpawnTool(name) || !Number.isInteger(args?.tab)) return run();
+  const watch = await spawnWatcher.arm(id, args.tab);
+  if (!watch) return run();
+  try {
+    const result = await run();
+    const spawn = await spawnWatcher.awaitSpawn(id, SPAWN_AWAIT_MS);
+    const extra = await applySpawnRestore({ watch, spawned: spawn, chrome, group: putInGroup });
+    return extra ? { ...result, ...extra } : result;
+  } finally {
+    spawnWatcher.release(id);
   }
 }
 
@@ -139,11 +162,39 @@ function dispatch(name, args) {
 async function tabs() {
   const all = await chrome.tabs.query({});
   const groupIds = await ourGroupIds();
+  // The tab the person is looking at: the active tab of the last-focused normal
+  // window. A popup or panel window that has focus does not count — the user sees
+  // their normal browsing window, and that is where the tab they are reading sits.
+  const focusedWindowId = await lastFocusedNormalWindowId();
+  const youAreHere = await activeTabIdOf(focusedWindowId);
   return {
     tabs: all
       .filter((t) => Number.isInteger(t.id))
-      .map((t) => sanitizeTab(t, { controlled: groupIds.includes(t.groupId), createdAt: createdAt.get(t.id) ?? null })),
+      .map((t) => sanitizeTab(t, {
+        controlled: groupIds.includes(t.groupId),
+        createdAt: createdAt.get(t.id) ?? null,
+        youAreHere: t.id === youAreHere,
+      })),
   };
+}
+
+async function lastFocusedNormalWindowId() {
+  try {
+    const win = await chrome.windows.getLastFocused({ windowTypes: ['normal'] });
+    return Number.isInteger(win?.id) ? win.id : null;
+  } catch {
+    return null;
+  }
+}
+
+async function activeTabIdOf(windowId) {
+  if (!Number.isInteger(windowId)) return null;
+  try {
+    const tabs = await chrome.tabs.query({ active: true, windowId });
+    return tabs.find((t) => Number.isInteger(t.id))?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // Storage says which groups we made; the live title check drops ids Chrome has since removed or reused.
