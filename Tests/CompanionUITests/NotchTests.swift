@@ -291,7 +291,11 @@ func testTheNotchedScreenWins() {
                              store: MemoryConversationStore(), config: Config())
     // K6: only replies with a data card make rows, and the latest reply is
     // the panel's, so a row appears once a newer reply pushes it down.
-    let card = { (title: String) in "```companion:stats\n{\"title\":\"\(title)\",\"a\":1}\n```" }
+    // A stats payload the popup can draw (items), with the title a card-only
+    // reply shows as its row: K6 gives a row only when "Ver" opens something.
+    let card = { (title: String) in
+        "```companion:stats\n{\"title\":\"\(title)\",\"items\":[{\"label\":\"Total\",\"value\":\"1\"}]}\n```"
+    }
     await chat.appendAssistant(card("Uno"))
     await chat.appendAssistant(card("Dos"))
     let before = IslandView.resultRows(chat.messages, limit: 3).map(\.id)
