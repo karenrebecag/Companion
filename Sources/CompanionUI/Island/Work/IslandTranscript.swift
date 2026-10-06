@@ -165,7 +165,7 @@ enum TranscriptFade {
     }
 }
 
-private struct BottomCapped: ViewModifier {
+struct BottomCapped: ViewModifier {
     let cap: CGFloat
 
     func body(content: Content) -> some View {
@@ -187,5 +187,27 @@ private struct BottomCapLayout: Layout {
         let size = child.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
         child.place(at: CGPoint(x: bounds.minX, y: bounds.maxY), anchor: .bottomLeading,
                     proposal: ProposedViewSize(width: bounds.width, height: size.height))
+    }
+}
+
+/// Arc's two-line transcript for any text: past two lines the older ones lift
+/// away under the top fade. Off, the text keeps its own height.
+struct TranscriptCap: ViewModifier {
+    let enabled: Bool
+    @Binding var overflows: Bool
+
+    private var cap: CGFloat { TypeSize.base * WorkStateMetrics.transcriptLeading * TranscriptFade.lines }
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled {
+            content
+                .onGeometryChange(for: Bool.self, of: { TranscriptFade.fadesTop(content: $0.size.height, cap: cap) }) {
+                    overflows = $0
+                }
+                .modifier(BottomCapped(cap: cap))
+                .mask(TranscriptFade.mask(overflows: overflows))
+        } else {
+            content
+        }
     }
 }

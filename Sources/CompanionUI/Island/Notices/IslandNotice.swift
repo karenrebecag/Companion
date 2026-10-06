@@ -27,12 +27,13 @@ enum IslandStop {
         }
     }
 
-    static func asOrb(_ state: IslandState) -> Bool {
-        state.showsStop && state.meter == .agent
+    /// While it speaks the stop is the voice block's end control.
+    static func inVoiceStage(_ state: IslandState) -> Bool {
+        state.showsStop && IslandView.voiceStage(state)
     }
 
     static func asChip(_ state: IslandState) -> Bool {
-        state.showsStop && !asOrb(state)
+        state.showsStop && !inVoiceStage(state)
     }
 }
 
@@ -181,26 +182,6 @@ enum IslandNotice {
         case .noProviders, .quotaExceeded: .openKeys
         default: nil
         }
-    }
-}
-
-/// The orb while it speaks: red, a square inside, "Stop talking" above.
-struct IslandStopOrb: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            // Arc's end control: the danger tone over its own wash, not a solid red disc.
-            Image(systemName: "stop.fill")
-                .font(GeistFont.uiCaption)
-                .foregroundStyle(IslandInk.stop)
-                .frame(width: IslandChrome.meterSide, height: IslandChrome.meterSide)
-                .background(Circle().fill(ArcTone.wash(ArcTone.danger, IslandChrome.stopWash)))
-                .contentShape(Circle())
-        }
-        .buttonStyle(PressableStyle())
-        .islandTooltip(Localized.string("island.tip.stop"))
-        .accessibilityLabel(Localized.string("island.tip.stop"))
     }
 }
 
