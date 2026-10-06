@@ -11,6 +11,10 @@ struct SettingsVoiceSection: View {
     var secrets: (any SecretStore)? = nil
 
     @State private var settings = VoiceProfile.settings
+    // Pages also render in tests that never open the sheet.
+    @Environment(SettingsSaveCenter.self) private var saves: SettingsSaveCenter?
+    // Writes must persist with or without a sheet around the page.
+    @State private var unhosted = SettingsSaveCenter()
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
@@ -57,9 +61,6 @@ struct SettingsVoiceSection: View {
     }
 
     private func update(_ mutate: (inout VoiceSettings) -> Void) {
-        var copy = settings
-        mutate(&copy)
-        settings = copy
-        VoiceProfile.settings = copy
+        settings = (saves ?? unhosted).updateVoice(settings, mutate: mutate) { VoiceProfile.settings = $0 }
     }
 }
