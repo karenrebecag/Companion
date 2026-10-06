@@ -29,18 +29,25 @@ package struct WelcomeView: View {
         // The sound check dims the screen as the last one does: Incredible
         // draws its card over the dusk, white on dark.
         let dimmed = step == .yourTurn || (step == .hello && welcome.soundCheck.holdsGreeting)
-        GeometryReader { proxy in
-            let wide = TestimonialCarousel.showsAside(
-                step: step, width: proxy.size.width,
-                enabled: testimonialsOverride ?? TestimonialCarousel.enabled)
-            HStack(spacing: Space.none) {
-                content(step, dimmed: dimmed)
-                    .frame(width: wide ? proxy.size.width * TestimonialCarousel.formShare : nil)
-                if wide {
-                    // Incredible's aside keeps a 12 pt margin on three sides; the form column is its fourth.
-                    WelcomeTestimonialsAside()
-                        .padding([.top, .trailing, .bottom], Space.x3)
+        // Only the keys step can show the aside; every other step keeps the
+        // plain column, so a GeometryReader never alters its measured layout.
+        let asideEnabled = step == .keys && (testimonialsOverride ?? TestimonialCarousel.enabled)
+        Group {
+            if asideEnabled {
+                GeometryReader { proxy in
+                    let wide = TestimonialCarousel.showsAside(step: step, width: proxy.size.width, enabled: true)
+                    HStack(spacing: Space.none) {
+                        content(step, dimmed: dimmed)
+                            .frame(width: wide ? proxy.size.width * TestimonialCarousel.formShare : nil)
+                        if wide {
+                            // Incredible's aside keeps a 12 pt margin on three sides; the form column is its fourth.
+                            WelcomeTestimonialsAside()
+                                .padding([.top, .trailing, .bottom], Space.x3)
+                        }
+                    }
                 }
+            } else {
+                content(step, dimmed: dimmed)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
