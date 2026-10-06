@@ -173,7 +173,10 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
             return pid
         }
         guard let pid else {
-            hands.turn.release()
+            // A repin here took whatever came to the front next: a Cmd-N
+            // meant for TextEdit landed in Slack (2026-10-06). Hold the turn
+            // to the launched app, or to the app it already had.
+            if let launched = launch.pid(ofApp: name) { hands.turn.begin(launched) }
             // A cut turn is not an app without a window: say which it was.
             if Task.isCancelled {
                 return .failed(Self.handsError("cancelled", "the turn was cut before \(name) was ready"),

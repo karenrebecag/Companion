@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
 
 # PR: a new commit cancels the superseded run. Push to main falls back to
 # run_id, so main runs never share a group and are never cancelled or
@@ -15,6 +18,8 @@ concurrency:
 
 jobs:
   gates:
+    # The nightly run only exists for tsan and the quarantined timing tests.
+    if: github.event_name != 'schedule'
     # The compliance suite is the contract: build, static checks, layer rules
     # and tests. Same script contributors run locally, no CI-only pipeline.
     # macos-26 (arm64): its default Xcode ships the Swift 6.2+ that
@@ -35,6 +40,14 @@ jobs:
         uses: ./.github/actions/uipro-ssh
         with:
           deploy-key: ${{ secrets.UIPRO_DEPLOY_KEY }}
+      - name: Cache SwiftPM build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .build
+          # Package.resolved pins the dependency graph; a stale .build for a
+          # changed graph is rebuilt by SwiftPM, never trusted blindly.
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
       - name: Show toolchain
         run: swift --version
       - name: Run gates
@@ -57,6 +70,8 @@ jobs:
           grep -q "Test run with 1 test" strict-pool.log
 
   tsan:
+    # Nightly and manual only: a PR does not wait on a 45 min sanitizer build.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     # ThreadSanitizer over the full suite, on its own runner so its build
     # never overwrites the debug binaries the gates job tests. Only TSan
     # reproduced the bridge and ClassicRuntime races (docs/specs/tsan-gate.md).
@@ -76,3 +91,25 @@ jobs:
         run: swift --version
       - name: Run ThreadSanitizer
         run: scripts/tsan.sh
+
+  quarantined-timing:
+    # Wall-clock tests are skipped in gates (docs/inventario-flakes.md); this
+    # keeps them running, off the required path, so a real regression shows up.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-26
+    timeout-minutes: 30
+    continue-on-error: true
+    env:
+      COMPANION_FLAKY_QUARANTINE_OFF: 1
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - name: CompanionUIPro access
+        uses: ./.github/actions/uipro-ssh
+        with:
+          deploy-key: ${{ secrets.UIPRO_DEPLOY_KEY }}
+      - name: Show toolchain
+        run: swift --version
+      - name: Run quarantined timing tests
+        run: >
+          swift test --no-parallel
+          --filter 'aHelloInsideTheDeadlineIsNotClosedLater|diagramSchedulerCancellationTests|diagramSchedulerTimeoutTests|diagramPageFailureTests|dm1cGateTimesOutWithinBudgetWhenTheProviderIsSlow'

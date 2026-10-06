@@ -160,7 +160,7 @@ func browserTabsReply(_ id: Int) -> String {
     expect(!rig.presence.connected, "deadline: never connected")
 }
 
-@Test func aHelloInsideTheDeadlineIsNotClosedLater() async throws {
+@Test(.enabled(if: !wallClockQuarantined, wallClockQuarantineReason)) func aHelloInsideTheDeadlineIsNotClosedLater() async throws {
     let rig = try makeBrowserRig(helloDeadline: .seconds(1))
     defer { rig.listener.stop() }
     // The premise is the state, not a stopwatch: ok:true (checked inside the
