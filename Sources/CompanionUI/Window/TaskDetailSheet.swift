@@ -8,6 +8,8 @@ import SwiftUI
 struct TaskDetailSheet: View {
     let task: ConversationMeta
     let messages: [ChatMessage]
+    /// This task is the one a turn is working on right now.
+    var live = false
     /// False while another turn works: switching would drop it.
     let canFollowUp: Bool
     /// The words to continue with, empty to continue without any. False when
@@ -22,11 +24,12 @@ struct TaskDetailSheet: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
-        task: ConversationMeta, messages: [ChatMessage], canFollowUp: Bool,
+        task: ConversationMeta, messages: [ChatMessage], live: Bool = false, canFollowUp: Bool,
         draft: String = "", onFollowUp: @escaping (String) -> Bool, onClose: @escaping () -> Void
     ) {
         self.task = task
         self.messages = messages
+        self.live = live
         self.canFollowUp = canFollowUp
         self._draft = State(initialValue: draft)
         self.onFollowUp = onFollowUp
@@ -71,6 +74,12 @@ struct TaskDetailSheet: View {
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
                 .lineLimit(1)
+            if let details = TaskRunCopy.summary(task.run, live: live) {
+                Text(String(format: Localized.string("task.detailsLine"), details))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+                    .lineLimit(1)
+            }
         }
         .padding(.horizontal, Space.x7)
         .frame(maxWidth: AIThreadLayout.columnWidth, alignment: .leading)

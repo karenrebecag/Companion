@@ -72,7 +72,7 @@ struct HomePage: View {
                                     .frame(height: Stroke.hairline)
                                     .padding(.horizontal, TaskRowMetrics.dividerInset)
                             }
-                            HomeTaskRow(task: task) { onOpen(task) }
+                            HomeTaskRow(task: task, live: chat.busy && task.id == chat.conversationId) { onOpen(task) }
                         }
                     }
                     .padding(.vertical, TaskRowMetrics.listPaddingY)
@@ -108,6 +108,7 @@ enum HomeCopy {
 
 struct HomeTaskRow: View {
     let task: ConversationMeta
+    let live: Bool
     let onOpen: () -> Void
     @State private var hovering = false
 
@@ -121,7 +122,18 @@ struct HomeTaskRow: View {
                         .font(Fonts.sans(TypeSize.rowTitle).weight(.medium))
                         .foregroundStyle(Semantic.foreground)
                         .lineLimit(1)
-                    TaskChipIcon()
+                    HStack(spacing: Space.x2) {
+                        TaskChipIcon()
+                        if let run = task.run?.shown(live: live) {
+                            TaskRunBadge(state: run.state)
+                            if let seconds = run.duration(now: Date()) {
+                                Text(TaskRunCopy.duration(seconds))
+                                    .font(Fonts.sans(TypeSize.caption))
+                                    .monospacedDigit()
+                                    .foregroundStyle(Semantic.textMuted)
+                            }
+                        }
+                    }
                 }
                 Spacer(minLength: Space.x3)
                 Text(HomeCopy.ago(task.updatedAt))

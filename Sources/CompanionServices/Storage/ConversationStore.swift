@@ -43,7 +43,8 @@ package final class ConversationStore: ConversationStoring, Sendable {
         for url in files where url.pathExtension == "json" {
             if let stored = decodeStored(at: url) {
                 metas.append(ConversationMeta(
-                    id: stored.id, title: stored.title, updatedAt: stored.updatedAt))
+                    id: stored.id, title: stored.title, updatedAt: stored.updatedAt,
+                    run: stored.run?.taskRun))
             }
         }
         metas.sort { $0.updatedAt > $1.updatedAt }
@@ -230,6 +231,7 @@ package final class ConversationStore: ConversationStoring, Sendable {
             id: record.id,
             title: record.title,
             updatedAt: record.updatedAt,
+            run: record.run.map(StoredRun.init),
             messages: record.messages.map {
                 StoredMessage(
                     role: $0.role,
@@ -250,7 +252,8 @@ package final class ConversationStore: ConversationStoring, Sendable {
                     text: $0.text,
                     attachmentPaths: $0.attachments ?? [],
                     fromChoice: $0.choice ?? false)
-            })
+            },
+            run: stored.run?.taskRun)
     }
 }
 
@@ -258,7 +261,29 @@ private struct StoredConversation: Codable {
     var id: String
     var title: String
     var updatedAt: Date
+    /// Absent in every file written before 16j-3.
+    var run: StoredRun?
     var messages: [StoredMessage]
+}
+
+private struct StoredRun: Codable {
+    /// A string, not the enum: a state this build does not know must drop the
+    /// badge, not make the whole conversation unreadable.
+    var state: String
+    var startedAt: Date
+    var finishedAt: Date?
+
+    init(_ run: TaskRun) {
+        state = run.state.rawValue
+        startedAt = run.startedAt
+        finishedAt = run.finishedAt
+    }
+
+    var taskRun: TaskRun? {
+        TaskRun.State(rawValue: state).map {
+            TaskRun(state: $0, startedAt: startedAt, finishedAt: finishedAt)
+        }
+    }
 }
 
 private struct StoredMessage: Codable {
