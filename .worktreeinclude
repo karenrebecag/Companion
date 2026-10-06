@@ -1,0 +1,7 @@
+# Proprietary faces are gitignored (All Rights Reserved), so a fresh worktree
+# would silently fall back to Inter. Orca copies them from the primary checkout.
+Sources/CompanionUI/Fonts/Gadey-Regular.otf
+Sources/CompanionUI/Fonts/Hypodermic.otf
+Sources/CompanionUI/Fonts/TBJInterval-Bold.otf
+Sources/CompanionUI/Fonts/TBJInterval-Light.otf
+Sources/CompanionUI/Fonts/TBJInterval-Regular.otf

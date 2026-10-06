@@ -322,11 +322,16 @@ package final class AppsModel {
         }
         let setup = setupEpoch
         phase = .loading
-        async let catalogResult = catalogAttempt(service, query: query, after: nil)
+        let asked = query
+        async let catalogResult = catalogAttempt(service, query: asked, after: nil)
         async let marksResult = accountsSnapshot(service)
         let (result, marks) = await (catalogResult, marksResult)
+        guard setupEpoch == setup else { return }
+        // The marks do not depend on the query and search() never refreshes
+        // them, so a superseded load is the only chance to apply them.
+        if asked != query { accounts = marks }
         // A search typed while this page was in flight owns the list now.
-        guard query == self.query, setupEpoch == setup else { return }
+        guard asked == query else { return }
         switch result {
         case .success(let page):
             apps = page.apps

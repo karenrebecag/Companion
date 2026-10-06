@@ -28,6 +28,7 @@ private final class Deployment: @unchecked Sendable {
     private var _gateOnce: Set<String> = []
     private var waiters: [CheckedContinuation<Void, Never>] = []
     private var _calls: [String] = []
+    private var _returned = 0
 
     var failure: AppsFailure? {
         get { lock.withLock { _failure } }
@@ -36,6 +37,9 @@ private final class Deployment: @unchecked Sendable {
 
     var calls: [String] { lock.withLock { _calls } }
     var parked: Int { lock.withLock { waiters.count } }
+    /// connectLink answers that have left the function, gate included.
+    var returned: Int { lock.withLock { _returned } }
+    fileprivate func markReturned() { lock.withLock { _returned += 1 } }
 
     func addHost(_ host: String) { lock.withLock { _ = _hosts.insert(host) } }
     func revoke(_ key: String) { lock.withLock { _ = _keys.remove(key) } }
@@ -109,6 +113,7 @@ private struct Function: AppsService {
 
     func connectLink(app: String) async throws -> URL {
         await deployment.enter("connectLink", key: key)
+        defer { deployment.markReturned() }
         if let failure = deployment.verdict(host: url.host, key: key) { throw failure }
         return URL(string: "https://pipedream.com/_static/connect.html?app=\(app)")!
     }
@@ -199,8 +204,20 @@ private func screen(_ apps: AppsModel) -> Screen {
 }
 
 @MainActor
-private func waitUntil(_ condition: () -> Bool) async {
-    for _ in 0..<10_000 where !condition() { await Task.yield() }
+private func waitUntil(_ condition: () -> Bool, timeout: Duration = .seconds(2)) async throws -> Bool {
+    let deadline = ContinuousClock.now + timeout
+    while !condition(), ContinuousClock.now < deadline {
+        try await Task.sleep(for: .milliseconds(1))
+    }
+    return condition()
+}
+
+/// For the negative checks: nothing is expected to happen, so there is no
+/// condition to wait on. A short fixed pause gives a wrongly-fired callback
+/// time to land before the test asserts that it did not.
+// HACK: fixed 50 ms for the model's main-actor hop after the stale answer returned; replace with a completion signal from start() if a regression ever slips through.
+private func settle() async {
+    try? await Task.sleep(for: .milliseconds(50))
 }
 
 @Test @MainActor func aWrongKeyNeverReplacesAWorkingOne() async throws {
@@ -365,7 +382,7 @@ enum StartingScreen: String, CaseIterable, Sendable { case ready, failed, setup 
     setup.deployment.gateOnce(rotated)
 
     let attempt = Task { await setup.apps.configure(endpoint: workingEndpoint, key: rotated) }
-    await waitUntil { setup.deployment.parked == 1 }
+    try #require(try await waitUntil { setup.deployment.parked == 1 })
     attempt.cancel()
     setup.deployment.release()
     let outcome = await attempt.value
@@ -384,7 +401,7 @@ enum StartingScreen: String, CaseIterable, Sendable { case ready, failed, setup 
     setup.deployment.gateOnce(first)
 
     let attempt = Task { await setup.apps.configure(endpoint: workingEndpoint, key: first) }
-    await waitUntil { setup.deployment.parked == 1 }
+    try #require(try await waitUntil { setup.deployment.parked == 1 })
     #expect(await setup.apps.configure(endpoint: workingEndpoint, key: second) == .busy)
     #expect(setup.storedKey == working, "la segunda no escribió nada")
     setup.deployment.release()
@@ -404,7 +421,7 @@ enum StartingScreen: String, CaseIterable, Sendable { case ready, failed, setup 
     setup.deployment.gateOnce(rotated)
 
     let attempt = Task { await setup.apps.configure(endpoint: otherEndpoint, key: rotated) }
-    await waitUntil { setup.deployment.parked == 1 }
+    try #require(try await waitUntil { setup.deployment.parked == 1 })
     #expect(await setup.apps.configure(endpoint: "https://fn3.vercel.app", key: working) == .busy)
     setup.deployment.release()
     #expect(await attempt.value == .saved)
@@ -421,7 +438,7 @@ enum StartingScreen: String, CaseIterable, Sendable { case ready, failed, setup 
     setup.deployment.gateOnce(working)
 
     let stale = Task { await setup.apps.load() }
-    await waitUntil { setup.deployment.parked == 1 }
+    try #require(try await waitUntil { setup.deployment.parked == 1 })
     #expect(await setup.apps.configure(endpoint: workingEndpoint, key: rotated) == .saved)
     setup.deployment.release()
     await stale.value
@@ -460,7 +477,7 @@ enum StartingScreen: String, CaseIterable, Sendable { case ready, failed, setup 
     setup.deployment.gateOnce(working, op: "tools")
 
     let stale = Task { await setup.apps.actions(of: app) }
-    await waitUntil { setup.deployment.parked == 1 }
+    try #require(try await waitUntil { setup.deployment.parked == 1 })
     #expect(setup.apps.actionsPhase == .loading)
     #expect(await setup.apps.configure(endpoint: workingEndpoint, key: rotated) == .saved)
     setup.deployment.release()
@@ -479,7 +496,7 @@ enum StartingScreen: String, CaseIterable, Sendable { case ready, failed, setup 
     setup.deployment.gateOnce(working, op: "disconnect")
 
     let stale = Task { await setup.apps.disconnect() }
-    await waitUntil { setup.deployment.parked == 1 }
+    try #require(try await waitUntil { setup.deployment.parked == 1 })
     #expect(setup.apps.disconnectPhase == .disconnecting)
     #expect(await setup.apps.configure(endpoint: workingEndpoint, key: rotated) == .saved)
     setup.deployment.release()
@@ -497,7 +514,7 @@ enum StartingScreen: String, CaseIterable, Sendable { case ready, failed, setup 
     setup.deployment.gateOnce(working)
 
     let stale = Task { await setup.apps.more() }
-    await waitUntil { setup.deployment.parked == 1 }
+    try #require(try await waitUntil { setup.deployment.parked == 1 })
     #expect(await setup.apps.configure(endpoint: workingEndpoint, key: rotated) == .saved)
     setup.deployment.release()
     await stale.value
@@ -513,7 +530,7 @@ enum StartingScreen: String, CaseIterable, Sendable { case ready, failed, setup 
     setup.deployment.gateOnce(working, op: "connectLink")
 
     let link = Task { await setup.apps.connect(app.slug) }
-    await waitUntil { setup.deployment.parked == 1 }
+    try #require(try await waitUntil { setup.deployment.parked == 1 })
     #expect(await setup.apps.configure(endpoint: workingEndpoint, key: rotated) == .saved)
     setup.deployment.release()
 
@@ -528,10 +545,11 @@ enum StartingScreen: String, CaseIterable, Sendable { case ready, failed, setup 
     setup.deployment.gateOnce(working, op: "connectLink")
 
     setup.apps.start(app)
-    await waitUntil { setup.deployment.parked == 1 }
+    try #require(try await waitUntil { setup.deployment.parked == 1 })
     #expect(await setup.apps.configure(endpoint: workingEndpoint, key: rotated) == .saved)
     setup.deployment.release()
-    await waitUntil { false }
+    try #require(try await waitUntil { setup.deployment.returned == 1 })
+    await settle()
 
     #expect(setup.opened.value == 0, "no se abrió el navegador con el enlace viejo")
     #expect(setup.apps.connecting == nil)

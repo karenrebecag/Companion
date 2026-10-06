@@ -129,6 +129,19 @@ private let helloLine = #"{"id":1,"method":"hello","params":{"extension":"abc","
     expectEq(page.elements.map(\.submit), ["Enviar", nil], "el campo lleva el boton que su Enter pulsaria")
 }
 
+@Test func codecDecodesTheUnconfirmedFlagOfADone() {
+    expectEq(BrowserCodec.decode(line: #"{"id":9,"result":{"done":"clicked","unconfirmed":true}}"#),
+             .success(.doneUnconfirmed(id: 9, message: "clicked")), "present")
+    expectEq(BrowserCodec.decode(line: #"{"id":9,"result":{"done":"clicked"}}"#),
+             .success(.done(id: 9, message: "clicked")), "absent is a plain done")
+    expectEq(BrowserCodec.decode(line: #"{"id":9,"result":{"done":"clicked","unconfirmed":false}}"#),
+             .success(.done(id: 9, message: "clicked")), "false is a plain done")
+    expectEq(BrowserCodec.decode(line: #"{"id":9,"result":{"done":"clicked","unconfirmed":"yes"}}"#),
+             .success(.done(id: 9, message: "clicked")), "only a real boolean counts")
+    expectEq(BrowserCodec.decode(line: #"{"id":9,"result":{"done":"clicked","unconfirmed":1}}"#),
+             .success(.done(id: 9, message: "clicked")), "a number is not a boolean")
+}
+
 @Test func codecDecodesDoneAndError() {
     expectEq(BrowserCodec.decode(line: #"{"id":9,"result":{"done":"clicked"}}"#),
              .success(.done(id: 9, message: "clicked")), "done")

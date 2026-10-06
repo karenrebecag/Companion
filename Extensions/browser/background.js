@@ -467,7 +467,8 @@ const LOCATE_ATTEMPTS = 3;
 
 // Moves the cursor to the element and presses there with a real mouse, at most ONCE: a press that
 // could not be confirmed may still have landed, and pressing again could buy or send twice.
-// Only locating is retried. Returns 'pressed', 'offscreen' (never pressed), or an error reply.
+// Only locating is retried. Returns 'pressed', 'unconfirmed' (pressed but the page did not see
+// the event land on the element), 'offscreen' (never pressed), or an error reply.
 async function pressElement(args, entry, target, gesture) {
   for (let attempt = 1; attempt <= LOCATE_ATTEMPTS; attempt++) {
     const token = `${Date.now()}-${attempt}`;
@@ -493,7 +494,9 @@ async function pressElement(args, entry, target, gesture) {
     const whole = await cdp.mouseClick(args.tab, spot.box.x, spot.box.y, { ...gesture.mouse, beforeRepeat: hits });
     if (!whole) return coveredAfterFirstPress;
     await pressCursor(target);
-    if (!(await didLand(target, token))) console.warn('companion: press not confirmed on the element; not repeating it');
+    // A press that the page never saw as landing on the element may still have happened somewhere:
+    // never repeat it. Typing refuses (press_unconfirmed); a click reports the flag.
+    if (!(await didLand(target, token))) return 'unconfirmed';
     return 'pressed';
   }
   return 'offscreen';
@@ -507,6 +510,11 @@ const GESTURES = {
   right: { verb: 'Clic derecho', mouse: { button: 'right', count: 1 }, landing: 'contextmenu', synthetic: 'contextClick', done: 'right-clicked' },
   // No button: the pointer only arrives, so there is no landing to prove and nothing to repeat.
   hover: { verb: 'Señalando', mouse: null, landing: null, synthetic: 'hover', done: 'hovered' },
+};
+
+const UNCONFIRMED_PRESS = {
+  code: 'press_unconfirmed',
+  message: 'press not confirmed on the field; read the page again and retry before typing',
 };
 
 // Only the top frame gets the trusted path: an iframe's box is in its own coordinates, not the tab's.
@@ -525,6 +533,8 @@ async function trustedPress(args, gesture) {
   return cdp.withInput(args.tab, async () => {
     const pressed = await pressElement(args, entry, target, gesture);
     if (pressed === 'pressed') return { done: gesture.done };
+    // The host drops done text for element actions, so the fact travels as its own field.
+    if (pressed === 'unconfirmed') return { done: gesture.done, unconfirmed: true };
     if (typeof pressed === 'object') return pressed;
     // Never pressed (off-screen or zero-size): the synthetic click targets the element itself, nothing on top of it.
     const fallback = await inPage(target, synthetic, [args.generation, entry.localId, gesture.synthetic]);
@@ -688,6 +698,9 @@ async function trustedType(args) {
   return cdp.withInput(args.tab, async () => {
     const pressed = await pressElement(args, entry, target, { ...GESTURES.click, verb: 'Escribiendo' });
     if (pressed === 'frame') return typeSynthetic();
+    // A press the page did not see landing on the field must not type: the keys would go wherever
+    // the focus actually is, which is worse than a wrong click and could land in a different field.
+    if (pressed === 'unconfirmed') return { error: UNCONFIRMED_PRESS };
     if (typeof pressed === 'object') return pressed;
     const ready = await prepare();
     if (!ready) return frameGone();

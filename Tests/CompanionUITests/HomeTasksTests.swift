@@ -69,6 +69,23 @@ private let now = ISO8601DateFormatter().date(from: "2026-09-25T19:00:00-06:00")
     expectEq(chat.followUp, first.title, "seguir: la isla lleva su título")
 }
 
+/// Words written in the task sheet are the task's next turn, and they never
+/// touch the Home draft she left half written.
+@Test @MainActor func followUpWithWordsSendsThemToTheTask() async {
+    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+                             store: MemoryConversationStore(), config: Config())
+    chat.onAppear()
+    await chat.appendAssistant("tarea")
+    chat.persist()
+    guard let task = chat.recents.first else { return expect(false, "tareas: se guardó") }
+    chat.newConversation()
+    chat.draft = "a medias"
+    expect(chat.followUp(task, saying: "  ¿y ahora?  "), "seguir: con palabras, sí")
+    expectEq(Array(chat.messages.map(\.text).prefix(2)), ["tarea", "¿y ahora?"], "seguir: las palabras son el siguiente turno")
+    expectEq(chat.draft, "a medias", "seguir: el borrador de Inicio queda intacto")
+    expectEq(chat.followUp, task.title, "seguir: la isla lleva su título")
+}
+
 /// Code review 16j-2 (HIGH): Follow up switched conversations under a turn
 /// still working, which dropped it without a word.
 @Test @MainActor func followUpWaitsForTheWorkInProgress() async {

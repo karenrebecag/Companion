@@ -60,6 +60,9 @@ package struct IslandView: View {
     @State var hoveringWork = false
     /// Whether the latest result card was ever opened, for the model (16h-3).
     @State var resultAttention = IslandResultAttention()
+    /// P3: the voice line chip, and the reply its quiet turn carries.
+    @State var voiceLines = VoiceLineModel()
+    @State var replyOfTurn: UUID?
     /// The orb is one piece in every state (Arc's now-playing): opening the
     /// island moves it to its new row instead of fading one out and another in.
     @Namespace var orbSpace
@@ -98,7 +101,7 @@ package struct IslandView: View {
     }
 
     var state: IslandState {
-        IslandState.from(
+        Self.holdingChip(IslandState.from(
             chat.session.projection, pebbleHidden: hold.pebbleHidden,
             mainInFront: hold.mainInFront, holdLearned: hold.holdLearned,
             keyListening: hold.granted, debugTranscripts: chat.debugTranscripts,
@@ -113,7 +116,7 @@ package struct IslandView: View {
             errorText: ChatErrorSurface.visible(
                 errorText: chat.errorText, needsOnboarding: chat.needsOnboarding,
                 dismissed: chat.dismissedIslandError),
-            update: updates?.noticeTag)
+            update: updates?.noticeTag), chipMounted: voiceLines.line != nil)
     }
 
     /// What the panel says above a question card: the card already carries the
@@ -156,6 +159,7 @@ package struct IslandView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .coordinateSpace(name: "islandCanvas")
         .overlay(alignment: .top) { answerLayer }
+        .overlay(alignment: .top) { voiceLineLayer }
         .overlayPreferenceValue(IslandPortalKey.self) { items in
             GeometryReader { proxy in portalLayer(items, in: proxy) }
         }
@@ -199,10 +203,10 @@ package struct IslandView: View {
             replyStart = Date()
             if state.reportsReplyShown { reportReplyShown(id) }
         }
-        .onChange(of: state.approval?.requestId, initial: true) { _, id in
-            clickGuard = id == nil ? nil : ApprovalClickGuard(shownAt: Date().timeIntervalSince1970)
+        .onChange(of: state.approval?.requestId, initial: true) { _, _ in
             if state.yieldsKeyboard { dismissField() }
         }
+        .onChange(of: clickGuardKey, initial: true) { _, _ in armClickGuard() }
         .onChange(of: chat.session.projection.kind) { _, kind in
             // A release that sent something is the hold, learned.
             if kind == .processing(.pending), !hold.holdLearned { hold.holdLearned = true }

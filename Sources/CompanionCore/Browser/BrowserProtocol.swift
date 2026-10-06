@@ -243,6 +243,10 @@ package enum BrowserInbound: Sendable, Equatable {
     case opened(id: Int, BrowserTab)
     case page(id: Int, BrowserPage)
     case done(id: Int, message: String)
+    /// A press whose landing the page never saw on the element: it may still have happened, so
+    /// it is a done the host words with a warning, never a plain success. Kept as its own case
+    /// so every existing `.done` match keeps meaning "confirmed".
+    case doneUnconfirmed(id: Int, message: String)
     case error(id: Int?, BridgeErrorBody)
 }
 

@@ -282,6 +282,13 @@ package enum BrowserCopy {
         case (BridgeCode.notFocused, .es):
             return "Ese elemento no recibe el foco del teclado, así que no se pulsó nada. Usa browser_click sobre "
                 + "él, o pulsa sin elemento después de hacer clic donde va la tecla."
+        case (BridgeCode.pressUnconfirmed, .en):
+            return "The press on the field could not be confirmed, so no key was sent. Read the tab again and "
+                + "retry: typing the wrong keys into the wrong field is worse than no keys at all."
+        case (BridgeCode.pressUnconfirmed, .es):
+            return "La pulsación en el campo no se pudo confirmar, así que no se envió ninguna tecla. Vuelve a "
+                + "leer la pestaña y reintenta: escribir las teclas equivocadas en el campo equivocado es peor "
+                + "que no escribir nada."
         case (_, .en): return "The browser failed: \(code)."
         case (_, .es): return "El navegador falló: \(code)."
         }
@@ -363,6 +370,18 @@ extension BrowserCopy {
         case (.busy, .es):
             return "La pestaña \(tab) la está usando otro agente. No la esperes: abre la dirección en una "
                 + "pestaña nueva con browser_open."
+        }
+    }
+
+    /// Appended to a click's result when the page never saw the press land on the element.
+    package static func pressUnconfirmed(_ language: AppLanguage) -> String {
+        switch language {
+        case .en:
+            return "The press could not be confirmed on the element: read the tab before acting again, "
+                + "do not repeat the click blindly."
+        case .es:
+            return "No se pudo confirmar la pulsación en el elemento: lee la pestaña antes de volver a actuar, "
+                + "no repitas el clic a ciegas."
         }
     }
 

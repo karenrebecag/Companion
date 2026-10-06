@@ -109,26 +109,41 @@ private func chatRGBA(_ c: Color) -> [CGFloat] {
     expectEq(BubbleGeometry.childWidth(row: -5, fraction: 0.8), 0, "a negative proposal never goes below zero")
 }
 
-/// The sheet's rows: the marker first would be drawn by the sheet; here the
-/// pure part, which message gets which bubble.
-@Test @MainActor func taskThreadMapsMessagesToBubbles() {
+/// The sheet's thread: which message becomes which turn, and what it carries.
+@Test @MainActor func taskThreadMapsMessagesToTurns() {
+    let file = AttachmentRef(name: "plan.pdf", path: "/tmp/plan.pdf", kind: .file)
     let messages = [
-        ChatMessage(role: .user, text: "a"),
+        ChatMessage(role: .user, text: "a", attachments: [file]),
         ChatMessage(role: .assistant, text: "b"),
         ChatMessage(role: nil, isStatus: true, text: "status"),
         ChatMessage(role: .user, text: "c"),
     ]
-    let rows = TaskThread.rows(messages)
-    expectEq(rows.count, 3, "status lines stay out of the thread")
-    expectEq(rows.map(\.variant), [.default, .secondary, .default], "user is primary, reply secondary")
-    expectEq(rows.map(\.align), [.end, .start, .end], "user right, reply left")
-    expectEq(rows.map(\.message.text), ["a", "b", "c"], "order is kept")
+    let items = TaskThread.items(messages)
+    expectEq(items.count, 3, "status lines stay out of the thread")
+    expectEq(items.map(\.role), [.user, .assistant, .user], "user turns and replies keep their side")
+    expectEq(items.map(\.text), ["a", "b", "c"], "order is kept")
+    expectEq(items[0].attachments, ["plan.pdf"], "a sent file shows by name")
+    expectEq(items.map(\.id), messages.filter { !$0.isStatus }.map(\.id.uuidString), "ids are the messages' own")
 }
 
-@Test @MainActor func taskMarkerNamesWhatTheTimeIs() {
-    let label = TaskThread.markerLabel(ago: "2 h ago")
-    expect(label.contains("2 h ago"), "the time is in the marker")
-    expect(label != "2 h ago", "the marker says what the time refers to")
+/// Tool chips only from what the reply recorded: once each, in call order,
+/// and never on a user turn or a reply read back from disk.
+@Test @MainActor func taskThreadToolsComeFromTheRecall() {
+    func call(_ name: String) -> ToolCallRef { ToolCallRef(id: UUID().uuidString, name: name, arguments: "{}") }
+    let reply = ChatMessage(
+        role: .assistant, text: "Listo.",
+        recall: Recall(role: .assistant, content: "Listo.", toolCalls: [call("look"), call("click"), call("look")]))
+    expectEq(TaskThread.tools(of: reply), ["look", "click"], "deduplicated, first call first")
+    expectEq(TaskThread.tools(of: ChatMessage(role: .assistant, text: "x", restored: true)), [], "no record, no chips")
+    let user = ChatMessage(role: .user, text: "x", recall: Recall(role: .user, content: "x", toolCalls: [call("see")]))
+    expectEq(TaskThread.tools(of: user), [], "a user turn never shows tools")
+}
+
+@Test @MainActor func taskSubtitleCountsMessages() async {
+    await Localized.scoped(to: .es) {
+        expectEq(TaskThread.subtitle(ago: "Hace 2 h", count: 10), "Hace 2 h · 10 mensajes", "plural")
+        expectEq(TaskThread.subtitle(ago: "Ahora", count: 1), "Ahora · 1 mensaje", "singular")
+    }
 }
 
 @Test(.enabled(if: ProcessInfo.processInfo.environment["COMPANION_SNAPSHOTS"] != nil,
@@ -147,7 +162,7 @@ private func chatRGBA(_ c: Color) -> [CGFloat] {
     // through a hosted window like the island galleries.
     for scheme in [ColorScheme.light, .dark] {
         try await saveLive(
-            AnyView(TaskDetailSheet(task: task, messages: messages, canFollowUp: true, onFollowUp: {}, onClose: {})),
+            AnyView(TaskDetailSheet(task: task, messages: messages, canFollowUp: true, onFollowUp: { _ in true }, onClose: {})),
             scheme: scheme, size: CGSize(width: 760, height: 420), to: out,
             "shadcn-chat-\(scheme == .dark ? "dark" : "light")")
     }

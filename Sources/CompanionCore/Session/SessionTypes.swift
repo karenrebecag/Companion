@@ -220,6 +220,8 @@ package enum SessionEvent: Sendable, Equatable {
     case passiveAfterChanged(TimeInterval)
     /// P1: a wait armed by `schedulePassive` ran out; stale arms are ignored.
     case passiveExpired(armedFor: Int)
+    /// P3: the user clicked the voice line chip; the island takes the turn back.
+    case islandEngaged
     /// The ear's running hypothesis for the hold (Wave 12c).
     case partialTranscript(String)
     /// Wave 12e: the hold will dictate into this app (decided at press).

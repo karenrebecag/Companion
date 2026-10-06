@@ -265,6 +265,9 @@ package enum BridgeCode {
     package static let optionNotFound = "option_not_found"
     /// P4: the element would not take the keyboard focus, so the key was not sent.
     package static let notFocused = "not_focused"
+    /// A1: the trusted press on a field landed somewhere the page did not see as the element,
+    /// so no key was sent: typing the wrong keys into the wrong field is worse than no keys at all.
+    package static let pressUnconfirmed = "press_unconfirmed"
     /// The tool exists but Companion's own window is in front, so there is no
     /// other app to act on: the model can fix it, unlike `unknown_tool`.
     package static let selfInFront = "self_in_front"
