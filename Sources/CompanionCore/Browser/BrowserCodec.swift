@@ -38,7 +38,8 @@ package enum BrowserCodec {
             guard let code = error["code"] as? String else { return fail(BridgeCode.badFrame, "Invalid error") }
             let body = BridgeErrorBody(
                 code: BrowserSanitize.code(code),
-                message: BrowserSanitize.message(error["message"] as? String ?? ""))
+                message: BrowserSanitize.message(error["message"] as? String ?? ""),
+                reason: BrowserSanitize.reason(error["reason"]))
             return .success(.error(id: integer(envelope["id"]), body))
         }
         guard let id = integer(envelope["id"]) else { return fail(BridgeCode.badFrame, "Missing or invalid id") }

@@ -47,7 +47,7 @@ extension BrowserToolRunner {
                 + "; times 1 to \(BrowserTool.pressMaxTimes), and 1 for Enter and Space; element an element number")
         }
         guard let page = cachedPage(tab), case .found(let element) = Self.target(press, in: page) else {
-            return fail(tool, BridgeCode.staleId, BrowserCopy.failure(code: BridgeCode.staleId, language()))
+            return staleHere(tool, reason: "host_cache_miss")
         }
         // The gate issued no ticket for it: saying approval_required would invite a retry.
         if let element, BrowserPolicy.pressWritesIntoSecret(key: press.key, element: element) {

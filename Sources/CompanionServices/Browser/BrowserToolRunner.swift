@@ -24,6 +24,10 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
     /// HACK: dropping the whole cache at the limit. A per-tab LRU when
     /// someone works across more than this many tabs in one session.
     static let cacheLimit = 64
+    /// As in Incredible: the last reads of a tab stay addressable, so an id
+    /// the model saw in a recent read (before a narrow finder read, say) still
+    /// resolves, bound to that read's generation and label.
+    static let readsKept = 20
     private static let lineLimit = 200
 
     let channel: any BrowserCommanding
@@ -34,7 +38,8 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
     static let titleLimit = 120
     private let presence: BrowserPresence
     private let lock = NSLock()
-    private var pages: [Int: BrowserPage] = [:]
+    /// Oldest first; the last one is the tab's latest read.
+    private var pages: [Int: [BrowserPage]] = [:]
     /// When each cached page was read: click_at and a drag target trust a read only so long.
     private var readAt: [Int: Date] = [:]
     let now: @Sendable () -> Date
@@ -179,7 +184,20 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
 
     func cachedPage(_ tab: Int) -> BrowserPage? {
         syncEpoch()
-        return lock.withLock { pages[tab] }
+        return lock.withLock { pages[tab]?.last }
+    }
+
+    /// The newest kept read that numbered this element: the latest read wins
+    /// whenever it has the number, so this only reaches back for an id the
+    /// latest read no longer lists.
+    func cachedPage(_ tab: Int, holding id: Int) -> (page: BrowserPage, element: BrowserElement)? {
+        syncEpoch()
+        return lock.withLock {
+            for page in (pages[tab] ?? []).reversed() {
+                if let element = page.elements.first(where: { $0.id == id }) { return (page, element) }
+            }
+            return nil
+        }
     }
 
     func forget(_ tab: Int) {
@@ -194,7 +212,7 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
         syncEpoch()
         let current = now()
         return lock.withLock {
-            guard let page = pages[tab], let read = readAt[tab],
+            guard let page = pages[tab]?.last, let read = readAt[tab],
                   current.timeIntervalSince(read) <= BrowserTool.readFreshness
             else { return nil }
             return page
@@ -236,8 +254,12 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
                 pages.removeAll()
                 readAt.removeAll()
             }
-            pages[page.tab] = page
-            readAt[page.tab] = read
+            // Ordered by generation, as in the extension: a read that arrives after a newer one is kept,
+            // but never becomes the latest that click_at, drag and the freshness clock go by.
+            let kept = ((pages[page.tab] ?? []).filter { $0.generation != page.generation } + [page])
+                .sorted { $0.generation < $1.generation }
+            pages[page.tab] = Array(kept.suffix(Self.readsKept))
+            if pages[page.tab]?.last == page { readAt[page.tab] = read }
         }
     }
 
@@ -256,10 +278,17 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
             .prefix(lineLimit))
     }
 
-    /// Logs carry the tool and the code, never what the page or the model said.
-    func fail(_ tool: BrowserTool, _ code: String, _ message: String) -> ParentToolOutcome {
-        Log.browser("tool=\(tool.rawValue) code=\(code)")
+    /// Logs carry the tool, the code and a fixed reason word, never what the page or the model said.
+    func fail(_ tool: BrowserTool, _ code: String, _ message: String, reason: String? = nil) -> ParentToolOutcome {
+        Log.browser("tool=\(tool.rawValue) code=\(code)" + (reason.map { " reason=\($0)" } ?? ""))
         return .failed(ContractError(code: code, message: message), tool: tool.rawValue)
+    }
+
+    /// A `stale_id` decided here, before the extension is asked. The reasons
+    /// are the host's own: no read of that id kept (`host_cache_miss`), the
+    /// tab left the read's origin, or the read is too old to point at.
+    func staleHere(_ tool: BrowserTool, reason: String) -> ParentToolOutcome {
+        fail(tool, BridgeCode.staleId, BrowserCopy.failure(code: BridgeCode.staleId, language()), reason: reason)
     }
 
     /// The extension's own wording never reaches the model: the code picks the copy.

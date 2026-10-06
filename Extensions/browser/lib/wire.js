@@ -12,8 +12,9 @@ export function clipPoints(value, n) {
   return Array.from(typeof text.toWellFormed === 'function' ? text.toWellFormed() : text).slice(0, n).join('');
 }
 
-export function errorReply(id, code, message) {
-  return { id, error: { code, message } };
+// The reason is a fixed word naming which check refused; only a string goes out, the host allowlists it.
+export function errorReply(id, code, message, reason) {
+  return typeof reason === 'string' ? { id, error: { code, message, reason } } : { id, error: { code, message } };
 }
 
 export function detectBrowser(nav) {

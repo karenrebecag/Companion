@@ -22,6 +22,22 @@ enum BrowserSanitize {
         BridgeCode.notFocused,
     ]
 
+    /// The extension's words for which check refused a `stale_id`. Logged,
+    /// so an allowlist like the codes: a log must never carry page text.
+    private static let allowedReasons: Set<String> = [
+        "generation_mismatch", "unknown_element", "element_gone", "identity_changed", "hidden", "covered",
+        "blocked", "covered_during_glide", "covered_after_first_press", "not_in_view", "frame_at_point",
+        "frame_drag", "frame_gone", "tab_gone", "no_read",
+    ]
+    static let otherReason = "other"
+
+    /// nil when the extension gave none; "other" when it gave something unknown.
+    static func reason(_ raw: Any?) -> String? {
+        guard let raw, !(raw is NSNull) else { return nil }
+        guard let word = raw as? String, allowedReasons.contains(word) else { return otherReason }
+        return word
+    }
+
     /// A state is a fixed word, never page text: anything else is dropped rather than shown.
     static func states(_ raw: Any?) -> [String] {
         let sent = Set((raw as? [Any] ?? []).compactMap { $0 as? String })

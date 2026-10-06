@@ -77,16 +77,16 @@ extension BrowserToolRunner {
         case .success(let parsed): request = parsed
         }
         guard let page = cachedPage(tab), let source = page.elements.first(where: { $0.id == request.element }) else {
-            return stale(tool)
+            return stale(tool, reason: "host_cache_miss")
         }
         // Checked before the ticket: a yes given a minute ago was for a screen that may be gone.
-        guard freshPage(tab) != nil else { return stale(tool) }
+        guard freshPage(tab) != nil else { return stale(tool, reason: "read_expired") }
         let command: BrowserCommand
         let item: String
         let done: String
         switch request.target {
         case .element(let to):
-            guard let target = page.elements.first(where: { $0.id == to }) else { return stale(tool) }
+            guard let target = page.elements.first(where: { $0.id == to }) else { return stale(tool, reason: "host_cache_miss") }
             command = .dragTo(tab: tab, generation: page.generation, element: source.id, to: to)
             item = Self.dragItem(source, target)
             done = "dragged [\(source.id)] to [\(to)]"
@@ -114,7 +114,7 @@ extension BrowserToolRunner {
         case .failure(let error): return fail(tool, BridgeCode.invalidArgs, error.message)
         case .success(let parsed): point = parsed
         }
-        guard let page = freshPage(tab) else { return stale(tool) }
+        guard let page = freshPage(tab) else { return stale(tool, reason: "read_expired") }
         let ticket = Self.pointTicket(tool.rawValue, raw, tab: tab, page: page)
         guard tickets.redeem(ticket) else {
             if tickets.voidSuperseded(by: ticket) { return stale(tool) }
@@ -204,8 +204,8 @@ extension BrowserToolRunner {
         }
     }
 
-    private func stale(_ tool: BrowserTool) -> ParentToolOutcome {
-        fail(tool, BridgeCode.staleId, BrowserCopy.failure(code: BridgeCode.staleId, language()))
+    private func stale(_ tool: BrowserTool, reason: String = "superseded") -> ParentToolOutcome {
+        staleHere(tool, reason: reason)
     }
 
     private func press(
