@@ -112,6 +112,8 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
 
 test('errorReply uses the wire shape', () => {
   assert.deepEqual(errorReply(9, 'stale_id', 'gone'), { id: 9, error: { code: 'stale_id', message: 'gone' } });
+  assert.deepEqual(errorReply(9, 'stale_id', 'gone', 'covered'), { id: 9, error: { code: 'stale_id', message: 'gone', reason: 'covered' } });
+  assert.deepEqual(errorReply(9, 'stale_id', 'gone', { not: 'a word' }), { id: 9, error: { code: 'stale_id', message: 'gone' } });
 });
 
 

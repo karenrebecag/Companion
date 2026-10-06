@@ -192,10 +192,14 @@ package struct BridgeCallResult: Codable, Sendable, Equatable {
 package struct BridgeErrorBody: Error, Codable, Sendable, Equatable {
     package var code: String
     package var message: String
+    /// Which check refused, for the log only: one `stale_id` can come from
+    /// many places, and the model's next step is the same for all of them.
+    package var reason: String?
 
-    package init(code: String, message: String) {
+    package init(code: String, message: String, reason: String? = nil) {
         self.code = code
         self.message = message
+        self.reason = reason
     }
 }
 

@@ -1628,3 +1628,131 @@ test('pointAt fails closed for a mark evicted by later presses, and survives a t
     globalThis.chrome = saved.chrome;
   }
 });
+
+// ---- Stale reasons and read history ----
+// Every refusal keeps the code stale_id; the reason says which check refused, so a live failure can be told apart.
+
+function readAt(generation, ...els) {
+  globalThis.document = { querySelectorAll: () => els, body: { innerText: '' } };
+  try {
+    return page.read(generation, 'button', 0);
+  } finally {
+    delete globalThis.document;
+  }
+}
+
+test('each lookup refusal names its reason under the same stale_id code', () => {
+  const el = fake({ tag: 'button', text: 'Siguiente' });
+  readAt(10, el);
+  const state = globalThis.__companionState;
+  assert.deepEqual([page.lookup(state, 9, 1).error.code, page.lookup(state, 9, 1).error.reason], ['stale_id', 'generation_mismatch']);
+  assert.equal(page.lookup(state, 10, 2).error.reason, 'unknown_element');
+  assert.equal(page.lookup(null, 10, 1).error.reason, 'generation_mismatch');
+  el.textContent = 'Eliminar cuenta';
+  assert.equal(page.lookup(state, 10, 1).error.reason, 'identity_changed');
+  el.textContent = 'Siguiente';
+  el.isConnected = false;
+  assert.equal(page.lookup(state, 10, 1).error.reason, 'element_gone');
+});
+
+test('a hidden element and a covered one are refused with their own reasons', () => {
+  const hidden = onScreen(fake({ tag: 'button', text: 'Menu' }));
+  hidden.hidden = true;
+  const out = page.click(1, 1);
+  assert.deepEqual([out.error.code, out.error.reason], ['stale_id', 'hidden']);
+  const under = onScreen(fake({ tag: 'button', text: 'Borrar' }), { topmost: overlayNode() });
+  const covered = page.click(1, 1);
+  assert.deepEqual([covered.error.code, covered.error.reason], ['stale_id', 'covered']);
+  assert.deepEqual(under.events, []);
+});
+
+test('an id from a recent read still acts while its node is connected and unchanged', () => {
+  const first = uncovered(fake({ tag: 'button', text: 'Siguiente' }));
+  const second = uncovered(fake({ tag: 'button', text: 'Otro' }));
+  readAt(1, first);
+  readAt(2, second);
+  assert.equal(page.lookup(globalThis.__companionState, 1, 1).element, first, 'the older read still resolves');
+  assert.deepEqual(page.click(1, 1), { done: 'clicked' });
+  assert.equal(first.events.length, 5);
+  assert.deepEqual(page.click(2, 1), { done: 'clicked' });
+  assert.equal(second.events.length, 5, 'each generation keeps its own numbering');
+});
+
+test('an id from a recent read passes the same identity check as the last one', () => {
+  const first = uncovered(fake({ tag: 'button', text: 'Siguiente' }));
+  readAt(1, first);
+  readAt(2, uncovered(fake({ tag: 'button', text: 'Otro' })));
+  first.textContent = 'Pagar ahora';
+  const out = page.click(1, 1);
+  assert.deepEqual([out.error.code, out.error.reason], ['stale_id', 'identity_changed']);
+  assert.deepEqual(first.events, []);
+  first.textContent = 'Siguiente';
+  first.isConnected = false;
+  assert.equal(page.click(1, 1).error.reason, 'element_gone');
+});
+
+test('only the last 20 reads are kept', () => {
+  const first = fake({ tag: 'button', text: 'Primero' });
+  readAt(1, first);
+  for (let g = 2; g <= 21; g++) readAt(g, fake({ tag: 'button', text: `B${g}` }));
+  const state = globalThis.__companionState;
+  assert.equal(page.lookup(state, 1, 1).error?.reason, 'generation_mismatch', 'the 21st read back is gone');
+  assert.equal(page.lookup(state, 2, 1).element.textContent, 'B2');
+  assert.equal(page.lookup(state, 21, 1).element.textContent, 'B21');
+});
+
+test('within still reads only inside an element of the last read', () => {
+  const menu = fake({ tag: 'div', attrs: { role: 'menu' } });
+  menu.innerText = 'Cerrar sesion';
+  globalThis.document = { querySelectorAll: () => [menu], body: { innerText: '' } };
+  try {
+    page.read(1, 'div', 0);
+    page.read(2, 'div', 0);
+    const out = page.read(3, { withinGeneration: 1, withinLocal: 1 }, 0);
+    assert.deepEqual([out.error?.code, out.error?.reason], ['stale_id', 'generation_mismatch']);
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+// A frame that is not rendered (an embed inside a hidden preview) answers innerText with its textContent,
+// which is every script and config blob it carries; the user sees none of it.
+test('a frame whose page is not rendered contributes no text, not its scripts', () => {
+  const scripts = 'var ytcfg = {"INNERTUBE_API_KEY":"x"}; window.ytplayer = {};';
+  globalThis.document = { querySelectorAll: () => [], body: { innerText: scripts, textContent: scripts, checkVisibility: () => false } };
+  try {
+    assert.equal(page.read(1, null, 0).text, '');
+    assert.equal(page.read(2, { text: 'ytcfg' }, 0).error?.code, 'selector_no_match');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('a rendered frame keeps its text', () => {
+  globalThis.document = { querySelectorAll: () => [], body: { innerText: 'Hola', checkVisibility: () => true } };
+  try {
+    assert.equal(page.read(1, null, 0).text, 'Hola');
+  } finally {
+    delete globalThis.document;
+  }
+});
+
+test('a read that finishes after a newer one stays in history but never becomes the latest', () => {
+  const a = fake({ tag: 'button', text: 'Nuevo' });
+  const b = fake({ tag: 'button', text: 'Viejo' });
+  a.innerText = 'Nuevo';
+  delete globalThis.__companionState;
+  readAt(2, a);
+  readAt(1, b);
+  const state = globalThis.__companionState;
+  assert.equal(state.generation, 2, 'generations only move forward');
+  assert.equal(page.lookup(state, 2, 1).element, a);
+  globalThis.document = { querySelectorAll: () => [a], body: { innerText: '' } };
+  try {
+    const within = page.read(3, { withinGeneration: 2, withinLocal: 1 }, 0);
+    assert.equal(within.error, undefined, 'within still names the newest read');
+  } finally {
+    delete globalThis.document;
+  }
+  assert.equal(page.lookup(state, 1, 1).element, b, 'the late read is still usable from history');
+});

@@ -263,7 +263,8 @@
     };
   }
 
-  const stale = (message) => ({ error: { code: 'stale_id', message } });
+  // One code for the model, a reason for the logs: a live stale_id has to say which check refused it.
+  const stale = (message, reason) => ({ error: { code: 'stale_id', message, reason } });
 
   // What the read showed and the gate judged (label, context, link). The value is left out: typing
   // changes it on purpose; a sensitive field is re-checked live before any key.
@@ -271,14 +272,36 @@
     return [roleOf(el), labelOf(el), contextOf(el), hrefOf(el) ?? ''].join('\u0000');
   }
 
-  function lookup(state, generation, id) {
-    if (!state || state.generation !== generation) return stale('generation is out of date, read the page again');
-    const element = state.elements.get(id);
-    if (!element || element.isConnected === false) return stale('element is gone, read the page again');
+  // As in Incredible, a few recent reads stay usable: a read the host never saw (one that timed out, or
+  // finished after a newer one) must not void the ids the host is still pointing at.
+  const READS_KEPT = 20;
+
+  function readOf(state, generation) {
+    if (!state) return null;
+    if (state.generation === generation) return state;
+    return state.reads?.get(generation) ?? null;
+  }
+
+  function lookupIn(read, id) {
+    if (!read) return stale('generation is out of date, read the page again', 'generation_mismatch');
+    const element = read.elements.get(id);
+    if (!element) return stale('element is gone, read the page again', 'unknown_element');
+    if (element.isConnected === false) return stale('element is gone, read the page again', 'element_gone');
     // A reused or rewritten node keeps its id and stays connected; acting on it would press what nobody approved.
-    const seen = state.identities?.get(id);
-    if (seen !== undefined && identityOf(element) !== seen) return stale('element changed since the read, read the page again');
+    const seen = read.identities?.get(id);
+    if (seen !== undefined && identityOf(element) !== seen) {
+      return stale('element changed since the read, read the page again', 'identity_changed');
+    }
     return { element };
+  }
+
+  function lookup(state, generation, id) {
+    return lookupIn(readOf(state, generation), id);
+  }
+
+  // within narrows the next read to a part of the page the model is looking at now, so only the last read counts.
+  function lookupLatest(state, generation, id) {
+    return lookupIn(state && state.generation === generation ? state : null, id);
   }
 
   // Every press and insert goes through here: a menu that closed after the read keeps its items in
@@ -286,7 +309,7 @@
   function lookupShown(state, generation, id) {
     const found = lookup(state, generation, id);
     if (found.error || isShown(found.element)) return found;
-    return stale('element is hidden now, read the page again');
+    return stale('element is hidden now, read the page again', 'hidden');
   }
 
   function clickElement(el) {
@@ -505,6 +528,15 @@
     return { nodes, text };
   }
 
+  // innerText of a body that is not rendered (a frame inside a hidden preview) is its textContent: every
+  // script and config blob in it, none of which the user can see.
+  function bodyText(doc) {
+    const body = doc.body;
+    if (!body) return '';
+    if (typeof body.checkVisibility === 'function' && !body.checkVisibility()) return '';
+    return String(body.innerText ?? '');
+  }
+
   // Ids are local to this document; the background renumbers them across frames and tracks the frame.
   const OVERLAY = 'dialog[open], [aria-modal="true"], [role="dialog"], [role="alertdialog"], [role="menu"], '
     + '[role="listbox"], :popover-open';
@@ -517,7 +549,7 @@
   // HACK: an overlay inside a shadow root is not found, so it keeps its DOM place. Walk the shadow
   // roots here when a real page loses an open menu that way.
   function overlayFirst(doc, nodes) {
-    const body = String(doc.body?.innerText ?? '');
+    const body = bodyText(doc);
     const outermost = [];
     for (const candidate of doc.querySelectorAll(OVERLAY)) {
       if (outermost.length === MAX_OVERLAYS) break;
@@ -582,7 +614,7 @@
 
   function scopeOf(q, state) {
     if (q.withinLocal == null) return { root: document };
-    const found = lookup(state, q.withinGeneration, q.withinLocal);
+    const found = lookupLatest(state, q.withinGeneration, q.withinLocal);
     return found.error ? found : { root: found.element };
   }
 
@@ -610,7 +642,7 @@
       } else {
         const all = [];
         collect(doc, all);
-        scoped = { nodes: all, text: String(doc.body?.innerText ?? '') };
+        scoped = { nodes: all, text: bodyText(doc) };
       }
       if (scoped.error) return scoped;
       if (hasFinder(q)) scoped = find(scoped.nodes, scoped.text, q, roots);
@@ -619,14 +651,19 @@
     }
     if (Number.isInteger(q.max) && q.max > 0) nodes = nodes.slice(0, q.max);
     text = cutUnits(text, Number.isInteger(q.maxChars) && q.maxChars > 0 ? Math.min(q.maxChars, TEXT_MAX) : TEXT_MAX);
-    state.generation = generation;
-    state.elements = new Map();
-    state.identities = new Map();
-    const elements = nodes.map((node, i) => {
-      state.elements.set(i + 1, node);
-      state.identities.set(i + 1, identityOf(node));
-      return serializeElement(node, i + 1, frame);
+    const kept = new Map(state.reads ?? []);
+    kept.set(generation, {
+      elements: new Map(nodes.map((node, i) => [i + 1, node])),
+      identities: new Map(nodes.map((node, i) => [i + 1, identityOf(node)])),
     });
+    const reads = new Map([...kept].sort(([a], [b]) => a - b).slice(-READS_KEPT));
+    // Generations only grow, so a read that finishes after a newer one never becomes the frame's latest.
+    // HACK: ordering trusts the background's wall-clock-seeded generations; a worker restart after the clock
+    // went back leaves an older read as latest. Report the highest held generation to seed the counter once
+    // within or click_at are seen refusing fresh reads after a restart.
+    const latest = Math.max(...reads.keys());
+    Object.assign(state, { reads, generation: latest, ...reads.get(latest) });
+    const elements = nodes.map((node, i) => serializeElement(node, i + 1, frame));
     // Each frame reports its own origin so the app can tell third-party frames from the page.
     return { origin: String(globalThis.location?.origin ?? ''), text, elements };
   }
@@ -690,7 +727,7 @@
     return node;
   }
 
-  const covered = () => ({ error: { code: 'stale_id', message: 'something covers this element (a dialog or banner); read the page again' } });
+  const covered = () => stale('something covers this element (a dialog or banner); read the page again', 'covered');
 
   // A styled checkbox or radio hides the input and draws its label on top: the label is how a person
   // presses it, so being under its own label is not being covered.

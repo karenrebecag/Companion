@@ -52,3 +52,20 @@ test('the derivation is sensitive to the key (a different key gives a different 
   other[other.length - 10] ^= 1;
   assert.notEqual(idFromKey(other.toString('base64')), PINNED_ID);
 });
+
+// The app logs a stale reason only if it is on its allowlist; a reason added here but not there would show
+// up in the log as "other" and hide the cause it was added to name.
+test('every stale reason the extension sends is on the app allowlist', () => {
+  const source = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+  const background = source('../background.js');
+  const page = source('../lib/page.js');
+  const sent = new Set([
+    ...[...background.matchAll(/stale\('([a-z_]+)'/g)].map((m) => m[1]),
+    ...[...page.matchAll(/stale\('(?:[^'\\]|\\.)*',\s*'([a-z_]+)'\)/g)].map((m) => m[1]),
+  ]);
+  assert.ok(sent.size >= 15, `found ${sent.size} reasons`);
+  const swift = source('../../../Sources/CompanionCore/Browser/BrowserSanitize.swift');
+  const block = swift.slice(swift.indexOf('allowedReasons'), swift.indexOf(']', swift.indexOf('allowedReasons')));
+  const allowed = new Set([...block.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]));
+  for (const reason of sent) assert.ok(allowed.has(reason), `${reason} is missing from allowedReasons`);
+});
