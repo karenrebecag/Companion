@@ -212,7 +212,7 @@ import Testing
 // loser (brief tests-reloj-de-pared-bajo-carga). The facts asserted are that
 // the budget won and that the loser saw the cancel; the budget's value itself
 // is not asserted (accepted limit of option 1-A).
-@Test func dm1cGateTimesOutWithinBudgetWhenTheProviderIsSlow() async {
+@Test(.enabled(if: !wallClockQuarantined, wallClockQuarantineReason)) func dm1cGateTimesOutWithinBudgetWhenTheProviderIsSlow() async {
     struct SlowProvider: DecisionProvider {
         let cancelled: LockedBox<Bool>
         func answer(_ question: DecisionQuestion) async -> DecisionAnswer? {

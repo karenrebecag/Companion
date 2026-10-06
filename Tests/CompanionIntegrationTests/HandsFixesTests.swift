@@ -181,6 +181,9 @@ private func runner(
     let open = await run.execute(name: "open_app", argumentsJSON: #"{"name":"Notas"}"#)
     expect(!open.ok && open.output.hasPrefix("window_not_ready:"),
            "el frente no se mueve: pid y ventana listos no bastan, window_not_ready")
+    let typed = await run.execute(name: "type_text", argumentsJSON: #"{"text":"hola"}"#)
+    expect(!typed.ok, "el frente no se mueve: la mano siguiente no actua en la app que quedo al frente")
+    expect(hands.injected.isEmpty, "el frente no se mueve: nada cae en la app de enfrente (el Cmd-N en Slack)")
 }
 
 @MainActor func testACutTurnIsNotWindowNotReady() async {

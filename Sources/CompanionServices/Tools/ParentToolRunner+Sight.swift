@@ -121,12 +121,12 @@ extension ParentToolRunner {
 
     func runSight(
         _ tool: ParentTool, _ call: ToolCallRef, _ arguments: [String: Any],
-        hands: ScreenHands, pid: Int32, bundle: String
+        hands: ScreenHands, pid: Int32, bundle: String?
     ) async -> ParentToolOutcome {
         guard let screen = hands.screen else {
             return .failed(Self.handsError("needs_accessibility", "no screen access"), tool: tool.rawValue)
         }
-        let sight = SightAct(hands: hands, screen: screen, pid: pid, bundle: bundle, tool: tool)
+        let sight = SightAct(hands: hands, screen: screen, pid: pid, knownBundle: bundle, tool: tool)
         switch tool {
         case .look: return sight.look()
         case .click: return await hands.observing(pid: pid) { sight.click(call, arguments) }
@@ -142,8 +142,14 @@ private struct SightAct {
     let hands: ScreenHands
     let screen: any ScreenActing
     let pid: Int32
-    let bundle: String
+    let knownBundle: String?
     let tool: ParentTool
+
+    private var bundle: String { knownBundle ?? "-" }
+
+    /// The window or app may have moved since the entry check; every press
+    /// reads the target again right before it lands.
+    private var moved: Bool { !hands.holds(pid: pid) }
 
     private func fail(_ code: String, _ message: String) -> ParentToolOutcome {
         Log.app("sight: \(tool.rawValue) \(code) pid=\(pid) bundle=\(bundle)")
@@ -155,11 +161,24 @@ private struct SightAct {
     }
 
     func look() -> ParentToolOutcome {
+        // The walk reads one window and the latch records another unless the
+        // front window is the same before and after it. Any difference,
+        // including a window appearing or vanishing, means the ids may
+        // belong to a window that is no longer in front, so nothing is
+        // remembered: a stored scan would let a click spend them there.
+        let before = hands.frontWindow(pid)
         guard let walk = screen.walk(pid: pid) else {
             return fail("no_window", "no readable window in the app in front")
         }
+        let after = hands.frontWindow(pid)
+        if before != after {
+            return fail("target_lost", ScreenHands.windowLostMessage)
+        }
         let scan = ScreenScan.build(walk, app: appName)
         hands.scans.remember(scan, pid: pid)
+        // Latch the window with the bundle so a later same-app window switch
+        // or a recycled pid is refused instead of typed into.
+        hands.turn.latch(window: after, pid: pid, bundle: knownBundle)
         Log.app("sight: look elements=\(scan.elements.count) nodes=\(walk.nodes.count) "
             + "partial=\(scan.partial) pid=\(pid) bundle=\(bundle)")
         return ParentToolOutcome(ok: true, output: scan.render(), tool: tool.rawValue)
@@ -179,6 +198,7 @@ private struct SightAct {
            !hands.tickets.redeem(.click(call, pid: pid, element: element, generation: scan.generation)) {
             return fail("approval_required", "this button deletes, pays or sends; it needs approval")
         }
+        guard !moved else { return fail("target_changed", HandsAct.appMoved) }
         switch screen.click(node: element.node, generation: scan.generation, pid: pid, label: element.label) {
         case .clicked(let route):
             Log.app("sight: click id=\(id) via=\(route.rawValue) pid=\(pid) bundle=\(bundle)")
@@ -209,6 +229,7 @@ private struct SightAct {
             return .failed(.invalidArgs("into_view needs the id of a control from your latest look"),
                            tool: tool.rawValue)
         }
+        guard !moved else { return fail("target_changed", HandsAct.appMoved) }
         guard screen.scroll(node: node, generation: scan?.generation ?? -1, direction: direction, pid: pid)
         else { return fail("not_scrollable", "nothing in the window could be scrolled") }
         Log.app("sight: scroll \(direction.rawValue) pid=\(pid) bundle=\(bundle)")
@@ -230,6 +251,7 @@ private struct SightAct {
            !hands.tickets.redeem(.init(name: call.name, arguments: call.arguments, pid: pid, item: resolved)) {
             return fail("approval_required", "this menu item cannot be undone (delete, pay, send, quit or close); it needs approval")
         }
+        guard !moved else { return fail("target_changed", HandsAct.appMoved) }
         guard let item = screen.menu(path: path, pid: pid, expecting: resolved) else {
             return fail("menu_not_found", "the menu item is gone or changed since it was read")
         }
