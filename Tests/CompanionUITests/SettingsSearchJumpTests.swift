@@ -87,7 +87,7 @@ import Testing
         .privacy: AnyView(SettingsPrivacyPage(chat: nil, welcome: quietWelcome(), browser: quietBrowser())),
         .system: AnyView(SettingsSystemPage(
             chat: nil, updates: nil, welcome: quietWelcome(), storageLabel: "", confirmPurge: .constant(false),
-            onClose: {}, onAppear: {})),
+            onClose: {}, onAppear: {}, history: HistoryClearModel())),
     ]
     for tab in SettingsTab.allCases {
         let view = try #require(pages[tab], "\(tab): la prueba monta la pagina")
