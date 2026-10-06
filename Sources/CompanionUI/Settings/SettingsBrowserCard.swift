@@ -8,7 +8,7 @@ struct SettingsBrowserCard: View {
     var model: BrowserSettingsModel
 
     var body: some View {
-        SettingsCard(label: Localized.string("settings.browser.header")) {
+        SettingsCard(label: Localized.string("settings.browser.header"), key: "settings.browser.header") {
             VStack(alignment: .leading, spacing: Space.x3) {
                 Text(Localized.string("settings.browser.blurb"))
                     .font(.uiCaption)

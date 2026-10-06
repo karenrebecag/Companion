@@ -9,8 +9,6 @@ package enum SettingsOverlayMetrics {
     package static let avatar: CGFloat = Space.x8 + Space.x1
     package static let bigAvatar: CGFloat = 56
     package static let stepHit: CGFloat = Space.x8
-    /// How long a row stays lit after a search lands on it.
-    package static let highlightSeconds: Double = 1.6
 }
 
 /// The content pane beside the rail (Incredible's gutter and header air).
@@ -33,8 +31,11 @@ package struct SettingsView: View {
     let onClose: () -> Void
     @Binding var tab: SettingsTab
     @Binding var query: String
-    @State private var highlight: String?
-    @State private var highlightTimer: Task<Void, Never>?
+    @State private var band: SettingsBand?
+    /// The row a pick is looking for; the nonce restarts the search on a new pick.
+    @State private var jumpTarget: String?
+    @State private var jumpNonce = 0
+    @State private var presentRows: Set<String> = []
     @State private var confirmPurge = false
     @State private var history = HistoryClearModel()
     @State private var storageLabel = Localized.string("settings.storage.empty")
@@ -82,7 +83,6 @@ package struct SettingsView: View {
         .dropdownPortal(host: dropdowns)
         .onDisappear {
             dropdowns.dismiss()
-            highlightTimer?.cancel()
         }
         .onAppear { refreshStorage() }
     }
@@ -98,6 +98,13 @@ package struct SettingsView: View {
     }
 
     private var pageScroll: some View {
+        ScrollViewReader { proxy in
+            pageContent
+                .task(id: jumpNonce) { await findRow(proxy) }
+        }
+    }
+
+    private var pageContent: some View {
         ScrollView {
             page
                 .padding(.leading, SettingsPaneMetrics.leading)
@@ -109,7 +116,39 @@ package struct SettingsView: View {
                 .transition(ChromeMotion.transition(.modeSwap, reduceMotion: reduceMotion))
         }
         .scrollIndicators(.hidden)
-        .environment(\.settingsHighlight, highlight)
+        .environment(\.settingsBand, band)
+        .onPreferenceChange(SettingsRowKeys.self) { presentRows = $0 }
+    }
+
+    /// Polls while the new page mounts its rows; a later pick cancels this one.
+    private func findRow(_ proxy: ScrollViewProxy) async {
+        guard let target = jumpTarget else { return }
+        var jump = SettingsSearchJump(target: target)
+        while true {
+            switch jump.poll(present: presentRows) {
+            case .wait:
+                do { try await Task.sleep(for: .seconds(SettingsSearchJump.retryInterval)) } catch { return }
+            case .found(let key):
+                withAnimation(ChromeMotion.animation(.expoOut(MotionTime.panel), reduceMotion: reduceMotion)) {
+                    proxy.scrollTo(key, anchor: .center)
+                }
+                await playBand(key)
+                return
+            case .done:
+                return
+            }
+        }
+    }
+
+    private func playBand(_ key: String) async {
+        for step in SettingsSearchJump.bandSteps {
+            withAnimation(ChromeMotion.animation(
+                MotionCurve.animation(MotionCurve.standard, step.fade), reduceMotion: reduceMotion)) {
+                band = SettingsBand(key: key, visible: step.visible)
+            }
+            do { try await Task.sleep(for: .seconds(step.wait)) } catch { break }
+        }
+        band = nil
     }
 
     @ViewBuilder private var page: some View {
@@ -141,12 +180,9 @@ package struct SettingsView: View {
         dropdowns.dismiss()
         withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { tab = target }
         query = ""
-        highlight = entry.id
-        highlightTimer?.cancel()
-        highlightTimer = Task { @MainActor in
-            do { try await Task.sleep(for: .seconds(SettingsOverlayMetrics.highlightSeconds)) } catch { return }
-            highlight = nil
-        }
+        band = nil
+        jumpTarget = SettingsSearchJump.target(for: entry)
+        jumpNonce += 1
     }
 
     private func languageChanged() {
