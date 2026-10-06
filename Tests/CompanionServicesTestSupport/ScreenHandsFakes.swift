@@ -117,18 +117,26 @@ package final class FakeHands: TextInjecting, FocusedReading, KeyPressing, Windo
 }
 
 /// The pid the sensor reports, one read at a time: a list lets a test move
-/// the user to another app between the capture and the injection.
+/// the user to another app between the capture and the injection. The
+/// `reads` counter names the read phases: tests that depend on the order
+/// (entry read, act-time read, etc.) assert against it instead of counting
+/// on a comment to stay in sync with the runner.
 package final class ScriptedTarget: @unchecked Sendable {
     private let lock = NSLock()
     private var pids: [Int32?]
+    private var _reads = 0
 
     package init(_ pids: [Int32?]) { self.pids = pids }
 
     package func next() -> Int32? {
         lock.lock()
-        defer { lock.unlock() }
-        return pids.count > 1 ? pids.removeFirst() : pids.first ?? nil
+        _reads += 1
+        let next = pids.count > 1 ? pids.removeFirst() : pids.first ?? nil
+        lock.unlock()
+        return next
     }
+
+    package var reads: Int { lock.withLock { _reads } }
 }
 
 package func handsRunner(

@@ -1,0 +1,1 @@
+- **CI mas rapido y sin bloqueos por tests de reloj (2026-10-06).** Los PR ya no esperan el build release ni ThreadSanitizer (ahora corren de noche), el cache de SwiftPM acelera `gates`, y los tests que miden tiempo de pared quedan en cuarentena en CI pero siguen corriendo cada noche. Un fragmento de changelog ausente avisa en vez de fallar.
