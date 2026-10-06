@@ -76,7 +76,14 @@ package enum BrowserCodec {
             guard let opened = tab(raw) else { return fail(BridgeCode.badFrame, "Invalid tab") }
             return .success(.opened(id: id, opened))
         }
-        if let done = result["done"] as? String { return .success(.done(id: id, message: BrowserSanitize.done(done))) }
+        if let done = result["done"] as? String {
+            let message = BrowserSanitize.done(done)
+            // Only a real JSON boolean: a string or a number must not flip the warning on.
+            if let flag = result["unconfirmed"] as? NSNumber, CFGetTypeID(flag) == CFBooleanGetTypeID(), flag.boolValue {
+                return .success(.doneUnconfirmed(id: id, message: message))
+            }
+            return .success(.done(id: id, message: message))
+        }
         return fail(BridgeCode.badFrame, "Unknown result")
     }
 

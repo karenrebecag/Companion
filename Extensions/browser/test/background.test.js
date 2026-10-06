@@ -572,10 +572,10 @@ test('a double click whose landing cannot be confirmed is still two presses, nev
   const rig = await boot({ tabs: userTabs() });
   const { generation, clicked } = await readyButton(rig, onScreen, { landed: false });
   const reply = await ask(rig.ports[0], 158, 'browser_double_click', { tab: 3, generation, element: 1 });
-  assert.deepEqual(reply.result, { done: 'double-clicked' });
-  assert.equal(presses(rig.state).length, 2);
-  assert.equal(rig.state.locates, 1);
+  assert.equal(presses(rig.state).length, 2, 'the double click still sends both presses');
+  assert.equal(rig.state.locates, 1, 'located once: a missed landing is never repeated');
   assert.equal(clicked.length, 0, 'no synthetic click on top');
+  assert.deepEqual(reply.result, { done: 'double-clicked', unconfirmed: true }, 'done as on main plus the flag');
 });
 
 for (const [id, name, method, done] of [
@@ -757,13 +757,49 @@ test('an element that changed since the read is never pressed, trusted or synthe
   assert.equal(clicked.length, 0);
 });
 
-test('a press whose landing cannot be confirmed is not pressed again nor clicked synthetically', async () => {
+test('a press whose landing cannot be confirmed reports unconfirmed:true and is never repeated', async () => {
   const rig = await boot({ tabs: userTabs() });
   const { generation, clicked } = await readyButton(rig, onScreen, { landed: false });
   const reply = await ask(rig.ports[0], 53, 'browser_click', { tab: 3, generation, element: 1 });
-  assert.equal(presses(rig.state).length, 1);
-  assert.equal(clicked.length, 0);
+  assert.equal(presses(rig.state).length, 1, 'pressed once, never again');
+  assert.equal(clicked.length, 0, 'no synthetic click on top');
+  assert.deepEqual(reply.result, { done: 'clicked', unconfirmed: true }, 'done as on main plus the flag');
+});
+
+test('an unconfirmed double click reports unconfirmed:true and never repeats the press', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, clicked } = await readyButton(rig, onScreen, { landed: false });
+  const reply = await ask(rig.ports[0], 154, 'browser_double_click', { tab: 3, generation, element: 1 });
+  assert.equal(presses(rig.state).length, 2, 'the double click is two presses, not a retry');
+  assert.equal(rig.state.locates, 1, 'located once: a missed landing is never repeated');
+  assert.equal(clicked.length, 0, 'no synthetic click on top of the unconfirmed press');
+  assert.deepEqual(reply.result, { done: 'double-clicked', unconfirmed: true }, 'done as on main plus the flag');
+});
+
+test('a press that lands on the element never gets the unconfirmed wording', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen, { landed: true });
+  const reply = await ask(rig.ports[0], 155, 'browser_click', { tab: 3, generation, element: 1 });
   assert.deepEqual(reply.result, { done: 'clicked' });
+});
+
+test('a type whose press could not be confirmed returns press_unconfirmed and sends no keys', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyField(rig, { readBack: '', landed: false });
+  const reply = await ask(rig.ports[0], 90, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.equal(reply.error.code, 'press_unconfirmed', 'typed never proceeds on an unconfirmed press');
+  assert.match(reply.error.message, /read the page/i, 'the message tells the model to read first');
+  assert.match(reply.error.message, /retry/i, 'the message tells the model to retry');
+  assert.equal(keysSent(rig.state), '', 'no char key events were dispatched after the unconfirmed press');
+  assert.deepEqual(log.synthetic, [], 'the synthetic insert path did not run either');
+});
+
+test('a type whose press lands on the field sends every key as before', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyField(rig, { readBack: 'Ana' });
+  const reply = await ask(rig.ports[0], 91, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.deepEqual(reply.result, { done: 'typed' });
+  assert.equal(keysSent(rig.state), 'Ana');
 });
 
 test('after the user cancels the debugging banner nothing re-attaches and input is refused', async () => {
@@ -830,13 +866,13 @@ test('a disconnect detaches every attachment of ours, also those an earlier work
 });
 
 // A page with one text field; `value` is what the field reads back after the keys.
-async function readyField(rig, { prepare = { ready: true }, spot = onScreen, readBack = null } = {}) {
+async function readyField(rig, { prepare = { ready: true }, spot = onScreen, readBack = null, landed = true } = {}) {
   const log = { synthetic: [], prepared: 0 };
   rig.state.page = {
     read: () => ({ origin: 'https://a.example', text: '', elements: [{ id: 1, frame: 0, role: 'textbox', label: 'Name', context: '', inputType: 'text', autocomplete: null, value: '', frameOrigin: null, href: null, fieldName: null, fieldId: null }] }),
     locate: () => spot,
     hitsAt: () => true,
-    landed: () => true,
+    landed: () => landed,
     prepareType: () => { log.prepared++; return prepare; },
     typedValue: () => ({ value: readBack ?? log.typed ?? '' }),
     type: (g, id, text) => { log.synthetic.push(text); return { done: 'typed' }; },
