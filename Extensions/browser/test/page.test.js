@@ -216,7 +216,7 @@ function fake({ tag, attrs = {}, text = '', value = '', ctx = '', execWorks = tr
     closest: () => (ctx ? { getAttribute: (n) => (n === 'aria-label' ? ctx : null), querySelector: () => null } : null),
     getAttribute: (n) => (n in attrs ? attrs[n] : null),
     hasAttribute: (n) => n in attrs,
-    focus() { el.focused = true; },
+    focus() { el.focused = true; doc.activeElement = el; },
     select() {},
     querySelectorAll: () => [],
     dispatchEvent(e) { events.push(e); return true; },
@@ -562,6 +562,196 @@ test('typedValue reads an input by value and an editable by its text', () => {
   assert.deepEqual(page.typedValue(1, 1), { value: 'Ana' });
   armed(fake({ tag: 'div', attrs: { contenteditable: 'true' }, text: 'Hola', editable: true }));
   assert.deepEqual(page.typedValue(1, 1), { value: 'Hola' });
+});
+
+// ---- Focus that a page handler moved away before the text was written ----
+
+// The page's focus handler hands the focus to `target` as soon as `el` takes it.
+function stealFocus(el, target) {
+  el.focus = () => { el.focused = true; el.ownerDocument.activeElement = target; };
+  return target;
+}
+
+const writes = (el) => el.ownerDocument.execCalls.filter((c) => c === 'insertText');
+
+test('type refuses secure_field when a focus handler moved the focus to a password field', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  const pass = stealFocus(el, fake({ tag: 'input', attrs: { type: 'password' } }));
+  const out = page.typeIntoElement(el, 'hunter2');
+  assert.equal(out.error.code, 'secure_field');
+  assert.equal(el.value, '');
+  assert.equal(pass.value, '');
+  assert.deepEqual(writes(el), []);
+  assert.deepEqual(el.events, []);
+});
+
+test('type refuses stale_id, saying the focus moved, when it went to an ordinary field', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  const other = stealFocus(el, fake({ tag: 'input', attrs: { type: 'text' } }));
+  const out = page.typeIntoElement(el, 'hola');
+  assert.equal(out.error.code, 'stale_id');
+  assert.match(out.error.message, /focus moved/);
+  assert.equal(el.value, '');
+  assert.equal(other.value, '');
+  assert.deepEqual(writes(el), []);
+});
+
+test('type refuses stale_id when nothing took the focus at all', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  stealFocus(el, undefined);
+  assert.equal(page.typeIntoElement(el, 'hola').error.code, 'stale_id');
+  assert.deepEqual(writes(el), []);
+});
+
+test('type refuses on the native setter path too, not only on insertText', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' }, execWorks: false });
+  stealFocus(el, fake({ tag: 'input', attrs: { type: 'text' } }));
+  assert.equal(page.typeIntoElement(el, 'hola').error.code, 'stale_id');
+  assert.equal(el.value, '');
+  assert.deepEqual(el.events, []);
+});
+
+test('type writes as before when the focus stays on the element', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  assert.deepEqual(page.typeIntoElement(el, 'hola'), { done: 'typed' });
+  assert.equal(el.value, 'hola');
+});
+
+test('type sees a focus that moved to a field inside a shadow root', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  const inner = fake({ tag: 'input', attrs: { type: 'password' } });
+  const host = fake({ tag: 'div' });
+  host.shadowRoot = { activeElement: inner };
+  stealFocus(el, host);
+  assert.equal(page.typeIntoElement(el, 'x').error.code, 'secure_field');
+  assert.deepEqual(writes(el), []);
+});
+
+test('type descends through nested shadow roots to the real focused element', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  const inner = fake({ tag: 'input', attrs: { type: 'text' } });
+  const mid = fake({ tag: 'div' });
+  mid.shadowRoot = { activeElement: inner };
+  const outer = fake({ tag: 'div' });
+  outer.shadowRoot = { activeElement: mid };
+  stealFocus(el, outer);
+  assert.equal(page.typeIntoElement(el, 'x').error.code, 'stale_id');
+});
+
+test('type accepts an element that lives inside a shadow root and holds the focus there', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  const host = fake({ tag: 'div' });
+  host.shadowRoot = { activeElement: el };
+  el.focus = () => { el.focused = true; el.ownerDocument.activeElement = host; };
+  assert.deepEqual(page.typeIntoElement(el, 'hola'), { done: 'typed' });
+});
+
+test('type into a contenteditable accepts the caret sitting in one of its children', () => {
+  const el = fake({ tag: 'div', attrs: { contenteditable: 'true' }, editable: true });
+  const child = fake({ tag: 'p' });
+  el.contains = (node) => node === child || node === el;
+  stealFocus(el, child);
+  assert.deepEqual(page.typeIntoElement(el, 'hola'), { done: 'typed' });
+});
+
+test('a contenteditable does not take an element outside itself as its own focus', () => {
+  const el = fake({ tag: 'div', attrs: { contenteditable: 'true' }, editable: true });
+  el.contains = (node) => node === el;
+  stealFocus(el, fake({ tag: 'input', attrs: { type: 'text' } }));
+  assert.equal(page.typeIntoElement(el, 'hola').error.code, 'stale_id');
+});
+
+test('a plain text field does not accept a descendant as focus', () => {
+  const el = fake({ tag: 'textarea' });
+  const child = fake({ tag: 'span' });
+  el.contains = () => true;
+  stealFocus(el, child);
+  assert.equal(page.typeIntoElement(el, 'hola').error.code, 'stale_id');
+});
+
+test('a multi-line text is refused before its first line when the focus moved', () => {
+  const el = fake({ tag: 'textarea' });
+  stealFocus(el, fake({ tag: 'input', attrs: { type: 'password' } }));
+  assert.equal(page.typeIntoElement(el, 'linea 1\nlinea 2').error.code, 'secure_field');
+  assert.equal(el.value, '');
+  assert.deepEqual(writes(el), []);
+});
+
+test('prepareType refuses secure_field when a focus handler moved the focus to a password field', () => {
+  const el = armed(fake({ tag: 'input', attrs: { type: 'text' } }));
+  stealFocus(el, fake({ tag: 'input', attrs: { type: 'password' } }));
+  assert.equal(page.prepareType(1, 1).error.code, 'secure_field');
+});
+
+test('prepareType refuses stale_id when the focus went to an ordinary field', () => {
+  const el = armed(fake({ tag: 'input', attrs: { type: 'text' } }));
+  stealFocus(el, fake({ tag: 'input', attrs: { type: 'text' } }));
+  const out = page.prepareType(1, 1);
+  assert.equal(out.error.code, 'stale_id');
+  assert.match(out.error.message, /focus moved/);
+});
+
+test('prepareType sees a focus that moved into a shadow root', () => {
+  const el = armed(fake({ tag: 'input', attrs: { type: 'text' } }));
+  const host = fake({ tag: 'div' });
+  host.shadowRoot = { activeElement: fake({ tag: 'input', attrs: { type: 'text', autocomplete: 'cc-number' } }) };
+  stealFocus(el, host);
+  assert.equal(page.prepareType(1, 1).error.code, 'secure_field');
+});
+
+test('prepareType is ready when the focus stays, and for a contenteditable with the caret in a child', () => {
+  armed(fake({ tag: 'input', attrs: { type: 'text' } }));
+  assert.deepEqual(page.prepareType(1, 1), { ready: true, multiline: false });
+  const el = armed(fake({ tag: 'div', attrs: { contenteditable: 'true' }, editable: true }));
+  const child = fake({ tag: 'p' });
+  el.contains = (node) => node === child;
+  stealFocus(el, child);
+  assert.deepEqual(page.prepareType(1, 1), { ready: true, multiline: false });
+});
+
+test('a contenteditable never excuses a sensitive descendant that took the focus', () => {
+  for (const attrs of [{ type: 'password' }, { type: 'text', autocomplete: 'cc-number' }]) {
+    const el = fake({ tag: 'div', attrs: { contenteditable: 'true' }, editable: true });
+    const secret = fake({ tag: 'input', attrs });
+    el.contains = (node) => node === secret || node === el;
+    stealFocus(el, secret);
+    assert.equal(page.typeIntoElement(el, 'x').error.code, 'secure_field', JSON.stringify(attrs));
+    assert.deepEqual(writes(el), []);
+    assert.equal(secret.value, '');
+    armed(el);
+    assert.equal(page.prepareType(1, 1).error.code, 'secure_field', JSON.stringify(attrs));
+  }
+});
+
+// Pins of behaviour that already held.
+test('type refuses stale_id when the focus was blurred to the body', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  stealFocus(el, fake({ tag: 'body' }));
+  assert.equal(page.typeIntoElement(el, 'x').error.code, 'stale_id');
+  assert.deepEqual(writes(el), []);
+  assert.equal(el.value, '');
+});
+
+test('in a same-origin iframe the element keeps the focus in its own document and is typed into', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  assert.deepEqual(page.typeIntoElement(el, 'hola'), { done: 'typed' });
+  assert.equal(el.ownerDocument.activeElement, el);
+});
+
+test('in an iframe, a focus that went to another element of that document is refused', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  stealFocus(el, fake({ tag: 'iframe' }));
+  assert.equal(page.typeIntoElement(el, 'x').error.code, 'stale_id');
+  assert.deepEqual(writes(el), []);
+});
+
+test('a closed shadow root stops the walk at its host, which is not the element', () => {
+  const el = fake({ tag: 'input', attrs: { type: 'text' } });
+  const host = fake({ tag: 'div' });
+  host.shadowRoot = null;
+  stealFocus(el, host);
+  assert.equal(page.typeIntoElement(el, 'x').error.code, 'stale_id');
+  assert.deepEqual(writes(el), []);
 });
 
 // ---- A selector read over an open menu or listbox ----
