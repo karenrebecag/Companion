@@ -8,7 +8,7 @@ import Foundation
 /// id with the element's own action, then focus, then a mouse click posted
 /// to the process. Keeps the handles of its latest walk only: an id from an
 /// older walk is stale, never guessed.
-package final class AXScreen: ScreenActing, @unchecked Sendable {
+package final class AXScreen: ScreenActing, FrontWindowReading, @unchecked Sendable {
     /// A web page can have thousands of nodes; the walk stops on time or
     /// count and the scan says it is partial.
     static let budget: Duration = .milliseconds(600)
@@ -58,6 +58,21 @@ package final class AXScreen: ScreenActing, @unchecked Sendable {
             ?? AXRead.elements(kAXWindowsAttribute, of: application)?.first
         else { return nil }
         return AXRead.frame(of: window)
+    }
+
+    /// The window `look` would return, wrapped so the runner can compare it
+    /// across reads. Same focused -> main -> first order the walk uses.
+    /// Nil without trust or a window; a missing window is itself the signal
+    /// the runner needs to refuse the call.
+    package func frontWindow(pid: Int32) -> HandsWindow? {
+        guard trust() else { return nil }
+        let application = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
+        guard let window = AXRead.element(kAXFocusedWindowAttribute, of: application)
+            ?? AXRead.element(kAXMainWindowAttribute, of: application)
+            ?? AXRead.elements(kAXWindowsAttribute, of: application)?.first
+        else { return nil }
+        return HandsWindow(window)
     }
 
     // MARK: - Walk

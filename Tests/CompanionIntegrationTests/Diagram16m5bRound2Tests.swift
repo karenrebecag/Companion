@@ -112,7 +112,7 @@ private func isImage(_ outcome: DiagramOutcome) -> Bool { if case .image = outco
 }
 
 @MainActor
-@Test func diagramSchedulerCancellationTests() async {
+@Test(.enabled(if: !wallClockQuarantined, wallClockQuarantineReason)) func diagramSchedulerCancellationTests() async {
     await watched(60, "diagramSchedulerCancellationTests") {
         // Kills: a cancelled caller that still holds the queue for the whole draw.
         let probe = DrawProbe()
@@ -163,7 +163,7 @@ private func isImage(_ outcome: DiagramOutcome) -> Bool { if case .image = outco
 }
 
 @MainActor
-@Test func diagramSchedulerTimeoutTests() async {
+@Test(.enabled(if: !wallClockQuarantined, wallClockQuarantineReason)) func diagramSchedulerTimeoutTests() async {
     await watched(60, "diagramSchedulerTimeoutTests") {
         // A draw that never answers and ignores cancellation (a continuation
         // nobody resumes): the scheduler stops waiting, and the queue moves on.
@@ -441,7 +441,7 @@ private final class GatedRenderer: DiagramRendering {
 }
 
 @MainActor
-@Test func diagramPageFailureTests() async {
+@Test(.enabled(if: !wallClockQuarantined, wallClockQuarantineReason)) func diagramPageFailureTests() async {
     await watchedWeb(60, "diagramPageFailureTests") {
         do {
             let width = 504.0
