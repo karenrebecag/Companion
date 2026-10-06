@@ -29,6 +29,8 @@ extension IslandView {
                         await chat.expireIslandError(text)
                     }
                 }
+                // Enters and leaves on the card's own clocks, as the sheet does.
+                .transition(.islandCard(reduceMotion: reduceMotion))
                 .modifier(contentSlot(.card))
         } else {
             statusRows(state)

@@ -18,3 +18,21 @@ enum IslandUpdate {
         return tag
     }
 }
+
+/// Where the update is announced. The island's card is the announcement
+/// unless `IslandState.from` suppresses it (main window in front, or the
+/// island hidden with the voice off); then the window's toast says it once.
+package enum UpdateAnnouncement {
+    package enum Surface: Equatable { case islandCard, toast, none }
+
+    package static func surface(
+        tag: String, mainInFront: Bool, islandHidden: Bool, voiceOn: Bool, dismissedTag: String?
+    ) -> Surface {
+        if tag == dismissedTag { return .none }
+        return mainInFront || (islandHidden && !voiceOn) ? .toast : .islandCard
+    }
+
+    package static func toastText(tag: String) -> String {
+        String(format: Localized.string("update.toast"), tag)
+    }
+}
