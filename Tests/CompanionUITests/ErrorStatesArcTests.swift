@@ -311,6 +311,17 @@ private final class Hosted {
     }
 }
 
+private func upscaled(_ image: CGImage, to width: Int) -> CGImage {
+    let height = image.height * width / image.width
+    guard let space = image.colorSpace,
+          let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    else { return image }
+    context.interpolationQuality = .high
+    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    return context.makeImage() ?? image
+}
+
 private struct Ink {
     let image: CGImage
     /// Pixels per point of the bitmap, so a point-space probe lands on the same spot at any backing scale.
@@ -398,7 +409,9 @@ private struct Ink {
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = false
         request.recognitionLanguages = ["en-US", "es-ES"]
-        try? VNImageRequestHandler(cgImage: image).perform([request])
+        // The CI runner renders at 1x, where 11 pt mono and the alert glyph read
+        // as "mermanlo" and "Icould"; a fixed 3x redraw gives every host the same pixels.
+        try? VNImageRequestHandler(cgImage: upscaled(image, to: 3 * 520)).perform([request])
         return (request.results ?? [])
             .compactMap { $0.topCandidates(1).first?.string }
             .joined(separator: "\n")
