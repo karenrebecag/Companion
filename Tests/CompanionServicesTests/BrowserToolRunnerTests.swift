@@ -244,6 +244,40 @@ import Testing
     expect(rig.channel.writes.isEmpty, "cero escrituras")
 }
 
+// MARK: - unconfirmed press
+
+/// The extension's done text is dropped for element actions, so the host must say it itself.
+@Test func aClickThePageDidNotSeeLandSaysSoAndAConfirmedOneDoesNot() async {
+    for tool in ["browser_click", "browser_double_click", "browser_right_click"] {
+        let rig = makeToolRig()
+        await rig.read()
+        let plain = await rig.run(tool, #"{"tab":12,"element":1}"#)
+        expect(plain.ok && !plain.output.contains("could not be confirmed"), "\(tool) confirmed: \(plain.output)")
+        rig.channel.answerWritesUnconfirmed()
+        let out = await rig.run(tool, #"{"tab":12,"element":1}"#)
+        expect(out.ok, "\(tool): still a done, the press may have landed")
+        expect(out.output.contains(BrowserCopy.pressUnconfirmed(.en)), "\(tool) unconfirmed line: \(out.output)")
+        expect(out.output.contains("read the tab again"), "\(tool) keeps the base line: \(out.output)")
+    }
+}
+
+@Test func theUnconfirmedLineIsLocalised() async {
+    let rig = makeToolRig(language: { .es })
+    await rig.read()
+    rig.channel.answerWritesUnconfirmed()
+    let out = await rig.run("browser_click", #"{"tab":12,"element":1}"#)
+    expect(out.output.contains(BrowserCopy.pressUnconfirmed(.es)), "es line: \(out.output)")
+    expect(!out.output.contains(BrowserCopy.pressUnconfirmed(.en)), "not the English one: \(out.output)")
+}
+
+@Test func anUnconfirmedTypeWithoutLineBreaksStillSaysTheLineBreaksAreMissing() async {
+    let rig = makeToolRig()
+    await rig.read()
+    rig.channel.answerWrites(with: BrowserCopy.typedWithoutLineBreaks)
+    let out = await rig.run("browser_type", #"{"tab":12,"element":5,"text":"Hola\nAna"}"#)
+    expect(out.output.contains("line breaks"), "exact match still works: \(out.output)")
+}
+
 // MARK: - type
 
 @Test func typingIntoASensitiveFieldIsRefusedWithoutSending() async {

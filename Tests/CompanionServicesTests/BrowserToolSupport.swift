@@ -48,6 +48,10 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
     private var writeNote = "ok"
     func answerWrites(with note: String) { lock.withLock { writeNote = note } }
 
+    private var writesUnconfirmed = false
+    /// What the extension says when the press may not have landed on the element.
+    func answerWritesUnconfirmed() { lock.withLock { writesUnconfirmed = true } }
+
     private var releaseFailure: ContractError?
     func failReleases(with error: ContractError) { lock.withLock { releaseFailure = error } }
 
@@ -105,6 +109,7 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
         case .click, .doubleClick, .rightClick, .hover, .scroll, .scrollTo, .dragTo, .dragBy, .clickAt, .type, .select, .press,
              .navigate:
             if let writeFailure { return .failure(writeFailure) }
+            if writesUnconfirmed { return .success(.doneUnconfirmed(id: 1, message: writeNote)) }
             return .success(.done(id: 1, message: writeNote))
         }
     }
@@ -145,7 +150,8 @@ struct BrowserToolRig {
 /// Wave 18b: the tools under test read tab 12, which since then must be
 /// controlled; `owned: false` is the tab nobody took.
 func makeToolRig(
-    connected: Bool = true, page: BrowserPage = crmPage(), tabs: [BrowserTab]? = nil, owned: Bool = true
+    connected: Bool = true, page: BrowserPage = crmPage(), tabs: [BrowserTab]? = nil, owned: Bool = true,
+    language: @escaping @Sendable () -> AppLanguage = { .en }
 ) -> BrowserToolRig {
     let presence = BrowserPresence()
     if connected { presence.set(.comet) }
@@ -153,7 +159,8 @@ func makeToolRig(
         pages: [page], tabs: tabs ?? [BrowserTab(id: 12, title: "CRM", url: page.url, active: false)])
     let leases = BrowserLeases(epoch: presence.epoch)
     if owned { leases.acquire(tab: 12, caller: "chat") }
-    let runner = BrowserToolRunner(channel: channel, presence: presence, leases: leases, caller: "chat")
+    let runner = BrowserToolRunner(
+        channel: channel, presence: presence, language: language, leases: leases, caller: "chat")
     return BrowserToolRig(runner: runner, channel: channel, presence: presence)
 }
 

@@ -392,6 +392,24 @@ func browserTabsReply(_ id: Int) -> String {
     expect(log.contains("chars=\(secret.count)"), "logs: only a char count of the text")
 }
 
+@Test func anUnconfirmedClickReachesTheCallerAndAPageInItsPlaceIsRefused() async throws {
+    let rig = try makeBrowserRig()
+    defer { rig.listener.stop() }
+    let client = try await browserConnected(rig)
+    defer { client.close() }
+    let command = BrowserCommand.click(tab: 12, generation: 3, element: 5)
+    let done = Task { await rig.channel.send(command, timeout: .seconds(5)) }
+    guard let id = browserCallID((await client.line())) else { expect(false, "call has an id"); return }
+    try client.send(#"{"id":\#(id),"result":{"done":"clicked","unconfirmed":true}}"#)
+    expectEq(await done.value, .success(.doneUnconfirmed(id: id, message: "clicked")), "unconfirmed done resolves a click")
+    let scroll = Task { await rig.channel.send(.scroll(tab: 12, dx: 0, dy: 400), timeout: .seconds(5)) }
+    guard let second = browserCallID((await client.line())) else { expect(false, "call has an id"); return }
+    try client.send(#"{"id":\#(second),"result":{"done":"ok","unconfirmed":true}}"#)
+    expectEq(await scroll.value,
+             .failure(ContractError(code: BridgeCode.badFrame, message: "Unexpected reply for browser_scroll")),
+             "only a press can be unconfirmed")
+}
+
 // H-7 P5b: scroll, scroll-to and hover answer with done; anything else is a bad frame.
 @Test func scrollAndHoverAcceptDoneAndRefuseAPage() async throws {
     let rig = try makeBrowserRig()

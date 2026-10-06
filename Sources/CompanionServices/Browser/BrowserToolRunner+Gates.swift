@@ -177,8 +177,11 @@ extension BrowserToolRunner {
                     target: page.origin, tool: tool.rawValue)
             }
             let done = tool == .type ? "typed into" : tool == .select ? "chose an option in" : Self.verb(tool, past: true)
+            let base = "\(done) [\(id)]; read the tab again to see the result"
+            let output: String
+            if case .doneUnconfirmed = reply { output = base + " " + BrowserCopy.pressUnconfirmed(language()) } else { output = base }
             return ParentToolOutcome(
-                ok: true, output: "\(done) [\(id)]; read the tab again to see the result",
+                ok: true, output: output,
                 target: page.origin, tool: tool.rawValue)
         }
     }
