@@ -84,6 +84,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         var specs = ParentTool.specs(language)
             .filter { $0.name != ParentTool.readSkill.rawValue || skills != nil }
         if places != nil { specs.append(NativeTool.findPlaces.spec) }
+        specs.append(ShowCard.spec(language))
         specs += deliverables.map(\.spec)
         if let hands = readyHands {
             specs += ParentTool.handsSpecs(
@@ -100,6 +101,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
             return tool != .readSkill || skills != nil
         }
         if deliverables.contains(where: { $0.rawValue == name }) { return true }
+        if name == ShowCard.name { return true }
         return name == NativeTool.findPlaces.rawValue && places != nil
     }
 
@@ -124,6 +126,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
                 "could not parse arguments (\(argumentsJSON.count) chars); send one JSON object"))
         }
         guard let tool = ParentTool(rawValue: name) else {
+            if name == ShowCard.name { return showCard(arguments) }
             if let deliverable = NativeTool(rawValue: name),
                deliverables.contains(deliverable) {
                 return await runDeliverable(deliverable, arguments: arguments, argumentsJSON: argumentsJSON)
@@ -211,6 +214,20 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
 
     /// By catalog name only. A path is not a valid name, so it is not found
     /// before anything looks at the disk.
+    /// Source `.model`: the numbers are the model's, the same as in a fence.
+    /// What changed is the transport, not who vouches for the data.
+    private func showCard(_ arguments: [String: Any]) -> ParentToolOutcome {
+        guard let payload = ShowCard.payload(from: arguments) else {
+            return .failed(.invalidArgs(
+                "card must be stats (items), table (columns, rows) or chart "
+                    + "(labels, series with one value per label)"),
+                tool: ShowCard.name)
+        }
+        return ParentToolOutcome(
+            ok: true, output: ShowCard.shown(payload), target: payload.title ?? "",
+            card: Card(payload: payload, source: .model), tool: ShowCard.name)
+    }
+
     private func readSkill(_ arguments: [String: Any]) -> ParentToolOutcome {
         guard let raw = arguments["name"] as? String else {
             return .failed(.invalidArgs("missing name"))
