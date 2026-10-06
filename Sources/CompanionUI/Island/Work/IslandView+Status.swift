@@ -105,14 +105,12 @@ extension IslandView {
             VStack(spacing: Space.none) {
                 if let request = state.approval {
                     ApprovalSheet(request: request) { approved, remember in
-                        guard ApprovalClickGuard.accepts(clickGuard, at: Date().timeIntervalSince1970,
-                                                   contentVisible: contentVisible)
-                        else { return }
+                        guard clickGate(for: request).accepts else { return }
                         chat.approvalAnswer(for: request)(approved, remember)
                     }
                     // The window grows before the content fades in: until it
                     // is visible the buttons take no clicks at all.
-                    .allowsHitTesting(contentVisible)
+                    .allowsHitTesting(clickGate(for: request).takesClicks)
                     // A new request is a new sheet: without the id the
                     // reused view keeps the old ring and toggle (19-1b M1).
                     .id(request.requestId)
@@ -194,5 +192,23 @@ struct RunCardHoverRegion: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+extension IslandView {
+    var clickGuardKey: ApprovalClickGuard.Key {
+        ApprovalClickGuard.Key(requestId: state.approval?.requestId, contentVisible: contentVisible)
+    }
+
+    func armClickGuard() {
+        clickGuard = ApprovalClickGuard.armed(
+            clickGuard, requestId: state.approval?.requestId, contentVisible: contentVisible,
+            now: Date().timeIntervalSince1970,
+            reveal: IslandMotionBudget.revealTime(reduceMotion: reduceMotion))
+    }
+
+    func clickGate(for request: ApprovalRequest) -> ApprovalClickGuard.Gate {
+        ApprovalClickGuard.gate(clickGuard, requestId: request.requestId, contentVisible: contentVisible,
+                                now: Date().timeIntervalSince1970)
     }
 }
