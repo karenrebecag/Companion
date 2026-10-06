@@ -403,9 +403,10 @@ final class ClassicRuntime: @unchecked Sendable {
                     }
                     switch delta {
                     case .text(let raw):
-                        let (piece, found) = guardJSON(mouth.json.feed(raw))
+                        let step = mouth.json.feed(raw)
+                        let (piece, found) = guardJSON(step)
                         if fromContent == nil { fromContent = found }
-                        guard await take(piece, round: &text, &mouth, apply: apply) else {
+                        guard await take(piece, shown: step.display, round: &text, &mouth, apply: apply) else {
                             return await cutTurn(transcript, generation: generation, cut: cut)
                         }
                         if mouth.buffer.awaitsFirstCut { armFirstCut() }
@@ -430,8 +431,9 @@ final class ClassicRuntime: @unchecked Sendable {
             }
             // An object still open when the stream ends was cut off: dropped,
             // never spoken; a lone brace was prose.
-            let (tail, _) = guardJSON(mouth.json.finish())
-            guard await take(tail, round: &text, &mouth, apply: apply) else {
+            let last = mouth.json.finish()
+            let (tail, _) = guardJSON(last)
+            guard await take(tail, shown: last.display, round: &text, &mouth, apply: apply) else {
                 return await cutTurn(transcript, generation: generation, cut: cut)
             }
             if failed { break }

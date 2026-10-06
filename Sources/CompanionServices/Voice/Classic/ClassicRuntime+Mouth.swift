@@ -239,12 +239,15 @@ extension ClassicRuntime {
     /// Speakable text into the stream and the buffer; false when a press
     /// cut the turn while its sentences were being enqueued.
     func take(
-        _ piece: String, round text: inout String, _ mouth: inout TurnMouth,
+        _ piece: String, shown: String? = nil, round text: inout String, _ mouth: inout TurnMouth,
         apply: @Sendable (TurnEvent) async -> Void
     ) async -> Bool {
-        guard !piece.isEmpty else { return true }
-        let piece = SpeechFilter.joiner(after: mouth.spoken, before: piece) + piece
-        let voiced = SpeechFilter.stoppingLines(piece, after: mouth.spoken)
+        let shown = shown ?? piece
+        guard !shown.isEmpty else { return true }
+        // A card fence is kept for the thread but never voiced.
+        let voiced = piece.isEmpty ? "" : SpeechFilter.stoppingLines(
+            SpeechFilter.joiner(after: mouth.spoken, before: piece) + piece, after: mouth.spoken)
+        let piece = SpeechFilter.joiner(after: mouth.spoken, before: shown) + shown
         if !mouth.started {
             mouth.started = true
             await apply(.firstSentence)

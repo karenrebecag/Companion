@@ -16,6 +16,7 @@ import Testing
     testNonCandidateBracesAreProse()
     testADoubledBraceNeverSpeaksTheObject()
     testEmptyAndUnicodeInput()
+    testACardFenceKeepsItsData()
 }
 
 @MainActor func testThePureObjectBecomesAHandoff() {
@@ -106,4 +107,14 @@ import Testing
     let step = scan.feed(#"Sí ñandú {"goal":"añade ✓ 日本"}"#)
     expectEq(step.speakable, "Sí ñandú ", "scanner: unicode en prosa")
     expectEq(step.handoff?.goal, "añade ✓ 日本", "scanner: unicode en goal")
+}
+
+@MainActor func testACardFenceKeepsItsData() {
+    var scan = HandoffInText()
+    let pieces = ["Ventas:\n\n``", "`companion:chart\n{\"kind\":\"bar\",", "\"labels\":[\"Ene\"]}\n```\nListo"]
+    let steps = pieces.map { scan.feed($0) } + [scan.finish()]
+    expectEq(steps.map(\.display).joined(), pieces.joined(), "scanner: el hilo guarda la tarjeta entera")
+    expectEq(steps.map(\.speakable).joined(), "Ventas:\n\n\nListo", "scanner: la voz no lee la tarjeta")
+    var plain = HandoffInText()
+    expectEq(plain.feed(#"Ok {"goal":"x"}"#).handoff?.goal, "x", "scanner: fuera de un bloque sigue detectando")
 }

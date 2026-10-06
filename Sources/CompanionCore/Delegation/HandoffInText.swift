@@ -23,8 +23,16 @@ package struct HandoffInText: Sendable, Equatable {
         package var handoff: Handoff?
         package var handoffChars = 0
         package var droppedChars = 0
+        /// What the thread keeps: the speakable text plus any fence, whose
+        /// card data must reach the thread but never the voice.
+        package var display = ""
 
         package init() {}
+
+        mutating func say(_ text: String) {
+            speakable += text
+            display += text
+        }
     }
 
     private var held = ""
@@ -34,17 +42,27 @@ package struct HandoffInText: Sendable, Equatable {
     private var inString = false
     private var escaped = false
     private var overflow = false
+    // A card fence carries its data as a JSON object; dropping it left
+    // "```companion:chart\n\n```" in the thread and no card (2026-10-06).
+    // Inside any fence the scanner steps aside: code is never spoken anyway.
+    private var inFence = false
+    private var atLineStart = true
+    private var ticks = 0
 
     package init() {}
 
     package mutating func feed(_ piece: String) -> Step {
         var step = Step()
         for char in piece {
+            if depth == 0, trackFence(char) {
+                step.display.append(char)
+                continue
+            }
             if depth == 0 {
                 if char == "{" {
                     open()
                 } else {
-                    step.speakable.append(char)
+                    step.say(String(char))
                 }
                 continue
             }
@@ -57,11 +75,11 @@ package struct HandoffInText: Sendable, Equatable {
             } else if char == "{" {
                 // Code review 2026-09-25 (LOW-1): in "{{"goal"…}}" the inner
                 // brace is the object; the outer one is only prose.
-                step.speakable += String(held.dropLast())
+                step.say(String(held.dropLast()))
                 open()
             } else if !char.isWhitespace || heldCount > Self.maxObjectChars {
                 // Not JSON after all: the brace and what followed are prose.
-                step.speakable += held
+                step.say(held)
                 reset()
             }
         }
@@ -76,10 +94,28 @@ package struct HandoffInText: Sendable, Equatable {
         if committed {
             step.droppedChars = heldCount
         } else {
-            step.speakable = held
+            step.say(held)
         }
         reset()
         return step
+    }
+
+    /// True while the character belongs to a fence (its markers included).
+    private mutating func trackFence(_ char: Character) -> Bool {
+        if char == "`", atLineStart || ticks > 0 {
+            ticks += 1
+            if ticks == 3 {
+                inFence.toggle()
+                ticks = 0
+                atLineStart = false
+                return true
+            }
+            return true
+        }
+        let wasTicks = ticks > 0
+        ticks = 0
+        atLineStart = char == "\n"
+        return inFence || wasTicks
     }
 
     private mutating func open() {
