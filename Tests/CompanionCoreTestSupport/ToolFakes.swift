@@ -155,19 +155,36 @@ package final class FakeParentTools: ParentToolExecuting, @unchecked Sendable {
 
     package func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
         // `.lock()/.unlock()` are noasync; `withLock` is the async-safe form.
-        lock.withLock {
+        let observer = lock.withLock { _lineageObserver }
+        observer?("execute")
+        return lock.withLock {
             _executeCalls.append((name, argumentsJSON))
             return scriptedOutcome
         }
     }
 
     package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
+        let observer = lock.withLock { _lineageObserver }
+        observer?("approval")
         lock.lock()
         _saidSeen.append(said)
         let request = scriptedApproval
         lock.unlock()
         return request
     }
+
+    // MARK: - lineage observation knob (used by BridgeCallerLineageTests)
+
+    /// Installs a closure that fires on every call to `approval` and
+    /// `execute`, in the order the bridge made them. The bridge wraps
+    /// the call in `HandsCaller.$apps.withValue(lineage)`, so a test
+    /// reads `HandsCaller.apps` from inside the closure to capture what
+    /// the bridge decided was the caller's lineage.
+    package func setLineageObserver(_ observer: (@Sendable (String) -> Void)?) {
+        lock.withLock { _lineageObserver = observer }
+    }
+
+    private var _lineageObserver: (@Sendable (String) -> Void)?
 
     package func granted(_ request: ApprovalRequest) {
         lock.lock(); _grantedCalls.append(request); lock.unlock()

@@ -165,8 +165,15 @@ extension BridgeSession {
         defer { markActive() }
         let ref = ToolCallRef(id: UUID().uuidString, name: call.name, arguments: call.argumentsJSON)
         let parkedSheet = parked
-        let verdict = await guardian.verdict(
-            ref, said: "", language: language(), tools: tools, parked: { parkedSheet.park($0, owner: mine) })
+        // The terminal that launched the shim counts as the caller, not as
+        // a switch away from the pinned app. The sheet and the call must
+        // resolve the same pid, or the approval ticket never redeems.
+        let lineage = HandsCaller.lineage(of: current?.peer?.pid)
+        let verdict = await HandsCaller.$apps.withValue(lineage) {
+            await guardian.verdict(
+                ref, said: "", language: language(), tools: tools,
+                parked: { parkedSheet.park($0, owner: mine) })
+        }
         let withdrawn = parked.settleCurrent(owner: mine)
         guard mine == epoch else {
             tools.withdraw(ref)
@@ -184,7 +191,9 @@ extension BridgeSession {
             Log.bridge("call approved after the client left; nothing executed")
             return .dropped
         }
-        let outcome = await tools.execute(name: call.name, argumentsJSON: call.argumentsJSON)
+        let outcome = await HandsCaller.$apps.withValue(lineage) {
+            await tools.execute(name: call.name, argumentsJSON: call.argumentsJSON)
+        }
         if outcome.ok { onCall(call.name) }
         if outcome.ok, BridgePolicy.writeTools.contains(call.name) {
             onAction(call.name)
