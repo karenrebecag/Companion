@@ -67,6 +67,8 @@ const SHAPES = {
     && optional(a.exact, isBool) && optional(a.role, isSearch) && optional(a.name, isSearch)
     && (a.name == null || a.role != null)
     && optional(a.max, isCount) && optional(a.maxChars, isCount)
+    // A non-boolean must not widen the read. Absent keeps the visible list.
+    && optional(a.hidden, isBool)
     // within names an element of one read, so it means nothing without that read's generation.
     && (a.within == null ? true : isInt(a.within) && isInt(a.generation)),
   browser_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),

@@ -18,7 +18,7 @@ These tools exist only while the extension is connected. If `browser_tabs` is no
 - `browser_open(url)` opens an http or https address in a new background tab that is yours from the start. Prefer it: it is the way to work on a site without touching the user's own tabs.
 - `browser_take(tab)` takes control of an existing tab, only when the user named it ("read my Gmail tab"). It moves into the Companion group. Through an outside agent it asks the user first; if they say no, the tab does not move.
 - `browser_release(tab)` gives the tab back when the task is done. Idle tabs and a disconnect release on their own.
-- `browser_read(tab, selector?)` returns the tab's text and its elements, each with a number. `>>>` in a selector crosses frames and shadow roots.
+- `browser_read(tab, selector?)` returns the tab's text and its elements, each with a number. `>>>` in a selector crosses frames and shadow roots. `hidden: true` also lists elements that are not rendered (display none, visibility hidden, a closed details); each is marked `hidden`, and a click, type, scroll or hover on one is refused while it stays hidden. Their text is not added to the page text, and no mark does not prove an element is on screen.
 - `browser_click(tab, element)` and `browser_type(tab, element, text)` act on a numbered element.
 - `browser_double_click(tab, element)` and `browser_right_click(tab, element)` press it twice, or with the right button to open the page's own menu; they ask wherever a click on that element would.
 - `browser_select(tab, element, option)` chooses an option of a dropdown list (a `<select>`) by the label the page shows. A label that is not there answers `option_not_found` with the labels the list has.

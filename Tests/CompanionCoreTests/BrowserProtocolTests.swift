@@ -269,6 +269,40 @@ private func object(_ line: String) -> [String: Any] {
     expectEq(odd.elements.first?.states, [], "a states value that is not a list is ignored")
 }
 
+// The model reads the rendered line. A boolean the renderer ignores would list a hidden control as if it were on screen.
+@Test func hiddenReadMarksTheElementForTheModel() {
+    let marked = #"{"id":7,"result":{"page":{"tab":1,"origin":"https://x.test","url":"https://x.test/","title":"T","text":"","generation":1,"truncated":false,"elements":[{"id":1,"role":"button","label":"Secret","states":["disabled"],"hidden":true},{"id":2,"role":"button","label":"Shown","states":["hidden"]}]}}}"#
+    guard case .success(.page(_, let page)) = BrowserCodec.decode(line: marked) else { Issue.record("no page"); return }
+    expectEq(page.elements.map(\.states), [["disabled", "hidden"], []], "only the boolean marks, after the page's own states")
+    let text = BrowserPolicy.render(page, maxBytes: 4_000)
+    expect(text.contains(#"[1] button "Secret" (disabled, hidden)"#), "the model sees the mark: \(text)")
+    expect(text.contains(#"[2] button "Shown""#) && !text.contains(#""Shown" ("#), "a page that says hidden is not marked: \(text)")
+    let number = marked.replacingOccurrences(of: #""hidden":true"#, with: #""hidden":1"#)
+    guard case .success(.page(_, let coerced)) = BrowserCodec.decode(line: number) else { Issue.record("no page"); return }
+    expectEq(coerced.elements.first?.states, ["disabled"], "a number is not true")
+    let encoded = object(BrowserCodec.encode(.call(id: 1, .read(tab: 2, query: BrowserQuery(hidden: true)))))
+    let args = (encoded["params"] as? [String: Any])?["arguments"] as? [String: Any]
+    expect((args?["hidden"] as? Bool) == true || (args?["hidden"] as? NSNumber)?.boolValue == true, "true is sent")
+    let plain = object(BrowserCodec.encode(.call(id: 1, .read(tab: 2, query: BrowserQuery()))))
+    let plainArgs = (plain["params"] as? [String: Any])?["arguments"] as? [String: Any]
+    expect(plainArgs?["hidden"] == nil, "absent stays off the wire")
+}
+
+// A control that is not rendered must not hand its value to the model, even from an extension that sent one.
+@Test func hiddenElementDropsItsValueAndOnlyARealTrueCounts() {
+    func elements(_ extra: String) -> [BrowserElement]? {
+        let line = #"{"id":7,"result":{"page":{"tab":1,"origin":"https://x.test","url":"https://x.test/","title":"T","text":"","generation":1,"truncated":false,"elements":[{"id":1,"role":"textbox","label":"Token","states":["disabled"],"value":"tok"\#(extra)}]}}}"#
+        guard case .success(.page(_, let page)) = BrowserCodec.decode(line: line) else { return nil }
+        return page.elements
+    }
+    expectEq(elements(#","hidden":true"#)?.first?.value, nil, "a hidden element has no value")
+    expectEq(elements("")?.first?.value, "tok", "a shown element keeps its value")
+    expectEq(elements(#","hidden":false"#)?.first?.value, "tok", "false keeps the value")
+    expectEq(elements(#","hidden":false"#)?.first?.states, ["disabled"], "false adds no mark")
+    expectEq(elements(#","hidden":"true""#)?.first?.states, ["disabled"], "a string is not true")
+    expectEq(elements(#","hidden":"true""#)?.first?.value, "tok", "a string does not drop the value")
+}
+
 // A word the extension adds without the allowlist would be dropped here without anyone noticing.
 @Test func everyStateTheExtensionSendsIsOnTheAllowlist() throws {
     let source = scriptText("Extensions/browser/lib/page.js")

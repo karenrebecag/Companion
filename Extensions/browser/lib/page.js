@@ -244,7 +244,8 @@
 
   function serializeElement(el, id, frame) {
     const field = fieldOf(el);
-    return {
+    const hidden = !isVisible(el);
+    const out = {
       id,
       frame,
       role: roleOf(el),
@@ -252,7 +253,8 @@
       context: contextOf(el),
       inputType: field.type,
       autocomplete: field.autocomplete,
-      value: valueOf(el, field),
+      // A control that is not rendered never carries its value: the hidden list is for finding, not for reading.
+      value: hidden ? null : valueOf(el, field),
       // The background fills this in for elements that live in a frame of another origin.
       frameOrigin: null,
       href: hrefOf(el),
@@ -261,6 +263,10 @@
       states: statesOf(el),
       submit: submitOf(el, field),
     };
+    // A visible control keeps the payload it always had. This boolean is the only
+    // mark the host shows: a page cannot put the word into states and have it stick.
+    if (hidden) out.hidden = true;
+    return out;
   }
 
   // One code for the model, a reason for the logs: a live stale_id has to say which check refused it.
@@ -475,10 +481,11 @@
     return globalThis.__companionState;
   }
 
-  function collect(root, out) {
+  // includeHidden is the opt-in read. The default still drops anything not on screen.
+  function collect(root, out, includeHidden = false) {
     for (const node of root.querySelectorAll('*')) {
-      if (node.shadowRoot) collect(node.shadowRoot, out);
-      if (isListable(node) && isVisible(node)) out.push(node);
+      if (node.shadowRoot) collect(node.shadowRoot, out, includeHidden);
+      if (isListable(node) && (includeHidden || isVisible(node))) out.push(node);
     }
   }
 
@@ -506,14 +513,16 @@
 
   // A selector usually names the open menu or listbox, not its items, so a match stands for its whole
   // subtree. An empty result must say why, or the model reads "nothing" as "nothing is there".
-  function readMatches(matches) {
+  function readMatches(matches, includeHidden = false) {
     if (matches.length === 0) {
       return { error: { code: 'selector_no_match', message: 'nothing matches the selector' } };
     }
     const shown = matches.filter(isShown);
-    if (shown.length === 0) {
+    // The opt-in read returns those matches, marked hidden, instead of stopping here.
+    if (shown.length === 0 && !includeHidden) {
       return { error: { code: 'selector_hidden', message: 'everything the selector matches is hidden' } };
     }
+    const kept = includeHidden ? matches : shown;
     const seen = new Set();
     const nodes = [];
     const add = (node) => {
@@ -521,17 +530,18 @@
       seen.add(node);
       nodes.push(node);
     };
-    for (const match of shown) {
-      if (isListable(match)) add(match);
+    for (const match of kept) {
+      if (isListable(match) && (includeHidden || isVisible(match))) add(match);
       const inside = [];
       // collect enters the shadow roots of descendants only, so the match's own root is walked here.
-      if (match.shadowRoot) collect(match.shadowRoot, inside);
-      collect(match, inside);
+      if (match.shadowRoot) collect(match.shadowRoot, inside, includeHidden);
+      collect(match, inside, includeHidden);
       inside.forEach(add);
     }
     // A match inside another match already gave its text through the outer one's innerText. Matches come
     // in document order, so a descendant always follows its ancestor: one comparison with the last kept
     // match suffices, where checking every pair hangs the tab on a broad selector.
+    // Text comes from the shown matches only: innerText of an unrendered node is its whole textContent.
     const outermost = [];
     for (const match of shown) {
       const last = outermost[outermost.length - 1];
@@ -615,7 +625,8 @@
     const matched = nodes.filter((node) => fits(node, q));
     const lines = q.text == null ? [] : text.split('\n').filter((line) => line.trim() && says(line, q.text, q.exact));
     if (matched.length > 0 || lines.length > 0) {
-      const own = q.text == null ? matched.map((node) => String(node.innerText ?? node.textContent ?? '').trim()).filter(Boolean) : lines;
+      // A hidden control is listed, but its text is not the page's.
+      const own = q.text == null ? matched.filter(isVisible).map((node) => String(node.innerText ?? node.textContent ?? '').trim()).filter(Boolean) : lines;
       return { nodes: matched, text: own.join('\n') };
     }
     // Only the part searched counts: a hidden control elsewhere would wrongly say "it is here, hidden".
@@ -638,10 +649,12 @@
     const doc = document;
     const scope = scopeOf(q, state);
     if (scope.error) return scope;
+    // Only a real true opts in. Absent or false keeps the visible read.
+    const includeHidden = q.hidden === true;
     let nodes = [];
     let text = '';
     if (q.selector == null && scope.root === doc && !hasFinder(q)) {
-      collect(doc, nodes);
+      collect(doc, nodes, includeHidden);
       ({ nodes, text } = overlayFirst(doc, nodes));
     } else {
       let scoped;
@@ -650,12 +663,12 @@
         const segments = parseSelector(q.selector);
         if (!segments) return { error: { code: 'invalid_args', message: 'invalid selector' } };
         roots = resolveSelector(scope.root, segments);
-        scoped = readMatches(roots);
+        scoped = readMatches(roots, includeHidden);
       } else if (scope.root !== doc) {
-        scoped = readMatches([scope.root]);
+        scoped = readMatches([scope.root], includeHidden);
       } else {
         const all = [];
-        collect(doc, all);
+        collect(doc, all, includeHidden);
         scoped = { nodes: all, text: bodyText(doc) };
       }
       if (scoped.error) return scoped;
@@ -663,6 +676,8 @@
       if (scoped.error) return scoped;
       ({ nodes, text } = scoped);
     }
+    // Hidden ones go last so they cannot push the visible elements out of the max cut.
+    if (includeHidden) nodes = [...nodes.filter(isVisible), ...nodes.filter((node) => !isVisible(node))];
     if (Number.isInteger(q.max) && q.max > 0) nodes = nodes.slice(0, q.max);
     text = cutUnits(text, Number.isInteger(q.maxChars) && q.maxChars > 0 ? Math.min(q.maxChars, TEXT_MAX) : TEXT_MAX);
     const kept = new Map(state.reads ?? []);

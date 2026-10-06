@@ -694,6 +694,27 @@ private func sentQuery(_ rig: BrowserToolRig) -> BrowserQuery? {
              "one query")
 }
 
+@Test func hiddenReadOptsInAndRejectsANonBoolean() async {
+    let on = makeToolRig()
+    let listed = await on.run("browser_read", #"{"tab":12,"hidden":true}"#)
+    expect(listed.ok, "read ok: \(listed.output)")
+    expectEq(sentQuery(on)?.hidden, true, "true opts in")
+    let off = makeToolRig()
+    let plain = await off.run("browser_read", #"{"tab":12}"#)
+    expect(plain.ok, "read ok: \(plain.output)")
+    expectEq(sentQuery(off)?.hidden, false, "absent stays the visible read")
+    let explicit = makeToolRig()
+    let no = await explicit.run("browser_read", #"{"tab":12,"hidden":false}"#)
+    expect(no.ok, "read ok: \(no.output)")
+    expectEq(sentQuery(explicit)?.hidden, false, "false stays the visible read")
+    for arguments in [#"{"tab":12,"hidden":"yes"}"#, #"{"tab":12,"hidden":1}"#] {
+        let rig = makeToolRig()
+        let out = await rig.run("browser_read", arguments)
+        expect(!out.ok && out.output.hasPrefix(BridgeCode.invalidArgs), "\(arguments): \(out.output)")
+        expect(rig.channel.sent.isEmpty, "\(arguments): nothing sent")
+    }
+}
+
 @Test func withinNamesAnElementOfTheLastReadOfThatTab() async {
     let rig = makeToolRig()
     await rig.read()
@@ -722,8 +743,21 @@ private func sentQuery(_ rig: BrowserToolRig) -> BrowserQuery? {
     let properties = BrowserTool.read.spec(.en).properties
     let types = Dictionary(uniqueKeysWithValues: properties.map { ($0.name, $0.type) })
     expectEq(types, ["tab": "integer", "selector": "string", "text": "string", "exact": "boolean", "role": "string",
-                     "name": "string", "within": "integer", "max": "integer", "max_chars": "integer"], "types")
+                     "name": "string", "within": "integer", "max": "integer", "max_chars": "integer",
+                     "hidden": "boolean"], "types")
     expectEq(BrowserTool.read.spec(.en).required, ["tab"], "only the tab is required")
+    // hidden widens the read. BrowserCopy falls back to the bare name, so the description must be real words.
+    let hiddenCopy: [AppLanguage: (refusal: String, mark: String)] = [.en: ("refused", "marked hidden"), .es: ("rechaza", "marcado `hidden`")]
+    for language in AppLanguage.allCases {
+        let spec = BrowserTool.read.spec(language)
+        let hidden = spec.properties.first { $0.name == "hidden" }?.description ?? ""
+        guard let words = hiddenCopy[language] else { Issue.record("\(language): no expected words"); continue }
+        expect(hidden != "hidden", "\(language): the parameter has a description of its own")
+        for (label, text) in [("tool", spec.description), ("parameter", hidden)] {
+            expect(text.localizedCaseInsensitiveContains(words.refusal), "\(language): \(label) names the refusal: \(text)")
+            expect(text.contains(words.mark), "\(language): \(label) names the mark: \(text)")
+        }
+    }
     // browser_type's `text` is what to type; on the read it is what to look for, so each needs its own words.
     for language in AppLanguage.allCases {
         let readText = BrowserTool.read.spec(language).properties.first { $0.name == "text" }?.description ?? ""
