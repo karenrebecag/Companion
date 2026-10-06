@@ -43,7 +43,8 @@ struct ModulePlaceholderPage: View {
     private func copy() -> some View {
         VStack(spacing: Space.x2) {
             Text(Localized.string(placeholder.titleKey))
-                .font(Fonts.sans(TypeSize.dialogTitle).weight(.semibold))
+                .typeRole(.dialogTitle)
+                .fontWeight(.semibold)
                 .tracking(Tracking.title, at: TypeSize.dialogTitle)
                 .foregroundStyle(Semantic.foreground)
                 .multilineTextAlignment(.center)
