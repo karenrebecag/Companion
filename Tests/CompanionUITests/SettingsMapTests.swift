@@ -84,6 +84,24 @@ import Testing
              "Datos: borrar historial (con su rowId para la busqueda) y luego los adjuntos")
 }
 
+// The reset row lives in another branch (PR #228, ResetPermissionsRow). A row that
+// erases nothing would be a lie, so the zone stays out until that port lands.
+// Whoever mounts #228 flips this test on purpose: add `.danger`, its row and its search entry.
+@Test @MainActor func dangerZoneStaysOutUntilTheResetPortLands() async {
+    expectEq(SettingsSystemSection.allCases.count, 4, "cuatro secciones, ninguna de peligro")
+    for language in [AppLanguage.es, .en] {
+        await Localized.scoped(to: language) {
+            let entries = SettingsInventory.searchEntries
+            expect(!entries.contains { $0.id.contains("resetPermissions") }, "\(language): no hay fila de reinicio")
+            for word in ["peligro", "danger", "reset", "reiniciar"] {
+                let hits = SettingsSearch.match(word, in: entries).map(\.id)
+                expect(!hits.contains { $0.contains("resetPermissions") }, "\(language): «\(word)» no halla reinicio")
+            }
+            expect(SettingsSearch.match("peligro", in: entries).isEmpty, "\(language): «peligro» no halla nada")
+        }
+    }
+}
+
 // Code and QA review S2a: the page drew its own rows, so the tested order could drift from it.
 @Test @MainActor func systemSectionsHoldExactlyTheSystemInventory() {
     let inventory = SettingsInventory.options.filter { $0.tab == .system }.map(\.titleKey)
@@ -95,6 +113,7 @@ import Testing
             expect(SettingsSystemPage.draws(key), "\(section): la pagina sabe pintar \(key)")
         }
     }
+    expect(!SettingsSystemPage.draws("settings.resetPermissions"), "una clave sin fila no se pinta")
 }
 
 // QA review S2a: only the helpers were tested, not the switch the page binds.
@@ -107,6 +126,28 @@ import Testing
     expect(effects.wrappedValue, "y el interruptor lo refleja")
     effects.wrappedValue = false
     expect(sounds, "apagarlo los vuelve a encender")
+}
+
+// The passive wait already has a preference. A settings row with no control
+// would be hollow, so the Companion page does not grow an empty line for it.
+// local reference; brief ajustes-hoja-incredible S2
+@Test @MainActor func passiveKeepsItsPreferenceAndPaintsNoHollowRow() {
+    let store = UserDefaults(suiteName: "passive-\(UUID().uuidString)")!
+    expectEq(PassivePreference.seconds(in: store), SessionMachine.defaultPassiveAfter,
+             "el modo pasivo sigue en su preferencia")
+    store.set(7, forKey: PassivePreference.key)
+    expectEq(PassivePreference.seconds(in: store), 7, "y la lee por su clave")
+    let keys = SettingsInventory.options.map(\.titleKey) + SettingsInventory.panels.map(\.titleKey)
+    expect(!keys.contains { $0.contains("passive") }, "no hay una fila hueca de modo pasivo")
+}
+
+// Account and privacy rows that exist only for an internal team stay out.
+@Test @MainActor func internalTeamRowsAreNotInTheInventory() {
+    let keys = SettingsInventory.options.map(\.titleKey) + SettingsInventory.panels.map(\.titleKey)
+    expect(!keys.contains { $0.split(separator: ".").contains("internal") }, "ninguna fila de equipo interno")
+    for banned in ["settings.onboarding.reset", "settings.onboarding.hardReset", "settings.team"] {
+        expect(!keys.contains(banned), "\(banned) no se replica")
+    }
 }
 
 @Test @MainActor func muteEffectsIsTheInverseOfSounds() {

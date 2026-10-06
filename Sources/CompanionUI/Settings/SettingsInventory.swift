@@ -108,21 +108,58 @@ package enum SettingsInventory {
             + panelKeys + SettingsTab.allCases.map { "settings.tab.\($0.rawValue)" }
     }
 
-    /// What the search reads, in the language on screen now. A page's own
-    /// name finds the page, so "memoria" lands somewhere even with no row.
+    /// What the search reads, in the language on screen now. One entry per row
+    /// and one per page. Keywords carry the other language and a few synonyms;
+    /// the page name stays the weakest match, so "memoria" still lands.
+    /// local reference; brief ajustes-hoja-incredible S2
     @MainActor package static var searchEntries: [SettingsSearch.Entry] {
         options.map {
-            SettingsSearch.Entry(
-                id: $0.titleKey, page: $0.tab.rawValue, title: Localized.string($0.titleKey),
-                subtitle: $0.subtitleKey.map { Localized.string($0) } ?? $0.tab.title)
+            entry(id: $0.titleKey, titleKey: $0.titleKey, tab: $0.tab, subtitleKey: $0.subtitleKey)
         }
         + panels.map {
-            SettingsSearch.Entry(
-                id: $0.rowId ?? $0.titleKey, page: $0.tab.rawValue, title: Localized.string($0.titleKey),
-                subtitle: $0.tab.title, keywords: $0.keywords)
+            // A panel that carries a `rowId` is the row, not the section header; the
+            // id is the row's so search lands on the action it actually performs.
+            entry(
+                id: $0.rowId ?? $0.titleKey, titleKey: $0.titleKey, tab: $0.tab,
+                subtitleKey: nil, extraKeywords: $0.keywords)
         }
         + SettingsTab.allCases.map {
-            SettingsSearch.Entry(id: "settings.tab.\($0.rawValue)", page: $0.rawValue, title: $0.title, subtitle: "")
+            entry(
+                id: "settings.tab.\($0.rawValue)", titleKey: "settings.tab.\($0.rawValue)",
+                tab: $0, subtitleKey: nil)
         }
+    }
+
+    /// Old names people still type, beside the label in both languages.
+    static let extraKeywords: [String: [String]] = [
+        "settings.tab.general": ["preferencias", "preferences"],
+        "settings.tab.voice": ["voz", "voice"],
+        "settings.tab.vocabulary": ["diccionario", "dictionary"],
+        "settings.tab.memory": ["recuerdos"],
+        "settings.tab.you": ["perfil", "profile"],
+        "settings.tab.privacy": ["permisos", "permissions"],
+        "settings.app.talk.hold": ["atajo", "shortcut"],
+        "settings.app.talk.dictationKey": ["microfono", "microphone"],
+    ]
+
+    @MainActor private static func entry(
+        id: String, titleKey: String, tab: SettingsTab, subtitleKey: String?,
+        extraKeywords: [String] = []
+    ) -> SettingsSearch.Entry {
+        SettingsSearch.Entry(
+            id: id, page: tab.rawValue, title: Localized.string(titleKey),
+            subtitle: subtitleKey.map { Localized.string($0) } ?? "",
+            keywords: keywords(id: titleKey, subtitleKey: subtitleKey) + extraKeywords,
+            pageTitle: tab.title)
+    }
+
+    @MainActor private static func keywords(id: String, subtitleKey: String?) -> [String] {
+        var lines: [String] = []
+        for language in [AppLanguage.es, .en] {
+            lines.append(Localized.string(id, language: language))
+            if let subtitleKey { lines.append(Localized.string(subtitleKey, language: language)) }
+        }
+        lines.append(contentsOf: extraKeywords[id] ?? [])
+        return lines
     }
 }
