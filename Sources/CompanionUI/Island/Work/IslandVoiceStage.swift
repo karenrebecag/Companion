@@ -62,6 +62,8 @@ struct IslandVoiceStage: View {
     let text: String
     let startedAt: Date
     let showsStop: Bool
+    /// The spoken reply's own chart or table: it is in the same message, so it shows while the words are said.
+    var visuals: (card: Card?, blocks: [AnswerBlock]) = (nil, [])
     let orbSpace: Namespace.ID
     let onStop: () -> Void
 
@@ -70,6 +72,10 @@ struct IslandVoiceStage: View {
             IslandVoiceOrb(state: .speaking, levels: voice.levels, size: IslandVoiceStageMetrics.orb)
                 .matchedGeometryEffect(id: IslandOrbTravel.id, in: orbSpace)
             IslandLiveReply(voice: voice, text: text, startedAt: startedAt, speaking: true, look: .transcript)
+            if visuals.card != nil || !visuals.blocks.isEmpty {
+                IslandInlineVisuals(card: visuals.card, blocks: visuals.blocks,
+                                    width: IslandGrid.openColumn, room: IslandFit.tallRoom)
+            }
             if showsStop {
                 IslandVoiceControls(onStop: onStop)
             }
