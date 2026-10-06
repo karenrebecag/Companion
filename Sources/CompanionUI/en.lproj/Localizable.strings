@@ -478,6 +478,7 @@
 "task.duration.minutes" = "%d min";
 "task.duration.hours" = "%d h";
 "task.details" = "Details";
+"task.detailsLine" = "Details: %@";
 "task.next" = "Your next message continues this task.";
 "task.followUp" = "Follow up";
 "task.count.one" = "1 message";

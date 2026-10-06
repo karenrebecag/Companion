@@ -75,7 +75,7 @@ struct TaskDetailSheet: View {
                 .foregroundStyle(Semantic.mutedForeground)
                 .lineLimit(1)
             if let details = TaskRunCopy.summary(task.run, live: live) {
-                Text("\(Localized.string("task.details")): \(details)")
+                Text(String(format: Localized.string("task.detailsLine"), details))
                     .font(.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
                     .lineLimit(1)
