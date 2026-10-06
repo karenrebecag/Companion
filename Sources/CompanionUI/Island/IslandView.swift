@@ -363,6 +363,13 @@ package struct IslandView: View {
                     .accessibilityHint(Localized.string("island.reply.open"))
                     .accessibilityAction { openResult(latest.id) }
             }
+            let visuals = Self.inlineVisuals(latest)
+            if visuals.card != nil || !visuals.blocks.isEmpty {
+                IslandInlineVisuals(card: visuals.card, blocks: visuals.blocks,
+                                    width: IslandFit.columnWidth, room: IslandFit.tallRoom)
+                    .environment(\.diagramRenderer, diagrams)
+                    .environment(\.fileSaver, saveFile)
+            }
             choiceCard(latest)
         } else {
             // A realtime reply reaches the thread only at transcript.done; until then the caption is all there is.

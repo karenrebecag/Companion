@@ -7,6 +7,8 @@ import SwiftUI
 
 struct IslandChartVisual: View {
     let block: ChartBlock
+    /// The notch sizes its own; nil keeps the popup's fixed canvas.
+    var canvasHeight: CGFloat?
     /// The donut's colours by key, kept across datasets so a segment the
     /// ring morphs into its new size keeps the colour the legend shows.
     @State private var seen: [String: Int] = [:]
@@ -19,7 +21,7 @@ struct IslandChartVisual: View {
         VStack(alignment: .leading, spacing: Space.x3) {
             header
             IslandChartCanvas(block: block, palette: palette)
-                .frame(height: IslandVisualMetrics.canvasHeight(for: block.kind))
+                .frame(height: canvasHeight ?? IslandVisualMetrics.canvasHeight(for: block.kind))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(IslandChartSpeech.summary(block))
                 .accessibilityChartDescriptor(IslandChartDescriptor(block: block))

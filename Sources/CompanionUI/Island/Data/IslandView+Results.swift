@@ -53,6 +53,24 @@ extension IslandView {
         }
     }
 
+    /// What the notch draws inline for a reply: its drawable channel card
+    /// and the cards and diagrams in its text. A gallery fence stays code,
+    /// so it is not here.
+    static func inlineVisuals(_ message: ChatMessage) -> (card: Card?, blocks: [AnswerBlock]) {
+        let blocks = windowBlocks(message.text).filter { block in
+            switch block {
+            case .card, .diagram: true
+            default: false
+            }
+        }
+        return (channelCard(on: message), blocks)
+    }
+
+    static func drawsInline(_ message: ChatMessage) -> Bool {
+        let visuals = inlineVisuals(message)
+        return visuals.card != nil || !visuals.blocks.isEmpty
+    }
+
     /// "Ver" opens the popup only when that popup has something to show.
     /// A drawable channel card or fence does. A gallery with nothing else
     /// the popup draws does not: opening it would show raw JSON.
