@@ -145,7 +145,7 @@ private struct MicLevelBars: View {
     let lit: Int
 
     var body: some View {
-        VStack(spacing: 3) {
+        VStack(spacing: Space.x0_5) {
             ForEach((0..<6).reversed(), id: \.self) { index in
                 RoundedRectangle(cornerRadius: 2)
                     .fill(index < lit ? Semantic.foreground : Semantic.border)
