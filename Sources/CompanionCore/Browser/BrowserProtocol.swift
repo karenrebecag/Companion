@@ -194,10 +194,14 @@ package struct BrowserTab: Sendable, Equatable {
     /// A new tab whose page had not loaded when the extension stopped waiting; without it the
     /// model would read an empty page right away and report the site as blank. Only `open` sets it.
     package var loading: Bool
+    /// The tab the person is looking at: active in the last-focused normal window. Several tabs can be `active`
+    /// (one per window); only one is this.
+    package var youAreHere: Bool
 
     package init(
         id: Int, title: String, url: String, active: Bool,
-        controlled: Bool = false, opener: Int? = nil, createdAt: Date? = nil, loading: Bool = false
+        controlled: Bool = false, opener: Int? = nil, createdAt: Date? = nil, loading: Bool = false,
+        youAreHere: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -207,6 +211,18 @@ package struct BrowserTab: Sendable, Equatable {
         self.opener = opener
         self.createdAt = createdAt
         self.loading = loading
+        self.youAreHere = youAreHere
+    }
+}
+
+/// A tab the site opened as a result of an action; the extension already grouped it and put the person's tab back.
+package struct BrowserSpawned: Sendable, Equatable {
+    package var tab: Int
+    package var title: String
+
+    package init(tab: Int, title: String) {
+        self.tab = tab
+        self.title = title
     }
 }
 
@@ -248,7 +264,18 @@ package enum BrowserInbound: Sendable, Equatable {
     /// it is a done the host words with a warning, never a plain success. Kept as its own case
     /// so every existing `.done` match keeps meaning "confirmed".
     case doneUnconfirmed(id: Int, message: String)
+    /// An action's reply that also reports a tab the site opened; kept apart from `done` so exact-match checks on `done` stay simple.
+    case doneWithTab(id: Int, message: String, BrowserSpawned)
+    /// Both at once: a tab was opened and the press landing was never seen.
+    case doneWithTabUnconfirmed(id: Int, message: String, BrowserSpawned)
     case error(id: Int?, BridgeErrorBody)
+
+    package var isUnconfirmed: Bool {
+        switch self {
+        case .doneUnconfirmed, .doneWithTabUnconfirmed: return true
+        default: return false
+        }
+    }
 }
 
 package enum BrowserOutbound: Sendable, Equatable {

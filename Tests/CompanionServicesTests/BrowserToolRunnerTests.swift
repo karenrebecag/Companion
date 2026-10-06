@@ -50,6 +50,49 @@ import Testing
     expect(out.output.hasSuffix(BrowserCopy.toolDataSuffix(.en)), "declara que son datos")
 }
 
+@Test func tabsMarkTheOneTheUserIsLookingAtInTheSessionLanguage() async {
+    let rig = makeToolRig(tabs: [
+        BrowserTab(id: 12, title: "CRM", url: crm, active: true),
+        BrowserTab(id: 3, title: "Mail", url: "https://mail.example", active: true, youAreHere: true),
+    ])
+    let out = await rig.runner.execute(name: "browser_tabs", argumentsJSON: "{}")
+    let lines = out.output.split(separator: "\n").map(String.init)
+    expect(lines.first { $0.hasPrefix("[3]") }?.contains(BrowserCopy.youAreHere(.en)) == true, "the marked tab says so")
+    expect(lines.first { $0.hasPrefix("[12]") }?.contains(BrowserCopy.youAreHere(.en)) == false, "the other does not")
+    expect(BrowserCopy.youAreHere(.es) != BrowserCopy.youAreHere(.en), "localised")
+}
+
+@Test func anActionThatOpenedATabTellsTheModelInFixedWords() async {
+    let rig = makeToolRig()
+    await rig.read()
+    rig.channel.answerWrites(withSpawn: BrowserSpawned(tab: 44, title: "Receipt"))
+    let out = await rig.run("browser_click", #"{"tab":12,"element":1}"#)
+    expect(out.ok, "the click itself worked: \(out.output)")
+    expect(out.output.contains(BrowserCopy.spawnedTab(tab: 44, title: "Receipt", .en)), "the fixed sentence: \(out.output)")
+    expect(out.output.contains("[1]"), "and the usual note stays: \(out.output)")
+    expect(out.output.contains(BrowserCopy.toolDataSuffix(.en)), "the title is declared page data: \(out.output)")
+    expect(BrowserCopy.spawnedTab(tab: 44, title: "Receipt", .es).contains("44"), "es names the tab")
+    expect(BrowserCopy.spawnedTab(tab: 44, title: "Receipt", .es) != BrowserCopy.spawnedTab(tab: 44, title: "Receipt", .en),
+           "localised")
+}
+
+@Test func aSpawnedTabDoesNotHideTheMissingLineBreaksNote() async {
+    let rig = makeToolRig()
+    await rig.read()
+    rig.channel.answerWrites(with: BrowserCopy.typedWithoutLineBreaks)
+    rig.channel.answerWrites(withSpawn: BrowserSpawned(tab: 44, title: "Receipt"))
+    let out = await rig.run("browser_type", #"{"tab":12,"element":5,"text":"Hola\nAna"}"#)
+    expect(out.output.contains("line breaks") && out.output.contains("44"), "both facts reach the model: \(out.output)")
+}
+
+@Test func anActionWithoutASpawnSaysNothingAboutTabs() async {
+    let rig = makeToolRig()
+    await rig.read()
+    let out = await rig.run("browser_click", #"{"tab":12,"element":1}"#)
+    expect(!out.output.contains(BrowserCopy.spawnedTab(tab: 44, title: "Receipt", .en)), "no spawn, no sentence")
+    expect(!out.output.contains("opened tab"), "nothing about tabs: \(out.output)")
+}
+
 @Test func readRendersScrubsCachesAndCarriesTheDataSuffix() async {
     let rig = makeToolRig(page: crmPage(text: "Bienvenida"))
     let out = await rig.runner.execute(name: "browser_read", argumentsJSON: #"{"tab":12,"selector":"form >>> input"}"#)

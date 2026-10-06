@@ -14,6 +14,8 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
     stored: { ...stored },
     nextTab: 100,
     nextGroup: 500,
+    focusedWindowId: 1,
+    failWindowsGet: false,
     calls: [],
     // A test sets this to make a chrome call throw: (name, args) => boolean.
     failWhen: () => false,
@@ -41,6 +43,13 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
   };
   const trip = (name, args) => { if (state.failWhen(name, args)) throw new Error(`${name} failed`); };
   const created = [];
+  // A page opening a tab on its own: it exists in Chrome, then onCreated fires for it.
+  state.siteOpens = (props) => {
+    const tab = { id: state.nextTab++, index: state.tabs.length, groupId: -1, windowId: 1, active: false, title: '', url: 'https://b.example/', ...props };
+    state.tabs.push(tab);
+    for (const fn of created) fn({ ...tab });
+    return tab;
+  };
   const reindex = () => state.tabs.forEach((t, i) => { t.index = i; });
   const dropEmptyGroups = () => { state.groups = state.groups.filter((g) => state.tabs.some((t) => t.groupId === g.id)); };
   const findTab = (id) => state.tabs.find((t) => t.id === id);
@@ -85,8 +94,21 @@ function makeChrome({ query, tabs: seedTabs = [], groups: seedGroups = [], store
         return Promise.resolve(allowed);
       },
     },
+    windows: {
+      getLastFocused: async ({ windowTypes } = {}) => {
+        state.calls.push(['windows.getLastFocused', windowTypes]);
+        if (state.failWindowsGet) throw new Error('no window');
+        if (windowTypes && !windowTypes.includes('normal')) return null;
+        return Number.isInteger(state.focusedWindowId) ? { id: state.focusedWindowId } : null;
+      },
+    },
     tabs: {
-      query: query ?? (async (filter = {}) => state.tabs.filter((t) => filter.groupId === undefined || t.groupId === filter.groupId).map((t) => ({ ...t }))),
+      query: query ?? (async (filter = {}) => state.tabs.filter((t) => {
+        if (filter.groupId !== undefined && t.groupId !== filter.groupId) return false;
+        if (filter.windowId !== undefined && t.windowId !== filter.windowId) return false;
+        if (filter.active !== undefined && Boolean(t.active) !== Boolean(filter.active)) return false;
+        return true;
+      }).map((t) => ({ ...t }))),
       get: async (id) => {
         const tab = findTab(id);
         if (!tab) throw new Error('No tab with id: ' + id);
@@ -213,7 +235,15 @@ async function boot(options) {
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const call = (id, name = 'browser_tabs', args = {}) => ({ id, method: 'call', params: { name, arguments: args } });
-const ask = async (port, id, name, args) => { port.receive(call(id, name, args)); await settle(); return answersTo(port, id)[0]; };
+const ask = async (port, id, name, args) => {
+  port.receive(call(id, name, args));
+  await settle();
+  // Click-style actions sit in the spawn watcher for up to 250 ms before answering; tick
+  // mock time so the wait fires even when no spawn is coming.
+  mock.timers.tick(300);
+  await settle();
+  return answersTo(port, id)[0];
+};
 const answersTo = (port, id) => port.sent.filter((m) => m.id === id);
 
 afterEach(() => {
@@ -2671,4 +2701,94 @@ test('a file set waits behind a click already running on the same tab', async ()
   assert.deepEqual(answersTo(rig.ports[0], 432)[0].result, { done: 'files-set' });
   const order = rig.state.cdp.map(([, method, params]) => (method === 'Input.dispatchMouseEvent' ? params.type : method));
   assert.ok(order.indexOf('DOM.getDocument') > order.indexOf('mousePressed'));
+});
+
+// --- Foco: which tab the person looks at, and tabs a site opens (A3) --------------------------------
+
+const focusTabs = () => [
+  { id: 1, index: 0, windowId: 1, active: false },
+  { id: 2, index: 1, windowId: 1, active: true },
+  { id: 3, index: 2, windowId: 2, active: true },
+];
+
+test('browser_tabs marks the active tab of the last-focused normal window as youAreHere', async () => {
+  const rig = await boot({ tabs: focusTabs() });
+  rig.state.focusedWindowId = 2;
+  const reply = await ask(rig.ports[0], 70, 'browser_tabs');
+  assert.deepEqual(reply.result.tabs.map((t) => [t.id, t.youAreHere]), [[1, false], [2, false], [3, true]]);
+  assert.deepEqual(rig.state.calls.find((c) => c[0] === 'windows.getLastFocused'), ['windows.getLastFocused', ['normal']]);
+});
+
+test('browser_tabs marks nothing when no normal window is focused or the lookup fails', async () => {
+  const none = await boot({ tabs: focusTabs() });
+  none.state.focusedWindowId = null;
+  const a = await ask(none.ports[0], 71, 'browser_tabs');
+  assert.equal(a.result.tabs.some((t) => t.youAreHere), false);
+  mock.timers.reset();
+  const broken = await boot({ tabs: focusTabs() });
+  broken.state.failWindowsGet = true;
+  const b = await ask(broken.ports[0], 72, 'browser_tabs');
+  assert.equal(b.result.tabs.length, 3, 'the list still comes back');
+  assert.equal(b.result.tabs.some((t) => t.youAreHere), false);
+});
+
+// The button's click makes the site open a tab, as a real page does while the click runs.
+async function clickThatOpens(rig, props) {
+  const { generation } = await readyButton(rig, onScreen);
+  const send = rig.chrome.debugger.sendCommand;
+  rig.chrome.debugger.sendCommand = (target, method, params, cb) => {
+    if (method === 'Input.dispatchMouseEvent' && params.type === 'mousePressed') rig.state.siteOpens(props);
+    send(target, method, params, cb);
+  };
+  return ask(rig.ports[0], 80, 'browser_click', { tab: 3, generation, element: 1 });
+}
+
+const activations = (state) => state.calls.filter((c) => c[0] === 'tabs.update');
+
+test('a tab the site opens and shows is put behind, grouped and reported as a structured field', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.tabs.find((t) => t.id === 3).active = true;
+  const reply = await clickThatOpens(rig, { openerTabId: 3, active: true, title: 'Receipt\nPDF' });
+  assert.deepEqual(reply.result, { done: 'clicked', spawned: { tab: 100, title: 'Receipt PDF' } });
+  assert.deepEqual(activations(rig.state), [['tabs.update', 3]], 'the tab the person had is shown again');
+  assert.notEqual(rig.state.tabs.find((t) => t.id === 100).groupId, -1, 'the new tab joined the group');
+});
+
+test('a spawned tab that did not become active is reported and grouped, not re-activated', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.tabs.find((t) => t.id === 3).active = true;
+  const reply = await clickThatOpens(rig, { openerTabId: 3, active: false, title: 'Back' });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+  assert.deepEqual(activations(rig.state), []);
+});
+
+test('a tab with no opener or another opener is not the action\'s spawn', async () => {
+  for (const props of [{ active: true }, { openerTabId: 1, active: true }]) {
+    mock.timers.reset();
+    const rig = await boot({ tabs: userTabs() });
+    rig.state.tabs.find((t) => t.id === 3).active = true;
+    const reply = await clickThatOpens(rig, props);
+    assert.deepEqual(reply.result, { done: 'clicked' });
+    assert.deepEqual(activations(rig.state), []);
+  }
+});
+
+test('a tab opened after the 2 s window is ignored', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  rig.state.tabs.find((t) => t.id === 3).active = true;
+  const { generation } = await readyButton(rig, onScreen);
+  const reply = await ask(rig.ports[0], 81, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+  mock.timers.tick(2500);
+  rig.state.siteOpens({ openerTabId: 3, active: true });
+  await settle();
+  assert.deepEqual(activations(rig.state), []);
+});
+
+test('nothing in the extension focuses a window', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const files = ['../background.js', ...readdirSync(new URL('../lib', import.meta.url)).map((f) => `../lib/${f}`)];
+  for (const f of files) {
+    assert.equal(/focused\s*:\s*true/.test(readFileSync(new URL(f, import.meta.url), 'utf8')), false, f);
+  }
 });

@@ -190,6 +190,25 @@ package enum BrowserCopy {
         }
     }
 
+    package static func youAreHere(_ language: AppLanguage = .en) -> String {
+        switch language {
+        case .en: return "(you are here: the tab the person is looking at)"
+        case .es: return "(estás aquí: la pestaña que la persona está viendo)"
+        }
+    }
+
+    /// The title is page text, so it is quoted; the data suffix on the whole output says it is not instructions.
+    package static func spawnedTab(tab: Int, title: String, _ language: AppLanguage = .en) -> String {
+        switch language {
+        case .en:
+            return "the site opened tab [\(tab)] titled \"\(title)\"; it is in Companion's group and the person's tab "
+                + "is back in front"
+        case .es:
+            return "el sitio abrió la pestaña [\(tab)] con título \"\(title)\"; está en el grupo de Companion y la "
+                + "pestaña de la persona volvió al frente"
+        }
+    }
+
     /// The extension's exact note for a field that took the text without its line breaks.
     package static let typedWithoutLineBreaks = "typed without line breaks"
 

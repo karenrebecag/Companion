@@ -170,21 +170,29 @@ extension BrowserToolRunner {
             if error.code == BridgeCode.optionNotFound { return missedOption(error) }
             return failed(tool, error)
         case .success(let reply):
-            // Without this the model reports a multi-paragraph text that went in as one line.
-            if case .done(_, BrowserCopy.typedWithoutLineBreaks) = reply {
-                return ParentToolOutcome(
-                    ok: true,
-                    output: "typed into [\(id)] without its line breaks, so the text is on one line; read the tab "
-                        + "again, and tell the user the line breaks are missing",
-                    target: page.origin, tool: tool.rawValue)
+            let note: String
+            var spawned: BrowserSpawned?
+            switch reply {
+            case .done(_, let message), .doneUnconfirmed(_, let message): note = message
+            case .doneWithTab(_, let message, let tab), .doneWithTabUnconfirmed(_, let message, let tab):
+                (note, spawned) = (message, tab)
+            default: note = ""
             }
-            let done = tool == .type ? "typed into" : tool == .select ? "chose an option in" : Self.verb(tool, past: true)
-            let base = "\(done) [\(id)]; read the tab again to see the result"
-            let output: String
-            if case .doneUnconfirmed = reply { output = base + " " + BrowserCopy.pressUnconfirmed(language()) } else { output = base }
-            return ParentToolOutcome(
-                ok: true, output: output,
-                target: page.origin, tool: tool.rawValue)
+            var output: String
+            if note == BrowserCopy.typedWithoutLineBreaks {
+                // Without this the model reports a multi-paragraph text that went in as one line.
+                output = "typed into [\(id)] without its line breaks, so the text is on one line; read the tab "
+                    + "again, and tell the user the line breaks are missing"
+            } else {
+                let done = tool == .type ? "typed into" : tool == .select ? "chose an option in" : Self.verb(tool, past: true)
+                output = "\(done) [\(id)]; read the tab again to see the result"
+            }
+            if reply.isUnconfirmed { output += " " + BrowserCopy.pressUnconfirmed(language()) }
+            if let spawned {
+                output += "; " + BrowserCopy.spawnedTab(tab: spawned.tab, title: Self.oneLine(spawned.title), language())
+                    + " " + BrowserCopy.toolDataSuffix(language())
+            }
+            return ParentToolOutcome(ok: true, output: output, target: page.origin, tool: tool.rawValue)
         }
     }
 
