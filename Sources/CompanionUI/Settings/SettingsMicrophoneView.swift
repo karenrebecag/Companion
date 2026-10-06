@@ -79,7 +79,7 @@ struct SettingsMicrophonePopover: View {
             }
             .padding(Space.x4)
         }
-        .frame(width: 360)
+        .frame(width: ControlMetrics.micSheetWidth)
     }
 
     private func card(_ row: MicMenuRow) -> some View {
@@ -109,7 +109,7 @@ struct SettingsMicrophonePopover: View {
                 if row.selected, model.testing { MicLevelBars(lit: model.litBars) }
             }
             .padding(Space.x3)
-            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: ControlMetrics.micCardMinHeight, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: Radius.card)
                     .fill(row.selected ? Semantic.hover : Semantic.surface))
@@ -128,7 +128,7 @@ struct SettingsMicrophonePopover: View {
         Circle()
             .fill(selected ? Semantic.foreground : Semantic.surface)
             .overlay(Circle().stroke(Semantic.border, lineWidth: selected ? 0 : Stroke.hairline))
-            .frame(width: 24, height: 24)
+            .frame(width: Space.x6, height: Space.x6)
             .overlay {
                 if selected {
                     Image(systemName: "checkmark")
@@ -147,9 +147,9 @@ private struct MicLevelBars: View {
     var body: some View {
         VStack(spacing: Space.x0_5) {
             ForEach((0..<6).reversed(), id: \.self) { index in
-                RoundedRectangle(cornerRadius: 2)
+                RoundedRectangle(cornerRadius: Radius.bar)
                     .fill(index < lit ? Semantic.foreground : Semantic.border)
-                    .frame(width: 32, height: 6)
+                    .frame(width: Space.x8, height: Space.x1_5)
             }
         }
         .accessibilityHidden(true)
