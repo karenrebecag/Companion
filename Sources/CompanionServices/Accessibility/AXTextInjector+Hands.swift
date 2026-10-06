@@ -23,7 +23,11 @@ extension AXTextInjector: FocusedReading, KeyPressing, WindowRaising {
     }
 
     /// The value first; an element that exposes none (some web fields) may
-    /// still answer with its selection.
+    /// still answer with its selection. An empty text field is still a
+    /// field: nil would read as "no field" and leave type_text without a
+    /// baseline. Only the text roles get "": an element that is merely
+    /// settable may report "" whatever it holds, and an empty baseline that
+    /// never changes is what triggers the paste retry, so it could type twice.
     package func read(pid: Int32) -> String? {
         guard trust(), actable(pid) != nil, let element = focusedElement(of: pid),
               !AXSecure.isSecure(element)
@@ -35,7 +39,12 @@ extension AXTextInjector: FocusedReading, KeyPressing, WindowRaising {
             else { continue }
             return FocusedText.clip(text, caret: Self.caret(of: element))
         }
-        return nil
+        var value: CFTypeRef?
+        guard Self.editableRoles.contains(role(of: element)),
+              AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value) == .success,
+              let text = value as? String, text.isEmpty
+        else { return nil }
+        return ""
     }
 
     /// Where the insertion point is, as a UTF-16 offset; nil when the field

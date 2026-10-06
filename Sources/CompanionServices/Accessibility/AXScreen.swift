@@ -21,9 +21,16 @@ package final class AXScreen: ScreenActing, @unchecked Sendable {
     /// Chromium browsers build their web tree only for a client that sets
     /// AXEnhancedUserInterface; Electron apps want AXManualAccessibility.
     /// Incredible's helper "primes" the same list before its first scan.
+    /// The Chrome/Edge channels ship the same engine as their stable
+    /// counterparts, so they get the same priming and the same refusal
+    /// when the user has not connected them.
     static let chromiumBrowsers: Set<String> = [
-        "com.google.Chrome", "com.brave.Browser", "com.microsoft.edgemac", "com.operasoftware.Opera",
-        "ai.perplexity.comet", "company.thebrowser.Browser", "org.chromium.Chromium", "com.vivaldi.Vivaldi",
+        "com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.dev", "com.google.Chrome.canary",
+        "com.brave.Browser", "com.microsoft.edgemac", "com.microsoft.edgemac.Beta",
+        "com.microsoft.edgemac.Dev", "com.microsoft.edgemac.Canary",
+        "com.operasoftware.Opera",
+        "ai.perplexity.comet", "company.thebrowser.Browser",
+        "org.chromium.Chromium", "com.vivaldi.Vivaldi",
     ]
     /// The tree a freshly primed app builds is not there on the same call.
     static let primeSettle: UInt32 = 300_000

@@ -119,6 +119,56 @@ package final class BrowserHost: @unchecked Sendable {
         return .disconnected
     }
 
+    /// The bundle id the connected extension is speaking for, or nil.
+    /// Injected into the hands as a `() -> String?` so the guard can
+    /// distinguish three states: nobody connected, this browser connected,
+    /// a different browser connected.
+    package func connectedBundle() -> String? {
+        presence.browser.map { Self.bundle(for: $0) }
+    }
+
+    /// True only for the bundle ids the host ships manifests for. The web
+    /// guard asks this so every other Chromium browser (Brave, Edge, Arc,
+    /// Vivaldi, Opera, Chromium...) is refused with a clear
+    /// `browser_unsupported` and the agent does not retry it.
+    package static func supportsExtension(bundle: String) -> Bool {
+        Self.bundle(for: .chrome) == bundle || Self.bundle(for: .comet) == bundle
+    }
+
+    /// Which Chromium-family bundle id the connected extension serves.
+    /// Chrome covers Chrome's own bundle; the family is wide (Brave, Edge,
+    /// Vivaldi, Arc, Chromium, Opera), but each ships its own Companion
+    /// extension in the future.
+    static func bundle(for kind: BrowserKind) -> String {
+        switch kind {
+        case .chrome: "com.google.Chrome"
+        case .comet: "ai.perplexity.comet"
+        }
+    }
+
+    /// A name safe to embed in a refusal message: control characters and
+    /// newlines can hide a different instruction from the model; a long
+    /// name is a place the message can break in surprising ways. The
+    /// bundle id is the fallback when the name is missing or empty.
+    package static func displayName(name: String?, bundle: String) -> String {
+        guard let name else { return bundle }
+        let cleaned = String(name.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
+        let trimmed = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? bundle : String(trimmed.prefix(40))
+    }
+
+    /// Display name for a known browser bundle, used for the connected
+    /// browser the guard does not have a pid for. Unknown bundles fall
+    /// back to the bundle id, which is the same string the agent already
+    /// uses to identify the target.
+    package static func displayName(forBundle bundle: String) -> String {
+        switch bundle {
+        case "com.google.Chrome": return "Google Chrome"
+        case "ai.perplexity.comet": return "Comet"
+        default: return bundle
+        }
+    }
+
     /// The bridge's caller id is shared by every session, so a session that
     /// ends (or a new one that starts) must not leave its tabs to the next
     /// client, which would skip the take sheet. The leases clear before this
