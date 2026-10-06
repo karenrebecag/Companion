@@ -16,8 +16,9 @@ package enum ExecutorFactory {
         // Prefijo, no igualdad: cada tier de claude y cada proveedor de
         // hermes es una fila propia (claude-code:opus, hermes:copilot).
         let id = descriptor.id.rawValue
+        let inner: (any Executor)?
         if id.hasPrefix("claude-code") {
-            return ClaudeCodeExecutor(
+            inner = ClaudeCodeExecutor(
                 workdir: workdir,
                 executablePath: executablePath,
                 processLauncher: processLauncher,
@@ -26,9 +27,8 @@ package enum ExecutorFactory {
                 sessions: sessions,
                 skills: skills
             )
-        }
-        if id.hasPrefix("hermes") {
-            return HermesExecutor(
+        } else if id.hasPrefix("hermes") {
+            inner = HermesExecutor(
                 workdir: workdir,
                 executablePath: executablePath,
                 processLauncher: processLauncher,
@@ -36,9 +36,40 @@ package enum ExecutorFactory {
                 sessions: sessions,
                 skills: skills
             )
+        } else {
+            // El nativo se construye en el composition root, no aquí.
+            inner = nil
         }
-        // El nativo se construye en el composition root, no aquí.
-        return nil
+        guard let inner else { return nil }
+        // Pinned when the job starts, not when the executor is built: the
+        // provider caches executors, so a pin from construction would refuse
+        // every later job after one clear.
+        guard let sessions else { return inner }
+        return PinnedSessionExecutor(inner: inner, sessions: sessions)
+    }
+
+    /// Holds the sessions generation across the job, including the write it
+    /// does after the process exits.
+    private struct PinnedSessionExecutor: Executor {
+        private let inner: any Executor
+        private let sessions: any ExecutorSessionStoring
+
+        init(inner: any Executor, sessions: any ExecutorSessionStoring) {
+            self.inner = inner
+            self.sessions = sessions
+        }
+
+        var descriptor: ExecutorDescriptor { inner.descriptor }
+
+        func run(
+            _ job: JobRequest,
+            events: AsyncStream<JobEvent>.Continuation
+        ) async throws -> JobResult {
+            let generation = sessions.currentGeneration()
+            return try await ExecutorSessionWrite.$generation.withValue(generation) {
+                try await inner.run(job, events: events)
+            }
+        }
     }
 }
 

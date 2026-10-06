@@ -36,7 +36,7 @@ package struct IslandView: View {
     @State var pointer = HoldKeyClassifier()
     @State var clickGuard: ApprovalClickGuard?
     @State var draft = ""
-    @State var confirmingClear = false
+    @State var clearFlow = IslandClearFlow()
     @FocusState var fieldFocused: Bool
     /// The shape as drawn right now; `IslandMotion` walks it to the target.
     @State var shown = CGSize.zero
@@ -106,7 +106,7 @@ package struct IslandView: View {
             mainInFront: hold.mainInFront, holdLearned: hold.holdLearned,
             keyListening: hold.granted, debugTranscripts: chat.debugTranscripts,
             composing: IslandComposing.active(
-                focused: fieldFocused, draft: draft, confirmingClear: confirmingClear,
+                focused: fieldFocused, draft: draft, confirmingClear: clearFlow.asking,
                 staged: chat.pendingAttachments.count + attachFailures.count,
                 mainInFront: hold.mainInFront, picking: geometry.picking,
                 choiceFocused: IslandChoice.isFocused(
@@ -336,8 +336,10 @@ package struct IslandView: View {
                     } else if case .none = state.line {} else if let shown = IslandCopy.visibleLine(state.line) {
                         caption(shown)
                     }
-                    if confirmingClear {
-                        IslandClearConfirm(onClear: clearHistory, onCancel: { confirmingClear = false })
+                    if clearFlow.asking {
+                        IslandClearConfirm(
+                            onClear: { clearFlow.confirm(chat: chat) },
+                            onCancel: { clearFlow.cancel() })
                     }
                 }
                 .islandContentColumn()

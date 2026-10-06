@@ -224,10 +224,10 @@
 "settings.privacy.lendHands.subtitle" = "Claude Code y otros agentes locales pueden mirar la pantalla y actuar a través de Companion. Cada sesión pide permiso primero; las acciones sensibles vuelven a pedirlo.";
 "settings.history.label" = "Datos";
 "settings.history.row" = "Borrar historial de chats";
-"settings.history.row.subtitle" = "Borra de este equipo tus chats con Companion y las tareas iniciadas en ellos. No toca las apps conectadas, el dictado ni tus archivos.";
+"settings.history.row.subtitle" = "Borra de este equipo tus chats con Companion y las tareas iniciadas en ellos. No toca las apps conectadas, el dictado ni tus archivos. Claude Code y Hermes guardan su propio historial.";
 "settings.history.action" = "Borrar…";
 "settings.history.title" = "¿Borrar tu historial de chats?";
-"settings.history.blurb" = "Esto borra de este equipo tus chats con Companion y las tareas iniciadas en ellos. Las apps conectadas, el dictado y todo lo guardado en tus archivos se quedan como están. No se puede deshacer.";
+"settings.history.blurb" = "Esto borra de este equipo tus chats con Companion y las tareas iniciadas en ellos. Las apps conectadas, el dictado y todo lo guardado en tus archivos se quedan como están. Claude Code y Hermes guardan su propio historial. No se puede deshacer.";
 "settings.history.cancel" = "Cancelar";
 "settings.history.confirm" = "Borrar historial de chats";
 "settings.history.clearing" = "Borrando…";
@@ -271,8 +271,8 @@
 "island.menu.shortcuts" = "Atajos";
 "island.menu.feedback" = "Enviar comentario";
 "island.menu.clearHistory" = "Borrar historial";
-"island.clear.ask" = "¿Borrar el historial de la isla? La conversación queda en Conversaciones.";
-"island.clear.yes" = "Borrar";
+"island.clear.ask" = "¿Borrar tu historial de chats?";
+"island.clear.yes" = "Borrar historial de chats";
 "island.clear.no" = "Cancelar";
 "island.result.open" = "Ver →";
 "island.reel" = "Apps tocadas en este turno";
