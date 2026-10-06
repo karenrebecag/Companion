@@ -59,6 +59,11 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
     private var writesUnconfirmed = false
     /// What the extension says when the press may not have landed on the element.
     func answerWritesUnconfirmed() { lock.withLock { writesUnconfirmed = true } }
+    private var writeAfter: BrowserAfter?
+    /// The extension's account of what the action did to the page, next to its note.
+    func answerWrites(with note: String = "ok", after: BrowserAfter?) {
+        lock.withLock { writeNote = note; writeAfter = after }
+    }
 
     private var releaseFailure: ContractError?
     func failReleases(with error: ContractError) { lock.withLock { releaseFailure = error } }
@@ -119,8 +124,12 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
         case .click, .doubleClick, .rightClick, .hover, .scroll, .scrollTo, .dragTo, .dragBy, .clickAt, .type, .select, .press,
              .navigate:
             if let writeFailure { return .failure(writeFailure) }
-            if writesUnconfirmed { return .success(.doneUnconfirmed(id: 1, message: writeNote)) }
-            return .success(.done(id: 1, message: writeNote))
+            switch (writesUnconfirmed, writeAfter) {
+            case (true, let after?): return .success(.actedUnconfirmed(id: 1, message: writeNote, after: after))
+            case (true, nil): return .success(.doneUnconfirmed(id: 1, message: writeNote))
+            case (false, let after?): return .success(.acted(id: 1, message: writeNote, after: after))
+            case (false, nil): return .success(.done(id: 1, message: writeNote))
+            }
         case .setFiles:
             if let writeFailure { return .failure(writeFailure) }
             if let replyOverride { return .success(replyOverride) }

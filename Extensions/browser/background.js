@@ -4,6 +4,7 @@ import {
 } from './lib/wire.js';
 import { GROUP_TITLE, groupPlan, releasePlan, cleanupPlan, recordCreated } from './lib/groups.js';
 import { createCdp, isControl } from './lib/cdp.js';
+import { startSettle, finishSettle } from './lib/settle.js';
 
 const HOST = 'com.karen.companion.browser';
 const PROTOCOL = 1;
@@ -113,20 +114,33 @@ async function handleInbound(message) {
   }
 }
 
+// The model cannot tell from `done` whether an action did anything, so the reply also carries a structured
+// `after` (flags and counts, no page text). A page that refuses the observer just answers as before.
+async function settled(args, action) {
+  const target = { tabId: args.tab, frameIds: [0] };
+  const armed = await startSettle(inPage, target);
+  const result = await action();
+  if (!result || result.error) return result;
+  const { fieldChars = null, ...reply } = result;
+  if (!armed || !reply.done) return reply;
+  const after = await finishSettle(inPage, target, { fieldChars });
+  return after ? { ...reply, after } : reply;
+}
+
 function dispatch(name, args) {
   switch (name) {
     case 'browser_tabs': return tabs();
     case 'browser_read': return readTab(args);
-    case 'browser_click': return trustedPress(args, GESTURES.click);
-    case 'browser_double_click': return trustedPress(args, GESTURES.double);
-    case 'browser_right_click': return trustedPress(args, GESTURES.right);
-    case 'browser_type': return trustedType(args);
-    case 'browser_select': return act(args, (g, id, option) => globalThis.__companionPage.select(g, id, option), [args.option]);
-    case 'browser_hover': return trustedPress(args, GESTURES.hover);
+    case 'browser_click': return settled(args, () => trustedPress(args, GESTURES.click));
+    case 'browser_double_click': return settled(args, () => trustedPress(args, GESTURES.double));
+    case 'browser_right_click': return settled(args, () => trustedPress(args, GESTURES.right));
+    case 'browser_type': return settled(args, () => trustedType(args));
+    case 'browser_select': return settled(args, () => act(args, (g, id, option) => globalThis.__companionPage.select(g, id, option), [args.option]));
+    case 'browser_hover': return settled(args, () => trustedPress(args, GESTURES.hover));
     case 'browser_scroll': return args.element != null ? scrollToElement(args) : trustedScroll(args);
-    case 'browser_press': return trustedKeyPress(args);
-    case 'browser_drag': return trustedDrag(args);
-    case 'browser_click_at': return trustedClickAt(args);
+    case 'browser_press': return settled(args, () => trustedKeyPress(args));
+    case 'browser_drag': return settled(args, () => trustedDrag(args));
+    case 'browser_click_at': return settled(args, () => trustedClickAt(args));
     case 'browser_set_files': return setFiles(args);
     case 'browser_navigate': return navigate(args.tab, args.url);
     case 'browser_open': return openTab(args.url);
@@ -667,6 +681,9 @@ async function trustedClickAt(args) {
 // The host matches this exact text to tell the model its line breaks did not go in.
 const TYPED_WITHOUT_BREAKS = 'typed without line breaks';
 
+// Only the length of what the field holds is reported; the value itself never leaves the page.
+const charsOf = (read) => (typeof read?.value === 'string' ? Array.from(read.value).length : null);
+
 // One insert keeps the breaks keys would drop; the read-back decides whether they really went in.
 async function typeLines(args, entry, target, typeSynthetic) {
   const typed = await typeSynthetic();
@@ -677,7 +694,7 @@ async function typeLines(args, entry, target, typeSynthetic) {
   // Only a value that is the text minus its breaks proves they were dropped; a cut or reformatted
   // value is not "on one line", so it keeps the unverified answer the old way always gave.
   const lostBreaks = after && !after.error && after.value !== wanted && after.value === wanted.replace(/\n/g, '');
-  return { done: lostBreaks ? TYPED_WITHOUT_BREAKS : 'typed' };
+  return { done: lostBreaks ? TYPED_WITHOUT_BREAKS : 'typed', fieldChars: charsOf(after) };
 }
 
 async function trustedType(args) {
@@ -724,7 +741,7 @@ async function trustedType(args) {
       return typed?.done && /[\r\n]/.test(args.text) ? { done: TYPED_WITHOUT_BREAKS } : typed;
     }
     // The model has to know its line breaks did not go in, or it would report text that is not there.
-    return { done: expected.length === Array.from(args.text).length ? 'typed' : TYPED_WITHOUT_BREAKS };
+    return { done: expected.length === Array.from(args.text).length ? 'typed' : TYPED_WITHOUT_BREAKS, fieldChars: charsOf(after) };
   }).catch((error) => inputFailed(args.tab, error));
 }
 

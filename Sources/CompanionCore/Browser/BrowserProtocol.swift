@@ -248,7 +248,34 @@ package enum BrowserInbound: Sendable, Equatable {
     /// it is a done the host words with a warning, never a plain success. Kept as its own case
     /// so every existing `.done` match keeps meaning "confirmed".
     case doneUnconfirmed(id: Int, message: String)
+    /// A `done` that also says what the action did to the page.
+    case acted(id: Int, message: String, after: BrowserAfter)
+    /// Both at once: the page state came back and the press landing was never seen.
+    case actedUnconfirmed(id: Int, message: String, after: BrowserAfter)
     case error(id: Int?, BridgeErrorBody)
+
+    /// The extension's note, whether or not an `after` came with it, for the exact-match checks.
+    package var doneMessage: String? {
+        switch self {
+        case .done(_, let message), .acted(_, let message, _), .doneUnconfirmed(_, let message),
+             .actedUnconfirmed(_, let message, _): return message
+        default: return nil
+        }
+    }
+
+    package var isUnconfirmed: Bool {
+        switch self {
+        case .doneUnconfirmed, .actedUnconfirmed: return true
+        default: return false
+        }
+    }
+
+    package var after: BrowserAfter? {
+        switch self {
+        case .acted(_, _, let after), .actedUnconfirmed(_, _, let after): return after
+        default: return nil
+        }
+    }
 }
 
 package enum BrowserOutbound: Sendable, Equatable {

@@ -79,10 +79,16 @@ package enum BrowserCodec {
         if let done = result["done"] as? String {
             let message = BrowserSanitize.done(done)
             // Only a real JSON boolean: a string or a number must not flip the warning on.
-            if let flag = result["unconfirmed"] as? NSNumber, CFGetTypeID(flag) == CFBooleanGetTypeID(), flag.boolValue {
-                return .success(.doneUnconfirmed(id: id, message: message))
+            var unconfirmed = false
+            if let flag = result["unconfirmed"] as? NSNumber, CFGetTypeID(flag) == CFBooleanGetTypeID() {
+                unconfirmed = flag.boolValue
             }
-            return .success(.done(id: id, message: message))
+            guard let after = BrowserAfter(decoding: result["after"]) else {
+                return .success(unconfirmed ? .doneUnconfirmed(id: id, message: message) : .done(id: id, message: message))
+            }
+            return .success(unconfirmed
+                ? .actedUnconfirmed(id: id, message: message, after: after)
+                : .acted(id: id, message: message, after: after))
         }
         return fail(BridgeCode.badFrame, "Unknown result")
     }

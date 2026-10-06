@@ -106,8 +106,8 @@ extension BrowserToolRunner {
         case .failure(let error):
             if error.code == BridgeCode.staleId { forget(tab) }
             return failed(tool, error)
-        case .success:
-            return ParentToolOutcome(ok: true, output: done, target: target, tool: tool.rawValue)
+        case .success(let reply):
+            return ParentToolOutcome(ok: true, output: done + afterNote(reply), target: target, tool: tool.rawValue)
         }
     }
 }
