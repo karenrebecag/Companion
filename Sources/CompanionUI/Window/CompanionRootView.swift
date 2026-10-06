@@ -360,10 +360,11 @@ package struct CompanionRootView: View {
                 GeometryReader { geo in
                     TaskDetailSheet(
                         task: task, messages: openTaskMessages, canFollowUp: chat.canFollowUp,
-                        onFollowUp: {
-                            guard chat.followUp(task) else { return }
+                        onFollowUp: { words in
+                            guard chat.followUp(task, saying: words) else { return false }
                             openTask = nil
                             NotificationCenter.default.post(name: .companionFollowUp, object: nil)
+                            return true
                         },
                         onClose: { openTask = nil })
                     .frame(width: min(MainWindowMetrics.detailMaxWidth, geo.size.width - Space.x6),

@@ -1,107 +1,115 @@
 import CompanionCore
+import CompanionUIPro
 import SwiftUI
 
-/// Incredible's task detail (spec 16j §8): the conversation, the details on
-/// the side, and Follow up, which hands the task to the island.
+/// A task's conversation (spec 16j §8) as one focused thread, after Arc's
+/// ai-composer block: the newest turn in view, and a composer whose words
+/// become the task's next turn before the island carries it on.
 struct TaskDetailSheet: View {
     let task: ConversationMeta
     let messages: [ChatMessage]
     /// False while another turn works: switching would drop it.
     let canFollowUp: Bool
-    let onFollowUp: () -> Void
+    /// The words to continue with, empty to continue without any. False when
+    /// the task could not be taken over, so the sheet gives the words back.
+    let onFollowUp: (String) -> Bool
     let onClose: () -> Void
 
+    @State private var draft: String
+    @State private var sending = false
+    /// The message on its way, drawn in the thread while it lifts.
+    @State private var sent: AIThreadItem?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(
+        task: ConversationMeta, messages: [ChatMessage], canFollowUp: Bool,
+        draft: String = "", onFollowUp: @escaping (String) -> Bool, onClose: @escaping () -> Void
+    ) {
+        self.task = task
+        self.messages = messages
+        self.canFollowUp = canFollowUp
+        self._draft = State(initialValue: draft)
+        self.onFollowUp = onFollowUp
+        self.onClose = onClose
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.x4) {
+        VStack(spacing: Space.none) {
             header
-            HStack(alignment: .top, spacing: Space.x4) {
-                VStack(alignment: .leading, spacing: Space.x3) {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: MessageMetrics.gap) {
-                            Marker(TaskThread.markerLabel(ago: HomeCopy.ago(task.updatedAt)), systemImage: "clock", variant: .separator)
-                            ForEach(TaskThread.rows(messages)) { row in
-                                bubble(row)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .scrollIndicators(.hidden)
-                    footer
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                details
-                    .frame(width: MainWindowMetrics.detailSide)
+            AIThread(items: items, strings: TaskThread.strings, style: .companion) { item in
+                MarkdownView(text: item.text)
+                    .textSelection(.enabled)
             }
+            AIComposer(
+                text: $draft, phase: phase, strings: TaskThread.strings, style: .companion,
+                focusOnAppear: true, onSubmit: submit)
+                .padding(.horizontal, Space.x5)
+                .padding(.bottom, Space.x5)
         }
-        .padding(Space.x6)
         .background(RoundedRectangle(cornerRadius: Radius.card).fill(Semantic.background))
         .overlay(RoundedRectangle(cornerRadius: Radius.card).stroke(Semantic.border, lineWidth: Stroke.hairline))
     }
 
+    private var items: [AIThreadItem] {
+        TaskThread.items(messages) + (sent.map { [$0] } ?? [])
+    }
+
+    private var phase: AIComposerPhase {
+        AIComposerPhase.resolve(draft: draft, sending: sending, available: canFollowUp)
+    }
+
+    /// The title starts where the thread's text does; only the close button
+    /// sits out at the sheet's corner.
     private var header: some View {
-        HStack(spacing: Space.x3) {
+        VStack(alignment: .leading, spacing: Space.x0_5) {
             Text(task.title)
                 .font(.uiSubtitle)
                 .foregroundStyle(Semantic.foreground)
                 .lineLimit(1)
-            Spacer()
-            Text(HomeCopy.ago(task.updatedAt))
+                .accessibilityAddTraits(.isHeader)
+            Text(TaskThread.subtitle(ago: HomeCopy.ago(task.updatedAt), count: TaskThread.visible(messages).count))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
-            CloseButton(action: onClose)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, Space.x7)
+        .frame(maxWidth: AIThreadLayout.columnWidth, alignment: .leading)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, Space.x12)
+        .padding(.top, Space.x6)
+        .padding(.bottom, Space.x2)
+        .overlay(alignment: .topTrailing) {
+            CloseButton(action: onClose).padding(Space.x4)
         }
     }
 
-    private func bubble(_ row: TaskThread.Row) -> some View {
-        ChatBubble(variant: row.variant, align: row.align) {
-            if row.message.role == .user {
-                Text(row.message.text).textSelection(.enabled)
-            } else {
-                MarkdownView(text: row.message.text)
+    private func submit() {
+        guard phase.acceptsInput else { return }
+        let words = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        sending = true
+        // Without words, or without motion, there is nothing to watch land.
+        guard !words.isEmpty, !reduceMotion else { return handOff(words) }
+        // The thread plays the lift itself; the sheet only waits for it to land.
+        sent = AIThreadItem(id: "sent", role: .user, text: words)
+        draft = ""
+        Task {
+            do {
+                try await Task.sleep(for: .seconds(AIThreadStyle.companion.motion.liftDuration))
+            } catch {
+                // Only cancellation throws here, and a cancelled wait sends nothing.
+                return
             }
+            handOff(words)
         }
     }
 
-    private var footer: some View {
-        HStack {
-            Text(footerLine)
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-            Spacer()
-            // The sheet's one primary action.
-            Button(action: onFollowUp) {
-                Label(Localized.string("task.followUp"), systemImage: "arrowshape.turn.up.left")
-            }
-            .buttonStyle(.shadcn(.default, size: .sm))
-            .disabled(!canFollowUp)
-        }
-    }
-
-    private var footerLine: String {
-        Localized.string(canFollowUp ? "task.next" : "task.busy")
-    }
-
-    private var details: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            Text(Localized.string("task.details"))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-            detail(Localized.string("task.updated"), HomeCopy.ago(task.updatedAt))
-            detail(Localized.string("task.messages"), "\(TaskThread.visible(messages).count)")
-            Spacer(minLength: Space.none)
-        }
-        .padding(Space.x4)
-        .frame(maxHeight: .infinity, alignment: .top)
-        .background(RoundedRectangle(cornerRadius: Radius.xl).fill(Semantic.muted))
-    }
-
-    private func detail(_ label: String, _ value: String) -> some View {
-        HStack {
-            Text(label).foregroundStyle(Semantic.foreground)
-            Spacer()
-            Text(value).foregroundStyle(Semantic.mutedForeground)
-        }
-        .font(.uiCaption)
+    private func handOff(_ words: String) {
+        guard !onFollowUp(words) else { return }
+        // Another turn started while the message lifted: nothing was sent,
+        // so the words go back where she wrote them.
+        sending = false
+        sent = nil
+        draft = words
     }
 }
 
@@ -113,20 +121,68 @@ enum TaskThread {
         messages.filter { !$0.isStatus }
     }
 
-    struct Row: Identifiable {
-        let message: ChatMessage
-        var id: UUID { message.id }
-        var variant: BubbleVariant { BubbleVariant(role: message.role) }
-        var align: MessageAlign { MessageAlign(role: message.role) }
+    static func items(_ messages: [ChatMessage]) -> [AIThreadItem] {
+        visible(messages).map { message in
+            AIThreadItem(
+                id: message.id.uuidString,
+                role: message.role == .user ? .user : .assistant,
+                text: message.text,
+                attachments: message.attachments.map(\.name),
+                tools: tools(of: message))
+        }
     }
 
-    static func rows(_ messages: [ChatMessage]) -> [Row] {
-        visible(messages).map(Row.init)
+    /// The tools a reply called, once each, in the order it called them. Only
+    /// live replies carry them: a task read back from disk has no record, and
+    /// then the thread shows none rather than guessing.
+    static func tools(of message: ChatMessage) -> [String] {
+        guard message.role != .user, let calls = message.recall?.toolCalls else { return [] }
+        return calls.map(\.name).reduce(into: []) { names, name in
+            if !names.contains(name) { names.append(name) }
+        }
     }
 
-    /// The marker carries the task's last update, so it says so: the time
-    /// alone would read as when the thread began.
-    static func markerLabel(ago: String) -> String {
-        "\(Localized.string("task.updated")): \(ago)"
+    static func subtitle(ago: String, count: Int) -> String {
+        let messages = count == 1
+            ? Localized.string("task.count.one")
+            : String(format: Localized.string("task.count.other"), count)
+        return "\(ago) · \(messages)"
+    }
+
+    static var strings: AIThreadStrings {
+        AIThreadStrings(
+            userPrefix: Localized.string("task.you"),
+            assistantPrefix: Localized.string("task.assistant"),
+            toolsLabel: Localized.string("task.tools"),
+            placeholder: Localized.string("task.placeholder"),
+            send: Localized.string("task.send"),
+            continue: Localized.string("task.followUp"),
+            sending: Localized.string("task.sending"),
+            hint: Localized.string("task.next"),
+            unavailableHint: Localized.string("task.busy"),
+            emptyTitle: Localized.string("task.empty.title"),
+            emptyText: Localized.string("task.empty.text"))
+    }
+}
+
+extension AIThreadStyle {
+    /// The thread in Companion's tokens: neutral surfaces, the user's turn on
+    /// the muted fill, primary ink for the one action.
+    static var companion: AIThreadStyle {
+        AIThreadStyle(
+            foreground: Semantic.foreground,
+            secondary: Semantic.mutedForeground,
+            muted: Semantic.textMuted,
+            surface: Semantic.surface,
+            surfaceMuted: Semantic.muted,
+            border: Semantic.border,
+            borderStrong: Semantic.borderStrong,
+            userBubble: Semantic.muted,
+            primary: Semantic.primary,
+            primaryForeground: Semantic.primaryForeground,
+            success: Semantic.success,
+            body: .uiBody,
+            caption: .uiCaption,
+            mono: .uiMono)
     }
 }

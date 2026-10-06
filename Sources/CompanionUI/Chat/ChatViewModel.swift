@@ -320,6 +320,16 @@ package final class ChatViewModel: ConversationPresenting {
         return true
     }
 
+    /// Follow up with words from the task sheet: they go straight to the
+    /// task, never through `draft`, which holds what she left in Home.
+    @discardableResult
+    package func followUp(_ task: ConversationMeta, saying text: String) -> Bool {
+        guard followUp(task) else { return false }
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !words.isEmpty && !needsOnboarding { dispatch(words, origin: .typed) }
+        return true
+    }
+
     package func historyTurns() async -> [Turn] {
         rolloverIfDue()
         return windowedTurns()
