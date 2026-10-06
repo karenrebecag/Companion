@@ -22,12 +22,17 @@ extension VoiceSession {
             await apply(.voiceStartFailed(.micDenied))
             return
         }
+        // Before the start: a mic that fails while it opens has nobody to tell
+        // otherwise, and the event is dropped.
+        watchMicRestarts()
         do {
             try await mic.start()
         } catch {
+            stopWatchingMicRestarts()
             await apply(.voiceStartFailed(.micUnavailable))
             return
         }
+        guard await stillOpening() else { return }
         let aec = await mic.hasEchoCancellation
         do {
             try await player.start(sharedEngine: aec)
@@ -35,6 +40,7 @@ extension VoiceSession {
             await failRealtimeStart()
             return
         }
+        guard await stillOpening() else { return }
         guard let url = RealtimeCodec.url() else {
             await failRealtimeStart()
             return
@@ -51,13 +57,16 @@ extension VoiceSession {
         realtime.prepareSessionUpdate(
             config: config, history: await classic.thread.historyTurns(),
             canDelegate: jobs != nil)
+        guard machine.snapshot.state == .connecting, !voiceClosed else { return }
         sessionStartTurns = await classic.thread.memoryTurns().count
+        guard machine.snapshot.state == .connecting, !voiceClosed else { return }
         do {
             try await transport.open(key: key, url: url)
         } catch {
             await failRealtimeStart(error)
             return
         }
+        guard await stillOpening() else { return }
         startPumps()
         await realtime.flushPendingUpdate()
         if await waitForReady() {
@@ -70,6 +79,17 @@ extension VoiceSession {
             // Handshake never completed: unreachable from the user's side.
             await failRealtimeStart(VoiceTransportError.timeout)
         }
+    }
+
+    /// The actor is reentrant: a mic failure or a hang-up lands while open is
+    /// parked on an await and tears the session down. Resuming into it would
+    /// leave a live socket on a session that is already in error. What this
+    /// function started since the last check is undone the same way the
+    /// teardown does, which is idempotent.
+    private func stillOpening() async -> Bool {
+        if !voiceClosed, machine.snapshot.state == .connecting { return true }
+        await realtime.close(mic: mic)
+        return false
     }
 
     /// The ear, started on the actor while the socket opens. A session that
@@ -85,6 +105,7 @@ extension VoiceSession {
     }
 
     private func failRealtimeStart(_ error: Error? = nil) async {
+        stopWatchingMicRestarts()
         // Offline is not the same as "the realtime server did not answer":
         // classic still works in the second case, but with no network it would
         // trade a readable error for a mic listening in silence.

@@ -68,6 +68,7 @@ package actor RealtimePlayer: PCMPlaying {
     }
 
     package func start(sharedEngine: Bool) async throws {
+        let hadPending = pending > 0
         epoch += 1
         pending = 0
         counter.reset()
@@ -80,6 +81,13 @@ package actor RealtimePlayer: PCMPlaying {
         }
         graph.node = nil
         graph.engine = nil
+        // The old buffers' completions are dropped by the epoch guard, so the
+        // turn would wait for a drain that never comes. Not flush(): that
+        // plays the node of an engine that is already stopped.
+        if hadPending {
+            levelBox.yield(0)
+            drainBox.yield(())
+        }
 
         let engine: AVAudioEngine
         if sharedEngine {

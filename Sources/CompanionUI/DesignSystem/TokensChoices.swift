@@ -283,6 +283,8 @@ package enum Container {
 
 // Border radius, Incredible's named corners (16k).
 package enum Radius {
+    /// The hairline corner of a level bar.
+    package static let bar: CGFloat = 2
     package static let sm: CGFloat = 4
     package static let md: CGFloat = 6
     package static let badge: CGFloat = 8
@@ -312,6 +314,9 @@ package enum ControlMetrics {
     /// The welcome's name field (Incredible's .fr-name-input).
     package static let nameFieldHeight: CGFloat = 50
     package static let nameFieldInset: CGFloat = 18
+    /// The microphone picker's sheet width and the least a device card gives its words.
+    package static let micSheetWidth: CGFloat = 360
+    package static let micCardMinHeight: CGFloat = 96
 }
 
 // Type sizes: la escala por papel de Incredible (16k), medida en su CSS.

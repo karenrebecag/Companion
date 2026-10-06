@@ -15,6 +15,8 @@ extension VoiceSession {
         await dropPendingMCPApprovals()
         micSilenceTask?.cancel()
         micSilenceTask = nil
+        micRestartTask?.cancel()
+        micRestartTask = nil
         eventTask?.cancel()
         eventTask = nil
         earTurnTask?.cancel()

@@ -76,6 +76,8 @@ struct SettingsGeneralPage: View {
     @State private var muteWhileTalking = MuteSoundWhileTalkingPref.enabled
     @State private var screenGlow = ScreenGlowPreference.enabled()
     @State private var context = ContextSettingsModel()
+    @State private var microphone = SettingsMicrophoneModel()
+    @State private var microphoneOpen = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
@@ -101,6 +103,20 @@ struct SettingsGeneralPage: View {
                 }
                 if dictationKey != .off, !context.accessibilityGranted {
                     SettingsPermissionRow(model: context.accessibilityRow)
+                }
+                SettingsRow(
+                    title: Localized.string("settings.microphone"),
+                    subtitle: microphone.rowSubtitle,
+                    key: "settings.microphone"
+                ) {
+                    SettingsPill(title: Localized.string("settings.change")) {
+                        microphoneOpen = true
+                    }
+                    .popover(isPresented: $microphoneOpen) {
+                        SettingsMicrophonePopover(model: microphone)
+                            .onAppear { microphone.opened() }
+                            .onDisappear { microphone.closed() }
+                    }
                 }
                 SettingsLanguageLine(onChange: onLanguageChange)
                 SettingsRow(
@@ -136,7 +152,11 @@ struct SettingsGeneralPage: View {
         .onAppear {
             context.accessibility = accessibility
             context.refreshTrust()
+            microphone.reload()
         }
+        // The popover's own onDisappear is skipped when the page goes away
+        // while it is up; this one keeps the meter from outliving the page.
+        .onDisappear { microphone.closed() }
         .task {
             // The dictation row answers a grant made in System Settings.
             while !Task.isCancelled {

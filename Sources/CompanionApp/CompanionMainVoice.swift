@@ -46,6 +46,9 @@ func makeVoicePipeline(
         Log.app("could not create tts cache dir")
     }
 
+    // The settings row reads these same devices; registering them here keeps
+    // the audio target out of the UI layer.
+    MicDevices.install(port: CoreAudioInputPort(), meter: CoreAudioMicMeter())
     // Player joins the mic engine only while Voice Processing is live, so
     // AEC hears the agent; weak keeps the player from owning the mic.
     let mic = MicCapture(echoCancellation: env.config.voice.echoCancellation)
