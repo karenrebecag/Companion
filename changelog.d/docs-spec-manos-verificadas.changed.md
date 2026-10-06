@@ -1,0 +1,1 @@
+- **Plan escrito para que las manos verifiquen lo que hacen (2026-10-05).** La especificacion de los cuatro arreglos de las manos: la web solo por la extension, escribir y comprobar que el texto llego, actuar sobre la ventana correcta y leer bien un campo vacio.
