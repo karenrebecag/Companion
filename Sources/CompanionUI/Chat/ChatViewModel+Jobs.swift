@@ -268,6 +268,7 @@ extension ChatViewModel {
                 return
             }
             if result.isError {
+                run = run?.failing(at: now())
                 messages.append(ChatMessage(
                     isStatus: true,
                     text: Escalation.jobFailedStatus(
@@ -295,6 +296,7 @@ extension ChatViewModel {
                 cancelledJob = false
                 return
             }
+            run = run?.failing(at: now())
             messages.append(ChatMessage(
                 isStatus: true, text: ChatCopy.jobFailedNotice(error)))
             toast(ChatCopy.jobFailed, level: .error)

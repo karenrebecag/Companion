@@ -474,6 +474,10 @@
 "home.ago.minutes" = "Hace %d min";
 "home.ago.hours" = "Hace %d h";
 "home.ago.days" = "Hace %d d";
+"task.duration.seconds" = "%d s";
+"task.duration.minutes" = "%d min";
+"task.duration.hours" = "%d h";
+"task.details" = "Detalles";
 "task.next" = "Tu próximo mensaje continúa esta tarea.";
 "task.followUp" = "Seguir";
 "task.count.one" = "1 mensaje";

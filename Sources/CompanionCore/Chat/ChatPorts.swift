@@ -56,11 +56,14 @@ package struct ConversationMeta: Sendable, Equatable, Identifiable {
     package var id: String
     package var title: String
     package var updatedAt: Date
+    /// Nil for a conversation saved before tasks kept their work state.
+    package var run: TaskRun?
 
-    package init(id: String, title: String, updatedAt: Date) {
+    package init(id: String, title: String, updatedAt: Date, run: TaskRun? = nil) {
         self.id = id
         self.title = title
         self.updatedAt = updatedAt
+        self.run = run
     }
 }
 
@@ -69,17 +72,20 @@ package struct ConversationRecord: Sendable, Equatable, Identifiable {
     package var title: String
     package var updatedAt: Date
     package var messages: [ConversationMessage]
+    package var run: TaskRun?
 
     package init(
         id: String,
         title: String,
         updatedAt: Date,
-        messages: [ConversationMessage]
+        messages: [ConversationMessage],
+        run: TaskRun? = nil
     ) {
         self.id = id
         self.title = title
         self.updatedAt = updatedAt
         self.messages = messages
+        self.run = run
     }
 }
 

@@ -27,6 +27,7 @@ extension ChatViewModel {
         let staged = origin == .choice ? [] : pendingAttachments
         if origin == .typed { pendingAttachments = [] }
         messages.append(ChatMessage(role: .user, text: text, attachments: staged, origin: origin, mentions: mentions))
+        run = .begin(at: now())
         persist()
         busy = true
         busySince = Date()
@@ -102,12 +103,15 @@ extension ChatViewModel {
                 history = windowedTurns()
             }
             guard historyEpoch == epoch else { return }
+            run = run?.finishing(at: now())
             persist()
             endTurn()
             drain()
         } catch is CancellationError {
             guard isCurrent(id) else { return }
             streaming = ""
+            run = run?.failing(at: now())
+            persist()
             endTurn()
         } catch {
             guard isCurrent(id) else { return }
@@ -117,6 +121,7 @@ extension ChatViewModel {
             // provider refused ended looking "completed", question simply
             // unanswered (live 2026-09-28). The thread keeps the record.
             messages.append(ChatMessage(isStatus: true, text: ChatCopy.error(error), isFailure: true))
+            run = run?.failing(at: now())
             persist()
             endTurn()
             drain()

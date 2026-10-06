@@ -125,13 +125,13 @@ package final class ChatViewModel: ConversationPresenting {
     /// Moves only when the history is cleared. Work that started before a
     /// clear compares it, so a thread switch never drops anything.
     var historyEpoch = 0
-    /// Jobs a clear stopped. A voice job has no run loop of ours to compare
-    /// epochs in, so its late events are recognised by id.
+    /// Jobs a clear stopped: a voice job has no run loop to compare epochs in.
     var jobsStoppedByClear: Set<JobID> = []
+    /// Work state of this thread's latest turn; it follows `conversationId`.
+    var run: TaskRun?
     var inFlight: Task<Void, Never>?
-    /// The thread's own clock (Wave 15a): the last write, `persist()` or
-    /// `restore()`; nil while the thread is empty. Ephemeral rollover reads
-    /// this, never a timer.
+    /// The thread's own clock (Wave 15a): last `persist()` or `restore()`; nil
+    /// while empty. Ephemeral rollover reads this, never a timer.
     var lastActivity: Date?
     let now: @Sendable () -> Date
     let log: @Sendable (String) -> Void
@@ -270,6 +270,7 @@ package final class ChatViewModel: ConversationPresenting {
         errorText = nil
         persist()
         conversationId = UUID().uuidString
+        run = nil
         messages = []
         streaming = ""
         draft = ""

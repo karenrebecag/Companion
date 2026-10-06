@@ -8,6 +8,7 @@ extension ChatViewModel {
         recents = try store.list()
         guard let meta = recents.first, let record = try store.load(meta.id) else {
             conversationId = UUID().uuidString
+            run = nil
             messages = []
             lastActivity = nil
             return
@@ -19,6 +20,7 @@ extension ChatViewModel {
     func restore(_ record: ConversationRecord) {
         conversationId = record.id
         lastActivity = record.updatedAt
+        run = record.run?.shown(live: false)
         messages = Self.messages(of: record)
     }
 
@@ -59,6 +61,7 @@ extension ChatViewModel {
             lastActivity = nil
             recents = []
             conversationId = UUID().uuidString
+            run = nil
         }
     }
 
@@ -74,7 +77,7 @@ extension ChatViewModel {
         let timestamp = now()
         lastActivity = timestamp
         let record = ConversationRecord(
-            id: conversationId, title: title, updatedAt: timestamp, messages: stored)
+            id: conversationId, title: title, updatedAt: timestamp, messages: stored, run: run)
         do {
             try store.save(record)
             recents = try store.list()
@@ -106,6 +109,7 @@ extension ChatViewModel {
     /// `updatedAt` and it would never expire.
     private func rollOver() {
         conversationId = UUID().uuidString
+        run = nil
         messages = []
         streaming = ""
         lastActivity = nil

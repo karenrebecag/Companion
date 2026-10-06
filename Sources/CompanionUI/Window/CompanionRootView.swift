@@ -358,8 +358,13 @@ package struct CompanionRootView: View {
                     .ignoresSafeArea()
                     .onTapGesture { openTask = nil }
                 GeometryReader { geo in
+                    // The opened snapshot predates the turn that may still be
+                    // moving: the work state is read from the store's latest.
                     TaskDetailSheet(
-                        task: task, messages: openTaskMessages, canFollowUp: chat.canFollowUp,
+                        task: chat.recents.first { $0.id == task.id } ?? task,
+                        messages: openTaskMessages,
+                        live: chat.busy && task.id == chat.conversationId,
+                        canFollowUp: chat.canFollowUp,
                         onFollowUp: { words in
                             guard chat.followUp(task, saying: words) else { return false }
                             openTask = nil

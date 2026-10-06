@@ -1,0 +1,1 @@
+- **Tareas vivas en Inicio y en el detalle (2026-10-06).** Cada tarea muestra su estado real (en curso, hecho o falló) y cuánto duró o lleva, en su fila de Inicio y en "Detalles" de su hoja. Antes la conversación no guardaba su estado de trabajo; las tareas anteriores no muestran nada.
