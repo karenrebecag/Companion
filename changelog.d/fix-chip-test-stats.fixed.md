@@ -1,0 +1,1 @@
+- **El test del chip de voz usa una tarjeta con datos reales (2026-10-06).** Su tarjeta de ejemplo quedó vieja cuando la isla empezó a mostrar resultados solo para respuestas que traen datos (#248), y main fallaba ese test en cada corrida.
