@@ -171,21 +171,26 @@ extension BrowserToolRunner {
             return failed(tool, error)
         case .success(let reply):
             // Without this the model reports a multi-paragraph text that went in as one line.
-            if case .done(_, BrowserCopy.typedWithoutLineBreaks) = reply {
+            if reply.doneMessage == BrowserCopy.typedWithoutLineBreaks {
                 return ParentToolOutcome(
                     ok: true,
                     output: "typed into [\(id)] without its line breaks, so the text is on one line; read the tab "
-                        + "again, and tell the user the line breaks are missing",
+                        + "again, and tell the user the line breaks are missing" + afterNote(reply),
                     target: page.origin, tool: tool.rawValue)
             }
             let done = tool == .type ? "typed into" : tool == .select ? "chose an option in" : Self.verb(tool, past: true)
             let base = "\(done) [\(id)]; read the tab again to see the result"
             let output: String
-            if case .doneUnconfirmed = reply { output = base + " " + BrowserCopy.pressUnconfirmed(language()) } else { output = base }
+            if reply.isUnconfirmed { output = base + " " + BrowserCopy.pressUnconfirmed(language()) } else { output = base }
             return ParentToolOutcome(
-                ok: true, output: output,
+                ok: true, output: output + afterNote(reply),
                 target: page.origin, tool: tool.rawValue)
         }
+    }
+
+    /// What the action did to the page, in the host's own wording; empty when the extension sent nothing.
+    func afterNote(_ reply: BrowserInbound) -> String {
+        reply.after.map { " " + BrowserCopy.afterNote($0, language()) } ?? ""
     }
 
     private func navigate(
@@ -216,7 +221,7 @@ extension BrowserToolRunner {
             forget(tab)
             // A read right after a slow navigation sees the old or an empty page, and the model would report that.
             let stillLoading: Bool
-            if case .done(_, BrowserCopy.stillLoading) = reply { stillLoading = true } else { stillLoading = false }
+            stillLoading = reply.doneMessage == BrowserCopy.stillLoading
             return ParentToolOutcome(
                 ok: true,
                 output: stillLoading

@@ -2672,3 +2672,121 @@ test('a file set waits behind a click already running on the same tab', async ()
   const order = rig.state.cdp.map(([, method, params]) => (method === 'Input.dispatchMouseEvent' ? params.type : method));
   assert.ok(order.indexOf('DOM.getDocument') > order.indexOf('mousePressed'));
 });
+
+// --- What changed after an action (structured `after`, never page text) ---------------------------
+
+// A stand-in for the page's DOM globals that lib/settle.js observes through.
+function installDom() {
+  const dom = { url: 'https://a.example/start', overlays: {}, observers: [] };
+  globalThis.location = { get href() { return dom.url; } };
+  globalThis.document = {
+    documentElement: {},
+    querySelectorAll: (selector) => {
+      const kind = { '[role="dialog"]': 'dialog', '[role="menu"]': 'menu', '[role="listbox"]': 'listbox' }[selector];
+      return Array.from({ length: kind ? dom.overlays[kind] ?? 0 : 0 }, () => ({ checkVisibility: () => true }));
+    },
+  };
+  globalThis.MutationObserver = class {
+    constructor(cb) { this.cb = cb; dom.observers.push(this); }
+    observe() {}
+    disconnect() {}
+  };
+  // What a page does in reaction to the action: change the DOM and let the observer see it.
+  dom.react = (change) => { change(dom); for (const o of dom.observers) o.cb([{}]); };
+  return dom;
+}
+
+afterEach(() => {
+  for (const k of ['location', 'document', 'MutationObserver', '__companionSettle']) delete globalThis[k];
+});
+
+// Settling waits on timers, so the clock is driven until the reply shows up.
+async function askSettled(port, id, name, args) {
+  port.receive(call(id, name, args));
+  let ticks = 0;
+  while (!answersTo(port, id).length && ticks < 80) {
+    await settle();
+    mock.timers.tick(50);
+    ticks += 1;
+  }
+  const reply = answersTo(port, id)[0];
+  return { reply, ticks };
+}
+
+test('a click that opens a menu adds after.opened, and done stays exactly clicked', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const dom = installDom();
+  const { generation } = await readyButton(rig, () => { dom.react((d) => { d.overlays.menu = 1; }); return onScreen; });
+  const { reply } = await askSettled(rig.ports[0], 301, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(reply.result.done, 'clicked');
+  assert.deepEqual(reply.result.after, { navigated: false, urlChanged: false, opened: 'menu', changed: true, fieldChars: null });
+});
+
+test('a click on a quiet page reports nothing changed and adds at most about 350 ms', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  installDom();
+  const { generation } = await readyButton(rig, onScreen);
+  const { reply, ticks } = await askSettled(rig.ports[0], 302, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result.after, { navigated: false, urlChanged: false, opened: null, changed: false, fieldChars: null });
+  assert.ok(ticks * 50 <= 400, `settled in ${ticks * 50} ms`);
+});
+
+test('typing adds the field length as a number and never the value', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  installDom();
+  const { generation } = await readyField(rig, { readBack: 'Ana' });
+  const { reply } = await askSettled(rig.ports[0], 303, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.equal(reply.result.done, 'typed');
+  assert.equal(reply.result.after.fieldChars, 3);
+  assert.equal(JSON.stringify(reply.result).includes('Ana'), false);
+});
+
+test('a key press that moves the address reports urlChanged without the address', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const dom = installDom();
+  const { generation } = await pressPage(rig);
+  rig.state.page.focus = () => { dom.react((d) => { d.url = 'https://a.example/results?q=secret'; }); return { focused: true }; };
+  const { reply } = await askSettled(rig.ports[0], 304, 'browser_press', { tab: 3, key: 'Enter', times: 1, generation, element: 1 });
+  assert.equal(reply.result.done, 'pressed');
+  assert.equal(reply.result.after.urlChanged, true);
+  assert.equal(JSON.stringify(reply.result).includes('secret'), false);
+});
+
+test('a select reports that the page changed', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const dom = installDom();
+  rig.state.page = {
+    read: () => ({ origin: 'https://a.example', text: '', elements: [{ id: 1, frame: 0, role: 'combobox', label: 'Pais', context: '', inputType: 'select', autocomplete: null, value: 'Chile', frameOrigin: null, href: null, fieldName: null, fieldId: null }] }),
+    select: () => { dom.react(() => {}); return { done: 'selected' }; },
+  };
+  const read = await ask(rig.ports[0], 305, 'browser_read', { tab: 3 });
+  const { reply } = await askSettled(rig.ports[0], 306, 'browser_select', { tab: 3, generation: read.result.page.generation, element: 1, option: 'Peru' });
+  assert.equal(reply.result.done, 'selected');
+  assert.equal(reply.result.after.changed, true);
+});
+
+test('a page that navigates during the settle answers navigated instead of failing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  installDom();
+  const { generation } = await readyButton(rig, () => { delete globalThis.__companionSettle; return onScreen; });
+  const { reply } = await askSettled(rig.ports[0], 307, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.equal(reply.result.done, 'clicked');
+  assert.equal(reply.result.after.navigated, true);
+});
+
+test('a page that refuses the observer still gets the plain answer, with no after', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  const reply = await ask(rig.ports[0], 308, 'browser_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+});
+
+test('a refused action carries no after', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  installDom();
+  const changed = { error: { code: 'stale_id', message: 'element changed since the read, read the page again' } };
+  const { generation } = await readyField(rig, { prepare: changed });
+  const { reply } = await askSettled(rig.ports[0], 309, 'browser_type', { tab: 3, generation, element: 1, text: 'Ana' });
+  assert.equal(reply.error.code, 'stale_id');
+  assert.equal(reply.result, undefined);
+});
