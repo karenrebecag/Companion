@@ -170,23 +170,6 @@ final class RecordingSleeper: @unchecked Sendable {
              .updateAvailable(tag: "v1"), "16m-4: y sin ella sí")
 }
 
-// MARK: - MEDIUM 4: layout
-
-@MainActor @Test func theConsentGridClampsItsIdealWidth() {
-    let permission = IslandNotice.Grid.permission
-    expectEq(IslandNoticeMetrics.width(permission, available: 1_000, ideal: 100), 340,
-             "16m-4: el permiso no baja de 340")
-    expectEq(IslandNoticeMetrics.width(permission, available: 1_000, ideal: 400), 400,
-             "16m-4: entre 340 y 440 se queda en lo que pide")
-    expectEq(IslandNoticeMetrics.width(permission, available: 1_000, ideal: 900), 440,
-             "16m-4: ni pasa de 440")
-    expectEq(IslandNoticeMetrics.width(permission, available: 300, ideal: 100), 300,
-             "16m-4: y nunca sale del espacio que hay")
-    for grid in [IslandNotice.Grid.limit, .update, .permission, .diagnostic] {
-        expectEq(IslandNoticeMetrics.width(grid, available: 0), 0, "16m-4: sin espacio, sin ancho (\(grid))")
-    }
-}
-
 // MARK: - Security 5: what may print the words
 
 @MainActor @Test func theWordsNeverPrintThroughAnyDescription() {

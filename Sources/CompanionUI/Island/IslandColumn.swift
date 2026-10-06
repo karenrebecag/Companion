@@ -10,13 +10,18 @@ struct IslandColumn<Content: View>: View {
     var anchorBottom = false
     @ViewBuilder let content: () -> Content
     @State private var contentHeight: CGFloat = 0
+    @State private var offset: CGFloat = 0
 
     var body: some View {
         if contentHeight > maxHeight {
+            let edges = IslandColumnFade.edges(offset: offset, content: contentHeight, viewport: maxHeight)
             ScrollView(.vertical) { measured }
                 .defaultScrollAnchor(anchorBottom ? .bottom : nil)
                 .scrollIndicators(.automatic)
+                .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { _, y in offset = y }
                 .frame(height: maxHeight, alignment: .top)
+                // Arc's scroll-area: an edge fades only where there is more to read.
+                .mask(IslandColumnFade.mask(top: edges.top, bottom: edges.bottom, height: maxHeight))
         } else {
             // `frame(maxHeight:)` would take the offered height up to the cap;
             // this keeps the content's own height. On the unmeasured first
@@ -46,5 +51,24 @@ private struct CappedHeight: Layout {
         subviews.first?.place(
             at: bounds.origin, anchor: .topLeading,
             proposal: ProposedViewSize(width: bounds.width, height: nil))
+    }
+}
+
+enum IslandColumnFade {
+    static let length: CGFloat = Space.x6
+
+    static func edges(offset: CGFloat, content: CGFloat, viewport: CGFloat) -> (top: Bool, bottom: Bool) {
+        guard content > viewport else { return (false, false) }
+        return (offset > 0.5, offset < content - viewport - 0.5)
+    }
+
+    static func mask(top: Bool, bottom: Bool, height: CGFloat) -> LinearGradient {
+        let share = height > 0 ? min(0.5, length / height) : 0
+        return LinearGradient(stops: [
+            .init(color: top ? .clear : .black, location: 0),
+            .init(color: .black, location: share),
+            .init(color: .black, location: 1 - share),
+            .init(color: bottom ? .clear : .black, location: 1),
+        ], startPoint: .top, endPoint: .bottom)
     }
 }

@@ -36,9 +36,12 @@ extension IslandView {
     }
 
     func statusRows(_ state: IslandState) -> some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            HStack(spacing: Space.x3) {
-                meter(state)
+        VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
+            // Arc's grid: the mark in the lead column, the line in the content
+            // column, controls in the trail. Every state uses the same columns.
+            IslandGridRow {
+                leadMark(state)
+            } content: {
                 // Text states swap: "Escucho" leaves up, "Pienso" comes from
                 // below. Keyed on the kind of line, so a job's next step
                 // updates in place instead of swapping.
@@ -60,43 +63,34 @@ extension IslandView {
                 // until the slowest of them is done.
                 .animation(IslandMotionBudget.headerSwap.lifetime(reduceMotion: reduceMotion).animation,
                            value: IslandCopy.swapKey(state.line))
-                if let action = state.action {
-                    Button(IslandCopy.action(action)) { perform(action) }
-                        .buttonStyle(CapsuleChipStyle(ink: .island, density: .compact))
-                }
-                if IslandStop.asChip(state) {
-                    Button(Localized.string("island.stop")) { stop() }
-                        .buttonStyle(CapsuleChipStyle(ink: .island, density: .compact))
-                }
-                // 19-1c: the "Manos"/"Detener manos" chip left the island
-                // (Karen, feedback en vivo): during the sheet it duplicated
-                // "No permitir". Since the glow stopped marking the hands
-                // (Karen, 2026-10-03, as in Incredible), the menu bar is where
-                // a live session shows and stops.
-                IslandLight(light: state.light)
+            } trail: {
+                statusTrail(state)
             }
             .modifier(contentSlot(.field))
-            Group {
-                if let partial = state.partial, !partial.isEmpty {
-                    // 16m-2: quieter while the ear can still change it, full
-                    // ink once the release fixes it.
-                    IslandTranscript(text: partial, fixed: state.meter != .mic)
-                }
-                if let receipt = state.receipt, state.approval == nil {
-                    IslandReceiptRow(receipt: receipt) { chat.session.send(.undoPressed(id: receipt.id)) }
-                }
-                if let item = IslandReel.item(chat.session.projection.touched), state.approval == nil {
-                    IslandReel(item: item)
-                }
-                if case .job = state.line, let job = chat.session.projection.job {
-                    runCard(job, shows: runCardShows(state))
-                    let agents = WorkStateMetrics.agents(job.steps)
-                    if !agents.isEmpty {
-                        IslandAgentBars(agents: agents)
+            VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
+                Group {
+                    if let partial = state.partial, !partial.isEmpty {
+                        // 16m-2: quieter while the ear can still change it, full
+                        // ink once the release fixes it.
+                        IslandTranscript(text: partial, fixed: state.meter != .mic)
+                    }
+                    if let receipt = state.receipt, state.approval == nil {
+                        IslandReceiptRow(receipt: receipt) { chat.session.send(.undoPressed(id: receipt.id)) }
+                    }
+                    if let item = IslandReel.item(chat.session.projection.touched), state.approval == nil {
+                        IslandReel(item: item)
+                    }
+                    if state.meter == .agent || (state.light == .green && state.line == .completed) {
+                        reply(state)
                     }
                 }
-                if state.meter == .agent || (state.light == .green && state.line == .completed) {
-                    reply(state)
+                .islandContentColumn()
+                if case .job = state.line, let job = chat.session.projection.job {
+                    // Arc's run is always in view, its rail on the lead column;
+                    // the pointer or the field opens it to every step.
+                    IslandRunCard(job: job, expanded: runCardShows(state))
+                        .transition(reduceMotion ? .opacity : .opacity.combined(
+                            with: .offset(y: RunCardMetrics.riseOffset)))
                 }
             }
             .modifier(contentSlot(.conversation))
@@ -104,7 +98,7 @@ extension IslandView {
             // stack: the success light keeps its own spring when both change together.
             VStack(spacing: Space.none) {
                 if let request = state.approval {
-                    ApprovalSheet(request: request) { approved, remember in
+                    ApprovalSheet(request: request, surface: .island) { approved, remember in
                         guard clickGate(for: request).accepts else { return }
                         chat.approvalAnswer(for: request)(approved, remember)
                     }
@@ -122,28 +116,85 @@ extension IslandView {
         }
     }
 
+    /// The lead column's mark: the run's loader during a job, the orb while
+    /// it listens, thinks or speaks, and otherwise the status dot, the way
+    /// Arc's agent run leads its status with one.
+    @ViewBuilder
+    func leadMark(_ state: IslandState) -> some View {
+        if case .job = state.line, let job = chat.session.projection.job {
+            MorphLoader(status: AgentRunModel.status(job.steps), size: AgentRunMetrics.loader)
+                .foregroundStyle(ArcTone.foreground.color)
+        } else if Self.leadHoldsMeter(state) {
+            meter(state)
+                .matchedGeometryEffect(id: IslandOrbTravel.id, in: orbSpace)
+        } else {
+            IslandLight(light: state.light)
+        }
+    }
+
+    static func isJob(_ line: IslandState.Line) -> Bool {
+        if case .job = line { return true }
+        return false
+    }
+
+    static func leadHoldsMeter(_ state: IslandState) -> Bool {
+        state.meter != .none || IslandCopy.shimmers(state.line)
+    }
+
+    @ViewBuilder
+    func statusTrail(_ state: IslandState) -> some View {
+        HStack(spacing: Space.x2) {
+            if case .job = state.line, let job = chat.session.projection.job {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(RunCardModel.meta(jobStartedAt: job.startedAt, now: context.date))
+                        .font(Fonts.geist(AgentRunMetrics.metaSize).monospacedDigit())
+                        .foregroundStyle(ArcTone.textSecondary.color)
+                        .contentTransition(.numericText())
+                        // The tick rolls its digits; Reduce Motion just swaps them.
+                        .animation(ArcMotion.press.animation(reduceMotion: reduceMotion), value: context.date)
+                }
+            }
+            if let action = state.action {
+                Button(IslandCopy.action(action)) { perform(action) }
+                    .buttonStyle(CapsuleChipStyle(ink: .island, density: .compact))
+            }
+            if IslandStop.asChip(state) {
+                Button(Localized.string("island.stop")) { stop() }
+                    .buttonStyle(CapsuleChipStyle(ink: .island, density: .compact))
+            }
+            // 19-1c: the "Manos"/"Detener manos" chip left the island
+            // (Karen, feedback en vivo): during the sheet it duplicated
+            // "No permitir". Since the glow stopped marking the hands
+            // (Karen, 2026-10-03, as in Incredible), the menu bar is where
+            // a live session shows and stops.
+            if Self.leadHoldsMeter(state) || Self.isJob(state.line) {
+                IslandLight(light: state.light)
+            }
+        }
+    }
+
     @ViewBuilder
     func meter(_ state: IslandState) -> some View {
         switch state.meter {
         case .none:
-            EmptyView()
+            // Arc's orb gives thinking a look of its own: it contracts into a slow swirl.
+            if IslandCopy.shimmers(state.line) {
+                IslandOrb(state: .thinking, size: IslandChrome.meterSide)
+            }
         case .mic:
-            Orb(state: .listening, levels: voice.levels, accentColor: Semantic.accent)
-                .frame(width: IslandChrome.meterSide, height: IslandChrome.meterSide)
-            VoiceLevelWaveform(amplitude: voice.levels.mic)
+            // The orb's ripples carry the mic level; no separate waveform.
+            IslandOrb(state: .listening, levels: voice.levels, size: IslandChrome.meterSide)
         case .agent:
             // Icon swap: while it speaks the orb is the brake.
             ZStack {
                 if IslandStop.asOrb(state) {
                     IslandStopOrb(action: stop).transition(iconSwap)
                 } else {
-                    Orb(state: .speaking, levels: voice.levels, accentColor: Semantic.accent)
-                        .frame(width: IslandChrome.meterSide, height: IslandChrome.meterSide)
+                    IslandOrb(state: .speaking, levels: voice.levels, size: IslandChrome.meterSide)
                         .transition(iconSwap)
                 }
             }
             .animation(.expoOut(IslandMotionBudget.iconSwap.duration), value: IslandStop.asOrb(state))
-            // No waveform while it speaks, as in Incredible: the orb carries the voice.
         }
     }
 
@@ -160,24 +211,10 @@ extension IslandView {
         }
     }
 
-    /// Hover is read raw and judged against the size it is read at.
+    /// Hover is read raw and judged against the size it is read at: it opens the run to every step.
     func runCardShows(_ state: IslandState) -> Bool {
         guard case .job = state.line else { return false }
         return RunCardModel.showsCard(rawHover: hoveringWork, size: state.size, focused: fieldFocused)
-    }
-
-    /// One card, only while the pointer is over the island or its field has
-    /// the keyboard: the field is the island's one keyboard stop.
-    @ViewBuilder func runCard(_ job: JobTimeline, shows: Bool) -> some View {
-        Group {
-            if shows {
-                IslandRunCard(job: job)
-                    .transition(reduceMotion ? .identity : .opacity.combined(
-                        with: .offset(y: RunCardMetrics.riseOffset)))
-            }
-        }
-        .animation(reduceMotion ? nil : MotionCurve.animation(
-            MotionCurve.settle, RunCardMetrics.fadeSeconds), value: shows)
     }
 }
 
@@ -193,6 +230,10 @@ struct RunCardHoverRegion: ViewModifier {
             content
         }
     }
+}
+
+enum IslandOrbTravel {
+    static let id = "island.orb"
 }
 
 extension IslandView {

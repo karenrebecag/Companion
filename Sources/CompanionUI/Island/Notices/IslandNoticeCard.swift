@@ -1,9 +1,10 @@
 import CompanionCore
 import SwiftUI
 
-/// The notice card on its measured grid (16m-4). Limit, update and
-/// diagnostic are an icon column and the rest; the permission notice is the
-/// consent stack. The countdown ring is the notice's remaining life.
+/// A notice (16m-4) on the island's grid: its icon in the lead column in the
+/// tone of what it means, the words and the action in the content column, the
+/// countdown ring (the notice's remaining life) in the trail. The island is
+/// the surface, so no card of its own.
 struct IslandNoticeCard: View {
     let content: IslandNotice.Content
     /// A chat error draws a ring, but its clock is the view's task: hovering
@@ -16,15 +17,19 @@ struct IslandNoticeCard: View {
     @State private var pause = NoticePause()
 
     var body: some View {
-        IslandNoticeWidth(grid: content.grid) {
-            Group {
-                if content.grid == .permission { consent } else { gridded }
+        IslandGridRow(alignment: .top) {
+            mark
+        } content: {
+            VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
+                words
+                HStack(spacing: Space.x2) {
+                    if content.grid == .update { dismissButton }
+                    actionButton
+                }
             }
-            .padding(.vertical, IslandNoticeMetrics.paddingY)
-            .padding(.horizontal, IslandNoticeMetrics.paddingX)
-            .background(RoundedRectangle(cornerRadius: IslandInk.cardRadius).fill(IslandInk.field))
+        } trail: {
+            if let lifetime = content.lifetime { ring(lifetime) }
         }
-        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
         .onAppear { AccessibilityNotification.Announcement(IslandNotice.announcement(content)).post() }
         .onHover { over in
@@ -40,57 +45,27 @@ struct IslandNoticeCard: View {
         }
     }
 
-    /// Icon column, then the words; the update card adds its actions to the
-    /// right, the others hang the action under the words.
-    private var gridded: some View {
-        HStack(alignment: .top, spacing: IslandNoticeMetrics.limitColumnGap) {
-            tile(IslandNoticeMetrics.gutter(content.grid))
-            VStack(alignment: .leading, spacing: IslandNoticeMetrics.limitRowGap) {
-                words
-                if content.grid != .update { actionButton }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if content.grid == .update {
-                HStack(spacing: Space.x2) {
-                    dismissButton
-                    actionButton
-                }
-            } else if let lifetime = content.lifetime {
-                ring(lifetime)
-            }
-        }
-    }
-
-    private var consent: some View {
-        VStack(alignment: .leading, spacing: IslandNoticeMetrics.consentGap) {
-            HStack(alignment: .top, spacing: IslandNoticeMetrics.limitColumnGap) {
-                tile(IslandNoticeMetrics.gutter(.permission))
-                words.frame(maxWidth: .infinity, alignment: .leading)
-                if let lifetime = content.lifetime { ring(lifetime) }
-            }
-            actionButton
-        }
-    }
-
-    private func tile(_ side: CGFloat) -> some View {
-        Image(systemName: content.symbol)
+    /// Arc: color on the icon with a faint tint behind it, never color alone.
+    private var mark: some View {
+        let tone = IslandNotice.tone(content.grid)
+        return Image(systemName: content.symbol)
             .font(GeistFont.uiLabel)
-            .foregroundStyle(IslandInk.blue)
-            .frame(width: side, height: side)
-            .background(RoundedRectangle(cornerRadius: Radius.lg).fill(IslandInk.blueTile))
+            .foregroundStyle(tone.color)
+            .frame(width: IslandGrid.lead, height: IslandGrid.lead)
+            .background(Circle().fill(ArcTone.wash(tone, IslandNotice.toneWash)))
             .accessibilityHidden(true)
     }
 
     private var words: some View {
         VStack(alignment: .leading, spacing: Space.x1) {
             Text(content.title)
-                .font(GeistFont.uiLabel.weight(.semibold))
-                .foregroundStyle(IslandInk.text)
+                .font(GeistFont.uiLabel.weight(.medium))
+                .foregroundStyle(ArcTone.foreground.color)
                 .fixedSize(horizontal: false, vertical: true)
             if let body = content.body {
                 Text(body)
                     .font(GeistFont.uiCaption)
-                    .foregroundStyle(IslandInk.secondary)
+                    .foregroundStyle(ArcTone.textSecondary.color)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -101,7 +76,7 @@ struct IslandNoticeCard: View {
         if let action = content.action, let title = content.actionTitle {
             Button { onAction(action) } label: {
                 Text(title + " →")
-                    .font(GeistFont.uiCaption.weight(.semibold))
+                    .font(GeistFont.uiCaption.weight(.medium))
                     .foregroundStyle(IslandInk.panel)
                     .padding(.horizontal, Space.x3)
                     .padding(.vertical, IslandInk.chipVertical)

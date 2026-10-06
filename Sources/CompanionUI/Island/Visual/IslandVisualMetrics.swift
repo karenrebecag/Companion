@@ -85,15 +85,12 @@ package enum IslandVisualMetrics {
     }
 }
 
-/// The series' colours, built from the tokens already on the island: the
-/// popup accent first, then the system accents. The island surface is dark
-/// in both appearances, so one palette serves both.
+/// The series' colours: Arc's dark chart series first, then the system
+/// accents for longer charts. The island surface is dark in both
+/// appearances, so one palette serves both.
 enum IslandChartInk {
     /// Every entry is pinned to 3:1 on the surface by a test.
-    static let series: [Swatch] = [
-        AnswerInk.accent, Palette.signalGreen, Accent.orange, Accent.purple,
-        Accent.pink, Accent.yellow, Accent.teal, Neutral.n400,
-    ]
+    static let series: [Swatch] = ArcTone.chartSeries + [Accent.pink, Accent.yellow, Accent.teal, Neutral.n400]
 
     static func color(at index: Int) -> Color {
         let count = series.count

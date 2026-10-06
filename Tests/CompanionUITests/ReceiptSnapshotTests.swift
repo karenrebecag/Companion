@@ -40,7 +40,7 @@ private let typedLine = ReceiptLine(text: "Escribí el texto.", verified: true)
     // Proposed the widest the island gives it: an unbounded proposal would
     // let a wrapping line go wide and hide the growth.
     let card = IslandReceiptCard(receipt: receipt, onDismiss: {})
-        .frame(width: ReceiptMetrics.maxWidth)
+        .frame(width: IslandGrid.openColumn)
         .fixedSize(horizontal: false, vertical: true)
     return NSHostingView(rootView: card).fittingSize
 }

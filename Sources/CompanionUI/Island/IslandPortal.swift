@@ -109,17 +109,25 @@ struct PortalPlaced<Content: View>: View {
     }
 }
 
-/// Incredible's tooltip: a near-black pill, 14 medium, opacity only.
+/// Arc's tooltip, inverted: a foreground bubble with the page's black for
+/// text, wrapping past 240 so a long hint never runs off the island.
 struct IslandTooltipBubble: View {
     let text: String
 
     var body: some View {
         Text(text)
-            .font(Fonts.geist(TypeSize.rowTitle).weight(.medium))
-            .foregroundStyle(IslandInk.text)
-            .padding(.horizontal, Space.x2)
-            .padding(.vertical, Space.x1)
-            .background(Capsule().fill(IslandInk.tooltip))
+            .font(Fonts.geist(TypeSize.rowTitle))
+            .foregroundStyle(IslandInk.panel)
+            .multilineTextAlignment(.leading)
+            // Hugs a short hint; a long one wraps at Arc's 240, measured
+            // again at that width so every line gets its height.
+            .modifier(HugsUpTo(maxWidth: IslandArc.Tooltip.maxWidth - IslandArc.Tooltip.paddingX * 2))
+            .padding(.horizontal, IslandArc.Tooltip.paddingX)
+            .padding(.vertical, IslandArc.Tooltip.paddingY)
+            .background(RoundedRectangle(cornerRadius: IslandArc.Tooltip.radius).fill(IslandInk.tooltip))
+            .overlay(RoundedRectangle(cornerRadius: IslandArc.Tooltip.radius)
+                .strokeBorder(IslandArc.Tooltip.rimSwatch.color, lineWidth: Stroke.hairline))
+            .elevation(.hover)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }

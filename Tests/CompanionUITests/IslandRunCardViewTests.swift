@@ -22,9 +22,10 @@ import Testing
 
 @Test @MainActor func runCardRendersDoneFailedAndLiveRows() throws {
     let renderer = ImageRenderer(content: IslandRunCard(job: sampleJob())
+        .frame(width: IslandGrid.openColumn)
         .environment(\.colorScheme, .dark))
     let image = try #require(renderer.nsImage)
-    #expect(image.size.width >= RunCardMetrics.minWidth)
+    #expect(image.size.width == IslandGrid.openColumn)
     #expect(image.size.height > 0)
 }
 
@@ -34,6 +35,7 @@ import Testing
     try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
     for scheme in [ColorScheme.light, .dark] {
         let framed = IslandRunCard(job: sampleJob())
+            .frame(width: IslandGrid.openColumn)
             .environment(\.colorScheme, scheme)
             .padding(40)
             .background(scheme == .dark ? Color.black : Color.white)
@@ -56,7 +58,7 @@ import Testing
 }
 
 @MainActor private func height<V: View>(_ view: V) throws -> CGFloat {
-    try #require(ImageRenderer(content: view.environment(\.colorScheme, .dark)).nsImage).size.height
+    try #require(ImageRenderer(content: view.frame(width: IslandGrid.openColumn).environment(\.colorScheme, .dark)).nsImage).size.height
 }
 
 @Test @MainActor func moreStepsMakeATallerCard() throws {

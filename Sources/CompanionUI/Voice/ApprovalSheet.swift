@@ -8,15 +8,21 @@ import SwiftUI
 /// 19-1b: compact on Karen's live feedback — one title line, the auto-deny
 /// as a counting ring instead of a sentence, glyphs on the answers.
 package struct ApprovalSheet: View {
+    /// The window draws a sheet of its own; the island draws it as rows on
+    /// its grid, with the island as the surface (Arc: no card in a card).
+    package enum Surface: Equatable { case window, island }
+
     private let request: ApprovalRequest
     private let answer: (Bool, Bool) -> Void
+    private let surface: Surface
     @State private var remember = false
     /// When the sheet appeared: the ring counts from here against the same
     /// deadline the `Approvals` actor denies on (`ApprovalTiming`).
     @State private var shownAt = Date()
 
-    package init(request: ApprovalRequest, answer: @escaping (Bool, Bool) -> Void) {
+    package init(request: ApprovalRequest, surface: Surface = .window, answer: @escaping (Bool, Bool) -> Void) {
         self.request = request
+        self.surface = surface
         self.answer = answer
     }
 
@@ -25,8 +31,62 @@ package struct ApprovalSheet: View {
     }
 
     package var body: some View {
+        switch surface {
+        case .window: windowSheet
+        case .island: islandRows
+        }
+    }
+
+    /// Arc's approval inline: the question beside its mark, the auto-deny
+    /// ring in the trail, the preview and the answers under the words.
+    private var islandRows: some View {
         let display = self.display
-        VStack(alignment: .leading, spacing: Space.x3) {
+        return IslandGridRow(alignment: .top) {
+            mark(display.mark)
+                .frame(width: IslandGrid.lead, height: IslandGrid.lead)
+                .background(Circle().fill(ArcTone.wash(ArcTone.warning, IslandNotice.toneWash)))
+                .foregroundStyle(ArcTone.warning.color)
+                .help(request.toolName)
+                .accessibilityHidden(true)
+        } content: {
+            VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
+                title(display)
+                    .font(GeistFont.uiLabel)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(display.title)
+                if let preview = display.preview {
+                    previewBlock(preview)
+                        .background(ArcTone.surface.color)
+                        .clipShape(RoundedRectangle(cornerRadius: IslandGrid.nestedRadius))
+                }
+                if display.showsRemember { rememberToggle }
+                HStack(spacing: Space.x2) {
+                    Button { answer(false, remember) } label: {
+                        Label(Localized.string("approval.deny"), systemImage: "xmark")
+                    }
+                    .buttonStyle(CapsuleChipStyle(ink: .island, density: .compact))
+                    .keyboardShortcut(.cancelAction)
+                    Button { answer(true, remember) } label: {
+                        Label(Localized.string("approval.allow"), systemImage: "checkmark")
+                            .font(GeistFont.uiCaption.weight(.medium))
+                            .foregroundStyle(IslandInk.panel)
+                            .padding(.horizontal, Space.x3)
+                            .padding(.vertical, IslandInk.chipVertical)
+                            .background(Capsule().fill(IslandInk.text))
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .keyboardShortcut(Self.allowShortcut)
+                }
+            }
+        } trail: {
+            autoDenyRing
+        }
+    }
+
+    private var windowSheet: some View {
+        let display = self.display
+        return VStack(alignment: .leading, spacing: Space.x3) {
             HStack(alignment: .center, spacing: Space.x3) {
                 mark(display.mark)
                     .frame(width: Space.x8, height: Space.x8)
@@ -44,24 +104,9 @@ package struct ApprovalSheet: View {
             }
 
             if let preview = display.preview {
-                // The scroll bounds what the ellipsis used to hide: the
-                // datum is complete (the tail is part of what runs — 15g
-                // M1) and the answer buttons can never be pushed off
-                // screen by a long one (security review 19-1). Deciding by
-                // length keeps a short preview hugging its text —
-                // ViewThatFits picked the greedy scroll and drew a tall
-                // empty box (seen live 19-1c).
-                Group {
-                    if Self.previewScrolls(preview) {
-                        ScrollView(.vertical) { previewText(preview) }
-                            .frame(maxHeight: Container.hero)
-                    } else {
-                        previewText(preview)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Semantic.surface)
-                .clipShape(RoundedRectangle(cornerRadius: Radius.badge))
+                previewBlock(preview)
+                    .background(Semantic.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: Radius.badge))
             }
 
             // §9-5: `bridge_session` has no `ApprovalKey` (security review
@@ -69,14 +114,7 @@ package struct ApprovalSheet: View {
             // memory that never happens, one sheet per connection, always.
             // Its own row above the CTAs (19-1c): squeezed between the
             // buttons it truncated them.
-            if display.showsRemember {
-                Toggle(isOn: $remember) {
-                    Text(Localized.string("approval.remember"))
-                        .font(GeistFont.uiCaption)
-                        .foregroundStyle(Semantic.mutedForeground)
-                }
-                .toggleStyle(.checkbox)
-            }
+            if display.showsRemember { rememberToggle }
 
             HStack(spacing: Space.x3) {
                 AppButton(Localized.string("approval.deny"), kind: .secondary,
@@ -93,6 +131,33 @@ package struct ApprovalSheet: View {
         .background(Semantic.background)
     }
 
+    /// The scroll bounds what the ellipsis used to hide: the datum is
+    /// complete (the tail is part of what runs — 15g M1) and the answer
+    /// buttons can never be pushed off screen by a long one (security review
+    /// 19-1). Deciding by length keeps a short preview hugging its text —
+    /// ViewThatFits picked the greedy scroll and drew a tall empty box (seen
+    /// live 19-1c).
+    private func previewBlock(_ preview: String) -> some View {
+        Group {
+            if Self.previewScrolls(preview) {
+                ScrollView(.vertical) { previewText(preview) }
+                    .frame(maxHeight: Container.hero)
+            } else {
+                previewText(preview)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var rememberToggle: some View {
+        Toggle(isOn: $remember) {
+            Text(Localized.string("approval.remember"))
+                .font(GeistFont.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+        }
+        .toggleStyle(.checkbox)
+    }
+
     /// The deadline made visible: the ring empties over the same seconds
     /// the actor counts, so "if you don't answer" needs no sentence. The
     /// sentence survives for accessibility.
@@ -102,10 +167,10 @@ package struct ApprovalSheet: View {
                 elapsed: context.date.timeIntervalSince(shownAt),
                 lifetime: ApprovalTiming.autoDeny)
             ZStack {
-                Circle().stroke(Semantic.surface, lineWidth: Stroke.thin)
+                Circle().stroke(ApprovalRingInk.track(surface), lineWidth: Stroke.thin)
                 Circle()
                     .trim(from: 0, to: left)
-                    .stroke(Semantic.mutedForeground,
+                    .stroke(ApprovalRingInk.progress(surface),
                             style: StrokeStyle(lineWidth: Stroke.thin, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
@@ -198,5 +263,19 @@ enum ClaudeLogo {
             let image = NSImage(contentsOf: url) else { return nil }
         image.isTemplate = true
         return image
+    }
+}
+
+/// The auto-deny ring's ink: the theme's in the window, Arc's on the island.
+enum ApprovalRingInk {
+    static let islandTrack = ArcTone.border
+    static let islandProgress = ArcTone.textSecondary
+
+    static func track(_ surface: ApprovalSheet.Surface) -> Color {
+        surface == .island ? islandTrack.color : Semantic.surface
+    }
+
+    static func progress(_ surface: ApprovalSheet.Surface) -> Color {
+        surface == .island ? islandProgress.color : Semantic.mutedForeground
     }
 }

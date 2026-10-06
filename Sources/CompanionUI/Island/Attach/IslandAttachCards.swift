@@ -147,7 +147,7 @@ struct IslandAttachCard: View {
         .frame(width: IslandAttachMetrics.cardWidth, height: IslandAttachMetrics.cardHeight)
         .background(shape.fill(fill))
         .clipShape(shape)
-        .overlay(shape.strokeBorder(Neutral.white.color.opacity(IslandAttachMetrics.cardBorder),
+        .overlay(shape.strokeBorder((item.isError ? IslandAttachMetrics.errorRim : IslandAttachMetrics.cardRim).color,
                                     lineWidth: Stroke.hairline))
         .overlay(alignment: .topTrailing) {
             IslandRemoveOnHover(hovering: hovering, style: .card, pin: pin, focusOnAppear: focusOnAppear, name: item.name, action: onRemove)
@@ -197,9 +197,7 @@ struct IslandAttachCard: View {
     }
 
     private var fill: Color {
-        item.isError
-            ? IslandAttachMetrics.errorTint.color.opacity(IslandAttachMetrics.errorAlpha)
-            : Neutral.white.color.opacity(IslandAttachMetrics.cardTile)
+        (item.isError ? IslandAttachMetrics.errorFill : IslandAttachMetrics.cardFill).color
     }
 
     private var label: String {
@@ -209,7 +207,7 @@ struct IslandAttachCard: View {
     }
 }
 
-/// The type in capitals: 10 / 600, +0.04em, on white 13 %.
+/// The type in capitals: 10 / 500, +0.04em, on Arc's neutral badge.
 struct IslandExtBadge: View {
     let text: String
     /// Over a picture white 13 % disappears on a light photo; the badge
@@ -218,7 +216,7 @@ struct IslandExtBadge: View {
 
     var body: some View {
         Text(verbatim: text)
-            .font(Fonts.geist(IslandAttachMetrics.extSize).weight(.semibold))
+            .font(Fonts.geist(IslandAttachMetrics.extSize).weight(.medium))
             .tracking(IslandAttachMetrics.extSize * IslandAttachMetrics.extTracking)
             .foregroundStyle(IslandInk.text)
             .lineLimit(1)
@@ -230,7 +228,7 @@ struct IslandExtBadge: View {
     private var fill: Color {
         overPicture
             ? IslandAttachMetrics.removeFill.color.opacity(IslandAttachMetrics.removeFillAlpha)
-            : Neutral.white.color.opacity(IslandAttachMetrics.extFill)
+            : IslandAttachMetrics.extFill.color
     }
 }
 
@@ -410,7 +408,7 @@ struct IslandCountBadge: View {
 
     var body: some View {
         Text(verbatim: text)
-            .font(Fonts.geist(IslandAttachMetrics.badgeSize).weight(.semibold))
+            .font(Fonts.geist(IslandAttachMetrics.badgeSize).weight(.medium))
             .foregroundStyle(IslandInk.text)
             .padding(.horizontal, IslandAttachMetrics.extPaddingX)
             .frame(minWidth: IslandAttachMetrics.badgeHeight, minHeight: IslandAttachMetrics.badgeHeight,

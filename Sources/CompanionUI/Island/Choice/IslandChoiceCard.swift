@@ -34,7 +34,7 @@ struct IslandChoiceCard: View {
         IslandChoiceWidth {
             VStack(alignment: .leading, spacing: IslandChoiceMetrics.gap) {
                 Text(block.question)
-                    .font(GeistFont.uiLabel.weight(.semibold))
+                    .font(GeistFont.uiLabel.weight(.medium))
                     .foregroundStyle(IslandInk.text)
                     .fixedSize(horizontal: false, vertical: true)
                 optionList
@@ -43,7 +43,6 @@ struct IslandChoiceCard: View {
             }
             .padding(.vertical, IslandChoiceMetrics.paddingY)
             .padding(.horizontal, IslandChoiceMetrics.paddingX)
-            .background(RoundedRectangle(cornerRadius: IslandInk.cardRadius).fill(IslandInk.field))
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .contain)
@@ -122,7 +121,10 @@ struct IslandChoiceCard: View {
             .onSubmit { confirm() }
             .padding(.vertical, AnswerOptionMetrics.paddingY)
             .padding(.horizontal, AnswerOptionMetrics.paddingX)
-            .background(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius).fill(IslandInk.chip))
+            .background(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius)
+                .fill(IslandChoiceTile.fill(checked: false).color))
+            .overlay(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius)
+                .strokeBorder(IslandChoiceTile.rim(checked: false, hover: writing).color, lineWidth: Stroke.hairline))
             .accessibilityLabel(Localized.string("island.choice.other"))
     }
 
@@ -166,9 +168,9 @@ struct IslandChoiceCard: View {
     }
 }
 
-/// One choice: a quiet tile that turns indigo under the pointer, with its
-/// shortcut number on the left. Rebuilt from the 16l primitive (retired by
-/// 16p-2 while nothing drew it) on the shared island ink.
+/// One choice as Arc's radio card: a surface card whose border strengthens
+/// under the pointer and whose indicator fills when picked, keeping the
+/// shortcut number the keyboard picks it by.
 struct AnswerOption: View {
     let index: Int
     let title: String
@@ -178,7 +180,8 @@ struct AnswerOption: View {
     let action: () -> Void
     @State private var hovering = false
 
-    private var lit: Bool { state == .picked || state == .selected || state == .cursor || (hovering && state == .idle) }
+    private var checked: Bool { state == .picked || state == .selected }
+    private var lit: Bool { state == .cursor || (hovering && state == .idle) }
 
     var body: some View {
         Button(action: action) {
@@ -201,10 +204,9 @@ struct AnswerOption: View {
             .padding(.vertical, AnswerOptionMetrics.paddingY)
             .padding(.horizontal, AnswerOptionMetrics.paddingX)
             .background(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius)
-                .fill(lit ? IslandPalette.indigo.color.opacity(IslandChoiceTile.litFill) : IslandInk.chip))
+                .fill(IslandChoiceTile.fill(checked: checked).color))
             .overlay(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius)
-                .strokeBorder(lit ? IslandPalette.indigo.color.opacity(IslandChoiceTile.litBorder) : IslandInk.hairline,
-                              lineWidth: Stroke.hairline))
+                .strokeBorder(IslandChoiceTile.rim(checked: checked, hover: lit).color, lineWidth: Stroke.hairline))
             .contentShape(RoundedRectangle(cornerRadius: AnswerOptionMetrics.radius))
             .opacity(state == .unavailable ? IslandChoiceMetrics.unavailableAlpha : 1)
         }
@@ -220,27 +222,41 @@ struct AnswerOption: View {
         .accessibilityAddTraits(state == .picked || state == .selected ? .isSelected : [])
     }
 
+    /// The radio indicator keeps the digit that picks it from the keyboard.
     private var badge: some View {
         ZStack {
-            if state == .picked || state == .selected {
+            if checked {
                 Image(systemName: "checkmark")
             } else {
                 Text(String(index + 1))
             }
         }
-        .font(GeistFont.uiCaption.weight(.semibold))
-        .foregroundStyle(IslandInk.text)
+        .font(GeistFont.uiCaption.weight(.medium))
+        .foregroundStyle(checked ? IslandInk.panel : IslandInk.secondary)
         .frame(width: IslandInk.slotSide, height: IslandInk.slotSide)
-        .background(RoundedRectangle(cornerRadius: Radius.md)
-            .fill(lit ? IslandPalette.indigo.color.opacity(IslandChoiceTile.badgeFill) : IslandInk.chip))
+        .background(Circle().fill(checked ? IslandChoiceTile.indicator(checked: true).color : Color.clear))
+        .overlay(Circle().strokeBorder(IslandChoiceTile.indicator(checked: checked).color,
+                                       lineWidth: Stroke.hairline))
     }
 }
 
-/// Own values (the research measures the card, not the option's states).
+/// Arc's radio cards on the island: the control tone is the accent.
 enum IslandChoiceTile {
-    static let litFill = 0.22
-    static let litBorder = 0.4
-    static let badgeFill = 0.42
+    static let checkedFill = 0.04
+    static let checkedRim = 0.4
+
+    static func fill(checked: Bool) -> Swatch {
+        checked ? ArcTone.mix(ArcTone.accent, checkedFill, over: ArcTone.surface) : ArcTone.surface
+    }
+
+    static func rim(checked: Bool, hover: Bool) -> Swatch {
+        if checked { return ArcTone.mix(ArcTone.accent, checkedRim, over: ArcTone.border) }
+        return hover ? IslandArc.borderStrong : ArcTone.border
+    }
+
+    static func indicator(checked: Bool) -> Swatch {
+        checked ? ArcTone.accent : IslandArc.borderStrong
+    }
 }
 
 /// Gives the card its 340-440 in whatever room the island leaves.

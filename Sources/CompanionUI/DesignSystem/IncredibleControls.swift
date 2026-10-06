@@ -41,8 +41,6 @@ package enum MenuMetrics {
     package static let itemRadius: CGFloat = Radius.badge
     package static let itemGap: CGFloat = Space.x2_5
     package static let islandWidth: CGFloat = 230
-    package static let islandRadius: CGFloat = Radius.lg
-    package static let islandGap: CGFloat = Space.x1
     package static let enterScale: CGFloat = 0.97
     package static let duration = MotionTime.base
 }

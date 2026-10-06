@@ -282,13 +282,15 @@ enum MentionCopy {
 /// Incredible's mention picker (docs/research/incredible-isla-componentes.md
 /// §3): padding 4, at most 240 tall, radius 11; each item 6 × 8, radius 7,
 /// 13 px, hover in the accent at 16 %. Pinned in Mention16m7SelectorTests.
+/// Arc's suggestion list: the island menu's panel and rows.
 enum MentionMetrics {
-    static let padding: CGFloat = 4
+    static let padding: CGFloat = IslandArc.Menu.padding
     static let maxHeight: CGFloat = 240
-    static let radius: CGFloat = 11
-    static let itemPaddingY: CGFloat = 6
-    static let itemPaddingX: CGFloat = 8
-    static let itemRadius: CGFloat = 7
+    static let radius: CGFloat = IslandArc.Menu.radius
+    static let itemMinHeight: CGFloat = IslandArc.Menu.itemMinHeight
+    static let itemPaddingY: CGFloat = Space.x1_5
+    static let itemPaddingX: CGFloat = IslandArc.Menu.itemPaddingX
+    static let itemRadius: CGFloat = IslandArc.Menu.itemRadius
     static let itemFontSize: CGFloat = 13
-    static let hoverAlpha = 0.16
+    static let highlight = ArcTone.surfaceMuted
 }

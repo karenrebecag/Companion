@@ -12,7 +12,8 @@ struct MentionSelectorView: View {
             .padding(MentionMetrics.padding)
             .background(RoundedRectangle(cornerRadius: MentionMetrics.radius).fill(IslandInk.popover))
             .overlay(RoundedRectangle(cornerRadius: MentionMetrics.radius)
-                .stroke(IslandInk.hairline, lineWidth: Stroke.hairline))
+                .strokeBorder(IslandInk.hairline, lineWidth: Stroke.hairline))
+            .clipShape(RoundedRectangle(cornerRadius: MentionMetrics.radius))
             .accessibilityElement(children: .contain)
             .accessibilityLabel(Localized.string("mention.list"))
     }
@@ -89,10 +90,10 @@ private struct MentionRow: View {
                     Text(label).font(GeistFont.uiCaption).foregroundStyle(IslandInk.secondary)
                 }
             }
-            .padding(.vertical, MentionMetrics.itemPaddingY)
+            .frame(minHeight: MentionMetrics.itemMinHeight)
             .padding(.horizontal, MentionMetrics.itemPaddingX)
             .background(RoundedRectangle(cornerRadius: MentionMetrics.itemRadius)
-                .fill(lit ? IslandPalette.accent.color.opacity(MentionMetrics.hoverAlpha) : Color.clear))
+                .fill(lit ? MentionMetrics.highlight.color : Color.clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

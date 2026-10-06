@@ -86,11 +86,6 @@ import Testing
     ]
     try piece(IslandRunCard(job: job), to: out, "island-runcard")
 
-    try piece(IslandAgentBars(agents: [
-        JobStepInfo(tool: "Task", label: "Task: revisar seguridad"),
-        JobStepInfo(tool: "Task", label: "Task: escribir tests"),
-    ]), to: out, "island-agentbars")
-
     try piece(IslandReel(item: "Mail")
         .frame(width: 420), to: out, "island-reel")
 

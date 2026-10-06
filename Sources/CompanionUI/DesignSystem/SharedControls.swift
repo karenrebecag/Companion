@@ -31,25 +31,33 @@ package enum ChipDensity: Sendable {
     }
 }
 
-/// A chip's ink on its surface: text, rest fill and pressed fill.
+/// A chip's ink on its surface: text, rest fill and pressed fill. The rim
+/// and the press scale are Arc's, so only the island's inks carry them.
 struct ChipInk {
     let text: Color
     let fill: Color
     let pressed: Color
+    var rim: Color?
+    var pressScale: CGFloat = 1
 
-    /// Incredible's grey secondary control on the black island.
+    /// Arc's ghost control on the black island: surface, a border rim.
     static var island: ChipInk {
-        ChipInk(text: IslandInk.text, fill: IslandInk.chip, pressed: IslandInk.chipPressed)
+        ChipInk(text: IslandInk.text, fill: IslandInk.chip, pressed: IslandInk.chipPressed,
+                rim: IslandInk.hairline, pressScale: IslandArc.pressScale)
     }
 
-    /// The question card's Confirm: indigo, the island's one accent.
+    /// The question card's Confirm: Arc's primary, accent with dark text.
     static var choiceConfirm: ChipInk {
-        ChipInk(text: IslandInk.text, fill: IslandPalette.indigo.color.opacity(0.6),
-                pressed: IslandPalette.indigo.color.opacity(0.85))
+        ChipInk(text: IslandInk.panel, fill: ArcTone.accent.color,
+                pressed: ArcTone.mix(ArcTone.foreground, 0.16, over: ArcTone.accent).color,
+                pressScale: IslandArc.pressScale)
     }
 
+    /// confirm-morph's danger: red words on a 4 % red surface, an 18 % red edge.
     static var islandDestructive: ChipInk {
-        ChipInk(text: IslandInk.destructive, fill: IslandInk.chip, pressed: IslandInk.chipPressed)
+        ChipInk(text: IslandInk.destructive, fill: IslandArc.Danger.fillSwatch.color,
+                pressed: IslandArc.Danger.hoverSwatch.color, rim: IslandArc.Danger.edgeSwatch.color,
+                pressScale: IslandArc.pressScale)
     }
 
     /// The welcome's choices: grey, the chosen one inked.
@@ -63,6 +71,7 @@ struct ChipInk {
 struct CapsuleChipStyle: ButtonStyle {
     let ink: ChipInk
     let density: ChipDensity
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -71,7 +80,13 @@ struct CapsuleChipStyle: ButtonStyle {
             .padding(.horizontal, density.paddingX)
             .padding(.vertical, density.paddingY)
             .background(Capsule().fill(configuration.isPressed ? ink.pressed : ink.fill))
+            .overlay { if let rim = ink.rim { Capsule().strokeBorder(rim, lineWidth: Stroke.hairline) } }
             .contentShape(Capsule())
+            .scaleEffect(configuration.isPressed ? ink.pressScale : 1)
+            // Only Arc's inks give under the finger; the window's chips keep
+            // their instant fill.
+            .animation(ink.pressScale == 1 ? nil : ArcMotion.press.animation(reduceMotion: reduceMotion),
+                       value: configuration.isPressed)
     }
 }
 

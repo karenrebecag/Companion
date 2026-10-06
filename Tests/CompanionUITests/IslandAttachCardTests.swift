@@ -31,9 +31,11 @@ private enum Backdrop {
         CGPoint(x: IslandAttachMetrics.cardWidth, y: IslandAttachMetrics.rowPaddingTop)
     }
 
-    /// The square the disc fills when it is drawn.
-    static var discSquare: CGRect {
-        CGRect(x: corner.x - side / 2, y: corner.y - side / 2, width: side, height: side)
+    /// The disc's half past the card's right edge. The card is an opaque
+    /// Arc surface as dark as the disc, so the disc only shows against the
+    /// backdrop, never over the card.
+    static var discOutside: CGRect {
+        CGRect(x: corner.x + 1, y: corner.y - side / 2, width: side / 2 - 1, height: side)
     }
 
     /// Inside the disc, off the glyph (its arms run on the diagonals) and past
@@ -79,10 +81,10 @@ private enum Backdrop {
     for (name, got, want) in points {
         expectEq(got, want, "tarjeta \(name)")
     }
-    expectEq(IslandAttachMetrics.cardTile, 0.06, "tarjeta: tile 6 %")
-    expectEq(IslandAttachMetrics.cardBorder, 0.22, "tarjeta: borde blanco 22 %")
+    expectEq(IslandAttachMetrics.cardFill.hex, ArcTone.surface.hex, "tarjeta: surface")
+    expectEq(IslandAttachMetrics.cardRim.hex, ArcTone.border.hex, "tarjeta: border")
     expectEq(IslandAttachMetrics.extTracking, 0.04, "extensión: +0.04em")
-    expectEq(IslandAttachMetrics.extFill, 0.13, "extensión: blanco 13 %")
+    expectEq(IslandAttachMetrics.extFill.hex, ArcTone.surfaceMuted.hex, "extensión: surface-muted")
     expectEq(IslandAttachMetrics.removeFill.hex, "141519", "quitar: disco #141519")
     expectEq(IslandAttachMetrics.removeFillAlpha, 0.9, "quitar: disco al 90 %")
     expectEq(IslandAttachMetrics.removeBorder, 0.3, "quitar: borde blanco 30 %")
@@ -147,10 +149,10 @@ private enum Backdrop {
     let frame = CardLayout.trayFrame
     let idleRep = try #require(idle.rep())
     let bare = try backdrop(idleRep)
-    expect(minRed(idleRep, in: CardLayout.discSquare, size: frame) > bare.r - 0.02,
+    expect(minRed(idleRep, in: CardLayout.discOutside, size: frame) > bare.r - 0.02,
            "sin foco ni hover: el × no está")
     let shown = poll {
-        focused.rep().map { minRed($0, in: CardLayout.discSquare, size: frame) < bare.r - 0.5 } ?? false
+        focused.rep().map { minRed($0, in: CardLayout.discOutside, size: frame) < bare.r - 0.5 } ?? false
     }
     expect(shown, "el foco del teclado en el × lo muestra")
 }
@@ -205,9 +207,9 @@ private enum Backdrop {
     }
     let frame = CardLayout.trayFrame
     let bare = try backdrop(try #require(rest.rep()))
-    let restRed = minRed(try #require(rest.rep()), in: CardLayout.discSquare, size: frame)
-    let hoverRed = minRed(try #require(hover.rep()), in: CardLayout.discSquare, size: frame)
-    let focusRed = minRed(try #require(focus.rep()), in: CardLayout.discSquare, size: frame)
+    let restRed = minRed(try #require(rest.rep()), in: CardLayout.discOutside, size: frame)
+    let hoverRed = minRed(try #require(hover.rep()), in: CardLayout.discOutside, size: frame)
+    let focusRed = minRed(try #require(focus.rep()), in: CardLayout.discOutside, size: frame)
     expect(restRed > bare.r - 0.02, "reposo: no hay disco — rojo \(restRed)")
     expect(hoverRed < bare.r - 0.5, "hover: el disco oscuro está — rojo \(hoverRed)")
     expect(focusRed < bare.r - 0.5, "foco: el disco oscuro está — rojo \(focusRed)")

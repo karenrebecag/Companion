@@ -5,7 +5,7 @@ import Foundation
 import SwiftUI
 import Testing
 
-// The run card's pure model, pinned to firstRun-BOTAwJJ8.css.
+// The run card's pure model: rows, durations and when it opens to every step.
 
 private let t0 = Date(timeIntervalSince1970: 1_000_000)
 
@@ -21,37 +21,12 @@ private let t0 = Date(timeIntervalSince1970: 1_000_000)
 
 @Test @MainActor func runCardMetricsPinned() {
     typealias M = RunCardMetrics
-    #expect(M.minWidth == 320 && M.maxWidth == 420)
-    #expect(M.padTop == 14 && M.padSide == 16 && M.padBottom == 12)
-    #expect(M.radius == 20)
-    #expect(M.riseOffset == 6 && M.fadeSeconds == 0.2)
-    #expect(M.headGap == 10 && M.headBottom == 8)
-    #expect(M.titleSize == 13 && M.metaSize == 11.5 && M.metaOpacity == 0.55)
-    #expect(M.rowPadV == 5 && M.rowPadH == 2 && M.rowGap == 2 && M.mainGap == 10)
-    #expect(M.glyphSide == 18 && M.glyphTop == 1 && M.glyphFont == 11)
-    #expect(M.spinnerSide == 14 && M.spinnerStroke == 2 && M.spinnerPeriod == 0.9)
-    #expect(M.stepTitleSize == 12.5)
-    #expect(M.durationSize == 11.5 && M.durationLead == 10)
+    #expect(M.riseOffset == 6)
 }
 
-@Test @MainActor func runCardInksPinned() {
-    func c(_ hex: String, _ a: Double = 1) -> Color {
-        a == 1 ? Swatch(hex).color : Swatch(hex).color.opacity(a)
-    }
-    #expect(IslandInk.runCardBg == c("121317"))
-    #expect(IslandInk.runCardShadowNear == c("000000", 0x4d / 255))
-    #expect(IslandInk.runCardShadowFar == c("000000", 0x52 / 255))
-    #expect(IslandInk.runGlyphDoneBg == c("7EE2A8", 0x2e / 255))
-    #expect(IslandInk.runGlyphDoneInk == c("7EE2A8"))
-    #expect(IslandInk.runGlyphFailedBg == c("E05A46", 0x33 / 255))
-    #expect(IslandInk.runGlyphFailedInk == c("F0917F"))
-    #expect(IslandInk.runSpinnerTrack == c("7EE2A8", 0x40 / 255))
-    #expect(IslandInk.runSpinnerArc == c("7EE2A8", 0.95))
-    #expect(IslandInk.runTitleDone == c("FFFFFF", 0x6b / 255))
-    #expect(IslandInk.runTitleFailed == c("FFFFFF", 0x9e / 255))
-    #expect(IslandInk.runTitleLive == c("FFFFFF"))
-    #expect(IslandInk.runDurationLive == c("7EE2A8", 0xd9 / 255))
-    #expect(IslandInk.runDurationFinished == c("FFFFFF", 0x66 / 255))
+// Arc: the island is the surface; the run's rail sits in the grid's lead column.
+@Test @MainActor func theRunSitsOnTheIslandGrid() {
+    #expect(AgentRunMetrics.node <= IslandGrid.lead)
 }
 
 @Test(arguments: [
@@ -100,12 +75,6 @@ private let t0 = Date(timeIntervalSince1970: 1_000_000)
     #expect(rows[2].duration == "9s")
 }
 
-@Test @MainActor func runCardShadowGeometryPinned() {
-    typealias M = RunCardMetrics
-    #expect(M.shadowNearY == 1 && M.shadowNearBlur == 2)
-    #expect(M.shadowFarY == 18 && M.shadowFarBlur == 48)
-}
-
 @Test @MainActor func metaAndFlags() {
     #expect(RunCardModel.meta(jobStartedAt: t0, now: t0.addingTimeInterval(65)) == "1:05")
     let live = RunCardModel.rows(steps: [step(start: 0)], now: t0)
@@ -115,14 +84,6 @@ private let t0 = Date(timeIntervalSince1970: 1_000_000)
     #expect(RunCardModel.visible(hovering: true, focused: false))
     #expect(RunCardModel.visible(hovering: false, focused: true))
     #expect(RunCardModel.visible(hovering: true, focused: true))
-    #expect(RunCardModel.spins(reduceMotion: false))
-    #expect(!RunCardModel.spins(reduceMotion: true))
-}
-
-@Test @MainActor func glyphPerState() {
-    #expect(RunCardModel.glyph(for: .done) == .symbol("checkmark"))
-    #expect(RunCardModel.glyph(for: .failed) == .symbol("xmark"))
-    #expect(RunCardModel.glyph(for: .live) == .spinner)
 }
 
 @Test @MainActor func liveDurationAdvancesWithNow() {
@@ -205,7 +166,7 @@ private let t0 = Date(timeIntervalSince1970: 1_000_000)
     let base = root.appendingPathComponent("Sources/CompanionUI")
     let en = Conformance.keys(in: base.appendingPathComponent("en.lproj/Localizable.strings"))
     let es = Conformance.keys(in: base.appendingPathComponent("es.lproj/Localizable.strings"))
-    let keys = [RunCardRow.State.done, .failed, .live].map(RunCardModel.stateKey)
+    let keys = [AgentRunStep.Status.done, .failed, .active].map(AgentRunModel.stateKey)
     #expect(Set(keys).count == 3)
     for key in keys { #expect(en.contains(key) && es.contains(key)) }
     #expect(!en.contains("island.checklist.dismiss") && !es.contains("island.checklist.dismiss"))

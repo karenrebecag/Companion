@@ -83,13 +83,16 @@ package enum IslandFieldMetrics {
     package static let height: CGFloat = 38
     package static let radius: CGFloat = 12
     package static let textInset: CGFloat = Space.x3_5
-    package static let fill = 0.075
-    package static let orb: CGFloat = 36
-    package static let orbGap: CGFloat = Space.x2
+    /// Arc's input: a surface under a border rim.
+    package static let fillSwatch = ArcTone.surface
+    package static let rimSwatch = ArcTone.border
+    /// The orb fills the island grid's lead column, the same as in every other state.
+    package static let orb: CGFloat = IslandGrid.lead
+    package static let orbGap: CGFloat = IslandGrid.gap
     package static let send: CGFloat = 28
     package static let tool: CGFloat = 30
     package static let trailing: CGFloat = 5
-    package static let sendFill = 0.13
+    package static let sendIdleSwatch = ArcTone.surfaceMuted
 }
 
 package enum Monogram {

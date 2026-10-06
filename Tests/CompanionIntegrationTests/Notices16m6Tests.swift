@@ -118,10 +118,6 @@ private final class Nudges: @unchecked Sendable {
     expectEq(IslandChrome.wideCardWidth, IslandNoticeMetrics.updateWidth + 2 * Space.x4,
              "16m-6 ancho: la forma da los 522 del aviso más el margen de la isla")
     expectEq(IslandChrome.cardWidth, 492, "16m-6 ancho: las demás tarjetas siguen en 492")
-    let room = IslandChrome.wideCardWidth - 2 * Space.x4
-    expectEq(IslandNoticeMetrics.width(.update, available: room), 522, "16m-6 ancho: el aviso ya no se recorta")
-    expectEq(IslandNoticeMetrics.width(.update, available: IslandChrome.cardWidth - 2 * Space.x4), 460,
-             "16m-6 ancho: en la forma estrecha seguía recortado, por eso ensancha")
     expect(IslandChrome.canvasWidth >= IslandChrome.wideCardWidth + 2 * 20,
            "16m-6 ancho: el lienzo aguanta la forma con sus hombros y su sombra")
 
