@@ -60,6 +60,9 @@ package struct IslandView: View {
     @State var hoveringWork = false
     /// Whether the latest result card was ever opened, for the model (16h-3).
     @State var resultAttention = IslandResultAttention()
+    /// The orb is one piece in every state (Arc's now-playing): opening the
+    /// island moves it to its new row instead of fading one out and another in.
+    @Namespace var orbSpace
 
     /// Incredible stacks the latest few under the reply; more is the window's job.
     static let maxResults = 2
@@ -249,10 +252,10 @@ package struct IslandView: View {
 
     /// The mark in the field row: the one place a mouse hold starts.
     var mark: some View {
-        Orb(state: .idle, levels: voice.levels, accentColor: Semantic.accent)
-            .frame(width: IslandFieldMetrics.orb, height: IslandFieldMetrics.orb)
-            .scaleEffect(IslandMotionBudget.composerOrb.scale(levels: voice.levels, reduceMotion: reduceMotion))
-            .animation(IslandMotionBudget.composerOrb.animation(reduceMotion: reduceMotion), value: voice.levels.agent)
+        VoiceOrb(state: VoiceOrbState.composer(levels: voice.levels), levels: voice.levels,
+                 size: IslandFieldMetrics.orb)
+            .matchedGeometryEffect(id: IslandOrbTravel.id, in: orbSpace)
+            .contentShape(Circle())
             .gesture(holdGesture)
             .accessibilityLabel(Localized.string("island.pebble"))
     }
@@ -283,16 +286,15 @@ package struct IslandView: View {
             }
     }
 
-    /// The band beside the notch holds the task slots; the rest sits under it.
+    /// The band beside the notch holds the header controls; the rest sits
+    /// under it on the island's grid. A running task shows in its run, not
+    /// as decorative slots in the band.
     func shell<Inner: View>(_ state: IslandState, header: AnyView? = nil,
                                     @ViewBuilder _ inner: () -> Inner) -> some View {
         VStack(alignment: .leading, spacing: IslandChrome.shellSpacing) {
             HStack {
                 if let header { header }
                 Spacer(minLength: Space.none)
-                if IslandSlots.shown(size: state.size, jobRunning: chat.session.projection.job != nil) {
-                    IslandSlots()
-                }
             }
             .frame(height: geometry.notch.height)
             .modifier(contentSlot(.field))
@@ -303,7 +305,7 @@ package struct IslandView: View {
     }
 
     func composer(_ state: IslandState) -> some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
+        VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
             Group {
                 IslandComposer(
                     draft: $draft, focused: $fieldFocused,
@@ -320,25 +322,31 @@ package struct IslandView: View {
                         case .dismissField: dismissField()
                         }
                     }
-                if let mentions, mentions.isOpen { MentionSelectorView(model: mentions) }
-                attachTray
-                if let attachNote {
-                    caption(attachNote)
-                } else if case .none = state.line {} else if let shown = IslandCopy.visibleLine(state.line) {
-                    caption(shown)
+                // Everything under the field sits in the grid's content column,
+                // under the words, not under the orb.
+                Group {
+                    if let mentions, mentions.isOpen { MentionSelectorView(model: mentions) }
+                    attachTray
+                    if let attachNote {
+                        caption(attachNote)
+                    } else if case .none = state.line {} else if let shown = IslandCopy.visibleLine(state.line) {
+                        caption(shown)
+                    }
+                    if confirmingClear {
+                        IslandClearConfirm(onClear: clearHistory, onCancel: { confirmingClear = false })
+                    }
                 }
-                if confirmingClear {
-                    IslandClearConfirm(onClear: clearHistory, onCancel: { confirmingClear = false })
-                }
+                .islandContentColumn()
             }
             .modifier(contentSlot(.field))
-            Group {
+            VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
                 reply(state)
                 ForEach(Array(results.enumerated()), id: \.element.id) { index, row in
                     IslandResultCard(result: row.result, onOpen: { openResult(row.id) })
                         .modifier(IslandLineReveal(index: index))
                 }
             }
+            .islandContentColumn()
             .modifier(contentSlot(.conversation))
         }
     }

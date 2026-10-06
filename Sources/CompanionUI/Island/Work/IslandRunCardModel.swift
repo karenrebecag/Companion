@@ -2,49 +2,9 @@ import CompanionCore
 import Foundation
 import SwiftUI
 
-/// Run card measures, read off firstRun-BOTAwJJ8.css. The reference defines no
-/// max height; the island's own column caps it.
+/// The run's rise as it appears. No max height: the island's own column caps it.
 enum RunCardMetrics {
-    static let minWidth: CGFloat = 320
-    static let maxWidth: CGFloat = 420
-    static let padTop: CGFloat = 14
-    static let padSide: CGFloat = 16
-    static let padBottom: CGFloat = 12
-    static let radius: CGFloat = 20
     static let riseOffset: CGFloat = 6
-    static let fadeSeconds: Double = 0.2
-    /// firstRun-BOTAwJJ8.css @395492
-    static let headGap: CGFloat = 10
-    static let headBottom: CGFloat = 8
-    /// firstRun-BOTAwJJ8.css @395573
-    static let titleSize: CGFloat = 13
-    static let titleWeight = Font.Weight.semibold
-    /// firstRun-BOTAwJJ8.css @395683
-    static let metaSize: CGFloat = 11.5
-    static let metaOpacity: Double = 0.55
-    static let rowPadV: CGFloat = 5
-    static let rowPadH: CGFloat = 2
-    static let rowGap: CGFloat = 2
-    static let mainGap: CGFloat = 10
-    static let glyphSide: CGFloat = 18
-    static let glyphTop: CGFloat = 1
-    static let glyphFont: CGFloat = 11
-    static let glyphWeight = Font.Weight.bold
-    static let spinnerSide: CGFloat = 14
-    static let spinnerStroke: CGFloat = 2
-    static let spinnerPeriod: Double = 0.9
-    /// A quarter of the ring is the lit arc, as a one-sided CSS border draws it.
-    static let spinnerArcFraction: CGFloat = 0.25
-    static let stepTitleSize: CGFloat = 12.5
-    static let durationSize: CGFloat = 11.5
-    static let durationLead: CGFloat = 10
-    /// firstRun-BOTAwJJ8.css @394242
-    static let shadowNearY: CGFloat = 1
-    static let shadowNearBlur: CGFloat = 2
-    static let shadowFarY: CGFloat = 18
-    static let shadowFarBlur: CGFloat = 48
-    /// A CSS blur is twice SwiftUI's shadow radius.
-    static let cssBlurToRadius: CGFloat = 0.5
 }
 
 enum RunCardDuration {
@@ -92,25 +52,6 @@ enum RunCardModel {
 
     static func meta(jobStartedAt: Date, now: Date) -> String {
         RunCardDuration.total(now.timeIntervalSince(jobStartedAt))
-    }
-
-    enum Glyph: Equatable { case symbol(String), spinner }
-
-    /// The one decision of which glyph a state wears; the view only draws it.
-    static func glyph(for state: RunCardRow.State) -> Glyph {
-        switch state {
-        case .done: .symbol("checkmark")
-        case .failed: .symbol("xmark")
-        case .live: .spinner
-        }
-    }
-
-    static func stateKey(_ state: RunCardRow.State) -> String {
-        switch state {
-        case .done: "island.runcard.state.done"
-        case .failed: "island.runcard.state.failed"
-        case .live: "island.runcard.state.running"
-        }
     }
 
     /// The header goal passes the same cleaner as the step titles.
@@ -167,6 +108,4 @@ enum RunCardModel {
         visible(hovering: rawHover && hoverRegionExists(size: size), focused: focused)
     }
 
-    /// Only the spinner stops under Reduce Motion; the timer keeps ticking.
-    static func spins(reduceMotion: Bool) -> Bool { !reduceMotion }
 }

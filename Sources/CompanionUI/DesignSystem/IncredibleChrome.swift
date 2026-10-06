@@ -104,6 +104,8 @@ package struct IconButton: View {
     /// This makes it focusable and takes the focus, which exercises the
     /// focus-to-reveal path but not Tab reachability.
     var focusOnAppear = false
+    /// A confirmed state's own ink (copied: success), over the tone's.
+    var tint: Color?
     let action: () -> Void
 
     @State private var hovering = false
@@ -113,7 +115,7 @@ package struct IconButton: View {
                 tone: IconButtonTone = .window, danger: Bool = false, chip: Bool = false,
                 active: Bool = false, pressable: Bool = false,
                 onFocus: ((Bool) -> Void)? = nil, revealed: Bool = true,
-                focusOnAppear: Bool = false,
+                focusOnAppear: Bool = false, tint: Color? = nil,
                 action: @escaping () -> Void) {
         self.symbol = symbol
         self.label = label
@@ -126,6 +128,7 @@ package struct IconButton: View {
         self.onFocus = onFocus
         self.revealed = revealed
         self.focusOnAppear = focusOnAppear
+        self.tint = tint
         self.action = action
     }
 
@@ -162,6 +165,7 @@ package struct IconButton: View {
     private var lit: Bool { hovering || active }
 
     private var ink: Color {
+        if let tint { return tint }
         switch tone {
         case .window:
             guard lit else { return Semantic.mutedForeground }
@@ -179,8 +183,9 @@ package struct IconButton: View {
             if size.filled { return lit ? Semantic.hover : Semantic.wash }
             return lit ? Semantic.hoverSubtle : Color.clear
         case .island:
-            if active { return IslandInk.chipPressed }
-            return size.filled || hovering ? IslandInk.chip : Color.clear
+            // Arc's plain icon button: it fills only under the pointer.
+            if active || hovering { return IslandInk.chipPressed }
+            return size.filled ? IslandInk.chip : Color.clear
         case .onMedia:
             return Self.onMediaFill(hovering: hovering)
         }

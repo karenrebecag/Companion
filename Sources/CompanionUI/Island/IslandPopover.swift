@@ -39,15 +39,17 @@ struct IslandPopover<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        // 16l-2: Incredible's island menu — 230 wide, radius 16, padding 6, gap 4.
-        VStack(alignment: .leading, spacing: MenuMetrics.islandGap) {
+        // Arc's dropdown: surface-raised under a border, 5 in, radius 26.
+        VStack(alignment: .leading, spacing: Space.none) {
             content()
         }
-        .padding(MenuMetrics.padding)
+        .padding(IslandArc.Menu.padding)
         .frame(width: MenuMetrics.islandWidth)
-        .background(RoundedRectangle(cornerRadius: MenuMetrics.islandRadius).fill(IslandInk.popover))
-        .overlay(RoundedRectangle(cornerRadius: MenuMetrics.islandRadius)
-            .stroke(IslandInk.hairline, lineWidth: Stroke.hairline))
+        .background(RoundedRectangle(cornerRadius: IslandArc.Menu.radius).fill(IslandInk.popover))
+        .overlay(RoundedRectangle(cornerRadius: IslandArc.Menu.radius)
+            .strokeBorder(IslandInk.hairline, lineWidth: Stroke.hairline))
+        // The one floating layer of the island: the only one that casts.
+        .elevation(.panel)
     }
 }
 
@@ -70,12 +72,14 @@ struct IslandMenuList: View {
         ForEach(IslandMenuItem.allCases, id: \.self) { item in
             if item.destructive {
                 Rectangle()
-                    .fill(IslandInk.hairline)
+                    .fill(IslandInk.divider)
                     .frame(height: Stroke.hairline)
                     .padding(.vertical, Space.x1)
+                    // Edge to edge: out through the panel's own padding.
+                    .padding(.horizontal, -IslandArc.Menu.padding)
             }
             IslandPopoverRow(title: Localized.string("island.menu." + item.rawValue),
-                             tint: item.destructive ? IslandInk.destructive : IslandInk.text) {
+                             danger: item.destructive) {
                 onPick(item)
             }
         }
@@ -99,24 +103,29 @@ struct IslandAttachList: View {
 
 struct IslandPopoverRow: View {
     let title: String
-    var tint: Color = IslandInk.text
+    var danger = false
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(Fonts.geist(TypeSize.body).weight(.medium))
-                .foregroundStyle(tint)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, MenuMetrics.itemPaddingX)
-                .padding(.vertical, MenuMetrics.itemPaddingY)
-                .background(RoundedRectangle(cornerRadius: MenuMetrics.itemRadius)
-                    .fill(hovering ? IslandInk.chipPressed : Color.clear))
+                .font(Fonts.geist(TypeSize.body))
+                .foregroundStyle(danger ? IslandInk.destructive : IslandInk.text)
+                .frame(maxWidth: .infinity, minHeight: IslandArc.Menu.itemMinHeight, alignment: .leading)
+                .padding(.horizontal, IslandArc.Menu.itemPaddingX)
+                .background(RoundedRectangle(cornerRadius: IslandArc.Menu.itemRadius)
+                    .fill(hovering ? highlight : Color.clear))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        .animation(ArcMotion.fade(ArcMotion.Duration.fast), value: hovering)
+    }
+
+    /// Arc's highlight: surface-muted, or a faint red under a destructive row.
+    private var highlight: Color {
+        danger ? IslandArc.Menu.dangerHighlightSwatch.color : IslandInk.chipPressed
     }
 }
 

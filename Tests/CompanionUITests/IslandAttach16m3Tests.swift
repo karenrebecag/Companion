@@ -52,17 +52,19 @@ import UniformTypeIdentifiers
              "16m-3 tarjeta: 84 × 102")
     expectEq([IslandAttachMetrics.cardRadius, IslandAttachMetrics.cardPadding], [10, 8],
              "16m-3 tarjeta: radio 10, padding 8")
-    expectEq([IslandAttachMetrics.cardTile, IslandAttachMetrics.cardBorder], [0.06, 0.22],
-             "16m-3 tarjeta: tile 6 %, borde blanco 22 %")
-    expectEq(IslandAttachMetrics.errorTint.hex, "FF7A64", "16m-3 tarjeta con error: #ff7a64")
-    expectEq(IslandAttachMetrics.errorAlpha, 0.08, "16m-3 tarjeta con error: al 8 %")
+    expectEq([IslandAttachMetrics.cardFill.hex, IslandAttachMetrics.cardRim.hex],
+             [ArcTone.surface.hex, ArcTone.border.hex], "tarjeta Arc: surface bajo border")
+    expectEq(IslandAttachMetrics.errorRim.hex, ArcTone.mix(ArcTone.danger, 0.26, over: ArcTone.border).hex,
+             "tarjeta con error: borde rojo al 26 %, como el archivo fallido de Arc")
+    expectEq(IslandAttachMetrics.errorFill.hex, ArcTone.mix(ArcTone.danger, 0.1, over: ArcTone.surface).hex,
+             "tarjeta con error: el fondo del badge de peligro")
     expectEq([IslandAttachMetrics.nameSize, IslandAttachMetrics.nameLineHeight], [12, 16],
              "16m-3 nombre: 12 con interlineado 16")
     expectEq([IslandAttachMetrics.extSize, IslandAttachMetrics.extTracking], [10, 0.04],
              "16m-3 extensión: 10 con +0.04em")
     expectEq([IslandAttachMetrics.extPaddingY, IslandAttachMetrics.extPaddingX,
               IslandAttachMetrics.extRadius], [3, 6, 5], "16m-3 extensión: 3 × 6, radio 5")
-    expectEq(IslandAttachMetrics.extFill, 0.13, "16m-3 extensión: blanco 13 %")
+    expectEq(IslandAttachMetrics.extFill.hex, ArcTone.surfaceMuted.hex, "extensión: badge neutro de Arc")
     expectEq([IslandAttachMetrics.rowGap, IslandAttachMetrics.rowPaddingTop,
               IslandAttachMetrics.rowPaddingTrailing], [8, 12, 12],
              "16m-3 fila de chips: gap 8, padding 12 / 12 / 0 / 0")
@@ -83,8 +85,8 @@ import UniformTypeIdentifiers
 @MainActor func testDropZoneMeasuresMatchIncredible() {
     expectEq(IslandDropMetrics.height, 36, "16m-3 zona para soltar: alto 36")
     expectEq(IslandDropMetrics.paddingX, 16, "16m-3 zona para soltar: padding 0 × 16")
-    expectEq(IslandDropMetrics.dashWidth, 1.5, "16m-3 zona para soltar: discontinuo de 1.5")
-    expectEq(IslandDropMetrics.restStroke, 0.28, "16m-3 zona para soltar: blanco 28 %")
+    expectEq(IslandDropMetrics.dashWidth, 1, "zona Arc: discontinuo de 1")
+    expectEq(IslandDropMetrics.restStroke.hex, IslandArc.borderStrong.hex, "zona Arc: border-strong en reposo")
     expectEq([IslandDropMetrics.radius, IslandDropMetrics.textSize], [12, 12],
              "16m-3 zona para soltar: radio 12, texto 12")
 }

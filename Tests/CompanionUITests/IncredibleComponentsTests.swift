@@ -129,8 +129,7 @@ import Testing
              "16l menú: padding 6, gap 2, radio 18")
     expectEq([MenuMetrics.itemPaddingY, MenuMetrics.itemPaddingX, MenuMetrics.itemRadius,
               MenuMetrics.itemGap], [8, 10, 8, 10], "16l ítem: 8 × 10, radio 8, gap 10")
-    expectEq([MenuMetrics.islandWidth, MenuMetrics.islandRadius, MenuMetrics.islandGap],
-             [230, 16, 4], "16l menú de la isla: 230, radio 16, gap 4")
+    expectEq(MenuMetrics.islandWidth, 230, "16l menú de la isla: 230")
     expectEq(MenuMetrics.enterScale, 0.97, "16l menú: entra desde 0.97")
     expectEq(MenuMetrics.duration, 0.2, "16l menú: 0.2 s")
     expectEq(MenuMetrics.duration, MotionTime.base, "16p menú: la duración sale de MotionTime, no de un literal")
@@ -186,11 +185,8 @@ import Testing
 }
 
 @MainActor func testIslandInkMatchesIncredible() {
-    expectEq([IslandAlpha.text, IslandAlpha.secondary, IslandAlpha.muted, IslandAlpha.tile,
-              IslandAlpha.tileHover, IslandAlpha.border, IslandAlpha.divider],
-             [0.95, 0.64, 0.42, 0.06, 0.12, 0.09, 0.07], "16l isla: blancos sobre negro")
-    expectEq([IslandPalette.accent.hex, IslandPalette.error.hex, Palette.signalGreen.hex],
-             ["78AAFF", "FF7A64", "78D6A8"], "16l isla: acento, error, verde")
+    expectEq([IslandPalette.accent.hex, IslandPalette.error.hex],
+             [ArcTone.accent.hex, ArcTone.danger.hex], "isla Arc: acento y error son los tonos de Arc")
     expectEq(IslandMetrics.sendSide, 30, "16l isla: enviar 30")
     expectEq(IslandMetrics.openRadius, 28, "16l isla: radio abierta 28")
 }
@@ -199,16 +195,14 @@ import Testing
     expectEq([AnswerOptionMetrics.paddingY, AnswerOptionMetrics.paddingX,
               AnswerOptionMetrics.radius, AnswerOptionMetrics.gap], [11, 12, 12, 11],
              "16l opción: 11 × 12, radio 12, gap 11")
-    expectEq(IslandPalette.indigo.hex, "8184F8", "16l opción: hover índigo")
 }
 
 @MainActor func testReferentChipMatchesIncredible() {
-    expectEq([ReferentChipMetrics.radius, ReferentChipMetrics.paddingLeading,
-              ReferentChipMetrics.paddingTrailing, ReferentChipMetrics.paddingY,
-              ReferentChipMetrics.size, ReferentChipMetrics.maxWidth],
-             [7, 5, 7, 1, 12.5, 230], "16l chip de referencia")
-    expectEq([ReferentChipMetrics.fill, ReferentChipMetrics.stroke], [0.13, 0.24],
-             "16l chip: color al 13 %, borde al 24 %")
+    expectEq([ReferentChipMetrics.paddingLeading, ReferentChipMetrics.paddingTrailing,
+              ReferentChipMetrics.paddingY, ReferentChipMetrics.size, ReferentChipMetrics.maxWidth],
+             [8, 8, 2, 12.5, 230], "chip de referencia: badge info de Arc")
+    expectEq([ReferentChipMetrics.fill, ReferentChipMetrics.stroke], [0.12, 0.24],
+             "badge info: acento al 12 %, borde al 24 %")
 }
 
 @MainActor func testCaptureCardsMatchIncredible() {

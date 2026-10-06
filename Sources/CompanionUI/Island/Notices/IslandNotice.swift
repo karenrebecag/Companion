@@ -72,6 +72,19 @@ enum IslandNotice {
         var dismissTitle: String?
     }
 
+    /// Arc: status tones mean status. A failure is danger; a limit or a
+    /// missing permission needs attention; an offer is information.
+    static func tone(_ grid: Grid) -> Swatch {
+        switch grid {
+        case .diagnostic: ArcTone.danger
+        case .limit, .permission: ArcTone.warning
+        case .update: ArcTone.accent
+        }
+    }
+
+    /// The faint tint behind a notice's icon.
+    static let toneWash = 0.16
+
     static func content(for line: IslandState.Line) -> Content? {
         switch line {
         case .couldntHear:
@@ -177,11 +190,12 @@ struct IslandStopOrb: View {
 
     var body: some View {
         Button(action: action) {
+            // Arc's end control: the danger tone over its own wash, not a solid red disc.
             Image(systemName: "stop.fill")
                 .font(GeistFont.uiCaption)
-                .foregroundStyle(IslandInk.text)
+                .foregroundStyle(IslandInk.stop)
                 .frame(width: IslandChrome.meterSide, height: IslandChrome.meterSide)
-                .background(Circle().fill(IslandInk.stop))
+                .background(Circle().fill(ArcTone.wash(ArcTone.danger, IslandChrome.stopWash)))
                 .contentShape(Circle())
         }
         .buttonStyle(PressableStyle())
@@ -199,7 +213,7 @@ struct IslandFollowUpRow: View {
     var body: some View {
         HStack(spacing: Space.x2) {
             Text(Localized.string("island.task"))
-                .font(GeistFont.uiCaption.weight(.semibold))
+                .font(GeistFont.uiCaption.weight(.medium))
                 .foregroundStyle(IslandInk.secondary)
                 .padding(.horizontal, Space.x2)
                 .padding(.vertical, Space.x1)

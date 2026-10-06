@@ -4,55 +4,44 @@ import SwiftUI
 /// Incredible's notch bar is black in light and dark alike: it reads as an
 /// extension of the notch, not as a window of the theme (spec 16c §2).
 enum IslandInk {
-    // 16l-4: Incredible's `--ci-*` whites over black.
+    // Arc's dark theme on black: opaque surfaces, so a control reads the
+    // same over the island and over a result under it.
     static var panel: Color { Neutral.black.color }
-    static var text: Color { white(IslandAlpha.text) }
-    static var secondary: Color { white(IslandAlpha.secondary) }
-    static var muted: Color { white(IslandAlpha.muted) }
-    static var chip: Color { white(IslandAlpha.tile) }
-    static var chipPressed: Color { white(IslandAlpha.tileHover) }
-    static var field: Color { white(IslandAlpha.tile) }
+    static var text: Color { ArcTone.foreground.color }
+    static var secondary: Color { ArcTone.textSecondary.color }
+    static var muted: Color { ArcTone.textMuted.color }
+    static let chipSwatch = ArcTone.surface
+    static let chipPressedSwatch = ArcTone.surfaceMuted
+    static let hairlineSwatch = ArcTone.border
+    static var chip: Color { chipSwatch.color }
+    static var chipPressed: Color { chipPressedSwatch.color }
+    static var field: Color { chipSwatch.color }
     /// The composer field and its idle send button, sampled from Incredible.
-    static var fieldFill: Color { white(IslandFieldMetrics.fill) }
-    static var sendIdle: Color { white(IslandFieldMetrics.sendFill) }
-    static var hairline: Color { white(IslandAlpha.border) }
-    static var divider: Color { white(IslandAlpha.divider) }
+    static var fieldFill: Color { IslandFieldMetrics.fillSwatch.color }
+    static var sendIdle: Color { IslandFieldMetrics.sendIdleSwatch.color }
+    static var hairline: Color { hairlineSwatch.color }
+    static var divider: Color { ArcTone.borderSubtle.color }
     static var rim: Color { white(IslandMetrics.rimAlpha) }
     /// Only the open panel casts one; at rest it is hardware.
     static var shadow: Color { Neutral.black.color.opacity(0.35) }
-    static var amber: Color { Accent.orange.color }
-    static var green: Color { Palette.signalGreen.color }
+    static var amber: Color { ArcTone.warning.color }
+    static var green: Color { ArcTone.success.color }
     static var destructive: Color { IslandPalette.error.color }
     static let radius: CGFloat = IslandMetrics.openRadius
-    static let cardRadius: CGFloat = AnswerOptionMetrics.radius
+    /// Arc: anything nested in the open island takes the concentric radius.
+    static var cardRadius: CGFloat { IslandGrid.nestedRadius }
     static let lightSide: CGFloat = 8
     static let slotSide: CGFloat = 22
     static let sendSide: CGFloat = IslandMetrics.sendSide
     static let chipVertical: CGFloat = 6
-    /// Incredible's dropdowns sit a step lighter than the panel they open from.
-    static var popover: Color { Neutral.n800.color }
-    /// Incredible's tooltip pill (16o research).
-    static var tooltip: Color { Swatch("17181B").color }
+    /// Arc's menus float on surface-raised, a step over what they open from.
+    static let popoverSwatch = ArcTone.surfaceRaised
+    static var popover: Color { popoverSwatch.color }
+    /// Arc's tooltip is inverted: foreground fill, background text.
+    static let tooltipSwatch = ArcTone.foreground
+    static var tooltip: Color { tooltipSwatch.color }
     static var blue: Color { IslandPalette.accent.color }
-    static var blueTile: Color { IslandPalette.accent.color.opacity(0.18) }
-    static var stop: Color { Swatch("FF453A").color }
-
-    // Run card (firstRun-BOTAwJJ8.css). Swatch carries no alpha, so the
-    // CSS #rrggbbaa values are split into swatch + opacity.
-    static var runCardBg: Color { Swatch("121317").color }
-    static var runCardShadowNear: Color { Swatch("000000").color.opacity(0x4d / 255) }
-    static var runCardShadowFar: Color { Swatch("000000").color.opacity(0x52 / 255) }
-    static var runGlyphDoneBg: Color { Swatch("7EE2A8").color.opacity(0x2e / 255) }
-    static var runGlyphDoneInk: Color { Swatch("7EE2A8").color }
-    static var runGlyphFailedBg: Color { Swatch("E05A46").color.opacity(0x33 / 255) }
-    static var runGlyphFailedInk: Color { Swatch("F0917F").color }
-    static var runSpinnerTrack: Color { Swatch("7EE2A8").color.opacity(0x40 / 255) }
-    static var runSpinnerArc: Color { Swatch("7EE2A8").color.opacity(0.95) }
-    static var runTitleDone: Color { Swatch("FFFFFF").color.opacity(0x6b / 255) }
-    static var runTitleFailed: Color { Swatch("FFFFFF").color.opacity(0x9e / 255) }
-    static var runTitleLive: Color { Swatch("FFFFFF").color }
-    static var runDurationLive: Color { Swatch("7EE2A8").color.opacity(0xd9 / 255) }
-    static var runDurationFinished: Color { Swatch("FFFFFF").color.opacity(0x66 / 255) }
+    static var stop: Color { ArcTone.danger.color }
 
     private static func white(_ alpha: Double) -> Color { Neutral.white.color.opacity(alpha) }
     /// The countdown ring moves a few pixels a second; more frames buy nothing.
@@ -136,7 +125,7 @@ struct IslandComposer: View {
             .portal(popover == .attach ? .popover(.attach) : nil)
             Button(action: onSend) {
                 Image(systemName: "arrow.up")
-                    .font(Fonts.geist(TypeSize.body).weight(.semibold))
+                    .font(Fonts.geist(TypeSize.body).weight(.medium))
                     .foregroundStyle(ready ? IslandInk.panel : IslandInk.muted)
                     .frame(width: IslandFieldMetrics.send, height: IslandFieldMetrics.send)
                     .background(Circle().fill(ready ? IslandInk.text : IslandInk.sendIdle))
@@ -150,6 +139,8 @@ struct IslandComposer: View {
         .padding(.trailing, IslandFieldMetrics.trailing)
         .frame(height: IslandFieldMetrics.height)
         .background(RoundedRectangle(cornerRadius: IslandFieldMetrics.radius).fill(IslandInk.fieldFill))
+        .overlay(RoundedRectangle(cornerRadius: IslandFieldMetrics.radius)
+            .strokeBorder(IslandFieldMetrics.rimSwatch.color, lineWidth: Stroke.hairline))
     }
 
     private static func mentionKey(_ key: KeyEquivalent) -> MentionKeys.Key? {
@@ -173,52 +164,27 @@ struct IslandClearConfirm: View {
     let onCancel: () -> Void
 
     var body: some View {
-        HStack(spacing: Space.x2) {
+        IslandMorphPill(rim: IslandMorphMetrics.askingEdgeSwatch.color) {
             Text(Localized.string("island.clear.ask"))
-                .font(GeistFont.uiCaption)
-                .foregroundStyle(IslandInk.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Button(Localized.string("island.clear.no"), action: onCancel)
-                .buttonStyle(CapsuleChipStyle(ink: .island, density: .compact))
-            Button(Localized.string("island.clear.yes"), action: onClear)
-                .buttonStyle(CapsuleChipStyle(ink: .islandDestructive, density: .compact))
-        }
-    }
-}
-
-/// Where a running task sits, top right (16f): three slots, the first one
-/// turning.
-struct IslandSlots: View {
-    /// Only with a task behind them (K7): empty slots read as broken chrome,
-    /// and the bar has no header room for them.
-    static func shown(size: IslandState.Size, jobRunning: Bool) -> Bool { jobRunning && size != .bar }
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var turning = false
-
-    var body: some View {
-        HStack(spacing: Space.x2) {
-            ForEach(0..<3, id: \.self) { index in
-                ZStack {
-                    Circle()
-                        .strokeBorder(IslandInk.secondary, style: StrokeStyle(lineWidth: Stroke.thin, dash: [3, 4]))
-                    if index == 0 {
-                        Circle()
-                            .trim(from: 0, to: 0.3)
-                            .stroke(IslandInk.text, style: StrokeStyle(lineWidth: Stroke.medium, lineCap: .round))
-                            .rotationEffect(.degrees(turning ? 360 : 0))
-                            .onAppear {
-                                guard !reduceMotion else { return }
-                                withAnimation(.linear(duration: MotionTime.panel * 4).repeatForever(autoreverses: false)) {
-                                    turning = true
-                                }
-                            }
-                    }
-                }
-                .frame(width: IslandInk.slotSide, height: IslandInk.slotSide)
+                .font(GeistFont.uiCaption.weight(.medium))
+                .foregroundStyle(IslandInk.text)
+                .lineLimit(1)
+                .frame(maxWidth: IslandMorphMetrics.promptMaxWidth, alignment: .leading)
+                .fixedSize(horizontal: true, vertical: false)
+                .padding(.leading, IslandMorphMetrics.promptLeading)
+                .padding(.trailing, Space.x1_5)
+            ForEach(Self.answers(onClear: onClear, onCancel: onCancel), id: \.key) { answer in
+                Button(Localized.string(answer.key), action: answer.action)
+                    .buttonStyle(IslandMorphAction(role: answer.tone.map { .primary($0) } ?? .secondary))
             }
         }
-        .accessibilityLabel(Localized.string("island.job"))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Cancel comes first and stays plain; only the destructive answer is filled.
+    static func answers(onClear: @escaping () -> Void, onCancel: @escaping () -> Void) -> [IslandMorphAnswer] {
+        [IslandMorphAnswer(key: "island.clear.no", tone: nil, action: onCancel),
+         IslandMorphAnswer(key: "island.clear.yes", tone: ArcTone.danger, action: onClear)]
     }
 }
 
@@ -230,16 +196,28 @@ struct IslandReceiptRow: View {
     let onUndo: () -> Void
 
     var body: some View {
-        HStack(spacing: Space.x2) {
-            Text(IslandCopy.receipt(receipt))
-                .font(GeistFont.uiCaption)
-                .foregroundStyle(IslandInk.text)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            if receipt.undo != nil {
+        // confirm-morph's done face: a success check, what ran, the way back.
+        IslandMorphPill {
+            HStack(spacing: IslandMorphMetrics.statusGap) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(Fonts.symbol(IslandMorphMetrics.checkSide, weight: .medium))
+                    .foregroundStyle(IslandInk.panel, ArcTone.success.color)
+                    .accessibilityHidden(true)
+                Text(IslandCopy.receipt(receipt))
+                    .font(GeistFont.uiCaption.weight(.medium))
+                    .foregroundStyle(IslandInk.text)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .padding(.leading, Space.x1_5)
+            .padding(.trailing, Self.offersUndo(receipt) ? Space.x1 : Space.x2)
+            if Self.offersUndo(receipt) {
                 Button(Localized.string("island.receipt.undo"), action: onUndo)
-                    .buttonStyle(CapsuleChipStyle(ink: .island, density: .compact))
+                    .buttonStyle(IslandMorphAction(role: .secondary))
             }
         }
     }
+
+    /// The button is the only door to the undo, so it shows only when there is one.
+    static func offersUndo(_ receipt: UndoReceipt) -> Bool { receipt.undo != nil }
 }

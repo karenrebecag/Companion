@@ -3,6 +3,7 @@ import CompanionCore
 @testable import CompanionUI
 import CompanionTestKit
 import Foundation
+import SwiftUI
 import Testing
 
 // Wave 16m-4: the dictation result card and the system notices. The card
@@ -92,10 +93,6 @@ func testTheWordsLeaveWithTheCard() {
 }
 
 @MainActor @Test func dictationMetricsMatchIncredible() {
-    expectEq([IslandDictationMetrics.minWidth, IslandDictationMetrics.maxWidth], [320, 424],
-             "16m-4 dictado: 320-424 de ancho")
-    expectEq([IslandDictationMetrics.paddingTop, IslandDictationMetrics.paddingX,
-              IslandDictationMetrics.paddingBottom], [16, 18, 14], "16m-4 dictado: padding 16/18/14")
     expectEq(IslandDictationMetrics.gap, 10, "16m-4 dictado: gap 10")
     expectEq([IslandDictationMetrics.textSize, IslandDictationMetrics.textLeading,
               IslandDictationMetrics.textTracking], [15, 1.38, -0.01],
@@ -226,39 +223,24 @@ func testTheWordsLeaveWithTheCard() {
     expectEq(state.noticeTag, "v1.0.0", "16m-4: una versión más nueva vuelve a ofrecerse")
 }
 
-// MARK: - Notices: the measured grids
+// MARK: - Notices: on the island's grid
 
-@MainActor @Test func noticeMetricsMatchIncredible() {
-    expectEq(IslandNoticeMetrics.limitWidth, 380, "16m-4 límite: ancho 380")
-    expectEq(IslandNoticeMetrics.limitGutter, 38, "16m-4 límite: rejilla 38 + resto")
-    expectEq([IslandNoticeMetrics.limitRowGap, IslandNoticeMetrics.limitColumnGap], [10, 12],
-             "16m-4 límite: gap 10 × 12")
-    expectEq([IslandNoticeMetrics.paddingY, IslandNoticeMetrics.paddingX], [18, 20],
-             "16m-4: todos los avisos con padding 18 × 20")
-    expectEq(IslandNoticeMetrics.updateWidth, 522, "16m-4 actualización: ancho 522")
-    expectEq(IslandNoticeMetrics.updateGutter, 30, "16m-4 actualización: rejilla 30 + resto + acciones")
-    expectEq([IslandNoticeMetrics.consentMinWidth, IslandNoticeMetrics.consentMaxWidth], [340, 440],
-             "16m-4 permiso: 340-440")
-    expectEq(IslandNoticeMetrics.consentGap, 10, "16m-4 permiso: gap 10")
-    expectEq([IslandNoticeMetrics.diagnosticWidth, IslandNoticeMetrics.diagnosticFraction], [420, 0.86],
-             "16m-4 diagnóstico: mín(420, 86 %)")
-    expectEq(IslandNoticeMetrics.diagnosticGutter, 38, "16m-4 diagnóstico: rejilla 38 + resto")
+// Arc: status tones mean status, and the island's grid gives every notice the
+// same column rule instead of a measured width per kind.
+@MainActor @Test func noticeToneFollowsWhatItMeans() {
+    expectEq(IslandNotice.tone(.diagnostic).hex, ArcTone.danger.hex, "un fallo es danger")
+    expectEq(IslandNotice.tone(.limit).hex, ArcTone.warning.hex, "un limite pide atencion")
+    expectEq(IslandNotice.tone(.permission).hex, ArcTone.warning.hex, "un permiso pide atencion")
+    expectEq(IslandNotice.tone(.update).hex, ArcTone.accent.hex, "una oferta es informacion")
 }
 
-@MainActor @Test func noticeWidthsFollowTheirGrid() {
-    let roomy: CGFloat = 1_000
-    expectEq(IslandNoticeMetrics.width(.limit, available: roomy), 380, "16m-4: límite fijo en 380")
-    expectEq(IslandNoticeMetrics.width(.update, available: roomy), 522, "16m-4: actualización en 522")
-    expectEq(IslandNoticeMetrics.width(.diagnostic, available: roomy), 420, "16m-4: diagnóstico topa en 420")
-    expectEq(IslandNoticeMetrics.width(.diagnostic, available: 400), 344, "16m-4: y cede al 86 % de lo que hay")
-    expectEq(IslandNoticeMetrics.width(.permission, available: roomy), 440, "16m-4: permiso topa en 440")
-    expectEq(IslandNoticeMetrics.width(.permission, available: 300), 300,
-             "16m-4: nunca más ancho que el espacio")
-    expectEq(IslandNoticeMetrics.width(.limit, available: 300), 300,
-             "16m-4: ninguna rejilla se sale de la isla")
-    expectEq(IslandNoticeMetrics.gutter(.limit), 38, "16m-4: columna del icono en límite")
-    expectEq(IslandNoticeMetrics.gutter(.update), 30, "16m-4: columna del icono en actualización")
-    expectEq(IslandNoticeMetrics.gutter(.diagnostic), 38, "16m-4: columna del icono en diagnóstico")
+@MainActor @Test func aNoticeFillsTheIslandColumn() throws {
+    let content = try #require(IslandNotice.content(for: .couldntHear))
+    let card = IslandNoticeCard(content: content, pausesClock: false, onHover: { _ in }, onAction: { _ in },
+                                onDismiss: {})
+        .frame(width: IslandGrid.openColumn)
+    let image = try #require(ImageRenderer(content: card.environment(\.colorScheme, .dark)).nsImage)
+    expectEq(image.size.width, IslandGrid.openColumn, "el aviso llena la columna de la isla")
 }
 
 // MARK: - Catalog

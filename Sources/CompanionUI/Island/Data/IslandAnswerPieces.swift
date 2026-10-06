@@ -4,22 +4,10 @@ import SwiftUI
 // Wave 16l-4: the island's own ink and the pieces Incredible draws inside
 // it, measured in its overlay CSS (docs/research/incredible-componentes.md).
 
-/// White over the black island, as Incredible's `--ci-*` alphas.
-package enum IslandAlpha {
-    package static let text = 0.95
-    package static let secondary = 0.64
-    package static let muted = 0.42
-    package static let tile = 0.06
-    package static let tileHover = 0.12
-    package static let border = 0.09
-    package static let divider = 0.07
-}
-
+/// The island's signal tones are Arc's dark tones: one per meaning.
 package enum IslandPalette {
-    package static let accent = Swatch("78AAFF")
-    package static let error = Swatch("FF7A64")
-    /// The answer option's hover.
-    package static let indigo = Swatch("8184F8")
+    package static let accent = ArcTone.accent
+    package static let error = ArcTone.danger
 }
 
 package enum IslandMetrics {
@@ -36,14 +24,14 @@ package enum AnswerOptionMetrics {
     package static let gap: CGFloat = 11
 }
 
+/// Arc's info badge (small): a pill, accent-subtle under a 24 % accent rim.
 package enum ReferentChipMetrics {
-    package static let radius: CGFloat = 7
-    package static let paddingLeading: CGFloat = 5
-    package static let paddingTrailing: CGFloat = 7
-    package static let paddingY: CGFloat = 1
+    package static let paddingLeading: CGFloat = 8
+    package static let paddingTrailing: CGFloat = 8
+    package static let paddingY: CGFloat = 2
     package static let size: CGFloat = 12.5
     package static let maxWidth: CGFloat = 230
-    package static let fill = 0.13
+    package static let fill = 0.12
     package static let stroke = 0.24
 }
 
@@ -151,10 +139,8 @@ struct ReferentChip: View {
             .padding(.trailing, ReferentChipMetrics.paddingTrailing)
             .padding(.vertical, ReferentChipMetrics.paddingY)
             .modifier(HugsUpTo(maxWidth: ReferentChipMetrics.maxWidth))
-            .background(RoundedRectangle(cornerRadius: ReferentChipMetrics.radius)
-                .fill(tint.opacity(ReferentChipMetrics.fill)))
-            .overlay(RoundedRectangle(cornerRadius: ReferentChipMetrics.radius)
-                .strokeBorder(tint.opacity(ReferentChipMetrics.stroke), lineWidth: Stroke.hairline))
+            .background(Capsule().fill(tint.opacity(ReferentChipMetrics.fill)))
+            .overlay(Capsule().strokeBorder(tint.opacity(ReferentChipMetrics.stroke), lineWidth: Stroke.hairline))
     }
 }
 
@@ -162,7 +148,7 @@ struct ReferentChip: View {
 /// short chip in a wide row grew to the cap. This takes the content's own
 /// width, never more than the offer or the cap. A truncated label measures
 /// a few points under its offer, so a long chip takes the limit outright.
-private struct HugsUpTo: ViewModifier {
+struct HugsUpTo: ViewModifier {
     let maxWidth: CGFloat
 
     func body(content: Content) -> some View {
@@ -170,7 +156,7 @@ private struct HugsUpTo: ViewModifier {
     }
 }
 
-private struct CappedWidth: Layout {
+struct CappedWidth: Layout {
     let maxWidth: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

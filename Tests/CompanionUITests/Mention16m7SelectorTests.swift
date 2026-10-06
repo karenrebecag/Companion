@@ -259,14 +259,17 @@ private let phone = MentionChannel(kind: .phone, label: nil, value: "+52 55 0000
            "16m-7: la pista dice cómo abrir los medios solo en contactos")
 }
 
+// Arc's suggestion list is its dropdown: the same panel, rows and highlight
+// as the island's menu, so the two never drift apart.
 @Test @MainActor func mentionMetricsTests() {
-    expectEq(MentionMetrics.padding, 4, "16m-7 selector: padding 4")
+    expectEq(MentionMetrics.padding, 5, "selector: el padding 5 del menu de Arc")
     expectEq(MentionMetrics.maxHeight, 240, "16m-7 selector: 240 de alto máximo")
-    expectEq(MentionMetrics.radius, 11, "16m-7 selector: radio 11")
-    expectEq([MentionMetrics.itemPaddingY, MentionMetrics.itemPaddingX], [6, 8], "16m-7 ítem: 6 × 8")
-    expectEq(MentionMetrics.itemRadius, 7, "16m-7 ítem: radio 7")
+    expectEq(MentionMetrics.radius, 26, "selector: radio de panel 26")
+    expectEq(MentionMetrics.itemRadius, 20, "ítem: concéntrico, 26 - 6")
+    expectEq(MentionMetrics.itemMinHeight, 36, "ítem: 36 de alto")
+    expectEq(MentionMetrics.itemPaddingX, 11, "ítem: 11 a los lados")
     expectEq(MentionMetrics.itemFontSize, 13, "16m-7 ítem: 13 px")
-    expectEq(MentionMetrics.hoverAlpha, 0.16, "16m-7 ítem: hover acento al 16 %")
+    expectEq(MentionMetrics.highlight.hex, ArcTone.surfaceMuted.hex, "ítem: resaltado surface-muted")
 }
 
 // MARK: - Review round

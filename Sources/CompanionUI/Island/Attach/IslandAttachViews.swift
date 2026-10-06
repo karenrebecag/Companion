@@ -150,10 +150,11 @@ struct IslandDropZones: View {
         .foregroundStyle(lit ? IslandInk.text : IslandInk.secondary)
         .padding(.horizontal, IslandDropMetrics.paddingX)
         .frame(maxWidth: .infinity, minHeight: IslandDropMetrics.height, maxHeight: IslandDropMetrics.height)
-        .background(shape.fill(lit ? IslandDropMetrics.litFill : Color.clear))
+        .background(shape.fill(lit ? IslandDropMetrics.litFill.color : Color.clear))
+        // Arc closes the dashes into a solid rim when the file is over it.
         .overlay(shape.strokeBorder(
-            lit ? IslandDropMetrics.litStroke : Neutral.white.color.opacity(IslandDropMetrics.restStroke),
-            style: StrokeStyle(lineWidth: IslandDropMetrics.dashWidth, dash: IslandDropMetrics.dash)))
+            lit ? IslandDropMetrics.litStroke.color : IslandDropMetrics.restStroke.color,
+            style: StrokeStyle(lineWidth: IslandDropMetrics.dashWidth, dash: lit ? [] : IslandDropMetrics.dash)))
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(lit ? .isSelected : [])
     }

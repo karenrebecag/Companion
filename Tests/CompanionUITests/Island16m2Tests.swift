@@ -21,35 +21,14 @@ import Testing
 
 @Test @MainActor func island16m2MetricsTests() {
     testWorkMeasuresMatchIncredible()
-    testAgentsAreTheLiveTaskSteps()
 }
 
 @MainActor func testWorkMeasuresMatchIncredible() {
-    expectEq([WorkStateMetrics.runMinWidth, WorkStateMetrics.runMaxWidth],
-             [320, 420], "16m-2 runcard: 320-420 de ancho")
-    expectEq([WorkStateMetrics.runPaddingTop, WorkStateMetrics.runPaddingX,
-              WorkStateMetrics.runPaddingBottom], [14, 16, 12], "16m-2 runcard: 14/16/12")
-    expectEq(WorkStateMetrics.runRadius, 20, "16m-2 runcard: radio 20")
-    expectEq([WorkStateMetrics.runShadowY, WorkStateMetrics.runShadowAlpha],
-             [18, 0.32], "16m-2 runcard: sombra 0 18 48 al 32 %")
-    expectEq([WorkStateMetrics.stepPaddingY, WorkStateMetrics.stepPaddingX,
-              WorkStateMetrics.stepGap], [5, 2, 2], "16m-2 paso: 5 × 2, gap 2")
     expectEq(WorkStateMetrics.reelHeight, 26, "16m-2 carrete: banda de 26")
     expectEq([WorkStateMetrics.transcriptSize, WorkStateMetrics.transcriptLeading],
              [14, 1.5], "16m-2 transcripción: 14 con 1.5")
     expectEq([WorkStateMetrics.transcriptLive, WorkStateMetrics.transcriptFixed],
              [0.72, 0.94], "16m-2 transcripción: 72 % viva, 94 % fija")
-    expectEq(WorkStateMetrics.agentGap, 10, "16m-2 agentes: gap 10")
-}
-
-@MainActor func testAgentsAreTheLiveTaskSteps() {
-    let steps = [
-        JobStepInfo(tool: "Task", label: "Task: revisar", done: true),
-        JobStepInfo(tool: "Task", label: "Task: buscar"),
-        JobStepInfo(tool: "Bash", label: "Bash: ls"),
-    ]
-    expectEq(WorkStateMetrics.agents(steps).map(\.label), ["Task: buscar"],
-             "16m-2 agentes: solo los Task que siguen fuera")
 }
 
 func testStepFinishedMarksItsStep() {

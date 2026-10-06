@@ -140,11 +140,11 @@ private let linePitchTolerance: CGFloat = 0.5
 }
 
 @MainActor func testIslandDropPins() {
-    expectEq(IslandDropMetrics.dash, [6, 4], "16p-3 soltar: discontinuo 6 / 4 (propio)")
-    expectSRGB(IslandDropMetrics.litFill, [0.06, 0.16, 0.34],
-               "16p-3 soltar: zona encendida, relleno medido en la grabación")
-    expectSRGB(IslandDropMetrics.litStroke, [0.25, 0.55, 1.0],
-               "16p-3 soltar: zona encendida, filete medido en la grabación")
+    expectEq(IslandDropMetrics.dash, [3.5, 3.5], "soltar Arc: discontinuo 3.5 / 3.5")
+    expectEq(IslandDropMetrics.litFill.hex, ArcTone.mix(ArcTone.accent, 0.025, over: ArcTone.surface).hex,
+             "soltar Arc: encendida, acento al 2.5 %")
+    expectEq(IslandDropMetrics.litStroke.hex, ArcTone.mix(ArcTone.accent, 0.4, over: ArcTone.border).hex,
+             "soltar Arc: encendida, filete de acento al 40 %, continuo")
 }
 
 @MainActor func testIslandAttachOwnValuePins() {

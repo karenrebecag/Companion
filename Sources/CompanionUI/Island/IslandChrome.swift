@@ -9,6 +9,8 @@ import SwiftUI
 package enum IslandChrome {
     /// The meter circle in the status row and the field row.
     package static let meterSide: CGFloat = 32
+    /// The stop control's danger wash: Arc mixes 12 % over a grey surface; on black it needs more to read.
+    package static let stopWash = 0.2
     /// The first half of opening: wide and low (241 pt measured).
     package static let pillWidth: CGFloat = 240
     package static let barWidth: CGFloat = 320

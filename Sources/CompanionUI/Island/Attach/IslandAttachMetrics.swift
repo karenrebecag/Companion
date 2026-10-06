@@ -9,29 +9,29 @@ package enum IslandAttachMetrics {
     /// As long as a notice card's countdown (spec 16i §9).
     package static let noteSeconds: Double = 6
 
-    /// `ci-att-card`: 84 × 102, radius 10, a 6 % tile under a 22 % white rim,
-    /// padding 8; a picture bleeds to the edge instead.
+    /// `ci-att-card`: 84 × 102, radius 10, padding 8; a picture bleeds to the
+    /// edge instead. Arc's file row inks it: surface under a border.
     package static let cardWidth: CGFloat = 84
     package static let cardHeight: CGFloat = 102
     package static let cardRadius: CGFloat = 10
     package static let cardPadding: CGFloat = 8
-    package static let cardTile = 0.06
-    package static let cardBorder = 0.22
-    /// The failed card's wash: Incredible's error `#ff7a64` at 8 %.
-    package static let errorTint = Swatch("FF7A64")
-    package static let errorAlpha = 0.08
+    package static let cardFill = ArcTone.surface
+    package static let cardRim = ArcTone.border
+    /// Arc's failed file: a 26 % red border over the danger badge's 10 % wash.
+    package static var errorFill: Swatch { ArcTone.mix(ArcTone.danger, 0.1, over: ArcTone.surface) }
+    package static var errorRim: Swatch { ArcTone.mix(ArcTone.danger, 0.26, over: ArcTone.border) }
 
     /// The name: 12 / 500 on a 16 line — Geist's own line at 12, so the
     /// view adds no spacing to reach it.
     package static let nameSize: CGFloat = 12
     package static let nameLineHeight: CGFloat = 16
-    /// The extension badge: 10 / 600, +0.04em, 3 × 6 on white 13 %, radius 5.
+    /// The extension badge: 10 / 500, +0.04em, 3 × 6, radius 5, Arc's neutral badge.
     package static let extSize: CGFloat = 10
     package static let extTracking: CGFloat = 0.04
     package static let extPaddingY: CGFloat = 3
     package static let extPaddingX: CGFloat = 6
     package static let extRadius: CGFloat = 5
-    package static let extFill = 0.13
+    package static let extFill = ArcTone.surfaceMuted
 
     /// The remove circle's disc and rim: `#141519` at 90 % under white 30 %.
     /// Its 24 side lives in `IconButtonSize.attachmentRemove`.
@@ -87,18 +87,17 @@ package enum IslandAttachMetrics {
 }
 
 package enum IslandDropMetrics {
-    /// `ci-drop`: 36 high, padding 0 × 16, a 1.5 dashed white 28 % rim,
-    /// radius 12, 12 / 500.
+    /// `ci-drop`: 36 high, padding 0 × 16, radius 12, 12 / 500, with Arc's
+    /// file-dropzone rim: 1 dashed border-strong at rest.
     package static let height: CGFloat = 36
     package static let paddingX: CGFloat = 16
-    package static let dashWidth: CGFloat = 1.5
-    package static let restStroke = 0.28
+    package static let dashWidth: CGFloat = 1
+    package static var restStroke: Swatch { IslandArc.borderStrong }
     package static let radius: CGFloat = 12
     package static let textSize: CGFloat = 12
-    /// Dash and gap of the rim. Not in the CSS (the browser draws `dashed`
-    /// its own way); these read like it at 1.5.
-    package static let dash: [CGFloat] = [6, 4]
-    /// NotchNook's lit zone, measured in the 18:11 recording.
-    package static let litFill = Color(red: 0.06, green: 0.16, blue: 0.34)
-    package static let litStroke = Color(red: 0.25, green: 0.55, blue: 1.0)
+    /// Arc's `stroke-dasharray: 3.5 3.5`.
+    package static let dash: [CGFloat] = [3.5, 3.5]
+    /// Arc's drag-over: a breath of accent, and the rim turns solid accent.
+    package static var litFill: Swatch { ArcTone.mix(ArcTone.accent, 0.025, over: ArcTone.surface) }
+    package static var litStroke: Swatch { ArcTone.mix(ArcTone.accent, 0.4, over: ArcTone.border) }
 }

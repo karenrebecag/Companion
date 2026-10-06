@@ -1,21 +1,13 @@
 import CompanionCore
 import SwiftUI
 
-/// The receipt card (16h-3). Surface and width are the measured runcard's
-/// (`wf-runcard`, docs/research/incredible-isla-componentes.md §2); the
-/// eyebrow ink is `ov-card`'s; the green is the island notice's success.
-/// Incredible's receipts themselves were not captured, so the rest is ours.
+/// The receipt (16h-3) on the island's grid: where a run ends. The header
+/// carries the same check the run's loader lands on; each line keeps a small
+/// check in the lead column. Sentence case, no eyebrow (Arc copy).
 enum ReceiptMetrics {
-    static let minWidth = WorkStateMetrics.runMinWidth
-    static let maxWidth = WorkStateMetrics.runMaxWidth
-    /// ov-card eyebrow: 11 px / 600 at 42 %.
-    static let eyebrowSize: CGFloat = 11
-    static let eyebrowAlpha = 0.42
-    /// island-notice success.
-    static let checkHex = "8CDC96"
-    /// Own value: a glyph that reads as a check next to 12 px text.
+    /// A glyph that reads as a check next to 12 px text.
     static let checkSize: CGFloat = 12
-    static var check: Color { Swatch(checkHex).color }
+    static var check: Color { ArcTone.success.color }
 }
 
 enum IslandReceipt {
@@ -37,37 +29,36 @@ struct IslandReceiptCard: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: WorkStateMetrics.stepGap) {
-            HStack(spacing: Space.x2) {
-                Text(Localized.string("island.receipt.title").uppercased())
-                    .font(Fonts.geist(ReceiptMetrics.eyebrowSize).weight(.semibold))
-                    .foregroundStyle(.white.opacity(ReceiptMetrics.eyebrowAlpha))
-                Spacer(minLength: Space.none)
+        VStack(alignment: .leading, spacing: IslandGrid.rowGap) {
+            IslandGridRow {
+                MorphLoader(status: .success, size: AgentRunMetrics.loader)
+                    // The card announces itself on appear; the check would say it twice.
+                    .accessibilityHidden(true)
+            } content: {
+                Text(Localized.string("island.receipt.title"))
+                    .font(Fonts.geist(TypeSize.rowTitle).weight(.medium))
+                    .foregroundStyle(ArcTone.foreground.color)
+            } trail: {
                 CloseButton(variant: .island, label: Localized.string("island.receipt.dismiss"),
                             action: onDismiss)
             }
-            .padding(.bottom, Space.x1)
             ForEach(Array(receipt.entries.enumerated()), id: \.offset) { _, entry in
-                HStack(spacing: Space.x2) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(Fonts.geist(ReceiptMetrics.checkSize))
+                IslandGridRow {
+                    Image(systemName: "checkmark")
+                        .font(Fonts.geist(ReceiptMetrics.checkSize).weight(.medium))
                         .foregroundStyle(ReceiptMetrics.check)
                         .accessibilityLabel(IslandReceipt.checkLabel(entry, language: Localized.language()))
+                } content: {
                     Text(entry.text)
                         .font(Fonts.geist(TypeSize.caption))
-                        .foregroundStyle(.white.opacity(IslandAlpha.text))
+                        .foregroundStyle(ArcTone.textSecondary.color)
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                .padding(.vertical, WorkStateMetrics.stepPaddingY)
-                .padding(.horizontal, WorkStateMetrics.stepPaddingX)
+                .frame(minHeight: AgentRunMetrics.node)
                 .accessibilityElement(children: .combine)
             }
         }
-        .padding(.top, WorkStateMetrics.runPaddingTop)
-        .padding(.horizontal, WorkStateMetrics.runPaddingX)
-        .padding(.bottom, WorkStateMetrics.runPaddingBottom)
-        .modifier(WorkSurface())
         .accessibilityElement(children: .contain)
         .onAppear {
             AccessibilityNotification.Announcement(

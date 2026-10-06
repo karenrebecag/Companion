@@ -5,6 +5,7 @@ import SwiftUI
 struct IslandResultCard: View {
     let result: IslandResult
     let onOpen: () -> Void
+    @State private var hovering = false
 
     var body: some View {
         Button(action: onOpen) {
@@ -26,9 +27,20 @@ struct IslandResultCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(Space.x3)
             .background(RoundedRectangle(cornerRadius: IslandInk.cardRadius).fill(IslandInk.field))
+            .overlay(RoundedRectangle(cornerRadius: IslandInk.cardRadius)
+                .strokeBorder(IslandResultCardInk.rim(hover: hovering).color, lineWidth: Stroke.hairline))
             .contentShape(RoundedRectangle(cornerRadius: IslandInk.cardRadius))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
+        .onHover { hovering = $0 }
+        .animation(ArcMotion.fade(ArcMotion.Duration.fast), value: hovering)
+    }
+}
+
+/// Arc's card: a border at rest, the strong border under the pointer.
+enum IslandResultCardInk {
+    static func rim(hover: Bool) -> Swatch {
+        hover ? IslandArc.borderStrong : ArcTone.border
     }
 }
 

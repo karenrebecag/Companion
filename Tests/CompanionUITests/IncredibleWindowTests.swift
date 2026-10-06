@@ -75,11 +75,9 @@ import Testing
 @MainActor func testIslandFieldMatchesTheScreenshot() {
     expectEq([IslandFieldMetrics.height, IslandFieldMetrics.radius, IslandFieldMetrics.textInset],
              [38, 12, 14], "16n campo: 38 de alto, radio 12, texto a 14")
-    expectEq(IslandFieldMetrics.fill, 0.075, "16n campo: blanco 7.5 % (#131313)")
-    expectEq([IslandFieldMetrics.orb, IslandFieldMetrics.orbGap], [36, 8], "16n orbe: 36, a 8 del campo")
+    expectEq([IslandFieldMetrics.orb, IslandFieldMetrics.orbGap], [IslandGrid.lead, IslandGrid.gap], "orbe del campo: en la columna guia del grid")
     expectEq([IslandFieldMetrics.send, IslandFieldMetrics.tool, IslandFieldMetrics.trailing],
              [28, 30, 5], "16n campo: enviar 28, herramienta 30, 5 al borde")
-    expectEq(IslandFieldMetrics.sendFill, 0.13, "16n enviar: blanco 13 % (#212121)")
     expectEq(IslandMetrics.rimAlpha, 0.12, "16n isla: filo blanco 12 % al abrirse")
 }
 

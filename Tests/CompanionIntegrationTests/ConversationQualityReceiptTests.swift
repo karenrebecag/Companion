@@ -399,11 +399,9 @@ private final class OpenTools: ParentToolExecuting, @unchecked Sendable {
 
 // MARK: - The card
 
+// Arc: the receipt sits on the island's grid, its checks in the success tone.
 @Test @MainActor func testTheReceiptCardUsesTheMeasuredRunCardSurface() {
-    expectEq(ReceiptMetrics.minWidth, WorkStateMetrics.runMinWidth, "medida: ancho mín de la tarjeta de ejecución")
-    expectEq(ReceiptMetrics.maxWidth, WorkStateMetrics.runMaxWidth, "medida: ancho máx")
-    expectEq(ReceiptMetrics.eyebrowAlpha, 0.42, "medida: eyebrow de ov-card al 42 %")
-    expectEq(ReceiptMetrics.checkHex, "8CDC96", "medida: verde de éxito del aviso de la isla")
+    expectEq(ReceiptMetrics.check, ArcTone.success.color, "el check usa el tono de exito de Arc")
 }
 
 @Test @MainActor func testTheReceiptSpeaksToVoiceOverInBothLanguages() {

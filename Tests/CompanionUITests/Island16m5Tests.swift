@@ -51,7 +51,7 @@ import Testing
     expectEq(IslandVisualMetrics.minSeriesContrast, 3, "16m-5a: 3:1 para gráficos (WCAG 1.4.11)")
     expect(IslandChartInk.series.contains { $0.hex == Accent.teal.hex }, "16m-5a: el teal vive en los tokens")
     expectEq(IslandVisualMetrics.sectorGap, 1, "16m-5a: separación entre rebanadas con nombre")
-    expectEq(IslandChartInk.series[0].hex, AnswerInk.accent.hex, "16m-5a: la primera serie es el acento de ovx")
+    expectEq(IslandChartInk.series[0].hex, "55ADFF", "la primera serie es la azul de Arc en oscuro")
     // Past the palette the colours cycle, they never crash.
     expectEq(IslandChartInk.color(at: 8), IslandChartInk.color(at: 0), "16m-5a: la paleta cicla")
     expectEq(IslandChartInk.color(at: -1), IslandChartInk.color(at: 7), "16m-5a: un índice negativo no rompe")
