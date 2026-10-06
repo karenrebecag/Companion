@@ -294,7 +294,7 @@ struct DictationLanguageLine: View {
             toggle(entry.code)
         } label: {
             HStack(spacing: Space.x2) {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: Space.none) {
                     Text(Localized.string("spoken.language.\(entry.code)"))
                         .font(.uiLabel)
                         .foregroundStyle(Semantic.foreground)
