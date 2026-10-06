@@ -39,6 +39,10 @@ extension HandsAct {
         }
         // A paste route that left the field untouched would only fail again.
         guard route == .ax else { return fail("not_landed", Self.notLanded) }
+        // The read-back waited; Command-V goes to whatever has focus now, so
+        // the target is checked again before the paste, not only before the
+        // first attempt.
+        guard !moved else { return fail("target_changed", Self.appMoved) }
         switch await hands.injector.paste(text, into: target) {
         case .failed(.fieldGone):
             return fail("target_changed", Self.appMoved)
