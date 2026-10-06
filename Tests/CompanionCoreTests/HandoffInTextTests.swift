@@ -115,6 +115,11 @@ import Testing
     let steps = pieces.map { scan.feed($0) } + [scan.finish()]
     expectEq(steps.map(\.display).joined(), pieces.joined(), "scanner: el hilo guarda la tarjeta entera")
     expectEq(steps.map(\.speakable).joined(), "Ventas:\n\n\nListo", "scanner: la voz no lee la tarjeta")
+    expectEq(MarkdownSplitter.cardFences(pieces.joined()),
+             "```companion:chart\n{\"kind\":\"bar\",\"labels\":[\"Ene\"]}\n```",
+             "hilo: la tarjeta se guarda entera aparte de lo dicho")
+    expectEq(MarkdownSplitter.proseWithoutCards(pieces.joined()).contains("companion"), false,
+             "voz: lo dicho no arrastra el encabezado de la tarjeta")
     var plain = HandoffInText()
     expectEq(plain.feed(#"Ok {"goal":"x"}"#).handoff?.goal, "x", "scanner: fuera de un bloque sigue detectando")
 }

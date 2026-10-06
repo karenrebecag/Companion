@@ -118,7 +118,13 @@ struct TurnMouth {
     /// thread and the transcript must not keep those. The length budget trims
     /// only the voice; the thread keeps the full text, which is the point of
     /// a card carrying the detail.
-    var said: String { SpeechFilter.clean(saidPart(of: spoken)) }
+    // Fences out first: the speech filter turned a card into "companion:chart".
+    var said: String { SpeechFilter.clean(saidPart(of: MarkdownSplitter.proseWithoutCards(spoken))) }
+
+    /// What the thread keeps: the words said, then the cards whole.
+    var stored: String {
+        [said, MarkdownSplitter.cardFences(spoken)].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
 
     /// Code review 2026-09-25 (LOW-2): a round's text as the voice said it,
     /// for the model's next round.

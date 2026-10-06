@@ -512,7 +512,7 @@ final class ClassicRuntime: @unchecked Sendable {
         if !mouth.spoken.isEmpty {
             let said = mouth.said
             transcript?.said(said)
-            await thread.appendAssistant(said)
+            await thread.appendAssistant(mouth.stored)
             await thread.finishStream()
         }
         if Task.isCancelled { return await cutTurn(transcript, generation: generation, cut: cut) }
