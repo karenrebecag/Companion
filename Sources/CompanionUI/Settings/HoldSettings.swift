@@ -241,7 +241,7 @@ struct DictationLanguageLine: View {
                 .textFieldStyle(.roundedBorder)
             if codes.isEmpty, query.isEmpty {
                 Text(Localized.string("settings.dictation.language.empty"))
-                    .font(.uiCaption)
+                    .typeRole(.micro)
                     .foregroundStyle(Semantic.mutedForeground)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -273,7 +273,7 @@ struct DictationLanguageLine: View {
                         Text(String(
                             format: Localized.string("settings.dictation.language.none"),
                             SpokenLanguagePreference.catalog.count))
-                            .font(.uiCaption)
+                            .typeRole(.micro)
                             .foregroundStyle(Semantic.mutedForeground)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -282,10 +282,10 @@ struct DictationLanguageLine: View {
                     }
                 }
             }
-            .frame(maxHeight: 280)
+            .frame(maxHeight: ControlMetrics.languageListMaxHeight)
         }
         .padding(Space.x3)
-        .frame(width: 320)
+        .frame(width: ControlMetrics.languagePickerWidth)
     }
 
     private func languageRow(_ entry: SpokenLanguagePreference.Entry) -> some View {
