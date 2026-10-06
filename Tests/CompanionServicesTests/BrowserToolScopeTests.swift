@@ -85,7 +85,10 @@ private func bridgeLine(_ id: Int, _ name: String, _ arguments: String) -> Strin
         token: { "tok" }, language: { .en }, accessibility: { true })
     let hello = await session.handle(
         line: #"{"id":1,"method":"hello","params":{"token":"tok","client":"claude-code","protocol":1}}"#)
-    for tool in BrowserTool.allCases { expect(hello.reply.contains(tool.rawValue), "hello lists \(tool.rawValue)") }
+    for tool in BrowserTool.allCases.filter({ !BridgeScope.isLocalOnly($0.rawValue) }) {
+        expect(hello.reply.contains(tool.rawValue), "hello lists \(tool.rawValue)")
+    }
+    expect(!hello.reply.contains(BrowserTool.setFiles.rawValue), "an outside agent is not told about the upload tool")
 
     let read = await session.handle(line: bridgeLine(2, "browser_read", #"{"tab":12}"#))
     expect(read.reply.contains(#""ok":true"#), "the read runs")
@@ -97,4 +100,24 @@ private func bridgeLine(_ id: Int, _ name: String, _ arguments: String) -> Strin
     let allowed = await session.handle(line: bridgeLine(4, "browser_click", #"{"tab":12,"element":2}"#))
     expect(allowed.reply.contains(#""ok":true"#), "con un si, corre")
     expectEq(rig.channel.writes.count, 1, "una escritura")
+}
+
+@MainActor @Test func browserSetFilesIsLocalOnlyAndAnAgentOnTheBridgeCannotCallIt() async {
+    expect(!BridgeScope.allows("browser_set_files"), "not on the bridge allowlist")
+    expect(BridgeScope.isLocalOnly("browser_set_files"), "decided: local only")
+    let rig = makeToolRig(page: uploadPage())
+    let approvals = ScriptedApprovals(answer: true)
+    let session = BridgeSession(
+        tools: CompositeParentTools([rig.runner]), guard: ParentToolGuard(approvals: approvals),
+        token: { "tok" }, language: { .en }, accessibility: { true })
+    _ = await session.handle(
+        line: #"{"id":1,"method":"hello","params":{"token":"tok","client":"claude-code","protocol":1}}"#)
+    _ = await session.handle(line: bridgeLine(2, "browser_read", #"{"tab":12}"#))
+    let mark = rig.channel.sent.count
+    let call = await session.handle(
+        line: bridgeLine(3, "browser_set_files", #"{"tab":12,"element":8,"path":"~/cv.pdf"}"#))
+    expect(call.reply.contains(BridgeCode.unknownTool), "refused at the allowlist: \(call.reply)")
+    expect(!approvals.requests.contains { $0.toolName == "browser_set_files" }, "no sheet was requested")
+    expect(rig.channel.writes.isEmpty, "nothing reached the extension")
+    expectEq(rig.channel.sent.count, mark, "not even a listing")
 }

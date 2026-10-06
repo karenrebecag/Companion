@@ -4,7 +4,7 @@ description: Acts on websites in the user's browser. Use when the user wants a s
 license: Apache-2.0
 metadata:
   author: companion
-  version: "3"
+  version: "4"
 ---
 # Browser use
 
@@ -20,6 +20,7 @@ These tools exist only while the extension is connected. If `browser_tabs` is no
 - `browser_release(tab)` gives the tab back when the task is done. Idle tabs and a disconnect release on their own.
 - `browser_read(tab, selector?)` returns the tab's text and its elements, each with a number. `>>>` in a selector crosses frames and shadow roots. `hidden: true` also lists elements that are not rendered (display none, visibility hidden, a closed details); each is marked `hidden`, and a click, type, scroll or hover on one is refused while it stays hidden. Their text is not added to the page text, and no mark does not prove an element is on screen.
 - `browser_click(tab, element)` and `browser_type(tab, element, text)` act on a numbered element.
+- `browser_set_files(tab, element, path)` puts one local file into a file field from the last read of that tab. It always asks. A spoken yes cannot approve it. It never submits the form. The numbers expire on the next read: `stale_id` means read the tab again. The approval must be answered within a minute of the read; otherwise read the tab again and ask again.
 - `browser_double_click(tab, element)` and `browser_right_click(tab, element)` press it twice, or with the right button to open the page's own menu; they ask wherever a click on that element would.
 - `browser_select(tab, element, option)` chooses an option of a dropdown list (a `<select>`) by the label the page shows. A label that is not there answers `option_not_found` with the labels the list has.
 - `browser_scroll(tab, dx, dy)` scrolls by pixels, or `browser_scroll(tab, element)` brings a numbered element into view; `browser_hover(tab, element)` moves the pointer over it to show a menu or tooltip. Neither asks; read the tab again afterwards.
@@ -27,7 +28,7 @@ These tools exist only while the extension is connected. If `browser_tabs` is no
 - `browser_drag(tab, element, to)` drags a numbered element onto another, or `browser_drag(tab, element, dx, dy)` by pixels; onto an element it asks wherever a click on either end would, and by pixels it always asks. `browser_click_at(tab, x, y)` clicks a point of the visible page for what has no number (a canvas, a map); it always asks, and the point must come from a read less than a minute old.
 - `browser_navigate(tab, url)` opens an http or https address in a tab.
 
-Reading, clicking, typing and navigating need control of the tab. A tab you opened is yours; any other one answers `not_controlled`: take it with `browser_take` if the user named it, or open the address with `browser_open`. If it answers `busy`, another agent is using that tab: do not wait for it, open the address in a new tab. Never take a tab just because it is in the list.
+Reading, clicking, typing, uploading a file and navigating need control of the tab. A tab you opened is yours; any other one answers `not_controlled`: take it with `browser_take` if the user named it, or open the address with `browser_open`. If it answers `busy`, another agent is using that tab: do not wait for it, open the address in a new tab. Never take a tab just because it is in the list.
 
 Element numbers expire on every read of that tab. Read the tab, act, and read again before the next action: after a click or a page change the old numbers are gone. If a call answers `stale_id`, read the tab again; never reuse a number.
 

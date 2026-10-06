@@ -38,12 +38,20 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
             if case .select = $0 { return true }
             if case .press = $0 { return true }
             if case .navigate = $0 { return true }
+            if case .setFiles = $0 { return true }
             return false
         }
     }
 
     private var writeFailure: ContractError?
     func failWrites(with error: ContractError) { lock.withLock { writeFailure = error } }
+
+    private var tabsFailure: ContractError?
+    func failTabs(with error: ContractError) { lock.withLock { tabsFailure = error } }
+
+    private var replyOverride: BrowserInbound?
+    /// What the extension answers to a file upload instead of the usual done.
+    func answerUploads(with reply: BrowserInbound) { lock.withLock { replyOverride = reply } }
 
     private var writeNote = "ok"
     func answerWrites(with note: String) { lock.withLock { writeNote = note } }
@@ -92,7 +100,9 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
         if let failure { return .failure(failure) }
         if case .navigate = command, let navigateNote { return .success(.done(id: 1, message: navigateNote)) }
         switch command {
-        case .tabs: return .success(.tabs(id: 1, tabList))
+        case .tabs:
+            if let tabsFailure { return .failure(tabsFailure) }
+            return .success(.tabs(id: 1, tabList))
         case .read(let tab, _):
             if staleReads.contains(tab) { return .failure(ContractError(code: BridgeCode.staleId, message: "no such tab")) }
             guard let page = pages[tab] else { return .failure(ContractError(code: BridgeCode.invalidArgs, message: "no tab")) }
@@ -111,6 +121,10 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
             if let writeFailure { return .failure(writeFailure) }
             if writesUnconfirmed { return .success(.doneUnconfirmed(id: 1, message: writeNote)) }
             return .success(.done(id: 1, message: writeNote))
+        case .setFiles:
+            if let writeFailure { return .failure(writeFailure) }
+            if let replyOverride { return .success(replyOverride) }
+            return .success(.done(id: 1, message: "files-set"))
         }
     }
 }
@@ -151,7 +165,8 @@ struct BrowserToolRig {
 /// controlled; `owned: false` is the tab nobody took.
 func makeToolRig(
     connected: Bool = true, page: BrowserPage = crmPage(), tabs: [BrowserTab]? = nil, owned: Bool = true,
-    language: @escaping @Sendable () -> AppLanguage = { .en }
+    language: @escaping @Sendable () -> AppLanguage = { .en },
+    now: @escaping @Sendable () -> Date = { Date() }
 ) -> BrowserToolRig {
     let presence = BrowserPresence()
     if connected { presence.set(.comet) }
@@ -160,7 +175,7 @@ func makeToolRig(
     let leases = BrowserLeases(epoch: presence.epoch)
     if owned { leases.acquire(tab: 12, caller: "chat") }
     let runner = BrowserToolRunner(
-        channel: channel, presence: presence, language: language, leases: leases, caller: "chat")
+        channel: channel, presence: presence, language: language, leases: leases, caller: "chat", now: now)
     return BrowserToolRig(runner: runner, channel: channel, presence: presence)
 }
 

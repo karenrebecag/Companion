@@ -127,7 +127,9 @@ package enum BridgeScope {
     /// safe, would give it every open workbook without a sheet. Arranging
     /// windows moves the user's whole desk, so it stays with the user too.
     package static func isLocalOnly(_ name: String) -> Bool {
+        // An outside agent must not hand the user's files to a page (D5).
         NativeTool.parentDeliverables.contains { $0.rawValue == name } || name == WindowArrangeTool.name
+            || name == BrowserTool.setFiles.rawValue
     }
 
     package static func allows(_ name: String) -> Bool { bridgeTools.contains(name) }

@@ -200,6 +200,9 @@ package enum BrowserCodec {
                     ["tab": tab, "generation": generation, "element": element, "dx": dx, "dy": dy])
         case .clickAt(let tab, let generation, let x, let y):
             return (BrowserTool.clickAt.rawValue, ["tab": tab, "generation": generation, "x": x, "y": y])
+        case .setFiles(let tab, let generation, let element, let path):
+            return (BrowserTool.setFiles.rawValue,
+                    ["tab": tab, "generation": generation, "element": element, "path": path])
         case .navigate(let tab, let url):
             return (BrowserTool.navigate.rawValue, ["tab": tab, "url": url.absoluteString])
         case .open(let url):
