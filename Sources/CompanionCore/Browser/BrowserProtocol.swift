@@ -163,10 +163,12 @@ package struct BrowserPage: Sendable, Equatable {
     package var generation: Int
     package var elements: [BrowserElement]
     package var truncated: Bool
+    /// Native dialogs the extension answered since the last reply for this tab; nil when none.
+    package var dialogs: BrowserDialogReport?
 
     package init(
         tab: Int, origin: String, url: String, title: String, text: String,
-        generation: Int, elements: [BrowserElement], truncated: Bool
+        generation: Int, elements: [BrowserElement], truncated: Bool, dialogs: BrowserDialogReport? = nil
     ) {
         self.tab = tab
         self.origin = origin
@@ -176,6 +178,7 @@ package struct BrowserPage: Sendable, Equatable {
         self.generation = generation
         self.elements = elements
         self.truncated = truncated
+        self.dialogs = dialogs
     }
 }
 
@@ -248,7 +251,35 @@ package enum BrowserInbound: Sendable, Equatable {
     /// it is a done the host words with a warning, never a plain success. Kept as its own case
     /// so every existing `.done` match keeps meaning "confirmed".
     case doneUnconfirmed(id: Int, message: String)
+    /// A done that also carries dialogs the extension answered; the message stays the exact-match text.
+    case acted(id: Int, message: String, BrowserDialogReport)
+    /// Both at once: dialogs were answered and the press landing was never seen.
+    case actedUnconfirmed(id: Int, message: String, BrowserDialogReport)
     case error(id: Int?, BridgeErrorBody)
+
+    /// The done text whether or not dialogs came with it.
+    package var doneMessage: String? {
+        switch self {
+        case .done(_, let message), .acted(_, let message, _), .doneUnconfirmed(_, let message),
+             .actedUnconfirmed(_, let message, _): return message
+        default: return nil
+        }
+    }
+
+    package var isUnconfirmed: Bool {
+        switch self {
+        case .doneUnconfirmed, .actedUnconfirmed: return true
+        default: return false
+        }
+    }
+
+    package var dialogs: BrowserDialogReport? {
+        switch self {
+        case .acted(_, _, let report), .actedUnconfirmed(_, _, let report): return report
+        case .page(_, let page): return page.dialogs
+        default: return nil
+        }
+    }
 }
 
 package enum BrowserOutbound: Sendable, Equatable {

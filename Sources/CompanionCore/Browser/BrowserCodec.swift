@@ -64,7 +64,8 @@ package enum BrowserCodec {
 
     private static func decodeResult(id: Int, _ result: [String: Any]) -> Result<BrowserInbound, BridgeErrorBody> {
         if let raw = result["page"] as? [String: Any] {
-            guard let page = page(raw) else { return fail(BridgeCode.badFrame, "Invalid page") }
+            guard var page = page(raw) else { return fail(BridgeCode.badFrame, "Invalid page") }
+            page.dialogs = BrowserDialogReport.decode(result["dialogs"], more: result["more"])
             return .success(.page(id: id, page))
         }
         if let raw = result["tabs"] as? [[String: Any]] {
@@ -78,11 +79,15 @@ package enum BrowserCodec {
         }
         if let done = result["done"] as? String {
             let message = BrowserSanitize.done(done)
+            let report = BrowserDialogReport.decode(result["dialogs"], more: result["more"])
             // Only a real JSON boolean: a string or a number must not flip the warning on.
-            if let flag = result["unconfirmed"] as? NSNumber, CFGetTypeID(flag) == CFBooleanGetTypeID(), flag.boolValue {
-                return .success(.doneUnconfirmed(id: id, message: message))
+            let unconfirmed = (result["unconfirmed"] as? NSNumber).map { CFGetTypeID($0) == CFBooleanGetTypeID() && $0.boolValue } ?? false
+            switch (unconfirmed, report) {
+            case (true, let report?): return .success(.actedUnconfirmed(id: id, message: message, report))
+            case (true, nil): return .success(.doneUnconfirmed(id: id, message: message))
+            case (false, let report?): return .success(.acted(id: id, message: message, report))
+            case (false, nil): return .success(.done(id: id, message: message))
             }
-            return .success(.done(id: id, message: message))
         }
         return fail(BridgeCode.badFrame, "Unknown result")
     }

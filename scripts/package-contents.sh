@@ -12,6 +12,8 @@ manifest.json
 background.js
 lib/cdp.js
 lib/cursor.js
+lib/dialog-wiring.js
+lib/dialogs.js
 lib/groups.js
 lib/page.js
 lib/redact.js

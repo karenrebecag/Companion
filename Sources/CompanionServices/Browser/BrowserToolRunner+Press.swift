@@ -64,11 +64,11 @@ extension BrowserToolRunner {
         case .failure(let error):
             if error.code == BridgeCode.staleId { forget(tab) }
             return failed(tool, error)
-        case .success:
+        case .success(let reply):
             let on = element.map { " on [\($0.id)]" } ?? ""
             let count = press.times == 1 ? "" : " \(press.times) times"
             return ParentToolOutcome(
-                ok: true, output: "pressed \(press.key)\(on)\(count); read the tab again to see the result",
+                ok: true, output: "pressed \(press.key)\(on)\(count); read the tab again to see the result" + dialogNote(reply.dialogs),
                 target: page.origin, tool: tool.rawValue)
         }
     }

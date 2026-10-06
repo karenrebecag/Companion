@@ -168,11 +168,18 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
             let clean = BrowserPolicy.scrub(page)
             remember(clean, epoch: epoch)
             let text = BrowserPolicy.render(clean, maxBytes: Self.readBytes, language: language())
+                + dialogNote(clean.dialogs)
             return ParentToolOutcome(
                 ok: true, output: withDataNote(text), target: clean.origin, tool: BrowserTool.read.rawValue)
         case .success:
             return fail(.read, BridgeCode.badFrame, "unexpected reply")
         }
+    }
+
+    /// The host's own wording for dialogs the extension answered; never part of the page text it cut.
+    func dialogNote(_ report: BrowserDialogReport?) -> String {
+        guard let report else { return "" }
+        return "\n" + BrowserCopy.dialogNote(report, language())
     }
 
     /// Only says who holds a tab, never why: the listing is for locating.

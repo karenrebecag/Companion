@@ -168,8 +168,8 @@ package actor BrowserChannel {
 
     private func route(_ inbound: BrowserInbound, on connection: BridgeConnection) {
         switch inbound {
-        case .tabs(let id, _), .opened(let id, _), .page(let id, _), .done(let id, _),
-             .doneUnconfirmed(let id, _):
+        case .tabs(let id, _), .opened(let id, _), .page(let id, _), .done(let id, _), .acted(let id, _, _),
+             .doneUnconfirmed(let id, _), .actedUnconfirmed(let id, _, _):
             resolve(id, .success(inbound))
         case .error(let id, let body):
             guard let id else {
@@ -253,7 +253,8 @@ package actor BrowserChannel {
         guard case .success(let inbound) = result else { return result }
         switch (command, inbound) {
         // Only a press on an element has a landing to doubt; any other tool claiming one is broken.
-        case (.click, .doneUnconfirmed), (.doubleClick, .doneUnconfirmed), (.rightClick, .doneUnconfirmed):
+        case (.click, .doneUnconfirmed), (.doubleClick, .doneUnconfirmed), (.rightClick, .doneUnconfirmed),
+             (.click, .actedUnconfirmed), (.doubleClick, .actedUnconfirmed), (.rightClick, .actedUnconfirmed):
             return result
         case (.tabs, .tabs), (.read, .page), (.click, .done), (.doubleClick, .done), (.rightClick, .done),
              (.type, .done), (.select, .done), (.press, .done), (.navigate, .done),

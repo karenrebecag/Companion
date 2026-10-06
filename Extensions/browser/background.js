@@ -4,6 +4,7 @@ import {
 } from './lib/wire.js';
 import { GROUP_TITLE, groupPlan, releasePlan, cleanupPlan, recordCreated } from './lib/groups.js';
 import { createCdp, isControl } from './lib/cdp.js';
+import { wireDialogs, STAYED } from './lib/dialog-wiring.js';
 
 const HOST = 'com.karen.companion.browser';
 const PROTOCOL = 1;
@@ -25,6 +26,8 @@ const READS_KEPT = 20;
 let generationCounter = 0;
 const replies = makeReplyGuard();
 const cdp = createCdp(globalThis.chrome, { onDetached: (tabId) => { hideCursor(tabId); } });
+
+const dialogs = wireDialogs(cdp);
 const GROUPS_KEY = 'companionGroups';
 // Where each taken tab was before we grouped it. Memory only: after a worker restart release simply ungroups.
 const taken = new Map();
@@ -105,7 +108,7 @@ async function handleInbound(message) {
     const result = await dispatch(checked.name, checked.args);
     if (!replies.claim(id)) return;
     if (result.error) send(errorReply(id, result.error.code, result.error.message, result.error.reason));
-    else send({ id, result });
+    else send({ id, result: dialogs.attach(result, checked.args?.tab) });
   } catch (error) {
     if (replies.claim(id)) send(errorReply(id, 'invalid_args', String(error?.message ?? error)));
   } finally {
@@ -267,6 +270,7 @@ async function releaseTab(tabId) {
   if (!tab) return staleTab;
   const record = taken.get(tabId) ?? null;
   taken.delete(tabId);
+  dialogs.clear(tabId);
   await cdp.detach(tabId);
   const inWindow = new Set((await chrome.tabGroups.query({ windowId: tab.windowId })).map((g) => g.id));
   const plan = releasePlan({ record, tab, ourGroupIds: await ourGroupIds(tab.windowId), groupExists: (id) => inWindow.has(id) });
@@ -818,6 +822,16 @@ async function setFiles(args) {
 }
 
 async function navigate(tabId, url) {
+  const nav = dialogs.navigation(tabId);
+  try {
+    const result = await goTo(tabId, url);
+    return nav.stayed() && result.done === STILL_LOADING ? { done: STAYED } : result;
+  } finally {
+    nav.end();
+  }
+}
+
+async function goTo(tabId, url) {
   const load = watchLoad();
   try {
     await chrome.tabs.update(tabId, { url });
@@ -851,6 +865,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabState.delete(tabId);
   cdp.forget(tabId);
   taken.delete(tabId);
+  dialogs.clear(tabId);
   createdAt = new Map([...createdAt].filter(([id]) => id !== tabId));
 });
 // Chrome does not expose a tab's creation time, so stamp it here; tabs made before this worker started stay null.
