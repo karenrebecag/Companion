@@ -21,12 +21,16 @@ struct HomeHero: View {
                 .font(Fonts.sans(TypeSize.bannerTitle).weight(.semibold))
                 .tracking(Tracking.title, at: TypeSize.bannerTitle)
                 .foregroundStyle(Neutral.white.color)
+                // One line: squeezed by the orb, each word broke letter by letter.
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 Text(Localized.string("home.hero.body"))
                     .typeRole(.heroBody)
                     .foregroundStyle(Neutral.white.color.opacity(HeroMetrics.bodyAlpha))
                     .frame(maxWidth: HeroMetrics.bodyWidth, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .layoutPriority(1)
             Spacer(minLength: Space.none)
             VoiceOrb(
                 state: VoiceOrbState(state),
