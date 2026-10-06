@@ -461,6 +461,15 @@ package final class IslandPanel: NSPanel {
     /// the app in front stays the active app.
     package override var canBecomeKey: Bool { true }
 
+    /// The pointer sampler's system-wide hit test is answered in-process, on
+    /// its own queue, and SwiftUI's accessibility tree must only be read on
+    /// main. The sampler skips clickable windows of ours, but this one turns
+    /// click-through on and off as the pointer moves, so the check races
+    /// (crash 2026-10-06). Off main there is nothing of ours to point at.
+    package nonisolated override func accessibilityHitTest(_ point: NSPoint) -> Any? {
+        Thread.isMainThread ? super.accessibilityHitTest(point) : nil
+    }
+
     /// Told when another app takes the keyboard (a click elsewhere): the
     /// field would otherwise stay focused and the panel open over that app.
     package var onResignKey: (() -> Void)?

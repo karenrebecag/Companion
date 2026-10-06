@@ -30,6 +30,11 @@ final class ScreenOverlayPanel: NSPanel {
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+
+    /// Same race as `IslandPanel`: never read SwiftUI's tree off main.
+    nonisolated override func accessibilityHitTest(_ point: NSPoint) -> Any? {
+        Thread.isMainThread ? super.accessibilityHitTest(point) : nil
+    }
 }
 
 /// The overlays for every connected display, rebuilt when displays change.
