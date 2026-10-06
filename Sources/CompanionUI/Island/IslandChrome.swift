@@ -170,6 +170,8 @@ package final class IslandGeometry {
     package var portal: CGRect?
     /// The open answer popup's frame in the canvas (16m-1), same job.
     package var answer: CGRect?
+    /// P3: the voice line chip's frame; it takes clicks without being the island.
+    package var voiceLine: CGRect?
     /// A file is being dragged over the shape (16i-2), and the zone under it.
     package var dropping = false
     package var dropZone: IslandDropZone?
@@ -400,9 +402,11 @@ package final class IslandPanel: NSPanel {
         let now = Date()
         let portal = geometry.portal.map { IslandChrome.portalScreenRect($0, canvas: frame) }
         let answer = geometry.answer.map { IslandChrome.portalScreenRect($0, canvas: frame) }
-        let inside = isVisible && IslandChrome.pointerInside(
-            point, shape: shape, portal: portal, answer: answer)
-        ignoresMouseEvents = IslandChrome.ignoresPointer(inside: inside, isKey: isKeyWindow)
+        let chip = geometry.voiceLine.map { IslandChrome.portalScreenRect($0, canvas: frame) }
+        let target = isVisible ? IslandChrome.pointerTarget(
+            point, shape: shape, portal: portal, answer: answer, voiceLine: chip) : .outside
+        let inside = target == .island
+        ignoresMouseEvents = IslandChrome.ignoresPointer(inside: target != .outside, isKey: isKeyWindow)
         let decision = hover.pointer(at: point, now: now, inside: inside)
         if inside {
             leaveTask?.cancel()

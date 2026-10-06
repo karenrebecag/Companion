@@ -1,0 +1,1 @@
+- **En modo pasivo, lo que dice la voz aparece en un chip bajo la isla, como en Incredible (2026-10-03).** Muestra una oracion a la vez, enrolla a la siguiente mientras habla, se expande con el puntero y un clic abre la isla en el mismo turno. Se queda 6 s al terminar y sale en 260 ms.

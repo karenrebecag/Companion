@@ -60,6 +60,9 @@ package struct IslandView: View {
     @State var hoveringWork = false
     /// Whether the latest result card was ever opened, for the model (16h-3).
     @State var resultAttention = IslandResultAttention()
+    /// P3: the voice line chip, and the reply its quiet turn carries.
+    @State var voiceLines = VoiceLineModel()
+    @State var replyOfTurn: UUID?
 
     /// Incredible stacks the latest few under the reply; more is the window's job.
     static let maxResults = 2
@@ -95,7 +98,7 @@ package struct IslandView: View {
     }
 
     var state: IslandState {
-        IslandState.from(
+        Self.holdingChip(IslandState.from(
             chat.session.projection, pebbleHidden: hold.pebbleHidden,
             mainInFront: hold.mainInFront, holdLearned: hold.holdLearned,
             keyListening: hold.granted, debugTranscripts: chat.debugTranscripts,
@@ -110,7 +113,7 @@ package struct IslandView: View {
             errorText: ChatErrorSurface.visible(
                 errorText: chat.errorText, needsOnboarding: chat.needsOnboarding,
                 dismissed: chat.dismissedIslandError),
-            update: updates?.noticeTag)
+            update: updates?.noticeTag), chipMounted: voiceLines.line != nil)
     }
 
     /// What the panel says above a question card: the card already carries the
@@ -153,6 +156,7 @@ package struct IslandView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .coordinateSpace(name: "islandCanvas")
         .overlay(alignment: .top) { answerLayer }
+        .overlay(alignment: .top) { voiceLineLayer }
         .overlayPreferenceValue(IslandPortalKey.self) { items in
             GeometryReader { proxy in portalLayer(items, in: proxy) }
         }
