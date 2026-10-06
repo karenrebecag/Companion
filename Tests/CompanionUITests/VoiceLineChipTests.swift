@@ -88,7 +88,7 @@ private func quiet(_ phase: SessionPhase = .speaking) -> (IslandState, SessionPr
 @Test @MainActor func theChipNamesTheResultCard() {
     let (state, p) = quiet()
     let card = ChatMessage(role: .assistant,
-                           text: "Las ventas del mes:\n\n```companion:stats\n{\"title\":\"Ventas\",\"a\":1}\n```")
+                           text: "Las ventas del mes:\n\n```companion:stats\n{\"items\":[{\"label\":\"Total\",\"value\":\"128\"}]}\n```")
     let title = IslandView.islandResult(for: card)?.title
     expect(title != nil, "la respuesta trae tarjeta")
     expectEq(IslandView.voiceLine(state: state, projection: p, latest: card, replyOfTurn: card.id)?.label, title,
