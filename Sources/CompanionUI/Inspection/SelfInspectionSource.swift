@@ -31,10 +31,16 @@ import SwiftUI
 
     /// Exhaustive on purpose: a new page must pick a wire name, and the
     /// localized title is not one.
-    private static func name(of page: MainPage) -> String {
+    package static func name(of page: MainPage) -> String {
         switch page {
         case .home: "home"
         case .apps: "apps"
+        case .browser: "browser"
+        case .knowledge: "knowledge"
+        case .savedTasks: "saved_tasks"
+        case .scheduled: "scheduled"
+        case .autopilot: "autopilot"
+        case .dictation: "dictation"
         }
     }
 }

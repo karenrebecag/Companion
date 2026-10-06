@@ -15,9 +15,12 @@ const BACKOFF_START_MS = 1000;
 let port = null;
 let reconnect = { backoff: BACKOFF_START_MS, hold: false };
 let reconnectTimer = null;
-// Per-tab: current generation and the map from global element id to (frame, frame-local id).
-// Lost when the worker dies, which correctly turns old ids into stale_id.
+// Per-tab: the latest generation and, by generation, the map from global element id to (frame, frame-local id)
+// for the last READS_KEPT reads. Lost when the worker dies, which correctly turns old ids into stale_id.
 const tabState = new Map();
+// As in Incredible: a read the host never saw (it timed out, or finished after a newer one) must not void the
+// ids the host still points at. The page re-checks each id against the read it came from before any action.
+const READS_KEPT = 20;
 let generationCounter = 0;
 const replies = makeReplyGuard();
 const cdp = createCdp(globalThis.chrome, { onDetached: (tabId) => { hideCursor(tabId); } });
@@ -100,7 +103,7 @@ async function handleInbound(message) {
   try {
     const result = await dispatch(checked.name, checked.args);
     if (!replies.claim(id)) return;
-    if (result.error) send(errorReply(id, result.error.code, result.error.message));
+    if (result.error) send(errorReply(id, result.error.code, result.error.message, result.error.reason));
     else send({ id, result });
   } catch (error) {
     if (replies.claim(id)) send(errorReply(id, 'invalid_args', String(error?.message ?? error)));
@@ -154,7 +157,11 @@ async function rememberGroup(groupId) {
   if (!known.includes(groupId)) await chrome.storage.session.set({ [GROUPS_KEY]: [...known, groupId] });
 }
 
-const staleTab = { error: { code: 'stale_id', message: 'no such tab' } };
+// Every stale_id carries the check that refused it, so a live failure can be told apart in the app's log.
+const stale = (reason, message = 'read the page again to get fresh element ids') => ({ error: { code: 'stale_id', message, reason } });
+const staleTab = stale('tab_gone', 'no such tab');
+const unreachable = () => stale('tab_gone', 'the tab is no longer reachable');
+const frameGone = () => stale('frame_gone', 'the frame is gone');
 
 async function putInGroup(tab) {
   const plan = groupPlan({ tab, ourGroupIds: await ourGroupIds(tab.windowId) });
@@ -305,10 +312,13 @@ async function run(target, func, args) {
 
 // Incredible's finders travel as one query; the page applies them where it reads.
 function readQuery(args) {
-  return {
+  const query = {
     selector: args.selector ?? null, text: args.text ?? null, exact: args.exact === true,
     role: args.role ?? null, name: args.name ?? null, max: args.max ?? null, maxChars: args.maxChars ?? null,
   };
+  // Only a real true opts in, so a default read stays the query the page always got.
+  if (args.hidden === true) query.hidden = true;
+  return query;
 }
 
 // A miss in every frame is the answer; "only hidden here" beats "nothing here", since it names the next step.
@@ -325,8 +335,9 @@ async function readTab(args) {
   const query = readQuery(args);
   let target;
   if (args.within != null) {
-    const entry = entryFor({ tab: tabId, generation: args.generation, element: args.within });
-    if (!entry) return staleElement;
+    const latest = { tab: tabId, generation: args.generation, element: args.within };
+    const entry = latestEntryFor(latest);
+    if (!entry) return staleLatest(latest);
     Object.assign(query, { withinGeneration: args.generation, withinLocal: entry.localId });
     target = { tabId, frameIds: [entry.frameId] };
   } else {
@@ -348,30 +359,53 @@ async function readTab(args) {
   const scoped = query.selector != null || args.within != null;
   const built = buildPage(tab, tabId, generation, scoped, frames, { max: query.max, maxChars: query.maxChars });
   if (built.error) return built;
-  tabState.set(tabId, { generation, map: built.map });
+  tabState.set(tabId, remember(tabState.get(tabId), generation, built.map));
   return { page: built.page };
 }
 
+// Generations only grow, so a read that finishes after a newer one is kept but never becomes the latest.
+function remember(previous, generation, map) {
+  const kept = [...(previous?.reads ?? []), [generation, map]].sort(([a], [b]) => a - b).slice(-READS_KEPT);
+  const reads = new Map(kept);
+  const latest = Math.max(...reads.keys());
+  return { generation: latest, map: reads.get(latest), reads };
+}
+
 async function act(args, func, extra) {
-  const state = tabState.get(args.tab);
-  const entry = state && state.generation === args.generation ? state.map.get(args.element) : null;
-  if (!entry) return { error: { code: 'stale_id', message: 'read the page again to get fresh element ids' } };
+  const entry = entryFor(args);
+  if (!entry) return staleEntry(args);
   const target = { tabId: args.tab, frameIds: [entry.frameId] };
   try {
     await inject(target);
   } catch (error) {
-    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+    return unreachable();
   }
   const [hit] = await run(target, func, [args.generation, entry.localId, ...extra]);
-  return hit ? hit.result : { error: { code: 'stale_id', message: 'the frame is gone' } };
+  return hit ? hit.result : frameGone();
 }
 
 const CLICK_ATTEMPTS = 3;
-const staleElement = { error: { code: 'stale_id', message: 'read the page again to get fresh element ids' } };
 
 function entryFor(args) {
+  return tabState.get(args.tab)?.reads.get(args.generation)?.get(args.element) ?? null;
+}
+
+// within and click_at name what the model is looking at now, so only the last read counts for them.
+function latestEntryFor(args) {
   const state = tabState.get(args.tab);
   return state && state.generation === args.generation ? state.map.get(args.element) ?? null : null;
+}
+
+function staleEntry(args) {
+  const state = tabState.get(args.tab);
+  if (!state) return stale('no_read');
+  return state.reads.has(args.generation) ? stale('unknown_element') : stale('generation_mismatch');
+}
+
+function staleLatest(args) {
+  const state = tabState.get(args.tab);
+  if (!state) return stale('no_read');
+  return state.generation === args.generation ? stale('unknown_element') : stale('generation_mismatch');
 }
 
 async function inPage(target, func, args = []) {
@@ -413,8 +447,11 @@ async function didLand(target, token) {
   }
 }
 
-const coveredElement = { error: { code: 'stale_id', message: 'something covers this element (a dialog or banner); read the page again' } };
-const coveredAfterFirstPress = { error: { code: 'stale_id', message: 'pressed once; something covered the element before the second press, read the page again' } };
+const COVERED = 'something covers this element (a dialog or banner); read the page again';
+// blocked: the hit test when locating; covered_during_glide: the one right before the press.
+const blockedElement = stale('blocked', COVERED);
+const coveredDuringGlide = stale('covered_during_glide', COVERED);
+const coveredAfterFirstPress = stale('covered_after_first_press', 'pressed once; something covered the element before the second press, read the page again');
 const revokedReply = (error) => ({ error: { code: 'debugger_revoked', message: error.message } });
 // Cancel mid-action, DevTools taking over, or a page Chrome will not let us attach to: the caller
 // needs a stable code, not a raw message under invalid_args.
@@ -436,18 +473,18 @@ async function pressElement(args, entry, target, gesture) {
     const token = `${Date.now()}-${attempt}`;
     const spot = await inPage(target, (g, id, t, event) => globalThis.__companionPage.locate(g, id, t, event),
       [args.generation, entry.localId, token, gesture.landing]);
-    if (!spot) return staleElement;
+    if (!spot) return frameGone();
     if (spot.error) return spot;
     if (spot.inFrame) return 'frame';
     if (!spot.inView) continue;
     if (spot.blocked) {
       if (attempt < LOCATE_ATTEMPTS) continue;
-      return coveredElement;
+      return blockedElement;
     }
     await showCursor(target, spot.box.x, spot.box.y, `${gesture.verb} · ${spot.label || spot.role}`);
     const hits = async () => (await inPage(target, (g, id, x, y) => ({ hit: globalThis.__companionPage.hitsAt(g, id, x, y) }),
       [args.generation, entry.localId, spot.box.x, spot.box.y]))?.hit === true;
-    if (!(await hits())) return coveredElement;
+    if (!(await hits())) return coveredDuringGlide;
     if (!gesture.mouse) {
       await cdp.mouseMove(args.tab, spot.box.x, spot.box.y);
       return 'pressed';
@@ -475,14 +512,14 @@ const GESTURES = {
 // Only the top frame gets the trusted path: an iframe's box is in its own coordinates, not the tab's.
 async function trustedPress(args, gesture) {
   const entry = entryFor(args);
-  if (!entry) return staleElement;
+  if (!entry) return staleEntry(args);
   const synthetic = (g, id, name) => globalThis.__companionPage[name](g, id);
   if (entry.frameId !== 0) return act(args, synthetic, [gesture.synthetic]);
   const target = { tabId: args.tab, frameIds: [0] };
   try {
     await inject(target);
   } catch {
-    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+    return unreachable();
   }
   if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
   return cdp.withInput(args.tab, async () => {
@@ -491,7 +528,7 @@ async function trustedPress(args, gesture) {
     if (typeof pressed === 'object') return pressed;
     // Never pressed (off-screen or zero-size): the synthetic click targets the element itself, nothing on top of it.
     const fallback = await inPage(target, synthetic, [args.generation, entry.localId, gesture.synthetic]);
-    return fallback ?? staleElement;
+    return fallback ?? frameGone();
   }).catch((error) => inputFailed(args.tab, error));
 }
 
@@ -505,7 +542,7 @@ async function trustedScroll(args) {
   try {
     await inject(target);
   } catch {
-    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+    return unreachable();
   }
   if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
   return cdp.withInput(args.tab, async () => {
@@ -517,9 +554,9 @@ async function trustedScroll(args) {
   }).catch((error) => inputFailed(args.tab, error));
 }
 
-const offPage = { error: { code: 'stale_id', message: 'that point is not on the visible page; read the page again' } };
-const frameAtPoint = { error: { code: 'stale_id', message: 'an embedded frame or something new is at that point, so Companion did not press; read the page again' } };
-const dragInFrame = { error: { code: 'stale_id', message: 'dragging inside a frame is not supported; read the page again' } };
+const offPage = stale('not_in_view', 'that point is not on the visible page; read the page again');
+const frameAtPoint = stale('frame_at_point', 'an embedded frame or something new is at that point, so Companion did not press; read the page again');
+const dragInFrame = stale('frame_drag', 'dragging inside a frame is not supported; read the page again');
 
 // Fails closed: a page that cannot answer is not a point known to be clear.
 async function pointClear(target, point, token, phase) {
@@ -535,7 +572,7 @@ async function topFrame(tabId) {
   try {
     await inject(target);
   } catch {
-    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+    return unreachable();
   }
   if (await cdp.isRevoked(tabId)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
   return { target };
@@ -547,7 +584,8 @@ async function topFrame(tabId) {
 async function trustedDrag(args) {
   const entry = entryFor(args);
   const goal = args.to != null ? entryFor({ ...args, element: args.to }) : null;
-  if (!entry || (args.to != null && !goal)) return staleElement;
+  if (!entry) return staleEntry(args);
+  if (args.to != null && !goal) return staleEntry({ ...args, element: args.to });
   // Only the top frame: a frame's boxes are in its own coordinates, not the tab's.
   if (entry.frameId !== 0 || (goal && goal.frameId !== 0)) return dragInFrame;
   const reached = await topFrame(args.tab);
@@ -556,15 +594,15 @@ async function trustedDrag(args) {
   return cdp.withInput(args.tab, async () => {
     const spot = await inPage(target, (g, id, t) => globalThis.__companionPage.locate(g, id, t, null),
       [args.generation, entry.localId, `${Date.now()}-drag`]);
-    if (!spot) return staleElement;
+    if (!spot) return frameGone();
     if (spot.error) return spot;
     if (spot.inFrame) return dragInFrame;
     if (!spot.inView) return offPage;
-    if (spot.blocked) return coveredElement;
+    if (spot.blocked) return blockedElement;
     let drop = { x: spot.box.x + (args.dx ?? 0), y: spot.box.y + (args.dy ?? 0) };
     if (goal) {
       const end = await inPage(target, (g, id) => globalThis.__companionPage.boxOf(g, id), [args.generation, goal.localId]);
-      if (!end) return staleElement;
+      if (!end) return frameGone();
       if (end.error) return end;
       if (end.inFrame) return dragInFrame;
       if (!end.inView) return offPage;
@@ -581,10 +619,10 @@ async function trustedDrag(args) {
     const clear = async (phase) => (await pointClear(target, spot.box, `${token}-source`, phase))
       && (await pointClear(target, drop, `${token}-drop`, phase))
       && (!goal || await hits(goal.localId, drop)) && await hits(entry.localId, spot.box);
-    if (!(await clear('mark'))) return coveredElement;
+    if (!(await clear('mark'))) return blockedElement;
     await showCursor(target, spot.box.x, spot.box.y, `Arrastrando · ${spot.label || spot.role}`);
     // The page had the whole glide to slip a frame, an overlay or another control under either end.
-    if (!(await clear('check'))) return coveredElement;
+    if (!(await clear('check'))) return coveredDuringGlide;
     await cdp.mouseDrag(args.tab, spot.box, drop);
     return { done: 'dragged' };
   }).catch((error) => inputFailed(args.tab, error));
@@ -594,7 +632,8 @@ async function trustedDrag(args) {
 // fall inside the page as it is now, outside any embedded frame.
 async function trustedClickAt(args) {
   const state = tabState.get(args.tab);
-  if (!state || state.generation !== args.generation) return staleElement;
+  if (!state) return stale('no_read');
+  if (state.generation !== args.generation) return stale('generation_mismatch');
   const reached = await topFrame(args.tab);
   if (reached.error) return reached;
   const { target } = reached;
@@ -619,7 +658,7 @@ const TYPED_WITHOUT_BREAKS = 'typed without line breaks';
 // One insert keeps the breaks keys would drop; the read-back decides whether they really went in.
 async function typeLines(args, entry, target, typeSynthetic) {
   const typed = await typeSynthetic();
-  if (!typed || typed.error) return typed ?? staleElement;
+  if (!typed || typed.error) return typed ?? frameGone();
   const after = await inPage(target, (g, id) => globalThis.__companionPage.typedValue(g, id), [args.generation, entry.localId]);
   // A textarea stores every line ending as \n.
   const wanted = args.text.replace(/\r\n?/g, '\n');
@@ -631,19 +670,19 @@ async function typeLines(args, entry, target, typeSynthetic) {
 
 async function trustedType(args) {
   const entry = entryFor(args);
-  if (!entry) return staleElement;
+  if (!entry) return staleEntry(args);
   const typeSynthetic = () => act(args, (g, id, text) => globalThis.__companionPage.type(g, id, text), [args.text]);
   if (entry.frameId !== 0) return typeSynthetic();
   const target = { tabId: args.tab, frameIds: [0] };
   try {
     await inject(target);
   } catch {
-    return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+    return unreachable();
   }
   const prepare = () => inPage(target, (g, id) => globalThis.__companionPage.prepareType(g, id), [args.generation, entry.localId]);
   // Refuse a sensitive or unfit field before the cursor ever goes near it.
   const checked = await prepare();
-  if (!checked) return staleElement;
+  if (!checked) return frameGone();
   if (checked.error) return checked;
   if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
   return cdp.withInput(args.tab, async () => {
@@ -651,9 +690,15 @@ async function trustedType(args) {
     if (pressed === 'frame') return typeSynthetic();
     if (typeof pressed === 'object') return pressed;
     const ready = await prepare();
-    if (!ready) return staleElement;
+    if (!ready) return frameGone();
     if (ready.error) return ready;
     if (ready.multiline && /[\r\n]/.test(args.text)) return typeLines(args, entry, target, typeSynthetic);
+    // HACK: prepareType re-checked the focus after the press, but the keys go to whatever holds the
+    // focus when each one arrives. Two things can still move it: an async timer (setTimeout focus
+    // handler) firing between that reply and the first key, and a keydown handler mid-typing. A
+    // re-check here would only shrink the first window by one round trip. Real fix when a page is
+    // seen doing it: CDP Input.insertText after a DOM.focus pinned to the node, or abort on a
+    // read-back that shows the text landed elsewhere.
     await cdp.typeText(args.tab, args.text);
     const expected = Array.from(args.text).filter((ch) => !isControl(ch)).join('');
     const after = await inPage(target, (g, id) => globalThis.__companionPage.typedValue(g, id), [args.generation, entry.localId]);
@@ -670,20 +715,20 @@ async function trustedType(args) {
 
 async function trustedKeyPress(args) {
   const entry = args.element === null ? null : entryFor(args);
-  if (args.element !== null && !entry) return staleElement;
+  if (args.element !== null && !entry) return staleEntry(args);
   const target = entry ? { tabId: args.tab, frameIds: [entry.frameId] } : null;
   if (target) {
     try {
       await inject(target);
     } catch {
-      return { error: { code: 'stale_id', message: 'the tab is no longer reachable' } };
+      return unreachable();
     }
   }
   if (await cdp.isRevoked(args.tab)) return revokedReply({ message: 'the user stopped Companion from controlling this tab' });
   return cdp.withInput(args.tab, async () => {
     if (target) {
       const focus = await inPage(target, (g, id) => globalThis.__companionPage.focus(g, id), [args.generation, entry.localId]);
-      if (!focus) return staleElement;
+      if (!focus) return frameGone();
       if (focus.error) return focus;
       if (!focus.focused) return { error: { code: 'not_focused', message: 'the element did not take the keyboard focus' } };
     }

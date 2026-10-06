@@ -33,7 +33,7 @@ extension BrowserToolRunner {
         _ call: ToolCallRef, tool: BrowserTool, tab: Int, arguments: [String: Any], said: String
     ) -> ApprovalRequest? {
         guard let id = ParentToolRunner.intArgument(arguments["element"]),
-              let page = cachedPage(tab), let element = page.elements.first(where: { $0.id == id })
+              let (page, element) = cachedPage(tab, holding: id)
         else { return nil }
         let verdict: HandsVerdict
         switch tool {
@@ -138,8 +138,8 @@ extension BrowserToolRunner {
             }
             text = typed
         }
-        guard let page = cachedPage(tab), let element = page.elements.first(where: { $0.id == id }) else {
-            return fail(tool, BridgeCode.staleId, BrowserCopy.failure(code: BridgeCode.staleId, language()))
+        guard let (page, element) = cachedPage(tab, holding: id) else {
+            return staleHere(tool, reason: "host_cache_miss")
         }
         if tool == .select, !Self.isList(element) {
             return fail(tool, BridgeCode.notSelectable, BrowserCopy.failure(code: BridgeCode.notSelectable, language()))
@@ -280,7 +280,7 @@ extension BrowserToolRunner {
 
     func leftItsOrigin(_ tool: BrowserTool, _ tab: Int) -> ParentToolOutcome {
         forget(tab)
-        return fail(tool, BridgeCode.staleId, BrowserCopy.failure(code: BridgeCode.staleId, language()))
+        return staleHere(tool, reason: "origin_changed")
     }
 
     // MARK: - tickets

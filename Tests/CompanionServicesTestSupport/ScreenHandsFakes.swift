@@ -16,11 +16,34 @@ package final class FakeHands: TextInjecting, FocusedReading, KeyPressing, Windo
     @Guarded package var windows: [String] = []
     @Guarded package var injectResult: InjectionResult?
     @Guarded package private(set) var injected: [(text: String, pid: Int32)] = []
+    @Guarded package private(set) var pastes: [(text: String, pid: Int32)] = []
     @Guarded package private(set) var pressed: [(key: NamedKey, pid: Int32)] = []
     @Guarded package private(set) var raised: [(title: String, pid: Int32)] = []
     @Guarded package private(set) var pressedChords: [(chord: KeyChord, pid: Int32)] = []
     /// False makes the port report that the event could not be posted.
     @Guarded package var chordsPost = true
+    /// When true, `inject` reports success but never grows `text`: simulates
+    /// a field that accepted the attribute call and ignored its value.
+    @Guarded package var ignoresSetText = false
+    /// When true, `paste` reports success but never grows `text`: simulates
+    /// a field that ignored Command-V.
+    @Guarded package var ignoresPaste = false
+    /// Forces what `paste` reports, like `injectResult` does for `inject`.
+    @Guarded package var pasteResult: InjectionResult?
+    /// Reads after this many return nil: a field that was readable for the
+    /// baseline and then stopped answering.
+    @Guarded package var unreadableAfterReads: Int?
+    /// The injected text reaches `text` only after this many more reads:
+    /// an app that updates its value a beat after the call returns.
+    @Guarded package var landsAfterReads = 0
+    @Guarded private var pending: String?
+    /// The app keeps the set but stores its own version of it (an
+    /// autocorrect, a formatter): `text` becomes this instead of growing.
+    @Guarded package var rewritesSetTextTo: String?
+    /// Read every time the runner reaches for a field or a value, so a
+    /// guard that short-circuits before the reader can be proved.
+    @Guarded package private(set) var fieldLookups = 0
+    @Guarded package private(set) var reads = 0
 
     package init(field: FocusedField? = nil, text: String? = nil, windows: [String] = []) {
         self.field = field
@@ -30,18 +53,48 @@ package final class FakeHands: TextInjecting, FocusedReading, KeyPressing, Windo
 
     package func inject(_ text: String, into field: FocusedField) async -> InjectionResult {
         injected.append((text, field.pid))
-        return injectResult ?? .injected(text.count, via: .ax)
+        if let injectResult { return injectResult }
+        if let rewritten = rewritesSetTextTo {
+            self.text = rewritten
+            return .injected(text.count, via: .ax)
+        }
+        if self.text != nil, !ignoresSetText {
+            if landsAfterReads > 0 { pending = text } else { self.text! += text }
+        }
+        return .injected(text.count, via: .ax)
+    }
+
+    package func paste(_ text: String, into field: FocusedField) async -> InjectionResult {
+        pastes.append((text, field.pid))
+        if let pasteResult { return pasteResult }
+        if self.text != nil, !ignoresPaste {
+            self.text! += text
+        }
+        return .injected(text.count, via: .paste)
     }
 
     package func focusedField(pid: Int32) -> FocusedField? {
+        fieldLookups += 1
         let current = field
         guard let current, current.pid == pid else { return nil }
         return current
     }
 
+    /// Same contract as the adapter: `text: ""` stands for an empty text
+    /// field, `text: nil` for one nothing can read.
     package func read(pid: Int32) -> String? {
+        reads += 1
         let current = field
         guard let current, current.pid == pid, !current.secure else { return nil }
+        if let limit = unreadableAfterReads, reads > limit { return nil }
+        if let late = pending {
+            if landsAfterReads > 0 {
+                landsAfterReads -= 1
+            } else if text != nil {
+                text! += late
+                pending = nil
+            }
+        }
         return text
     }
 

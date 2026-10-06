@@ -33,10 +33,16 @@ package enum BrowserCopy {
                 + "Solo para localizar la pestaña que el usuario nombró: leer o usar una pestaña exige controlarla."
         case (.read, .en):
             return "Read a browser tab you control (take it with browser_take or open it with browser_open): "
-                + "its text and its numbered elements. The numbers expire on the next read of that tab."
+                + "its text and its numbered elements. The numbers expire on the next read of that tab. "
+                + "Pass hidden true to also list elements that are not rendered (display none, visibility hidden, a closed details), "
+                + "each marked hidden; an action on one is refused while it stays hidden. Their text is not added to the page text, "
+                + "and no mark does not prove an element is on screen."
         case (.read, .es):
             return "Lee una pestaña del navegador que controlas (tómala con browser_take o ábrela con browser_open): "
-                + "su texto y sus elementos numerados. Los números caducan en la siguiente lectura de esa pestaña."
+                + "su texto y sus elementos numerados. Los números caducan en la siguiente lectura de esa pestaña. "
+                + "Pasa hidden true para listar también los elementos que no se renderizan (display none, visibility hidden, un details cerrado), "
+                + "cada uno va marcado `hidden`; una acción sobre él se rechaza mientras siga oculto. Su texto no se suma al texto de la página, "
+                + "y que no lleve marca no prueba que esté en pantalla."
         case (.click, .en):
             return "Click an element numbered by the last browser_read of that tab. Deleting or sending asks first."
         case (.click, .es):
@@ -164,6 +170,12 @@ package enum BrowserCopy {
         case ("x", .es): return "píxeles desde el borde izquierdo de la página visible"
         case ("y", .en): return "pixels from the top edge of the visible page"
         case ("y", .es): return "píxeles desde el borde superior de la página visible"
+        case ("hidden", .en):
+            return "optional: also list elements that are not rendered (display none, visibility hidden, closed details), each marked hidden; "
+                + "an action on one is refused while it stays hidden; no mark does not prove it is on screen"
+        case ("hidden", .es):
+            return "opcional: lista también los elementos que no se renderizan (display none, visibility hidden, details cerrado), cada uno va marcado `hidden`; "
+                + "una acción sobre él se rechaza mientras siga oculto; que no lleve marca no prueba que esté en pantalla"
         case ("url", .en): return "the http or https address"
         case ("url", .es): return "la dirección http o https"
         default: return name

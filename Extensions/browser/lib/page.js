@@ -244,7 +244,8 @@
 
   function serializeElement(el, id, frame) {
     const field = fieldOf(el);
-    return {
+    const hidden = !isVisible(el);
+    const out = {
       id,
       frame,
       role: roleOf(el),
@@ -252,7 +253,8 @@
       context: contextOf(el),
       inputType: field.type,
       autocomplete: field.autocomplete,
-      value: valueOf(el, field),
+      // A control that is not rendered never carries its value: the hidden list is for finding, not for reading.
+      value: hidden ? null : valueOf(el, field),
       // The background fills this in for elements that live in a frame of another origin.
       frameOrigin: null,
       href: hrefOf(el),
@@ -261,9 +263,14 @@
       states: statesOf(el),
       submit: submitOf(el, field),
     };
+    // A visible control keeps the payload it always had. This boolean is the only
+    // mark the host shows: a page cannot put the word into states and have it stick.
+    if (hidden) out.hidden = true;
+    return out;
   }
 
-  const stale = (message) => ({ error: { code: 'stale_id', message } });
+  // One code for the model, a reason for the logs: a live stale_id has to say which check refused it.
+  const stale = (message, reason) => ({ error: { code: 'stale_id', message, reason } });
 
   // What the read showed and the gate judged (label, context, link). The value is left out: typing
   // changes it on purpose; a sensitive field is re-checked live before any key.
@@ -271,14 +278,36 @@
     return [roleOf(el), labelOf(el), contextOf(el), hrefOf(el) ?? ''].join('\u0000');
   }
 
-  function lookup(state, generation, id) {
-    if (!state || state.generation !== generation) return stale('generation is out of date, read the page again');
-    const element = state.elements.get(id);
-    if (!element || element.isConnected === false) return stale('element is gone, read the page again');
+  // As in Incredible, a few recent reads stay usable: a read the host never saw (one that timed out, or
+  // finished after a newer one) must not void the ids the host is still pointing at.
+  const READS_KEPT = 20;
+
+  function readOf(state, generation) {
+    if (!state) return null;
+    if (state.generation === generation) return state;
+    return state.reads?.get(generation) ?? null;
+  }
+
+  function lookupIn(read, id) {
+    if (!read) return stale('generation is out of date, read the page again', 'generation_mismatch');
+    const element = read.elements.get(id);
+    if (!element) return stale('element is gone, read the page again', 'unknown_element');
+    if (element.isConnected === false) return stale('element is gone, read the page again', 'element_gone');
     // A reused or rewritten node keeps its id and stays connected; acting on it would press what nobody approved.
-    const seen = state.identities?.get(id);
-    if (seen !== undefined && identityOf(element) !== seen) return stale('element changed since the read, read the page again');
+    const seen = read.identities?.get(id);
+    if (seen !== undefined && identityOf(element) !== seen) {
+      return stale('element changed since the read, read the page again', 'identity_changed');
+    }
     return { element };
+  }
+
+  function lookup(state, generation, id) {
+    return lookupIn(readOf(state, generation), id);
+  }
+
+  // within narrows the next read to a part of the page the model is looking at now, so only the last read counts.
+  function lookupLatest(state, generation, id) {
+    return lookupIn(state && state.generation === generation ? state : null, id);
   }
 
   // Every press and insert goes through here: a menu that closed after the read keeps its items in
@@ -286,7 +315,7 @@
   function lookupShown(state, generation, id) {
     const found = lookup(state, generation, id);
     if (found.error || isShown(found.element)) return found;
-    return stale('element is hidden now, read the page again');
+    return stale('element is hidden now, read the page again', 'hidden');
   }
 
   function clickElement(el) {
@@ -349,6 +378,18 @@
     return { done: 'scrolled' };
   }
 
+  // A page's focus handler can hand the focus to another field after we asked for it, and the text
+  // goes wherever the focus is, so the sensitivity check on `el` alone proves nothing. Returns null
+  // when the focus is on `el` (or, for a contenteditable, inside it), else the error to refuse with.
+  function focusLanded(el) {
+    const active = deepActive(el.ownerDocument);
+    if (active === el) return null;
+    // Before the descendant exemption: a password input inside a contenteditable is still a password input.
+    if (active && isSensitive(fieldOf(active))) return { error: { code: 'secure_field', message: 'focus moved to a sensitive field, typing refused' } };
+    if (active && isContentEditableEl(el) && typeof el.contains === 'function' && el.contains(active)) return null;
+    return stale('the focus moved to another element, read the page again');
+  }
+
   function typeIntoElement(el, text) {
     if (isSensitive(fieldOf(el))) return { error: { code: 'secure_field', message: 'sensitive field, typing refused' } };
     const doc = el.ownerDocument;
@@ -362,6 +403,8 @@
     el.focus();
     if (isText && typeof el.select === 'function') el.select();
     else doc.execCommand('selectAll', false);
+    const moved = focusLanded(el);
+    if (moved) return moved;
     const inserted = doc.execCommand('insertText', false, text);
     if (inserted && (!isText || el.value === text)) return { done: 'typed' };
     // Frameworks that ignore execCommand still listen for input/change on the native value.
@@ -438,10 +481,11 @@
     return globalThis.__companionState;
   }
 
-  function collect(root, out) {
+  // includeHidden is the opt-in read. The default still drops anything not on screen.
+  function collect(root, out, includeHidden = false) {
     for (const node of root.querySelectorAll('*')) {
-      if (node.shadowRoot) collect(node.shadowRoot, out);
-      if (isListable(node) && isVisible(node)) out.push(node);
+      if (node.shadowRoot) collect(node.shadowRoot, out, includeHidden);
+      if (isListable(node) && (includeHidden || isVisible(node))) out.push(node);
     }
   }
 
@@ -469,14 +513,16 @@
 
   // A selector usually names the open menu or listbox, not its items, so a match stands for its whole
   // subtree. An empty result must say why, or the model reads "nothing" as "nothing is there".
-  function readMatches(matches) {
+  function readMatches(matches, includeHidden = false) {
     if (matches.length === 0) {
       return { error: { code: 'selector_no_match', message: 'nothing matches the selector' } };
     }
     const shown = matches.filter(isShown);
-    if (shown.length === 0) {
+    // The opt-in read returns those matches, marked hidden, instead of stopping here.
+    if (shown.length === 0 && !includeHidden) {
       return { error: { code: 'selector_hidden', message: 'everything the selector matches is hidden' } };
     }
+    const kept = includeHidden ? matches : shown;
     const seen = new Set();
     const nodes = [];
     const add = (node) => {
@@ -484,17 +530,18 @@
       seen.add(node);
       nodes.push(node);
     };
-    for (const match of shown) {
-      if (isListable(match)) add(match);
+    for (const match of kept) {
+      if (isListable(match) && (includeHidden || isVisible(match))) add(match);
       const inside = [];
       // collect enters the shadow roots of descendants only, so the match's own root is walked here.
-      if (match.shadowRoot) collect(match.shadowRoot, inside);
-      collect(match, inside);
+      if (match.shadowRoot) collect(match.shadowRoot, inside, includeHidden);
+      collect(match, inside, includeHidden);
       inside.forEach(add);
     }
     // A match inside another match already gave its text through the outer one's innerText. Matches come
     // in document order, so a descendant always follows its ancestor: one comparison with the last kept
     // match suffices, where checking every pair hangs the tab on a broad selector.
+    // Text comes from the shown matches only: innerText of an unrendered node is its whole textContent.
     const outermost = [];
     for (const match of shown) {
       const last = outermost[outermost.length - 1];
@@ -503,6 +550,15 @@
     }
     const text = cutUnits(outermost.map((m) => m.innerText ?? '').filter(Boolean).join('\n'), TEXT_MAX);
     return { nodes, text };
+  }
+
+  // innerText of a body that is not rendered (a frame inside a hidden preview) is its textContent: every
+  // script and config blob in it, none of which the user can see.
+  function bodyText(doc) {
+    const body = doc.body;
+    if (!body) return '';
+    if (typeof body.checkVisibility === 'function' && !body.checkVisibility()) return '';
+    return String(body.innerText ?? '');
   }
 
   // Ids are local to this document; the background renumbers them across frames and tracks the frame.
@@ -517,7 +573,7 @@
   // HACK: an overlay inside a shadow root is not found, so it keeps its DOM place. Walk the shadow
   // roots here when a real page loses an open menu that way.
   function overlayFirst(doc, nodes) {
-    const body = String(doc.body?.innerText ?? '');
+    const body = bodyText(doc);
     const outermost = [];
     for (const candidate of doc.querySelectorAll(OVERLAY)) {
       if (outermost.length === MAX_OVERLAYS) break;
@@ -569,7 +625,8 @@
     const matched = nodes.filter((node) => fits(node, q));
     const lines = q.text == null ? [] : text.split('\n').filter((line) => line.trim() && says(line, q.text, q.exact));
     if (matched.length > 0 || lines.length > 0) {
-      const own = q.text == null ? matched.map((node) => String(node.innerText ?? node.textContent ?? '').trim()).filter(Boolean) : lines;
+      // A hidden control is listed, but its text is not the page's.
+      const own = q.text == null ? matched.filter(isVisible).map((node) => String(node.innerText ?? node.textContent ?? '').trim()).filter(Boolean) : lines;
       return { nodes: matched, text: own.join('\n') };
     }
     // Only the part searched counts: a hidden control elsewhere would wrongly say "it is here, hidden".
@@ -582,7 +639,7 @@
 
   function scopeOf(q, state) {
     if (q.withinLocal == null) return { root: document };
-    const found = lookup(state, q.withinGeneration, q.withinLocal);
+    const found = lookupLatest(state, q.withinGeneration, q.withinLocal);
     return found.error ? found : { root: found.element };
   }
 
@@ -592,10 +649,12 @@
     const doc = document;
     const scope = scopeOf(q, state);
     if (scope.error) return scope;
+    // Only a real true opts in. Absent or false keeps the visible read.
+    const includeHidden = q.hidden === true;
     let nodes = [];
     let text = '';
     if (q.selector == null && scope.root === doc && !hasFinder(q)) {
-      collect(doc, nodes);
+      collect(doc, nodes, includeHidden);
       ({ nodes, text } = overlayFirst(doc, nodes));
     } else {
       let scoped;
@@ -604,29 +663,36 @@
         const segments = parseSelector(q.selector);
         if (!segments) return { error: { code: 'invalid_args', message: 'invalid selector' } };
         roots = resolveSelector(scope.root, segments);
-        scoped = readMatches(roots);
+        scoped = readMatches(roots, includeHidden);
       } else if (scope.root !== doc) {
-        scoped = readMatches([scope.root]);
+        scoped = readMatches([scope.root], includeHidden);
       } else {
         const all = [];
-        collect(doc, all);
-        scoped = { nodes: all, text: String(doc.body?.innerText ?? '') };
+        collect(doc, all, includeHidden);
+        scoped = { nodes: all, text: bodyText(doc) };
       }
       if (scoped.error) return scoped;
       if (hasFinder(q)) scoped = find(scoped.nodes, scoped.text, q, roots);
       if (scoped.error) return scoped;
       ({ nodes, text } = scoped);
     }
+    // Hidden ones go last so they cannot push the visible elements out of the max cut.
+    if (includeHidden) nodes = [...nodes.filter(isVisible), ...nodes.filter((node) => !isVisible(node))];
     if (Number.isInteger(q.max) && q.max > 0) nodes = nodes.slice(0, q.max);
     text = cutUnits(text, Number.isInteger(q.maxChars) && q.maxChars > 0 ? Math.min(q.maxChars, TEXT_MAX) : TEXT_MAX);
-    state.generation = generation;
-    state.elements = new Map();
-    state.identities = new Map();
-    const elements = nodes.map((node, i) => {
-      state.elements.set(i + 1, node);
-      state.identities.set(i + 1, identityOf(node));
-      return serializeElement(node, i + 1, frame);
+    const kept = new Map(state.reads ?? []);
+    kept.set(generation, {
+      elements: new Map(nodes.map((node, i) => [i + 1, node])),
+      identities: new Map(nodes.map((node, i) => [i + 1, identityOf(node)])),
     });
+    const reads = new Map([...kept].sort(([a], [b]) => a - b).slice(-READS_KEPT));
+    // Generations only grow, so a read that finishes after a newer one never becomes the frame's latest.
+    // HACK: ordering trusts the background's wall-clock-seeded generations; a worker restart after the clock
+    // went back leaves an older read as latest. Report the highest held generation to seed the counter once
+    // within or click_at are seen refusing fresh reads after a restart.
+    const latest = Math.max(...reads.keys());
+    Object.assign(state, { reads, generation: latest, ...reads.get(latest) });
+    const elements = nodes.map((node, i) => serializeElement(node, i + 1, frame));
     // Each frame reports its own origin so the app can tell third-party frames from the page.
     return { origin: String(globalThis.location?.origin ?? ''), text, elements };
   }
@@ -690,7 +756,7 @@
     return node;
   }
 
-  const covered = () => ({ error: { code: 'stale_id', message: 'something covers this element (a dialog or banner); read the page again' } });
+  const covered = () => stale('something covers this element (a dialog or banner); read the page again', 'covered');
 
   // A styled checkbox or radio hides the input and draws its label on top: the label is how a person
   // presses it, so being under its own label is not being covered.
@@ -823,9 +889,11 @@
     if ((!isText && !isContentEditableEl(el)) || (tag === 'input' && String(el.type || '').toLowerCase() === 'file')) {
       return { error: { code: 'not_typable', message: 'this element cannot take typed text' } };
     }
-    if (el.ownerDocument.activeElement !== el) el.focus();
+    if (deepActive(el.ownerDocument) !== el) el.focus();
     if (isText && typeof el.select === 'function') el.select();
     else el.ownerDocument.execCommand('selectAll', false);
+    const moved = focusLanded(el);
+    if (moved) return moved;
     // Keys cannot carry a line break; a textarea can still take them in one insert.
     return { ready: true, multiline: tag === 'textarea' };
   }

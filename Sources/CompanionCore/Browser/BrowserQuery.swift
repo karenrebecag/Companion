@@ -23,10 +23,12 @@ package struct BrowserQuery: Sendable, Equatable {
     package var within: BrowserElementRef?
     package var max: Int?
     package var maxChars: Int?
+    /// Opt-in: also list elements that are not shown. False keeps the visible read.
+    package var hidden: Bool
 
     package init(
         selector: String? = nil, text: String? = nil, exact: Bool = false, role: String? = nil, name: String? = nil,
-        within: BrowserElementRef? = nil, max: Int? = nil, maxChars: Int? = nil
+        within: BrowserElementRef? = nil, max: Int? = nil, maxChars: Int? = nil, hidden: Bool = false
     ) {
         self.selector = selector
         self.text = text
@@ -36,6 +38,7 @@ package struct BrowserQuery: Sendable, Equatable {
         self.within = within
         self.max = max
         self.maxChars = maxChars
+        self.hidden = hidden
     }
 
     /// Only what was asked travels, so an older extension sees the read it always got.
@@ -51,6 +54,8 @@ package struct BrowserQuery: Sendable, Equatable {
         }
         if let max { out["max"] = max }
         if let maxChars { out["maxChars"] = maxChars }
+        // Absent on the wire unless asked, so an older extension sees the read it always got.
+        if hidden { out["hidden"] = true }
         return out
     }
 }

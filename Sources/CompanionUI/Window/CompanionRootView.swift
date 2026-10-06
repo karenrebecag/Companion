@@ -82,13 +82,7 @@ package struct CompanionRootView: View {
                         onSettings: { openSettings(.general) },
                         onFeedback: openFeedback)
                     Rectangle().fill(Semantic.borderChrome).frame(width: Stroke.hairline)
-                    if page == .apps, let apps {
-                        AppsPage(apps: apps)
-                    } else {
-                        HomePage(chat: chat, voice: voice, onOpen: { task in
-                            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { openTask = task }
-                        }, onSettings: openSettings)
-                    }
+                    detailPage
                 }
                 .id("chrome-\(chromeTick)")
             }
@@ -268,6 +262,31 @@ package struct CompanionRootView: View {
             }
         }
         .animation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion), value: chat.session.projection.approval != nil)
+    }
+
+    /// The pane on the right of the sidebar: the decision lives in
+    /// `DetailPane` so the test can call it without this view's
+    /// dependencies.
+    @ViewBuilder
+    private var detailPage: some View {
+        switch DetailPane.detailPane(for: page, appsAvailable: apps != nil) {
+        case .home:
+            homePage
+        case .apps:
+            if let apps { AppsPage(apps: apps) }
+        case .placeholder:
+            if let placeholder = MainSidebar.placeholder(for: page) {
+                ModulePlaceholderPage(placeholder: placeholder)
+            } else {
+                homePage
+            }
+        }
+    }
+
+    private var homePage: some View {
+        HomePage(chat: chat, voice: voice, onOpen: { task in
+            withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { openTask = task }
+        }, onSettings: openSettings)
     }
 
     private func pickWorkdir() {

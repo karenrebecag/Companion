@@ -10,6 +10,15 @@ let package = Package(
     products: [
         .executable(name: "companion", targets: ["CompanionApp"]),
     ],
+    // Private: ports of Arc Pro components, whose licence forbids publishing
+    // their source here. Pinned by revision so a push there never changes a
+    // build here; CI reaches it with a read-only deploy key.
+    dependencies: [
+        .package(
+            url: "git@github.com:karenrebecag/CompanionUIPro.git",
+            revision: "e66c8350fbd1e6d269fbdf73270739f5c901f7c6"
+        ),
+    ],
     targets: [
         // Dominio puro: máquina de estados, codecs de protocolo, parsing.
         // Sin red, sin audio, sin UI. Todo testeable sin mocks de frameworks.
@@ -31,7 +40,10 @@ let package = Package(
         // garantiza que nada muta estado observable fuera del main thread.
         .target(
             name: "CompanionUI",
-            dependencies: ["CompanionCore"],
+            dependencies: [
+                "CompanionCore",
+                .product(name: "CompanionUIPro", package: "CompanionUIPro"),
+            ],
             resources: [.copy("Fonts"), .copy("Mascot")],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),

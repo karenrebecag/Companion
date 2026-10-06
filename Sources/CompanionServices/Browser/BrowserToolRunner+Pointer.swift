@@ -85,10 +85,10 @@ extension BrowserToolRunner {
         init(_ message: String) { self.message = message }
     }
 
-    /// The element as the last read numbered it, on a tab still at that read's origin.
+    /// The element as the newest kept read numbered it, on a tab still at that read's origin.
     private func readElement(_ tool: BrowserTool, tab: Int, id: Int) async -> Result<BrowserPage, OutcomeError> {
-        guard let page = cachedPage(tab), page.elements.contains(where: { $0.id == id }) else {
-            return .failure(OutcomeError(fail(tool, BridgeCode.staleId, BrowserCopy.failure(code: BridgeCode.staleId, language()))))
+        guard let (page, _) = cachedPage(tab, holding: id) else {
+            return .failure(OutcomeError(staleHere(tool, reason: "host_cache_miss")))
         }
         guard await tabIsStillAt(tab, origin: page.origin) else { return .failure(OutcomeError(leftItsOrigin(tool, tab))) }
         return .success(page)

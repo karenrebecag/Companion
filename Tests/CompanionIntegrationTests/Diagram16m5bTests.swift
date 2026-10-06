@@ -285,7 +285,8 @@ func testTheDataEntersAsAnArgumentNeverAsCode() {
     expect(license.contains("MIT License") && license.contains("Knut Sveidqvist"), "16m-5b: la licencia MIT viaja con el archivo")
     let manifest = (try? String(contentsOf: repoRoot.appendingPathComponent("Package.swift"), encoding: .utf8)) ?? ""
     expect(manifest.contains(".copy(\"Diagram\")"), "16m-5b: Package.swift copia el recurso")
-    expect(!manifest.contains(".package("), "16m-5b: ninguna dependencia de SwiftPM (mermaid es un archivo vendoreado)")
+    expect(manifest.range(of: #"\.package\([^)]*mermaid"#, options: [.regularExpression, .caseInsensitive]) == nil,
+           "16m-5b: mermaid no entra como dependencia de SwiftPM (es un archivo vendoreado)")
     expect(!FileManager.default.fileExists(atPath: repoRoot.appendingPathComponent("package.json").path),
            "16m-5b: sin package.json ni node_modules")
     expectEq(DiagramPage.sha256Hex(Data("abc".utf8)),

@@ -9,6 +9,9 @@ import SwiftUI
 /// The popup: a close affordance, then the blocks, scrolling when tall.
 struct AnswerPopupView: View {
     let blocks: [AnswerBlock]
+    /// A result that arrived beside the text. Nil for a fence, which is
+    /// already one of `blocks`.
+    var card: Card? = nil
     let screenWidth: CGFloat
     let maxHeight: CGFloat
     let onClose: () -> Void
@@ -46,7 +49,7 @@ struct AnswerPopupView: View {
     }
 
     private var list: some View {
-        AnswerBlockList(blocks: blocks)
+        AnswerBlockList(card: card, blocks: blocks)
             .frame(maxWidth: .infinity, alignment: .leading)
             .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) {
                 contentHeight = $0
@@ -55,13 +58,28 @@ struct AnswerPopupView: View {
 }
 
 struct AnswerBlockList: View {
+    var card: Card? = nil
     let blocks: [AnswerBlock]
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
+            if let card {
+                channel(card)
+            }
             ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
                 AnswerBlockView(block: block)
             }
+        }
+    }
+
+    /// A chart on the channel is the same picture as one in a fence. The
+    /// light card stays the window's (local reference).
+    @ViewBuilder
+    private func channel(_ card: Card) -> some View {
+        if case .chart(let chart) = card.payload {
+            IslandChartVisual(block: chart)
+        } else {
+            CardView(card: card)
         }
     }
 }

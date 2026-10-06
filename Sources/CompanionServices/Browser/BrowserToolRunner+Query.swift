@@ -41,6 +41,10 @@ extension BrowserToolRunner {
             guard let flag = Self.boolean(raw) else { return refuse("exact must be true or false") }
             query.exact = flag
         }
+        if let raw = arguments["hidden"], !(raw is NSNull) {
+            guard let flag = Self.boolean(raw) else { return refuse("hidden must be true or false") }
+            query.hidden = flag
+        }
         for (key, limit) in [("max", Self.findMaxElements), ("max_chars", Self.findMaxChars)] {
             guard let raw = arguments[key], !(raw is NSNull) else { continue }
             guard let count = Self.count(raw), (1...limit).contains(count) else {

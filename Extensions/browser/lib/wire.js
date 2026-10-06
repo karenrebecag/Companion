@@ -12,8 +12,9 @@ export function clipPoints(value, n) {
   return Array.from(typeof text.toWellFormed === 'function' ? text.toWellFormed() : text).slice(0, n).join('');
 }
 
-export function errorReply(id, code, message) {
-  return { id, error: { code, message } };
+// The reason is a fixed word naming which check refused; only a string goes out, the host allowlists it.
+export function errorReply(id, code, message, reason) {
+  return typeof reason === 'string' ? { id, error: { code, message, reason } } : { id, error: { code, message } };
 }
 
 export function detectBrowser(nav) {
@@ -66,6 +67,8 @@ const SHAPES = {
     && optional(a.exact, isBool) && optional(a.role, isSearch) && optional(a.name, isSearch)
     && (a.name == null || a.role != null)
     && optional(a.max, isCount) && optional(a.maxChars, isCount)
+    // A non-boolean must not widen the read. Absent keeps the visible list.
+    && optional(a.hidden, isBool)
     // within names an element of one read, so it means nothing without that read's generation.
     && (a.within == null ? true : isInt(a.within) && isInt(a.generation)),
   browser_click: (a) => isInt(a.tab) && isInt(a.generation) && isInt(a.element),

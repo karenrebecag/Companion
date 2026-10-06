@@ -112,6 +112,8 @@ test('validateCall accepts good args and rejects bad ones with invalid_args', ()
 
 test('errorReply uses the wire shape', () => {
   assert.deepEqual(errorReply(9, 'stale_id', 'gone'), { id: 9, error: { code: 'stale_id', message: 'gone' } });
+  assert.deepEqual(errorReply(9, 'stale_id', 'gone', 'covered'), { id: 9, error: { code: 'stale_id', message: 'gone', reason: 'covered' } });
+  assert.deepEqual(errorReply(9, 'stale_id', 'gone', { not: 'a word' }), { id: 9, error: { code: 'stale_id', message: 'gone' } });
 });
 
 
@@ -245,8 +247,11 @@ test('browser_read accepts the finder fields with their types and refuses the re
   const ok = (args) => validateCall({ name: 'browser_read', arguments: { tab: 1, ...args } }).ok;
   assert.equal(ok({ text: 'Guardar', exact: true, role: 'button', name: 'Guardar', max: 5, maxChars: 100 }), true);
   assert.equal(ok({ generation: 3, within: 2 }), true);
+  assert.equal(ok({ hidden: true }), true);
+  assert.equal(ok({ hidden: false }), true);
+  assert.equal(ok({ hidden: null }), true);
   for (const bad of [{ text: 5 }, { exact: 'yes' }, { role: 1 }, { name: [] }, { max: 0 }, { max: 1.5 }, { maxChars: -1 },
-    { within: 2 }, { generation: 3, within: 'x' }, { text: '  ' }, { name: 'Guardar' }]) {
+    { within: 2 }, { generation: 3, within: 'x' }, { text: '  ' }, { name: 'Guardar' }, { hidden: 'yes' }, { hidden: 1 }]) {
     assert.equal(ok(bad), false, JSON.stringify(bad));
   }
 });
@@ -282,4 +287,19 @@ test('validateCall takes a drag onto an element or by an offset, and a click at 
     { tab: 1, generation: 3, x: 0, y: 20001 },
     { tab: 1, x: 0, y: 0 },
   ]) assert.equal(ok('browser_click_at', args), false, JSON.stringify(args));
+});
+
+test('a frame element marked hidden survives buildPage and a tight trim', () => {
+  const el = (id, hidden) => ({ id, frame: 0, role: 'button', label: 'L' + id, context: '', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null, states: [], ...(hidden ? { hidden: true } : {}) });
+  const frames = [
+    { frameId: 0, result: { origin: 'https://x.test', text: 'top', elements: [el(1, false)] } },
+    { frameId: 5, result: { origin: 'https://ads.test', text: '', elements: [el(1, true)] } },
+  ];
+  const { page } = buildPage({ id: 9, title: 'T', url: 'https://x.test/', active: true }, 9, 4, null, frames);
+  assert.deepEqual(page.elements.map((e) => e.hidden), [undefined, true]);
+  const message = { id: 3, result: { page: { ...page, text: 'x'.repeat(5000) } } };
+  const trimmed = trimMessage(message, 1500);
+  assert.equal(trimmed.result.page.truncated, true);
+  assert.ok(bytes(trimmed) <= 1500);
+  assert.deepEqual(trimmed.result.page.elements.map((e) => e.hidden), [undefined, true]);
 });

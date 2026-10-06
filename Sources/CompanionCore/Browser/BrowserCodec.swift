@@ -38,7 +38,8 @@ package enum BrowserCodec {
             guard let code = error["code"] as? String else { return fail(BridgeCode.badFrame, "Invalid error") }
             let body = BridgeErrorBody(
                 code: BrowserSanitize.code(code),
-                message: BrowserSanitize.message(error["message"] as? String ?? ""))
+                message: BrowserSanitize.message(error["message"] as? String ?? ""),
+                reason: BrowserSanitize.reason(error["reason"]))
             return .success(.error(id: integer(envelope["id"]), body))
         }
         guard let id = integer(envelope["id"]) else { return fail(BridgeCode.badFrame, "Missing or invalid id") }
@@ -104,14 +105,31 @@ package enum BrowserCodec {
 
     private static func element(_ raw: [String: Any]) -> BrowserElement? {
         guard let id = integer(raw["id"]) else { return nil }
+        // An element that is not rendered carries no value, even if an extension sent one.
+        let value = isJSONTrue(raw["hidden"]) ? nil : raw["value"] as? String
         return BrowserElement(
             id: id, frame: integer(raw["frame"]) ?? 0, role: raw["role"] as? String ?? "",
             label: raw["label"] as? String ?? "", context: raw["context"] as? String ?? "",
             inputType: raw["inputType"] as? String, autocomplete: raw["autocomplete"] as? String,
-            value: raw["value"] as? String, frameOrigin: raw["frameOrigin"] as? String,
+            value: value, frameOrigin: raw["frameOrigin"] as? String,
             href: raw["href"] as? String, fieldName: raw["fieldName"] as? String,
-            fieldId: raw["fieldId"] as? String, states: BrowserSanitize.states(raw["states"]),
+            fieldId: raw["fieldId"] as? String, states: statesOf(raw),
             submit: raw["submit"] as? String)
+    }
+
+    /// The model reads states in the rendered line. The extension's boolean is
+    /// the only way the word is added: the allowlist drops it if a page sends it,
+    /// and a number or a string must not count as true.
+    private static func statesOf(_ raw: [String: Any]) -> [String] {
+        var states = BrowserSanitize.states(raw["states"])
+        guard isJSONTrue(raw["hidden"]), !states.contains("hidden") else { return states }
+        states.append("hidden")
+        return states
+    }
+
+    private static func isJSONTrue(_ raw: Any?) -> Bool {
+        guard let number = raw as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else { return false }
+        return number.boolValue
     }
 
     // MARK: Encode

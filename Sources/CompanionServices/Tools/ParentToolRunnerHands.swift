@@ -1,3 +1,4 @@
+import AppKit
 import CompanionCore
 import Foundation
 
@@ -13,6 +14,14 @@ package struct ScreenHands: Sendable {
     let trusted: @Sendable () -> Bool
     let target: @Sendable () -> Int32?
     let bundleID: @Sendable (Int32) -> String?
+    /// Bundle id of the browser the extension is currently connected to,
+    /// or nil. The web guard compares this to the target's bundle id to
+    /// decide between the three Chromium outcomes (unsupported, not
+    /// connected, redirect to browser_*).
+    let connectedBrowser: @Sendable () -> String?
+    /// The app's own name reads better to the agent than a bundle id; nil
+    /// falls back to the bundle id.
+    let appName: @Sendable (Int32) -> String?
     /// Typed chat has Companion's own window in front: the field the hands
     /// would need is not the one in front, so they are not offered.
     let selfInFront: @Sendable () -> Bool
@@ -44,6 +53,8 @@ package struct ScreenHands: Sendable {
         trusted: @escaping @Sendable () -> Bool,
         target: @escaping @Sendable () -> Int32?,
         bundleID: @escaping @Sendable (Int32) -> String?,
+        connectedBrowser: @escaping @Sendable () -> String? = { nil },
+        appName: @escaping @Sendable (Int32) -> String? = { _ in nil },
         selfInFront: @escaping @Sendable () -> Bool = { false },
         screen: (any ScreenActing)? = nil,
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
@@ -67,6 +78,8 @@ package struct ScreenHands: Sendable {
         self.trusted = trusted
         self.target = target
         self.bundleID = bundleID
+        self.connectedBrowser = connectedBrowser
+        self.appName = appName
         self.selfInFront = selfInFront
     }
 
@@ -76,12 +89,18 @@ package struct ScreenHands: Sendable {
         selfInFront: @escaping @Sendable () -> Bool = { false },
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
         changes: (any AXChangeWatching)? = nil,
-        gate: ScreenRecordingGate
+        gate: ScreenRecordingGate,
+        connectedBrowser: @escaping @Sendable () -> String? = { nil },
+        appName: @escaping @Sendable (Int32) -> String? = { pid in
+            NSRunningApplication(processIdentifier: pid)?.localizedName
+        }
     ) {
         self.init(
             injector: ax, reader: ax, keys: ax, windows: ax,
             trusted: { ax.isTrusted() }, target: target,
-            bundleID: { AXTextInjector.bundleID(of: $0) }, selfInFront: selfInFront,
+            bundleID: { AXTextInjector.bundleID(of: $0) },
+            connectedBrowser: connectedBrowser, appName: appName,
+            selfInFront: selfInFront,
             screen: screen, see: see, changes: changes,
             screenRecording: { gate.grantedStatus }, locked: { SessionLock.isLocked() },
             launch: screen)
@@ -248,6 +267,12 @@ extension ParentToolRunner {
             return nil
         }
         let bundle = hands.bundleID(pid)
+        // The web guard refuses these two in a Chromium browser; a sheet here
+        // would ask the user to approve something that will be refused. Every
+        // other hands tool keeps its approval there.
+        let guardedByWeb = call.name == ParentTool.typeText.rawValue
+            || call.name == ParentTool.readFocused.rawValue
+        if guardedByWeb, let bundle, AXScreen.chromiumBrowsers.contains(bundle) { return nil }
         let command = CommandApps.isCommandApp(bundleID: bundle)
         if call.name == ParentTool.click.rawValue {
             return clickApproval(call, said: said, hands: hands, pid: pid)
@@ -265,7 +290,9 @@ extension ParentToolRunner {
         case .ask:
             let app = hands.reader.focusedField(pid: pid)?.app ?? bundle ?? "app"
             let line = command && call.name == ParentTool.pressKey.rawValue
-                ? hands.reader.read(pid: pid).map { String($0.suffix(Self.sheetLine)) } : nil
+                ? hands.reader.read(pid: pid).flatMap { text in
+                    text.isEmpty ? nil : String(text.suffix(Self.sheetLine))
+                } : nil
             let request = HandsGate.request(call, app: app, commandApp: command, line: line)
             hands.tickets.park(ticket, id: request.requestId)
             return request
@@ -361,8 +388,11 @@ extension ScreenHands {
 }
 
 /// One call of the hands against one captured pid. Logs carry the tool,
-/// counts, pid and bundle id — never the text typed or read.
-private struct HandsAct {
+/// counts, pid and bundle id — never the text typed or read. Marked
+/// internal (not `private`) only so the read-back extension in
+/// `ParentToolRunnerHands+Proof.swift` can call `fail` and read the
+/// captured pid, bundle and tool. Nothing outside this module ever sees it.
+struct HandsAct {
     let hands: ScreenHands
     let pid: Int32
     let bundle: String
@@ -371,7 +401,7 @@ private struct HandsAct {
     /// The front app moved mid-action: its ids are no longer worth anything.
     static let appMoved = "the app in front changed; call look again, then act on the app you mean"
 
-    private func fail(_ code: String, _ message: String, target: String = "") -> ParentToolOutcome {
+    func fail(_ code: String, _ message: String, target: String = "") -> ParentToolOutcome {
         Log.app("hands: \(tool.rawValue) \(code) pid=\(pid) bundle=\(bundle)")
         return .failed(ParentToolRunner.handsError(code, message), target: target, tool: tool.rawValue)
     }
@@ -393,12 +423,43 @@ private struct HandsAct {
         return .success(field)
     }
 
+    /// A Chromium browser in front is the extension's job, not the
+    /// accessibility hands: AX reports success on a web field and the page
+    /// ignores it, so the agent would believe it typed. The three outcomes
+    /// are distinct so the agent can act on each one.
+    private func webGuard() -> ParentToolOutcome? {
+        guard AXScreen.chromiumBrowsers.contains(bundle) else { return nil }
+        let name = BrowserHost.displayName(name: hands.appName(pid), bundle: bundle)
+        if !BrowserHost.supportsExtension(bundle: bundle) {
+            return fail("browser_unsupported",
+                "Companion has no web access in \(name); it works in Google Chrome and Comet. "
+                    + "Do not retry here.")
+        }
+        if let connected = hands.connectedBrowser() {
+            if connected != bundle {
+                let other = BrowserHost.displayName(forBundle: connected)
+                return fail("browser_not_connected",
+                    "Companion's extension is connected to \(other), not \(name); "
+                        + "it serves one browser at a time. Use \(other), or close the extension's "
+                        + "connection there.")
+            }
+            return fail("use_browser_tools",
+                "typing into or reading \(name) goes through the browser tools; "
+                    + "start with browser_tabs, then browser_type / browser_read.")
+        }
+        return fail("browser_not_connected",
+            "\(name) has no Companion extension connected, so Companion cannot type into or "
+                + "read web pages there. Load the Companion extension in \(name), then use "
+                + "browser_tabs.")
+    }
+
     func type(_ arguments: [String: Any]) async -> ParentToolOutcome {
         guard let raw = arguments["text"] as? String, !raw.isEmpty else {
             return .failed(.invalidArgs("missing text"), tool: tool.rawValue)
         }
         let text = HandsGate.stripped(raw)
         guard !text.isEmpty else { return .failed(.invalidArgs("missing text"), tool: tool.rawValue) }
+        if let guarded = webGuard() { return guarded }
         Log.app("hands: type_text chars=\(text.count) pid=\(pid) bundle=\(bundle)")
         let target: FocusedField
         switch field() {
@@ -413,21 +474,19 @@ private struct HandsAct {
         guard !moved else { return fail("target_changed", Self.appMoved) }
         // What the field holds before typing, read the way `read_focused`
         // reads it: the proof is that the text shows up MORE times after.
-        let before = hands.reader.read(pid: pid).map {
-            TypedProof.occurrences(of: text, in: FocusedText.clip($0))
-        }
-        switch await hands.injector.inject(text, into: target) {
-        case .injected(let count, let route):
-            Log.app("hands: type_text typed chars=\(count) via=\(route.rawValue) pid=\(pid)")
-            return ParentToolOutcome(
-                ok: true, output: "typed \(count) chars" + TypedProof.unverifiedNote,
-                tool: tool.rawValue, fieldPID: pid, typedBefore: before)
+        let baseline = hands.reader.read(pid: pid)
+        let before = baseline.map { TypedProof.occurrences(of: text, in: FocusedText.clip($0)) }
+        let first = await hands.injector.inject(text, into: target)
+        switch first {
         case .failed(.needsAccessibility):
             return fail("needs_accessibility", BridgeMessages.needsAccessibility)
         case .failed(.fieldGone):
             return fail("target_changed", Self.appMoved)
         case .failed(.refused):
             return fail("refused", "the field did not accept the text")
+        case .injected(let count, let route):
+            return await verifyLanding(
+                text: text, target: target, count: count, route: route, baseline: baseline, before: before)
         }
     }
 
@@ -483,6 +542,7 @@ private struct HandsAct {
     }
 
     func read() -> ParentToolOutcome {
+        if let guarded = webGuard() { return guarded }
         switch field() {
         case .failure(let error): return fail(error.code, error.message)
         case .success: break
@@ -491,8 +551,9 @@ private struct HandsAct {
         guard let text = hands.reader.read(pid: pid) else {
             return fail("no_focused_field", "the focused field has no readable text")
         }
-        let clipped = FocusedText.clip(text)
-        Log.app("hands: read_focused chars=\(clipped.count) pid=\(pid) bundle=\(bundle)")
-        return ParentToolOutcome(ok: true, output: clipped, tool: tool.rawValue, fieldPID: pid)
+        // "" is a field that is there and empty; nil above is no field at all.
+        let output = text.isEmpty ? "(empty field)" : FocusedText.clip(text)
+        Log.app("hands: read_focused chars=\(output.count) pid=\(pid) bundle=\(bundle)")
+        return ParentToolOutcome(ok: true, output: output, tool: tool.rawValue, fieldPID: pid)
     }
 }

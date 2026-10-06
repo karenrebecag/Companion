@@ -934,6 +934,32 @@ test('a refusal on the insert path is passed through, never reported as typed', 
   assert.equal(reply.error.code, 'stale_id');
 });
 
+test('a multi-line text whose focus moved is refused before the first line and never read back', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyField(rig, { prepare: { ready: true, multiline: true } });
+  let readBacks = 0;
+  rig.state.page.typedValue = () => { readBacks++; return { value: '' }; };
+  rig.state.page.type = (g, id, text) => { log.synthetic.push(text); return { error: { code: 'secure_field', message: 'sensitive field, typing refused' } }; };
+  const reply = await ask(rig.ports[0], 80, 'browser_type', { tab: 3, generation, element: 1, text: 'a\nb' });
+  assert.equal(reply.error.code, 'secure_field');
+  assert.equal(readBacks, 0);
+  assert.equal(keysSent(rig.state), '');
+});
+
+// The press is a real click: its handlers are the likeliest thing to move the focus.
+test('a focus that moved because of the click sends no key', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation, log } = await readyField(rig);
+  const moved = { error: { code: 'secure_field', message: 'focus moved to a sensitive field, typing refused' } };
+  rig.state.page.prepareType = () => (log.prepared++ === 0 ? { ready: true } : moved);
+  const reply = await ask(rig.ports[0], 81, 'browser_type', { tab: 3, generation, element: 1, text: 'hunter2' });
+  assert.equal(reply.error.code, 'secure_field');
+  assert.equal(presses(rig.state).length, 1);
+  assert.equal(log.prepared, 2, 'checked again after the press');
+  assert.equal(keysSent(rig.state), '');
+  assert.deepEqual(log.synthetic, []);
+});
+
 test('a sensitive field is refused before any input reaches the page', async () => {
   const rig = await boot({ tabs: userTabs() });
   const { generation } = await readyField(rig, { prepare: { error: { code: 'secure_field', message: 'sensitive field, typing refused' } } });
@@ -1333,6 +1359,17 @@ test('the finder fields reach the page as one query', async () => {
   assert.deepEqual(queries[0], { selector: null, text: 'Go', exact: true, role: 'button', name: 'Go', max: null, maxChars: 50 });
 });
 
+test('hidden true reaches the page and anything else keeps the query it always got', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const queries = recordingPage(rig);
+  await ask(rig.ports[0], 1101, 'browser_read', { tab: 3, hidden: true });
+  assert.equal(queries[0].hidden, true);
+  await ask(rig.ports[0], 1102, 'browser_read', { tab: 3, hidden: false });
+  assert.deepEqual(queries[1], { selector: null, text: null, exact: false, role: null, name: null, max: null, maxChars: null });
+  await ask(rig.ports[0], 1103, 'browser_read', { tab: 3 });
+  assert.deepEqual(queries[2], { selector: null, text: null, exact: false, role: null, name: null, max: null, maxChars: null });
+});
+
 test('within reads inside an element of the last read, in its own frame', async () => {
   const rig = await boot({ tabs: userTabs() });
   const queries = recordingPage(rig);
@@ -1603,6 +1640,7 @@ test('a drag inside a frame is refused: its boxes are not in the tab\'s coordina
   const generation = await readyPair(rig);
   const reply = await ask(rig.ports[0], 178, 'browser_drag', { tab: 3, generation, element: 1, to: 2 });
   assert.equal(reply.error.code, 'stale_id');
+  assert.equal(reply.error.reason, 'frame_drag');
   assert.equal(presses(rig.state).length, 0);
 });
 
@@ -1829,4 +1867,168 @@ test('a drag marks both ends before the glide and checks each against its own ma
   assert.notEqual(sourceMark.token, dropMark.token, 'one mark per end');
   assert.equal(sourceCheck.token, sourceMark.token);
   assert.equal(dropCheck.token, dropMark.token);
+});
+
+// --- Stale reasons and read history ---------------------------------------------------------------------
+// The live symptom (2026-10-05): stale_id three times on a background tab with no read in between. One code
+// for the model; the reason in the reply says which check refused, so the next live run names the cause.
+
+const reasonOf = (reply) => [reply.error?.code, reply.error?.reason];
+
+test('a click with no read, an unread generation or an unknown id names why it is stale', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 300, 'browser_click', { tab: 3, generation: 1, element: 1 })), ['stale_id', 'no_read']);
+  const { generation } = await readyButton(rig, onScreen);
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 301, 'browser_click', { tab: 3, generation: generation + 7, element: 1 })), ['stale_id', 'generation_mismatch']);
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 302, 'browser_click', { tab: 3, generation, element: 9 })), ['stale_id', 'unknown_element']);
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a trusted click refused by the locate hit test names it blocked', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, { ...onScreen, blocked: true });
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 303, 'browser_click', { tab: 3, generation, element: 1 })), ['stale_id', 'blocked']);
+  assert.equal(rig.state.locates, 3, 'located three times before giving up');
+});
+
+test('a trusted click covered while the cursor glided names it apart', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  rig.state.stillHits = false;
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 304, 'browser_click', { tab: 3, generation, element: 1 })), ['stale_id', 'covered_during_glide']);
+});
+
+test('a double click covered after its first press names it apart', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, onScreen);
+  let checks = 0;
+  rig.state.stillHits = () => ++checks === 1;
+  const reply = await ask(rig.ports[0], 305, 'browser_double_click', { tab: 3, generation, element: 1 });
+  assert.deepEqual(reasonOf(reply), ['stale_id', 'covered_after_first_press']);
+  assert.match(reply.error.message, /pressed once/);
+});
+
+test('a page refusal keeps its own reason on the way out', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const changed = { error: { code: 'stale_id', message: 'element changed since the read, read the page again', reason: 'identity_changed' } };
+  const { generation } = await readyButton(rig, changed);
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 306, 'browser_click', { tab: 3, generation, element: 1 })), ['stale_id', 'identity_changed']);
+});
+
+test('the synthetic fallback off screen keeps the page cover reason', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, { ...onScreen, inView: false });
+  rig.state.page.click = () => ({ error: { code: 'stale_id', message: 'something covers this element (a dialog or banner); read the page again', reason: 'covered' } });
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 307, 'browser_click', { tab: 3, generation, element: 1 })), ['stale_id', 'covered']);
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('a frame that stops answering and a tab that cannot be reached are told apart', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { generation } = await readyButton(rig, () => null);
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 308, 'browser_click', { tab: 3, generation, element: 1 })), ['stale_id', 'frame_gone']);
+  const run = rig.chrome.scripting.executeScript;
+  rig.chrome.scripting.executeScript = async (opts) => {
+    if (opts.files) throw new Error('Cannot access contents of the page');
+    return run(opts);
+  };
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 309, 'browser_click', { tab: 3, generation, element: 1 })), ['stale_id', 'tab_gone']);
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 310, 'browser_read', { tab: 99 })), ['stale_id', 'tab_gone']);
+});
+
+test('a point refused by the page names why', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  let frame = false;
+  const generation = await readyPair(rig, { frame: () => ({ frame, same: true }) });
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 311, 'browser_click_at', { tab: 3, generation, x: 1200, y: 300 })), ['stale_id', 'not_in_view']);
+  frame = true;
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 312, 'browser_click_at', { tab: 3, generation, x: 400, y: 300 })), ['stale_id', 'frame_at_point']);
+});
+
+// Two reads that differ: generation A shows "Uno", generation B shows "Dos", both as element 1.
+async function twoReads(rig) {
+  const labels = ['Uno', 'Dos'];
+  let reads = 0;
+  const located = [];
+  rig.state.page = {
+    read: () => {
+      const label = labels[Math.min(reads++, 1)];
+      return { origin: 'https://a.example', text: label, elements: [{ id: 1, frame: 0, role: 'button', label, context: '', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null }] };
+    },
+    locate: (g, id) => { located.push([g, id]); return onScreen; },
+    hitsAt: () => true,
+    landed: () => true,
+  };
+  const a = (await ask(rig.ports[0], 320, 'browser_read', { tab: 3 })).result.page.generation;
+  const b = (await ask(rig.ports[0], 321, 'browser_read', { tab: 3 })).result.page.generation;
+  return { a, b, located };
+}
+
+test('an id from a recent read of the tab still reaches its own generation in the page', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { a, b, located } = await twoReads(rig);
+  assert.ok(b > a);
+  const reply = await ask(rig.ports[0], 322, 'browser_click', { tab: 3, generation: a, element: 1 });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+  assert.deepEqual(located.at(-1), [a, 1], 'the page checks it against the read it came from');
+});
+
+test('the 20th read back still clicks, bound to its own generation', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { a, located } = await twoReads(rig);
+  for (let i = 0; i < 18; i++) await ask(rig.ports[0], 370 + i, 'browser_read', { tab: 3 });
+  const reply = await ask(rig.ports[0], 390, 'browser_click', { tab: 3, generation: a, element: 1 });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+  assert.deepEqual(located.at(-1), [a, 1]);
+});
+
+test('only the last 20 reads of a tab are kept', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { a } = await twoReads(rig);
+  for (let i = 0; i < 19; i++) await ask(rig.ports[0], 330 + i, 'browser_read', { tab: 3 });
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 350, 'browser_click', { tab: 3, generation: a, element: 1 })), ['stale_id', 'generation_mismatch']);
+  assert.equal(presses(rig.state).length, 0);
+});
+
+test('within and click_at still name only the last read', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const { a } = await twoReads(rig);
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 351, 'browser_read', { tab: 3, generation: a, within: 1 })), ['stale_id', 'generation_mismatch']);
+  rig.state.page.viewport = () => ({ w: 1000, h: 800 });
+  rig.state.page.pointAt = () => ({ frame: false, same: true });
+  assert.deepEqual(reasonOf(await ask(rig.ports[0], 352, 'browser_click_at', { tab: 3, generation: a, x: 10, y: 10 })), ['stale_id', 'generation_mismatch']);
+});
+
+test('a read that finishes after a newer one does not take its place as the last read', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  let reads = 0;
+  const element = { id: 1, frame: 0, role: 'button', label: 'Go', context: '', inputType: null, autocomplete: null, value: null, frameOrigin: null, href: null, fieldName: null, fieldId: null };
+  rig.state.page = {
+    read: () => {
+      const answer = { origin: 'https://a.example', text: 'Go', elements: [element] };
+      return reads++ === 0 ? held.then(() => answer) : answer;
+    },
+    viewport: () => ({ w: 1000, h: 800 }),
+    pointAt: () => ({ frame: false, same: true }),
+  };
+  rig.ports[0].receive(call(360, 'browser_read', { tab: 3 }));
+  await settle();
+  const newer = (await ask(rig.ports[0], 361, 'browser_read', { tab: 3 })).result.page.generation;
+  release();
+  await settle();
+  await settle();
+  const late = answersTo(rig.ports[0], 360)[0];
+  assert.ok(late.result.page.generation < newer, 'the slow read started first');
+  const reply = await ask(rig.ports[0], 362, 'browser_click_at', { tab: 3, generation: newer, x: 10, y: 10 });
+  assert.deepEqual(reply.result, { done: 'clicked' });
+});
+
+test('a drag onto an id the read never listed is stale as unknown_element and presses nothing', async () => {
+  const rig = await boot({ tabs: userTabs() });
+  const generation = await readyPair(rig);
+  const reply = await ask(rig.ports[0], 391, 'browser_drag', { tab: 3, generation, element: 1, to: 99 });
+  assert.deepEqual(reasonOf(reply), ['stale_id', 'unknown_element']);
+  assert.equal(presses(rig.state).length, 0);
 });

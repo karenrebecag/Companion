@@ -176,21 +176,21 @@ package actor BrowserChannel {
                 return
             }
             // Code and message were already reduced to an allowlist and one short line by the codec.
-            resolve(id, .failure(Self.error(body.code, body.message)))
+            resolve(id, .failure(Self.error(body.code, body.message)), reason: body.reason)
         case .hello:
             connection.send(line: BrowserCodec.encode(.error(
                 id: nil, BridgeErrorBody(code: BridgeCode.badFrame, message: "Already connected"))))
         }
     }
 
-    private func resolve(_ id: Int, _ result: Result<BrowserInbound, ContractError>) {
+    private func resolve(_ id: Int, _ result: Result<BrowserInbound, ContractError>, reason: String? = nil) {
         guard let entry = pending.removeValue(forKey: id) else {
             Log.browser("late or unknown reply dropped")
             return
         }
         entry.timer.cancel()
         let checked = Self.checked(entry.command, result)
-        Log.browser(Self.summary(entry.command, checked))
+        Log.browser(Self.logLine(entry.command, checked, reason: reason))
         entry.continuation.resume(returning: checked)
     }
 
@@ -258,6 +258,14 @@ package actor BrowserChannel {
         default:
             return .failure(error(BridgeCode.badFrame, "Unexpected reply for \(tool(command).rawValue)"))
         }
+    }
+
+    /// The summary plus the extension's reason. The reason is an allowlisted
+    /// word naming the refusing check, never what the page said.
+    static func logLine(
+        _ command: BrowserCommand, _ result: Result<BrowserInbound, ContractError>, reason: String?
+    ) -> String {
+        summary(command, result) + (reason.map { " reason=\($0)" } ?? "")
     }
 
     /// Tool, outcome and a character count: enough to debug a call without
