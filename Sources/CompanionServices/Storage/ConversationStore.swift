@@ -163,7 +163,11 @@ package final class ConversationStore: ConversationStoring, Sendable {
         if fm.fileExists(atPath: live.path) {
             // The live file is what a resume would read. The parked copy is
             // the leftover of a cut that already moved on.
-            try? fm.removeItem(at: parked)
+            do {
+                try fm.removeItem(at: parked)
+            } catch {
+                Log.chat("could not drop the stale parked specialist sessions")
+            }
             return
         }
         do {
