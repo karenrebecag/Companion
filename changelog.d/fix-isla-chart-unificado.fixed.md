@@ -1,1 +1,0 @@
-- **Una grafica abierta con "Ver" se ve igual que en la isla (2026-10-05).** Cuando la grafica llegaba aparte del texto, el popup la dibujaba como la tarjeta clara de la ventana; ahora usa la misma grafica oscura de la isla que cuando viene dentro de la respuesta.
