@@ -2701,6 +2701,7 @@ test('a file set waits behind a click already running on the same tab', async ()
   assert.deepEqual(answersTo(rig.ports[0], 432)[0].result, { done: 'files-set' });
   const order = rig.state.cdp.map(([, method, params]) => (method === 'Input.dispatchMouseEvent' ? params.type : method));
   assert.ok(order.indexOf('DOM.getDocument') > order.indexOf('mousePressed'));
+});
 
 // --- Foco: which tab the person looks at, and tabs a site opens (A3) --------------------------------
 
