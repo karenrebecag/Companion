@@ -202,6 +202,7 @@ package struct IslandView: View {
         .onChange(of: latestReply?.id) { _, id in
             replyStart = Date()
             if state.reportsReplyShown { reportReplyShown(id) }
+            openCardOnlyReply()
         }
         .onChange(of: state.approval?.requestId, initial: true) { _, _ in
             if state.yieldsKeyboard { dismissField() }
