@@ -44,6 +44,10 @@ package struct ScreenHands: Sendable {
     let tickets = ApprovalTickets()
     let turn = TurnTarget()
     let scans = ScanMemory()
+    /// The front window of `pid` right now, for the per-call check that
+    /// the window `look` returned is still the one in front in its app.
+    /// Default nil: tests without a window model keep the older behavior.
+    let frontWindow: @Sendable (Int32) -> HandsWindow?
 
     package init(
         injector: any TextInjecting,
@@ -62,7 +66,8 @@ package struct ScreenHands: Sendable {
         screenRecording: @escaping @Sendable () -> ScreenRecordingStatus = { .verified },
         locked: @escaping @Sendable () -> Bool = { false },
         launch: (any AppWindowProbing)? = nil,
-        windowWait: WindowWait = .standard
+        windowWait: WindowWait = .standard,
+        frontWindow: @escaping @Sendable (Int32) -> HandsWindow? = { _ in nil }
     ) {
         self.screen = screen
         self.see = see
@@ -81,11 +86,13 @@ package struct ScreenHands: Sendable {
         self.connectedBrowser = connectedBrowser
         self.appName = appName
         self.selfInFront = selfInFront
+        self.frontWindow = frontWindow
     }
 
     /// One adapter behind all four ports, as the app wires it.
     package init(
-        ax: AXTextInjector, screen: AXScreen, target: @escaping @Sendable () -> Int32?,
+        ax: AXTextInjector, screen: some ScreenActing & AppWindowProbing & FrontWindowReading,
+        target: @escaping @Sendable () -> Int32?,
         selfInFront: @escaping @Sendable () -> Bool = { false },
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
         changes: (any AXChangeWatching)? = nil,
@@ -103,32 +110,8 @@ package struct ScreenHands: Sendable {
             selfInFront: selfInFront,
             screen: screen, see: see, changes: changes,
             screenRecording: { gate.grantedStatus }, locked: { SessionLock.isLocked() },
-            launch: screen)
-    }
-}
-
-/// The app the user was in when they spoke (review 2026-09-25, HIGH-1).
-/// The model can take seconds; if the user switched apps meanwhile, typing
-/// into whatever is in front now would land in a window nobody asked for.
-final class TurnTarget: @unchecked Sendable {
-    private let lock = NSLock()
-    private var pid: Int32?
-    private var repin = false
-
-    func begin(_ pid: Int32?) { lock.withLock { self.pid = pid; repin = false } }
-    var current: Int32? { lock.withLock { pid } }
-
-    /// An open the user asked for moved the front on purpose; the app is
-    /// only frontmost a moment later, so the next hands call pins it — and
-    /// anything after that is held to it (security review 16, H1).
-    func release() { lock.withLock { pid = nil; repin = true } }
-
-    /// The turn's pin for a call now acting on `observed`.
-    func pin(for observed: Int32) -> Int32? {
-        lock.withLock {
-            if repin { pid = observed; repin = false }
-            return pid
-        }
+            launch: screen,
+            frontWindow: { screen.frontWindow(pid: $0) })
     }
 }
 
@@ -251,7 +234,6 @@ final class ApprovalTickets: @unchecked Sendable {
 }
 
 extension ParentToolRunner {
-    private static let ownPID = ProcessInfo.processInfo.processIdentifier
     /// Enough of the prompt line to judge what Return would run.
     static let sheetLine = 200
 
@@ -263,9 +245,10 @@ extension ParentToolRunner {
     /// done here because only the runner knows which app it would act on.
     /// A refusal is also nil: `execute` refuses it with its reason.
     func handsApproval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
-        guard let hands = readyHands, let pid = hands.target(), pid != Self.ownPID else {
-            return nil
-        }
+        guard let hands = readyHands else { return nil }
+        // Same judgment as execute, without consuming a pending repin: a
+        // sheet for a call that will be refused would ask for nothing.
+        guard case .ready(let pid, _) = hands.resolveTarget(commitRepin: false) else { return nil }
         let bundle = hands.bundleID(pid)
         // The web guard refuses these two in a Chromium browser; a sheet here
         // would ask the user to approve something that will be refused. Every
@@ -316,29 +299,43 @@ extension ParentToolRunner {
         guard !hands.selfInFront() else {
             return .failed(Self.handsError(BridgeCode.selfInFront, BridgeMessages.selfInFront), tool: tool.rawValue)
         }
-        guard let pid = hands.target(), pid != Self.ownPID else {
+        let exempt = tool == .look || tool == .focusWindow
+        switch hands.resolveTarget(exemptFromWindow: exempt) {
+        case .noFront:
             return .failed(Self.handsError("no_target", "no app in front other than Companion"),
                            tool: tool.rawValue)
+        case .targetLost(let message):
+            Log.app("hands: \(tool.rawValue) target_lost")
+            return .failed(Self.handsError("target_lost", message), tool: tool.rawValue)
+        case .windowLost:
+            Log.app("hands: \(tool.rawValue) target_lost window changed")
+            return .failed(Self.handsError("target_lost", ScreenHands.windowLostMessage), tool: tool.rawValue)
+        case .targetChanged(let message):
+            Log.app("hands: \(tool.rawValue) target_changed since the user spoke")
+            return .failed(Self.handsError("target_changed", message), tool: tool.rawValue)
+        case .ready(let pid, let frontIsCaller):
+            return await runResolvedHands(
+                tool, call, arguments, hands: hands, pid: pid, frontIsCaller: frontIsCaller)
         }
-        if let spoken = hands.turn.pin(for: pid), spoken != pid {
-            Log.app("hands: \(tool.rawValue) target_changed since the user spoke pid=\(pid)")
-            return .failed(Self.handsError(
-                "target_changed", "the app in front is not the one the user was in; "
-                    + "ask the user to bring that app to the front, then retry"),
-                tool: tool.rawValue)
-        }
-        let bundle = hands.bundleID(pid)
+    }
+
+    private func runResolvedHands(
+        _ tool: ParentTool, _ call: ToolCallRef, _ arguments: [String: Any],
+        hands: ScreenHands, pid: Int32, frontIsCaller: Bool
+    ) async -> ParentToolOutcome {
+        let knownBundle = hands.bundleID(pid)
+        let bundle = knownBundle ?? "-"
         let command = CommandApps.isCommandApp(bundleID: bundle)
         if command, tool == .typeText,
            HandsWords.hasControl(arguments["text"] as? String ?? "", format: true) {
-            Log.app("hands: type_text control_characters pid=\(pid) bundle=\(bundle ?? "-")")
+            Log.app("hands: type_text control_characters pid=\(pid) bundle=\(bundle)")
             return .failed(Self.handsError(
                 "control_characters", "control characters are never typed into a command app"),
                 tool: tool.rawValue)
         }
         if HandsGate.needsTicket(call, commandApp: command),
            !hands.tickets.redeem(.init(name: call.name, arguments: call.arguments, pid: pid)) {
-            Log.app("hands: \(tool.rawValue) refused, no approval pid=\(pid) bundle=\(bundle ?? "-")")
+            Log.app("hands: \(tool.rawValue) refused, no approval pid=\(pid) bundle=\(bundle)")
             return .failed(Self.handsError(
                 "approval_required", "a command app needs approval for typing or Return"),
                 tool: tool.rawValue)
@@ -347,9 +344,10 @@ extension ParentToolRunner {
         if tool == .see {
             outcome = await runSee(arguments, hands: hands, pid: pid)
         } else if tool.isSight {
-            outcome = await runSight(tool, call, arguments, hands: hands, pid: pid, bundle: bundle ?? "-")
+            outcome = await runSight(tool, call, arguments, hands: hands, pid: pid, bundle: knownBundle)
         } else {
-            let act = HandsAct(hands: hands, pid: pid, bundle: bundle ?? "-", tool: tool)
+            let act = HandsAct(
+                hands: hands, pid: pid, knownBundle: knownBundle, tool: tool, frontIsCaller: frontIsCaller)
             switch tool {
             case .typeText: outcome = await hands.observing(pid: pid, titles: false) { await act.type(arguments) }
             case .pressKey: outcome = await hands.observing(pid: pid) { act.press(arguments) }
@@ -395,8 +393,13 @@ extension ScreenHands {
 struct HandsAct {
     let hands: ScreenHands
     let pid: Int32
-    let bundle: String
+    /// Nil when the pid resolves to no bundle: the pin stores exactly that
+    /// instead of a placeholder, so a later comparison cannot match "-".
+    let knownBundle: String?
     let tool: ParentTool
+    let frontIsCaller: Bool
+
+    var bundle: String { knownBundle ?? "-" }
 
     /// The front app moved mid-action: its ids are no longer worth anything.
     static let appMoved = "the app in front changed; call look again, then act on the app you mean"
@@ -407,8 +410,17 @@ struct HandsAct {
     }
 
     /// The user may have switched apps while the model thought: acting on
-    /// whatever is in front now would type into the wrong window.
-    private var moved: Bool { hands.target() != pid }
+    /// whatever is in front now would type into the wrong window. The
+    /// runner has always made this check: one `target()` read on entry,
+    /// one before acting. The second is inside `holds(pid)`, which
+    /// honors the MCP caller's lineage — a terminal the shim launched
+    /// is not a switch, just where the type lands. `focus_window` re-pins
+    /// the window inside the app, so its moved check skips the window
+    /// check (the whole point of the call is to change it).
+    var moved: Bool {
+        if tool == .focusWindow { return !hands.holdsForExemptTool(pid: pid) }
+        return !hands.holds(pid: pid)
+    }
 
     /// A field or the reason there is none, the same words for type and read.
     private func field() -> Result<FocusedField, ContractError> {
@@ -530,12 +542,26 @@ struct HandsAct {
     func raise(_ arguments: [String: Any]) -> ParentToolOutcome {
         let query = (arguments["title"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return .failed(.invalidArgs("missing title"), tool: tool.rawValue) }
+        // With a caller in front the window was not the user's choice to
+        // change: re-latching here would let the agent walk onto whatever
+        // window is current after a refusal.
+        guard !frontIsCaller else { return fail("target_lost", ScreenHands.callerFrontFocusMessage, target: query) }
         guard !moved else { return fail("target_changed", Self.appMoved, target: query) }
         guard let title = hands.windows.raise(titleContaining: query, pid: pid) else {
             return fail("window_not_found", "no window whose title contains \"\(query)\"", target: query)
         }
+        // A second `moved` after the raise catches a window that took the
+        // front between the entry read and the raise: the title the user
+        // asked for is no longer the one in front, so the call must refuse
+        // before any re-pin is recorded.
         guard !moved else {
             return fail(BridgeCode.foregroundUnavailable, BridgeMessages.foregroundUnavailable, target: title)
+        }
+        // Latch the new window only AFTER the second `moved` passed: a
+        // failed raise must leave the existing latch alone, and a window
+        // that races the raise must not be the one stored.
+        if let front = hands.frontWindow(pid) {
+            hands.turn.latch(window: front, pid: pid, bundle: knownBundle)
         }
         Log.app("hands: focus_window raised pid=\(pid) bundle=\(bundle)")
         return ParentToolOutcome(ok: true, output: "raised \(title)", target: title, tool: tool.rawValue)
