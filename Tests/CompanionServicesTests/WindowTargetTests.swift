@@ -808,24 +808,11 @@ private func mcprunner(
     book.seed(pid: 9, [(0, "A")])
     book.seed(pid: 50, [(0, "shell")])
     let hands = FakeHands(field: FocusedField(app: "Notes", pid: 9), windows: ["B"])
-    // Read order on the counter: 1 look, 2 focus_window's re-pin, 3
-    // type_text's callerFrontHolds (entry), 4 type_text's callerFrontHolds
-    // (act-time). The closure returns "com.apple.Notes" for look,
-    // "com.apple.TextEdit" for the focus_window re-pin and the
-    // caller-fronted type_text; a stored "com.apple.TextEdit" matches
-    // the now-bundle, so the entry callerFrontHolds accepts. To prove
-    // focus_window recorded the bundle, we flip the closure to a
-    // third value ("com.apple.Safari") for the type_text's read: if
-    // focus_window had NOT recorded, the stored value would still be
-    // "com.apple.Notes" and the now "com.apple.Safari" would refuse
-    // the same way it does. To make the proof tighter, we use the
-    // "what focus_window stored" path: focus_window recorded
-    // "com.apple.TextEdit", and a later read of the SAME pid returning
-    // "com.apple.TextEdit" must still match (the focus_window path
-    // proves it). Then a flip to a different bundle at the act-time
-    // read refuses, proving the stored value is the focus_window one.
+    // Reads: look, focus_window, then the caller-fronted type_text. The
+    // same app keeps its bundle through look and focus_window; a different
+    // bundle on the same pid afterwards is a recycled pid and must refuse.
     let counter = BundleCounter()
-    counter.setBundles("com.apple.Notes", "com.apple.TextEdit", "com.apple.Safari")
+    counter.setBundles(Array(repeating: "com.apple.Notes", count: 20))
     let scripted = ScriptedTarget([9, 9, 9, 9, 9, 50, 50])
     let bundle: @Sendable (Int32) -> String? = { _ in counter.next() }
     let handsStruct = ScreenHands(
@@ -842,11 +829,9 @@ private func mcprunner(
              "look guardo el bundle del pin")
     let focused = await runner.execute(name: "focus_window", argumentsJSON: #"{"title":"B"}"#)
     expect(focused.ok, "focus_window con app al frente: ok \(focused.output)")
-    // focus_window recorded the CURRENT bundle ("com.apple.TextEdit"),
-    // overwriting the one look stored. Asserting this directly proves
-    // focus_window's recordBundle ran on the latch.
-    expectEq(handsStruct.turn.pinnedBundle, "com.apple.TextEdit",
-             "focus_window registro el bundle al latch (no el de look)")
+    expectEq(handsStruct.turn.pinnedBundle, "com.apple.Notes",
+             "focus_window sobre la misma app conserva su bundle")
+    counter.setBundles(Array(repeating: "com.apple.Safari", count: 40))
     // A subsequent caller-fronted call sees the focus_window-recorded
     // bundle; if the now-bundle is different (Safari), the callerFrontHolds
     // refuses at the entry.
@@ -866,6 +851,10 @@ private final class BundleCounter: @unchecked Sendable {
     /// is empty" (the closure returns nil for that read, simulating a
     /// pid that no longer resolves to a bundle).
     func setBundles(_ values: String?...) {
+        lock.withLock { queue = values }
+    }
+
+    func setBundles(_ values: [String?]) {
         lock.withLock { queue = values }
     }
 
