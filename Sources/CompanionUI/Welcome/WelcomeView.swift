@@ -10,10 +10,18 @@ package struct WelcomeView: View {
     @Bindable var chat: ChatViewModel
     @State private var keys = KeysSettingsModel()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Lets the gated snapshot test render the aside while the shipped flag
+    /// is off; production callers leave it nil.
+    var testimonialsOverride: Bool?
 
     package init(welcome: WelcomeModel, chat: ChatViewModel) {
         self.welcome = welcome
         self.chat = chat
+    }
+
+    init(welcome: WelcomeModel, chat: ChatViewModel, testimonialsOverride: Bool?) {
+        self.init(welcome: welcome, chat: chat)
+        self.testimonialsOverride = testimonialsOverride
     }
 
     package var body: some View {
@@ -21,23 +29,25 @@ package struct WelcomeView: View {
         // The sound check dims the screen as the last one does: Incredible
         // draws its card over the dusk, white on dark.
         let dimmed = step == .yourTurn || (step == .hello && welcome.soundCheck.holdsGreeting)
-        VStack(spacing: Space.none) {
-            topBar(step)
-            Spacer(minLength: Space.x6)
-            column(step)
-                .id(step)
-            Spacer(minLength: Space.x6)
-            if !dimmed, step != .hello || welcome.soundCheck.showsHello {
-                AppButton(
-                    Localized.string(step == .cover ? "welcome.start" : "welcome.continue"),
-                    kind: .neutral, shape: .pill, fullWidth: true,
-                    enabled: welcome.canContinue
-                ) { welcome.next() }
-                .frame(maxWidth: Container.sheet)
-                // Test seam for the layout tests; inert in production.
-                .reportsFrame(.continueButton)
-                .padding(.horizontal, Space.x8)
-                .padding(.bottom, Space.x8)
+        // Only the keys step can show the aside; every other step keeps the
+        // plain column, so a GeometryReader never alters its measured layout.
+        let asideEnabled = step == .keys && (testimonialsOverride ?? TestimonialCarousel.enabled)
+        Group {
+            if asideEnabled {
+                GeometryReader { proxy in
+                    let wide = TestimonialCarousel.showsAside(step: step, width: proxy.size.width, enabled: true)
+                    HStack(spacing: Space.none) {
+                        content(step, dimmed: dimmed)
+                            .frame(width: wide ? proxy.size.width * TestimonialCarousel.formShare : nil)
+                        if wide {
+                            // Incredible's aside keeps a 12 pt margin on three sides; the form column is its fourth.
+                            WelcomeTestimonialsAside()
+                                .padding([.top, .trailing, .bottom], Space.x3)
+                        }
+                    }
+                }
+            } else {
+                content(step, dimmed: dimmed)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -79,6 +89,29 @@ package struct WelcomeView: View {
             welcome.setWindowShown(false)
             Task { await welcome.syncMusic() }
         }
+    }
+
+    private func content(_ step: WelcomeStep, dimmed: Bool) -> some View {
+        VStack(spacing: Space.none) {
+            topBar(step)
+            Spacer(minLength: Space.x6)
+            column(step)
+                .id(step)
+            Spacer(minLength: Space.x6)
+            if !dimmed, step != .hello || welcome.soundCheck.showsHello {
+                AppButton(
+                    Localized.string(step == .cover ? "welcome.start" : "welcome.continue"),
+                    kind: .neutral, shape: .pill, fullWidth: true,
+                    enabled: welcome.canContinue
+                ) { welcome.next() }
+                .frame(maxWidth: Container.sheet)
+                // Test seam for the layout tests; inert in production.
+                .reportsFrame(.continueButton)
+                .padding(.horizontal, Space.x8)
+                .padding(.bottom, Space.x8)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func topBar(_ step: WelcomeStep) -> some View {
