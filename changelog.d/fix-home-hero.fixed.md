@@ -1,0 +1,1 @@
+- **La tarjeta "Mantén fn" del inicio ya no parte el título letra por letra (2026-10-06).** El orbe le quitaba el ancho al texto; el título va en una línea y el texto tiene prioridad sobre el espacio.
