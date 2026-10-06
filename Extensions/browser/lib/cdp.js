@@ -293,7 +293,41 @@ export function createCdp(api = globalThis.chrome, { onDetached = () => {} } = {
     }
   });
 
-  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, mouseDrag, mouseMove, mouseWheel, typeText, pressKey, isRevoked, setFileInputFiles };
+  // Native page dialogs freeze a tab until something answers, so every one gets an answer from the
+  // registered policy; when the policy or the browser fails the answer is "no", never silence.
+  let dialogHandler = null;
+  let dialogAnswered = null;
+  function onJavaScriptDialog(handler, answered = null) {
+    dialogHandler = handler;
+    dialogAnswered = answered;
+  }
+  const STAY = Object.freeze({ accept: false, promptText: '' });
+
+  async function answerDialog(tabId, dialog) {
+    let decision = STAY;
+    try {
+      const picked = dialogHandler(dialog);
+      if (picked) decision = { accept: Boolean(picked.accept), promptText: picked.promptText == null ? '' : String(picked.promptText) };
+    } catch (error) {
+      console.warn('companion: dialog policy failed, answering no', error?.message);
+    }
+    let sent = decision;
+    try {
+      await send(tabId, 'Page.handleJavaScriptDialog', decision);
+    } catch (error) {
+      console.warn('companion: could not answer a dialog, retrying as no', error?.message);
+      sent = STAY;
+      if (decision.accept) await send(tabId, 'Page.handleJavaScriptDialog', STAY).catch((again) => console.warn('companion: dialog still open', again?.message));
+    }
+    dialogAnswered?.(tabId, dialog.kind, sent.accept);
+  }
+
+  api.debugger?.onEvent?.addListener((source, method, params) => {
+    if (method !== 'Page.javascriptDialogOpening' || !Number.isInteger(source?.tabId) || typeof dialogHandler !== 'function') return;
+    answerDialog(source.tabId, { tabId: source.tabId, kind: params?.type, message: params?.message, defaultValue: params?.defaultPrompt });
+  });
+
+  return { ensureAttached, detach, detachAll, forget, withInput, mouseClick, mouseDrag, mouseMove, mouseWheel, typeText, pressKey, isRevoked, setFileInputFiles, onJavaScriptDialog };
 }
 
 // The marker is a uuid we minted. Anything else would change the selector, not the attribute value.

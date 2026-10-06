@@ -54,7 +54,13 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
     func answerUploads(with reply: BrowserInbound) { lock.withLock { replyOverride = reply } }
 
     private var writeNote = "ok"
-    func answerWrites(with note: String) { lock.withLock { writeNote = note } }
+    private var writeDialogs: BrowserDialogReport?
+    func answerWrites(with note: String, dialogs: BrowserDialogReport? = nil) {
+        lock.withLock {
+            writeNote = note
+            writeDialogs = dialogs
+        }
+    }
 
     private var writesUnconfirmed = false
     /// What the extension says when the press may not have landed on the element.
@@ -72,6 +78,8 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
         lock.withLock { gates.append((match, gate)) }
         return gate
     }
+
+    func answerNavigate(with note: String) { lock.withLock { navigateNote = note } }
 
     /// What the extension says once a navigation or a new tab ran out of its load budget.
     func stillLoading() { lock.withLock { navigateNote = "still loading"; openedLoading = true } }
@@ -98,7 +106,7 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
     private func reply(_ command: BrowserCommand, timeout: Duration) -> Result<BrowserInbound, ContractError> {
         log.append((command, timeout))
         if let failure { return .failure(failure) }
-        if case .navigate = command, let navigateNote { return .success(.done(id: 1, message: navigateNote)) }
+        if case .navigate = command, let navigateNote { return .success(done(navigateNote)) }
         switch command {
         case .tabs:
             if let tabsFailure { return .failure(tabsFailure) }
@@ -119,12 +127,20 @@ final class FakeBrowserChannel: BrowserCommanding, @unchecked Sendable {
         case .click, .doubleClick, .rightClick, .hover, .scroll, .scrollTo, .dragTo, .dragBy, .clickAt, .type, .select, .press,
              .navigate:
             if let writeFailure { return .failure(writeFailure) }
-            if writesUnconfirmed { return .success(.doneUnconfirmed(id: 1, message: writeNote)) }
-            return .success(.done(id: 1, message: writeNote))
+            return .success(done(writeNote))
         case .setFiles:
             if let writeFailure { return .failure(writeFailure) }
             if let replyOverride { return .success(replyOverride) }
             return .success(.done(id: 1, message: "files-set"))
+        }
+    }
+
+    private func done(_ message: String) -> BrowserInbound {
+        switch (writesUnconfirmed, writeDialogs) {
+        case (true, let report?): return .actedUnconfirmed(id: 1, message: message, report)
+        case (true, nil): return .doneUnconfirmed(id: 1, message: message)
+        case (false, let report?): return .acted(id: 1, message: message, report)
+        case (false, nil): return .done(id: 1, message: message)
         }
     }
 }

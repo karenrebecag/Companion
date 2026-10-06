@@ -9,6 +9,7 @@ enum BrowserSanitize {
     static let fallbackCode = "browser_error"
     static let maxMessage = 300
     static let maxDone = 40
+    static let maxDialog = 120
 
     private static let allowedCodes: Set<String> = [
         BridgeCode.staleId, BridgeCode.secureField, BridgeCode.invalidArgs, BridgeCode.timeout,
@@ -51,6 +52,8 @@ enum BrowserSanitize {
     static func message(_ raw: String) -> String { text(raw, limit: maxMessage) }
 
     static func done(_ raw: String) -> String { text(raw, limit: maxDone) }
+
+    static func dialogMessage(_ raw: String) -> String { text(raw, limit: maxDialog) }
 
     /// Line and paragraph separators are not Cc but break lines all the same.
     /// Runs of blanks collapse so a stripped break leaves one space, not a gap.

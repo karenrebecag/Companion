@@ -398,6 +398,48 @@ extension BrowserCopy {
     /// The extension's exact note for a navigation that ran out of its load budget.
     package static let stillLoading = "still loading"
 
+    /// The extension's exact note for a navigation the page refused to leave; short enough to survive the done cap.
+    package static let stayedOnPage = "the page asked to stay; Companion stayed"
+
+    /// What the model reads after an action or read in which the page opened native dialogs. The page's
+    /// words are quoted and labelled as page content so they cannot pass for Companion's own.
+    package static func dialogNote(_ report: BrowserDialogReport, _ language: AppLanguage) -> String {
+        var parts = report.dialogs.map { dialogLine($0, language) }
+        if report.more > 0 {
+            parts.append(language == .en
+                ? "\(report.more) more dialogs were answered the same way."
+                : "Se respondieron \(report.more) diálogos más de la misma forma.")
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private static func dialogLine(_ dialog: BrowserDialog, _ language: AppLanguage) -> String {
+        let quoted = "\"" + dialog.message.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        switch language {
+        case .en:
+            let kind = dialog.kind == .beforeunload ? "leave-page" : dialog.kind.rawValue
+            let action: String
+            switch (dialog.kind, dialog.answer) {
+            case (.prompt, .default): action = "Companion accepted the prompt with its own default value"
+            case (.beforeunload, _): action = "Companion stayed on the page"
+            default: action = "Companion answered no"
+            }
+            let risk = dialog.destructive ? " (the question looked destructive)" : ""
+            return "The page showed a \(kind) dialog (page content): \(quoted). \(action)\(risk); ask the person if that was right."
+        case .es:
+            let kind = dialog.kind == .beforeunload ? "de salir de la página" : dialog.kind.rawValue
+            let action: String
+            switch (dialog.kind, dialog.answer) {
+            case (.prompt, .default): action = "Companion aceptó el prompt con su propio valor por defecto"
+            case (.beforeunload, _): action = "Companion se quedó en la página"
+            default: action = "Companion respondió que no"
+            }
+            let risk = dialog.destructive ? " (la pregunta parecía destructiva)" : ""
+            return "La página mostró un diálogo \(kind) (contenido de la página): \(quoted). \(action)\(risk); pregunta a la persona si fue lo correcto."
+        }
+    }
+
     /// The sheet a bridge agent's `browser_take` raises.
     package static func takeSummary(title: String, _ language: AppLanguage) -> String {
         switch language {

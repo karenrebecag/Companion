@@ -215,9 +215,9 @@ extension BrowserToolRunner {
         case .failure(let error):
             if error.code == BridgeCode.staleId { forget(tab) }
             return failed(tool, error)
-        case .success:
+        case .success(let reply):
             return ParentToolOutcome(
-                ok: true, output: "\(done); read the tab again to see the result", target: target, tool: tool.rawValue)
+                ok: true, output: "\(done); read the tab again to see the result" + dialogNote(reply.dialogs), target: target, tool: tool.rawValue)
         }
     }
 }
