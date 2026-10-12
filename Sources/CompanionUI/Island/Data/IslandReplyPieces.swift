@@ -83,7 +83,7 @@ struct IslandReply: View {
             Text(Self.painted(words, elapsed: elapsed, speaking: speaking, reduceMotion: reduceMotion,
                               said: said, now: context.date.timeIntervalSince1970))
                 .font(Fonts.geist(look.size))
-                .lineSpacing(look == .answer ? Space.x1 : Self.transcriptSpacing)
+                .lineSpacing(Self.lineSpacing(for: look))
                 .multilineTextAlignment(look.alignment)
                 .frame(maxWidth: .infinity, alignment: look.frameAlignment)
                 .fixedSize(horizontal: false, vertical: true)
@@ -95,6 +95,19 @@ struct IslandReply: View {
     /// The transcript look keeps the voice transcript's leading, so its two-line cap holds.
     static let transcriptSpacing = AnswerBlockMetrics.lineSpacing(
         size: TypeSize.base, leading: WorkStateMetrics.transcriptLeading)
+
+    /// A reply in the thread shares the user bubbles' leading (CompanionUIPro's
+    /// `AIThreadMetrics.bubbleLineSpacing`, internal to the package); the
+    /// transcript's 1.5 leading made it read almost double-spaced next to them.
+    static let threadSpacing: CGFloat = 3
+
+    static func lineSpacing(for look: Look) -> CGFloat {
+        switch look {
+        case .answer: Space.x1
+        case .transcript: transcriptSpacing
+        case .thread: threadSpacing
+        }
+    }
 
     static func words(_ text: String) -> [String] {
         text.split(separator: " ").map(String.init)
