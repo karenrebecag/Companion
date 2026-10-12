@@ -2,8 +2,7 @@ import CompanionCore
 import Foundation
 
 /// The parent's hands. Same shape as `NativeToolRunner` minus `approved:`:
-/// none of these asks permission — except `open_url` to a host nobody said
-/// and, since 15g, Return in a terminal — and `run_shell` is never here. Everything
+/// none of these asks permission — except, since 15g, Return in a terminal — and `run_shell` is never here. Everything
 /// goes through `WorkspaceOpening`; the runner never touches `Process`.
 package struct ParentToolRunner: ParentToolExecuting, Sendable {
     /// Enough to find a name in; more than this is a list, not an answer.

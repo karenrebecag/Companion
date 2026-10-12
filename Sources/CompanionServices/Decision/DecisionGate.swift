@@ -116,8 +116,7 @@ package actor DecisionGate {
 
     /// Runs a step already chosen by `plan`. `execute` goes through
     /// `ParentToolRunner` exactly as the model's own tool call would, and
-    /// `open_url` still asks whether the user actually said the host before
-    /// anything opens. A forged closed-set id or `type_text` span is refused
+    /// `open_url` opens without a sheet, since opening is navigation. A forged closed-set id or `type_text` span is refused
     /// at the door (`DecisionRoute.validClosedSet`), same as a forged path is
     /// refused by `ParentToolPolicy`.
     package func run(

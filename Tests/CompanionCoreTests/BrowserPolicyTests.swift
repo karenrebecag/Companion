@@ -284,16 +284,16 @@ private func navigate(_ from: String?, _ raw: String, said: String = "") -> Resu
     expectEq(navigate("https://x.test", "https://x.test/other?q=1"), .success(.act), "mismo origen")
     expectEq(navigate("https://x.test", "https://X.TEST/a"), .success(.act), "el host no distingue mayusculas")
     expectEq(navigate("https://x.test:8443", "https://x.test:8443/a"), .success(.act), "mismo puerto")
-    expectEq(navigate("https://x.test", "https://x.test:8443/a"), .success(.ask), "otro puerto es otro origen")
-    expectEq(navigate("https://x.test", "http://x.test/a"), .success(.ask), "otro esquema es otro origen")
-    expectEq(navigate("https://x.test", "https://evil.test/"), .success(.ask), "otro origen no dicho")
-    expectEq(navigate("https://x.test", "https://sub.x.test/"), .success(.ask), "subdominio es otro origen")
+    expectEq(navigate("https://x.test", "https://x.test:8443/a"), .success(.act), "otro puerto es otro origen: navegar no pide")
+    expectEq(navigate("https://x.test", "http://x.test/a"), .success(.act), "otro esquema http(s): navegar no pide")
+    expectEq(navigate("https://x.test", "https://evil.test/"), .success(.act), "otro origen no dicho: navegar no pide")
+    expectEq(navigate("https://x.test", "https://sub.x.test/"), .success(.act), "subdominio: navegar no pide")
     expectEq(navigate("https://x.test", "https://evil.test/", said: "abre evil.test"), .success(.act),
              "otro origen dicho")
-    expectEq(navigate(nil, "https://evil.test/"), .success(.ask), "sin origen actual pregunta")
+    expectEq(navigate(nil, "https://evil.test/"), .success(.act), "sin origen actual: navegar no pide")
     expectEq(navigate("https://attacker.github.io", "https://attacker.github.io/x"), .success(.act), "mismo origen github.io")
-    expectEq(navigate("https://x.test", "https://attacker.github.io/", said: "abre github"), .success(.ask),
-             "la marca no cubre un subdominio ajeno")
+    expectEq(navigate("https://x.test", "https://attacker.github.io/", said: "abre github"), .success(.act),
+             "ya no importa lo dicho: abrir otro sitio no pide")
 }
 
 // MARK: - Render

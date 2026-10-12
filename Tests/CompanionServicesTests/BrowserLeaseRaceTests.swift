@@ -139,19 +139,16 @@ private func family(clock: LeaseClock, url: String = crm + "/new") -> [BrowserTa
                 createdAt: clock.now.addingTimeInterval(4))]
 }
 
-@Test func aFirstNavigateOnASpawnedChildGetsItsSheetNotADeadEnd() async {
+@Test func aFirstNavigateOnASpawnedChildRunsNotADeadEnd() async {
     let r = rig()
     _ = await r.chat.execute(name: "browser_take", argumentsJSON: tab12)
     r.channel.setTabs(family(clock: r.clock))
     _ = await r.chat.execute(name: "browser_tabs", argumentsJSON: "{}")
     r.clock.advance(5)
     let arguments = #"{"tab":20,"url":"https://other.example/x"}"#
-    guard let sheet = r.chat.approval(for: call("browser_navigate", arguments), said: "") else {
-        Issue.record("the gate judges the child that would be adopted"); return
-    }
-    r.chat.granted(sheet)
+    expect(r.chat.approval(for: call("browser_navigate", arguments), said: "") == nil, "navigating asks for no sheet")
     let out = await r.chat.execute(name: "browser_navigate", argumentsJSON: arguments)
-    expect(out.ok, "adopted, then navigated with the user's yes: \(out.output)")
+    expect(out.ok, "adopted, then navigated with the ticket the gate issued: \(out.output)")
     expectEq(r.leases.owner(of: 20), "chat", "the child is the chat's")
 }
 
@@ -190,7 +187,9 @@ private func family(clock: LeaseClock, url: String = crm + "/new") -> [BrowserTa
     expect(!out.ok && out.output.contains("approval_required"), "fail closed: no yes was ever asked for")
     expect(out.output.contains("again"), "but it says what to do: \(out.output)")
     expectEq(r.leases.owner(of: 20), "chat", "the child is adopted, so the retry gets its sheet")
-    expect(r.chat.approval(for: call("browser_navigate", arguments), said: "") != nil, "the retry asks")
+    expect(r.chat.approval(for: call("browser_navigate", arguments), said: "") == nil, "the retry needs no sheet")
+    let retry = await r.chat.execute(name: "browser_navigate", argumentsJSON: arguments)
+    expect(retry.ok, "and runs on the ticket the gate issued: \(retry.output)")
 }
 
 // MARK: - criterion 5 from Settings

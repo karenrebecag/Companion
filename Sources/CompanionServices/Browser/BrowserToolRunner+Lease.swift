@@ -95,8 +95,9 @@ extension BrowserToolRunner {
         }
     }
 
-    /// A new tab carries the user's cookies, so opening is navigating: it acts
-    /// only for a site the user named. The bridge has no user words of its own.
+    /// Opening a new tab is navigating, which acts without a sheet for any
+    /// http(s) address in the chat; what the page then submits or deletes is
+    /// gated per call. The MCP bridge keeps its sheet.
     func openApproval(_ call: ToolCallRef, arguments: [String: Any], said: String) -> ApprovalRequest? {
         guard let raw = arguments["url"] as? String else { return nil }
         let url: URL
@@ -107,7 +108,8 @@ extension BrowserToolRunner {
             return nil
         }
         guard case .success(let verdict) = BrowserPolicy.navigateVerdict(
-            from: nil, currentURL: nil, to: raw, said: asksBeforeTaking ? "" : said)
+            from: nil, currentURL: nil, to: raw, said: asksBeforeTaking ? "" : said,
+            asksToLeaveOrigin: asksBeforeTaking)
         else { return nil }
         switch verdict {
         case .refuse:

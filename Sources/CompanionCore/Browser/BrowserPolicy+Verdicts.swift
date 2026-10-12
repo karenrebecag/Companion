@@ -107,7 +107,8 @@ extension BrowserPolicy {
     /// make the tool unusable, and a click on a link is already judged by
     /// its label; the finite word list is defence in depth, not a guarantee.
     package static func navigateVerdict(
-        from origin: String?, currentURL: String?, to raw: String, said: String
+        from origin: String?, currentURL: String?, to raw: String, said: String,
+        asksToLeaveOrigin: Bool = false
     ) -> Result<HandsVerdict, ContractError> {
         let url: URL
         do {
@@ -118,7 +119,10 @@ extension BrowserPolicy {
         if let origin, canonicalOrigin(of: url) == canonicalOrigin(origin) {
             return .success(sameOriginVerdict(url, currentURL: currentURL, said: said))
         }
-        guard let host = url.host else { return .success(.ask) }
+        // Going to another http(s) site is navigation, not publishing or sending:
+        // the sheet is kept for what the page then does (submit, pay, delete).
+        // An outside caller (the MCP bridge) has no user words, so its sheet stays.
+        guard asksToLeaveOrigin, let host = url.host else { return .success(asksToLeaveOrigin ? .ask : .act) }
         return .success(ParentToolGate.saidIt(url, host: host, said: said) ? .act : .ask)
     }
 

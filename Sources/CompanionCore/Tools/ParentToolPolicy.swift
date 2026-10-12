@@ -178,26 +178,13 @@ package enum ParentToolPolicy {
     }
 }
 
-/// Wave 10c 3D. The parent's hands ask no permission (10b) with one
-/// exception: `open_url` for a host the user never named. A window title or
-/// a clipboard can put a URL in front of the model (10a's security finding);
-/// the user's own words are the only thing that lets it through unasked.
+/// The parent's hands ask no permission to open an http(s) address, whether
+/// or not the user named the host: opening is navigation, and the sheet is
+/// kept for publishing, sending, paying, uploading or deleting. The gate stays
+/// as the single place the runner asks, so a future exception lands here.
 package enum ParentToolGate: Sendable {
     package static func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
-        guard call.name == ParentTool.openURL.rawValue,
-              let raw = ToolArguments.parse(call.arguments)?["url"] as? String
-        else { return nil }
-        let url: URL
-        do {
-            url = try ParentToolPolicy.httpURL(raw)
-        } catch {
-            // The policy refuses it on its own; nothing to ask about.
-            return nil
-        }
-        guard let host = url.host, !saidIt(url, host: host, said: said) else { return nil }
-        return ApprovalRequest(
-            requestId: UUID().uuidString, toolName: call.name,
-            summary: "open \(host)", inputJSON: call.arguments)
+        nil
     }
 
     /// The whole URL, the host without `www.`, or — for `brand.tld` and
