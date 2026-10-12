@@ -13,6 +13,8 @@ enum IslandThreadModel {
     /// fixed-size measurement: it gets a height of its own.
     // HACK: fixed height leaves room above a single short turn. Measure the rows when the package exposes their height.
     static let height: CGFloat = 300
+    /// Air between the field and the thread's faded top edge.
+    static let fieldGap: CGFloat = Space.x4
 
     /// A visual needs more than a short turn: the thread grows to a share of the notch's cap.
     static func height(drawsVisual: Bool) -> CGFloat {
@@ -52,6 +54,9 @@ extension IslandView {
             AIThread(items: items, strings: TaskThread.strings, style: .island) { item in
                 threadReply(item, state)
             }
+            // The package fades its top 36 pt; without a gap the oldest turn
+            // sat half-dissolved against the field.
+            .padding(.top, IslandThreadModel.fieldGap)
             .frame(height: IslandThreadModel.height(drawsVisual: chat.messages.contains { message in
                 items.contains { $0.id == message.id.uuidString } && Self.drawsInline(message)
             }))
