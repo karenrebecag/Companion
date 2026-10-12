@@ -91,8 +91,9 @@ struct TurnMouth {
     /// for a turn whose detail is on a card.
     var filter = SpeechFilter()
     var budget = SpeechBudget()
-    /// A table or list in the reply is the document's, not the voice's.
-    var lead = SpokenLead()
+    /// The document the model showed this turn (`show_document`): threaded
+    /// after the sentence, never spoken.
+    var document: SpokenDocument?
     var started = false
     /// The filter took something out of this turn.
     var filtered = false
@@ -120,7 +121,11 @@ struct TurnMouth {
     /// thread and the transcript must not keep those. The length budget trims
     /// only the voice; the thread keeps the full text, which is the point of
     /// a card carrying the detail.
-    var said: String { SpeechMarkdown.unfenced(SpeechFilter.clean(saidPart(of: spoken))) }
+    var said: String { SpeechFilter.clean(saidPart(of: spoken)) }
+
+    /// What the thread keeps: the words, and under them the document the
+    /// island shows and the next turn may refer to ("that table").
+    var threaded: String { document.map { $0.threaded(after: said) } ?? said }
 
     /// Code review 2026-09-25 (LOW-2): a round's text as the voice said it,
     /// for the model's next round.
@@ -242,6 +247,32 @@ extension ClassicRuntime {
             separator + HandoffProposal.question(language), round: &text, &mouth, apply: apply)
     }
 
+    /// The model showed a document (`show_document`): its sentence is spoken
+    /// through the ordinary path and the document waits for the thread.
+    /// When the model already spoke this turn, that text is the sentence and
+    /// `say` would only repeat it. False when a press cut the turn.
+    func show(
+        _ call: ToolCallRef, language: AppLanguage,
+        round text: inout String, _ mouth: inout TurnMouth,
+        apply: @Sendable (TurnEvent) async -> Void
+    ) async -> Bool {
+        guard let document = SpokenDocument.parse(arguments: call.arguments) else {
+            Log.app("mouth: document malformed chars=\(call.arguments.count)")
+            return true
+        }
+        // The first document of a turn is the turn's; a second one would
+        // overwrite what the island is about to show.
+        guard mouth.document == nil else {
+            Log.app("mouth: document repeated chars=\(document.markdown.count)")
+            return true
+        }
+        mouth.document = document
+        Log.app("mouth: document chars=\(document.markdown.count) say=\(document.say.count)")
+        guard mouth.said.isEmpty else { return true }
+        let say = document.say.isEmpty ? SpokenDocument.fallbackSay(language) : document.say
+        return await take(say, round: &text, &mouth, apply: apply)
+    }
+
     /// Speakable text into the stream and the buffer; false when a press
     /// cut the turn while its sentences were being enqueued.
     func take(
@@ -250,7 +281,7 @@ extension ClassicRuntime {
     ) async -> Bool {
         guard !piece.isEmpty else { return true }
         let piece = SpeechFilter.joiner(after: mouth.spoken, before: piece) + piece
-        let voiced = SpeechFilter.stoppingLines(mouth.lead.admit(piece), after: mouth.spoken)
+        let voiced = SpeechFilter.stoppingLines(piece, after: mouth.spoken)
         if !mouth.started {
             mouth.started = true
             await apply(.firstSentence)

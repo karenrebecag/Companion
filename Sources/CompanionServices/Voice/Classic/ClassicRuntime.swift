@@ -393,6 +393,9 @@ final class ClassicRuntime: @unchecked Sendable {
             tools.append(.stopJob(language))
             tools.append(.resolveApproval(language))
         }
+        // The voice's own: a reply with structure is one sentence and a
+        // document (`SpokenDocument`), whoever else is listening.
+        tools.append(SpokenDocument.spec(language))
         // 15g-5: the context is in hand and the first chat request leaves
         // next — `commit→context` is the fan-out's share of the wait.
         await markTimeline?(.contextReady)
@@ -421,6 +424,11 @@ final class ClassicRuntime: @unchecked Sendable {
                         if mouth.buffer.awaitsFirstCut { armFirstCut() }
                     case .toolCalls(let roundCalls):
                         for call in roundCalls {
+                            if call.name == SpokenDocument.toolName {
+                                guard await show(call, language: language, round: &text, &mouth, apply: apply)
+                                else { return await cutTurn(transcript, generation: generation, cut: cut) }
+                                continue
+                            }
                             await handleJobTool(call, language: language, &mouth)
                             if parentTools?.handles(call.name) == true {
                                 calls.append(call)
@@ -517,16 +525,15 @@ final class ClassicRuntime: @unchecked Sendable {
         await sayMissingEffects(&mouth, apply: apply)
         for line in mouth.owedLines { await sayOwn(line, &mouth, apply: apply) }
         if Task.isCancelled { return await cutTurn(transcript, generation: generation, cut: cut) }
-        if !mouth.spoken.isEmpty {
-            let said = mouth.said
-            transcript?.said(said)
-            await thread.appendAssistant(said)
+        if !mouth.spoken.isEmpty || mouth.document != nil {
+            // The transcript is what was heard; the thread also keeps the
+            // document, which the island shows and the next turn may cite.
+            transcript?.said(mouth.said)
+            await thread.appendAssistant(mouth.threaded)
             await thread.finishStream()
         }
         if Task.isCancelled { return await cutTurn(transcript, generation: generation, cut: cut) }
-        let rich = ReplyRichness.isRich(mouth.said)
-        Log.app("reply: rich=\(rich) chars=\(mouth.said.count)")
-        if rich { await apply(.replyIsRich) }
+        if mouth.document != nil { await apply(.replyHasDocument) }
         await apply(.replyCompleted)
     }
 

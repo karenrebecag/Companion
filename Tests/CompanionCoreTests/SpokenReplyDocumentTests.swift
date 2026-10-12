@@ -3,8 +3,9 @@ import CompanionTestKit
 import Foundation
 import Testing
 
-// Una respuesta hablada con tabla, lista o texto largo termina en la tarjeta
-// del documento, y la voz y el subtitulo no leen el markdown.
+// Una respuesta hablada con documento (show_document) termina en la tarjeta
+// del documento, en hold y en manos libres, y se queda lo bastante para
+// leerla. La voz y el subtitulo nunca leen markdown.
 
 @Test func speechMarkdownReadsATableRowAsItsCells() {
     let table = "| Modelo | Batería |\n|---|:---:|\n| iPhone 17 | 4 500 mAh |\n| Pixel 10 | 5 200 mAh |"
@@ -26,42 +27,52 @@ import Testing
              "voz: ninguna palabra se pega al salto de linea")
 }
 
-@Test func richnessFollowsTableListParagraphsAndLength() {
-    expect(ReplyRichness.isRich("| a | b |\n|---|---|\n| 1 | 2 |"), "rica: tabla")
-    expect(ReplyRichness.isRich("1. uno\n2. dos\n3. tres"), "rica: lista de tres")
-    expect(ReplyRichness.isRich("Primero esto.\n\nLuego aquello."), "rica: dos parrafos")
-    expect(ReplyRichness.isRich(String(repeating: "palabra ", count: 60)), "rica: larga")
-    expect(!ReplyRichness.isRich("Son las 3 en Tokio."), "corta: no es rica")
-    expect(!ReplyRichness.isRich("- uno\n- dos"), "corta: dos items no son lista")
-}
-
-@Test func theTurnKeepsRichUntilTheVoiceStopsAndDropsItOnTheNextUtterance() {
+@Test func theTurnKeepsTheDocumentUntilTheVoiceStopsAndDropsItOnTheNextUtterance() {
     var turn = TurnMachine(snapshot: TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true))
-    _ = turn.handle(.replyIsRich, at: 0)
+    _ = turn.handle(.replyHasDocument, at: 0)
     _ = turn.handle(.replyCompleted, at: 0)
     _ = turn.handle(.speechFinished, at: 0)
     expectEq(turn.snapshot.state, .listening, "manos libres: vuelve a escuchar")
-    expect(turn.snapshot.richReply, "manos libres: la respuesta rica llega hasta el snapshot")
+    expect(turn.snapshot.hasDocument, "manos libres: el documento llega hasta el snapshot")
     _ = turn.handle(.advance(hasSpeech: true), at: 1)
-    expect(!turn.snapshot.richReply, "manos libres: la siguiente frase la suelta")
+    expect(!turn.snapshot.hasDocument, "manos libres: la siguiente frase lo suelta")
+}
+
+// En vivo 2026-10-12 (caso 4): la voz leyo las filas de una tabla durante
+// 11 s y Karen pulso FN para cortarla; el corte se llevo el documento. El
+// contrato hace la frase corta, y este test fija que el corte es un corte.
+@Test func aPressWhileTheSentenceStillSoundsCutsTheReplyAndItsDocument() {
+    var turn = TurnMachine(snapshot: TurnSnapshot(
+        state: .speaking, pipeline: .classic, streamingStarted: true, holdArmed: true))
+    _ = turn.handle(.replyHasDocument, at: 0)
+    _ = turn.handle(.replyCompleted, at: 0)
+    let effects = turn.handle(.holdPressed(preferRealtime: false), at: 1)
+    expectEq(turn.snapshot.state, .listening, "corte: la pulsacion reabre el oido")
+    expect(effects.contains(.cancelAgentOutput(steer: true)), "corte: la voz se calla")
+    expect(!turn.snapshot.hasDocument, "corte: el documento se va con la respuesta cortada")
+    var m = SessionMachine()
+    _ = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true)))
+    _ = m.handle(.pressed)
+    _ = m.handle(.voice(turn.snapshot))
+    expectEq(m.projection.kind, .listening, "corte: la isla escucha, no muestra el documento")
 }
 
 private func speaking() -> SessionEvent {
     .voice(TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true))
 }
 
-@Test func aRichSpokenReplyEndsOnTheCompletedDocumentCard() {
+@Test func aSpokenDocumentEndsOnTheCompletedDocumentCardInAHold() {
     var m = SessionMachine()
     _ = m.handle(speaking())
-    let fx = m.handle(.voice(TurnSnapshot(state: .idle, richReply: true)))
-    expectEq(m.projection.kind, .processing(.completed), "voz rica: termina en completed")
+    let fx = m.handle(.voice(TurnSnapshot(state: .idle, hasDocument: true)))
+    expectEq(m.projection.kind, .processing(.completed), "hold: termina en completed")
     expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.voiceDocumentDelay, floor: nil)),
-           "voz rica: se queda lo bastante para leerla")
+           "hold: se queda lo bastante para leerlo")
     let island = IslandState.from(m.projection, pebbleHidden: false)
-    expectEq(island.size, .docCard, "voz rica: la tarjeta del documento")
-    expectEq(island.line, .completed, "voz rica: la linea de terminado")
+    expectEq(island.size, .docCard, "hold: la tarjeta del documento")
+    expectEq(island.line, .completed, "hold: la linea de terminado")
     _ = m.handle(.completedTimerExpired)
-    expectEq(m.projection.kind, .idle, "voz rica: el timer la despide")
+    expectEq(m.projection.kind, .idle, "hold: el timer lo despide")
 }
 
 @Test func aShortSpokenReplyGoesStraightToRest() {
@@ -74,9 +85,11 @@ private func speaking() -> SessionEvent {
 @Test func handsFreeKeepsListeningUnderTheCardAndANewUtteranceReplacesIt() {
     var m = SessionMachine()
     _ = m.handle(speaking())
-    _ = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic, richReply: true)))
+    _ = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic, hasDocument: true)))
     expectEq(m.projection.kind, .processing(.completed), "manos libres: la tarjeta queda")
     expectEq(m.projection.voice, .live, "manos libres: el microfono sigue vivo")
+    expectEq(IslandState.from(m.projection, pebbleHidden: false).size, .docCard,
+             "manos libres: la tarjeta del documento")
     _ = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic)))
     expectEq(m.projection.kind, .processing(.completed), "manos libres: otro snapshot no la pisa")
     _ = m.handle(.partialTranscript("y ahora"))
@@ -87,27 +100,21 @@ private func speaking() -> SessionEvent {
 @Test func handsFreeCardExpiryReturnsToListeningNotRest() {
     var m = SessionMachine()
     _ = m.handle(speaking())
-    _ = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic, richReply: true)))
+    _ = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic, hasDocument: true)))
     _ = m.handle(.completedTimerExpired)
     expectEq(m.projection.kind, .listening, "manos libres: al expirar sigue escuchando")
 }
 
 // En vivo 2026-10-12: la frase de entrada termino de sonar antes de que la
-// respuesta acabara de llegar; la marca de rica llego con la voz en reposo.
-@Test func theRichMarkArrivingAfterTheVoiceIsDoneStillLandsTheCard() {
+// respuesta acabara de llegar; la marca llego con la voz en reposo.
+@Test func theDocumentMarkArrivingAfterTheVoiceIsDoneStillLandsTheCard() {
     var turn = TurnMachine(snapshot: TurnSnapshot(state: .idle, pipeline: .classic))
-    _ = turn.handle(.replyIsRich, at: 0)
-    expect(turn.snapshot.richReply, "turno: la marca vale aunque la voz ya callo")
+    _ = turn.handle(.replyHasDocument, at: 0)
+    expect(turn.snapshot.hasDocument, "turno: la marca vale aunque la voz ya callo")
     var m = SessionMachine()
     _ = m.handle(speaking())
     _ = m.handle(.voice(TurnSnapshot(state: .idle)))
     expectEq(m.projection.kind, .idle, "voz: primero en reposo")
     _ = m.handle(.voice(turn.snapshot))
-    expectEq(m.projection.kind, .processing(.completed), "voz rica tardia: termina en el documento")
-}
-
-@Test func theSubtitleStopsWhereTheDocumentStarts() {
-    var lead = SpokenLead()
-    let said = lead.admit("Aquí tienes la comparación:\n\n| Procesador | A18 |\n|---|---|")
-    expectEq(said, "Aquí tienes la comparación:\n", "subtitulo: solo la entrada")
+    expectEq(m.projection.kind, .processing(.completed), "documento tardio: termina en la tarjeta")
 }

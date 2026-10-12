@@ -1,18 +1,10 @@
 import Foundation
 
 /// The one place markdown becomes words for the voice and the island's
-/// subtitle. The model writes tables, lists and emphasis for the card that
-/// shows the reply; the mouth and the subtitle must not read their pipes,
-/// markers or glued line breaks ("mAhCámara", "3.Vierte") out loud.
+/// subtitle. A document goes through `show_document` and is never spoken
+/// (`SpokenDocument`); this is the safety net for emphasis, a stray marker
+/// or a glued line break ("mAhCámara", "3.Vierte") in what IS spoken.
 package enum SpeechMarkdown {
-    /// A table or list the model wrapped in a ```markdown fence is still the
-    /// document, not code: unwrapped, it renders and counts as rich.
-    package static func unfenced(_ text: String) -> String {
-        text.replacingOccurrences(
-            of: #"[ \t]*```(?:markdown|md)[ \t]*\n?([\s\S]*?)\n?```"#, with: "\n\n$1\n",
-            options: .regularExpression)
-    }
-
     package enum Kind: Sendable, Equatable {
         case text
         case bullet
@@ -97,41 +89,5 @@ package enum SpeechMarkdown {
         out = out.replacingOccurrences(
             of: #"(?<!\w)_(?=\S)([^_\n]+?)(?<=\S)_(?!\w)"#, with: "$1", options: .regularExpression)
         return out.split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
-    }
-}
-
-/// Whether a spoken reply is worth leaving on screen as the finished
-/// document once it has been said: a short answer ("son las 3 en Tokio")
-/// is gone with the voice, a table, a list or a long text is something to
-/// keep reading or copy.
-package enum ReplyRichness {
-    /// About 50 words, 20 seconds of speech: past it the voice has said more
-    /// than anyone holds in their head.
-    package static let longReplyChars = 320
-    package static let minListItems = 3
-    package static let minParagraphs = 2
-
-    package static func isRich(_ reply: String) -> Bool {
-        let text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return false }
-        // A card the voice pointed at (a table, a map) is there to be looked at.
-        if text.count > longReplyChars || SpeechBudget.hasCard(in: text) { return true }
-        var items = 0
-        var rows = 0
-        var separator = false
-        for raw in text.split(whereSeparator: \.isNewline) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if SpeechMarkdown.isTableLine(line), SpeechMarkdown.isSeparator(line) { separator = true }
-            guard let parsed = SpeechMarkdown.line(line) else { continue }
-            switch parsed.kind {
-            case .row: rows += 1
-            case .bullet, .ordered: items += 1
-            case .text: break
-            }
-        }
-        if separator || rows >= 2 || items >= minListItems { return true }
-        let paragraphs = text.components(separatedBy: "\n\n")
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        return paragraphs.count >= minParagraphs
     }
 }
