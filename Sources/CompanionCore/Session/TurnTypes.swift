@@ -51,6 +51,12 @@ package struct TurnSnapshot: Sendable, Equatable {
     /// cutting. It lives as long as that turn task does: hang-ups and
     /// failures keep it, and only a cut, a new turn or the resume clear it.
     package var sheetParked: Bool
+    /// The reply being spoken is worth keeping on screen once said (a table,
+    /// a list, a long text; `ReplyRichness`). The session reads it when the
+    /// voice stops speaking, so the island lands on the finished document
+    /// instead of dropping to rest. Anything that is not the end of that
+    /// reply clears it.
+    package var richReply: Bool
 
     package init(
         state: TurnState = .idle,
@@ -66,8 +72,10 @@ package struct TurnSnapshot: Sendable, Equatable {
         classicListenPending: Bool = false,
         failure: TurnFailure? = nil,
         holdArmed: Bool = false,
-        sheetParked: Bool = false
+        sheetParked: Bool = false,
+        richReply: Bool = false
     ) {
+        self.richReply = richReply
         self.state = state
         self.pipeline = pipeline
         self.muted = muted
@@ -104,6 +112,8 @@ package enum TurnEvent: Sendable, Equatable {
     case speechFinished
     case speechFailed
     case replyCompleted
+    /// The reply just written is rich (`ReplyRichness`); sent before `replyCompleted`.
+    case replyIsRich
     case delegateAnnounced
     case serverSpeechStarted
     case serverSpeechStopped

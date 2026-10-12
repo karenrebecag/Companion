@@ -15,7 +15,11 @@ package struct TurnMachine: Sendable, Equatable {
     }
 
     package mutating func handle(_ event: TurnEvent, at now: TimeInterval) -> [TurnEffect] {
+        if snapshot.richReply, !Self.keepsRichReply(event) { snapshot.richReply = false }
         switch event {
+        case .replyIsRich:
+            if snapshot.state == .thinking || snapshot.state == .speaking { snapshot.richReply = true }
+            return []
         case .startVoice(let preferRealtime): return startVoice(preferRealtime)
         case .advance(let hasSpeech): return advance(hasSpeech)
         case .typedSubmit: return typedSubmit()
@@ -50,6 +54,21 @@ package struct TurnMachine: Sendable, Equatable {
         case .interrupt: return interrupt()
         case .sheetParked: return sheetParked()
         case .sheetResumed: return sheetResumed()
+        }
+    }
+}
+
+extension TurnMachine {
+    /// The events between the reply being written and its voice landing at
+    /// rest or listening. Any other one (a press, a barge-in, a new
+    /// utterance, a hang-up) means that reply is not the one left on screen.
+    private static func keepsRichReply(_ event: TurnEvent) -> Bool {
+        switch event {
+        case .replyIsRich, .replyCompleted, .speechFinished, .classicListenArmed,
+             .delegateAnnounced, .sheetParked, .sheetResumed:
+            true
+        default:
+            false
         }
     }
 }

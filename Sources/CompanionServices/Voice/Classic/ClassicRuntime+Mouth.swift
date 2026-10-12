@@ -130,7 +130,11 @@ struct TurnMouth {
 extension ClassicRuntime {
     /// Every cut reaches the synthesizer through here, past the language
     /// gate. The log counts what was dropped, never what it said.
-    func say(_ cut: String, _ mouth: inout TurnMouth) async {
+    func say(_ rawCut: String, _ mouth: inout TurnMouth) async {
+        // Before the language gate: table pipes and list markers read as
+        // foreign noise and got whole sentences dropped.
+        let cut = SpeechMarkdown.plain(rawCut)
+        guard !cut.isEmpty else { return }
         let before = mouth.gate.dropped.count
         let kept = mouth.gate.admit(cut)
         for dropped in mouth.gate.dropped[before...] {

@@ -74,6 +74,22 @@ extension SessionMachine {
         return []
     }
 
+    /// The voice just stopped speaking a reply that is worth keeping: the one
+    /// place a spoken turn decides between the finished document and rest.
+    /// A job, a typed turn or a press in progress keep the island.
+    func landsRichReply(_ snapshot: TurnSnapshot) -> Bool {
+        snapshot.richReply && projection.kind == .processing(.speaking)
+            && projection.job == nil && !typedBusy && !projection.holding
+    }
+
+    /// Completed with the same card a typed reply gets, and the same settle.
+    mutating func landRichReply() -> [SessionEffect] {
+        turnOver()
+        voiceCardUp = true
+        projection.kind = .processing(.completed)
+        return completedExpiry()
+    }
+
     /// A snapshot of the voice, landed on the chrome.
     mutating func observe(_ snapshot: TurnSnapshot) -> [SessionEffect] {
         voice = snapshot
@@ -93,6 +109,10 @@ extension SessionMachine {
             }
             if projection.kind == .listening { projection.kind = .idle }
         case .listening:
+            if landsRichReply(snapshot) { return landRichReply() }
+            // The card stays up while the mic keeps listening; the next
+            // utterance's words or thinking replace it.
+            if voiceCardUp { break }
             openTurn()
             // Every door into a turn starts the reel fresh (review 16m H1):
             // typed, hold, provisional hold, and this — the voice runtime.
@@ -107,6 +127,7 @@ extension SessionMachine {
             // Clearing holding here dropped FN-up (live 2026-09-07).
             if projection.holding { break }
             projection.holding = false
+            if landsRichReply(snapshot) { return landRichReply() }
             turnOver()
             if projection.job != nil {
                 projection.kind = .processing(.subAgentRunning)
