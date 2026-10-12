@@ -259,8 +259,27 @@ extension MarkdownSplitter {
         return fences.count % 2 == 1
     }
 
+    /// The voice brain glues a card fence to its sentence and its JSON
+    /// ("línea.```companion:x {…}```") and invents kinds: a card the user
+    /// should see painted as raw code instead (live 2026-10-12). Only
+    /// companion fences are touched; code fences keep their exact shape.
+    package static func normalizedCardFences(_ text: String) -> String {
+        guard text.contains("```companion:") else { return text }
+        var out = text.replacingOccurrences(
+            of: #"([^\n])```companion:"#, with: "$1\n```companion:", options: .regularExpression)
+        out = out.replacingOccurrences(
+            of: #"```(companion:[\w-]+)[ \t]+"#, with: "```$1\n", options: .regularExpression)
+        out = out.replacingOccurrences(
+            of: #"(```companion:[\w-]+\n\{[\s\S]*?\})[ \t]*```"#, with: "$1\n```", options: .regularExpression)
+        // A question with options under a made-up name is still the choice card.
+        return out.replacingOccurrences(
+            of: #"```companion:(?!choice|table|stats|chart|locations|gallery|diagram)[\w-]+\n(\{\s*"question")"#,
+            with: "```\(CompanionBlocks.choiceLanguage)\n$1", options: .regularExpression)
+    }
+
     /// An unclosed fence is code through the end: streaming arrives half-done.
     static func splitFences(_ text: String) -> [Kind] {
+        let text = normalizedCardFences(text)
         var kinds: [Kind] = []
         var inCode = false
         var lang = ""

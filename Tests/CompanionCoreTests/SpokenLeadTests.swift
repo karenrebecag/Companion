@@ -86,3 +86,14 @@ private func spoken(_ deltas: [String]) -> (said: String, open: Bool) {
     expect(SpeechBudget.hasCard(in: reply), "tarjeta: la tabla pinta")
     expect(ReplyRichness.isRich(reply), "tarjeta: rica")
 }
+
+// En vivo 2026-10-12: la pregunta llego pegada a la frase, con un nombre
+// inventado, y el documento la pinto como codigo crudo.
+@Test func aGluedCardFenceWithAMadeUpKindBecomesTheChoiceCard() {
+    let reply = "Voy a crear la tabla.```companion:handing-off-work {\"question\":\"¿PDF o web?\",\"options\":[{\"label\":\"PDF\"},{\"label\":\"Web\"}]}```"
+    let fixed = MarkdownSplitter.normalizedCardFences(reply)
+    expectEq(fixed, "Voy a crear la tabla.\n```companion:choice\n{\"question\":\"¿PDF o web?\",\"options\":[{\"label\":\"PDF\"},{\"label\":\"Web\"}]}\n```",
+             "tarjeta: en su linea, con su nombre real")
+    expectEq(MarkdownSplitter.normalizedCardFences("```swift\nlet a = 1\n```"), "```swift\nlet a = 1\n```",
+             "el codigo no se toca")
+}

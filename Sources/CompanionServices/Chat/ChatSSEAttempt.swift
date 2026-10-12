@@ -215,6 +215,9 @@ private func makeBody(
     if let effort = provider.reasoningEffort {
         body["reasoning_effort"] = effort
     }
+    if let format = provider.reasoningFormat {
+        body["reasoning_format"] = format
+    }
     if !tools.isEmpty {
         var encoded: [Any] = []
         for spec in tools {

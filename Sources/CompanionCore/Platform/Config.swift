@@ -35,6 +35,9 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
     /// only for the descriptor that asks for it (the hold's fast brain) —
     /// never guessed for a model that never mentioned it.
     package var reasoningEffort: String?
+    /// nil = do not send the field. "hidden" keeps gpt-oss's thinking out of
+    /// the content, where the mouth had to catch it as foreign text.
+    package var reasoningFormat: String?
 
     package init(
         id: String,
@@ -43,7 +46,8 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         model: String,
         secretKey: SecretKey?,
         temperature: Double? = 0.7,
-        reasoningEffort: String? = nil
+        reasoningEffort: String? = nil,
+        reasoningFormat: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -52,6 +56,7 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         self.secretKey = secretKey
         self.temperature = temperature
         self.reasoningEffort = reasoningEffort
+        self.reasoningFormat = reasoningFormat
     }
 
     /// Whether the provider takes `strict: true` on a function tool. Known
@@ -85,7 +90,8 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         model: "gpt-oss-120b",
         secretKey: .cerebras,
         temperature: nil,
-        reasoningEffort: "low"
+        reasoningEffort: "low",
+        reasoningFormat: "hidden"
     )
 
     package static let openRouter = ProviderDescriptor(

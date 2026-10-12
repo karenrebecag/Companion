@@ -55,8 +55,8 @@ private func speaking() -> SessionEvent {
     _ = m.handle(speaking())
     let fx = m.handle(.voice(TurnSnapshot(state: .idle, richReply: true)))
     expectEq(m.projection.kind, .processing(.completed), "voz rica: termina en completed")
-    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.settleDelay, floor: SessionMachine.settleFloor)),
-           "voz rica: se cierra como la tecleada")
+    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.voiceDocumentDelay, floor: nil)),
+           "voz rica: se queda lo bastante para leerla")
     let island = IslandState.from(m.projection, pebbleHidden: false)
     expectEq(island.size, .docCard, "voz rica: la tarjeta del documento")
     expectEq(island.line, .completed, "voz rica: la linea de terminado")

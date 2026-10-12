@@ -1,0 +1,1 @@
+- 2026-10-12: el documento de una respuesta de voz se queda 12 s (el cursor encima lo sostiene); una tarjeta pegada a la frase o con un nombre inventado se pinta como tarjeta y no como codigo; Cerebras devuelve el razonamiento oculto en vez de mezclarlo con la respuesta.

@@ -11,6 +11,8 @@ package struct SessionMachine: Sendable, Equatable {
     package static let settleDelay: TimeInterval = 0.2
     /// 1.5 s, Incredible's settle floor (local reference; brief isla-ciclo-y-legibilidad K1).
     package static let settleFloor: TimeInterval = 1.5
+    /// A spoken table or list is read after the voice stops; hover holds it longer.
+    package static let voiceDocumentDelay: TimeInterval = 12
     /// How long the hands aura outlives the last executed bridge call: long
     /// enough to bridge the gap between an agent's consecutive steps without
     /// flicker, short enough that an idle-but-open session goes dark.

@@ -90,7 +90,11 @@ extension SessionMachine {
         turnOver()
         voiceCardUp = true
         projection.kind = .processing(.completed)
-        return completedExpiry()
+        // The typed settle (0.2 s past a 1.5 s floor) closed a spoken
+        // document before a line of it could be read (live 2026-10-12).
+        if settleBlocked { return [] }
+        if settleHeld { return [.pauseCompletedExpiry] }
+        return [.scheduleCompletedExpiry(Self.voiceDocumentDelay, floor: nil)]
     }
 
     /// A snapshot of the voice, landed on the chrome.
