@@ -114,6 +114,30 @@ package enum SpokenNo {
     ]
 }
 
+/// "Parar es parar": an utterance that is only an order to stop ends the turn
+/// in silence. Judged as narrowly as the answers above, because "para" is
+/// also a preposition: it counts only when it is the whole utterance. "no" is
+/// deliberately absent, it answers an approval sheet and `SpokenNo` owns it.
+// HACK: a word list is the whole judgment. It misses other ways to say stop
+// and cannot tell "ya" said as a hesitation. Upgrade trigger: the decision
+// router (DM1) classifies a stop from the words and replaces this.
+package enum SpokenStop {
+    package static func stops(_ said: String) -> Bool {
+        guard let (_, words) = SpokenAnswer.words(said) else { return false }
+        return SpokenAnswer.matches(words, answers: stopWords, polite: politeWords, phrases: phrases)
+    }
+
+    private static let stopWords: Set<String> = [
+        "para", "parale", "detente", "basta", "ya", "callate", "silencio", "alto", "cancela",
+        "stop",
+    ]
+    private static let politeWords: Set<String> = ["please", "porfa", "gracias", "thanks"]
+    private static let phrases: [SpokenAnswer.Phrase] = [
+        (["stop", "it"], false), (["be", "quiet"], false),
+        (["por", "favor"], true), (["thank", "you"], true),
+    ]
+}
+
 /// The shape both answers share: a few words said, no question, every word
 /// on the answer's own closed list, and at least one real answer word.
 enum SpokenAnswer {

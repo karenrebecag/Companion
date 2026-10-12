@@ -25,6 +25,10 @@ final class ClassicRuntime: @unchecked Sendable {
     /// Wave 14b: the hold's specialist. Nil means do not advertise `delegate`.
     var onDelegate: (@Sendable (Handoff) -> Void)?
     var onStopJob: (@Sendable () async -> Void)?
+    /// A hold that was only "para": the session stops everything and answers
+    /// true when it took the turn. False (a sheet is waiting) leaves the words
+    /// to the ordinary path.
+    var onSpokenStop: (@Sendable () async -> Bool)?
     var onResolveApproval: (@Sendable (Bool) async -> SpokenApproval)?
     /// 16q-1 review (security M3): the words of the hold this turn answers,
     /// reported before the model runs so a spoken yes is checked against what
@@ -342,6 +346,12 @@ final class ClassicRuntime: @unchecked Sendable {
         // it must not thread them, leave a note, or take the `pressedContext`
         // the press that cut it just created for the next hold.
         if Task.isCancelled { return }
+        if SpokenStop.stops(heard), await onSpokenStop?() == true {
+            // A stop is not a change of course: the cut turn's steer note
+            // must not color whatever she says next (R3).
+            _ = takeSteerPending()
+            return
+        }
         let generation = currentTurnGeneration()
         // 15b-11: consumed exactly once by whichever turn comes next —
         // cleared here even when the router below ends up handling it and
