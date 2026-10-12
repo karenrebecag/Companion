@@ -53,9 +53,11 @@ struct IslandReply: View {
     enum Look: Equatable {
         case answer, transcript, thread
 
-        var size: CGFloat {
-            self == .answer ? TypeSize.strong : TypeSize.base
-        }
+        /// One step for every reply: the bar's answer used the 16 pt strong
+        /// step, so the same words read bigger there than in the thread. The
+        /// Incredible CSS the layout follows sets speech smaller, not larger
+        /// (docs/research/isla-maquetacion-incredible.md, D3).
+        var size: CGFloat { TypeSize.base }
 
         var alignment: TextAlignment { self == .transcript ? .center : .leading }
 
@@ -96,14 +98,14 @@ struct IslandReply: View {
     static let transcriptSpacing = AnswerBlockMetrics.lineSpacing(
         size: TypeSize.base, leading: WorkStateMetrics.transcriptLeading)
 
-    /// A reply in the thread shares the user bubbles' leading (CompanionUIPro's
+    /// A reply in the thread, and the bar's answer, share the user bubbles' leading (CompanionUIPro's
     /// `AIThreadMetrics.bubbleLineSpacing`, internal to the package); the
     /// transcript's 1.5 leading made it read almost double-spaced next to them.
     static let threadSpacing: CGFloat = 3
 
     static func lineSpacing(for look: Look) -> CGFloat {
         switch look {
-        case .answer: Space.x1
+        case .answer: threadSpacing
         case .transcript: transcriptSpacing
         case .thread: threadSpacing
         }

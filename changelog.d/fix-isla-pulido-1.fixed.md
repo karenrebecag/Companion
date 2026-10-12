@@ -1,0 +1,1 @@
+- **La respuesta de la tarjeta de la isla se lee igual que en el hilo (2026-10-12).** Antes la tarjeta "Listo" pintaba la respuesta en 16 pt con 4 de interlineado y el hilo en 13 pt con 3; ahora las dos usan el mismo escalon e interlineado.
