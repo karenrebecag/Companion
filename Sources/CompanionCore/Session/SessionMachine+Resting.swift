@@ -77,9 +77,12 @@ extension SessionMachine {
     /// The voice just stopped speaking a reply that is worth keeping: the one
     /// place a spoken turn decides between the finished document and rest.
     /// A job, a typed turn or a press in progress keep the island.
-    func landsRichReply(_ snapshot: TurnSnapshot) -> Bool {
-        snapshot.richReply && projection.kind == .processing(.speaking)
-            && projection.job == nil && !typedBusy && !projection.holding
+    /// A short lead is often over before the reply has finished streaming,
+    /// so the rich mark can arrive with the voice already at rest or
+    /// listening: that arrival lands the card too (live 2026-10-12).
+    func landsRichReply(_ snapshot: TurnSnapshot, becameRich: Bool) -> Bool {
+        guard snapshot.richReply, projection.job == nil, !typedBusy, !projection.holding else { return false }
+        return projection.kind == .processing(.speaking) || becameRich
     }
 
     /// Completed with the same card a typed reply gets, and the same settle.
@@ -92,6 +95,7 @@ extension SessionMachine {
 
     /// A snapshot of the voice, landed on the chrome.
     mutating func observe(_ snapshot: TurnSnapshot) -> [SessionEffect] {
+        let becameRich = snapshot.richReply && !voice.richReply
         voice = snapshot
         projection.pipeline = snapshot.pipeline
         projection.voice = Self.status(of: snapshot)
@@ -109,7 +113,7 @@ extension SessionMachine {
             }
             if projection.kind == .listening { projection.kind = .idle }
         case .listening:
-            if landsRichReply(snapshot) { return landRichReply() }
+            if landsRichReply(snapshot, becameRich: becameRich) { return landRichReply() }
             // The card stays up while the mic keeps listening; the next
             // utterance's words or thinking replace it.
             if voiceCardUp { break }
@@ -127,7 +131,7 @@ extension SessionMachine {
             // Clearing holding here dropped FN-up (live 2026-09-07).
             if projection.holding { break }
             projection.holding = false
-            if landsRichReply(snapshot) { return landRichReply() }
+            if landsRichReply(snapshot, becameRich: becameRich) { return landRichReply() }
             turnOver()
             if projection.job != nil {
                 projection.kind = .processing(.subAgentRunning)

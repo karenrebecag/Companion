@@ -14,7 +14,10 @@ enum IslandReplyText {
         // Code is not spoken, so it does not paint either. `islandProse`
         // reads a bounded window, so the cost per streamed token stays
         // bounded (security review 16f).
-        let prose = MarkdownSplitter.islandProse(reply)
+        // Only what the voice says: a table or list under the lead is the
+        // document's, and the subtitle reading its rows says what the voice did not.
+        var lead = SpokenLead()
+        let prose = MarkdownSplitter.islandProse(lead.admit(reply))
             .replacingOccurrences(of: #"```[\s\S]*?```"#, with: "\n\n", options: .regularExpression)
         let paragraphs = SpeechFilter.clean(prose)
             .components(separatedBy: "\n\n")

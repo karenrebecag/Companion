@@ -18,7 +18,8 @@ package struct TurnMachine: Sendable, Equatable {
         if snapshot.richReply, !Self.keepsRichReply(event) { snapshot.richReply = false }
         switch event {
         case .replyIsRich:
-            if snapshot.state == .thinking || snapshot.state == .speaking { snapshot.richReply = true }
+            // The lead may already be said: the mark still belongs to this reply.
+            if snapshot.state != .error { snapshot.richReply = true }
             return []
         case .startVoice(let preferRealtime): return startVoice(preferRealtime)
         case .advance(let hasSpeech): return advance(hasSpeech)

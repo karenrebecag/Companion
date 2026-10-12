@@ -91,3 +91,23 @@ private func speaking() -> SessionEvent {
     _ = m.handle(.completedTimerExpired)
     expectEq(m.projection.kind, .listening, "manos libres: al expirar sigue escuchando")
 }
+
+// En vivo 2026-10-12: la frase de entrada termino de sonar antes de que la
+// respuesta acabara de llegar; la marca de rica llego con la voz en reposo.
+@Test func theRichMarkArrivingAfterTheVoiceIsDoneStillLandsTheCard() {
+    var turn = TurnMachine(snapshot: TurnSnapshot(state: .idle, pipeline: .classic))
+    _ = turn.handle(.replyIsRich, at: 0)
+    expect(turn.snapshot.richReply, "turno: la marca vale aunque la voz ya callo")
+    var m = SessionMachine()
+    _ = m.handle(speaking())
+    _ = m.handle(.voice(TurnSnapshot(state: .idle)))
+    expectEq(m.projection.kind, .idle, "voz: primero en reposo")
+    _ = m.handle(.voice(turn.snapshot))
+    expectEq(m.projection.kind, .processing(.completed), "voz rica tardia: termina en el documento")
+}
+
+@Test func theSubtitleStopsWhereTheDocumentStarts() {
+    var lead = SpokenLead()
+    let said = lead.admit("Aquí tienes la comparación:\n\n| Procesador | A18 |\n|---|---|")
+    expectEq(said, "Aquí tienes la comparación:\n", "subtitulo: solo la entrada")
+}
