@@ -32,6 +32,10 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
     /// What the last start attempt used. `voiceProcessing` is cleared by the
     /// teardown a failed start runs, so the retry decision cannot read it.
     private var attemptedVoiceProcessing = false
+    /// The last start ran on an engine kept from a previous stop. A kept
+    /// engine can go stale while closed (no config observer between holds),
+    /// so its failure earns one clean rebuild before giving up.
+    private var reusedKeptEngine = false
     private var vetoVoiceProcessing = false
     private var running = false
     private var didReceive = false
@@ -118,6 +122,12 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
                 return nil
             } catch VoiceTransportError.unreachable {
                 let plan = plainRetry()
+                if !plan.retry, reusedKeptEngine {
+                    Log.app("audio: kept engine unusable, rebuilding once")
+                    discardEngine()
+                    try startOnce()
+                    return nil
+                }
                 guard plan.retry else { throw VoiceTransportError.unreachable }
                 return (plan.persistVeto, currentTicket())
             }
@@ -180,7 +190,7 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
         Log.app("audio: HAL back after \(waited * 100) ms")
     }
 
-    package func stop() async { queue.sync { halt() } }
+    package func stop() async { queue.sync { halt(keepingPlainEngine: true) } }
 
     /// Wave 12c: build the engine and enable voice processing at boot so
     /// the first hold does not pay for it. Only with the mic already
@@ -228,6 +238,8 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
                 + "format=\(Int(format.sampleRate))Hz ch=\(format.channelCount)")
         guard format.sampleRate > 0 else {
             Log.app("audio: mic input format is 0 Hz — graph unusable")
+            // An engine that saw 0 Hz keeps it: never keep it for the next hold.
+            built = nil
             throw VoiceTransportError.unreachable
         }
 
@@ -322,6 +334,7 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
         let want = echoCancellation && !vetoVoiceProcessing && !voiceProcessingOffThisSession
         let action = MicEnginePlan.decide(
             built: engine == nil ? nil : built, wantedInput: input, wantVoiceProcessing: want)
+        reusedKeptEngine = action == .reuse
         guard action == .rebuild else { return }
         rebuildEngine()
         if want, let engine { enableVoiceProcessing(on: engine, input: input) }
@@ -456,14 +469,17 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
         built = nil
     }
 
-    private func halt() {
+    /// `keepingPlainEngine` is only for a deliberate stop: the engine is
+    /// stopped with no tap (mic closed) but kept built, so the next hold skips
+    /// the ~26 ms rebuild. Failure and route-change halts still start clean.
+    private func halt(keepingPlainEngine: Bool = false) {
         running = false
         // Queued restarts were raised against a mic that is no longer open.
         gateLock.withLock { gate.invalidate() }
-        tearDownEngine()
+        tearDownEngine(keepingPlainEngine: keepingPlainEngine)
     }
 
-    private func tearDownEngine() {
+    private func tearDownEngine(keepingPlainEngine: Bool = false) {
         follower?.end()
         follower = nil
         if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
@@ -485,7 +501,7 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
         // next start reuse an engine that no longer matched them.
         voiceProcessing = false
         muteMixer = nil
-        built = nil
+        built = keepingPlainEngine ? MicEnginePlan.buildAfterStop(built) : nil
     }
 
     private func tameVoiceProcessing(_ engine: AVAudioEngine) {

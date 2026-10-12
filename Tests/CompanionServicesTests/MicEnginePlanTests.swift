@@ -39,6 +39,13 @@ private let built = MicEngineBuild(input: 5, voiceProcessing: true)
                  .reuse, "plano y mismo dispositivo: se conserva")
     }
 
+    @Test func aStoppedPlainEngineKeepsItsBuildButVoiceProcessingDoesNot() {
+        let plain = MicEngineBuild(input: 5, voiceProcessing: false)
+        expectEq(MicEnginePlan.buildAfterStop(plain), plain, "plano: el siguiente start lo reutiliza")
+        expectEq(MicEnginePlan.buildAfterStop(built), nil, "con VPIO el pin se pierde: se reconstruye")
+        expectEq(MicEnginePlan.buildAfterStop(nil), nil, "sin motor no hay nada que conservar")
+    }
+
     @Test func anUnresolvedInputKeepsAnEngineBuiltWithoutOne() {
         let blind = MicEngineBuild(input: nil, voiceProcessing: false)
         expectEq(MicEnginePlan.decide(built: blind, wantedInput: nil, wantVoiceProcessing: false),

@@ -1,0 +1,1 @@
+- **El micrófono abre más rápido al mantener fn (2026-10-12).** Entre una pulsación y la siguiente la app conserva el motor de audio ya preparado en vez de reconstruirlo, así que la voz empieza a escucharse unos 26 ms antes. El micrófono sigue cerrándose al soltar.
