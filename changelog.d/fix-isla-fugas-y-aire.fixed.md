@@ -1,0 +1,1 @@
+- **Los encargos ya no muestran nombres internos (2026-10-12).** Los pasos como "ToolSearch: select:WebSearch" dejan de aparecer y las herramientas desconocidas se leen como una frase corta en vez de su nombre.

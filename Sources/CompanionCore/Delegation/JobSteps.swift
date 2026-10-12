@@ -55,6 +55,13 @@ package enum JobSteps: Sendable {
         }
     }
 
+    /// Tools that only load other tools: bookkeeping of the specialist, not
+    /// something the user would call a step. Dropped where steps enter the
+    /// timeline so the count, the last step and the rows all agree.
+    package static func isHidden(_ tool: String) -> Bool {
+        tool == "ToolSearch"
+    }
+
     /// The tool name a thought travels under, so a step is a step everywhere.
     package enum Thinking {
         package static let tool = "Thinking"

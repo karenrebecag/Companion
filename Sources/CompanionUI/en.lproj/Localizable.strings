@@ -910,6 +910,9 @@
 "agentrun.plan.done.bare" = "Planned the steps";
 "agentrun.plan.failed" = "Couldn't plan %@";
 "agentrun.plan.failed.bare" = "Couldn't plan";
+"agentrun.other.active.bare" = "Working on a step";
+"agentrun.other.done.bare" = "Worked on a step";
+"agentrun.other.failed.bare" = "Couldn't finish a step";
 "agentrun.folded.one" = "%d earlier step";
 "agentrun.folded" = "%d earlier steps";
 "orb.idle" = "Companion is idle";

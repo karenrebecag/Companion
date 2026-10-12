@@ -47,9 +47,13 @@ private func step(_ tool: String, _ summary: String = "", done: Bool = false, fa
     expectEq(rows[0].title, "Ejecutando un comando", "sin objeto: el verbo solo")
 }
 
-@Test @MainActor func anUnknownToolKeepsItsCleanedLabel() {
-    let rows = AgentRunModel.steps(steps: [step("Misterio", "algo\u{202E}raro", id: "a")], now: t0, language: .es)
-    expectEq(rows[0].title, "Misterio: algoraro", "desconocida: la etiqueta limpia")
+@Test @MainActor func anUnknownToolNeverLeaksItsNameOrArguments() {
+    let rows = AgentRunModel.steps(steps: [
+        step("Misterio", "algo\u{202E}raro", id: "a"),
+        step("mcp__webflow__list", "select:x", done: true, id: "b", end: 1),
+    ], now: t0, language: .es)
+    expectEq(rows[0].title, "Trabajando en un paso", "desconocida: frase generica")
+    expectEq(rows[1].title, "Hizo un paso", "desconocida hecha: frase generica en pasado")
 }
 
 @Test @MainActor func englishTitlesToo() {

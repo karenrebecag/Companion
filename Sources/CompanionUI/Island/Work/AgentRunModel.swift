@@ -25,7 +25,7 @@ enum AgentRunKind: Equatable {
         }
     }
 
-    fileprivate var key: String? {
+    fileprivate var key: String {
         switch self {
         case .search: "search"
         case .web: "web"
@@ -36,7 +36,7 @@ enum AgentRunKind: Equatable {
         case .run: "run"
         case .delegate: "delegate"
         case .plan: "plan"
-        case .other: nil
+        case .other: "other"
         }
     }
 }
@@ -103,14 +103,15 @@ enum AgentRunModel {
 
     private static func title(kind: AgentRunKind, info: JobStepInfo, status: AgentRunStep.Status,
                               language: AppLanguage) -> String {
-        let cleaned = RunCardModel.goal(info.label)
-        guard let kind = kind.key else { return cleaned }
+        let kind = kind.key
         let tense = switch status {
         case .active: "active"
         case .done: "done"
         case .failed: "failed"
         }
-        let object = summary(of: info)
+        // An unknown tool's name and arguments are the specialist's internals
+        // ("mcp__x__y: select:..."): the user gets a plain sentence instead.
+        let object = kind == "other" ? nil : summary(of: info)
         let key = "agentrun.\(kind).\(tense)" + (object == nil ? ".bare" : "")
         let format = Localized.string(key, language: language)
         return object.map { String(format: format, $0) } ?? format
