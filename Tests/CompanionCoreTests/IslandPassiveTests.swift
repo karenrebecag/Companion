@@ -63,7 +63,8 @@ private func projection(_ phase: SessionPhase, _ presence: Presence) -> SessionP
     hands.handsLentTo = "Claude Code"
     let lent = IslandState.from(hands, pebbleHidden: false)
     expectEq(lent.hands, "Claude Code", "el chip de manos sigue")
-    expectEq(lent.size, .nudge, "con lugar donde verse")
+    expectEq(lent.size, IslandState.from(projection(.toolExecuting, .passive), pebbleHidden: false).size,
+             "prestar las manos no agranda la isla")
 }
 
 // What the user started is theirs: a dictation is never quieted, and in passive a

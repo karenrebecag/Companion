@@ -178,18 +178,12 @@ package struct IslandState: Sendable, Equatable {
             state.size = .card
             state.approval = mainInFront ? nil : approval
         }
-        // Wave 17: the chip needs somewhere to live even at rest — but never
-        // shrinks a sheet already showing (`size` is `.card` by the time the
-        // approval block above runs, so this `hidden`/`pebble` check never
-        // fires while one is up).
-        if let client = p.handsLentTo {
-            state.hands = client
-            if state.size == .hidden || state.size == .pebble {
-                state.size = .nudge
-            }
-        }
-        // A receipt rides alongside whatever the chrome is doing, like the
-        // hands chip: the undo must be findable even while a turn speaks.
+        // Lent hands never grow the island: nothing paints `hands`, and `.nudge`
+        // paints the full panel, which stayed open for the whole bridge session.
+        // At rest the indicator is the screen aura.
+        if let client = p.handsLentTo { state.hands = client }
+        // A receipt rides alongside whatever the chrome is doing: the
+        // undo must be findable even while a turn speaks.
         if let receipt = p.receipt {
             state.receipt = receipt
             if state.size == .hidden || state.size == .pebble { state.size = .nudge }

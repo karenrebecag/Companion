@@ -14,7 +14,7 @@ import Testing
         testHandsLentRoundTrips()
         testHandsActedBumpsThePulseAndWraps()
         testHandsLentDoesNotTouchOtherFields()
-        testIslandShowsTheHandsClientAndGrowsTheChrome()
+        testIslandKeepsRestingSizeWhileHandsAreLent()
         testIslandLeavesACardSheetAloneButStillSetsHands()
         testIslandWithoutASessionHasNoHandsChip()
         testHandsLendingPreferenceDefaultsToOffAndNotifiesOnRealChangeOnly()
@@ -56,14 +56,19 @@ import Testing
     expectEq(m.projection.handsLentTo, "Claude Code", "handsLent: sigue prestado tras un turno")
 }
 
-/// spec §3 "Se ve": the chip needs somewhere to live even at rest (hidden or
-/// pebble grow to nudge), and never shrinks a bigger size that is already up.
-@MainActor func testIslandShowsTheHandsClientAndGrowsTheChrome() {
+/// Nothing paints `state.hands`, and `.nudge` paints the full panel: growing the
+/// island for the chip left the chat open for the whole bridge session. At rest
+/// the hands indicator is the screen aura, so the size must stay the resting one.
+@MainActor func testIslandKeepsRestingSizeWhileHandsAreLent() {
     var idle = SessionProjection()
     idle.handsLentTo = "Claude Code"
     let atRest = IslandState.from(idle, pebbleHidden: true)
-    expectEq(atRest.hands, "Claude Code", "isla: el chip lleva el cliente")
-    expectEq(atRest.size, .nudge, "isla: pebble/hidden crecen a nudge para el chip")
+    expectEq(atRest.hands, "Claude Code", "isla: el estado lleva el cliente")
+    expectEq(atRest.size, IslandState.from(SessionProjection(), pebbleHidden: true).size,
+             "isla: prestar las manos no cambia el tamano en reposo (hidden)")
+    let pebble = IslandState.from(idle, pebbleHidden: false)
+    expectEq(pebble.size, IslandState.from(SessionProjection(), pebbleHidden: false).size,
+             "isla: prestar las manos no cambia el tamano en reposo (pebble)")
 
     var listening = SessionProjection()
     listening.kind = .listening
