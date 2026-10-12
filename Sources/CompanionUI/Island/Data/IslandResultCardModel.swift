@@ -17,17 +17,6 @@ enum IslandResultCardModel {
 
     static let titleMax = 60
 
-    /// A receipt line is something Companion did and could say it did.
-    static func steps(receipt: ActionReceipt, language: AppLanguage) -> [AIResultStep] {
-        receipt.entries.enumerated().map { index, line in
-            AIResultStep(
-                id: "receipt.\(index)", title: line.text,
-                // Only a read-back earns the word; a plain "done" adds nothing.
-                detail: line.verified ? Localized.string("island.receipt.check", language: language) : nil,
-                state: .done)
-        }
-    }
-
     /// Sources are the only chips that can open: Companion has no road to
     /// launch an app from the island (the UI never activates apps), so app
     /// names are labels and appear only when there is nothing to open. Mixing

@@ -74,6 +74,7 @@
 "settings.you.city.subtitle" = "Lo que significa «cerca de mí». Si lo dejas vacío, Companion le pregunta la ciudad a tu Mac, y solo cuando pides algo cercano.";
 "island.receipt.title" = "Hecho";
 "island.receipt.check" = "Hecho y comprobado";
+"island.receipt.done" = "Hecho";
 "island.result.title" = "Resultado";
 "island.result.status.working" = "Trabajando";
 "island.result.status.done" = "Listo";

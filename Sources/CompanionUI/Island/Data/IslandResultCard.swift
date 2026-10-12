@@ -9,8 +9,9 @@ import SwiftUI
 enum IslandResultCardMetrics {
     /// The block pads its own sides by this much; it does not export it.
     static let blockPadX: CGFloat = 18
-    /// The body's widest: the shell's column minus the block's two paddings.
-    static let bodyWidth: CGFloat = IslandGrid.openColumn - blockPadX * 2
+    /// The body's widest: the card is widened by its own padding (see
+    /// `IslandResultCard`), so content gets the shell's whole column.
+    static let bodyWidth: CGFloat = IslandGrid.openColumn
     /// What the block spends outside its scroll region (header, footer with
     /// chips and actions): the region gets the column's cap minus this.
     static let outsideRegion: CGFloat = 160
@@ -26,7 +27,8 @@ enum IslandResultCardMetrics {
 extension AIResultStyle {
     static var island: AIResultStyle {
         AIResultStyle(
-            background: ArcTone.surface.color, border: ArcTone.border.color,
+            // The open island is the card (Incredible): same black, no rim of its own.
+            background: IslandInk.panel, border: .clear,
             foreground: ArcTone.foreground.color, secondary: ArcTone.textSecondary.color,
             muted: ArcTone.textMuted.color, surfaceMuted: ArcTone.surfaceMuted.color,
             accent: ArcTone.accent.color, success: ArcTone.success.color, danger: ArcTone.danger.color,
@@ -74,5 +76,9 @@ struct IslandResultCard<Body: View>: View {
                 if let url = links.urls[link.id] { onOpenURL(url) }
             },
             onDismiss: onDismiss, onContinue: onContinue, content: content)
+        // The block cannot drop its own side padding or radius, so it is made
+        // as much wider as that padding: its content lands on the shell's
+        // margin and its black edge hides under the island's.
+        .padding(.horizontal, -IslandResultCardMetrics.blockPadX)
     }
 }

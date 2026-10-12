@@ -77,10 +77,9 @@ func islandArcGallerySnapshots() throws {
             panel("Recibo") {
                 IslandResultCard(
                     title: "Abre Safari y escribe el texto", icon: "checklist", spoken: nil,
-                    steps: IslandResultCardModel.steps(receipt: receipt, language: .es),
-                    links: .none, maxHeight: IslandResultCardMetrics.minRegion,
+                    steps: [], links: .none, maxHeight: IslandResultCardMetrics.minRegion,
                     onOpenURL: { _ in }, onDismiss: {}, onContinue: {}
-                ) { EmptyView() }
+                ) { IslandReceiptLines(receipt: receipt) }
             }
             panel("Aviso") {
                 IslandNoticeCard(content: notice, pausesClock: false, onHover: { _ in }, onAction: { _ in },

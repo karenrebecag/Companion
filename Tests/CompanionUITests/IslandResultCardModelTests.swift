@@ -40,17 +40,6 @@ private func source(_ title: String, _ url: String) -> MarkdownSplitter.SourceLi
     expect(links.urls.isEmpty, "apps: nada que abrir")
 }
 
-@Test @MainActor func testReceiptLinesAreDoneStepsAndOnlyAReadBackOneIsVerified() {
-    let receipt = ActionReceipt(entries: [
-        ReceiptLine(text: "Abrí Notas.", verified: false),
-        ReceiptLine(text: "Escribí el texto.", verified: true),
-    ])!
-    let steps = IslandResultCardModel.steps(receipt: receipt, language: .es)
-    expectEq(steps.map(\.state), [.done, .done], "pasos: un recibo solo guarda lo ya hecho")
-    expectEq(steps.map(\.detail), [nil, "Hecho y comprobado"], "pasos: solo la leida dice comprobado")
-    expectEq(Set(steps.map(\.id)).count, 2, "pasos: ids distintos")
-}
-
 @Test @MainActor func testTheTitleIsTheQuestionOnOneLineCutWithItsMarkOrTheFallback() {
     expectEq(IslandResultCardModel.title(question: "  abre\nNotas  y  escribe ", fallback: "Resultado"),
              "abre Notas y escribe", "titulo: una linea, espacios normalizados")

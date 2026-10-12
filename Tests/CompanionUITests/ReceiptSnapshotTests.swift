@@ -38,13 +38,12 @@ private let typedLine = ReceiptLine(text: "Escribí el texto.", verified: true)
 
 @Test @MainActor func testEachReceiptLineIsLabelledDoneOrDoneAndVerifiedByItsOwnProof() {
     let receipt = ActionReceipt(entries: [openedLine, typedLine])!
-    let expected: [AppLanguage: String] = [.es: "Hecho y comprobado", .en: "Done and verified"]
-    for (language, verified) in expected {
-        let steps = IslandResultCardModel.steps(receipt: receipt, language: language)
-        expectEq(steps.map(\.detail), [nil, verified],
-                 "recibo (\(language)): solo la línea con lectura posterior dice comprobado")
-        expectEq(steps.map(\.title), ["Abrí Safari.", "Escribí el texto."],
-                 "recibo (\(language)): cada línea es un paso con su texto")
+    let expected: [AppLanguage: [String]] = [
+        .es: ["Hecho", "Hecho y comprobado"], .en: ["Done", "Done and verified"],
+    ]
+    for (language, labels) in expected {
+        expectEq(receipt.entries.map { IslandReceipt.checkLabel($0, language: language) }, labels,
+                 "recibo (\(language)): cada línea dice hecho o comprobado según su propia prueba")
     }
 }
 
@@ -65,6 +64,4 @@ private let typedLine = ReceiptLine(text: "Escribí el texto.", verified: true)
     let cut = long.lines[0]
     expect(cut.unicodeScalars.count <= ActionReceipt.maxLineLength + 1 && cut.hasSuffix("…"),
            "url larga: el modelo la acota con el corte visible — \(cut.count) caracteres")
-    let steps = IslandResultCardModel.steps(receipt: long, language: .es)
-    expectEq(steps.map(\.title), [cut], "url larga: el paso lleva la línea ya acotada")
 }

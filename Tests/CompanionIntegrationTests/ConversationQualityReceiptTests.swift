@@ -97,10 +97,10 @@ private func hasInvisible(_ text: String) -> Bool {
     expectEq(opened?.verified, false, "etiqueta: abrir dice hecho, no comprobado")
     for language in [AppLanguage.es, .en] {
         let checked = Localized.string("island.receipt.check", language: language)
-        let steps = IslandResultCardModel.steps(
-            receipt: ActionReceipt(entries: [opened!, typed!])!, language: language)
-        expect(checked != "island.receipt.check", "etiqueta (\(language)): falta la palabra 'comprobado'")
-        expectEq(steps.map(\.detail), [nil, checked], "etiqueta (\(language)): solo la línea leída dice comprobado")
+        let done = Localized.string("island.receipt.done", language: language)
+        expect(done != "island.receipt.done" && done != checked, "etiqueta (\(language)): 'Hecho' distinto de 'comprobado'")
+        expectEq(IslandReceipt.checkLabel(typed!, language: language), checked, "etiqueta (\(language)): comprobado")
+        expectEq(IslandReceipt.checkLabel(opened!, language: language), done, "etiqueta (\(language)): hecho")
     }
     let merged = ActionReceipt(entries: [ReceiptLine(text: "Abrí A.", verified: false)])!
         .merging(ActionReceipt(entries: [ReceiptLine(text: "Abrí A.", verified: true)])!)
