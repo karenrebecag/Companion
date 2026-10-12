@@ -213,6 +213,8 @@ func testTheNotchedScreenWins() {
              "Vuelos a Lima\n\nEl más barato sale el martes.", "respuesta: todos los párrafos, sin marcas")
     expectEq(IslandReplyText.spoken(from: "Listo. Abrí [Safari](https://apple.com) y `busqué`."),
              "Listo. Abrí Safari y busqué.", "respuesta: enlaces y código como texto")
+    expectEq(IslandReplyText.spoken(from: "Resumen:\n- uno **dos**\n- tres"),
+             "Resumen:\n\n\u{2022} uno dos\n\u{2022} tres", "respuesta: cada viñeta en su línea, sin guiones crudos")
     let long = String(repeating: "palabra ", count: 80)
     expectEq(IslandReplyText.spoken(from: long).split(separator: " ").count, 80, "respuesta: entera, sin corte")
     expectEq(IslandReplyText.spoken(from: "   "), "", "respuesta: vacía")

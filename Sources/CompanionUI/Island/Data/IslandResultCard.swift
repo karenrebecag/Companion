@@ -9,6 +9,9 @@ import SwiftUI
 enum IslandResultCardMetrics {
     /// The block pads its own sides by this much; it does not export it.
     static let blockPadX: CGFloat = 18
+    /// The block pads its header's top by this much; with the shell's own gap
+    /// under the notch band it left the header ~60 pt below the notch.
+    static let blockHeaderPadY: CGFloat = 14
     /// The body's widest: the card is widened by its own padding (see
     /// `IslandResultCard`), so content gets the shell's whole column.
     static let bodyWidth: CGFloat = IslandGrid.openColumn
@@ -82,5 +85,8 @@ struct IslandResultCard<Body: View>: View {
         // HACK: mirrors the block's private side padding. Add a chromeless
         // style to AIResultCard when the block's padding or radius changes.
         .padding(.horizontal, -IslandResultCardMetrics.blockPadX)
+        // HACK: mirrors the block's private header padding, like the side one.
+        // Same upgrade trigger: a chromeless style on AIResultCard.
+        .padding(.top, -IslandResultCardMetrics.blockHeaderPadY)
     }
 }

@@ -9,9 +9,8 @@ import SwiftUI
 enum IslandThreadModel {
     /// The last few turns; the window holds the rest.
     static let limit = 6
-    /// The thread scrolls, so it cannot hug its content inside the island's
-    /// fixed-size measurement: it gets a height of its own.
-    // HACK: fixed height leaves room above a single short turn. Measure the rows when the package exposes their height.
+    /// The tallest the thread gets before it scrolls; below that it takes its
+    /// content's height (`ThreadHug`).
     static let height: CGFloat = 300
     /// Air between the field and the thread's faded top edge.
     static let fieldGap: CGFloat = Space.x4
@@ -57,9 +56,9 @@ extension IslandView {
             // The package fades its top 36 pt; without a gap the oldest turn
             // sat half-dissolved against the field.
             .padding(.top, IslandThreadModel.fieldGap)
-            .frame(height: IslandThreadModel.height(drawsVisual: chat.messages.contains { message in
+            .modifier(ThreadHug(maxHeight: IslandThreadModel.height(drawsVisual: chat.messages.contains { message in
                 items.contains { $0.id == message.id.uuidString } && Self.drawsInline(message)
-            }))
+            })))
             .environment(\.diagramRenderer, diagrams)
             .environment(\.fileSaver, saveFile)
         }
@@ -72,10 +71,19 @@ extension IslandView {
         }
     }
 
+    /// The same split the result card makes: the "Sources" list leaves the
+    /// prose and becomes chips, so it is not read twice as bare text.
+    static func threadWords(_ message: ChatMessage) -> (text: String, sources: [MarkdownSplitter.SourceLink]) {
+        let parts = IslandResultCardModel.proseAndSources(of: message.text)
+        var prose = message
+        prose.text = parts.prose
+        return (replyText(for: prose), parts.sources)
+    }
+
     @ViewBuilder
     private func threadReply(_ item: AIThreadItem, _ state: IslandState) -> some View {
         if let message = chat.messages.first(where: { $0.id.uuidString == item.id }) {
-            let text = Self.replyText(for: message)
+            let (text, sources) = Self.threadWords(message)
             VStack(alignment: .leading, spacing: Space.x1) {
                 // Only the newest reply follows the live caption; older ones are settled text.
                 if message.id == latestReply?.id {
@@ -84,6 +92,8 @@ extension IslandView {
                 } else {
                     IslandReply(text: text, startedAt: replyStart, speaking: false, look: .thread)
                 }
+                IslandSourceChips(
+                    links: IslandResultCardModel.links(apps: [], sources: sources), onOpen: { openURL($0) })
                 let visuals = Self.inlineVisuals(message)
                 if visuals.card != nil || !visuals.blocks.isEmpty {
                     IslandInlineVisuals(card: visuals.card, blocks: visuals.blocks,
@@ -97,5 +107,33 @@ extension IslandView {
             .accessibilityHint(Localized.string("island.reply.open"))
             .accessibilityAction { openResult(message.id) }
         }
+    }
+}
+
+/// The thread's ScrollView is greedy under a proposed height, which is why it
+/// had a fixed one. Asked for its ideal size it reports its content's, so the
+/// height is that, capped, and the child is then handed the capped height to
+/// scroll within.
+private struct ThreadHug: ViewModifier {
+    let maxHeight: CGFloat
+
+    func body(content: Content) -> some View {
+        HuggedHeight(maxHeight: maxHeight) { content }
+    }
+}
+
+private struct HuggedHeight: Layout {
+    let maxHeight: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        let natural = content.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
+        return CGSize(width: proposal.width ?? natural.width, height: min(natural.height, maxHeight))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(
+            at: bounds.origin, anchor: .topLeading,
+            proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
     }
 }

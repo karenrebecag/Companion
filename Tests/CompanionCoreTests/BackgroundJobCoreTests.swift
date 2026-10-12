@@ -42,6 +42,7 @@ import Testing
     testTheWarmSessionWaitsForTheNoticeBeforeHangingUp()
     testASpokenYesNeedsAnAnnouncementBeforeTheHold()
     testAFinishedJobsLateStepOpensNoRow()
+    testAToolLoadingStepNeverEntersTheTimeline()
     testAFinishedJobsPendingApprovalLeavesTheSheet()
 }
 
@@ -74,6 +75,16 @@ func testAFinishedJobsLateStepOpensNoRow() {
     expectEq(m.projection.job, nil, "terminado: su paso tardío no abre fila")
     _ = m.handle(.job(.stepStarted(tool: "Bash", summary: "ls"), from: jobC))
     expectEq(m.projection.job?.id, jobC, "terminado: el de otro encargo sí")
+}
+
+/// The specialist loading its own tools is not a step the user did or saw:
+/// it never reaches the timeline, so the count and the rows cannot show it.
+func testAToolLoadingStepNeverEntersTheTimeline() {
+    var m = running(jobA, "noticias")
+    _ = m.handle(.job(.stepStarted(tool: "ToolSearch", summary: "select:WebSearch", id: "t1"), from: jobA))
+    _ = m.handle(.job(.stepFinished(tool: "", ok: true, id: "t1"), from: jobA))
+    _ = m.handle(.job(.stepStarted(tool: "WebSearch", summary: "ia", id: "w1"), from: jobA))
+    expectEq(m.projection.job?.steps.map(\.tool), ["WebSearch"], "ToolSearch no abre fila")
 }
 
 /// Review 16h-2 round 3 (HIGH): the one rule every spoken yes goes through.

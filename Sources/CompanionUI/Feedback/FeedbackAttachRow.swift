@@ -34,7 +34,7 @@ struct FeedbackAttachRow: View {
 /// Lays children left to right at their ideal size and moves a whole child to
 /// the next line when it would overflow, so a narrow width never squeezes a
 /// label into two lines.
-private struct WrappingRow: Layout {
+struct WrappingRow: Layout {
     let spacing: CGFloat
 
     private func rows(_ subviews: Subviews, width: CGFloat) -> [[Subviews.Element]] {

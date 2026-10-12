@@ -74,7 +74,7 @@ extension SessionMachine {
             guard !isOver(id) else { return [] }
             start(goal, id)
         case .stepStarted(let tool, let summary, let stepID):
-            guard !isOver(id) else { return [] }
+            guard !isOver(id), !JobSteps.isHidden(tool) else { return [] }
             append(timed(JobTimeline.step(tool, summary), stepID), id)
         case .thought(let text):
             guard !isOver(id) else { return [] }

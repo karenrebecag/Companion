@@ -910,6 +910,9 @@
 "agentrun.plan.done.bare" = "Planeó los pasos";
 "agentrun.plan.failed" = "No pudo planear %@";
 "agentrun.plan.failed.bare" = "No pudo planear";
+"agentrun.other.active.bare" = "Trabajando en un paso";
+"agentrun.other.done.bare" = "Hizo un paso";
+"agentrun.other.failed.bare" = "No pudo terminar un paso";
 "agentrun.folded.one" = "%d paso anterior";
 "agentrun.folded" = "%d pasos anteriores";
 "orb.idle" = "Companion en reposo";
