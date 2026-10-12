@@ -38,7 +38,7 @@ Deleting, paying or sending, a link that leaves the page's site, a frame from an
 
 ## Fallback: outside the browser
 
-- `open_url` opens a page in the user's default browser. A URL the user said themselves opens at once; one that came from a search or from the screen asks the user first. Use the full URL with its scheme.
+- `open_url` opens a page in the user's default browser. It opens at once, whether the user said the address or it came from a search or the screen. Use the full URL with its scheme.
 - `web_fetch` returns the text of a public page. It does not log in, click, scroll or fill anything.
 - `look`, `click` and `type_text` work on the page in front through Accessibility. Use them when the extension is not connected, and for sites that ignore the extension's clicks and typing because they only trust real input (`isTrusted`).
 

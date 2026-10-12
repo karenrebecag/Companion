@@ -27,6 +27,7 @@ import Testing
         await testParentToolRoundsCapAtThree()
         await testParentToolThenHandoffInOneRound()
         await testParentToolCardsComeAfterAllToolAnswers()
+        await testForeignURLOpensWithoutSheet()
         await testForeignURLWaitsForTheSheet()
         await testForeignURLDeniedIsAnInstruction()
         await testRememberedDenialSkipsTheSheet()
@@ -740,10 +741,45 @@ private func openSafari(_ id: String = "c1") -> ChatDelta {
     expectEq(last?.role, .assistant, "memoria: y atribuida al asistente")
 }
 
+// MARK: - Hoja de permiso: mecanica (la hoja ya no se pide para open_url)
+
+/// El runner real no pide hoja para abrir una URL http(s). Estos tests ejercen
+/// la mecanica de la hoja (espera, "no", memoria, cola, cambio de conversacion)
+/// con un runner que si la pide, porque esa mecanica sigue sirviendo a
+/// enviar, borrar y pagar.
+final class AskingURLRunner: ParentToolExecuting, @unchecked Sendable {
+    let inner: ParentToolRunner
+    init(_ inner: ParentToolRunner) { self.inner = inner }
+    func specs(_ language: AppLanguage) -> [ToolSpec] { inner.specs(language) }
+    func handles(_ name: String) -> Bool { inner.handles(name) }
+    func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
+        await inner.execute(name: name, argumentsJSON: argumentsJSON)
+    }
+    func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
+        guard call.name == "open_url" else { return inner.approval(for: call, said: said) }
+        return ApprovalRequest(
+            requestId: UUID().uuidString, toolName: call.name, summary: "open", inputJSON: call.arguments)
+    }
+    func beginTurn() { inner.beginTurn() }
+}
+
 // MARK: - Wave 10c 3D: open_url con puerta
 
 private func openEvil(_ id: String = "c1") -> ChatDelta {
     .toolCalls([ToolCallRef(id: id, name: "open_url", arguments: #"{"url":"https://evil.example/?q=1"}"#)])
+}
+
+/// Abrir una URL que la usuaria no dijo ya no pide hoja: abrir es navegar.
+@MainActor func testForeignURLOpensWithoutSheet() async {
+    let opener = FakeWorkspaceOpener()
+    let approvals = FakeApprovals()
+    let chat = FakeChatProvider(replies: [.success([openEvil()]), .success([.text("Abierto.")])])
+    let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener), approvals: approvals)
+    vm.draft = "busca el clima"
+    vm.send()
+    await pumpUntil("sin hoja: idle") { !vm.busy }
+    expectEq(opener.openedURLs.map(\.absoluteString), ["https://evil.example/?q=1"], "sin hoja: abre")
+    expect(await approvals.requested.isEmpty, "sin hoja: no se pidio")
 }
 
 /// 25a. Un host que la usuaria no dijo: la hoja aparece, nada se abre hasta
@@ -752,7 +788,7 @@ private func openEvil(_ id: String = "c1") -> ChatDelta {
     let opener = FakeWorkspaceOpener()
     let approvals = FakeApprovals()
     let chat = FakeChatProvider(replies: [.success([openEvil()]), .success([.text("Abierto.")])])
-    let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener), approvals: approvals)
+    let vm = primed(chat: chat, parentTools: AskingURLRunner(ParentToolRunner(workspace: opener)), approvals: approvals)
     vm.draft = "resume esto"
     vm.send()
     await pumpUntil("puerta: la hoja") { vm.pendingApproval != nil }
@@ -771,7 +807,7 @@ private func openEvil(_ id: String = "c1") -> ChatDelta {
     let opener = FakeWorkspaceOpener()
     let approvals = FakeApprovals()
     let chat = FakeChatProvider(replies: [.success([openEvil()]), .success([.text("Entendido.")])])
-    let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener), approvals: approvals)
+    let vm = primed(chat: chat, parentTools: AskingURLRunner(ParentToolRunner(workspace: opener)), approvals: approvals)
     vm.draft = "resume esto"
     vm.send()
     await pumpUntil("no: la hoja") { vm.pendingApproval != nil }
@@ -789,7 +825,7 @@ private func openEvil(_ id: String = "c1") -> ChatDelta {
     let opener = FakeWorkspaceOpener()
     let approvals = FakeApprovals(memory: ["open_url(https://evil.example:443)": false])
     let chat = FakeChatProvider(replies: [.success([openEvil()]), .success([.text("Ok.")])])
-    let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener), approvals: approvals)
+    let vm = primed(chat: chat, parentTools: AskingURLRunner(ParentToolRunner(workspace: opener)), approvals: approvals)
     vm.draft = "resume esto"
     vm.send()
     await pumpUntil("memoria: idle") { !vm.busy }
@@ -832,7 +868,7 @@ private func openEvil(_ id: String = "c1") -> ChatDelta {
     let opener = FakeWorkspaceOpener()
     let approvals = FakeApprovals()
     let chat = FakeChatProvider(replies: [.success([openEvil()]), .success([.text("x")])])
-    let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener), approvals: approvals)
+    let vm = primed(chat: chat, parentTools: AskingURLRunner(ParentToolRunner(workspace: opener)), approvals: approvals)
     vm.draft = "resume esto"
     vm.send()
     await pumpUntil("cambio: la hoja") { vm.pendingApproval != nil }
@@ -852,7 +888,7 @@ private func openEvil(_ id: String = "c1") -> ChatDelta {
     let opener = FakeWorkspaceOpener()
     let approvals = FakeApprovals()
     let chat = FakeChatProvider(replies: [.success([openEvil()]), .success([.text("x")])])
-    let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener), approvals: approvals)
+    let vm = primed(chat: chat, parentTools: AskingURLRunner(ParentToolRunner(workspace: opener)), approvals: approvals)
     vm.receiveJobEvent(.approvalRequested(ApprovalRequest(
         requestId: "job-1", toolName: "run_shell", summary: "", inputJSON: #"{"command":"ls"}"#)), from: nil)
     vm.draft = "resume esto"
