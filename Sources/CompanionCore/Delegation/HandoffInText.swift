@@ -34,6 +34,11 @@ package struct HandoffInText: Sendable, Equatable {
     private var inString = false
     private var escaped = false
     private var overflow = false
+    /// Inside a ```companion: card fence the JSON is the card's data, not a
+    /// goal written by hand: swallowing it left the table card empty (live
+    /// 2026-10-12).
+    private var inCardFence = false
+    private var recent = ""
 
     package init() {}
 
@@ -41,10 +46,11 @@ package struct HandoffInText: Sendable, Equatable {
         var step = Step()
         for char in piece {
             if depth == 0 {
-                if char == "{" {
+                if char == "{", !inCardFence {
                     open()
                 } else {
                     step.speakable.append(char)
+                    trackFence(char)
                 }
                 continue
             }
@@ -81,6 +87,17 @@ package struct HandoffInText: Sendable, Equatable {
         reset()
         return step
     }
+
+    private mutating func trackFence(_ char: Character) {
+        recent = String((recent + String(char)).suffix(Self.cardOpener.count))
+        if recent.hasSuffix(Self.cardOpener) {
+            inCardFence = true
+        } else if inCardFence, recent.hasSuffix("```") {
+            inCardFence = false
+        }
+    }
+
+    private static let cardOpener = "```companion"
 
     private mutating func open() {
         reset()

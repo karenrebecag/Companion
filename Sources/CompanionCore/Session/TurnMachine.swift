@@ -60,16 +60,18 @@ package struct TurnMachine: Sendable, Equatable {
 }
 
 extension TurnMachine {
-    /// The events between the reply being written and its voice landing at
-    /// rest or listening. Any other one (a press, a barge-in, a new
-    /// utterance, a hang-up) means that reply is not the one left on screen.
+    /// Only what starts another turn drops the reply left on screen: a
+    /// press, a new utterance, a typed turn, a barge-in or a hang-up. A list
+    /// of the events allowed in between missed the classic voice's own
+    /// (live 2026-10-12: no document ever reached the island).
     private static func keepsRichReply(_ event: TurnEvent) -> Bool {
         switch event {
-        case .replyIsRich, .replyCompleted, .speechFinished, .classicListenArmed,
-             .delegateAnnounced, .sheetParked, .sheetResumed:
-            true
-        default:
+        case .startVoice, .advance(hasSpeech: true), .typedSubmit, .hangUp, .heardWhileSpeaking,
+             .endpointFinished, .endpointTimedOut, .holdReleased,
+             .holdPressed, .interrupt, .serverSpeechStarted, .voiceStartFailed, .turnFailed:
             false
+        default:
+            true
         }
     }
 }

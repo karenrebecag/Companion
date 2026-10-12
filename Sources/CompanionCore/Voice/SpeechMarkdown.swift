@@ -114,7 +114,8 @@ package enum ReplyRichness {
     package static func isRich(_ reply: String) -> Bool {
         let text = reply.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return false }
-        if text.count > longReplyChars { return true }
+        // A card the voice pointed at (a table, a map) is there to be looked at.
+        if text.count > longReplyChars || SpeechBudget.hasCard(in: text) { return true }
         var items = 0
         var rows = 0
         var separator = false

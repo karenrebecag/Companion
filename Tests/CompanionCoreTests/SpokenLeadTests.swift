@@ -54,3 +54,35 @@ private func spoken(_ deltas: [String]) -> (said: String, open: Bool) {
     expect(!unfenced.contains("```"), "documento: sin la valla de codigo")
     expect(ReplyRichness.isRich(unfenced), "documento: la tabla cuenta")
 }
+
+// En vivo 2026-10-12: "```companion:table" llego al hilo vacio; la guarda de
+// JSON se comio los datos de la tarjeta.
+@Test func aCardFenceKeepsItsJSONAndTheVoiceStopsBeforeIt() {
+    let reply = "Te muestro la comparación:\n```companion:table\n{\"columns\":[\"Modelo\"],\"rows\":[[\"iPhone 17\"]]}\n```"
+    var guardJSON = HandoffInText()
+    let step = guardJSON.feed(reply)
+    let tail = guardJSON.finish()
+    expectEq(step.speakable + tail.speakable, reply, "tarjeta: el JSON de la tarjeta pasa entero")
+    expect(step.handoff == nil, "tarjeta: no es una delegacion")
+    var lead = SpokenLead()
+    expectEq(lead.admit(reply), "Te muestro la comparación:\n", "voz: no lee la tarjeta")
+    var outside = HandoffInText()
+    expectEq(outside.feed("Hecho. {\"goal\":\"x\",\"context\":\"y\"}").speakable, "Hecho. ",
+             "fuera de la tarjeta, el objeto escrito sigue sin decirse")
+}
+
+@Test func theRichMarkSurvivesTheClassicVoiceEventsUntilANewUtterance() {
+    var turn = TurnMachine(snapshot: TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true))
+    for event: TurnEvent in [.replyIsRich, .replyCompleted, .playerDrained, .agentAudioStopped, .speechFinished] {
+        _ = turn.handle(event, at: 0)
+    }
+    expect(turn.snapshot.richReply, "voz: ningun evento del final del turno borra la marca")
+    _ = turn.handle(.endpointFinished, at: 1)
+    expect(!turn.snapshot.richReply, "voz: la siguiente frase si la borra")
+}
+
+@Test func aReplyWithATableCardIsRich() {
+    let reply = "Te muestro la comparación:\n```companion:table\n{\"title\":\"Teléfonos\",\"columns\":[\"Modelo\",\"Batería\"],\"rows\":[[\"iPhone 17\",\"4500\"]]}\n```"
+    expect(SpeechBudget.hasCard(in: reply), "tarjeta: la tabla pinta")
+    expect(ReplyRichness.isRich(reply), "tarjeta: rica")
+}

@@ -524,7 +524,9 @@ final class ClassicRuntime: @unchecked Sendable {
             await thread.finishStream()
         }
         if Task.isCancelled { return await cutTurn(transcript, generation: generation, cut: cut) }
-        if ReplyRichness.isRich(mouth.said) { await apply(.replyIsRich) }
+        let rich = ReplyRichness.isRich(mouth.said)
+        Log.app("reply: rich=\(rich) chars=\(mouth.said.count)")
+        if rich { await apply(.replyIsRich) }
         await apply(.replyCompleted)
     }
 

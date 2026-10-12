@@ -77,7 +77,8 @@ package struct SpokenLead: Sendable, Equatable {
             return true
         }
         let tag = fence.drop { $0 == "`" }.lowercased()
-        if fence.hasPrefix("```"), tag == "markdown" || tag == "md" {
+        // A companion: card paints on its own and is never read either.
+        if fence.hasPrefix("```"), ["markdown", "md", "companion"].contains(tag) {
             documentOpen = true
             fence = ""
             return true
