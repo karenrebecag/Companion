@@ -159,7 +159,7 @@ private func handOverToTheBridge(
 private func nav(_ current: String?, _ raw: String, said: String = "") -> Result<HandsVerdict, ContractError> {
     BrowserPolicy.navigateVerdict(
         from: current.flatMap { URL(string: $0) }.map { "\($0.scheme ?? "")://\($0.host ?? "")" },
-        currentURL: current, to: raw, said: said)
+        currentURL: current, to: raw, said: said, asksToLeaveOrigin: false)
 }
 
 @Test func sameOriginNavigationIsJudgedAgainstTheCurrentPathAndQuery() {

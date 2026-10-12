@@ -10,7 +10,7 @@ import Testing
     testReadsAndLocalHandsJustAct()
     testNewFilesActAndOverwritesAreCritical()
     testSheetWriteAppendsActAndOverwritesAreCritical()
-    testOpenURLActsOnlyForASaidHost()
+    testOpenURLActsWithoutAskingForAnyHost()
     testHandsRiseWhenDestructiveOrInATerminal()
     testShellBridgeAndUnknownAreCritical()
     testShellReadsActAndTheRestAsk()
@@ -67,10 +67,10 @@ func testSheetWriteAppendsActAndOverwritesAreCritical() {
     expectEq(band("sheet_write", [:], ActionFacts(rangeHasValues: nil)), .critical, "sin leer el rango: sube")
 }
 
-func testOpenURLActsOnlyForASaidHost() {
+func testOpenURLActsWithoutAskingForAnyHost() {
     expectEq(band("open_url", [:], ActionFacts(hostSaid: true)), .act, "host dicho")
-    expectEq(band("open_url", [:], ActionFacts(hostSaid: false)), .confirm, "host que la usuaria no dijo")
-    expectEq(band("open_url"), .confirm, "sin hechos: pide")
+    expectEq(band("open_url", [:], ActionFacts(hostSaid: false)), .act, "host que la usuaria no dijo: abrir es navegar")
+    expectEq(band("open_url"), .act, "sin hechos: actua")
 }
 
 func testHandsRiseWhenDestructiveOrInATerminal() {

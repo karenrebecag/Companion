@@ -178,12 +178,20 @@ package enum ParentToolPolicy {
     }
 }
 
-/// Wave 10c 3D. The parent's hands ask no permission (10b) with one
-/// exception: `open_url` for a host the user never named. A window title or
-/// a clipboard can put a URL in front of the model (10a's security finding);
-/// the user's own words are the only thing that lets it through unasked.
+/// The parent's hands ask no permission to open an http(s) address in the
+/// chat: opening is navigation, and the sheet is kept for publishing, sending,
+/// paying, uploading or deleting. Two exceptions stay: an address that could
+/// carry data out (see `carriesPayload`) to a host nobody said, and every
+/// address from the MCP bridge, which has no user words of its own.
 package enum ParentToolGate: Sendable {
-    package static func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
+    /// Query plus fragment longer than this reads as data riding out, not a search.
+    package static let payloadLimit = 80
+
+    /// `strictHost` is the bridge: `said` is empty there, so a host is never
+    /// "said" and every open_url asks.
+    package static func approval(
+        for call: ToolCallRef, said: String, strictHost: Bool = false
+    ) -> ApprovalRequest? {
         guard call.name == ParentTool.openURL.rawValue,
               let raw = ToolArguments.parse(call.arguments)?["url"] as? String
         else { return nil }
@@ -194,10 +202,27 @@ package enum ParentToolGate: Sendable {
             // The policy refuses it on its own; nothing to ask about.
             return nil
         }
-        guard let host = url.host, !saidIt(url, host: host, said: said) else { return nil }
+        guard let host = url.host, needsSheet(url, host: host, said: said, strictHost: strictHost) else { return nil }
         return ApprovalRequest(
             requestId: UUID().uuidString, toolName: call.name,
             summary: "open \(host)", inputJSON: call.arguments)
+    }
+
+    /// Pure: whether opening `url` asks, given what the user said.
+    package static func needsSheet(_ url: URL, host: String, said: String, strictHost: Bool) -> Bool {
+        if saidIt(url, host: host, said: said) { return false }
+        return strictHost || carriesPayload(url)
+    }
+
+    /// A page address that can leak: credentials in front of the host
+    /// (`user@host`, a phishing shape) or a long query or fragment, where
+    /// injected text could put what it read off the screen. A short search
+    /// stays under the limit.
+    package static func carriesPayload(_ url: URL) -> Bool {
+        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return true }
+        if parts.user != nil || parts.password != nil { return true }
+        let tail = (parts.percentEncodedQuery ?? "") + (parts.percentEncodedFragment ?? "")
+        return tail.utf8.count > payloadLimit
     }
 
     /// The whole URL, the host without `www.`, or — for `brand.tld` and

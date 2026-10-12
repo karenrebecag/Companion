@@ -11,10 +11,6 @@ import Testing
 // to the connected apps' scope, the origin surviving a restart, and the
 // card's focus dying with the card.
 
-private func openEvil() -> ChatDelta {
-    .toolCalls([ToolCallRef(id: "c1", name: "open_url", arguments: #"{"url":"https://evil.com/"}"#)])
-}
-
 /// The parent's own runner with a tap on what `noteTurn` was told.
 private final class NoteTap: ParentToolExecuting, @unchecked Sendable {
     let inner: ParentToolRunner
@@ -31,44 +27,6 @@ private final class NoteTap: ParentToolExecuting, @unchecked Sendable {
     func noteTurn(_ said: String) { lock.withLock { noted.append(said) } }
     /// 16q-2: a card turn has its own entry; it must never carry her words.
     func noteChoiceTurn() { lock.withLock { noted.append("<card>") } }
-}
-
-@Test @MainActor func choiceLabelNeverAuthorizesAHostTests() async {
-    // A card ["Abrir evil.com", "Cancelar"]: the label names the host, but it
-    // is the model's text, not something she said.
-    let approvals = FakeApprovals()
-    let opener = FakeWorkspaceOpener()
-    let chat = FakeChatProvider(replies: [.success([openEvil()]), .success([.text("Abierto.")])])
-    let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener), approvals: approvals)
-    vm.choose("Abrir evil.com")
-    await pumpUntil("16m-6 gate: la hoja aparece para una elección") { vm.pendingApproval != nil }
-    expectEq(vm.pendingApproval?.toolName, "open_url", "16m-6 gate: la hoja es de open_url")
-    expect(opener.openedURLs.isEmpty, "16m-6 gate: nada se abrió sin contestar")
-    vm.answerPendingApproval(false)
-    await pumpUntil("16m-6 gate: idle") { !vm.busy }
-    expect(opener.openedURLs.isEmpty, "16m-6 gate: con no, sigue sin abrirse")
-
-    // The same words typed by her are consent, as before.
-    let typedOpener = FakeWorkspaceOpener()
-    let typedChat = FakeChatProvider(replies: [.success([openEvil()]), .success([.text("Abierto.")])])
-    let typed = primed(chat: typedChat, parentTools: ParentToolRunner(workspace: typedOpener), approvals: FakeApprovals())
-    typed.draft = "Abrir evil.com"
-    typed.send()
-    await pumpUntil("16m-6 gate: tecleado, idle") { !typed.busy }
-    expect(typed.pendingApproval == nil, "16m-6 gate: tecleado no pide hoja")
-    expectEq(typedOpener.openedURLs.map(\.absoluteString), ["https://evil.com/"], "16m-6 gate: y abre, como hoy")
-
-    // Out of the queue it is still a pick.
-    let queuedOpener = FakeWorkspaceOpener()
-    let queuedChat = FakeChatProvider(replies: [.success([.text("uno")]), .success([openEvil()]), .success([.text("fin")])])
-    let queued = primed(chat: queuedChat, parentTools: ParentToolRunner(workspace: queuedOpener), approvals: FakeApprovals())
-    queued.draft = "hola"
-    queued.send()
-    queued.choose("Abrir evil.com")
-    await pumpUntil("16m-6 gate: la hoja desde la cola") { queued.pendingApproval != nil }
-    expect(queuedOpener.openedURLs.isEmpty, "16m-6 gate: una elección que sale de la cola tampoco abre sin hoja")
-    queued.answerPendingApproval(false)
-    await pumpUntil("16m-6 gate: cola idle") { !queued.busy && queued.queued.isEmpty }
 }
 
 @Test @MainActor func choiceDoesNotSetTheAppScopeTests() async {

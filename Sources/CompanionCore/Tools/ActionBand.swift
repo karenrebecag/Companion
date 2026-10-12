@@ -79,7 +79,8 @@ extension ActionBand {
         case NativeTool.sheetWrite.rawValue:
             return facts.rangeHasValues == false ? .act : .critical
         case ParentTool.openURL.rawValue:
-            return facts.hostSaid ? .act : .confirm
+            // Opening an http(s) address is navigation; the scheme check lives in `httpURL`.
+            return .act
         case NativeTool.runShell.rawValue:
             // A plain read cannot change the disk. Ask is never a denial:
             // every other command still takes the sheet.
