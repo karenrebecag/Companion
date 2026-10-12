@@ -181,7 +181,7 @@ import CompanionTestKit
 
 @MainActor func testRealtimeNeverAsksAJobsPermissionAloud() async {
     let h = makeVoiceHarness(language: .es)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("realtime: escuchando") { h.watch.latest.state == .listening }
     await h.session.noteApproval(q1Req("r1"))
     await h.session.askApprovalAloud(q1Req("r1"))
@@ -223,7 +223,7 @@ private struct MCP {
     let actor = Approvals(clock: RealtimeClock(), timeout: timeout)
     let model = SessionModel(jobs: nil, approvals: actor)
     let h = makeVoiceHarness(approvals: actor, session: model)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("mcp: escuchando") { h.watch.latest.state == .listening }
     return MCP(h: h, model: model)
 }

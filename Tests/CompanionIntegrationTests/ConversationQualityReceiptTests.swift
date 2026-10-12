@@ -420,7 +420,7 @@ private final class OpenTools: ParentToolExecuting, @unchecked Sendable {
 @Test @MainActor func testRealtimeToolsThatSucceedLeaveNoReceiptAcceptedLimitation() async {
     let h = makeVoiceHarness(parentTools: ParentToolRunner(workspace: FakeWorkspaceOpener()))
     let seen = SessionEventBox(h.session.events)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("realtime: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.functionCall(name: "open_app", arguments: #"{"name":"Safari"}"#, callId: "c1"))
     await pumpUntil("realtime: la herramienta corrió") { seen.events.contains { $0 == .parentActed } }

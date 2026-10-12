@@ -243,7 +243,7 @@ private func request(_ id: String) -> ApprovalRequest {
     let jobs = ApprovingSubmitter()
     let h = makeVoiceHarness(jobs: jobs)
     let seen = SessionEventBox(h.session.events)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("stream: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.functionCall(
         name: "delegate", arguments: #"{"goal":"limpiar build"}"#, callId: "c1"))
@@ -273,7 +273,7 @@ private func request(_ id: String) -> ApprovalRequest {
     let opener = FakeWorkspaceOpener()
     let h = makeVoiceHarness(parentTools: ParentToolRunner(workspace: opener))
     let seen = SessionEventBox(h.session.events)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("manos: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.functionCall(
         name: "open_app", arguments: #"{"name":"Safari"}"#, callId: "c1"))

@@ -20,6 +20,7 @@ import CompanionTestKit
     await testAPressDuringAReleaseWins()
     await testHoldWhileSpeakingCutsTheAgent()
     await testHoldOnClassic()
+    await testHandsFreeStartsOnClassicEvenWithAKey()
     await testTheEarIsOnBeforeTheSessionIsReady()
     await testAHoldIsOneTurnUnderServerVAD()
     await testPartialsReachTheStreamWhileHolding()
@@ -278,6 +279,16 @@ import CompanionTestKit
     await pumpUntil("clásico: responde") { h.synth.queue.contains("Las tres.") }
 }
 
+/// Manos libres usa el mismo carril que el hold aunque haya clave de OpenAI.
+@MainActor func testHandsFreeStartsOnClassicEvenWithAKey() async {
+    let h = makeVoiceHarness()
+    await h.session.start()
+    await pumpUntil("manos libres: clásico") {
+        h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
+    }
+    expectEq(h.transport.openCount, 0, "manos libres: sin WS de conversación")
+}
+
 /// 6 (12c). El oído arranca al pulsar, sin esperar un socket de conversación.
 @MainActor func testTheEarIsOnBeforeTheSessionIsReady() async {
     let h = makeVoiceHarness(autoEvents: [], readyTimeout: 5)
@@ -485,7 +496,7 @@ import CompanionTestKit
 /// de un hold que no tenía nada que ver, corrompiendo commit→tool/tool→done.
 @MainActor func testALateToolMarkDoesNotJoinTheNextHold() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("tool tardío: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -613,7 +624,7 @@ private let slack = FocusedField(app: "Slack", pid: 42)
 @MainActor func testReleaseWhileThinkingAfterServerCommitSendsNothingExtra() async {
     let ear = ScriptedSegmentingEar()
     let h = makeVoiceHarness(realtimeEar: ear)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("thinking: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }

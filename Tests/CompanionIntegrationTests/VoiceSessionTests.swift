@@ -43,7 +43,7 @@ import CompanionTestKit
 
 @MainActor func testStartWithKeyListensRealtime() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("start: listening realtime") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -63,7 +63,7 @@ import CompanionTestKit
 @MainActor func testSegmentingEarDrivesTheTurn() async {
     let ear = ScriptedSegmentingEar()
     let h = makeVoiceHarness(realtimeEar: ear)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("segmento: listening") { h.watch.latest.state == .listening }
     let before = h.transport.sent.count
     ear.yieldTurn(.speechStarted)
@@ -93,7 +93,7 @@ import CompanionTestKit
 /// text flash one word at a time until the whole reply landed at once.
 @MainActor func testStreamedReplyAccumulates() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("stream: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.responseCreated)
     h.transport.yield(.assistantTranscriptDelta("Hola, "))
@@ -110,7 +110,7 @@ import CompanionTestKit
 @MainActor func testSpeakerEchoIsDroppedButRealInterruptionCuts() async {
     let ear = ScriptedSegmentingEar()
     let h = makeVoiceHarness(realtimeEar: ear)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("eco: listening") { h.watch.latest.state == .listening }
     // El agente habla: su transcript es la referencia del eco.
     h.transport.yield(.responseCreated)
@@ -142,7 +142,7 @@ import CompanionTestKit
 @MainActor func testMuteAfterSpeechCommitsNativeText() async {
     let h = makeVoiceHarness()
     h.transcriber.stoppedText = "hola compa"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("mute-speech: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.speechStarted)
     await pumpUntil("mute-speech: speechOpen") { h.watch.latest.speechOpen }
@@ -167,7 +167,7 @@ import CompanionTestKit
 @MainActor func testUserTurnPreemptsActiveResponse() async {
     let h = makeVoiceHarness()
     h.transcriber.stoppedText = "en mi desktop"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("preempt: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.responseCreated)
     h.transport.yield(.speechStarted)
@@ -188,7 +188,7 @@ import CompanionTestKit
 
 @MainActor func testMuteWithoutSpeechDoesNotCommit() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("mute-quiet: listening") { h.watch.latest.state == .listening }
     expect(!h.watch.latest.speechOpen, "mute-quiet: sin speechOpen")
     let before = h.transport.sent.count
@@ -204,7 +204,7 @@ import CompanionTestKit
 
 @MainActor func testUnmuteClearsAudio() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("unmute: listening") { h.watch.latest.state == .listening }
     await h.session.toggleMute()
     await pumpUntil("unmute: muted") { h.watch.latest.muted }
@@ -218,7 +218,7 @@ import CompanionTestKit
 
 @MainActor func testSpeakingSpeechStartedCancels() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("barge-in: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.audioDelta(Data([0x01, 0x00, 0x02, 0x00])))
     await pumpUntil("barge-in: speaking") { h.watch.latest.state == .speaking }
@@ -236,7 +236,7 @@ import CompanionTestKit
 
 @MainActor func testNoKeyClassicListen() async {
     let h = makeVoiceHarness(key: nil, autoEvents: [])
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("classic: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
@@ -254,7 +254,7 @@ import CompanionTestKit
 @MainActor func testDenyingSpeechIsNotBlamedOnTheVoice() async {
     let h = makeVoiceHarness(key: nil, autoEvents: [])
     h.transcriber.grantsAuthorization = false
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("permiso: la sesión no arranca") {
         h.watch.latest.state == .error
     }
@@ -267,7 +267,7 @@ import CompanionTestKit
 @MainActor func testOpenTimeoutFallsBackClassic() async {
     // Online: the realtime server did not answer, but classic still works.
     let h = makeVoiceHarness(autoEvents: [], readyTimeout: 0.05)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("timeout: fallback classic") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
@@ -283,7 +283,7 @@ import CompanionTestKit
 
 @MainActor func testOfflineStaysInErrorWithoutFallback() async {
     let h = makeVoiceHarness(autoEvents: [], readyTimeout: 0.05, online: false)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("offline: estado de error") {
         h.watch.latest.state == .error
     }
@@ -300,7 +300,7 @@ import CompanionTestKit
 @MainActor func testSilentMicFailsLoud() async {
     let h = makeVoiceHarness(micSilenceTimeout: 0.05)
     h.mic.receivedBufferValue = false
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("mic-silencio: error visible") {
         h.watch.latest.state == .error
     }
@@ -310,7 +310,7 @@ import CompanionTestKit
 
 @MainActor func testLiveMicSurvivesSilenceWatchdog() async {
     let h = makeVoiceHarness(micSilenceTimeout: 0.05)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("mic-vivo: listening") { h.watch.latest.state == .listening }
     await settle(0.15)
     expectEq(h.watch.latest.state, .listening,
@@ -319,7 +319,7 @@ import CompanionTestKit
 
 @MainActor func testHangUpClosesTransport() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("hangup: listening") { h.watch.latest.state == .listening }
     await h.session.hangUp()
     await pumpUntil("hangup: idle") { h.watch.latest.state == .idle }
@@ -333,7 +333,7 @@ import CompanionTestKit
 /// it — a `response.cancel`. A single loud frame is a backchannel and does not.
 @MainActor func testEchoFreeBargeInWhileSpeaking() async {
     let h = makeVoiceHarness(echoFreeOutput: true)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("echo-free: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.audioDelta(Data([0x03, 0x00])))
     await pumpUntil("echo-free: speaking") { h.watch.latest.state == .speaking }
@@ -359,7 +359,7 @@ import CompanionTestKit
 /// agent cutting itself off. No `response.cancel`.
 @MainActor func testNoBargeInWithoutAEC() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("echo: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.audioDelta(Data([0x03, 0x00])))
     await pumpUntil("echo: speaking") { h.watch.latest.state == .speaking }
@@ -375,7 +375,7 @@ import CompanionTestKit
 
 @MainActor func testFunctionCallRefusal() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("fn: listening") { h.watch.latest.state == .listening }
     let before = h.transport.sent.count
     h.transport.yield(
@@ -422,7 +422,7 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
     let h = makeVoiceHarness(parentTools: ParentToolRunner(workspace: opener))
     // 10c 3D: a URL opens unasked only when the user said it.
     h.transcriber.stoppedText = "abre example.com"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("padre rt: listening") { h.watch.latest.state == .listening }
     expect(h.transport.sent.contains { $0.contains("session.update") && $0.contains("open_app") },
            "padre rt: session.update declara las tools del padre")
@@ -459,7 +459,7 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
         [.text("Listo, abrí Safari.")],
     ]
     h.transcriber.stoppedText = "abre safari"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("padre cl: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
@@ -486,7 +486,7 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
     let h = makeVoiceHarness(
         parentTools: ParentToolRunner(workspace: FakeWorkspaceOpener(), places: FakePlaces(found: [place])),
         onJobEvent: { box.append($0) })
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("card rt: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.functionCall(
         name: "find_places", arguments: #"{"query":"cines cerca de Reforma"}"#, callId: "c5"))
@@ -509,7 +509,7 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
         [.text("Listo.")],
     ]
     h.transcriber.stoppedText = "abre safari"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("flush cl: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
@@ -533,7 +533,7 @@ final class JobEventBox: @unchecked Sendable {
     let sensor = FakeContextSensor(TurnContext(source: .typed, focusedApp: "Notes"))
     let h = makeVoiceHarness(sensor: sensor)
     h.transcriber.stoppedText = "hola compa"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("ctx rt: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.speechStarted)
     await pumpUntil("ctx rt: speechOpen") { h.watch.latest.speechOpen }
@@ -556,7 +556,7 @@ final class JobEventBox: @unchecked Sendable {
     let h = makeVoiceHarness(key: nil, sensor: sensor)
     h.chat.rounds = [[.text("Listo.")]]
     h.transcriber.stoppedText = "resume esto"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("ctx cl: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
@@ -579,7 +579,7 @@ final class JobEventBox: @unchecked Sendable {
     let sensor = FakeContextSensor(TurnContext(source: .typed, focusedApp: "1Password"))
     let h = makeVoiceHarness(sensor: sensor, memoryStore: store)
     h.transcriber.stoppedText = "resume esto"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("mem: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.speechStarted)
     await pumpUntil("mem: speechOpen") { h.watch.latest.speechOpen }
@@ -623,7 +623,7 @@ final class RecordingMemoryStore: MemoryStore, @unchecked Sendable {
         [.text("Listo.")],
     ]
     h.transcriber.stoppedText = "resume esto"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("puerta cl: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
@@ -653,7 +653,7 @@ final class RecordingMemoryStore: MemoryStore, @unchecked Sendable {
         parentTools: ParentToolRunner(workspace: opener),
         onJobEvent: { box.append($0) }, approvals: approvals)
     h.transcriber.stoppedText = "resume esto"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("puerta rt: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.speechStarted)
     await pumpUntil("puerta rt: speechOpen") { h.watch.latest.speechOpen }
@@ -689,7 +689,7 @@ final class RecordingMemoryStore: MemoryStore, @unchecked Sendable {
         parentTools: ParentToolRunner(workspace: opener),
         onJobEvent: { box.append($0) }, approvals: approvals)
     h.transcriber.stoppedText = "abre example.com"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("viejo: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.speechStarted)
     await pumpUntil("viejo: speechOpen") { h.watch.latest.speechOpen }
@@ -718,7 +718,7 @@ final class RecordingMemoryStore: MemoryStore, @unchecked Sendable {
         jobs: ApprovingSubmitter(),
         parentTools: ParentToolRunner(workspace: opener),
         onJobEvent: { box.append($0) }, approvals: approvals)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("auto: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.functionCall(
         name: "open_url", arguments: #"{"url":"https://evil.example/x"}"#, callId: "c1"))

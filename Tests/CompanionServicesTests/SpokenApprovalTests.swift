@@ -52,7 +52,7 @@ private let sheet = ApprovalRequest(
 
 @MainActor func testRealtimeNeverTakesASpokenYes() async {
     let h = makeVoiceHarness(language: .es)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("realtime: escuchando") { h.watch.latest.state == .listening }
     await h.session.noteApproval(sheet)
     h.clock.now += 10

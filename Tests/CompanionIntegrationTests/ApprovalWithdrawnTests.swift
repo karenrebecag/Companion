@@ -116,7 +116,7 @@ private let openCall = ToolCallRef(
         tools.setScriptedApproval(parked)
         let h = makeVoiceHarness(parentTools: tools, approvals: approvals)
         let seen = SessionEventBox(h.session.events)
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") { h.watch.latest.state == .listening }
         h.transport.yield(.functionCall(name: "open_url", arguments: openCall.arguments, callId: "c1"))
         await pumpUntilAsync("the sheet is up") { !approvals.requests.isEmpty }

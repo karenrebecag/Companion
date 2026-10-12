@@ -119,7 +119,7 @@ import CompanionTestKit
 @MainActor func testAnnouncementFlowsWhenListening() async {
     let gated = GatedSubmitter()
     let h = makeVoiceHarness(jobs: gated)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("announce: listening") { h.watch.latest.state == .listening }
 
     h.transport.yield(.functionCall(
@@ -150,7 +150,7 @@ import CompanionTestKit
 @MainActor func testAnnouncementWaitsForListening() async {
     let gated = GatedSubmitter()
     let h = makeVoiceHarness(jobs: gated)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("cola: listening") { h.watch.latest.state == .listening }
 
     h.transport.yield(.functionCall(

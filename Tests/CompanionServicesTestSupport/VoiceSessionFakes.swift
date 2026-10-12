@@ -34,7 +34,7 @@ private struct ScriptedReachability: ReachabilityProbing {
 /// itself pass their own small value.
 ///
 /// Trap: a harness with empty `autoEvents` never gets ready, so with this
-/// default `session.start()` blocks for 10 minutes. Whoever expects the
+/// default `session.start(preferRealtime: true)` blocks for 10 minutes. Whoever expects the
 /// timeout must pass an explicit small `readyTimeout`.
 package let harnessReadyTimeout: TimeInterval = 600
 

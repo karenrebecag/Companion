@@ -40,7 +40,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
 /// Starts realtime, waits for the first update, then drops the socket and
 /// waits for the one reconnect the session allows.
 @MainActor private func startAndDrop(_ h: VoiceHarness) async {
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -59,7 +59,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
 
 @Test @MainActor func reconnectResendsSessionConfigWithCurrentHistory() async {
     let h = makeVoiceHarness(online: true, jobs: ApprovingSubmitter())
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("first update") { sessionUpdates(h).count == 1 }
     await pumpUntil("listening") { h.watch.latest.state == .listening }
     h.thread.history = [Turn(role: .user, content: "zebra-marker-said-before-the-drop")]
@@ -85,7 +85,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
 
 @Test @MainActor func reconnectKeepsAMutedMicMuted() async {
     let h = makeVoiceHarness(online: true)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -108,7 +108,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
 
 @Test @MainActor func aReconnectThatNeverBecomesReadyIsNotRetried() async {
     let h = makeVoiceHarness(online: true)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -209,7 +209,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
 }
 
 @MainActor private func startListening(_ h: VoiceHarness) async {
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -226,7 +226,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
     let heldPastAShortBudget = 1.5
     let h = makeVoiceHarness(autoEvents: [])
     // `start` returns only once the handshake settles, so it runs aside.
-    let starting = Task { @MainActor in await h.session.start() }
+    let starting = Task { @MainActor in await h.session.start(preferRealtime: true) }
     await pumpUntil("open entered") { h.transport.openCount == 1 }
     await settle(heldPastAShortBudget)
 
@@ -279,7 +279,7 @@ private func sessionUpdates(_ h: VoiceHarness) -> [String] {
 
     await h.session.hangUp()
     await pumpUntil("hung up") { h.watch.latest.state == .idle }
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("new session listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }

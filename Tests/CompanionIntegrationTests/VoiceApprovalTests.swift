@@ -77,7 +77,7 @@ import CompanionTestKit
 @MainActor func testApprovalNeverReachesTheEar() async {
     let jobs = ApprovingSubmitter()
     let h = makeVoiceHarness(jobs: jobs)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("permiso: listening") { h.watch.latest.state == .listening }
 
     h.transport.yield(.functionCall(
@@ -106,7 +106,7 @@ import CompanionTestKit
     let jobs = ApprovingSubmitter()
     let sessionModel = SessionModel(jobs: jobs, approvals: nil)
     let h = makeVoiceHarness(jobs: jobs, session: sessionModel)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("concede: listening") { h.watch.latest.state == .listening }
 
     h.transport.yield(.functionCall(
@@ -141,7 +141,7 @@ import CompanionTestKit
     let jobs = ApprovingSubmitter()
     let sessionModel = SessionModel(jobs: jobs, approvals: nil)
     let h = makeVoiceHarness(jobs: jobs, session: sessionModel)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("roto: listening") { h.watch.latest.state == .listening }
 
     h.transport.yield(.functionCall(

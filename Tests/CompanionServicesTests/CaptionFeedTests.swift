@@ -302,7 +302,7 @@ private final class GatedPlayer: PCMPlaying, @unchecked Sendable {
         // protocol must not shadow the session's own stream.
         let voice: any VoiceControlling = h.session
         let watch = CaptionWatch(voice.captions)
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") { h.watch.latest.state == .listening }
         h.transport.yield(.responseCreated)
         h.transport.yield(.assistantTranscriptDelta("hola mundo"))
@@ -317,7 +317,7 @@ private final class GatedPlayer: PCMPlaying, @unchecked Sendable {
 
     @MainActor private func liveCaption(_ h: VoiceHarness) async -> CaptionWatch {
         let watch = CaptionWatch(h.session.captions)
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") { h.watch.latest.state == .listening }
         h.transport.yield(.responseCreated)
         h.transport.yield(.assistantTranscriptDelta("hola mundo"))

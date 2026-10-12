@@ -20,7 +20,7 @@ import CompanionTestKit
     }
     defer { VoiceAttachmentCodec.reset() }
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("push: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -64,7 +64,7 @@ import CompanionTestKit
     }
     defer { VoiceAttachmentCodec.reset() }
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("push-file: listening") { h.watch.latest.state == .listening }
     let before = h.transport.sent.count
     await h.session.push(attachment: AttachmentRef(
@@ -80,7 +80,7 @@ import CompanionTestKit
     }
     defer { VoiceAttachmentCodec.reset() }
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("push-cancel: listening") { h.watch.latest.state == .listening }
     let before = h.transport.sent.count
     let push = Task { await h.session.push(attachment: AttachmentRef(

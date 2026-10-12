@@ -17,7 +17,7 @@ import CompanionTestKit
 
 @MainActor func testVolumeReachesThePlayerLive() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("volumen: listening") { h.watch.latest.state == .listening }
 
     await h.session.setVolume(0.4)

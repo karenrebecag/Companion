@@ -99,7 +99,7 @@ private func mcpVerdictCount(_ h: VoiceHarness) -> Int {
     let actor = await actorRememberingLocalShell(approved)
     let model = SessionModel(jobs: nil, approvals: actor)
     let h = makeVoiceHarness(approvals: actor, session: model)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("\(label): escuchando") { h.watch.latest.state == .listening }
     let deciding = Task { await h.session.noteMCPApproval(mcpShell("m1")) }
     await pumpUntil("\(label): la hoja muestra el MCP") { model.projection.approval?.requestId == "m1" }
