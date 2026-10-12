@@ -83,6 +83,18 @@ extension IslandView {
         geometry.answer = nil
     }
 
+    /// A reply that is only a card has no words for the panel, so the island
+    /// closed and the card was never seen (2026-10-06): it opens by itself.
+    func openCardOnlyReply() {
+        guard let message = latestReply, openAnswer == nil,
+              IslandReplyText.spoken(from: message.text).isEmpty,
+              Self.islandResult(for: message) != nil,
+              Self.opensInPopup(message)
+        else { return }
+        IslandAnswerSignal.changed(from: nil, to: message.id, session: chat.session)
+        withAnimation(.expoOut(IslandMotionBudget.popover.openDuration)) { openAnswer = message.id }
+    }
+
     /// "Ver" earns a popup only when the reply holds more than the card
     /// already says (D2, spec 16m §5); a short answer keeps opening the
     /// window, which shows the same thing bigger.

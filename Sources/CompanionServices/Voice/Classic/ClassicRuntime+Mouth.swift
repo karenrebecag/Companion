@@ -118,7 +118,13 @@ struct TurnMouth {
     /// thread and the transcript must not keep those. The length budget trims
     /// only the voice; the thread keeps the full text, which is the point of
     /// a card carrying the detail.
-    var said: String { SpeechFilter.clean(saidPart(of: spoken)) }
+    // Fences out first: the speech filter turned a card into "companion:chart".
+    var said: String { SpeechFilter.clean(saidPart(of: MarkdownSplitter.proseWithoutCards(spoken))) }
+
+    /// What the thread keeps: the words said, then the cards whole.
+    var stored: String {
+        [said, MarkdownSplitter.cardFences(spoken)].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
 
     /// Code review 2026-09-25 (LOW-2): a round's text as the voice said it,
     /// for the model's next round.
@@ -239,12 +245,15 @@ extension ClassicRuntime {
     /// Speakable text into the stream and the buffer; false when a press
     /// cut the turn while its sentences were being enqueued.
     func take(
-        _ piece: String, round text: inout String, _ mouth: inout TurnMouth,
+        _ piece: String, shown: String? = nil, round text: inout String, _ mouth: inout TurnMouth,
         apply: @Sendable (TurnEvent) async -> Void
     ) async -> Bool {
-        guard !piece.isEmpty else { return true }
-        let piece = SpeechFilter.joiner(after: mouth.spoken, before: piece) + piece
-        let voiced = SpeechFilter.stoppingLines(piece, after: mouth.spoken)
+        let shown = shown ?? piece
+        guard !shown.isEmpty else { return true }
+        // A card fence is kept for the thread but never voiced.
+        let voiced = piece.isEmpty ? "" : SpeechFilter.stoppingLines(
+            SpeechFilter.joiner(after: mouth.spoken, before: piece) + piece, after: mouth.spoken)
+        let piece = SpeechFilter.joiner(after: mouth.spoken, before: shown) + shown
         if !mouth.started {
             mouth.started = true
             await apply(.firstSentence)

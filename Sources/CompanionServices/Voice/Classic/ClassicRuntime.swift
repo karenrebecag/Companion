@@ -403,9 +403,10 @@ final class ClassicRuntime: @unchecked Sendable {
                     }
                     switch delta {
                     case .text(let raw):
-                        let (piece, found) = guardJSON(mouth.json.feed(raw))
+                        let step = mouth.json.feed(raw)
+                        let (piece, found) = guardJSON(step)
                         if fromContent == nil { fromContent = found }
-                        guard await take(piece, round: &text, &mouth, apply: apply) else {
+                        guard await take(piece, shown: step.display, round: &text, &mouth, apply: apply) else {
                             return await cutTurn(transcript, generation: generation, cut: cut)
                         }
                         if mouth.buffer.awaitsFirstCut { armFirstCut() }
@@ -430,8 +431,9 @@ final class ClassicRuntime: @unchecked Sendable {
             }
             // An object still open when the stream ends was cut off: dropped,
             // never spoken; a lone brace was prose.
-            let (tail, _) = guardJSON(mouth.json.finish())
-            guard await take(tail, round: &text, &mouth, apply: apply) else {
+            let last = mouth.json.finish()
+            let (tail, _) = guardJSON(last)
+            guard await take(tail, shown: last.display, round: &text, &mouth, apply: apply) else {
                 return await cutTurn(transcript, generation: generation, cut: cut)
             }
             if failed { break }
@@ -510,8 +512,12 @@ final class ClassicRuntime: @unchecked Sendable {
         if !mouth.spoken.isEmpty {
             let said = mouth.said
             transcript?.said(said)
-            await thread.appendAssistant(said)
+            // Counts only, never content: tells an empty card turn from an empty reply.
+            Log.app("mouth: stored chars=\(mouth.spoken.count) fences=\(mouth.spoken.components(separatedBy: "```").count - 1) said=\(said.count) cards=\(MarkdownSplitter.cardFences(mouth.spoken).count)")
+            await thread.appendAssistant(mouth.stored)
             await thread.finishStream()
+        } else {
+            Log.app("mouth: stored nothing, the reply had no text")
         }
         if Task.isCancelled { return await cutTurn(transcript, generation: generation, cut: cut) }
         await apply(.replyCompleted)

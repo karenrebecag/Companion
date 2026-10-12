@@ -101,6 +101,18 @@ package struct MarkdownSplitter: Sendable {
         }.joined(separator: "\n\n")
     }
 
+    /// Only the card fences of a reply, whole, for a thread that stores the
+    /// spoken words and the cards apart (a voice turn).
+    package static func cardFences(_ text: String) -> String {
+        // The fast brain often ends a card-only reply without the closing
+        // fence; the reply is complete here, so an open fence is closed.
+        let text = text.components(separatedBy: "```").count.isMultiple(of: 2) ? text + "\n```" : text
+        return split(text).compactMap { part -> String? in
+            guard case .code(let lang, let body) = part.kind, lang.hasPrefix("companion:") else { return nil }
+            return "```\(lang)\n\(body)\n```"
+        }.joined(separator: "\n\n")
+    }
+
     /// The island reads a reply on every streamed token: it only ever parses
     /// this much of it (security review 16f), enough for the opening prose
     /// and the fence of a first card. It has to fit the island's word cap

@@ -1,0 +1,1 @@
+- **Las tablas y gráficas dichas por voz vuelven a dibujarse (2026-10-06).** El filtro que evita leer JSON en voz alta también borraba los datos dentro del bloque de la tarjeta, y la isla mostraba "companion table" sin tabla. Ahora el bloque se guarda entero y solo la voz lo omite.
