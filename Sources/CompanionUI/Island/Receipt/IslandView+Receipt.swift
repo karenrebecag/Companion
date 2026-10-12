@@ -7,10 +7,10 @@ extension IslandView {
     /// Closing it is the user's word (the model hears "closed"); leaving on
     /// its own is the reducer's clock.
     func receiptCard(_ receipt: ActionReceipt) -> some View {
-        resultCard(
-            icon: "checklist", spoken: nil, steps: [], sources: [],
-            onDismiss: { chat.dismissIslandNotice(.receipt(receipt)) }
-        ) { IslandReceiptLines(receipt: receipt) }
+        IslandReceiptDoc(
+            title: resultTitle, receipt: receipt,
+            maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height),
+            onDismiss: { chat.dismissIslandNotice(.receipt(receipt)) }, onContinue: continueInChat)
         .onAppear {
             AccessibilityNotification.Announcement(
                 IslandReceipt.announcement(receipt, language: Localized.language())).post()

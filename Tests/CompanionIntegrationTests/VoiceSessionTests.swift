@@ -17,10 +17,8 @@ import CompanionTestKit
     await testRealtimeTurnCarriesContext()
     await testClassicTurnCarriesContext()
     await testSessionMemoryNeverKeepsContext()
-    await testClassicForeignURLAsksThroughTheSheet()
-    await testRealtimeForeignURLAsksThroughTheSheet()
-    await testRealtimeStaleTextDoesNotAuthorise()
-    await testModelCannotApproveItsOwnURL()
+    await testClassicForeignURLOpensWithoutASheet()
+    await testRealtimeForeignURLOpensWithoutASheet()
     await testMuteAfterSpeechCommitsNativeText()
     await testUserTurnPreemptsActiveResponse()
     await testSegmentingEarDrivesTheTurn()
@@ -606,12 +604,10 @@ final class RecordingMemoryStore: MemoryStore, @unchecked Sendable {
     func appendSession(_ summary: String) throws { lock.lock(); _sessions.append(summary); lock.unlock() }
 }
 
-// MARK: - Wave 10c 3D: open_url con puerta, por voz
+// MARK: - open_url por voz: abrir es navegar, sin hoja
 
-/// 27. Clásico: un host que no se dijo → la solicitud sale por el mismo seam
-/// que la hoja de los encargos y queda pendiente para el "sí" hablado; nada
-/// se abre hasta resolver el actor.
-@MainActor func testClassicForeignURLAsksThroughTheSheet() async {
+/// Clasico: un host que la usuaria no dijo se abre sin pedir hoja.
+@MainActor func testClassicForeignURLOpensWithoutASheet() async {
     let opener = FakeWorkspaceOpener()
     let approvals = FakeApprovals()
     let box = JobEventBox()
@@ -622,119 +618,39 @@ final class RecordingMemoryStore: MemoryStore, @unchecked Sendable {
         [.toolCalls([ToolCallRef(id: "c1", name: "open_url", arguments: #"{"url":"https://evil.example/x"}"#)])],
         [.text("Listo.")],
     ]
-    h.transcriber.stoppedText = "resume esto"
+    h.transcriber.stoppedText = "busca el clima"
     await h.session.start(preferRealtime: true)
-    await pumpUntil("puerta cl: listening") {
+    await pumpUntil("sin hoja cl: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
-    // `advance()` runs the classic turn inline and the turn is parked on the
-    // sheet: awaiting it here would be the deadlock the sheet resolves.
     let turn = Task { await h.session.advance() }
-    await pumpUntil("puerta cl: solicitud") {
-        box.events.contains { if case .approvalRequested(let r) = $0 { r.toolName == "open_url" } else { false } }
-    }
-    expect(opener.openedURLs.isEmpty, "puerta cl: nada abierto mientras espera")
-    let request = await approvals.waiting
-    expect(request != nil, "puerta cl: el actor tiene la solicitud")
-    _ = await approvals.resolve(requestId: request?.requestId ?? "", approved: true)
-    await pumpUntil("puerta cl: abre") { !opener.openedURLs.isEmpty }
-    expectEq(opener.openedURLs.map(\.absoluteString), ["https://evil.example/x"], "puerta cl: con sí, abre")
-    await pumpUntil("puerta cl: segunda ronda") { h.synth.queue.contains("Listo.") }
+    await pumpUntil("sin hoja cl: abre") { !opener.openedURLs.isEmpty }
+    expectEq(opener.openedURLs.map(\.absoluteString), ["https://evil.example/x"], "sin hoja cl: abre")
+    expect(!box.events.contains { if case .approvalRequested = $0 { true } else { false } }, "sin hoja cl: no hubo solicitud")
     await turn.value
 }
 
-/// Realtime: mismo caso; el function output espera a la decisión y con
-/// "no" lleva la instrucción `denied_by_user`.
-@MainActor func testRealtimeForeignURLAsksThroughTheSheet() async {
+/// Realtime: mismo caso; el function output llega sin esperar decision.
+@MainActor func testRealtimeForeignURLOpensWithoutASheet() async {
     let opener = FakeWorkspaceOpener()
     let approvals = FakeApprovals()
     let box = JobEventBox()
     let h = makeVoiceHarness(
         parentTools: ParentToolRunner(workspace: opener),
         onJobEvent: { box.append($0) }, approvals: approvals)
-    h.transcriber.stoppedText = "resume esto"
+    h.transcriber.stoppedText = "busca el clima"
     await h.session.start(preferRealtime: true)
-    await pumpUntil("puerta rt: listening") { h.watch.latest.state == .listening }
+    await pumpUntil("sin hoja rt: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.speechStarted)
-    await pumpUntil("puerta rt: speechOpen") { h.watch.latest.speechOpen }
+    await pumpUntil("sin hoja rt: speechOpen") { h.watch.latest.speechOpen }
     await h.session.toggleMute()
-    await pumpUntil("puerta rt: item enviado") { hasMessage(h.transport.sent, type: "conversation.item.create") }
+    await pumpUntil("sin hoja rt: item enviado") { hasMessage(h.transport.sent, type: "conversation.item.create") }
     let before = h.transport.sent.count
     h.transport.yield(.functionCall(
         name: "open_url", arguments: #"{"url":"https://evil.example/x"}"#, callId: "c9"))
-    await pumpUntil("puerta rt: solicitud") {
-        box.events.contains { if case .approvalRequested(let r) = $0 { r.toolName == "open_url" } else { false } }
-    }
-    expect(opener.openedURLs.isEmpty, "puerta rt: nada abierto")
-    expect(!h.transport.sent.dropFirst(before).contains { $0.contains("function_call_output") },
-           "puerta rt: el output espera a la decisión")
-    let request = await approvals.waiting
-    _ = await approvals.resolve(requestId: request?.requestId ?? "", approved: false)
-    await pumpUntil("puerta rt: output") {
+    await pumpUntil("sin hoja rt: output") {
         h.transport.sent.dropFirst(before).contains { $0.contains("function_call_output") }
     }
-    expect(opener.openedURLs.isEmpty, "puerta rt: con no, no abre")
-    expect(h.transport.sent.dropFirst(before).contains { $0.contains("denied_by_user") },
-           "puerta rt: el modelo lee la instrucción")
-}
-
-/// Code review (MEDIO/ALTO): `lastUserText` quedaba viejo; una mención de
-/// otro turno autorizaba una URL nueva. Empezar a hablar borra el texto de
-/// referencia; un turno sin texto comprometido falla cerrado.
-@MainActor func testRealtimeStaleTextDoesNotAuthorise() async {
-    let opener = FakeWorkspaceOpener()
-    let approvals = FakeApprovals()
-    let box = JobEventBox()
-    let h = makeVoiceHarness(
-        parentTools: ParentToolRunner(workspace: opener),
-        onJobEvent: { box.append($0) }, approvals: approvals)
-    h.transcriber.stoppedText = "abre example.com"
-    await h.session.start(preferRealtime: true)
-    await pumpUntil("viejo: listening") { h.watch.latest.state == .listening }
-    h.transport.yield(.speechStarted)
-    await pumpUntil("viejo: speechOpen") { h.watch.latest.speechOpen }
-    await h.session.toggleMute()
-    await pumpUntil("viejo: texto comprometido") { hasMessage(h.transport.sent, type: "conversation.item.create") }
-    h.transport.yield(.responseDone)
-    // A new utterance starts and nothing gets committed (server-side turn).
-    h.transport.yield(.speechStarted)
-    await settle(0.05)
-    h.transport.yield(.functionCall(
-        name: "open_url", arguments: #"{"url":"https://example.com/late"}"#, callId: "c1"))
-    await pumpUntil("viejo: pide permiso") {
-        box.events.contains { if case .approvalRequested(let r) = $0 { r.toolName == "open_url" } else { false } }
-    }
-    expect(opener.openedURLs.isEmpty, "viejo: la mención del turno anterior no autoriza")
-}
-
-/// Security review (verificado, sin test): el modelo no puede pedir
-/// `open_url` y contestarse `resolve_approval(true)` en la misma respuesta.
-/// Los eventos van en serie: la puerta bloquea hasta la decisión humana.
-@MainActor func testModelCannotApproveItsOwnURL() async {
-    let opener = FakeWorkspaceOpener()
-    let approvals = FakeApprovals()
-    let box = JobEventBox()
-    let h = makeVoiceHarness(
-        jobs: ApprovingSubmitter(),
-        parentTools: ParentToolRunner(workspace: opener),
-        onJobEvent: { box.append($0) }, approvals: approvals)
-    await h.session.start(preferRealtime: true)
-    await pumpUntil("auto: listening") { h.watch.latest.state == .listening }
-    h.transport.yield(.functionCall(
-        name: "open_url", arguments: #"{"url":"https://evil.example/x"}"#, callId: "c1"))
-    h.transport.yield(.functionCall(
-        name: "resolve_approval", arguments: #"{"approved":true}"#, callId: "c2"))
-    await pumpUntil("auto: pide permiso") {
-        box.events.contains { if case .approvalRequested(let r) = $0 { r.toolName == "open_url" } else { false } }
-    }
-    await settle(0.15)
-    expect(opener.openedURLs.isEmpty, "auto: el resolve del modelo no abrió nada")
-    expect(await approvals.resolutions.isEmpty, "auto: nadie resolvió la petición")
-    let request = await approvals.waiting
-    _ = await approvals.resolve(requestId: request?.requestId ?? "", approved: false)
-    await pumpUntil("auto: output de la negación") { h.transport.sent.contains { $0.contains("denied_by_user") } }
-    await pumpUntil("auto: el resolve tardío no encuentra nada") {
-        h.transport.sent.contains { $0.contains("c2") && $0.contains("function_call_output") }
-    }
-    expect(opener.openedURLs.isEmpty, "auto: sigue sin abrir")
+    expectEq(opener.openedURLs.map(\.absoluteString), ["https://evil.example/x"], "sin hoja rt: abre")
+    expect(!box.events.contains { if case .approvalRequested = $0 { true } else { false } }, "sin hoja rt: no hubo solicitud")
 }

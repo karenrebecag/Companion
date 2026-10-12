@@ -598,15 +598,28 @@ private func pageWithAForm() -> BrowserPage {
 
 // MARK: - criterion 4: navigate
 
-@Test func navigatingToAnotherOriginNotSaidAsksAndADenialSendsNoFrame() async {
+@Test func navigatingToAnotherHTTPSOriginActsWithoutASheet() async {
     let rig = makeToolRig()
     await rig.read()
-    let arguments = #"{"tab":12,"url":"https://evil.example/login"}"#
-    let request = rig.runner.approval(for: rig.call("browser_navigate", arguments), said: "abre el reporte")
-    expect(request != nil, "criterio 4: otro origen no dicho, hoja")
+    let arguments = #"{"tab":12,"url":"https://www.google.com/search?q=clima"}"#
+    expect(rig.runner.approval(for: rig.call("browser_navigate", arguments), said: "busca el clima") == nil,
+           "otro origen no dicho: abrir es navegar, sin hoja")
     let out = await rig.runner.execute(name: "browser_navigate", argumentsJSON: arguments)
-    expect(!out.ok, "denegada: no navega")
-    expect(rig.channel.writes.isEmpty, "criterio 4: cero escrituras")
+    expect(out.ok, "corre con el ticket emitido: \(out.output)")
+    expectEq(rig.channel.writes.count, 1, "una escritura")
+}
+
+@Test func navigatingToANonHTTPSchemeIsRefusedWithNoSheetOrFrame() async {
+    let rig = makeToolRig()
+    await rig.read()
+    for target in ["file:///etc/passwd", "javascript:alert(1)"] {
+        let arguments = #"{"tab":12,"url":"\#(target)"}"#
+        expect(rig.runner.approval(for: rig.call("browser_navigate", arguments), said: "abre \(target)") == nil,
+               "\(target): sin hoja")
+        let out = await rig.runner.execute(name: "browser_navigate", argumentsJSON: arguments)
+        expect(!out.ok, "\(target): rechazado")
+    }
+    expect(rig.channel.writes.isEmpty, "cero escrituras")
 }
 
 @Test func navigatingWithinTheSameOriginActsWithoutASheet() async {

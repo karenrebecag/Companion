@@ -20,11 +20,16 @@ package enum IslandChrome {
     /// The chat row inset of the same reference.
     package static let shellMargin: CGFloat = 18
     package static let wideCardWidth: CGFloat = IslandNoticeMetrics.updateWidth + shellMargin + shellMargin
+    /// The result document is `DocCardMetrics.width` wide; Incredible's shape around it
+    /// measures 621, a 16 pt pad, not the 18 of the chat rows.
+    package static let docShellMargin: CGFloat = 16
+    package static let docCardWidth: CGFloat = DocCardMetrics.width + docShellMargin + docShellMargin
     /// Room for the widest panel, its shoulders and its shadow.
-    /// 620, not the 560 of 16f: the rich answer popup is 580 wide (16m-1)
-    /// and the canvas must hold it with margin. Clicks still pass through
-    /// everywhere but the shape, the dropdown and the popup.
-    package static let canvasWidth: CGFloat = 620
+    /// 680, not the 560 of 16f: the rich answer popup is 580 wide (16m-1) and
+    /// the result document's shape is 621; the canvas must hold them with
+    /// margin for the shadow. Clicks still pass through everywhere but the
+    /// shape, the dropdown and the popup.
+    package static let canvasWidth: CGFloat = 680
     /// Tall enough for Incredible's whole column under the tallest band the
     /// island draws, so the shape never cuts the end of a reply (K11, brief
     /// isla-ciclo-y-legibilidad). Derived, so moving any part moves it.
@@ -39,6 +44,7 @@ package enum IslandChrome {
         case .bar: barWidth
         case .card: cardWidth
         case .wideCard: wideCardWidth
+        case .docCard: docCardWidth
         }
     }
 

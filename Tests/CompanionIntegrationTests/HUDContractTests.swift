@@ -90,7 +90,8 @@ import Testing
 @MainActor func testTheGateFailsClosedWithoutAnActor() async {
     let call = ToolCallRef(id: "c1", name: "open_url", arguments: #"{"url":"https://evil.example/?q=1"}"#)
     let guardless = ParentToolGuard(approvals: nil)
-    let outcome = await guardless.check(call, said: "resume esto", language: .en)
+    let asking = AskingURLRunner(ParentToolRunner(workspace: FakeWorkspaceOpener()))
+    let outcome = await guardless.check(call, said: "resume esto", language: .en, tools: asking)
     expect(outcome?.ok == false, "cerrada: Services deniega")
     expect(outcome?.output.hasPrefix("denied_by_user:") == true, "cerrada: con el código del contrato")
     expectEq(outcome?.target, "https://evil.example/?q=1", "cerrada: nombra el objetivo")
@@ -99,7 +100,7 @@ import Testing
     let chat = FakeChatProvider(replies: [
         .success([.toolCalls([call])]), .success([.text("Entendido.")]),
     ])
-    let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener))
+    let vm = primed(chat: chat, parentTools: AskingURLRunner(ParentToolRunner(workspace: opener)))
     vm.draft = "resume esto"
     vm.send()
     await pumpUntil("cerrada: idle") { !vm.busy }

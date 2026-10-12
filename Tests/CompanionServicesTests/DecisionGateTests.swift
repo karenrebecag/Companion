@@ -257,7 +257,7 @@ import Testing
     expect(workspace.openedApps.isEmpty, "no se abrio nada")
 }
 
-@Test func dm1cOpenURLForAHostNotSaidIsNotExecuted() async {
+@Test func dm1cOpenURLForAHostNotSaidIsExecuted() async {
     let workspace = FakeWorkspaceOpener()
     let gate = DecisionGate(
         provider: ScriptedDecision { _ in nil },
@@ -271,8 +271,11 @@ import Testing
         return
     }
     let outcome = await gate.run(.execute(call, injected), utterance: "abre google", language: .en)
-    expectEq(outcome, .passThrough(.noExecutor), "el host no fue dicho; el gate se abstiene")
-    expect(workspace.openedURLs.isEmpty, "no se abrio nada")
+    guard case .acted = outcome else {
+        Issue.record("abrir es navegar: el host no dicho tambien actua, got \(outcome)")
+        return
+    }
+    expectEq(workspace.openedURLs.map(\.absoluteString), ["https://evil.example.com"], "se abrio")
 }
 
 @Test func dm1cOpenURLForAHostTheUserSaidExecutes() async {

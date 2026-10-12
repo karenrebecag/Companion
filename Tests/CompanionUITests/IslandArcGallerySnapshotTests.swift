@@ -75,11 +75,9 @@ func islandArcGallerySnapshots() throws {
         }
         VStack(alignment: .leading, spacing: 28) {
             panel("Recibo") {
-                IslandResultCard(
-                    title: "Abre Safari y escribe el texto", icon: "checklist", spoken: nil,
-                    steps: [], links: .none, maxHeight: IslandResultCardMetrics.minRegion,
-                    onOpenURL: { _ in }, onDismiss: {}, onContinue: {}
-                ) { IslandReceiptLines(receipt: receipt) }
+                IslandReceiptDoc(
+                    title: "Abre Safari y escribe el texto", receipt: receipt,
+                    maxHeight: IslandChrome.columnCap, onDismiss: {}, onContinue: {})
             }
             panel("Aviso") {
                 IslandNoticeCard(content: notice, pausesClock: false, onHover: { _ in }, onAction: { _ in },
