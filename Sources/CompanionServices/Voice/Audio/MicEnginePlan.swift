@@ -23,6 +23,13 @@ package enum MicEnginePlan {
         let same = built.input == wantedInput && built.voiceProcessing == wantVoiceProcessing
         return same ? .reuse : .rebuild
     }
+
+    /// What survives a deliberate stop. Only a plain engine keeps its build:
+    /// stopping voice processing drops its pin, so that engine must be rebuilt.
+    package static func buildAfterStop(_ built: MicEngineBuild?) -> MicEngineBuild? {
+        guard let built, !built.voiceProcessing else { return nil }
+        return built
+    }
 }
 
 package struct MicPlainRetry: Equatable, Sendable {

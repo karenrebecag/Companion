@@ -180,7 +180,7 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
         Log.app("audio: HAL back after \(waited * 100) ms")
     }
 
-    package func stop() async { queue.sync { halt() } }
+    package func stop() async { queue.sync { halt(keepingPlainEngine: true) } }
 
     /// Wave 12c: build the engine and enable voice processing at boot so
     /// the first hold does not pay for it. Only with the mic already
@@ -456,14 +456,17 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
         built = nil
     }
 
-    private func halt() {
+    /// `keepingPlainEngine` is only for a deliberate stop: the engine is
+    /// stopped with no tap (mic closed) but kept built, so the next hold skips
+    /// the ~26 ms rebuild. Failure and route-change halts still start clean.
+    private func halt(keepingPlainEngine: Bool = false) {
         running = false
         // Queued restarts were raised against a mic that is no longer open.
         gateLock.withLock { gate.invalidate() }
-        tearDownEngine()
+        tearDownEngine(keepingPlainEngine: keepingPlainEngine)
     }
 
-    private func tearDownEngine() {
+    private func tearDownEngine(keepingPlainEngine: Bool = false) {
         follower?.end()
         follower = nil
         if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
@@ -485,7 +488,7 @@ package final class MicCapture: MicCapturing, @unchecked Sendable {
         // next start reuse an engine that no longer matched them.
         voiceProcessing = false
         muteMixer = nil
-        built = nil
+        built = keepingPlainEngine ? MicEnginePlan.buildAfterStop(built) : nil
     }
 
     private func tameVoiceProcessing(_ engine: AVAudioEngine) {
