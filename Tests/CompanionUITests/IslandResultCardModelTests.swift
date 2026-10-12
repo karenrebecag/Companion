@@ -59,7 +59,7 @@ private func source(_ title: String, _ url: String) -> MarkdownSplitter.SourceLi
 }
 
 @Test @MainActor func testOnlyAFinishedPlainReplyTakesTheCardAndTheCardIsTheCardWidth() {
-    var done = IslandState(size: .card, line: .completed)
+    var done = IslandState(size: .docCard, line: .completed)
     expect(IslandView.showsCompletedCard(done), "tarjeta: la respuesta terminada la usa")
     done.approval = ApprovalRequest(requestId: "r", toolName: "Bash", summary: "x", inputJSON: "{}")
     expect(!IslandView.showsCompletedCard(done), "tarjeta: la hoja de aprobacion conserva su fila")
@@ -68,7 +68,7 @@ private func source(_ title: String, _ url: String) -> MarkdownSplitter.SourceLi
             var p = SessionProjection()
             p.kind = .processing(.completed)
             return p
-        }(), pebbleHidden: false).size, .card, "tarjeta: terminada es del ancho de tarjeta")
+        }(), pebbleHidden: false).size, .docCard, "tarjeta: terminada es del ancho del documento")
 }
 
 @Test @MainActor func testAChipReadsTheHostNotTheWholeAddressAndTheAppByItsLocalizedName() {

@@ -106,4 +106,39 @@ enum IslandResultCardModel {
         guard !split.web.isEmpty else { return (reply, []) }
         return (MarkdownSplitter.plainText(split.rest), split.web)
     }
+
+    /// What the result document paints from a reply: its own structure (the
+    /// table stays a table, the bullets stay bullets) without the sources
+    /// list the chips carry, the cards and fences the inline visuals draw,
+    /// and the question the choice card already asks.
+    static func document(of reply: String) -> (blocks: [AnswerBlock], sources: [MarkdownSplitter.SourceLink]) {
+        let window = String(reply.prefix(MarkdownSplitter.islandWindow))
+        let split = MarkdownSplitter.extractSources(MarkdownSplitter.split(window))
+        let blocks = AnswerBlocks.blocks(parts: split.rest, endsInsideFence: MarkdownSplitter.endsInsideFence(window))
+        return (blocks.compactMap(spoken), split.web)
+    }
+
+    /// The same filter the voice and the card's words use, so a tag meant for
+    /// the model never paints; a block with nothing left is dropped.
+    private static func spoken(_ block: AnswerBlock) -> AnswerBlock? {
+        func clean(_ text: String) -> String { SpeechFilter.clean(text).trimmingCharacters(in: .whitespacesAndNewlines) }
+        switch block {
+        case .paragraph(let text): return nonEmpty(clean(text)).map(AnswerBlock.paragraph)
+        case .title(let text): return nonEmpty(clean(text)).map(AnswerBlock.title)
+        case .section(let text): return nonEmpty(clean(text)).map(AnswerBlock.section)
+        case .eyebrow(let text): return nonEmpty(clean(text)).map(AnswerBlock.eyebrow)
+        case .list(let ordered, let items):
+            let kept = items.compactMap { item -> MarkdownSplitter.Item? in
+                guard let text = nonEmpty(clean(item.text)) else { return nil }
+                return MarkdownSplitter.Item(depth: item.depth, text: text)
+            }
+            return kept.isEmpty ? nil : .list(ordered: ordered, items: kept)
+        // Drawn elsewhere on the card, or answered from it.
+        case .card, .diagram, .choice: return nil
+        default: return block
+        }
+    }
+
+    private static func nonEmpty(_ text: String) -> String? { text.isEmpty ? nil : text }
 }
+

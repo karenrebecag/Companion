@@ -243,7 +243,7 @@ package struct IslandView: View {
             EmptyView()
         case .nudge:
             shell(state, header: AnyView(IslandHeaderControls(popover: $popover))) { composer(state) }
-        case .bar, .card, .wideCard:
+        case .bar, .card, .wideCard, .docCard:
             shell(state) {
                 IslandColumn(
                     maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height),

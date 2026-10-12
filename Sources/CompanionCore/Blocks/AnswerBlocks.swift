@@ -45,9 +45,13 @@ package enum AnswerBlocks {
     static let plainCap = 240
 
     package static func blocks(from markdown: String) -> [AnswerBlock] {
-        let parts = MarkdownSplitter.split(markdown)
-        let cut = MarkdownSplitter.endsInsideFence(markdown)
-        return parts.enumerated().map { index, part in
+        blocks(parts: MarkdownSplitter.split(markdown), endsInsideFence: MarkdownSplitter.endsInsideFence(markdown))
+    }
+
+    /// For a caller that already split the reply (to take the sources list
+    /// out first) and must not split it twice.
+    package static func blocks(parts: [MarkdownSplitter.Part], endsInsideFence cut: Bool) -> [AnswerBlock] {
+        parts.enumerated().map { index, part in
             block(of: part.kind, settled: !(cut && index == parts.count - 1))
         }
     }

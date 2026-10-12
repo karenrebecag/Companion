@@ -9,6 +9,9 @@ package struct IslandState: Sendable, Equatable {
         /// 16m-6: the update offer's card measures 522, wider than the 492 of
         /// every other card; only that one line asks for it.
         case wideCard
+        /// The result document (a finished reply, a receipt): wider than any
+        /// other card because it is read, not glanced at.
+        case docCard
     }
     package enum Meter: Sendable, Equatable { case none, mic, agent }
     package enum Line: Sendable, Equatable {
@@ -187,6 +190,8 @@ package struct IslandState: Sendable, Equatable {
         if let receipt = p.receipt {
             state.receipt = receipt
             if state.size == .hidden || state.size == .pebble { state.size = .nudge }
+            // The undo row lives in the narrow column; the document is not drawn beside it.
+            if state.size == .docCard { state.size = .card }
         }
         state.light = light(p)
         state.action = action(state.line)
@@ -240,7 +245,7 @@ package struct IslandState: Sendable, Equatable {
             IslandState(size: .card, line: .signInApp(slug: slug, name: name))
         case .permission(let failure): IslandState(size: .card, line: .permission(failure))
         case .failure(let failure): IslandState(size: .card, line: .failure(failure))
-        case .receipt(let receipt): IslandState(size: .card, line: .receipt(receipt))
+        case .receipt(let receipt): IslandState(size: .docCard, line: .receipt(receipt))
         case .replyCut: IslandState(size: .card, line: .replyCut)
         case .approvalWithdrawn: IslandState(size: .card, line: .approvalWithdrawn)
         // While the voice session lives the microphone is taken: the pebble
@@ -273,7 +278,7 @@ package struct IslandState: Sendable, Equatable {
             // settle drop it to Idle, so Completed has to show it.
             if p.dictatedText == nil, p.notice != nil { return atRest(p, pebbleHidden: false) }
             // The finished reply is the result card, which needs the card's width.
-            guard let app = p.dictation else { return IslandState(size: .card, line: .completed) }
+            guard let app = p.dictation else { return IslandState(size: .docCard, line: .completed) }
             // The words are the card; without them the bar only says where.
             guard let text = p.dictatedText, !text.value.isEmpty else {
                 return IslandState(size: .bar, line: .dictated(app))

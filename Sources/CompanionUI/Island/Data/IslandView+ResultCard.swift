@@ -14,17 +14,12 @@ extension IslandView {
 
     func completedCard() -> some View {
         let latest = latestReply
-        let parts = latest.map { IslandResultCardModel.proseAndSources(of: $0.text) }
-        let words: String = {
-            guard var message = latest, let parts else { return "" }
-            message.text = parts.prose
-            return Self.replyText(for: message)
-        }()
+        let document = latest.map { IslandResultCardModel.document(of: $0.text) }
+        // The words are gated by the same rule the card always used: a reply
+        // that only repeats the choice's question has no prose of its own.
+        let hasWords = latest.map { !Self.replyText(for: $0).isEmpty } ?? false
         let visuals = latest.map(Self.inlineVisuals) ?? (nil, [])
-        return resultCard(
-            icon: "text.bubble", spoken: words.isEmpty ? nil : words, steps: [],
-            sources: parts?.sources ?? []
-        ) {
+        return resultCard(blocks: hasWords ? document?.blocks ?? [] : [], sources: document?.sources ?? []) {
             VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
                 if visuals.0 != nil || !visuals.1.isEmpty {
                     IslandInlineVisuals(card: visuals.0, blocks: visuals.1,
@@ -40,22 +35,24 @@ extension IslandView {
         .onTapGesture { if let latest { openResult(latest.id) } }
     }
 
+    /// What the turn was asked, on one line: the document's title.
+    var resultTitle: String {
+        IslandResultCardModel.title(
+            question: chat.messages.last { $0.role == .user && !$0.isStatus }?.text,
+            fallback: Localized.string("island.result.title"))
+    }
+
     /// The one place a result card is dressed from the island's own data.
     func resultCard<Body: View>(
-        icon: String, spoken: String?, steps: [AIResultStep],
-        sources: [MarkdownSplitter.SourceLink],
-        onDismiss: (() -> Void)? = nil,
+        blocks: [AnswerBlock], sources: [MarkdownSplitter.SourceLink],
         @ViewBuilder content: @escaping () -> Body
     ) -> some View {
         IslandResultCard(
-            title: IslandResultCardModel.title(
-                question: chat.messages.last { $0.role == .user && !$0.isStatus }?.text,
-                fallback: Localized.string("island.result.title")),
-            icon: icon, spoken: spoken, steps: steps,
+            title: resultTitle, blocks: blocks,
             links: IslandResultCardModel.links(apps: chat.session.projection.touched, sources: sources),
-            maxHeight: IslandResultCardMetrics.regionHeight(bandHeight: geometry.notch.height),
+            maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height),
             onOpenURL: { openURL($0) },
-            onDismiss: onDismiss, onContinue: continueInChat, content: content)
+            onDismiss: nil, onContinue: continueInChat, content: content)
     }
 
     /// The window holds the whole thread and the composer; the reply tap

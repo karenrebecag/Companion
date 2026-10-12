@@ -253,7 +253,7 @@ package enum CompanionBlocks: Sendable {
 extension MarkdownSplitter {
     /// True when the text stops inside a fence: the model was cut, or is
     /// still writing. What such a fence holds is not a finished card.
-    static func endsInsideFence(_ text: String) -> Bool {
+    package static func endsInsideFence(_ text: String) -> Bool {
         let fences = text.components(separatedBy: "\n")
             .filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("```") }
         return fences.count % 2 == 1

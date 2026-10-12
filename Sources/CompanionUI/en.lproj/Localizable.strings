@@ -75,6 +75,7 @@
 "island.receipt.title" = "Done";
 "island.receipt.check" = "Done and verified";
 "island.receipt.done" = "Done";
+"island.receipt.verified" = "Verified";
 "island.result.title" = "Result";
 "island.result.status.working" = "Working";
 "island.result.status.done" = "Done";
