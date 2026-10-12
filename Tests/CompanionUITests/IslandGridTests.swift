@@ -19,7 +19,6 @@ import Testing
 // The orb is one piece in every state: the same size wherever it sits.
 @Test @MainActor func theOrbFillsTheLeadColumnEverywhere() {
     expectEq(IslandChrome.meterSide, IslandGrid.lead, "orbe del estado = columna guia")
-    expectEq(IslandFieldMetrics.orb, IslandGrid.lead, "orbe del campo = columna guia")
 }
 
 @Test @MainActor func stepNodesSitInsideTheLeadColumn() {

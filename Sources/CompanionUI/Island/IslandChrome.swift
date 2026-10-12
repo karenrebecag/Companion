@@ -12,12 +12,13 @@ package enum IslandChrome {
     /// The first half of opening: wide and low (241 pt measured).
     package static let pillWidth: CGFloat = 240
     package static let barWidth: CGFloat = 320
-    /// The open panel, measured at 492 pt in the recording.
-    package static let nudgeWidth: CGFloat = 492
-    package static let cardWidth: CGFloat = 492
+    /// The open bar of Incredible 0.2.57 (local reference): 480 pt wide.
+    package static let nudgeWidth: CGFloat = 480
+    package static let cardWidth: CGFloat = 480
     /// 16m-6: the update notice measures 522 and the shell pads each side by
     /// `shellMargin`, so its shape is 554. Only `.wideCard` uses it.
-    package static let shellMargin: CGFloat = Space.x4
+    /// The chat row inset of the same reference.
+    package static let shellMargin: CGFloat = 18
     package static let wideCardWidth: CGFloat = IslandNoticeMetrics.updateWidth + shellMargin + shellMargin
     /// Room for the widest panel, its shoulders and its shadow.
     /// 620, not the 560 of 16f: the rich answer popup is 580 wide (16m-1)

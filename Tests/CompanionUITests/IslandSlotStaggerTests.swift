@@ -68,3 +68,11 @@ import Testing
         + max(IslandMotionBudget.contentIn.duration, IslandMotionBudget.card.enter.duration)
     expect(visible < ApprovalClickGuard.dwell, "aprobacion: visible a los \(visible) s, antes del dwell")
 }
+
+@Test @MainActor func slotsTravelFourteenPointsOnlyWhenMotionIsAllowed() {
+    for slot in IslandMotion.Slot.allCases {
+        expectEq(IslandMotion.slotFade(slot, showing: true, reduceMotion: false)?.drop, 14, "abrir: \(slot) sube 14 pt")
+        expectEq(IslandMotion.slotFade(slot, showing: false, reduceMotion: false)?.drop, 14, "cerrar: \(slot) baja 14 pt")
+        expectEq(IslandMotion.slotFade(slot, showing: true, reduceMotion: true)?.drop, 0, "reducido: \(slot) solo se desvanece")
+    }
+}

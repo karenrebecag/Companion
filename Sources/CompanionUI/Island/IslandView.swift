@@ -342,7 +342,7 @@ package struct IslandView: View {
                             onCancel: { clearFlow.cancel() })
                     }
                 }
-                .islandContentColumn()
+                .padding(.leading, IslandFieldMetrics.contentInset)
             }
             .modifier(contentSlot(.field))
             VStack(alignment: .leading, spacing: IslandGrid.groupGap) {

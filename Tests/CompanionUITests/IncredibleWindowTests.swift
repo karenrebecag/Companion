@@ -74,10 +74,13 @@ import Testing
 
 @MainActor func testIslandFieldMatchesTheScreenshot() {
     expectEq([IslandFieldMetrics.height, IslandFieldMetrics.radius, IslandFieldMetrics.textInset],
-             [38, 12, 14], "16n campo: 38 de alto, radio 12, texto a 14")
-    expectEq([IslandFieldMetrics.orb, IslandFieldMetrics.orbGap], [IslandGrid.lead, IslandGrid.gap], "orbe del campo: en la columna guia del grid")
+             [38, 14, 12], "campo como Incredible: 38 de alto, radio 14, texto a 12")
+    expectEq([IslandFieldMetrics.maxHeight, IslandFieldMetrics.lineHeight, IslandFieldMetrics.textSize], [118, 20, 13],
+             "campo: crece hasta 118 con texto 13/20")
+    expectEq([IslandFieldMetrics.orb, IslandFieldMetrics.orbGap, IslandFieldMetrics.contentInset], [38, 8, 46],
+             "orbe del campo: 38 + 8, lo de debajo empieza en 46")
     expectEq([IslandFieldMetrics.send, IslandFieldMetrics.tool, IslandFieldMetrics.trailing],
-             [28, 30, 5], "16n campo: enviar 28, herramienta 30, 5 al borde")
+             [28, 28, 5], "campo: enviar 28, herramienta 28, 5 al borde")
     expectEq(IslandMetrics.rimAlpha, 0.12, "16n isla: filo blanco 12 % al abrirse")
 }
 

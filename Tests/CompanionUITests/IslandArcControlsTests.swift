@@ -118,8 +118,7 @@ import Testing
 
 // Arc's input: the field is a surface with a border; send waits muted.
 @Test @MainActor func theComposerFieldIsArcsInput() {
-    expectEq(IslandFieldMetrics.fillSwatch.hex, ArcTone.surface.hex, "campo: surface")
-    expectEq(IslandFieldMetrics.rimSwatch.hex, ArcTone.border.hex, "campo: borde")
+    expectEq([IslandFieldMetrics.fillAlpha, IslandFieldMetrics.fillActiveAlpha], [0.075, 0.11], "campo: velo blanco, mas claro en uso")
     expectEq(IslandFieldMetrics.sendIdleSwatch.hex, ArcTone.surfaceMuted.hex, "enviar en espera: surface-muted")
 }
 

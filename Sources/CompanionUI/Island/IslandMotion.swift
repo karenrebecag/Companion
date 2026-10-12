@@ -166,19 +166,32 @@ enum IslandMotion {
         let curve: [Double]
 
         var animation: Animation { MotionCurve.animation(curve, duration).delay(delay) }
+
+        /// Points a hidden slot sits above its place; it drops back to it and rises from it.
+        var drop: CGFloat = 0
+        /// The travel's own clock: longer than the fade, with a little overshoot.
+        var travel: Animation?
     }
+
+    /// Slots enter and leave 14 pt above their place over 0.4 s with the bounce curve.
+    static let slotDrop: CGFloat = 14
+    static let slotTravel = 0.4
 
     /// Opening, each slot on its own beat; closing, all of them at once with the shape.
     /// Reduce motion leaves without a fade, as the island always has.
     static func slotFade(_ slot: Slot, showing: Bool, reduceMotion: Bool) -> SlotFade? {
         if showing {
             let move = IslandMotionBudget.contentIn.resolved(reduceMotion: reduceMotion)
-            return SlotFade(delay: slotDelay(slot, reduceMotion: reduceMotion), duration: move.duration,
-                            curve: move.curve)
+            let delay = slotDelay(slot, reduceMotion: reduceMotion)
+            return SlotFade(
+                delay: delay, duration: move.duration, curve: move.curve,
+                drop: reduceMotion ? 0 : slotDrop,
+                travel: MotionCurve.animation(MotionCurve.bounce, slotTravel).delay(delay))
         }
         if reduceMotion { return nil }
         let move = IslandMotionBudget.contentOut
-        return SlotFade(delay: 0, duration: move.duration, curve: move.curve)
+        return SlotFade(delay: 0, duration: move.duration, curve: move.curve, drop: slotDrop,
+                        travel: MotionCurve.animation(MotionCurve.bounce, slotTravel))
     }
 
     /// How long the panel is open with its content invisible: opening, from
