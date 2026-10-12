@@ -12,6 +12,9 @@ extension IslandView {
         } else if case .receipt(let receipt) = state.line {
             receiptCard(receipt)
                 .modifier(contentSlot(.card))
+        } else if Self.showsCompletedCard(state) {
+            completedCard()
+                .modifier(contentSlot(.card))
         } else if case .followUp(let title) = state.line {
             IslandFollowUpRow(title: title, onDrop: { chat.followUp = nil })
                 .modifier(contentSlot(.conversation))

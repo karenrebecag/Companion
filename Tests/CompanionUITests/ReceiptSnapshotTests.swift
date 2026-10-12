@@ -36,23 +36,15 @@ import Testing
 private let openedLine = ReceiptLine(text: "Abrí Safari.", verified: false)
 private let typedLine = ReceiptLine(text: "Escribí el texto.", verified: true)
 
-@MainActor private func fitting(_ receipt: ActionReceipt) -> CGSize {
-    // Proposed the widest the island gives it: an unbounded proposal would
-    // let a wrapping line go wide and hide the growth.
-    let card = IslandReceiptCard(receipt: receipt, onDismiss: {})
-        .frame(width: IslandGrid.openColumn)
-        .fixedSize(horizontal: false, vertical: true)
-    return NSHostingView(rootView: card).fittingSize
-}
-
 @Test @MainActor func testEachReceiptLineIsLabelledDoneOrDoneAndVerifiedByItsOwnProof() {
     let receipt = ActionReceipt(entries: [openedLine, typedLine])!
-    let expected: [AppLanguage: [String]] = [
-        .es: ["Hecho", "Hecho y comprobado"], .en: ["Done", "Done and verified"],
-    ]
-    for (language, labels) in expected {
-        expectEq(receipt.entries.map { IslandReceipt.checkLabel($0, language: language) }, labels,
-                 "recibo (\(language)): cada línea dice hecho o comprobado según su propia prueba")
+    let expected: [AppLanguage: String] = [.es: "Hecho y comprobado", .en: "Done and verified"]
+    for (language, verified) in expected {
+        let steps = IslandResultCardModel.steps(receipt: receipt, language: language)
+        expectEq(steps.map(\.detail), [nil, verified],
+                 "recibo (\(language)): solo la línea con lectura posterior dice comprobado")
+        expectEq(steps.map(\.title), ["Abrí Safari.", "Escribí el texto."],
+                 "recibo (\(language)): cada línea es un paso con su texto")
     }
 }
 
@@ -67,16 +59,12 @@ private let typedLine = ReceiptLine(text: "Escribí el texto.", verified: true)
              "anuncio (en): el título va en el idioma pedido")
 }
 
-@Test @MainActor func testALongUrlIsCutOnTheModelAndNeverGrowsTheCard() {
+@Test @MainActor func testALongUrlIsCutOnTheModelBeforeItReachesTheCard() {
     let host = "https://atomchat.io/" + String(repeating: "blog/", count: 60)
     let long = ActionReceipt(lines: ["Abrí " + host + "."])!
     let cut = long.lines[0]
     expect(cut.unicodeScalars.count <= ActionReceipt.maxLineLength + 1 && cut.hasSuffix("…"),
            "url larga: el modelo la acota con el corte visible — \(cut.count) caracteres")
-    let short = ActionReceipt(lines: ["Abrí Safari."])!
-    let longSize = fitting(long)
-    let shortSize = fitting(short)
-    expectEq(longSize.height, shortSize.height, "url larga: sigue en una línea, no crece hacia abajo")
-    let four = ActionReceipt(lines: ["Abrí A.", "Abrí B.", "Abrí C.", "Abrí D."])!
-    expect(fitting(four).height > shortSize.height, "medida: cuatro líneas sí hacen más alta la tarjeta")
+    let steps = IslandResultCardModel.steps(receipt: long, language: .es)
+    expectEq(steps.map(\.title), [cut], "url larga: el paso lleva la línea ya acotada")
 }

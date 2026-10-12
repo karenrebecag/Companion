@@ -1,4 +1,5 @@
 import CompanionCore
+import CompanionUIPro
 @testable import CompanionServices
 @testable import CompanionUI
 import Foundation
@@ -95,11 +96,11 @@ private func hasInvisible(_ text: String) -> Bool {
     expectEq(typed?.verified, true, "etiqueta: escribir con lectura posterior está comprobado")
     expectEq(opened?.verified, false, "etiqueta: abrir dice hecho, no comprobado")
     for language in [AppLanguage.es, .en] {
-        let done = Localized.string("island.receipt.done", language: language)
         let checked = Localized.string("island.receipt.check", language: language)
-        expect(done != "island.receipt.done" && done != checked, "etiqueta (\(language)): 'Hecho' distinto de 'comprobado'")
-        expectEq(IslandReceipt.checkLabel(typed!, language: language), checked, "etiqueta (\(language)): comprobado")
-        expectEq(IslandReceipt.checkLabel(opened!, language: language), done, "etiqueta (\(language)): hecho")
+        let steps = IslandResultCardModel.steps(
+            receipt: ActionReceipt(entries: [opened!, typed!])!, language: language)
+        expect(checked != "island.receipt.check", "etiqueta (\(language)): falta la palabra 'comprobado'")
+        expectEq(steps.map(\.detail), [nil, checked], "etiqueta (\(language)): solo la línea leída dice comprobado")
     }
     let merged = ActionReceipt(entries: [ReceiptLine(text: "Abrí A.", verified: false)])!
         .merging(ActionReceipt(entries: [ReceiptLine(text: "Abrí A.", verified: true)])!)
@@ -399,14 +400,14 @@ private final class OpenTools: ParentToolExecuting, @unchecked Sendable {
 
 // MARK: - The card
 
-// Arc: the receipt sits on the island's grid, its checks in the success tone.
+// Arc: the receipt is the result card, its checks in the success tone.
 @Test @MainActor func testTheReceiptCardUsesTheMeasuredRunCardSurface() {
-    expectEq(ReceiptMetrics.check, ArcTone.success.color, "el check usa el tono de exito de Arc")
+    expectEq(AIResultStyle.island.success, ArcTone.success.color, "el check usa el tono de exito de Arc")
 }
 
 @Test @MainActor func testTheReceiptSpeaksToVoiceOverInBothLanguages() {
     for language in [AppLanguage.es, .en] {
-        for key in ["island.receipt.title", "island.receipt.dismiss", "island.receipt.check"] {
+        for key in ["island.receipt.title", "island.result.dismiss", "island.receipt.check"] {
             expect(Localized.string(key, language: language) != key, "recibo (\(language)): falta \(key)")
         }
     }

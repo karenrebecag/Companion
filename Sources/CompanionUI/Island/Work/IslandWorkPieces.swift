@@ -31,7 +31,7 @@ struct IslandReel: View {
     /// they go; breaks become spaces so words stay apart. The scalar budget
     /// bounds combining marks, which a grapheme count alone lets through
     /// (security and QA review #212).
-    private static func shown(_ target: String) -> String {
+    static func shown(_ target: String) -> String {
         var kept = String.UnicodeScalarView()
         var budget = WorkStateMetrics.reelItemMax * 4
         for scalar in target.unicodeScalars {

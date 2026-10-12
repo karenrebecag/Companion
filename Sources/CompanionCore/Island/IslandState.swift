@@ -272,7 +272,8 @@ package struct IslandState: Sendable, Equatable {
             // A notice holds the island in Completed instead of letting the
             // settle drop it to Idle, so Completed has to show it.
             if p.dictatedText == nil, p.notice != nil { return atRest(p, pebbleHidden: false) }
-            guard let app = p.dictation else { return IslandState(size: .bar, line: .completed) }
+            // The finished reply is the result card, which needs the card's width.
+            guard let app = p.dictation else { return IslandState(size: .card, line: .completed) }
             // The words are the card; without them the bar only says where.
             guard let text = p.dictatedText, !text.value.isEmpty else {
                 return IslandState(size: .bar, line: .dictated(app))
