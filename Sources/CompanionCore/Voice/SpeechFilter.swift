@@ -102,8 +102,12 @@ package struct SpeechFilter: Sendable, Equatable {
     /// and "3." + "200" are one token split by streaming, so only a capital
     /// or an opening mark after a prose word counts.
     package static func joiner(after said: String, before next: String) -> String {
-        guard let last = said.last, let first = next.first,
-              terminators.contains(last), isOpener(first) else { return "" }
+        guard let first = next.first, isOpener(first) else { return "" }
+        let tail = said.reversed().prefix { terminators.contains($0) || closers.contains($0) }
+        guard tail.contains(where: terminators.contains) else { return "" }
+        // A closing quote right before the stop ends the sentence whatever
+        // the word before it looks like ("5b”.").
+        if tail.contains(where: closers.contains) { return " " }
         let word = said.reversed().drop(while: terminators.contains).prefix { $0.isLetter }
         return isProseWord(Array(word.reversed())) ? " " : ""
     }
@@ -127,16 +131,18 @@ package struct SpeechFilter: Sendable, Equatable {
         var runs: [Range<Int>] = []
         var i = 0
         while i < body.count {
-            guard terminators.contains(body[i]) else { i += 1; continue }
+            guard terminators.contains(body[i]) || closers.contains(body[i]) else { i += 1; continue }
             var j = i
-            while j < body.count, terminators.contains(body[j]) { j += 1 }
-            runs.append(i ..< j)
+            while j < body.count, terminators.contains(body[j]) || closers.contains(body[j]) { j += 1 }
+            // A lone closing quote is no sentence end.
+            if body[i ..< j].contains(where: terminators.contains) { runs.append(i ..< j) }
             i = j
         }
         guard runs.count == 1, let run = runs.first else { return token }
         let before = Array(body[..<run.lowerBound].reversed().prefix { $0.isLetter }.reversed())
         let after = Array(body[run.upperBound...])
-        guard isProseWord(before), opensSentence(after) else { return token }
+        let quoted = body[run].contains(where: closers.contains)
+        guard quoted || isProseWord(before), opensSentence(after) else { return token }
         var out = chars
         out.insert(" ", at: run.upperBound)
         return String(out)
@@ -388,6 +394,7 @@ package struct SpeechFilter: Sendable, Equatable {
 
     static let terminators: Set<Character> = [".", "!", "?", "…"]
     private static let minWordLetters = 2
+    private static let closers: Set<Character> = ["”", "»"]
     private static let openMarks: Set<Character> = ["¿", "¡", "«", "“", "\"", "("]
     /// A URL, an address, a path or an identifier: not prose.
     private static let glue: Set<Character> = ["/", ":", "@", "=", "#", "_", "\\", "%", "&"]

@@ -116,6 +116,18 @@ private func fixtureTurns(_ kind: String) throws -> [String] {
     expectEq(SpeechFilter.joiner(after: "Listo.", before: " Sigue"), "", "unión: el trozo trae su espacio")
 }
 
+@Test func testTheJoinSeesThroughClosingQuotesAndKeepsDecimalsAndDomains() {
+    expectEq(SpeechFilter.joiner(after: "on tty??”.", before: "Es la ventana"), " ", "unión: comilla de cierre")
+    expectEq(SpeechFilter.joiner(after: "“karenrebecaog-5b”.", before: "¿Qué deseas"), " ", "unión: 5b”. + ¿")
+    expectEq(SpeechFilter.joiner(after: "dijo “hola.”", before: "Luego"), " ", "unión: punto dentro de la comilla")
+    expectEq(SpeechFilter.joiner(after: "on tty??”.", before: " Es"), "", "unión: sin doble espacio")
+    expectEq(SpeechFilter.joiner(after: "Mide 3.", before: "5"), "", "unión: decimal")
+    expectEq(SpeechFilter.joiner(after: "Entra a atomchat.", before: "io"), "", "unión: dominio")
+    expectEq(SpeechFilter.clean("on tty??”.Es la ventana"), "on tty??”. Es la ventana", "espacio: comilla en un trozo")
+    expectEq(SpeechFilter.clean("“karenrebecaog-5b”.¿Qué deseas"), "“karenrebecaog-5b”. ¿Qué deseas",
+             "espacio: ¿ tras comilla")
+}
+
 // MARK: - Criterion 3: short voice
 
 private let longAnswer = (1...120).map { "palabra\($0)" }.joined(separator: " ") + "."
