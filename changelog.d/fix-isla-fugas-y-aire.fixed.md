@@ -1,1 +1,2 @@
 - **Los encargos ya no muestran nombres internos (2026-10-12).** Los pasos como "ToolSearch: select:WebSearch" dejan de aparecer y las herramientas desconocidas se leen como una frase corta en vez de su nombre.
+- **El hilo de la isla ya no muestra markdown crudo (2026-10-12).** Las viñetas de una respuesta salen una por línea en vez de pegadas en un párrafo, y la lista de fuentes con enlaces se convierte en chips como en la tarjeta de resultado.

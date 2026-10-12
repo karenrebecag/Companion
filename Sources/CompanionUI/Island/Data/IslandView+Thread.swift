@@ -72,10 +72,19 @@ extension IslandView {
         }
     }
 
+    /// The same split the result card makes: the "Sources" list leaves the
+    /// prose and becomes chips, so it is not read twice as bare text.
+    static func threadWords(_ message: ChatMessage) -> (text: String, sources: [MarkdownSplitter.SourceLink]) {
+        let parts = IslandResultCardModel.proseAndSources(of: message.text)
+        var prose = message
+        prose.text = parts.prose
+        return (replyText(for: prose), parts.sources)
+    }
+
     @ViewBuilder
     private func threadReply(_ item: AIThreadItem, _ state: IslandState) -> some View {
         if let message = chat.messages.first(where: { $0.id.uuidString == item.id }) {
-            let text = Self.replyText(for: message)
+            let (text, sources) = Self.threadWords(message)
             VStack(alignment: .leading, spacing: Space.x1) {
                 // Only the newest reply follows the live caption; older ones are settled text.
                 if message.id == latestReply?.id {
@@ -84,6 +93,8 @@ extension IslandView {
                 } else {
                     IslandReply(text: text, startedAt: replyStart, speaking: false, look: .thread)
                 }
+                IslandSourceChips(
+                    links: IslandResultCardModel.links(apps: [], sources: sources), onOpen: { openURL($0) })
                 let visuals = Self.inlineVisuals(message)
                 if visuals.card != nil || !visuals.blocks.isEmpty {
                     IslandInlineVisuals(card: visuals.card, blocks: visuals.blocks,

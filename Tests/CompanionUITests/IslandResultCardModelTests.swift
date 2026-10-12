@@ -70,3 +70,12 @@ private func source(_ title: String, _ url: String) -> MarkdownSplitter.SourceLi
             return p
         }(), pebbleHidden: false).size, .card, "tarjeta: terminada es del ancho de tarjeta")
 }
+
+@Test @MainActor func testTheThreadReplySplitsItsSourcesLikeTheCardDoes() {
+    let message = ChatMessage(role: .assistant, text:
+        "Webflow publica en el CDN.\n\nSources:\n\n- [Docs](https://webflow.com/docs)")
+    let words = IslandView.threadWords(message)
+    expectEq(words.sources.map(\.url), ["https://webflow.com/docs"], "hilo: la fuente sale como chip")
+    expect(words.text.contains("CDN") && !words.text.contains("Sources") && !words.text.contains("webflow.com"),
+           "hilo: la prosa no repite la lista — \(words.text)")
+}

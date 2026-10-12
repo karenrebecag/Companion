@@ -40,10 +40,32 @@ enum IslandReplyText {
             .replacingOccurrences(of: #"\[([^\[\]]*)\]\([^)]{0,512}\)"#, with: "$1", options: .regularExpression)
             .replacingOccurrences(of: "**", with: "")
             .replacingOccurrences(of: "`", with: "")
-            .replacingOccurrences(of: "\n", with: " ")
-            .split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
-            .trimmingCharacters(in: CharacterSet(charactersIn: "#*- ").union(.whitespaces))
-        return text
+        // A list item keeps its own line: flattening the paragraph glued
+        // "- a - b - c" into one run of prose.
+        var lines: [String] = []
+        var run: [String] = []
+        func flush() {
+            if !run.isEmpty { lines.append(run.joined(separator: " ")); run = [] }
+        }
+        for raw in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            let line = raw.split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
+            if let item = bulletItem(line) {
+                flush()
+                lines.append("\u{2022} " + item)
+            } else {
+                let bare = line.trimmingCharacters(in: CharacterSet(charactersIn: "#*- ").union(.whitespaces))
+                if !bare.isEmpty { run.append(bare) }
+            }
+        }
+        flush()
+        return lines.joined(separator: "\n")
+    }
+
+    /// "- x", "* x", "+ x" or "1. x" -> "x"; nil when the line is not an item.
+    private static func bulletItem(_ line: String) -> String? {
+        guard let match = line.range(of: #"^([-*+]|\d{1,3}[.)])\s+"#, options: .regularExpression) else { return nil }
+        let item = line[match.upperBound...].trimmingCharacters(in: .whitespaces)
+        return item.isEmpty ? nil : item
     }
 }
 
