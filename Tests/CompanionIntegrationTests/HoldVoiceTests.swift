@@ -253,7 +253,8 @@ import CompanionTestKit
 /// 24. Pulsar otra vez después de hablar: sigue el camino de texto, sin realtime.
 @MainActor func testHoldWhileSpeakingCutsTheAgent() async {
     let h = makeVoiceHarness()
-    h.transcriber.stoppedText = "para"
+    // Not "para": a bare stop now ends the turn without a reply (SpokenStop).
+    h.transcriber.stoppedText = "hola"
     h.chat.rounds = [[.text("De acuerdo.")]]
     await h.session.hold()
     await pumpUntil("corte: listening") { h.watch.latest.state == .listening }

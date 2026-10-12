@@ -327,6 +327,7 @@ package actor VoiceSession: VoiceControlling {
             classic.onResolveApproval = realtime.onResolveApproval
             classic.onHeard = { [weak self] text, pressed in await self?.noteHeard(text, pressed: pressed) }
         }
+        classic.onSpokenStop = { [weak self] in await self?.stopBySpeech() ?? false }
         realtime.onMCPApproval = { [weak self] request in
             Task { [weak self] in await self?.noteMCPApproval(request) }
         }
