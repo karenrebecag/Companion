@@ -87,7 +87,8 @@ extension BrowserToolRunner {
         // A refusal (a scheme that is not http/https) is also nil: `execute`
         // refuses it with the policy's reason.
         guard case .success(let verdict) = BrowserPolicy.navigateVerdict(
-            from: origin, currentURL: page?.url, to: raw, said: said)
+            from: origin, currentURL: page?.url, to: raw, said: said,
+            asksToLeaveOrigin: asksBeforeTaking)
         else { return nil }
         switch verdict {
         case .refuse:
