@@ -79,6 +79,8 @@ struct IslandResultCard<Body: View>: View {
         // The block cannot drop its own side padding or radius, so it is made
         // as much wider as that padding: its content lands on the shell's
         // margin and its black edge hides under the island's.
+        // HACK: mirrors the block's private side padding. Add a chromeless
+        // style to AIResultCard when the block's padding or radius changes.
         .padding(.horizontal, -IslandResultCardMetrics.blockPadX)
     }
 }
