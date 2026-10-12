@@ -257,7 +257,7 @@ private func press(_ key: String, _ target: BrowserElement?, said: String = "") 
 }
 
 private func navigate(_ from: String?, _ raw: String, said: String = "") -> Result<HandsVerdict, ContractError> {
-    BrowserPolicy.navigateVerdict(from: from, to: raw, said: said)
+    BrowserPolicy.navigateVerdict(from: from, currentURL: nil, to: raw, said: said, asksToLeaveOrigin: false)
 }
 
 @Test func navigateVerdictRefusesNonHTTPSchemes() {
@@ -294,6 +294,23 @@ private func navigate(_ from: String?, _ raw: String, said: String = "") -> Resu
     expectEq(navigate("https://attacker.github.io", "https://attacker.github.io/x"), .success(.act), "mismo origen github.io")
     expectEq(navigate("https://x.test", "https://attacker.github.io/", said: "abre github"), .success(.act),
              "ya no importa lo dicho: abrir otro sitio no pide")
+}
+
+@Test func crossOriginNavigationStillAsksForDestructivePathsAndDataCarryingAddresses() {
+    let long = String(repeating: "a", count: 90)
+    expectEq(navigate("https://x.test", "https://evil.test/logout"), .success(.ask), "path destructivo en otro origen")
+    expectEq(navigate("https://x.test", "https://evil.test/a?confirm=1&delete=1"), .success(.ask), "query destructiva")
+    expectEq(navigate("https://x.test", "https://evil.test/?d=\(long)"), .success(.ask), "query larga, host no dicho")
+    expectEq(navigate("https://x.test", "https://google.com@evil.test/"), .success(.ask), "userinfo")
+    expectEq(navigate("https://x.test", "https://evil.test/?d=\(long)", said: "abre evil.test"), .success(.act),
+             "host dicho: la query larga no pide")
+    expectEq(navigate("https://x.test", "https://www.google.com/search?q=clima%20de%20ma%C3%B1ana"), .success(.act),
+             "busqueda corta: act")
+}
+
+@Test func theDefaultKeepsTheBridgeSheet() {
+    expectEq(BrowserPolicy.navigateVerdict(from: "https://x.test", currentURL: nil, to: "https://evil.test/", said: ""),
+             .success(.ask), "por defecto, salir del origen pide")
 }
 
 // MARK: - Render

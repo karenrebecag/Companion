@@ -159,7 +159,7 @@ private func handOverToTheBridge(
 private func nav(_ current: String?, _ raw: String, said: String = "") -> Result<HandsVerdict, ContractError> {
     BrowserPolicy.navigateVerdict(
         from: current.flatMap { URL(string: $0) }.map { "\($0.scheme ?? "")://\($0.host ?? "")" },
-        currentURL: current, to: raw, said: said)
+        currentURL: current, to: raw, said: said, asksToLeaveOrigin: false)
 }
 
 @Test func sameOriginNavigationIsJudgedAgainstTheCurrentPathAndQuery() {
@@ -170,7 +170,7 @@ private func nav(_ current: String?, _ raw: String, said: String = "") -> Result
     expectEq(nav(here, "https://x.test/inbox?page=1#section"), .success(.act), "fragment only")
     expectEq(nav(here, "https://x.test/search?q=x"), .success(.act), "plain query")
     expectEq(nav(here, "https://x.test/logout", said: "cierra sesion"), .success(.act), "said it")
-    expectEq(nav(nil, "https://x.test/logout"), .success(.act), "no origin: a plain navigation, the page judges what it does next")
+    expectEq(nav(nil, "https://x.test/logout"), .success(.ask), "no current address: cautious")
     expectEq(nav(here, "https://x.test/search?q=delete"), .success(.ask), "a destructive word in the query asks")
 }
 

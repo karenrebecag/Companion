@@ -172,6 +172,8 @@ extension BridgeSession {
         let verdict = await HandsCaller.$apps.withValue(lineage) {
             await guardian.verdict(
                 ref, said: "", language: language(), tools: tools,
+                // No user words here: every open_url from outside asks.
+                strictURL: true,
                 parked: { parkedSheet.park($0, owner: mine) })
         }
         let withdrawn = parked.settleCurrent(owner: mine)

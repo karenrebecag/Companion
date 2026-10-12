@@ -108,7 +108,7 @@ extension BrowserPolicy {
     /// its label; the finite word list is defence in depth, not a guarantee.
     package static func navigateVerdict(
         from origin: String?, currentURL: String?, to raw: String, said: String,
-        asksToLeaveOrigin: Bool = false
+        asksToLeaveOrigin: Bool = true
     ) -> Result<HandsVerdict, ContractError> {
         let url: URL
         do {
@@ -119,19 +119,14 @@ extension BrowserPolicy {
         if let origin, canonicalOrigin(of: url) == canonicalOrigin(origin) {
             return .success(sameOriginVerdict(url, currentURL: currentURL, said: said))
         }
-        // Going to another http(s) site is navigation, not publishing or sending:
-        // the sheet is kept for what the page then does (submit, pay, delete).
-        // An outside caller (the MCP bridge) has no user words, so its sheet stays.
-        guard asksToLeaveOrigin, let host = url.host else { return .success(asksToLeaveOrigin ? .ask : .act) }
-        return .success(ParentToolGate.saidIt(url, host: host, said: said) ? .act : .ask)
-    }
-
-    /// Without the current address nothing can be shown to be unchanged, so
-    /// the words decide.
-    package static func navigateVerdict(
-        from origin: String?, to raw: String, said: String
-    ) -> Result<HandsVerdict, ContractError> {
-        navigateVerdict(from: origin, currentURL: nil, to: raw, said: said)
+        guard let host = url.host else { return .success(.ask) }
+        // The bridge has no user words, so leaving the origin asks unless said.
+        if asksToLeaveOrigin { return .success(ParentToolGate.saidIt(url, host: host, said: said) ? .act : .ask) }
+        // Another http(s) site is navigation, not sending: it acts. Still, a
+        // destructive-looking path or query (/logout, ?confirm=1) and an
+        // address that carries data out to a host nobody said keep the sheet.
+        if sameOriginVerdict(url, currentURL: nil, said: said) == .ask { return .success(.ask) }
+        return .success(ParentToolGate.needsSheet(url, host: host, said: said, strictHost: false) ? .ask : .act)
     }
 
     /// Stems matched inside the compacted path, for the camelCase and

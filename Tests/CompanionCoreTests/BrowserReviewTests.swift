@@ -89,7 +89,7 @@ private let sensitiveFixtures: [Case] = [
 
 @Test func navigateNormalizesExplicitDefaultPorts() {
     func nav(_ from: String, _ to: String) -> Result<HandsVerdict, ContractError> {
-        BrowserPolicy.navigateVerdict(from: from, to: to, said: "")
+        BrowserPolicy.navigateVerdict(from: from, currentURL: nil, to: to, said: "", asksToLeaveOrigin: false)
     }
     expectEq(nav("https://x.test", "https://x.test:443/a"), .success(.act), "https :443")
     expectEq(nav("https://x.test:443", "https://x.test/a"), .success(.act), "origen con :443")

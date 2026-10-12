@@ -57,10 +57,11 @@ package struct ParentToolGuard: Sendable {
     func verdict(
         _ call: ToolCallRef, said: String, language: AppLanguage,
         tools: (any ParentToolExecuting)? = nil,
+        strictURL: Bool = false,
         parked: (@Sendable (ApprovalRequest) -> Bool)?
     ) async -> Verdict {
         let asked = tools?.approval(for: call, said: said)
-            ?? ParentToolGate.approval(for: call, said: said)
+            ?? ParentToolGate.approval(for: call, said: said, strictHost: strictURL)
         guard let asked else { return Verdict(denial: nil, answer: nil) }
         let request = await tools?.bound(asked) ?? asked
         // A "no" the user asked to remember outranks the shortcut: the same
