@@ -70,7 +70,7 @@ private struct MCPRig {
     let actor = Approvals(clock: RealtimeClock(), timeout: timeout)
     let model = SessionModel(jobs: nil, approvals: withApprovals ? actor : nil)
     let h = makeVoiceHarness(approvals: withApprovals ? actor : nil, session: model)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("mcp: escuchando") { h.watch.latest.state == .listening }
     h.transport.yield(.mcpApprovalRequest(
         id: "req9", server: "docs", tool: "search", argumentsJSON: #"{"q":"x"}"#))

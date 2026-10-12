@@ -371,9 +371,16 @@ package actor VoiceSession: VoiceControlling {
         await player.setVolume(volume)
     }
 
+    /// Hands-free rides the classic lane, the same brain and voice as a hold:
+    /// one voice for every door (diagnostico de feel 2026-10-12).
     package func start() async {
+        await start(preferRealtime: false)
+    }
+
+    /// The realtime lane stays reachable, but no product door picks it.
+    package func start(preferRealtime: Bool) async {
         voiceClosed = false
-        await apply(.startVoice(preferRealtime: openAIKey() != nil))
+        await apply(.startVoice(preferRealtime: preferRealtime && openAIKey() != nil))
     }
 
     package func advance() async {

@@ -30,7 +30,7 @@ import CompanionTestKit
 /// transcribía como si fuera español.
 @MainActor func testTheEarListensInTheUserLanguage() async {
     let english = makeVoiceHarness(key: nil, autoEvents: [], language: .en)
-    await english.session.start()
+    await english.session.start(preferRealtime: true)
     await pumpUntil("oído: clásico armado en inglés") {
         english.watch.latest.state == .listening
             && english.watch.latest.pipeline == .classic
@@ -39,7 +39,7 @@ import CompanionTestKit
              "oído: al inglés se le escucha en inglés")
 
     let spanish = makeVoiceHarness(key: nil, autoEvents: [], language: .es)
-    await spanish.session.start()
+    await spanish.session.start(preferRealtime: true)
     await pumpUntil("oído: clásico armado en español") {
         spanish.watch.latest.state == .listening
             && spanish.watch.latest.pipeline == .classic
@@ -54,7 +54,7 @@ import CompanionTestKit
     let ear = ScriptedTranscriber()
     let h = makeVoiceHarness(
         realtimeEar: ear, turnDetection: .semanticVAD(eagerness: eagerness))
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("endpointer: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -84,7 +84,7 @@ import CompanionTestKit
         voice: VoiceSettings(voice: .cedar, speed: 1.0)))
     let h = makeVoiceHarnessWithProvider(provider)
 
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("start: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -100,7 +100,7 @@ import CompanionTestKit
         voice: VoiceSettings(turnDetection: .semanticVAD(eagerness: .high))))
     let h = makeVoiceHarnessWithProvider(provider)
 
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("start: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -119,7 +119,7 @@ import CompanionTestKit
     let provider = TestConfigProvider(config: Config(ownerFirstName: "Karen"))
     let h = makeVoiceHarnessWithProvider(provider)
 
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("start: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -138,7 +138,7 @@ import CompanionTestKit
         voice: VoiceSettings(speed: 1.0)))
     let h = makeVoiceHarnessWithProvider(provider)
 
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("start: listening") {
         h.watch.latest.state == TurnState.listening && h.watch.latest.pipeline == .realtime
     }
@@ -202,7 +202,7 @@ private func hasVoiceInSessionUpdate(_ sent: [String], expectedVoice: VoiceID? =
 
 @MainActor func testHotSpeedTravelsMidSession() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("hot-speed: listening") { h.watch.latest.state == .listening }
     let before = h.transport.sent.count
     await h.session.setSpeed(1.3)
@@ -232,7 +232,7 @@ private func hasVoiceInSessionUpdate(_ sent: [String], expectedVoice: VoiceID? =
 
 @MainActor func testSessionDeclaresDelegateWhenAvailable() async {
     let h = makeVoiceHarness(jobs: RecordingSubmitter())
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("delegación: sesión lista") {
         h.transport.sent.contains { $0.contains("session.update") }
     }
@@ -245,7 +245,7 @@ private func hasVoiceInSessionUpdate(_ sent: [String], expectedVoice: VoiceID? =
 
 @MainActor func testSessionOmitsDelegateWithoutExecutor() async {
     let h = makeVoiceHarness()
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("sin ejecutor: sesión lista") {
         h.transport.sent.contains { $0.contains("session.update") }
     }

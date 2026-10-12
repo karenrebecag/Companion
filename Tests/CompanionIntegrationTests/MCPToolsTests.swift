@@ -96,7 +96,7 @@ func testMCPRequestIsHighRisk() {
     let actor = Approvals(clock: RealtimeClock(), timeout: timeout)
     let model = SessionModel(jobs: nil, approvals: actor)
     let h = makeVoiceHarness(approvals: actor, session: model)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("mcp: listening") { h.watch.latest.state == .listening }
     h.transport.yield(.mcpApprovalRequest(
         id: "req9", server: "docs", tool: "search", argumentsJSON: "{}"))

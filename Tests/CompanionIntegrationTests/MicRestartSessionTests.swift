@@ -13,7 +13,7 @@ import Testing
 @Suite @MainActor struct MicRestartSessionTests {
     @Test func aRestartedMicReattachesThePlayerToTheNewEngine() async {
         let h = makeVoiceHarness(online: true)
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") {
             h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
         }
@@ -30,7 +30,7 @@ import Testing
 
     @Test func aMicThatCouldNotRestartFailsTheSessionAsMicUnavailable() async {
         let h = makeVoiceHarness(online: true)
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") {
             h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
         }
@@ -42,7 +42,7 @@ import Testing
     @Test func aRestartAfterTheFirstHoldStillReachesTheSession() async {
         // A short ready budget: a regression here must fail fast, not wait the default 10 minutes.
         let h = makeVoiceHarness(readyTimeout: 5, online: true)
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") {
             h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
         }
@@ -50,7 +50,7 @@ import Testing
         await pumpUntil("hung up") { h.watch.latest.state == .idle }
         // The scripted socket only hands the next open a fresh event stream once the last one ended.
         await h.transport.simulateStreamEnd()
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening again") {
             h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
         }
@@ -61,7 +61,7 @@ import Testing
 
     @Test func aMicRestartWhileTheAgentSpeaksDoesNotStrandTheSessionSpeaking() async {
         let h = makeVoiceHarness(online: true)
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") { h.watch.latest.state == .listening }
         h.transport.yield(.agentAudioStarted)
         await pumpUntil("speaking") { h.watch.latest.state == .speaking }
@@ -76,7 +76,7 @@ import Testing
     @Test func aPlayerThatCannotReattachFailsTheSessionAsMicUnavailable() async {
         let h = makeVoiceHarness(online: true)
         h.player.startError = .unreachable
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") {
             h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
         }
@@ -87,7 +87,7 @@ import Testing
 
     @Test func aRestartAfterTheSessionEndedIsIgnored() async {
         let h = makeVoiceHarness(online: true)
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") {
             h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
         }
@@ -103,7 +103,7 @@ import Testing
     @Test func aMicThatFailsWhileTheSessionOpensIsNotLost() async {
         let h = makeVoiceHarness(readyTimeout: 5, online: true)
         h.mic.restartsDuringStart = [.failed]
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("failed") { h.watch.latest.state == .error }
         expectEq(h.watch.latest.failure, .micUnavailable, "fallo al abrir: sin micrófono")
     }
@@ -116,7 +116,7 @@ import Testing
         h.mic.restartsDuringStart = [.failed]
         let session = h.session
         var returned = false
-        let opening = Task { await session.start(); returned = true }
+        let opening = Task { await session.start(preferRealtime: true); returned = true }
         await pumpUntil("mic start parked") { h.mic.startEntered }
         await pumpUntil("failed") { h.watch.latest.state == .error }
         h.mic.releaseStart()
@@ -131,7 +131,7 @@ import Testing
         h.transport.holdNextOpen = true
         let session = h.session
         var returned = false
-        let opening = Task { await session.start(); returned = true }
+        let opening = Task { await session.start(preferRealtime: true); returned = true }
         await pumpUntil("open entered") { h.transport.openEntered }
         h.mic.emitRestart(.failed)
         await pumpUntil("failed") { h.watch.latest.state == .error }

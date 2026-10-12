@@ -187,7 +187,7 @@ private let workLine = Acknowledgement.working(tool: "open_url", .es)
     @Test @MainActor func handsFreeNeitherRestsNorAsks() async {
         let slow = TestGate()
         let rig = await parentSheetRig(slow: slow)
-        await rig.h.session.start()
+        await rig.h.session.start(preferRealtime: true)
         await pumpUntil("listening") { rig.h.watch.latest.state == .listening }
         await rig.h.session.advance()
         await pumpUntilAsync("the sheet is up") { !rig.approvals.requests.isEmpty }

@@ -350,7 +350,7 @@ import CompanionTestKit
     let memory = RecordingMemoryStore()
     let h = makeRolloverVoiceHarness(thread: vm, memoryStore: memory)
     h.transcriber.stoppedText = "hola"
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("rollover15: listening") { h.watch.latest.state == .listening }
     expect(vm.messages.isEmpty, "rollover15: abrir la sesión ya archivó el hilo caducado")
 

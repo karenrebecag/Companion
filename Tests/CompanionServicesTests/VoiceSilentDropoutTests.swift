@@ -22,7 +22,7 @@ import CompanionTestKit
 @MainActor func testTransportEmitsErrorOnFailure() async {
     let h = makeVoiceHarness(autoEvents: [.sessionCreated, .sessionUpdated])
 
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("FIX1: listening") { h.watch.latest.state == .listening }
 
     // Emit a server error that includes "session" to trigger failure handling
@@ -41,7 +41,7 @@ import CompanionTestKit
         online: false
     )
 
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("dropout: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -65,7 +65,7 @@ import CompanionTestKit
         online: true
     )
 
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("reconnect: listening") {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
     }
@@ -94,7 +94,7 @@ import CompanionTestKit
 @MainActor func testReconnectFailureEndsSession() async {
     let h = makeVoiceHarness(online: true)
 
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("reconnect-fail: listening") { h.watch.latest.state == .listening }
 
     // Make transport fail on reconnect
@@ -120,7 +120,7 @@ import CompanionTestKit
         online: false
     )
 
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("offline: listening") { h.watch.latest.state == .listening }
 
     let beforeDropout = h.transport.openCount

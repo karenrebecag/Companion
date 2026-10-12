@@ -33,7 +33,7 @@ private func interruptedAnswerSent(_ sent: [String]) -> Bool {
 @MainActor private func parkWhileSpeaking(
     _ h: VoiceHarness, approvals: any ApprovalsProvider, requested: @escaping () async -> Bool
 ) async {
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("listening") { h.watch.latest.state == .listening }
     h.transport.yield(.agentAudioStarted)
     await pumpUntil("speaking") { h.watch.latest.state == .speaking }
@@ -87,7 +87,7 @@ private func interruptedAnswerSent(_ sent: [String]) -> Bool {
         let tools = sheetTools()
         let h = makeVoiceHarness(parentTools: tools, approvals: approvals)
         let seen = SessionEventBox(h.session.events)
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") { h.watch.latest.state == .listening }
         h.transport.yield(.speechStarted)
         h.transport.yield(.speechStopped)
@@ -178,7 +178,7 @@ private func interruptedAnswerSent(_ sent: [String]) -> Bool {
         let approvals = ScriptedApprovals(park: true)
         let tools = SlowBinding(sheetTools())
         let h = makeVoiceHarness(parentTools: tools, approvals: approvals)
-        await h.session.start()
+        await h.session.start(preferRealtime: true)
         await pumpUntil("listening") { h.watch.latest.state == .listening }
         h.transport.yield(.agentAudioStarted)
         await pumpUntil("speaking") { h.watch.latest.state == .speaking }

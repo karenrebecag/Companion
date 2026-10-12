@@ -241,7 +241,7 @@ final class AckingSensor: ContextSensing, @unchecked Sendable {
     let ear = ScriptedSegmentingEar()
     let sensor = AckingSensor()
     let h = makeVoiceHarness(realtimeEar: ear, sensor: sensor)
-    await h.session.start()
+    await h.session.start(preferRealtime: true)
     await pumpUntil("realtime: listening") { h.watch.latest.state == .listening }
     ear.yieldTurn(.speechStarted)
     await pumpUntil("realtime: speechOpen") { h.watch.latest.speechOpen }
