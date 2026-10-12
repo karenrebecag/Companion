@@ -30,8 +30,8 @@ struct IslandSourceChips: View {
         }
         .font(GeistFont.uiCaption)
         .foregroundStyle(ArcTone.textSecondary.color)
-        .padding(.horizontal, Space.x2 + 2)
-        .frame(height: 28)
+        .padding(.horizontal, Space.x2_5)
+        .frame(height: Space.x7)
         .background(Capsule().fill(ArcTone.surfaceMuted.color))
         .contentShape(Capsule())
     }
