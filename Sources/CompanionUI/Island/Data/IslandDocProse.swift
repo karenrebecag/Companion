@@ -87,7 +87,7 @@ struct IslandDocProse: View {
     @ViewBuilder
     private func marker(ordered: Bool, index: Int) -> some View {
         if ordered {
-            Text("\(index + 1).")
+            Text("\(index + 1).") // token-exempt: list number, not copy
                 .font(Fonts.geist(DocCardMetrics.proseSize).monospacedDigit())
                 .foregroundStyle(Color.white.opacity(DocCardInk.bullet))
         } else {

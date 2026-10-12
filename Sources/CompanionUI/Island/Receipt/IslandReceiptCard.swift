@@ -103,7 +103,7 @@ struct IslandReceiptDoc: View {
         }
         .padding(.vertical, DocReceiptMetrics.rowPadY)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(entry.text) \(IslandReceipt.checkLabel(entry, language: Localized.language()))")
+        .accessibilityLabel("\(entry.text) \(IslandReceipt.checkLabel(entry, language: Localized.language()))") // token-exempt: built from localized parts
     }
 }
 
