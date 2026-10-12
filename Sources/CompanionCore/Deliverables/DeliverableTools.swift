@@ -9,7 +9,9 @@ enum DeliverableTools {
         case .createDocument:
             return ToolSpec(
                 name: "create_document",
-                description: "Create a finished file the user can open: a PDF report, one-pager or "
+                description: "Only when the user asks for a file (a PDF, an Excel, something to save "
+                    + "or send): a table or list asked for in conversation goes in the reply. "
+                    + "Create a finished file the user can open: a PDF report, one-pager or "
                     + "receipt, or an .xlsx workbook. You choose the content as blocks; the look is "
                     + "fixed by the template, so never write HTML or styling. Blocks: "
                     + "{\"type\":\"cover\",\"title\",\"subtitle\",\"date\"}, {\"type\":\"heading\",\"text\",\"level\":1-3}, "

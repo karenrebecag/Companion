@@ -91,6 +91,8 @@ struct TurnMouth {
     /// for a turn whose detail is on a card.
     var filter = SpeechFilter()
     var budget = SpeechBudget()
+    /// A table or list in the reply is the document's, not the voice's.
+    var lead = SpokenLead()
     var started = false
     /// The filter took something out of this turn.
     var filtered = false
@@ -248,7 +250,7 @@ extension ClassicRuntime {
     ) async -> Bool {
         guard !piece.isEmpty else { return true }
         let piece = SpeechFilter.joiner(after: mouth.spoken, before: piece) + piece
-        let voiced = SpeechFilter.stoppingLines(piece, after: mouth.spoken)
+        let voiced = SpeechFilter.stoppingLines(mouth.lead.admit(piece), after: mouth.spoken)
         if !mouth.started {
             mouth.started = true
             await apply(.firstSentence)
