@@ -1,0 +1,1 @@
+- **El hilo de la isla ya no desvanece el mensaje de arriba sin motivo (2026-10-12).** El borde superior solo se difumina cuando hay mensajes más arriba a los que puedes subir; en reposo el mensaje más viejo se lee completo.
