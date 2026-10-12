@@ -31,3 +31,26 @@ private func spoken(_ deltas: [String]) -> (said: String, open: Bool) {
     expectEq(result.said, "En Tokio son las 6:40 de la mañana.\n\n50 personas lo ven.", "voz: prosa entera")
     expect(!result.open, "voz: sin documento")
 }
+
+// En vivo 2026-10-12: el stream cortado en frases recortadas pegaba las filas
+// ("| Modelo | Pantalla ||---|---||"); ni el documento ni la voz veian tabla.
+@Test func aStreamedTableKeepsItsLineBreaks() {
+    var buffer = "Aquí tienes la comparación de los tres:\n\n| Modelo | Pantalla |\n|---|---|\n| iPhone 17 | 6.3 pulgadas |\n"
+    var joined = ""
+    while let cut = SentenceSplitter.takeSpan(buffer) {
+        joined += cut.span
+        buffer = cut.rest
+    }
+    joined += buffer
+    expect(joined.contains("| Modelo | Pantalla |\n|---|---|\n"), "stream: cada fila en su linea")
+    expect(ReplyRichness.isRich(joined), "stream: la tabla cuenta como documento")
+}
+
+@Test func aFencedMarkdownTableIsTheDocumentAndTheVoiceStopsAtTheFence() {
+    let reply = "Aquí tienes la comparación:```markdown\n| Modelo | Pantalla |\n|---|---|\n| iPhone 17 | 6.3 |\n```"
+    var lead = SpokenLead()
+    expectEq(lead.admit(reply), "Aquí tienes la comparación:", "voz: calla en la valla, no dice 'markdown'")
+    let unfenced = SpeechMarkdown.unfenced(reply)
+    expect(!unfenced.contains("```"), "documento: sin la valla de codigo")
+    expect(ReplyRichness.isRich(unfenced), "documento: la tabla cuenta")
+}

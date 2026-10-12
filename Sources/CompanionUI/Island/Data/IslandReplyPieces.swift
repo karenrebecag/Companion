@@ -17,7 +17,8 @@ enum IslandReplyText {
         // Only what the voice says: a table or list under the lead is the
         // document's, and the subtitle reading its rows says what the voice did not.
         var lead = SpokenLead()
-        let prose = MarkdownSplitter.islandProse(lead.admit(reply))
+        let voiced = lead.admit(reply) + lead.finish()
+        let prose = MarkdownSplitter.islandProse(voiced)
             .replacingOccurrences(of: #"```[\s\S]*?```"#, with: "\n\n", options: .regularExpression)
         let paragraphs = SpeechFilter.clean(prose)
             .components(separatedBy: "\n\n")

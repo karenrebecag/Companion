@@ -120,7 +120,7 @@ struct TurnMouth {
     /// thread and the transcript must not keep those. The length budget trims
     /// only the voice; the thread keeps the full text, which is the point of
     /// a card carrying the detail.
-    var said: String { SpeechFilter.clean(saidPart(of: spoken)) }
+    var said: String { SpeechMarkdown.unfenced(SpeechFilter.clean(saidPart(of: spoken))) }
 
     /// Code review 2026-09-25 (LOW-2): a round's text as the voice said it,
     /// for the model's next round.

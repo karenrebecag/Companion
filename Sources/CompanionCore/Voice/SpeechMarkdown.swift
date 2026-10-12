@@ -5,6 +5,14 @@ import Foundation
 /// shows the reply; the mouth and the subtitle must not read their pipes,
 /// markers or glued line breaks ("mAhCámara", "3.Vierte") out loud.
 package enum SpeechMarkdown {
+    /// A table or list the model wrapped in a ```markdown fence is still the
+    /// document, not code: unwrapped, it renders and counts as rich.
+    package static func unfenced(_ text: String) -> String {
+        text.replacingOccurrences(
+            of: #"[ \t]*```(?:markdown|md)[ \t]*\n?([\s\S]*?)\n?```"#, with: "\n\n$1\n",
+            options: .regularExpression)
+    }
+
     package enum Kind: Sendable, Equatable {
         case text
         case bullet

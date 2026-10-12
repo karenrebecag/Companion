@@ -3,15 +3,16 @@ import Foundation
 /// A voice reply that carries a table or a list is one spoken sentence and a
 /// document under it (Incredible's pattern): the voice says the lead and
 /// stops where the structure starts, the island shows the rest. Fed the
-/// streamed deltas in order; it cannot know a line is a list item until the
-/// line's first visible characters arrive, so a fresh line is held until
-/// then.
+/// streamed deltas in order; a mark is only known by what follows it ("- "
+/// is a bullet, "-5 °C" is not; "3. " is a list, "3.14" a number), so a
+/// candidate is held until the next character decides it.
 package struct SpokenLead: Sendable, Equatable {
     /// The structure started: nothing after it is voiced this reply.
     package private(set) var documentOpen = false
-    /// A line start whose kind is not known yet: blanks and digits.
     private var held = ""
     private var atLineStart = true
+    /// Backticks and the tag after them, until a blank says what they open.
+    private var fence = ""
 
     package init() {}
 
@@ -20,42 +21,82 @@ package struct SpokenLead: Sendable, Equatable {
         guard !documentOpen else { return "" }
         var out = ""
         for char in piece {
-            guard atLineStart else {
+            if feedFence(char, into: &out) { continue }
+            if documentOpen { return out }
+            if atLineStart {
+                lineStart(char, into: &out)
+                if documentOpen { return out }
+            } else {
                 out.append(char)
-                if char.isNewline {
-                    atLineStart = true
-                    held = ""
-                }
-                continue
+                if char.isNewline { atLineStart = true }
             }
-            if opens(with: char) {
-                documentOpen = true
-                held = ""
-                return out
-            }
-            if char.isWhitespace || char.isNumber || closesNumber(char) {
-                held.append(char)
-                continue
-            }
-            out += held
-            out.append(char)
-            held = ""
-            atLineStart = false
         }
         return out
     }
 
-    /// "3." or "3)" is a list item only once a blank follows: "3.14" is a
-    /// number. A table, heading, quote or bullet opens on its first mark.
-    private func opens(with char: Character) -> Bool {
-        if let last = held.last, last == "." || last == ")" {
-            return char.isWhitespace
+    /// The whole reply is in: a candidate still held was text after all.
+    package mutating func finish() -> String {
+        defer {
+            held = ""
+            fence = ""
         }
-        if held.contains(where: \.isNumber) { return false }
-        return "|#-*•>".contains(char)
+        return documentOpen ? "" : held + fence
     }
 
-    private func closesNumber(_ char: Character) -> Bool {
-        (char == "." || char == ")") && held.last?.isNumber == true
+    private mutating func lineStart(_ char: Character, into out: inout String) {
+        let mark = held.trimmingCharacters(in: .whitespacesAndNewlines)
+        if char.isWhitespace, !mark.isEmpty, Self.isMark(mark) {
+            documentOpen = true
+            return
+        }
+        if char == "|", mark.isEmpty {
+            documentOpen = true
+            return
+        }
+        if char.isWhitespace || char.isNumber || "-*+•>#.)".contains(char) {
+            held.append(char)
+            return
+        }
+        out += held
+        out.append(char)
+        held = ""
+        atLineStart = false
+    }
+
+    /// True while the character belongs to a fence still being read. A
+    /// ```markdown or ```md fence is the document; any other fence, or one or
+    /// two backticks, goes back to the text, where code is the filter's.
+    private mutating func feedFence(_ char: Character, into out: inout String) -> Bool {
+        if char == "`" {
+            fence.append(char)
+            return true
+        }
+        guard !fence.isEmpty else { return false }
+        if fence.hasPrefix("```"), char.isLetter {
+            fence.append(char)
+            return true
+        }
+        let tag = fence.drop { $0 == "`" }.lowercased()
+        if fence.hasPrefix("```"), tag == "markdown" || tag == "md" {
+            documentOpen = true
+            fence = ""
+            return true
+        }
+        let text = fence
+        fence = ""
+        if atLineStart {
+            out += held + text
+            held = ""
+            atLineStart = false
+        } else {
+            out += text
+        }
+        return false
+    }
+
+    private static func isMark(_ mark: String) -> Bool {
+        if ["-", "*", "+", "•", ">"].contains(mark) { return true }
+        if mark.allSatisfy({ $0 == "#" }), mark.count <= 6 { return true }
+        return mark.range(of: #"^\d{1,3}[.)]$"#, options: .regularExpression) != nil
     }
 }
