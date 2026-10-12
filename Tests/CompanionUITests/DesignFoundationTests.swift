@@ -171,3 +171,15 @@ import Testing
     expectEq(FontFallback.monoName(bold: true, registered: ["GeistMono-Medium"]), "GeistMono-Medium",
              "geist mono: el peso fuerte es Medium")
 }
+
+@Test @MainActor func testShimmerTextFloorStaysAAOverTheIslandBlack() {
+    // The mask multiplies the line's alpha, so the dimmest pixel is F2F2F2 * floor over black.
+    func gray(_ floor: Double) -> String {
+        let level = Int((Double(0xF2) * floor).rounded())
+        return String(format: "%02X%02X%02X", level, level, level)
+    }
+    expect(Contrast.passesAA(hex: gray(ShimmerMotion.textFloor), hex: "000000"),
+           "AA: punto mas tenue del shimmer de texto")
+    expect(!Contrast.passesAA(hex: gray(ShimmerMotion.ringFloor), hex: "000000"),
+           "el piso viejo (0.15) no pasaba AA")
+}

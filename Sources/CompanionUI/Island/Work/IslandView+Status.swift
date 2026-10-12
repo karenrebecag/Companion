@@ -113,7 +113,7 @@ extension IslandView {
             ZStack(alignment: .leading) {
                 if case .none = state.line {} else {
                     IslandStatusText(line: state.line)
-                        .shimmering(active: IslandCopy.shimmers(state.line))
+                        .shimmering(active: IslandCopy.shimmers(state.line), floor: ShimmerMotion.textFloor)
                         .id(IslandCopy.swapKey(state.line))
                         .transition(IslandMotionBudget.headerSwap.travels(reduceMotion: reduceMotion)
                             ? AnyTransition(IslandHeaderSwapTransition(swap: IslandMotionBudget.headerSwap))
