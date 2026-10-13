@@ -96,7 +96,9 @@ struct IslandStatusText: View {
     let line: IslandState.Line
 
     var body: some View {
-        if let shown = IslandCopy.visibleLine(line) {
+        if let shown = IslandCopy.visibleLine(line), IslandCopy.morphs(line) {
+            IslandTextMorph(text: shown)
+        } else if let shown = IslandCopy.visibleLine(line) {
             Text(shown)
                 .font(GeistFont.uiLabel)
                 .foregroundStyle(IslandInk.text)

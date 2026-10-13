@@ -116,8 +116,8 @@ extension IslandView {
             ZStack(alignment: .leading) {
                 if case .none = state.line {} else {
                     IslandStatusText(line: state.line)
-                        .shimmering(active: IslandCopy.shimmers(state.line), floor: ShimmerMotion.textFloor)
-                        .id(IslandCopy.swapKey(state.line))
+                        .islandTextShimmer(active: IslandCopy.shimmers(state.line))
+                        .id(IslandCopy.rowKey(state.line))
                         .transition(IslandMotionBudget.headerSwap.travels(reduceMotion: reduceMotion)
                             ? AnyTransition(IslandHeaderSwapTransition(swap: IslandMotionBudget.headerSwap))
                             : AnyTransition.opacity)
@@ -130,7 +130,7 @@ extension IslandView {
             // Each property carries its own curve; this only keeps the leaving line alive
             // until the slowest of them is done.
             .animation(IslandMotionBudget.headerSwap.lifetime(reduceMotion: reduceMotion).animation,
-                       value: IslandCopy.swapKey(state.line))
+                       value: IslandCopy.rowKey(state.line))
         } trail: {
             statusTrail(state)
         }
@@ -143,20 +143,28 @@ extension IslandView {
         state.meter == .agent && !isJob(state.line) && state.action == nil
     }
 
-    /// The lead column's mark: the run's loader during a job, the orb while
-    /// it listens, thinks or speaks, and otherwise the status dot, the way
-    /// Arc's agent run leads its status with one.
+    /// The lead column's mark: the orb while it listens, works or speaks (a
+    /// running job included), the run's loader once a job has finished, and
+    /// otherwise the status dot, the way Arc's agent run leads its status with one.
     @ViewBuilder
     func leadMark(_ state: IslandState) -> some View {
-        if case .job = state.line, let job = chat.session.projection.job {
-            IslandLoader(status: AgentRunModel.status(job.steps), size: AgentRunMetrics.loader)
-                .foregroundStyle(ArcTone.foreground.color)
-        } else if Self.leadHoldsMeter(state) {
-            meter(state)
-                .matchedGeometryEffect(id: IslandOrbTravel.id, in: orbSpace)
-        } else {
-            IslandLight(light: state.light)
+        let job = chat.session.projection.job
+        let mark = IslandLeadMark.of(meter: state.meter, line: state.line,
+                                     jobRunning: job.map { AgentRunModel.status($0.steps) == .loading } ?? false)
+        ZStack {
+            if let mark {
+                IslandLeadOrb(mark: mark, levels: voice.levels, side: IslandChrome.meterSide, paused: !contentVisible)
+                    .matchedGeometryEffect(id: IslandOrbTravel.id, in: orbSpace)
+                    .transition(IslandLeadOrb.handoff(reduceMotion: reduceMotion))
+            } else if case .job = state.line, let job {
+                IslandLoader(status: AgentRunModel.status(job.steps), size: AgentRunMetrics.loader)
+                    .foregroundStyle(ArcTone.foreground.color)
+                    .transition(IslandLeadOrb.handoff(reduceMotion: reduceMotion))
+            } else {
+                IslandLight(light: state.light)
+            }
         }
+        .animation(ArcMotion.fade(IslandLeadOrbMetrics.handoff), value: mark == nil)
     }
 
     static func isJob(_ line: IslandState.Line) -> Bool {
@@ -197,22 +205,6 @@ extension IslandView {
             if Self.leadHoldsMeter(state) || Self.isJob(state.line) {
                 IslandLight(light: state.light)
             }
-        }
-    }
-
-    @ViewBuilder
-    func meter(_ state: IslandState) -> some View {
-        switch state.meter {
-        case .none:
-            // Arc's orb gives thinking a look of its own: it contracts into a slow swirl.
-            if IslandCopy.shimmers(state.line) {
-                IslandVoiceOrb(state: .thinking, size: IslandChrome.meterSide)
-            }
-        case .mic:
-            // The orb's ripples carry the mic level; no separate waveform.
-            IslandVoiceOrb(state: .listening, levels: voice.levels, size: IslandChrome.meterSide)
-        case .agent:
-            IslandVoiceOrb(state: .speaking, levels: voice.levels, size: IslandChrome.meterSide)
         }
     }
 

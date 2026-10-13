@@ -16,13 +16,15 @@ package struct ThinkingOrb: View {
     let speed: Double
     let size: CGFloat
     let paused: Bool
+    /// Offscreen reviews pin the source clock (seconds) instead of reading the timeline.
+    let frozenAt: Double?
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     package init(
         mode: ThinkingOrbMode, surface: ThinkingOrbSurface = .auto, scale: Double = 0.72,
-        speed: Double = 1, size: CGFloat, paused: Bool = false
+        speed: Double = 1, size: CGFloat, paused: Bool = false, frozenAt: Double? = nil
     ) {
         self.mode = mode
         self.surface = surface
@@ -30,6 +32,7 @@ package struct ThinkingOrb: View {
         self.speed = speed
         self.size = size
         self.paused = paused
+        self.frozenAt = frozenAt
     }
 
     /// Space UI throttles its canvas to about 45 fps; an ambient orb has no
@@ -65,7 +68,8 @@ package struct ThinkingOrb: View {
     private func draw(_ context: inout GraphicsContext, _ canvas: CGSize, at now: Double, still: Bool) {
         let inner = max(8, Double(min(canvas.width, canvas.height)) * OrbMath.clamp(scale))
         let preset = ThinkingOrbPreset.make(mode, pixelSize: inner)
-        let time = Self.sceneTime(still: still, now: now, speed: speed, presetSpeed: preset.speed)
+        let time = frozenAt.map { $0 * preset.speed }
+            ?? Self.sceneTime(still: still, now: now, speed: speed, presetSpeed: preset.speed)
         let pass = ThinkingOrbScene.render(mode, size: inner, time: time, options: preset.options)
         context.translateBy(x: (canvas.width - inner) / 2, y: (canvas.height - inner) / 2)
         for line in pass.lines {
