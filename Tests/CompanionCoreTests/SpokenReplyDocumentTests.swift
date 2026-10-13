@@ -118,3 +118,17 @@ private func speaking() -> SessionEvent {
     _ = m.handle(.voice(turn.snapshot))
     expectEq(m.projection.kind, .processing(.completed), "documento tardio: termina en la tarjeta")
 }
+
+// En vivo 2026-10-13: el documento llegaba al terminar la frase y, mientras
+// tanto, el subtitulo leia la cola del documento. Sube en cuanto existe.
+@Test func theDocumentGoesUpWhileTheVoiceSaysItsSentenceAndStaysAfter() {
+    var m = SessionMachine()
+    _ = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true)))
+    let fx = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true, hasDocument: true)))
+    expectEq(m.projection.kind, .processing(.completed), "documento: sube mientras la voz habla")
+    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.voiceDocumentDelay, floor: nil)), "documento: con su tiempo de lectura")
+    _ = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true, hasDocument: true)))
+    expectEq(m.projection.kind, .processing(.completed), "documento: otro tick de la voz no lo baja")
+    _ = m.handle(.voice(TurnSnapshot(state: .idle, hasDocument: true)))
+    expectEq(m.projection.kind, .processing(.completed), "documento: sigue cuando la voz calla")
+}

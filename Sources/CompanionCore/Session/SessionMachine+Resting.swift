@@ -129,6 +129,11 @@ extension SessionMachine {
         case .thinking:
             projection.kind = jobInFront ? .processing(.subAgentRunning) : .processing(.thinking)
         case .speaking:
+            // The document goes up the moment it exists, while the voice says
+            // its sentence (Incredible); landing after the voice left the
+            // subtitle reading the document's tail meanwhile (live 2026-10-13).
+            if landsDocument(snapshot, becameDocument: becameDocument) { return landDocument() }
+            if voiceCardUp { break }
             projection.kind = .processing(.speaking)
         case .idle:
             // Classic hold arms Speech while TurnMachine is still idle.

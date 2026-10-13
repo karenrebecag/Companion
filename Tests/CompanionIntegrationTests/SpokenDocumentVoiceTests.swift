@@ -38,7 +38,8 @@ private let showDocument = ToolCallRef(
     expect(h.chat.toolsSeen.map(\.name).contains(SpokenDocument.toolName), "hold doc: la tool viaja")
     await pumpUntil("hold doc: la voz habla") { h.watch.latest.state == .speaking }
     model.send(.voice(h.watch.latest))
-    expectEq(model.projection.kind, .processing(.speaking), "hold doc: la isla habla")
+    expectEq(model.projection.kind, .processing(.completed),
+             "hold doc: el documento sube mientras la voz dice su frase")
     h.synth.yield(.finished)
     await pumpUntil("hold doc: la voz descansa") { h.watch.latest.state == .idle }
     expect(h.watch.latest.hasDocument, "hold doc: el snapshot lleva el documento")
