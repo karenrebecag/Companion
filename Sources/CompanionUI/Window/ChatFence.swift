@@ -21,7 +21,7 @@ enum ChatFence {
 
 extension TaskThread {
     static var chatStrings: AIChatStrings {
-        AIChatStrings(
+        var strings = AIChatStrings(
             userPrefix: Localized.string("task.you"),
             assistantPrefix: Localized.string("task.assistant"),
             thinking: Localized.string("chat.ai.thinking"),
@@ -41,5 +41,7 @@ extension TaskThread {
             error: Localized.string("chat.ai.error"),
             emptyTitle: Localized.string("task.empty.title"),
             emptyText: Localized.string("task.empty.text"))
+        strings.agentRun = ChatAgentRun.strings
+        return strings
     }
 }

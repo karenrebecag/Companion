@@ -27,6 +27,13 @@ extension IslandView {
                         .environment(\.diagramRenderer, diagrams)
                         .environment(\.fileSaver, saveFile)
                 }
+                // What the specialist did, folded to its newest steps: the
+                // whole run is one tap away in the chat.
+                if let record = ChatAgentRun.latestRecord(chat.messages) {
+                    AIAgentRunView(
+                        run: ChatAgentRun.finished(record), strings: ChatAgentRun.strings, style: .notchRun,
+                        density: .compact(rows: IslandResultCardMetrics.runRows))
+                }
                 if let latest { choiceCard(latest) }
             }
         }

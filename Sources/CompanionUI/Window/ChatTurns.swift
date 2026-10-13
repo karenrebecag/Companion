@@ -48,6 +48,7 @@ enum ChatTurns {
             var cards: [Card] = []
             var failure: String?
             var stopped = false
+            var run: AIAgentRun?
         }
 
         mutating func add(_ message: ChatMessage) {
@@ -69,6 +70,7 @@ enum ChatTurns {
                     current.tools[index].done = message.text
                 }
                 if message.isFailure { current.failure = message.text }
+                if let record = message.job { current.run = ChatAgentRun.finished(record) }
                 if message.text == ChatCopy.jobStopped { current.stopped = true }
             } else {
                 if !message.text.isEmpty { current.texts.append(message.text) }
@@ -91,7 +93,8 @@ enum ChatTurns {
                 if finished.status == .running { finished.status = .done }
                 return finished
             } : current.tools
-            let answer = ChatTurns.answer(text: text, status: status, tools: tools, failure: current.failure)
+            var answer = ChatTurns.answer(text: text, status: status, tools: tools, failure: current.failure)
+            answer.run = current.run
             turns.append(AIChatTurn(id: current.id, content: .assistant(answer)))
             if !current.cards.isEmpty { cards[current.id] = current.cards }
         }
@@ -123,8 +126,8 @@ enum ChatTurns {
             detail: ParentTool.names(target) ? target : nil)
     }
 
-    /// The live turn: the words streaming so far, and the specialist's steps
-    /// as chips, its thoughts as the reasoning fold.
+    /// The live turn: the words streaming so far, the specialist's steps as
+    /// Arc's agent-run timeline, its thoughts as the reasoning fold.
     private static func applyLive(_ live: ChatLive, to turns: inout [AIChatTurn]) {
         var answer: AIChatAnswer
         var id = liveID
@@ -142,26 +145,14 @@ enum ChatTurns {
             let steps = job.steps.filter { !JobSteps.isHidden($0.tool) }
             let thoughts = steps.filter { $0.tool == JobSteps.Thinking.tool }
             answer.thinking = thoughts.map(\.label).joined(separator: "\n")
-            answer.tools += steps.filter { $0.tool != JobSteps.Thinking.tool }.map(step)
+            answer.run = ChatAgentRun.live(job, now: live.now)
             if let last = thoughts.last {
                 answer.thoughtFor = max(Int((last.finishedAt ?? live.now).timeIntervalSince(job.startedAt).rounded()), 1)
             }
         }
-        // Arc's rule: the first tool or word ends the thinking phase.
-        answer.status = answer.text.isEmpty && answer.tools.isEmpty ? .thinking : .streaming
+        // Arc's rule: the first tool, run or word ends the thinking phase.
+        answer.status = answer.text.isEmpty && answer.tools.isEmpty && answer.run == nil ? .thinking : .streaming
         turns.append(AIChatTurn(id: id, content: .assistant(answer)))
-    }
-
-    /// The chip says what the step was about ("hoteles en Miraflores"); the
-    /// icon already says which tool, and the detail keeps the whole line.
-    static func step(_ step: JobStepInfo) -> AIChatTool {
-        let prefix = step.tool + ": "
-        let shown = step.label.hasPrefix(prefix) ? String(step.label.dropFirst(prefix.count)) : step.label
-        return AIChatTool(
-            id: step.id.isEmpty ? step.label : step.id, symbol: JobSteps.icon(for: step.tool),
-            running: shown, done: shown,
-            status: step.failed ? .error : step.done ? .done : .running,
-            detail: step.label)
     }
 
     /// Drops the "Sources"/"Fuentes" header and the link lines under it, the

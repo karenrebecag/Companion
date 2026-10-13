@@ -63,10 +63,13 @@ struct ChatTurnsTests {
         let turns = ChatTurns.thread([ChatMessage(role: .user, text: "Vuelos")], live: live).turns
         let reply = turns.last?.answer
         #expect(turns.last?.id == ChatTurns.liveID)
-        #expect(reply?.status == .streaming, "a tool on screen ends the thinking phase")
+        #expect(reply?.status == .streaming, "a run on screen ends the thinking phase")
         #expect(reply?.thinking == "Busco precios")
         #expect(reply?.thoughtFor == 3)
-        #expect(reply?.tools.map(\.status) == [.running], "bookkeeping tools are hidden")
+        #expect(reply?.tools.isEmpty == true, "the specialist's steps are the run, not chips")
+        #expect(reply?.run?.phase == .running)
+        #expect(reply?.run?.worked == "5s")
+        #expect(reply?.run?.steps.map(\.status) == [.active], "thoughts and bookkeeping stay off the rail")
         let words = ChatTurns.thread(
             [ChatMessage(role: .user, text: "Vuelos")],
             live: ChatLive(streaming: "Hay tres", busy: true, job: nil, now: start)).turns.last?.answer
@@ -76,6 +79,57 @@ struct ChatTurnsTests {
             [ChatMessage(role: .user, text: "Vuelos")],
             live: ChatLive(streaming: "", busy: true, job: nil, now: start)).turns.last?.answer
         #expect(waiting?.status == .thinking)
+    }
+
+    /// The job's record line keeps its run: once the live timeline is gone
+    /// the answer folds it into its summary, with how the job ended.
+    @Test func finishedJobStaysOnItsAnswer() {
+        let start = Date(timeIntervalSinceReferenceDate: 1000)
+        let job = JobTimeline(goal: "vuelos", startedAt: start, steps: [
+            JobStepInfo(tool: "WebSearch", label: "WebSearch: vuelos a Lima", done: true, id: "s1",
+                        startedAt: start, finishedAt: start.addingTimeInterval(4)),
+            JobStepInfo(tool: "WebFetch", label: "WebFetch: kayak.com", id: "s2", startedAt: start.addingTimeInterval(4)),
+        ])
+        let end = start.addingTimeInterval(9)
+        func reply(_ outcome: JobRecord.Outcome) -> AIChatAnswer? {
+            ChatTurns.thread([
+                ChatMessage(role: .user, text: "Vuelos"),
+                ChatMessage(isStatus: true, text: "Encargo: vuelos",
+                            job: JobRecord(timeline: job, finishedAt: end, outcome: outcome)),
+                ChatMessage(role: .assistant, text: "Hay tres."),
+            ]).turns.last?.answer
+        }
+        let done = reply(.done)
+        #expect(done?.run?.phase == .done)
+        #expect(done?.run?.worked == "9s")
+        #expect(done?.run?.steps.map(\.status) == [.done, .done])
+        #expect(done?.run?.steps.map(\.duration) == ["4s", "5s"])
+        let stopped = reply(.stopped)
+        #expect(stopped?.run?.phase == .stopped)
+        #expect(stopped?.run?.steps.map(\.status) == [.done, .failed], "a step cut off by the stop did not finish")
+    }
+
+    /// A step's detail is its own line only when that says more than its
+    /// title; a bare tool step has nothing to unfold.
+    @Test func stepDetailOnlyWhenItAddsSomething() {
+        let start = Date(timeIntervalSinceReferenceDate: 0)
+        let steps = ChatAgentRun.steps([
+            JobStepInfo(tool: "Bash", label: "Bash: ls -la ~/Desktop", done: true, id: "b",
+                        startedAt: start, finishedAt: start),
+            JobStepInfo(tool: "mcp__x__y", label: "mcp__x__y: select:a,b", done: true, id: "m",
+                        startedAt: start, finishedAt: start),
+        ], now: start, language: .en)
+        #expect(steps.first?.detail == nil, "the title already names the command")
+        #expect(steps.last?.title == "Worked on a step")
+        #expect(steps.last?.detail == "mcp__x__y: select:a,b")
+    }
+
+    /// The notch card summarises the newest turn's job, never an older one.
+    @Test func latestRecordIsTheNewestTurns() {
+        let record = JobRecord(timeline: JobTimeline(goal: "a"), finishedAt: .distantPast, outcome: .done)
+        let older = [ChatMessage(role: .user, text: "Uno"), ChatMessage(isStatus: true, text: "Encargo: a", job: record)]
+        #expect(ChatAgentRun.latestRecord(older) == record)
+        #expect(ChatAgentRun.latestRecord(older + [ChatMessage(role: .user, text: "Dos")]) == nil)
     }
 
     /// A call whose result never arrived does not spin forever once its

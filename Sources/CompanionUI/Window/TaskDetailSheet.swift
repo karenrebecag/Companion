@@ -205,6 +205,7 @@ extension AIThreadStyle {
             success: Semantic.success,
             body: .uiBody,
             caption: .uiCaption,
-            mono: .uiMono)
+            mono: .uiMono,
+            danger: Semantic.danger)
     }
 }

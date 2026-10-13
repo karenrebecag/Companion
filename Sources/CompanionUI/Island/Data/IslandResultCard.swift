@@ -7,6 +7,8 @@ import SwiftUI
 enum IslandResultCardMetrics {
     /// What the document's content gets: the card's width less its padding.
     static let bodyWidth: CGFloat = DocCardMetrics.width - 2 * DocCardMetrics.padX
+    /// The run's newest steps the card keeps; the rest fold into one line.
+    static let runRows = 3
 }
 
 struct IslandResultCard<Body: View>: View {

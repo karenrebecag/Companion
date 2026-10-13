@@ -958,3 +958,13 @@
 "chat.ai.toolDone" = "Done";
 "chat.ai.stopped" = "Stopped";
 "chat.ai.error" = "The answer could not be generated.";
+
+// The specialist's agent-run in the chat and the notch card (Arc port)
+"chat.run.running" = "Working";
+"chat.run.done" = "Done";
+"chat.run.failed" = "Failed";
+"chat.run.stopped" = "Stopped";
+"chat.run.worked" = "Worked for %@";
+"chat.run.steps.one" = "1 step";
+"chat.run.steps.other" = "%d steps";
+"chat.run.timeline" = "The specialist's steps";

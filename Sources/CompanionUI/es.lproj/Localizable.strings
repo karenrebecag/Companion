@@ -958,3 +958,13 @@
 "chat.ai.toolDone" = "Hecho";
 "chat.ai.stopped" = "Detenido";
 "chat.ai.error" = "No se pudo generar la respuesta.";
+
+// agent-run del especialista en el chat y la tarjeta del notch (port de Arc)
+"chat.run.running" = "Trabajando";
+"chat.run.done" = "Listo";
+"chat.run.failed" = "Falló";
+"chat.run.stopped" = "Detenido";
+"chat.run.worked" = "Trabajó %@";
+"chat.run.steps.one" = "1 paso";
+"chat.run.steps.other" = "%d pasos";
+"chat.run.timeline" = "Pasos del especialista";
