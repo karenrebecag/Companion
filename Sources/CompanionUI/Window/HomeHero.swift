@@ -1,15 +1,11 @@
 import CompanionCore
-import CompanionUIPro
 import SwiftUI
 
 /// Home's "hold fn" card. Incredible lays a photo over its right side; ours
-/// carries the voice orb there, which shows what the voice is doing.
+/// carries a still glyph of what the voice is doing (Karen chose performance
+/// over the animated sphere, 2026-10-13).
 struct HomeHero: View {
     let state: TurnState
-    /// Live mic and agent levels, so the orb moves with the real voice; nil
-    /// (previews, tests) lets the orb draw its own speech envelope.
-    var levels: VoiceLevels? = nil
-    @Environment(\.surfaceVisible) private var surfaceVisible
 
     var body: some View {
         HStack(alignment: .center, spacing: Space.x4) {
@@ -22,7 +18,7 @@ struct HomeHero: View {
                 .font(Fonts.sans(TypeSize.bannerTitle).weight(.semibold))
                 .tracking(Tracking.title, at: TypeSize.bannerTitle)
                 .foregroundStyle(Neutral.white.color)
-                // One line: squeezed by the orb, each word broke letter by letter.
+                // One line: squeezed by the mark, each word broke letter by letter.
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
                 Text(Localized.string("home.hero.body"))
@@ -33,15 +29,12 @@ struct HomeHero: View {
             }
             .layoutPriority(1)
             Spacer(minLength: Space.none)
-            VoiceOrb(
-                state: VoiceOrbState(state),
-                muted: false,
-                inputLevel: levels?.mic,
-                outputLevel: levels?.agent,
-                size: HeroMetrics.orbSize,
-                palette: .hero,
-                accessibilityLabel: Localized.string(Self.orbLabelKey(for: state)),
-                isActive: surfaceVisible)
+            Image(systemName: Self.symbol(for: state))
+                .font(Fonts.symbol(HeroMetrics.glyph, weight: .medium))
+                .foregroundStyle(Neutral.white.color.opacity(HeroMetrics.bodyAlpha))
+                // No disc behind it: on this card a disc would read as a button it is not.
+                .frame(width: HeroMetrics.mark, height: HeroMetrics.mark)
+                .accessibilityLabel(Localized.string(Self.orbLabelKey(for: state)))
         }
         .padding(.horizontal, HeroMetrics.paddingX)
         .padding(.vertical, HeroMetrics.paddingY)
@@ -49,8 +42,8 @@ struct HomeHero: View {
         .background(RoundedRectangle(cornerRadius: HeroMetrics.radius).fill(HeroMetrics.ink.color))
     }
 
-    /// Per-state description so VoiceOver can read what the orb is doing
-    /// without naming the colour or the mode.
+    /// Per-state description so VoiceOver can read what the voice is doing
+    /// without naming the glyph.
     static func orbLabelKey(for state: TurnState) -> String {
         switch state {
         case .idle: "home.hero.orb.idle"
@@ -59,6 +52,16 @@ struct HomeHero: View {
         case .speaking: "home.hero.orb.speaking"
         case .connecting: "home.hero.orb.connecting"
         case .error: "home.hero.orb.error"
+        }
+    }
+
+    static func symbol(for state: TurnState) -> String {
+        switch state {
+        case .idle, .connecting: "mic"
+        case .listening: "mic.fill"
+        case .thinking: "ellipsis"
+        case .speaking: "waveform"
+        case .error: "exclamationmark.triangle"
         }
     }
 }

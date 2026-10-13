@@ -96,6 +96,8 @@ package enum TextMorphTiming {
 package enum TextShimmerMotion {
     /// Arc's defaults: one pass in 1.8 s, a rest of a third of that, a short lead-in.
     package static let pass: TimeInterval = 1.8
+    /// An ambient sweep has no use for the display's full rate; about 45 fps reads smooth.
+    package static let frameInterval: TimeInterval = 1.0 / 45
     package static let restShare = 0.32
     package static let leadIn: TimeInterval = 0.12
     /// The band's half width, in ems.

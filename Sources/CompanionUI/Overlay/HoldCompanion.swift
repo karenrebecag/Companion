@@ -40,8 +40,12 @@ private struct HoldCompanionPill: View {
     var body: some View {
         let gulping = HoldStack.gulping(state.stack, nowMs: state.clockMs)
         ZStack {
-            Orb(state: listening ? .listening : .idle, levels: VoiceLevels(mic: 0, agent: 0),
-                accentColor: Semantic.accent)
+            // A still disc where the native orb was (Karen chose performance
+            // over the animated sphere, 2026-10-13); the accent says it listens.
+            Circle().fill(listening ? Semantic.accent : IslandInk.chip)
+            Image(systemName: "mic.fill")
+                .font(Fonts.symbol(HoldCompanionMetrics.micGlyph, weight: .medium))
+                .foregroundStyle(Neutral.white.color)
             face
         }
         .frame(width: HoldCompanionMetrics.orb, height: HoldCompanionMetrics.orb)

@@ -93,7 +93,7 @@ private struct ChatShot: View {
                         IconButton("paperclip", label: "Adjuntar", size: .chatTool, tone: .island, chip: true) {}
                     },
                     trailing: {
-                        IslandVoiceOrb(state: .composer(levels: VoiceLevels(mic: 0, agent: 0)), size: IconButtonSize.chatTool.side)
+                        IslandMicMark(side: IconButtonSize.chatTool.side, listening: false)
                     })
             }
         }

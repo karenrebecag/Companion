@@ -46,7 +46,7 @@ extension IslandView {
                 IslandVoiceStage(voice: voice, text: latestReply.map(Self.replyText) ?? "",
                                  startedAt: replyStart, showsStop: IslandStop.inVoiceStage(state),
                                  visuals: latestReply.map(Self.inlineVisuals) ?? (nil, []),
-                                 orbSpace: orbSpace, onStop: stop)
+                                 onStop: stop)
                     .environment(\.diagramRenderer, diagrams)
                     .environment(\.fileSaver, saveFile)
                     .modifier(contentSlot(.field))
@@ -143,9 +143,10 @@ extension IslandView {
         state.meter == .agent && !isJob(state.line) && state.action == nil
     }
 
-    /// The lead column's mark: the orb while it listens, works or speaks (a
-    /// running job included), the run's loader once a job has finished, and
-    /// otherwise the status dot, the way Arc's agent run leads its status with one.
+    /// The lead column's mark: a static glyph while it listens, works or
+    /// speaks (a running job included), the run's loader once a job has
+    /// finished, and otherwise the status dot, the way Arc's agent run leads
+    /// its status with one.
     @ViewBuilder
     func leadMark(_ state: IslandState) -> some View {
         let job = chat.session.projection.job
@@ -153,18 +154,17 @@ extension IslandView {
                                      jobRunning: job.map { AgentRunModel.status($0.steps) == .loading } ?? false)
         ZStack {
             if let mark {
-                IslandLeadOrb(mark: mark, levels: voice.levels, side: IslandChrome.meterSide, paused: !contentVisible)
-                    .matchedGeometryEffect(id: IslandOrbTravel.id, in: orbSpace)
-                    .transition(IslandLeadOrb.handoff(reduceMotion: reduceMotion))
+                IslandLeadGlyph(mark: mark, side: IslandChrome.meterSide)
+                    .transition(.opacity)
             } else if case .job = state.line, let job {
                 IslandLoader(status: AgentRunModel.status(job.steps), size: AgentRunMetrics.loader)
                     .foregroundStyle(ArcTone.foreground.color)
-                    .transition(IslandLeadOrb.handoff(reduceMotion: reduceMotion))
+                    .transition(.opacity)
             } else {
                 IslandLight(light: state.light)
             }
         }
-        .animation(ArcMotion.fade(IslandLeadOrbMetrics.handoff), value: mark == nil)
+        .animation(ArcMotion.fade(IslandLeadMarkMetrics.handoff), value: mark == nil)
     }
 
     static func isJob(_ line: IslandState.Line) -> Bool {
@@ -240,10 +240,6 @@ struct RunCardHoverRegion: ViewModifier {
             content
         }
     }
-}
-
-enum IslandOrbTravel {
-    static let id = "island.orb"
 }
 
 extension IslandView {

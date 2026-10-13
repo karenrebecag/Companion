@@ -6,18 +6,12 @@ import Foundation
 import Observation
 import Testing
 
-// At rest the app must draw nothing: a hidden window stops its orbs, and the
+// At rest the app must draw nothing: a hidden window is not visible, and the
 // toast clock sleeps while there is no toast.
 
 @Test @MainActor func aWindowOffScreenIsNotVisible() {
     expect(SurfaceVisibility.visible(.visible), "an on-screen window is visible")
     expect(!SurfaceVisibility.visible([]), "ordered out, minimized or covered is not")
-}
-
-@Test @MainActor func theIslandOrbAnimatesOnlyWhenSeen() {
-    expect(IslandVoiceOrb.animates(active: true, surfaceVisible: true), "shown orb moves")
-    expect(!IslandVoiceOrb.animates(active: true, surfaceVisible: false), "hidden window: frames stop")
-    expect(!IslandVoiceOrb.animates(active: false, surfaceVisible: true), "fading panel: frames stop")
 }
 
 @Test @MainActor func anEmptyToastStackSchedulesOneFrame() {

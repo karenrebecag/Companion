@@ -20,7 +20,6 @@ import Testing
     testDropdownToggleOpensAndCloses()
     testShimmerWaitsThenSweeps()
     testShimmerActiveOnThinking()
-    testShimmerRingDurations()
 }
 
 @MainActor func testPrimaryFillAndInk() {
@@ -195,23 +194,4 @@ import Testing
     expect(ShimmerMotion.isActive(for: .connecting), "connecting shimmers")
     expect(!ShimmerMotion.isActive(for: .idle), "idle does not")
     expect(!ShimmerMotion.isActive(for: .speaking), "speaking does not")
-}
-
-@MainActor func testShimmerRingDurations() {
-    expectEq(ShimmerRingMotion.thinkingDuration, 2.0,
-             "ring: 2s en thinking")
-    expectEq(ShimmerRingMotion.listeningDuration, 1.15,
-             "ring: 1.15s en listening")
-    expect(ShimmerRingMotion.thinkingBand > ShimmerRingMotion.listeningBand,
-           "ring: thinking barre mas ancho")
-    expect(
-        OrbAppearance.shouldAnimateShell(for: .listening, reduceMotion: false)
-            && OrbAppearance.shouldAnimateShell(for: .thinking, reduceMotion: false),
-        "ring: listening y thinking")
-    expect(
-        !OrbAppearance.shouldAnimateShell(for: .idle, reduceMotion: false),
-        "ring: idle sin anillo")
-    expect(
-        !OrbAppearance.shouldAnimateShell(for: .listening, reduceMotion: true),
-        "ring: reduce-motion apaga el sweep")
 }

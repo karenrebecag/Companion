@@ -27,7 +27,7 @@ struct HomePage: View {
                         {
                             HomeErrorBanner(text: error, onDismiss: chat.dismissError)
                         }
-                        HomeHero(state: voice.snapshot.state, levels: voice.levels)
+                        HomeHero(state: voice.snapshot.state)
                         tasks
                     }
                     .frame(maxWidth: .infinity)

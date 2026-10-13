@@ -79,7 +79,7 @@ extension IslandView {
         if let line = voiceLines.line {
             VoiceLineChip(
                 line: line, visible: voiceLines.visible, startedAt: replyStart,
-                speaking: chat.session.projection.kind == .processing(.speaking), levels: voice.levels,
+                speaking: chat.session.projection.kind == .processing(.speaking),
                 onEngage: engageVoiceLine)
                 .offset(y: VoiceLineChipMetrics.top)
                 .transition(VoiceLineChip.entering(reduceMotion: reduceMotion))

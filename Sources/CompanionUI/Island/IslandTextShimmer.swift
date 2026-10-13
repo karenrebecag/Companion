@@ -24,7 +24,7 @@ struct IslandTextShimmer: ViewModifier {
             } else if reduceMotion || !surfaceVisible {
                 painted(content, sweep: 0, settle: active ? 0 : 1)
             } else {
-                TimelineView(.animation(minimumInterval: ThinkingOrb.frameInterval)) { timeline in
+                TimelineView(.animation(minimumInterval: TextShimmerMotion.frameInterval)) { timeline in
                     let since = toggledAt.map { timeline.date.timeIntervalSince($0) } ?? .infinity
                     painted(content,
                             sweep: TextShimmerMotion.sweep(timeline.date.timeIntervalSince(startedAt)),
@@ -91,7 +91,7 @@ struct IslandShimmerInk: Equatable {
     }
 
     func mixed(toward other: IslandShimmerInk, _ share: Double) -> IslandShimmerInk {
-        let t = OrbMath.clamp(share)
+        let t = min(max(share, 0), 1)
         return IslandShimmerInk(r: r + (other.r - r) * t, g: g + (other.g - g) * t, b: b + (other.b - b) * t)
     }
 
