@@ -87,3 +87,17 @@ import Testing
     #expect(TextShimmerMotion.settle(active: false, sinceToggle: 0) == 0)
     #expect(TextShimmerMotion.settle(active: false, sinceToggle: TextShimmerMotion.settleOut) == 1)
 }
+
+@Test @MainActor func aMorphingWordIsNeverHalfEmpty() {
+    let pairs = [("Enviando…", "Pensando…"), ("Pensando…", "Listo"), ("Listo", "Enviando…"), ("Pegando…", "Cancelado")]
+    for (old, new) in pairs {
+        let plan = TextMorphPlan.plan(from: old, to: new)
+        let floor = Double(min(old.count, new.count)) * 0.8
+        let end = TextMorphTiming.total(plan)
+        for step in 0...Int(end / 0.005) {
+            let t = Double(step) * 0.005
+            let ink = plan.reduce(0.0) { $0 + TextMorphLook(glyph: $1, elapsed: t).opacity }
+            #expect(ink >= floor, "\(old) -> \(new) at \(t) s holds \(ink) letters, floor \(floor)")
+        }
+    }
+}

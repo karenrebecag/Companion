@@ -90,7 +90,7 @@ struct TextMorphLook: Equatable {
 
     init(glyph: TextMorphGlyph, elapsed: TimeInterval) {
         if glyph.to == nil {
-            let q = TextMorphTiming.exitProgress(elapsed)
+            let q = TextMorphTiming.exitProgress(elapsed, order: glyph.exitOrder ?? 0)
             opacity = 1 - q
             scale = 1 - 0.14 * q
             rise = -0.1 * q

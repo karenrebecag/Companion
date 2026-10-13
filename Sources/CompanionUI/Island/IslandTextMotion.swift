@@ -13,6 +13,9 @@ package struct TextMorphGlyph: Equatable, Sendable {
     package let to: Int?
     /// Reading-order rank among the letters that are new; only they stagger.
     package let enterOrder: Int?
+    /// Reading-order rank among the letters that leave. The k-th leaving letter
+    /// fades on the k-th arriving letter's clock, so the pair crossfades in place.
+    package var exitOrder: Int? = nil
 }
 
 package enum TextMorphPlan {
@@ -38,16 +41,22 @@ package enum TextMorphPlan {
             return TextMorphGlyph(key: glyph.key, character: glyph.character, from: from, to: index,
                                   enterOrder: from == nil ? entering : nil)
         }
+        // Leaving letters past the last arriving one fade on its clock: none of them
+        // has a partner to wait for, and trailing ones would linger after the word is set.
+        var leaving = 0
         for (index, glyph) in before.enumerated() where !newKeys.contains(glyph.key) {
             glyphs.append(TextMorphGlyph(key: glyph.key, character: glyph.character, from: index, to: nil,
-                                         enterOrder: nil))
+                                         enterOrder: nil, exitOrder: min(leaving, max(entering - 1, 0))))
+            leaving += 1
         }
         return glyphs
     }
 }
 
 package enum TextMorphTiming {
-    /// Leaving letters start to clear before the first new letter sharpens in.
+    /// Both halves of the crossfade start together after this beat. Arc lets the
+    /// old letters clear first; at 13 pt that left the word half empty for a
+    /// tenth of a second and read as flicker, so here they overlap instead.
     package static let handoff: TimeInterval = 0.05
     /// Arc caps the stagger at the ninth new letter so a long word does not trail.
     package static let staggerCap = 8
@@ -70,14 +79,17 @@ package enum TextMorphTiming {
         MotionCurve.value(ArcMotion.Curve.enter, at: (elapsed - enterDelay(order: order)) / enterDuration)
     }
 
-    package static func exitProgress(_ elapsed: TimeInterval) -> Double {
-        MotionCurve.value(ArcMotion.Curve.standard, at: elapsed / ArcMotion.Duration.exit)
+    /// The mirror of `enterProgress` on the same clock and curve: a leaving
+    /// letter and its arriving partner always sum to one full letter.
+    package static func exitProgress(_ elapsed: TimeInterval, order: Int) -> Double {
+        enterProgress(elapsed, order: order)
     }
 
     /// When the last letter and the width are at rest.
     package static func total(_ plan: [TextMorphGlyph]) -> TimeInterval {
-        let lastEnter = plan.compactMap(\.enterOrder).max().map { enterDelay(order: $0) + enterDuration } ?? 0
-        return max(layout.settle, lastEnter, ArcMotion.Duration.exit)
+        let lastFade = (plan.compactMap(\.enterOrder) + plan.compactMap(\.exitOrder)).max()
+            .map { enterDelay(order: $0) + enterDuration } ?? 0
+        return max(layout.settle, lastFade)
     }
 }
 
