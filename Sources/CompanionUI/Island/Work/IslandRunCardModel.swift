@@ -86,7 +86,7 @@ enum RunCardModel {
     static func hoverRegionExists(size: IslandState.Size) -> Bool {
         switch size {
         case .hidden, .pebble: false
-        case .nudge, .bar, .card, .wideCard, .docCard: true
+        case .nudge, .bar, .card, .wideCard, .docCard, .chat: true
         }
     }
 

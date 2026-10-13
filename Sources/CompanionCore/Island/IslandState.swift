@@ -12,6 +12,9 @@ package struct IslandState: Sendable, Equatable {
         /// The result document (a finished reply, a receipt): wider than any
         /// other card because it is read, not glanced at.
         case docCard
+        /// The written conversation: the field over the thread, in the result
+        /// document's width, because a reply here is read like one.
+        case chat
     }
     package enum Meter: Sendable, Equatable { case none, mic, agent }
     package enum Line: Sendable, Equatable {
@@ -127,8 +130,12 @@ package struct IslandState: Sendable, Equatable {
         _ p: SessionProjection, pebbleHidden: Bool, mainInFront: Bool = false,
         holdLearned: Bool = false, keyListening: Bool = true, debugTranscripts: Bool = false,
         composing: Bool = false, cancelled: Bool = false, followUp: String? = nil,
-        dropping: Bool = false, errorText: String? = nil, update: String? = nil
+        dropping: Bool = false, errorText: String? = nil, update: String? = nil,
+        conversation: Bool = false
     ) -> IslandState {
+        // The panel she is typing in: with a conversation to show it is the
+        // chat, and the turn she sends from it plays there, not in the bar.
+        let open: Size = conversation ? .chat : .nudge
         var state: IslandState
         switch p.kind {
         // A drag offers somewhere to drop only to a notch with nothing to say.
@@ -137,7 +144,7 @@ package struct IslandState: Sendable, Equatable {
             state = IslandState(size: .card, line: .dropZones)
         case .idle where composing:
             // A draft or a focused field outlives the pointer (16e).
-            state = IslandState(size: .nudge)
+            state = IslandState(size: open)
         // A session notice carries its own way out and outranks this one.
         case .idle where !(errorText ?? "").isEmpty && p.notice == nil:
             state = IslandState(size: .card, line: .chatError(errorText ?? ""))
@@ -155,7 +162,7 @@ package struct IslandState: Sendable, Equatable {
         case .idle:
             state = atRest(p, pebbleHidden: pebbleHidden)
         case .hover:
-            state = IslandState(size: .nudge, line: hoverLine(
+            state = IslandState(size: open, line: hoverLine(
                 holdLearned: holdLearned, keyListening: keyListening,
                 debugTranscripts: debugTranscripts))
         case .listening:
@@ -176,6 +183,7 @@ package struct IslandState: Sendable, Equatable {
             if state.size == .hidden { state.size = .pebble }
         case .processing(let phase):
             state = processing(phase, p)
+            if composing, conversation, staysInChat(state, p) { state.size = .chat }
         }
         if let approval = p.approval {
             state.size = .card
@@ -196,6 +204,16 @@ package struct IslandState: Sendable, Equatable {
         state.light = light(p)
         state.action = action(state.line)
         return state
+    }
+
+    /// A turn's own lines stay in the chat; a notice, a dictation or a card
+    /// with its own way out keeps the shape it always had.
+    private static func staysInChat(_ state: IslandState, _ p: SessionProjection) -> Bool {
+        guard p.dictation == nil else { return false }
+        switch state.line {
+        case .pending, .thinking, .acting, .speaking, .job, .completed: return true
+        default: return false
+        }
     }
 
     private static func light(_ p: SessionProjection) -> Light {

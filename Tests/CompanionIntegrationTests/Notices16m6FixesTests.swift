@@ -191,6 +191,7 @@ private func runner(_ service: ScriptedApps, catalog: [AppMention.Candidate], lo
         safeTop: 38, leftAuxWidth: 662, rightAuxWidth: 662))
     let table: [(IslandState.Size, CGFloat)] = [
         (.hidden, notch.width), (.pebble, notch.width), (.nudge, 480), (.bar, 320), (.card, 480), (.docCard, 621),
+        (.chat, 621),
     ]
     for (size, width) in table {
         expectEq(IslandChrome.width(for: size, notch: notch), width, "16m-6 fix: ancho de \(size)")

@@ -170,3 +170,34 @@ package enum DocCardMotion {
         index == 0 ? firstDelay : delays[min(index - 1, delays.count - 1)]
     }
 }
+
+/// The chat on the result document's paper: Arc ai-chat's sizes, set on the
+/// card's own prose scale so a reply reads the same here as in the document.
+package enum DocChatMetrics {
+    package static let bodySize: CGFloat = DocCardMetrics.proseSize
+    package static let captionSize: CGFloat = 12.5
+    package static let headingSize: CGFloat = 16
+    /// The field's words, one step over the prose: what she types is read back first.
+    package static let fieldSize: CGFloat = 14.5
+    package static let fieldLine: CGFloat = 21
+    /// The thread lines up with the document's text column.
+    package static let inset: CGFloat = DocCardMetrics.padX
+    /// The thread's first turn starts where the document's title does; its
+    /// last one sits close over the composer, which brings its own air.
+    package static let threadTop: CGFloat = DocCardMetrics.padTop + 2
+    package static let threadBottom: CGFloat = 2
+    /// The composer stands this far from the card's sides and bottom.
+    package static let composerInset: CGFloat = 12
+    /// Between the thread, the rows under it and the composer.
+    package static let gap: CGFloat = 10
+    /// The conversations the panel keeps; older ones are the window's.
+    package static let turns = 4
+}
+
+package extension DocCardInk {
+    /// The composer's surface, a step over the paper (Arc's surface-raised).
+    static let raised = Swatch("1B1D23")
+    /// A focused composer's edge.
+    static let edgeFocus = 0.26
+    static let edge = 0.11
+}

@@ -15,10 +15,6 @@ struct IslandDocFrame<Content: View>: View {
     @State private var hovering = false
     @State private var entered = false
 
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: DocCardMetrics.radius, style: .continuous)
-    }
-
     var body: some View {
         ZStack(alignment: .topTrailing) {
             IslandColumn(maxHeight: maxHeight) {
@@ -37,12 +33,7 @@ struct IslandDocFrame<Content: View>: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .background { chrome }
-        .clipShape(shape)
-        .shadow(color: .black.opacity(DocCardInk.shadowTight), radius: DocCardMetrics.shadowTight,
-                y: DocCardMetrics.shadowTight)
-        .shadow(color: .black.opacity(DocCardInk.shadowDrop), radius: DocCardMetrics.shadowBlur,
-                y: DocCardMetrics.shadowDrop)
+        .modifier(DocCardSurface(accent: accent))
         .opacity(entered || reduceMotion ? 1 : 0)
         .offset(y: entered || reduceMotion ? 0 : DocCardMotion.enterLift)
         .scaleEffect(entered || reduceMotion ? 1 : DocCardMotion.enterScale, anchor: .top)
@@ -52,6 +43,27 @@ struct IslandDocFrame<Content: View>: View {
             withAnimation(MotionCurve.animation(MotionCurve.settle, DocCardMotion.enter)) { entered = true }
         }
         .accessibilityElement(children: .contain)
+    }
+}
+
+/// The result document's paper: the card's fill with its corner glow, its
+/// corners and its two shadows. The finished reply and the chat both stand
+/// on it, so the island's written answers read as one kind of page.
+struct DocCardSurface: ViewModifier {
+    let accent: Swatch
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: DocCardMetrics.radius, style: .continuous)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .background { chrome }
+            .clipShape(shape)
+            .shadow(color: .black.opacity(DocCardInk.shadowTight), radius: DocCardMetrics.shadowTight,
+                    y: DocCardMetrics.shadowTight)
+            .shadow(color: .black.opacity(DocCardInk.shadowDrop), radius: DocCardMetrics.shadowBlur,
+                    y: DocCardMetrics.shadowDrop)
     }
 
     private var chrome: some View {

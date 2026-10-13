@@ -18,11 +18,11 @@ package enum IslandPopoverToggle {
         current == tapped ? nil : tapped
     }
 
-    /// The header that opens it exists only in `.nudge`: any other size
-    /// closes it at once, so its click area never outlives it (security
-    /// review 16o).
+    /// The header that opens it exists only in `.nudge` and `.chat`: any
+    /// other size closes it at once, so its click area never outlives it
+    /// (security review 16o).
     package static func survives(size: IslandState.Size) -> Bool {
-        size == .nudge
+        size == .nudge || size == .chat
     }
 }
 

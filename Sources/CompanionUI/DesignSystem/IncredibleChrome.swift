@@ -39,6 +39,8 @@ package struct IconButtonSize: Sendable, Equatable {
     /// where the two disagree the capture wins — a 31 button would overflow
     /// the slot it sits in.
     package static let island = IconButtonSize(side: IslandFieldMetrics.tool, glyph: 18, optical: false)
+    /// Arc ai-chat's composer tools: a 32 button, 17 glyph, 10 corners.
+    package static let chatTool = IconButtonSize(side: 32, glyph: 17, optical: false)
     /// The island's close: the 22 slot every island mark sits in.
     package static let islandClose = IconButtonSize(side: IslandInk.slotSide, glyph: 14, filled: true)
     /// `ci-att-card`'s remove: a 24 circle over the card (16m-3).
