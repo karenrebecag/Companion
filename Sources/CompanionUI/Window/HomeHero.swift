@@ -9,6 +9,7 @@ struct HomeHero: View {
     /// Live mic and agent levels, so the orb moves with the real voice; nil
     /// (previews, tests) lets the orb draw its own speech envelope.
     var levels: VoiceLevels? = nil
+    @Environment(\.surfaceVisible) private var surfaceVisible
 
     var body: some View {
         HStack(alignment: .center, spacing: Space.x4) {
@@ -39,7 +40,8 @@ struct HomeHero: View {
                 outputLevel: levels?.agent,
                 size: HeroMetrics.orbSize,
                 palette: .hero,
-                accessibilityLabel: Localized.string(Self.orbLabelKey(for: state)))
+                accessibilityLabel: Localized.string(Self.orbLabelKey(for: state)),
+                isActive: surfaceVisible)
         }
         .padding(.horizontal, HeroMetrics.paddingX)
         .padding(.vertical, HeroMetrics.paddingY)

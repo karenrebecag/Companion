@@ -10,6 +10,7 @@ struct IslandTextShimmer: ViewModifier {
     var frozen: (sweep: Double, settle: Double)?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.surfaceVisible) private var surfaceVisible
     @State private var toggledAt: Date?
     @State private var startedAt = Date()
     @State private var resting = false
@@ -20,7 +21,7 @@ struct IslandTextShimmer: ViewModifier {
                 painted(content, sweep: frozen.sweep, settle: frozen.settle)
             } else if !active && (resting || toggledAt == nil) {
                 content
-            } else if reduceMotion {
+            } else if reduceMotion || !surfaceVisible {
                 painted(content, sweep: 0, settle: active ? 0 : 1)
             } else {
                 TimelineView(.animation(minimumInterval: ThinkingOrb.frameInterval)) { timeline in

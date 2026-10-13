@@ -193,6 +193,7 @@ package struct CompanionRootView: View {
             openTaskMessages = id.map(chat.transcript) ?? []
         }
         .modifier(ScreenReport(page: page, settingsOpen: settingsSheet.isOpen, settingsTab: settingsTab, mirror: mirror))
+        .modifier(TracksSurfaceVisibility())
         .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenApps)
         ) { note in

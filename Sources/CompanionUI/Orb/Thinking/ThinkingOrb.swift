@@ -21,6 +21,7 @@ package struct ThinkingOrb: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.surfaceVisible) private var surfaceVisible
 
     package init(
         mode: ThinkingOrbMode, surface: ThinkingOrbSurface = .auto, scale: Double = 0.72,
@@ -55,7 +56,7 @@ package struct ThinkingOrb: View {
     package var body: some View {
         // Reduce motion freezes the scene at the frame the source uses for
         // its static render.
-        let still = paused || reduceMotion
+        let still = paused || reduceMotion || !surfaceVisible
         TimelineView(.animation(minimumInterval: Self.frameInterval, paused: still)) { timeline in
             Canvas { context, canvas in
                 draw(&context, canvas, at: timeline.date.timeIntervalSinceReferenceDate, still: still)

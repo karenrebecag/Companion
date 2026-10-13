@@ -165,6 +165,7 @@ package struct IslandView: View {
             GeometryReader { proxy in portalLayer(items, in: proxy) }
         }
         .environment(\.colorScheme, .dark)
+        .modifier(TracksSurfaceVisibility())
         .onPreferenceChange(IslandSizeKey.self) { height in
             contentHeight = height
             onSize(state.size, height)

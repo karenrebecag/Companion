@@ -33,6 +33,7 @@ struct WelcomeOrb: View {
     var level = 0.0
     var size = Container.hero
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.surfaceVisible) private var surfaceVisible
 
     var body: some View {
         // The welcome text under the orb carries the meaning, so the orb
@@ -44,7 +45,8 @@ struct WelcomeOrb: View {
             outputLevel: Self.levels(state: state, level: level).output,
             size: size,
             palette: .surface(colorScheme: colorScheme),
-            accessibilityLabel: "")
+            accessibilityLabel: "",
+            isActive: surfaceVisible)
         .frame(width: size, height: size)
         .frame(maxWidth: .infinity)
         .accessibilityHidden(true)
