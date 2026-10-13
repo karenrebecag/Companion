@@ -198,8 +198,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Called from CompanionMainWindow.swift's `presentWindow`.
     func showMain() {
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        guard let window else { return }
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        // A click on the island's non-activating panel never activates the
+        // app, and since macOS 14 `ignoringOtherApps` is ignored: the window
+        // came forward only among Companion's own, behind the app in front
+        // ("Seguir en el chat" did nothing, live 2026-10-13). Regardless puts
+        // it on top of its level whether or not activation is granted.
+        window.orderFrontRegardless()
+        window.makeKey()
+        NSApp.activate()
     }
 
     /// Code review 2026-09-23 (medio): builds (or tears down) `dictationTap`

@@ -30,9 +30,10 @@ extension IslandView {
                 if let latest { choiceCard(latest) }
             }
         }
-        // What tapping the reply did before the card existed.
+        // The card already shows the whole document: a tap anywhere goes on
+        // in the chat, like its button, instead of a popup of the same text.
         .contentShape(Rectangle())
-        .onTapGesture { if let latest { openResult(latest.id) } }
+        .onTapGesture { continueInChat() }
     }
 
     /// What the turn was asked, on one line: the document's title.
