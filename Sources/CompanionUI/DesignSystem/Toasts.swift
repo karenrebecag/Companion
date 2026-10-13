@@ -24,7 +24,11 @@ package final class NoticeCenter {
     }
 
     package func tick(at time: TimeInterval? = nil) {
-        queue.expire(at: time ?? now())
+        var next = queue
+        next.expire(at: time ?? now())
+        // Writing an unchanged queue still notifies observers, and the stack
+        // ticks twice a second: only a real expiry may repaint the window.
+        if next != queue { queue = next }
     }
 }
 
@@ -107,7 +111,7 @@ struct ToastStack: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.5)) { context in
+        TimelineView(ToastTicks(active: !center.queue.visible.isEmpty)) { context in
             VStack(alignment: .trailing, spacing: Space.x2) {
                 ForEach(center.queue.visible) { notice in
                     Text(notice.text)
@@ -139,5 +143,23 @@ struct ToastStack: View {
         .allowsHitTesting(false)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Localized.string("notices.label"))
+    }
+}
+
+/// Twice a second while a toast is up, one entry and silence otherwise: an
+/// empty stack has nothing to expire, and the always-on clock woke the
+/// window for nothing.
+struct ToastTicks: TimelineSchedule {
+    static let interval: TimeInterval = 0.5
+    let active: Bool
+
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
+        var next: Date? = startDate
+        let active = self.active
+        return AnyIterator {
+            guard let current = next else { return nil }
+            next = active ? current.addingTimeInterval(Self.interval) : nil
+            return current
+        }
     }
 }

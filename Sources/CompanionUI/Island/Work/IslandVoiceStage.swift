@@ -41,13 +41,22 @@ struct IslandVoiceOrb: View {
     /// Nil lets the package run its own envelope: thinking has no meter.
     var levels: VoiceLevels?
     let size: CGFloat
+    /// False while the panel around it fades out: the host knows, the orb does not.
+    var active = true
+    @Environment(\.surfaceVisible) private var surfaceVisible
 
     var body: some View {
         VoiceOrb(state: VoiceOrbState(island: state),
                  inputLevel: levels.map { Self.unit($0.mic) },
                  outputLevel: levels.map { Self.unit($0.agent) },
                  size: size, palette: .island,
-                 accessibilityLabel: Localized.string("island.pebble"))
+                 accessibilityLabel: Localized.string("island.pebble"),
+                 isActive: Self.animates(active: active, surfaceVisible: surfaceVisible))
+    }
+
+    /// The frame loop runs only for an orb someone can see.
+    static func animates(active: Bool, surfaceVisible: Bool) -> Bool {
+        active && surfaceVisible
     }
 
     /// The package expects [0, 1]; a meter can hand back NaN on a dropped buffer.

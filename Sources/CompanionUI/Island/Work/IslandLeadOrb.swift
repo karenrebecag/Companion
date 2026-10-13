@@ -53,7 +53,7 @@ struct IslandLeadOrb: View {
     var body: some View {
         ZStack {
             if case .voice(let state) = mark {
-                IslandVoiceOrb(state: state, levels: levels, size: side)
+                IslandVoiceOrb(state: state, levels: levels, size: side, active: !paused)
                     .transition(Self.handoff(reduceMotion: reduceMotion))
             }
             if case .thinking(let mode) = mark {
