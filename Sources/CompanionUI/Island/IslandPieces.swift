@@ -109,22 +109,8 @@ struct IslandComposer: View {
 
     private var field: some View {
         HStack(alignment: .top, spacing: Space.none) {
-            TextField(Localized.string("island.ask"), text: $draft, axis: .vertical)
-                .lineLimit(1...5)
-                .textFieldStyle(.plain)
-                .font(Fonts.geist(IslandFieldMetrics.textSize))
-                .lineSpacing(IslandFieldMetrics.lineHeight - IslandFieldMetrics.textSize)
+            IslandComposerField(draft: $draft, focused: focused, onSend: onSend, mentions: mentions)
                 .padding(.vertical, IslandFieldMetrics.textPaddingY)
-                .foregroundStyle(IslandInk.text)
-                .focused(focused)
-                // Return picks the row while the selector is open; the key
-                // handler below leaves it out so a pick never also sends.
-                .onSubmit { if mentions?.press(.enter) != true { onSend() } }
-                .onKeyPress(keys: [.upArrow, .downArrow, .tab, .rightArrow, .leftArrow], phases: .down) { press in
-                    guard press.modifiers.isEmpty, let key = Self.mentionKey(press.key),
-                          mentions?.press(key) == true else { return .ignored }
-                    return .handled
-                }
                 .padding(.leading, IslandFieldMetrics.textInset)
             toolbar
         }
@@ -160,6 +146,52 @@ struct IslandComposer: View {
         .frame(height: IslandFieldMetrics.height)
     }
 
+    private var ready: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || staged }
+}
+
+/// The island's words: the one text field the notch bar and the chat both
+/// write in, so the `@` selector, Return and its keys behave the same in each.
+struct IslandComposerField: View {
+    @Binding var draft: String
+    var focused: FocusState<Bool>.Binding
+    let onSend: () -> Void
+    var mentions: MentionSelectorModel?
+    var size: CGFloat = IslandFieldMetrics.textSize
+    var lineHeight: CGFloat = IslandFieldMetrics.lineHeight
+    /// Arc's composer reads its placeholder in the muted ink; nil keeps the
+    /// notch bar's own.
+    var placeholderInk: Color?
+
+    var body: some View {
+        // AppKit paints a field's prompt in its own ink, so the muted one is
+        // drawn under an empty field instead.
+        TextField(placeholderInk == nil ? Localized.string("island.ask") : "", text: $draft, axis: .vertical)
+            .lineLimit(1...5)
+            .textFieldStyle(.plain)
+            .font(Fonts.geist(size))
+            .lineSpacing(lineHeight - size)
+            .foregroundStyle(IslandInk.text)
+            .focused(focused)
+            .accessibilityLabel(Localized.string("island.ask"))
+            // Return picks the row while the selector is open; the key
+            // handler below leaves it out so a pick never also sends.
+            .onSubmit { if mentions?.press(.enter) != true { onSend() } }
+            .onKeyPress(keys: [.upArrow, .downArrow, .tab, .rightArrow, .leftArrow], phases: .down) { press in
+                guard press.modifiers.isEmpty, let key = Self.mentionKey(press.key),
+                      mentions?.press(key) == true else { return .ignored }
+                return .handled
+            }
+            .background(alignment: .topLeading) {
+                if let placeholderInk, draft.isEmpty {
+                    Text(Localized.string("island.ask"))
+                        .font(Fonts.geist(size))
+                        .foregroundStyle(placeholderInk)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+    }
+
     private static func mentionKey(_ key: KeyEquivalent) -> MentionKeys.Key? {
         switch key {
         case .upArrow: .up
@@ -170,8 +202,6 @@ struct IslandComposer: View {
         default: nil
         }
     }
-
-    private var ready: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || staged }
 }
 
 /// The destructive entry asks once, inside the panel: a sheet or an alert

@@ -44,7 +44,7 @@ package enum IslandChrome {
         case .bar: barWidth
         case .card: cardWidth
         case .wideCard: wideCardWidth
-        case .docCard: docCardWidth
+        case .docCard, .chat: docCardWidth
         }
     }
 

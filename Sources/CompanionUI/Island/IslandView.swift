@@ -116,7 +116,8 @@ package struct IslandView: View {
             errorText: ChatErrorSurface.visible(
                 errorText: chat.errorText, needsOnboarding: chat.needsOnboarding,
                 dismissed: chat.dismissedIslandError),
-            update: updates?.noticeTag), chipMounted: voiceLines.line != nil)
+            update: updates?.noticeTag, conversation: !TaskThread.visible(chat.messages).isEmpty),
+            chipMounted: voiceLines.line != nil)
     }
 
     /// What the panel says above a question card: the card already carries the
@@ -243,6 +244,10 @@ package struct IslandView: View {
             EmptyView()
         case .nudge:
             shell(state, header: AnyView(IslandHeaderControls(popover: $popover))) { composer(state) }
+        case .chat:
+            shell(state, header: AnyView(IslandHeaderControls(popover: $popover))) {
+                chatPanel(state).modifier(contentSlot(.conversation))
+            }
         case .bar, .card, .wideCard, .docCard:
             shell(state) {
                 IslandColumn(
@@ -255,9 +260,11 @@ package struct IslandView: View {
     }
 
     /// The mark in the field row: the one place a mouse hold starts.
-    var mark: some View {
+    var mark: some View { orbMark(side: IslandFieldMetrics.orb) }
+
+    func orbMark(side: CGFloat) -> some View {
         IslandVoiceOrb(state: IslandOrbState.composer(levels: voice.levels), levels: voice.levels,
-                       size: IslandFieldMetrics.orb)
+                       size: side)
             .matchedGeometryEffect(id: IslandOrbTravel.id, in: orbSpace)
             .contentShape(Circle())
             .gesture(holdGesture)
@@ -304,7 +311,8 @@ package struct IslandView: View {
             .modifier(contentSlot(.field))
             inner()
         }
-        .padding(.horizontal, state.size == .docCard ? IslandChrome.docShellMargin : IslandChrome.shellMargin)
+        .padding(.horizontal, state.size == .docCard || state.size == .chat
+                 ? IslandChrome.docShellMargin : IslandChrome.shellMargin)
         .padding(.bottom, IslandChrome.shellBottom)
     }
 
@@ -407,7 +415,8 @@ package struct IslandView: View {
         chat.send()
         draft = ""
         attachFailures = []
-        dismissField()
+        // The field keeps the keyboard: the turn plays in the chat she sent
+        // it from, and Escape or another app is how she leaves it.
     }
 
     /// A pick from the selector: the words, the mention that now stands in
