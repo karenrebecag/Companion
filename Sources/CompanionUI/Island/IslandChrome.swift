@@ -12,18 +12,24 @@ package enum IslandChrome {
     /// The first half of opening: wide and low (241 pt measured).
     package static let pillWidth: CGFloat = 240
     package static let barWidth: CGFloat = 320
-    /// The open panel, measured at 492 pt in the recording.
-    package static let nudgeWidth: CGFloat = 492
-    package static let cardWidth: CGFloat = 492
+    /// The open bar of Incredible 0.2.57 (local reference): 480 pt wide.
+    package static let nudgeWidth: CGFloat = 480
+    package static let cardWidth: CGFloat = 480
     /// 16m-6: the update notice measures 522 and the shell pads each side by
     /// `shellMargin`, so its shape is 554. Only `.wideCard` uses it.
-    package static let shellMargin: CGFloat = Space.x4
+    /// The chat row inset of the same reference.
+    package static let shellMargin: CGFloat = 18
     package static let wideCardWidth: CGFloat = IslandNoticeMetrics.updateWidth + shellMargin + shellMargin
+    /// The result document is `DocCardMetrics.width` wide; Incredible's shape around it
+    /// measures 621, a 16 pt pad, not the 18 of the chat rows.
+    package static let docShellMargin: CGFloat = 16
+    package static let docCardWidth: CGFloat = DocCardMetrics.width + docShellMargin + docShellMargin
     /// Room for the widest panel, its shoulders and its shadow.
-    /// 620, not the 560 of 16f: the rich answer popup is 580 wide (16m-1)
-    /// and the canvas must hold it with margin. Clicks still pass through
-    /// everywhere but the shape, the dropdown and the popup.
-    package static let canvasWidth: CGFloat = 620
+    /// 680, not the 560 of 16f: the rich answer popup is 580 wide (16m-1) and
+    /// the result document's shape is 621; the canvas must hold them with
+    /// margin for the shadow. Clicks still pass through everywhere but the
+    /// shape, the dropdown and the popup.
+    package static let canvasWidth: CGFloat = 680
     /// Tall enough for Incredible's whole column under the tallest band the
     /// island draws, so the shape never cuts the end of a reply (K11, brief
     /// isla-ciclo-y-legibilidad). Derived, so moving any part moves it.
@@ -38,6 +44,7 @@ package enum IslandChrome {
         case .bar: barWidth
         case .card: cardWidth
         case .wideCard: wideCardWidth
+        case .docCard: docCardWidth
         }
     }
 

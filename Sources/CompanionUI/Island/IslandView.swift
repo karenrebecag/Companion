@@ -243,7 +243,7 @@ package struct IslandView: View {
             EmptyView()
         case .nudge:
             shell(state, header: AnyView(IslandHeaderControls(popover: $popover))) { composer(state) }
-        case .bar, .card, .wideCard:
+        case .bar, .card, .wideCard, .docCard:
             shell(state) {
                 IslandColumn(
                     maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height),
@@ -304,7 +304,7 @@ package struct IslandView: View {
             .modifier(contentSlot(.field))
             inner()
         }
-        .padding(.horizontal, IslandChrome.shellMargin)
+        .padding(.horizontal, state.size == .docCard ? IslandChrome.docShellMargin : IslandChrome.shellMargin)
         .padding(.bottom, IslandChrome.shellBottom)
     }
 
@@ -342,7 +342,7 @@ package struct IslandView: View {
                             onCancel: { clearFlow.cancel() })
                     }
                 }
-                .islandContentColumn()
+                .padding(.leading, IslandFieldMetrics.contentInset)
             }
             .modifier(contentSlot(.field))
             VStack(alignment: .leading, spacing: IslandGrid.groupGap) {

@@ -161,9 +161,9 @@ private let at = Date(timeIntervalSince1970: 1_757_080_000)
 
 @MainActor func testReplyHintOnlyForVoice() {
     expectEq(ContextBlock.replyHint(.voice, language: .en),
-             "Answer in at most 2 sentences, in English, no markdown.", "hint: voz en")
+             "Answer in at most 2 spoken sentences, in English, no markdown; a table, a list, steps or several paragraphs go in show_document, not in the text.", "hint: voz en")
     expectEq(ContextBlock.replyHint(.voice, language: .es),
-             "Responde en máximo 2 frases, en español, sin markdown.", "hint: voz es")
+             "Responde en máximo 2 frases habladas, en español, sin markdown; una tabla, una lista, pasos o varios párrafos van en show_document, no en el texto.", "hint: voz es")
     expect(ContextBlock.replyHint(.typed, language: .en) == nil, "hint: tecleado no lleva")
 }
 

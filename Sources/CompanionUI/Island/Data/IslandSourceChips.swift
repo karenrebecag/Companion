@@ -31,7 +31,7 @@ struct IslandSourceChips: View {
         .font(GeistFont.uiCaption)
         .foregroundStyle(ArcTone.textSecondary.color)
         .padding(.horizontal, Space.x2_5)
-        .frame(height: Space.x7)
+        .frame(height: DocCardMetrics.sourceHeight)
         .background(Capsule().fill(ArcTone.surfaceMuted.color))
         .contentShape(Capsule())
     }

@@ -1,0 +1,1 @@
+- **El panel de la isla mide y se mueve como el de Incredible (2026-10-12).** La barra abierta pasa a 480 de ancho con esquinas de 28; el campo mide 38 con esfera de 38, crece con lo que escribes hasta 118 y deja lo de abajo alineado con las palabras. Cada bloque entra y sale 14 pt desde arriba con un pequeño rebote (sin movimiento, solo se desvanece).

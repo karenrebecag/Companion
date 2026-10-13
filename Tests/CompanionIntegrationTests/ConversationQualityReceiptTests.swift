@@ -225,7 +225,7 @@ private func twoRounds(_ machine: inout SessionMachine, first: ActionReceipt, se
     var machine = SessionMachine()
     _ = run(&machine, .receipt(opened))
     let state = IslandState.from(machine.projection, pebbleHidden: false)
-    expectEq(state.size, .card, "recibo: es una tarjeta")
+    expectEq(state.size, .docCard, "recibo: es un documento")
     expectEq(state.line, .receipt(opened), "recibo: la línea lleva el recibo")
     _ = run(&machine, .typedSubmitted)
     expect(IslandState.from(machine.projection, pebbleHidden: false).line != .receipt(opened),
@@ -399,11 +399,6 @@ private final class OpenTools: ParentToolExecuting, @unchecked Sendable {
 }
 
 // MARK: - The card
-
-// Arc: the receipt is the result card, its checks in the success tone.
-@Test @MainActor func testTheReceiptCardUsesTheMeasuredRunCardSurface() {
-    expectEq(AIResultStyle.island.success, ArcTone.success.color, "el check usa el tono de exito de Arc")
-}
 
 @Test @MainActor func testTheReceiptSpeaksToVoiceOverInBothLanguages() {
     for language in [AppLanguage.es, .en] {

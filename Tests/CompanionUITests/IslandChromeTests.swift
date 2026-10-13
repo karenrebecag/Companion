@@ -56,5 +56,5 @@ private func notch(band: CGFloat) -> Notch {
 @MainActor func testTheRampGrowsWithTheRole() {
     expect(IslandChrome.barWidth < IslandChrome.nudgeWidth, "island: la píldora es más angosta que el panel")
     expect(IslandChrome.nudgeWidth <= IslandChrome.cardWidth, "island: la tarjeta es la más ancha")
-    expectEq(IslandChrome.cardWidth, 492, "island: el ancho medido en la grabación")
+    expectEq(IslandChrome.cardWidth, 480, "island: el ancho medido en la grabación")
 }

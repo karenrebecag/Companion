@@ -17,7 +17,6 @@ enum IslandInk {
     static var chipPressed: Color { chipPressedSwatch.color }
     static var field: Color { chipSwatch.color }
     /// The composer field and its idle send button, sampled from Incredible.
-    static var fieldFill: Color { IslandFieldMetrics.fillSwatch.color }
     static var sendIdle: Color { IslandFieldMetrics.sendIdleSwatch.color }
     static var hairline: Color { hairlineSwatch.color }
     static var divider: Color { ArcTone.borderSubtle.color }
@@ -95,18 +94,27 @@ struct IslandComposer: View {
     /// The `@` selector: it takes the arrows, Tab and the Return that would send.
     var mentions: MentionSelectorModel?
 
+    @State private var hovering = false
+
     var body: some View {
-        HStack(spacing: IslandFieldMetrics.orbGap) {
-            mark.islandTooltip(Localized.string("island.tip.talk"))
+        HStack(alignment: .top, spacing: IslandFieldMetrics.orbGap) {
+            mark
+                .frame(width: IslandFieldMetrics.orb, height: IslandFieldMetrics.height)
+                .islandTooltip(Localized.string("island.tip.talk"))
             field
         }
     }
 
+    private var inUse: Bool { focused.wrappedValue || hovering }
+
     private var field: some View {
-        HStack(spacing: Space.none) {
-            TextField(Localized.string("island.ask"), text: $draft)
+        HStack(alignment: .top, spacing: Space.none) {
+            TextField(Localized.string("island.ask"), text: $draft, axis: .vertical)
+                .lineLimit(1...5)
                 .textFieldStyle(.plain)
-                .font(Fonts.geist(TypeSize.rowTitle))
+                .font(Fonts.geist(IslandFieldMetrics.textSize))
+                .lineSpacing(IslandFieldMetrics.lineHeight - IslandFieldMetrics.textSize)
+                .padding(.vertical, IslandFieldMetrics.textPaddingY)
                 .foregroundStyle(IslandInk.text)
                 .focused(focused)
                 // Return picks the row while the selector is open; the key
@@ -118,6 +126,19 @@ struct IslandComposer: View {
                     return .handled
                 }
                 .padding(.leading, IslandFieldMetrics.textInset)
+            toolbar
+        }
+        .padding(.trailing, IslandFieldMetrics.trailing)
+        .frame(minHeight: IslandFieldMetrics.height, maxHeight: IslandFieldMetrics.maxHeight)
+        .background(RoundedRectangle(cornerRadius: IslandFieldMetrics.radius)
+            .fill(Neutral.white.color.opacity(
+                inUse ? IslandFieldMetrics.fillActiveAlpha : IslandFieldMetrics.fillAlpha)))
+        .animation(.expoOut(MotionTime.fast), value: inUse)
+        .onHover { hovering = $0 }
+    }
+
+    private var toolbar: some View {
+        HStack(spacing: Space.none) {
             IconButton("paperclip", label: Localized.string("island.attach"), size: .island,
                        tone: .island, active: popover == .attach) {
                 popover = IslandPopoverToggle.next(current: popover, tapped: .attach)
@@ -136,11 +157,7 @@ struct IslandComposer: View {
             .accessibilityLabel(Localized.string("island.send"))
             .padding(.leading, Space.x1)
         }
-        .padding(.trailing, IslandFieldMetrics.trailing)
         .frame(height: IslandFieldMetrics.height)
-        .background(RoundedRectangle(cornerRadius: IslandFieldMetrics.radius).fill(IslandInk.fieldFill))
-        .overlay(RoundedRectangle(cornerRadius: IslandFieldMetrics.radius)
-            .strokeBorder(IslandFieldMetrics.rimSwatch.color, lineWidth: Stroke.hairline))
     }
 
     private static func mentionKey(_ key: KeyEquivalent) -> MentionKeys.Key? {

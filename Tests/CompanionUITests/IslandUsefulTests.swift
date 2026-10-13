@@ -55,7 +55,7 @@ private let notch = NotchGeometry.notch(on: ScreenShape(
              "asomo: el área de clic es la forma asomada")
     expectEq(IslandChrome.hitSize(base: rest, peeking: false, resting: true, notch: notch), rest,
              "sin asomo: la muesca")
-    let open = CGSize(width: 492, height: 300)
+    let open = CGSize(width: 480, height: 300)
     expectEq(IslandChrome.hitSize(base: open, peeking: true, resting: false, notch: notch), open,
              "abierta: el asomo no la achica")
     // Security review 16i-1 (LOW): the peek is only drawn at rest, so only
@@ -83,7 +83,7 @@ private let notch = NotchGeometry.notch(on: ScreenShape(
 
 @MainActor func testOpeningFromThePeekNeverShrinks() {
     let peek = IslandChrome.peekSize(notch: notch)
-    let target = CGSize(width: 492, height: 200)
+    let target = CGSize(width: 480, height: 200)
     let pill = IslandChrome.size(of: .pill, target: target, notch: notch, from: peek)
     expect(pill.width >= peek.width && pill.height >= peek.height, "abrir desde el asomo: nada salta hacia atrás")
     expectEq(IslandChrome.size(of: .pill, target: target, notch: notch, from: .zero),

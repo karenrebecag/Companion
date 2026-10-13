@@ -74,8 +74,32 @@ extension SessionMachine {
         return []
     }
 
+    /// The voice just stopped speaking a reply that came with a document:
+    /// the one place a spoken turn decides between the document and rest.
+    /// A job, a typed turn or a press in progress keep the island.
+    /// A short sentence is often over before the turn has finished, so the
+    /// mark can arrive with the voice already at rest or listening: that
+    /// arrival lands the card too (live 2026-10-12).
+    func landsDocument(_ snapshot: TurnSnapshot, becameDocument: Bool) -> Bool {
+        guard snapshot.hasDocument, projection.job == nil, !typedBusy, !projection.holding else { return false }
+        return projection.kind == .processing(.speaking) || becameDocument
+    }
+
+    /// Completed with the same card a typed reply gets, and the same settle.
+    mutating func landDocument() -> [SessionEffect] {
+        turnOver()
+        voiceCardUp = true
+        projection.kind = .processing(.completed)
+        // The typed settle (0.2 s past a 1.5 s floor) closed a spoken
+        // document before a line of it could be read (live 2026-10-12).
+        if settleBlocked { return [] }
+        if settleHeld { return [.pauseCompletedExpiry] }
+        return [.scheduleCompletedExpiry(Self.voiceDocumentDelay, floor: nil)]
+    }
+
     /// A snapshot of the voice, landed on the chrome.
     mutating func observe(_ snapshot: TurnSnapshot) -> [SessionEffect] {
+        let becameDocument = snapshot.hasDocument && !voice.hasDocument
         voice = snapshot
         projection.pipeline = snapshot.pipeline
         projection.voice = Self.status(of: snapshot)
@@ -93,6 +117,10 @@ extension SessionMachine {
             }
             if projection.kind == .listening { projection.kind = .idle }
         case .listening:
+            if landsDocument(snapshot, becameDocument: becameDocument) { return landDocument() }
+            // The card stays up while the mic keeps listening; the next
+            // utterance's words or thinking replace it.
+            if voiceCardUp { break }
             openTurn()
             // Every door into a turn starts the reel fresh (review 16m H1):
             // typed, hold, provisional hold, and this — the voice runtime.
@@ -101,12 +129,18 @@ extension SessionMachine {
         case .thinking:
             projection.kind = jobInFront ? .processing(.subAgentRunning) : .processing(.thinking)
         case .speaking:
+            // The document goes up the moment it exists, while the voice says
+            // its sentence (Incredible); landing after the voice left the
+            // subtitle reading the document's tail meanwhile (live 2026-10-13).
+            if landsDocument(snapshot, becameDocument: becameDocument) { return landDocument() }
+            if voiceCardUp { break }
             projection.kind = .processing(.speaking)
         case .idle:
             // Classic hold arms Speech while TurnMachine is still idle.
             // Clearing holding here dropped FN-up (live 2026-09-07).
             if projection.holding { break }
             projection.holding = false
+            if landsDocument(snapshot, becameDocument: becameDocument) { return landDocument() }
             turnOver()
             if projection.job != nil {
                 projection.kind = .processing(.subAgentRunning)

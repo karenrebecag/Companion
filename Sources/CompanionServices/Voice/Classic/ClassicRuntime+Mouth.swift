@@ -91,6 +91,9 @@ struct TurnMouth {
     /// for a turn whose detail is on a card.
     var filter = SpeechFilter()
     var budget = SpeechBudget()
+    /// The document the model showed this turn (`show_document`): threaded
+    /// after the sentence, never spoken.
+    var document: SpokenDocument?
     var started = false
     /// The filter took something out of this turn.
     var filtered = false
@@ -120,6 +123,10 @@ struct TurnMouth {
     /// a card carrying the detail.
     var said: String { SpeechFilter.clean(saidPart(of: spoken)) }
 
+    /// What the thread keeps: the words, and under them the document the
+    /// island shows and the next turn may refer to ("that table").
+    var threaded: String { document.map { $0.threaded(after: said) } ?? said }
+
     /// Code review 2026-09-25 (LOW-2): a round's text as the voice said it,
     /// for the model's next round.
     func saidPart(of text: String) -> String {
@@ -130,7 +137,11 @@ struct TurnMouth {
 extension ClassicRuntime {
     /// Every cut reaches the synthesizer through here, past the language
     /// gate. The log counts what was dropped, never what it said.
-    func say(_ cut: String, _ mouth: inout TurnMouth) async {
+    func say(_ rawCut: String, _ mouth: inout TurnMouth) async {
+        // Before the language gate: table pipes and list markers read as
+        // foreign noise and got whole sentences dropped.
+        let cut = SpeechMarkdown.plain(rawCut)
+        guard !cut.isEmpty else { return }
         let before = mouth.gate.dropped.count
         let kept = mouth.gate.admit(cut)
         for dropped in mouth.gate.dropped[before...] {
@@ -234,6 +245,32 @@ extension ClassicRuntime {
         let separator = mouth.spoken.isEmpty || mouth.spoken.hasSuffix(" ") ? "" : " "
         return await take(
             separator + HandoffProposal.question(language), round: &text, &mouth, apply: apply)
+    }
+
+    /// The model showed a document (`show_document`): its sentence is spoken
+    /// through the ordinary path and the document waits for the thread.
+    /// When the model already spoke this turn, that text is the sentence and
+    /// `say` would only repeat it. False when a press cut the turn.
+    func show(
+        _ call: ToolCallRef, language: AppLanguage,
+        round text: inout String, _ mouth: inout TurnMouth,
+        apply: @Sendable (TurnEvent) async -> Void
+    ) async -> Bool {
+        guard let document = SpokenDocument.parse(arguments: call.arguments) else {
+            Log.app("mouth: document malformed chars=\(call.arguments.count)")
+            return true
+        }
+        // The first document of a turn is the turn's; a second one would
+        // overwrite what the island is about to show.
+        guard mouth.document == nil else {
+            Log.app("mouth: document repeated chars=\(document.markdown.count)")
+            return true
+        }
+        mouth.document = document
+        Log.app("mouth: document chars=\(document.markdown.count) say=\(document.say.count)")
+        guard mouth.said.isEmpty else { return true }
+        let say = document.say.isEmpty ? SpokenDocument.fallbackSay(language) : document.say
+        return await take(say, round: &text, &mouth, apply: apply)
     }
 
     /// Speakable text into the stream and the buffer; false when a press

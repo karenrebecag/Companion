@@ -54,7 +54,9 @@ struct IslandSlotReveal: ViewModifier {
     let fade: IslandMotion.SlotFade?
 
     func body(content: Content) -> some View {
-        content.animation(fade?.animation) { $0.opacity(visible ? 1 : 0) }
+        content
+            .animation(fade?.animation) { $0.opacity(visible ? 1 : 0) }
+            .animation(fade?.travel) { $0.offset(y: visible ? 0 : -(fade?.drop ?? 0)) }
     }
 }
 
@@ -118,7 +120,7 @@ struct NotchShape: Shape {
     static let shoulder: CGFloat = 8
     /// The hardware notch's own corner, and the open panel's.
     static let restRadius: CGFloat = 10
-    static let openRadius: CGFloat = 22
+    static let openRadius: CGFloat = 28
 
     static func clampedRadius(_ radius: CGFloat, height: CGFloat) -> CGFloat {
         min(radius, height / 2)

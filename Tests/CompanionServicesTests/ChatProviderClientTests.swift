@@ -49,6 +49,7 @@ import Testing
     let body = chatBody(req)
     expectEq(body["model"] as? String, "gpt-oss-120b", "gpt-oss: modelo gpt-oss-120b")
     expectEq(body["reasoning_effort"] as? String, "low", "gpt-oss: reasoning_effort low")
+    expectEq(body["reasoning_format"] as? String, "hidden", "gpt-oss: reasoning_format hidden")
     expect(body["temperature"] == nil, "gpt-oss: sin temperature")
     let tools = body["tools"] as? [[String: Any]] ?? []
     let names = Set(tools.compactMap { ($0["function"] as? [String: Any])?["name"] as? String })

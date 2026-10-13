@@ -255,7 +255,7 @@ func testTheNotchedScreenWins() {
 /// Code review 16f (HIGH): the click area jumped to the notch the moment
 /// closing began, so a click on the still-visible panel fell to the app behind.
 @MainActor func testClosingKeepsTheClickAreaUntilTheShapeIsSmall() {
-    let big = CGSize(width: 492, height: 300)
+    let big = CGSize(width: 480, height: 300)
     let notch = CGSize(width: 188, height: 38)
     let closing = IslandChrome.hitSizes(current: big, target: notch)
     expectEq(closing.now, big, "cerrar: el área sigue grande mientras se recoge")

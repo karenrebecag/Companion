@@ -115,9 +115,9 @@ private final class Nudges: @unchecked Sendable {
 
 @Test @MainActor func updateCardRoomTests() {
     expectEq(IslandNoticeMetrics.updateWidth, 522, "16m-6 ancho: el aviso mide 522 (investigación §5)")
-    expectEq(IslandChrome.wideCardWidth, IslandNoticeMetrics.updateWidth + 2 * Space.x4,
+    expectEq(IslandChrome.wideCardWidth, IslandNoticeMetrics.updateWidth + 2 * IslandChrome.shellMargin,
              "16m-6 ancho: la forma da los 522 del aviso más el margen de la isla")
-    expectEq(IslandChrome.cardWidth, 492, "16m-6 ancho: las demás tarjetas siguen en 492")
+    expectEq(IslandChrome.cardWidth, 480, "16m-6 ancho: las demás tarjetas siguen en 480")
     expect(IslandChrome.canvasWidth >= IslandChrome.wideCardWidth + 2 * 20,
            "16m-6 ancho: el lienzo aguanta la forma con sus hombros y su sombra")
 
@@ -127,7 +127,7 @@ private final class Nudges: @unchecked Sendable {
     expectEq(IslandChrome.width(for: .wideCard, notch: notch), IslandChrome.wideCardWidth, "16m-6 ancho: el rol ancho")
     expectEq(IslandChrome.shapeSize(for: .wideCard, contentHeight: 120, notch: notch).width,
              IslandChrome.wideCardWidth, "16m-6 ancho: la forma dibujada")
-    expectEq(IslandChrome.width(for: .card, notch: notch), 492, "16m-6 ancho: la tarjeta normal no cambia")
+    expectEq(IslandChrome.width(for: .card, notch: notch), 480, "16m-6 ancho: la tarjeta normal no cambia")
 
     var idle = SessionProjection()
     idle.kind = .idle

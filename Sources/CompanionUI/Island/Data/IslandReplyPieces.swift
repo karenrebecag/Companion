@@ -14,6 +14,9 @@ enum IslandReplyText {
         // Code is not spoken, so it does not paint either. `islandProse`
         // reads a bounded window, so the cost per streamed token stays
         // bounded (security review 16f).
+        // A spoken document never streams here: the voice brain hands it over
+        // apart from the sentence (`SpokenDocument`), so what streams is what
+        // is said.
         let prose = MarkdownSplitter.islandProse(reply)
             .replacingOccurrences(of: #"```[\s\S]*?```"#, with: "\n\n", options: .regularExpression)
         let paragraphs = SpeechFilter.clean(prose)
@@ -31,41 +34,33 @@ enum IslandReplyText {
     }
 
     private static func plain(_ paragraph: String) -> String {
-        // [label](url) reads as its label; a "[" that opens no link is left
-        // as is. The label holds no bracket, so each "[" has one candidate
-        // "](", and the url is bounded: a stray "[" costs a short scan, not a
-        // rescan of the whole window (the paragraph can be the whole window
-        // now). A label with a "]" inside stays raw; that is rare.
-        let text = paragraph
-            .replacingOccurrences(of: #"\[([^\[\]]*)\]\([^)]{0,512}\)"#, with: "$1", options: .regularExpression)
-            .replacingOccurrences(of: "**", with: "")
-            .replacingOccurrences(of: "`", with: "")
-        // A list item keeps its own line: flattening the paragraph glued
-        // "- a - b - c" into one run of prose.
+        // A list item or table row keeps its own line: flattening the
+        // paragraph glued "- a - b - c" into one run of prose. The markup
+        // itself (links, pipes, markers, "3.Vierte") is `SpeechMarkdown`'s,
+        // the same reading the voice gets.
         var lines: [String] = []
         var run: [String] = []
         func flush() {
             if !run.isEmpty { lines.append(run.joined(separator: " ")); run = [] }
         }
-        for raw in text.split(separator: "\n", omittingEmptySubsequences: true) {
-            let line = raw.split(separator: " ", omittingEmptySubsequences: true).joined(separator: " ")
-            if let item = bulletItem(line) {
+        for raw in paragraph.split(separator: "\n", omittingEmptySubsequences: true) {
+            guard let line = SpeechMarkdown.line(String(raw)) else { continue }
+            switch line.kind {
+            case .bullet:
                 flush()
-                lines.append("\u{2022} " + item)
-            } else {
-                let bare = line.trimmingCharacters(in: CharacterSet(charactersIn: "#*- ").union(.whitespaces))
-                if !bare.isEmpty { run.append(bare) }
+                lines.append("\u{2022} " + line.text)
+            case .ordered(let number):
+                flush()
+                lines.append(number + " " + line.text)
+            case .row:
+                flush()
+                lines.append(line.text)
+            case .text:
+                run.append(line.text)
             }
         }
         flush()
         return lines.joined(separator: "\n")
-    }
-
-    /// "- x", "* x", "+ x" or "1. x" -> "x"; nil when the line is not an item.
-    private static func bulletItem(_ line: String) -> String? {
-        guard let match = line.range(of: #"^([-*+]|\d{1,3}[.)])\s+"#, options: .regularExpression) else { return nil }
-        let item = line[match.upperBound...].trimmingCharacters(in: .whitespaces)
-        return item.isEmpty ? nil : item
     }
 }
 

@@ -31,6 +31,16 @@ package enum SentenceSplitter: Sendable {
         return nil
     }
 
+    /// `takeSentence` for a stream whose text is also shown: the span as
+    /// written, line breaks included. Trimmed cuts glued every table row and
+    /// list item of a streamed reply into one line (live 2026-10-12).
+    package static func takeSpan(_ buffer: String) -> (span: String, rest: String)? {
+        guard let cut = takeSentence(buffer) else { return nil }
+        let span = String(buffer.dropLast(cut.rest.count))
+            .trimmingCharacters(in: CharacterSet(charactersIn: " \t"))
+        return (span, cut.rest)
+    }
+
     package static func splitFirstSentence(_ text: String) -> (String, String?) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         var count = 0

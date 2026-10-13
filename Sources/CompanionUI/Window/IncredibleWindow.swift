@@ -80,17 +80,25 @@ package enum SidebarMetrics {
 }
 
 package enum IslandFieldMetrics {
+    /// One line; the field grows with its words up to `maxHeight`, then scrolls.
     package static let height: CGFloat = 38
-    package static let radius: CGFloat = 12
-    package static let textInset: CGFloat = Space.x3_5
-    /// Arc's input: a surface under a border rim.
-    package static let fillSwatch = ArcTone.surface
-    package static let rimSwatch = ArcTone.border
-    /// The orb fills the island grid's lead column, the same as in every other state.
-    package static let orb: CGFloat = IslandGrid.lead
-    package static let orbGap: CGFloat = IslandGrid.gap
+    package static let maxHeight: CGFloat = 118
+    package static let radius: CGFloat = 14
+    package static let textInset: CGFloat = Space.x3
+    package static let textSize: CGFloat = 13
+    package static let lineHeight: CGFloat = 20
+    /// (height - line) / 2: a one-line field centres its words.
+    package static let textPaddingY: CGFloat = 9
+    /// A veil of white over the black bar, a step lighter while it is in use.
+    package static let fillAlpha = 0.075
+    package static let fillActiveAlpha = 0.11
+    /// The orb sits in its own column, wider than the mark of a status row.
+    package static let orb: CGFloat = 38
+    package static let orbGap: CGFloat = Space.x2
+    /// Where anything under the field starts: under the words, not the orb.
+    package static let contentInset: CGFloat = orb + orbGap
     package static let send: CGFloat = 28
-    package static let tool: CGFloat = 30
+    package static let tool: CGFloat = 28
     package static let trailing: CGFloat = 5
     package static let sendIdleSwatch = ArcTone.surfaceMuted
 }

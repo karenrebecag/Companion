@@ -29,6 +29,8 @@ import Testing
              "cerebras: base openai-compatible")
     expectEq(cerebras.secretKey, .cerebras, "cerebras: CEREBRAS_API_KEY")
     expectEq(cerebras.reasoningEffort, "low", "cerebras: reasoning_effort low")
+    expectEq(cerebras.reasoningFormat, "hidden", "cerebras: el razonamiento no llega al contenido")
+    expectEq(ProviderDescriptor.openAI.reasoningFormat, nil, "openai: no se le manda un campo que no conoce")
     expect(cerebras.temperature == nil, "cerebras: sin temperature para gpt-oss")
     expectEq(SecretKey.cerebras.rawValue, "CEREBRAS_API_KEY", "cerebras: nombre de la clave")
 }

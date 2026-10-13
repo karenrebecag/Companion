@@ -15,7 +15,12 @@ package struct TurnMachine: Sendable, Equatable {
     }
 
     package mutating func handle(_ event: TurnEvent, at now: TimeInterval) -> [TurnEffect] {
+        if snapshot.hasDocument, !Self.keepsDocument(event) { snapshot.hasDocument = false }
         switch event {
+        case .replyHasDocument:
+            // The lead may already be said: the mark still belongs to this reply.
+            if snapshot.state != .error { snapshot.hasDocument = true }
+            return []
         case .startVoice(let preferRealtime): return startVoice(preferRealtime)
         case .advance(let hasSpeech): return advance(hasSpeech)
         case .typedSubmit: return typedSubmit()
@@ -50,6 +55,25 @@ package struct TurnMachine: Sendable, Equatable {
         case .interrupt: return interrupt()
         case .sheetParked: return sheetParked()
         case .sheetResumed: return sheetResumed()
+        }
+    }
+}
+
+extension TurnMachine {
+    /// Only what starts another turn drops the document left on screen: a
+    /// press, a new utterance, a typed turn, a barge-in or a hang-up. A list
+    /// of the events allowed in between missed the classic voice's own
+    /// (live 2026-10-12: no document ever reached the island). A press
+    /// while the sentence still sounds is such a start: the document goes
+    /// with the reply it cut (live 2026-10-12, the "no card" case).
+    private static func keepsDocument(_ event: TurnEvent) -> Bool {
+        switch event {
+        case .startVoice, .advance(hasSpeech: true), .typedSubmit, .hangUp, .heardWhileSpeaking,
+             .endpointFinished, .endpointTimedOut, .holdReleased,
+             .holdPressed, .interrupt, .serverSpeechStarted, .voiceStartFailed, .turnFailed:
+            false
+        default:
+            true
         }
     }
 }

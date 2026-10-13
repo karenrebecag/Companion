@@ -1,0 +1,1 @@
+- 2026-10-12: la voz dice una frase y deja la tabla o la lista en el documento en vez de leerla; una tabla pedida en la charla ya no se vuelve un Excel en el Escritorio; la hora (y la de otra ciudad) se contesta desde el reloj del contexto sin mandar al especialista.

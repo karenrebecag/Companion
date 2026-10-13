@@ -50,7 +50,7 @@ private let notchBand = CGRect(x: 280 - 92, y: 0, width: 184, height: 38)
     let screen = IslandChrome.portalScreenRect(popover, canvas: frame)
     expectEq(screen, CGRect(x: 140, y: 760, width: 230, height: 200), "16o portal: lienzo a pantalla")
 
-    let shape = CGRect(x: 134, y: 900, width: 492, height: 100)
+    let shape = CGRect(x: 134, y: 900, width: 480, height: 100)
     let inPopoverOnly = CGPoint(x: 200, y: 800)
     expect(IslandChrome.pointerInside(inPopoverOnly, shape: shape, portal: screen),
            "16o clics: el menú abierto recibe clics fuera de la forma")

@@ -215,6 +215,9 @@ private func makeBody(
     if let effort = provider.reasoningEffort {
         body["reasoning_effort"] = effort
     }
+    if let format = provider.reasoningFormat {
+        body["reasoning_format"] = format
+    }
     if !tools.isEmpty {
         var encoded: [Any] = []
         for spec in tools {
@@ -387,10 +390,10 @@ private actor DeltaSink {
         if let piece = SSECodec.delta(fromSSE: line) {
             full += piece
             sentenceBuf += piece
-            while let cut = SentenceSplitter.takeSentence(sentenceBuf) {
+            while let cut = SentenceSplitter.takeSpan(sentenceBuf) {
                 sentenceBuf = cut.rest
                 spokePartial = true
-                cuts.append(cut.sentence)
+                cuts.append(cut.span)
             }
         }
         for cut in cuts { yield(.text(cut)) }

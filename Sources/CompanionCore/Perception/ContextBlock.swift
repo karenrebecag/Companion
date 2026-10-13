@@ -186,11 +186,18 @@ package enum ContextBlock {
 
     /// The corpus's `<how_to_reply>`: a paragraph read aloud is unbearable.
     /// Typed turns get nothing; the system prompt already says how to talk.
+    /// It names where structure goes: "no markdown" alone made the model
+    /// refuse a table outright ("no puedo generar la tabla dentro de esas
+    /// limitaciones", live 2026-10-12).
     package static func replyHint(_ source: TurnSource, language: AppLanguage) -> String? {
         guard source == .voice else { return nil }
         switch language {
-        case .en: return "Answer in at most 2 sentences, in English, no markdown."
-        case .es: return "Responde en máximo 2 frases, en español, sin markdown."
+        case .en:
+            return "Answer in at most 2 spoken sentences, in English, no markdown; a table, "
+                + "a list, steps or several paragraphs go in show_document, not in the text."
+        case .es:
+            return "Responde en máximo 2 frases habladas, en español, sin markdown; una tabla, "
+                + "una lista, pasos o varios párrafos van en show_document, no en el texto."
         }
     }
 

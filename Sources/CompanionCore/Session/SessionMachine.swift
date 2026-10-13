@@ -11,6 +11,8 @@ package struct SessionMachine: Sendable, Equatable {
     package static let settleDelay: TimeInterval = 0.2
     /// 1.5 s, Incredible's settle floor (local reference; brief isla-ciclo-y-legibilidad K1).
     package static let settleFloor: TimeInterval = 1.5
+    /// A spoken table or list is read after the voice stops; hover holds it longer.
+    package static let voiceDocumentDelay: TimeInterval = 12
     /// How long the hands aura outlives the last executed bridge call: long
     /// enough to bridge the gap between an agent's consecutive steps without
     /// flicker, short enough that an idle-but-open session goes dark.
@@ -46,6 +48,9 @@ package struct SessionMachine: Sendable, Equatable {
     var screenRecordingCardShown = false
     var voice = TurnSnapshot.idle
     var typedBusy = false
+    /// Completed is a spoken reply's document, shown while the mic may still
+    /// be listening. It ends the moment the kind leaves Completed.
+    var voiceCardUp = false
     /// Ids minted for steps whose producer sent none; never reused in a session.
     var stepsMinted = 0
     /// The key is down but still under the tap threshold: the mic is open
@@ -206,7 +211,9 @@ package struct SessionMachine: Sendable, Equatable {
             // The dictation card keeps its own clock whatever is up (K4).
             if projection.kind == .processing(.completed),
                projection.dictatedText != nil || !settleBlocked {
-                projection.kind = .idle
+                // The hands-free mic is still open under the card.
+                projection.kind = voiceCardUp && voice.state == .listening && !voice.muted
+                    ? .listening : .idle
                 projection.dictation = nil
                 projection.dictatedText = nil
             }
@@ -306,7 +313,13 @@ package struct SessionMachine: Sendable, Equatable {
                     ? .scheduleVoiceIdleExpiry(Self.voiceIdleTimeout) : .hangUpVoice)
             }
         case .partialTranscript(let text):
-            if projection.kind == .listening { projection.partial = text }
+            if projection.kind == .listening {
+                projection.partial = text
+            } else if voiceCardUp, projection.kind == .processing(.completed) {
+                // A new utterance replaces the card instead of waiting for it.
+                projection.kind = .listening
+                projection.partial = text
+            }
         case .dictating(let app):
             if projection.kind == .listening { projection.dictation = app }
         case .dictated(let app, let text):
@@ -387,6 +400,7 @@ package struct SessionMachine: Sendable, Equatable {
             projection.dictation = nil
             projection.dictatedText = nil
         }
+        if projection.kind != .processing(.completed) { voiceCardUp = false }
         if restingWarm, !wasRestingWarm {
             effects.append(.scheduleVoiceIdleExpiry(Self.voiceIdleTimeout))
         }
