@@ -941,3 +941,30 @@
 "welcome.testimonial.4.ending" = "Replace it before publishing.";
 "welcome.testimonial.4.name" = "Example name 4";
 "welcome.testimonial.4.role" = "Role, company";
+
+// ai-chat in the window's thread (Arc port)
+"chat.ai.thinking" = "Thinking";
+"chat.ai.thoughtFor" = "Thought for %d s";
+"chat.ai.thoughtBriefly" = "Thought briefly";
+"chat.ai.stoppedThinking" = "Stopped while thinking";
+"chat.ai.sources.one" = "1 source";
+"chat.ai.sources.other" = "%d sources";
+"chat.ai.openSource" = "Open source";
+"chat.ai.citation" = "Source %d: %@, %@";
+"chat.ai.copyAnswer" = "Copy answer";
+"chat.ai.copyCode" = "Copy";
+"chat.ai.copied" = "Copied";
+"chat.ai.code" = "Code";
+"chat.ai.toolDone" = "Done";
+"chat.ai.stopped" = "Stopped";
+"chat.ai.error" = "The answer could not be generated.";
+
+// The specialist's agent-run in the chat and the notch card (Arc port)
+"chat.run.running" = "Working";
+"chat.run.done" = "Done";
+"chat.run.failed" = "Failed";
+"chat.run.stopped" = "Stopped";
+"chat.run.worked" = "Worked for %@";
+"chat.run.steps.one" = "1 step";
+"chat.run.steps.other" = "%d steps";
+"chat.run.timeline" = "The specialist's steps";

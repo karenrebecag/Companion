@@ -941,3 +941,30 @@
 "welcome.testimonial.4.ending" = "Reemplázala antes de publicar.";
 "welcome.testimonial.4.name" = "Nombre de ejemplo 4";
 "welcome.testimonial.4.role" = "Rol, empresa";
+
+// ai-chat del hilo de la ventana (port de Arc)
+"chat.ai.thinking" = "Pensando";
+"chat.ai.thoughtFor" = "Pensó %d s";
+"chat.ai.thoughtBriefly" = "Pensó brevemente";
+"chat.ai.stoppedThinking" = "Se detuvo mientras pensaba";
+"chat.ai.sources.one" = "1 fuente";
+"chat.ai.sources.other" = "%d fuentes";
+"chat.ai.openSource" = "Abrir fuente";
+"chat.ai.citation" = "Fuente %d: %@, %@";
+"chat.ai.copyAnswer" = "Copiar respuesta";
+"chat.ai.copyCode" = "Copiar";
+"chat.ai.copied" = "Copiado";
+"chat.ai.code" = "Código";
+"chat.ai.toolDone" = "Hecho";
+"chat.ai.stopped" = "Detenido";
+"chat.ai.error" = "No se pudo generar la respuesta.";
+
+// agent-run del especialista en el chat y la tarjeta del notch (port de Arc)
+"chat.run.running" = "Trabajando";
+"chat.run.done" = "Listo";
+"chat.run.failed" = "Falló";
+"chat.run.stopped" = "Detenido";
+"chat.run.worked" = "Trabajó %@";
+"chat.run.steps.one" = "1 paso";
+"chat.run.steps.other" = "%d pasos";
+"chat.run.timeline" = "Pasos del especialista";

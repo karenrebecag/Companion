@@ -37,7 +37,7 @@ extension ChatViewModel {
     private func end(ok: Bool, id: JobID?) {
         let timeline = timeline(of: id)
         session.send(.jobFinished(ok: ok, from: id))
-        record(timeline)
+        record(timeline, outcome: ok ? .done : .failed)
     }
 
     /// Job `id`'s timeline, running or queued; nil when no row carries it.
@@ -48,13 +48,15 @@ extension ChatViewModel {
         return shown.queued.first { $0.id == id }
     }
 
-    private func record(_ timeline: JobTimeline?) {
+    private func record(_ timeline: JobTimeline?, outcome: JobRecord.Outcome) {
         guard let timeline, let goal = timeline.goal else { return }
         var text = String(format: Localized.string("job.record"), goal)
         if let summary = JobSteps.summary(timeline.steps, Localized.language()) {
             text += " · " + summary
         }
-        messages.append(ChatMessage(isStatus: true, text: text))
+        messages.append(ChatMessage(
+            isStatus: true, text: text,
+            job: JobRecord(timeline: timeline, finishedAt: now(), outcome: outcome)))
     }
 
     /// One job's own stop (16q-1): the job card's, by id. The rest of the
@@ -106,7 +108,7 @@ extension ChatViewModel {
     /// leaves no record here and no mark on the chat's next ending.
     private func noteStopped(_ own: JobTimeline?) {
         if own != nil { cancelledJob = true }
-        record(own)
+        record(own, outcome: .stopped)
         messages.append(ChatMessage(isStatus: true, text: ChatCopy.jobStopped))
         toast(ChatCopy.jobStopped, level: .info)
         persist()

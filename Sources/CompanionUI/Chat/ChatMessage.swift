@@ -34,6 +34,22 @@ package enum MessageOrigin: Sendable, Equatable {
     case choice
 }
 
+/// A delegated job as it ended, kept on the line that records it so the
+/// thread can draw the run after the live timeline is gone. Memory only: the
+/// store saves the line's words, and a task read back from disk shows none.
+package struct JobRecord: Equatable {
+    package enum Outcome: Equatable { case done, failed, stopped }
+    package var timeline: JobTimeline
+    package var finishedAt: Date
+    package var outcome: Outcome
+
+    package init(timeline: JobTimeline, finishedAt: Date, outcome: Outcome) {
+        self.timeline = timeline
+        self.finishedAt = finishedAt
+        self.outcome = outcome
+    }
+}
+
 package struct ChatMessage: Identifiable, Equatable {
     package let id: UUID
     package var role: TurnRole?
@@ -54,6 +70,8 @@ package struct ChatMessage: Identifiable, Equatable {
     /// Read back from disk, not made in this session: a question card in it
     /// has no live turn behind it.
     package var restored: Bool
+    /// The job this status line records, while the session that ran it lasts.
+    package var job: JobRecord?
 
     package init(
         id: UUID = UUID(),
@@ -66,7 +84,8 @@ package struct ChatMessage: Identifiable, Equatable {
         origin: MessageOrigin = .typed,
         mentions: [Mention] = [],
         isFailure: Bool = false,
-        restored: Bool = false
+        restored: Bool = false,
+        job: JobRecord? = nil
     ) {
         self.id = id
         self.role = role
@@ -79,5 +98,6 @@ package struct ChatMessage: Identifiable, Equatable {
         self.origin = origin
         self.isFailure = isFailure
         self.restored = restored
+        self.job = job
     }
 }

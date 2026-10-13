@@ -27,6 +27,13 @@ extension IslandView {
                         .environment(\.diagramRenderer, diagrams)
                         .environment(\.fileSaver, saveFile)
                 }
+                // What the specialist did, folded to its newest steps: the
+                // whole run is one tap away in the chat.
+                if let record = ChatAgentRun.latestRecord(chat.messages) {
+                    AIAgentRunView(
+                        run: ChatAgentRun.finished(record), strings: ChatAgentRun.strings, style: .notchRun,
+                        density: .compact(rows: IslandResultCardMetrics.runRows))
+                }
                 if let latest { choiceCard(latest) }
             }
         }
@@ -56,10 +63,11 @@ extension IslandView {
             onDismiss: nil, onContinue: continueInChat, content: content)
     }
 
-    /// The window holds the whole thread and the composer; the reply tap
-    /// already opens it, so this is the same road.
+    /// The window holds the whole thread and the composer, so it opens on
+    /// this reply's conversation, not on Home where she would have to find it.
     func continueInChat() {
         resultAttention.attended()
+        NotificationCenter.default.post(name: .companionOpenConversation, object: nil)
         onShowMain()
     }
 }
