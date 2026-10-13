@@ -2,14 +2,17 @@ import CompanionCore
 import CompanionUIPro
 import SwiftUI
 
-/// A task's conversation (spec 16j §8) as one focused thread, after Arc's
-/// ai-composer block: the newest turn in view, and a composer whose words
-/// become the task's next turn before the island carries it on.
+/// A task's conversation (spec 16j §8) as Arc's ai-chat block: streamed
+/// markdown answers with their tools, reasoning and sources, the newest turn
+/// in view, and ai-composer's dock whose words become the task's next turn
+/// before the island carries it on.
 struct TaskDetailSheet: View {
     let task: ConversationMeta
     let messages: [ChatMessage]
     /// This task is the one a turn is working on right now.
     var live = false
+    /// The turn in progress, when this task is the conversation it runs in.
+    var progress: ChatLive?
     /// False while another turn works: switching would drop it.
     let canFollowUp: Bool
     /// The words to continue with, empty to continue without any. False when
@@ -20,16 +23,18 @@ struct TaskDetailSheet: View {
     @State private var draft: String
     @State private var sending = false
     /// The message on its way, drawn in the thread while it lifts.
-    @State private var sent: AIThreadItem?
+    @State private var sent: AIChatTurn?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.openURL) private var openURL
 
     init(
-        task: ConversationMeta, messages: [ChatMessage], live: Bool = false, canFollowUp: Bool,
-        draft: String = "", onFollowUp: @escaping (String) -> Bool, onClose: @escaping () -> Void
+        task: ConversationMeta, messages: [ChatMessage], live: Bool = false, progress: ChatLive? = nil,
+        canFollowUp: Bool, draft: String = "", onFollowUp: @escaping (String) -> Bool, onClose: @escaping () -> Void
     ) {
         self.task = task
         self.messages = messages
         self.live = live
+        self.progress = progress
         self.canFollowUp = canFollowUp
         self._draft = State(initialValue: draft)
         self.onFollowUp = onFollowUp
@@ -39,10 +44,7 @@ struct TaskDetailSheet: View {
     var body: some View {
         VStack(spacing: Space.none) {
             header
-            AIThread(items: items, strings: TaskThread.strings, style: .companion) { item in
-                MarkdownView(text: item.text)
-                    .textSelection(.enabled)
-            }
+            conversation
             AIComposer(
                 text: $draft, phase: phase, strings: TaskThread.strings, style: .companion,
                 focusOnAppear: true, onSubmit: submit)
@@ -53,8 +55,19 @@ struct TaskDetailSheet: View {
         .overlay(RoundedRectangle(cornerRadius: Radius.card).stroke(Semantic.border, lineWidth: Stroke.hairline))
     }
 
-    private var items: [AIThreadItem] {
-        TaskThread.items(messages) + (sent.map { [$0] } ?? [])
+    private var conversation: some View {
+        let thread = ChatTurns.thread(messages, live: progress)
+        return AIChatThread(
+            turns: thread.turns + (sent.map { [$0] } ?? []), strings: TaskThread.chatStrings, style: .companion,
+            allowsLink: { label, url in !MarkdownView.disguises(label, url) },
+            fence: ChatFence.view, onOpenURL: { openURL($0) }
+        ) { turn in
+            if let cards = thread.cards[turn.id] {
+                VStack(alignment: .leading, spacing: Space.x3) {
+                    ForEach(Array(cards.enumerated()), id: \.offset) { _, card in CardView(card: card) }
+                }
+            }
+        }
     }
 
     private var phase: AIComposerPhase {
@@ -99,7 +112,7 @@ struct TaskDetailSheet: View {
         // Without words, or without motion, there is nothing to watch land.
         guard !words.isEmpty, !reduceMotion else { return handOff(words) }
         // The thread plays the lift itself; the sheet only waits for it to land.
-        sent = AIThreadItem(id: "sent", role: .user, text: words)
+        sent = AIChatTurn(id: "sent", content: .user(text: words, attachments: []))
         draft = ""
         Task {
             do {

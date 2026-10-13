@@ -202,6 +202,9 @@ package struct CompanionRootView: View {
             if let slug = note.object as? String { apps?.focus(slug) }
         }
         .onReceive(
+            NotificationCenter.default.publisher(for: .companionOpenConversation)
+        ) { _ in openCurrentConversation() }
+        .onReceive(
             NotificationCenter.default.publisher(for: .companionOpenFeedback)
         ) { _ in openFeedback() }
         .onAppear { if FeedbackRequest.consume() { openFeedback() } }
@@ -300,6 +303,21 @@ package struct CompanionRootView: View {
         }
     }
 
+    private func openCurrentConversation() {
+        guard let task = ConversationRoute.current(
+            id: chat.conversationId, recents: chat.recents, messages: chat.messages, now: Date(),
+            fallbackTitle: Localized.string("island.result.title"))
+        else { return }
+        page = .home
+        withAnimation(ChromeMotion.animation(.springSheet, reduceMotion: reduceMotion)) { openTask = task }
+    }
+
+    /// The conversation a turn is in reads straight from the chat, so the
+    /// sheet streams with it; any other task is the snapshot read on open.
+    private func isCurrent(_ task: ConversationMeta) -> Bool {
+        task.id == chat.conversationId
+    }
+
     private func openFeedback() {
         _ = FeedbackRequest.consume()
         guard feedback == nil else { return }
@@ -362,8 +380,11 @@ package struct CompanionRootView: View {
                     // moving: the work state is read from the store's latest.
                     TaskDetailSheet(
                         task: chat.recents.first { $0.id == task.id } ?? task,
-                        messages: openTaskMessages,
-                        live: chat.busy && task.id == chat.conversationId,
+                        messages: isCurrent(task) ? chat.messages : openTaskMessages,
+                        live: chat.busy && isCurrent(task),
+                        progress: isCurrent(task)
+                            ? ChatLive(streaming: chat.streaming, busy: chat.busy, job: chat.job, now: Date())
+                            : nil,
                         canFollowUp: chat.canFollowUp,
                         onFollowUp: { words in
                             guard chat.followUp(task, saying: words) else { return false }

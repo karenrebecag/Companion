@@ -62,27 +62,12 @@ package struct MarkdownView: View {
                 .padding(.vertical, Space.x2)
         case .code(let language, let body):
             // Companion card blocks: try to render as rich cards, degrade to code on JSON error.
-            if language == CompanionBlocks.locationsLanguage {
-                if let locations = CompanionBlocks.locations(body) {
-                    // From a fence: the model authored it, and the card says so.
-                    CardView(card: Card(
-                        payload: .locations(locations), source: .model))
-                } else {
-                    codeBlock(body, language: language)
-                }
-            } else if language == CompanionBlocks.galleryLanguage {
-                if let gallery = CompanionBlocks.gallery(body) {
-                    CardView(card: Card(
-                        payload: .gallery(gallery), source: .model))
-                } else {
-                    codeBlock(body, language: language)
-                }
+            if let card = Self.fenceCard(language: language, body: body) {
+                CardView(card: card)
             } else if language == CompanionBlocks.choiceLanguage, let choice = CompanionBlocks.choice(body) {
                 // A saved transcript has no reply channel: the question and
                 // its options read as text; answering lives in the island.
-                choiceText(choice)
-            } else if let payload = Self.dataCard(language: language, body: body) {
-                CardView(card: Card(payload: payload, source: .model))
+                Self.choiceText(choice)
             } else {
                 codeBlock(body, language: language)
             }
@@ -92,6 +77,17 @@ package struct MarkdownView: View {
                 .foregroundStyle(Semantic.foreground)
                 .textSelection(.enabled)
         }
+    }
+
+    /// A `companion:` fence as the card it describes, or nil to keep it code.
+    /// From a fence: the model authored it, and the card says so.
+    nonisolated static func fenceCard(language: String, body: String) -> Card? {
+        let payload: CardPayload? = switch language {
+        case CompanionBlocks.locationsLanguage: CompanionBlocks.locations(body).map { .locations($0) }
+        case CompanionBlocks.galleryLanguage: CompanionBlocks.gallery(body).map { .gallery($0) }
+        default: dataCard(language: language, body: body)
+        }
+        return payload.map { Card(payload: $0, source: .model) }
     }
 
     /// Wave 20: the data fences. Nil keeps a broken one visible as code.
@@ -163,9 +159,9 @@ package struct MarkdownView: View {
         }
     }
 
-    private func choiceText(_ choice: ChoiceBlock) -> some View {
+    static func choiceText(_ choice: ChoiceBlock) -> some View {
         VStack(alignment: .leading, spacing: Space.x1) {
-            ForEach(Array(Self.choiceLines(choice).enumerated()), id: \.offset) { index, line in
+            ForEach(Array(choiceLines(choice).enumerated()), id: \.offset) { index, line in
                 Text(line).fontWeight(index == 0 ? .semibold : .regular)
             }
         }

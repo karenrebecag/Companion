@@ -16,7 +16,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "git@github.com:karenrebecag/CompanionUIPro.git",
-            revision: "795f2c344a4b09736811fadb61d05faa1371d5dc"
+            revision: "d40d82f04af8101b1b31bef71308b9d79a95c167"
         ),
     ],
     targets: [
