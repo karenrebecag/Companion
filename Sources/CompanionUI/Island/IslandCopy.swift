@@ -88,6 +88,22 @@ enum IslandCopy {
         }
     }
 
+    /// The short status words of one turn. They morph into each other letter
+    /// by letter (Arc's text-morph) instead of swapping rows: "Enviando…" into
+    /// "Pensando…" into "Listo" reads as one line changing its mind.
+    static func morphs(_ line: IslandState.Line) -> Bool {
+        switch line {
+        case .pending, .thinking, .acting, .pasting, .completed, .cancelled: true
+        default: false
+        }
+    }
+
+    /// What the status row is keyed on: one key for every morphing word, so
+    /// the row stays and the word morphs; any other line swaps as before.
+    static func rowKey(_ line: IslandState.Line) -> String {
+        morphs(line) ? "status-words" : swapKey(line)
+    }
+
     static func shimmers(_ line: IslandState.Line) -> Bool {
         switch line {
         case .pending, .thinking, .acting, .pasting: true
