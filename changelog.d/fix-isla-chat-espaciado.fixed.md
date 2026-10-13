@@ -1,1 +1,0 @@
-- **El hilo de la isla se lee parejo (2026-10-12).** Las respuestas de Companion ya no tienen el interlineado casi doble frente a tus mensajes, y el hilo deja un respiro bajo el campo en vez de pegar el mensaje más viejo al borde.

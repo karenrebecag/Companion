@@ -1,1 +1,0 @@
-- 2026-10-06: Companion ya no se cierra cuando el puntero pasa sobre la isla mientras escucha; la prueba de accesibilidad fuera del hilo principal no toca la UI.

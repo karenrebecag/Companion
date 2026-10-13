@@ -1,1 +1,0 @@
-- **Con 'Prestar las manos' encendido, un agente puede revisar Companion aunque esté al frente (2026-10-02).** Solo mira: no pulsa, no escribe y no ve lo que escribes. Las manos siguen sin tocar Companion.
