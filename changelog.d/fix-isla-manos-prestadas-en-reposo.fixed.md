@@ -1,1 +1,0 @@
-- **La isla ya se cierra sola aunque un agente este usando tus manos (2026-10-12).** Mientras una sesion del puente estaba abierta, la isla se quedaba con el panel y el chat desplegados y no se cerraba al quitar el mouse. Ahora en reposo vuelve a su tamano normal; el aura de pantalla sigue avisando que las manos estan prestadas.

@@ -1,1 +1,0 @@
-- 2026-10-13: «Seguir en el chat» (y tocar el documento) trae la ventana del chat al frente; antes se quedaba detrás de la app activa y el toque abría un popup con el mismo texto.

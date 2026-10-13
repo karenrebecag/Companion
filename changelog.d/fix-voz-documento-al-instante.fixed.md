@@ -1,1 +1,0 @@
-- 2026-10-13: el documento de una respuesta de voz sube en cuanto llega, mientras la voz dice su frase; antes el subtitulo leia la cola del documento hasta que la voz terminaba.
