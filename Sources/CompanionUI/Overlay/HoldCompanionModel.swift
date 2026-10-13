@@ -80,6 +80,7 @@ enum HoldCompanionMetrics {
     static let pillHeight: CGFloat = 46
     static let pillInset: CGFloat = 7
     static let orb: CGFloat = 32
+    static let micGlyph: CGFloat = 13
     static let orbCenter = CGPoint(x: pillInset + orb / 2, y: pillHeight / 2)
     /// The stack's bottom edge sits this far above the pill's bottom.
     static let stackLift: CGFloat = 50

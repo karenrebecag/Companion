@@ -1,19 +1,20 @@
+import AppKit
 import CompanionCore
 @testable import CompanionUI
 import Foundation
 import Testing
 
-// The island's lead orb and status words (feat/isla-orbe-pensando): which orb
-// each state gets, and the pure timing behind Arc's text-morph and text-shimmer.
+// The island's lead mark and status words: which still glyph each state
+// gets, and the pure timing behind Arc's text-morph and text-shimmer.
 
-@Test @MainActor func leadMarkMapsEachIslandStateToItsOrb() {
+@Test @MainActor func leadMarkMapsEachIslandStateToItsGlyph() {
     let cases: [(IslandState.Meter, IslandState.Line, IslandLeadMark?)] = [
-        (.mic, .none, .voice(.listening)),
-        (.agent, .speaking, .voice(.speaking)),
-        (.none, .pending, .thinking(.ring)),
-        (.none, .pasting, .thinking(.ring)),
-        (.none, .thinking, .thinking(.rubik)),
-        (.none, .acting(["Safari"]), .thinking(.globe)),
+        (.mic, .none, .listening),
+        (.agent, .speaking, .speaking),
+        (.none, .pending, .working),
+        (.none, .pasting, .working),
+        (.none, .thinking, .working),
+        (.none, .acting(["Safari"]), .working),
         (.none, .completed, nil),
         (.none, .none, nil),
     ]
@@ -22,16 +23,19 @@ import Testing
     }
 }
 
-@Test @MainActor func aJobShowsTheWorkingOrbOnlyWhileItRuns() {
+@Test @MainActor func aJobShowsTheWorkingMarkOnlyWhileItRuns() {
     let job = IslandState.Line.job(goal: "Ordenar", step: nil, steps: 2)
-    #expect(IslandLeadMark.of(meter: .none, line: job, jobRunning: true) == .thinking(.braid))
+    #expect(IslandLeadMark.of(meter: .none, line: job, jobRunning: true) == .working)
     // A finished job hands the column back to the loader's check or cross.
     #expect(IslandLeadMark.of(meter: .agent, line: job, jobRunning: false) == nil)
 }
 
-@Test @MainActor func reduceMotionHandoffFadesWithoutGrowing() {
-    #expect(IslandLeadOrb.handoffScale(reduceMotion: true) == 1)
-    #expect(IslandLeadOrb.handoffScale(reduceMotion: false) < 1)
+@Test @MainActor func everyVoiceGlyphIsAnSFSymbol() {
+    for mark in [IslandLeadMark.listening, .speaking, .working] {
+        guard let symbol = mark.symbol else { continue }
+        #expect(NSImage(systemSymbolName: symbol, accessibilityDescription: nil) != nil, "\(symbol)")
+    }
+    #expect(IslandLeadMark.listening.symbol != IslandLeadMark.speaking.symbol, "listening and speaking look apart")
 }
 
 @Test @MainActor func statusWordsShareOneRowKeySoTheyMorph() {

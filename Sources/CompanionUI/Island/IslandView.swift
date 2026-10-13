@@ -65,7 +65,6 @@ package struct IslandView: View {
     @State var replyOfTurn: UUID?
     /// The orb is one piece in every state (Arc's now-playing): opening the
     /// island moves it to its new row instead of fading one out and another in.
-    @Namespace var orbSpace
 
     /// Incredible stacks the latest few under the reply; more is the window's job.
     static let maxResults = 2
@@ -264,12 +263,18 @@ package struct IslandView: View {
     var mark: some View { orbMark(side: IslandFieldMetrics.orb) }
 
     func orbMark(side: CGFloat) -> some View {
-        IslandVoiceOrb(state: IslandOrbState.composer(levels: voice.levels), levels: voice.levels,
-                       size: side)
-            .matchedGeometryEffect(id: IslandOrbTravel.id, in: orbSpace)
-            .contentShape(Circle())
+        IslandMicMark(side: side, listening: state.meter == .mic)
             .gesture(holdGesture)
+            .accessibilityElement()
             .accessibilityLabel(Localized.string("island.pebble"))
+            .accessibilityAddTraits(.isButton)
+            // VoiceOver cannot hold; activating it does what a tap does.
+            .accessibilityAction { tap() }
+    }
+
+    func tap() {
+        chat.session.send(.tapped)
+        onShowMain()
     }
 
     /// Mouse down is a press; up before the threshold is a tap that also
@@ -284,8 +289,7 @@ package struct IslandView: View {
             .onEnded { _ in
                 switch pointer.up(at: Date().timeIntervalSince1970) {
                 case .tapped:
-                    chat.session.send(.tapped)
-                    onShowMain()
+                    tap()
                 case .released:
                     chat.session.send(.released)
                 case .cancelled:

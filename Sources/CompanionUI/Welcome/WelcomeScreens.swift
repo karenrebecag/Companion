@@ -1,5 +1,4 @@
 import CompanionCore
-import CompanionUIPro
 import SwiftUI
 
 // Wave 16c: the seven screens. Each says one thing; the container owns the
@@ -28,45 +27,9 @@ struct WelcomeHeading: View {
     }
 }
 
-struct WelcomeOrb: View {
-    var state: TurnState = .idle
-    var level = 0.0
-    var size = Container.hero
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.surfaceVisible) private var surfaceVisible
-
-    var body: some View {
-        // The welcome text under the orb carries the meaning, so the orb
-        // itself is hidden from VoiceOver rather than given a label.
-        VoiceOrb(
-            state: VoiceOrbState(state),
-            muted: false,
-            inputLevel: Self.levels(state: state, level: level).input,
-            outputLevel: Self.levels(state: state, level: level).output,
-            size: size,
-            palette: .surface(colorScheme: colorScheme),
-            accessibilityLabel: "",
-            isActive: surfaceVisible)
-        .frame(width: size, height: size)
-        .frame(maxWidth: .infinity)
-        .accessibilityHidden(true)
-    }
-
-    /// Welcome has one level, the mic test's or the hello's: it belongs to
-    /// whoever is talking, and nil elsewhere lets the orb rest.
-    static func levels(state: TurnState, level: Double) -> (input: Double?, output: Double?) {
-        switch state {
-        case .listening: (level, nil)
-        case .speaking: (nil, level)
-        default: (nil, nil)
-        }
-    }
-}
-
 struct WelcomeCover: View {
     var body: some View {
         VStack(spacing: Space.x8) {
-            WelcomeOrb()
             WelcomeHeading(
                 title: Localized.string("welcome.cover.title"),
                 body_: Localized.string("welcome.cover.body"))
@@ -80,7 +43,6 @@ struct WelcomeHello: View {
 
     var body: some View {
         VStack(spacing: Space.x6) {
-            WelcomeOrb(state: .speaking, level: 0.3, size: Container.heroCompact)
             WelcomeNameForm(name: $name)
                 .onChange(of: name) { _, value in
                     UserProfile.ownerName = value.trimmingCharacters(in: .whitespaces)
@@ -347,7 +309,6 @@ struct WelcomeMicrophone: View {
 
     var body: some View {
         VStack(spacing: Space.x6) {
-            WelcomeOrb(state: .listening, level: level)
             WelcomeHeading(
                 title: Localized.string("welcome.microphone.title"),
                 body_: Localized.string(heard ? "welcome.microphone.heard" : "welcome.microphone.body"))

@@ -21,21 +21,6 @@ package enum ShimmerMotion {
     }
 }
 
-package enum ShimmerRingMotion {
-    package static let listeningDuration: TimeInterval = 1.15
-    package static let thinkingDuration: TimeInterval = 2.0
-    package static let listeningBand: CGFloat = 0.38
-    package static let thinkingBand: CGFloat = 0.5
-
-    package static func duration(thinking: Bool) -> TimeInterval {
-        thinking ? thinkingDuration : listeningDuration
-    }
-
-    package static func bandSize(thinking: Bool) -> CGFloat {
-        thinking ? thinkingBand : listeningBand
-    }
-}
-
 struct Shimmer: ViewModifier {
     var active: Bool
     var period: TimeInterval = 1.5
@@ -83,28 +68,5 @@ extension View {
     ) -> some View {
         modifier(Shimmer(
             active: active, period: period, delay: delay, bandSize: bandSize, floor: floor))
-    }
-}
-
-/// Hairline around the orb. The sweep is the only status chrome while
-/// listening or thinking.
-struct ShimmerRing: View {
-    let active: Bool
-    let thinking: Bool
-    let reduceMotion: Bool
-
-    var body: some View {
-        Circle()
-            .strokeBorder(Color.white.opacity(active ? 0.55 : 0), lineWidth: 1.6)
-            .padding(Space.x1 / 4)
-            .shimmering(
-                active: active && !reduceMotion,
-                period: ShimmerRingMotion.duration(thinking: thinking),
-                delay: 0,
-                bandSize: ShimmerRingMotion.bandSize(thinking: thinking))
-            .opacity(active ? 1 : 0)
-            .animation(
-                .expoOut(reduceMotion ? 0 : MotionTime.fast),
-                value: active)
     }
 }

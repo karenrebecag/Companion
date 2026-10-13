@@ -269,9 +269,6 @@ package enum Container {
     package static let content: CGFloat = 960
     /// Hero figure height inside a sheet.
     package static let hero: CGFloat = 200
-    /// The hero where the screen also carries a form: at the window's
-    /// minimum height the 50 pt name field no longer fits under the full one.
-    package static let heroCompact: CGFloat = 160
     /// The approval sheet: wide enough for a phrase plus its preview,
     /// narrow enough to read as an interruption, not a window (19-1).
     package static let approval: CGFloat = 420

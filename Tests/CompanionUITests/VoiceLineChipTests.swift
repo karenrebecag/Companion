@@ -27,9 +27,9 @@ private let chip = CGRect(x: 560, y: 860, width: 280, height: 48)
 
 @Test @MainActor func theChipKeepsIncrediblesMeasures() {
     expectEq(VoiceLineChipMetrics.maxWidth, 480, "ancho maximo")
-    expectEq(VoiceLineChipMetrics.columnGap, 10, "orbe a texto")
+    expectEq(VoiceLineChipMetrics.columnGap, 10, "marca a texto")
     expectEq(VoiceLineChipMetrics.lineGap, 6, "lineas al expandir")
-    expectEq(VoiceLineChipMetrics.orb, IslandChrome.meterSide, "orbe de 32")
+    expectEq(VoiceLineChipMetrics.mark, IslandChrome.meterSide, "marca de 32")
     expectEq(VoiceLineChipMetrics.radius, Radius.panel, "radio 28")
     expectEq(VoiceLineChipMetrics.textSize, TypeSize.heroBody, "texto 15")
     expectEq(VoiceLineChipMetrics.lineHeight, 20, "interlinea 20")

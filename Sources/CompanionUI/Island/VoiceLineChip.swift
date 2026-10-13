@@ -7,7 +7,8 @@ enum VoiceLineChipMetrics {
     static let columnGap: CGFloat = 10
     /// Between sentences once hover lays them all out.
     static let lineGap: CGFloat = 6
-    static let orb: CGFloat = IslandChrome.meterSide
+    static let mark: CGFloat = IslandChrome.meterSide
+    static let glyph: CGFloat = 15
     static let radius: CGFloat = Radius.panel
     static let textSize: CGFloat = TypeSize.heroBody
     static let lineHeight: CGFloat = 20
@@ -70,7 +71,6 @@ struct VoiceLineChip: View {
     let visible: Bool
     let startedAt: Date
     let speaking: Bool
-    let levels: VoiceLevels
     let onEngage: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
@@ -86,8 +86,11 @@ struct VoiceLineChip: View {
     var body: some View {
         Button(action: onEngage) {
             HStack(alignment: .top, spacing: VoiceLineChipMetrics.columnGap) {
-                Orb(state: .idle, levels: levels, accentColor: Semantic.accent)
-                    .frame(width: VoiceLineChipMetrics.orb, height: VoiceLineChipMetrics.orb)
+                // Static: the sentences beside it already move with the voice.
+                Image(systemName: "waveform")
+                    .font(Fonts.symbol(VoiceLineChipMetrics.glyph, weight: .medium))
+                    .foregroundStyle(IslandInk.secondary)
+                    .frame(width: VoiceLineChipMetrics.mark, height: VoiceLineChipMetrics.mark)
                 TimelineView(.animation(paused: !speaking)) { context in
                     let said = Self.said(
                         words: line.words.count, settled: line.settled, speaking: speaking,

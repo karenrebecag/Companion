@@ -52,10 +52,10 @@ func islandArcGallerySnapshots() throws {
     let gallery = HStack(alignment: .top, spacing: 32) {
         VStack(alignment: .leading, spacing: 28) {
             panel("Pensando") {
-                statusRow("Pensando…") { IslandOrb(state: .thinking, size: IslandGrid.lead, still: true) }
+                statusRow("Pensando…") { IslandLeadGlyph(mark: .working, side: IslandGrid.lead) }
             }
             panel("Escuchando") {
-                statusRow("Escucho") { IslandOrb(state: .listening, size: IslandGrid.lead, still: true) }
+                statusRow("Escucho") { IslandLeadGlyph(mark: .listening, side: IslandGrid.lead) }
                 IslandTranscript(text: "abre el correo de ana y dime qué pide", fixed: false)
                     .islandContentColumn()
             }
