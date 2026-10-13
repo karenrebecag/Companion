@@ -98,3 +98,31 @@ private func source(_ title: String, _ url: String) -> MarkdownSplitter.SourceLi
     expect(words.text.contains("CDN") && !words.text.contains("Sources") && !words.text.contains("webflow.com"),
            "hilo: la prosa no repite la lista — \(words.text)")
 }
+
+@Test @MainActor func testAChipReadsTheHostNotTheWholeAddressAndTheAppByItsLocalizedName() {
+    let links = IslandResultCardModel.links(
+        apps: ["Notes", "https://www.google.com/search?q=clima+ma%C3%B1ana+Monterrey", "Safari"], sources: [],
+        appName: { $0 == "Notes" ? "Notas" : $0 })
+    expectEq(links.chips.map(\.label), ["Notas", "google.com", "Safari"],
+             "chips: app en el idioma del sistema, direccion como host")
+    let untitled = IslandResultCardModel.links(apps: [], sources: [source("", "https://www.example.com/a?b=1")])
+    expectEq(untitled.chips.map(\.label), ["example.com"], "chips: una fuente sin titulo muestra el host sin www")
+}
+
+@Test @MainActor func testAnUnknownAppKeepsItsName() {
+    expectEq(IslandResultCardModel.localizedAppName("NoExisteEstaApp", language: .es), "NoExisteEstaApp", "app: sin bundle, su nombre")
+    expectEq(IslandResultCardModel.localizedAppName("../etc", language: .es), "../etc", "app: un nombre con ruta no se busca")
+    // Notes ships in every macOS 14+; its loctable carries both names.
+    guard FileManager.default.fileExists(atPath: "/System/Applications/Notes.app") else { return }
+    expectEq(IslandResultCardModel.localizedAppName("Notes", language: .es), "Notas", "app: Notas en espanol")
+    expectEq(IslandResultCardModel.localizedAppName("Notes", language: .en), "Notes", "app: Notes en ingles")
+}
+
+@Test @MainActor func testTheThreadReplySplitsItsSourcesLikeTheCardDoes() {
+    let message = ChatMessage(role: .assistant, text:
+        "Webflow publica en el CDN.\n\nSources:\n\n- [Docs](https://webflow.com/docs)")
+    let words = IslandView.threadWords(message)
+    expectEq(words.sources.map(\.url), ["https://webflow.com/docs"], "hilo: la fuente sale como chip")
+    expect(words.text.contains("CDN") && !words.text.contains("Sources") && !words.text.contains("webflow.com"),
+           "hilo: la prosa no repite la lista — \(words.text)")
+}
