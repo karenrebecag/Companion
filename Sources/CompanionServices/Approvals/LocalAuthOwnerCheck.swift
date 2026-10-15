@@ -62,7 +62,7 @@ package struct LocalAuthOwnerCheck: OwnerVerifying {
         invalidate: @escaping @Sendable () -> Void
     ) async -> OwnerCheck {
         enum Finish: Sendable { case answered(OwnerCheck), unattended }
-        return await withTaskCancellationHandler {
+        let result = await withTaskCancellationHandler {
             await withTaskGroup(of: Finish?.self) { group in
                 group.addTask { .answered(await answer(evaluate)) }
                 // A limit that throws (cancelled sleep) did not elapse.
@@ -86,6 +86,8 @@ package struct LocalAuthOwnerCheck: OwnerVerifying {
         } onCancel: {
             invalidate()
         }
+        // A yes that lands after the caller gave up is not for this call.
+        return result == .confirmed && Task.isCancelled ? .refused : result
     }
 
     private static func answer(_ evaluate: @Sendable () async throws -> Bool) async -> OwnerCheck {

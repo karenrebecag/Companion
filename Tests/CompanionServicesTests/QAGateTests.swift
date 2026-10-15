@@ -95,3 +95,27 @@ private func gate(
     expectEq(await task.value, .refused(code: "owner_refused"), "cancelada")
     expectEq(owner.cancellations, 1, "el fake registra la cancelacion")
 }
+
+@Test func handsWithoutRealFactsNeedTheOwnerCheck() async {
+    for tool in ["click", "type_text", "press_key", "menu", "scroll", "focus_window", "open_app"] {
+        let owner = FakeOwnerCheck(result: .confirmed)
+        let qa = QAGate(
+            enabled: { true }, owner: owner, disableQA: {}, language: { .en },
+            classify: { name, _, _ in QAApprovalPolicy.bandWithoutFacts(toolName: name, arguments: [:]) })
+        let request = ApprovalRequest(requestId: "r", toolName: tool, summary: "", inputJSON: "{}")
+        let verdict = await qa.decide(request, call: call(tool), said: "")
+        expectEq(verdict, .granted, "\(tool) pasa por la prueba")
+        expectEq(owner.calls.count, 1, "\(tool) llama al puerto")
+    }
+}
+
+@Test func theSessionSheetIsKeptWhicheverNameCarriesIt() async {
+    let session = BridgePolicy.sessionApprovalTool
+    let byRequest = ApprovalRequest(requestId: "r", toolName: session, summary: "", inputJSON: "{}")
+    let byCall = ApprovalRequest(requestId: "r", toolName: "look", summary: "", inputJSON: "{}")
+    let owner = FakeOwnerCheck()
+    let qa = gate(owner, band: .act)
+    expectEq(await qa.decide(byRequest, call: call("look"), said: ""), .notInQA, "request dice session")
+    expectEq(await qa.decide(byCall, call: call(session), said: ""), .notInQA, "call dice session")
+    expectEq(owner.calls.count, 0, "el agente no la contesta")
+}

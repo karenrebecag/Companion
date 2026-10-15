@@ -30,4 +30,12 @@ package enum QAApprovalPolicy {
         case .unavailable: return .unavailable(code: "owner_unavailable")
         }
     }
+
+    /// The band when nobody looked at the target. Hands are judged by what
+    /// they hit (a "Delete" button, a terminal), which only real facts say,
+    /// so without them they are critical, never free.
+    package static func bandWithoutFacts(toolName: String, arguments: [String: Any]) -> ActionBand {
+        ActionBand.classify(
+            toolName: toolName, arguments: arguments, facts: ActionFacts(destructiveTarget: true))
+    }
 }

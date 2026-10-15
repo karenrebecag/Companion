@@ -93,3 +93,14 @@ private final class Probe: @unchecked Sendable {
         evaluate: { throw Boom() }, invalidate: {})
     expectEq(check, .unavailable, "un fallo ajeno no cuenta como no del dueño")
 }
+
+@Test func aYesThatArrivesAfterTheCallerCancelledIsRefused() async {
+    let task = Task {
+        while !Task.isCancelled { await Task.yield() }
+        return await LocalAuthOwnerCheck.race(
+            limit: { try await Task.sleep(for: .seconds(3600)) },
+            evaluate: { true }, invalidate: {})
+    }
+    task.cancel()
+    expectEq(await task.value, .refused, "cancelada no confirma")
+}

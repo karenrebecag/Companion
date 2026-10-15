@@ -27,19 +27,15 @@ package actor QAGate {
     private let language: @Sendable () -> AppLanguage
     private var verifying = false
 
-    /// The default classifier knows no facts, which raises the band: an
-    /// action whose target nobody looked at is critical, not free.
+    /// `classify` has no default on purpose: one that guesses the facts
+    /// lets hands act on a "Delete" button. Callers pass the real ones, or
+    /// `QAApprovalPolicy.bandWithoutFacts`.
     package init(
         enabled: @escaping @Sendable () -> Bool,
         owner: (any OwnerVerifying)?,
         disableQA: @escaping @Sendable () -> Void,
         language: @escaping @Sendable () -> AppLanguage,
-        classify: @escaping Classify = { name, arguments, _ in
-            ActionBand.classify(
-                toolName: name, arguments: ToolArguments.parse(arguments) ?? [:],
-                facts: ActionFacts()
-            )
-        }
+        classify: @escaping Classify
     ) {
         self.enabled = enabled
         self.owner = owner
@@ -50,6 +46,10 @@ package actor QAGate {
 
     package func decide(_ request: ApprovalRequest, call: ToolCallRef, said: String) async -> QAVerdict {
         guard enabled() else { return .notInQA }
+        // Either name can be the session grant: the band comes from one and
+        // the sheet exception from the other, so a mismatch must not slip by.
+        let session = BridgePolicy.sessionApprovalTool
+        if call.name == session || request.toolName == session { return .notInQA }
         let band = classify(call.name, call.arguments, said)
         switch QAApprovalPolicy.decide(band: band, tool: request.toolName) {
         case .sheet:
