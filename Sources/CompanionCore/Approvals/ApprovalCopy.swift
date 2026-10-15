@@ -487,3 +487,14 @@ package enum ApprovalCopy {
         }
     }
 }
+
+extension ApprovalCopy {
+    /// The system dialog's reason. Fixed on purpose: the payload is data an
+    /// agent controls, and this line is what the owner reads while deciding.
+    package static func ownerReason(_ language: AppLanguage) -> String {
+        switch language {
+        case .es: return "aprobar una acción crítica"
+        case .en: return "approve a critical action"
+        }
+    }
+}
