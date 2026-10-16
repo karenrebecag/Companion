@@ -30,6 +30,8 @@ package enum AnswerBlock: Sendable, Equatable {
     case card(CardPayload)
     case choice(ChoiceBlock)
     case diagram(DiagramBlock)
+    /// Blocks from a `present` call, already resolved to their components.
+    case presented([PresentRender])
 }
 
 package extension AnswerBlock {
@@ -99,6 +101,9 @@ package enum AnswerBlocks {
             }
             if settled, language == CompanionBlocks.diagramLanguage, let diagram = CompanionBlocks.diagram(body) {
                 return .diagram(diagram)
+            }
+            if settled, language == PresentFence.language, let renders = PresentFence.renders(body: body) {
+                return .presented(renders)
             }
             if let payload = fencePayload(language: language, body: body) {
                 return .card(payload)

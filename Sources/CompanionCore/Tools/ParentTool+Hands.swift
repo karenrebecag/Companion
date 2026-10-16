@@ -80,7 +80,7 @@ extension ParentTool {
                     + "Úsala para comprobar lo escrito.",
                 properties: [], required: [])
         case (.openApp, _), (.openURL, _), (.openFile, _), (.listApps, _), (.readSkill, _),
-             (.look, _), (.click, _), (.scroll, _), (.menu, _), (.see, _):
+             (.findBlock, _), (.look, _), (.click, _), (.scroll, _), (.menu, _), (.see, _):
             return spec(language)
         }
     }

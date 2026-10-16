@@ -294,7 +294,8 @@ import Testing
     vm.draft = "hola"
     vm.send()
     await pumpUntil("tools: idle") { !vm.busy }
-    expectEq(chat.toolsSeen, [.delegate()], "tools: siempre delegate")
+    expectEq(chat.toolsSeen, [.delegate(), PresentContract.presentSpec],
+             "tools: siempre delegate y present (sin parent tools)")
 }
 
 @MainActor func testChangeKeyCancelsARunningTurn() async {

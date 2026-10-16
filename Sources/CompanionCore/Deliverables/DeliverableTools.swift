@@ -135,6 +135,8 @@ package enum BridgeScope {
         NativeTool.parentDeliverables.contains { $0.rawValue == name } || name == WindowArrangeTool.name
             || name == MemoryTool.name
             || name == BrowserTool.setFiles.rawValue
+            // The block catalog only steers the chat's own replies; an outside agent has no reply to shape.
+            || name == ParentTool.findBlock.rawValue
     }
 
     package static func allows(_ name: String) -> Bool { bridgeTools.contains(name) }

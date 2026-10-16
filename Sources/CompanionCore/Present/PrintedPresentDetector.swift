@@ -8,10 +8,13 @@ package enum PrintedPresentDetector {
         /// The reply with the JSON (and any empty fence around it) removed.
         package var prose: String
         package var outcome: PresentOutcome
+        /// The call's own JSON, so it can be stored like a real call.
+        package var json: String
 
-        package init(prose: String, outcome: PresentOutcome) {
+        package init(prose: String, outcome: PresentOutcome, json: String) {
             self.prose = prose
             self.outcome = outcome
+            self.json = json
         }
     }
 
@@ -73,7 +76,7 @@ package enum PrintedPresentDetector {
         let outcome = PresentParser.parse(arguments: object)
         let before = String(chars[..<start])
         let after = String(chars[(end + 1)...])
-        return Hit(prose: joinedProse(before, after), outcome: outcome)
+        return Hit(prose: joinedProse(before, after), outcome: outcome, json: json)
     }
 
     /// A candidate that is not JSON is the normal case while scanning a reply,
