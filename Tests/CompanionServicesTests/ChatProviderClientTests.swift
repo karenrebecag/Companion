@@ -259,7 +259,7 @@ import Testing
     expectEq(tools.first?["type"] as? String, "function", "tools: type function")
     let fn = tools.first?["function"] as? [String: Any] ?? [:]
     expectEq(fn["name"] as? String, "delegate", "tools: function.name delegate")
-    expect(chatSystem(body).contains("call delegate"),
+    expect(chatSystem(body).contains("Call delegate only for heavy multi-step work"),
            "tools: system con delegateEnabled")
 }
 

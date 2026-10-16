@@ -316,24 +316,44 @@ package enum ChatPrompt: Sendable {
         }
     }
 
-    /// The web half is conditional on purpose. Promising search the product
-    /// cannot do sent the model to a tool that always failed, and it reported
-    /// back "I cannot search the web" instead of trying another route — the
-    /// promise was what captured the intent.
+    /// Live 2026-10-16 (gpt-4o): a comparison table took 18.8 s and left an
+    /// unrequested .md on the Desktop, "top 5 cities" 49 s, "tomorrow's
+    /// weather" 13 s — all delegated, while a direct answer takes 1 to 2.5 s.
+    /// The old rule sent anything touching files, commands, places or a page
+    /// to the specialist although the parent has its own tools for all of it.
+    /// Delegation is Companion's own feature (Incredible has none): only for
+    /// heavy multi-step work, skills/MCPs the parent lacks, long jobs, or a
+    /// parent tool that already failed.
+    /// The web half is conditional on purpose: promising search the product
+    /// cannot do sent the model to a tool that always failed, and the promise
+    /// was what captured the intent. Without web_search the parent's browser
+    /// is the route, not the specialist.
     private static func delegateRule(
         _ language: AppLanguage, web: Bool
     ) -> String {
         switch language {
         case .en:
-            let reach = web
-                ? "this Mac's tools AND WEB SEARCH"
-                : "this Mac's tools, and it can look up real places and open "
-                    + "a page by URL"
-            return "The specialist DOES have a shell, the files, \(reach). "
-                + "For anything that reads or changes files, runs commands, "
-                + "does technical work, looks up places or reads a page: call "
-                + "delegate. Typing into a field or app, and pressing its "
-                + "buttons or menus, is never delegated. "
+            let search = web
+                ? "To search the internet use web_search. "
+                : "To search the internet without web_search, open a search "
+                    + "with browser_open and read it with browser_read. "
+            return "Answer yourself everything that comes from your own "
+                + "knowledge: explanations, comparisons, tables, charts, "
+                + "lists, example code, calculations. That is never "
+                + "delegated and never creates a file nobody asked for. "
+                + "Use your own tools first (the ones declared to you): "
+                + "read_file, write_file, list_directory and run_shell for "
+                + "files and short commands, web_fetch to read a URL, "
+                + "find_places for places, the browser and your hands. "
+                + search
+                + "Call delegate only for heavy multi-step work "
+                + "(\"refactor this repo\", \"fix this bug and run the "
+                + "tests\", \"research this in depth\"), for work that needs "
+                + "a skill or MCP only the specialist has (\"use the skill X\"), "
+                + "for long jobs, or when one of your own tools already "
+                + "failed. The specialist has a shell, the files, skills and "
+                + "MCPs on this Mac. Typing into a field or app, and pressing "
+                + "its buttons or menus, is never delegated. "
                 + "You may say one short sentence before delegating. "
                 + "If asked how "
                 + "you work: the delegate tool runs a specialist agent on this "
@@ -341,15 +361,27 @@ package enum ChatPrompt: Sendable {
                 + "executor — and you speak with the user. Be "
                 + "plain about it; there is nothing to hide."
         case .es:
-            let reach = web
-                ? "las herramientas de esta Mac Y BÚSQUEDA EN INTERNET"
-                : "las herramientas de esta Mac, y puede consultar lugares "
-                    + "reales y abrir una página por su URL"
-            return "El especialista SÍ tiene una shell, los archivos, "
-                + "\(reach). Para todo lo que lea o cambie archivos, corra "
-                + "comandos, sea trabajo técnico, consulte lugares o lea una "
-                + "página: llama a delegate. Escribir en un campo o app, o "
-                + "pulsar sus botones o menús, no se delega. Puedes decir una frase corta "
+            let search = web
+                ? "Para buscar en internet usa web_search. "
+                : "Para buscar en internet sin web_search, abre una búsqueda "
+                    + "con browser_open y léela con browser_read. "
+            return "Contesta tú todo lo que sale de tu conocimiento: "
+                + "explicaciones, comparaciones, tablas, gráficas, listas, "
+                + "código de ejemplo, cálculos. Eso nunca se delega y nunca "
+                + "crea archivos que no se pidieron. Usa primero tus tools "
+                + "propias (las que tengas declaradas): read_file, "
+                + "write_file, list_directory y run_shell para archivos y "
+                + "comandos cortos, web_fetch para leer una URL, find_places "
+                + "para lugares, el navegador y tus manos. "
+                + search
+                + "Llama a delegate solo para trabajo pesado de varios pasos "
+                + "(«refactoriza este repo», «arregla este bug y corre los "
+                + "tests», «investiga esto a fondo»), para lo que necesita una "
+                + "skill o un MCP que solo tiene el especialista («usa la "
+                + "skill X»), para trabajos largos, o cuando una tool tuya ya "
+                + "falló. El especialista tiene shell, archivos, skills y "
+                + "MCPs en esta Mac. Escribir en un campo o app, o pulsar sus "
+                + "botones o menús, no se delega. Puedes decir una frase corta "
                 + "antes de delegar. Si te preguntan cómo funcionas: la tool delegate "
                 + "corre un agente especialista en esta Mac — Claude Code si "
                 + "está instalado, o un ejecutor nativo integrado — y tú "

@@ -164,8 +164,10 @@ import Testing
            "spec: la fuente inglesa nombra al especialista")
     expect(ToolSpec.delegate(.es).description.contains("especialista"),
            "spec: la traducción conserva el wording original")
-    expect(ToolSpec.delegate().description.contains("internet"),
-           "spec: delegate menciona internet")
+    expect(ToolSpec.delegate().description.contains("Only for heavy multi-step work"),
+           "spec: delegate se reserva para trabajo pesado")
+    expect(ToolSpec.delegate().description.contains("Never for explanations"),
+           "spec: delegate nunca para lo que el modelo contesta solo")
     expect(ToolSpec.resolveApproval().description.contains("permission"),
            "spec: descripción de approval en la fuente")
 

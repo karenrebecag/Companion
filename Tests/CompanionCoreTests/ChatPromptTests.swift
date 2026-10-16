@@ -11,6 +11,7 @@ import Testing
     testPromptPersonalityAlways()
     testPromptIdentity()
     testPromptDelegateEnabled()
+    testDelegateRuleOnlyForHeavyWork()
     testPromptDelegateDisabled()
     testPromptOwnerEdges()
     testPromptProfileBlock()
@@ -96,6 +97,21 @@ import Testing
            "prompt: si no sabe, lo dice")
 }
 
+@MainActor func testDelegateRuleOnlyForHeavyWork() {
+    for language in [AppLanguage.es, .en] {
+        let p = ChatPrompt.system(
+            ownerFirstName: "Karen", delegateEnabled: true, language: language)
+        let heavy = language == .es ? "solo para trabajo pesado de varios pasos" : "only for heavy multi-step work"
+        expect(p.contains(heavy), "delegar \(language): solo trabajo pesado")
+        let own = language == .es ? "nunca crea archivos que no se pidieron" : "never creates a file nobody asked for"
+        expect(p.contains(own), "delegar \(language): el conocimiento propio no se delega ni crea archivos")
+        let old = language == .es ? "Para todo lo que lea o cambie archivos" : "anything that reads or changes files"
+        expect(!p.contains(old), "delegar \(language): la regla vieja ya no está")
+        expect(!ToolSpec.delegate(language).description.contains(language == .es ? "TODO lo que toque disco" : "ANYTHING touching disk"),
+               "delegar \(language): la tool no promete TODO")
+    }
+}
+
 @MainActor func testPromptDelegateEnabled() {
     let p = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: true, language: .es)
     expect(p.contains("delegate"),
@@ -111,15 +127,15 @@ import Testing
     // el producto no puede hacer mandaba al modelo a una tool que siempre
     // fallaba, y volvia diciendo "no puedo buscar en la web" en vez de probar
     // otra via. La promesa era lo que capturaba la intencion (Wave 9f).
-    expect(!p.contains("INTERNET"),
-           "prompt: sin busqueda configurada no se promete internet")
+    expect(!p.contains("usa web_search") && p.contains("browser_open"),
+           "prompt: sin busqueda configurada se usa el navegador propio, no se delega")
     expect(p.contains("lugares"),
            "prompt: pero si lo que de verdad puede — consultar lugares")
     let withWeb = ChatPrompt.system(
         ownerFirstName: "Karen", delegateEnabled: true,
         webSearchEnabled: true, language: .es)
-    expect(withWeb.contains("INTERNET"),
-           "prompt: con busqueda configurada si se promete")
+    expect(withWeb.contains("usa web_search"),
+           "prompt: con busqueda configurada se usa web_search")
     expect(p.contains("Español, cálido, directo, 2 a 4 frases."),
            "prompt: delegar no se come la personalidad")
     expect(!p.contains("realtime"),
