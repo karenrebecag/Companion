@@ -91,7 +91,7 @@ extension NativeTool {
     /// Offered by the parent itself (spec 20b D2): with Claude Code installed
     /// every delegation goes to it, and it has none of these. The history
     /// tools are here too: they are the way back from the saves above.
-    package static let parentDeliverables: [NativeTool] = [.createDocument, .sheetRead, .sheetWrite, .listFileHistory, .restoreFileVersion]
+    package static let parentDeliverables: [NativeTool] = [.listDirectory, .readFile, .createDocument, .sheetRead, .sheetWrite, .listFileHistory, .restoreFileVersion]
 }
 
 /// What the MCP bridge may drive (20c D6, M9). An ALLOWLIST: a tool the
@@ -133,6 +133,7 @@ package enum BridgeScope {
     package static func isLocalOnly(_ name: String) -> Bool {
         // An outside agent must not hand the user's files to a page (D5).
         NativeTool.parentDeliverables.contains { $0.rawValue == name } || name == WindowArrangeTool.name
+            || name == MemoryTool.name
             || name == BrowserTool.setFiles.rawValue
     }
 

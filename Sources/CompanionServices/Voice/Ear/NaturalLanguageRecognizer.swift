@@ -7,14 +7,23 @@ import NaturalLanguage
 /// Spanish sentence full of product names reads as Catalan or Portuguese
 /// with enough confidence to be dropped.
 package struct NaturalLanguageRecognizer: LanguageRecognizing {
-    package init() {}
+    private let constrainToAppLanguages: Bool
+
+    /// The mouth gate wants es/en only (its question is "is this the app's
+    /// language"); the inspection that labels a reply must see any language,
+    /// or a clear Portuguese text is forced into the nearest allowed one.
+    package init(constrainToAppLanguages: Bool = true) {
+        self.constrainToAppLanguages = constrainToAppLanguages
+    }
 
     package func dominant(_ text: String) -> DetectedLanguage? {
         // A fresh recognizer per call: NLLanguageRecognizer is a mutable
         // class, and the mouth may be asked from more than one turn.
         let recognizer = NLLanguageRecognizer()
-        recognizer.languageConstraints = AppLanguage.allCases.map {
-            NLLanguage(rawValue: $0.rawValue)
+        if constrainToAppLanguages {
+            recognizer.languageConstraints = AppLanguage.allCases.map {
+                NLLanguage(rawValue: $0.rawValue)
+            }
         }
         recognizer.processString(text)
         guard let language = recognizer.dominantLanguage else { return nil }

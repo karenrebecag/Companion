@@ -25,7 +25,7 @@ package struct SelfInspectionRunner: ParentToolExecuting, Sendable {
 
     package init(
         source: any SelfInspecting,
-        recognizer: any LanguageRecognizing = NaturalLanguageRecognizer(),
+        recognizer: any LanguageRecognizing = NaturalLanguageRecognizer(constrainToAppLanguages: false),
         language: @escaping @Sendable () -> AppLanguage,
         logTail: @escaping @Sendable (Int) -> [String] = { Log.tail(lines: $0) },
         now: @escaping @Sendable () -> Date = { Date() },

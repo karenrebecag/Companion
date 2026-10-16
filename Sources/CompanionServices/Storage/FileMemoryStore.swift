@@ -5,7 +5,11 @@ import Foundation
 /// `core.md` is the stable profile, `sessions/` holds one short summary per
 /// session, `notes/` holds what the specialist was asked to remember. No
 /// vectors, no database — files are debuggable and honest (9j-2).
-package final class FileMemoryStore: MemoryStore, MemoryBrowsing, @unchecked Sendable {
+package final class FileMemoryStore: MemoryStore, MemoryBrowsing, MemoryNoting, @unchecked Sendable {
+    /// One remembered fact is one file, so the cap is on facts: five dropped
+    /// the first thing she asked to remember at the sixth.
+    static let noteLimit = 20
+
     private let root: URL
     private let recentSessions: Int
 
@@ -40,7 +44,7 @@ package final class FileMemoryStore: MemoryStore, MemoryBrowsing, @unchecked Sen
         return MemoryPack(
             core: core.trimmingCharacters(in: .whitespacesAndNewlines),
             recentSessions: recentFiles(in: "sessions", limit: recentSessions),
-            notes: recentFiles(in: "notes", limit: 5))
+            notes: recentFiles(in: "notes", limit: Self.noteLimit))
     }
 
     package func appendSession(_ summary: String) throws {
@@ -48,6 +52,15 @@ package final class FileMemoryStore: MemoryStore, MemoryBrowsing, @unchecked Sen
         let stamp = Self.stamp()
         let file = root.appendingPathComponent("sessions/\(stamp).md")
         try summary.write(to: file, atomically: true, encoding: .utf8)
+    }
+
+    /// One file per fact so Settings › Memoria can forget each on its own;
+    /// the suffix keeps two facts saved in the same second apart.
+    package func remember(_ fact: String) throws {
+        ensureDirectories()
+        let name = "\(Self.stamp())-\(UUID().uuidString.prefix(4)).md"
+        try fact.write(
+            to: root.appendingPathComponent("notes/\(name)"), atomically: true, encoding: .utf8)
     }
 
     // MARK: - Settings › Memoria (16g)

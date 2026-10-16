@@ -247,7 +247,7 @@ package final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
             properties: [ToolProperty(
                 name: "app", type: "string",
                 description: "Slug of a connected app, as listed in this tool's description.")],
-            required: ["app"])
+            required: ["app"], appSlugs: cache.map(\.slug))
     }
 
     private func discover(_ argumentsJSON: String) -> ParentToolOutcome {

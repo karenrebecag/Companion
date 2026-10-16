@@ -233,7 +233,8 @@ private func makeBody(
             handsEnabled: handsEnabled,
             sightEnabled: tools.contains { $0.name == ParentTool.look.rawValue },
             about: about, instructions: instructions, language: language,
-            memory: memory, skills: skills, voice: voice),
+            memory: memory, skills: skills, voice: voice,
+            connectedApps: tools.flatMap(\.appSlugs)),
     ]]
     let window = max(settings.historyWindow, 0)
     for turn in history.suffix(window) {

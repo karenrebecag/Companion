@@ -10,6 +10,8 @@ extension ParentToolRunner {
     var deliverables: [NativeTool] {
         NativeTool.parentDeliverables.filter { tool in
             switch tool {
+            // Safe reads, behind the same workdir barrier as the specialist.
+            case .listDirectory, .readFile: workdir != nil
             case .createDocument: documents != nil
             case .sheetRead, .sheetWrite: sheets != nil
             case .listFileHistory, .restoreFileVersion: versions != nil

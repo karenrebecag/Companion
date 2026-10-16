@@ -38,6 +38,9 @@ package struct ToolSpec: Sendable, Equatable {
     /// Marks the optional tail of a request: when a provider caps the tool
     /// count, these are what gives way, never the core.
     package var isConnectedApp: Bool
+    /// Only the discovery tool sets it: the prompt lists these names so the
+    /// model knows there is something to discover.
+    package var appSlugs: [String]
 
     package init(
         name: String,
@@ -45,7 +48,8 @@ package struct ToolSpec: Sendable, Equatable {
         properties: [ToolProperty],
         required: [String],
         rawParametersJSON: String? = nil,
-        isConnectedApp: Bool = false
+        isConnectedApp: Bool = false,
+        appSlugs: [String] = []
     ) {
         self.name = name
         self.description = description
@@ -53,6 +57,7 @@ package struct ToolSpec: Sendable, Equatable {
         self.required = required
         self.rawParametersJSON = rawParametersJSON
         self.isConnectedApp = isConnectedApp
+        self.appSlugs = appSlugs
     }
 
     /// Names are wire contract and never translate; descriptions are read by
