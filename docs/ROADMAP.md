@@ -10,7 +10,7 @@
 | 3 | Voz | APROBADO / EN CURSO | **Conversacion por voz con barge-in** |
 | 4 | Delegacion | CERRADA (4a y 4b) | **Especialista integrado sin instalar nada** |
 | 5 | Producto | CERRADA (5a-5e) | **Distribuible open source** |
-| 6 | Paridad y craft | 6a CERRADA; 6c CERRADA; 6b EN CURSO | **Iguala o supera al prototipo en uso diario** |
+| 6 | Paridad y craft | 6a CERRADA (spec borrada); 6c CERRADA; 6b EN CURSO | **Iguala o supera al prototipo en uso diario** |
 | 7 | Delegacion de verdad | CERRADA (7a y 7b, 2026-08-21) | **"Crea un archivo" por voz termina en archivo real** |
 | 8 | Cabos sueltos | CERRADA (2026-08-22) | **Nada probado se queda sin cablear; ningun doc miente** |
 | 9 | Que la use alguien que no seas tu | EN CURSO | **Un desconocido instala, pega su key y conversa** |
@@ -27,6 +27,20 @@
 | DM1 | Router: decidir barato, escalar poco, aprobar solo lo irreversible (`docs/specs/wave-dm1-router.md`) | EN CURSO (2026-09-22): **DM1a hecha** — Core puro (`Decision`, `Candidates`, `Plan`, `Arbitration`), 16 tests dm1, reviews APPROVE; DM1b (adapters) espera DM0 cerrada, DM1c (cableado) espera hold + oído | **"Abre Safari" sin tool call del modelo fuerte y sin hoja; lo irreversible confirma por voz** |
 
 ## Foco actual
+
+### Isla, puente de QA y endurecimiento (PRs #303-#325, 2026-10-12 a 2026-10-16)
+
+- Isla: la respuesta terminada y el recibo son una tarjeta de resultado; documento de resultado con composer
+  y respuestas de voz; el trabajo del especialista como agent-run de Arc en el chat y en el notch (#303-#309,
+  #321). Las esferas animadas se quitaron por rendimiento y la app no dibuja sin ventana visible (#310, #311).
+- Puente de QA: spec de `companion_ask`/modo QA/Touch ID (#313), puerto de prueba de dueña sin cablear (#314),
+  modo QA y `companion_wait_turn` sin hojas (#318). Falta cablear el puerto y la prueba en vivo.
+- Navegador y manos: Comet, divs clicables y formularios (#315, #316); `look` se re-fija y los timeouts no son un
+  "no" (#317); manos con Companion al frente (#320); lo que `look` y las tools de lectura entregan se redacta
+  antes del modelo (#322).
+- Chat: tools por proveedor y por turno con `max_tokens` acotado (#319), delegar solo trabajo pesado (#324),
+  escala tipográfica de 4 para las respuestas (#323).
+- Limpieza: el juez de acciones (sombra, sin lectores) salió del árbol.
 
 ### Entregables como Incredible (Wave 20, cerrada en código 2026-09-28)
 

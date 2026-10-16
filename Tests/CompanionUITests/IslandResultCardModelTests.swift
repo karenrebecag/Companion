@@ -89,3 +89,15 @@ private func source(_ title: String, _ url: String) -> MarkdownSplitter.SourceLi
     expectEq(IslandResultCardModel.localizedAppName("Notes", language: .es), "Notas", "app: Notas en espanol")
     expectEq(IslandResultCardModel.localizedAppName("Notes", language: .en), "Notes", "app: Notes en ingles")
 }
+
+@Test @MainActor func testTheTitleComesFromTheReplysOwnHeadingAndIsNotRepeated() {
+    let blocks = IslandResultCardModel.document(of: "# Swift frente a TypeScript\n\nSwift compila; TypeScript se transpila.").blocks
+    let split = IslandResultCardModel.splitHeading(blocks)
+    expectEq(split.title, "Swift frente a TypeScript", "titulo: sale del encabezado, no de la pregunta")
+    expect(!split.body.contains(.title("Swift frente a TypeScript")), "titulo: no se repite en el cuerpo")
+    expectEq(split.body.count, 1, "titulo: el resto del cuerpo queda")
+    let plain = IslandResultCardModel.splitHeading(
+        IslandResultCardModel.document(of: "Swift compila; TypeScript se transpila.").blocks)
+    expectEq(plain.title, nil, "titulo: sin encabezado no hay titulo propio")
+    expectEq(plain.body.count, 1, "titulo: y el cuerpo queda intacto")
+}

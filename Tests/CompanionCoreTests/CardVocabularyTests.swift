@@ -8,6 +8,7 @@ import Testing
     testTheVocabularyLivesInExactlyOnePlace()
     testItWarnsAgainstInventingCoordinates()
     testItTravelsInBothLanguages()
+    testItAsksForTheChoiceCardWhenOfferingOptions()
 }
 
 @MainActor func testBothPromptsTeachTheSameSyntax() {
@@ -56,4 +57,17 @@ import Testing
            "el vocabulario en inglés no arrastra español")
     expect(CardVocabulary.text(.es).contains("tarjeta"),
            "y el español está escrito, no traducido a medias")
+}
+
+@MainActor func testItAsksForTheChoiceCardWhenOfferingOptions() {
+    // QA en vivo 2026-10-16: «dame 3 opciones para elegir con un clic»
+    // devolvio una lista numerada aunque la tarjeta ya existia.
+    for language in [AppLanguage.en, .es] {
+        let chat = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false, language: language)
+        expect(chat.contains(CompanionBlocks.choiceLanguage),
+               "\(language): la charla conoce la tarjeta de opciones")
+        let rule = language == .en ? "instead of the list" : "en lugar de la lista"
+        expect(chat.contains(rule), "\(language): pide la tarjeta y no la lista numerada")
+        expect(chat.contains("```math"), "\(language): las formulas van en Unicode dentro de un bloque math")
+    }
 }

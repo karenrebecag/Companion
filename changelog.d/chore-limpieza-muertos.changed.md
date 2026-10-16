@@ -1,0 +1,1 @@
+- 2026-10-16: se quitan el juez de acciones en sombra (`ActionJudging` y su flag `COMPANION_ACTION_JUDGE`, sin lectores en producción), con sus pruebas y el corpus; `UserWords` se queda en `Bridge/`. `set_speech_speed` se conserva: es trabajo a medias de la spec viva de velocidad de voz. Se borran las specs cerradas wave-6a y wave-13a y el ROADMAP recoge el 12 al 16 de octubre.

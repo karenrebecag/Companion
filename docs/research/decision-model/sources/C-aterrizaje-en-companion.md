@@ -371,7 +371,7 @@ Direct quotes, with sources:
 
 6. **Wave 13a vision** — the screenshot is **never** sent to the realtime
    model; only a capped SUMMARY (≤400 chars) + up to 12 SNIPPETS (≤80 chars
-   each) are (`docs/specs/wave-13a-ver-la-pantalla.md` §3.3). This is the
+   each) are (`docs/specs/wave-13a-ver-la-pantalla.md` §3.3, spec borrada al cerrar: `git log --diff-filter=D -- docs/specs/wave-13a-ver-la-pantalla.md`). This is the
    repo's existing philosophy for "on-screen elements as candidates": never
    hand the model raw pixels/DOM, hand it a small enumerated, capped,
    labeled set — precisely the shape jev-voice wants for "indexed on-screen
@@ -521,7 +521,7 @@ already in the repo:
   absent → base tier falls back cleanly (`StartupState`, `LocalModels.swift:
   164-179`); dictation injector failure → words go to Companion, nothing
   lost (§5.5); low screen-vision confidence → `<screen_summary pending=
-  "true"/>` rather than blocking (`wave-13a` §3.2). A decision layer that
+  "true"/>` rather than blocking (`wave-13a` §3.2, spec borrada). A decision layer that
   can't clear its threshold should degrade to exactly the current flow
   (model emits the tool call itself), not to silence, and definitely not to
   "not sure" spoken back with no path forward for the trivial 90% case —

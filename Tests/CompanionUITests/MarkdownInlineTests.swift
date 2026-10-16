@@ -29,3 +29,12 @@ import Testing
     let honest = MarkdownView.inline("[cnn.com](https://www.cnn.com/mexico)")
     expectEq(honest.runs.first?.link?.host, "www.cnn.com", "mismo sitio: se abre")
 }
+
+// Seen live 2026-10-16: `\[ x = ... \]` showed the closing bar and lost the
+// opening one, because markdown reads `\[` as an escape.
+@Test func markdownKeepsTheBackslashOfMathDelimiters() {
+    let shown = String(MarkdownView.inline(#"\[ x = \frac{-b}{2a} \]"#).characters)
+    expectEq(shown, #"\[ x = \frac{-b}{2a} \]"#, "matematica: ni \\[ ni \\] pierden la barra")
+    expectEq(String(MarkdownView.inline(#"f\(x\) y \*sin negrita\*"#).characters), #"f\(x\) y *sin negrita*"#,
+             "matematica: \\( se conserva y los demas escapes siguen escapando")
+}

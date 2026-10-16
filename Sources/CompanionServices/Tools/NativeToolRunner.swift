@@ -50,7 +50,6 @@ package struct NativeToolRunner: Sendable {
     static let maxSkillBody = 40_000
     /// Enough to recognise a name, short of pasting a whole disk into the
     /// model's context.
-    private static let maxListEntries = 250
     private static let maxListDepth = 3
 
     /// Injectable timeout: the tests must not sit through a real minute of
@@ -446,49 +445,20 @@ package struct NativeToolRunner: Sendable {
             if let tcc = Self.fullDiskAccessFailure(error) { return tcc }
         }
 
-        var lines: [String] = []
-        var total = 0
-        collect(realPath, prefix: "", depth: depth, into: &lines, total: &total)
-
-        if lines.isEmpty {
+        let tree = DirectoryTree.build(
+            realPath, title: URL(fileURLWithPath: realPath).lastPathComponent, depth: depth)
+        guard !tree.nodes.isEmpty else {
             return ToolResult(ok: true, output: "(empty folder)")
         }
-        var output = lines.joined(separator: "\n")
-        if total > lines.count {
+        var output = tree.text.joined(separator: "\n")
+        if tree.truncated {
             // Never a silent cap: a truncated listing that does not say so
             // reads as "this is everything", which is a lie about the folder.
-            output += "\n… \(total) entries in total, \(lines.count) shown."
+            output += "\n… \(tree.total) entries in total, \(tree.shown) shown."
         }
-        return ToolResult(ok: true, output: output)
-    }
-
-    private func collect(
-        _ dir: String, prefix: String, depth: Int,
-        into lines: inout [String], total: inout Int
-    ) {
-        let names: [String]
-        do {
-            names = try FileManager.default.contentsOfDirectory(atPath: dir)
-        } catch {
-            lines.append("\(prefix)(unreadable folder)")
-            return
-        }
-        // Dotfiles are noise for the question this tool answers, and a home
-        // folder has hundreds of them.
-        let visible = names.filter { !$0.hasPrefix(".") }.sorted()
-        total += visible.count
-        for name in visible {
-            guard lines.count < Self.maxListEntries else { return }
-            let full = (dir as NSString).appendingPathComponent(name)
-            var isDir: ObjCBool = false
-            FileManager.default.fileExists(atPath: full, isDirectory: &isDir)
-            lines.append(prefix + name + (isDir.boolValue ? "/" : ""))
-            if isDir.boolValue, depth > 1 {
-                collect(
-                    full, prefix: prefix + "  ", depth: depth - 1,
-                    into: &lines, total: &total)
-            }
-        }
+        return ToolResult(
+            ok: true, output: output,
+            card: Card(payload: .tree(tree), source: .tool))
     }
 
     private func runShell(arguments: [String: Any]) async -> ToolResult {

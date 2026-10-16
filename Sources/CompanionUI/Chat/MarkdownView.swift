@@ -72,10 +72,9 @@ package struct MarkdownView: View {
                 codeBlock(body, language: language)
             }
         case .table(let headers, let rows):
-            Text(tableText(headers: headers, rows: rows))
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(Semantic.foreground)
-                .textSelection(.enabled)
+            // Tables from answers, MCP results and sheets are figures to
+            // compare: they sort like a table card, not as monospace text.
+            CardView(card: Card(payload: .table(TableBlock(columns: headers, rows: rows)), source: .model))
         }
     }
 
@@ -106,7 +105,7 @@ package struct MarkdownView: View {
     nonisolated static func inline(_ text: String) -> AttributedString {
         let options = AttributedString.MarkdownParsingOptions(
             interpretedSyntax: .inlineOnlyPreservingWhitespace, failurePolicy: .returnPartiallyParsedIfPossible)
-        guard var parsed = try? AttributedString(markdown: text, options: options) else {
+        guard var parsed = try? AttributedString(markdown: keepingMathDelimiters(text), options: options) else {
             return AttributedString(text)
         }
         // Ranges first: writing while walking the runs invalidates them.
@@ -118,6 +117,13 @@ package struct MarkdownView: View {
         }
         for range in unsafe { parsed[range].link = nil }
         return parsed
+    }
+
+    /// Markdown takes `\[` and `\(` as escapes and drops the backslash, so a
+    /// formula lost its opening mark and kept the closing one. Doubling the
+    /// backslash makes the parser print the one that was written.
+    nonisolated static func keepingMathDelimiters(_ text: String) -> String {
+        text.replacing(/\\([\[\]()])/) { "\\\\" + $0.1 }
     }
 
     /// A label that reads as one site while the link goes to another is a
@@ -143,12 +149,6 @@ package struct MarkdownView: View {
         let indent = String(repeating: "  ", count: item.depth)
         let mark = ordered ? "\(index + 1)." : "•"
         return "\(indent)\(mark) \(item.text)"
-    }
-
-    private func tableText(headers: [String], rows: [[String]]) -> String {
-        let head = headers.joined(separator: " | ")
-        let body = rows.map { $0.joined(separator: " | ") }.joined(separator: "\n")
-        return body.isEmpty ? head : head + "\n" + body
     }
 
     /// Layout glyphs, not copy: the number and the dash never localize.
