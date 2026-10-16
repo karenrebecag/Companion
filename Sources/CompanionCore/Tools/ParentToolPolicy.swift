@@ -57,13 +57,15 @@ package enum ParentToolPolicy {
         return url
     }
 
-    /// The parent opens what the user names, anywhere under $HOME — a
-    /// different scope from the specialist's workdir on purpose.
-    package static func homePath(_ raw: String, home: URL) throws(ContractError) -> URL {
-        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { throw .invalidArgs("path is empty") }
-        guard text.utf8.count <= maxInputLength else { throw .invalidArgs("path is too long") }
+    /// The parent opens what the user names, anywhere under $HOME. A bare name
+    /// is looked for in the working folder first, the same reading the file
+    /// tools use, and falls back to home.
+    package static func homePath(_ raw: String, home: URL, workdir: String? = nil) throws(ContractError) -> URL {
+        let named = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !named.isEmpty else { throw .invalidArgs("path is empty") }
+        guard named.utf8.count <= maxInputLength else { throw .invalidArgs("path is too long") }
         let lexicalHome = home.standardizedFileURL.path
+        let text = bareInWorkdir(named, workdir: workdir, home: lexicalHome)
         // realpath(3) for both sides: Foundation's resolver strips
         // `/private`, realpath keeps it, and a home under /var would never
         // match itself.
@@ -109,6 +111,12 @@ package enum ParentToolPolicy {
     }
 
     // MARK: - private
+
+    private static func bareInWorkdir(_ text: String, workdir: String?, home: String) -> String {
+        guard let workdir, !text.hasPrefix("/"), !text.hasPrefix("~") else { return text }
+        let inWorkdir = PathValidator.resolve(text, bound: workdir, home: home)
+        return FileManager.default.fileExists(atPath: inWorkdir) ? inWorkdir : text
+    }
 
     private static func expand(_ text: String, home: String) -> String {
         PathValidator.resolve(text, bound: nil, home: home)

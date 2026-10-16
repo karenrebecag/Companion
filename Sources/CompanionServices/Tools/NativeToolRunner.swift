@@ -172,6 +172,12 @@ package struct NativeToolRunner: Sendable {
 
     // MARK: - Tool Implementations
 
+    /// A bare name is read from a folder the model did not name, so the answer
+    /// says which one; a full path already says it.
+    static func whereRead(_ path: String, _ real: String) -> String {
+        path.hasPrefix("/") || path.hasPrefix("~") ? "" : "Path: \(real)\n"
+    }
+
     private func readFile(arguments: [String: Any]) throws -> ToolResult {
         guard let path = arguments["path"] as? String else {
             return ToolResult(ok: false, output: "Missing path argument")
@@ -193,7 +199,7 @@ package struct NativeToolRunner: Sendable {
                     output: content.prefix(maxSize) + "\n... (truncated)"
                 )
             }
-            return ToolResult(ok: true, output: content)
+            return ToolResult(ok: true, output: Self.whereRead(path, realPath) + content)
         } catch {
             if let tcc = Self.fullDiskAccessFailure(error) { return tcc }
             return ToolResult(ok: false, output: "Failed to read file: \(error)")
@@ -236,7 +242,7 @@ package struct NativeToolRunner: Sendable {
             }
             return ToolResult(
                 ok: true,
-                output: "File written successfully"
+                output: "File written successfully: \(realPath)"
                     + syncSuffix(realPath, previous: previous, content: content))
         } catch {
             return ToolResult(ok: false, output: "Failed to write file: \(error)")
@@ -353,7 +359,7 @@ package struct NativeToolRunner: Sendable {
             try content.write(toFile: realPath, atomically: true, encoding: .utf8)
             return ToolResult(
                 ok: true,
-                output: "File edited successfully"
+                output: "File edited successfully: \(realPath)"
                     + syncSuffix(realPath, previous: previous, content: content))
         } catch {
             return ToolResult(ok: false, output: "Failed to edit file: \(error)")
@@ -454,7 +460,7 @@ package struct NativeToolRunner: Sendable {
                 ok: true, output: "(empty folder)",
                 card: Card(payload: .empty(.folder), source: .tool))
         }
-        var output = tree.text.joined(separator: "\n")
+        var output = Self.whereRead(path, realPath) + tree.text.joined(separator: "\n")
         if tree.truncated {
             // Never a silent cap: a truncated listing that does not say so
             // reads as "this is everything", which is a lie about the folder.

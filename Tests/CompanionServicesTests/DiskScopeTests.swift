@@ -25,6 +25,56 @@ import Testing
            "escribir: no cae en el home")
 }
 
+// A bare name reads what the write made: the working folder first, the home
+// folder only when the working folder has no such file. The answer says where.
+@Test func aBareNameReadFindsWhatTheWriteMadeAndSaysWhere() async throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent("qa4-\(UUID().uuidString)")
+    let work = base.appendingPathComponent("work"), home = base.appendingPathComponent("home")
+    try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let runner = NativeToolRunner(workdir: work.path, home: home)
+    let written = try await runner.execute(
+        tool: "write_file", arguments: ["path": "informe.txt", "content": "hola"], approved: true)
+    expect(written.ok, "escribir: ok")
+    expect(written.output.contains(work.resolvingSymlinksInPath().path + "/informe.txt"),
+           "escribir: la salida dice la ruta absoluta, dijo \(written.output)")
+    let read = try await runner.execute(tool: "read_file", arguments: ["path": "informe.txt"], approved: true)
+    expect(read.ok && read.output.contains("hola"), "leer: encuentra lo que escribió, dijo \(read.output)")
+    expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("informe.txt").path),
+           "escribir y leer no tocan el home")
+}
+
+@Test func aBareReadPrefersTheWorkdirAndFallsBackToHome() async throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent("qa4-\(UUID().uuidString)")
+    let work = base.appendingPathComponent("work"), home = base.appendingPathComponent("home")
+    try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    try "en home".write(to: home.appendingPathComponent("solo.txt"), atomically: true, encoding: .utf8)
+    try "trabajo".write(to: work.appendingPathComponent("ambos.txt"), atomically: true, encoding: .utf8)
+    try "home".write(to: home.appendingPathComponent("ambos.txt"), atomically: true, encoding: .utf8)
+    let runner = NativeToolRunner(workdir: work.path, home: home)
+    let fallback = try await runner.execute(tool: "read_file", arguments: ["path": "solo.txt"], approved: true)
+    expect(fallback.output.contains("en home"), "sin copia en el workdir: se lee del home")
+    let both = try await runner.execute(tool: "read_file", arguments: ["path": "ambos.txt"], approved: true)
+    expect(both.output.contains("trabajo") && !both.output.contains("home"), "en los dos: gana el workdir")
+}
+
+// open_file reads a bare name the same way: the working folder first.
+@Test func aBareOpenFindsTheWorkdirFileBeforeHome() throws {
+    // The workdir sits under home, as a real one does: open_file stays inside home.
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent("qa4-\(UUID().uuidString)")
+    let home = base.appendingPathComponent("home"), work = home.appendingPathComponent("work")
+    try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    FileManager.default.createFile(atPath: work.appendingPathComponent("informe.txt").path, contents: Data())
+    let opened = try ParentToolPolicy.homePath("informe.txt", home: home, workdir: work.path)
+    expectEq(opened.resolvingSymlinksInPath().path, work.appendingPathComponent("informe.txt").resolvingSymlinksInPath().path,
+             "abrir: el nombre suelto se busca primero en el workdir")
+}
+
 private func scratchDir() throws -> String {
     let path = FileManager.default.temporaryDirectory
         .appendingPathComponent("disk-\(UUID().uuidString)").resolvingSymlinksInPath().path

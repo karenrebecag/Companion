@@ -197,12 +197,18 @@ package struct PathValidator: Sendable {
         self.roots = roots
     }
 
-    /// The one reading of a file-tool path, shared by every tool that takes
-    /// one and by the chips. With the disk open the working folder bounds
-    /// nothing, so a relative path is taken from home; a bounded working
-    /// folder is its base; no working folder means home.
+    /// The one reading of a path that is read, listed or opened. A bounded
+    /// working folder is the base. With the disk open a bare name is taken
+    /// from the working folder when that has it, and from home otherwise: one
+    /// answer, never a mix of the two. Writes use `writeTarget`.
     package func absolute(_ path: String) -> String {
-        Self.resolve(path, bound: wholeDisk ? nil : workdir, home: home)
+        let expanded = Self.expandHome(path, home: home)
+        guard wholeDisk, !expanded.hasPrefix("/"), let workdir else {
+            return Self.resolve(path, bound: wholeDisk ? nil : workdir, home: home)
+        }
+        let inWorkdir = Self.resolve(path, bound: workdir, home: home)
+        if FileManager.default.fileExists(atPath: inWorkdir) { return inWorkdir }
+        return Self.resolve(path, bound: nil, home: home)
     }
 
     /// Where a file that is created or written lands when its name is bare:

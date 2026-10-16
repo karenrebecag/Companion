@@ -305,7 +305,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         let target = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let url: URL
         do {
-            url = try ParentToolPolicy.homePath(raw, home: home)
+            url = try ParentToolPolicy.homePath(raw, home: home, workdir: workdir)
         } catch {
             return (.failed(error, target: target), nil)
         }
