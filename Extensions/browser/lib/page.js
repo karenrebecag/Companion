@@ -12,7 +12,13 @@
   const TEXT_MAX = 200000;
   const INTERACTIVE = 'a[href],button,input,select,textarea,summary,[contenteditable=""],[contenteditable="true"],'
     + '[role=button],[role=link],[role=checkbox],[role=radio],[role=switch],[role=tab],[role=menuitem],'
-    + '[role=menuitemcheckbox],[role=menuitemradio],[role=option],[role=combobox],[role=textbox],[role=searchbox],[role=treeitem]';
+    + '[role=menuitemcheckbox],[role=menuitemradio],[role=option],[role=combobox],[role=textbox],[role=searchbox],[role=treeitem],'
+    + '[onclick],[tabindex]:not([tabindex="-1"])';
+  // Upper bound on elements listed only because their cursor is a pointer: a page that sets it on
+  // every row of a big table would otherwise flood the read.
+  const POINTER_MAX = 60;
+  // Elements the cursor heuristic listed; roleOf reads it so the model sees them as clickable.
+  const pointerListed = new WeakSet();
 
   const attr = (el, name) => (el && typeof el.getAttribute === 'function' ? el.getAttribute(name) : null);
   // Code points, not UTF-16 units: a cut inside an emoji leaves a lone surrogate that breaks JSON.stringify on the wire.
@@ -63,9 +69,27 @@
     return typeof el.matches === 'function' ? el.matches(INTERACTIVE) : matchesFallback(el, tag);
   }
 
+  function hasFocusableTabindex(el) {
+    const raw = attr(el, 'tabindex');
+    return raw !== null && raw.trim() !== '-1';
+  }
+
+  // A div styled as a button has no role, handler attribute or tabindex; the pointer is the only hint left.
+  // A child that merely inherits the cursor of a clickable ancestor is that ancestor, not a second target.
+  function isPointerClickable(el) {
+    const win = el.ownerDocument?.defaultView;
+    if (!win || typeof win.getComputedStyle !== 'function') return false;
+    if (win.getComputedStyle(el).cursor !== 'pointer') return false;
+    const parent = el.parentElement ?? null;
+    if (!parent) return true;
+    if (typeof parent.closest === 'function' && parent.closest(INTERACTIVE)) return false;
+    return win.getComputedStyle(parent).cursor !== 'pointer';
+  }
+
   // Fake nodes in tests carry no matches(); the real path above is the source of truth.
   function matchesFallback(el, tag) {
     if (['a', 'button', 'input', 'select', 'textarea', 'summary'].includes(tag)) return true;
+    if (attr(el, 'onclick') !== null || hasFocusableTabindex(el)) return true;
     return /^(button|link|checkbox|radio|switch|tab|menuitem|option|combobox|textbox|searchbox|treeitem)$/.test(attr(el, 'role') || '');
   }
 
@@ -132,6 +156,7 @@
       if (t === 'file') return 'file';
       return 'textbox';
     }
+    if (pointerListed.has(el) || attr(el, 'onclick') !== null || hasFocusableTabindex(el)) return 'clickable';
     return 'generic';
   }
 
@@ -179,8 +204,23 @@
     if (!box) return '';
     const named = attr(box, 'aria-label');
     if (named && named.trim()) return clip(named, CONTEXT_MAX);
-    const head = typeof box.querySelector === 'function' ? box.querySelector('legend,h1,h2,h3,h4') : null;
+    const head = headingFor(el, box);
     return head ? clip(head.textContent, CONTEXT_MAX) : '';
+  }
+
+  // A legend names only the fieldset its field sits in; a form-wide search handed every field the
+  // first fieldset's legend. Otherwise the nearest heading above the field, never leaving the box.
+  function headingFor(el, box) {
+    if (tagOf(box) === 'fieldset' && typeof box.querySelector === 'function') {
+      const legend = box.querySelector(':scope > legend');
+      if (legend) return legend;
+    }
+    if (typeof box.querySelectorAll !== 'function' || typeof el.compareDocumentPosition !== 'function') return null;
+    let found = null;
+    for (const h of box.querySelectorAll('h1,h2,h3,h4')) {
+      if (el.compareDocumentPosition(h) & 2 /* DOCUMENT_POSITION_PRECEDING */) found = h;
+    }
+    return found;
   }
 
   function valueOf(el, field) {
@@ -522,10 +562,16 @@
   }
 
   // includeHidden is the opt-in read. The default still drops anything not on screen.
-  function collect(root, out, includeHidden = false) {
+  function collect(root, out, includeHidden = false, budget = { left: POINTER_MAX }) {
     for (const node of root.querySelectorAll('*')) {
-      if (node.shadowRoot) collect(node.shadowRoot, out, includeHidden);
-      if (isListable(node) && (includeHidden || isVisible(node))) out.push(node);
+      if (node.shadowRoot) collect(node.shadowRoot, out, includeHidden, budget);
+      if (isListable(node)) {
+        if (includeHidden || isVisible(node)) out.push(node);
+      } else if (budget.left > 0 && (includeHidden || isVisible(node)) && isPointerClickable(node)) {
+        budget.left -= 1;
+        pointerListed.add(node);
+        out.push(node);
+      }
     }
   }
 
