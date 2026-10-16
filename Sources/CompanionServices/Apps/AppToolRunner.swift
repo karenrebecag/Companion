@@ -389,7 +389,10 @@ package struct CompositeParentTools: ParentToolExecuting, Sendable {
         guard let runner = runners.first(where: { $0.handles(name) }) else {
             return .failed(.notFound("unknown tool: \(name)"))
         }
-        return await runner.execute(name: name, argumentsJSON: argumentsJSON)
+        // The one place every path's results pass: what a tool read off the
+        // screen or a file is masked before it becomes model context.
+        return TurnRedaction.redact(
+            await runner.execute(name: name, argumentsJSON: argumentsJSON), tool: name)
     }
 
     package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {

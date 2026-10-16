@@ -14,7 +14,7 @@ package struct PointedElement: Sendable, Equatable {
     package init(app: String, role: String, text: String, at: TimeInterval) {
         self.app = app
         self.role = role
-        self.text = text
+        self.text = TurnRedaction.redact(text)
         self.at = at
     }
 

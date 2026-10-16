@@ -61,7 +61,9 @@ package enum ContextBlock {
             }
             block = assemble(trimmed, language: language, timeZone: timeZone)
         }
-        return block
+        // Last, over the whole block: the clipboard, window titles and
+        // documents reach the voice context here too.
+        return TurnRedaction.redact(block)
     }
 
     private static func assemble(

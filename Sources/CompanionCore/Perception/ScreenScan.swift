@@ -60,6 +60,10 @@ package struct ScreenScan: Sendable, Equatable {
     package static let maxElements = 150
     package static let maxChars = 6_000
     static let maxLine = 200
+    /// Rows of a list or table (Notes previews, mail subjects) are static text
+    /// too; past this the rest is cut so private previews do not all leave.
+    /// Numbered controls are not counted.
+    package static let maxTextLines = 40
 
     package var app: String
     package var window: String
@@ -86,6 +90,7 @@ package struct ScreenScan: Sendable, Equatable {
         var lines: [String] = []
         var chars = 0
         var seenText: Set<String> = []
+        var textLines = 0
         var partial = walk.partial
         let contexts = dialogTexts(walk.nodes)
         for (index, node) in walk.nodes.enumerated() {
@@ -93,14 +98,20 @@ package struct ScreenScan: Sendable, Equatable {
             if let kind = ScreenRoles.kind(node) {
                 guard elements.count < maxElements else { partial = true; break }
                 let id = elements.count + 1
+                // The element keeps the live label (a click compares it); only
+                // the line the model reads is masked.
                 let label = clip(node.label)
+                let shownLabel = shown(node.label)
                 elements.append(ScreenElement(
                     id: id, node: index, kind: kind, label: label,
                     context: contexts[node.group] ?? ""))
-                line = "[\(id)] \(kind) \"\(label)\"" + valueSuffix(node)
+                line = "[\(id)] \(kind) \"\(shownLabel)\"" + valueSuffix(node)
             } else if ScreenRoles.isText(node.role) {
-                let text = clip(node.value ?? node.label)
-                guard !text.isEmpty, seenText.insert(text).inserted else { continue }
+                let text = shown(node.value ?? node.label)
+                guard !text.isEmpty, !seenText.contains(text) else { continue }
+                guard textLines < maxTextLines else { partial = true; continue }
+                seenText.insert(text)
+                textLines += 1
                 line = "- " + text
             } else {
                 continue
@@ -126,10 +137,16 @@ package struct ScreenScan: Sendable, Equatable {
     }
 
     private static func valueSuffix(_ node: ScanNode) -> String {
-        guard !node.secure, let value = node.value.map(clipTail), !value.isEmpty,
-              value != clip(node.label)
+        guard !node.secure, let value = node.value.map({ clipTail(TurnRedaction.redact($0)) }), !value.isEmpty,
+              value != shown(node.label)
         else { return "" }
         return " = \"\(value)\""
+    }
+
+    /// What the model reads of a text: masked first, so the 200-character cut
+    /// cannot split a secret into pieces no pattern recognises.
+    static func shown(_ text: String) -> String {
+        clip(TurnRedaction.redact(text))
     }
 
     /// A field's end is where the cursor and the latest output usually are.
