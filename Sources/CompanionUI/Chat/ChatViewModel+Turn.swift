@@ -13,6 +13,7 @@ extension ChatViewModel {
         _ text: String, origin: MessageOrigin = .typed, mentions: [Mention] = [], asUserWords: Bool = true
     ) -> String {
         parentTools?.beginTurn()
+        turnToolsRan = false
         // 16k-3: the words decide which connected app's tools travel this
         // round — specs() is rebuilt per request further down this turn.
         // A pick's label is the model's text, not her words: it must not
@@ -125,7 +126,6 @@ extension ChatViewModel {
             run = run?.finishing(at: now())
             persist()
             endTurn()
-            drain()
         } catch is CancellationError {
             guard isCurrent(id) else { return }
             streaming = ""
@@ -146,7 +146,6 @@ extension ChatViewModel {
             run = run?.failing(at: now())
             persist()
             endTurn(.failed)
-            drain()
         }
     }
 
@@ -215,6 +214,7 @@ extension ChatViewModel {
         preface: String, calls: [ToolCallRef], said: String,
         using tools: any ParentToolExecuting
     ) async {
+        turnToolsRan = true
         let recall = Recall(role: .assistant, content: preface, toolCalls: calls)
         let targets = calls.map(ParentTool.target(of:))
         if !preface.isEmpty {
@@ -407,12 +407,6 @@ extension ChatViewModel {
             messages.append(ChatMessage(role: .assistant, text: preface))
             recording { $0.reply = TurnReply(text: preface, isFailure: false) }
         }
-    }
-
-    private func drain() {
-        guard !needsOnboarding, !queue.isEmpty else { return }
-        let next = queue.removeFirst()
-        startTurn(next.text, origin: next.origin, mentions: next.mentions)
     }
 
     private func isCurrent(_ id: String) -> Bool {

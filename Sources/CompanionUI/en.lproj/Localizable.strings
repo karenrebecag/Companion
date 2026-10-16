@@ -299,6 +299,7 @@
 "island.answer.close" = "Close the answer";
 "island.answer.copy" = "Copy the code";
 "island.answer.fold" = "Fold the code";
+"island.answer.expand" = "Show all the code";
 "island.action.keys" = "Open Keys";
 "island.hands.stop" = "Stop hands";
 "island.receipt.created" = "Created %@";

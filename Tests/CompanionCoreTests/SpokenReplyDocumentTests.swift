@@ -66,13 +66,12 @@ private func speaking() -> SessionEvent {
     _ = m.handle(speaking())
     let fx = m.handle(.voice(TurnSnapshot(state: .idle, hasDocument: true)))
     expectEq(m.projection.kind, .processing(.completed), "hold: termina en completed")
-    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.voiceDocumentDelay, floor: nil)),
-           "hold: se queda lo bastante para leerlo")
+    expect(fx.contains(.cancelCompletedExpiry), "hold: un documento no tiene reloj, se queda hasta la x")
     let island = IslandState.from(m.projection, pebbleHidden: false)
     expectEq(island.size, .docCard, "hold: la tarjeta del documento")
     expectEq(island.line, .completed, "hold: la linea de terminado")
-    _ = m.handle(.completedTimerExpired)
-    expectEq(m.projection.kind, .idle, "hold: el timer lo despide")
+    _ = m.handle(.resultDismissed)
+    expectEq(m.projection.kind, .idle, "hold: la x lo despide")
 }
 
 @Test func aShortSpokenReplyGoesStraightToRest() {
@@ -126,7 +125,7 @@ private func speaking() -> SessionEvent {
     _ = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true)))
     let fx = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true, hasDocument: true)))
     expectEq(m.projection.kind, .processing(.completed), "documento: sube mientras la voz habla")
-    expect(fx.contains(.scheduleCompletedExpiry(SessionMachine.voiceDocumentDelay, floor: nil)), "documento: con su tiempo de lectura")
+    expect(fx.contains(.cancelCompletedExpiry), "documento: sin reloj, se queda hasta la x")
     _ = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true, hasDocument: true)))
     expectEq(m.projection.kind, .processing(.completed), "documento: otro tick de la voz no lo baja")
     _ = m.handle(.voice(TurnSnapshot(state: .idle, hasDocument: true)))

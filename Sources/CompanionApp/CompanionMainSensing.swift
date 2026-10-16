@@ -156,6 +156,11 @@ func makeSensingAndModel(
         jobs: jobs.jobRunner, approvals: jobs.approvals, voice: voicePort, log: { Log.app($0) })
     sessionModel.islandEvents = islandEvents
     sessionModel.armPresence()
+    // The island stays compact while another app is in a meeting.
+    let devices = DeviceUseMonitor()
+    Task { @MainActor in
+        for await use in devices.changes() { sessionModel.send(.deviceUseChanged(use)) }
+    }
     // Wave 20d B: what ran without the sheet reaches the island with its
     // undo; the press is the user's alone.
     receipts.connect { receipt in

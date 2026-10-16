@@ -14,10 +14,9 @@ import Testing
         await testTokensRamp()
         await testChatCopy()
         await testSendAppendsUserAndStreamsAssistant()
-        await testSecondSendWhileBusyQueues()
-        await testQueueDrainsAfterFinish()
+        await testSecondSendWhileBusyCutsTheFirst()
+        await testCutTurnsWordsReachTheAnswer()
         await testThrowShowsErrorAndClearsBusy()
-        await testQueueDrainsAfterError()
         await testEmptyDraftIsNoOp()
         await testOnboardingPingFailDoesNotWriteKey()
         await testOnboardingPingOkWritesKey()
@@ -40,9 +39,9 @@ import Testing
         await testContextNeverPersists()
         await testMemoryTurnsCarryRawTextOnly()
         await testHandoffCommitsPrefaceAndStatus()
-        await testNewConversationDropsQueue()
+        await testNewConversationCancelsARunningTurn()
         await testAlwaysSendsDelegateTool()
-        await testChangeKeyCancelsAndDropsQueue()
+        await testChangeKeyCancelsARunningTurn()
         await testStatusLinesStayOutOfHistory()
         await testThreadAppendsPersistWithoutStreaming()
         await testShowStreamAndFinishStream()
@@ -133,31 +132,29 @@ import Testing
     }
 }
 
-@MainActor func testSecondSendWhileBusyQueues() async {
+@MainActor func testSecondSendWhileBusyCutsTheFirst() async {
     let chat = FakeChatProvider(replies: [.success([.text("A")]), .success([.text("B")])])
     let vm = primed(chat: chat)
     vm.draft = "uno"
     vm.send()
-    expect(vm.busy, "cola: el primero ocupa")
+    expect(vm.busy, "corte: el primero ocupa")
     vm.draft = "dos"
     vm.send()
-    expectEq(vm.queued, ["dos"], "cola: el segundo espera")
-    expectEq(vm.messages.map(\.text), ["uno"], "cola: no se adelanta")
-    expectEq(vm.draft, "", "cola: draft vacío")
+    expect(vm.busy, "corte: el segundo arranca su turno")
+    expectEq(vm.messages.map(\.text), ["uno\ndos"], "corte: sin herramientas, las palabras viajan al turno nuevo")
+    expectEq(vm.draft, "", "corte: draft vacío")
 }
 
-@MainActor func testQueueDrainsAfterFinish() async {
+@MainActor func testCutTurnsWordsReachTheAnswer() async {
     let chat = FakeChatProvider(replies: [.success([.text("A")]), .success([.text("B")])])
     let vm = primed(chat: chat)
     vm.draft = "uno"
     vm.send()
     vm.draft = "dos"
     vm.send()
-    await pumpUntil("drain: idle") { !vm.busy && vm.queued.isEmpty }
-    expectEq(vm.messages.map(\.text), ["uno", "A", "dos", "B"], "drain: encolado")
-    expectEq(chat.histories.count, 2, "drain: dos streams")
-    expectEq(chat.histories[0].last?.content, "uno", "drain: primero uno")
-    expectEq(chat.histories[1].last?.content, "dos", "drain: después dos")
+    await pumpUntil("corte: idle") { !vm.busy }
+    expectEq(vm.messages.map(\.text), ["uno\ndos", "A"], "corte: la respuesta es al mensaje fusionado")
+    expectEq(chat.histories.last?.last?.content, "uno\ndos", "corte: el modelo recibe las palabras juntas")
 }
 
 @MainActor func testThrowShowsErrorAndClearsBusy() async {
@@ -177,21 +174,6 @@ import Testing
     expect(vm.messages.last?.isStatus == true, "error: como línea de estado")
     expectEq(vm.messages.last?.text, ChatCopy.error(ChatError.timeout),
              "error: el mismo copy del banner")
-}
-
-@MainActor func testQueueDrainsAfterError() async {
-    let chat = FakeChatProvider(replies: [
-        .failure(ChatError.rateLimited), .success([.text("ok")]),
-    ])
-    let vm = primed(chat: chat)
-    vm.draft = "uno"
-    vm.send()
-    vm.draft = "dos"
-    vm.send()
-    await pumpUntil("drain-error: idle") { !vm.busy && vm.queued.isEmpty }
-    expect(vm.messages.map(\.text).contains("dos"), "drain-error: encolado corre")
-    expect(vm.messages.map(\.text).contains("ok"), "drain-error: segundo comete")
-    expectEq(chat.histories.count, 2, "drain-error: dos intentos")
 }
 
 @MainActor func testEmptyDraftIsNoOp() async {
@@ -294,21 +276,16 @@ import Testing
     }
 }
 
-@MainActor func testNewConversationDropsQueue() async {
+@MainActor func testNewConversationCancelsARunningTurn() async {
     let chat = FakeChatProvider(replies: [.success([.text("A")]), .success([.text("NO")])])
     let vm = primed(chat: chat)
     vm.draft = "uno"
     vm.send()
-    vm.draft = "dos"
-    vm.send()
-    expectEq(vm.queued, ["dos"], "nuevo: había cola")
     vm.newConversation()
-    expectEq(vm.queued, [], "nuevo: tira la cola")
     expectEq(vm.messages.count, 0, "nuevo: hilo vacío")
     expect(!vm.busy, "nuevo: no ocupa")
     await settle()
     expectEq(vm.messages.count, 0, "nuevo: el cancelado no comete")
-    expect(!chat.histories.contains { $0.last?.content == "dos" }, "nuevo: sin drenar")
 }
 
 @MainActor func testAlwaysSendsDelegateTool() async {
@@ -320,21 +297,16 @@ import Testing
     expectEq(chat.toolsSeen, [.delegate()], "tools: siempre delegate")
 }
 
-@MainActor func testChangeKeyCancelsAndDropsQueue() async {
+@MainActor func testChangeKeyCancelsARunningTurn() async {
     let chat = FakeChatProvider(replies: [.success([.text("A")]), .success([.text("NO")])])
     let vm = primed(chat: chat)
     vm.draft = "uno"
     vm.send()
-    vm.draft = "dos"
-    vm.send()
-    expectEq(vm.queued, ["dos"], "clave: había cola")
     vm.changeKey()
     expect(vm.needsOnboarding, "clave: vuelve al onboarding")
-    expectEq(vm.queued, [], "clave: tira la cola")
     expect(!vm.busy, "clave: no ocupa")
     await settle()
-    expect(!chat.histories.contains { $0.last?.content == "dos" },
-           "clave: no drena con onboarding")
+    expect(!chat.histories.contains { $0.last?.content == "NO" }, "clave: no drena con onboarding")
 }
 
 @MainActor func testStatusLinesStayOutOfHistory() async {

@@ -3,56 +3,55 @@ import CompanionTestKit
 import Foundation
 import Testing
 
-// La tarjeta de resultado se cerraba a los 0,2 s de responder: una respuesta de
-// 1081 caracteres pasó de docCard a pebble en 289 ms (en vivo, 2026-10-16). Se
-// queda el tiempo de leerla, se pausa con la mano encima y se cierra a mano.
+// Un resultado con contenido no se cierra con reloj: se queda hasta la x, Esc o
+// la siguiente interacción. Solo un recibo (una línea corta) se cierra solo.
 
-private func typedReply(_ machine: inout SessionMachine, load: ReadingLoad?) -> [SessionEffect] {
+private func typedReply(_ machine: inout SessionMachine, reply: String?) -> [SessionEffect] {
     _ = machine.handle(.typedSubmitted)
-    if let load { _ = machine.handle(.replyMeasured(load)) }
+    if let reply, let kind = ReadingClock.kind(of: reply) { _ = machine.handle(.replyMeasured(kind)) }
     return machine.handle(.typedReplyFinished)
 }
 
-private let short = ReadingLoad(words: 20, rows: 0)
-
-@Test func theReadingTimeGrowsWithTheReplyAndStaysInsideItsBounds() {
-    expectEq(ReadingClock.duration(for: ReadingLoad(words: 3, rows: 0)), 4, "lectura: lo corto tiene piso de 4 s")
-    let twenty = ReadingClock.duration(for: short) ?? 0
-    expect(abs(twenty - (2.5 + 0.28 * 20)) < 1e-9, "lectura: 2,5 s + 0,28 s por palabra")
-    let withRows = ReadingClock.duration(for: ReadingLoad(words: 20, rows: 5)) ?? 0
-    expect(abs(withRows - twenty - 2) < 1e-9, "lectura: 0,4 s por fila")
-    expectEq(ReadingClock.duration(for: ReadingLoad(words: 170, rows: 0)), 20, "lectura: techo de 20 s")
+private func armsAClock(_ effects: [SessionEffect]) -> Bool {
+    effects.contains { if case .scheduleCompletedExpiry = $0 { true } else { false } }
 }
 
-@Test func aCardThatNeedsScrollHasNoClock() {
-    expectEq(ReadingClock.duration(for: ReadingLoad(words: 400, rows: 0, needsScroll: true)), nil,
-             "lectura: lo que pide scroll se cierra a mano")
-    let long = String(repeating: "Una frase de relleno para llenar la columna entera. ", count: 60)
-    expectEq(ReadingClock.load(of: long)?.needsScroll, true, "lectura: la medida detecta el desbordamiento")
-    let thousand = String(repeating: "palabra ", count: 135)
-    expectEq(ReadingClock.load(of: thousand)?.needsScroll, false, "lectura: 1081 caracteres caben sin scroll")
-    expect(ReadingClock.load(of: "") == nil, "lectura: sin nada que leer no hay medida")
+@Test func aOneLineStatusIsAReceiptAndAnythingElseIsContent() {
+    expectEq(ReadingClock.kind(of: "Listo"), .receipt, "recibo: una palabra")
+    expectEq(ReadingClock.kind(of: "Abrí Notas"), .receipt, "recibo: una línea corta")
+    expectEq(ReadingClock.kind(of: "Dos\n\nPárrafos"), .content, "contenido: dos bloques")
+    expectEq(ReadingClock.kind(of: "- uno\n- dos"), .content, "contenido: una lista")
+    expectEq(ReadingClock.kind(of: String(repeating: "palabra ", count: 16)), .content,
+             "contenido: más de quince palabras")
+    expect(ReadingClock.kind(of: " \n ") == nil, "sin nada que leer no hay clasificación")
 }
 
-@Test func aTypedReplyStaysForItsReadingTimeNotTheShortSettle() {
+@Test func theReceiptClockWaitsForTheVoiceOrTheSilentWaitThenHoldsUnderTheCap() {
+    expectEq(ReadingClock.receiptDelay(voiced: true), 1.5, "recibo con voz: 1,5 s tras la voz")
+    expectEq(ReadingClock.receiptDelay(voiced: false), 7.5, "recibo mudo: 6 s de espera y 1,5 s")
+    expect(ReadingClock.receiptDelay(voiced: false) <= ReadingClock.cap, "recibo: nunca pasa del tope")
+}
+
+@Test func aContentReplyStaysUntilClosedByHand() {
     var m = SessionMachine()
-    let fx = typedReply(&m, load: short)
-    expect(fx.contains(.scheduleCompletedExpiry(readTime, floor: SessionMachine.settleFloor)),
-           "tarjeta: el reloj es el de lectura")
-    expect(!fx.contains(.scheduleCompletedExpiry(SessionMachine.settleDelay, floor: SessionMachine.settleFloor)),
-           "tarjeta: el asentamiento de 0,2 s ya no cierra un resultado")
-}
-
-@Test func aReplyThatNeedsScrollArmsNoClockAndTheCrossClosesIt() {
-    var m = SessionMachine()
-    let fx = typedReply(&m, load: ReadingLoad(words: 400, rows: 0, needsScroll: true))
-    expect(fx.contains(.cancelCompletedExpiry), "cierre manual: no queda ningún reloj")
-    expect(!fx.contains { if case .scheduleCompletedExpiry = $0 { true } else { false } },
-           "cierre manual: y no se arma ninguno")
-    expectEq(m.projection.kind, .processing(.completed), "cierre manual: la tarjeta espera")
+    let fx = typedReply(&m, reply: "## Plan\n\nPaso uno.\n\nPaso dos.")
+    expect(fx.contains(.cancelCompletedExpiry), "contenido: ningún reloj")
+    expect(!armsAClock(fx), "contenido: no se arma ninguno")
+    expectEq(m.projection.kind, .processing(.completed), "contenido: la tarjeta espera")
     let closed = m.handle(.resultDismissed)
-    expectEq(m.projection.kind, .idle, "cierre manual: la x la cierra")
-    expect(closed.contains(.islandEvent(.closed(.result))), "cierre manual: el modelo se entera de que la cerró ella")
+    expectEq(m.projection.kind, .idle, "contenido: la x la cierra")
+    expect(closed.contains(.islandEvent(.closed(.result))), "contenido: el modelo se entera de que la cerró ella")
+}
+
+@Test func aReceiptArmsItsClockAndThePointerHoldsIt() {
+    var m = SessionMachine()
+    let fx = typedReply(&m, reply: "Listo")
+    expect(fx.contains(.scheduleCompletedExpiry(ReadingClock.receiptDelay(voiced: false), floor: ReadingClock.hold)),
+           "recibo: su reloj de siete segundos y medio")
+    expectEq(m.handle(.peeked), [.pauseCompletedExpiry], "recibo: la mano lo pausa")
+    expect(m.handle(.peekLeft).contains(.resumeCompletedExpiry), "recibo: al salir sigue desde el piso")
+    _ = m.handle(.completedTimerExpired)
+    expectEq(m.projection.kind, .idle, "recibo: cumplido el reloj, se va")
 }
 
 @Test func dismissingOutsideAResultDoesNothing() {
@@ -62,50 +61,36 @@ private let short = ReadingLoad(words: 20, rows: 0)
     expectEq(m.projection.kind, .processing(.thinking), "cierre manual: el turno sigue")
 }
 
-@Test func theHandPausesTheClockFromThePeekAndLeavingKeepsTheFloor() {
-    var m = SessionMachine()
-    _ = typedReply(&m, load: short)
-    expectEq(m.handle(.peeked), [.pauseCompletedExpiry], "mano: el peek pausa sin esperar el dwell")
-    expectEq(m.handle(.peeked), [], "mano: un segundo peek no cambia nada")
-    expect(m.handle(.peekLeft).contains(.resumeCompletedExpiry), "mano: al salir sigue desde el piso")
-    _ = m.handle(.completedTimerExpired)
-    expectEq(m.projection.kind, .idle, "mano: cumplido el reloj, se va")
-}
-
-@Test func aPointerAlreadyThereStartsTheNextCardPaused() {
+@Test func aPointerAlreadyThereStartsTheNextReceiptPaused() {
     var m = SessionMachine()
     _ = m.handle(.peeked)
-    let fx = typedReply(&m, load: short)
-    expect(fx.contains(.pauseCompletedExpiry), "mano: la tarjeta que llega bajo el puntero nace pausada")
+    let fx = typedReply(&m, reply: "Listo")
+    expect(fx.contains(.pauseCompletedExpiry), "recibo: el que llega bajo el puntero nace pausado")
 }
 
 @Test func aNewTurnReplacesTheCardAndANoticeKeepsBlocking() {
     var m = SessionMachine()
-    _ = typedReply(&m, load: short)
+    _ = typedReply(&m, reply: "Listo")
     _ = m.handle(.typedSubmitted)
     expectEq(m.projection.kind, .processing(.thinking), "turno nuevo: reemplaza la tarjeta")
-    let late = m.handle(.completedTimerExpired)
-    expectEq(m.projection.kind, .processing(.thinking), "turno nuevo: el reloj viejo no lo arrastra a reposo (\(late.count))")
+    _ = m.handle(.completedTimerExpired)
+    expectEq(m.projection.kind, .processing(.thinking), "turno nuevo: el reloj viejo no lo arrastra a reposo")
 
     var blocked = SessionMachine()
     _ = blocked.handle(.typedSubmitted)
-    _ = blocked.handle(.replyMeasured(short))
+    _ = blocked.handle(.replyMeasured(.receipt))
     _ = blocked.handle(.connectAppSuggested(slug: "notion", name: "Notion"))
-    let fx = blocked.handle(.typedReplyFinished)
-    expect(!fx.contains { if case .scheduleCompletedExpiry = $0 { true } else { false } },
-           "aviso: con un aviso en pantalla la tarjeta no se arma sola")
+    expect(!armsAClock(blocked.handle(.typedReplyFinished)), "aviso: con un aviso en pantalla no se arma solo")
 }
 
-@Test func aSpokenReplyWithoutADocumentLandsOnTheCardWithTheSameClock() {
+@Test func aSpokenReceiptLandsWithTheClockThatStartsWhenTheVoiceStops() {
     var m = SessionMachine()
     _ = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic, streamingStarted: true)))
-    _ = m.handle(.replyMeasured(short))
+    _ = m.handle(.replyMeasured(.receipt))
     let fx = m.handle(.voice(TurnSnapshot(state: .idle)))
-    expectEq(m.projection.kind, .processing(.completed), "voz: la respuesta sin documento también aterriza")
-    expect(fx.contains(.scheduleCompletedExpiry(readTime, floor: SessionMachine.settleFloor)),
-           "voz: con el reloj de lectura")
-    _ = m.handle(.completedTimerExpired)
-    expectEq(m.projection.kind, .idle, "voz: el reloj la despide")
+    expectEq(m.projection.kind, .processing(.completed), "voz: la respuesta de una línea también aterriza")
+    expect(fx.contains(.scheduleCompletedExpiry(ReadingClock.receiptDelay(voiced: true), floor: ReadingClock.hold)),
+           "voz: el reloj arranca cuando la voz para")
 }
 
 @Test func aVoiceReplyNobodyMeasuredStillGoesStraightToRest() {
@@ -115,15 +100,12 @@ private let short = ReadingLoad(words: 20, rows: 0)
     expectEq(m.projection.kind, .idle, "voz: sin medida no hay nada que leer")
 }
 
-@Test func aJobAnswerMeasuredAfterItsEndReArmsTheCardWithItsRealLength() {
+@Test func aJobAnswerMeasuredAfterItsEndReArmsTheCardAsAReceipt() {
     var m = SessionMachine()
-    let first = typedReply(&m, load: nil)
+    let first = typedReply(&m, reply: nil)
     expect(first.contains(.scheduleCompletedExpiry(SessionMachine.settleDelay, floor: SessionMachine.settleFloor)),
            "tarea: sin medida corre el asentamiento corto")
-    let fx = m.handle(.replyMeasured(short))
-    expect(fx.contains(.scheduleCompletedExpiry(readTime, floor: SessionMachine.settleFloor)),
-           "tarea: la medida tardía rearma con la longitud real")
+    let fx = m.handle(.replyMeasured(.receipt))
+    expect(fx.contains(.scheduleCompletedExpiry(ReadingClock.receiptDelay(voiced: false), floor: ReadingClock.hold)),
+           "tarea: la medida tardía rearma como recibo")
 }
-
-// The same arithmetic the reducer does, so floating point never decides a test.
-private let readTime = ReadingClock.duration(for: ReadingLoad(words: 20, rows: 0)) ?? 0

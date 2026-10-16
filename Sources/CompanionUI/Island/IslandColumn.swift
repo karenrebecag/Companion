@@ -14,14 +14,14 @@ struct IslandColumn<Content: View>: View {
 
     var body: some View {
         if contentHeight > maxHeight {
-            let edges = IslandColumnFade.edges(offset: offset, content: contentHeight, viewport: maxHeight)
+            let more = IslandColumnFade.showsMore(offset: offset, content: contentHeight, viewport: maxHeight)
             ScrollView(.vertical) { measured }
                 .defaultScrollAnchor(anchorBottom ? .bottom : nil)
                 .scrollIndicators(.automatic)
                 .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y }) { _, y in offset = y }
                 .frame(height: maxHeight, alignment: .top)
                 // Arc's scroll-area: an edge fades only where there is more to read.
-                .mask(IslandColumnFade.mask(top: edges.top, bottom: edges.bottom, height: maxHeight))
+                .mask(IslandColumnFade.mask(showsMore: more, height: maxHeight))
         } else {
             // `frame(maxHeight:)` would take the offered height up to the cap;
             // this keeps the content's own height. On the unmeasured first
@@ -55,20 +55,20 @@ private struct CappedHeight: Layout {
 }
 
 enum IslandColumnFade {
-    static let length: CGFloat = Space.x6
+    /// Roughly two lines of prose: enough to read as text going on, not a rule.
+    static let length: CGFloat = 58
 
-    static func edges(offset: CGFloat, content: CGFloat, viewport: CGFloat) -> (top: Bool, bottom: Bool) {
-        guard content > viewport else { return (false, false) }
-        return (offset > 0.5, offset < content - viewport - 0.5)
+    /// Only while the scroll has not reached the end; at the end nothing is hidden.
+    static func showsMore(offset: CGFloat, content: CGFloat, viewport: CGFloat) -> Bool {
+        content > viewport && offset < content - viewport - 0.5
     }
 
-    static func mask(top: Bool, bottom: Bool, height: CGFloat) -> LinearGradient {
+    static func mask(showsMore: Bool, height: CGFloat) -> LinearGradient {
         let share = height > 0 ? min(0.5, length / height) : 0
         return LinearGradient(stops: [
-            .init(color: top ? .clear : .black, location: 0),
-            .init(color: .black, location: share),
+            .init(color: .black, location: 0),
             .init(color: .black, location: 1 - share),
-            .init(color: bottom ? .clear : .black, location: 1),
+            .init(color: showsMore ? .clear : .black, location: 1),
         ], startPoint: .top, endPoint: .bottom)
     }
 }

@@ -12,15 +12,8 @@ package final class ChatViewModel: ConversationPresenting {
     package internal(set) var messages: [ChatMessage] = []
     package internal(set) var streaming = ""
     package internal(set) var busy = false
-    struct QueuedMessage: Equatable {
-        let text: String
-        let origin: MessageOrigin
-        var mentions: [Mention] = []
-    }
-
-    var queue: [QueuedMessage] = []
-    /// What is waiting behind the running turn, in order.
-    package var queued: [String] { queue.map(\.text) }
+    /// The running turn has called a tool: its words are answered by an action.
+    var turnToolsRan = false
     package internal(set) var pendingAttachments: [AttachmentRef] = []
     package internal(set) var pendingMentions: [Mention] = []
     /// The field changed: a mention whose `@name` is no longer in it is gone,
@@ -225,7 +218,6 @@ package final class ChatViewModel: ConversationPresenting {
     package func changeKey() {
         abandonTurn()
         dropParentApprovals()
-        queue = []
         pendingAttachments = []
         pendingMentions = []
         streaming = ""
@@ -250,7 +242,7 @@ package final class ChatViewModel: ConversationPresenting {
     }
 
     /// A pick from a question card (16m-6) is a typed message: same guards,
-    /// same queue, same turn. Not through `draft`: whatever she had half
+    /// same guards, same turn. Not through `draft`: whatever she had half
     /// written in the composer stays.
     /// False when nothing was sent (no key yet, empty label): the card must
     /// not show an answer that never left. The message is marked as a card
@@ -265,18 +257,29 @@ package final class ChatViewModel: ConversationPresenting {
         return true
     }
 
+    /// Her words over a running turn cut it: the answer she is waiting for is
+    /// no longer the one she wants.
     private func dispatch(_ text: String, origin: MessageOrigin, mentions: [Mention] = []) {
-        if busy {
-            queue.append(QueuedMessage(text: text, origin: origin, mentions: mentions))
-            return
-        }
-        startTurn(text, origin: origin, mentions: mentions)
+        // A card pick keeps its label exact: the words it cut stay on the thread.
+        let carried = busy ? cutRunningTurn(carrying: origin == .typed) : nil
+        startTurn(InterruptedTurn.merged(carried: carried, next: text), origin: origin, mentions: mentions)
+    }
+
+    /// The running turn stops where it is. Its unanswered words are taken back
+    /// off the thread and returned to be sent with the next words; a turn that
+    /// already used a tool keeps its message on the thread.
+    private func cutRunningTurn(carrying: Bool) -> String? {
+        let cut = messages.last { $0.role == .user && !$0.isStatus }
+        let carried = carrying ? cut.flatMap { InterruptedTurn.carried($0.text, toolsRan: turnToolsRan) } : nil
+        abandonTurn()
+        streaming = ""
+        if carried != nil, let cut { messages.removeAll { $0.id == cut.id } }
+        return carried
     }
 
     package func newConversation() {
         abandonTurn()
         dropParentApprovals()
-        queue = []
         pendingAttachments = []
         pendingMentions = []
         errorText = nil
@@ -292,7 +295,6 @@ package final class ChatViewModel: ConversationPresenting {
         guard id != conversationId else { return }
         abandonTurn()
         dropParentApprovals()
-        queue = []
         errorText = nil
         persist()
         do {
@@ -401,8 +403,8 @@ package final class ChatViewModel: ConversationPresenting {
     /// The card's reading clock is born with the reply's length; the voice
     /// threads its reply before it stops speaking, so this lands in time.
     func measure(_ reply: String) {
-        guard let load = ReadingClock.load(of: reply) else { return }
-        session.send(.replyMeasured(load))
+        guard let kind = ReadingClock.kind(of: reply) else { return }
+        session.send(.replyMeasured(kind))
     }
 
     /// Only when the thread ends on an answer: a cancelled or failed turn

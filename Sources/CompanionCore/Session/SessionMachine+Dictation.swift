@@ -32,15 +32,15 @@ extension SessionMachine {
         return [.scheduleCompletedExpiry(Self.dictationCardDelay, floor: nil)]
     }
 
-    /// The card has its reply to be read: the reading clock, not the 0.2 s
-    /// settle that only suits an island with nothing on it. A card that needs
-    /// scroll has no clock at all.
+    /// A receipt closes by its clock; content has none and stays until the
+    /// user closes it. With nothing measured the short settle still applies.
     func readingExpiry() -> SessionEffect {
-        guard let load = replyLoad else {
+        guard let kind = replyKind else {
             return .scheduleCompletedExpiry(Self.settleDelay, floor: Self.settleFloor)
         }
-        guard let reading = ReadingClock.duration(for: load) else { return .cancelCompletedExpiry }
-        return .scheduleCompletedExpiry(reading, floor: Self.settleFloor)
+        guard kind == .receipt else { return .cancelCompletedExpiry }
+        return .scheduleCompletedExpiry(
+            ReadingClock.receiptDelay(voiced: voiceCardUp), floor: ReadingClock.hold)
     }
 
     /// Completed ends: the hands-free mic stays open under the card.

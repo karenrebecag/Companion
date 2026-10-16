@@ -85,23 +85,20 @@ extension SessionMachine {
         return projection.kind == .processing(.speaking) || becameDocument
     }
 
-    /// Completed with the same card a typed reply gets, and the same settle.
+    /// Completed with the same card a typed reply gets. A document is content:
+    /// it has no clock, so nothing closes it under a reader.
     mutating func landDocument() -> [SessionEffect] {
         turnOver()
         voiceCardUp = true
         projection.kind = .processing(.completed)
-        // The typed settle (0.2 s past a 1.5 s floor) closed a spoken
-        // document before a line of it could be read (live 2026-10-12).
-        if settleBlocked { return [] }
-        if settleHeld { return [.pauseCompletedExpiry] }
-        return [.scheduleCompletedExpiry(Self.voiceDocumentDelay, floor: nil)]
+        return [.cancelCompletedExpiry]
     }
 
     /// The voice stopped on a reply that came without a document: it was heard
     /// and then vanished with the speech (live 2026-10-16). It lands as the
     /// typed reply does, with the same reading clock.
     func landsReply() -> Bool {
-        replyLoad != nil && projection.kind == .processing(.speaking)
+        replyKind != nil && projection.kind == .processing(.speaking)
             && projection.job == nil && !typedBusy && !projection.holding
     }
 
@@ -112,10 +109,16 @@ extension SessionMachine {
         return completedExpiry()
     }
 
+    /// Another app is in a meeting. Companion's own listening is set aside.
+    func meetingCompactNow() -> Bool {
+        MeetingPresence.compact(deviceUse, ownMicrophone: voice.state == .listening && !voice.muted)
+    }
+
     /// A snapshot of the voice, landed on the chrome.
     mutating func observe(_ snapshot: TurnSnapshot) -> [SessionEffect] {
         let becameDocument = snapshot.hasDocument && !voice.hasDocument
         voice = snapshot
+        projection.meetingCompact = meetingCompactNow()
         projection.pipeline = snapshot.pipeline
         projection.voice = Self.status(of: snapshot)
         switch snapshot.state {

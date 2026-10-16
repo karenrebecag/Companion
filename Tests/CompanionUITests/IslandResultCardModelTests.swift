@@ -101,3 +101,17 @@ private func source(_ title: String, _ url: String) -> MarkdownSplitter.SourceLi
     expectEq(plain.title, nil, "titulo: sin encabezado no hay titulo propio")
     expectEq(plain.body.count, 1, "titulo: y el cuerpo queda intacto")
 }
+
+// A card titles itself only with a subject the reply wrote (2 to 5 words), and
+// that heading then leaves the body so it is never shown twice.
+@Test @MainActor func theCardTitleIsAShortOpeningSubjectAndNeverRepeatsTheBody() {
+    let subject = IslandResultCardModel.splitHeading(AnswerBlocks.blocks(from: "## Resumen de la semana\n\nTodo bien."))
+    expectEq(subject.title, "Resumen de la semana", "titulo: un asunto de dos a cinco palabras")
+    expectEq(subject.body.count, 1, "titulo: el encabezado sale del cuerpo")
+    expectEq(IslandResultCardModel.splitHeading(AnswerBlocks.blocks(from: "## Una respuesta bastante más larga de lo que cabe")).title,
+             nil, "titulo: más de cinco palabras no es asunto")
+    expectEq(IslandResultCardModel.splitHeading(AnswerBlocks.blocks(from: "## Listo\n\nEl invite salió.")).title,
+             nil, "titulo: una sola palabra no es asunto")
+    expectEq(IslandResultCardModel.splitHeading(AnswerBlocks.blocks(from: "Solo prosa.")).title,
+             nil, "titulo: sin encabezado no hay titulo")
+}

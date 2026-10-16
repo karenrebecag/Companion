@@ -210,6 +210,11 @@ package struct IslandState: Sendable, Equatable {
             // The undo row lives in the narrow column; the document is not drawn beside it.
             if state.size == .docCard { state.size = .card }
         }
+        // A meeting keeps the island compact: what would open by itself stays a
+        // bar. Her own doors (listening, hover, an approval) still open it.
+        if p.meetingCompact, Self.opensByItself(state.size), state.approval == nil, !Self.userDriven(p) {
+            state.size = .bar
+        }
         state.light = light(p)
         state.action = action(state.line)
         return state
@@ -247,6 +252,16 @@ package struct IslandState: Sendable, Equatable {
     /// dropping the gesture then would lose the release and leave the hold
     /// listening forever (seen live 2026-09-06). Since 16e the hover panel
     /// holds a text field, so at rest only the mark starts a hold.
+    /// Sizes the island opens without being asked.
+    private static func opensByItself(_ size: Size) -> Bool {
+        [.nudge, .card, .wideCard, .docCard].contains(size)
+    }
+
+    /// She is already doing something with the island: listening, hovering or holding.
+    private static func userDriven(_ p: SessionProjection) -> Bool {
+        p.kind == .listening || p.kind == .hover || p.holding
+    }
+
     package static func acceptsPointer(size: Size, pointerDown: Bool) -> Bool {
         size != .hidden && pointerDown
     }

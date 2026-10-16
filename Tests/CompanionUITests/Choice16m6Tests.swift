@@ -258,7 +258,6 @@ func testOrdinaryCharactersSurvive() {
     busy.draft = "uno"
     busy.send()
     busy.choose("Completo")
-    expectEq(busy.queued, ["Completo"], "16m-6: con un turno en curso hace cola, como teclear")
-    await pumpUntil("16m-6: la cola corre") { !busy.busy && busy.queued.isEmpty }
+    await pumpUntil("16m-6: la elección corre") { !busy.busy }
     expect(busy.messages.map(\.text).contains("Completo"), "16m-6: y termina entrando")
 }

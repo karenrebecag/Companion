@@ -45,7 +45,7 @@ private final class NoteTap: ParentToolExecuting, @unchecked Sendable {
     queued.draft = "uno"
     queued.send()
     queued.choose("Slack")
-    await pumpUntil("16m-6 gate: cola") { !queued.busy && queued.queued.isEmpty }
+    await pumpUntil("16m-6 gate: cola") { !queued.busy }
     expectEq(tapQueued.noted, ["uno", "<card>"], "16m-6 gate: desde la cola tampoco")
 }
 
