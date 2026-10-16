@@ -1053,3 +1053,8 @@
 "present.day.yesterday" = "Yesterday";
 "present.bar.average" = "Average";
 "present.bar.period" = "%ld items";
+"settings.alwaysAllow.header" = "Always allowed";
+"settings.alwaysAllow.blurb" = "What you said to always allow. Removing it makes the sheet ask again.";
+"settings.alwaysAllow.upload" = "Upload files to %@";
+"settings.alwaysAllow.revoke" = "Revoke";
+"approval.alwaysHost" = "Always allow on %@";

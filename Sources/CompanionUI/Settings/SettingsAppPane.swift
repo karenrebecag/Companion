@@ -76,6 +76,7 @@ struct SettingsPrivacyPage: View {
                 .settingsAnchor("settings.permissions")
             }
             if let browser { SettingsBrowserSection(model: browser) }
+            SettingsAlwaysAllowCard()
             keysSection
         }
         .onChange(of: lendHands) { _, on in

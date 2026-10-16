@@ -39,6 +39,8 @@ package actor QAGate: QAGating {
         return await owner.canVerify()
     }
 
+    package func isOn() async -> Bool { enabled() }
+
     package func decide(_ request: ApprovalRequest, call: ToolCallRef, said: String) async -> QAVerdict {
         guard enabled() else { return .notInQA }
         // Either name can be the session grant: the band comes from one and

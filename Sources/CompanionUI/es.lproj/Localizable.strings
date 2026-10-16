@@ -1053,3 +1053,8 @@
 "present.day.yesterday" = "Ayer";
 "present.bar.average" = "Promedio";
 "present.bar.period" = "%ld elementos";
+"settings.alwaysAllow.header" = "Permitido siempre";
+"settings.alwaysAllow.blurb" = "Lo que dijiste que siempre se permita. Quitarlo hace que la hoja vuelva a preguntar.";
+"settings.alwaysAllow.upload" = "Subir archivos a %@";
+"settings.alwaysAllow.revoke" = "Quitar";
+"approval.alwaysHost" = "Permitir siempre en %@";
