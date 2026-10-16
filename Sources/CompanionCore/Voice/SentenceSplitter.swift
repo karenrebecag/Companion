@@ -39,7 +39,9 @@ package enum SentenceSplitter: Sendable {
         // The separator `takeSentence` ate from the rest stays at the span's
         // end: the consumer concatenates spans, and a trimmed one glued
         // "química." to "Durante" in every stored reply (live 2026-10-16).
-        let span = String(buffer.dropLast(cut.rest.count).drop(while: { $0 == " " || $0 == "\t" }))
+        // Leading blanks stay: after a newline cut they are the next line's
+        // indentation, and inside a code fence they are the code.
+        let span = String(buffer.dropLast(cut.rest.count))
         return (span, cut.rest)
     }
 

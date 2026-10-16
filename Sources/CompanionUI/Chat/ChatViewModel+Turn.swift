@@ -156,6 +156,7 @@ extension ChatViewModel {
         if status == .completed { measureLatestReply() }
         session.send(.typedReplyFinished)
         finishRecord(status)
+        if let parentTools { Task { await parentTools.endTurn() } }
     }
 
     /// A turn cancelled by a switch never reaches `endTurn` (its guards see

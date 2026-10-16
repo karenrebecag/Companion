@@ -78,3 +78,20 @@ private let mask = TurnRedaction.mask
     let path = "/Users/ana/Library/Application/Support/Algo/Muy/Largo/De/Verdad/Por/Aqui/Mismo/Ok"
     expectEq(TurnRedaction.redact(path), path, "ruta larga")
 }
+
+@Test func decimalNumbersAreNotCardsButARealCardStillIs() {
+    let json = #"{"language":"es","confidence":0.9999963045120239}"#
+    expectEq(TurnRedaction.redact(json), json, "float largo")
+    expectEq(TurnRedaction.redact("version 2026.10.16.1234567890123"), "version 2026.10.16.1234567890123", "version")
+    expectEq(TurnRedaction.redact("tarjeta 4111.1111.1111.1111"), "tarjeta \(mask)", "tarjeta con puntos")
+    expectEq(TurnRedaction.redact(#"{"confidence":0.99,"card":"4111111111111111"}"#), #"{"confidence":0.99,"card":"\#(mask)"}"#, "tarjeta real")
+}
+
+@Test func aCardNextToADecimalIsStillMasked() {
+    expectEq(TurnRedaction.redact("total 9.99 4111111111111111"), "total 9.99 \(mask)", "precio")
+    expectEq(TurnRedaction.redact("v1.2 4111111111111111"), "v1.2 \(mask)", "version")
+    expectEq(TurnRedaction.redact("ip 10.0.0.1 5500000000000004"), "ip 10.0.0.1 \(mask)", "ip")
+    expectEq(TurnRedaction.redact("4111111111111111.5"), "\(mask).5", "fraccion pegada")
+    expectEq(TurnRedaction.redact("3.5 032180000118359719"), "3.5 \(mask)", "clabe")
+    expectEq(TurnRedaction.redact("4111111111111111 5500000000000004"), "\(mask) \(mask)", "dos tarjetas")
+}

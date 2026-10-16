@@ -46,6 +46,8 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
     /// When each cached page was read: click_at, a drag target and an upload trust a read only so long.
     private var readAt: [Int: Date] = [:]
     private var seenEpoch: Int
+    /// Tabs `browser_open` created since the turn began and nobody has since taken or released.
+    private var openedThisTurn: Set<Int> = []
 
     /// Alone, a runner has its own lease and is the conversation's.
     package convenience init(
@@ -172,7 +174,10 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
         case .success(.page(_, let page)) where page.tab == tab:
             let clean = BrowserPolicy.scrub(page)
             remember(clean, epoch: epoch)
-            let text = BrowserPolicy.render(clean, maxBytes: Self.readBytes, language: language())
+            // max_chars bounds the whole answer, not only the page text: the extension caps the text,
+            // but the element list and an older extension build used to bring it back at full size.
+            let budget = query.maxChars.map { min($0, Self.readBytes) } ?? Self.readBytes
+            let text = BrowserPolicy.render(clean, maxBytes: budget, language: language())
                 + dialogNote(clean.dialogs)
             return ParentToolOutcome(
                 ok: true, output: withDataNote(text), target: clean.origin, tool: BrowserTool.read.rawValue)
@@ -213,6 +218,17 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
                 if let element = page.elements.first(where: { $0.id == id }) { return (page, element) }
             }
             return nil
+        }
+    }
+
+    func noteOpened(_ tab: Int) { lock.withLock { _ = openedThisTurn.insert(tab) } }
+
+    func dropOpened(_ tab: Int) { lock.withLock { _ = openedThisTurn.remove(tab) } }
+
+    func takeOpened() -> [Int] {
+        lock.withLock {
+            defer { openedThisTurn = [] }
+            return openedThisTurn.sorted()
         }
     }
 

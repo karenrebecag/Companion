@@ -435,6 +435,10 @@ package struct CompositeParentTools: ParentToolExecuting, Sendable {
         for runner in runners { runner.noteChoiceTurn() }
     }
 
+    package func endTurn() async {
+        for runner in runners { await runner.endTurn() }
+    }
+
     package func unavailability(for name: String) -> String? {
         for runner in runners {
             if let reason = runner.unavailability(for: name) { return reason }

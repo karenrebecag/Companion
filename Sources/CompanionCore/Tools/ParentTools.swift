@@ -358,6 +358,9 @@ package protocol ParentToolExecuting: Sendable {
     /// model's, not hers, so they never name an app or stand as consent; but
     /// the connected apps stay reachable, as in any turn.
     func noteChoiceTurn()
+    /// The turn is over (done, failed or cut): a runner that left something
+    /// open for the turn's sake, such as a background tab, gives it back.
+    func endTurn() async
 }
 
 extension ParentToolExecuting {
@@ -380,6 +383,8 @@ extension ParentToolExecuting {
     package func noteTurn(_ said: String) {}
 
     package func noteChoiceTurn() { noteTurn("") }
+
+    package func endTurn() async {}
 }
 
 /// The record of what the app did by itself, in the thread — same idea as
