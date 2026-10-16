@@ -12,12 +12,12 @@ package struct TaskLine: Sendable, Equatable {
 
 /// The typed blocks of the island's rich answer popup (16m-1). Incredible's
 /// catalog names blocks the markdown splitter does not — tasks, callout,
-/// file chip, eyebrow — so they are DERIVED here, in Core, where a test can
+/// file chip — so they are DERIVED here, in Core, where a test can
 /// pin exactly which markdown becomes which block before any view exists.
 package enum AnswerBlock: Sendable, Equatable {
     case title(String)
     case section(String)
-    case eyebrow(String)
+    case subheading(String)
     case paragraph(String)
     case list(ordered: Bool, items: [MarkdownSplitter.Item])
     case tasks([TaskLine])
@@ -80,7 +80,7 @@ package enum AnswerBlocks {
             switch level {
             case 1: return .title(text)
             case 2: return .section(text)
-            default: return .eyebrow(text)
+            default: return .subheading(text)
             }
         case .prose(let text):
             if let path = lonePath(text) { return .fileChip(path) }

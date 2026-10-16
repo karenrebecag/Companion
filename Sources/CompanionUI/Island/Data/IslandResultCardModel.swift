@@ -126,7 +126,7 @@ enum IslandResultCardModel {
         case .paragraph(let text): return nonEmpty(clean(text)).map(AnswerBlock.paragraph)
         case .title(let text): return nonEmpty(clean(text)).map(AnswerBlock.title)
         case .section(let text): return nonEmpty(clean(text)).map(AnswerBlock.section)
-        case .eyebrow(let text): return nonEmpty(clean(text)).map(AnswerBlock.eyebrow)
+        case .subheading(let text): return nonEmpty(clean(text)).map(AnswerBlock.subheading)
         case .list(let ordered, let items):
             let kept = items.compactMap { item -> MarkdownSplitter.Item? in
                 guard let text = nonEmpty(clean(item.text)) else { return nil }

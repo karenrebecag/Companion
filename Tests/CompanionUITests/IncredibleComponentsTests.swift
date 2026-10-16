@@ -215,7 +215,7 @@ import Testing
     expectEq(AnswerPopupMetrics.maxWidth, 580, "16l popup: 580")
     expectEq(AnswerPopupMetrics.width(screen: 600), 456, "16l popup: 76 % de la pantalla si es menor")
     expectEq([AnswerPopupMetrics.paddingTop, AnswerPopupMetrics.paddingX,
-              AnswerPopupMetrics.paddingBottom], [18, 22, 16], "16l popup: 18/22/16")
+              AnswerPopupMetrics.paddingBottom], [16, 24, 16], "16l popup: 16/24/16")
 }
 
 @MainActor func testActingLineSplitsVerbAndReferents() {

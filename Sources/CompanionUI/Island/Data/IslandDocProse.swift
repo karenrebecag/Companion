@@ -33,7 +33,8 @@ struct IslandDocProse: View {
         case .list, .tasks: (DocCardMetrics.listGapBefore, DocCardMetrics.listGapAfter)
         case .table: (DocCardMetrics.tableGapBefore, DocCardMetrics.tableGapAfter)
         case .section: (DocCardMetrics.headingGapBefore, DocCardMetrics.headingGapAfter)
-        case .title, .eyebrow: (Space.none, DocCardMetrics.headingGapAfter)
+        case .subheading: (DocCardMetrics.headingGapBefore, DocCardMetrics.headingGapAfter)
+        case .title: (Space.none, DocCardMetrics.headingGapAfter)
         default: (DocCardMetrics.listGapBefore, DocCardMetrics.tableGapAfter)
         }
     }
@@ -46,6 +47,7 @@ struct IslandDocProse: View {
         case .table(let headers, let rows): table(headers: headers, rows: rows)
         case .section(let text): heading(text, size: DocCardMetrics.headingSize)
         case .title(let text): heading(text, size: DocCardMetrics.titleSize)
+        case .subheading(let text): heading(text, size: DocCardMetrics.subheadingSize)
         default: AnswerBlockView(block: block)
         }
     }
@@ -62,7 +64,7 @@ struct IslandDocProse: View {
 
     private func heading(_ text: String, size: CGFloat) -> some View {
         Text(AnswerInline.rich(text))
-            .font(Fonts.geist(size).weight(.semibold))
+            .font(Fonts.geist(size).weight(AnswerType.medium))
             .tracking(size * DocCardMetrics.titleTracking)
             .foregroundStyle(Color.white.opacity(DocCardInk.title))
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -102,7 +104,7 @@ struct IslandDocProse: View {
         Grid(alignment: .leading, horizontalSpacing: Space.none, verticalSpacing: Space.none) {
             GridRow {
                 ForEach(Array(headers.enumerated()), id: \.offset) { _, header in
-                    cell(header, size: DocCardMetrics.tableHeadSize, weight: .semibold, ink: DocCardInk.tableHead)
+                    cell(header, size: DocCardMetrics.tableHeadSize, weight: AnswerType.medium, ink: DocCardInk.tableHead)
                 }
             }
             .background(Color.white.opacity(DocCardInk.tableHeadFill))

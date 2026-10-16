@@ -40,7 +40,7 @@ package enum IslandVisualMetrics {
     package static let wedgeAlpha = 0.35
     /// Room the axis labels of a round chart take out of the canvas.
     package static let radialLabelInset: CGFloat = 28
-    package static let axisSize = AnswerBlockMetrics.eyebrowSize
+    package static let axisSize = AnswerBlockMetrics.captionSize
     package static let legendDot: CGFloat = 8
     package static let legendColumn: CGFloat = 110
     /// A round chart's axis label: the widest a name gets before it truncates.

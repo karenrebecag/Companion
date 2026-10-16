@@ -5,7 +5,7 @@ import Testing
 
 // Wave 16m-1: the rich answer popup paints typed blocks, and which markdown
 // becomes which block is contract, not styling — Incredible's ovx catalog
-// has blocks (tasks, callout, file chip, eyebrow) that our splitter does not
+// has blocks (tasks, callout, file chip) that our splitter does not
 // name, so the derivation lives in Core and is pinned here before any view.
 
 @Test func answerBlocksTests() {
@@ -25,9 +25,9 @@ func testHeadingLevelsMapToTitleSectionEyebrow() {
     un párrafo
     """)
     expectEq(blocks, [
-        .title("Informe"), .section("Detalle"), .eyebrow("CONTEXTO"),
+        .title("Informe"), .section("Detalle"), .subheading("CONTEXTO"),
         .paragraph("un párrafo"),
-    ], "16m-1: h1/h2 con peso propio, h3 funciona como eyebrow")
+    ], "16m-1: h1/h2 con peso propio, h3 es un subtitulo, no una etiqueta")
 }
 
 func testTaskListSplitsFromPlainList() {

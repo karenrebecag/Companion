@@ -32,25 +32,26 @@ package enum AnswerBlockMetrics {
 
     /// The × that closes the popup.
     package static let closeSide: CGFloat = 22
-    /// 66 characters of Geist at 13.5 land near this; the popup is wider.
+    /// 66 characters of Geist at 14 land near this; the popup is wider.
     package static let bodyMaxWidth: CGFloat = 490
     /// The glyph column of a step/tool row.
     package static let glyphWidth: CGFloat = 14
 
-    package static let titleSize: CGFloat = 21
-    package static let sectionSize: CGFloat = 15.5
-    package static let eyebrowSize: CGFloat = 11.5
-    package static let bodySize: CGFloat = 13.5
-    /// 1.62 line height and a 66-character measure keep long answers readable.
-    package static let bodyLeading: CGFloat = 1.62
+    package static let titleSize: CGFloat = AnswerType.title
+    package static let sectionSize: CGFloat = AnswerType.section
+    package static let subheadingSize: CGFloat = AnswerType.subheading
+    package static let captionSize: CGFloat = AnswerType.caption
+    package static let bodySize: CGFloat = AnswerType.body
+    /// One leading for every block: two densities in one reply read as two voices.
+    package static let bodyLeading: CGFloat = AnswerType.leading
     package static let bodyMeasure: CGFloat = 66
-    package static let listLeading: CGFloat = 1.6
+    package static let listLeading: CGFloat = AnswerType.leading
     package static let tableSize: CGFloat = 12.5
     package static let tableLeading: CGFloat = 1.45
 
-    package static let calloutPaddingY: CGFloat = 11
-    package static let calloutPaddingX: CGFloat = 14
-    package static let calloutGap: CGFloat = 11
+    package static let calloutPaddingY: CGFloat = AnswerType.calloutPadY
+    package static let calloutPaddingX: CGFloat = AnswerType.calloutPadX
+    package static let calloutGap: CGFloat = Space.x3
     package static let calloutTone = 0.11
     package static let calloutBorder = 0.26
 
@@ -61,16 +62,16 @@ package enum AnswerBlockMetrics {
     package static let inlineCodePaddingX: CGFloat = 6
     package static let inlineCodeRadius: CGFloat = 6
 
-    package static let chipSize: CGFloat = 11.5
+    package static let chipSize: CGFloat = AnswerType.caption
     package static let chipPaddingLeading: CGFloat = 6
     package static let chipPaddingTrailing: CGFloat = 7
     package static let chipPaddingY: CGFloat = 1
     package static let chipRadius: CGFloat = 6
 
-    package static let quoteSize: CGFloat = 14
-    package static let quoteLeading: CGFloat = 1.55
-    package static let quotePaddingY: CGFloat = 10
-    package static let quotePaddingX: CGFloat = 16
+    package static let quoteSize: CGFloat = AnswerType.body
+    package static let quoteLeading: CGFloat = AnswerType.leading
+    package static let quotePaddingY: CGFloat = AnswerType.quotePadY
+    package static let quotePaddingX: CGFloat = AnswerType.quotePadX
 
     /// SwiftUI spacing from a CSS line height: the extra space per line.
     package static func lineSpacing(size: CGFloat, leading: CGFloat) -> CGFloat {

@@ -35,7 +35,7 @@ struct IslandChartVisual: View {
         HStack(spacing: Space.x2) {
             if let title = block.title, !title.isEmpty {
                 Text(title)
-                    .font(Fonts.geist(AnswerBlockMetrics.tableSize).weight(.semibold))
+                    .font(Fonts.geist(AnswerBlockMetrics.tableSize).weight(AnswerType.medium))
                     .foregroundStyle(AnswerInk.white(AnswerInk.text))
                     .lineLimit(1)
             }
