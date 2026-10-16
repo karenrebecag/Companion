@@ -108,7 +108,7 @@ private func validator(roots: [PathValidator.Root] = []) -> PathValidator {
     let disk = PathValidator(workdir: "\(home)/Projects/app", extraRoots: [], wholeDisk: true, home: home)
     let want = "\(home)/Desktop/x.md"
     expectEq(disk.absolute("Desktop/x.md"), want, "especialista: relativa contra la carpeta de inicio")
-    expectEq(FileChip.expanded("Desktop/x.md", home: home), want, "chip: la misma ruta")
+    expectEq(FileChip.resolved("Desktop/x.md", workdir: nil, home: home), want, "chip: la misma ruta")
 
     let fake = FileManager.default.temporaryDirectory
         .appendingPathComponent("qa4-home-\(UUID().uuidString)", isDirectory: true)

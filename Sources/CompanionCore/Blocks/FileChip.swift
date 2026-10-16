@@ -30,11 +30,41 @@ package struct FileChip: Sendable, Equatable {
         return "~" + path.dropFirst(home.count)
     }
 
-    /// The path the actions open, read as every file tool reads it: with the
-    /// disk open a relative path is taken from home.
-    package static func expanded(_ path: String, home: String) -> String {
-        PathValidator.resolve(path, bound: nil, home: home)
+    /// The path the actions open, read as every file tool reads a bare name:
+    /// the working folder first, then home, so the chip opens the file the
+    /// model read.
+    package static func resolved(_ path: String, workdir: String?, home: String) -> String {
+        PathValidator(workdir: workdir, extraRoots: [], wholeDisk: true, home: home).absolute(path)
     }
+
+    /// What a click does. A program or script is shown in Finder, never run
+    /// from a chip; a protected path does nothing.
+    package static func action(for resolved: String, home: String, runnable: (String) -> Bool) -> FileChipAction {
+        if PathValidator(workdir: nil, extraRoots: [], wholeDisk: true, home: home).isProtected(resolved) {
+            return .none
+        }
+        let ext = (resolved as NSString).pathExtension.lowercased()
+        if FileChipAction.launcherExtensions.contains(ext) || runnable(resolved) { return .revealOnly }
+        return .open
+    }
+
+    /// A regular file with the execute bit. Folders always have it, so they are not runnable.
+    package static func isRunnable(_ path: String) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), !isDirectory.boolValue
+        else { return false }
+        return FileManager.default.isExecutableFile(atPath: path)
+    }
+}
+
+package enum FileChipAction: Equatable, Sendable {
+    case open, revealOnly, none
+
+    /// Programs, scripts and installers: the chip shows them, it never runs them.
+    static let launcherExtensions: Set<String> = [
+        "app", "command", "tool", "terminal", "sh", "bash", "zsh", "pkg", "mpkg", "workflow", "action",
+        "scpt", "scptd", "applescript", "webloc", "inetloc", "fileloc",
+    ]
 }
 
 /// The symbol that tells a person what kind of thing a row or chip is.

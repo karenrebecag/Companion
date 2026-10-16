@@ -20,10 +20,17 @@ struct FileChipView: View {
 
     var body: some View {
         let home = NSHomeDirectory()
-        let url = URL(fileURLWithPath: FileChip.expanded(chip.path, home: home))
+        // The file the model read: the working folder first, then home.
+        let resolved = FileChip.resolved(chip.path, workdir: WorkdirPreference.stored, home: home)
+        let url = URL(fileURLWithPath: resolved)
         let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+        let action = FileChip.action(for: resolved, home: home, runnable: FileChip.isRunnable)
         Button {
-            NSWorkspace.shared.open(url)
+            switch action {
+            case .open: NSWorkspace.shared.open(url)
+            case .revealOnly: NSWorkspace.shared.activateFileViewerSelecting([url])
+            case .none: break
+            }
         } label: {
             HStack(spacing: Space.x2) {
                 Image(nsImage: Self.icon(forFileNamed: chip.name, isFolder: isFolder))
@@ -42,17 +49,21 @@ struct FileChipView: View {
             .background(RoundedRectangle(cornerRadius: Radius.md).fill(Semantic.hover))
             .overlay(
                 RoundedRectangle(cornerRadius: Radius.md)
-                    .stroke(Semantic.border, lineWidth: Stroke.hairline)
-            )
+                    .stroke(Semantic.border, lineWidth: Stroke.hairline))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(action == .none)
         .help(FileChip.tooltip(url.path, home: home))
         .accessibilityLabel(chip.name)
         .contextMenu {
-            Button(Localized.string("file.chip.open")) { NSWorkspace.shared.open(url) }
-            Button(Localized.string("file.chip.reveal")) {
-                NSWorkspace.shared.activateFileViewerSelecting([url])
+            if action == .open {
+                Button(Localized.string("file.chip.open")) { NSWorkspace.shared.open(url) }
+            }
+            if action != .none {
+                Button(Localized.string("file.chip.reveal")) {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
             }
         }
     }
