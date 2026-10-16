@@ -46,57 +46,6 @@ struct StatsCard: View {
     }
 }
 
-/// Rows with a header that stays; wide tables scroll sideways.
-struct TableCard: View {
-    let block: TableBlock
-
-    /// A table born from a chart can carry 500 rows, which the grid would
-    /// lay out whole; the card shows the same first rows a fence table does.
-    static func visibleRows(_ block: TableBlock) -> [[String]] {
-        Array(block.rows.prefix(TableBlock.maxRows))
-    }
-
-    static func isCut(_ block: TableBlock) -> Bool {
-        block.truncated || block.rows.count > TableBlock.maxRows
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.x3) {
-            DataCardTitle(title: block.title)
-            ScrollView(.horizontal, showsIndicators: false) {
-                Grid(alignment: .leading, horizontalSpacing: Space.x4, verticalSpacing: Space.x2) {
-                    GridRow {
-                        ForEach(Array(block.columns.enumerated()), id: \.offset) { _, column in
-                            Text(column)
-                                .font(.uiCaption.weight(.semibold))
-                                .foregroundStyle(Semantic.mutedForeground)
-                        }
-                    }
-                    Divider()
-                    ForEach(Array(Self.visibleRows(block).enumerated()), id: \.offset) { _, row in
-                        GridRow {
-                            ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
-                                Text(cell)
-                                    .font(.uiBody)
-                                    .foregroundStyle(Semantic.foreground)
-                                    .textSelection(.enabled)
-                            }
-                        }
-                    }
-                }
-            }
-            .frame(maxHeight: CardMetrics.tableMax)
-            if Self.isCut(block) {
-                Text(String(format: Localized.string("card.table.truncated"), TableBlock.maxRows))
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface()
-    }
-}
-
 /// One chart per block; the kind picks the mark, the series pick the colour.
 struct ChartCard: View {
     let block: ChartBlock
@@ -178,7 +127,7 @@ struct ChartPoint: Identifiable, Equatable {
     }
 }
 
-private struct DataCardTitle: View {
+struct DataCardTitle: View {
     let title: String?
     var unit: String?
 

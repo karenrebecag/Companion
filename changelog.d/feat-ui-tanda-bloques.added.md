@@ -1,0 +1,1 @@
+- **Las tablas se ordenan con un clic y los lugares se ven en mapa con lista (2026-10-16).** Cualquier tabla, también la que responde el modelo, ordena por columna; las cifras se ordenan por valor y van a la derecha. Los lugares salen con pines numerados que se enlazan con la lista, y `list_directory` muestra el árbol de carpetas plegable en vez de texto.

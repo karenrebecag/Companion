@@ -644,6 +644,12 @@
 /* Wave 20: data cards */
 "card.table.truncated" = "Se muestran las primeras %d filas.";
 "card.chart" = "Gráfica";
+"card.sort.ascending" = "ascendente";
+"card.sort.descending" = "descendente";
+"card.tree.expanded" = "desplegada";
+"card.tree.truncated" = "Se muestran %d de %d entradas.";
+"card.tree.collapsed" = "plegada";
+"chat.card.tree" = "[árbol de carpetas mostrado en pantalla]";
 "chat.card.data" = "[datos mostrados en una tarjeta en pantalla]";
 
 /* Wave 16i-2: the clip and dropping on the notch */
