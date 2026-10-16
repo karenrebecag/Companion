@@ -79,7 +79,7 @@ private func tempStore() -> (store: FileVersions, root: URL) {
     }
     let (store, storeRoot) = tempStore()
     defer { do { try FileManager.default.removeItem(at: storeRoot) } catch {} }
-    let backed = runner(versions: store)
+    let backed = runner(workdir: storeRoot.path, versions: store)
     let offered = Set(backed.specs(.es).map(\.name))
     for tool in NativeTool.parentDeliverables {
         expect(offered.contains(tool.rawValue) && backed.handles(tool.rawValue),
