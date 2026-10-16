@@ -256,19 +256,19 @@ package struct TurnResult: Encodable, Sendable, Equatable {
             Call(
                 index: call.index, name: call.name, ok: call.ok, target: call.target, verified: call.verified,
                 band: call.band, ownerCheck: call.ownerCheck, outputLength: call.output.utf8.count,
-                arguments: includeText ? Self.capped(call.arguments, outputCap) : nil,
-                output: includeText ? Self.capped(call.output, outputCap) : nil)
+                arguments: includeText ? Self.capped(TurnRedaction.redact(call.arguments), outputCap) : nil,
+                output: includeText ? Self.capped(TurnRedaction.redact(call.output), outputCap) : nil)
         }
         cards = record.cards.map { Card(kind: $0.kind) }
-        receipts = includeText ? record.receipts : nil
+        receipts = includeText ? record.receipts.map(TurnRedaction.redact) : nil
         handoff = record.handoffGoalLength.map { Handoff(executor: "claude-code", goalLength: $0) }
         pendingOwnerCheck = record.pendingOwner.map { Pending(tool: $0.tool, band: $0.band, reason: $0.reason) }
         reply = record.reply.map {
             Reply(
                 length: $0.text.count, isFailure: $0.isFailure, language: detected?.code,
-                confidence: detected?.confidence, text: includeText ? $0.text : nil)
+                confidence: detected?.confidence, text: includeText ? TurnRedaction.redact($0.text) : nil)
         }
-        statusLines = includeText ? record.statusLines : nil
+        statusLines = includeText ? record.statusLines.map(TurnRedaction.redact) : nil
         error = record.error.map { Failure(code: $0.code, message: $0.message) }
         truncated = kept.count < record.toolCalls.count ? true : nil
     }

@@ -98,6 +98,8 @@ private func verdict(
     expectEq(band("click", #"{"id":1}"#), .critical, "el runner solo pregunta por clics destructivos")
     expectEq(band("open_url", #"{"url":"https://example.com"}"#), .act, "abrir una URL es navegar")
     expectEq(band("anything", "{}", mcp: true), .critical, "todo MCP")
+    expectEq(band("app:gmail:delete_message", "{}"), .critical, "una app conectada que borra pide el dedo")
+    expectEq(band("app:slack:post", "{}"), .critical, "y cualquier otra: el grupo no es fiable aqui")
     expectEq(band("tool_nobody_classified", "{}"), .critical, "sin clasificar sube")
 }
 

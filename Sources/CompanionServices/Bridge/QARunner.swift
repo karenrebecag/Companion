@@ -82,9 +82,9 @@ package struct QARunner: ParentToolExecuting, Sendable {
             return .failed(ContractError(
                 code: BridgeCode.notAvailable, message: "the conversation cannot take a turn yet"), tool: name)
         case .busy(let turnId):
+            let hint = turnId.map { " (turn_id \($0)): call companion_wait_turn" } ?? ": try again in a moment"
             return .failed(ContractError(
-                code: BridgeCode.busyTurn,
-                message: "a turn is already running (turn_id \(turnId)): call companion_wait_turn"), tool: name)
+                code: BridgeCode.busyTurn, message: "a turn is already running" + hint), tool: name)
         case .started(let turnId, _):
             return await settled(turnId, seconds: seconds, tool: name)
         }
@@ -104,13 +104,14 @@ package struct QARunner: ParentToolExecuting, Sendable {
 
     /// Waits only if the turn is still going; a finished one answers at once.
     private func settled(_ turnId: String, seconds: Int, tool: String) async -> ParentToolOutcome {
-        guard let first = await driving.turn(turnId) else {
+        // Only the agent's own turns: the user's are hers, whatever their id.
+        guard let first = await driving.turn(turnId), first.origin == "agent" else {
             return .failed(ContractError(code: BridgeCode.notFound, message: "no turn with that id"), tool: tool)
         }
         if !first.status.isFinished {
             _ = await waiter.wait(turnId: turnId, seconds: seconds)
         }
-        guard let record = await driving.turn(turnId) else {
+        guard let record = await driving.turn(turnId), record.origin == "agent" else {
             return .failed(ContractError(code: BridgeCode.notFound, message: "no turn with that id"), tool: tool)
         }
         return result(record, tool: tool)

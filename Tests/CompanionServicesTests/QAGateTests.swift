@@ -41,7 +41,7 @@ private func gate(
     let owner = FakeOwnerCheck(result: .confirmed)
     let verdict = await gate(owner).decide(sheetRequest, call: call(), said: "")
     expectEq(verdict, .granted, "confirmed")
-    expectEq(owner.calls, ["approve a critical action"], "una llamada con la razon fija")
+    expectEq(owner.calls, ["approve a critical action: run_shell"], "una llamada, con la tool en la razon")
 }
 
 @Test func aRefusedOwnerCheckDeniesAndKeepsQAOn() async {

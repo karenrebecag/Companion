@@ -111,6 +111,16 @@ private func tools(
     vm.abandonTurn()
 }
 
+@Test @MainActor func askWhileHerOwnTurnRunsIsBusyWithoutHerTurnId() async {
+    let vm = rig(gate: FakeQAGate(.act, hold: true), tools: tools())
+    vm.draft = "hola"
+    vm.send()
+    await pumpUntil("su turno") { vm.busy }
+    expectEq(vm.askAsAgent(text: "x", newConversation: false, asUserWords: true), .busy(turnId: nil),
+             "no se le da el id de un turno que no es suyo")
+    vm.abandonTurn()
+}
+
 @Test @MainActor func askingForANewConversationStartsItBeforeTheTurn() async {
     let vm = rig(gate: FakeQAGate(.act), tools: tools())
     let before = vm.conversationId

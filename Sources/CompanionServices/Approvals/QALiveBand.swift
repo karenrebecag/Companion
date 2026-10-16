@@ -18,6 +18,10 @@ import Foundation
 package enum QALiveBand {
     package static func band(request: ApprovalRequest, call: ToolCallRef, said: String) -> ActionBand {
         guard !request.isMCP else { return .critical }
+        // A connected app's tool reaches a third party. Its request only exists
+        // because the runner found the action is not a read, and the group is not
+        // reliable here, so it is critical and asks the owner (never `.confirm`).
+        guard !call.name.hasPrefix(ApprovalCopy.appToolPrefix) else { return .critical }
         let arguments = ToolArguments.parse(call.arguments) ?? [:]
         var facts = ActionFacts()
         switch ParentTool(rawValue: call.name) {

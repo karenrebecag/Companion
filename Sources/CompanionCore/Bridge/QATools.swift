@@ -86,7 +86,8 @@ package enum QATool: String, CaseIterable, Sendable {
 /// chat belongs to the user.
 package enum QAAskStart: Sendable, Equatable {
     case started(turnId: String, conversationId: String)
-    case busy(turnId: String)
+    /// `turnId` only when the running turn is the agent's own: another's id is not for it.
+    case busy(turnId: String?)
     /// The chat cannot take a turn (still onboarding).
     case unavailable
 }

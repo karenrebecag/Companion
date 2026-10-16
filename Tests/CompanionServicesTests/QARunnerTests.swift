@@ -70,6 +70,24 @@ private func record(_ id: String = "t1", status: TurnStatus = .completed) -> Tur
     expect(driving.asks.isEmpty, "ninguna llego a escribir en la conversacion")
 }
 
+@Test func waitTurnOnATurnThatIsNotTheAgentsIsNotFound() async {
+    let driving = FakeQADriving()
+    var hers = record("hers")
+    hers.origin = "typed"
+    driving.set(hers)
+    let outcome = await runner(driving).execute(
+        name: "companion_wait_turn", argumentsJSON: #"{"turn_id":"hers"}"#)
+    expect(outcome.output.hasPrefix(BridgeCode.notFound), "los turnos de la usuaria no se leen")
+    expect(!outcome.output.contains("hola"), "ni su texto")
+}
+
+@Test func busyTurnNeverNamesATurnThatIsNotTheAgents() async {
+    let driving = FakeQADriving(start: .busy(turnId: nil))
+    let outcome = await runner(driving).execute(name: "companion_ask", argumentsJSON: #"{"text":"otra"}"#)
+    expect(outcome.output.hasPrefix(BridgeCode.busyTurn), "busy_turn")
+    expect(!outcome.output.contains("turn_id"), "sin id")
+}
+
 @Test func waitTurnOnAnUnknownIdIsNotFound() async {
     let outcome = await runner(FakeQADriving()).execute(
         name: "companion_wait_turn", argumentsJSON: #"{"turn_id":"nope"}"#)

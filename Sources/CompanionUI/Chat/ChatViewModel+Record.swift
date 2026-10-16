@@ -78,7 +78,7 @@ extension ChatViewModel {
         guard var record = liveTurn else { return }
         record.status = open ? .awaitingOwner : .running
         record.pendingOwner = open
-            ? TurnPendingOwner(tool: tool, band: "critical", reason: ApprovalCopy.ownerReason(config.language))
+            ? TurnPendingOwner(tool: tool, band: "critical", reason: ApprovalCopy.ownerReason(config.language, tool: tool))
             : nil
         if open { record.mark(.ownerCheck, atMs: elapsedMs) }
         liveTurn = record
@@ -89,7 +89,7 @@ extension ChatViewModel {
     /// queued: the queue of the chat belongs to the user.
     package func askAsAgent(text: String, newConversation: Bool, asUserWords: Bool) -> QAAskStart {
         guard !needsOnboarding else { return .unavailable }
-        if busy, let live = liveTurn { return .busy(turnId: live.turnId) }
+        if busy, let live = liveTurn { return .busy(turnId: live.origin == "agent" ? live.turnId : nil) }
         if newConversation { self.newConversation() }
         errorText = nil
         let id = startTurn(text, origin: .agent, asUserWords: asUserWords)

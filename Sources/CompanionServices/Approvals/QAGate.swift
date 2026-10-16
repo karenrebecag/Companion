@@ -74,7 +74,7 @@ package actor QAGate: QAGating {
             verifying = false
             ownerCheckChanged(false, tool)
         }
-        let check = await owner.verify(reason: ApprovalCopy.ownerReason(language()))
+        let check = await owner.verify(reason: ApprovalCopy.ownerReason(language(), tool: tool))
         // A call cancelled while the dialog was up never acts, whatever the
         // system answered in the same instant.
         let outcome = Task.isCancelled
