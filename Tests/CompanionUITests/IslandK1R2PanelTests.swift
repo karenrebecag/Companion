@@ -107,8 +107,11 @@ private let base = Date(timeIntervalSinceReferenceDate: 1_000)
 }
 
 @Test @MainActor func k1R2TheLiteralsStayPut() {
+    // The settle is for an island with nothing to read; a reply has ReadingClock.
     expectEq(SessionMachine.settleDelay, 0.2, "0.2")
     expectEq(SessionMachine.settleFloor, 1.5, "1.5")
+    expectEq(ReadingClock.minimum, 4, "4")
+    expectEq(ReadingClock.maximum, 20, "20")
     expectEq(IslandMotion.peekDwell, 0.15, "0.15")
     expectEq(IslandMotion.fastHoverDwell, 0.3, "0.3")
     expectEq(IslandMotion.fastPointer, 450, "450")

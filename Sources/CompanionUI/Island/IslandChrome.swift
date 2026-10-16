@@ -248,6 +248,8 @@ struct HoverTracker {
 package final class IslandPanel: NSPanel {
     package let geometry: IslandGeometry
     private let onHover: @MainActor (Bool) -> Void
+    /// The pointer reached the notch (before the dwell) or left one it only peeked at.
+    private let onPeek: @MainActor (Bool) -> Void
     private var shape: CGRect = .zero
     private var hitSize: CGSize = .zero
     /// What the view was last asked to show, so a new notch can re-derive it.
@@ -267,10 +269,12 @@ package final class IslandPanel: NSPanel {
     private let catcher: IslandDropCatcher
 
     package init<Content: View>(
-        content: Content, geometry: IslandGeometry, onHover: @escaping @MainActor (Bool) -> Void
+        content: Content, geometry: IslandGeometry, onHover: @escaping @MainActor (Bool) -> Void,
+        onPeek: @escaping @MainActor (Bool) -> Void = { _ in }
     ) {
         self.geometry = geometry
         self.onHover = onHover
+        self.onPeek = onPeek
         let dropTarget = IslandDropTarget(geometry: geometry)
         self.dropTarget = dropTarget
         catcher = IslandDropCatcher(target: dropTarget)
@@ -421,6 +425,7 @@ package final class IslandPanel: NSPanel {
             guard !hovering else { return }
             hovering = true
             setPeeking(true)
+            onPeek(true)
             guard case .dwell(let dwell) = decision else { return }
             dwellTask = Task { @MainActor [weak self] in
                 do { try await Task.sleep(for: .seconds(dwell)) } catch { return }
@@ -454,6 +459,7 @@ package final class IslandPanel: NSPanel {
         // session it entered, but the card did: its leave may be lost, and
         // this is the backstop. A leave nobody entered is harmless.
         guard wasHovering else { return }
+        onPeek(false)
         onHover(false)
     }
 

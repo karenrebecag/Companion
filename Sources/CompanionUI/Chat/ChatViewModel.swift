@@ -394,6 +394,21 @@ package final class ChatViewModel: ConversationPresenting {
     package func appendAssistant(_ text: String) async {
         messages.append(ChatMessage(role: .assistant, text: text))
         persist()
+        measure(text)
+    }
+
+    /// The card's reading clock is born with the reply's length; the voice
+    /// threads its reply before it stops speaking, so this lands in time.
+    func measure(_ reply: String) {
+        guard let load = ReadingClock.load(of: reply) else { return }
+        session.send(.replyMeasured(load))
+    }
+
+    /// Only when the thread ends on an answer: a cancelled or failed turn
+    /// must not borrow the length of an older reply.
+    func measureLatestReply() {
+        guard let last = messages.last(where: { !$0.isStatus }), last.role == .assistant else { return }
+        measure(last.text)
     }
 
     package func appendStatus(_ text: String) async {

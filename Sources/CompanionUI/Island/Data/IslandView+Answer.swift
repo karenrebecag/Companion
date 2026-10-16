@@ -69,7 +69,8 @@ extension IslandView {
     /// hears it, and later whether it was opened or left alone (16h-3).
     func reportReplyShown(_ id: UUID?) {
         guard let id else { return }
-        for event in resultAttention.replyShown(id) { chat.session.report(event) }
+        let now = ProcessInfo.processInfo.systemUptime
+        for event in resultAttention.replyShown(id, at: now) { chat.session.report(event) }
     }
 
     func closeAnswer() {

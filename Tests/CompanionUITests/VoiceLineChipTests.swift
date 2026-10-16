@@ -184,8 +184,8 @@ private func quiet(_ phase: SessionPhase = .speaking) -> (IslandState, SessionPr
 @Test @MainActor func theChipAndTheIslandReportAReplyOnce() {
     var attention = IslandResultAttention()
     let id = UUID()
-    expectEq(attention.replyShown(id), [.shown(.result)], "el chip la muestra")
-    expectEq(attention.replyShown(id), [], "la isla otra vez: nada")
+    expectEq(attention.replyShown(id, at: 0), [.shown(.result)], "el chip la muestra")
+    expectEq(attention.replyShown(id, at: 0), [], "la isla otra vez: nada")
     attention.attended()
-    expectEq(attention.replyShown(UUID()), [.shown(.result)], "atendida por el clic: no ignorada")
+    expectEq(attention.replyShown(UUID(), at: 5), [.shown(.result)], "atendida por el clic: no ignorada")
 }

@@ -51,6 +51,9 @@ package struct SessionMachine: Sendable, Equatable {
     /// Completed is a spoken reply's document, shown while the mic may still
     /// be listening. It ends the moment the kind leaves Completed.
     var voiceCardUp = false
+    /// What the reply on the card asks of the reader; nil when the turn did
+    /// not say, and the card then keeps the short settle. A new turn drops it.
+    var replyLoad: ReadingLoad?
     /// Ids minted for steps whose producer sent none; never reused in a session.
     var stepsMinted = 0
     /// The key is down but still under the tap threshold: the mic is open
@@ -195,7 +198,21 @@ package struct SessionMachine: Sendable, Equatable {
             settleHeld = true
             if projection.kind == .idle { projection.kind = .hover }
             if fresh, showsSettle { effects.append(.pauseCompletedExpiry) }
-        case .hoverLeft:
+        case .peeked:
+            // Holds the clock only: opening the island is the dwell's call.
+            let fresh = !settleHeld
+            settleHeld = true
+            if fresh, showsSettle { effects.append(.pauseCompletedExpiry) }
+        case .replyMeasured(let load):
+            replyLoad = load
+            // A job's answer is measured after its end already armed the
+            // short settle: the card re-arms with its real length.
+            if showsSettle { effects += completedExpiry() }
+        case .resultDismissed:
+            guard showsSettle else { return [] }
+            leaveCompleted()
+            effects.append(.islandEvent(.closed(.result)))
+        case .hoverLeft, .peekLeft:
             let held = settleHeld
             settleHeld = false
             if projection.kind == .hover { projection.kind = .idle }
@@ -221,11 +238,7 @@ package struct SessionMachine: Sendable, Equatable {
             // The dictation card keeps its own clock whatever is up (K4).
             if projection.kind == .processing(.completed),
                projection.dictatedText != nil || !settleBlocked {
-                // The hands-free mic is still open under the card.
-                projection.kind = voiceCardUp && voice.state == .listening && !voice.muted
-                    ? .listening : .idle
-                projection.dictation = nil
-                projection.dictatedText = nil
+                leaveCompleted()
             }
         case .pressed:
             openTurn()
@@ -438,6 +451,7 @@ package struct SessionMachine: Sendable, Equatable {
     /// The user's own door into a turn (a press, a sent chat, the voice
     /// listening): a job already running goes behind it.
     mutating func openTurn() {
+        replyLoad = nil
         begin()
         turnReceipt = nil
         projection.job?.behindTurn = true

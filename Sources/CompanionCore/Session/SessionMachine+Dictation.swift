@@ -24,13 +24,31 @@ extension SessionMachine {
             // The settle would close the island over it. The dictation card
             // below keeps its own clock even when a notice is up.
             if settleBlocked { return [] }
-            var effects: [SessionEffect] = [
-                .scheduleCompletedExpiry(Self.settleDelay, floor: Self.settleFloor)]
+            var effects = [readingExpiry()]
             if settleHeld { effects.append(.pauseCompletedExpiry) }
             return effects
         }
         if dictationHeld { return [.pauseCompletedExpiry] }
         return [.scheduleCompletedExpiry(Self.dictationCardDelay, floor: nil)]
+    }
+
+    /// The card has its reply to be read: the reading clock, not the 0.2 s
+    /// settle that only suits an island with nothing on it. A card that needs
+    /// scroll has no clock at all.
+    func readingExpiry() -> SessionEffect {
+        guard let load = replyLoad else {
+            return .scheduleCompletedExpiry(Self.settleDelay, floor: Self.settleFloor)
+        }
+        guard let reading = ReadingClock.duration(for: load) else { return .cancelCompletedExpiry }
+        return .scheduleCompletedExpiry(reading, floor: Self.settleFloor)
+    }
+
+    /// Completed ends: the hands-free mic stays open under the card.
+    mutating func leaveCompleted() {
+        projection.kind = voiceCardUp && voice.state == .listening && !voice.muted
+            ? .listening : .idle
+        projection.dictation = nil
+        projection.dictatedText = nil
     }
 
     /// Something the settle must not close the island over.
