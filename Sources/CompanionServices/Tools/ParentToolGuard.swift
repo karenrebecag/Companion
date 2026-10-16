@@ -73,6 +73,9 @@ package struct ParentToolGuard: Sendable {
         let denied = ParentToolOutcome.failed(
             .deniedByUser(language), target: target, tool: call.name)
         let sheet = await answer(request, parked: parked)
+        let refusal = sheet == .timedOut
+            ? ParentToolOutcome.failed(.approvalTimeout(language), target: target, tool: call.name)
+            : denied
         // The sheet's wait is where the user can cut the caller: a yes that
         // lands after that answers a turn nobody is in any more, so it grants
         // nothing and leaves no ticket behind (approval-after-cut, D1).
@@ -83,7 +86,7 @@ package struct ParentToolGuard: Sendable {
         }
         onSettled?(request, sheet)
         if sheet == .approved { tools?.granted(request) }
-        return Verdict(denial: sheet == .approved ? nil : denied, answer: sheet)
+        return Verdict(denial: sheet == .approved ? nil : refusal, answer: sheet)
     }
 
     /// The remembered/onRequest/request dance on its own, without a

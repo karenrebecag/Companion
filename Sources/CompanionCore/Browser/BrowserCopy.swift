@@ -110,21 +110,29 @@ package enum BrowserCopy {
             return "Pone un archivo local en un campo de archivo numerado por la última browser_read de esa pestaña. "
                 + "Siempre pregunta, y un sí hablado no lo aprueba. Nunca envía el formulario."
         case (.navigate, .en):
-            return "Open an http or https address in a tab you control. Going to another site than the one shown asks first."
+            return "Open an http or https address in a tab you control. In the chat it goes straight there; it asks only for an "
+                + "address that looks destructive (/logout, ?confirm=1) or that carries data to a host the user did "
+                + "not name. From an external agent, leaving the site shown also asks first."
         case (.navigate, .es):
-            return "Abre una dirección http o https en una pestaña que controlas. Ir a un sitio distinto del que se ve pregunta antes."
+            return "Abre una dirección http o https en una pestaña que controlas. En el chat va directo; solo pregunta si la "
+                + "dirección parece destructiva (/logout, ?confirm=1) o lleva datos a un sitio que la usuaria no "
+                + "nombró. Desde un agente externo, salir del sitio que se ve también pregunta antes."
         case (.open, .en):
             return "Open an http or https address in a NEW background tab that you then control, "
-                + "and read it right away. Prefer it over taking the user's tabs."
+                + "and read it right away. Prefer it over taking the user's tabs. In the chat it opens "
+                + "without asking; from an external agent it always asks first."
         case (.open, .es):
             return "Abre una dirección http o https en una pestaña NUEVA de fondo que pasas a controlar, "
-                + "y léela enseguida. Úsala antes que tomar las pestañas del usuario."
+                + "y léela enseguida. Úsala antes que tomar las pestañas del usuario. En el chat abre "
+                + "sin preguntar; desde un agente externo siempre pregunta antes."
         case (.take, .en):
             return "Take control of an existing tab so it can be read and used; it moves into the Companion group. "
-                + "Only for a tab the user named. Give it back with browser_release."
+                + "Only for a tab the user named. From an external agent it asks first unless the tab is already yours; "
+                + "in the chat it does not ask. Give it back with browser_release."
         case (.take, .es):
             return "Toma el control de una pestaña existente para poder leerla y usarla; pasa al grupo Companion. "
-                + "Solo para una pestaña que el usuario nombró. Devuélvela con browser_release."
+                + "Solo para una pestaña que el usuario nombró. Desde un agente externo pregunta antes si la pestaña no "
+                + "es ya tuya; en el chat no pregunta. Devuélvela con browser_release."
         case (.release, .en):
             return "Give a tab back to the user when the task is done; it returns to its place."
         case (.release, .es):

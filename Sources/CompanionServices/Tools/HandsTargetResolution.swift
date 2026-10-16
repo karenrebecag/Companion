@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 extension ScreenHands {
@@ -21,9 +22,19 @@ extension ScreenHands {
     static let windowLostMessage =
         "the window look returned is gone or no longer in front in its app; call look again"
 
-    static let targetChangedMessage =
-        "the app in front is not the one the user was in; "
-        + "ask the user to bring that app to the front, then retry"
+    /// Names both apps: "call look" would be a lie here, because look cannot
+    /// bring a pinned app back in front.
+    static func targetChangedMessage(front: String, pinned: String) -> String {
+        "the app in front is \(front), not \(pinned), the one the user was in; "
+            + "ask the user to bring \(pinned) to the front, then retry"
+    }
+
+    /// Display name for a refusal the agent reads; falls back so the message
+    /// never names nothing.
+    func appName(_ pid: Int32) -> String {
+        NSRunningApplication(processIdentifier: pid)?.localizedName
+            ?? reader.focusedField(pid: pid)?.app ?? bundleID(pid) ?? "another app"
+    }
 
     static let callerFrontFocusMessage =
         "focus_window does not re-pin while the agent's own app is in front; "
@@ -34,10 +45,12 @@ extension ScreenHands {
     /// in `HandsCaller.$apps.withValue(lineage)`; voice and chat do not, so
     /// the front's word is final for them.
     ///
-    /// `exemptFromWindow` is for `look` and `focus_window`: with the user's
-    /// own app in front, re-latching to what they look at is their choice.
-    /// With a caller in front it never applies: an agent must not loop
-    /// target_lost -> look onto a window the user switched to.
+    /// `exemptFromWindow` is for `look` and `focus_window`: they are the calls
+    /// that re-latch the window, so refusing them for a changed window is a
+    /// loop (target_lost -> "call look again" -> target_lost) that only
+    /// open_app broke (seen live 2026-10-16). With a caller in front it
+    /// still reads only the window of the pid the user pinned; every call
+    /// that acts keeps the window check.
     ///
     /// `commitRepin` is false for approval: a sheet only asks, and taking the
     /// pending repin there would pin before the call that owns it runs.
@@ -48,7 +61,7 @@ extension ScreenHands {
             guard let pinned = snapshot.pid, callerFrontHolds(snapshot: snapshot, pid: pinned) else {
                 return .targetLost(message: Self.targetLostMessage)
             }
-            return windowHolds(pid: pinned)
+            return exemptFromWindow || windowHolds(pid: pinned)
                 ? .ready(pid: pinned, frontIsCaller: true) : .windowLost
         }
         if snapshot.repin {
@@ -58,7 +71,8 @@ extension ScreenHands {
             return .ready(pid: front, frontIsCaller: false)
         }
         if let spoken = snapshot.pid, spoken != front {
-            return .targetChanged(message: Self.targetChangedMessage)
+            return .targetChanged(message: Self.targetChangedMessage(
+                front: appName(front), pinned: appName(spoken)))
         }
         guard bundleHolds(snapshot: snapshot, pid: front, requireStored: false) else {
             return .targetLost(message: Self.targetLostMessage)

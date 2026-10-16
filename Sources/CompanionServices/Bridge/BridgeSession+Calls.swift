@@ -124,6 +124,10 @@ extension BridgeSession {
                 return .refused(
                     errorLine(id, BridgeCode.coolingDown, rejectionMessage(BridgeCode.coolingDown, tool: nil)), close: true)
             }
+            if answer == .timedOut {
+                return .refused(errorLine(
+                    id, BridgeCode.approvalTimeout, "no answer to the sheet in time; retry when the user is back"))
+            }
             return .refused(errorLine(id, BridgeCode.deniedByUser, "the user denied the hands"))
         }
         // M4 (security review 2026-09-28): the peer may have left (a plain

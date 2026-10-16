@@ -17,6 +17,8 @@ package actor Approvals: ApprovalsProvider {
         let timer: Task<Void, Never>
     }
 
+    private enum Resolver: String { case user, timeout, interrupt }
+
     private var pending: [String: Pending] = [:]
     private var memory = ApprovalMemory()
     private let clock: Clock
@@ -53,11 +55,11 @@ package actor Approvals: ApprovalsProvider {
                 }
                 pending[id] = Pending(request: approval, continuation: continuation, timer: timer)
                 if Task.isCancelled {
-                    _ = resolveNow(requestId: id, approved: false, remember: false)
+                    _ = resolveNow(requestId: id, approved: false, remember: false, by: .interrupt)
                 }
             }
         } onCancel: {
-            Task { await self.resolve(requestId: id, approved: false, remember: false) }
+            Task { await self.interrupt(id) }
         }
     }
 
@@ -69,11 +71,19 @@ package actor Approvals: ApprovalsProvider {
         resolveNow(requestId: requestId, approved: approved, remember: remember)
     }
 
+    private func interrupt(_ requestId: String) {
+        _ = resolveNow(requestId: requestId, approved: false, remember: false, by: .interrupt)
+    }
+
     private func resolveNow(
-        requestId: String, approved: Bool, remember: Bool, timedOut: Bool = false
+        requestId: String, approved: Bool, remember: Bool, by resolver: Resolver = .user
     ) -> Bool {
         guard let entry = pending.removeValue(forKey: requestId) else { return false }
         entry.timer.cancel()
+        // Only the tool name: the arguments and the summary carry what the
+        // user is working on.
+        Log.app("approvals: resolved tool=\(entry.request.toolName) approved=\(approved) by=\(resolver.rawValue)")
+        let timedOut = resolver == .timeout
         // An MCP request has no key; the response must not claim otherwise.
         let remembers = remember && !entry.request.isMCP
         if remembers, let key = ApprovalKey.from(entry.request) {
@@ -92,7 +102,7 @@ package actor Approvals: ApprovalsProvider {
     private func autoDeny(_ requestId: String, started: TimeInterval) async {
         guard pending[requestId] != nil else { return }
         Log.app("approvals: auto-denied after \(Int(clock.now() - started))s")
-        _ = resolveNow(requestId: requestId, approved: false, remember: false, timedOut: true)
+        _ = resolveNow(requestId: requestId, approved: false, remember: false, by: .timeout)
     }
 }
 
