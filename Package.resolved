@@ -1,12 +1,12 @@
 {
-  "originHash" : "1decb313b253b03bf5a3a05fe6fe44fb8d512147d79f2621b8a9526bff41fb10",
+  "originHash" : "0c3c5ecf3d0b3c5d657eb904728b1d06521939deb9f0c83ddd2f5f3dc27b37f1",
   "pins" : [
     {
       "identity" : "companionuipro",
       "kind" : "remoteSourceControl",
       "location" : "git@github.com:karenrebecag/CompanionUIPro.git",
       "state" : {
-        "revision" : "d0dbae8f5ed8711820e3a2a4f69b2b51cb3e2524"
+        "revision" : "886a5c59bafef97e4ce643b217fd47255d2399a0"
       }
     }
   ],
