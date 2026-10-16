@@ -9,6 +9,7 @@ import Testing
     testTakeSentenceBoundaries()
     testSentencesSplit()
     testSplitFirstSentence()
+    testSpansConcatenateWithTheirSeparator()
 }
 
 @MainActor func testTakeSentenceStreaming() {
@@ -79,4 +80,19 @@ import Testing
     let (empty, emptyRest) = SentenceSplitter.splitFirstSentence("   ")
     expectEq(empty, "", "split: espacios quedan cadena vacía")
     expect(emptyRest == nil, "split: espacios no inventan resto")
+}
+
+/// The chat concatenates spans; a trimmed one stored "química.Durante".
+@MainActor func testSpansConcatenateWithTheirSeparator() {
+    var buffer = "Se convierte en energía química. Durante este proceso la planta crece. Y"
+    var joined = ""
+    while let cut = SentenceSplitter.takeSpan(buffer) {
+        joined += cut.span
+        buffer = cut.rest
+    }
+    expectEq(joined + buffer,
+             "Se convierte en energía química. Durante este proceso la planta crece. Y",
+             "spans: el espacio entre frases sobrevive")
+    let lines = SentenceSplitter.takeSpan("| a | b | fila uno de la tabla |\n| c | d |\nx")
+    expect(lines?.span.hasSuffix("\n") == true, "spans: el salto de línea sigue")
 }

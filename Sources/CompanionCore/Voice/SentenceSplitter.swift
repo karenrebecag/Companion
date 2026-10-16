@@ -36,8 +36,10 @@ package enum SentenceSplitter: Sendable {
     /// list item of a streamed reply into one line (live 2026-10-12).
     package static func takeSpan(_ buffer: String) -> (span: String, rest: String)? {
         guard let cut = takeSentence(buffer) else { return nil }
-        let span = String(buffer.dropLast(cut.rest.count))
-            .trimmingCharacters(in: CharacterSet(charactersIn: " \t"))
+        // The separator `takeSentence` ate from the rest stays at the span's
+        // end: the consumer concatenates spans, and a trimmed one glued
+        // "química." to "Durante" in every stored reply (live 2026-10-16).
+        let span = String(buffer.dropLast(cut.rest.count).drop(while: { $0 == " " || $0 == "\t" }))
         return (span, cut.rest)
     }
 

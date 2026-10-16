@@ -1,0 +1,1 @@
+Las manos de Companion ya se ofrecen con el chat escrito (Companion al frente) y actúan sobre la última app que estuvo delante, nunca sobre Companion; `open_app` resuelve también el nombre localizado del sistema ("Notas", "Calculadora"); y el texto de las respuestas conserva el espacio entre frases ("química. Durante") (2026-10-16).

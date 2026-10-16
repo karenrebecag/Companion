@@ -121,7 +121,6 @@ func makeSensingAndModel(
             }
             return ScreenHands(
                 ax: ax, screen: sight, target: { frontmost.lastOtherPID },
-                selfInFront: { frontmost.selfInFront },
                 see: { request in await screenSight.see(request) },
                 changes: AXChangeWatcher(trust: { accessibility.isTrusted() }),
                 gate: screenRecording,

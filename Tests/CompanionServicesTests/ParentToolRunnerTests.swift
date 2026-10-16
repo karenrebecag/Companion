@@ -202,3 +202,16 @@ private struct ProbeOnlyOpener: WorkspaceOpening {
     expect(big.output.unicodeScalars.count < 41_000 && big.output.hasSuffix("…"),
            "read_skill: un cuerpo enorme se corta visible")
 }
+
+/// "Notas" is what the user and the model say; the bundle is "Notes".
+@Test @MainActor func openAppResolvesTheNameTheSystemShowsInTheUsersLanguage() async {
+    let opener = FakeWorkspaceOpener(installed: ["Notes", "Calculator", "NotchNook"])
+    opener.localized = ["notas": "Notes", "calculadora": "Calculator"]
+    let runner = ParentToolRunner(workspace: opener)
+    let notes = await runner.execute(name: "open_app", argumentsJSON: #"{"name":"Notas"}"#)
+    let calc = await runner.execute(name: "open_app", argumentsJSON: #"{"name":"calculadora"}"#)
+    expect(notes.ok && calc.ok, "localizados: abren (\(notes.output) / \(calc.output))")
+    expectEq(opener.openedApps, ["Notes", "Calculator"], "localizados: el adaptador recibe el nombre del bundle")
+    let listing = await runner.execute(name: "list_apps", argumentsJSON: "{}")
+    expect(listing.output.contains("Notes (Notas)"), "list_apps muestra ambos nombres: \(listing.output)")
+}

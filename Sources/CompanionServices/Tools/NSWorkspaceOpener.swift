@@ -92,6 +92,17 @@ package struct NSWorkspaceOpener: WorkspaceOpening {
         }
     }
 
+    package func localizedApplicationNames() -> [String: String] {
+        var names: [String: String] = [:]
+        for bundle in Self.bundles() {
+            let shown = FileManager.default.displayName(atPath: bundle.path)
+            let localized = shown.hasSuffix(".app") ? String(shown.dropLast(4)) : shown
+            let own = Self.name(of: bundle)
+            if localized.lowercased() != own.lowercased() { names[localized.lowercased()] = own }
+        }
+        return names
+    }
+
     private static func name(of bundle: URL) -> String {
         bundle.deletingPathExtension().lastPathComponent
     }

@@ -28,7 +28,7 @@ private final class LockingHands: TextInjecting, @unchecked Sendable {
 
 private func runner(
     _ hands: FakeHands, injector: (any TextInjecting)? = nil, keys: (any KeyPressing)? = nil,
-    target: ScriptedTarget = ScriptedTarget([7]), trusted: Bool = true, selfInFront: Bool = false,
+    target: ScriptedTarget = ScriptedTarget([7]), trusted: Bool = true,
     screenRecording: ScreenRecordingStatus = .verified, locked: @escaping @Sendable () -> Bool = { false },
     screen: FakeScreen? = nil, see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
     workspace: FakeWorkspaceOpener = FakeWorkspaceOpener()
@@ -38,7 +38,7 @@ private func runner(
         hands: ScreenHands(
             injector: injector ?? hands, reader: hands, keys: keys ?? hands, windows: hands,
             trusted: { trusted }, target: { target.next() }, bundleID: { _ in "com.apple.Notes" },
-            selfInFront: { selfInFront }, screen: screen, see: see,
+            screen: screen, see: see,
             screenRecording: { screenRecording }, locked: locked))
 }
 
@@ -182,13 +182,10 @@ private final class LockingKeys: KeyPressing, @unchecked Sendable {
     expect(asked.isSet && out.ok, "granted: the capture runs: \(out.output)")
 }
 
-@Test @MainActor func companionInFrontIsSelfInFrontAndAccessibilityComesFirst() async {
+@Test @MainActor func untrustedAccessibilityIsRefusedBeforeAnythingElse() async {
     let call = ToolCallRef(id: "", name: "type_text", arguments: #"{"text":"x"}"#)
-    let front = await runner(FakeHands(), selfInFront: true).runHands(.typeText, call, ["text": "x"])
-    expect(front.output.hasPrefix("\(BridgeCode.selfInFront):"), "in front: \(front.output)")
-    expect(front.output == "\(BridgeCode.selfInFront): \(BridgeMessages.selfInFront)", "one shared text")
-    let both = await runner(FakeHands(), trusted: false, selfInFront: true).runHands(.typeText, call, ["text": "x"])
-    expect(both.output.hasPrefix("\(BridgeCode.needsAccessibility):"), "untrusted and in front: \(both.output)")
+    let out = await runner(FakeHands(), trusted: false).runHands(.typeText, call, ["text": "x"])
+    expect(out.output.hasPrefix("\(BridgeCode.needsAccessibility):"), "untrusted: \(out.output)")
 }
 
 @Test @MainActor func noHandsWiredIsNotAvailable() async {
