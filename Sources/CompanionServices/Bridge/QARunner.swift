@@ -17,7 +17,7 @@ package struct QARunner: ParentToolExecuting, Sendable {
         waiter: TurnWaiter,
         scope: @escaping @Sendable () -> Bool,
         language: @escaping @Sendable () -> AppLanguage,
-        recognizer: any LanguageRecognizing = NaturalLanguageRecognizer()
+        recognizer: any LanguageRecognizing = NaturalLanguageRecognizer(constrainToAppLanguages: false)
     ) {
         self.driving = driving
         self.waiter = waiter

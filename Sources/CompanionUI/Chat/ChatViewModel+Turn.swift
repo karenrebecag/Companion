@@ -82,6 +82,7 @@ extension ChatViewModel {
         guard isCurrent(id) else { return }
         let epoch = historyEpoch
         var history = history
+        repeatGuard = ToolRepeatGuard()
         do {
             // Up to `maxParentRounds`: stream, act on the parent's tool calls,
             // stream again with their results in the history. A handoff
@@ -94,6 +95,11 @@ extension ChatViewModel {
                 guard let parentTools, !calls.isEmpty else {
                     if preface.isEmpty, handoff == nil {
                         log("chat: round returned neither text nor calls")
+                        await commit(
+                            preface: ParentToolCopy.noAnswer(
+                                tried: repeatGuard.tried, config.language),
+                            handoff: nil)
+                        break
                     }
                     await commit(preface: preface, handoff: handoff)
                     break
@@ -107,6 +113,10 @@ extension ChatViewModel {
                 if round == Self.maxParentRounds {
                     messages.append(ChatMessage(
                         isStatus: true, text: ParentToolCopy.roundCap(config.language)))
+                    await commit(
+                        preface: ParentToolCopy.noAnswer(
+                            tried: repeatGuard.tried, config.language),
+                        handoff: nil)
                     break
                 }
                 history = windowedTurns()
@@ -228,8 +238,13 @@ extension ChatViewModel {
             guard !Task.isCancelled else { break }
             // A URL the user did not say waits for the sheet (10c 3D).
             let outcome: ParentToolOutcome
-            let (denied, decision) = await gate(call, said: said, tools: tools)
-            if let denied {
+            // Before the gate: a looped call must not raise a sheet either.
+            let repeated = repeatGuard.check(name: call.name, arguments: call.arguments)
+            let (denied, decision) = repeated == nil
+                ? await gate(call, said: said, tools: tools) : (nil, GateDecision())
+            if let repeated {
+                outcome = ParentToolOutcome(ok: false, output: repeated, tool: call.name)
+            } else if let denied {
                 outcome = denied
             } else {
                 // The sheet may have outlived the conversation: a turn that

@@ -39,7 +39,8 @@ package enum ChatPrompt: Sendable {
         language: AppLanguage = .en,
         memory: String = "",
         skills: String = "",
-        voice: Bool = false
+        voice: Bool = false,
+        connectedApps: [String] = []
     ) -> String {
         let owner = ownerFirstName.trimmingCharacters(in: .whitespacesAndNewlines)
         var prompt = greeting(owner: owner, language: language)
@@ -64,6 +65,11 @@ package enum ChatPrompt: Sendable {
         // needed no delegation could not produce the map the client already
         // knew how to draw.
         prompt += " " + CardVocabulary.text(language)
+        // Names only: the tools load on demand, so the model must know apps
+        // exist before it can decide to ask for them.
+        if !connectedApps.isEmpty {
+            prompt += " " + connectedAppsRule(connectedApps, language)
+        }
         // Promised only when there is a catalog: a rule about skills with no
         // skills behind it is the "web search" lesson again (Wave 11a).
         if !skills.isEmpty {
@@ -158,7 +164,8 @@ package enum ChatPrompt: Sendable {
                 + "effect is always stated — files created, moved or deleted, "
                 + "apps opened, messages sent — only the mechanism is optional: "
                 + "do not explain which tool you used unless asked. The "
-                + "technical detail belongs in the card, not the sentence."
+                + "technical detail belongs in the card, not the sentence. "
+                + verifyRule(language)
         case .es:
             return "No eres Hermes, no eres un TUI, no estás en una terminal. "
                 + "No inventes backends ni rutas internas. "
@@ -169,7 +176,47 @@ package enum ChatPrompt: Sendable {
                 + "movidos o borrados, apps abiertas, mensajes enviados — y lo "
                 + "opcional es el mecanismo: no expliques cómo lo hiciste por "
                 + "dentro salvo que te lo pregunte. El detalle técnico va en "
-                + "la tarjeta, no en la frase."
+                + "la tarjeta, no en la frase. "
+                + verifyRule(language)
+        }
+    }
+
+    /// Live 2026-10-16 (gpt-4o): "read ~/Desktop/no-existe-qa.txt" was
+    /// answered "it seems the file isn't on your Desktop" with no tool call,
+    /// and "send the report to Juan" got "I have no access to your contacts"
+    /// with three apps connected. Both are claims made without checking.
+    private static func verifyRule(_ language: AppLanguage) -> String {
+        switch language {
+        case .en:
+            return "Never state anything about files, apps, the screen, the web or "
+                + "the state of this Mac unless you called the tool that checks it in "
+                + "this same turn; if you have not, call it first. If an action order "
+                + "lacks a detail you cannot infer (which report, which Juan), ask "
+                + "ONE short question before acting, never guess."
+        case .es:
+            return "Nunca afirmes nada sobre archivos, apps, la pantalla, la web o el "
+                + "estado de esta Mac sin haber llamado en este mismo turno a la tool "
+                + "que lo comprueba; si no la has llamado, llámala primero. Si a una "
+                + "orden de acción le falta un dato que no puedes inferir (qué "
+                + "reporte, qué Juan), haz UNA pregunta corta antes de actuar, sin "
+                + "adivinar."
+        }
+    }
+
+    private static func connectedAppsRule(
+        _ apps: [String], _ language: AppLanguage
+    ) -> String {
+        let names = apps.joined(separator: ", ")
+        switch language {
+        case .en:
+            return "Connected apps: \(names). Their tools are not loaded yet: call "
+                + "find_app_tools with the app before acting in it, and never say you "
+                + "have no access to contacts, mail, chat or calendar until you have."
+        case .es:
+            return "Apps conectadas: \(names). Sus tools aún no están cargadas: llama "
+                + "a find_app_tools con la app antes de actuar en ella, y nunca digas "
+                + "que no tienes acceso a contactos, correo, chat o calendario sin "
+                + "haberlo hecho."
         }
     }
 
@@ -342,13 +389,15 @@ package enum ChatPrompt: Sendable {
                 + "lists, example code, calculations. That is never "
                 + "delegated and never creates a file nobody asked for. "
                 + "Use your own tools first (the ones declared to you): "
-                + "read_file, write_file, list_directory and run_shell for "
-                + "files and short commands, web_fetch to read a URL, "
+                + "list_directory and read_file to look at files and folders "
+                + "(only inside the folder she granted; if one is refused, say "
+                + "so), web_fetch to read a URL, "
                 + "find_places for places, the browser and your hands. "
                 + search
                 + "Call delegate only for heavy multi-step work "
                 + "(\"refactor this repo\", \"fix this bug and run the "
-                + "tests\", \"research this in depth\"), for work that needs "
+                + "tests\", \"research this in depth\"), for writing or "
+                + "changing files and running commands, for work that needs "
                 + "a skill or MCP only the specialist has (\"use the skill X\"), "
                 + "for long jobs, or when one of your own tools already "
                 + "failed. The specialist has a shell, the files, skills and "
@@ -369,14 +418,16 @@ package enum ChatPrompt: Sendable {
                 + "explicaciones, comparaciones, tablas, gráficas, listas, "
                 + "código de ejemplo, cálculos. Eso nunca se delega y nunca "
                 + "crea archivos que no se pidieron. Usa primero tus tools "
-                + "propias (las que tengas declaradas): read_file, "
-                + "write_file, list_directory y run_shell para archivos y "
-                + "comandos cortos, web_fetch para leer una URL, find_places "
+                + "propias (las que tengas declaradas): list_directory y "
+                + "read_file para mirar archivos y carpetas (solo dentro de la "
+                + "carpeta que ella concedió; si una se niega, dilo), "
+                + "web_fetch para leer una URL, find_places "
                 + "para lugares, el navegador y tus manos. "
                 + search
                 + "Llama a delegate solo para trabajo pesado de varios pasos "
                 + "(«refactoriza este repo», «arregla este bug y corre los "
-                + "tests», «investiga esto a fondo»), para lo que necesita una "
+                + "tests», «investiga esto a fondo»), para escribir o cambiar "
+                + "archivos y correr comandos, para lo que necesita una "
                 + "skill o un MCP que solo tiene el especialista («usa la "
                 + "skill X»), para trabajos largos, o cuando una tool tuya ya "
                 + "falló. El especialista tiene shell, archivos, skills y "

@@ -537,8 +537,9 @@ import Testing
 
 // MARK: - Wave 10b: el padre actúa
 
-private func openSafari(_ id: String = "c1") -> ChatDelta {
-    .toolCalls([ToolCallRef(id: id, name: "open_app", arguments: #"{"name":"Safari"}"#)])
+private func openSafari(_ id: String = "c1", variant: Int = 0) -> ChatDelta {
+    .toolCalls([ToolCallRef(
+        id: id, name: "open_app", arguments: #"{"name":"Safari","n":\#(variant)}"#)])
 }
 
 /// Ronda 1: texto + open_app → se abre, línea de estado, y el historial
@@ -573,6 +574,24 @@ private func openSafari(_ id: String = "c1") -> ChatDelta {
            "padre: la ronda 2 ya vio el resultado")
 }
 
+/// Live 2026-10-16: list_apps eight times with identical arguments and no
+/// reply. The third identical call is cut, and the turn still answers.
+@MainActor func testALoopedToolIsCutAndTheTurnStillAnswers() async {
+    let opener = FakeWorkspaceOpener(installed: ["Safari"])
+    let cap = ParentToolCopy.maxRounds
+    let chat = FakeChatProvider(replies: (1...(cap + 1)).map { .success([openSafari("c\($0)")]) })
+    let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener))
+    vm.draft = "abre safari"
+    vm.send()
+    await pumpUntil("bucle: idle") { !vm.busy }
+    expectEq(opener.openedApps.count, ToolRepeatGuard.maxRepeats, "bucle: solo las dos primeras se ejecutan")
+    let last = vm.messages.last
+    expect(last?.isStatus == false && last?.text.contains("open_app") == true,
+           "bucle: el turno termina con una frase honesta, nunca sin texto")
+    expect(chat.histories.last?.contains { $0.role == .tool && $0.content.contains("repeated_call") } == true,
+           "bucle: el modelo recibe el error que dice que use otra tool")
+}
+
 /// Wave 16a: look → click → look → type needs more than the three rounds
 /// that fit opening apps. Every round up to the cap runs; the cap closes it
 /// and the thread records it.
@@ -580,7 +599,7 @@ private func openSafari(_ id: String = "c1") -> ChatDelta {
     let opener = FakeWorkspaceOpener(installed: ["Safari"])
     let cap = ParentToolCopy.maxRounds
     expectEq(cap, 8, "tope: ocho rondas")
-    let chat = FakeChatProvider(replies: (1...(cap + 1)).map { .success([openSafari("c\($0)")]) })
+    let chat = FakeChatProvider(replies: (1...(cap + 1)).map { .success([openSafari("c\($0)", variant: $0)]) })
     let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener))
     vm.draft = "abre safari muchas veces"
     vm.send()

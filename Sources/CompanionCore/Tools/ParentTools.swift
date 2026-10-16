@@ -463,10 +463,51 @@ package enum ParentToolCopy: Sendable {
     /// rounds before the answer; three only ever fit opening apps.
     package static let maxRounds = 8
 
+    /// A turn never ends "completed" with nothing to read. Live 2026-10-16:
+    /// list_apps eight times, no reply. `tried` is the tools it did call, so
+    /// the sentence says what happened instead of a generic apology.
+    package static func noAnswer(tried: [String], _ language: AppLanguage) -> String {
+        var seen: [String] = []
+        for name in tried where !seen.contains(name) { seen.append(name) }
+        let list = seen.joined(separator: ", ")
+        switch language {
+        case .en:
+            return seen.isEmpty
+                ? "I could not come up with an answer. Try asking again."
+                : "I ran out of steps before answering. I tried \(list), but did not get "
+                    + "what I needed, so I have nothing reliable to tell you yet."
+        case .es:
+            return seen.isEmpty
+                ? "No logré armar una respuesta. Prueba a pedírmelo otra vez."
+                : "Me quedé sin pasos antes de responder. Probé \(list), pero no obtuve "
+                    + "lo que necesitaba, así que aún no tengo nada fiable que decirte."
+        }
+    }
+
     package static func roundCap(_ language: AppLanguage) -> String {
         switch language {
         case .en: "Stopped after \(maxRounds) actions in a row."
         case .es: "Me detuve tras \(maxRounds) acciones seguidas."
         }
+    }
+}
+
+/// The same tool with the same arguments a third time is a loop, not
+/// progress: the model gets an error that tells it to move on.
+package struct ToolRepeatGuard: Sendable {
+    package static let maxRepeats = 2
+    private var counts: [String: Int] = [:]
+    package private(set) var tried: [String] = []
+
+    package init() {}
+
+    /// Nil lets the call run; otherwise the text to hand back instead.
+    package mutating func check(name: String, arguments: String) -> String? {
+        tried.append(name)
+        let key = name + "\u{0}" + arguments
+        counts[key, default: 0] += 1
+        guard counts[key, default: 0] > Self.maxRepeats else { return nil }
+        return "repeated_call: you already have this result for \(name) with these "
+            + "arguments. Use another tool or answer the user with what you have."
     }
 }
