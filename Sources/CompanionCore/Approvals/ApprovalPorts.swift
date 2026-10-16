@@ -61,3 +61,24 @@ package protocol OwnerVerifying: Sendable {
     /// `confirmed` unless the system confirmed this very call.
     func verify(reason: String) async -> OwnerCheck
 }
+
+/// What QA mode decided for one action that would have opened a sheet.
+package enum QAVerdict: Sendable, Equatable {
+    /// QA is off, or the action keeps its sheet (the session grant): the
+    /// caller asks the way it always has.
+    case notInQA
+    case act
+    case granted
+    case refused(code: String)
+    case unavailable(code: String)
+    /// Another owner check is already on screen. Not a no from the owner.
+    case busy
+}
+
+/// Puente QA D5: the one decision point in front of every sheet. Core owns
+/// the port because the chat layer cannot see Services.
+package protocol QAGating: Sendable {
+    func decide(_ request: ApprovalRequest, call: ToolCallRef, said: String) async -> QAVerdict
+    /// Whether QA mode could be turned on: the owner check can be shown.
+    func canVerify() async -> Bool
+}

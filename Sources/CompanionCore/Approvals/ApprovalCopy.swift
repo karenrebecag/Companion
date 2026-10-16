@@ -381,7 +381,7 @@ package enum ApprovalCopy {
         return ApprovalDisplay(
             mark: mark, lead: nil,
             subject: safe.isEmpty ? word(.someClient, language) : safe,
-            trail: BridgeCopy.sheetTitle(language),
+            trail: BridgeCopy.sheetTitle(language, qa: (arguments["qa"] as? Bool) == true),
             preview: peerPreview(arguments, language),
             showsRemember: false)
     }

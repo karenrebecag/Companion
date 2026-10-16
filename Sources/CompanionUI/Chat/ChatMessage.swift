@@ -32,6 +32,8 @@ package struct Recall: Sendable, Equatable {
 package enum MessageOrigin: Sendable, Equatable {
     case typed
     case choice
+    /// Puente QA: typed by the bridge's agent, not by the user.
+    case agent
 }
 
 /// A delegated job as it ended, kept on the line that records it so the

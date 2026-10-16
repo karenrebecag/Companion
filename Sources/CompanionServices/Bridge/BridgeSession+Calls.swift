@@ -100,7 +100,7 @@ extension BridgeSession {
     private func handleSessionApproval(id: Int, call: BridgeCall, mine: Int) async -> Handled {
         let request = ApprovalRequest(
             requestId: UUID().uuidString, toolName: BridgePolicy.sessionApprovalTool,
-            summary: BridgeCopy.sheetTitle(language()), inputJSON: sessionApprovalInputJSON())
+            summary: BridgeCopy.sheetTitle(language(), qa: qaScope()), inputJSON: sessionApprovalInputJSON())
         // Seen live 2026-09-28: this whole round trip resolved with no
         // trace, and only the shim's error said anything happened. The
         // request and its resolution are the two lines that tell a silent
@@ -243,6 +243,8 @@ extension BridgeSession {
     private func sessionApprovalInputJSON() -> String {
         do {
             var fields: [String: Any] = ["client": client]
+            // The sheet's title says the grant is wider in QA mode.
+            if qaScope() { fields["qa"] = true }
             if let peer = current?.peer {
                 fields["pid"] = Int(peer.pid)
                 if !peer.path.isEmpty { fields["process"] = peer.path }

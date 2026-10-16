@@ -79,6 +79,8 @@ extension SessionMachine {
         // chrome painting the voice's last phase for ever (code review
         // 2026-09-06).
         typedBusy = false
+        projection.agentTurn = false
+        projection.ownerCheck = false
         projection.holding = false
         projection.targets = []
         projection.interruption = .userStopped

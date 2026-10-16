@@ -146,6 +146,20 @@ struct ScreenReport: ViewModifier {
         switch origin {
         case .typed: .typed
         case .choice: .choice
+        case .agent: .agent
         }
+    }
+}
+
+/// Puente QA: the same source that reads the chat also types into it, because
+/// the agent's turn is a turn of that chat. Nothing here reads more than the
+/// record of the turn the agent started.
+extension SelfInspectionSource: QADriving {
+    package func ask(text: String, newConversation: Bool, asUserWords: Bool) async -> QAAskStart {
+        chat.askAsAgent(text: text, newConversation: newConversation, asUserWords: asUserWords)
+    }
+
+    package func turn(_ id: String) async -> TurnRecord? {
+        chat.turnRecord(id)
     }
 }

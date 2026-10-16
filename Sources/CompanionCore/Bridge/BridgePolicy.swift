@@ -53,7 +53,9 @@ package struct BridgePolicy: Sendable, Equatable {
         "browser_navigate",
         "browser_open",
         "browser_take",
-        "browser_release"
+        "browser_release",
+        // Puente QA: a turn drives the Mac, so it draws from the action budget.
+        "companion_ask"
     ]
 
     /// Every allowlisted tool that draws from the read budget. Explicit on
@@ -82,7 +84,8 @@ package struct BridgePolicy: Sendable, Equatable {
         "companion_settings",
         "companion_thread",
         "companion_last_message_matches",
-        "companion_log"
+        "companion_log",
+        "companion_wait_turn"
     ]
 
     /// Allowlisted tools that sit in neither bucket.
@@ -103,6 +106,14 @@ package struct BridgePolicy: Sendable, Equatable {
     /// the hands. Long enough for a slow agent step, short enough that a
     /// forgotten client does not hold them for the rest of the day.
     package static let idleTimeout: TimeInterval = 10 * 60
+    /// Puente QA (D8): a QA run waits on turns and on Touch ID, so its quiet
+    /// stretches are long. Still a ceiling: a forgotten QA client loses the hands.
+    package static let idleTimeoutQA: TimeInterval = 60 * 60
+
+    package static func idleTimeout(qa: Bool, normal: TimeInterval = idleTimeout) -> TimeInterval {
+        qa ? idleTimeoutQA : normal
+    }
+
     /// How often the session looks at the clock; the timeout is the ceiling,
     /// this is only the resolution.
     package static let idleCheckInterval: TimeInterval = 15

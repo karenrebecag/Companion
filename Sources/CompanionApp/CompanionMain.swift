@@ -152,12 +152,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Self-qa (ADR 009): an agent may also inspect Companion, read only.
         // Only here, never among the conversation's tools: it is meant for an
         // outside agent behind the session sheet, not for the model.
+        let source = SelfInspectionSource(session: sensing.sessionModel, chat: sensing.model, mirror: inspection)
         let inspector = SelfInspectionRunner(
-            source: SelfInspectionSource(session: sensing.sessionModel, chat: sensing.model, mirror: inspection),
-            language: { env.configProvider.current.language })
+            source: source, language: { env.configProvider.current.language })
+        let qa = installQAMode(env: env, sensing: sensing, source: source)
         let bridgeHost = BridgeHost(
             // The bridge lends the hands and the browser, not Karen's connected apps.
-            tools: CompositeParentTools([sensing.browserHost.bridgeTools(parent: sensing.parentTools), inspector]),
+            tools: CompositeParentTools([
+                sensing.browserHost.bridgeTools(parent: sensing.parentTools), inspector, qa.runner,
+            ]),
             approvals: jobs.approvals,
             language: { env.configProvider.current.language },
             accessibility: { accessibility.isTrusted() },
@@ -166,7 +169,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let pid = sensing.frontmost.lastOtherPID else { return nil }
                 return windows.windowFrame(pid: pid)
             },
-            onSessionBoundary: { [browserHost = sensing.browserHost] in browserHost.bridgeSessionChanged() })
+            qaGate: qa.gate,
+            qaScope: { QAScopePreference.enabled },
+            onSessionBoundary: { [browserHost = sensing.browserHost, waiter = qa.waiter] in
+                browserHost.bridgeSessionChanged()
+                // Nobody is left to read what a parked wait would return.
+                Task { await waiter.cancelAll() }
+            })
         bridgeHost.apply(enabled: HandsLendingPreference.enabled)
         self.bridgeHost = bridgeHost
         installOtherAudioMuting(sessionModel: sensing.sessionModel)
@@ -177,6 +186,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NotificationCenter.default.addObserver(
             forName: .companionStopHands, object: nil, queue: .main
+        ) { _ in
+            Task { @MainActor in bridgeHost.stopHands() }
+        }
+        // Puente QA D1: the tool list depends on the scope, and the shim reads it
+        // once per hello, so flipping the switch ends the session.
+        NotificationCenter.default.addObserver(
+            forName: .companionQAScopeDidChange, object: nil, queue: .main
         ) { _ in
             Task { @MainActor in bridgeHost.stopHands() }
         }

@@ -10,14 +10,19 @@ import Foundation
 package enum BridgeCopy {
     /// Sheet title when the bridge requests approval. Caller embeds the
     /// client name in a format string like "\(clientName) \(sheetTitle(.en))".
-    package static func sheetTitle(_ language: AppLanguage = .en) -> String {
+    package static func sheetTitle(_ language: AppLanguage = .en, qa: Bool = false) -> String {
         // 19-1b: "tus manos" read as a metaphor nobody asked for — the
-        // sheet says what it means (feedback en vivo 2026-09-28).
-        switch language {
-        case .en:
+        // sheet says what it means (feedback en vivo 2026-09-28). In QA mode
+        // the grant is wider, and the title is where the person reads it.
+        switch (language, qa) {
+        case (.en, false):
             return "wants to use your Mac"
-        case .es:
+        case (.es, false):
             return "quiere usar tu Mac"
+        case (.en, true):
+            return "wants to use your Mac and drive the conversation (QA mode)"
+        case (.es, true):
+            return "quiere usar tu Mac y conducir la conversación (modo QA)"
         }
     }
 

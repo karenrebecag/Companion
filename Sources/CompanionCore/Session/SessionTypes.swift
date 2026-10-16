@@ -137,6 +137,20 @@ package struct SessionProjection: Sendable, Equatable {
     /// P1: Incredible's presence. Passive after the user's wait with no
     /// interaction; what the companion does on its own never wakes it.
     package var presence: Presence = .active
+    /// Puente QA D2: the open typed turn was started by the bridge's agent, not
+    /// by the user. It paints like any turn but it is not "her voice": the
+    /// bridge keeps working while it runs.
+    package var agentTurn: Bool = false
+    /// Puente QA: the system's Touch ID / password dialog is on screen for a
+    /// critical action. The island tells the person to touch the sensor.
+    package var ownerCheck: Bool = false
+
+    /// Whether the bridge yields the hands. "The voice wins" (spec §3) is the
+    /// user's turn; a turn the agent itself started must not pause the agent.
+    package var pausesBridge: Bool {
+        if agentTurn, case .processing = kind { return false }
+        return kind.isUsersTurn
+    }
 
     package var approval: ApprovalRequest? { approvalQueue.first }
 
@@ -147,6 +161,10 @@ package enum SessionEvent: Sendable, Equatable {
     /// The voice machine moved.
     case voice(TurnSnapshot)
     case typedSubmitted
+    /// Puente QA D2: a turn typed by the bridge's agent (`origin: .agent`).
+    case agentSubmitted
+    /// Puente QA: an owner check (Touch ID) opened or closed.
+    case ownerCheck(open: Bool)
     case typedReplyStreaming
     case typedReplyFinished
     /// The parent's hands, one round.

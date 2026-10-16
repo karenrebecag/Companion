@@ -126,7 +126,7 @@ private func assistant(_ text: String) -> ThreadMessageInput {
             .updateAvailable(tag: sentinel), .transcriptsDebug, .cancelled, .followUp(sentinel),
             .dropZones, .connectApp(slug: sentinel, name: sentinel),
             .signInApp(slug: sentinel, name: sentinel), .chatError(sentinel),
-            .receipt(receipt), .replyCut, .approvalWithdrawn,
+            .receipt(receipt), .replyCut, .approvalWithdrawn, .ownerCheck,
         ]
     }
 
@@ -137,7 +137,7 @@ private func assistant(_ text: String) -> ThreadMessageInput {
             "job", "completed", "couldntHear", "permission", "failure", "dictating", "pasting",
             "dictated", "dictationResult", "updateAvailable", "transcriptsDebug", "cancelled",
             "followUp", "dropZones", "connectApp", "signInApp", "chatError", "receipt", "replyCut",
-            "approvalWithdrawn",
+            "approvalWithdrawn", "ownerCheck",
         ])
         #expect(Set(names).count == names.count)
     }
@@ -395,6 +395,7 @@ private func lineIndex(_ line: IslandState.Line) -> Int {
     case .receipt: 24
     case .replyCut: 25
     case .approvalWithdrawn: 26
+    case .ownerCheck: 27
     }
 }
 
@@ -404,7 +405,7 @@ private func state(_ line: IslandState.Line) -> IslandState {
 
 extension SelfInspectionTests {
     @Test func allLinesCoversEveryCaseOnce() {
-        #expect(allLines().map(lineIndex) == Array(0..<27))
+        #expect(allLines().map(lineIndex) == Array(0..<28))
     }
 
     // MARK: Oracle role and empty probe
@@ -473,12 +474,12 @@ extension SelfInspectionTests {
         let n = sentinel.count
         let expected: [[Int]] = [
             [], [], [], [], [], [n], [], [n, n], [], [], [], [], [n], [], [n], [n, n], [n], [], [],
-            [n], [], [n, n], [n, n], [n], [n], [], [],
+            [n], [], [n, n], [n, n], [n], [n], [], [], [],
         ]
         let actual = allLines().map {
             IslandInspection(PaintedIsland(state: state($0), catalogText: nil)).textLengths
         }
-        #expect(expected.count == 27)
+        #expect(expected.count == 28)
         #expect(actual == expected)
     }
 
