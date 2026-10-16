@@ -49,6 +49,7 @@ package enum ChatPrompt: Sendable {
             about: about, instructions: instructions, language: language) {
             prompt += " " + block
         }
+        prompt += " " + titleRule(language)
         prompt += " " + whereRule(language)
         // Hands before the specialist: what the turn can do itself comes
         // first, so "open Safari" is an action and not an errand (Wave 10b).
@@ -150,6 +151,15 @@ package enum ChatPrompt: Sendable {
         switch language {
         case .en: return "Answer in English, warm, direct, 2 to 4 sentences. " + grounding(language)
         case .es: return "Español, cálido, directo, 2 a 4 frases. " + grounding(language)
+        }
+    }
+
+    /// The design guide writes titles in sentence case with no eyebrows; the
+    /// render never rewrites them because they are the model's content.
+    private static func titleRule(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "Write every title and heading in sentence case only the first word and proper nouns capitalized (\"Example of Swift code\", not \"Example Of Swift Code\"), with no eyebrow labels."
+        case .es: return "Escribe todo título y encabezado en sentence case: solo la primera palabra y los nombres propios con mayúscula (\"Ejemplo de código en Swift\", no \"Ejemplo de Código en Swift\"), sin etiquetas eyebrow."
         }
     }
 
@@ -392,7 +402,7 @@ package enum ChatPrompt: Sendable {
                 + "list_directory and read_file to look at files and folders "
                 + "(only inside the folder she granted; if one is refused, say "
                 + "so), web_fetch to read a URL, "
-                + "find_places for places, the browser and your hands. "
+                + "find_places only for physical places to find (never weather or news), the browser and your hands. "
                 + search
                 + "Call delegate only for heavy multi-step work "
                 + "(\"refactor this repo\", \"fix this bug and run the "
@@ -422,7 +432,7 @@ package enum ChatPrompt: Sendable {
                 + "read_file para mirar archivos y carpetas (solo dentro de la "
                 + "carpeta que ella concedió; si una se niega, dilo), "
                 + "web_fetch para leer una URL, find_places "
-                + "para lugares, el navegador y tus manos. "
+                + "solo para lugares físicos que encontrar (nunca clima ni noticias), el navegador y tus manos. "
                 + search
                 + "Llama a delegate solo para trabajo pesado de varios pasos "
                 + "(«refactoriza este repo», «arregla este bug y corre los "

@@ -83,6 +83,7 @@ extension BrowserToolRunner {
             return failed(tool, error)
         case .success(.opened(_, let opened)):
             leases.acquire(tab: opened.id, caller: caller)
+            noteOpened(opened.id)
             return ParentToolOutcome(
                 ok: true,
                 output: opened.loading
@@ -195,11 +196,29 @@ extension BrowserToolRunner {
         // a lease over a tab that may already be gone helps nobody.
         leases.release(tab: tab)
         forget(tab)
+        dropOpened(tab)
         switch await channel.send(.release(tab: tab), timeout: Self.actTimeout) {
         case .failure(let error):
             return failed(tool, error)
         case .success:
             return ParentToolOutcome(ok: true, output: "gave tab \(tab) back", tool: tool.rawValue)
+        }
+    }
+
+    // MARK: - end of turn
+
+    /// A tab opened to read is a means, not something the user asked to see:
+    /// left controlled it keeps the page open and driven by an agent nobody is
+    /// talking to. Incredible hands a tab over only when asked, and there is
+    /// no tool here that asks, so every one is given back.
+    package func endTurn() async {
+        let tabs = takeOpened()
+        for tab in tabs where leases.owner(of: tab) == caller {
+            leases.release(tab: tab)
+            forget(tab)
+            if case .failure(let error) = await channel.send(.release(tab: tab), timeout: Self.actTimeout) {
+                Log.browser("release code=\(error.code)")
+            }
         }
     }
 

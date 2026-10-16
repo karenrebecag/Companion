@@ -108,21 +108,88 @@ package enum TurnRedaction {
         return result
     }
 
-    /// A CLABE is a whole run of 18 digits; a card is any 13 to 19 digit window
-    /// of a run that passes Luhn, so a CVV or a date glued to it cannot hide it.
     private static func maskDigitRuns(_ text: String) -> String {
         var result = text
         for match in digitRun.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
             guard let range = Range(match.range, in: result) else { continue }
             let run = String(result[range])
-            let digitCount = run.filter(\.isNumber).count
-            guard digitCount >= 13 else { continue }
-            if digitCount == 18, IdentifierChecks.isCLABE(run) {
-                result.replaceSubrange(range, with: mask)
-            } else if let window = IdentifierChecks.cardWindow(in: run) {
-                result.replaceSubrange(range, with: run.replacingCharacters(in: window, with: mask))
-            }
+            let masked = splitAtLongFractions(run).map { $0.isFraction ? String($0.text) : maskPiece(String($0.text)) }
+            result.replaceSubrange(range, with: masked.joined())
         }
         return result
+    }
+
+    /// A float's fraction ("0.9999963045120239") shares the digit-run shape, but no
+    /// card or CLABE prints a group longer than 6 digits after a dot. Only that
+    /// fraction is set aside: skipping the whole run would let a card next to a
+    /// price or an IP through.
+    private static func splitAtLongFractions(_ run: String) -> [(text: Substring, isFraction: Bool)] {
+        var parts: [(text: Substring, isFraction: Bool)] = []
+        var start = run.startIndex
+        var cursor = run.startIndex
+        while let dot = run[cursor...].firstIndex(of: ".") {
+            let fractionStart = run.index(after: dot)
+            let fractionEnd = run[fractionStart...].firstIndex(where: { !$0.isNumber }) ?? run.endIndex
+            cursor = fractionEnd
+            guard run.distance(from: fractionStart, to: fractionEnd) > 6 else { continue }
+            parts.append((run[start..<dot], false))
+            parts.append((run[dot..<fractionEnd], true))
+            start = fractionEnd
+        }
+        parts.append((run[start...], false))
+        return parts
+    }
+
+    /// The whole piece first (a CLABE, or a card with a CVV glued to it), then
+    /// every span of whole digit groups, so a card next to a short number or a
+    /// second card in the same run still masks.
+    private static func maskPiece(_ piece: String) -> String {
+        let digitCount = piece.filter(\.isNumber).count
+        guard digitCount >= 13 else { return piece }
+        if digitCount == 18, IdentifierChecks.isCLABE(piece) { return mask }
+        if let window = IdentifierChecks.cardWindow(in: piece) {
+            return piece.replacingCharacters(in: window, with: mask)
+        }
+        return maskGroupSpans(piece)
+    }
+
+    private static func maskGroupSpans(_ piece: String) -> String {
+        let groups = groupRanges(piece)
+        var hits: [Range<String.Index>] = []
+        var first = 0
+        while first < groups.count {
+            guard let last = sensitiveSpanEnd(piece, groups: groups, from: first) else {
+                first += 1
+                continue
+            }
+            hits.append(groups[first].lowerBound..<groups[last].upperBound)
+            first = last + 1
+        }
+        var result = piece
+        for hit in hits.reversed() { result.replaceSubrange(hit, with: mask) }
+        return result
+    }
+
+    private static func sensitiveSpanEnd(_ piece: String, groups: [Range<String.Index>], from first: Int) -> Int? {
+        var digits = 0
+        for last in first..<groups.count {
+            digits += piece.distance(from: groups[last].lowerBound, to: groups[last].upperBound)
+            if digits > 19 { return nil }
+            let span = String(piece[groups[first].lowerBound..<groups[last].upperBound])
+            if digits == 18, IdentifierChecks.isCLABE(span) { return last }
+            if digits >= 13, IdentifierChecks.isCardNumber(span) { return last }
+        }
+        return nil
+    }
+
+    private static func groupRanges(_ piece: String) -> [Range<String.Index>] {
+        var ranges: [Range<String.Index>] = []
+        var cursor = piece.startIndex
+        while let start = piece[cursor...].firstIndex(where: \.isNumber) {
+            let end = piece[start...].firstIndex(where: { !$0.isNumber }) ?? piece.endIndex
+            ranges.append(start..<end)
+            cursor = end
+        }
+        return ranges
     }
 }

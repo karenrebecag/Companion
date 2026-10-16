@@ -37,13 +37,16 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
         case .findPlaces:
             return ToolSpec(
                 name: "find_places",
-                description: "Find real places near somewhere — cinemas, "
-                    + "restaurants, shops, an address, a landmark. Use it "
-                    + "whenever the user asks where something is or what is "
-                    + "nearby; it is a map lookup, not a web search, and it "
-                    + "works with no keys. You get names and addresses to "
-                    + "talk about, and the map is drawn from the lookup "
-                    + "rather than from anything you type.",
+                description: "Find physical places the user wants to go to or locate: "
+                    + "cinemas, restaurants, shops, an address, a landmark. "
+                    + "Use it when they ask where something is or what is "
+                    + "nearby. Never use it for weather, news, prices, "
+                    + "facts about a city or any other information: that is "
+                    + "web_search or your own knowledge, and a city name "
+                    + "alone is not a place to find. It is a map lookup, not "
+                    + "a web search, and it works with no keys. You get names "
+                    + "and addresses to talk about, and the map is drawn from "
+                    + "the lookup rather than from anything you type.",
                 properties: [
                     ToolProperty(name: "query", type: "string",
                                  description: "what to look for"),
