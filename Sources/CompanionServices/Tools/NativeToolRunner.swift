@@ -379,7 +379,8 @@ package struct NativeToolRunner: Sendable {
             // An empty map is worse than no map: it reads as "the place does
             // not exist" when it only means this query missed.
             return ToolResult(
-                ok: false, output: "No places found for: \(query)")
+                ok: false, output: "No places found for: \(query)",
+                card: Card(payload: .empty(.places(query: query)), source: .tool))
         }
 
         let lines = found.map { place in
@@ -438,7 +439,9 @@ package struct NativeToolRunner: Sendable {
         let tree = DirectoryTree.build(
             realPath, title: URL(fileURLWithPath: realPath).lastPathComponent, depth: depth)
         guard !tree.nodes.isEmpty else {
-            return ToolResult(ok: true, output: "(empty folder)")
+            return ToolResult(
+                ok: true, output: "(empty folder)",
+                card: Card(payload: .empty(.folder), source: .tool))
         }
         var output = tree.text.joined(separator: "\n")
         if tree.truncated {

@@ -26,6 +26,10 @@ enum CardMetrics {
     static let thumb: CGFloat = 120
     /// Wave 20: a stat tile's narrowest column, a chart's plot, a table's cap.
     static let statMin: CGFloat = 120
+    /// The trend strip under a tile label: a line, not a chart.
+    static let sparkline: CGFloat = 24
+    /// A file chip never grows past this; a longer name truncates in the middle.
+    static let fileChipWidth: CGFloat = 260
     static let chart: CGFloat = 200
     static let tableMax: CGFloat = 320
     /// Columna del icono de fila: un paso de la rampa, no un numero.
@@ -66,6 +70,8 @@ struct CardView: View {
                 ChartCard(block: block)
             case .tree(let block):
                 TreeCard(block: block)
+            case .empty(let result):
+                EmptyCard(result: result)
             }
             // Only the cards that claim something about the WORLD carry the
             // caveat: a place that may not exist, an image that may not be
@@ -84,7 +90,7 @@ struct CardView: View {
     var claimsWorld: Bool {
         switch card.payload {
         case .locations, .gallery: true
-        case .stats, .table, .chart, .tree: false
+        case .stats, .table, .chart, .tree, .empty: false
         }
     }
 }

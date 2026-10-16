@@ -84,12 +84,30 @@ struct IslandReceiptDoc: View {
         .padding(.leading, DocReceiptMetrics.ledgerIndent)
     }
 
-    private func row(_ entry: ReceiptLine) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: DocReceiptMetrics.rowGap) {
+    /// The line with its file's name swapped for a chip; a name the text does
+    /// not carry leaves the line as plain text.
+    @ViewBuilder
+    private func lineText(_ entry: ReceiptLine) -> some View {
+        if let chip = entry.file, let range = entry.text.range(of: chip.name) {
+            HStack(alignment: .firstTextBaseline, spacing: DocReceiptMetrics.rowGap) {
+                Text(String(entry.text[..<range.lowerBound]))
+                FileChipView(chip: chip)
+                Text(String(entry.text[range.upperBound...]))
+            }
+            .font(Fonts.geist(DocReceiptMetrics.valueSize))
+            .foregroundStyle(Color.white.opacity(DocCardInk.value))
+            .docLineBox(size: DocReceiptMetrics.valueSize, leading: DocReceiptMetrics.valueLeading)
+        } else {
             Text(entry.text)
                 .font(Fonts.geist(DocReceiptMetrics.valueSize))
                 .foregroundStyle(Color.white.opacity(DocCardInk.value))
                 .docLineBox(size: DocReceiptMetrics.valueSize, leading: DocReceiptMetrics.valueLeading)
+        }
+    }
+
+    private func row(_ entry: ReceiptLine) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: DocReceiptMetrics.rowGap) {
+            lineText(entry)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
             Text(IslandReceipt.pillLabel(entry, language: Localized.language()))

@@ -649,6 +649,13 @@
 "card.tree.expanded" = "desplegada";
 "card.tree.truncated" = "Se muestran %d de %d entradas.";
 "card.tree.collapsed" = "plegada";
+"card.empty.places.title" = "No encontré lugares para %@.";
+"card.empty.places.detail" = "Prueba con otro nombre o agrega una ciudad.";
+"card.empty.folder.title" = "Esta carpeta está vacía.";
+"card.empty.folder.detail" = "Aquí todavía no hay nada que listar.";
+"chat.card.empty" = "[resultado vacío mostrado en pantalla]";
+"file.chip.open" = "Abrir";
+"file.chip.reveal" = "Mostrar en Finder";
 "chat.card.tree" = "[árbol de carpetas mostrado en pantalla]";
 "chat.card.data" = "[datos mostrados en una tarjeta en pantalla]";
 

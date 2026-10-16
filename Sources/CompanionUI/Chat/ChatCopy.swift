@@ -38,6 +38,8 @@ package enum ChatCopy {
             return Localized.string("chat.card.data")
         case .tree:
             return Localized.string("chat.card.tree")
+        case .empty:
+            return Localized.string("chat.card.empty")
         }
     }
 

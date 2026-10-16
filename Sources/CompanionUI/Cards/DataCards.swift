@@ -24,25 +24,7 @@ struct StatsCard: View {
     }
 
     private func tile(_ item: StatsBlock.Item) -> some View {
-        VStack(alignment: .leading, spacing: Space.x1) {
-            HStack(alignment: .firstTextBaseline, spacing: Space.x2) {
-                Text(item.value)
-                    .font(.uiTitle)
-                    .foregroundStyle(Semantic.foreground)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                if let delta = item.delta, !delta.isEmpty {
-                    Text(delta)
-                        .font(.uiCaption)
-                        .foregroundStyle(DataCardInk.delta(delta))
-                }
-            }
-            Text(item.label)
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .lineLimit(2)
-        }
-        .accessibilityElement(children: .combine)
+        StatsTile(item: item)
     }
 }
 

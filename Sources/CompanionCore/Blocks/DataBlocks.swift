@@ -10,16 +10,21 @@ package struct StatsBlock: Sendable, Equatable {
         package var value: String
         /// "+8 %", "−3": shown as written, never computed.
         package var delta: String?
+        /// Optional history for a sparkline: at least two finite numbers, or none.
+        package var trend: [Double]?
 
-        package init(label: String, value: String, delta: String? = nil) {
+        package init(label: String, value: String, delta: String? = nil, trend: [Double]? = nil) {
             self.label = label
             self.value = value
             self.delta = delta
+            self.trend = trend
         }
     }
 
     /// More than a row of tiles is a table.
     package static let maxItems = 12
+    /// A sparkline past this is a chart's job, and a tile is too small for it.
+    package static let maxTrend = 24
     package var title: String?
     package var items: [Item]
 
@@ -155,9 +160,19 @@ extension CompanionBlocks {
                   let label = item["label"] as? String,
                   let value = DataCells.text(item["value"]) else { return nil }
             items.append(StatsBlock.Item(label: clean(label), value: clean(value),
-                                         delta: DataCells.text(item["delta"]).map(clean)))
+                                         delta: DataCells.text(item["delta"]).map(clean),
+                                         trend: trend(item["trend"])))
         }
         return items.isEmpty ? nil : StatsBlock(title: (dict["title"] as? String).map(clean), items: items)
+    }
+
+    /// A broken trend drops the sparkline and keeps the figure: the number is
+    /// what the tile is for.
+    static func trend(_ raw: Any?) -> [Double]? {
+        guard let list = raw as? [Any], list.count >= 2, list.count <= StatsBlock.maxTrend else { return nil }
+        let values = list.compactMap { jsonDouble($0) }
+        guard values.count == list.count, values.allSatisfy(\.isFinite) else { return nil }
+        return values
     }
 
     package static func table(_ body: String) -> TableBlock? {

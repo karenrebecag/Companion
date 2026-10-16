@@ -134,7 +134,13 @@ extension NativeToolRunner {
             let modified = attributes[.modificationDate] as? Date ?? Date()
             return UndoReceipt(
                 kind: .created, subject: (real as NSString).lastPathComponent,
-                undo: .trash(path: real, size: size, modified: modified))
+                undo: .trash(path: real, size: size, modified: modified), path: real)
+        case NativeTool.editFile.rawValue:
+            // An edit keeps the file it changed, so there is no trash to restore
+            // it from: the receipt says what changed and offers no undo.
+            guard let path = arguments["path"] as? String, case .success(let real) = writeBarrier(path)
+            else { return nil }
+            return UndoReceipt(kind: .wrote, subject: (real as NSString).lastPathComponent, path: real)
         case NativeTool.sheetWrite.rawValue:
             guard let range = (arguments["range"] as? String).flatMap(SheetRange.init(a1:)),
                   let app = (arguments["app"] as? String).flatMap(SheetApp.init(rawValue:)),
