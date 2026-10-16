@@ -16,10 +16,8 @@ import Testing
     testNonFiniteAndNonNumericValuesAreBroken()
     testAbsurdMagnitudesAreATableNotCode()
     testTheCartesianBudgetSendsBigChartsToATable()
-    testTheModelIsToldTheCaps()
     testUnknownKindStillFallsBackToATable()
     testOnlyChartFencesBecomeCharts()
-    testTheModelIsToldPolarRadarAndWhenToUseThem()
     testAnOversizedFenceIsRefusedEverywhere()
 }
 
@@ -169,24 +167,6 @@ func testOnlyChartFencesBecomeCharts() {
     let good = AnswerBlocks.blocks(from: "```companion:chart\n\(fence("radar"))\n```")
     if case .card(.chart(let block)) = good[0] { expectEq(block.kind, .radar, "16m-5a: el radar llega al popup") }
     else { expect(false, "16m-5a: la fence válida llega como tarjeta de gráfica") }
-}
-
-func testTheModelIsToldPolarRadarAndWhenToUseThem() {
-    for language in [AppLanguage.en, .es] {
-        let text = CardVocabulary.text(language)
-        expect(text.contains("polar") && text.contains("radar"), "16m-5a: \(language) enseña polar y radar")
-        expect(text.contains("bar|line|area|pie|donut|scatter|polar|radar"),
-               "16m-5a: \(language) lista todos los tipos")
-    }
-}
-
-func testTheModelIsToldTheCaps() {
-    for (language, words) in [(AppLanguage.en, ["slices", "axes", "points"]), (.es, ["rebanadas", "ejes", "puntos"])] {
-        let text = CardVocabulary.text(language)
-        expect(text.contains("\(ChartBlock.maxSlices) \(words[0])"), "16m-5a: \(language) dice el tope de rebanadas")
-        expect(text.contains("\(ChartBlock.maxRadarAxes) \(words[1])"), "16m-5a: \(language) dice el tope de ejes")
-        expect(text.contains("\(ChartBlock.maxCartesianPoints) \(words[2])"), "16m-5a: \(language) dice el tope de puntos")
-    }
 }
 
 func testAnOversizedFenceIsRefusedEverywhere() {

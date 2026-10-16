@@ -14,7 +14,7 @@ import Testing
     testAnUnknownChartKindFallsBackToATable()
     testChartsAreBounded()
     testBrokenFencesStayNil()
-    testTheModelIsToldTheNewFences()
+    testTheModelIsNoLongerToldTheRetiredFences()
     testMemoryNamesTheNewCards()
 }
 
@@ -92,11 +92,12 @@ func testBrokenFencesStayNil() {
            "gráfica: un booleano no es un número")
 }
 
-func testTheModelIsToldTheNewFences() {
+func testTheModelIsNoLongerToldTheRetiredFences() {
+    // present reemplaza estas fences; el modelo no debe seguir escribiéndolas.
     for language in [AppLanguage.en, .es] {
         let text = CardVocabulary.text(language)
         for fence in [CompanionBlocks.statsLanguage, CompanionBlocks.tableLanguage, CompanionBlocks.chartLanguage] {
-            expect(text.contains(fence), "vocabulario \(language): enseña \(fence)")
+            expect(!text.contains(fence), "vocabulario \(language): ya no enseña \(fence)")
         }
     }
 }
