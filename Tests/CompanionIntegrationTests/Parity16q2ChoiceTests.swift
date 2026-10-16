@@ -234,13 +234,14 @@ private func slackRunner(_ service: SlackApps) async -> AppToolRunner {
 
 @Test func aCardTurnOffersEveryConnectedAppAndATypedTurnStillNarrows() async {
     let runner = await slackRunner(SlackApps())
+    func apps() -> [ToolSpec] { runner.specs(.es).filter(\.isConnectedApp) }
     runner.noteChoiceTurn()
-    expectEq(runner.specs(.es).count, 2, "16q-2: un turno de tarjeta lleva las tools de todo lo conectado")
+    expectEq(apps().count, 2, "16q-2: un turno de tarjeta lleva las tools de todo lo conectado")
     runner.noteTurn("dime la hora")
-    expect(runner.specs(.es).isEmpty, "16q-2: un turno tecleado que no nombra app sigue sin ellas")
+    expect(apps().isEmpty, "16q-2: un turno tecleado que no nombra app sigue sin ellas")
     runner.noteChoiceTurn()
     _ = runner.specs(.es)
-    expectEq(runner.specs(.es).count, 2, "16q-2: y la lectura siguiente vuelve a todo, como cualquier turno")
+    expectEq(apps().count, 2, "16q-2: y la lectura siguiente vuelve a todo, como cualquier turno")
 }
 
 @Test func aCardTurnStillNeedsTheSheetForAnAppWrite() async {
