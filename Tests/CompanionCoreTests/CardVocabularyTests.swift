@@ -4,26 +4,27 @@ import Foundation
 import Testing
 
 @Test @MainActor func cardVocabularyTests() {
-    testBothPromptsTeachTheSameSyntax()
+    testBothPromptsTeachPresentForStructuredContent()
     testTheVocabularyLivesInExactlyOnePlace()
     testItWarnsAgainstInventingCoordinates()
     testItTravelsInBothLanguages()
     testItAsksForTheChoiceCardWhenOfferingOptions()
 }
 
-@MainActor func testBothPromptsTeachTheSameSyntax() {
-    // El renderizador estaba cableado de punta a punta y solo el especialista
-    // sabia pedirle algo. Preguntar por un lugar sin delegar no podia pintar
-    // un mapa aunque el mapa estuviera ahi.
+@MainActor func testBothPromptsTeachPresentForStructuredContent() {
+    // present reemplaza las fences de datos: la charla y el especialista deben
+    // enseñar la misma tool y no las fences viejas que el modelo ya no emite.
     for language in [AppLanguage.en, .es] {
         let chat = ChatPrompt.system(
             ownerFirstName: "Karen", delegateEnabled: true, language: language)
         let specialist = Escalation.executorRole(language)
         for prompt in [chat, specialist] {
-            expect(prompt.contains(CompanionBlocks.locationsLanguage),
-                   "\(language): el prompt enseña las tarjetas de lugares")
-            expect(prompt.contains(CompanionBlocks.galleryLanguage),
-                   "\(language): y las de galería")
+            expect(prompt.contains("present"), "\(language): el prompt enseña la tool present")
+            expect(prompt.contains("find_block"), "\(language): y find_block para la cola larga")
+            for retired in ["companion:locations", "companion:gallery", "companion:stats",
+                            "companion:table", "companion:chart"] {
+                expect(!prompt.contains(retired), "\(language): ya no enseña \(retired)")
+            }
         }
     }
 }

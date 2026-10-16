@@ -73,6 +73,10 @@ extension ChatViewModel {
             let said = MentionContext.wrap(marked, mentions: messages[messageIndex].mentions, language: config.language)
             history[last].content = ContextBlock.wrap(
                 said, with: ContextBlock.render(ctx, language: config.language))
+            if presentCorrectionPending {
+                history[last].content += "\n\n" + PrintedPresentDetector.correction
+                presentCorrectionPending = false
+            }
             // The facts are in the request now: only here are they spent.
             sensor.acknowledgeIslandEvents(through: ctx.islandEventsThrough)
         }
@@ -171,10 +175,11 @@ extension ChatViewModel {
         _ history: [Turn], id: String
     ) async throws -> (preface: String, handoff: Handoff?, calls: [ToolCallRef]) {
         var preface = ""
+        var fences = ""
         var handoff: Handoff?
         var calls: [ToolCallRef] = []
         let tools = (parentTools?.specs(config.language) ?? [])
-            + [.delegate(config.language)]
+            + [.delegate(config.language), PresentContract.presentSpec]
         for try await delta in chat.stream(history, tools: tools) {
             guard isCurrent(id) else { throw CancellationError() }
             switch delta {
@@ -188,9 +193,15 @@ extension ChatViewModel {
             case .handoff(let value):
                 handoff = value
             case .toolCalls(let round):
+                // Presenting is not an action: its blocks join the reply as
+                // a stored fence and the model gets no round trip for them.
+                for call in round where call.name == PresentContract.presentName {
+                    fences += presentFence(for: call)
+                }
                 // Anything the parent cannot do itself is the specialist's
                 // and only ever arrives as a handoff.
-                for call in round where parentTools?.handles(call.name) != true {
+                for call in round where call.name != PresentContract.presentName
+                    && parentTools?.handles(call.name) != true {
                     // A dropped call is a decision worth a trace: a real
                     // tool falling here means the runner and the model
                     // disagree about the list (QA 16k-3). The name is
@@ -203,7 +214,45 @@ extension ChatViewModel {
                 calls += round.filter { parentTools?.handles($0.name) == true }
             }
         }
-        return (preface, handoff, calls)
+        let settled = settlePrintedPresent(preface)
+        return (settled + fences, handoff, calls)
+    }
+
+    /// The fence is the same storage the printed-JSON path writes, so a saved
+    /// chat renders both the same way. A call whose blocks cannot be stored
+    /// draws nothing; the model is not asked to retry for a card.
+    private func presentFence(for call: ToolCallRef) -> String {
+        guard let body = PresentFence.body(argumentsJSON: call.arguments) else {
+            log("chat: present call without a valid blocks array dropped")
+            return ""
+        }
+        let outcome = PresentParser.parse(arguments: presentObject(call.arguments))
+        for issue in outcome.issues {
+            log("chat: present block \(issue.index) fell back: \(issue.reason)")
+        }
+        return "\n\n```\(PresentFence.language)\n\(body)\n```\n"
+    }
+
+    private func presentObject(_ json: String) -> [String: Any] {
+        guard let data = json.data(using: .utf8) else { return [:] }
+        do {
+            return try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        } catch {
+            log("chat: present arguments are not JSON: \(error)")
+            return [:]
+        }
+    }
+
+    /// A reply that printed present's JSON as text is shown as cards, and the
+    /// next request is told once. The fences of real calls are added after
+    /// this check, so they are never mistaken for printed JSON.
+    private func settlePrintedPresent(_ text: String) -> String {
+        guard let hit = PrintedPresentDetector.detect(in: text) else { return text }
+        presentCorrectionPending = true
+        log("chat: present JSON printed as text, rendered as cards")
+        guard let body = PresentFence.body(argumentsJSON: hit.json) else { return hit.prose }
+        let fence = "```\(PresentFence.language)\n\(body)\n```"
+        return hit.prose.isEmpty ? fence : hit.prose + "\n\n" + fence
     }
 
     /// The call survives in the history the way the delegate call does (9d):

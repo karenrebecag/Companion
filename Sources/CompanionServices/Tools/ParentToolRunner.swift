@@ -165,6 +165,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
                 outcome, app: opened, strict: tool == .openApp, hands: hands, launch: launch)
         case .listApps: return listApps()
         case .readSkill: return readSkill(arguments)
+        case .findBlock: return findBlock(arguments)
         case .typeText, .pressKey, .focusWindow, .readFocused, .look, .click, .scroll, .menu, .see:
             let call = ToolCallRef(id: "", name: name, arguments: argumentsJSON)
             return await runHands(tool, call, arguments)
@@ -230,6 +231,16 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
 
     /// By catalog name only. A path is not a valid name, so it is not found
     /// before anything looks at the disk.
+    private func findBlock(_ arguments: [String: Any]) -> ParentToolOutcome {
+        guard let query = arguments["query"] as? String,
+              !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return .failed(.invalidArgs("missing query")) }
+        return ParentToolOutcome(
+            ok: true,
+            output: BlockCatalog.reply(for: BlockCatalog.find(query)),
+            tool: ParentTool.findBlock.rawValue)
+    }
+
     private func readSkill(_ arguments: [String: Any]) -> ParentToolOutcome {
         guard let raw = arguments["name"] as? String else {
             return .failed(.invalidArgs("missing name"))

@@ -343,7 +343,8 @@ extension ParentToolRunner {
             case .pressKey: outcome = await hands.observing(pid: pid) { act.press(arguments) }
             case .focusWindow: outcome = act.raise(arguments)
             case .readFocused: outcome = act.read()
-            case .openApp, .openURL, .openFile, .listApps, .readSkill, .look, .click, .scroll, .menu, .see:
+            case .openApp, .openURL, .openFile, .listApps, .readSkill, .findBlock,
+                 .look, .click, .scroll, .menu, .see:
                 outcome = .failed(.notFound("not a hands tool: \(tool.rawValue)"), tool: tool.rawValue)
             }
         }

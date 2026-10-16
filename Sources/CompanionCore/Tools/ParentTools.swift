@@ -78,12 +78,15 @@ package enum ParentTool: String, CaseIterable, Sendable, Equatable {
     case menu
     /// Pixels, on demand (16a-3): a capture described by the vision model.
     case see
+    /// The long tail of present blocks (present spec): answers with the
+    /// catalog entries that match, so the model can then emit one.
+    case findBlock = "find_block"
 
     package var isHands: Bool {
         switch self {
         case .typeText, .pressKey, .focusWindow, .readFocused: true
         case .look, .click, .scroll, .menu, .see: true
-        case .openApp, .openURL, .openFile, .listApps, .readSkill: false
+        case .openApp, .openURL, .openFile, .listApps, .readSkill, .findBlock: false
         }
     }
 
@@ -92,7 +95,7 @@ package enum ParentTool: String, CaseIterable, Sendable, Equatable {
     package var changesSomething: Bool {
         switch self {
         case .openApp, .openURL, .openFile, .typeText, .pressKey, .focusWindow, .click, .menu: true
-        case .listApps, .readSkill, .readFocused, .look, .scroll, .see: false
+        case .listApps, .readSkill, .findBlock, .readFocused, .look, .scroll, .see: false
         }
     }
 
@@ -125,7 +128,7 @@ package enum ParentTool: String, CaseIterable, Sendable, Equatable {
         case .openApp: "name"
         case .openURL: "url"
         case .openFile: "path"
-        case .listApps: nil
+        case .listApps, .findBlock: nil
         case .readSkill: "name"
         // Never "text" or "title": the status line and the chrome would show
         // what was typed into another app, or the name of a private window.
@@ -213,6 +216,8 @@ package enum ParentTool: String, CaseIterable, Sendable, Equatable {
                     name: "path", type: "string",
                     description: "ruta bajo la carpeta personal, p. ej. ~/Downloads")],
                 required: ["path"])
+        case (.findBlock, _):
+            return PresentContract.findBlockSpec
         case (.listApps, .en):
             return ToolSpec(
                 name: rawValue,
@@ -404,6 +409,8 @@ package enum ParentToolCopy: Sendable {
             return handsStatus(hands, outcome, language)
         }
         switch (ParentTool(rawValue: name), language) {
+        case (.findBlock, .en): return "Looked up a visual block."
+        case (.findBlock, .es): return "Busqué un bloque visual."
         case (.listApps, .en): return "Listed the apps on this Mac."
         case (.listApps, .es): return "Listé las apps de esta Mac."
         case (.readSkill, .en): return "Read the \(outcome.target) skill."

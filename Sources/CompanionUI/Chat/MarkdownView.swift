@@ -23,6 +23,12 @@ package struct MarkdownView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// One markdown part drawn as the chat draws it, for callers that already
+    /// hold the part and have no markdown text to split.
+    static func part(_ kind: MarkdownSplitter.Kind) -> some View {
+        MarkdownView(text: "").block(kind)
+    }
+
     @ViewBuilder
     private func block(_ kind: MarkdownSplitter.Kind) -> some View {
         switch kind {
@@ -62,7 +68,9 @@ package struct MarkdownView: View {
                 .padding(.vertical, Space.x2)
         case .code(let language, let body):
             // Companion card blocks: try to render as rich cards, degrade to code on JSON error.
-            if let card = Self.fenceCard(language: language, body: body) {
+            if language == PresentFence.language, let renders = PresentFence.renders(body: body) {
+                PresentView(renders)
+            } else if let card = Self.fenceCard(language: language, body: body) {
                 CardView(card: card)
             } else if language == CompanionBlocks.choiceLanguage, let choice = CompanionBlocks.choice(body) {
                 // A saved transcript has no reply channel: the question and

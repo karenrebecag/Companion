@@ -12,6 +12,9 @@ package final class ChatViewModel: ConversationPresenting {
     package internal(set) var messages: [ChatMessage] = []
     package internal(set) var streaming = ""
     package internal(set) var busy = false
+    /// Set when a reply printed the present JSON as text: the next request
+    /// carries the correction once, so the model stops writing it out.
+    var presentCorrectionPending = false
     /// The running turn has called a tool: its words are answered by an action.
     var turnToolsRan = false
     package internal(set) var pendingAttachments: [AttachmentRef] = []

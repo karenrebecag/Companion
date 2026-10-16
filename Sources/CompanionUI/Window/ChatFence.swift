@@ -9,6 +9,10 @@ enum ChatFence {
         guard fence.language.hasPrefix("companion:") else { return nil }
         // A card still arriving would show half its JSON as code, then jump.
         guard fence.closed else { return AnyView(EmptyView()) }
+        // A body that no longer parses stays visible as the port's code block.
+        if fence.language == PresentFence.language {
+            return PresentFence.renders(body: fence.body).map { AnyView(PresentView($0)) }
+        }
         if let card = MarkdownView.fenceCard(language: fence.language, body: fence.body) {
             return AnyView(CardView(card: card))
         }

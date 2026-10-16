@@ -84,6 +84,18 @@ package enum BlockCatalog {
             .map(\.element.entry)
     }
 
+    /// What the model reads back from find_block: one line per match, with the
+    /// shape it must follow in present. An empty answer says so, so the model
+    /// falls back to a family instead of retrying the lookup.
+    package static func reply(for matches: [CatalogEntry]) -> String {
+        guard !matches.isEmpty else {
+            return "No catalog block fits. Use a present family instead."
+        }
+        return matches
+            .map { "\($0.id): \($0.whenToUse). Data: \($0.shape)." }
+            .joined(separator: "\n")
+    }
+
     static func tokens(_ text: String) -> [String] {
         text.lowercased()
             .split { !$0.isLetter && !$0.isNumber }
