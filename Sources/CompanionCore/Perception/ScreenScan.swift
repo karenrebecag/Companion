@@ -60,6 +60,10 @@ package struct ScreenScan: Sendable, Equatable {
     package static let maxElements = 150
     package static let maxChars = 6_000
     static let maxLine = 200
+    /// Rows of a list or table (Notes previews, mail subjects) are static text
+    /// too; past this the rest is cut so private previews do not all leave.
+    /// Numbered controls are not counted.
+    package static let maxTextLines = 40
 
     package var app: String
     package var window: String
@@ -86,6 +90,7 @@ package struct ScreenScan: Sendable, Equatable {
         var lines: [String] = []
         var chars = 0
         var seenText: Set<String> = []
+        var textLines = 0
         var partial = walk.partial
         let contexts = dialogTexts(walk.nodes)
         for (index, node) in walk.nodes.enumerated() {
@@ -100,7 +105,10 @@ package struct ScreenScan: Sendable, Equatable {
                 line = "[\(id)] \(kind) \"\(label)\"" + valueSuffix(node)
             } else if ScreenRoles.isText(node.role) {
                 let text = clip(node.value ?? node.label)
-                guard !text.isEmpty, seenText.insert(text).inserted else { continue }
+                guard !text.isEmpty, !seenText.contains(text) else { continue }
+                guard textLines < maxTextLines else { partial = true; continue }
+                seenText.insert(text)
+                textLines += 1
                 line = "- " + text
             } else {
                 continue

@@ -14,6 +14,7 @@ import Testing
     testEmptyAndDuplicateTextIsDropped()
     testTheRenderNamesTheWindowAndApp()
     testALongFieldValueShowsItsEnd()
+    testLongStaticTextListsAreCutButControlsStayWhole()
 }
 
 private func node(_ role: String, _ label: String, value: String? = nil, subrole: String = "",
@@ -110,4 +111,14 @@ private func walk(_ nodes: [ScanNode], partial: Bool = false) -> ScreenWalk {
     expectEq(WindowTitles.bestMatch(["Exportar como PDF…"], for: "exportar"), 0,
              "menú: sin exacta, la que la contiene")
     expect(WindowTitles.bestMatch(["Archivo"], for: "Ventana") == nil, "menú: nada")
+}
+
+@MainActor func testLongStaticTextListsAreCutButControlsStayWhole() {
+    let rows = (1...200).map { node("AXStaticText", "Nota \($0)") }
+    let controls = (1...30).map { node("AXButton", "Botón \($0)") }
+    let scan = ScreenScan.build(walk(rows + controls), app: "Notes")
+    let text = scan.render()
+    expectEq(text.components(separatedBy: "\n- ").count - 1, ScreenScan.maxTextLines, "filas de texto con tope")
+    expectEq(scan.elements.count, 30, "los controles siguen completos")
+    expect(scan.partial && text.contains("partial"), "lo dice")
 }
