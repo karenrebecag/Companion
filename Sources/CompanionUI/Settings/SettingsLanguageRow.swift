@@ -1,4 +1,5 @@
 import CompanionCore
+import CompanionUIPro
 import SwiftUI
 
 /// The language row (Wave 16g: in General). The only control that has
@@ -10,8 +11,7 @@ struct SettingsLanguageLine: View {
     var body: some View {
         SettingsRow(
             title: Localized.string("settings.app.language"),
-            subtitle: Localized.string("settings.app.language.subtitle"),
-            key: "settings.app.language"
+            description: Localized.string("settings.app.language.subtitle")
         ) {
             SettingsItem(
                 title: "",
@@ -23,6 +23,7 @@ struct SettingsLanguageLine: View {
                 onChange()
             }
         }
+        .settingsAnchor("settings.app.language")
     }
 }
 

@@ -1,8 +1,36 @@
 import AppKit
 import CompanionCore
+import CompanionUIPro
 import SwiftUI
 
-/// Settings › Tú (Wave 16g): who you are on top, then how the app looks.
+/// A row whose control is a few lines of text, so the field sits under the
+/// title instead of squeezing beside it.
+struct SettingsTextRow: View {
+    let title: String
+    var key: String? = nil
+    let placeholder: String
+    @Binding var text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            Text(title)
+                .font(.uiLabel)
+                .foregroundStyle(Semantic.foreground)
+            TextField(placeholder, text: $text, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.uiBody)
+                .foregroundStyle(Semantic.foreground)
+                .lineLimit(2 ... 6)
+                .padding(Space.x3)
+                .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Semantic.muted))
+        }
+        .padding(.horizontal, Space.x4)
+        .padding(.vertical, Space.x3)
+        .settingsAnchor(key)
+    }
+}
+
+/// Settings › Tú: who you are on top, then how the app looks.
 struct SettingsYouPage: View {
     @State private var ownerName = UserProfile.ownerName
     @State private var about = UserProfile.about
@@ -18,19 +46,19 @@ struct SettingsYouPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
-            SettingsPageHeader(title: SettingsTab.you.title, blurb: Localized.string("settings.you.blurb"))
-            SettingsCard {
-                profileRow.settingsSearchTarget("settings.you.photo")
-                SettingsRow(title: Localized.string("settings.you.name"), key: "settings.you.name") {
+            SettingsGroup {
+                profileRow.settingsAnchor("settings.you.photo")
+                SettingsRow(title: Localized.string("settings.you.name")) {
                     TextField(Localized.string("settings.you.name.placeholder"), text: $ownerName)
                         .textFieldStyle(.plain)
                         .font(.uiLabel)
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: Container.hero)
                 }
+                .settingsAnchor("settings.you.name")
                 SettingsRow(
                     title: Localized.string("settings.you.city"),
-                    subtitle: Localized.string("settings.you.city.subtitle"), key: "settings.you.city"
+                    description: Localized.string("settings.you.city.subtitle")
                 ) {
                     TextField(Localized.string("settings.you.city.placeholder"), text: $city)
                         .textFieldStyle(.plain)
@@ -38,6 +66,7 @@ struct SettingsYouPage: View {
                         .multilineTextAlignment(.trailing)
                         .frame(maxWidth: Container.hero)
                 }
+                .settingsAnchor("settings.you.city")
                 SettingsTextRow(
                     title: Localized.string("settings.you.about"), key: "settings.you.about",
                     placeholder: Localized.string("settings.you.about.placeholder"), text: $about)
@@ -45,15 +74,16 @@ struct SettingsYouPage: View {
                     title: Localized.string("settings.you.instructions"), key: "settings.you.instructions",
                     placeholder: Localized.string("settings.you.instructions.placeholder"), text: $instructions)
             }
-            SettingsCard(label: Localized.string("settings.you.looks")) {
-                SettingsRow(title: Localized.string("settings.app.appearance"), key: "settings.app.appearance") {
+            SettingsGroup(title: Localized.string("settings.you.looks")) {
+                SettingsRow(title: Localized.string("settings.app.appearance")) {
                     SegmentedToggle(options: Self.appearanceOptions, selection: $appearance)
                 }
+                .settingsAnchor("settings.app.appearance")
                 SettingsRow(
                     title: Localized.string("settings.app.textSize"),
-                    subtitle: Localized.string("settings.app.textSize.subtitle"),
-                    key: "settings.app.textSize"
+                    description: Localized.string("settings.app.textSize.subtitle")
                 ) { fontStepper }
+                .settingsAnchor("settings.app.textSize")
             }
         }
         .onChange(of: ownerName) { persistProfile() }
@@ -142,35 +172,8 @@ struct SettingsYouPage: View {
     }
 }
 
-/// A row whose control is a few lines of text, so the field sits under the
-/// title instead of squeezing beside it.
-struct SettingsTextRow: View {
-    let title: String
-    var key: String? = nil
-    let placeholder: String
-    @Binding var text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            Text(title)
-                .font(.uiLabel)
-                .foregroundStyle(Semantic.foreground)
-            TextField(placeholder, text: $text, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.uiBody)
-                .foregroundStyle(Semantic.foreground)
-                .lineLimit(2 ... 6)
-                .padding(Space.x3)
-                .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Semantic.muted))
-        }
-        .padding(.horizontal, Space.x4)
-        .padding(.vertical, Space.x3)
-        .settingsSearchTarget(key)
-    }
-}
-
-/// Settings › Vocabulario (Wave 16g): an example of what the list is for,
-/// the words, and one field to add another.
+/// Settings › Vocabulario: an example of what the list is for, the words,
+/// and one field to add another.
 struct SettingsVocabularyPage: View {
     @State private var text = VocabularyPreference.text
     @State private var draft = ""
@@ -179,10 +182,8 @@ struct SettingsVocabularyPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
-            SettingsPageHeader(
-                title: SettingsTab.vocabulary.title, blurb: Localized.string("settings.vocabulary.subtitle"))
             example
-            SettingsCard(key: "settings.vocabulary") {
+            SettingsGroup {
                 addRow
                 ForEach(words, id: \.self) { word in
                     SettingsRow(title: word) {
@@ -194,6 +195,7 @@ struct SettingsVocabularyPage: View {
                     }
                 }
             }
+            .settingsAnchor("settings.vocabulary")
             if words.isEmpty {
                 Text(Localized.string("settings.vocabulary.empty"))
                     .font(.uiCaption)
@@ -252,9 +254,9 @@ struct SettingsVocabularyPage: View {
     }
 }
 
-/// Settings › Memoria (Wave 16g): what Companion kept from past
-/// conversations, each with a way to forget it. The profile file is edited
-/// as the file it is, so it only gets a way to open its folder.
+/// Settings › Memoria: what Companion kept from past conversations, each
+/// with a way to forget it. The profile file is edited as the file it is, so
+/// it only gets a way to open its folder.
 struct SettingsMemoryPage: View {
     let memory: (any MemoryBrowsing)?
     @State private var entries: [MemoryEntry] = []
@@ -263,15 +265,14 @@ struct SettingsMemoryPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
-            SettingsPageHeader(title: SettingsTab.memory.title, blurb: Localized.string("settings.memory.blurb"))
-            SettingsCard {
+            SettingsGroup {
                 SettingsRow(
                     title: Localized.string("settings.memory.profile"),
-                    subtitle: Localized.string("settings.memory.profile.subtitle"),
-                    key: "settings.memory.header"
+                    description: Localized.string("settings.memory.profile.subtitle")
                 ) {
                     SettingsPill(title: Localized.string("settings.memory.openFolder"), action: openFolder)
                 }
+                .settingsAnchor("settings.memory.header")
             }
             if failed {
                 Text(Localized.string("settings.memory.forget.error"))
@@ -279,9 +280,13 @@ struct SettingsMemoryPage: View {
                     .foregroundStyle(Semantic.destructive)
             }
             if entries.isEmpty {
-                SettingsEmptyState(symbol: "brain", text: Localized.string("settings.memory.empty")) { EmptyView() }
+                Text(Localized.string("settings.memory.empty"))
+                    .font(.uiBody)
+                    .foregroundStyle(Semantic.mutedForeground)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Space.x8)
             } else {
-                SettingsCard(label: Localized.string("settings.memory.header")) {
+                SettingsGroup(title: Localized.string("settings.memory.header")) {
                     ForEach(entries) { entry in row(entry) }
                 }
             }
@@ -291,7 +296,7 @@ struct SettingsMemoryPage: View {
 
     @ViewBuilder private func row(_ entry: MemoryEntry) -> some View {
         if confirming == entry.id {
-            SettingsRow(title: Localized.string("settings.memory.forget.ask"), subtitle: MemoryCopy.headline(entry)) {
+            SettingsRow(title: Localized.string("settings.memory.forget.ask"), description: MemoryCopy.headline(entry)) {
                 HStack(spacing: Space.x2) {
                     SettingsPill(title: Localized.string("settings.purge.cancel")) { confirming = nil }
                     SettingsPill(title: Localized.string("settings.memory.forget"), kind: .destructive) {
@@ -300,7 +305,7 @@ struct SettingsMemoryPage: View {
                 }
             }
         } else {
-            SettingsRow(title: MemoryCopy.headline(entry), subtitle: MemoryCopy.caption(entry)) {
+            SettingsRow(title: MemoryCopy.headline(entry), description: MemoryCopy.caption(entry)) {
                 SettingsPill(title: Localized.string("settings.memory.forget")) { confirming = entry.id }
             }
         }

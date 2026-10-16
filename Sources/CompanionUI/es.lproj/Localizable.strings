@@ -986,3 +986,12 @@
 "chat.run.steps.one" = "1 paso";
 "chat.run.steps.other" = "%d pasos";
 "chat.run.timeline" = "Pasos del especialista";
+"settings.nav.label" = "Secciones de ajustes";
+"settings.bar.save" = "Guardar cambios";
+"settings.bar.saving" = "Guardando";
+"settings.bar.saved" = "Cambios guardados";
+"settings.bar.discard" = "Descartar";
+"settings.bar.unsaved" = "%d sin guardar";
+"settings.general.blurb" = "Cómo le hablas a Companion y qué suena.";
+"settings.privacy.blurb" = "Qué puede ver Companion, con qué permisos y qué claves usa.";
+"settings.system.blurb" = "Versión, datos guardados y lo que no se deshace.";

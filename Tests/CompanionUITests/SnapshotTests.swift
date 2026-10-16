@@ -31,8 +31,10 @@ import Testing
                          "welcome-\(step.rawValue)-\(step)-\(tag)")
             }
             for tab in SettingsTab.allCases {
-                try save(await settings(tab), scheme: scheme, size: CGSize(width: 780, height: 760), to: out,
-                         "settings-\(tab.rawValue)-\(tag)")
+                // Hosted, not ImageRenderer: the Arc Pro page draws nothing offscreen
+                // under ImageRenderer, so the window's own layout is the capture.
+                try saveHosted(await settings(tab), scheme: scheme, size: CGSize(width: 780, height: 760), to: out,
+                               "settings-\(tab.rawValue)-\(tag)")
             }
         }
     }
@@ -128,35 +130,16 @@ private final class StillDevices: WelcomeDevices, @unchecked Sendable {
     return AnyView(WelcomeView(welcome: model, chat: chat()))
 }
 
-/// The sheet's ScrollView does not render offscreen; the pages do, with
-/// the sidebar drawn beside them as the sheet lays it out.
+/// The whole Settings view for one page: the palette, the section nav and
+/// the page, as the sheet lays them out.
 @MainActor private func settings(_ tab: SettingsTab) async -> AnyView {
     let welcome = WelcomeModel(devices: StillDevices(), keyReady: { true },
                                defaults: UserDefaults(suiteName: "snap-\(UUID().uuidString)") ?? .standard)
     await welcome.refresh()
-    let page: AnyView
-    switch tab {
-    case .general: page = AnyView(SettingsGeneralPage(accessibility: nil, onLanguageChange: {}))
-    case .voice: page = AnyView(SettingsVoiceSection(preview: nil))
-    case .vocabulary: page = AnyView(SettingsVocabularyPage())
-    case .memory: page = AnyView(SettingsMemoryPage(memory: SnapMemory()))
-    case .you: page = AnyView(SettingsYouPage())
-    case .privacy: page = AnyView(SettingsPrivacyPage(chat: chat(), welcome: welcome))
-    case .system:
-        page = AnyView(SettingsSystemPage(
-            chat: chat(), updates: nil, welcome: welcome, storageLabel: "12 MB",
-            confirmPurge: .constant(false), onClose: {}, history: HistoryClearModel()))
-    }
-    return AnyView(HStack(alignment: .top, spacing: Space.none) {
-        SettingsSidebar(tab: .constant(tab), query: .constant(""), onPick: { _ in })
-            .frame(width: SettingsRailMetrics.width)
-        page
-            .padding(.leading, SettingsPaneMetrics.leading)
-            .padding(.trailing, SettingsPaneMetrics.trailing)
-            .padding(.top, SettingsPaneMetrics.top)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-    .background(Semantic.background).environment(DropdownHost()))
+    return AnyView(SettingsView(
+        chat: chat(), welcome: welcome, memory: SnapMemory(), tab: .constant(tab), query: .constant(""))
+        .environment(DropdownHost())
+        .background(Semantic.background))
 }
 
 private struct SnapMemory: MemoryBrowsing {
@@ -224,6 +207,23 @@ private struct SnapMemory: MemoryBrowsing {
     guard let image = renderer.nsImage, let tiff = image.tiffRepresentation,
           let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
     else { return }
+    try png.write(to: dir.appendingPathComponent(name + ".png"))
+}
+
+@MainActor private func saveHosted(
+    _ view: AnyView, scheme: ColorScheme, size: CGSize, to dir: URL, _ name: String
+) throws {
+    let framed = view
+        .frame(width: size.width, height: size.height)
+        .background(scheme == .dark ? Color(white: 0.12) : Color(white: 0.94))
+        .environment(\.colorScheme, scheme)
+    let host = NSHostingView(rootView: framed)
+    host.frame = CGRect(origin: .zero, size: size)
+    host.appearance = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
+    host.layoutSubtreeIfNeeded()
+    guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+    host.cacheDisplay(in: host.bounds, to: rep)
+    guard let png = rep.representation(using: .png, properties: [:]) else { return }
     try png.write(to: dir.appendingPathComponent(name + ".png"))
 }
 

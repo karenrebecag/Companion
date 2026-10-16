@@ -97,22 +97,4 @@ package enum SettingsInventory {
         options.flatMap { [$0.titleKey, $0.subtitleKey].compactMap { $0 } }
             + panelKeys + SettingsTab.allCases.map { "settings.tab.\($0.rawValue)" }
     }
-
-    /// What the search reads, in the language on screen now. A page's own
-    /// name finds the page, so "memoria" lands somewhere even with no row.
-    @MainActor package static var searchEntries: [SettingsSearch.Entry] {
-        options.map {
-            SettingsSearch.Entry(
-                id: $0.titleKey, page: $0.tab.rawValue, title: Localized.string($0.titleKey),
-                subtitle: $0.subtitleKey.map { Localized.string($0) } ?? $0.tab.title)
-        }
-        + panels.map {
-            SettingsSearch.Entry(
-                id: $0.rowId ?? $0.titleKey, page: $0.tab.rawValue, title: Localized.string($0.titleKey),
-                subtitle: $0.tab.title, keywords: $0.keywords)
-        }
-        + SettingsTab.allCases.map {
-            SettingsSearch.Entry(id: "settings.tab.\($0.rawValue)", page: $0.rawValue, title: $0.title, subtitle: "")
-        }
-    }
 }

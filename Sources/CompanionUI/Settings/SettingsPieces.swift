@@ -1,84 +1,10 @@
 import CompanionCore
+import CompanionUIPro
 import SwiftUI
 
-/// The pieces every Settings page is built from (Wave 16g): white cards of
-/// rows on a sunken sheet, a control at the end of each row, and the pill
-/// buttons. One vocabulary, so a page cannot drift into its own look.
-
-/// A group of rows with a hairline between them; the label sits above.
-struct SettingsCard<Content: View>: View {
-    var label: String? = nil
-    /// A search entry that names the whole card, not one of its rows.
-    var key: String? = nil
-    @ViewBuilder var content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            if let label {
-                Text(label)
-                    .font(.uiLabel)
-                    .foregroundStyle(Semantic.mutedForeground)
-                    .padding(.horizontal, Space.x1)
-            }
-            VStack(alignment: .leading, spacing: Space.none) {
-                Group(subviews: content()) { rows in
-                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                        if index > 0 {
-                            Rectangle()
-                                .fill(Semantic.border)
-                                .frame(height: Stroke.hairline)
-                                .padding(.horizontal, Space.x4)
-                        }
-                        row
-                    }
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: Radius.card).fill(Semantic.surface))
-            .overlay(
-                RoundedRectangle(cornerRadius: Radius.card)
-                    .stroke(Semantic.border, lineWidth: Stroke.hairline))
-        }
-        .settingsSearchTarget(key)
-    }
-}
-
-/// Title, grey subtitle, and whatever control ends the row. `key` is the
-/// inventory key, so a search result can light the row it jumped to.
-struct SettingsRow<Trailing: View>: View {
-    let title: String
-    var subtitle: String? = nil
-    var key: String? = nil
-    @ViewBuilder var trailing: () -> Trailing
-
-    var body: some View {
-        HStack(alignment: .center, spacing: Space.x4) {
-            VStack(alignment: .leading, spacing: Space.x1) {
-                Text(title)
-                    .font(.uiLabel)
-                    .foregroundStyle(Semantic.foreground)
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.uiCaption)
-                        .foregroundStyle(Semantic.mutedForeground)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            Spacer(minLength: Space.x3)
-            trailing()
-        }
-        .padding(.horizontal, Space.x4)
-        .padding(.vertical, Space.x3)
-        .settingsSearchTarget(key)
-    }
-}
-
-/// A row with nothing at the end.
-extension SettingsRow where Trailing == EmptyView {
-    init(title: String, subtitle: String? = nil, key: String? = nil) {
-        self.init(title: title, subtitle: subtitle, key: key) { EmptyView() }
-    }
-}
+/// The controls a settings row ends with. Layout (groups, rows, headers) is
+/// the Arc Pro components' job; this file only supplies Companion's buttons
+/// and switch to them.
 
 /// 16l: Incredible's Button variants. `neutral` is the ghost (5 % wash),
 /// `primary` the black solid, `destructive` the red ghost.
@@ -132,47 +58,9 @@ struct SettingsSwitch: View {
     }
 }
 
-/// A list page with nothing in it yet: a symbol, one line, and the way out.
-struct SettingsEmptyState<Action: View>: View {
-    let symbol: String
-    let text: String
-    @ViewBuilder var action: () -> Action
-
-    var body: some View {
-        VStack(spacing: Space.x3) {
-            Image(systemName: symbol)
-                .font(Fonts.sans(TypeSize.display))
-                .foregroundStyle(Semantic.mutedForeground)
-                .accessibilityHidden(true)
-            Text(text)
-                .font(.uiBody)
-                .foregroundStyle(Semantic.mutedForeground)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            action()
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, Space.x8)
-    }
-}
-
-/// The page title and its one-line reason, above the cards.
-struct SettingsPageHeader: View {
-    let title: String
-    var blurb: String? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: Space.x1) {
-            Text(title)
-                .font(Fonts.sans(SettingsPaneMetrics.titleSize).weight(.semibold))
-                .tracking(Tracking.title, at: SettingsPaneMetrics.titleSize)
-                .foregroundStyle(Semantic.foreground)
-            if let blurb {
-                Text(blurb)
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+extension View {
+    /// Gives a row the id a palette pick scrolls to; rows without a palette entry get none.
+    @ViewBuilder func settingsAnchor(_ key: String?) -> some View {
+        if let key { self.id(key) } else { self }
     }
 }

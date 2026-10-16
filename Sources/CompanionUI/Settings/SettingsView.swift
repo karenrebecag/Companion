@@ -1,5 +1,6 @@
 import AppKit
 import CompanionCore
+import CompanionUIPro
 import SwiftUI
 
 package enum SettingsOverlayMetrics {
@@ -11,17 +12,9 @@ package enum SettingsOverlayMetrics {
     package static let stepHit: CGFloat = Space.x8
 }
 
-/// The content pane beside the rail (Incredible's gutter and header air).
-package enum SettingsPaneMetrics {
-    package static let leading: CGFloat = Space.x14
-    package static let trailing: CGFloat = 96
-    package static let top: CGFloat = 44
-    package static let bottom: CGFloat = Space.x10
-    package static let titleSize: CGFloat = TypeSize.dialogTitle
-}
-
-/// Settings (Wave 16g): a sheet with a sidebar and a search, one page at a
-/// time. Each page owns its state; this view owns only where you are.
+/// Settings: one page at a time, with the Arc Pro section nav and the
+/// settings palette on top. Each page owns its state; this view owns only
+/// where you are and which row a palette pick asked to show.
 package struct SettingsView: View {
     private let preview: VoicePreview?
     var chat: ChatViewModel?
@@ -31,18 +24,17 @@ package struct SettingsView: View {
     let onClose: () -> Void
     @Binding var tab: SettingsTab
     @Binding var query: String
-    @State private var band: SettingsBand?
-    /// The row a pick is looking for; the nonce restarts the search on a new pick.
-    @State private var jumpTarget: String?
-    @State private var jumpNonce = 0
-    @State private var presentRows: Set<String> = []
     @State private var confirmPurge = false
     @State private var history = HistoryClearModel()
     @State private var storageLabel = Localized.string("settings.storage.empty")
     /// Bumped on a language change: every string on screen repaints at once.
     @State private var languageTick = 0
+    /// The row a palette pick asked to show, and the nonce that makes a repeat pick count again.
+    @State private var reveal: SettingsReveal?
     @Environment(DropdownHost.self) private var dropdowns
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let updates: UpdateState?
 
     package init(
         preview: VoicePreview? = nil,
@@ -66,8 +58,6 @@ package struct SettingsView: View {
         self.onClose = onClose
     }
 
-    private let updates: UpdateState?
-
     package var body: some View {
         sheetBody
         .overlay {
@@ -87,71 +77,39 @@ package struct SettingsView: View {
         .onAppear { refreshStorage() }
     }
 
-    /// Sidebar, hairline, page; the sheet host supplies the surface and the close.
+    /// The palette above, the section nav and page below.
     private var sheetBody: some View {
-        HStack(spacing: Space.none) {
-            SettingsSidebar(tab: $tab, query: $query, onPick: jump, approvalPending: chat?.pendingApproval != nil)
-                .frame(width: SettingsRailMetrics.width)
-            Rectangle().fill(Semantic.borderChrome).frame(width: Stroke.hairline)
-            pageScroll
-        }
-    }
-
-    private var pageScroll: some View {
-        ScrollViewReader { proxy in
-            pageContent
-                .task(id: jumpNonce) { await findRow(proxy) }
-        }
-    }
-
-    private var pageContent: some View {
-        ScrollView {
-            page
-                .padding(.leading, SettingsPaneMetrics.leading)
-                .padding(.trailing, SettingsPaneMetrics.trailing)
-                .padding(.top, SettingsPaneMetrics.top)
-                .padding(.bottom, SettingsPaneMetrics.bottom)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .id("\(tab.rawValue)-\(languageTick)")
-                .transition(ChromeMotion.transition(.modeSwap, reduceMotion: reduceMotion))
-        }
-        .scrollIndicators(.hidden)
-        .environment(\.settingsBand, band)
-        .onPreferenceChange(SettingsRowKeys.self) { presentRows = $0 }
-    }
-
-    /// Polls while the new page mounts its rows; a later pick cancels this one.
-    private func findRow(_ proxy: ScrollViewProxy) async {
-        guard let target = jumpTarget else { return }
-        var jump = SettingsSearchJump(target: target)
-        while true {
-            switch jump.poll(present: presentRows) {
-            case .wait:
-                do { try await Task.sleep(for: .seconds(SettingsSearchJump.retryInterval)) } catch { return }
-            case .found(let key):
-                withAnimation(ChromeMotion.animation(.expoOut(MotionTime.panel), reduceMotion: reduceMotion)) {
-                    proxy.scrollTo(key, anchor: .center)
-                }
-                await playBand(key)
-                return
-            case .done:
-                return
+        VStack(alignment: .leading, spacing: Space.none) {
+            HStack(spacing: Space.none) {
+                SettingsCommand(
+                    query: $query, items: SettingsInventory.commandItems,
+                    sectionTitle: { SettingsTab(rawValue: $0)?.title ?? "" },
+                    strings: SettingsPageChrome.commandStrings, onPick: jump)
+                Spacer(minLength: Space.none)
             }
+            .padding(.leading, Space.x4)
+            .padding(.top, Space.x3)
+            .padding(.trailing, SettingsCloseClearance.width)
+            .zIndex(1)
+            SettingsPage(
+                sections: SettingsTab.allCases.map(\.pageSection),
+                selection: tabSelection,
+                reveal: reveal,
+                strings: SettingsPageChrome.pageStrings,
+                style: .companion,
+                content: { section in page(section) })
         }
+        .background(Semantic.background)
     }
 
-    private func playBand(_ key: String) async {
-        for step in SettingsSearchJump.bandSteps {
-            withAnimation(ChromeMotion.animation(
-                MotionCurve.animation(MotionCurve.standard, step.fade), reduceMotion: reduceMotion)) {
-                band = SettingsBand(key: key, visible: step.visible)
-            }
-            do { try await Task.sleep(for: .seconds(step.wait)) } catch { break }
+    @ViewBuilder private func page(_ section: SettingsPageSection) -> some View {
+        Group {
+            pageBody(SettingsTab(rawValue: section.id) ?? .general)
         }
-        band = nil
+        .id(languageTick)
     }
 
-    @ViewBuilder private var page: some View {
+    @ViewBuilder private func pageBody(_ tab: SettingsTab) -> some View {
         switch tab {
         case .general:
             SettingsGeneralPage(accessibility: chat?.accessibility, onLanguageChange: languageChanged)
@@ -173,16 +131,20 @@ package struct SettingsView: View {
         }
     }
 
-    /// A search result opens its page and lights the row for a moment, so
-    /// the eye finds what it asked for without reading the page.
-    private func jump(_ entry: SettingsSearch.Entry) {
-        guard let target = SettingsTab(rawValue: entry.page) else { return }
+    private var tabSelection: Binding<String> {
+        Binding(
+            get: { tab.rawValue },
+            set: { if let next = SettingsTab(rawValue: $0) { tab = next } })
+    }
+
+    /// A palette pick opens its page and, for a row, asks the page to bring
+    /// that row into view. A page entry has no row, so it stops at the top.
+    private func jump(_ item: SettingsCommandItem) {
+        guard let target = SettingsTab(rawValue: item.sectionID) else { return }
         dropdowns.dismiss()
         withAnimation(ChromeMotion.animation(.springSelect, reduceMotion: reduceMotion)) { tab = target }
-        query = ""
-        band = nil
-        jumpTarget = SettingsSearchJump.target(for: entry)
-        jumpNonce += 1
+        let isPage = item.id.hasPrefix("settings.tab.")
+        reveal = isPage ? nil : SettingsReveal(anchor: item.id, nonce: (reveal?.nonce ?? 0) + 1)
     }
 
     private func languageChanged() {
@@ -232,6 +194,11 @@ package struct SettingsView: View {
             }
         }
     }
+}
+
+/// The sheet's close button sits in the top corner; the palette keeps clear of it.
+enum SettingsCloseClearance {
+    static let width: CGFloat = 64
 }
 
 enum SettingsVersion {

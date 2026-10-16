@@ -11,9 +11,7 @@ import Testing
 @Test @MainActor func settingsPagesTests() async throws {
     await testTheSidebarHasSevenPages()
     testEveryOptionHasAPage()
-    testSearchIgnoresCaseAndAccents()
-    testSearchRanksTitlesFirst()
-    await testSearchFindsEveryOptionInBothLanguages()
+    await testEveryOptionIsAPaletteItemOnItsPage()
     testVocabularyAddsAndRemovesOneWord()
     try testMemoryListsNotesAndSessionsNewestFirst()
     try testForgettingMovesOnlyThatEntry()
@@ -50,37 +48,18 @@ import Testing
              "ajustes: el vocabulario tiene su página")
 }
 
-func testSearchIgnoresCaseAndAccents() {
-    let entries = [
-        SettingsSearch.Entry(id: "a", page: "general", title: "Idioma", subtitle: "En qué te habla"),
-        SettingsSearch.Entry(id: "b", page: "you", title: "Tamaño del texto", subtitle: "Más grande o más chico"),
-    ]
-    expectEq(SettingsSearch.match("tamano", in: entries).map(\.id), ["b"], "buscar: sin acentos")
-    expectEq(SettingsSearch.match("IDIOMA", in: entries).map(\.id), ["a"], "buscar: sin mayúsculas")
-    expectEq(SettingsSearch.match("texto grande", in: entries).map(\.id), ["b"],
-             "buscar: varias palabras, en título o subtítulo")
-    expect(SettingsSearch.match("   ", in: entries).isEmpty, "buscar: vacío no lista todo")
-    expect(SettingsSearch.match("zzz", in: entries).isEmpty, "buscar: sin resultados")
-}
-
-func testSearchRanksTitlesFirst() {
-    let entries = [
-        SettingsSearch.Entry(id: "sub", page: "x", title: "Sonidos", subtitle: "Un tono al empezar a hablar"),
-        SettingsSearch.Entry(id: "title", page: "x", title: "Hablar", subtitle: "Mantén fn"),
-    ]
-    expectEq(SettingsSearch.match("hablar", in: entries).map(\.id), ["title", "sub"],
-             "buscar: el título pesa más que el subtítulo")
-}
-
-@MainActor func testSearchFindsEveryOptionInBothLanguages() async {
+/// Every option is reachable from the palette in both languages, and the
+/// palette item lands on the page the option lives on. Ranking and accent
+/// folding are tested in CompanionUIPro, where the palette lives now.
+@MainActor func testEveryOptionIsAPaletteItemOnItsPage() async {
     for language in [AppLanguage.es, .en] {
         await Localized.scoped(to: language) {
-            let entries = SettingsInventory.searchEntries
+            let items = SettingsInventory.commandItems
             for option in SettingsInventory.options {
-                let title = Localized.string(option.titleKey)
-                let found = SettingsSearch.match(title, in: entries)
-                expect(found.contains { $0.id == option.titleKey && $0.page == option.tab.rawValue },
-                       "\(language): «\(title)» se encuentra y salta a \(option.tab)")
+                let item = items.first { $0.id == option.titleKey }
+                expectEq(item?.sectionID, option.tab.rawValue,
+                         "\(language): «\(option.titleKey)» salta a \(option.tab)")
+                expect(!(item?.title.isEmpty ?? true), "\(language): «\(option.titleKey)» tiene título")
             }
         }
     }
