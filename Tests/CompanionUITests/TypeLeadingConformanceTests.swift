@@ -11,7 +11,7 @@ import Testing
 enum TypeLeadingLint {
     /// Files that own the rule. Everything else either has no multi-line Text
     /// or must be listed in `exempt` with its reason.
-    static let covered = ["Apps/AppsPage.swift", "Apps/AppCard.swift", "Apps/AppsSetupForm.swift", "Apps/AppPanel.swift", "Apps/ConnectingSheet.swift", "Window/HomePage.swift", "Window/HomeHero.swift", "DesignSystem/RadioCards.swift", "Settings/ResetPermissionsRow.swift", "Window/ModulePlaceholderPage.swift"]
+    static let covered = ["Apps/AppsPage.swift", "Apps/AppCard.swift", "Apps/AppsSetupForm.swift", "Apps/AppPanel.swift", "Apps/ConnectingSheet.swift", "Window/HomePage.swift", "Window/HomeHero.swift", "DesignSystem/RadioCards.swift", "Settings/ResetPermissionsRow.swift", "Window/ModulePlaceholderPage.swift", "Chat/ErrorAlert.swift"]
 
     /// Not brought under the rule yet, on purpose. Path prefixes relative to
     /// Sources/CompanionUI.
@@ -22,7 +22,6 @@ enum TypeLeadingLint {
         "Voice/ApprovalSheet.swift": "the approval panel speaks Geist; its leading was never measured",
         "Feedback/": "the feedback modal speaks Geist like the island; only its frame (480, 32, 28) was measured",
         "Apps/OwnMCPSheet.swift": "form sheet reached through Apps; not measured, follow-up",
-        "Chat/ChatErrorSurface.swift": "error banner, not a measured screen",
         "DesignSystem/Controls.swift": "shared control internals, no role of their own",
     ]
 

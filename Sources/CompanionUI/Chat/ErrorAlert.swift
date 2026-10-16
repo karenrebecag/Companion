@@ -14,7 +14,7 @@ struct ErrorAlert: View {
                 .foregroundStyle(Semantic.destructive)
                 .accessibilityHidden(true)
             Text(text)
-                .font(.uiBody)
+                .typeRole(.body)
                 .foregroundStyle(Semantic.foreground)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)

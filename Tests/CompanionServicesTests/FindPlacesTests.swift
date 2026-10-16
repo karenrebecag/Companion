@@ -9,7 +9,7 @@ import Testing
     testTheModelNeverSeesTheCoordinates()
     testTheCardCarriesWhatTheSearcherFound()
     testTheCardIsMarkedAsLookedUp()
-    testNothingFoundMeansNoCard()
+    testNothingFoundMeansAnEmptyCard()
     testItIsSafeSoLookingUpAPlaceCostsNoClick()
 }
 
@@ -59,10 +59,14 @@ private let soumaya = FoundPlace(
              "nacida de una consulta, no de la memoria de nadie")
 }
 
-@MainActor func testNothingFoundMeansNoCard() {
+@MainActor func testNothingFoundMeansAnEmptyCard() {
     // Un mapa vacio es peor que ningun mapa: parece que el sitio no existe.
+    // Sin resultados se dice con una tarjeta vacia que nombra la busqueda.
     let result = run([])
-    expect(result.card == nil, "sin resultados no se pinta nada")
+    guard case .empty(.places(let query))? = result.card?.payload else {
+        return expect(false, "sin resultados la tarjeta dice que no hubo lugares")
+    }
+    expectEq(query, "museo soumaya", "y nombra lo que se busco")
     expect(!result.ok, "y se dice que no se encontro")
 }
 
