@@ -147,6 +147,8 @@ private struct SightAct {
 
     private var bundle: String { knownBundle ?? "-" }
 
+    private static let walkAttempts = 3
+
     /// The window or app may have moved since the entry check; every press
     /// reads the target again right before it lands.
     private var moved: Bool { !hands.holds(pid: pid) }
@@ -166,13 +168,21 @@ private struct SightAct {
         // including a window appearing or vanishing, means the ids may
         // belong to a window that is no longer in front, so nothing is
         // remembered: a stored scan would let a click spend them there.
-        let before = hands.frontWindow(pid)
-        guard let walk = screen.walk(pid: pid) else {
-            return fail("no_window", "no readable window in the app in front")
+        // A window that settles between two tries is not a failure of look:
+        // it re-reads instead of telling the agent to call look again.
+        var attempt = 0
+        var captured: (walk: ScreenWalk, window: HandsWindow?)?
+        while captured == nil, attempt < Self.walkAttempts {
+            attempt += 1
+            let before = hands.frontWindow(pid)
+            guard let walk = screen.walk(pid: pid) else {
+                return fail("no_window", "no readable window in the app in front")
+            }
+            if before == hands.frontWindow(pid) { captured = (walk, before) }
         }
-        let after = hands.frontWindow(pid)
-        if before != after {
-            return fail("target_lost", ScreenHands.windowLostMessage)
+        guard let (walk, after) = captured else {
+            return fail("target_lost", "the front window kept changing while it was read; "
+                + "wait for it to settle, then retry")
         }
         let scan = ScreenScan.build(walk, app: appName)
         hands.scans.remember(scan, pid: pid)

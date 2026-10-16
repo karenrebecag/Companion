@@ -35,6 +35,13 @@ package struct ContractError: Error, Sendable, Equatable {
         ContractError(code: "denied_by_user", message: Escalation.deniedByUserMessage(language))
     }
 
+    /// Nobody answered the sheet before its deadline. Unlike a "no", the
+    /// call can be retried once the user is back, so the code is its own
+    /// (the shim already knows `approval_timeout`).
+    package static func approvalTimeout(_ language: AppLanguage = .en) -> ContractError {
+        ContractError(code: BridgeCode.approvalTimeout, message: Escalation.approvalTimeoutMessage(language))
+    }
+
     /// The user cut the turn before the call ran. Not a refusal: the model
     /// must not read it as "don't do this", only as "this did not happen".
     package static let interrupted = ContractError(code: "cancelled", message: "the user interrupted")
@@ -258,6 +265,13 @@ package protocol WorkspaceOpening: Sendable {
     func open(_ url: URL) async throws(ContractError)
     func runningApplications() -> [String]
     func installedApplications() -> [String]
+    /// The app `open(_:)` will hand this URL to, by the name `open_app`
+    /// uses, so the hands can follow what the user asked to open.
+    func applicationName(toOpen url: URL) -> String?
+}
+
+extension WorkspaceOpening {
+    package func applicationName(toOpen url: URL) -> String? { nil }
 }
 
 /// What a parent tool produced: `output` is what the model reads, `target`

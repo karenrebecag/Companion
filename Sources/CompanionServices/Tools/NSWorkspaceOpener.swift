@@ -22,25 +22,34 @@ package struct NSWorkspaceOpener: WorkspaceOpening {
     package init() {}
 
     package func openApplication(named name: String) async throws(ContractError) {
-        if let bundle = Self.bundles().first(where: { Self.name(of: $0) == name }) {
-            do {
-                _ = try await NSWorkspace.shared.openApplication(
-                    at: bundle, configuration: NSWorkspace.OpenConfiguration())
-            } catch {
-                throw .notFound("could not launch \(name): \(error.localizedDescription)")
-            }
-            return
+        let running = NSWorkspace.shared.runningApplications.first { app in
+            !app.isTerminated && app.activationPolicy == .regular
+                && (app.localizedName == name || app.bundleURL.map(Self.name(of:)) == name)
         }
-        // Running but installed elsewhere (a build folder, a disk image):
-        // bringing it to the front is still opening it.
-        if let running = NSWorkspace.shared.runningApplications
-            .first(where: { $0.localizedName == name }) {
-            guard running.activate() else {
-                throw .notFound("could not bring \(name) to the front")
-            }
-            return
+        // Running but installed elsewhere (a build folder, a disk image, or
+        // /System/Library/CoreServices, where Finder lives): its own bundle
+        // is as good as a listed one.
+        guard let bundle = Self.bundles().first(where: { Self.name(of: $0) == name })
+            ?? running?.bundleURL
+        else { throw .notFound("no app named \(name)") }
+        // `activates` goes through LaunchServices, which can bring an app
+        // forward for a background caller; `NSRunningApplication.activate()`
+        // alone is a request macOS 14+ may ignore (cooperative activation).
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        do {
+            _ = try await NSWorkspace.shared.openApplication(at: bundle, configuration: configuration)
+        } catch {
+            throw .notFound("could not launch \(name): \(error.localizedDescription)")
         }
-        throw .notFound("no app named \(name)")
+        guard let running, !running.isActive else { return }
+        guard AppActivation.bringToFront(running) else {
+            throw .notFound("could not bring \(name) to the front")
+        }
+    }
+
+    package func applicationName(toOpen url: URL) -> String? {
+        NSWorkspace.shared.urlForApplication(toOpen: url).map(Self.name(of:))
     }
 
     // HACK: check-then-act. The policy validated a path string; LaunchServices

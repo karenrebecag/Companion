@@ -345,6 +345,18 @@ extension Escalation {
         ContractError.deniedByUser(language).wire
     }
 
+    /// Silence is not a refusal: the model may ask again when the user is back.
+    package static func approvalTimeoutMessage(_ language: AppLanguage = .en) -> String {
+        switch language {
+        case .en:
+            return "the approval sheet timed out with no answer from the user. "
+                + "This is not a refusal: retry the same action when the user is back."
+        case .es:
+            return "la hoja de permiso caducó sin respuesta de la usuaria. No es un "
+                + "rechazo: reintenta la misma acción cuando la usuaria esté."
+        }
+    }
+
     /// The message alone; the code is `ContractError`'s (12d).
     package static func deniedByUserMessage(_ language: AppLanguage = .en) -> String {
         switch language {

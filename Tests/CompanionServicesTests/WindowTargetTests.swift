@@ -116,8 +116,8 @@ private let mcpCallers: Set<Int32> = [50]
     await testRecycledPidToDifferentBundleRefusesTheCall()
 }
 
-@Test @MainActor func lookRefusesWhenWindowChangesDuringWalk() async {
-    await testLookRefusesWhenWindowChangesDuringWalk()
+@Test @MainActor func lookRereadsWhenWindowChangesDuringWalk() async {
+    await testLookRereadsWhenWindowChangesDuringWalk()
 }
 
 @Test @MainActor func callerFrontRefusesWhenStoredBundleBecameNil() async {
@@ -256,6 +256,8 @@ private func mcprunner(
     let out = await runner.execute(name: "type_text", argumentsJSON: typing("hola").arguments)
     expect(out.output.hasPrefix("target_changed:"), "voz sin callers: target_changed: \(out.output)")
     expect(out.output.contains("front, then retry"), "M1: dice el siguiente paso: \(out.output)")
+    expect(out.output.contains("in front is "), "nombra la app que esta delante: \(out.output)")
+    expect(!out.output.contains("call look"), "no promete que look lo arregla: \(out.output)")
 }
 
 // MARK: - (c) window changes A -> B: target_lost, then look succeeds and type_text succeeds
@@ -481,12 +483,17 @@ private func mcprunner(
     }
     expect(typeBad.output.hasPrefix("target_lost:"),
            "type_text con caller al frente y ventana A->B: target_lost \(typeBad.output)")
-    let lookBad = await HandsCaller.$apps.withValue(mcpCallers) {
+    // look is what re-latches: refusing it for the changed window is the
+    // loop seen live 2026-10-16 (target_lost -> "call look again" -> ...).
+    let lookAgain = await HandsCaller.$apps.withValue(mcpCallers) {
         await runner.execute(name: lookName, argumentsJSON: lookArgs)
     }
-    expect(lookBad.output.hasPrefix("target_lost:"),
-           "look con caller al frente y ventana cambiada: target_lost \(lookBad.output)")
-    expect(hands.injected.isEmpty, "look rechazado: nada escrito")
+    expect(lookAgain.ok, "look con caller al frente y ventana cambiada: se fija en la de delante \(lookAgain.output)")
+    expect(hands.injected.isEmpty, "look no escribe nada")
+    let typeGood = await HandsCaller.$apps.withValue(mcpCallers) {
+        await runner.execute(name: "type_text", argumentsJSON: typing("dos").arguments)
+    }
+    expect(typeGood.ok, "tras el look: type_text actua en la ventana B \(typeGood.output)")
 }
 
 // MARK: - focus_window ok with the app in front, then type_text lands on the pid (R1, R4)
@@ -727,33 +734,26 @@ private func mcprunner(
 }
 
 // S3: the front window changed between look's before-read and after-read.
-// The numbered elements may belong to a different window, so look refuses
-// and does NOT latch. A subsequent type_text under the same callers must
-// still see no pin: nothing was recorded.
-@MainActor func testLookRefusesWhenWindowChangesDuringWalk() async {
+// The ids may belong to another window, so that walk is thrown away; look
+// reads again instead of answering "call look again" to the caller that
+// just called it, and latches the window that held still.
+@MainActor func testLookRereadsWhenWindowChangesDuringWalk() async {
     let book = WindowBook()
     book.seed(pid: 9, [(0, "A")])
-    // The book flips after the first read: look's before frontWindow
-    // (read 1) returns A, look's after frontWindow (read 2) returns B.
-    // The walk in between does not read the book, so the flip is a
-    // window change "during the walk" from the runner's perspective.
+    // The book flips after the first read: the first walk saw A then B
+    // (discarded); the second saw B both times.
     book.flipOnRead(1, pid: 9, [(0, "B")])
     let (runner, hands, _, _) = mcprunner(
         target: ScriptedTarget([9, 9, 50, 50]), frontBook: book)
     runner.beginTurn()
     let look = await runner.execute(name: lookName, argumentsJSON: lookArgs)
-    expect(!look.ok, "look con ventana cambiada: falla")
-    expect(look.output.hasPrefix("target_lost:"),
-           "look con ventana cambiada: target_lost (no latch) \(look.output)")
-    // The look refused, so no pin or window was recorded: a type_text
-    // under callers {50} cannot find a pin to act on.
+    expect(look.ok, "look con ventana que se asienta: ok \(look.output)")
     let out = await HandsCaller.$apps.withValue(mcpCallers) {
         await runner.execute(name: "type_text", argumentsJSON: typing("uno").arguments)
     }
-    expect(out.output.hasPrefix("target_lost:"),
-           "sin latch: el type_text no tiene a quien actuar \(out.output)")
-    expect(hands.injected.isEmpty, "look rechazo, type_text rechazo: nada escrito")
-    expectEq(book.reads, 2, "look leyo 2 veces: before + after")
+    expect(out.ok, "el latch es la ventana B que quedo quieta \(out.output)")
+    expectEq(hands.injected.map(\.text), ["uno"], "escrito en la ventana asentada")
+    expectEq(book.reads >= 4, true, "look releyo despues del cambio")
 }
 
 // S1 (bundle): the pinned pid is alive when the pin was taken, then

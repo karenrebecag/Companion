@@ -137,20 +137,26 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
                                tool: tool.rawValue)
             }
             let outcome: ParentToolOutcome
+            // open_file and open_url land in an app the model never named
+            // (a folder opens Finder): it is the one the hands must follow.
+            var opened: String?
             switch tool {
-            case .openApp: outcome = await openApp(arguments)
-            case .openURL: outcome = await openURL(arguments)
-            default: outcome = await openFile(arguments)
+            case .openApp:
+                outcome = await openApp(arguments)
+                opened = outcome.target
+            case .openURL: (outcome, opened) = await openURL(arguments)
+            default: (outcome, opened) = await openFile(arguments)
             }
             // The user asked for this app to come up: the hands follow it
             // for the rest of the turn instead of refusing it as a switch.
             // The per-call check that the front did not move still holds.
             guard outcome.ok else { return outcome }
-            guard tool == .openApp, let hands, let launch = hands.launch else {
+            guard let opened, !opened.isEmpty, let hands, let launch = hands.launch else {
                 hands?.turn.release()
                 return outcome
             }
-            return await settleLaunch(outcome, hands: hands, launch: launch)
+            return await settleLaunch(
+                outcome, app: opened, strict: tool == .openApp, hands: hands, launch: launch)
         case .listApps: return listApps()
         case .readSkill: return readSkill(arguments)
         case .typeText, .pressKey, .focusWindow, .readFocused, .look, .click, .scroll, .menu, .see:
@@ -163,9 +169,8 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
     /// typing a moment earlier lands in the app the user was in. The turn is
     /// pinned to the launched pid, so a late activation cannot move it back.
     private func settleLaunch(
-        _ outcome: ParentToolOutcome, hands: ScreenHands, launch: any AppWindowProbing
+        _ outcome: ParentToolOutcome, app name: String, strict: Bool, hands: ScreenHands, launch: any AppWindowProbing
     ) async -> ParentToolOutcome {
-        let name = outcome.target
         let pid = await hands.windowWait.wait {
             guard let pid = launch.pid(ofApp: name), launch.hasWindow(pid: pid),
                   hands.target() == pid else { return nil }
@@ -176,12 +181,17 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
             // meant for TextEdit landed in Slack (2026-10-06). Hold the turn
             // to the launched app, or to the app it already had.
             if let launched = launch.pid(ofApp: name) { hands.turn.begin(launched) }
+            // The file or URL did open; only open_app promised a ready window.
+            if !strict {
+                if launch.pid(ofApp: name) == nil { hands.turn.release() }
+                return outcome
+            }
             // A cut turn is not an app without a window: say which it was.
             if Task.isCancelled {
                 return .failed(Self.handsError("cancelled", "the turn was cut before \(name) was ready"),
                                target: name)
             }
-            Log.app("hands: open_app window_not_ready")
+            Log.app("hands: open window_not_ready")
             return .failed(Self.handsError(
                 "window_not_ready",
                 "\(name) was opened but has no window in front yet; look, or try again in a moment"),
@@ -257,42 +267,44 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         }
     }
 
-    private func openURL(_ arguments: [String: Any]) async -> ParentToolOutcome {
+    private func openURL(_ arguments: [String: Any]) async -> (ParentToolOutcome, String?) {
         guard let raw = arguments["url"] as? String else {
-            return .failed(.invalidArgs("missing url"))
+            return (.failed(.invalidArgs("missing url")), nil)
         }
         let url: URL
         do {
             url = try ParentToolPolicy.httpURL(raw)
         } catch {
-            return .failed(error, target: raw)
+            return (.failed(error, target: raw), nil)
         }
+        let app = workspace.applicationName(toOpen: url)
         do {
             try await workspace.open(url)
         } catch {
-            return .failed(error, target: url.absoluteString)
+            return (.failed(error, target: url.absoluteString), nil)
         }
-        return ParentToolOutcome(
-            ok: true, output: "opened \(url.absoluteString)", target: url.absoluteString)
+        return (ParentToolOutcome(
+            ok: true, output: "opened \(url.absoluteString)", target: url.absoluteString), app)
     }
 
-    private func openFile(_ arguments: [String: Any]) async -> ParentToolOutcome {
+    private func openFile(_ arguments: [String: Any]) async -> (ParentToolOutcome, String?) {
         guard let raw = arguments["path"] as? String else {
-            return .failed(.invalidArgs("missing path"))
+            return (.failed(.invalidArgs("missing path")), nil)
         }
         let target = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let url: URL
         do {
             url = try ParentToolPolicy.homePath(raw, home: home)
         } catch {
-            return .failed(error, target: target)
+            return (.failed(error, target: target), nil)
         }
+        let app = workspace.applicationName(toOpen: url)
         do {
             try await workspace.open(url)
         } catch {
-            return .failed(error, target: target)
+            return (.failed(error, target: target), nil)
         }
-        return ParentToolOutcome(ok: true, output: "opened \(url.path)", target: target)
+        return (ParentToolOutcome(ok: true, output: "opened \(url.path)", target: target), app)
     }
 
     private func listApps() -> ParentToolOutcome {
