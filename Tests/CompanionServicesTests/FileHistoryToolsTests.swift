@@ -121,14 +121,12 @@ private struct Fixture {
     expectEq(ids(in: result.output), [], "list: no ids")
 }
 
-@Test func listRefusesAPathOutsideTheWorkingFolder() async throws {
+@Test func listRefusesAProtectedPath() async throws {
     let f = try Fixture.make()
     defer { remove(f.dir) }
-    let outside = try scratch()
-    defer { remove(outside) }
-    let result = try await runner(outside, versions: f.versions)
-        .execute(tool: "list_file_history", arguments: ["path": f.file], approved: false)
-    expect(!result.ok && !result.output.contains("ONE"), "list: outside the folder is refused")
+    let result = try await runner(f.dir, versions: f.versions)
+        .execute(tool: "list_file_history", arguments: ["path": "/etc/hosts"], approved: false)
+    expect(!result.ok && result.output.contains("protected location"), "list: a protected path is refused")
 }
 
 // MARK: - restore_file_version
@@ -422,29 +420,19 @@ private func dir(_ base: URL, _ name: String) -> String { base.appendingPathComp
     expect(folderRefused, "overwrite: not a regular file")
 }
 
-@Test func aLinkInsideTheFolderPointingOutsideIsRefusedByBothTools() async throws {
+@Test func aLinkInsideTheFolderPointingAtAProtectedPathIsRefusedByBothTools() async throws {
     let f = try Fixture.make()
     defer { remove(f.dir) }
-    let outside = try scratch()
-    defer { remove(outside) }
-    let secret = dir(outside, "secret.pdf")
-    try write("OLD SECRET", to: secret)
-    // Its own history exists, so only the path barrier can be what refuses.
-    _ = f.versions.snapshot(secret, trigger: .preSave)
-    try write("SECRET", to: secret)
     try FileManager.default.createSymbolicLink(
-        atPath: dir(f.dir, "escape.pdf"), withDestinationPath: secret)
-    let kept = try #require(f.versions.versions(of: secret).first)
-    let id = String(kept.url.lastPathComponent.split(separator: "-", maxSplits: 3)[2])
+        atPath: dir(f.dir, "escape.pdf"), withDestinationPath: "/etc/hosts")
     let runner = runner(f.dir, versions: f.versions)
     let listed = try await runner.execute(tool: "list_file_history", arguments: ["path": "escape.pdf"], approved: false)
-    expect(!listed.ok, "escape: list refuses")
+    expect(!listed.ok && listed.output.contains("protected location"), "escape: list refuses")
     let restored = try await runner.execute(
-        tool: "restore_file_version", arguments: ["path": "escape.pdf", "version": id], approved: true)
-    expect(!restored.ok && restored.output.contains("outside working directory"),
+        tool: "restore_file_version", arguments: ["path": "escape.pdf", "version": "abc"], approved: true)
+    expect(!restored.ok && restored.output.contains("protected location"),
            "escape: the path barrier refuses, got «\(restored.output)»")
     expect(!restored.output.contains("Unknown version"), "escape: not an unknown-version refusal")
-    expectEq(try read(secret), "SECRET", "escape: the outside file is untouched")
 }
 
 @Test func aFailedWriteIsPutBackFromTheCopyAndSaysSo() async throws {

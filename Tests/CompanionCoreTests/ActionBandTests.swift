@@ -35,7 +35,7 @@ func testReadsAndLocalHandsJustAct() {
 func testNewFilesActAndOverwritesAreCritical() {
     let new = ["path": "/Users/k/work/Brief.pdf"]
     expectEq(band("create_document", new, ActionFacts(pathExists: false, inWorkZone: true)), .act, "documento nuevo")
-    expectEq(band("create_document", new, ActionFacts(pathExists: false)), .critical, "documento fuera de la zona")
+    expectEq(band("create_document", new, ActionFacts(pathExists: false)), .confirm, "documento nuevo fuera de la zona: confirmar")
     for hidden in [".ssh/x.pdf", "a/.b/x.pdf", "../x.pdf"] {
         expectEq(band("create_document", ["path": hidden], ActionFacts(pathExists: false, inWorkZone: true)), .critical,
                  "documento en ruta oculta: \(hidden)")
@@ -45,7 +45,11 @@ func testNewFilesActAndOverwritesAreCritical() {
     let file = ["path": "/Users/k/work/a.txt"]
     expectEq(band("write_file", file, ActionFacts(pathExists: false, inWorkZone: true)), .act, "archivo nuevo en la zona")
     expectEq(band("write_file", file, ActionFacts(pathExists: true, inWorkZone: true)), .critical, "archivo que pisa")
-    expectEq(band("write_file", file, ActionFacts(pathExists: false, inWorkZone: false)), .critical, "fuera de la zona")
+    expectEq(band("write_file", file, ActionFacts(pathExists: false, inWorkZone: false)), .confirm, "nuevo fuera de la zona: confirmar")
+    expectEq(band("write_file", file, ActionFacts(pathExists: false, inWorkZone: true, appOwned: true)), .critical,
+             "Library o carpeta de la app: nunca un entregable")
+    expectEq(band("write_file", file, ActionFacts(pathExists: true, inWorkZone: false)), .critical, "sobrescribir fuera de la zona")
+    expectEq(band("delete_file", file, ActionFacts(pathExists: true, inWorkZone: true)), .critical, "borrar")
     expectEq(band("write_file", file, ActionFacts()), .critical, "sin hechos verificados: sube")
     let code = ["hooks/pre-commit.sh", ".git/hooks/pre-commit", "Makefile", "run.command", "a/../../x.txt", ".env", "x.PY"]
     for path in code {

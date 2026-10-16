@@ -247,11 +247,9 @@ import Testing
     try! FileManager.default.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(atPath: tempDir) }
 
-    // Create a target file outside workdir
-    let outsideDir = (tempDir as NSString).deletingLastPathComponent
-    let targetFile = (outsideDir as NSString).appendingPathComponent("outside.txt")
-    try! "secret".write(toFile: targetFile, atomically: true, encoding: .utf8)
-    defer { try? FileManager.default.removeItem(atPath: targetFile) }
+    // A link inside the workdir whose target is a protected file: the second
+    // barrier judges where it really lands.
+    let targetFile = "/etc/hosts"
 
     // Create symlink inside workdir pointing outside
     let symlink = (tempDir as NSString).appendingPathComponent("link.txt")
@@ -265,7 +263,7 @@ import Testing
             approved: false)
     }
 
-    expectEq(result.ok, false, "symlink to outside: blocked by double barrier")
+    expectEq(result.ok, false, "symlink to a protected path: blocked by double barrier")
 }
 
 @MainActor func testSymlinkRealResolution() {
@@ -453,8 +451,4 @@ private func skillsSandbox() -> (SkillsLocation, String) {
     }
     expect(!write.ok, "skills: un symlink hacia fuera cae en la segunda barrera")
     expectEq(try! String(contentsOfFile: outside, encoding: .utf8), "secret", "skills: el destino no se tocó")
-    let read = try! runAsync {
-        try await runner.execute(tool: "read_file", arguments: ["path": link], approved: false)
-    }
-    expect(!read.ok, "skills: tampoco se lee a través del enlace")
 }

@@ -274,6 +274,8 @@ package enum BridgeCode {
     package static let needsAccessibility = "needs_accessibility"
     /// `see` needs pixels, and Screen Recording is what grants them.
     package static let screenRecordingRequired = "screen_recording_required"
+    /// macOS keeps some folders (Mail, Messages, Safari) behind Full Disk Access.
+    package static let fullDiskAccessRequired = "full_disk_access_required"
     /// The session is locked: nothing on screen can be read or acted on, and
     /// an action caught by the lock has an outcome nobody saw.
     package static let screenLocked = "screen_locked"

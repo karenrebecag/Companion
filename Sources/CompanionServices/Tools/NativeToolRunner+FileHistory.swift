@@ -10,13 +10,9 @@ extension NativeToolRunner {
         guard let path = arguments["path"] as? String, !path.isEmpty else {
             return ToolResult(ok: false, output: "Missing path argument")
         }
-        guard pathValidator.isAllowed(path) else {
-            return ToolResult(ok: false, output: "Path outside working directory")
-        }
+        guard pathValidator.isAllowed(path) else { return outsideZone(path) }
         let real = resolveRealPath(path)
-        guard pathValidator.isAllowed(real) else {
-            return ToolResult(ok: false, output: "Resolved path outside working directory")
-        }
+        guard pathValidator.isAllowed(real) else { return outsideZone(path, resolved: true) }
         let kept = Self.historyEntries(versions, real)
         guard !kept.isEmpty else { return ToolResult(ok: true, output: "No saved versions of that file") }
         let stamp = ISO8601DateFormatter()

@@ -390,8 +390,8 @@ package enum ChatPrompt: Sendable {
                 + "delegated and never creates a file nobody asked for. "
                 + "Use your own tools first (the ones declared to you): "
                 + "list_directory and read_file to look at files and folders "
-                + "(only inside the folder she granted; if one is refused, say "
-                + "so), web_fetch to read a URL, "
+                + "(anywhere on her disk except system folders and "
+                + "credentials; if one is refused, say so), web_fetch to read a URL, "
                 + "find_places for places, the browser and your hands. "
                 + search
                 + "Call delegate only for heavy multi-step work "
@@ -419,8 +419,9 @@ package enum ChatPrompt: Sendable {
                 + "código de ejemplo, cálculos. Eso nunca se delega y nunca "
                 + "crea archivos que no se pidieron. Usa primero tus tools "
                 + "propias (las que tengas declaradas): list_directory y "
-                + "read_file para mirar archivos y carpetas (solo dentro de la "
-                + "carpeta que ella concedió; si una se niega, dilo), "
+                + "read_file para mirar archivos y carpetas (en cualquier parte "
+                + "de su disco salvo carpetas del sistema y credenciales; si una "
+                + "se niega, dilo), "
                 + "web_fetch para leer una URL, find_places "
                 + "para lugares, el navegador y tus manos. "
                 + search

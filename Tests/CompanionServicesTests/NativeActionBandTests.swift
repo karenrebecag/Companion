@@ -55,7 +55,7 @@ private struct Documents: DocumentRendering {
     let link = dir.appendingPathComponent("escape")
     try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "/tmp")
     let viaLink = await runner.actionBand(tool: "write_file", arguments: ["path": "escape/x.txt", "content": "x"])
-    expectEq(viaLink, .critical, "un symlink que sale de la carpeta: crítico")
+    expectEq(viaLink, .confirm, "un symlink que sale de la carpeta: se juzga donde cae, archivo nuevo confirma")
 
     // A visible link into a hidden folder is judged by where it lands.
     let hidden = dir.appendingPathComponent(".claude")
@@ -66,7 +66,7 @@ private struct Documents: DocumentRendering {
     expectEq(viaHidden, .critical, "un enlace visible hacia una carpeta oculta: crítico")
     let slash = NativeToolRunner(workdir: "/", places: nil)
     let atRoot = await slash.actionBand(tool: "write_file", arguments: ["path": "/tmp/nuevo-\(UUID().uuidString).txt", "content": "x"])
-    expectEq(atRoot, .critical, "workdir /: no es una zona")
+    expectEq(atRoot, .confirm, "workdir /: no es una zona, archivo nuevo confirma")
 
     // A dangling link is something already there, not a new name.
     try FileManager.default.createSymbolicLink(
@@ -78,7 +78,7 @@ private struct Documents: DocumentRendering {
     let home = FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath().path
     let wide = NativeToolRunner(workdir: home, places: nil, documents: Documents())
     let inHome = await wide.actionBand(tool: "write_file", arguments: ["path": "\(home)/nuevo-\(UUID().uuidString).txt", "content": "x"])
-    expectEq(inHome, .critical, "workdir = home: nada corre sin hoja")
+    expectEq(inHome, .confirm, "workdir = home: no es una zona, archivo nuevo confirma")
     let narrow = NativeToolRunner(workdir: "\(home)/Documents", places: nil, documents: Documents())
     let library = await narrow.actionBand(
         tool: "write_file", arguments: ["path": "\(home)/Library/Application Support/Claude/x.json", "content": "x"])

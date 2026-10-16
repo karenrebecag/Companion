@@ -233,11 +233,10 @@ func resolvedPath(_ path: String) -> String { (path as NSString).resolvingSymlin
     expectEq(calls.trashed, [resolvedPath(folder)], "folder: the folder itself")
 }
 
-@Test @MainActor func pathsOutsideTheScopeAreRefused() {
+@Test @MainActor func protectedPathsAreRefused() {
     let sandbox = DeleteSandbox(); defer { sandbox.clean() }
-    let outsideFile = sandbox.file("secret.md", in: sandbox.outside)
-    for path in [outsideFile, "../outside/secret.md", "\(sandbox.work)/../outside/secret.md", "/etc/hosts"] {
-        expectDeleteRefused(sandbox, path, reason: "outside working directory", still: [outsideFile, "/etc/hosts"],
+    for path in ["/etc/hosts", "\(sandbox.work)/" + String(repeating: "../", count: 20) + "etc/hosts"] {
+        expectDeleteRefused(sandbox, path, reason: "protected location", still: ["/etc/hosts"],
                       "scope \(path)")
     }
 }
@@ -247,11 +246,11 @@ func resolvedPath(_ path: String) -> String { (path as NSString).resolvingSymlin
     let target = sandbox.file("secret.md", in: sandbox.outside)
     let link = (sandbox.work as NSString).appendingPathComponent("link.md")
     try! FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: target)
-    expectDeleteRefused(sandbox, link, reason: "outside working directory", still: [target, link], "link out")
+    expectDeleteRefused(sandbox, link, reason: "symbolic link", still: [target, link], "link out")
 
     let dirLink = (sandbox.work as NSString).appendingPathComponent("dirlink")
     try! FileManager.default.createSymbolicLink(atPath: dirLink, withDestinationPath: sandbox.outside)
-    expectDeleteRefused(sandbox, "dirlink/secret.md", reason: "outside working directory", still: [target], "parent link out")
+    expectDeleteRefused(sandbox, "dirlink/secret.md", reason: "symbolic link", still: [target], "parent link out")
 
     let real = sandbox.file("real.md")
     let alias = (sandbox.work as NSString).appendingPathComponent("alias.md")
@@ -376,7 +375,7 @@ func resolvedPath(_ path: String) -> String { (path as NSString).resolvingSymlin
         var twoUp = root as NSString
         for _ in 0..<2 { twoUp = twoUp.deletingLastPathComponent as NSString }
         for path in [root, twoUp as String, (root as NSString).deletingLastPathComponent] {
-            expectDeleteRefused(sandbox, path, reason: "protected", still: [root],
+            expectDeleteRefused(sandbox, path, reason: path == location.systemSkills.path ? "read-only" : "protected", still: [root],
                                 skills: location, "root \(root) via \(path)")
         }
     }

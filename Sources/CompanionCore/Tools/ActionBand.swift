@@ -16,8 +16,13 @@ package struct ActionFacts: Sendable, Equatable {
     /// A symlink counts as existing, dangling or not.
     package var pathExists: Bool
     /// A folder the user handed over for deliverables: not the whole home,
-    /// not Library, not the app's own folders.
+    /// not Library, not the app's own folders. It only relaxes a new file from
+    /// confirm to act; it never reaches an existing one.
     package var inWorkZone: Bool
+    /// The destination is Library or one of the app's own folders (memory,
+    /// skills): their files are read back into a prompt or run by a tool, so a
+    /// new one there is never a plain deliverable, whatever the zone.
+    package var appOwned: Bool
     /// Whether the range already holds values; nil when it was not read.
     package var rangeHasValues: Bool?
     /// The user's own words named this host (`ParentToolGate.saidIt`).
@@ -32,12 +37,13 @@ package struct ActionFacts: Sendable, Equatable {
     package var gitConfigInert: Bool
 
     package init(
-        pathExists: Bool = true, inWorkZone: Bool = false, rangeHasValues: Bool? = nil,
+        pathExists: Bool = true, inWorkZone: Bool = false, appOwned: Bool = false, rangeHasValues: Bool? = nil,
         hostSaid: Bool = false, destructiveTarget: Bool = false, inTerminal: Bool = false,
         gitConfigInert: Bool = false
     ) {
         self.pathExists = pathExists
         self.inWorkZone = inWorkZone
+        self.appOwned = appOwned
         self.rangeHasValues = rangeHasValues
         self.hostSaid = hostSaid
         self.destructiveTarget = destructiveTarget
@@ -72,10 +78,10 @@ extension ActionBand {
             // createDirectory(intermediate) builds whatever tree the path names,
             // so a hidden or app-owned destination is judged like write_file's.
             guard let path = arguments["path"] as? String, isVisible(path) else { return .critical }
-            return facts.inWorkZone && !facts.pathExists ? .act : .critical
+            return newFileBand(facts)
         case NativeTool.writeFile.rawValue:
             guard let path = arguments["path"] as? String, isPlainData(path) else { return .critical }
-            return facts.inWorkZone && !facts.pathExists ? .act : .critical
+            return newFileBand(facts)
         case NativeTool.sheetWrite.rawValue:
             return facts.rangeHasValues == false ? .act : .critical
         case ParentTool.openURL.rawValue:
@@ -91,6 +97,14 @@ extension ActionBand {
         default:
             return toolName.hasPrefix(ApprovalCopy.appToolPrefix) ? .confirm : .critical
         }
+    }
+
+    /// The whole disk is open (docs/DECISIONS.md), so a new file anywhere asks
+    /// for a confirmation; only a folder the user handed over for deliverables
+    /// acts alone. Replacing something that exists is never a creation.
+    private static func newFileBand(_ facts: ActionFacts) -> ActionBand {
+        if facts.pathExists || facts.appOwned { return .critical }
+        return facts.inWorkZone ? .act : .confirm
     }
 
     /// A file the folder's tooling would pick up and run (a git hook, a

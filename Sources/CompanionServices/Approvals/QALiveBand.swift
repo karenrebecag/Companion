@@ -29,6 +29,17 @@ package enum QALiveBand {
             facts.destructiveTarget = true
         case .typeText, .pressKey:
             facts.inTerminal = terminal(in: request)
+        case nil where call.name == NativeTool.writeFile.rawValue || call.name == NativeTool.createDocument.rawValue:
+            // The runner only asks about a file it did not already allow, so a
+            // path that is free is a creation (confirm), not a replacement.
+            if let path = arguments["path"] as? String, path.hasPrefix("/") || path.hasPrefix("~") {
+                let expanded = (path as NSString).expandingTildeInPath
+                facts.pathExists = NativeToolRunner.entryExists(expanded)
+                facts.appOwned = NativeToolRunner.isAppOwned(
+                    (expanded as NSString).resolvingSymlinksInPath,
+                    home: FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath().path,
+                    appRoot: nil)
+            }
         default:
             break
         }

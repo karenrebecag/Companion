@@ -73,10 +73,12 @@ private func tempStore() -> (store: FileVersions, root: URL) {
 @MainActor func testTheToolsFollowTheirBacking() {
     let bare = ParentToolRunner(workspace: FakeWorkspaceOpener(installed: [], running: []))
     let names = Set(bare.specs(.es).map(\.name))
-    for tool in NativeTool.parentDeliverables {
+    for tool in NativeTool.parentDeliverables where tool != .listDirectory && tool != .readFile {
         expect(!names.contains(tool.rawValue) && !bare.handles(tool.rawValue),
                "padre: sin backing no se ofrece \(tool.rawValue)")
     }
+    // The disk is open, so looking needs no granted folder.
+    expect(names.contains("list_directory") && names.contains("read_file"), "padre: mirar el disco no pide carpeta")
     let (store, storeRoot) = tempStore()
     defer { do { try FileManager.default.removeItem(at: storeRoot) } catch {} }
     let backed = runner(workdir: storeRoot.path, versions: store)

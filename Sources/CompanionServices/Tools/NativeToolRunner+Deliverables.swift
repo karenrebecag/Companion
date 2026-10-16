@@ -18,6 +18,7 @@ extension NativeToolRunner {
         case .success(let resolved): realPath = resolved
         case .failure(let refused): return refused
         }
+        if let link = leafLinkRefusal(path, real: realPath) { return link }
         do {
             try FileManager.default.createDirectory(
                 atPath: (realPath as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
