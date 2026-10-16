@@ -237,6 +237,11 @@ func makeSensingAndModel(
         approvals: jobs.approvals,
         session: sessionModel,
         log: { Log.app($0) })
+    let catalog = providers.localCatalog
+    model.judge = ActionJudgeClient(
+        transport: env.transport, secrets: env.secrets,
+        ollamaModel: { catalog.effective().first { $0.id == ProviderDescriptor.ollama.id }?.model },
+        settings: env.config.judge)
 
     return SensingAndModel(
         attachmentStore: attachmentStore, workspaceOpener: workspaceOpener,

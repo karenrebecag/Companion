@@ -81,4 +81,11 @@ package protocol QAGating: Sendable {
     func decide(_ request: ApprovalRequest, call: ToolCallRef, said: String) async -> QAVerdict
     /// Whether QA mode could be turned on: the owner check can be shown.
     func canVerify() async -> Bool
+    /// Whether QA mode is on now. The chat settles a step's sheets itself only
+    /// when it is off: in QA the gate decides every call.
+    func isOn() async -> Bool
+}
+
+extension QAGating {
+    package func isOn() async -> Bool { false }
 }

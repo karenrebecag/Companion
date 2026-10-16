@@ -972,3 +972,9 @@
 "chat.run.steps.one" = "1 paso";
 "chat.run.steps.other" = "%d pasos";
 "chat.run.timeline" = "Pasos del especialista";
+"settings.alwaysAllow.label" = "Permitido siempre";
+"settings.alwaysAllow.header" = "Permitido siempre";
+"settings.alwaysAllow.empty" = "No hay nada permitido siempre. Cada hoja sigue preguntando.";
+"settings.alwaysAllow.upload" = "Subir archivos a %@";
+"settings.alwaysAllow.revoke" = "Quitar";
+"approval.alwaysHost" = "Permitir siempre en %@";

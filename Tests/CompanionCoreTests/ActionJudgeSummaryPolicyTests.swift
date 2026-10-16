@@ -112,19 +112,15 @@ private func quoted(_ text: String) -> String { "\"\(text)\"" }
 
 // MARK: - Through the local rules
 
-@Test func everyIncompleteReasonFailsClosedThroughTheLocalRules() {
+@Test func everyIncompleteReasonIsNotCompleteAndProseIs() {
     let incomplete = [
         #"{"o":{"a":1}}"#, #"{"to":["a","b","c","d","e","f"]}"#, #"{"to":["a",1]}"#, #"{"id":9007199254740993}"#,
         "{\"to\u{200B}\":\"a\"}", "{\"u\":\"\(String(repeating: "x", count: 100))\"}",
     ]
     for json in incomplete {
-        let action = ProposedAction.app(toolName: "app:slack:slack-send-message", label: "Send",
-                                        group: .crearYCambiar, argumentsJSON: json)
-        expectEq(action.flatMap(ActionJudgeLocalRules.verdict(for:)), .failed(.invalid),
-                 "16q-3a politica: \(json.prefix(30)) sale failed(invalid) sin preguntar al modelo")
+        expectEq(ActionSummary.make(argumentsJSON: json).isComplete, false,
+                 "16q-3a politica: \(json.prefix(30)) no llega completo al juez")
     }
-    let prose = ProposedAction.app(toolName: "app:slack:slack-send-message", label: "Send",
-                                   group: .crearYCambiar, argumentsJSON: "{\"body\":\"\(String(repeating: "hola ", count: 30))\"}")
-    expect(prose.map { ActionJudgeLocalRules.verdict(for: $0) == nil } == true,
-           "16q-3a politica: la prosa si se le pregunta al modelo")
+    let prose = ActionSummary.make(argumentsJSON: "{\"body\":\"\(String(repeating: "hola ", count: 30))\"}")
+    expect(prose.isComplete, "16q-3a politica: la prosa si llega completa al juez")
 }

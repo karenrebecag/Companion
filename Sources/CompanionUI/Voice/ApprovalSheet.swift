@@ -149,9 +149,15 @@ package struct ApprovalSheet: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// A host-bound request says where its yes stops; the session's memory says nothing else.
+    private var rememberLabel: String {
+        guard let host = display.alwaysHost else { return Localized.string("approval.remember") }
+        return String(format: Localized.string("approval.alwaysHost"), host)
+    }
+
     private var rememberToggle: some View {
         Toggle(isOn: $remember) {
-            Text(Localized.string("approval.remember"))
+            Text(rememberLabel)
                 .font(GeistFont.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
         }

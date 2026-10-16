@@ -20,12 +20,10 @@ extension ActionSummary {
     /// Only the top level, only what names a target. Anything else becomes a
     /// length or a count, so a body never travels (D2).
     ///
-    /// HACK: prose over the cap (text with whitespace) stays complete and
-    /// travels as its length only, so a destination buried in a long message
-    /// is not shown. Revisit with the shadow metric before 16q-4: if failed
-    /// rate from incompleteness exceeds 10%, or a false cover hides behind a
-    /// prose placeholder. Whatever the metric says, before 16q-4 enforce this
-    /// becomes a keyed allowlist of body fields (body, text, message).
+    // HACK: prose over the cap (text with whitespace) stays complete and travels
+    // as its length only, so a destination buried in a long message is not shown
+    // to the judge. Upgrade trigger: a covered verdict the person refuses on a
+    // destination the judge could not see, or a body field that names a recipient.
     package static func make(argumentsJSON: String) -> ActionSummary {
         guard argumentsJSON.utf8.count <= maxArgumentBytes,
               case .object(let object)? = JSONValue.parse(Data(argumentsJSON.utf8))

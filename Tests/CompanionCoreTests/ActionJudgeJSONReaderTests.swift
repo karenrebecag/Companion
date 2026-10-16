@@ -179,12 +179,10 @@ private func checkTable(_ rows: [(input: String, expected: JSONValue?)], _ what:
         expectEq(Array(key.unicodeScalars).map(\.value), [0xFEFF, 0x62, 0x6F, 0x62],
                  "16q-3a lector: el BOM de una clave no se come")
     }
-    let withBOM = ActionVersion(toolName: "t", argumentsJSON: #"{"to":"\#(marked)"}"#)
-    expect(withBOM != ActionVersion(toolName: "t", argumentsJSON: #"{"to":"\#(bob)"}"#),
-           "16q-3a lector: <BOM>bob y bob son versiones distintas")
-    let keyWithBOM = ActionVersion(toolName: "t", argumentsJSON: #"{"\#(marked)":1}"#)
-    expect(keyWithBOM != ActionVersion(toolName: "t", argumentsJSON: #"{"\#(bob)":1}"#),
-           "16q-3a lector: una clave <BOM>bob y bob son versiones distintas")
+    expect(JSONValue.parse(Data(#"{"to":"\#(marked)"}"#.utf8)) != JSONValue.parse(Data(#"{"to":"\#(bob)"}"#.utf8)),
+           "16q-3a lector: <BOM>bob y bob son valores distintos")
+    expect(JSONValue.parse(Data(#"{"\#(marked)":1}"#.utf8)) != JSONValue.parse(Data(#"{"\#(bob)":1}"#.utf8)),
+           "16q-3a lector: una clave <BOM>bob y bob son distintas")
 }
 
 @Test func readerRefusesInvalidUTF8AndOverlongForms() {

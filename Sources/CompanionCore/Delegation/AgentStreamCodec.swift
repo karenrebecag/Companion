@@ -9,16 +9,21 @@ package struct ApprovalRequest: Sendable, Equatable {
     /// explicit origin, not a name shape: the sheet, the job-deny rule and
     /// the remember toggle all branch on it (20c D2 review).
     package var isMCP: Bool
+    /// One sheet for several actions of one model step (`ApprovalBatch`). Set
+    /// by the batch only, never read from arguments, so a tool cannot pass
+    /// itself off as a batch.
+    package var members: [ApprovalRequest]
 
     package init(
         requestId: String, toolName: String, summary: String, inputJSON: String,
-        isMCP: Bool = false
+        isMCP: Bool = false, members: [ApprovalRequest] = []
     ) {
         self.isMCP = isMCP
         self.requestId = requestId
         self.toolName = toolName
         self.summary = summary
         self.inputJSON = inputJSON
+        self.members = members
     }
 }
 

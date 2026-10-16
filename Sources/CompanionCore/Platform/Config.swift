@@ -334,36 +334,29 @@ package struct DecisionSettings: Sendable, Equatable {
     package static let `default` = DecisionSettings()
 }
 
-/// 16q-3: the action coverage judge. It only ever shadows: it judges and
-/// records, and no approval reads its verdict. `enforce` is read as `shadow`
-/// (invariant 8) and flagged so the composition root can log that it was asked.
+/// The coverage judge (before the sheets of one model step). On unless
+/// `COMPANION_ACTION_JUDGE` says off: an app launched from /Applications reads
+/// no shell variables, so the switch has to live where the app can read it.
 package struct ActionJudgeSettings: Sendable, Equatable {
-    package enum Mode: String, Sendable, Equatable { case off, shadow }
+    package static let defaultMaxCandidates = 8
 
-    package static let defaultMaxActions = 8
-
-    package var mode: Mode
-    /// Wall-clock budget for one judgment; one attempt, no retries.
+    package var enabled: Bool
+    /// The whole budget for one judgement, one attempt. A judge slower than a
+    /// person waiting on a sheet is no help: past it the sheets stay.
     package var timeout: TimeInterval
-    package var maxActions: Int
-    package var enforceRequested: Bool
+    package var maxCandidates: Int
 
-    package init(mode: Mode = .shadow, timeout: TimeInterval = 2.5,
-                maxActions: Int = ActionJudgeSettings.defaultMaxActions, enforceRequested: Bool = false) {
-        self.mode = mode
+    package init(enabled: Bool = true, timeout: TimeInterval = 4,
+                 maxCandidates: Int = ActionJudgeSettings.defaultMaxCandidates) {
+        self.enabled = enabled
         self.timeout = timeout
-        self.maxActions = maxActions
-        self.enforceRequested = enforceRequested
+        self.maxCandidates = maxCandidates
     }
 
-    /// Shadow is on unless `COMPANION_ACTION_JUDGE` says off (`off`, `0`,
-    /// `false`, any case, trimmed): an app launched from /Applications reads no
-    /// shell variables, and without it there is no metric.
     package init(environment: [String: String]) {
         let value = (environment["COMPANION_ACTION_JUDGE"] ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        self.init(mode: ["off", "0", "false"].contains(value) ? .off : .shadow,
-                  enforceRequested: value == "enforce")
+        self.init(enabled: !["off", "0", "false"].contains(value))
     }
 
     package static let `default` = ActionJudgeSettings()
@@ -407,7 +400,7 @@ package struct Config: Sendable, Equatable {
     package var contextBudget: Duration
     /// DM1c-2: the local router in front of the classic hold. Off by default.
     package var decision: DecisionSettings
-    /// 16q-3: the action coverage judge, shadow only.
+    /// The coverage judge: lowers confirm sheets for one model step at a time.
     package var judge: ActionJudgeSettings
     package var debugTranscripts: Bool
     /// Wave 15f-7a: the ElevenLabs voice the hold speaks with. Empty means

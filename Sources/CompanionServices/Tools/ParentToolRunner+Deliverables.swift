@@ -40,6 +40,19 @@ extension ParentToolRunner {
     // HACK: the read and the write are two Apple Events, so a cell typed in
     // that gap is overwritten (the version kept before the write is the net). Upgrade
     // trigger: an "only if empty" flag on `SpreadsheetDriving.write`.
+    package func band(for call: ToolCallRef) async -> ActionBand {
+        guard let arguments = ToolArguments.parse(call.arguments) else { return .critical }
+        if call.name.hasPrefix(ApprovalCopy.appToolPrefix) {
+            return ActionBand.classify(toolName: call.name, arguments: arguments, facts: ActionFacts())
+        }
+        switch call.name {
+        case NativeTool.createDocument.rawValue, NativeTool.writeFile.rawValue:
+            return nativeRunner.fileBand(tool: call.name, arguments: arguments)
+        default:
+            return .critical
+        }
+    }
+
     package func actsWithoutSheet(_ call: ToolCallRef) async -> Bool {
         guard let arguments = ToolArguments.parse(call.arguments) else { return false }
         switch call.name {

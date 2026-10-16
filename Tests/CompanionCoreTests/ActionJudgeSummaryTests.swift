@@ -12,13 +12,12 @@ private func keys(_ count: Int) -> String {
     return "{\(body)}"
 }
 
-private func app(_ json: String) -> ProposedAction? {
-    ProposedAction.app(toolName: "app:slack:slack-send-message", label: "Send Message · Slack",
-                       group: .crearYCambiar, argumentsJSON: json)
+private func app(_ json: String) -> ActionSummary? {
+    ActionSummary.make(argumentsJSON: json)
 }
 
-private func mcp(_ tool: String, _ json: String) -> ProposedAction {
-    ProposedAction.mcp(ApprovalRequest(requestId: "r", toolName: tool, summary: "s", inputJSON: json))
+private func mcp(_ tool: String, _ json: String) -> ActionSummary {
+    ActionSummary.make(argumentsJSON: json)
 }
 
 @Test func actionSummaryKeepsShortTextsAndCollapsesLongOnes() {
@@ -146,7 +145,7 @@ private func mcp(_ tool: String, _ json: String) -> ProposedAction {
     expect(JSONValue.parse(Data("{\"a\":\(fine)}".utf8)) != nil, "16q-3a parser JSON: 8 niveles si")
 }
 
-@Test func proposedActionCarriesTheCompletenessFlag() {
+@Test func actionSummaryCarriesTheCompletenessFlag() {
     expectEq(app(#"{"channel":"ventas"}"#)?.isComplete, true, "16q-3a completo: app completa")
     expectEq(app(keys(20))?.isComplete, false, "16q-3a completo: app con claves de mas")
     expectEq(mcp("fs/write", "garbage").isComplete, false, "16q-3a completo: mcp con argumentos ilegibles")

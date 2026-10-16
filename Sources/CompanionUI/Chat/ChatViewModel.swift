@@ -135,6 +135,9 @@ package final class ChatViewModel: ConversationPresenting {
     /// bridge's `ParentToolGuard`. Set by the composition root once it exists
     /// (it needs the session and the bridge); nil keeps today's sheets.
     package var qaGate: (any QAGating)?
+    /// The coverage judge for one step's sheets (`planStep`). Nil leaves every
+    /// sheet as it was.
+    package var judge: (any ActionJudging)?
     /// Puente QA D4: told when a turn finishes or an owner check opens, so a
     /// waiting agent wakes without polling.
     package var onTurnEvent: (@MainActor (String, TurnSignal) -> Void)?

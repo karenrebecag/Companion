@@ -1,19 +1,20 @@
-import CryptoKit
 import Foundation
 
-/// 16q-3: decides whether each write Companion is about to take is covered
-/// by what the user said in that turn. The port never throws: a failure is
-/// a verdict, and a failed verdict is never a covered one.
+/// The coverage judge. Before the sheets of one model step, it reads what the
+/// user said this turn and the actions the step wants, and answers per action
+/// what it does and whether her own words already ask for it. It can only
+/// lower a sheet (see `JudgeBand`); it never sees an action it cannot shape.
 package protocol ActionJudging: Sendable {
-    /// One verdict per action, in order.
-    func judge(_ request: ActionJudgeRequest) async -> [JudgeVerdict]
+    /// One opinion per candidate, in order. nil is a failed judgement, and a
+    /// failed judgement never lowers anything.
+    func judge(_ request: ActionJudgeRequest) async -> [JudgeOpinion?]
 }
 
 // MARK: - The user's words
 
-/// What the user said in the turn, from the trusted channel (the mic). A type
-/// of its own so that no other string can reach the judge as "the user's
-/// words", and so that printing anything that holds it never prints them.
+/// What the user said in the turn, from the trusted channel (the mic or the
+/// keyboard). A type of its own so that no other string can reach the judge as
+/// "the user's words", and so that printing anything that holds it never prints them.
 package struct UserWords: Sendable, Equatable, CustomStringConvertible,
     CustomDebugStringConvertible, CustomReflectable
 {
@@ -34,11 +35,75 @@ package struct UserWords: Sendable, Equatable, CustomStringConvertible,
     package var customMirror: Mirror { Mirror(self, children: []) }
 }
 
-// MARK: - The action
+// MARK: - Candidates and opinions
 
-/// The arguments of a proposed write reduced to what identifies its target.
-/// Long texts (message bodies) travel as their length only: they are the
-/// main vector for injecting the judge (D2).
+/// One action of the step that would open a sheet. The arguments are redacted
+/// before they are summarised, and long texts travel as their length only.
+package struct JudgeCandidate: Sendable, Equatable {
+    package static let maxTool = 80
+
+    package let id: String
+    package let tool: String
+    package let arguments: ActionSummary
+
+    package init(id: String, tool: String, argumentsJSON: String) {
+        self.id = id
+        self.tool = String(tool.prefix(Self.maxTool))
+        arguments = ActionSummary.make(argumentsJSON: TurnRedaction.redact(argumentsJSON))
+    }
+}
+
+/// What the action does, in the three cases that decide a sheet. `undoable`
+/// can be taken back from the trash or a version; `irreversible` cannot;
+/// `reaches_someone` leaves the Mac for a person or a service.
+package enum JudgeEffect: String, Sendable, Equatable, CaseIterable {
+    case undoable
+    case irreversible
+    case reachesSomeone = "reaches_someone"
+}
+
+package struct JudgeOpinion: Sendable, Equatable {
+    package let effect: JudgeEffect
+    /// Her own words already ask for this action with this scope. For
+    /// `reaches_someone` that includes the recipient she named.
+    package let covered: Bool
+
+    package init(effect: JudgeEffect, covered: Bool) {
+        self.effect = effect
+        self.covered = covered
+    }
+}
+
+// MARK: - Request
+
+/// Nil when there is nothing to judge, the batch is over the cap, or a summary
+/// is incomplete: a judge shown half of a destination can only guess, and a
+/// guess must never come out covered, so the whole batch stays on its sheets.
+package struct ActionJudgeRequest: Sendable, CustomStringConvertible,
+    CustomDebugStringConvertible, CustomReflectable
+{
+    package let words: UserWords
+    package let candidates: [JudgeCandidate]
+
+    package init?(words: UserWords, candidates: [JudgeCandidate],
+                  maxCandidates: Int = ActionJudgeSettings.defaultMaxCandidates) {
+        guard !candidates.isEmpty, candidates.count <= maxCandidates,
+              candidates.allSatisfy({ $0.arguments.isComplete })
+        else { return nil }
+        self.words = words
+        self.candidates = candidates
+    }
+
+    package var description: String { "<judge request: \(candidates.count) actions>" }
+    package var debugDescription: String { description }
+    package var customMirror: Mirror { Mirror(self, children: []) }
+}
+
+// MARK: - Action summary
+
+/// The arguments of a proposed action reduced to what identifies its target.
+/// Long texts (message bodies) travel as their length only: they are the main
+/// vector for injecting the judge (D2).
 package struct ActionSummary: Sendable, Equatable, CustomStringConvertible,
     CustomDebugStringConvertible, CustomReflectable
 {
@@ -57,178 +122,23 @@ package struct ActionSummary: Sendable, Equatable, CustomStringConvertible,
         self.isComplete = isComplete
     }
 
+    /// The summary as the judge reads it: one JSON object, keys sorted so the
+    /// same arguments always read the same way. Throws rather than returning
+    /// a stand-in: a judge shown no arguments would be guessing.
+    package func jsonText() throws -> String {
+        let object: [String: Any] = values.mapValues { value in
+            switch value {
+            case .text(let text): text
+            case .number(let number): number
+            case .bool(let flag): flag
+            case .list(let items): items
+            }
+        }
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        return String(decoding: data, as: UTF8.self)
+    }
+
     package var description: String { "<action summary: \(values.count) keys>" }
     package var debugDescription: String { description }
     package var customMirror: Mirror { Mirror(self, children: []) }
-}
-
-/// SHA256 over the length-prefixed tool name and the canonical arguments. The
-/// digest is the identity of "this exact action": one changed character is
-/// another version. Length-prefixing the name (not a separator byte) is what
-/// keeps a name that contains the separator from eating the arguments.
-///
-/// The tool name is hashed as it arrived, never as the judge is shown it: two
-/// names that render alike are two actions.
-package struct ActionVersion: Sendable, Hashable, CustomStringConvertible,
-    CustomDebugStringConvertible, CustomReflectable
-{
-    private static let canonicalMarker: UInt8 = 0x01
-    private static let rawMarker: UInt8 = 0x00
-
-    package let hex: String
-
-    package init(toolName: String, argumentsJSON: String) {
-        let name = Array(toolName.utf8)
-        var bytes = Data()
-        withUnsafeBytes(of: UInt64(name.count).bigEndian) { bytes.append(contentsOf: $0) }
-        bytes.append(contentsOf: name)
-        let raw = Data(argumentsJSON.utf8)
-        // The marker keeps a canonical encoding and raw bytes from colliding.
-        // When the text is not (strict) JSON the raw bytes stand in: the
-        // stricter direction, since any byte then changes the version. Over
-        // the byte cap it is never parsed, same as the summary.
-        if raw.count <= ActionSummary.maxArgumentBytes, let parsed = JSONValue.parse(raw) {
-            bytes.append(Self.canonicalMarker)
-            bytes.append(contentsOf: parsed.canonicalBytes())
-        } else {
-            bytes.append(Self.rawMarker)
-            bytes.append(raw)
-        }
-        hex = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
-    }
-
-    package var description: String { "<action version>" }
-    package var debugDescription: String { description }
-    package var customMirror: Mirror { Mirror(self, children: []) }
-}
-
-package struct ProposedAction: Sendable, Equatable, CustomStringConvertible,
-    CustomDebugStringConvertible, CustomReflectable
-{
-    package enum Kind: String, Sendable { case app, mcp }
-    package enum Effect: String, Sendable { case change, delete, unknown }
-
-    package static let maxLabel = 80
-    package static let maxTool = 80
-
-    package let kind: Kind
-    package let tool: String
-    package let label: String
-    package let effect: Effect
-    package let arguments: ActionSummary
-    package let version: ActionVersion
-
-    package var isComplete: Bool { arguments.isComplete }
-
-    init(kind: Kind, tool: String, label: String, effect: Effect,
-                arguments: ActionSummary, version: ActionVersion) {
-        self.kind = kind
-        self.tool = tool
-        self.label = label
-        self.effect = effect
-        self.arguments = arguments
-        self.version = version
-    }
-
-    /// nil for a read: only writes are judged.
-    package static func app(toolName: String, label: String, group: AppAction.Group,
-                           argumentsJSON: String) -> ProposedAction? {
-        let effect: Effect
-        switch group {
-        case .leer: return nil
-        case .crearYCambiar: effect = .change
-        case .borrar: effect = .delete
-        }
-        return ProposedAction(
-            kind: .app, tool: shownTool(toolName),
-            label: TextSanitizer.display(label, maxLength: maxLabel), effect: effect,
-            arguments: ActionSummary.make(argumentsJSON: argumentsJSON),
-            version: ActionVersion(toolName: toolName, argumentsJSON: argumentsJSON))
-    }
-
-    /// The request's own summary is text from a third party's server, so the
-    /// label is the tool name and nothing else. That name is from the server
-    /// too: it travels sanitised and capped, and only the version sees it raw.
-    package static func mcp(_ request: ApprovalRequest) -> ProposedAction {
-        let tool = shownTool(request.toolName)
-        return ProposedAction(
-            kind: .mcp, tool: tool, label: tool, effect: .unknown,
-            arguments: ActionSummary.make(argumentsJSON: request.inputJSON),
-            version: ActionVersion(toolName: request.toolName, argumentsJSON: request.inputJSON))
-    }
-
-    private static func shownTool(_ raw: String) -> String {
-        ActionSummary.bounded(raw, limit: maxTool, label: "tool")
-    }
-
-    /// The tool name stays out on purpose (D8): only class and effect.
-    package var description: String { "<proposed action: \(kind.rawValue), \(effect.rawValue)>" }
-    package var debugDescription: String { description }
-    package var customMirror: Mirror { Mirror(self, children: []) }
-}
-
-// MARK: - Request
-
-/// No free `String` field: the only text that reaches the judge is the
-/// user's words and the structured summary of each action.
-package struct ActionJudgeRequest: Sendable, CustomStringConvertible,
-    CustomDebugStringConvertible, CustomReflectable
-{
-    package let words: UserWords
-    package let actions: [ProposedAction]
-    package let pipeline: VoicePipeline
-
-    /// nil when there is nothing to judge or the batch is over the cap.
-    package init?(words: UserWords, actions: [ProposedAction], pipeline: VoicePipeline,
-                 maxActions: Int = ActionJudgeSettings.defaultMaxActions) {
-        guard !actions.isEmpty, actions.count <= maxActions else { return nil }
-        self.words = words
-        self.actions = actions
-        self.pipeline = pipeline
-    }
-
-    package var description: String { "<judge request: \(actions.count) actions>" }
-    package var debugDescription: String { description }
-    package var customMirror: Mirror { Mirror(self, children: []) }
-}
-
-// MARK: - Verdicts
-
-/// Closed on purpose: a reason that is an enum can be logged without leaking
-/// anything the model wrote.
-package enum JudgeReason: String, Sendable, Equatable, CaseIterable {
-    case asked
-    case notAsked = "not_asked"
-    case otherTarget = "other_target"
-    case broaderEffect = "broader_effect"
-    case unclear
-}
-
-package enum JudgeFailure: String, Sendable, Equatable, CaseIterable {
-    case timeout, http, invalid
-    case noProvider = "no_provider"
-    case noWords = "no_words"
-    case tooMany = "too_many"
-    case cancelled
-}
-
-package enum JudgeVerdict: Sendable, Equatable, CustomStringConvertible {
-    /// The reason is always `.asked`.
-    case covered
-    case notCovered(JudgeReason)
-    /// Never counted as covered, anywhere.
-    case failed(JudgeFailure)
-
-    package var description: String {
-        switch self {
-        case .covered: "covered"
-        case .notCovered(let reason): "not_covered:\(reason.rawValue)"
-        case .failed(let failure): "failed:\(failure.rawValue)"
-        }
-    }
-}
-
-/// What the user decided on the sheet, to compare against the verdict.
-package enum ApprovalDecision: String, Sendable, Equatable {
-    case approved, denied, expired, cancelled, voiceResolved
 }

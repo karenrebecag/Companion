@@ -233,15 +233,29 @@ extension ChatViewModel {
         // turn wedged between them is a rejected request.
         var cards: [Card] = []
         var proven: [ReceiptLine] = []
-        for call in calls {
-            // A turn that stopped being current must not keep opening things.
-            guard !Task.isCancelled else { break }
+        // Before the first call runs: the judge and the kept "siempre" settle
+        // what they can, and the rest of the step's sheets are asked together.
+        let plan = await planStep(calls, said: said, tools: tools)
+        for (index, call) in calls.enumerated() {
+            // A turn that stopped being current must not keep opening things. The
+            // plan may already have granted tickets for the calls that now stop.
+            guard !Task.isCancelled else {
+                for rest in calls[index...] { tools.withdraw(rest) }
+                break
+            }
             // A URL the user did not say waits for the sheet (10c 3D).
             let outcome: ParentToolOutcome
             // Before the gate: a looped call must not raise a sheet either.
             let repeated = repeatGuard.check(name: call.name, arguments: call.arguments)
-            let (denied, decision) = repeated == nil
-                ? await gate(call, said: said, tools: tools) : (nil, GateDecision())
+            let settled: (ParentToolOutcome?, GateDecision)
+            if repeated != nil {
+                settled = (nil, GateDecision())
+            } else if plan.lanes[index] == .gate {
+                settled = await gate(call, said: said, tools: tools, bound: plan.requests[index])
+            } else {
+                settled = settledOutcome(plan.lanes[index], call: call)
+            }
+            let (denied, decision) = settled
             if let repeated {
                 outcome = ParentToolOutcome(ok: false, output: repeated, tool: call.name)
             } else if let denied {
@@ -300,18 +314,16 @@ extension ChatViewModel {
     /// Nil denial = go ahead. Otherwise the denial that answers the model:
     /// from the session's memory without a sheet, from the sheet, from QA
     /// mode's owner check, or — with no actor to ask — closed.
-    private func gate(
-        _ call: ToolCallRef, said: String, tools: any ParentToolExecuting
+    func gate(
+        _ call: ToolCallRef, said: String, tools: any ParentToolExecuting, bound request: ApprovalRequest?
     ) async -> (ParentToolOutcome?, GateDecision) {
         let decision = GateDecision()
-        guard let asked = tools.approval(for: call, said: said) else { return (nil, decision) }
+        // `planStep` asked the runner for this sheet already; no sheet means nothing to answer.
+        guard let request else { return (nil, decision) }
         let epoch = historyEpoch
         let denied = ParentToolOutcome.failed(
             .deniedByUser(config.language), target: ParentTool.target(of: call),
             tool: call.name)
-        let request = await tools.bound(asked)
-        // A clear while it waited: nothing here may reach the new thread.
-        guard historyEpoch == epoch else { return (denied, decision) }
         // A remembered "no" outranks the shortcut (see ParentToolGuard).
         let rememberedNo = await approvals?.remembered(request) == false
         if await tools.actsWithoutSheet(call), !rememberedNo { return (nil, decision) }
