@@ -1,4 +1,5 @@
 import CompanionCore
+import CompanionUIPro
 import SwiftUI
 
 /// Settings › Voz (Wave 16g): which voice, with a sample next to it.
@@ -14,9 +15,8 @@ struct SettingsVoiceSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
-            SettingsPageHeader(title: SettingsTab.voice.title, blurb: Localized.string("settings.voice.blurb"))
-            SettingsCard {
-                SettingsRow(title: Localized.string("settings.voice.voice"), key: "settings.voice.voice") {
+            SettingsGroup {
+                SettingsRow(title: Localized.string("settings.voice.voice")) {
                     HStack(spacing: Space.x2) {
                         previewPill
                         SettingsItem(
@@ -29,13 +29,14 @@ struct SettingsVoiceSection: View {
                         }
                     }
                 }
+                .settingsAnchor("settings.voice.voice")
             }
             if let error = preview?.errorText {
                 Text(error)
                     .font(.uiCaption)
                     .foregroundStyle(Semantic.destructive)
             }
-            SettingsCard(label: Localized.string("settings.voice.eleven.header")) {
+            SettingsGroup(title: Localized.string("settings.voice.eleven.header")) {
                 SettingsElevenLabsVoice(preview: preview, secrets: secrets, fallbackVoice: settings.voice)
                     .padding(Space.x4)
             }

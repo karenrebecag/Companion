@@ -1,0 +1,1 @@
+- **Ajustes se ven y se mueven como el resto de la app (2026-10-16).** La lista de secciones se desliza entre páginas, la búsqueda se abre como paleta con teclado y salta al ajuste que elegiste, y los permisos y las claves muestran su estado con etiqueta de texto además del color. Los ajustes siguen en su sitio; solo cambió cómo se ven y cómo se llega a ellos.

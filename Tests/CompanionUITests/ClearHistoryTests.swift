@@ -135,35 +135,21 @@ struct ClearHistoryUITests {
     @Test @MainActor func clearHistoryRowLivesInSystemDataSection() async {
         let panels = SettingsInventory.panels.filter { $0.titleKey == "settings.history.row" }
         expectEq(panels.map(\.tab), [.system], "the row is a System panel, not a Privacy one")
-        let entry = SettingsInventory.searchEntries.first { $0.id == "settings-clear-history" }
-        expectEq(entry?.page, "system", "the search lands on System")
+        let entry = SettingsInventory.commandItems.first { $0.id == "settings-clear-history" }
+        expectEq(entry?.sectionID, "system", "the palette lands on System")
         await Localized.scoped(to: .en) {
             expectEq(Localized.string("settings.history.label"), "Data", "under a card called Data")
         }
     }
 
-    @Test @MainActor func settingsSearchFindsClearHistory() async {
+    @Test @MainActor func settingsPaletteCarriesClearHistoryKeywords() async {
         await Localized.scoped(to: .en) {
-            let entries = SettingsInventory.searchEntries
-            let entry = entries.first { $0.id == "settings-clear-history" }
-            expectEq(entry?.title, "Clear chat history", "the entry carries the row's title")
-            for word in [
-                "clear", "history", "delete", "erase", "conversations", "chats", "reset", "wipe", "forget",
-            ] {
-                let found = SettingsSearch.match(word, in: entries).map(\.id)
-                expect(found.contains("settings-clear-history"), "'\(word)' finds the row, got \(found)")
+            let entry = SettingsInventory.commandItems.first { $0.id == "settings-clear-history" }
+            expectEq(entry?.title, "Clear chat history", "the item carries the row's title")
+            for word in ["clear", "history", "delete", "erase", "conversations", "chats", "reset", "wipe", "forget"] {
+                expect(entry?.keywords.contains(word) ?? false, "'\(word)' is a keyword of the row")
             }
         }
-    }
-
-    @Test func searchKeywordsMatchButRankBelowTitles() {
-        let entries = [
-            SettingsSearch.Entry(
-                id: "kw", page: "x", title: "Chats", subtitle: "", keywords: ["wipe"]),
-            SettingsSearch.Entry(id: "title", page: "x", title: "Wipe", subtitle: ""),
-        ]
-        expectEq(SettingsSearch.match("wipe", in: entries).map(\.id), ["title", "kw"], "title first")
-        expect(SettingsSearch.match("forget", in: entries).isEmpty, "a word nobody carries finds nothing")
     }
 
     @Test @MainActor func historyCopyMatchesIncrediblesWording() async {

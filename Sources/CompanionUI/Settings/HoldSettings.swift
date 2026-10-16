@@ -1,4 +1,5 @@
 import CompanionCore
+import CompanionUIPro
 import Foundation
 import Observation
 import SwiftUI
@@ -63,7 +64,7 @@ package final class HoldSettingsModel {
 }
 
 /// Settings › General (Wave 16g): the key to talk, the key to dictate, the
-/// language and the sounds, as one card of rows. The vocabulary moved to its
+/// language and the sounds, as one group of rows. The vocabulary moved to its
 /// own page; the mark and the hands-free shortcut stay out, as in 16d.
 struct SettingsGeneralPage: View {
     /// Owns the Accessibility permission dictation needs.
@@ -81,19 +82,17 @@ struct SettingsGeneralPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
-            SettingsPageHeader(title: SettingsTab.general.title)
-            SettingsCard {
+            SettingsGroup {
                 SettingsRow(
                     title: Localized.string("settings.app.talk.hold"),
-                    subtitle: Localized.string("settings.app.talk.hold.subtitle"),
-                    key: "settings.app.talk.hold"
+                    description: Localized.string("settings.app.talk.hold.subtitle")
                 ) {
                     Keycap(Localized.string("settings.app.talk.fn"), size: .small)
                 }
+                .settingsAnchor("settings.app.talk.hold")
                 SettingsRow(
                     title: Localized.string("settings.app.talk.dictationKey"),
-                    subtitle: Localized.string("settings.app.talk.dictationKey.subtitle"),
-                    key: "settings.app.talk.dictationKey"
+                    description: Localized.string("settings.app.talk.dictationKey.subtitle")
                 ) {
                     SettingsItem(
                         title: "", value: HoldCopy.dictationKey(dictationKey),
@@ -101,13 +100,13 @@ struct SettingsGeneralPage: View {
                         id: "settings.app.talk.dictationKey"
                     ) { setDictationKey($0) }
                 }
+                .settingsAnchor("settings.app.talk.dictationKey")
                 if dictationKey != .off, !context.accessibilityGranted {
                     SettingsPermissionRow(model: context.accessibilityRow)
                 }
                 SettingsRow(
                     title: Localized.string("settings.microphone"),
-                    subtitle: microphone.rowSubtitle,
-                    key: "settings.microphone"
+                    description: microphone.rowSubtitle
                 ) {
                     SettingsPill(title: Localized.string("settings.change")) {
                         microphoneOpen = true
@@ -118,29 +117,30 @@ struct SettingsGeneralPage: View {
                             .onDisappear { microphone.closed() }
                     }
                 }
+                .settingsAnchor("settings.microphone")
                 SettingsLanguageLine(onChange: onLanguageChange)
                 SettingsRow(
                     title: Localized.string("settings.sounds"),
-                    subtitle: Localized.string("settings.sounds.subtitle"),
-                    key: "settings.sounds"
+                    description: Localized.string("settings.sounds.subtitle")
                 ) {
                     SettingsSwitch(label: Localized.string("settings.sounds"), isOn: $sounds)
                 }
+                .settingsAnchor("settings.sounds")
                 SettingsRow(
                     title: Localized.string("settings.muteWhileTalking"),
-                    subtitle: Localized.string("settings.muteWhileTalking.subtitle"),
-                    key: "settings.muteWhileTalking"
+                    description: Localized.string("settings.muteWhileTalking.subtitle")
                 ) {
                     SettingsSwitch(
                         label: Localized.string("settings.muteWhileTalking"), isOn: $muteWhileTalking)
                 }
+                .settingsAnchor("settings.muteWhileTalking")
                 SettingsRow(
                     title: Localized.string("settings.screenGlow"),
-                    subtitle: Localized.string("settings.screenGlow.subtitle"),
-                    key: "settings.screenGlow"
+                    description: Localized.string("settings.screenGlow.subtitle")
                 ) {
                     SettingsSwitch(label: Localized.string("settings.screenGlow"), isOn: $screenGlow)
                 }
+                .settingsAnchor("settings.screenGlow")
             }
         }
         .onChange(of: screenGlow) { _, on in ScreenGlowPreference.set(on) }
