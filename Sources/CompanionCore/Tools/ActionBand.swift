@@ -23,6 +23,10 @@ package struct ActionFacts: Sendable, Equatable {
     /// skills): their files are read back into a prompt or run by a tool, so a
     /// new one there is never a plain deliverable, whatever the zone.
     package var appOwned: Bool
+    /// The turn has read nothing outside the work folder, so a fetch has nothing
+    /// of the user's to carry out in its address. Defaults to false: a caller
+    /// that did not track the turn gets the owner, not a free pass.
+    package var cleanTurn: Bool
     /// Whether the range already holds values; nil when it was not read.
     package var rangeHasValues: Bool?
     /// The user's own words named this host (`ParentToolGate.saidIt`).
@@ -37,13 +41,14 @@ package struct ActionFacts: Sendable, Equatable {
     package var gitConfigInert: Bool
 
     package init(
-        pathExists: Bool = true, inWorkZone: Bool = false, appOwned: Bool = false, rangeHasValues: Bool? = nil,
+        pathExists: Bool = true, inWorkZone: Bool = false, appOwned: Bool = false, cleanTurn: Bool = false, rangeHasValues: Bool? = nil,
         hostSaid: Bool = false, destructiveTarget: Bool = false, inTerminal: Bool = false,
         gitConfigInert: Bool = false
     ) {
         self.pathExists = pathExists
         self.inWorkZone = inWorkZone
         self.appOwned = appOwned
+        self.cleanTurn = cleanTurn
         self.rangeHasValues = rangeHasValues
         self.hostSaid = hostSaid
         self.destructiveTarget = destructiveTarget
@@ -55,7 +60,7 @@ package struct ActionFacts: Sendable, Equatable {
 extension ActionBand {
     private static let reads: Set<String> = [
         "look", "see", "read_focused", "list_apps", "read_skill", "find_places",
-        "list_directory", "read_file", "web_fetch", "web_search", "sheet_read",
+        "list_directory", "read_file", "web_search", "sheet_read",
     ]
 
     /// Local, non-destructive hands. What makes one of them dangerous is the
@@ -84,6 +89,10 @@ extension ActionBand {
             return newFileBand(facts)
         case NativeTool.sheetWrite.rawValue:
             return facts.rangeHasValues == false ? .act : .critical
+        case NativeTool.webFetch.rawValue:
+            // Read, then fetch: text in a file or a page can ask for
+            // `evil.tld?d=<what you read>`. In QA a critical band is the finger.
+            return facts.cleanTurn || facts.hostSaid ? .act : .critical
         case ParentTool.openURL.rawValue:
             // Opening an http(s) address is navigation; the scheme check lives in `httpURL`.
             return .act

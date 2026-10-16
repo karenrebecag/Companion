@@ -209,11 +209,12 @@ package struct PathValidator: Sendable {
         }
         if wholeDisk {
             // Companion's own roots (skills, memory) keep their read-only flags
-            // and are exempt from the container deny: the specialist needs them.
-            if let own = appRoots.first(where: { Self.contains($0.path, normalizedPath) }) {
-                return !forWrite || own.writable
-            }
-            return !isProtected(normalizedPath)
+            // and are exempt from the container rule only: any other closed
+            // path under a root stays closed.
+            let own = appRoots.first(where: { Self.contains($0.path, normalizedPath) })
+            if isProtected(normalizedPath, exemptingContainer: own != nil) { return false }
+            if let own { return !forWrite || own.writable }
+            return true
         }
         return roots.contains { root in
             (!forWrite || root.writable) && Self.contains(root.path, normalizedPath)
@@ -223,24 +224,33 @@ package struct PathValidator: Sendable {
     /// System paths, credentials and Companion's own data stay closed even
     /// with the disk open. Compared case-folded (the volume is not
     /// case-sensitive) and against both spellings of home (`/var` is a link).
-    package func isProtected(_ path: String) -> Bool {
+    package func isProtected(_ path: String, exemptingContainer: Bool = false) -> Bool {
         let lowered = path.lowercased()
+        let name = (lowered as NSString).lastPathComponent
+        // Project secrets live in any folder, not under home alone.
+        if name == ".env" || name.hasPrefix(".env.") { return true }
         let homes = Set([home, (home as NSString).resolvingSymlinksInPath]).map { $0.lowercased() }
-        let denied = Self.systemRoots + homes.flatMap { home in
-            Self.homeRelativeDenied.map { home + "/" + $0 }
-        }
+        let relative = exemptingContainer ? Self.homeRelativeDenied : Self.homeRelativeDenied + [Self.container]
+        let denied = Self.systemRoots + homes.flatMap { home in relative.map { home + "/" + $0 } }
         return denied.contains { Self.contains($0, lowered) }
     }
 
     private static let systemRoots = [
-        "/system", "/library", "/usr", "/bin", "/sbin", "/private/etc", "/etc",
+        "/system", "/library", "/usr", "/bin", "/sbin", "/private/etc", "/etc", "/private/var/db",
     ]
 
+    private static let container = "library/application support/companion"
+
     private static let homeRelativeDenied = [
-        "library/keychains", ".ssh", ".aws", ".config/gcloud",
-        "library/application support/companion",
-        "library/containers/com.karen.companion",
-        "library/group containers/com.karen.companion",
+        "library/keychains", ".ssh", ".aws", ".config/gcloud", ".config/gh", ".config/git",
+        ".git-credentials", ".netrc", ".npmrc", ".pypirc", ".docker", ".kube", ".gnupg", ".azure",
+        ".config/op", ".terraform.d", ".zsh_history", ".bash_history",
+        "library/application support/google", "library/application support/bravesoftware",
+        "library/application support/microsoft edge", "library/application support/firefox",
+        "library/application support/arc", "library/application support/comet",
+        "library/application support/perplexity",
+        "library/cookies", "library/safari", "library/mail", "library/messages",
+        "library/containers", "library/group containers",
     ]
 
     /// The working folder only: the app's own folders (skills, memory) are

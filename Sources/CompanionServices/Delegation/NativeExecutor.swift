@@ -66,6 +66,7 @@ package struct NativeExecutor: Executor, Sendable {
             role: .user,
             content: jobPrompt)
 
+        let taint = TurnTaint()
         var history = [systemMessage, userMessage]
         var accumulatedOutput = ""
         var iteration = 0
@@ -122,7 +123,7 @@ package struct NativeExecutor: Executor, Sendable {
                 if let repeated = answered[key] {
                     result = repeated
                 } else {
-                    result = try await perform(call, events: events)
+                    result = try await perform(call, events: events, taint: taint)
                     answered[key] = result
                 }
                 history.append(Turn(
@@ -141,7 +142,7 @@ package struct NativeExecutor: Executor, Sendable {
     /// One call: arguments repaired or refused, approval asked or remembered,
     /// the tool run through the single entry point, events for the card.
     private func perform(
-        _ call: ToolCallRef, events: AsyncStream<JobEvent>.Continuation
+        _ call: ToolCallRef, events: AsyncStream<JobEvent>.Continuation, taint: TurnTaint
     ) async throws -> ToolResult {
         let toolName = call.name
         // Never `[:]` on a parse failure: the model must see what it sent
@@ -156,7 +157,15 @@ package struct NativeExecutor: Executor, Sendable {
             summary: AgentStreamCodec.toolDetail(fromInputJSON: call.arguments),
             id: call.id))
 
-        let risky = riskLevel(tool: toolName) == .requiresApproval
+        // A fetch after a read outside the work folder is a way out for what
+        // was read, so it takes the owner's band like any other risky step.
+        // HACK: the executor has no user words, so a host is never "said" here
+        // (the goal is written by the parent model). Trigger: JobRequest
+        // carrying the user's own utterance; then pass `hostSaid`.
+        let gatedFetch = toolName == NativeTool.webFetch.rawValue
+            && ActionBand.classify(
+                toolName: toolName, arguments: arguments, facts: ActionFacts(cleanTurn: !taint.isTainted)) != .act
+        let risky = riskLevel(tool: toolName) == .requiresApproval || gatedFetch
         // Wave 20d B: a step that only adds (a new file in the working folder,
         // cells that were empty) acts without the sheet; the band is read from
         // the disk and the workbook, never from the model's words.
@@ -214,6 +223,7 @@ package struct NativeExecutor: Executor, Sendable {
             toolResult = ToolResult(ok: false, output: "tool failed: \(error)")
         }
         events.yield(.stepFinished(tool: toolName, ok: toolResult.ok, id: call.id))
+        if toolResult.ok, toolRunner.readsOutsideWorkdir(tool: toolName, arguments: runArguments) { taint.mark() }
         if acts, toolResult.ok, let receipt = await toolRunner.receipt(tool: toolName, arguments: runArguments) {
             events.yield(.acted(receipt))
         }
@@ -261,5 +271,24 @@ package struct NativeExecutor: Executor, Sendable {
         approved: Bool
     ) async throws -> ToolResult {
         return try await toolRunner.execute(tool: tool, arguments: arguments, approved: approved)
+    }
+}
+
+/// One job's memory of whether it has read outside the work folder. A class
+/// because the loop and `perform` share it across awaits.
+final class TurnTaint: @unchecked Sendable {
+    private let lock = NSLock()
+    private var tainted = false
+
+    var isTainted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return tainted
+    }
+
+    func mark() {
+        lock.lock()
+        defer { lock.unlock() }
+        tainted = true
     }
 }

@@ -22,6 +22,20 @@ extension NativeToolRunner {
             output: resolved ? "Resolved path outside working directory" : "Path outside working directory")
     }
 
+    /// Whether this call put something of the user's outside the work folder in
+    /// front of the model. run_shell counts always: it reads wherever it likes.
+    func readsOutsideWorkdir(tool: String, arguments: [String: Any]) -> Bool {
+        switch tool {
+        case NativeTool.runShell.rawValue:
+            return true
+        case NativeTool.readFile.rawValue, NativeTool.listDirectory.rawValue:
+            guard let path = arguments["path"] as? String else { return false }
+            return !pathValidator.isInWorkdir(resolveRealPath(path))
+        default:
+            return false
+        }
+    }
+
     /// TCC answers EPERM where a plain permission bit answers EACCES, so only
     /// EPERM means "the user has to grant Full Disk Access"; telling them to
     /// when a chmod is the cause would send them to the wrong switch.
