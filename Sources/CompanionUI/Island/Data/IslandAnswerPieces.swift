@@ -55,8 +55,8 @@ package enum CaptureKind: CaseIterable, Sendable {
 package enum AnswerPopupMetrics {
     package static let maxWidth: CGFloat = 580
     package static let screenFraction: CGFloat = 0.76
-    package static let paddingTop: CGFloat = 18
-    package static let paddingX: CGFloat = 22
+    package static let paddingTop: CGFloat = Space.x4
+    package static let paddingX: CGFloat = Space.x6
     package static let paddingBottom: CGFloat = Space.x4
 
     /// min(580, 76 % of the screen), as Incredible's `min(580px, 76vw)`.
@@ -200,7 +200,7 @@ struct AnswerPopup<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.x3) { content() }
+        VStack(alignment: .leading, spacing: AnswerType.blockGap) { content() }
             .padding(.top, AnswerPopupMetrics.paddingTop)
             .padding(.horizontal, AnswerPopupMetrics.paddingX)
             .padding(.bottom, AnswerPopupMetrics.paddingBottom)

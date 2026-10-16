@@ -57,7 +57,7 @@ package enum ReadingClock {
         }
         for block in AnswerBlocks.blocks(from: markdown) {
             switch block {
-            case .title(let text), .section(let text), .eyebrow(let text),
+            case .title(let text), .section(let text), .subheading(let text),
                  .paragraph(let text), .quote(let text):
                 prose(text)
             case .callout(let title, let body):

@@ -25,7 +25,7 @@ struct IslandResultCard<Body: View>: View {
         IslandDocFrame(accent: DocCardInk.narrative, maxHeight: maxHeight, onDismiss: onDismiss) {
             DocColumn(spacing: DocCardMetrics.blockGap) {
                 Text(title)
-                    .font(Fonts.geist(DocCardMetrics.titleSize).weight(.semibold))
+                    .font(Fonts.geist(DocCardMetrics.titleSize).weight(AnswerType.medium))
                     .tracking(DocCardMetrics.titleSize * DocCardMetrics.titleTracking)
                     .lineSpacing(DocCardMetrics.lineExtra(
                         size: DocCardMetrics.titleSize, leading: DocCardMetrics.titleLeading))

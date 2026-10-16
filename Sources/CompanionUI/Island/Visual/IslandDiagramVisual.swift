@@ -81,7 +81,7 @@ struct IslandDiagramVisual: View {
     private func header(_ drawn: DiagramImage?) -> some View {
         HStack(spacing: Space.x2) {
             Text(Localized.string("island.diagram.label"))
-                .font(Fonts.geist(AnswerBlockMetrics.tableSize).weight(.semibold))
+                .font(Fonts.geist(AnswerBlockMetrics.tableSize).weight(AnswerType.medium))
                 .foregroundStyle(AnswerInk.white(AnswerInk.text))
                 .lineLimit(1)
             Spacer(minLength: Space.none)
@@ -163,7 +163,7 @@ struct IslandDiagramVisual: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text(IslandDiagramChrome.title(failure))
-                    .font(Fonts.geist(AnswerBlockMetrics.tableSize).weight(.semibold))
+                    .font(Fonts.geist(AnswerBlockMetrics.tableSize).weight(AnswerType.medium))
                     .foregroundStyle(Semantic.danger)
                     .lineLimit(1)
                 Text(IslandDiagramChrome.detail(failure))

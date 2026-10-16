@@ -87,24 +87,30 @@ struct AnswerBlockList: View {
 struct AnswerBlockView: View {
     let block: AnswerBlock
 
+    /// The stack already gives every block `blockGap`; a heading asks for the
+    /// rest of its air above so it heads its section instead of trailing the last.
+    private static let headingLift = AnswerType.headingBefore - AnswerType.blockGap
+
     var body: some View {
         switch block {
         case .title(let text):
             Text(AnswerInline.rich(text))
-                .font(Fonts.geist(AnswerBlockMetrics.titleSize).weight(.bold))
+                .font(Fonts.geist(AnswerBlockMetrics.titleSize).weight(AnswerType.medium))
                 .tracking(AnswerBlockMetrics.titleSize * -0.02)
                 .foregroundStyle(.white)
                 .textSelection(.enabled)
         case .section(let text):
             Text(AnswerInline.rich(text))
-                .font(Fonts.geist(AnswerBlockMetrics.sectionSize).weight(.semibold))
+                .font(Fonts.geist(AnswerBlockMetrics.sectionSize).weight(AnswerType.medium))
                 .tracking(AnswerBlockMetrics.sectionSize * -0.01)
                 .foregroundStyle(AnswerInk.white(AnswerInk.text))
+                .padding(.top, Self.headingLift)
                 .textSelection(.enabled)
-        case .eyebrow(let text):
-            Text(text.uppercased())
-                .font(Fonts.geist(AnswerBlockMetrics.eyebrowSize).weight(.semibold))
-                .foregroundStyle(AnswerInk.white(AnswerInk.muted))
+        case .subheading(let text):
+            Text(AnswerInline.rich(text))
+                .font(Fonts.geist(AnswerBlockMetrics.subheadingSize).weight(AnswerType.medium))
+                .foregroundStyle(AnswerInk.white(AnswerInk.text))
+                .padding(.top, Self.headingLift)
                 .textSelection(.enabled)
         case .paragraph(let text):
             paragraph(text)
@@ -150,7 +156,7 @@ struct AnswerBlockView: View {
     }
 
     private func list(ordered: Bool, items: [MarkdownSplitter.Item]) -> some View {
-        VStack(alignment: .leading, spacing: Space.x1) {
+        VStack(alignment: .leading, spacing: AnswerType.listItemGap) {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                 HStack(alignment: .firstTextBaseline, spacing: Space.x2) {
                     Text(Self.marker(ordered: ordered, index: index))
@@ -169,11 +175,11 @@ struct AnswerBlockView: View {
     }
 
     private func tasks(_ lines: [TaskLine]) -> some View {
-        VStack(alignment: .leading, spacing: Space.x1) {
+        VStack(alignment: .leading, spacing: AnswerType.listItemGap) {
             ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                 HStack(alignment: .firstTextBaseline, spacing: Space.x2) {
                     Image(systemName: line.done ? "checkmark.square.fill" : "square")
-                        .font(Fonts.geist(AnswerBlockMetrics.bodySize - 1))
+                        .font(Fonts.geist(AnswerBlockMetrics.captionSize))
                         .foregroundStyle(AnswerInk.white(AnswerInk.muted))
                     Text(AnswerInline.rich(line.text))
                         .font(Fonts.geist(AnswerBlockMetrics.bodySize))
@@ -207,7 +213,7 @@ struct AnswerBlockView: View {
                 .foregroundStyle(AnswerInk.accent.color)
             VStack(alignment: .leading, spacing: Space.x1) {
                 Text(title)
-                    .font(Fonts.geist(AnswerBlockMetrics.bodySize).weight(.semibold))
+                    .font(Fonts.geist(AnswerBlockMetrics.bodySize).weight(AnswerType.medium))
                     .foregroundStyle(AnswerInk.white(AnswerInk.text))
                 Text(AnswerInline.rich(body))
                     .font(Fonts.geist(AnswerBlockMetrics.bodySize))
@@ -229,7 +235,7 @@ struct AnswerBlockView: View {
         Grid(alignment: .leading, horizontalSpacing: Space.none, verticalSpacing: Space.none) {
             GridRow {
                 ForEach(Array(headers.enumerated()), id: \.offset) { _, header in
-                    cell(header, weight: .semibold, ink: AnswerInk.secondary)
+                    cell(header, weight: AnswerType.medium, ink: AnswerInk.secondary)
                 }
             }
             Divider().overlay(AnswerInk.white(AnswerInk.lineStrong)).gridCellUnsizedAxes(.vertical)
@@ -299,7 +305,7 @@ struct AnswerCodeBlock: View {
         VStack(alignment: .leading, spacing: Space.none) {
             HStack(spacing: Space.x2) {
                 Text(Self.tag(for: language))
-                    .font(Fonts.mono(AnswerBlockMetrics.eyebrowSize))
+                    .font(Fonts.mono(AnswerBlockMetrics.captionSize))
                     .foregroundStyle(AnswerInk.white(AnswerInk.muted))
                 Spacer(minLength: Space.none)
                 Button(action: copy) {

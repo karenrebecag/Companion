@@ -1,0 +1,1 @@
+- **Las respuestas usan una sola escala de letra (2026-10-16).** Títulos en 18, 16 y 14, texto en 14 y notas en 12, solo con peso normal o medio. Los subtítulos dejan de salir en mayúsculas pequeñas y apagadas, el interlineado baja a 1.4 y los espacios entre bloques siguen una rejilla de 4, con más aire arriba de cada título que abajo.

@@ -10,22 +10,22 @@ package enum DocCardMetrics {
     package static let width: CGFloat = 589
     package static let radius: CGFloat = 20
     package static let padX: CGFloat = 20
-    package static let padTop: CGFloat = 18
+    package static let padTop: CGFloat = Space.x4
     package static let padBottom: CGFloat = 16
     /// Between the title, the blocks and the footer chips.
-    package static let blockGap: CGFloat = 18
+    package static let blockGap: CGFloat = Space.x4
 
-    package static let titleSize: CGFloat = 18
+    package static let titleSize: CGFloat = AnswerType.title
     package static let titleLeading: CGFloat = 1.2
     package static let titleTracking: CGFloat = -0.015
 
-    package static let proseSize: CGFloat = 14.5
-    package static let proseLeading: CGFloat = 1.7
+    package static let proseSize: CGFloat = AnswerType.body
+    package static let proseLeading: CGFloat = AnswerType.leading
     package static let proseMeasure: CGFloat = 504
-    package static let paragraphGap: CGFloat = 14
-    package static let listGapBefore: CGFloat = 10
-    package static let listGapAfter: CGFloat = 16
-    package static let listItemGap: CGFloat = 8
+    package static let paragraphGap: CGFloat = AnswerType.paragraphGap
+    package static let listGapBefore: CGFloat = Space.x2
+    package static let listGapAfter: CGFloat = Space.x3
+    package static let listItemGap: CGFloat = AnswerType.listItemGap
     /// The bullet column: the marker, then the text.
     package static let listIndent: CGFloat = 24
     package static let bulletSize: CGFloat = 5
@@ -43,9 +43,10 @@ package enum DocCardMetrics {
     package static let tableGapBefore: CGFloat = 8
     package static let tableGapAfter: CGFloat = 12
     /// A heading inside the prose; margins collapse with the blocks around it.
-    package static let headingSize: CGFloat = 17
-    package static let headingGapBefore: CGFloat = 22
-    package static let headingGapAfter: CGFloat = 10
+    package static let headingSize: CGFloat = AnswerType.section
+    package static let subheadingSize: CGFloat = AnswerType.subheading
+    package static let headingGapBefore: CGFloat = AnswerType.headingBefore
+    package static let headingGapAfter: CGFloat = AnswerType.headingAfter
 
     /// Source chips: outlined pills under a hairline.
     package static let sourceHeight: CGFloat = 28
@@ -175,8 +176,8 @@ package enum DocCardMotion {
 /// card's own prose scale so a reply reads the same here as in the document.
 package enum DocChatMetrics {
     package static let bodySize: CGFloat = DocCardMetrics.proseSize
-    package static let captionSize: CGFloat = 12.5
-    package static let headingSize: CGFloat = 16
+    package static let captionSize: CGFloat = AnswerType.caption
+    package static let headingSize: CGFloat = AnswerType.section
     /// The field's words, one step over the prose: what she types is read back first.
     package static let fieldSize: CGFloat = 14.5
     package static let fieldLine: CGFloat = 21
