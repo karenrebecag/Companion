@@ -66,6 +66,29 @@ package enum UserProfile {
     }
 
     @MainActor
+    /// Stores the square crop the avatar editor produced, as PNG, in the same
+    /// place a copied photo lands, so every reader sees one file.
+    package static func setAvatar(image: NSImage) -> Bool {
+        guard let tiff = image.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:])
+        else { return false }
+        do {
+            try FileManager.default.createDirectory(
+                at: avatarURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try png.write(to: avatarURL, options: .atomic)
+            NotificationCenter.default.post(name: .companionProfileDidChange, object: nil)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Removes the stored photo; the app falls back to the initials.
+    package static func removeAvatar() {
+        try? FileManager.default.removeItem(at: avatarURL)
+        NotificationCenter.default.post(name: .companionProfileDidChange, object: nil)
+    }
+
     package static func setAvatar(from source: URL) -> Bool {
         let dest = avatarURL
         do {

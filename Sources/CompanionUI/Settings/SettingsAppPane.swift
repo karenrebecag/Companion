@@ -1,9 +1,10 @@
 import AppKit
 import CompanionCore
+import CompanionUIPro
 import SwiftUI
 
-/// Settings › Privacidad (Wave 16g): what it may look at, the permissions
-/// with their live state, and the keys.
+/// Settings › Privacidad: what it may look at, the permissions with their
+/// live state, the browser link, and the keys.
 struct SettingsPrivacyPage: View {
     var chat: ChatViewModel?
     var welcome: WelcomeModel?
@@ -13,8 +14,7 @@ struct SettingsPrivacyPage: View {
     @State private var keys = KeysSettingsModel()
     /// Wave 17: starts from the stored preference; `onChange` below is the
     /// only writer, so a background change (none exists today) would not
-    /// show up here until the page reappears — same tradeoff `sounds` and
-    /// `screenGlow` already make on this page's sibling.
+    /// show up here until the page reappears.
     @State private var lendHands = HandsLendingPreference.enabled
     /// Puente QA D1: starts off and is never stored; `QAScopePreference` is
     /// the only writer and refuses to turn on without the hands lent and an
@@ -24,61 +24,59 @@ struct SettingsPrivacyPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
-            SettingsPageHeader(title: SettingsTab.privacy.title)
-            SettingsCard(label: Localized.string("settings.context.label")) {
+            SecuritySection(title: Localized.string("settings.context.label")) {
                 SettingsRow(
                     title: Localized.string("settings.context.screen"),
-                    subtitle: Localized.string("settings.context.screen.subtitle"),
-                    key: "settings.context.screen"
+                    description: Localized.string("settings.context.screen.subtitle")
                 ) {
                     SettingsSwitch(label: Localized.string("settings.context.screen"), isOn: contextBinding(\.screen))
                 }
+                .settingsAnchor("settings.context.screen")
                 SettingsRow(
                     title: Localized.string("settings.context.documents"),
-                    subtitle: Localized.string("settings.context.documents.subtitle"),
-                    key: "settings.context.documents"
+                    description: Localized.string("settings.context.documents.subtitle")
                 ) {
                     SettingsSwitch(
                         label: Localized.string("settings.context.documents"), isOn: contextBinding(\.documents))
                 }
+                .settingsAnchor("settings.context.documents")
                 SettingsRow(
                     title: Localized.string("settings.context.location"),
-                    subtitle: Localized.string("settings.context.location.subtitle"),
-                    key: "settings.context.location"
+                    description: Localized.string("settings.context.location.subtitle")
                 ) {
                     SettingsSwitch(
                         label: Localized.string("settings.context.location"), isOn: contextBinding(\.location))
                 }
+                .settingsAnchor("settings.context.location")
                 SettingsRow(
                     title: Localized.string("settings.privacy.lendHands"),
-                    subtitle: Localized.string("settings.privacy.lendHands.subtitle"),
-                    key: "settings.privacy.lendHands"
+                    description: Localized.string("settings.privacy.lendHands.subtitle")
                 ) {
                     SettingsSwitch(label: Localized.string("settings.privacy.lendHands"), isOn: $lendHands)
                 }
+                .settingsAnchor("settings.privacy.lendHands")
                 SettingsRow(
                     title: Localized.string("settings.privacy.qaMode"),
-                    subtitle: Localized.string(
-                        qaRefused ? "settings.privacy.qaMode.unavailable" : "settings.privacy.qaMode.subtitle"),
-                    key: "settings.privacy.qaMode"
+                    description: Localized.string(
+                        qaRefused ? "settings.privacy.qaMode.unavailable" : "settings.privacy.qaMode.subtitle")
                 ) {
                     SettingsSwitch(label: Localized.string("settings.privacy.qaMode"), isOn: $qaMode)
                         .disabled(!lendHands)
                 }
+                .settingsAnchor("settings.privacy.qaMode")
             }
             if let welcome {
-                SettingsCard(label: Localized.string("settings.permissions"), key: "settings.permissions") {
+                SecuritySection(title: Localized.string("settings.permissions")) {
                     ForEach(WelcomePermission.allCases, id: \.self) { permission in
                         SettingsPermissionRow(model: PermissionRowModel(
                             kind: permission.rowKind,
                             granted: welcome.facts.granted.contains(permission)))
                     }
                 }
+                .settingsAnchor("settings.permissions")
             }
-            if let browser { SettingsBrowserCard(model: browser) }
-            SettingsCard(label: Localized.string("settings.keys.label"), key: "settings.keys.header") {
-                keysBlock.padding(Space.x4)
-            }
+            if let browser { SettingsBrowserSection(model: browser) }
+            keysSection
         }
         .onChange(of: lendHands) { _, on in
             HandsLendingPreference.enabled = on
@@ -120,85 +118,92 @@ struct SettingsPrivacyPage: View {
             set: { context[keyPath: keyPath] = $0 })
     }
 
-    /// Wave 15c-6: pasted values never surface back — `KeysSettingsModel`
-    /// only exposes a saved/not-saved boolean, so this view has nothing to
-    /// leak even by accident.
-    private var keysBlock: some View {
-        VStack(alignment: .leading, spacing: Space.x3) {
+    /// Wave 15c-6: a stored value never comes back to the screen: the row shows
+    /// only the mask the model built, and the field is secure.
+    private var keysSection: some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            Text(Localized.string("settings.keys.label"))
+                .font(.uiCaption.weight(.medium))
+                .foregroundStyle(Semantic.mutedForeground)
+                .padding(.horizontal, Space.x1)
+            APIKeysSection(
+                rows: keyRows, strings: keyStrings,
+                draft: keyDraft,
+                onSave: { id in saveKey(id) },
+                onRemove: { id in removeKey(id) })
+            .settingsAnchor("settings.keys.header")
             Text(Localized.string("settings.keys.blurb"))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
-            keyRow(.openAI, title: "settings.keys.openai",
-                   placeholder: "settings.keys.openai.placeholder", text: $keys.openAIField)
-            keyRow(.cerebras, title: "settings.keys.cerebras",
-                   placeholder: "settings.keys.cerebras.placeholder", text: $keys.cerebrasField)
-            Text(Localized.string("settings.keys.cerebras.privacy"))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
-            keyRow(.elevenLabs, title: "settings.keys.elevenlabs",
-                   placeholder: "settings.keys.elevenlabs.placeholder",
-                   text: $keys.elevenLabsField)
-            Text(Localized.string("settings.keys.elevenlabs.privacy"))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
-            if let error = keys.errorText {
-                Text(error)
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.destructive)
-            }
+                .padding(.horizontal, Space.x1)
         }
     }
 
-    /// 15c-7: the saved key reads as its mask next to a check, so a blank
-    /// field no longer looks like nothing happened; delete is quiet because
-    /// it is the one action here that cannot be undone from this screen.
-    private func keyRow(
-        _ provider: KeysSettingsModel.Provider, title: String, placeholder: String,
-        text: Binding<String>
-    ) -> some View {
-        let mask = keys.masked[provider]
-        let hasInput = !text.wrappedValue.trimmingCharacters(in: .whitespaces).isEmpty
-        return VStack(alignment: .leading, spacing: Space.x2) {
-            HStack(spacing: Space.x2) {
-                Text(Localized.string(title))
-                    .font(.uiLabel)
-                    .foregroundStyle(Semantic.foreground)
-                if let mask {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Semantic.accentText)
-                        .accessibilityHidden(true)
-                    Text(mask)
-                        .font(.uiCaption.monospaced())
-                        .foregroundStyle(Semantic.foreground)
-                        .accessibilityLabel(String(
-                            format: Localized.string("settings.keys.saved.label"), mask))
-                }
-                Spacer()
-            }
-            HStack(spacing: Space.x2) {
-                AppField(
-                    placeholder: Localized.string(
-                        mask == nil ? placeholder : "settings.keys.replace.placeholder"),
-                    text: text, secure: true)
-                SettingsPill(
-                    title: Localized.string("settings.keys.save"), kind: .primary,
-                    enabled: hasInput, action: { keys.save(provider) })
-                if mask != nil {
-                    SettingsPill(
-                        title: Localized.string("settings.keys.delete"),
-                        action: { keys.delete(provider) })
-                }
-            }
+    private static let keyProviders: [(id: String, provider: KeysSettingsModel.Provider, title: String, privacy: String?)] = [
+        ("openai", .openAI, "settings.keys.openai", nil),
+        ("cerebras", .cerebras, "settings.keys.cerebras", "settings.keys.cerebras.privacy"),
+        ("elevenlabs", .elevenLabs, "settings.keys.elevenlabs", "settings.keys.elevenlabs.privacy"),
+    ]
+
+    private var keyRows: [APIKeyRowModel] {
+        Self.keyProviders.map { item in
+            APIKeyRowModel(
+                id: item.id, title: Localized.string(item.title),
+                detail: item.privacy.map { Localized.string($0) },
+                masked: keys.masked[item.provider])
         }
     }
 
+    private var keyStrings: APIKeyStrings {
+        let removeFormat = Localized.string("settings.keys.removeLabel")
+        return APIKeyStrings(
+            savedStatus: Localized.string("settings.keys.status.saved"),
+            missingStatus: Localized.string("settings.keys.status.missing"),
+            placeholder: Localized.string("settings.keys.paste"),
+            replacePlaceholder: Localized.string("settings.keys.replace.placeholder"),
+            save: Localized.string("settings.keys.save"),
+            remove: Localized.string("settings.keys.delete"),
+            removeLabel: { String(format: removeFormat, $0) })
+    }
+
+    private func keyDraft(_ id: String) -> Binding<String> {
+        Binding(
+            get: { draftText(id) },
+            set: { setDraftText(id, $0) })
+    }
+
+    private func draftText(_ id: String) -> String {
+        switch id {
+        case "cerebras": keys.cerebrasField
+        case "elevenlabs": keys.elevenLabsField
+        default: keys.openAIField
+        }
+    }
+
+    private func setDraftText(_ id: String, _ value: String) {
+        switch id {
+        case "cerebras": keys.cerebrasField = value
+        case "elevenlabs": keys.elevenLabsField = value
+        default: keys.openAIField = value
+        }
+    }
+
+    private func provider(_ id: String) -> KeysSettingsModel.Provider? {
+        Self.keyProviders.first { $0.id == id }?.provider
+    }
+
+    private func saveKey(_ id: String) {
+        if let provider = provider(id) { keys.save(provider) }
+    }
+
+    private func removeKey(_ id: String) {
+        if let provider = provider(id) { keys.delete(provider) }
+    }
 }
 
-/// Settings › Sistema (Wave 16g): about, the stored files, the welcome, and
-/// a danger zone that holds the one action here that cannot be undone.
+/// Settings › Sistema: about, the stored files, the welcome, and a danger
+/// zone that holds the one action here that cannot be undone.
 struct SettingsSystemPage: View {
     var chat: ChatViewModel?
     var updates: UpdateState?
@@ -216,42 +221,42 @@ struct SettingsSystemPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
-            SettingsPageHeader(title: SettingsTab.system.title)
-            SettingsCard(label: Localized.string("settings.system.about")) {
+            SettingsGroup(title: Localized.string("settings.system.about")) {
                 SettingsRow(
-                    title: Localized.string("settings.app.version"), subtitle: SettingsVersion.current,
-                    key: "settings.app.version"
+                    title: Localized.string("settings.app.version"), description: SettingsVersion.current
                 ) { updateControl }
+                .settingsAnchor("settings.app.version")
                 if let welcome {
-                    SettingsRow(title: Localized.string("settings.welcome.again"), key: "settings.welcome.again") {
+                    SettingsRow(title: Localized.string("settings.welcome.again")) {
                         SettingsPill(title: Localized.string("settings.system.open")) {
                             welcome.reopen()
                             onClose()
                         }
                     }
+                    .settingsAnchor("settings.welcome.again")
                 }
             }
-            SettingsCard(label: Localized.string("settings.history.label")) {
+            SettingsGroup(title: Localized.string("settings.history.label")) {
                 SettingsRow(
                     title: Localized.string("settings.history.row"),
-                    subtitle: Localized.string("settings.history.row.subtitle"),
-                    key: SettingsInventory.clearHistoryRowID
+                    description: Localized.string("settings.history.row.subtitle")
                 ) {
                     SettingsPill(title: Localized.string("settings.history.action"), kind: .destructive) {
                         pressClearRow()
                     }
                 }
+                .settingsAnchor(SettingsInventory.clearHistoryRowID)
             }
-            SettingsCard(label: Localized.string("settings.system.danger")) {
+            SettingsGroup(title: Localized.string("settings.system.danger")) {
                 SettingsRow(
-                    title: Localized.string("settings.app.attachments"), subtitle: storageLabel,
-                    key: "settings.app.attachments"
+                    title: Localized.string("settings.app.attachments"), description: storageLabel
                 ) {
                     SettingsPill(
                         title: Localized.string("settings.system.purge"), kind: .destructive,
                         enabled: chat?.hasStoredAttachments ?? false
                     ) { confirmPurge = true }
                 }
+                .settingsAnchor("settings.app.attachments")
             }
         }
         .onAppear(perform: onAppear)
@@ -276,20 +281,19 @@ struct SettingsSystemPage: View {
     }
 }
 
-/// A permission as a row: what it is for, and either its state or the way
+/// A permission as a row: what it is for, its state as a badge, and the way
 /// to System Settings, which never runs out (the system prompt shows once).
 struct SettingsPermissionRow: View {
     let model: PermissionRowModel
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        SettingsRow(title: model.title, subtitle: model.body) {
+        SecurityRow(
+            title: model.title, detail: model.body,
+            badge: SecurityBadge(model.status, tone: model.granted ? .positive : .warning)
+        ) {
             if model.showsButton {
                 SettingsPill(title: Localized.string("settings.system.open")) { openURL(model.link) }
-            } else {
-                Text(model.status)
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.accentText)
             }
         }
     }

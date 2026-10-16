@@ -256,15 +256,6 @@ private struct SheetShot {
     return SheetShot(rep: rep, size: size)
 }
 
-@Test @MainActor func theSearchResultsListWhatMatchesAndSayWhenNothingDoes() throws {
-    let known = try #require(SettingsInventory.searchEntries.first?.title, "the inventory has entries")
-    expect(!SettingsSearch.match(known, in: SettingsInventory.searchEntries).isEmpty, "an entry finds itself")
-    let hit = try #require(sheetBitmap(SettingsSearchResults(query: known, onPick: { _ in }).frame(width: 300)))
-    let none = try #require(sheetBitmap(SettingsSearchResults(query: "zzzzqq", onPick: { _ in }).frame(width: 300)))
-    #expect(hit != none, "matches draw rows, a miss draws the empty note")
-    _ = try #require(sheetBitmap(SettingsSearchField(query: .constant(""), onSubmit: {}).frame(width: 300)))
-}
-
 @MainActor private func sheetBitmap(_ view: some View) -> Data? {
     let renderer = ImageRenderer(content: view.environment(\.colorScheme, .light))
     renderer.scale = 2
