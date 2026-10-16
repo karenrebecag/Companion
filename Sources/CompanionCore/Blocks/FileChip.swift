@@ -30,11 +30,10 @@ package struct FileChip: Sendable, Equatable {
         return "~" + path.dropFirst(home.count)
     }
 
-    /// The path the actions open. Same reading as the file tools: `~` is the
-    /// home folder, and a relative path is taken from home, as open_file does.
+    /// The path the actions open, read as every file tool reads it: with the
+    /// disk open a relative path is taken from home.
     package static func expanded(_ path: String, home: String) -> String {
-        let expanded = PathValidator.expandHome(path, home: home)
-        return expanded.hasPrefix("/") ? expanded : home + "/" + expanded
+        PathValidator.resolve(path, bound: nil, home: home)
     }
 }
 

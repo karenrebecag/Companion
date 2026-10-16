@@ -208,12 +208,14 @@ func resolvedPath(_ path: String) -> String { (path as NSString).resolvingSymlin
     expect(sandbox.exists(outsideFile), "inner link: the file it pointed at is intact")
 }
 
-@Test @MainActor func relativePathResolvesAgainstTheWorkdir() {
+// With the disk open a relative path is taken from home, whatever the workdir is.
+@Test @MainActor func relativePathResolvesAgainstHome() {
     let sandbox = DeleteSandbox(); defer { sandbox.clean() }
-    let file = sandbox.file("nota.md")
+    _ = sandbox.folder(sandbox.home)
+    let file = sandbox.file("nota.md", in: sandbox.home)
     let (result, calls) = runDelete(sandbox, path: "nota.md")
     expectEq(result.ok, true, "relative: ok")
-    expectEq(calls.trashed, [resolvedPath(file)], "relative: resolved against the workdir")
+    expectEq(calls.trashed, [resolvedPath(file)], "relative: resolved against home")
 }
 
 @Test @MainActor func unicodeAndSpacesInTheNameAreHandled() {
@@ -250,7 +252,7 @@ func resolvedPath(_ path: String) -> String { (path as NSString).resolvingSymlin
 
     let dirLink = (sandbox.work as NSString).appendingPathComponent("dirlink")
     try! FileManager.default.createSymbolicLink(atPath: dirLink, withDestinationPath: sandbox.outside)
-    expectDeleteRefused(sandbox, "dirlink/secret.md", reason: "symbolic link", still: [target], "parent link out")
+    expectDeleteRefused(sandbox, (sandbox.work as NSString).appendingPathComponent("dirlink/secret.md"), reason: "symbolic link", still: [target], "parent link out")
 
     let real = sandbox.file("real.md")
     let alias = (sandbox.work as NSString).appendingPathComponent("alias.md")
@@ -264,7 +266,7 @@ func resolvedPath(_ path: String) -> String { (path as NSString).resolvingSymlin
     let inner = sandbox.file("paper.md", in: realFolder)
     let sheetPath = (sandbox.work as NSString).appendingPathComponent("shortcut")
     try! FileManager.default.createSymbolicLink(atPath: sheetPath, withDestinationPath: realFolder)
-    expectDeleteRefused(sandbox, "shortcut/paper.md", reason: "symbolic link", still: [inner],
+    expectDeleteRefused(sandbox, (sandbox.work as NSString).appendingPathComponent("shortcut/paper.md"), reason: "symbolic link", still: [inner],
                   "intermediate link: the sheet would show shortcut/paper.md, real/paper.md would go")
     expectDeleteRefused(sandbox, "\(sandbox.work)/shortcut/paper.md", reason: "symbolic link", still: [inner],
                   "intermediate link, absolute")
@@ -379,5 +381,6 @@ func resolvedPath(_ path: String) -> String { (path as NSString).resolvingSymlin
                                 skills: location, "root \(root) via \(path)")
         }
     }
-    expectDeleteRefused(sandbox, "a", reason: "protected", still: [inside], skills: location, "ancestor of the app roots, relative")
+    expectDeleteRefused(sandbox, (sandbox.work as NSString).appendingPathComponent("a"), reason: "protected",
+                        still: [inside], skills: location, "ancestor of the app roots, absolute")
 }

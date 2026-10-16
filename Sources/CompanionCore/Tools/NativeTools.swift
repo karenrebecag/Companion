@@ -198,14 +198,19 @@ package struct PathValidator: Sendable {
     }
 
     /// The one reading of a file-tool path, shared by every tool that takes
-    /// one: `~` is the home folder, a leading `/` is absolute, and anything
-    /// else is relative to the working folder (or the home folder when the
-    /// whole disk is open). Nil when there is no base to read it against.
-    package func absolute(_ path: String) -> String? {
-        let expanded = Self.expandHome(path, home: home)
+    /// one and by the chips. With the disk open the working folder bounds
+    /// nothing, so a relative path is taken from home; a bounded working
+    /// folder is its base; no working folder means home.
+    package func absolute(_ path: String) -> String {
+        Self.resolve(path, bound: wholeDisk ? nil : workdir, home: home)
+    }
+
+    /// `~` is the home folder, a leading `/` is absolute, anything else is
+    /// relative to `bound` or, without one, to home.
+    package static func resolve(_ path: String, bound: String?, home: String) -> String {
+        let expanded = expandHome(path, home: home)
         if expanded.hasPrefix("/") { return (expanded as NSString).standardizingPath }
-        guard let base = workdir ?? (wholeDisk ? home : nil) else { return nil }
-        return ((base + "/" + expanded) as NSString).standardizingPath
+        return ((((bound ?? home) + "/" + expanded)) as NSString).standardizingPath
     }
 
     /// Only `~` and `~/…` name the home folder; `~user` and mid-path tildes are names.
@@ -217,7 +222,7 @@ package struct PathValidator: Sendable {
 
     /// Normalizes `.` and `..` first (see `absolute`).
     package func isAllowed(_ path: String, forWrite: Bool = false) -> Bool {
-        guard let normalizedPath = absolute(path) else { return false }
+        let normalizedPath = absolute(path)
         if wholeDisk {
             // Companion's own roots (skills, memory) keep their read-only flags
             // and are exempt from the container rule only: any other closed

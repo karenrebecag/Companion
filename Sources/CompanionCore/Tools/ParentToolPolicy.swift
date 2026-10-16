@@ -111,8 +111,7 @@ package enum ParentToolPolicy {
     // MARK: - private
 
     private static func expand(_ text: String, home: String) -> String {
-        let expanded = PathValidator.expandHome(text, home: home)
-        return expanded.hasPrefix("/") ? expanded : home + "/" + expanded
+        PathValidator.resolve(text, bound: nil, home: home)
     }
 
     private static func relative(_ path: String, to base: String) -> [String]? {

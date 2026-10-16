@@ -91,3 +91,23 @@ private func validator(roots: [PathValidator.Root] = []) -> PathValidator {
     expectEq(validator().absolute("Desktop/x.md"), "\(home)/Desktop/x.md",
              "sin workdir y con el disco abierto, relativa = carpeta de inicio")
 }
+
+// Relative paths read the same way in every file tool. With the disk open (the
+// production setting) the workdir bounds nothing, so a relative path is taken
+// from the home folder, as open_file and the chips always did.
+@Test func aRelativePathResolvesTheSameForEveryFileTool() throws {
+    let disk = PathValidator(workdir: "\(home)/Projects/app", extraRoots: [], wholeDisk: true, home: home)
+    let want = "\(home)/Desktop/x.md"
+    expectEq(disk.absolute("Desktop/x.md"), want, "especialista: relativa contra la carpeta de inicio")
+    expectEq(FileChip.expanded("Desktop/x.md", home: home), want, "chip: la misma ruta")
+
+    let fake = FileManager.default.temporaryDirectory
+        .appendingPathComponent("qa4-home-\(UUID().uuidString)", isDirectory: true)
+    let file = fake.appendingPathComponent("Desktop/x.md")
+    try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    FileManager.default.createFile(atPath: file.path, contents: Data())
+    defer { try? FileManager.default.removeItem(at: fake) }
+    let opened = try ParentToolPolicy.homePath("Desktop/x.md", home: fake)
+    expectEq(opened.resolvingSymlinksInPath().path, file.resolvingSymlinksInPath().path,
+             "open_file: la misma ruta desde la carpeta de inicio")
+}

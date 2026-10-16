@@ -274,7 +274,7 @@ package struct NativeToolRunner: Sendable {
     /// make it show one file and change another. restore_file_version is exempt:
     /// its sheet already names the real file.
     func leafLinkRefusal(_ path: String, real: String) -> ToolResult? {
-        let absolute = pathValidator.absolute(path) ?? path
+        let absolute = pathValidator.absolute(path)
         guard Self.attributes(absolute)?[.type] as? FileAttributeType == .typeSymbolicLink else { return nil }
         return ToolResult(ok: false, output: "That path is a symbolic link; use the real path of the file: \(real)")
     }
@@ -384,7 +384,7 @@ package struct NativeToolRunner: Sendable {
             }
             near = city.label
         }
-        let found = PlaceResults.places(await places.search(query, near: near))
+        let found = PlaceResults.places(await places.search(query, near: near), query: query)
         guard !found.isEmpty else {
             // An empty map is worse than no map: it reads as "the place does
             // not exist" when it only means this query missed.
@@ -577,7 +577,7 @@ package struct NativeToolRunner: Sendable {
 
     /// Resolve symlinks to get the real path on disk, then re-validate.
     func resolveRealPath(_ path: String) -> String {
-        let absolutePath = pathValidator.absolute(path) ?? path
+        let absolutePath = pathValidator.absolute(path)
 
         // A path that does not exist yet is not resolved by
         // resolvingSymlinksInPath, so `link/new.txt` would pass as inside the

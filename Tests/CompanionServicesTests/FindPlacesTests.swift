@@ -12,20 +12,22 @@ import Testing
     testNothingFoundMeansAnEmptyCard()
     testItIsSafeSoLookingUpAPlaceCostsNoClick()
     testAStreetIsNotAPlace()
+    testAnAddressKeepsItsStreet()
+    testACategoryDropsStreets()
 }
 
 private let soumaya = FoundPlace(
     name: "Museo Soumaya", address: "Blvd. Miguel de Cervantes Saavedra 303",
     lat: 19.4406, lng: -99.2047)
 
-@MainActor private func run(_ places: [FoundPlace]) -> ToolResult {
+@MainActor private func run(_ places: [FoundPlace], query: String = "museo soumaya") -> ToolResult {
     let runner = NativeToolRunner(
         workdir: NSTemporaryDirectory(), places: FakePlaces(found: places))
     do {
         return try runAsync {
             try await runner.execute(
                 tool: "find_places",
-                arguments: ["query": "museo soumaya"], approved: false)
+                arguments: ["query": query], approved: false)
         }
     } catch {
         expect(false, "find_places no debia tirar: \(error)")
@@ -74,6 +76,27 @@ private let soumaya = FoundPlace(
 @MainActor func testItIsSafeSoLookingUpAPlaceCostsNoClick() {
     expectEq(NativeTool.findPlaces.riskLevel, .safe,
              "consultar un lugar es leer, no tocar la Mac")
+}
+
+@MainActor func testAnAddressKeepsItsStreet() {
+    // "Calle Durango 200" is an address: the street it names is the answer.
+    let street = FoundPlace(
+        name: "Calle Durango", address: "Calle Durango 200, Roma Norte", lat: 19.418, lng: -99.160)
+    guard case .locations(let block)? = run([street], query: "Calle Durango 200").card?.payload else {
+        return expect(false, "una dirección devuelve su calle")
+    }
+    expectEq(block.locations.map(\.name), ["Calle Durango"], "la calle de la dirección se queda")
+}
+
+@MainActor func testACategoryDropsStreets() {
+    let street = FoundPlace(
+        name: "Calle Roma", address: "Calle Roma, Ciudad de México", lat: 19.42, lng: -99.16)
+    let cafe = FoundPlace(
+        name: "Café Toscano", address: "Álvaro Obregón 12, Roma Norte", lat: 19.419, lng: -99.163)
+    guard case .locations(let block)? = run([street, cafe], query: "cafeterías").card?.payload else {
+        return expect(false, "una categoría devuelve lugares")
+    }
+    expectEq(block.locations.map(\.name), ["Café Toscano"], "una categoría no lista calles")
 }
 
 @MainActor func testAStreetIsNotAPlace() {

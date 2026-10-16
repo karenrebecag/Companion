@@ -22,15 +22,28 @@ package protocol PlacesSearching: Sendable {
     func search(_ query: String, near: String?) async -> [FoundPlace]
 }
 
-/// What find_places answers with: places only. MapKit returns a street or an
-/// address for a name that is also a road, and a street named by its own
-/// address line is not a place to go to.
+/// What find_places answers with. A category ("cafeterías") wants places: a
+/// street MapKit returns for it is named by its own address line and is not a
+/// place to go to. An address ("Calle Durango 200") wants its street back.
 package enum PlaceResults {
-    package static func places(_ found: [FoundPlace]) -> [FoundPlace] {
-        found.filter { place in
+    private static let streetWords: Set<String> = [
+        "calle", "av", "avenida", "blvd", "boulevard", "calzada", "paseo", "camino",
+        "carretera", "privada", "cerrada", "callejón", "circuito", "andador", "eje", "prolongación",
+    ]
+
+    /// A house number or a street word first: the query names a location, not a kind of place.
+    package static func isAddress(_ query: String) -> Bool {
+        if query.contains(where: \.isNumber) { return true }
+        let first = query.lowercased().split(separator: " ").first.map(String.init) ?? ""
+        return streetWords.contains(first.trimmingCharacters(in: .punctuationCharacters))
+    }
+
+    package static func places(_ found: [FoundPlace], query: String) -> [FoundPlace] {
+        let address = isAddress(query)
+        return found.filter { place in
             let name = place.name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { return false }
-            return !place.address.lowercased().hasPrefix(name.lowercased())
+            return address || !place.address.lowercased().hasPrefix(name.lowercased())
         }
     }
 }
@@ -59,7 +72,7 @@ package struct MapKitPlacesSearch: PlacesSearching {
             .joined(separator: " ")
         // Places, not addresses: a query for "cafeterías" with a street in its
         // text otherwise answers with the street.
-        request.resultTypes = .pointOfInterest
+        request.resultTypes = PlaceResults.isAddress(query) ? [.address, .pointOfInterest] : .pointOfInterest
         if let near, let center = await Self.center(of: near) {
             request.region = MKCoordinateRegion(
                 center: center, latitudinalMeters: Self.radius, longitudinalMeters: Self.radius)

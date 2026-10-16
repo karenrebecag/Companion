@@ -84,7 +84,7 @@ extension NativeToolRunner {
     /// The path as the sheet showed it, made absolute and standardized, with
     /// the working folder resolved the same way `writeBarrier` resolves.
     private func lexicalPath(_ path: String) -> String {
-        pathValidator.absolute(path) ?? path
+        pathValidator.absolute(path)
     }
 
     /// Compared case-insensitively on every volume: refusing a case variant

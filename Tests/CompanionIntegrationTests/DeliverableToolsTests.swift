@@ -75,7 +75,7 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
     let runner = NativeToolRunner(workdir: dir, places: nil, documents: FakeDocuments())
     do {
         let denied = try await runner.execute(tool: "create_document",
-                                              arguments: ["path": "a.pdf", "document": doc], approved: false)
+                                              arguments: ["path": dir + "/a.pdf", "document": doc], approved: false)
         expect(!denied.ok, "documento: sin aprobación no se escribe")
         expect(!FileManager.default.fileExists(atPath: dir + "/a.pdf"), "documento: nada en disco")
         let outside = try await runner.execute(tool: "create_document",
@@ -91,7 +91,7 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
     let runner = NativeToolRunner(workdir: dir, places: nil, documents: FakeDocuments())
     do {
         let result = try await runner.execute(tool: "create_document",
-                                              arguments: ["path": "informes/q3.pdf", "document": doc], approved: true)
+                                              arguments: ["path": dir + "/informes/q3.pdf", "document": doc], approved: true)
         expect(result.ok, "documento: se crea")
         expect(result.output.contains("q3.pdf") && result.output.contains("1 page"), "documento: el recibo dice ruta y páginas")
         expect(FileManager.default.fileExists(atPath: dir + "/informes/q3.pdf"), "documento: crea la subcarpeta")
@@ -101,13 +101,14 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
 }
 
 @MainActor func testABadDocumentIsExplained() async {
-    let runner = NativeToolRunner(workdir: folder(), places: nil, documents: FakeDocuments())
+    let dir = folder()
+    let runner = NativeToolRunner(workdir: dir, places: nil, documents: FakeDocuments())
     do {
         let wrongExt = try await runner.execute(tool: "create_document",
-                                                arguments: ["path": "a.docx", "document": doc], approved: true)
+                                                arguments: ["path": dir + "/a.docx", "document": doc], approved: true)
         expect(wrongExt.output.hasPrefix("invalid_args"), "documento: .docx fuera de 20 se explica")
         let noBlocks = try await runner.execute(tool: "create_document",
-                                                arguments: ["path": "a.pdf", "document": "{}"], approved: true)
+                                                arguments: ["path": dir + "/a.pdf", "document": "{}"], approved: true)
         expect(noBlocks.output.hasPrefix("invalid_args"), "documento: un JSON vacío se explica")
     } catch {
         expect(false, "documento: no debe lanzar (\(error))")
@@ -214,11 +215,11 @@ private let doc = #"{"title":"X","blocks":[{"type":"paragraph","text":"hola"}]}"
     let file = dir + "/q3.pdf"
     do {
         let fresh = try await runner.execute(tool: "create_document",
-                                             arguments: ["path": "q3.pdf", "document": doc], approved: true)
+                                             arguments: ["path": dir + "/q3.pdf", "document": doc], approved: true)
         expect(fresh.ok && !fresh.output.contains("previous version"), "documento: uno nuevo no tiene version anterior")
         try Data("ORIGINAL".utf8).write(to: URL(fileURLWithPath: file))
         let again = try await runner.execute(tool: "create_document",
-                                             arguments: ["path": "q3.pdf", "document": doc], approved: true)
+                                             arguments: ["path": dir + "/q3.pdf", "document": doc], approved: true)
         expect(again.ok && again.output.contains("a previous version was kept"), "documento: sobre uno existente, el recibo lo dice")
         let siblings = try FileManager.default.contentsOfDirectory(atPath: dir).filter { $0.contains("-backup-") }
         expectEq(siblings.count, 0, "documento: ninguna copia junto al original")
