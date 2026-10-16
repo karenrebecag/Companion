@@ -64,6 +64,8 @@ struct CardView: View {
                 TableCard(block: block)
             case .chart(let block):
                 ChartCard(block: block)
+            case .tree(let block):
+                TreeCard(block: block)
             }
             // Only the cards that claim something about the WORLD carry the
             // caveat: a place that may not exist, an image that may not be
@@ -82,7 +84,7 @@ struct CardView: View {
     var claimsWorld: Bool {
         switch card.payload {
         case .locations, .gallery: true
-        case .stats, .table, .chart: false
+        case .stats, .table, .chart, .tree: false
         }
     }
 }

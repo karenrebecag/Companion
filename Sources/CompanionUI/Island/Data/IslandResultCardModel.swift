@@ -98,6 +98,20 @@ enum IslandResultCardModel {
         return flat.prefix(titleMax - 1).trimmingCharacters(in: .whitespaces) + "…"
     }
 
+    /// A reply that opens with a heading already has its title. The question
+    /// used to stand in for it, which printed the user's own sentence cut
+    /// mid-word above an answer that then repeated its real title in the body.
+    static func splitHeading(_ blocks: [AnswerBlock]) -> (title: String?, body: [AnswerBlock]) {
+        guard let first = blocks.first else { return (nil, blocks) }
+        switch first {
+        case .title(let text), .section(let text), .subheading(let text):
+            let line = title(question: text, fallback: "")
+            return line.isEmpty ? (nil, blocks) : (line, Array(blocks.dropFirst()))
+        default:
+            return (nil, blocks)
+        }
+    }
+
     /// Prose without its "Sources" list: the chips carry them, and the same
     /// links as bare text above would say them twice.
     static func proseAndSources(of reply: String) -> (prose: String, sources: [MarkdownSplitter.SourceLink]) {

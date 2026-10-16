@@ -133,6 +133,7 @@ package enum BridgeScope {
     package static func isLocalOnly(_ name: String) -> Bool {
         // An outside agent must not hand the user's files to a page (D5).
         NativeTool.parentDeliverables.contains { $0.rawValue == name } || name == WindowArrangeTool.name
+            || name == MemoryTool.name
             || name == BrowserTool.setFiles.rawValue
     }
 

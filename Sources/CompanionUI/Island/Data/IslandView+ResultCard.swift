@@ -62,8 +62,11 @@ extension IslandView {
         blocks: [AnswerBlock], sources: [MarkdownSplitter.SourceLink],
         @ViewBuilder content: @escaping () -> Body
     ) -> some View {
-        IslandResultCard(
-            title: resultTitle, blocks: blocks,
+        // No heading means no title of the reply's own: the generic one, not
+        // the user's question cut short.
+        let headed = IslandResultCardModel.splitHeading(blocks)
+        return IslandResultCard(
+            title: headed.title ?? Localized.string("island.result.title"), blocks: headed.body,
             links: IslandResultCardModel.links(apps: chat.session.projection.touched, sources: sources),
             maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height),
             onOpenURL: { openURL($0) },

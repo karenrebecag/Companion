@@ -49,7 +49,7 @@ extension IslandView {
     static func popupCanDraw(_ card: Card) -> Bool {
         switch card.payload {
         case .gallery: false
-        case .locations, .stats, .table, .chart: true
+        case .locations, .stats, .table, .chart, .tree: true
         }
     }
 

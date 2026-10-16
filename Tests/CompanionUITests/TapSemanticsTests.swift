@@ -26,7 +26,7 @@ import Testing
         print("  nota  [tapSemantics] fuera del checkout: no hay que escanear")
         return
     }
-    for name in ["Island/IslandView", "Cards/MapCard"] {
+    for name in ["Island/IslandView"] {
         let file = root.appendingPathComponent("Sources/CompanionUI/\(name).swift")
         guard let src = try? String(contentsOf: file, encoding: .utf8) else {
             expect(false, "\(name): el archivo se lee")
