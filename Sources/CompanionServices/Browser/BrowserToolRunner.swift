@@ -35,6 +35,8 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
     let tickets: ApprovalTickets
     let leases: BrowserLeases
     let caller: String
+    /// Shared with the parent's tools: one memory of what this turn read.
+    let taint: TurnTaint
     static let titleLimit = 120
     let now: @Sendable () -> Date
     private let presence: BrowserPresence
@@ -51,11 +53,12 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
     package convenience init(
         channel: any BrowserCommanding, presence: BrowserPresence,
         language: @escaping @Sendable () -> AppLanguage = { .en },
+        taint: TurnTaint = TurnTaint(),
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.init(
             channel: channel, presence: presence, language: language,
-            leases: BrowserLeases(epoch: presence.epoch), caller: Self.chatCaller, now: now)
+            leases: BrowserLeases(epoch: presence.epoch), caller: Self.chatCaller, taint: taint, now: now)
     }
 
     /// The host builds one lease and hands it to both runners, each with its
@@ -63,8 +66,10 @@ package final class BrowserToolRunner: ParentToolExecuting, @unchecked Sendable 
     init(
         channel: any BrowserCommanding, presence: BrowserPresence,
         language: @escaping @Sendable () -> AppLanguage = { .en },
-        leases: BrowserLeases, caller: String, now: @escaping @Sendable () -> Date = Date.init
+        leases: BrowserLeases, caller: String, taint: TurnTaint = TurnTaint(),
+        now: @escaping @Sendable () -> Date = Date.init
     ) {
+        self.taint = taint
         self.channel = channel
         self.presence = presence
         self.language = language

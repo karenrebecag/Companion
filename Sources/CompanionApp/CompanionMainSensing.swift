@@ -101,7 +101,8 @@ func makeSensingAndModel(
             home: FileManager.default.homeDirectoryForCurrentUser,
             // No executable path means an unstable one: connecting then asks to move the app.
             executable: Bundle.main.executableURL ?? URL(fileURLWithPath: "/")),
-        language: { env.configProvider.current.language })
+        language: { env.configProvider.current.language },
+        taint: env.turnTaint)
     let parentTools = ParentToolRunner(
         workspace: workspaceOpener, places: MapKitPlacesSearch(),
         skills: env.skillStore,
@@ -134,6 +135,7 @@ func makeSensingAndModel(
         versions: env.fileVersions,
         onAct: { receipts.send($0) },
         location: location,
+        taint: env.turnTaint,
         // 16q-2: the same switch the turn's context reads (pinned by a test and Gate 3).
         locationChannelOn: { ContextPreference.locationChannelOn })
     // 16h-3: what the island did (cards shown, closed, ignored, a stop) waits

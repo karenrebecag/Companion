@@ -123,7 +123,8 @@ func makeJobInfrastructure(
         executorProvider: executors,
         queue: jobQueue,
         approvals: approvals,
-        language: { env.configProvider.current.language })
+        language: { env.configProvider.current.language },
+        taint: env.turnTaint)
 
     return JobInfrastructure(approvals: approvals, jobRunner: jobRunner)
 }

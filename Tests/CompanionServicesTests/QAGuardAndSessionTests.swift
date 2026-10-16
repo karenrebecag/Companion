@@ -96,7 +96,7 @@ private func verdict(
     expectEq(band("type_text", #"{"text":"ls"}"#, input: #"{"terminal":true}"#), .critical, "terminal")
     expectEq(band("type_text", #"{"text":"hola"}"#, input: #"{"terminal":false}"#), .act, "campo normal")
     expectEq(band("click", #"{"id":1}"#), .critical, "el runner solo pregunta por clics destructivos")
-    expectEq(band("open_url", #"{"url":"https://example.com"}"#), .act, "abrir una URL es navegar")
+    expectEq(band("open_url", #"{"url":"https://example.com"}"#), .critical, "una solicitud a un host que ella no dijo es del dueño")
     expectEq(band("anything", "{}", mcp: true), .critical, "todo MCP")
     expectEq(band("app:gmail:delete_message", "{}"), .critical, "una app conectada que borra pide el dedo")
     expectEq(band("app:slack:post", "{}"), .critical, "y cualquier otra: el grupo no es fiable aqui")

@@ -620,3 +620,43 @@ modo, por una lista cerrada de campos (`reply.text`, `arguments`, `output`,
 Disparador de revision: que el dedo en cada accion critica estorbe en vivo, o que
 una prueba necesite algo que hoy es critico (se reabre con evidencia, como la
 spec TID).
+
+## ADR 013 — Las tools de archivos operan en todo el disco, con permiso por tipo de accion
+
+**Decision (Karen, 2026-10-16):** "concedemos todo el disco sobre permiso. es lo que
+hace incredible". `read_file`, `list_directory`, `write_file`, `edit_file`,
+`delete_file`, `create_document`, `sheet_*`, `list_file_history` y
+`restore_file_version` dejan de acotarse a la carpeta concedida. Incredible deja leer
+sin preguntar, confirma crear o cambiar y exige aprobacion para borrar; Companion
+usa las bandas que ya tiene.
+
+- **Bandas.** Leer y listar: hacer. Archivo nuevo: confirmar (hacer solo en una
+  carpeta concedida que no sea el home, ni Library, ni las carpetas de la app).
+  Sobrescribir o editar uno existente: critica. Borrar: critica (en QA, Touch ID).
+  Library y las carpetas de la app (memoria, skills) no se relajan nunca: lo que se
+  escribe ahi se lee de vuelta a un prompt.
+- **Siempre cerrado, sin excepcion** (`PathValidator.isProtected`): `/System`,
+  `/Library`, `/usr`, `/bin`, `/sbin`, `/etc`, `/private/etc`, `~/Library/Keychains`,
+  `~/.ssh`, `~/.aws`, `~/.config/gcloud` y el contenedor de Companion. Se juzga la
+  ruta dada y la resuelta, asi que `..` y los enlaces no lo saltan. Un enlace como
+  ultimo componente no se escribe: la hoja mostraria un archivo y cambiaria otro.
+- **Lectura.** Sigue pasando por `TurnRedaction` (#322). Una carpeta que macOS
+  cierra (Mail, Messages, Safari) responde `full_disk_access_required` con la ruta en
+  Ajustes del Sistema, como `see` con Grabacion de pantalla; solo EPERM cuenta, un
+  chmod no manda a nadie al interruptor equivocado.
+
+**Riesgo.** Un prompt inyectado en una pagina o un documento ya puede pedir leer o
+cambiar cualquier archivo del usuario fuera de la lista cerrada, no solo los de una
+carpeta de trabajo. Lo que queda entre eso y el dano: leer sale redactado pero no
+se pide permiso (un documento sensible puede llegar al modelo); todo cambio pasa por
+hoja, y lo que pisa o borra por la critica. Residuo aceptado: un archivo nuevo en una
+ruta que ejecuta algo al abrirse (p. ej. un `.txt` en una carpeta que alguien
+vigila) solo pide confirmacion, no la prueba de dueña. En modo QA, crear pasa sin
+dedo; sobrescribir y borrar piden Touch ID.
+
+**Lo que no se hizo.** Ni una lista de carpetas "permitidas" (la decision es
+precisamente no tenerla), ni una pregunta antes de leer (Incredible no la hace), ni
+cubrir `run_shell`, que sigue con su propia carpeta de trabajo.
+
+**Disparador de revision.** Que una lectura sin permiso exfiltre algo que la
+redaccion no cubre, o que la confirmacion de archivo nuevo estorbe en uso real.

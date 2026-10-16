@@ -10,8 +10,8 @@ extension ParentToolRunner {
     var deliverables: [NativeTool] {
         NativeTool.parentDeliverables.filter { tool in
             switch tool {
-            // Safe reads, behind the same workdir barrier as the specialist.
-            case .listDirectory, .readFile: workdir != nil
+            // Safe reads over the whole disk, behind the same protected list as the specialist.
+            case .listDirectory, .readFile: true
             case .createDocument: documents != nil
             case .sheetRead, .sheetWrite: sheets != nil
             case .listFileHistory, .restoreFileVersion: versions != nil
@@ -118,6 +118,7 @@ extension ParentToolRunner {
             || deliverableTickets.redeem(Self.ticket(tool.rawValue, argumentsJSON, item: item))
         do {
             let result = try await native.execute(tool: tool.rawValue, arguments: arguments, approved: approved)
+            if result.ok, native.readsOutsideWorkdir(tool: tool.rawValue, arguments: arguments) { taint.mark() }
             if acts, result.ok, let receipt = await native.receipt(tool: tool.rawValue, arguments: arguments) {
                 onAct?(receipt)
             }

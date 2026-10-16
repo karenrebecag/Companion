@@ -60,6 +60,7 @@ extension NativeToolRunner {
                   case .success(let real) = writeBarrier(path) else { return .critical }
             facts.pathExists = Self.entryExists(real)
             facts.inWorkZone = inDeliverablesZone(real)
+            facts.appOwned = Self.isAppOwned(real, home: home, appRoot: skills?.root.path)
             // The name is judged where it really lands: a visible link that points
             // into a hidden folder must not make `link/x.md` look visible.
             judged["path"] = relativeToWorkdir(real) ?? real
@@ -73,13 +74,15 @@ extension NativeToolRunner {
     /// meant for deliverables. Compared case-folded: the volume is not
     /// case-sensitive, so `skill.md` is the catalog's `SKILL.md`.
     private func inDeliverablesZone(_ real: String) -> Bool {
-        guard pathValidator.isInWorkdir(real), let workdir else { return false }
-        let home = FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath().path.lowercased()
-        let work = ((workdir as NSString).standardizingPath as NSString).resolvingSymlinksInPath.lowercased()
-        if work == "/" || home == work || home.hasPrefix(work + "/") { return false }
+        guard pathValidator.isInWorkdir(real), scopedWorkdir != nil else { return false }
+        return !Self.isAppOwned(real, home: home, appRoot: skills?.root.path)
+    }
+
+    /// Case-folded for the same reason as the zone: the volume is not case-sensitive.
+    static func isAppOwned(_ real: String, home: String, appRoot: String?) -> Bool {
         let lowered = real.lowercased()
-        let owned = [(skills?.root ?? SkillsLocation.standard().root).path.lowercased(), home + "/library"]
-        return !owned.contains { lowered == $0 || lowered.hasPrefix($0 + "/") }
+        let owned = [(appRoot ?? SkillsLocation.standard().root.path).lowercased(), home.lowercased() + "/library"]
+        return owned.contains { lowered == $0 || lowered.hasPrefix($0 + "/") }
     }
 
     private func relativeToWorkdir(_ real: String) -> String? {

@@ -32,6 +32,10 @@ package enum BridgeMessages {
         "Companion does not have Accessibility permission. Ask the user to turn it on in "
             + "System Settings > Privacy & Security > Accessibility, then retry."
 
+    package static let fullDiskAccessRequired =
+        "macOS keeps that folder closed to Companion. Ask the user to turn on Companion in "
+            + "System Settings > Privacy & Security > Full Disk Access, then retry."
+
     package static let screenRecordingRequired =
         "Companion does not have Screen Recording permission. Ask the user to turn it on in "
             + "System Settings > Privacy & Security > Screen & System Audio Recording, then retry."

@@ -5,13 +5,17 @@ package struct JobRequest: Sendable, Equatable {
     package var goal: String
     package var context: String
     package var attachments: [String]
+    /// The turn that delegated this had already read outside the work folder.
+    package var tainted: Bool
 
     package init(
         id: String,
         goal: String,
         context: String,
-        attachments: [String] = []
+        attachments: [String] = [],
+        tainted: Bool = false
     ) {
+        self.tainted = tainted
         self.id = id
         self.goal = goal
         self.context = context

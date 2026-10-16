@@ -1,0 +1,66 @@
+import CompanionCore
+import Foundation
+
+// The file tools reach the whole disk (docs/DECISIONS.md, 2026-10-16). Two
+// things can still say no: the protected list in `PathValidator`, and macOS
+// itself (TCC) on folders like Mail or Messages.
+
+extension NativeToolRunner {
+    /// A refusal the model can act on: it names the cause instead of a work
+    /// folder that no longer bounds these tools.
+    func outsideZone(_ path: String, resolved: Bool = false) -> ToolResult {
+        if pathValidator.wholeDisk {
+            let place = resolved ? "\(path) resolves to" : "\(path) is"
+            return ToolResult(
+                ok: false,
+                output: ContractError.deniedPath(
+                    "\(place) a protected location: system folders, Keychain, SSH and cloud "
+                        + "credentials, and Companion's own data are never opened").wire)
+        }
+        return ToolResult(
+            ok: false,
+            output: resolved ? "Resolved path outside working directory" : "Path outside working directory")
+    }
+
+    /// Whether this call put something of the user's outside the work folder in
+    /// front of the model. run_shell counts always: it reads wherever it likes.
+    func readsOutsideWorkdir(tool: String, arguments: [String: Any]) -> Bool {
+        switch tool {
+        case NativeTool.runShell.rawValue:
+            return true
+        case NativeTool.readFile.rawValue, NativeTool.listDirectory.rawValue:
+            guard let path = arguments["path"] as? String else { return false }
+            // The default work folder is the home: with no real scope, any read of the disk counts.
+            guard scopedWorkdir != nil else { return true }
+            return !pathValidator.isInWorkdir(resolveRealPath(path))
+        default:
+            return false
+        }
+    }
+
+    /// The work folder when it scopes anything: the whole home, "/" or an
+    /// ancestor of home reach everything, so they count as no folder at all.
+    var scopedWorkdir: String? {
+        guard let workdir else { return nil }
+        let home = self.home.lowercased()
+        let work = ((workdir as NSString).standardizingPath as NSString).resolvingSymlinksInPath.lowercased()
+        if work == "/" || home == work || home.hasPrefix(work + "/") { return nil }
+        return workdir
+    }
+
+    /// TCC answers EPERM where a plain permission bit answers EACCES, so only
+    /// EPERM means "the user has to grant Full Disk Access"; telling them to
+    /// when a chmod is the cause would send them to the wrong switch.
+    static func fullDiskAccessFailure(_ error: Error) -> ToolResult? {
+        var current: NSError? = error as NSError
+        while let next = current {
+            if next.domain == NSPOSIXErrorDomain, next.code == Int(EPERM) {
+                return ToolResult(
+                    ok: false,
+                    output: BridgeCode.fullDiskAccessRequired + ": " + BridgeMessages.fullDiskAccessRequired)
+            }
+            current = next.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return nil
+    }
+}

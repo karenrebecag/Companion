@@ -29,6 +29,29 @@ package enum QALiveBand {
             facts.destructiveTarget = true
         case .typeText, .pressKey:
             facts.inTerminal = terminal(in: request)
+        case .openURL:
+            // The runner only raises a sheet for an address that could carry data out (a
+            // payload, a read before it, the bridge): to a host nobody named, that is the owner's.
+            facts.tainted = true
+            if let raw = arguments["url"] as? String {
+                do {
+                    let url = try ParentToolPolicy.httpURL(raw)
+                    if let host = url.host { facts.hostSaid = ParentToolGate.saidIt(url, host: host, said: said) }
+                } catch {
+                    // An address the policy refuses never reaches a sheet; critical stands.
+                }
+            }
+        case nil where call.name == NativeTool.writeFile.rawValue || call.name == NativeTool.createDocument.rawValue:
+            // The runner only asks about a file it did not already allow, so a
+            // path that is free is a creation (confirm), not a replacement.
+            if let path = arguments["path"] as? String, path.hasPrefix("/") || path.hasPrefix("~") {
+                let expanded = (path as NSString).expandingTildeInPath
+                facts.pathExists = NativeToolRunner.entryExists(expanded)
+                facts.appOwned = NativeToolRunner.isAppOwned(
+                    (expanded as NSString).resolvingSymlinksInPath,
+                    home: FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath().path,
+                    appRoot: nil)
+            }
         default:
             break
         }

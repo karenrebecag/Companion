@@ -427,3 +427,28 @@ private func navigate(_ from: String?, _ raw: String, said: String = "") -> Resu
     expect(BrowserCopy.failure(code: "selector_no_match", .en) != BrowserCopy.failure(code: "selector_hidden", .en),
            "nothing found and found but hidden read differently")
 }
+
+@Test func aTaintedTurnAsksBeforeLeavingForAHostNobodyNamed() {
+    func verdict(_ raw: String, said: String, tainted: Bool, from origin: String? = nil, asks: Bool = false) -> HandsVerdict? {
+        guard case .success(let value) = BrowserPolicy.navigateVerdict(
+            from: origin, currentURL: nil, to: raw, said: said, asksToLeaveOrigin: asks, tainted: tainted)
+        else { return nil }
+        return value
+    }
+    expectEq(verdict("https://evil.tld/a", said: "", tainted: false), .act, "sin marca: navegar sigue libre")
+    expectEq(verdict("https://evil.tld/a", said: "", tainted: true), .ask, "con marca y host no dicho: pide")
+    expectEq(verdict("https://evil.tld/a", said: "abre evil.tld", tainted: true), .act, "con marca pero host dicho: no pide")
+    expectEq(verdict("https://app.evil.tld/a", said: "abre evil.tld", tainted: true), .ask, "un subdominio no dicho cuenta como otro host")
+    expectEq(verdict("https://evil.tld/b", said: "", tainted: true, from: "https://evil.tld"), .act,
+             "el mismo origen no cambia de sitio")
+}
+
+@Test func aTaintedTurnAsksBeforeTypingIntoAPageNobodyNamed() {
+    let field = element(1, label: "Buscar", inputType: "text")
+    expectEq(BrowserPolicy.typeVerdict(field, text: "hola", said: "escribe hola", pageOrigin: "https://evil.tld", tainted: false),
+             .act, "sin marca: escribir sigue igual")
+    expectEq(BrowserPolicy.typeVerdict(field, text: "hola", said: "escribe hola", pageOrigin: "https://evil.tld", tainted: true),
+             .ask, "con marca en una pagina no nombrada: pide")
+    expectEq(BrowserPolicy.typeVerdict(field, text: "hola", said: "escribe hola en evil.tld", pageOrigin: "https://evil.tld", tainted: true),
+             .act, "con marca pero la pagina la nombro ella: no pide")
+}

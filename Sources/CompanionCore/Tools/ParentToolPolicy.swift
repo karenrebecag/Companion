@@ -234,7 +234,7 @@ package enum ParentToolGate: Sendable {
     /// would otherwise ride on the word "github" (security review
     /// 2026-09-05). A match inside a negated clause ("no abras …") is not
     /// consent.
-    static func saidIt(_ url: URL, host: String, said: String) -> Bool {
+    package static func saidIt(_ url: URL, host: String, said: String) -> Bool {
         let words = said.lowercased()
         let lowered = host.lowercased()
         let bare = lowered.hasPrefix("www.") ? String(lowered.dropFirst(4)) : lowered

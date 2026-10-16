@@ -37,6 +37,8 @@ package enum PermissionSettingsLink {
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition")!
     package static let inputMonitoring = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!
+    package static let fullDiskAccess = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles")!
     package static let screenRecording = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
 }

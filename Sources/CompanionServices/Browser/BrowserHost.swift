@@ -29,6 +29,7 @@ package final class BrowserHost: @unchecked Sendable {
     package init(
         directory: URL, installer: NativeHostInstaller,
         language: @escaping @Sendable () -> AppLanguage,
+        taint: TurnTaint = TurnTaint(),
         commanding: (any BrowserCommanding)? = nil,
         sweepEvery: Duration = .seconds(30),
         now: @escaping @Sendable () -> Date = { Date() }
@@ -51,7 +52,7 @@ package final class BrowserHost: @unchecked Sendable {
         self.commander = commander
         self.conversationRunner = BrowserToolRunner(
             channel: commander, presence: presence, language: language,
-            leases: leases, caller: BrowserToolRunner.chatCaller)
+            leases: leases, caller: BrowserToolRunner.chatCaller, taint: taint)
         // HACK: the bridge serves one session at a time, so one id covers it.
         // Per-connection ids when the bridge admits several agents at once.
         self.bridgeRunner = BrowserToolRunner(

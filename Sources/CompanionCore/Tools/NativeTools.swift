@@ -174,34 +174,95 @@ package struct PathValidator: Sendable {
 
     package var workdir: String?
     package var roots: [Root]
+    /// Karen's call (2026-10-16, docs/DECISIONS.md): the file tools reach the
+    /// whole disk, as Incredible's do. Off keeps the workdir-only contract.
+    package var wholeDisk: Bool
+    private let appRoots: [Root]
+    private let home: String
 
     package init(workdir: String?) {
         self.init(workdir: workdir, extraRoots: [])
     }
 
-    package init(workdir: String?, extraRoots: [Root]) {
+    package init(
+        workdir: String?, extraRoots: [Root], wholeDisk: Bool = false,
+        home: String = FileManager.default.homeDirectoryForCurrentUser.path
+    ) {
         self.workdir = workdir
+        self.wholeDisk = wholeDisk
+        self.home = home
+        self.appRoots = extraRoots
         var roots = extraRoots
         if let workdir { roots.insert(Root(path: workdir, writable: true), at: 0) }
         self.roots = roots
     }
 
     /// Normalizes `.` and `..` first; a relative path resolves against the
-    /// working folder and has nowhere to go without one.
+    /// working folder (or the home folder when the whole disk is open) and has
+    /// nowhere to go without one.
     package func isAllowed(_ path: String, forWrite: Bool = false) -> Bool {
         let normalizedPath: String
         if path.hasPrefix("/") {
             normalizedPath = (path as NSString).standardizingPath
         } else {
-            guard let workdir else { return false }
-            let combined = ((workdir as NSString).standardizingPath as NSString)
+            guard let base = workdir ?? (wholeDisk ? home : nil) else { return false }
+            let combined = ((base as NSString).standardizingPath as NSString)
                 .appendingPathComponent(path)
             normalizedPath = (combined as NSString).standardizingPath
+        }
+        if wholeDisk {
+            // Companion's own roots (skills, memory) keep their read-only flags
+            // and are exempt from the container rule only: any other closed
+            // path under a root stays closed.
+            let own = appRoots.first(where: { Self.contains($0.path, normalizedPath) })
+            if isProtected(normalizedPath, exemptingContainer: own != nil) { return false }
+            if let own { return !forWrite || own.writable }
+            return true
         }
         return roots.contains { root in
             (!forWrite || root.writable) && Self.contains(root.path, normalizedPath)
         }
     }
+
+    /// System paths, credentials and Companion's own data stay closed even
+    /// with the disk open. Compared case-folded (the volume is not
+    /// case-sensitive) and against both spellings of home (`/var` is a link).
+    package func isProtected(_ path: String, exemptingContainer: Bool = false) -> Bool {
+        let lowered = path.lowercased()
+        let name = (lowered as NSString).lastPathComponent
+        // Project secrets live in any folder, not under home alone.
+        if name == ".env" || name.hasPrefix(".env.") { return true }
+        let homes = Set([home, (home as NSString).resolvingSymlinksInPath]).map { $0.lowercased() }
+        // Anything hidden under home is a credential, a shell startup file or
+        // an agent's config (the same line CommandClassifier draws). Nothing
+        // Companion's file tools need lives in a dot folder, so there is no allow-list.
+        for home in homes where lowered.hasPrefix(home + "/") {
+            if lowered.dropFirst(home.count + 1).split(separator: "/").contains(where: { $0.hasPrefix(".") }) {
+                return true
+            }
+        }
+        let relative = exemptingContainer ? Self.homeRelativeDenied : Self.homeRelativeDenied + [Self.container]
+        let denied = Self.systemRoots + homes.flatMap { home in relative.map { home + "/" + $0 } }
+        return denied.contains { Self.contains($0, lowered) }
+    }
+
+    private static let systemRoots = [
+        "/system", "/library", "/usr", "/bin", "/sbin", "/private/etc", "/etc", "/private/var/db",
+    ]
+
+    private static let container = "library/application support/companion"
+
+    private static let homeRelativeDenied = [
+        "library/keychains",
+        "library/application support/google", "library/application support/bravesoftware",
+        "library/application support/microsoft edge", "library/application support/firefox",
+        "library/application support/arc", "library/application support/comet",
+        "library/application support/perplexity", "library/application support/slack",
+        "library/application support/discord", "library/application support/signal",
+        "library/cookies", "library/safari", "library/mail", "library/messages",
+        "library/containers", "library/group containers",
+    ]
+
 
     /// The working folder only: the app's own folders (skills, memory) are
     /// writable roots too, but a file there is read back into the prompt, so

@@ -72,7 +72,11 @@ package struct NativeToolRunner: Sendable {
     ) {
         self.locationChannelOn = locationChannelOn
         self.workdir = workdir
-        self.pathValidator = PathValidator(workdir: workdir, extraRoots: skills?.roots ?? [])
+        // The file tools reach the whole disk (docs/DECISIONS.md); the bands, not
+        // the validator, decide what asks.
+        self.pathValidator = PathValidator(
+            workdir: workdir, extraRoots: skills?.roots ?? [], wholeDisk: true,
+            home: home.resolvingSymlinksInPath().path)
         self.timeout = shellTimeout
         self.places = places
         self.webSearch = webSearch
@@ -174,14 +178,10 @@ package struct NativeToolRunner: Sendable {
         }
 
         // Double barrier: lexical validation + real path resolution
-        guard pathValidator.isAllowed(path) else {
-            return ToolResult(ok: false, output: "Path outside working directory")
-        }
+        guard pathValidator.isAllowed(path) else { return outsideZone(path) }
 
         let realPath = resolveRealPath(path)
-        guard pathValidator.isAllowed(realPath) else {
-            return ToolResult(ok: false, output: "Resolved path outside working directory")
-        }
+        guard pathValidator.isAllowed(realPath) else { return outsideZone(path, resolved: true) }
 
         do {
             let content = try String(contentsOfFile: realPath, encoding: .utf8)
@@ -195,6 +195,7 @@ package struct NativeToolRunner: Sendable {
             }
             return ToolResult(ok: true, output: content)
         } catch {
+            if let tcc = Self.fullDiskAccessFailure(error) { return tcc }
             return ToolResult(ok: false, output: "Failed to read file: \(error)")
         }
     }
@@ -212,6 +213,7 @@ package struct NativeToolRunner: Sendable {
         case .success(let resolved): realPath = resolved
         case .failure(let refused): return refused
         }
+        if let link = leafLinkRefusal(path, real: realPath) { return link }
 
         let entry = skills?.classify(realPath)
         if entry != nil, content.utf8.count > SkillCatalog.Caps.fileBytes {
@@ -254,20 +256,27 @@ package struct NativeToolRunner: Sendable {
     }
 
     func writeBarrier(_ path: String) -> WriteBarrier {
-        guard pathValidator.isAllowed(path) else {
-            return .failure(ToolResult(ok: false, output: "Path outside working directory"))
-        }
+        guard pathValidator.isAllowed(path) else { return .failure(outsideZone(path)) }
         guard pathValidator.isAllowed(path, forWrite: true) else {
             return .failure(ToolResult(ok: false, output: readOnly(path).wire))
         }
         let realPath = resolveRealPath(path)
         guard pathValidator.isAllowed(realPath) else {
-            return .failure(ToolResult(ok: false, output: "Resolved path outside working directory"))
+            return .failure(outsideZone(path, resolved: true))
         }
         guard pathValidator.isAllowed(realPath, forWrite: true) else {
             return .failure(ToolResult(ok: false, output: readOnly(realPath).wire))
         }
         return .success(realPath)
+    }
+
+    /// The sheet names the path as given, so a link that lands elsewhere would
+    /// make it show one file and change another. restore_file_version is exempt:
+    /// its sheet already names the real file.
+    func leafLinkRefusal(_ path: String, real: String) -> ToolResult? {
+        let absolute = path.hasPrefix("/") ? path : ((workdir ?? home) as NSString).appendingPathComponent(path)
+        guard Self.attributes(absolute)?[.type] as? FileAttributeType == .typeSymbolicLink else { return nil }
+        return ToolResult(ok: false, output: "That path is a symbolic link; use the real path of the file: \(real)")
     }
 
     private func readOnly(_ path: String) -> ContractError {
@@ -329,6 +338,7 @@ package struct NativeToolRunner: Sendable {
         case .success(let resolved): realPath = resolved
         case .failure(let refused): return refused
         }
+        if let link = leafLinkRefusal(path, real: realPath) { return link }
 
         do {
             let previous = try String(contentsOfFile: realPath, encoding: .utf8)
@@ -416,15 +426,9 @@ package struct NativeToolRunner: Sendable {
             ?? 1
         let depth = min(max(asked, 1), Self.maxListDepth)
 
-        guard pathValidator.isAllowed(path) else {
-            return ToolResult(
-                ok: false, output: "Path outside working directory: \(path)")
-        }
+        guard pathValidator.isAllowed(path) else { return outsideZone(path) }
         let realPath = resolveRealPath(path)
-        guard pathValidator.isAllowed(realPath) else {
-            return ToolResult(
-                ok: false, output: "Path outside working directory: \(path)")
-        }
+        guard pathValidator.isAllowed(realPath) else { return outsideZone(path, resolved: true) }
 
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(
@@ -434,6 +438,12 @@ package struct NativeToolRunner: Sendable {
         }
         guard isDirectory.boolValue else {
             return ToolResult(ok: false, output: "Not a folder: \(path)")
+        }
+
+        do {
+            _ = try FileManager.default.contentsOfDirectory(atPath: realPath)
+        } catch {
+            if let tcc = Self.fullDiskAccessFailure(error) { return tcc }
         }
 
         let tree = DirectoryTree.build(
@@ -569,7 +579,7 @@ package struct NativeToolRunner: Sendable {
     func resolveRealPath(_ path: String) -> String {
         let absolutePath = path.hasPrefix("/")
             ? path
-            : ((workdir ?? ".") as NSString).appendingPathComponent(path)
+            : ((workdir ?? home) as NSString).appendingPathComponent(path)
 
         // A path that does not exist yet is not resolved by
         // resolvingSymlinksInPath, so `link/new.txt` would pass as inside the
