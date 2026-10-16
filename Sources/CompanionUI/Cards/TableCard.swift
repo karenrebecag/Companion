@@ -39,79 +39,8 @@ struct TableCard: View {
         .cardSurface()
     }
 
-    /// Sorts what is on the card: the rows past the cap are not on it.
+    /// The rows past the cap are not on the card.
     private var grid: some View {
-        let shown = Self.visibleRows(block)
-        let numeric = block.columns.indices.map { TableSort.isNumeric(column: $0, rows: shown) }
-        let rows = order.map { TableSort.sorted(shown, by: $0) } ?? shown
-        return Grid(alignment: .leading, horizontalSpacing: Space.x4, verticalSpacing: Space.x2) {
-            GridRow {
-                ForEach(Array(block.columns.enumerated()), id: \.offset) { index, column in
-                    header(column, index: index, numeric: numeric[index])
-                }
-            }
-            Divider()
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                GridRow {
-                    ForEach(Array(block.columns.indices), id: \.self) { index in
-                        cell(Self.text(row, index), numeric: numeric[index])
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private static func text(_ row: [String], _ index: Int) -> String {
-        row.indices.contains(index) ? row[index] : ""
-    }
-
-    /// Every header shows the sort control, so the table reads as sortable
-    /// before the first tap; the active column's chevron shows its direction.
-    private func header(_ column: String, index: Int, numeric: Bool) -> some View {
-        let sorted = order?.column == index ? order : nil
-        return Button {
-            order = TableSort.tapped(order, column: index)
-        } label: {
-            HStack(spacing: Space.x1) {
-                Text(column)
-                Image(systemName: chevron(sorted?.direction))
-                    .font(.uiCaption)
-                    .foregroundStyle(sorted == nil ? Semantic.mutedForeground : Semantic.foreground)
-                    .accessibilityHidden(true)
-            }
-            .font(.uiCaption.weight(.semibold))
-            .foregroundStyle(sorted == nil ? Semantic.mutedForeground : Semantic.foreground)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .gridColumnAlignment(numeric ? .trailing : .leading)
-        .accessibilityLabel(column)
-        .accessibilityValue(sortedWord(sorted?.direction))
-    }
-
-    private func cell(_ text: String, numeric: Bool) -> some View {
-        Text(text)
-            .font(.uiBody)
-            .monospacedDigit()
-            .foregroundStyle(Semantic.foreground)
-            .textSelection(.enabled)
-            .gridColumnAlignment(numeric ? .trailing : .leading)
-    }
-
-    private func chevron(_ direction: TableSort.Direction?) -> String {
-        switch direction {
-        case .ascending: "chevron.up"
-        case .descending: "chevron.down"
-        case nil: "chevron.up.chevron.down"
-        }
-    }
-
-    private func sortedWord(_ direction: TableSort.Direction?) -> String {
-        switch direction {
-        case .ascending: Localized.string("card.sort.ascending")
-        case .descending: Localized.string("card.sort.descending")
-        case nil: ""
-        }
+        SortableTableGrid(columns: block.columns, rows: Self.visibleRows(block), order: $order)
     }
 }

@@ -11,6 +11,7 @@ import Testing
     testPromptPersonalityAlways()
     testPromptIdentity()
     testPromptDelegateEnabled()
+    testAGivenPathGoesStraightToTheFileTool()
     testDelegateRuleOnlyForHeavyWork()
     testPromptDelegateDisabled()
     testPromptOwnerEdges()
@@ -95,6 +96,17 @@ import Testing
            "prompt: no inventa backends")
     expect(p.contains("Si no sabes algo, dilo."),
            "prompt: si no sabe, lo dice")
+}
+
+// A path or a file name the user gave is read or opened at once: listing its
+// folder first cost two round trips before the answer.
+@MainActor func testAGivenPathGoesStraightToTheFileTool() {
+    for language in [AppLanguage.es, .en] {
+        let p = ChatPrompt.system(
+            ownerFirstName: "Karen", delegateEnabled: true, language: language)
+        let direct = language == .es ? "llama read_file u open_file directo" : "call read_file or open_file on it"
+        expect(p.contains(direct), "ruta dada \(language): se llama la tool del archivo directo")
+    }
 }
 
 @MainActor func testDelegateRuleOnlyForHeavyWork() {

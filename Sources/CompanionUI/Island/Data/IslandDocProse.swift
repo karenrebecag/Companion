@@ -101,38 +101,24 @@ struct IslandDocProse: View {
     }
 
     private func table(headers: [String], rows: [[String]]) -> some View {
-        Grid(alignment: .leading, horizontalSpacing: Space.none, verticalSpacing: Space.none) {
-            GridRow {
-                ForEach(Array(headers.enumerated()), id: \.offset) { _, header in
-                    cell(header, size: DocCardMetrics.tableHeadSize, weight: AnswerType.medium, ink: DocCardInk.tableHead)
-                }
-            }
-            .background(Color.white.opacity(DocCardInk.tableHeadFill))
-            Divider().overlay(Color.white.opacity(DocCardInk.lineStrong)).gridCellUnsizedAxes(.vertical)
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                GridRow {
-                    ForEach(Array(row.enumerated()), id: \.offset) { _, value in
-                        cell(value, size: DocCardMetrics.tableSize, weight: .regular, ink: DocCardInk.tableCell)
-                    }
-                }
-                if index < rows.count - 1 {
-                    Divider().overlay(Color.white.opacity(DocCardInk.line)).gridCellUnsizedAxes(.vertical)
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: DocCardMetrics.tableRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: DocCardMetrics.tableRadius, style: .continuous)
-            .strokeBorder(Color.white.opacity(DocCardInk.line), lineWidth: Stroke.hairline))
+        OwnedSortTable(columns: headers, rows: rows, style: .document)
+            .clipShape(RoundedRectangle(cornerRadius: DocCardMetrics.tableRadius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DocCardMetrics.tableRadius, style: .continuous)
+                .strokeBorder(Color.white.opacity(DocCardInk.line), lineWidth: Stroke.hairline))
     }
+}
 
-    private func cell(_ text: String, size: CGFloat, weight: Font.Weight, ink: Double) -> some View {
-        Text(AnswerInline.rich(text))
-            .font(Fonts.geist(size).weight(weight))
-            .foregroundStyle(Color.white.opacity(ink))
-            .docLineBox(size: size, leading: DocCardMetrics.tableLeading)
-            .padding(.vertical, DocCardMetrics.tablePadY)
-            .padding(.horizontal, DocCardMetrics.tablePadX)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .textSelection(.enabled)
+extension SortableTableStyle {
+    /// The document card's tables: white inks over the card's own fill.
+    static var document: SortableTableStyle {
+        SortableTableStyle(
+            headerFont: Fonts.geist(DocCardMetrics.tableHeadSize).weight(AnswerType.medium),
+            cellFont: Fonts.geist(DocCardMetrics.tableSize),
+            headerInk: Color.white.opacity(DocCardInk.tableHead),
+            activeInk: Color.white.opacity(DocCardInk.tableCell),
+            cellInk: Color.white.opacity(DocCardInk.tableCell),
+            rowLine: Color.white.opacity(DocCardInk.line),
+            lineExtra: DocCardMetrics.lineExtra(size: DocCardMetrics.tableSize, leading: DocCardMetrics.tableLeading),
+            padX: DocCardMetrics.tablePadX, padY: DocCardMetrics.tablePadY, marked: true)
     }
 }

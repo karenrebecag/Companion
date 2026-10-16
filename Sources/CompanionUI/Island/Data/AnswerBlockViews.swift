@@ -236,41 +236,12 @@ struct AnswerBlockView: View {
     }
 
     private func table(headers: [String], rows: [[String]]) -> some View {
-        Grid(alignment: .leading, horizontalSpacing: Space.none, verticalSpacing: Space.none) {
-            GridRow {
-                ForEach(Array(headers.enumerated()), id: \.offset) { _, header in
-                    cell(header, weight: AnswerType.medium, ink: AnswerInk.secondary)
-                }
-            }
-            Divider().overlay(AnswerInk.white(AnswerInk.lineStrong)).gridCellUnsizedAxes(.vertical)
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                GridRow {
-                    ForEach(Array(row.enumerated()), id: \.offset) { _, value in
-                        cell(value, weight: .regular, ink: AnswerInk.text)
-                    }
-                }
-                if index < rows.count - 1 {
-                    Divider().overlay(AnswerInk.white(AnswerInk.line)).gridCellUnsizedAxes(.vertical)
-                }
-            }
-        }
-        .background(RoundedRectangle(cornerRadius: AnswerBlockMetrics.innerRadius)
-            .fill(AnswerInk.white(AnswerInk.fill)))
-        .overlay(RoundedRectangle(cornerRadius: AnswerBlockMetrics.innerRadius)
-            .strokeBorder(AnswerInk.white(AnswerInk.line), lineWidth: Stroke.hairline))
-        .clipShape(RoundedRectangle(cornerRadius: AnswerBlockMetrics.innerRadius))
-    }
-
-    private func cell(_ text: String, weight: Font.Weight, ink: Double) -> some View {
-        Text(AnswerInline.rich(text))
-            .font(Fonts.geist(AnswerBlockMetrics.tableSize).weight(weight))
-            .lineSpacing(AnswerBlockMetrics.lineSpacing(
-                size: AnswerBlockMetrics.tableSize, leading: AnswerBlockMetrics.tableLeading))
-            .foregroundStyle(AnswerInk.white(ink))
-            .padding(.vertical, Space.x2)
-            .padding(.horizontal, Space.x3)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .textSelection(.enabled)
+        OwnedSortTable(columns: headers, rows: rows, style: .answer)
+            .background(RoundedRectangle(cornerRadius: AnswerBlockMetrics.innerRadius)
+                .fill(AnswerInk.white(AnswerInk.fill)))
+            .overlay(RoundedRectangle(cornerRadius: AnswerBlockMetrics.innerRadius)
+                .strokeBorder(AnswerInk.white(AnswerInk.line), lineWidth: Stroke.hairline))
+            .clipShape(RoundedRectangle(cornerRadius: AnswerBlockMetrics.innerRadius))
     }
 
     /// Layout glyphs, not copy: the bullet and the number never localize.
@@ -289,6 +260,22 @@ struct AnswerBlockView: View {
             .padding(.vertical, AnswerBlockMetrics.chipPaddingY)
             .background(RoundedRectangle(cornerRadius: AnswerBlockMetrics.chipRadius)
                 .fill(AnswerInk.white(AnswerInk.fill)))
+    }
+}
+
+extension SortableTableStyle {
+    /// The popup and the notch's tables: white inks over the answer's fill.
+    static var answer: SortableTableStyle {
+        SortableTableStyle(
+            headerFont: Fonts.geist(AnswerBlockMetrics.tableSize).weight(AnswerType.medium),
+            cellFont: Fonts.geist(AnswerBlockMetrics.tableSize),
+            headerInk: AnswerInk.white(AnswerInk.secondary),
+            activeInk: AnswerInk.white(AnswerInk.text),
+            cellInk: AnswerInk.white(AnswerInk.text),
+            rowLine: AnswerInk.white(AnswerInk.line),
+            lineExtra: AnswerBlockMetrics.lineSpacing(
+                size: AnswerBlockMetrics.tableSize, leading: AnswerBlockMetrics.tableLeading),
+            padX: Space.x3, padY: Space.x2, marked: true)
     }
 }
 

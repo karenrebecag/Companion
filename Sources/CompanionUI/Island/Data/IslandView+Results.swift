@@ -53,22 +53,36 @@ extension IslandView {
         }
     }
 
-    /// What the notch draws inline for a reply: its drawable channel card
-    /// and the cards and diagrams in its text. A gallery fence stays code,
-    /// so it is not here.
-    static func inlineVisuals(_ message: ChatMessage) -> (card: Card?, blocks: [AnswerBlock]) {
+    /// What the notch draws inline under a reply: the channel cards its turn
+    /// painted, and the cards and diagrams in its text. A gallery fence stays
+    /// code, so it is not here.
+    typealias InlineVisuals = (cards: [Card], blocks: [AnswerBlock])
+
+    static func inlineVisuals(_ message: ChatMessage, turnCards: [Card]) -> InlineVisuals {
         let blocks = windowBlocks(message.text).filter { block in
             switch block {
             case .card, .diagram: true
             default: false
             }
         }
-        return (channelCard(on: message), blocks)
+        return (turnCards, blocks)
+    }
+
+    /// The drawable channel cards of the newest turn, in the order they were
+    /// painted. A card arrives as a message of its own ahead of the reply's
+    /// words, so the newest reply alone does not carry it.
+    static func turnCards(_ messages: [ChatMessage]) -> [Card] {
+        var cards: [Card] = []
+        for message in messages.reversed() {
+            if message.role == .user, !message.isStatus { break }
+            if let card = channelCard(on: message) { cards.append(card) }
+        }
+        return cards.reversed()
     }
 
     static func drawsInline(_ message: ChatMessage) -> Bool {
-        let visuals = inlineVisuals(message)
-        return visuals.card != nil || !visuals.blocks.isEmpty
+        let visuals = inlineVisuals(message, turnCards: channelCard(on: message).map { [$0] } ?? [])
+        return !visuals.cards.isEmpty || !visuals.blocks.isEmpty
     }
 
     /// "Ver" opens the popup only when that popup has something to show.

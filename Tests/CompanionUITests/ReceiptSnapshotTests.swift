@@ -52,9 +52,9 @@ private let typedLine = ReceiptLine(text: "Escribí el texto.", verified: true)
     let receipt = ActionReceipt(lines: lines)!
     expectEq(receipt.lines.count, ActionReceipt.maxLines, "anuncio: el recibo lleva cuatro líneas")
     expectEq(IslandReceipt.announcement(receipt, language: .es),
-             "Hecho. Abrí Notas.. Escribí el texto.. Abrí atomchat.io/blog.. Pulsé Cmd+S.",
+             "Recibo. Abrí Notas.. Escribí el texto.. Abrí atomchat.io/blog.. Pulsé Cmd+S.",
              "anuncio (es): título y las cuatro líneas, en orden")
-    expectEq(IslandReceipt.announcement(receipt, language: .en).hasPrefix("Done. Abrí Notas."), true,
+    expectEq(IslandReceipt.announcement(receipt, language: .en).hasPrefix("Receipt. Abrí Notas."), true,
              "anuncio (en): el título va en el idioma pedido")
 }
 

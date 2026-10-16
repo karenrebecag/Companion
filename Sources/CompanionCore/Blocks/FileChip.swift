@@ -4,16 +4,18 @@ import Foundation
 // is kept only for the actions that need it (open, reveal in Finder).
 
 package struct FileChip: Sendable, Equatable {
-    /// As the model wrote it, without a trailing slash: "~/…" or "/…".
+    /// As the model wrote it, without a trailing slash: "~/…", "/…" or "dir/…".
     package let path: String
     /// The last path part: the only thing the text shows.
     package let name: String
 
-    /// A URL, a sentence or the root folder is not a file: it stays text.
+    /// A URL, a sentence or the root folder is not a file: it stays text. A
+    /// name with no folder part ("notas.md") is not a path either: the model
+    /// names the file in prose, and the receipt says it by name.
     package init?(_ raw: String) {
         var text = raw.trimmingCharacters(in: .whitespaces)
         guard !text.contains("://"), !text.contains(where: \.isNewline),
-              text.hasPrefix("/") || text.hasPrefix("~/")
+              text.contains("/")
         else { return nil }
         if text.count > 1, text.hasSuffix("/") { text.removeLast() }
         let last = (text as NSString).lastPathComponent
@@ -28,9 +30,11 @@ package struct FileChip: Sendable, Equatable {
         return "~" + path.dropFirst(home.count)
     }
 
-    /// The path the actions open: "~/" expanded against the home folder.
+    /// The path the actions open. Same reading as the file tools: `~` is the
+    /// home folder, and a relative path is taken from home, as open_file does.
     package static func expanded(_ path: String, home: String) -> String {
-        path.hasPrefix("~/") ? home + path.dropFirst(1) : path
+        let expanded = PathValidator.expandHome(path, home: home)
+        return expanded.hasPrefix("/") ? expanded : home + "/" + expanded
     }
 }
 

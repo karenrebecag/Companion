@@ -1,11 +1,22 @@
 import AppKit
 import CompanionCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A file as a chip: its kind, its name, and two actions. The name truncates
 /// past the chip's width; the full path is only in the tooltip.
 struct FileChipView: View {
     let chip: FileChip
+
+    /// The icon Finder shows for this kind of file, so a chip matches the
+    /// folder it came from. The type is read from the name, not from the disk:
+    /// a chip for a file that moved still has its icon.
+    static func icon(forFileNamed name: String, isFolder: Bool) -> NSImage {
+        let type = isFolder
+            ? UTType.folder
+            : UTType(filenameExtension: (name as NSString).pathExtension) ?? .data
+        return NSWorkspace.shared.icon(for: type)
+    }
 
     var body: some View {
         let home = NSHomeDirectory()
@@ -15,9 +26,9 @@ struct FileChipView: View {
             NSWorkspace.shared.open(url)
         } label: {
             HStack(spacing: Space.x2) {
-                Image(systemName: FileSymbol.name(forFileNamed: chip.name, isFolder: isFolder))
-                    .font(.uiBody)
-                    .foregroundStyle(Semantic.mutedForeground)
+                Image(nsImage: Self.icon(forFileNamed: chip.name, isFolder: isFolder))
+                    .resizable()
+                    .frame(width: CardMetrics.fileChipIcon, height: CardMetrics.fileChipIcon)
                     .accessibilityHidden(true)
                 Text(verbatim: chip.name)
                     .font(.uiBody)
@@ -36,7 +47,7 @@ struct FileChipView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(FileChip.tooltip(chip.path, home: home))
+        .help(FileChip.tooltip(url.path, home: home))
         .accessibilityLabel(chip.name)
         .contextMenu {
             Button(Localized.string("file.chip.open")) { NSWorkspace.shared.open(url) }

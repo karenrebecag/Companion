@@ -71,3 +71,23 @@ private func validator(roots: [PathValidator.Root] = []) -> PathValidator {
     expect(!validator(roots: own).isAllowed("\(home)/Library/Application Support/Companion/bridge.token"),
            "el resto del contenedor sigue cerrado")
 }
+
+// `~` is the home folder for every file tool. Read as a plain name it became a
+// folder called "~" under the working folder, and the model took the empty
+// answer for "the file is not there".
+@Test func tildeNamesTheHomeFolderForEveryFileTool() {
+    let open = validator()
+    expectEq(open.absolute("~/Desktop/x.md"), "\(home)/Desktop/x.md", "~/ es la carpeta de inicio")
+    expectEq(open.absolute("~"), home, "~ solo es la carpeta de inicio")
+    expect(open.isAllowed("~/Desktop/x.md"), "~/ se resuelve antes de validar")
+
+    let scoped = PathValidator(workdir: "\(home)/Projects/app", extraRoots: [], wholeDisk: false, home: home)
+    expect(!scoped.isAllowed("~/Desktop/x.md"), "~/ fuera del workdir no entra por estar dentro del workdir")
+    expectEq(scoped.absolute("Desktop/x.md"), "\(home)/Projects/app/Desktop/x.md",
+             "relativa: contra el workdir, igual que en el resto de las tools")
+}
+
+@Test func relativePathsResolveAgainstHomeWhenNoWorkdir() {
+    expectEq(validator().absolute("Desktop/x.md"), "\(home)/Desktop/x.md",
+             "sin workdir y con el disco abierto, relativa = carpeta de inicio")
+}

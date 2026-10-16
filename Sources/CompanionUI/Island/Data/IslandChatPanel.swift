@@ -30,10 +30,10 @@ enum IslandChatModel {
 
     /// What a turn draws under its words: the card its reply carried on its
     /// own channel, and the diagrams and cards its fences hold.
-    static func visuals(of turn: AIChatTurn, cards: [String: [Card]]) -> (card: Card?, blocks: [AnswerBlock]) {
-        guard let answer = turn.answer else { return (nil, []) }
-        let fenced = IslandView.inlineVisuals(ChatMessage(role: .assistant, text: answer.text))
-        return (cards[turn.id]?.first, fenced.blocks)
+    static func visuals(of turn: AIChatTurn, cards: [String: [Card]]) -> IslandView.InlineVisuals {
+        guard let answer = turn.answer else { return ([], []) }
+        let fenced = IslandView.inlineVisuals(ChatMessage(role: .assistant, text: answer.text), turnCards: [])
+        return (cards[turn.id] ?? [], fenced.blocks)
     }
 }
 
@@ -93,8 +93,8 @@ struct IslandChatPanel<Composer: View, Rows: View>: View {
                 fence: IslandChatModel.fence, onOpenURL: onOpenURL
             ) { turn in
                 let visuals = IslandChatModel.visuals(of: turn, cards: thread.cards)
-                if visuals.card != nil || !visuals.blocks.isEmpty {
-                    IslandInlineVisuals(card: visuals.card, blocks: visuals.blocks,
+                if !visuals.cards.isEmpty || !visuals.blocks.isEmpty {
+                    IslandInlineVisuals(cards: visuals.cards, blocks: visuals.blocks,
                                         width: IslandResultCardMetrics.bodyWidth, room: IslandFit.tallRoom)
                 }
             }

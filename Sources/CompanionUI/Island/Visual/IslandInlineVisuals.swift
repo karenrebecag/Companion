@@ -42,14 +42,14 @@ enum IslandFit {
 /// What the notch draws of a reply beyond its words: its channel card and
 /// the cards and diagrams in its text.
 struct IslandInlineVisuals: View {
-    let card: Card?
+    let cards: [Card]
     let blocks: [AnswerBlock]
     let width: CGFloat
     let room: CGFloat
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
-            if let card {
+            ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
                 if case .chart(let chart) = card.payload {
                     chartView(chart)
                 } else {

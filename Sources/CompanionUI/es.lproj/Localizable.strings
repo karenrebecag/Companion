@@ -72,7 +72,7 @@
 "settings.you.city" = "Tu ciudad";
 "settings.you.city.placeholder" = "Ciudad, País";
 "settings.you.city.subtitle" = "Lo que significa «cerca de mí». Si lo dejas vacío, Companion le pregunta la ciudad a tu Mac, y solo cuando pides algo cercano.";
-"island.receipt.title" = "Hecho";
+"island.receipt.title" = "Recibo";
 "island.receipt.check" = "Hecho y comprobado";
 "island.receipt.done" = "Hecho";
 "island.receipt.verified" = "Verificado";

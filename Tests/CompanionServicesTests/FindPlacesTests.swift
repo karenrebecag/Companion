@@ -11,6 +11,7 @@ import Testing
     testTheCardIsMarkedAsLookedUp()
     testNothingFoundMeansAnEmptyCard()
     testItIsSafeSoLookingUpAPlaceCostsNoClick()
+    testAStreetIsNotAPlace()
 }
 
 private let soumaya = FoundPlace(
@@ -73,6 +74,19 @@ private let soumaya = FoundPlace(
 @MainActor func testItIsSafeSoLookingUpAPlaceCostsNoClick() {
     expectEq(NativeTool.findPlaces.riskLevel, .safe,
              "consultar un lugar es leer, no tocar la Mac")
+}
+
+@MainActor func testAStreetIsNotAPlace() {
+    // "cafeterias near Roma Norte" came back as "Calle Roma" alone: a road named
+    // by its own address line is not somewhere to go, and it must not take a pin.
+    let street = FoundPlace(
+        name: "Calle Roma", address: "Calle Roma, Ciudad de México", lat: 19.42, lng: -99.16)
+    let cafe = FoundPlace(
+        name: "Café Toscano", address: "Álvaro Obregón 12, Roma Norte", lat: 19.419, lng: -99.163)
+    guard case .locations(let block)? = run([street, cafe]).card?.payload else {
+        return expect(false, "el lugar encontrado sigue en la tarjeta")
+    }
+    expectEq(block.locations.map(\.name), ["Café Toscano"], "la calle sale, el café se queda")
 }
 
 @Test @MainActor func cardChannelTests() async {

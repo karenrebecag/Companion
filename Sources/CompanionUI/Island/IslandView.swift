@@ -135,6 +135,12 @@ package struct IslandView: View {
         chat.messages.last { $0.role == .assistant && !$0.isStatus }
     }
 
+    /// What the notch draws under the newest reply, its turn's cards included.
+    var latestVisuals: InlineVisuals {
+        guard let latest = latestReply else { return ([], []) }
+        return Self.inlineVisuals(latest, turnCards: Self.turnCards(chat.messages))
+    }
+
     package var body: some View {
         let state = self.state
         let notch = geometry.notch
@@ -380,9 +386,9 @@ package struct IslandView: View {
                     .accessibilityHint(Localized.string("island.reply.open"))
                     .accessibilityAction { openResult(latest.id) }
             }
-            let visuals = Self.inlineVisuals(latest)
-            if visuals.card != nil || !visuals.blocks.isEmpty {
-                IslandInlineVisuals(card: visuals.card, blocks: visuals.blocks,
+            let visuals = latestVisuals
+            if !visuals.cards.isEmpty || !visuals.blocks.isEmpty {
+                IslandInlineVisuals(cards: visuals.cards, blocks: visuals.blocks,
                                     width: IslandFit.columnWidth, room: IslandFit.tallRoom)
                     .environment(\.diagramRenderer, diagrams)
                     .environment(\.fileSaver, saveFile)
