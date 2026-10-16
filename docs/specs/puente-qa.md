@@ -1,6 +1,6 @@
 # Puente de QA: `companion_ask` y control total de Companion desde Claude Code
 
-**Estado: BORRADOR** (Fable, 2026-10-15; la firma es de Karen).
+**Estado: APROBADO** (Karen, 2026-10-16).
 **Decisiones de Karen 2026-10-15:** "vamos con la recomendacion, las acciones criticas exigen
 touch id, as_user_words, sin hojas de aprobacion solo touch id en critic actions". Es decir:
 Q1 modo QA volátil (muere con el proceso); Q2 la banda crítica exige Touch ID siempre, también
