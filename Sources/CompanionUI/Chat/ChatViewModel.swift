@@ -130,6 +130,17 @@ package final class ChatViewModel: ConversationPresenting {
     /// Work state of this thread's latest turn; it follows `conversationId`.
     var run: TaskRun?
     var inFlight: Task<Void, Never>?
+    /// Puente QA D5: the one gate in front of every sheet, shared with the
+    /// bridge's `ParentToolGuard`. Set by the composition root once it exists
+    /// (it needs the session and the bridge); nil keeps today's sheets.
+    package var qaGate: (any QAGating)?
+    /// Puente QA D4: told when a turn finishes or an owner check opens, so a
+    /// waiting agent wakes without polling.
+    package var onTurnEvent: (@MainActor (String, TurnSignal) -> Void)?
+    /// The turn being recorded and the last 50 finished ones (puente QA).
+    var liveTurn: TurnRecord?
+    var turnStartedAt: Date?
+    var turnRing = TurnRing()
     /// The thread's own clock (Wave 15a): last `persist()` or `restore()`; nil
     /// while empty. Ephemeral rollover reads this, never a timer.
     var lastActivity: Date?

@@ -110,6 +110,10 @@ package extension Notification.Name {
     /// or stops the bridge listener without a relaunch.
     nonisolated static let companionHandsLendingDidChange = Notification.Name(
         "companion.handsLendingDidChange")
+    /// Puente QA: the QA switch changed — the bridge session closes so the
+    /// shim lists the new tools.
+    nonisolated static let companionQAScopeDidChange = Notification.Name(
+        "companion.qaScopeDidChange")
 }
 
 package enum MenuPlan {

@@ -381,7 +381,7 @@ package enum ApprovalCopy {
         return ApprovalDisplay(
             mark: mark, lead: nil,
             subject: safe.isEmpty ? word(.someClient, language) : safe,
-            trail: BridgeCopy.sheetTitle(language),
+            trail: BridgeCopy.sheetTitle(language, qa: (arguments["qa"] as? Bool) == true),
             preview: peerPreview(arguments, language),
             showsRemember: false)
     }
@@ -491,10 +491,12 @@ package enum ApprovalCopy {
 extension ApprovalCopy {
     /// The system dialog's reason. Fixed on purpose: the payload is data an
     /// agent controls, and this line is what the owner reads while deciding.
-    package static func ownerReason(_ language: AppLanguage) -> String {
-        switch language {
-        case .es: return "aprobar una acción crítica"
-        case .en: return "approve a critical action"
-        }
+    package static func ownerReason(_ language: AppLanguage, tool: String? = nil) -> String {
+        let base = language == .es ? "aprobar una acción crítica" : "approve a critical action"
+        // The name comes from a runner, not the payload; still cut to a plain
+        // short token so a crafted app slug cannot write the dialog's text.
+        let plain = tool.map { String($0.filter { $0.isASCII && ($0.isLetter || $0.isNumber || "_:.-".contains($0)) }.prefix(40)) }
+        guard let plain, !plain.isEmpty else { return base }
+        return base + ": " + plain
     }
 }

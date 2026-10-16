@@ -16,17 +16,23 @@ package struct ParentToolGuard: Sendable {
     var onRequest: (@Sendable (ApprovalRequest) -> Void)?
     var onRemembered: (@Sendable (String, Bool) async -> Void)?
     var onSettled: (@Sendable (ApprovalRequest, SheetAnswer) -> Void)?
+    /// Puente QA D5: when set and QA is on, a call that would open a sheet is
+    /// decided here instead (what is not critical acts, the rest asks the
+    /// owner). The session grant never comes through `verdict`, so it keeps its sheet.
+    var qaGate: (any QAGating)?
 
     package init(
         approvals: (any ApprovalsProvider)? = nil,
         onRequest: (@Sendable (ApprovalRequest) -> Void)? = nil,
         onRemembered: (@Sendable (String, Bool) async -> Void)? = nil,
-        onSettled: (@Sendable (ApprovalRequest, SheetAnswer) -> Void)? = nil
+        onSettled: (@Sendable (ApprovalRequest, SheetAnswer) -> Void)? = nil,
+        qaGate: (any QAGating)? = nil
     ) {
         self.approvals = approvals
         self.onRequest = onRequest
         self.onRemembered = onRemembered
         self.onSettled = onSettled
+        self.qaGate = qaGate
     }
 
     /// How a sheet ended. Only `denied` is the user refusing: a deadline is
@@ -38,6 +44,9 @@ package struct ParentToolGuard: Sendable {
         /// The caller was cut while the sheet waited. Not the user refusing,
         /// so the bridge's cool-down must not count it.
         case abandoned
+        /// QA mode could not ask the owner (no Touch ID or password, or another
+        /// check is on screen). Nobody said no: the cool-down must not count it.
+        case ownerUnavailable
     }
 
     /// `check`'s answer plus how the sheet ended, for callers that count
@@ -66,10 +75,15 @@ package struct ParentToolGuard: Sendable {
         let request = await tools?.bound(asked) ?? asked
         // A "no" the user asked to remember outranks the shortcut: the same
         // write must not go through just because the cells are still empty.
-        if let tools, await tools.actsWithoutSheet(call), await approvals?.remembered(request) != false {
+        let rememberedNo = await approvals?.remembered(request) == false
+        if let tools, await tools.actsWithoutSheet(call), !rememberedNo {
             return Verdict(denial: nil, answer: nil)
         }
         let target = ParentTool.target(of: call)
+        if let qaGate, !rememberedNo,
+           let decided = await qaVerdict(qaGate, request: request, call: call, said: said, tools: tools) {
+            return decided
+        }
         let denied = ParentToolOutcome.failed(
             .deniedByUser(language), target: target, tool: call.name)
         let sheet = await answer(request, parked: parked)
@@ -87,6 +101,43 @@ package struct ParentToolGuard: Sendable {
         onSettled?(request, sheet)
         if sheet == .approved { tools?.granted(request) }
         return Verdict(denial: sheet == .approved ? nil : refusal, answer: sheet)
+    }
+
+    /// Nil when QA does not apply and the sheet goes on as always. Otherwise
+    /// the whole verdict: no sheet is shown in QA mode. A grant also reaches
+    /// the runner, which holds the ticket a terminal or a write redeems.
+    private func qaVerdict(
+        _ gate: any QAGating, request: ApprovalRequest, call: ToolCallRef, said: String,
+        tools: (any ParentToolExecuting)?
+    ) async -> Verdict? {
+        let verdict = await gate.decide(request, call: call, said: said)
+        let target = ParentTool.target(of: call)
+        func denial(_ code: String) -> ParentToolOutcome {
+            .failed(.ownerCheck(code: code), target: target, tool: call.name)
+        }
+        // The owner check can outlive the caller: a yes that lands after the
+        // cut grants nothing (approval-after-cut, D1).
+        if Task.isCancelled, verdict != .notInQA {
+            onSettled?(request, .abandoned)
+            return Verdict(
+                denial: .failed(.interrupted, target: target, tool: call.name), answer: .abandoned)
+        }
+        switch verdict {
+        case .notInQA:
+            return nil
+        case .act, .granted:
+            tools?.granted(request)
+            return Verdict(denial: nil, answer: nil)
+        case .refused(let code):
+            onSettled?(request, .denied)
+            return Verdict(denial: denial(code), answer: .denied)
+        case .unavailable(let code):
+            onSettled?(request, .ownerUnavailable)
+            return Verdict(denial: denial(code), answer: .ownerUnavailable)
+        case .busy:
+            onSettled?(request, .ownerUnavailable)
+            return Verdict(denial: denial(BridgeCode.ownerBusy), answer: .ownerUnavailable)
+        }
     }
 
     /// The remembered/onRequest/request dance on its own, without a

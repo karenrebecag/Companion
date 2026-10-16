@@ -567,3 +567,56 @@ un tramo).
 `String`. Las pruebas de la transcripcion pasan a snapshots de segmentos.
 Disparador de revision: si Incredible pasa a mostrar la ruta, o si Karen vuelve
 a solo el nombre, se puede volver a la cadena y retirar este ADR.
+
+## ADR 012 — Modo QA: Companion se deja conducir por el puente sin hojas; lo critico lo protege la prueba de dueña
+
+**Fecha:** 2026-10-16 · **Estado:** APROBADO (spec puente-qa D1-D5, D12; firmado por Karen el 2026-10-15/16)
+
+**Contexto.** El ADR 009 dejo que un agente inspeccione Companion sin manejarlo,
+con una hoja de aprobacion por accion y el texto de la usuaria devuelto solo
+como longitudes. Un QA de uso completo desde Claude Code no cabe ahi: cada paso
+espera un clic que solo Karen puede dar, y el agente no puede escribir un turno
+ni leer la respuesta. Karen decidio (2026-10-15): modo QA volatil, `as_user_words`,
+sin hojas de aprobacion y Touch ID solo en las acciones criticas. Este ADR revisa
+el ADR 009 solo dentro de ese modo y no lo reemplaza; la prueba de dueña viene de
+la spec touch-id-aprobaciones-criticas (`OwnerVerifying`, `LocalAuthOwnerCheck`).
+
+**Decision.**
+- Segundo interruptor en Ajustes > Privacidad, bajo "Prestar las manos". Nace
+  apagado, vive en memoria (muere con el proceso), exige las manos prestadas y
+  que Touch ID o la contraseña del sistema se puedan pedir. Cambiarlo cierra la
+  sesion del puente para que el shim rehaga su `hello` con la lista nueva.
+- Con el modo encendido existen `companion_ask` y `companion_wait_turn`. El turno
+  entra con origen `agent` y, por defecto, con su texto como palabras de la
+  usuaria (`as_user_words`); un turno del agente no pausa al puente.
+- Un solo `QAGate` decide por cada accion que habria abierto una hoja, en las dos
+  rutas (el chat y las manos directas del puente), antes de pedir la hoja: banda
+  hacer o confirmar actua; banda critica pide la prueba de dueña y solo
+  `confirmed` concede; sin puerto o sin sensor se niega y el modo se apaga. La
+  hoja de sesion (`bridge_session`) no pasa por el: la sigue contestando solo Karen.
+- La banda sale de lo que cada runner ya establecio al decidir que la accion pedia
+  hoja, no de adivinarla por el nombre de la tool; todo MCP y toda tool sin
+  clasificar es critica.
+- Idle de 60 minutos en QA.
+
+**Riesgo (el texto del interruptor lo repite).** Con las manos prestadas, el modo
+QA encendido y la hoja de sesion aprobada, cualquier proceso del mismo usuario que
+lea `bridge.token` (0600) puede, sin ninguna hoja mas: escribirle a Companion como
+si fuera Karen, ejecutar directo toda accion de banda hacer y confirmar, y leer el
+texto de las respuestas, los outputs de las tools y las tarjetas. No puede nada
+critico (terminal, shell, borrar, sobrescribir, escribir en una terminal, MCP) sin
+que Karen ponga el dedo o la contraseña en ese momento, ni abrir la sesion sin su
+clic. Residuo aceptado: un proceso que ademas conozca la contraseña, o que
+coincida con un Touch ID que Karen da por otra razon, puede aprobar lo critico.
+
+**Lo que no se hizo.** Ni persistir el modo (un alcance mas ancho no debe
+sobrevivir al proceso donde se vio encenderse), ni dejar que el modelo conteste su
+propia pregunta de permiso (en QA no hay pregunta, hay un dedo), ni un
+clasificador por nombre de tool en la ruta viva.
+
+**Consecuencias.** Texto de la usuaria y del modelo sale al agente solo dentro del
+modo, por una lista cerrada de campos (`reply.text`, `arguments`, `output`,
+`status_lines`, `receipts`). `companion_resolve_approval` desaparece del plan.
+Disparador de revision: que el dedo en cada accion critica estorbe en vivo, o que
+una prueba necesite algo que hoy es critico (se reabre con evidencia, como la
+spec TID).

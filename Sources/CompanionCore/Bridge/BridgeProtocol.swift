@@ -288,6 +288,15 @@ package enum BridgeCode {
     package static let frameTooLarge = "frame_too_large"
     /// A repeated request id whose first answer was too big to keep.
     package static let replyTooLarge = "reply_too_large"
+    // Puente QA (D5, §4.7). The owner codes answer a critical action: the
+    // person at the Mac declined, cannot be asked, or is already being asked.
+    package static let qaScopeOff = "qa_scope_off"
+    package static let busyTurn = "busy_turn"
+    package static let notFound = "not_found"
+    package static let interrupted = "interrupted"
+    package static let ownerRefused = "owner_refused"
+    package static let ownerUnavailable = "owner_unavailable"
+    package static let ownerBusy = "owner_busy"
 }
 
 // MARK: - Codec

@@ -27,6 +27,8 @@ final class BridgeHost {
         accessibility: @escaping @Sendable () -> Bool,
         sessionModel: SessionModel,
         targetFrame: @escaping @Sendable () -> CGRect?,
+        qaGate: (any QAGating)? = nil,
+        qaScope: @escaping @Sendable () -> Bool = { false },
         onSessionBoundary: @escaping @Sendable () -> Void = {}
     ) {
         let directory = BridgePaths.directory
@@ -35,7 +37,10 @@ final class BridgeHost {
             onRequest: { request in
                 Task { @MainActor in sessionModel.send(.job(.approvalRequested(request))) }
             },
-            onRemembered: nil)
+            onRemembered: nil,
+            // Puente QA D5: the same gate the chat consults, so QA mode has no
+            // sheets on either road. The session sheet never goes through it.
+            qaGate: qaGate)
 
         // The listener's `onConnection` needs the session; the session
         // needs the listener's `token`. `BridgeListener.token` already
@@ -72,7 +77,8 @@ final class BridgeHost {
                     await MainActor.run { sessionModel.send(.handsWorking(target: frame)) }
                 }
             },
-            onSessionBoundary: onSessionBoundary)
+            onSessionBoundary: onSessionBoundary,
+            qaScope: qaScope)
         sessionBox.value = session
         self.listener = listener
         self.session = session
@@ -83,9 +89,12 @@ final class BridgeHost {
         // and must not pause the bridge on a mouse pass. `resume()` fires
         // once, on the first non-turn kind after a turn, so it re-pins on
         // whatever app she left in front without re-pinning on every hover.
-        sessionModel.addKindObserver { [weak self, weak session] kind in
-            guard let self, let session else { return }
-            let isTurn = kind.isUsersTurn
+        //
+        // Puente QA D2: a turn the agent itself typed is not her turn
+        // (`pausesBridge`), or the agent would pause itself on every ask.
+        sessionModel.addKindObserver { [weak self, weak session, weak sessionModel] _ in
+            guard let self, let session, let sessionModel else { return }
+            let isTurn = sessionModel.projection.pausesBridge
             defer { self.lastKindWasTurn = isTurn }
             if isTurn {
                 Task { await session.pause() }

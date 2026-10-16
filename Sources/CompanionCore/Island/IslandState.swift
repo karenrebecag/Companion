@@ -61,6 +61,9 @@ package struct IslandState: Sendable, Equatable {
         case replyCut
         /// A cut ended the wait on a permission; says why nothing happened.
         case approvalWithdrawn
+        /// Puente QA: the system's Touch ID / password dialog is up for a
+        /// critical action; the person has to touch the sensor.
+        case ownerCheck
     }
 
     /// Incredible's status light: amber = it needs you, green = done.
@@ -185,6 +188,12 @@ package struct IslandState: Sendable, Equatable {
             state = processing(phase, p)
             if composing, conversation, staysInChat(state, p) { state.size = .chat }
         }
+        // The dialog is the system's and sits over everything: the island says
+        // what it waits for even on a quiet or hidden pebble.
+        if p.ownerCheck {
+            state.size = .bar
+            state.line = .ownerCheck
+        }
         if let approval = p.approval {
             state.size = .card
             state.approval = mainInFront ? nil : approval
@@ -217,7 +226,7 @@ package struct IslandState: Sendable, Equatable {
     }
 
     private static func light(_ p: SessionProjection) -> Light {
-        if p.approval != nil { return .amber }
+        if p.approval != nil || p.ownerCheck { return .amber }
         if p.receipt != nil { return .green }
         if p.kind == .processing(.completed), p.dictation == nil { return .green }
         return .none

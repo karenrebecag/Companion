@@ -75,10 +75,13 @@ private func selfInspection() -> SelfInspectionRunner {
     let served = Set(fullRunner().specs(.en).map(\.name))
         .union(connectedBrowser().specs(.en).map(\.name))
         .union(selfInspection().specs(.en).map(\.name))
+        .union(QARunner(driving: FakeQADriving(), waiter: TurnWaiter(), scope: { true }, language: { .en })
+            .specs(.en).map(\.name))
     let offered = served
         .union(BrowserTool.allCases.map(\.rawValue))
         .union(ParentTool.allCases.map(\.rawValue))
         .union(CompanionTool.allCases.map(\.rawValue))
+        .union(QATool.allCases.map(\.rawValue))
         .union(NativeTool.parentDeliverables.map(\.rawValue))
     let undecided = offered.filter { !BridgeScope.decided($0) }
     expect(undecided.isEmpty,
@@ -115,6 +118,8 @@ private func selfInspection() -> SelfInspectionRunner {
         // Self-qa PR-3: added deliberately, read-only, behind the same sheet.
         "companion_state", "companion_island", "companion_settings", "companion_thread",
         "companion_last_message_matches", "companion_log",
+        // Puente QA PR-2: served only while the QA scope is on.
+        "companion_ask", "companion_wait_turn",
     ]
     expectEq(BridgeScope.bridgeTools, expected, "the allowlist is exactly the tools the bridge serves")
     for name in expected.sorted() {

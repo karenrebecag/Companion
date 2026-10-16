@@ -323,6 +323,8 @@ package enum HandsLendingPreference {
         set {
             guard newValue != enabled else { return }
             UserDefaults.standard.set(newValue, forKey: key)
+            // QA mode rides on the hands: closing them closes it too.
+            if !newValue { QAScopePreference.disable() }
             NotificationCenter.default.post(name: .companionHandsLendingDidChange, object: nil)
         }
     }

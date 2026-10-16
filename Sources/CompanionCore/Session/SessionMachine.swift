@@ -104,15 +104,25 @@ package struct SessionMachine: Sendable, Equatable {
             effects += observe(snapshot)
         case .typedSubmitted:
             typedBusy = true
+            projection.agentTurn = false
             openTurn()
             projection.touched = []
             projection.kind = .processing(.thinking)
+        case .agentSubmitted:
+            typedBusy = true
+            projection.agentTurn = true
+            openTurn()
+            projection.touched = []
+            projection.kind = .processing(.thinking)
+        case .ownerCheck(let open):
+            projection.ownerCheck = open
         case .typedReplyStreaming:
             if typedBusy, case .processing = projection.kind {
                 projection.kind = .processing(.speaking)
             }
         case .typedReplyFinished:
             typedBusy = false
+            projection.agentTurn = false
             turnOver()
             effects += rest()
         case .parentActing(let targets):

@@ -48,6 +48,9 @@ package actor BridgeSession {
     let parked: BridgeParkedSheet
     var epoch = 0
     private let idleTimeout: TimeInterval
+    /// Puente QA: read per use, never cached. It decides the idle ceiling and
+    /// what the session sheet says the grant covers.
+    let qaScope: @Sendable () -> Bool
     private let idleCheckInterval: TimeInterval
     private var lastActivity: Date
     /// Calls and sheets being awaited right now: a session working for the
@@ -66,8 +69,10 @@ package actor BridgeSession {
         onCall: @escaping @Sendable (String) -> Void = { _ in },
         onSessionBoundary: @escaping @Sendable () -> Void = {},
         idleTimeout: TimeInterval = BridgePolicy.idleTimeout,
-        idleCheckInterval: TimeInterval = BridgePolicy.idleCheckInterval
+        idleCheckInterval: TimeInterval = BridgePolicy.idleCheckInterval,
+        qaScope: @escaping @Sendable () -> Bool = { false }
     ) {
+        self.qaScope = qaScope
         self.idleTimeout = idleTimeout
         self.idleCheckInterval = idleCheckInterval
         self.lastActivity = now()
@@ -142,7 +147,7 @@ package actor BridgeSession {
     @discardableResult
     package func expireIfIdle() -> Bool {
         guard current != nil, inFlight == 0,
-              now().timeIntervalSince(lastActivity) >= idleTimeout
+              now().timeIntervalSince(lastActivity) >= BridgePolicy.idleTimeout(qa: qaScope(), normal: idleTimeout)
         else { return false }
         Log.bridge("idle timeout; session closed")
         policy.stop()

@@ -108,7 +108,7 @@ package struct PaintedIsland: Sendable, Equatable {
 }
 
 package enum ThreadMessageOrigin: String, Sendable, Equatable {
-    case typed, choice
+    case typed, choice, agent
 }
 
 /// A message with its words. Not Encodable on purpose, and printing it shows
@@ -222,7 +222,7 @@ extension IslandState.Line {
         switch self {
         case .none, .holdHint, .keyBlocked, .pending, .thinking, .speaking, .completed,
              .couldntHear, .permission, .failure, .pasting, .transcriptsDebug, .cancelled,
-             .dropZones, .replyCut, .approvalWithdrawn:
+             .dropZones, .replyCut, .approvalWithdrawn, .ownerCheck:
             false
         case .acting, .job, .dictating, .dictated, .dictationResult, .updateAvailable,
              .followUp, .connectApp, .signInApp, .chatError, .receipt:
@@ -242,7 +242,7 @@ extension IslandState.Line {
         case .receipt(let receipt): receipt.lines.map(\.count)
         case .none, .holdHint, .keyBlocked, .pending, .thinking, .speaking, .completed,
              .couldntHear, .permission, .failure, .pasting, .transcriptsDebug, .cancelled,
-             .dropZones, .replyCut, .approvalWithdrawn:
+             .dropZones, .replyCut, .approvalWithdrawn, .ownerCheck:
             []
         }
     }

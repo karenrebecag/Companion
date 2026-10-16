@@ -1,47 +1,42 @@
 import CompanionCore
 import Foundation
 
-/// What QA mode decided for one action that would have opened a sheet.
-package enum QAVerdict: Sendable, Equatable {
-    /// QA is off, or the action keeps its sheet (the session grant): the
-    /// caller asks the way it always has.
-    case notInQA
-    case act
-    case granted
-    case refused(code: String)
-    case unavailable(code: String)
-    /// Another owner check is already on screen. Not a no from the owner.
-    case busy
-}
-
 /// Puente QA D5: in QA mode nothing opens a sheet. Safe and confirmable
-/// actions run; critical ones need the owner's own check. Unwired in this
-/// PR: no caller consults it yet.
-package actor QAGate {
-    package typealias Classify = @Sendable (_ toolName: String, _ arguments: String, _ said: String) -> ActionBand
+/// actions run; critical ones need the owner's own check. The chat's gate and
+/// the bridge's `ParentToolGuard` consult the same instance.
+package actor QAGate: QAGating {
+    package typealias Classify = @Sendable (_ request: ApprovalRequest, _ call: ToolCallRef, _ said: String) -> ActionBand
 
     private let enabled: @Sendable () -> Bool
     private let owner: (any OwnerVerifying)?
     private let classify: Classify
     private let disableQA: @Sendable () -> Void
     private let language: @Sendable () -> AppLanguage
+    private let ownerCheckChanged: @Sendable (_ open: Bool, _ tool: String) -> Void
     private var verifying = false
 
     /// `classify` has no default on purpose: one that guesses the facts
-    /// lets hands act on a "Delete" button. Callers pass the real ones, or
-    /// `QAApprovalPolicy.bandWithoutFacts`.
+    /// lets hands act on a "Delete" button. The live gates pass `QALiveBand`;
+    /// `QAApprovalPolicy.bandWithoutFacts` is for tests that have no runner.
     package init(
         enabled: @escaping @Sendable () -> Bool,
         owner: (any OwnerVerifying)?,
         disableQA: @escaping @Sendable () -> Void,
         language: @escaping @Sendable () -> AppLanguage,
+        ownerCheckChanged: @escaping @Sendable (_ open: Bool, _ tool: String) -> Void = { _, _ in },
         classify: @escaping Classify
     ) {
         self.enabled = enabled
         self.owner = owner
         self.disableQA = disableQA
         self.language = language
+        self.ownerCheckChanged = ownerCheckChanged
         self.classify = classify
+    }
+
+    package func canVerify() async -> Bool {
+        guard let owner else { return false }
+        return await owner.canVerify()
     }
 
     package func decide(_ request: ApprovalRequest, call: ToolCallRef, said: String) async -> QAVerdict {
@@ -50,7 +45,7 @@ package actor QAGate {
         // the sheet exception from the other, so a mismatch must not slip by.
         let session = BridgePolicy.sessionApprovalTool
         if call.name == session || request.toolName == session { return .notInQA }
-        let band = classify(call.name, call.arguments, said)
+        let band = classify(request, call, said)
         switch QAApprovalPolicy.decide(band: band, tool: request.toolName) {
         case .sheet:
             return .notInQA
@@ -72,8 +67,14 @@ package actor QAGate {
         }
         guard !verifying else { return .busy }
         verifying = true
-        defer { verifying = false }
-        let check = await owner.verify(reason: ApprovalCopy.ownerReason(language()))
+        // The island and the waiting agent learn a dialog is on screen, so
+        // the person is told to touch the sensor instead of staring at a stall.
+        ownerCheckChanged(true, tool)
+        defer {
+            verifying = false
+            ownerCheckChanged(false, tool)
+        }
+        let check = await owner.verify(reason: ApprovalCopy.ownerReason(language(), tool: tool))
         // A call cancelled while the dialog was up never acts, whatever the
         // system answered in the same instant.
         let outcome = Task.isCancelled

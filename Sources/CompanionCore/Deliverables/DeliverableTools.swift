@@ -121,6 +121,8 @@ package enum BridgeScope {
         // only and behind the same session sheet; it never lends the hands.
         "companion_state", "companion_island", "companion_settings", "companion_thread",
         "companion_last_message_matches", "companion_log",
+        // Puente QA: served only while the QA scope is on (`QARunner`).
+        "companion_ask", "companion_wait_turn",
     ]
 
     /// Offered to the user by the parent, never lent over the bridge. The

@@ -16,6 +16,11 @@ struct SettingsPrivacyPage: View {
     /// show up here until the page reappears — same tradeoff `sounds` and
     /// `screenGlow` already make on this page's sibling.
     @State private var lendHands = HandsLendingPreference.enabled
+    /// Puente QA D1: starts off and is never stored; `QAScopePreference` is
+    /// the only writer and refuses to turn on without the hands lent and an
+    /// owner check that can be shown.
+    @State private var qaMode = QAScopePreference.enabled
+    @State private var qaRefused = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
@@ -51,6 +56,15 @@ struct SettingsPrivacyPage: View {
                 ) {
                     SettingsSwitch(label: Localized.string("settings.privacy.lendHands"), isOn: $lendHands)
                 }
+                SettingsRow(
+                    title: Localized.string("settings.privacy.qaMode"),
+                    subtitle: Localized.string(
+                        qaRefused ? "settings.privacy.qaMode.unavailable" : "settings.privacy.qaMode.subtitle"),
+                    key: "settings.privacy.qaMode"
+                ) {
+                    SettingsSwitch(label: Localized.string("settings.privacy.qaMode"), isOn: $qaMode)
+                        .disabled(!lendHands)
+                }
             }
             if let welcome {
                 SettingsCard(label: Localized.string("settings.permissions"), key: "settings.permissions") {
@@ -66,7 +80,13 @@ struct SettingsPrivacyPage: View {
                 keysBlock.padding(Space.x4)
             }
         }
-        .onChange(of: lendHands) { _, on in HandsLendingPreference.enabled = on }
+        .onChange(of: lendHands) { _, on in
+            HandsLendingPreference.enabled = on
+            if !on { qaMode = false }
+        }
+        .onChange(of: qaMode) { _, on in
+            Task { await applyQAMode(on) }
+        }
         .onAppear {
             context.accessibility = chat?.accessibility
             context.screenRecording = chat?.screenRecording
@@ -82,6 +102,14 @@ struct SettingsPrivacyPage: View {
                 do { try await Task.sleep(for: .seconds(1)) } catch { return }
             }
         }
+    }
+
+    /// The switch shows what the preference accepted, not what was tapped.
+    private func applyQAMode(_ on: Bool) async {
+        let canVerify = on ? await chat?.qaGate?.canVerify() ?? false : false
+        let applied = QAScopePreference.set(on, handsLent: lendHands, canVerify: canVerify)
+        qaRefused = on && !applied
+        if qaMode != applied { qaMode = applied }
     }
 
     private func contextBinding(

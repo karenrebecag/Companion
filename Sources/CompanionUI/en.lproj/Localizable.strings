@@ -239,6 +239,9 @@
 "settings.context.screen.subtitle" = "It looks at the screen only when you ask, never at its own windows. The image is not stored.";
 "settings.privacy.lendHands" = "Lend your hands to other agents";
 "settings.privacy.lendHands.subtitle" = "Claude Code and other local agents can look at the screen and act through Companion. Each session asks first; sensitive actions ask again.";
+"settings.privacy.qaMode" = "Let the agent drive the conversation (QA mode)";
+"settings.privacy.qaMode.subtitle" = "Claude Code can type turns into the conversation and read the replies without approval sheets. Critical actions ask for your Touch ID or password. It turns off when Companion closes.";
+"settings.privacy.qaMode.unavailable" = "Needs Touch ID or a login password on this Mac, and Lend your hands on.";
 "settings.history.label" = "Data";
 "settings.history.row" = "Clear chat history";
 "settings.history.row.subtitle" = "Erases your chats with Companion, and the tasks started in them, from this computer. Connected apps, dictation and your files are not touched. Claude Code and Hermes keep their own history.";
@@ -816,6 +819,7 @@
 /* Voice: the user interrupted while Companion waited for a permission, so it did nothing */
 "island.approvalWithdrawn.title" = "I stopped without doing it";
 "island.approvalWithdrawn.body" = "You interrupted me while I was waiting for your OK, so I didn't do anything.";
+"island.ownerCheck" = "Touch the sensor to continue";
 /* Settings sheet: the close button's label */
 "settings.close" = "Close settings";
 

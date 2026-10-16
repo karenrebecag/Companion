@@ -6,14 +6,19 @@ import Foundation
 /// 400-line gate: the model's public surface stays in one file, the mechanics
 /// of a single turn stay in this one.
 extension ChatViewModel {
-    func startTurn(_ text: String, origin: MessageOrigin = .typed, mentions: [Mention] = []) {
+    /// `asUserWords` false (puente QA, D3) types the text but gives the gates
+    /// no words to trust: every ask behaves as if nobody had said anything.
+    @discardableResult
+    func startTurn(
+        _ text: String, origin: MessageOrigin = .typed, mentions: [Mention] = [], asUserWords: Bool = true
+    ) -> String {
         parentTools?.beginTurn()
         // 16k-3: the words decide which connected app's tools travel this
         // round — specs() is rebuilt per request further down this turn.
         // A pick's label is the model's text, not her words: it must not
         // name an app for the tool scope nor stand as consent for a host
         // (16m-6 security). Typed words still do both.
-        let said = origin == .choice ? "" : text
+        let said = origin == .choice || !asUserWords ? "" : text
         // 16q-2: a card turn reaches every connected app like any turn, but
         // through its own entry so the label can never be passed as words.
         if origin == .choice { parentTools?.noteChoiceTurn() } else { parentTools?.noteTurn(said) }
@@ -24,7 +29,8 @@ extension ChatViewModel {
         let previousInteraction = lastActivity
         // A pick is not a send of what is staged: the chips stay in the
         // composer for the message she actually writes.
-        let staged = origin == .choice ? [] : pendingAttachments
+        // What she staged is hers: an agent's turn or a card pick never takes it.
+        let staged = origin == .choice || origin == .agent ? [] : pendingAttachments
         if origin == .typed { pendingAttachments = [] }
         messages.append(ChatMessage(role: .user, text: text, attachments: staged, origin: origin, mentions: mentions))
         run = .begin(at: now())
@@ -32,7 +38,8 @@ extension ChatViewModel {
         busy = true
         busySince = Date()
         streaming = ""
-        session.send(.typedSubmitted)
+        let turnId = beginRecord(origin: origin)
+        session.send(origin == .agent ? .agentSubmitted : .typedSubmitted)
         let id = conversationId
         let index = messages.count - 1
         inFlight = Task { [weak self] in
@@ -41,6 +48,7 @@ extension ChatViewModel {
                 text, messageIndex: index, previousInteraction: previousInteraction, origin: origin)
             await self.consume(history: history, conversationId: id, said: said)
         }
+        return turnId
     }
 
     /// The full block goes in the LAST user turn of the request only; the
@@ -82,6 +90,7 @@ extension ChatViewModel {
                 let (preface, handoff, calls) = try await streamRound(history, id: id)
                 guard isCurrent(id) else { return }
                 streaming = ""
+                if let handoff { recording { $0.handoffGoalLength = handoff.goal.count } }
                 guard let parentTools, !calls.isEmpty else {
                     if preface.isEmpty, handoff == nil {
                         log("chat: round returned neither text nor calls")
@@ -112,26 +121,30 @@ extension ChatViewModel {
             streaming = ""
             run = run?.failing(at: now())
             persist()
-            endTurn()
+            endTurn(.cancelled)
         } catch {
             guard isCurrent(id) else { return }
             streaming = ""
             errorText = ChatCopy.error(error)
+            recording { record in
+                record.error = TurnFault(code: "chat_error", message: ChatCopy.error(error))
+            }
             // The banner alone dies with the next conversation: a turn every
             // provider refused ended looking "completed", question simply
             // unanswered (live 2026-09-28). The thread keeps the record.
             messages.append(ChatMessage(isStatus: true, text: ChatCopy.error(error), isFailure: true))
             run = run?.failing(at: now())
             persist()
-            endTurn()
+            endTurn(.failed)
             drain()
         }
     }
 
-    private func endTurn() {
+    private func endTurn(_ status: TurnStatus = .completed) {
         busy = false
         busySince = nil
         session.send(.typedReplyFinished)
+        finishRecord(status)
     }
 
     /// A turn cancelled by a switch never reaches `endTurn` (its guards see
@@ -140,7 +153,7 @@ extension ChatViewModel {
     func abandonTurn() {
         inFlight?.cancel()
         inFlight = nil
-        if busy { endTurn() }
+        if busy { endTurn(.cancelled) }
     }
 
     private func streamRound(
@@ -155,7 +168,10 @@ extension ChatViewModel {
             guard isCurrent(id) else { throw CancellationError() }
             switch delta {
             case .text(let chunk):
-                if preface.isEmpty { session.send(.typedReplyStreaming) }
+                if preface.isEmpty {
+                    session.send(.typedReplyStreaming)
+                    markPhase(.streaming)
+                }
                 preface += chunk
                 streaming = preface
             case .handoff(let value):
@@ -199,6 +215,7 @@ extension ChatViewModel {
         }
         let epoch = historyEpoch
         session.send(.parentActing(targets: targets))
+        markPhase(.acting)
         defer { session.send(.parentActed) }
         // Every tool answer first, cards after: a provider validates that
         // the answers to one assistant turn arrive together, and an assistant
@@ -210,7 +227,8 @@ extension ChatViewModel {
             guard !Task.isCancelled else { break }
             // A URL the user did not say waits for the sheet (10c 3D).
             let outcome: ParentToolOutcome
-            if let denied = await gate(call, said: said, tools: tools) {
+            let (denied, decision) = await gate(call, said: said, tools: tools)
+            if let denied {
                 outcome = denied
             } else {
                 // The sheet may have outlived the conversation: a turn that
@@ -223,10 +241,18 @@ extension ChatViewModel {
                 outcome = await tools.execute(name: call.name, argumentsJSON: call.arguments)
             }
             guard !Task.isCancelled else { break }
+            let statusLine = ParentToolCopy.status(call.name, outcome, config.language)
             messages.append(ChatMessage(
                 isStatus: true,
-                text: ParentToolCopy.status(call.name, outcome, config.language),
+                text: statusLine,
                 recall: Recall(role: .tool, content: outcome.output, toolCallID: call.id)))
+            recording { record in
+                record.toolCalls.append(TurnToolCall(
+                    index: record.toolCalls.count, name: call.name, arguments: call.arguments, ok: outcome.ok,
+                    target: outcome.target, output: outcome.output, verified: outcome.verified,
+                    band: decision.band, ownerCheck: decision.ownerCheck))
+                record.statusLines.append(statusLine)
+            }
             if let card = outcome.card { cards.append(card) }
             if let line = ReceiptProof.entry(tool: call.name, outcome: outcome, language: config.language) {
                 proven.append(line)
@@ -235,8 +261,12 @@ extension ChatViewModel {
         // A clear landed mid-round: the cards and the save belong to a chat
         // that is gone.
         guard historyEpoch == epoch else { return }
-        if let receipt = ActionReceipt(entries: proven) { session.send(.receipt(receipt)) }
+        if let receipt = ActionReceipt(entries: proven) {
+            session.send(.receipt(receipt))
+            recording { $0.receipts += receipt.lines }
+        }
         for card in cards {
+            recording { $0.cards.append(TurnCardMark(kind: Self.kind(of: card))) }
             messages.append(ChatMessage(
                 role: .assistant, text: "", card: card,
                 recall: Recall(role: .assistant, content: ChatCopy.cardShown(card))))
@@ -244,39 +274,89 @@ extension ChatViewModel {
         persist()
     }
 
-    /// Nil = go ahead. Otherwise the denial that answers the model: from the
-    /// session's memory without a sheet, from the sheet, or — with no actor
-    /// to ask — closed.
+    /// What the gate decided, for the turn's record: the band it judged and
+    /// whether the owner's own check was asked for.
+    struct GateDecision {
+        var band = "act"
+        var ownerCheck = "none"
+    }
+
+    /// Nil denial = go ahead. Otherwise the denial that answers the model:
+    /// from the session's memory without a sheet, from the sheet, from QA
+    /// mode's owner check, or — with no actor to ask — closed.
     private func gate(
         _ call: ToolCallRef, said: String, tools: any ParentToolExecuting
-    ) async -> ParentToolOutcome? {
-        guard let asked = tools.approval(for: call, said: said) else { return nil }
+    ) async -> (ParentToolOutcome?, GateDecision) {
+        let decision = GateDecision()
+        guard let asked = tools.approval(for: call, said: said) else { return (nil, decision) }
         let epoch = historyEpoch
         let denied = ParentToolOutcome.failed(
             .deniedByUser(config.language), target: ParentTool.target(of: call),
             tool: call.name)
         let request = await tools.bound(asked)
         // A clear while it waited: nothing here may reach the new thread.
-        guard historyEpoch == epoch else { return denied }
+        guard historyEpoch == epoch else { return (denied, decision) }
         // A remembered "no" outranks the shortcut (see ParentToolGuard).
-        if await tools.actsWithoutSheet(call), await approvals?.remembered(request) != false { return nil }
-        guard let approvals else { return denied }
+        let rememberedNo = await approvals?.remembered(request) == false
+        if await tools.actsWithoutSheet(call), !rememberedNo { return (nil, decision) }
+        // QA mode (puente QA D5): no sheet. What is not critical acts; what is
+        // asks the owner. Before `approvals.request`, never instead of a "no"
+        // the person asked to remember.
+        if let qaGate, !rememberedNo {
+            let verdict = await qaGate.decide(request, call: call, said: said)
+            guard historyEpoch == epoch else { return (denied, decision) }
+            if verdict != .notInQA {
+                let (outcome, judged) = qaOutcome(verdict, call: call, request: request, tools: tools)
+                return (outcome, judged)
+            }
+        }
+        guard let approvals else { return (denied, decision) }
         let remembered = await approvals.remembered(request)
-        guard historyEpoch == epoch else { return denied }
-        if let decision = remembered {
+        guard historyEpoch == epoch else { return (denied, decision) }
+        if let decided = remembered {
             messages.append(ChatMessage(
-                isStatus: true, text: ChatCopy.approvalRemembered(call.name, approved: decision)))
-            if decision { tools.granted(request) }
-            return decision ? nil : denied
+                isStatus: true, text: ChatCopy.approvalRemembered(call.name, approved: decided)))
+            if decided { tools.granted(request) }
+            return (decided ? nil : denied, decision)
         }
         session.send(.job(.approvalRequested(request)))
         messages.append(ChatMessage(isStatus: true, text: ChatCopy.approvalPending))
         let response = await approvals.request(request)
         session.send(.approvalSettled(requestId: request.requestId))
         // A yes given after a clear belongs to a chat that is gone.
-        guard historyEpoch == epoch, response.approved else { return denied }
+        guard historyEpoch == epoch, response.approved else { return (denied, decision) }
         tools.granted(request)
-        return nil
+        return (nil, decision)
+    }
+
+    /// QA's verdict as the model sees it. A grant also tells the runner, which
+    /// holds the ticket a terminal or a write needs to redeem.
+    private func qaOutcome(
+        _ verdict: QAVerdict, call: ToolCallRef, request: ApprovalRequest, tools: any ParentToolExecuting
+    ) -> (ParentToolOutcome?, GateDecision) {
+        func failed(_ code: String) -> ParentToolOutcome {
+            .failed(.ownerCheck(code: code), target: ParentTool.target(of: call), tool: call.name)
+        }
+        switch verdict {
+        case .act:
+            tools.granted(request)
+            return (nil, GateDecision())
+        case .granted:
+            tools.granted(request)
+            return (nil, GateDecision(band: "critical", ownerCheck: "confirmed"))
+        case .refused(let code):
+            return (failed(code), GateDecision(band: "critical", ownerCheck: "refused"))
+        case .unavailable(let code):
+            return (failed(code), GateDecision(band: "critical", ownerCheck: "unavailable"))
+        case .busy:
+            return (failed(BridgeCode.ownerBusy), GateDecision(band: "critical", ownerCheck: "none"))
+        case .notInQA:
+            return (nil, GateDecision())
+        }
+    }
+
+    static func kind(of card: Card) -> String {
+        Mirror(reflecting: card.payload).children.first?.label ?? String(describing: card.payload)
     }
 
     /// The parent's own requests die with the turn that asked: leaving one
@@ -308,6 +388,7 @@ extension ChatViewModel {
 
         if !preface.isEmpty {
             messages.append(ChatMessage(role: .assistant, text: preface))
+            recording { $0.reply = TurnReply(text: preface, isFailure: false) }
         }
     }
 
