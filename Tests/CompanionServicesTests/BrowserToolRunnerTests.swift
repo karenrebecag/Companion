@@ -813,3 +813,37 @@ private func sentQuery(_ rig: BrowserToolRig) -> BrowserQuery? {
         expect(readText != typeText, "\(language): read text \(readText) vs type text \(typeText)")
     }
 }
+
+@Test func maxCharsBoundsTheWholeReadNotOnlyThePageText() async {
+    let long = String(repeating: "palabra ", count: 1_000)
+    let rig = makeToolRig(page: crmPage(text: long))
+    let capped = await rig.run("browser_read", #"{"tab":12,"max_chars":500}"#)
+    expect(capped.ok, "read ok: \(capped.output)")
+    expect(capped.output.count <= 500 + BrowserCopy.toolDataSuffix(.en).count + 1, "tope respetado: \(capped.output.count)")
+    let free = await makeToolRig(page: crmPage(text: long)).run("browser_read", #"{"tab":12}"#)
+    expect(free.output.count > 5_000, "sin max_chars lee completo")
+}
+
+@Test func aBackgroundTabOpenedThisTurnIsGivenBackWhenTheTurnEnds() async {
+    let rig = makeToolRig(owned: false)
+    let opened = await rig.run("browser_open", #"{"url":"https://crm.example/"}"#, said: "abre crm.example", approve: true)
+    expect(opened.ok, "opened: \(opened.output)")
+    let tab = rig.runner.leases.owner(of: 12) == "chat" ? 12 : -1
+    let before = rig.channel.sent.count
+    await rig.runner.endTurn()
+    let releases = rig.channel.sent.dropFirst(before).compactMap { entry -> Int? in
+        if case .release(let tab) = entry.command { return tab }
+        return nil
+    }
+    expectEq(releases.count, 1, "una pestaña devuelta")
+    expect(rig.runner.leases.owner(of: releases.first ?? tab) == nil, "ya no es del chat")
+    await rig.runner.endTurn()
+    expectEq(rig.channel.sent.count, before + 1, "no se devuelve dos veces")
+}
+
+@Test func aTabTheUserOwnedBeforeTheTurnIsNotReleasedAtItsEnd() async {
+    let rig = makeToolRig()
+    let before = rig.channel.sent.count
+    await rig.runner.endTurn()
+    expectEq(rig.channel.sent.count, before, "lo que no abrió el turno se queda")
+}

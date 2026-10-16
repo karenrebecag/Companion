@@ -108,6 +108,13 @@ package enum TurnRedaction {
         return result
     }
 
+    /// A float or version ("0.9999963045120239") shares the digit-run shape but no
+    /// card or CLABE prints a dot-separated group longer than 6 digits.
+    private static func isDecimalNumber(_ run: String) -> Bool {
+        guard run.contains(".") else { return false }
+        return run.split(whereSeparator: { " .-".contains($0) }).contains { $0.count > 6 }
+    }
+
     /// A CLABE is a whole run of 18 digits; a card is any 13 to 19 digit window
     /// of a run that passes Luhn, so a CVV or a date glued to it cannot hide it.
     private static func maskDigitRuns(_ text: String) -> String {
@@ -116,7 +123,7 @@ package enum TurnRedaction {
             guard let range = Range(match.range, in: result) else { continue }
             let run = String(result[range])
             let digitCount = run.filter(\.isNumber).count
-            guard digitCount >= 13 else { continue }
+            guard digitCount >= 13, !isDecimalNumber(run) else { continue }
             if digitCount == 18, IdentifierChecks.isCLABE(run) {
                 result.replaceSubrange(range, with: mask)
             } else if let window = IdentifierChecks.cardWindow(in: run) {

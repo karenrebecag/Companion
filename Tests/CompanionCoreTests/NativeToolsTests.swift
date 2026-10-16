@@ -220,3 +220,16 @@ func validatorRootsReadAndWriteByMode() {
     expect(noWorkdir.isAllowed("/app/skills/default/x/SKILL.md"), "roots: sin workdir, las raíces extra siguen")
     expect(!noWorkdir.isAllowed("src/a.swift"), "roots: sin workdir, un relativo no tiene contra qué resolver")
 }
+
+@Test func findPlacesDescriptionRulesOutWeatherAndCityFacts() {
+    let text = NativeTool.findPlaces.spec.description
+    expect(text.contains("Never use it for weather"), "dice que no es para el clima: \(text)")
+    expect(!text.contains("whenever the user asks where"), "sin el empujón anterior")
+}
+
+@Test func chatPromptAsksForSentenceCaseTitlesInBothLanguages() {
+    for language in [AppLanguage.en, .es] {
+        let prompt = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: false, language: language)
+        expect(prompt.contains("sentence case"), "regla de títulos en \(language)")
+    }
+}

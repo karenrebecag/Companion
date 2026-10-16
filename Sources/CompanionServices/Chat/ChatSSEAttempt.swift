@@ -447,7 +447,7 @@ private final class ErrorProbe: @unchecked Sendable {
     }
 }
 
-private actor DeltaSink {
+actor DeltaSink {
     private var spokePartial = false
     private var tool = ToolCallBuilder()
     private var full = ""
@@ -485,7 +485,8 @@ private actor DeltaSink {
         let calls = tool.calls.filter { !$0.name.isEmpty }
         let spoke = spokePartial
         let reply = full.trimmingCharacters(in: .whitespacesAndNewlines)
-        let rest = sentenceBuf.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Only the tail is trimmed: the head can be the indentation of the last code line.
+        let rest = String(sentenceBuf.reversed().drop(while: \.isWhitespace).reversed())
         sentenceBuf = ""
 
         // `delegate` is the conversation layer's; everything else is a call

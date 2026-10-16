@@ -78,3 +78,11 @@ private let mask = TurnRedaction.mask
     let path = "/Users/ana/Library/Application/Support/Algo/Muy/Largo/De/Verdad/Por/Aqui/Mismo/Ok"
     expectEq(TurnRedaction.redact(path), path, "ruta larga")
 }
+
+@Test func decimalNumbersAreNotCardsButARealCardStillIs() {
+    let json = #"{"language":"es","confidence":0.9999963045120239}"#
+    expectEq(TurnRedaction.redact(json), json, "float largo")
+    expectEq(TurnRedaction.redact("version 2026.10.16.1234567890123"), "version 2026.10.16.1234567890123", "version")
+    expectEq(TurnRedaction.redact("tarjeta 4111.1111.1111.1111"), "tarjeta \(mask)", "tarjeta con puntos")
+    expectEq(TurnRedaction.redact(#"{"confidence":0.99,"card":"4111111111111111"}"#), #"{"confidence":0.99,"card":"\#(mask)"}"#, "tarjeta real")
+}
