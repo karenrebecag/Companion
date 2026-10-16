@@ -55,20 +55,19 @@ struct TreeCard: View {
         let openable = row.node.isFolder && !row.node.children.isEmpty
         let isOpen = expanded.contains(row.id)
         let line = HStack(spacing: Space.x2) {
-            Group {
-                if openable {
-                    Image(systemName: "chevron.right")
-                        .font(.uiCaption)
-                        .rotationEffect(.degrees(isOpen ? 90 : 0))
-                        .animation(ChromeMotion.animation(.expoOut(MotionTime.panel), reduceMotion: reduceMotion), value: isOpen)
-                } else {
-                    Color.clear
-                }
-            }
-            .frame(width: CardMetrics.iconColumn)
+            // A hidden chevron, not a clear shape: a clear shape takes all the
+            // height the row offers and stretches the file rows.
+            Image(systemName: "chevron.right")
+                .font(.uiCaption)
+                .rotationEffect(.degrees(isOpen ? 90 : 0))
+                .animation(ChromeMotion.animation(.expoOut(MotionTime.panel), reduceMotion: reduceMotion), value: isOpen)
+                .opacity(openable ? 1 : 0)
+                .frame(width: CardMetrics.iconColumn)
+                .accessibilityHidden(true)
             Image(systemName: Self.symbol(for: row.node))
                 .font(.uiBody)
                 .foregroundStyle(row.node.isFolder ? Semantic.accent : Semantic.mutedForeground)
+                .frame(width: CardMetrics.iconColumn)
             Text(row.node.name)
                 .font(.uiBody)
                 .foregroundStyle(Semantic.foreground)
