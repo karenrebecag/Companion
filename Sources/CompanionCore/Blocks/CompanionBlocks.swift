@@ -123,6 +123,8 @@ package enum CardPayload: Sendable, Equatable {
     case stats(StatsBlock)
     case table(TableBlock)
     case chart(ChartBlock)
+    /// What list_directory walked: the card paints it, the model reads its text.
+    case tree(TreeBlock)
 }
 
 /// What the interface paints, travelling on its own channel — never through
