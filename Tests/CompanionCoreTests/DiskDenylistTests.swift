@@ -31,6 +31,10 @@ private func validator(roots: [PathValidator.Root] = []) -> PathValidator {
         "\(home)/Library/Containers/com.apple.mail/x", "\(home)/Library/Group Containers/group.x/y",
         "\(home)/Library/Application Support/Companion/memory/x.md",
         "\(home)/LIBRARY/SAFARI/History.db", "\(home)/.SSH/id_rsa",
+        "\(home)/.zshrc", "\(home)/.claude/.credentials.json", "\(home)/.config/vercel/auth.json",
+        "\(home)/.cargo/credentials.toml", "\(home)/.vault-token", "\(home)/code/.git/config",
+        "\(home)/Library/Application Support/Slack/x", "\(home)/Library/Application Support/Discord/x",
+        "\(home)/Library/Application Support/Signal/x",
         "\(home)/code/app/.env", "/tmp/.env", "\(home)/code/.env.local", "/srv/app/.ENV.production",
     ]
     let open = validator()
@@ -43,8 +47,8 @@ private func validator(roots: [PathValidator.Root] = []) -> PathValidator {
 @Test func ordinaryPathsStayOpen() {
     let open = validator()
     for path in [
-        "\(home)/Desktop/x.txt", "\(home)/Documents/env.md", "\(home)/code/.envrc", "\(home)/code/environment.txt",
-        "\(home)/.config/starship.toml", "\(home)/Library/Application Support/Code/x", "/tmp/x", "/Volumes/Disk/x",
+        "\(home)/Desktop/x.txt", "\(home)/Documents/env.md", "/srv/app/.envrc", "\(home)/code/environment.txt",
+        "\(home)/Library/Application Support/Code/x", "/tmp/x", "/Volumes/Disk/x",
     ] {
         expect(open.isAllowed(path), "debe permitir \(path)")
     }

@@ -66,7 +66,7 @@ package struct NativeExecutor: Executor, Sendable {
             role: .user,
             content: jobPrompt)
 
-        let taint = TurnTaint()
+        let taint = TurnTaint(seed: job.tainted)
         var history = [systemMessage, userMessage]
         var accumulatedOutput = ""
         var iteration = 0
@@ -271,30 +271,5 @@ package struct NativeExecutor: Executor, Sendable {
         approved: Bool
     ) async throws -> ToolResult {
         return try await toolRunner.execute(tool: tool, arguments: arguments, approved: approved)
-    }
-}
-
-/// One job's memory of whether it has read outside the work folder. A class
-/// because the loop and `perform` share it across awaits.
-final class TurnTaint: @unchecked Sendable {
-    private let lock = NSLock()
-    private var tainted = false
-
-    var isTainted: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return tainted
-    }
-
-    func reset() {
-        lock.lock()
-        defer { lock.unlock() }
-        tainted = false
-    }
-
-    func mark() {
-        lock.lock()
-        defer { lock.unlock() }
-        tainted = true
     }
 }

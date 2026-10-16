@@ -238,14 +238,9 @@ private func dir(_ base: URL, _ name: String) -> String { base.appendingPathComp
     let id = try f.id(forContent: "ONE")
     let runner = runner(f.dir, versions: f.versions)
 
-    let outside = try scratch()
-    defer { remove(outside) }
-    let elsewhere = dir(outside, "q3.pdf")
-    try write("OUT", to: elsewhere)
     var result = try await runner.execute(
-        tool: "restore_file_version", arguments: ["path": elsewhere, "version": id], approved: true)
-    expect(!result.ok, "policy: outside the working folder")
-    expectEq(try read(elsewhere), "OUT", "policy: outside file untouched")
+        tool: "restore_file_version", arguments: ["path": "/etc/hosts", "version": id], approved: true)
+    expect(!result.ok && result.output.contains("protected location"), "policy: a protected path is refused")
 
     let hidden = dir(f.dir, ".private/q3.pdf")
     try write("HIDDEN", to: hidden)
@@ -254,7 +249,8 @@ private func dir(_ base: URL, _ name: String) -> String { base.appendingPathComp
         .split(separator: "-", maxSplits: 3)[2])
     result = try await runner.execute(
         tool: "restore_file_version", arguments: ["path": ".private/q3.pdf", "version": hiddenId], approved: true)
-    expect(!result.ok && result.output.contains("hidden"), "policy: hidden entries are refused")
+    expect(!result.ok && (result.output.contains("hidden") || result.output.contains("protected location")),
+           "policy: hidden entries are refused")
     expectEq(try read(hidden), "HIDDEN", "policy: the hidden file is untouched")
 
     result = try await runner.execute(

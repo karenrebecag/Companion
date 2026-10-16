@@ -230,6 +230,14 @@ package struct PathValidator: Sendable {
         // Project secrets live in any folder, not under home alone.
         if name == ".env" || name.hasPrefix(".env.") { return true }
         let homes = Set([home, (home as NSString).resolvingSymlinksInPath]).map { $0.lowercased() }
+        // Anything hidden under home is a credential, a shell startup file or
+        // an agent's config (the same line CommandClassifier draws). Nothing
+        // Companion's file tools need lives in a dot folder, so there is no allow-list.
+        for home in homes where lowered.hasPrefix(home + "/") {
+            if lowered.dropFirst(home.count + 1).split(separator: "/").contains(where: { $0.hasPrefix(".") }) {
+                return true
+            }
+        }
         let relative = exemptingContainer ? Self.homeRelativeDenied : Self.homeRelativeDenied + [Self.container]
         let denied = Self.systemRoots + homes.flatMap { home in relative.map { home + "/" + $0 } }
         return denied.contains { Self.contains($0, lowered) }
@@ -242,16 +250,16 @@ package struct PathValidator: Sendable {
     private static let container = "library/application support/companion"
 
     private static let homeRelativeDenied = [
-        "library/keychains", ".ssh", ".aws", ".config/gcloud", ".config/gh", ".config/git",
-        ".git-credentials", ".netrc", ".npmrc", ".pypirc", ".docker", ".kube", ".gnupg", ".azure",
-        ".config/op", ".terraform.d", ".zsh_history", ".bash_history",
+        "library/keychains",
         "library/application support/google", "library/application support/bravesoftware",
         "library/application support/microsoft edge", "library/application support/firefox",
         "library/application support/arc", "library/application support/comet",
-        "library/application support/perplexity",
+        "library/application support/perplexity", "library/application support/slack",
+        "library/application support/discord", "library/application support/signal",
         "library/cookies", "library/safari", "library/mail", "library/messages",
         "library/containers", "library/group containers",
     ]
+
 
     /// The working folder only: the app's own folders (skills, memory) are
     /// writable roots too, but a file there is read back into the prompt, so

@@ -12,13 +12,18 @@ package struct JobRunner: Sendable, JobSubmitter {
     /// A closure, not a value: the failure the user reads has to follow the
     /// language they picked a minute ago, not the one at construction time.
     private let language: @Sendable () -> AppLanguage
+    /// The parent's turn mark: a job started after a read outside the work
+    /// folder inherits it, or delegating would shed it.
+    private let taint: TurnTaint?
 
     package init(
         executorProvider: ExecutorProviderProtocol,
         queue: JobQueue,
         approvals: any ApprovalsProvider,
-        language: @escaping @Sendable () -> AppLanguage = { .en }
+        language: @escaping @Sendable () -> AppLanguage = { .en },
+        taint: TurnTaint? = nil
     ) {
+        self.taint = taint
         self.executorProvider = executorProvider
         self.queue = queue
         self.approvals = approvals
@@ -31,7 +36,8 @@ package struct JobRunner: Sendable, JobSubmitter {
         JobRequest(
             id: id.raw,
             goal: handoff.goal,
-            context: handoff.context
+            context: handoff.context,
+            tainted: taint?.isTainted ?? false
         )
     }
 

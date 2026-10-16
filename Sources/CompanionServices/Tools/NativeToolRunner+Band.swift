@@ -74,10 +74,7 @@ extension NativeToolRunner {
     /// meant for deliverables. Compared case-folded: the volume is not
     /// case-sensitive, so `skill.md` is the catalog's `SKILL.md`.
     private func inDeliverablesZone(_ real: String) -> Bool {
-        guard pathValidator.isInWorkdir(real), let workdir else { return false }
-        let home = FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath().path.lowercased()
-        let work = ((workdir as NSString).standardizingPath as NSString).resolvingSymlinksInPath.lowercased()
-        if work == "/" || home == work || home.hasPrefix(work + "/") { return false }
+        guard pathValidator.isInWorkdir(real), scopedWorkdir != nil else { return false }
         return !Self.isAppOwned(real, home: home, appRoot: skills?.root.path)
     }
 

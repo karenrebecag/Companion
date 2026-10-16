@@ -30,10 +30,22 @@ extension NativeToolRunner {
             return true
         case NativeTool.readFile.rawValue, NativeTool.listDirectory.rawValue:
             guard let path = arguments["path"] as? String else { return false }
+            // The default work folder is the home: with no real scope, any read of the disk counts.
+            guard scopedWorkdir != nil else { return true }
             return !pathValidator.isInWorkdir(resolveRealPath(path))
         default:
             return false
         }
+    }
+
+    /// The work folder when it scopes anything: the whole home, "/" or an
+    /// ancestor of home reach everything, so they count as no folder at all.
+    var scopedWorkdir: String? {
+        guard let workdir else { return nil }
+        let home = self.home.lowercased()
+        let work = ((workdir as NSString).standardizingPath as NSString).resolvingSymlinksInPath.lowercased()
+        if work == "/" || home == work || home.hasPrefix(work + "/") { return nil }
+        return workdir
     }
 
     /// TCC answers EPERM where a plain permission bit answers EACCES, so only

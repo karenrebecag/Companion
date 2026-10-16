@@ -109,7 +109,7 @@ extension BrowserToolRunner {
         }
         guard case .success(let verdict) = BrowserPolicy.navigateVerdict(
             from: nil, currentURL: nil, to: raw, said: asksBeforeTaking ? "" : said,
-            asksToLeaveOrigin: asksBeforeTaking)
+            asksToLeaveOrigin: asksBeforeTaking, tainted: taint.isTainted)
         else { return nil }
         switch verdict {
         case .refuse:

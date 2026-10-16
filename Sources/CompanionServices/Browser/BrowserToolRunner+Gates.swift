@@ -47,7 +47,8 @@ extension BrowserToolRunner {
             verdict = BrowserPolicy.selectVerdict(element, option: option, said: said, pageOrigin: page.origin)
         default:
             guard let text = arguments["text"] as? String else { return nil }
-            verdict = BrowserPolicy.typeVerdict(element, text: text, said: said, pageOrigin: page.origin)
+            verdict = BrowserPolicy.typeVerdict(
+                element, text: text, said: said, pageOrigin: page.origin, tainted: taint.isTainted)
         }
         let ticket = Self.ticket(call.name, call.arguments, tab: tab, element: element, page: page)
         switch verdict {
@@ -88,7 +89,7 @@ extension BrowserToolRunner {
         // refuses it with the policy's reason.
         guard case .success(let verdict) = BrowserPolicy.navigateVerdict(
             from: origin, currentURL: page?.url, to: raw, said: said,
-            asksToLeaveOrigin: asksBeforeTaking)
+            asksToLeaveOrigin: asksBeforeTaking, tainted: taint.isTainted)
         else { return nil }
         switch verdict {
         case .refuse:

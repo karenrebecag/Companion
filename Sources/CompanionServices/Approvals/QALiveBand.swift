@@ -30,8 +30,9 @@ package enum QALiveBand {
         case .typeText, .pressKey:
             facts.inTerminal = terminal(in: request)
         case .openURL:
-            // The runner marks a request it raised after a read outside the work folder.
-            facts.tainted = (ToolArguments.parse(request.inputJSON)?["after_read"] as? Bool) == true
+            // The runner only raises a sheet for an address that could carry data out (a
+            // payload, a read before it, the bridge): to a host nobody named, that is the owner's.
+            facts.tainted = true
             if let raw = arguments["url"] as? String {
                 do {
                     let url = try ParentToolPolicy.httpURL(raw)
