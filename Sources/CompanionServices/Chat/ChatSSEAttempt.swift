@@ -30,19 +30,74 @@ enum ChatSSEAttempt {
         resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil,
         yield: @escaping @Sendable (ChatDelta) -> Void
     ) async -> ChatAttemptOutcome {
+        var maxTokens: Int?
+        var attempt = 0
+        while true {
+            attempt += 1
+            let probe = ErrorProbe()
+            let outcome = await runOnce(
+                provider: provider, key: key, history: history, tools: tools,
+                settings: settings, ownerFirstName: ownerFirstName,
+                about: about, instructions: instructions, language: language,
+                memory: memory, skills: skills, voice: voice, transport: transport,
+                resolveAttachment: resolveAttachment, maxTokens: maxTokens,
+                probe: probe, yield: yield)
+            // A 402 names what the balance can pay for: one retry with that,
+            // instead of dropping a working provider down the ladder.
+            guard attempt == 1, case .failed(.httpStatus(402)) = outcome,
+                  let afford = affordableTokens(probe.body),
+                  afford < (maxTokens ?? provider.maxOutputTokens ?? Int.max)
+            else { return outcome }
+            maxTokens = afford
+        }
+    }
+
+    /// OpenRouter: "...but can only afford 4000". Matched on the raw text
+    /// because the bounded body read may have cut the JSON.
+    static func affordableTokens(_ body: String) -> Int? {
+        guard let range = body.range(
+            of: #"can only afford (\d+)"#, options: .regularExpression)
+        else { return nil }
+        let digits = body[range].filter(\.isNumber)
+        guard let value = Int(digits), value >= minRetryTokens else { return nil }
+        return value
+    }
+
+    /// Below this a reply is not worth sending.
+    static let minRetryTokens = 64
+
+    private static func runOnce(
+        provider: ProviderDescriptor,
+        key: String?,
+        history: [Turn],
+        tools: [ToolSpec],
+        settings: ChatSettings,
+        ownerFirstName: String,
+        about: String,
+        instructions: String,
+        language: AppLanguage,
+        memory: String,
+        skills: String,
+        voice: Bool,
+        transport: any ChatTransport,
+        resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?,
+        maxTokens: Int?,
+        probe: ErrorProbe,
+        yield: @escaping @Sendable (ChatDelta) -> Void
+    ) async -> ChatAttemptOutcome {
         guard let request = makeRequest(
             provider: provider, key: key, history: history, tools: tools,
             settings: settings, ownerFirstName: ownerFirstName,
             about: about, instructions: instructions, language: language,
             memory: memory, skills: skills, voice: voice,
-            resolveAttachment: resolveAttachment)
+            resolveAttachment: resolveAttachment, maxTokens: maxTokens)
         else { return .failed(.unreachable) }
 
         let sink = DeltaSink(yield: yield)
         let work = Task {
             try await read(
                 request: request, settings: settings,
-                transport: transport, sink: sink)
+                transport: transport, sink: sink, probe: probe)
         }
         let cap = Task {
             try await sleepSeconds(settings.turnTimeout)
@@ -81,7 +136,8 @@ enum ChatSSEAttempt {
         memory: String = "",
         skills: String = "",
         voice: Bool = false,
-        resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil
+        resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)? = nil,
+        maxTokens: Int? = nil
     ) -> URLRequest? {
         guard let url = provider.endpoint else { return nil }
         // Validate endpoint URL against security policy (HTTPS always ok, HTTP only for localhost).
@@ -98,7 +154,7 @@ enum ChatSSEAttempt {
             settings: settings, ownerFirstName: ownerFirstName,
             about: about, instructions: instructions, language: language,
             memory: memory, skills: skills, voice: voice,
-            resolveAttachment: resolveAttachment)
+            resolveAttachment: resolveAttachment, maxTokens: maxTokens)
         else { return nil }
         request.httpBody = body
         return request
@@ -156,8 +212,12 @@ private func makeBody(
     memory: String = "",
     skills: String = "",
     voice: Bool = false,
-    resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?
+    resolveAttachment: (@Sendable (AttachmentRef) -> AttachmentPayload?)?,
+    maxTokens: Int? = nil
 ) -> Data? {
+    // Cut before anything is derived from the list, so the prompt never
+    // promises a tool the provider will not receive.
+    let tools = ToolBudget.fit(tools, cap: provider.maxTools)
     let delegateEnabled = tools.contains { $0.name == "delegate" }
     // Derived from the tools, like delegate: what is declared is what the
     // prompt may promise, and nothing the prompt promises goes undeclared.
@@ -212,6 +272,9 @@ private func makeBody(
     }
     // 15c-3: only the descriptor that asks for it (the hold's gpt-oss
     // brain) — never guessed from the model name.
+    if let ceiling = maxTokens ?? provider.maxOutputTokens {
+        body["max_tokens"] = ceiling
+    }
     if let effort = provider.reasoningEffort {
         body["reasoning_effort"] = effort
     }
@@ -243,7 +306,8 @@ private func read(
     request: URLRequest,
     settings: ChatSettings,
     transport: any ChatTransport,
-    sink: DeltaSink
+    sink: DeltaSink,
+    probe: ErrorProbe
 ) async throws -> ChatAttemptOutcome {
     let clock = PingClock()
     let consume = Task {
@@ -262,6 +326,7 @@ private func read(
             } catch {
                 // A body that dies mid-read still maps by status below.
             }
+            probe.body = body
             if let summary = ChatSSEAttempt.errorSummary(body) {
                 Log.chat("chat: provider \(status): \(summary)")
             } else if !body.isEmpty {
@@ -368,6 +433,17 @@ private actor PingClock {
             }
         }
         throw CancellationError()
+    }
+}
+
+/// The error body of a failed attempt, kept so `run` can read what the
+/// provider asked for. Written once by the reading task, read after it ends.
+private final class ErrorProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored = ""
+    var body: String {
+        get { lock.lock(); defer { lock.unlock() }; return stored }
+        set { lock.lock(); stored = newValue; lock.unlock() }
     }
 }
 

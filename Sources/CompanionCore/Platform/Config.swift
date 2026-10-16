@@ -38,6 +38,15 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
     /// nil = do not send the field. "hidden" keeps gpt-oss's thinking out of
     /// the content, where the mouth had to catch it as foreign text.
     package var reasoningFormat: String?
+    /// The most tools one request may declare; the provider answers 400 above
+    /// it (OpenAI: 128), so the cap lives with the provider, not in the caller.
+    package var maxTools: Int
+    /// nil = do not send the field. An aggregator that bills by the requested
+    /// ceiling answers 402 to a default of 16k when the balance is low.
+    package var maxOutputTokens: Int?
+
+    package static let defaultMaxTools = 128
+    package static let chatMaxOutputTokens = 4_096
 
     package init(
         id: String,
@@ -47,7 +56,9 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         secretKey: SecretKey?,
         temperature: Double? = 0.7,
         reasoningEffort: String? = nil,
-        reasoningFormat: String? = nil
+        reasoningFormat: String? = nil,
+        maxTools: Int = ProviderDescriptor.defaultMaxTools,
+        maxOutputTokens: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -57,6 +68,8 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         self.temperature = temperature
         self.reasoningEffort = reasoningEffort
         self.reasoningFormat = reasoningFormat
+        self.maxTools = maxTools
+        self.maxOutputTokens = maxOutputTokens
     }
 
     /// Whether the provider takes `strict: true` on a function tool. Known
@@ -99,7 +112,8 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         name: "OpenRouter",
         baseURL: URL(string: "https://openrouter.ai/api/v1")!,
         model: "openai/gpt-4o",
-        secretKey: .openRouter
+        secretKey: .openRouter,
+        maxOutputTokens: chatMaxOutputTokens
     )
 
     /// The model here is a PLACEHOLDER, never a promise: which tag exists is

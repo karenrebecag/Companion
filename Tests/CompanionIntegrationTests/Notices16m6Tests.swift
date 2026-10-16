@@ -108,7 +108,7 @@ private final class Nudges: @unchecked Sendable {
     let runner = AppToolRunner(service: { ReconnectAppsService() }, catalog: [], suggest: nil)
     await runner.refresh()
     runner.noteTurn("mira mi gmail")
-    expectEq(runner.specs(.en).count, 0, "16m-6 fuente: sin manejador no pasa nada y no hay herramientas de la caducada")
+    expectEq(runner.specs(.en).filter(\.isConnectedApp).count, 0, "16m-6 fuente: sin manejador no pasa nada y no hay herramientas de la caducada")
 }
 
 // MARK: - The update card's room

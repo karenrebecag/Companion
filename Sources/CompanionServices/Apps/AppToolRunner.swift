@@ -24,7 +24,16 @@ package final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
         case allConnected
         case app(String)
         case none
+        /// The model asked for this app's tools (`find_app_tools`): unlike
+        /// the one-shot narrowings it holds for the rest of the turn, or the
+        /// next round would lose the tools it just asked for.
+        case pinned(String)
     }
+
+    /// The discovery tool's name. Apps' tools stay out of the request until
+    /// the model names the app it needs: 100 tools from three connectors
+    /// pushed the request over the provider's cap (2026-10-16).
+    package static let discoveryTool = "find_app_tools"
 
     /// Accounts and tools re-pull after this long, off the turn's path.
     static let refreshTTL: TimeInterval = 300
@@ -205,24 +214,55 @@ package final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
             case .allConnected: cache
             case .app(let slug): cache.filter { $0.slug == slug }
             case .none: []
+            case .pinned(let slug): cache.filter { $0.slug == slug }
             }
+        let discovery = cache.isEmpty ? [] : [discoverySpec()]
         // The narrowing a turn set applies to the request built right after
         // its noteTurn, then dies: the runner is shared by chat, classic
         // and realtime, and a leftover `.none` from a chat turn was
         // starving realtime sessions opened later (H1, review 16k-3). The
         // cost: a chat turn's LATER tool rounds see the full set again —
         // more budget, never fewer tools.
-        scope = .allConnected
-        return apps.flatMap { app in
+        if case .pinned = scope {} else { scope = .allConnected }
+        return discovery + apps.flatMap { app in
             app.actions.map { action in
                 ToolSpec(
                     name: action.slug,
                     description: action.description.isEmpty
                         ? action.name : action.description,
                     properties: [], required: [],
-                    rawParametersJSON: action.schemaJSON)
+                    rawParametersJSON: action.schemaJSON,
+                    isConnectedApp: true)
             }
         }
+    }
+
+    /// Caller holds the lock.
+    private func discoverySpec() -> ToolSpec {
+        let slugs = cache.map(\.slug).joined(separator: ", ")
+        return ToolSpec(
+            name: Self.discoveryTool,
+            description: "Loads the tools of one connected app so you can use them on the next step. "
+                + "Call it before acting in an app. Connected apps: \(slugs).",
+            properties: [ToolProperty(
+                name: "app", type: "string",
+                description: "Slug of a connected app, as listed in this tool's description.")],
+            required: ["app"])
+    }
+
+    private func discover(_ argumentsJSON: String) -> ParentToolOutcome {
+        let requested = ToolArguments.parse(argumentsJSON)?["app"] as? String ?? ""
+        lock.lock()
+        defer { lock.unlock() }
+        guard let app = cache.first(where: { $0.slug == requested }) else {
+            return .failed(.invalidArgs(
+                "unknown app; connected: " + cache.map(\.slug).joined(separator: ", ")))
+        }
+        scope = .pinned(app.slug)
+        let names = app.actions.map(\.slug).joined(separator: ", ")
+        return ParentToolOutcome(
+            ok: true, output: "\(app.name) tools loaded for this turn: \(names)",
+            target: app.name, tool: Self.discoveryTool)
     }
 
     /// Ownership by construction: the function's contract requires every
@@ -231,7 +271,7 @@ package final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
     /// not gate here: a call the model makes is executed if the tool is
     /// real — the approval gate, not the listing, is the security line.
     package func handles(_ name: String) -> Bool {
-        lookup(name) != nil
+        name == Self.discoveryTool || lookup(name) != nil
     }
 
     package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
@@ -257,6 +297,7 @@ package final class AppToolRunner: ParentToolExecuting, @unchecked Sendable {
     }
 
     package func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
+        if name == Self.discoveryTool { return discover(argumentsJSON) }
         guard let (app, action) = lookup(name) else {
             return .failed(.notFound("unknown app tool: \(name)"))
         }
