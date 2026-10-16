@@ -48,7 +48,9 @@ extension ChatViewModel {
         if let qaGate, await qaGate.isOn() { return plan }
         guard let approvals else { return plan }
 
-        let always = AlwaysAllowPreference.list
+        // A kept "siempre" is for a clean turn only: a turn that read her data
+        // can send it out through the same host.
+        let always = tools.turnIsTainted() ? AlwaysAllowList() : AlwaysAllowPreference.list
         var candidates: [Candidate] = []
         for (index, call) in calls.enumerated() {
             guard let request = requests[index] else { continue }
@@ -64,15 +66,20 @@ extension ChatViewModel {
 
         let judged = await judgeCandidates(candidates, said: said)
         guard historyEpoch == epoch else { return denied(calls.count) }
+        let targets = candidates.map { ApprovalBatch.target(of: $0.request) }
         let entries = candidates.enumerated().map { offset, candidate in
-            SheetEntry(band: candidate.band, opinion: judged[offset], alwaysAllowed: candidate.alwaysAllowed)
+            SheetEntry(
+                band: candidate.band, opinion: judged[offset], alwaysAllowed: candidate.alwaysAllowed,
+                repeatedTarget: targets[offset].map { target in targets.filter { $0 == target }.count > 1 } ?? false)
         }
         let lanes = SheetLane.of(entries)
         let pending = candidates.enumerated().filter { lanes[$0.offset] == .ask }.map(\.element)
-        // One pending sheet is the sheet it always was; the gate asks it.
+        // Only confirms share one sheet. A critical, an MCP call, or a lone
+        // confirm keeps the gate's own sheet with its whole preview.
+        let shared = pending.filter { ApprovalBatch.shareable($0.band, isMCP: $0.request.isMCP) }
         var answered = false
-        if pending.count >= 2 {
-            answered = await askTogether(pending.map(\.request))
+        if shared.count >= 2 {
+            answered = await askTogether(shared.map(\.request))
             guard historyEpoch == epoch else { return denied(calls.count) }
         }
         // Tickets are granted only once the step is settled: a step that is
@@ -82,7 +89,7 @@ extension ChatViewModel {
             case .free:
                 tools.granted(candidate.request)
                 plan.lanes[candidate.index] = .granted
-            case .ask where pending.count >= 2:
+            case .ask where shared.count >= 2 && shared.contains(where: { $0.index == candidate.index }):
                 plan.lanes[candidate.index] = answered ? .batchApproved : .batchDenied
                 if answered { tools.granted(candidate.request) }
             case .ask:
@@ -123,7 +130,7 @@ extension ChatViewModel {
         guard let request = ActionJudgeRequest(
             words: words, candidates: asked, maxCandidates: config.judge.maxCandidates)
         else { return unjudged }
-        return await judge.judge(request)
+        return JudgeGrounding.grounded(await judge.judge(request), candidates: asked, words: words)
     }
 
     /// One sheet for the step's remaining actions: one yes or one no for all of

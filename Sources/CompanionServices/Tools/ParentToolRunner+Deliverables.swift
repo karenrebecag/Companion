@@ -40,6 +40,8 @@ extension ParentToolRunner {
     // HACK: the read and the write are two Apple Events, so a cell typed in
     // that gap is overwritten (the version kept before the write is the net). Upgrade
     // trigger: an "only if empty" flag on `SpreadsheetDriving.write`.
+    package func turnIsTainted() -> Bool { taint.isTainted }
+
     package func band(for call: ToolCallRef) async -> ActionBand {
         guard let arguments = ToolArguments.parse(call.arguments) else { return .critical }
         if call.name.hasPrefix(ApprovalCopy.appToolPrefix) {
