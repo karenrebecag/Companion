@@ -444,8 +444,8 @@ private func scratchDir(_ tag: String) -> URL {
     try? "BBB".write(to: dir.appendingPathComponent("b.txt"), atomically: true, encoding: .utf8)
     let provider = RoundsProvider(rounds: [
         [.toolCalls([
-            ToolCallRef(id: "a", name: "read_file", arguments: #"{"path":"a.txt"}"#),
-            ToolCallRef(id: "b", name: "read_file", arguments: #"{"path":"b.txt"}"#),
+            ToolCallRef(id: "a", name: "read_file", arguments: #"{"path":"\#(dir.path)/a.txt"}"#),
+            ToolCallRef(id: "b", name: "read_file", arguments: #"{"path":"\#(dir.path)/b.txt"}"#),
         ])],
         [.text("listo")],
     ])
@@ -498,8 +498,8 @@ private func scratchDir(_ tag: String) -> URL {
     try? "AAA".write(to: dir.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
     let provider = RoundsProvider(rounds: [
         [.toolCalls([
-            ToolCallRef(id: "a", name: "read_file", arguments: #"{"path":"a.txt"}"#),
-            ToolCallRef(id: "b", name: "read_file", arguments: #"{ "path" : "a.txt" }"#),
+            ToolCallRef(id: "a", name: "read_file", arguments: #"{"path":"\#(dir.path)/a.txt"}"#),
+            ToolCallRef(id: "b", name: "read_file", arguments: #"{ "path" : "\#(dir.path)/a.txt" }"#),
         ])],
         [.text("listo")],
     ])

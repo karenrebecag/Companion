@@ -172,6 +172,12 @@ package struct NativeToolRunner: Sendable {
 
     // MARK: - Tool Implementations
 
+    /// A bare name is read from a folder the model did not name, so the answer
+    /// says which one; a full path already says it.
+    static func whereRead(_ path: String, _ real: String) -> String {
+        path.hasPrefix("/") || path.hasPrefix("~") ? "" : "Path: \(real)\n"
+    }
+
     private func readFile(arguments: [String: Any]) throws -> ToolResult {
         guard let path = arguments["path"] as? String else {
             return ToolResult(ok: false, output: "Missing path argument")
@@ -193,7 +199,7 @@ package struct NativeToolRunner: Sendable {
                     output: content.prefix(maxSize) + "\n... (truncated)"
                 )
             }
-            return ToolResult(ok: true, output: content)
+            return ToolResult(ok: true, output: Self.whereRead(path, realPath) + content)
         } catch {
             if let tcc = Self.fullDiskAccessFailure(error) { return tcc }
             return ToolResult(ok: false, output: "Failed to read file: \(error)")
@@ -236,7 +242,7 @@ package struct NativeToolRunner: Sendable {
             }
             return ToolResult(
                 ok: true,
-                output: "File written successfully"
+                output: "File written successfully: \(realPath)"
                     + syncSuffix(realPath, previous: previous, content: content))
         } catch {
             return ToolResult(ok: false, output: "Failed to write file: \(error)")
@@ -256,11 +262,12 @@ package struct NativeToolRunner: Sendable {
     }
 
     func writeBarrier(_ path: String) -> WriteBarrier {
-        guard pathValidator.isAllowed(path) else { return .failure(outsideZone(path)) }
-        guard pathValidator.isAllowed(path, forWrite: true) else {
+        let target = pathValidator.writeTarget(path)
+        guard pathValidator.isAllowed(target) else { return .failure(outsideZone(path)) }
+        guard pathValidator.isAllowed(target, forWrite: true) else {
             return .failure(ToolResult(ok: false, output: readOnly(path).wire))
         }
-        let realPath = resolveRealPath(path)
+        let realPath = resolveRealPath(target)
         guard pathValidator.isAllowed(realPath) else {
             return .failure(outsideZone(path, resolved: true))
         }
@@ -274,7 +281,7 @@ package struct NativeToolRunner: Sendable {
     /// make it show one file and change another. restore_file_version is exempt:
     /// its sheet already names the real file.
     func leafLinkRefusal(_ path: String, real: String) -> ToolResult? {
-        let absolute = path.hasPrefix("/") ? path : ((workdir ?? home) as NSString).appendingPathComponent(path)
+        let absolute = pathValidator.writeTarget(path)
         guard Self.attributes(absolute)?[.type] as? FileAttributeType == .typeSymbolicLink else { return nil }
         return ToolResult(ok: false, output: "That path is a symbolic link; use the real path of the file: \(real)")
     }
@@ -352,7 +359,7 @@ package struct NativeToolRunner: Sendable {
             try content.write(toFile: realPath, atomically: true, encoding: .utf8)
             return ToolResult(
                 ok: true,
-                output: "File edited successfully"
+                output: "File edited successfully: \(realPath)"
                     + syncSuffix(realPath, previous: previous, content: content))
         } catch {
             return ToolResult(ok: false, output: "Failed to edit file: \(error)")
@@ -384,7 +391,7 @@ package struct NativeToolRunner: Sendable {
             }
             near = city.label
         }
-        let found = await places.search(query, near: near)
+        let found = PlaceResults.places(await places.search(query, near: near), query: query)
         guard !found.isEmpty else {
             // An empty map is worse than no map: it reads as "the place does
             // not exist" when it only means this query missed.
@@ -453,7 +460,7 @@ package struct NativeToolRunner: Sendable {
                 ok: true, output: "(empty folder)",
                 card: Card(payload: .empty(.folder), source: .tool))
         }
-        var output = tree.text.joined(separator: "\n")
+        var output = Self.whereRead(path, realPath) + tree.text.joined(separator: "\n")
         if tree.truncated {
             // Never a silent cap: a truncated listing that does not say so
             // reads as "this is everything", which is a lie about the folder.
@@ -577,9 +584,7 @@ package struct NativeToolRunner: Sendable {
 
     /// Resolve symlinks to get the real path on disk, then re-validate.
     func resolveRealPath(_ path: String) -> String {
-        let absolutePath = path.hasPrefix("/")
-            ? path
-            : ((workdir ?? home) as NSString).appendingPathComponent(path)
+        let absolutePath = pathValidator.absolute(path)
 
         // A path that does not exist yet is not resolved by
         // resolvingSymlinksInPath, so `link/new.txt` would pass as inside the

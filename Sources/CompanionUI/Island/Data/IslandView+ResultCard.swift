@@ -18,11 +18,11 @@ extension IslandView {
         // The words are gated by the same rule the card always used: a reply
         // that only repeats the choice's question has no prose of its own.
         let hasWords = latest.map { !Self.replyText(for: $0).isEmpty } ?? false
-        let visuals = latest.map(Self.inlineVisuals) ?? (nil, [])
+        let visuals = latestVisuals
         return resultCard(blocks: hasWords ? document?.blocks ?? [] : [], sources: document?.sources ?? []) {
             VStack(alignment: .leading, spacing: IslandGrid.groupGap) {
-                if visuals.0 != nil || !visuals.1.isEmpty {
-                    IslandInlineVisuals(card: visuals.0, blocks: visuals.1,
+                if !visuals.cards.isEmpty || !visuals.blocks.isEmpty {
+                    IslandInlineVisuals(cards: visuals.cards, blocks: visuals.blocks,
                                         width: IslandResultCardMetrics.bodyWidth, room: IslandFit.tallRoom)
                         .environment(\.diagramRenderer, diagrams)
                         .environment(\.fileSaver, saveFile)

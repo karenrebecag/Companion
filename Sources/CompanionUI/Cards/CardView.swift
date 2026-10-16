@@ -30,6 +30,7 @@ enum CardMetrics {
     static let sparkline: CGFloat = 24
     /// A file chip never grows past this; a longer name truncates in the middle.
     static let fileChipWidth: CGFloat = 260
+    static let fileChipIcon: CGFloat = 16
     static let chart: CGFloat = 200
     static let tableMax: CGFloat = 320
     /// Columna del icono de fila: un paso de la rampa, no un numero.

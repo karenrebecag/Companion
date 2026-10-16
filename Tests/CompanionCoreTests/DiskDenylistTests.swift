@@ -71,3 +71,52 @@ private func validator(roots: [PathValidator.Root] = []) -> PathValidator {
     expect(!validator(roots: own).isAllowed("\(home)/Library/Application Support/Companion/bridge.token"),
            "el resto del contenedor sigue cerrado")
 }
+
+// `~` is the home folder for every file tool. Read as a plain name it became a
+// folder called "~" under the working folder, and the model took the empty
+// answer for "the file is not there".
+@Test func tildeNamesTheHomeFolderForEveryFileTool() {
+    let open = validator()
+    expectEq(open.absolute("~/Desktop/x.md"), "\(home)/Desktop/x.md", "~/ es la carpeta de inicio")
+    expectEq(open.absolute("~"), home, "~ solo es la carpeta de inicio")
+    expect(open.isAllowed("~/Desktop/x.md"), "~/ se resuelve antes de validar")
+
+    let scoped = PathValidator(workdir: "\(home)/Projects/app", extraRoots: [], wholeDisk: false, home: home)
+    expect(!scoped.isAllowed("~/Desktop/x.md"), "~/ fuera del workdir no entra por estar dentro del workdir")
+    expectEq(scoped.absolute("Desktop/x.md"), "\(home)/Projects/app/Desktop/x.md",
+             "relativa: contra el workdir, igual que en el resto de las tools")
+}
+
+// A new or written file with a bare name goes where deliverables always went:
+// the working folder. Reads and opens use the shared reading (home, disk open).
+@Test func aNewFileWithARelativeNameLandsInTheWorkdir() {
+    let disk = PathValidator(workdir: "\(home)/Projects/app", extraRoots: [], wholeDisk: true, home: home)
+    expectEq(disk.writeTarget("informe.pdf"), "\(home)/Projects/app/informe.pdf",
+             "escribir: nombre suelto cae en el workdir, nunca en la raíz del home")
+    expectEq(disk.absolute("informe.pdf"), "\(home)/informe.pdf", "leer: el mismo nombre se busca en el home")
+}
+
+@Test func relativePathsResolveAgainstHomeWhenNoWorkdir() {
+    expectEq(validator().absolute("Desktop/x.md"), "\(home)/Desktop/x.md",
+             "sin workdir y con el disco abierto, relativa = carpeta de inicio")
+}
+
+// Relative paths read the same way in every file tool. With the disk open (the
+// production setting) the workdir bounds nothing, so a relative path is taken
+// from the home folder, as open_file and the chips always did.
+@Test func aRelativePathResolvesTheSameForEveryFileTool() throws {
+    let disk = PathValidator(workdir: "\(home)/Projects/app", extraRoots: [], wholeDisk: true, home: home)
+    let want = "\(home)/Desktop/x.md"
+    expectEq(disk.absolute("Desktop/x.md"), want, "especialista: relativa contra la carpeta de inicio")
+    expectEq(FileChip.resolved("Desktop/x.md", workdir: nil, home: home), want, "chip: la misma ruta")
+
+    let fake = FileManager.default.temporaryDirectory
+        .appendingPathComponent("qa4-home-\(UUID().uuidString)", isDirectory: true)
+    let file = fake.appendingPathComponent("Desktop/x.md")
+    try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+    FileManager.default.createFile(atPath: file.path, contents: Data())
+    defer { try? FileManager.default.removeItem(at: fake) }
+    let opened = try ParentToolPolicy.homePath("Desktop/x.md", home: fake)
+    expectEq(opened.resolvingSymlinksInPath().path, file.resolvingSymlinksInPath().path,
+             "open_file: la misma ruta desde la carpeta de inicio")
+}

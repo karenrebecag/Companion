@@ -410,7 +410,9 @@ package enum ChatPrompt: Sendable {
                 + "Use your own tools first (the ones declared to you): "
                 + "list_directory and read_file to look at files and folders "
                 + "(anywhere on her disk except system folders and "
-                + "credentials; if one is refused, say so), web_fetch to read a URL, "
+                + "credentials; if one is refused, say so). When she gives a "
+                + "path or a file name, call read_file or open_file on it "
+                + "directly; list_directory only if that fails. web_fetch to read a URL, "
                 + "find_places only for physical places to find (never weather or news), the browser and your hands. "
                 + search
                 + "Call delegate only for heavy multi-step work "
@@ -440,7 +442,9 @@ package enum ChatPrompt: Sendable {
                 + "propias (las que tengas declaradas): list_directory y "
                 + "read_file para mirar archivos y carpetas (en cualquier parte "
                 + "de su disco salvo carpetas del sistema y credenciales; si una "
-                + "se niega, dilo), "
+                + "se niega, dilo). Si te dan una ruta o un nombre de archivo, "
+                + "llama read_file u open_file directo; list_directory solo si "
+                + "esa falla. "
                 + "web_fetch para leer una URL, find_places "
                 + "solo para lugares físicos que encontrar (nunca clima ni noticias), el navegador y tus manos. "
                 + search

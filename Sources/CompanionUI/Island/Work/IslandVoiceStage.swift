@@ -21,7 +21,7 @@ struct IslandVoiceStage: View {
     let startedAt: Date
     let showsStop: Bool
     /// The spoken reply's own chart or table: it is in the same message, so it shows while the words are said.
-    var visuals: (card: Card?, blocks: [AnswerBlock]) = (nil, [])
+    var visuals: IslandView.InlineVisuals = ([], [])
     let onStop: () -> Void
 
     var body: some View {
@@ -32,8 +32,8 @@ struct IslandVoiceStage: View {
                 .frame(width: IslandVoiceStageMetrics.mark, height: IslandVoiceStageMetrics.mark)
                 .accessibilityHidden(true)
             IslandLiveReply(voice: voice, text: text, startedAt: startedAt, speaking: true, look: .transcript)
-            if visuals.card != nil || !visuals.blocks.isEmpty {
-                IslandInlineVisuals(card: visuals.card, blocks: visuals.blocks,
+            if !visuals.cards.isEmpty || !visuals.blocks.isEmpty {
+                IslandInlineVisuals(cards: visuals.cards, blocks: visuals.blocks,
                                     width: IslandGrid.openColumn, room: IslandFit.tallRoom)
             }
             if showsStop {

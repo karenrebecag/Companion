@@ -60,17 +60,7 @@ package enum BrowserFilePolicy: Sendable {
     private static func lexicalPath(_ raw: String, home: URL) -> String {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         let base = home.standardizedFileURL.path
-        let expanded: String
-        if text == "~" {
-            expanded = base
-        } else if text.hasPrefix("~/") {
-            expanded = base + text.dropFirst(1)
-        } else if text.hasPrefix("/") {
-            expanded = text
-        } else {
-            expanded = base + "/" + text
-        }
-        return URL(fileURLWithPath: expanded).standardizedFileURL.path
+        return URL(fileURLWithPath: PathValidator.resolve(text, bound: nil, home: base)).standardizedFileURL.path
     }
 
     /// Both spellings of home: `homePath` resolves with realpath, so a home

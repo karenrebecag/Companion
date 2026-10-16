@@ -225,7 +225,7 @@ private func unwritableRoot(in dir: URL) throws -> URL {
     try write("ORIGINAL", to: file)
     let versions = store(root, clock: FileVersionsTestClock(1_790_000_000, tick: 1))
     let runner = NativeToolRunner(workdir: dir.path, places: nil, documents: FakeDocuments(), versions: versions)
-    let result = try await runner.execute(tool: "create_document", arguments: ["path": "q3.pdf", "document": doc],
+    let result = try await runner.execute(tool: "create_document", arguments: ["path": dir.appendingPathComponent("q3.pdf").path, "document": doc],
                                           approved: true)
     expect(result.ok, "documento: se sobrescribe")
     expect(result.output.contains("a previous version was kept"), "documento: dice que se guardo la anterior")
@@ -243,7 +243,7 @@ private func unwritableRoot(in dir: URL) throws -> URL {
     defer { remove(dir) }
     let runner = NativeToolRunner(workdir: dir.path, places: nil, documents: FakeDocuments(),
                                   versions: store(dir.appendingPathComponent("store")))
-    let result = try await runner.execute(tool: "create_document", arguments: ["path": "nuevo.pdf", "document": doc],
+    let result = try await runner.execute(tool: "create_document", arguments: ["path": dir.appendingPathComponent("nuevo.pdf").path, "document": doc],
                                           approved: true)
     expect(result.ok && !result.output.contains("previous version"), "documento nuevo: sin mencion de version")
 }
@@ -256,7 +256,7 @@ private func unwritableRoot(in dir: URL) throws -> URL {
     try write("ORIGINAL", to: file)
     let runner = NativeToolRunner(workdir: dir.path, places: nil, documents: FakeDocuments(),
                                   versions: store(root))
-    let result = try await runner.execute(tool: "create_document", arguments: ["path": "q3.pdf", "document": doc],
+    let result = try await runner.execute(tool: "create_document", arguments: ["path": dir.appendingPathComponent("q3.pdf").path, "document": doc],
                                           approved: true)
     expect(result.ok, "fail-open: el documento se escribe")
     expectEq(try String(contentsOfFile: file, encoding: .utf8), "%PDF-fake", "fail-open: el archivo tiene lo nuevo")
@@ -271,7 +271,7 @@ private func unwritableRoot(in dir: URL) throws -> URL {
     try write("0123456789ABC", to: file)
     let runner = NativeToolRunner(workdir: dir.path, places: nil, documents: FakeDocuments(),
                                   versions: store(dir.appendingPathComponent("store"), bytes: 10))
-    let result = try await runner.execute(tool: "create_document", arguments: ["path": "q3.pdf", "document": doc],
+    let result = try await runner.execute(tool: "create_document", arguments: ["path": dir.appendingPathComponent("q3.pdf").path, "document": doc],
                                           approved: true)
     expect(result.ok && result.output.contains("no previous version could be kept"), "grande: no se guardo")
     expect(result.output.contains("50 MB"), "grande: dice el tope")
@@ -412,7 +412,7 @@ private struct LockingDocuments: DocumentRendering {
     try write("ORIGINAL", to: file)
     let versions = store(dir.appendingPathComponent("store"), clock: FileVersionsTestClock(1_790_000_000, tick: 1))
     let runner = NativeToolRunner(workdir: dir.path, places: nil, documents: FailingDocuments(), versions: versions)
-    let result = try await runner.execute(tool: "create_document", arguments: ["path": "q3.pdf", "document": doc],
+    let result = try await runner.execute(tool: "create_document", arguments: ["path": dir.appendingPathComponent("q3.pdf").path, "document": doc],
                                           approved: true)
     expect(!result.ok, "render fallido: no es ok")
     expectEq(versions.versions(of: file).map(\.trigger), [.preSave], "render fallido: solo la previa")
@@ -432,7 +432,7 @@ private struct LockingDocuments: DocumentRendering {
             do { try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.appendingPathComponent(name).path) } catch {}
         }
     }
-    let result = try await runner.execute(tool: "create_document", arguments: ["path": "q3.pdf", "document": doc],
+    let result = try await runner.execute(tool: "create_document", arguments: ["path": dir.appendingPathComponent("q3.pdf").path, "document": doc],
                                           approved: true)
     expect(result.ok, "post fallido: el guardado sigue ok")
     expectEq(try String(contentsOfFile: file, encoding: .utf8), "%PDF-fake", "post fallido: el archivo tiene lo nuevo")
@@ -487,7 +487,7 @@ private final class OneShotProvider: ChatProvider, @unchecked Sendable {
     let file = dir.appendingPathComponent("informe.pdf").path
     try write("ORIGINAL", to: file)
     let versions = store(dir.appendingPathComponent("store"), clock: FileVersionsTestClock(1_790_000_000, tick: 1))
-    let args = "{\"path\":\"informe.pdf\",\"document\":\"{\\\"title\\\":\\\"x\\\",\\\"blocks\\\":[{\\\"type\\\":\\\"paragraph\\\",\\\"text\\\":\\\"hola\\\"}]}\"}"
+    let args = "{\"path\":\"\(file)\",\"document\":\"{\\\"title\\\":\\\"x\\\",\\\"blocks\\\":[{\\\"type\\\":\\\"paragraph\\\",\\\"text\\\":\\\"hola\\\"}]}\"}"
     let executor = NativeExecutor(
         descriptor: ExecutorCatalog.native,
         chatProvider: OneShotProvider(name: "create_document", arguments: args),

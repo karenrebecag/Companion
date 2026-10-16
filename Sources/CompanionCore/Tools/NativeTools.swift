@@ -197,19 +197,45 @@ package struct PathValidator: Sendable {
         self.roots = roots
     }
 
-    /// Normalizes `.` and `..` first; a relative path resolves against the
-    /// working folder (or the home folder when the whole disk is open) and has
-    /// nowhere to go without one.
-    package func isAllowed(_ path: String, forWrite: Bool = false) -> Bool {
-        let normalizedPath: String
-        if path.hasPrefix("/") {
-            normalizedPath = (path as NSString).standardizingPath
-        } else {
-            guard let base = workdir ?? (wholeDisk ? home : nil) else { return false }
-            let combined = ((base as NSString).standardizingPath as NSString)
-                .appendingPathComponent(path)
-            normalizedPath = (combined as NSString).standardizingPath
+    /// The one reading of a path that is read, listed or opened. A bounded
+    /// working folder is the base. With the disk open a bare name is taken
+    /// from the working folder when that has it, and from home otherwise: one
+    /// answer, never a mix of the two. Writes use `writeTarget`.
+    package func absolute(_ path: String) -> String {
+        let expanded = Self.expandHome(path, home: home)
+        guard wholeDisk, !expanded.hasPrefix("/"), let workdir else {
+            return Self.resolve(path, bound: wholeDisk ? nil : workdir, home: home)
         }
+        let inWorkdir = Self.resolve(path, bound: workdir, home: home)
+        if FileManager.default.fileExists(atPath: inWorkdir) { return inWorkdir }
+        return Self.resolve(path, bound: nil, home: home)
+    }
+
+    /// Where a file that is created or written lands when its name is bare:
+    /// the working folder, the deliverables zone, and home without one. Only
+    /// writes use it; reads take `absolute`.
+    package func writeTarget(_ path: String) -> String {
+        Self.resolve(path, bound: workdir, home: home)
+    }
+
+    /// `~` is the home folder, a leading `/` is absolute, anything else is
+    /// relative to `bound` or, without one, to home.
+    package static func resolve(_ path: String, bound: String?, home: String) -> String {
+        let expanded = expandHome(path, home: home)
+        if expanded.hasPrefix("/") { return (expanded as NSString).standardizingPath }
+        return ((((bound ?? home) + "/" + expanded)) as NSString).standardizingPath
+    }
+
+    /// Only `~` and `~/…` name the home folder; `~user` and mid-path tildes are names.
+    package static func expandHome(_ text: String, home: String) -> String {
+        if text == "~" { return home }
+        if text.hasPrefix("~/") { return home + text.dropFirst(1) }
+        return text
+    }
+
+    /// Normalizes `.` and `..` first (see `absolute`).
+    package func isAllowed(_ path: String, forWrite: Bool = false) -> Bool {
+        let normalizedPath = absolute(path)
         if wholeDisk {
             // Companion's own roots (skills, memory) keep their read-only flags
             // and are exempt from the container rule only: any other closed

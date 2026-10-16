@@ -196,3 +196,23 @@ private struct HostedShot: Equatable {
         height: rep.pixelsHigh,
         bytes: Array(UnsafeBufferPointer(start: data, count: count)))
 }
+
+// The turn's card is its own message, painted before the words: the notch must
+// draw it under the reply, not only the reply's text.
+@Test @MainActor func theNotchDrawsTheCardsOfTheNewestTurn() {
+    let earlier = reply("Hay una tabla.", card: tableCard(cell: "antes"))
+    let chart = tableCard(cell: "turno")
+    let messages = [
+        ChatMessage(role: .user, text: "Lista la carpeta"),
+        ChatMessage(role: .assistant, text: "", card: chart),
+        ChatMessage(role: .user, text: "Otra cosa"),
+        earlier,
+        ChatMessage(role: .user, text: "Lista de nuevo"),
+        ChatMessage(role: .assistant, text: "", card: chart),
+        reply("Aquí está."),
+    ]
+    expectEq(IslandView.turnCards(messages), [chart], "solo las tarjetas del último turno")
+    let latest = messages[6]
+    expectEq(IslandView.inlineVisuals(latest, turnCards: IslandView.turnCards(messages)).cards, [chart],
+             "la respuesta de texto dibuja la tarjeta de su turno")
+}
