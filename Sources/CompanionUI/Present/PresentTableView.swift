@@ -7,7 +7,6 @@ import SwiftUI
 /// the ones a filter answers.
 struct PresentTableView: View {
     let table: PresentTable
-    let measures: PresentMeasures
     let filterable: Bool
 
     @State private var filters: [FilterChip] = []
@@ -56,10 +55,11 @@ struct PresentTableView: View {
                     }
                 },
                 cell: { row in
-                    AnyView(
-                        Text(row.cells[column].display)
+                    let cell = row.cells[column]
+                    return AnyView(
+                        Text(cell.display)
                             .monospacedDigit()
-                            .frame(maxWidth: .infinity, alignment: .leading))
+                            .frame(maxWidth: .infinity, alignment: cell.isNumber ? .trailing : .leading))
                 })
         }
     }
@@ -81,5 +81,12 @@ struct PresentTableView: View {
                 emptyMessage: Localized.string("present.table.empty"),
                 itemName: (Localized.string("present.rows.one"), Localized.string("present.rows.other")))
         }
+    }
+}
+
+private extension PresentCell {
+    var isNumber: Bool {
+        if case .number = self { return true }
+        return false
     }
 }

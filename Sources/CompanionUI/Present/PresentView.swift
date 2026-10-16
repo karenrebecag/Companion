@@ -38,15 +38,15 @@ struct PresentRenderView: View {
         case .notice(let note):
             PresentNotice(note: note)
         case .sortableTable(let table):
-            PresentTitled(title: table.title) { PresentTableView(table: table, measures: measures, filterable: false) }
+            PresentTitled(title: table.title) { PresentTableView(table: table, filterable: false) }
         case .filterableTable(let table):
-            PresentTitled(title: table.title) { PresentTableView(table: table, measures: measures, filterable: true) }
+            PresentTitled(title: table.title) { PresentTableView(table: table, filterable: true) }
         case .slope, .donut, .splitBar, .treemap, .line, .brush, .streamgraph, .bar:
             PresentChart(render: render, measures: measures)
         case .metrics(let title, let tiles):
             PresentTitled(title: title) { PresentMetricsView(tiles: tiles, measures: measures) }
         case .timeline(let timeline):
-            PresentTitled(title: timeline.title) { PresentTimelineView(timeline: timeline, measures: measures) }
+            PresentTitled(title: timeline.title) { PresentTimelineView(timeline: timeline) }
         case .countdown(let event):
             PresentCountdown(event: event, compact: measures.compact)
         case .places(let places):
@@ -61,7 +61,7 @@ struct PresentRenderView: View {
         case .chips(let files):
             PresentTitled(title: files.title) { PresentChips(files: files) }
         case .code(let code):
-            PresentTitled(title: code.isDiff ? nil : code.title) { PresentCodeView(code: code, measures: measures) }
+            PresentTitled(title: nil) { PresentCodeView(code: code, measures: measures) }
         case .sources(let sources):
             SourcesCard(
                 webSources: sources.map { MarkdownSplitter.SourceLink(title: $0.title, url: $0.url) },

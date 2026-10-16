@@ -1051,3 +1051,5 @@
 "present.diff.removed" = "Removed";
 "present.day.today" = "Today";
 "present.day.yesterday" = "Yesterday";
+"present.bar.average" = "Average";
+"present.bar.period" = "%ld items";

@@ -1051,3 +1051,5 @@
 "present.diff.removed" = "Quitada";
 "present.day.today" = "Hoy";
 "present.day.yesterday" = "Ayer";
+"present.bar.average" = "Promedio";
+"present.bar.period" = "%ld elementos";

@@ -7,14 +7,12 @@ import SwiftUI
 /// invented hours.
 struct PresentTimelineView: View {
     let timeline: PresentTimeline
-    let measures: PresentMeasures
 
     var body: some View {
         if let events = dated {
             Timeline(
                 events: events, now: Date(),
-                label: PresentStrings.label(timeline.title, fallback: "present.timeline"),
-                maxHeight: measures.timelineMaxHeight)
+                label: PresentStrings.label(timeline.title, fallback: "present.timeline"))
         } else {
             PresentRail(events: timeline.events)
         }
@@ -24,9 +22,11 @@ struct PresentTimelineView: View {
         guard !timeline.events.isEmpty, timeline.events.allSatisfy({ $0.startsAt != nil }) else { return nil }
         return timeline.events.enumerated().compactMap { index, event in
             event.startsAt.map {
+                // The feed prints the date and time itself, so the model's
+                // ISO text would only repeat it; the place is what is left.
                 TimelineEvent(
                     id: "\(index)", at: $0, title: event.title,
-                    meta: [event.when, event.place].compactMap { $0 }.joined(separator: " · ").nilIfEmpty,
+                    meta: event.place.flatMap { $0.isEmpty ? nil : $0 },
                     tone: Self.tone(event.tone),
                     detail: event.detail.map { AnyView(Text($0)) })
             }
@@ -41,10 +41,6 @@ struct PresentTimelineView: View {
         case .neutral, .info, .warning: .neutral
         }
     }
-}
-
-private extension String {
-    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 /// Events in the order the model gave them, each with the words it wrote.
@@ -89,7 +85,7 @@ struct PresentRail: View {
         .accessibilityElement(children: .contain)
     }
 
-    static func line(_ event: PresentEvent) -> String? {
+    private static func line(_ event: PresentEvent) -> String? {
         let text = [event.when, event.place].compactMap { $0 }.joined(separator: " · ")
         return text.isEmpty ? nil : text
     }
@@ -105,7 +101,7 @@ struct PresentCountdown: View {
             Text(event.title)
                 .font(.uiSubtitle)
                 .foregroundStyle(Semantic.foreground)
-            if let line = PresentRail.line(event) {
+            if let line = Self.line(event) {
                 Text(line)
                     .font(.uiCaption)
                     .foregroundStyle(Semantic.mutedForeground)
@@ -119,5 +115,13 @@ struct PresentCountdown: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The parsed date, written the way the reader's locale writes it: the
+    /// model's own text for it is ISO 8601 once a countdown exists.
+    private static func line(_ event: PresentEvent) -> String? {
+        let when = event.startsAt?.formatted(date: .abbreviated, time: .shortened)
+        let text = [when, event.place].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+        return text.isEmpty ? nil : text
     }
 }

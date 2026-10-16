@@ -36,7 +36,8 @@ struct PresentChart: View {
                     totalLabel: Localized.string("present.total"))
             }
         case .treemap(let parts):
-            PresentTitled(title: parts.title) {
+            // The treemap draws its own label and total as a header.
+            PresentTitled(title: nil) {
                 Treemap(
                     data: PresentChartData.treemap(parts),
                     label: PresentStrings.label(parts.title, fallback: "present.chart"),
@@ -47,22 +48,25 @@ struct PresentChart: View {
                 BarChart(
                     data: PresentChartData.bars(ranking),
                     label: PresentStrings.label(ranking.title, fallback: "present.chart"),
-                    period: ranking.unit ?? "", unit: ranking.unit ?? "",
+                    period: String(format: Localized.string("present.bar.period"), ranking.items.count),
+                    unit: ranking.unit ?? "",
+                    averageLabel: Localized.string("present.bar.average"),
                     valueLabel: Localized.string("present.total"),
                     showAverage: false, height: measures.barHeight)
+                    // Half a bar hangs past the last tick; this keeps it inside the frame.
+                    .padding(.trailing, Space.x2)
             }
         case .line(let series):
             PresentTitled(title: series.title) { PresentSeriesChart(series: series, measures: measures) }
         case .brush(let series):
-            PresentTitled(title: series.title) {
-                if let data = PresentChartData.brush(series) {
-                    BrushChart(
-                        data: data, label: PresentStrings.label(series.title, fallback: "present.chart"),
-                        unit: series.unit ?? "", height: measures.brushHeight,
-                        overviewHeight: measures.brushOverview)
-                } else {
-                    PresentSeriesChart(series: series, measures: measures)
-                }
+            // The brush draws its own label; the line fallback does not.
+            if let data = PresentChartData.brush(series) {
+                BrushChart(
+                    data: data, label: PresentStrings.label(series.title, fallback: "present.chart"),
+                    unit: series.unit ?? "", height: measures.brushHeight,
+                    overviewHeight: measures.brushOverview)
+            } else {
+                PresentTitled(title: series.title) { PresentSeriesChart(series: series, measures: measures) }
             }
         case .streamgraph(let series):
             PresentTitled(title: series.title) {

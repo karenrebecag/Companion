@@ -101,6 +101,7 @@ struct PresentNotice: View {
             Image(systemName: Self.symbol(note.tone))
                 .font(.uiBody)
                 .foregroundStyle(Self.ink(note.tone))
+                .frame(width: PresentMeasures.noticeIcon)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: Space.x1) {
                 if let title = note.title, !title.isEmpty {

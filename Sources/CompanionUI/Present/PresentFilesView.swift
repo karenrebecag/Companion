@@ -9,7 +9,18 @@ struct PresentTree: View {
     var body: some View {
         TreeView(
             nodes: Self.nodes(files.items, parent: ""),
-            label: PresentStrings.label(files.title, fallback: "present.files"))
+            label: PresentStrings.label(files.title, fallback: "present.files"),
+            defaultExpandedIDs: Self.folderIDs(files.items, parent: ""))
+    }
+
+    /// The model expanded these folders on purpose, so they open expanded.
+    static func folderIDs(_ items: [PresentFile], parent: String) -> Set<String> {
+        items.reduce(into: Set<String>()) { ids, item in
+            guard let children = item.children else { return }
+            let id = parent.isEmpty ? item.name : parent + "/" + item.name
+            ids.insert(id)
+            ids.formUnion(folderIDs(children, parent: id))
+        }
     }
 
     /// Ids are paths so two files with one name in different folders stay apart.
@@ -17,7 +28,7 @@ struct PresentTree: View {
         items.map { item in
             let id = parent.isEmpty ? item.name : parent + "/" + item.name
             return TreeNode(
-                id: id, label: item.name,
+                id: id, label: item.size.flatMap { $0.isEmpty ? nil : item.name + " · " + $0 } ?? item.name,
                 symbol: FileSymbol.name(forFileNamed: item.name, isFolder: item.children != nil),
                 children: item.children.map { nodes($0, parent: id) })
         }

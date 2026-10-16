@@ -33,6 +33,12 @@ struct PresentTileView: View {
         return number + " " + unit
     }
 
+    /// The value against its goal, both as written.
+    private var gaugeDetail: String {
+        guard let target = metric.target else { return valueText }
+        return valueText + " / " + target.formatted(.number.precision(.fractionLength(0...2)))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x1_5) {
             Text(metric.label)
@@ -56,7 +62,7 @@ struct PresentTileView: View {
             VStack(alignment: .leading, spacing: Space.x1) {
                 GaugeChart(
                     value: metric.value, max: metric.target ?? metric.value, label: metric.label,
-                    detail: valueText, size: measures.gaugeSize)
+                    detail: gaugeDetail, size: measures.gaugeSize)
                 delta
             }
         case .counter:

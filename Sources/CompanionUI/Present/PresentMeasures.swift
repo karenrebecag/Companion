@@ -14,11 +14,9 @@ struct PresentMeasures {
     var treemapHeight: CGFloat { compact ? 180 : 280 }
     var gaugeSize: CGFloat { compact ? 96 : 120 }
     var slopeHeight: CGFloat? { compact ? 150 : nil }
-    var tableMaxHeight: CGFloat { compact ? 220 : 340 }
-    var timelineMaxHeight: CGFloat { compact ? 220 : 360 }
     var codeMaxLines: Int { compact ? 10 : 24 }
-    var tileMinWidth: CGFloat { compact ? 132 : 164 }
-    var sparklineWidth: CGFloat { compact ? 132 : 164 }
+    var tileMinWidth: CGFloat { compact ? 180 : 164 }
+    var sparklineWidth: CGFloat { compact ? 180 : 164 }
 
     /// A line chart labels the axis every few points so the dates do not overlap.
     func axisStride(count: Int) -> Int { max(1, count / (compact ? 4 : 6)) }
