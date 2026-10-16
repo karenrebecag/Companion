@@ -125,6 +125,8 @@ package enum CardPayload: Sendable, Equatable {
     case chart(ChartBlock)
     /// What list_directory walked: the card paints it, the model reads its text.
     case tree(TreeBlock)
+    /// A lookup that found nothing: said on the card, not left as a blank.
+    case empty(EmptyResult)
 }
 
 /// What the interface paints, travelling on its own channel — never through

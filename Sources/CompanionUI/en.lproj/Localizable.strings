@@ -649,6 +649,13 @@
 "card.tree.expanded" = "expanded";
 "card.tree.truncated" = "Showing %d of %d entries.";
 "card.tree.collapsed" = "collapsed";
+"card.empty.places.title" = "No places found for %@.";
+"card.empty.places.detail" = "Try another name or add a city.";
+"card.empty.folder.title" = "This folder is empty.";
+"card.empty.folder.detail" = "Nothing to list here yet.";
+"chat.card.empty" = "[empty result shown on screen]";
+"file.chip.open" = "Open";
+"file.chip.reveal" = "Show in Finder";
 "chat.card.tree" = "[folder tree shown on screen]";
 "chat.card.data" = "[data shown in a card on screen]";
 

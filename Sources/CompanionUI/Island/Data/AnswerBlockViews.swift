@@ -129,7 +129,11 @@ struct AnswerBlockView: View {
         case .table(let headers, let rows):
             table(headers: headers, rows: rows)
         case .fileChip(let path):
-            fileChip(path)
+            if let chip = FileChip(path) {
+                FileChipView(chip: chip)
+            } else {
+                fileChip(path)
+            }
         case .card(.chart(let chart)):
             IslandChartVisual(block: chart)
         case .card(let payload):

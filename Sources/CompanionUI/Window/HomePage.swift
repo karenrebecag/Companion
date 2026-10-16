@@ -25,7 +25,7 @@ struct HomePage: View {
                         if let error = ChatErrorSurface.visible(
                             errorText: chat.errorText, needsOnboarding: chat.needsOnboarding, dismissed: nil)
                         {
-                            HomeErrorBanner(text: error, onDismiss: chat.dismissError)
+                            ErrorAlert(text: error, onDismiss: chat.dismissError)
                         }
                         HomeHero(state: voice.snapshot.state)
                         tasks

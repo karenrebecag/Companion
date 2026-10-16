@@ -52,24 +52,3 @@ extension ChatViewModel {
         if case .chatError = line { dismissIslandError() } else { session.send(.noticeDismissed) }
     }
 }
-
-/// The error above Home's tasks: the sentence and an exit.
-struct HomeErrorBanner: View {
-    let text: String
-    let onDismiss: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: Space.x3) {
-            Text(text)
-                .font(.uiBody)
-                .foregroundStyle(Semantic.destructive)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            CloseButton(label: Localized.string("island.notice.dismiss"), action: onDismiss)
-        }
-        .padding(Space.x3)
-        .background(RoundedRectangle(cornerRadius: Radius.lg).fill(Semantic.destructiveMuted))
-        .accessibilityElement(children: .contain)
-        .onAppear { AccessibilityNotification.Announcement(ChatErrorSurface.announcement(text)).post() }
-    }
-}

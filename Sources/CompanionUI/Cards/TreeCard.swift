@@ -106,21 +106,7 @@ struct TreeCard: View {
         }
     }
 
-    /// The kind is read from the name: what a person scans a folder for.
     static func symbol(for node: TreeBlock.Node) -> String {
-        if node.isFolder { return "folder" }
-        switch (node.name as NSString).pathExtension.lowercased() {
-        case "png", "jpg", "jpeg", "gif", "heic", "webp", "svg", "tif", "tiff": return "photo"
-        case "mp4", "mov", "m4v", "avi", "mkv": return "film"
-        case "mp3", "wav", "m4a", "aac", "flac": return "music.note"
-        case "pdf": return "doc.richtext"
-        case "zip", "tar", "gz", "tgz", "7z", "rar", "dmg": return "archivebox"
-        case "csv", "xlsx", "numbers": return "tablecells"
-        case "txt", "md", "rtf", "doc", "docx", "pages": return "doc.text"
-        case "swift", "js", "ts", "tsx", "jsx", "py", "rb", "go", "rs", "java", "kt", "c", "h", "cpp",
-             "m", "sh", "json", "yaml", "yml", "toml", "html", "css":
-            return "chevron.left.forwardslash.chevron.right"
-        default: return "doc"
-        }
+        FileSymbol.name(forFileNamed: node.name, isFolder: node.isFolder)
     }
 }

@@ -51,6 +51,7 @@ package enum ChatPrompt: Sendable {
         }
         prompt += " " + titleRule(language)
         prompt += " " + whereRule(language)
+        prompt += " " + fileNameRule(language)
         // Hands before the specialist: what the turn can do itself comes
         // first, so "open Safari" is an action and not an errand (Wave 10b).
         if parentToolsEnabled {
@@ -347,6 +348,14 @@ package enum ChatPrompt: Sendable {
     /// Wave 16a: without a click the brain sent "accept the permission" to
     /// the specialist, which asked leave for an AppleScript (log 2026-09-25
     /// 18:33). The ids are only valid for the latest look, hence the order.
+    /// The app paints a chip for a file's path, so the text names the file.
+    private static func fileNameRule(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "When you mention a file, give its name, not its path, unless she asks for the path."
+        case .es: return "Cuando menciones un archivo, di su nombre, no su ruta, salvo que ella pida la ruta."
+        }
+    }
+
     private static func sightRule(_ language: AppLanguage) -> String {
         switch language {
         case .en:

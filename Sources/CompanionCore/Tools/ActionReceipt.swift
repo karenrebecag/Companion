@@ -11,10 +11,13 @@ package struct ReceiptLine: Sendable, Equatable {
     /// A read-back confirmed it. Without one the app did it and says so, but
     /// does not claim to have checked.
     package let verified: Bool
+    /// The file the line is about; the text carries its name, the card paints a chip.
+    package let file: FileChip?
 
-    package init(text: String, verified: Bool) {
+    package init(text: String, verified: Bool, file: FileChip? = nil) {
         self.text = text
         self.verified = verified
+        self.file = file
     }
 }
 
@@ -37,9 +40,10 @@ package struct ActionReceipt: Sendable, Equatable {
             guard !text.isEmpty else { continue }
             // The same line proven later is the same line, now checked.
             if let index = kept.firstIndex(where: { $0.text == text }) {
-                kept[index] = ReceiptLine(text: text, verified: kept[index].verified || raw.verified)
+                kept[index] = ReceiptLine(text: text, verified: kept[index].verified || raw.verified,
+                                          file: kept[index].file ?? raw.file)
             } else {
-                kept.append(ReceiptLine(text: text, verified: raw.verified))
+                kept.append(ReceiptLine(text: text, verified: raw.verified, file: raw.file))
             }
         }
         guard !kept.isEmpty else { return nil }
@@ -72,10 +76,13 @@ package enum ReceiptProof {
         // A URL shows where it went, not what it carried: no query, no
         // fragment, no credentials.
         var shown = outcome
-        shown.target = display(target: outcome.target)
+        // A file shows its name in the text; the chip carries the path.
+        let file = hands == .openFile ? FileChip(outcome.target) : nil
+        shown.target = file?.name ?? display(target: outcome.target)
         return ReceiptLine(
             text: TextHygiene.oneLine(ParentToolCopy.status(tool, shown, language)),
-            verified: hands == .typeText && outcome.verified)
+            verified: hands == .typeText && outcome.verified,
+            file: file)
     }
 
     static func display(target: String) -> String {
