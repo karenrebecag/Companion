@@ -278,13 +278,22 @@ final class AckingSensor: ContextSensing, @unchecked Sendable {
 @Test func testAResultNobodyOpenedIsIgnoredWhenTheNextOneArrives() {
     var attention = IslandResultAttention()
     let first = UUID(), second = UUID(), third = UUID()
-    expectEq(attention.replyShown(first), [.shown(.result)], "resultado: mostrado")
-    expectEq(attention.replyShown(first), [], "resultado: el mismo dos veces no repite")
-    expectEq(attention.replyShown(second), [.ignored(.result), .shown(.result)],
+    expectEq(attention.replyShown(first, at: 0), [.shown(.result)], "resultado: mostrado")
+    expectEq(attention.replyShown(first, at: 0), [], "resultado: el mismo dos veces no repite")
+    expectEq(attention.replyShown(second, at: 5), [.ignored(.result), .shown(.result)],
              "resultado: el que nadie atendió se ignoró al llegar el siguiente")
     attention.attended()
-    expectEq(attention.replyShown(third), [.shown(.result)],
+    expectEq(attention.replyShown(third, at: 10), [.shown(.result)],
              "resultado: uno abierto no se cuenta como ignorado")
+}
+
+@Test func testAResultThatLivedUnderASecondIsNotCalledIgnored() {
+    var attention = IslandResultAttention()
+    _ = attention.replyShown(UUID(), at: 100)
+    expectEq(attention.replyShown(UUID(), at: 100.4), [.shown(.result)],
+             "resultado: 0,4 s en pantalla sin mano no es ignorarlo, no hubo tiempo de leerlo")
+    expectEq(attention.replyShown(UUID(), at: 101.4), [.ignored(.result), .shown(.result)],
+             "resultado: un segundo entero sin que nadie lo atendiera sí es ignorarlo")
 }
 
 // MARK: - The session model is the writer
@@ -434,8 +443,8 @@ private final class RouterTurn {
            "conversación: la respuesta de delante cambia con la conversación, que es lo que dispara 'mostrada'")
     var attention = IslandResultAttention()
     if let first, let second {
-        expectEq(attention.replyShown(first), [.shown(.result)], "conversación: la primera, mostrada")
-        expectEq(attention.replyShown(second), [.ignored(.result), .shown(.result)],
+        expectEq(attention.replyShown(first, at: 0), [.shown(.result)], "conversación: la primera, mostrada")
+        expectEq(attention.replyShown(second, at: 5), [.ignored(.result), .shown(.result)],
                  "conversación: la de la otra conversación, mostrada; la que nadie atendió, ignorada")
     }
     chat.openConversation(firstConversation)

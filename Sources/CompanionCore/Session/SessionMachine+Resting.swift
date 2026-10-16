@@ -97,6 +97,21 @@ extension SessionMachine {
         return [.scheduleCompletedExpiry(Self.voiceDocumentDelay, floor: nil)]
     }
 
+    /// The voice stopped on a reply that came without a document: it was heard
+    /// and then vanished with the speech (live 2026-10-16). It lands as the
+    /// typed reply does, with the same reading clock.
+    func landsReply() -> Bool {
+        replyLoad != nil && projection.kind == .processing(.speaking)
+            && projection.job == nil && !typedBusy && !projection.holding
+    }
+
+    mutating func landReply() -> [SessionEffect] {
+        turnOver()
+        voiceCardUp = true
+        projection.kind = .processing(.completed)
+        return completedExpiry()
+    }
+
     /// A snapshot of the voice, landed on the chrome.
     mutating func observe(_ snapshot: TurnSnapshot) -> [SessionEffect] {
         let becameDocument = snapshot.hasDocument && !voice.hasDocument
@@ -118,6 +133,7 @@ extension SessionMachine {
             if projection.kind == .listening { projection.kind = .idle }
         case .listening:
             if landsDocument(snapshot, becameDocument: becameDocument) { return landDocument() }
+            if landsReply() { return landReply() }
             // The card stays up while the mic keeps listening; the next
             // utterance's words or thinking replace it.
             if voiceCardUp { break }
@@ -141,6 +157,7 @@ extension SessionMachine {
             if projection.holding { break }
             projection.holding = false
             if landsDocument(snapshot, becameDocument: becameDocument) { return landDocument() }
+            if landsReply() { return landReply() }
             turnOver()
             if projection.job != nil {
                 projection.kind = .processing(.subAgentRunning)

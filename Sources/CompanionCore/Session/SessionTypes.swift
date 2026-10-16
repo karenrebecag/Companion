@@ -194,6 +194,18 @@ package enum SessionEvent: Sendable, Equatable {
     case approvalWithdrawn(requestId: String)
     case hoverEntered
     case hoverLeft
+    /// The pointer reached the notch and has not stayed long enough to open
+    /// it. It already holds the reading clock: a hand on the card is reading
+    /// it, and the dwell before `hoverEntered` outlasts the old 0.2 s.
+    case peeked
+    /// The pointer left a notch it only peeked at (`hoverLeft` follows when
+    /// the dwell had already opened it).
+    case peekLeft
+    /// What the finished reply asks of the reader, sent before the reply
+    /// ends so the card's clock is born with its length.
+    case replyMeasured(ReadingLoad)
+    /// The user closed the result card: the x, Esc or "Seguir en el chat".
+    case resultDismissed
     case completedTimerExpired
     /// The user opened the answer popover: the one card that holds the
     /// island open (an answer nobody opened does not).
@@ -305,6 +317,8 @@ package enum SessionEffect: Sendable, Equatable {
     case scheduleNoticeExpiry(TimeInterval)
     /// Freeze the completed clock where it is. A second pause changes nothing.
     case pauseCompletedExpiry
+    /// The card has no clock (it needs scroll): drop any that was running.
+    case cancelCompletedExpiry
     /// Continue the completed clock from the time it had left.
     case resumeCompletedExpiry
     /// Freeze the notice clock where it is. A second pause changes nothing.

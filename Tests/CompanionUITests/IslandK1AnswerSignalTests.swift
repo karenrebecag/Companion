@@ -44,3 +44,19 @@ import Testing
         SessionMachine.settleDelay, floor: SessionMachine.settleFloor)),
            "K1: y el asentamiento se libera")
 }
+
+@Test @MainActor func k1R4AnOpenAnswerAlsoHoldsTheReadingClock() {
+    let session = SessionModel(jobs: nil, approvals: nil)
+    session.send(.typedSubmitted)
+    session.send(.replyMeasured(ReadingLoad(words: 20, rows: 0)))
+    IslandAnswerSignal.changed(from: nil, to: UUID(), session: session)
+    let held = session.send(.typedReplyFinished)
+    expect(!held.contains { if case .scheduleCompletedExpiry = $0 { true } else { false } },
+           "lectura: con la respuesta abierta el reloj de lectura tampoco se arma")
+    let released = IslandAnswerSignal.changed(from: UUID(), to: nil, session: session)
+    expect(released.contains(.scheduleCompletedExpiry(readTime, floor: SessionMachine.settleFloor)),
+           "lectura: cerrarla arma el reloj de lectura, no el de 0,2 s")
+}
+
+// The same arithmetic the reducer does, so floating point never decides a test.
+private let readTime = ReadingClock.duration(for: ReadingLoad(words: 20, rows: 0)) ?? 0

@@ -41,6 +41,13 @@ extension IslandView {
         // in the chat, like its button, instead of a popup of the same text.
         .contentShape(Rectangle())
         .onTapGesture { continueInChat() }
+        .onExitCommand(perform: dismissResult)
+    }
+
+    /// The card has no clock when it needs scroll, so this is its way out.
+    func dismissResult() {
+        resultAttention.attended()
+        chat.session.send(.resultDismissed)
     }
 
     /// What the turn was asked, on one line: the document's title.
@@ -60,7 +67,7 @@ extension IslandView {
             links: IslandResultCardModel.links(apps: chat.session.projection.touched, sources: sources),
             maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height),
             onOpenURL: { openURL($0) },
-            onDismiss: nil, onContinue: continueInChat, content: content)
+            onDismiss: dismissResult, onContinue: continueInChat, content: content)
     }
 
     /// The window holds the whole thread and the composer, so it opens on
@@ -69,5 +76,7 @@ extension IslandView {
         resultAttention.attended()
         NotificationCenter.default.post(name: .companionOpenConversation, object: nil)
         onShowMain()
+        // The window has the whole thread now; the card has nothing left to do.
+        chat.session.send(.resultDismissed)
     }
 }

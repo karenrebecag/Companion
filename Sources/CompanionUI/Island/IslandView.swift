@@ -199,7 +199,11 @@ package struct IslandView: View {
                 open: open, messageExists: ids.contains(open), session: chat.session).open
             if openAnswer == nil { geometry.answer = nil }
         }
-        .onChange(of: geometry.peeking) { _, _ in peek(state) }
+        .onChange(of: geometry.peeking) { _, peeking in
+            peek(state)
+            // A hand on the card is reading it: not an ignored result.
+            if peeking, Self.showsCompletedCard(state) { resultAttention.attended() }
+        }
         .onChange(of: latestReply?.id) { _, id in
             replyStart = Date()
             if state.reportsReplyShown { reportReplyShown(id) }

@@ -96,16 +96,22 @@ extension SessionCard {
 /// The latest result card: shown, then either attended to or, when a newer
 /// one arrives first, ignored.
 package struct IslandResultAttention: Sendable, Equatable {
+    /// A card that left before this long, with no hand on it, was not
+    /// ignored: nobody had the time to read it.
+    package static let ignoredAfter: TimeInterval = 1
+
     private var current: UUID?
+    private var shownAt: TimeInterval = 0
     private var wasAttended = false
 
     package init() {}
 
-    package mutating func replyShown(_ id: UUID) -> [IslandEvent] {
+    package mutating func replyShown(_ id: UUID, at now: TimeInterval) -> [IslandEvent] {
         guard id != current else { return [] }
         var out: [IslandEvent] = []
-        if current != nil, !wasAttended { out.append(.ignored(.result)) }
+        if current != nil, !wasAttended, now - shownAt >= Self.ignoredAfter { out.append(.ignored(.result)) }
         current = id
+        shownAt = now
         wasAttended = false
         out.append(.shown(.result))
         return out

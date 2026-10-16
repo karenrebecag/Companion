@@ -285,6 +285,7 @@ extension ChatViewModel {
                         role: .tool,
                         content: ConversationMemory.recall(result.output),
                         toolCallID: callID)))
+                measure(result.output)
                 toast(ChatCopy.jobDone)
             }
         } catch {

@@ -143,6 +143,7 @@ extension ChatViewModel {
     private func endTurn(_ status: TurnStatus = .completed) {
         busy = false
         busySince = nil
+        if status == .completed { measureLatestReply() }
         session.send(.typedReplyFinished)
         finishRecord(status)
     }

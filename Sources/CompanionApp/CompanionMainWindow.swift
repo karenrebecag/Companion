@@ -179,7 +179,8 @@ extension AppDelegate {
                 saveFile: { data, name in await IslandSavePanel.save(data, suggestedName: name) },
                 mirror: inspection),
             geometry: islandGeometry,
-            onHover: { over in sessionModel.send(over ? .hoverEntered : .hoverLeft) })
+            onHover: { over in sessionModel.send(over ? .hoverEntered : .hoverLeft) },
+            onPeek: { over in sessionModel.send(over ? .peeked : .peekLeft) })
         island.onResignKey = {
             NotificationCenter.default.post(name: .islandResignedKey, object: nil)
         }

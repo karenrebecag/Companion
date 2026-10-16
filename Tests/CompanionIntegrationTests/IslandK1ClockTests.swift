@@ -259,3 +259,26 @@ private final class StepClock: @unchecked Sendable {
     await settle(0.2)
     expectEq(session.projection.kind, .processing(.completed), "K1: el aviso sigue sosteniendo la isla")
 }
+
+@Test @MainActor func theReadingClockHoldsTheCardPastTheSettleAndThePeekFreezesIt() async {
+    let clock = StepClock()
+    let sleeper = ManualSleeper()
+    let session = SessionModel(jobs: nil, approvals: nil, sleep: sleeper.sleep, now: clock.now)
+    session.send(.typedSubmitted)
+    session.send(.replyMeasured(ReadingLoad(words: 20, rows: 0)))
+    session.send(.typedReplyFinished)
+    await pumpUntil("lectura: el reloj de lectura") { sleeper.armed(readTime) == 1 }
+    expectEq(sleeper.armed(SessionMachine.settleDelay), 0, "lectura: no corre el asentamiento de 0,2 s")
+    clock.advance(7.5)
+    session.send(.peeked)
+    clock.advance(30)
+    expectEq(session.projection.kind, .processing(.completed), "lectura: con la mano encima no se cierra")
+    session.send(.peekLeft)
+    await pumpUntil("lectura: al salir queda el piso") {
+        sleeper.armed(near: SessionMachine.settleFloor, tolerance: 0.05) == 1
+    }
+    sleeper.fire()
+    await pumpUntil("lectura: cumplido el piso se cierra") { session.projection.kind == .idle }
+}
+
+private let readTime = ReadingClock.duration(for: ReadingLoad(words: 20, rows: 0)) ?? 0

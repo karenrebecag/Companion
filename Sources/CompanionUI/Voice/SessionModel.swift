@@ -140,6 +140,10 @@ package final class SessionModel {
             // card passes nil so a leave keeps the remainder it stored.
             completedArm = engage(delay, event: .completedTimerExpired, running: expiry, floor: floor)
             expiry = timer(delay, then: .completedTimerExpired)
+        case .cancelCompletedExpiry:
+            expiry?.cancel()
+            expiry = nil
+            completedArm = nil
         case .pauseCompletedExpiry:
             if let arm = frozen(completedArm) {
                 completedArm = arm
