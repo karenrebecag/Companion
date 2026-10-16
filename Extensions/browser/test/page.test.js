@@ -2284,3 +2284,63 @@ test('the marker markFileInput mints is accepted by the CDP selector builder', a
   const { markerSelector } = await import('../lib/cdp.js');
   assert.equal(markerSelector(marker), `[data-companion-file="${marker}"]`);
 });
+
+// ---- Clickable divs and form context ----
+
+function withDocument(nodes, fn) {
+  globalThis.document = { querySelectorAll: () => nodes, body: { innerText: '' } };
+  try { return fn(); } finally { delete globalThis.document; }
+}
+
+test('a role-less div with onclick is read as clickable and the click lands on it', async () => {
+  const opt = fake({ tag: 'div', text: 'Request Parameter', attrs: { onclick: 'pick()' } });
+  const out = withDocument([opt], () => page.read(1, null, 0));
+  assert.deepEqual(out.elements.map((e) => [e.role, e.label]), [['clickable', 'Request Parameter']]);
+  opt.scrollIntoView = () => {};
+  opt.getBoundingClientRect = () => ({ left: 10, top: 20, width: 40, height: 20 });
+  const listeners = {};
+  const saved = { window: globalThis.window, document: globalThis.document };
+  globalThis.window = { innerWidth: 800, innerHeight: 600, addEventListener: (type, fn) => { listeners[type] = fn; } };
+  globalThis.document = opt.ownerDocument;
+  opt.ownerDocument.elementFromPoint = () => opt;
+  try {
+    const at = await page.locate(1, 1, 'c1', 'click');
+    assert.equal(at.blocked, false);
+    listeners.click({ isTrusted: true, composedPath: () => [opt] });
+    assert.equal(page.landed('c1'), true);
+  } finally {
+    globalThis.window = saved.window;
+    globalThis.document = saved.document;
+  }
+});
+
+test('a cursor:pointer div is listed once, not again for children that inherit the cursor', () => {
+  const cursors = new Map();
+  const row = fake({ tag: 'div', text: 'Row' });
+  const child = fake({ tag: 'span', text: 'Row label', parent: row });
+  const plain = fake({ tag: 'div', text: 'Plain' });
+  for (const n of [row, child, plain]) {
+    n.ownerDocument.defaultView.getComputedStyle = (x) => ({ display: 'block', visibility: 'visible', cursor: cursors.get(x) ?? 'auto' });
+  }
+  cursors.set(row, 'pointer');
+  cursors.set(child, 'pointer');
+  const out = withDocument([row, child, plain], () => page.read(1, null, 0));
+  assert.deepEqual(out.elements.map((e) => [e.role, e.label]), [['clickable', 'Row']]);
+});
+
+function formField(inFieldset) {
+  const legend = { textContent: 'Pizza Size' };
+  const field = fake({ tag: 'input', attrs: { type: 'text' } });
+  const form = { getAttribute: () => null, tagName: 'FORM', querySelector: () => legend, querySelectorAll: () => [] };
+  const fieldset = { getAttribute: () => null, tagName: 'FIELDSET', querySelector: () => legend };
+  field.closest = () => (inFieldset ? fieldset : form);
+  return field;
+}
+
+test('a field outside the fieldset does not take its legend as context', () => {
+  assert.equal(page.serializeElement(formField(false), 1, 0).context, '');
+});
+
+test('a field inside the fieldset takes its legend as context', () => {
+  assert.equal(page.serializeElement(formField(true), 1, 0).context, 'Pizza Size');
+});
