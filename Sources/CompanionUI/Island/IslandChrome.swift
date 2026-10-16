@@ -63,6 +63,14 @@ package enum IslandChrome {
     /// cap, and never taller than the shape can hold under the band, so the
     /// end of a reply is never cut off by the shape. A band taller than
     /// `bandRoom` gives up column height here instead of overflowing.
+    /// Replies are private, so a screen share or capture must not show them, and a
+    /// meeting is exactly when the island is most likely to have words up. QA mode
+    /// is the exception: the agent driving it checks the island through captures,
+    /// and the switch is volatile and owner-verified.
+    package static func sharing(qa: Bool) -> NSWindow.SharingType {
+        qa ? .readOnly : .none
+    }
+
     package static func columnMaxHeight(bandHeight: CGFloat) -> CGFloat {
         min(columnCap, canvasHeight - shadowRoom - bandHeight - columnGaps)
     }
@@ -265,6 +273,7 @@ package final class IslandPanel: NSPanel {
     private(set) var hover = HoverTracker()
     private var monitors: [Any] = []
     private var screenObserver: NSObjectProtocol?
+    private var qaObserver: NSObjectProtocol?
     private let dropTarget: IslandDropTarget
     private let catcher: IslandDropCatcher
 
@@ -290,9 +299,7 @@ package final class IslandPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         hidesOnDeactivate = false
-        // Its replies are private: a screen share or capture must not show them,
-        // and a meeting is exactly when the island is most likely to have words up.
-        sharingType = .none
+        sharingType = IslandChrome.sharing(qa: QAScopePreference.enabled)
         isMovableByWindowBackground = false
         becomesKeyOnlyIfNeeded = true
         isReleasedWhenClosed = false
@@ -311,11 +318,17 @@ package final class IslandPanel: NSPanel {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.redock() }
         }
+        qaObserver = NotificationCenter.default.addObserver(
+            forName: .companionQAScopeDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.sharingType = IslandChrome.sharing(qa: QAScopePreference.enabled) }
+        }
     }
 
     isolated deinit {
         monitors.forEach(NSEvent.removeMonitor)
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
+        if let qaObserver { NotificationCenter.default.removeObserver(qaObserver) }
     }
 
     /// The shape the view is heading to. Hidden means ordered out; the hold
