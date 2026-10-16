@@ -21,7 +21,8 @@ import Testing
     await testATargetThatChangedSinceTheUserSpokeIsRefused()
     await testOpeningAnAppInTheTurnMovesTheTargetOnPurpose()
     testAnExpiredTicketIsNotSpendable()
-    testTheHandsAreHiddenWhileCompanionIsInFront()
+    await testTheHandsAreOfferedWhileCompanionIsInFront()
+    await testTheHandsNeverActOnCompanionItself()
 }
 
 private func typing(_ text: String) -> ToolCallRef {
@@ -131,24 +132,30 @@ private let enter = ToolCallRef(id: "c2", name: "press_key", arguments: #"{"key"
     expect(!tickets.redeem(ticket), "un park nuevo invalida el anterior")
 }
 
-@MainActor func testTheHandsAreHiddenWhileCompanionIsInFront() {
+@MainActor func testTheHandsAreOfferedWhileCompanionIsInFront() async {
     let hands = FakeHands(field: FocusedField(app: "Notes", pid: 7))
-    let runner = ParentToolRunner(
-        workspace: FakeWorkspaceOpener(),
-        hands: ScreenHands(
-            injector: hands, reader: hands, keys: hands, windows: hands,
-            trusted: { true }, target: { 7 }, bundleID: { _ in "com.apple.Notes" },
-            selfInFront: { true }))
-    expect(!runner.specs(.es).contains { $0.name == "type_text" },
-           "Companion delante: sin manos anunciadas")
-    expect(!runner.handles("type_text"), "Companion delante: no las atiende")
+    // `target` is the last app that was not Companion, which is what typed chat leaves behind.
+    let runner = handsRunner(hands, target: ScriptedTarget([7]))
+    expect(runner.specs(.es).contains { $0.name == "type_text" }, "chat escrito: manos anunciadas")
+    runner.beginTurn()
+    let out = await runner.execute(name: "type_text", argumentsJSON: #"{"text":"hola"}"#)
+    expect(out.ok, "chat escrito: escribe en la última app")
+    expectEq(hands.injected.map(\.pid), [7], "chat escrito: en la app de antes, no en Companion")
 
     let sensor = FrontmostAppSensor(selfBundleID: "com.karen.companion")
-    sensor.noteActivation(name: "Companion", bundleID: "com.karen.companion", pid: 3)
-    expect(sensor.selfInFront, "sensor: Companion delante")
     sensor.noteActivation(name: "Notes", bundleID: "com.apple.Notes", pid: 7)
-    expect(!sensor.selfInFront, "sensor: otra app delante")
-    expectEq(sensor.lastOtherPID, 7, "sensor: la última otra app")
+    sensor.noteActivation(name: "Companion", bundleID: "com.karen.companion", pid: 3)
+    expectEq(sensor.lastOtherPID, 7, "sensor: Companion delante no pisa la última otra app")
+}
+
+@MainActor func testTheHandsNeverActOnCompanionItself() async {
+    let hands = FakeHands(field: FocusedField(app: "Companion", pid: ProcessInfo.processInfo.processIdentifier))
+    let own = ProcessInfo.processInfo.processIdentifier
+    let runner = handsRunner(hands, target: ScriptedTarget([own]))
+    runner.beginTurn()
+    let out = await runner.execute(name: "type_text", argumentsJSON: #"{"text":"hola"}"#)
+    expect(!out.ok, "objetivo = Companion: rechazado")
+    expect(hands.injected.isEmpty, "objetivo = Companion: nada inyectado")
 }
 
 /// "abre Safari y escribe X": the open moved the front on purpose, so the

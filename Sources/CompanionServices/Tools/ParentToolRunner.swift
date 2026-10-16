@@ -65,7 +65,8 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
     var installedHands: ScreenHands? { hands }
 
     var readyHands: ScreenHands? {
-        guard let hands, hands.trusted(), !hands.selfInFront() else { return nil }
+        // Typed chat has Companion in front; `target` is the last app that was not Companion.
+        guard let hands, hands.trusted() else { return nil }
         return hands
     }
 
@@ -109,7 +110,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         let backed = tool == .see ? hands.see != nil : (!tool.isSight || hands.screen != nil)
         guard backed else { return BridgeCode.notAvailable }
         if !hands.trusted() { return BridgeCode.needsAccessibility }
-        return hands.selfInFront() ? BridgeCode.selfInFront : BridgeCode.notAvailable
+        return BridgeCode.notAvailable
     }
 
     package func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
@@ -254,7 +255,8 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         // Resolved against what is actually here, so the adapter only ever
         // opens an exact name and a near miss comes back with candidates.
         let known = workspace.runningApplications() + workspace.installedApplications()
-        switch ParentToolPolicy.resolveApp(name, among: known) {
+        switch ParentToolPolicy.resolveApp(
+            name, among: known, localized: workspace.localizedApplicationNames()) {
         case .failure(let error):
             return .failed(error, target: name)
         case .success(let exact):
@@ -311,11 +313,18 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         let running = workspace.runningApplications()
         var seen: Set<String> = []
         var lines: [String] = []
+        // Both names, so the model can match what the user said either way.
+        let localized = Dictionary(
+            workspace.localizedApplicationNames().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+        func label(_ name: String) -> String {
+            guard let other = localized[name], other != name.lowercased() else { return name }
+            return "\(name) (\(other.capitalized))"
+        }
         for name in running where seen.insert(name).inserted {
-            lines.append("- \(name) (running)")
+            lines.append("- \(label(name)) (running)")
         }
         for name in workspace.installedApplications() where seen.insert(name).inserted {
-            lines.append("- \(name)")
+            lines.append("- \(label(name))")
         }
         let shown = lines.prefix(Self.maxAppListing)
         var output = shown.joined(separator: "\n")

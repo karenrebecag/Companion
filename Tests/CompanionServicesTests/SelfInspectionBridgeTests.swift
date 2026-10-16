@@ -84,16 +84,16 @@ private func inspection() -> SelfInspectionRunner {
     expectEq(tools.executeCalls.count, companionNames.count, "aprobada la sesion, todas corren")
 }
 
-/// A1: with Companion in front the family answers and the hands still
-/// refuse, through the same composition the app wires.
-@Test @MainActor func companionToolsServeWhileCompanionIsInFrontAndHandsStaySelfInFront() async {
+/// A1: with Companion in front the family answers, through the same
+/// composition the app wires.
+@Test @MainActor func companionToolsServeWhileCompanionIsInFront() async {
     let hands = FakeHands(field: FocusedField(app: "Notes", pid: 7))
     let parent = ParentToolRunner(
         workspace: FakeWorkspaceOpener(),
         hands: ScreenHands(
             injector: hands, reader: hands, keys: hands, windows: hands,
             trusted: { true }, target: { 7 }, bundleID: { _ in "com.apple.Notes" },
-            selfInFront: { true }, screen: FakeScreen([]), see: { _ in ScreenBrief(summary: "x") }))
+            screen: FakeScreen([]), see: { _ in ScreenBrief(summary: "x") }))
     let bridge = session(CompositeParentTools([parent, inspection()]), approvals: ScriptedApprovals(answer: true))
     let hello = await bridge.handle(line: helloLine(1))
     var id = 2
@@ -101,11 +101,6 @@ private func inspection() -> SelfInspectionRunner {
         expect(hello.reply.contains("\"\(name)\""), "\(name): hello la anuncia con Companion delante")
         let result = await bridge.handle(line: callLine(id, name, arguments(name)))
         expect(result.reply.contains(#""ok":true"#), "\(name): responde con Companion delante (\(result.reply))")
-        id += 1
-    }
-    for name in ["click", "menu", "scroll", "type_text", "press_key", "focus_window", "look", "see"] {
-        let result = await bridge.handle(line: callLine(id, name))
-        expect(result.reply.contains(BridgeCode.selfInFront), "\(name): las manos siguen en self_in_front (\(result.reply))")
         id += 1
     }
 }

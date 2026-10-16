@@ -92,9 +92,12 @@ package enum ParentToolPolicy {
     /// Case-insensitive name resolution for `open_app`, with the closest
     /// names when it misses so the model can correct itself ("Safari", not
     /// "Safari Technology Preview").
-    package static func resolveApp(_ name: String, among known: [String]) -> Result<String, ContractError> {
+    package static func resolveApp(
+        _ name: String, among known: [String], localized: [String: String] = [:]
+    ) -> Result<String, ContractError> {
         let wanted = name.lowercased()
         if let exact = known.first(where: { $0.lowercased() == wanted }) { return .success(exact) }
+        if let aliased = localized[wanted] { return .success(aliased) }
         let close = known.filter { candidate in
             let lower = candidate.lowercased()
             return lower.contains(wanted) || wanted.contains(lower)

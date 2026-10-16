@@ -268,9 +268,15 @@ package protocol WorkspaceOpening: Sendable {
     /// The app `open(_:)` will hand this URL to, by the name `open_app`
     /// uses, so the hands can follow what the user asked to open.
     func applicationName(toOpen url: URL) -> String?
+    /// "notas" -> "Notes": what the user says is the Finder's name, not the
+    /// bundle's, and the model repeats it.
+    func localizedApplicationNames() -> [String: String]
 }
 
 extension WorkspaceOpening {
+    /// Name in the user's language (lowercased) -> the name the adapter opens.
+    /// Empty by default: only entries that differ from the bundle name.
+    package func localizedApplicationNames() -> [String: String] { [:] }
     package func applicationName(toOpen url: URL) -> String? { nil }
 }
 

@@ -22,9 +22,6 @@ package struct ScreenHands: Sendable {
     /// The app's own name reads better to the agent than a bundle id; nil
     /// falls back to the bundle id.
     let appName: @Sendable (Int32) -> String?
-    /// Typed chat has Companion's own window in front: the field the hands
-    /// would need is not the one in front, so they are not offered.
-    let selfInFront: @Sendable () -> Bool
     /// Wave 16a: the window read as numbered elements, and pressed by id.
     /// Nil keeps look/click/scroll/menu unoffered.
     let screen: (any ScreenActing)?
@@ -59,7 +56,6 @@ package struct ScreenHands: Sendable {
         bundleID: @escaping @Sendable (Int32) -> String?,
         connectedBrowser: @escaping @Sendable () -> String? = { nil },
         appName: @escaping @Sendable (Int32) -> String? = { _ in nil },
-        selfInFront: @escaping @Sendable () -> Bool = { false },
         screen: (any ScreenActing)? = nil,
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
         changes: (any AXChangeWatching)? = nil,
@@ -85,7 +81,6 @@ package struct ScreenHands: Sendable {
         self.bundleID = bundleID
         self.connectedBrowser = connectedBrowser
         self.appName = appName
-        self.selfInFront = selfInFront
         self.frontWindow = frontWindow
     }
 
@@ -93,7 +88,6 @@ package struct ScreenHands: Sendable {
     package init(
         ax: AXTextInjector, screen: some ScreenActing & AppWindowProbing & FrontWindowReading,
         target: @escaping @Sendable () -> Int32?,
-        selfInFront: @escaping @Sendable () -> Bool = { false },
         see: (@Sendable (SeeRequest) async -> ScreenBrief?)? = nil,
         changes: (any AXChangeWatching)? = nil,
         gate: ScreenRecordingGate,
@@ -107,7 +101,6 @@ package struct ScreenHands: Sendable {
             trusted: { ax.isTrusted() }, target: target,
             bundleID: { AXTextInjector.bundleID(of: $0) },
             connectedBrowser: connectedBrowser, appName: appName,
-            selfInFront: selfInFront,
             screen: screen, see: see, changes: changes,
             screenRecording: { gate.grantedStatus }, locked: { SessionLock.isLocked() },
             launch: screen,
@@ -295,9 +288,6 @@ extension ParentToolRunner {
         guard hands.trusted() else {
             return .failed(Self.handsError(BridgeCode.needsAccessibility, BridgeMessages.needsAccessibility),
                            tool: tool.rawValue)
-        }
-        guard !hands.selfInFront() else {
-            return .failed(Self.handsError(BridgeCode.selfInFront, BridgeMessages.selfInFront), tool: tool.rawValue)
         }
         let exempt = tool == .look || tool == .focusWindow
         switch hands.resolveTarget(exemptFromWindow: exempt) {

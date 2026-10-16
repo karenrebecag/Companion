@@ -10,6 +10,7 @@ import Testing
     testOpenAI200YieldsText()
     testOpenAI500FallsToOpenRouter()
     testSpokePartialDoesNotFailover()
+    testStreamedSentencesKeepTheirSpaceButNeverEndWithOne()
     testSkipOpenAIWithoutKey()
     testNoProviderWhenNothingAvailable()
     testOllamaProbeFalseNotAttempted()
@@ -485,4 +486,16 @@ import Testing
 
 func chatHosts(_ transport: ScriptedTransport) -> [String] {
     transport.requests.compactMap { $0.url?.host }
+}
+
+@MainActor func testStreamedSentencesKeepTheirSpaceButNeverEndWithOne() {
+    let transport = ScriptedTransport()
+    transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.chunks(
+        "Se convierte en energía química. ", "Durante este proceso la planta crece. ", "Fin")))
+    let deltas = collectChat(makeChatClient(transport: transport))
+    var joined = ""
+    for case .text(let piece) in deltas { joined += piece }
+    expectEq(joined, "Se convierte en energía química. Durante este proceso la planta crece. Fin",
+             "frases: el espacio entre ellas llega")
+    if case .text(let last) = deltas.last { expect(!last.hasSuffix(" "), "último delta sin espacio de cola") }
 }

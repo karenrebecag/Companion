@@ -81,6 +81,7 @@ package final class FakeWorkspaceOpener: WorkspaceOpening, @unchecked Sendable {
     package var failure: ContractError?
     /// The app every `open(_:)` lands in, as the real opener resolves it.
     package var opensWith: String?
+    package var localized: [String: String] = [:]
     private let opened = LockedBox<(apps: [String], urls: [URL])>(([], []))
     package var openedApps: [String] { opened.withLock { $0.apps } }
     package var openedURLs: [URL] { opened.withLock { $0.urls } }
@@ -103,6 +104,7 @@ package final class FakeWorkspaceOpener: WorkspaceOpening, @unchecked Sendable {
     package func runningApplications() -> [String] { running }
     package func installedApplications() -> [String] { installed }
     package func applicationName(toOpen url: URL) -> String? { opensWith }
+    package func localizedApplicationNames() -> [String: String] { localized }
 }
 
 /// Wave 10a: un sensor que devuelve lo que se le dio y registra con qué

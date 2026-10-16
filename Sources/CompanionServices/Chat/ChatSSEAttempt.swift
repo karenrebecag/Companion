@@ -452,6 +452,9 @@ private actor DeltaSink {
     private var tool = ToolCallBuilder()
     private var full = ""
     private var sentenceBuf = ""
+    /// Whitespace that closed the last span. It travels with the NEXT text,
+    /// so a reply never ends in a separator nobody followed.
+    private var pendingGap = ""
     private var finished = false
     private var outcome: ChatAttemptOutcome = .failed(.empty)
     private let yield: @Sendable (ChatDelta) -> Void
@@ -469,7 +472,9 @@ private actor DeltaSink {
             while let cut = SentenceSplitter.takeSpan(sentenceBuf) {
                 sentenceBuf = cut.rest
                 spokePartial = true
-                cuts.append(cut.span)
+                let body = String(cut.span.reversed().drop(while: \.isWhitespace).reversed())
+                if !body.isEmpty { cuts.append(pendingGap + body) }
+                pendingGap = (body.isEmpty ? pendingGap : "") + String(cut.span.dropFirst(body.count))
             }
         }
         for cut in cuts { yield(.text(cut)) }
@@ -512,11 +517,11 @@ private actor DeltaSink {
 
         switch commit {
         case .handoff(let handoff):
-            if !rest.isEmpty { yield(.text(rest)) }
+            if !rest.isEmpty { yield(.text(pendingGap + rest)) }
             if !others.isEmpty { yield(.toolCalls(others)) }
             yield(.handoff(handoff))
         case .reply, .spokePartial:
-            if !rest.isEmpty { yield(.text(rest)) }
+            if !rest.isEmpty { yield(.text(pendingGap + rest)) }
             if !others.isEmpty { yield(.toolCalls(others)) }
         case .failed, .cancelled:
             break
