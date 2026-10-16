@@ -1,0 +1,1 @@
+- **La isla se ve en capturas con el modo QA (2026-10-16).** Fuera del modo QA sigue privada en capturas y pantallas compartidas; con el modo QA encendido el agente que prueba Companion puede verla.

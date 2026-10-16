@@ -222,3 +222,8 @@ private func hardwareNotch(aux: CGFloat, top: CGFloat) -> Notch {
         frame: CGRect(x: 0, y: 0, width: 1512, height: 982), visibleMaxY: 982 - top,
         safeTop: top, leftAuxWidth: aux, rightAuxWidth: aux))
 }
+
+@MainActor @Test func theIslandHidesFromCapturesUnlessQAModeIsOn() {
+    expectEq(IslandChrome.sharing(qa: false), .none, "isla: privada en capturas y pantallas compartidas")
+    expectEq(IslandChrome.sharing(qa: true), .readOnly, "isla: en modo QA el agente la ve por captura")
+}
