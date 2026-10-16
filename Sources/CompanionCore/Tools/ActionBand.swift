@@ -27,6 +27,10 @@ package struct ActionFacts: Sendable, Equatable {
     /// of the user's to carry out in its address. Defaults to false: a caller
     /// that did not track the turn gets the owner, not a free pass.
     package var cleanTurn: Bool
+    /// The turn already read something outside the work folder: an address it
+    /// opens could carry that out. Only open_url reads it (web_fetch has the
+    /// inverse `cleanTurn`, which fails closed).
+    package var tainted: Bool
     /// Whether the range already holds values; nil when it was not read.
     package var rangeHasValues: Bool?
     /// The user's own words named this host (`ParentToolGate.saidIt`).
@@ -41,7 +45,7 @@ package struct ActionFacts: Sendable, Equatable {
     package var gitConfigInert: Bool
 
     package init(
-        pathExists: Bool = true, inWorkZone: Bool = false, appOwned: Bool = false, cleanTurn: Bool = false, rangeHasValues: Bool? = nil,
+        pathExists: Bool = true, inWorkZone: Bool = false, appOwned: Bool = false, cleanTurn: Bool = false, tainted: Bool = false, rangeHasValues: Bool? = nil,
         hostSaid: Bool = false, destructiveTarget: Bool = false, inTerminal: Bool = false,
         gitConfigInert: Bool = false
     ) {
@@ -49,6 +53,7 @@ package struct ActionFacts: Sendable, Equatable {
         self.inWorkZone = inWorkZone
         self.appOwned = appOwned
         self.cleanTurn = cleanTurn
+        self.tainted = tainted
         self.rangeHasValues = rangeHasValues
         self.hostSaid = hostSaid
         self.destructiveTarget = destructiveTarget
@@ -95,7 +100,8 @@ extension ActionBand {
             return facts.cleanTurn || facts.hostSaid ? .act : .critical
         case ParentTool.openURL.rawValue:
             // Opening an http(s) address is navigation; the scheme check lives in `httpURL`.
-            return .act
+            // After a read outside the work folder it is also a way out for what was read.
+            return facts.tainted && !facts.hostSaid ? .critical : .act
         case NativeTool.runShell.rawValue:
             // A plain read cannot change the disk. Ask is never a denial:
             // every other command still takes the sheet.

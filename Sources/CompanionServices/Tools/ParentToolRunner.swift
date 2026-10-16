@@ -27,6 +27,8 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
     let sheets: (any SpreadsheetDriving)?
     let versions: FileVersions?
     let deliverableTickets = ApprovalTickets()
+    /// Whether this turn read outside the work folder; reset by `beginTurn`.
+    let taint = TurnTaint()
     /// Wave 20d B: told when a deliverable ran without the sheet, so the island
     /// can show it and offer the way back.
     let onAct: (@Sendable (UndoReceipt) -> Void)?
@@ -73,6 +75,7 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
     /// Called when the user starts speaking or sends: the hands act only on
     /// the app that was in front then.
     package func beginTurn() {
+        taint.reset()
         guard let hands else { return }
         hands.turn.begin(hands.target())
     }
@@ -203,10 +206,27 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
     }
 
     package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {
-        if let request = ParentToolGate.approval(for: call, said: said) { return request }
+        // After a read outside the work folder every address asks, unless the
+        // user's own words named its host (read, then open evil.tld?d=<it>).
+        if var request = ParentToolGate.approval(for: call, said: said, strictHost: taint.isTainted) {
+            if taint.isTainted { request.inputJSON = Self.markedAfterRead(request.inputJSON) }
+            return request
+        }
         if let request = deliverableApproval(for: call) { return request }
         guard ParentTool(rawValue: call.name)?.isHands == true else { return nil }
         return handsApproval(for: call, said: said)
+    }
+
+    /// The mark QA's band reads back: the request is all it sees.
+    static func markedAfterRead(_ json: String) -> String {
+        guard var fields = ToolArguments.parse(json) else { return json }
+        fields["after_read"] = true
+        do {
+            let data = try JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys])
+            return String(data: data, encoding: .utf8) ?? json
+        } catch {
+            return json
+        }
     }
 
     package func granted(_ request: ApprovalRequest) {

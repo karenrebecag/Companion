@@ -29,6 +29,17 @@ package enum QALiveBand {
             facts.destructiveTarget = true
         case .typeText, .pressKey:
             facts.inTerminal = terminal(in: request)
+        case .openURL:
+            // The runner marks a request it raised after a read outside the work folder.
+            facts.tainted = (ToolArguments.parse(request.inputJSON)?["after_read"] as? Bool) == true
+            if let raw = arguments["url"] as? String {
+                do {
+                    let url = try ParentToolPolicy.httpURL(raw)
+                    if let host = url.host { facts.hostSaid = ParentToolGate.saidIt(url, host: host, said: said) }
+                } catch {
+                    // An address the policy refuses never reaches a sheet; critical stands.
+                }
+            }
         case nil where call.name == NativeTool.writeFile.rawValue || call.name == NativeTool.createDocument.rawValue:
             // The runner only asks about a file it did not already allow, so a
             // path that is free is a creation (confirm), not a replacement.

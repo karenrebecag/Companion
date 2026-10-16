@@ -118,3 +118,10 @@ func testAppToolsNeedConfirmation() {
     expectEq(ActionBand.classify(toolName: "web_fetch", arguments: fetch, facts: ActionFacts(hostSaid: true)), .act,
              "el host lo dijo la usuaria: no sube")
 }
+
+@Test func anAddressAfterAReadOutsideTheWorkFolderNeedsTheOwnerUnlessSaid() {
+    expectEq(ActionBand.classify(toolName: "open_url", arguments: [:], facts: ActionFacts(tainted: true)), .critical,
+             "leyó fuera y la dirección no la dijo ella: pide al dueño (QA: Touch ID)")
+    expectEq(ActionBand.classify(toolName: "open_url", arguments: [:], facts: ActionFacts(tainted: true, hostSaid: true)), .act,
+             "el host lo dijo la usuaria: no sube")
+}

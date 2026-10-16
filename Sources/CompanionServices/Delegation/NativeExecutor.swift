@@ -286,6 +286,12 @@ final class TurnTaint: @unchecked Sendable {
         return tainted
     }
 
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        tainted = false
+    }
+
     func mark() {
         lock.lock()
         defer { lock.unlock() }
