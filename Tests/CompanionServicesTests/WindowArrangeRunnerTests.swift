@@ -150,3 +150,13 @@ private struct NoTools: ParentToolExecuting {
     expect(BridgeScope.decided("arrange_windows"), "bridge: its exposure is decided")
     expect(!BridgeScope.allows("arrange_windows"), "bridge: not lent")
 }
+
+// Security review of #333: a kept "siempre" never applies in a tainted turn,
+// so the composite must report the taint of the runner that holds it.
+@Test func theCompositeReportsATaintedTurnFromAnyRunner() {
+    let clean = FakeParentTools()
+    let tainted = FakeParentTools()
+    tainted.taintedTurn = true
+    expect(!CompositeParentTools([clean]).turnIsTainted(), "taint: un turno limpio no lo reporta")
+    expect(CompositeParentTools([clean, tainted]).turnIsTainted(), "taint: un turno marcado lo reporta")
+}

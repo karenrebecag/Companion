@@ -407,6 +407,10 @@ package struct CompositeParentTools: ParentToolExecuting, Sendable {
         return await runner.actsWithoutSheet(call)
     }
 
+    package func turnIsTainted() -> Bool {
+        runners.contains { $0.turnIsTainted() }
+    }
+
     package func band(for call: ToolCallRef) async -> ActionBand {
         guard let runner = runners.first(where: { $0.handles(call.name) }) else { return .critical }
         return await runner.band(for: call)

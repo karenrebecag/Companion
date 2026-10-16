@@ -63,3 +63,25 @@ private func request(_ id: String, tool: String = "write_file", json: String = #
     expect(!list.removing(drive).allows(request("u3", tool: "browser_set_files", json: #"{"host":"drive.google.com"}"#)),
            "always: quitar la regla vuelve a preguntar")
 }
+
+// Security review of #333: a shared sheet never hides what it approves.
+
+@Test func onlyConfirmsSharedAndMCPStaysAloneWithItsWholePreview() {
+    expect(ApprovalBatch.shareable(.confirm, isMCP: false), "batch: un confirm comparte hoja")
+    expect(!ApprovalBatch.shareable(.critical, isMCP: false), "batch: un critical pide su propia hoja")
+    expect(!ApprovalBatch.shareable(.confirm, isMCP: true), "batch: un MCP pide su propia hoja")
+}
+
+@Test func theSharedSheetShowsEachMembersWholePreviewNotItsCappedTitle() {
+    let longPath = "/Users/karen/Documents/" + String(repeating: "informe-largo-", count: 12) + ".md"
+    let member = request("a", tool: "write_file", json: #"{"path":"\#(longPath)"}"#)
+    let other = request("b", tool: "write_file", json: #"{"path":"/Users/karen/a.md"}"#)
+    guard let batch = ApprovalBatch.make(members: [member, other], requestId: "batch") else {
+        Issue.record("batch: dos confirms deben juntarse")
+        return
+    }
+    let preview = ApprovalCopy.display(for: batch, language: .en).preview ?? ""
+    let memberPreview = ApprovalCopy.display(for: member, language: .en).preview ?? ""
+    expect(memberPreview.count > 80, "batch: el preview de prueba supera el tope del titulo")
+    expect(preview.contains(memberPreview), "batch: la hoja compartida muestra el preview completo de cada accion")
+}

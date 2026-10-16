@@ -28,11 +28,15 @@ package struct SheetEntry: Sendable, Equatable {
     package let opinion: JudgeOpinion?
     /// The user kept a "siempre" for this request's host and kind of action.
     package let alwaysAllowed: Bool
+    /// Another call of the same step writes or opens the same target: two
+    /// covered answers for one destination must not both come down.
+    package let repeatedTarget: Bool
 
-    package init(band: ActionBand, opinion: JudgeOpinion?, alwaysAllowed: Bool) {
+    package init(band: ActionBand, opinion: JudgeOpinion?, alwaysAllowed: Bool, repeatedTarget: Bool = false) {
         self.band = band
         self.opinion = opinion
         self.alwaysAllowed = alwaysAllowed
+        self.repeatedTarget = repeatedTarget
     }
 }
 
@@ -43,8 +47,43 @@ package enum SheetLane: Sendable, Equatable {
 
     package static func of(_ entries: [SheetEntry]) -> [SheetLane] {
         entries.map { entry in
-            (entry.alwaysAllowed && entry.band == .confirm) || JudgeBand.lowered(entry.band, by: entry.opinion) == .act
+            if entry.repeatedTarget { return .ask }
+            return (entry.alwaysAllowed && entry.band == .confirm) || JudgeBand.lowered(entry.band, by: entry.opinion) == .act
                 ? .free : .ask
+        }
+    }
+}
+
+// MARK: - Grounding
+
+/// A recipient the judge calls covered must be one her words repeat. The
+/// arguments came from a model that may have read a page, so an address the
+/// words do not contain is an address she did not name.
+package enum JudgeGrounding {
+    private static let addressKeys: Set<String> = ["to", "recipient", "channel", "email", "phone", "cc", "bcc"]
+
+    package static func grounded(
+        _ opinions: [JudgeOpinion?], candidates: [JudgeCandidate], words: UserWords
+    ) -> [JudgeOpinion?] {
+        let heard = words.text.lowercased()
+        return zip(opinions, candidates).map { opinion, candidate in
+            guard let opinion, opinion.effect == .reachesSomeone, opinion.covered else { return opinion }
+            let named = addresses(in: candidate).allSatisfy { heard.contains($0.lowercased()) }
+            return named ? opinion : JudgeOpinion(effect: opinion.effect, covered: false)
+        }
+    }
+
+    /// Values shaped like a destination: under an address key, or with an @ or a scheme.
+    private static func addresses(in candidate: JudgeCandidate) -> [String] {
+        candidate.arguments.values.flatMap { key, value -> [String] in
+            let texts: [String]
+            switch value {
+            case .text(let text): texts = [text]
+            case .list(let items): texts = items
+            case .number, .bool: texts = []
+            }
+            let keyed = addressKeys.contains(key.lowercased())
+            return texts.filter { keyed || $0.contains("@") || $0.contains("://") }
         }
     }
 }
