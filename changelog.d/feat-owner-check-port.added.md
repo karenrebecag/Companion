@@ -1,0 +1,1 @@
+- **Base de la prueba de dueña para el modo QA (2026-10-15).** Companion gana por dentro la pieza que pide Touch ID o la contraseña del Mac antes de una acción crítica, y la regla que decide qué acciones la necesitan. Todavía no está conectada a nada: no cambia nada visible ni el comportamiento de las aprobaciones de hoy.

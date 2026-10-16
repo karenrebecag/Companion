@@ -45,3 +45,19 @@ extension ApprovalsProvider {
 
     package func remembered(_ approval: ApprovalRequest) async -> Bool? { nil }
 }
+
+/// What the system's owner check answered. `unavailable` is not a refusal:
+/// nobody said no, the machine cannot ask (no Touch ID and no password set).
+package enum OwnerCheck: Sendable, Equatable {
+    case confirmed, refused, unavailable
+}
+
+/// Proof that the person at the Mac, not a prompt or an agent, approves.
+/// Core cannot import LocalAuthentication, so the adapter lives in Services.
+package protocol OwnerVerifying: Sendable {
+    /// Whether `verify` could show a dialog right now. Asking never shows one.
+    func canVerify() async -> Bool
+    /// Cancelling the calling task closes the dialog. Never returns
+    /// `confirmed` unless the system confirmed this very call.
+    func verify(reason: String) async -> OwnerCheck
+}
