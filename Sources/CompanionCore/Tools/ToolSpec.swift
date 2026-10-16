@@ -35,19 +35,24 @@ package struct ToolSpec: Sendable, Equatable {
     /// `ToolProperty` cannot express nested objects, enums or arrays; when
     /// this is set and parses, it IS the parameters object on the wire.
     package var rawParametersJSON: String?
+    /// Marks the optional tail of a request: when a provider caps the tool
+    /// count, these are what gives way, never the core.
+    package var isConnectedApp: Bool
 
     package init(
         name: String,
         description: String,
         properties: [ToolProperty],
         required: [String],
-        rawParametersJSON: String? = nil
+        rawParametersJSON: String? = nil,
+        isConnectedApp: Bool = false
     ) {
         self.name = name
         self.description = description
         self.properties = properties
         self.required = required
         self.rawParametersJSON = rawParametersJSON
+        self.isConnectedApp = isConnectedApp
     }
 
     /// Names are wire contract and never translate; descriptions are read by

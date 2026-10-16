@@ -62,17 +62,18 @@ private final class FakeAppsService: AppsService, @unchecked Sendable {
 
     // Before any turn is noted the whole connected set is offered: that is
     // the realtime session, whose list is fixed at open.
-    expectEq(runner.specs(.es).count, 2, "runner: sin nota, todo lo conectado")
-    expect(runner.specs(.es).allSatisfy { $0.name.hasPrefix("slack_v2-") },
+    func appSpecs() -> [ToolSpec] { runner.specs(.es).filter(\.isConnectedApp) }
+    expectEq(appSpecs().count, 2, "runner: sin nota, todo lo conectado")
+    expect(appSpecs().allSatisfy { $0.name.hasPrefix("slack_v2-") },
            "runner: los nombres van tal cual, el slug ya los prefija")
-    expect(runner.specs(.es).contains { $0.rawParametersJSON != nil },
+    expect(appSpecs().contains { $0.rawParametersJSON != nil },
            "runner: el schema crudo viaja en el spec")
 
     // The turn names the app: its tools travel. It does not: none do.
     runner.noteTurn("mandale un slack a Fer")
-    expectEq(runner.specs(.es).count, 2, "runner: nombrada, sus tools")
+    expectEq(appSpecs().count, 2, "runner: nombrada, sus tools")
     runner.noteTurn("dime la hora")
-    expect(runner.specs(.es).isEmpty, "runner: sin nombrarla, cero tools de apps")
+    expect(appSpecs().isEmpty, "runner: sin nombrarla, cero tools de apps")
     expect(runner.handles("slack_v2-send-message"),
            "runner: handles no depende del filtro del turno")
     expect(!runner.handles("open_url"), "runner: lo que no es de una app no es suyo")
@@ -127,8 +128,8 @@ private final class FakeAppsService: AppsService, @unchecked Sendable {
     // consumes it — so a realtime session opened afterwards still gets
     // everything connected.
     runner.noteTurn("dime la hora")
-    expect(runner.specs(.es).isEmpty, "runner: el turno que no nombra apps va vacio")
-    expectEq(runner.specs(.es).count, 2,
+    expect(appSpecs().isEmpty, "runner: el turno que no nombra apps va vacio")
+    expectEq(appSpecs().count, 2,
              "runner: la lectura siguiente (una sesion realtime) vuelve a todo")
 
     // M1: a grant authorizes ONE call, not the rest of the session.
@@ -223,4 +224,33 @@ private struct NullWorkspace: WorkspaceOpening {
     let found = runner.connectedMentionCandidates()
     expectEq(found.map(\.kind), [.app], "16m-7: solo las conectadas, no la que pide reconectar")
     expectEq(found.map(\.id), ["slack_v2"], "16m-7: por su slug")
+}
+
+// 2026-10-16: the apps' tools no longer ride every turn; the model asks for
+// one app's and the next round carries it.
+@Test func discoveryToolLoadsOneAppsToolsForTheRestOfTheTurn() async {
+    let service = FakeAppsService()
+    let runner = AppToolRunner(service: { service }, catalog: [], suggest: nil)
+    await runner.refresh()
+    runner.noteTurn("dime la hora")
+    let first = runner.specs(.en)
+    expectEq(first.map(\.name), [AppToolRunner.discoveryTool],
+             "descubrimiento: sin nombrar app solo viaja la tool de busqueda")
+    expect(runner.handles(AppToolRunner.discoveryTool), "descubrimiento: el runner la atiende")
+
+    let unknown = await runner.execute(
+        name: AppToolRunner.discoveryTool, argumentsJSON: #"{"app":"nope"}"#)
+    expect(!unknown.ok, "descubrimiento: una app que no existe falla")
+
+    let found = await runner.execute(
+        name: AppToolRunner.discoveryTool, argumentsJSON: #"{"app":"slack_v2"}"#)
+    expect(found.ok, "descubrimiento: carga la app pedida")
+    for round in 1...2 {
+        let names = runner.specs(.en).map(\.name)
+        expect(names.contains("slack_v2-send-message"),
+               "descubrimiento: la ronda \(round) lleva las tools de la app")
+    }
+    runner.noteTurn("otra cosa")
+    expectEq(runner.specs(.en).map(\.name), [AppToolRunner.discoveryTool],
+             "descubrimiento: el turno nuevo suelta la app")
 }
