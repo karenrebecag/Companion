@@ -205,6 +205,13 @@ package struct PathValidator: Sendable {
         Self.resolve(path, bound: wholeDisk ? nil : workdir, home: home)
     }
 
+    /// Where a file that is created or written lands when its name is bare:
+    /// the working folder, the deliverables zone, and home without one. Only
+    /// writes use it; reads take `absolute`.
+    package func writeTarget(_ path: String) -> String {
+        Self.resolve(path, bound: workdir, home: home)
+    }
+
     /// `~` is the home folder, a leading `/` is absolute, anything else is
     /// relative to `bound` or, without one, to home.
     package static func resolve(_ path: String, bound: String?, home: String) -> String {

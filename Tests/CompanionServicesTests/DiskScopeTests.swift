@@ -7,6 +7,24 @@ import Testing
 // The file tools reach the whole disk (docs/DECISIONS.md, 2026-10-16): what
 // stays closed, what each action costs, and how macOS privacy answers.
 
+// Bare names: a write lands in the working folder even with a fake home beside
+// it, so nothing reaches the real home folder from a test.
+@Test func aWriteWithABareNameLandsInTheWorkdirNotHome() async throws {
+    let base = FileManager.default.temporaryDirectory.appendingPathComponent("qa4-\(UUID().uuidString)")
+    let work = base.appendingPathComponent("work"), home = base.appendingPathComponent("home")
+    try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: base) }
+    let runner = NativeToolRunner(workdir: work.path, home: home)
+    let result = try await runner.execute(
+        tool: "write_file", arguments: ["path": "informe.txt", "content": "hola"], approved: true)
+    expect(result.ok, "escribir: ok, dijo \(result.output)")
+    expect(FileManager.default.fileExists(atPath: work.appendingPathComponent("informe.txt").path),
+           "escribir: cae en el workdir")
+    expect(!FileManager.default.fileExists(atPath: home.appendingPathComponent("informe.txt").path),
+           "escribir: no cae en el home")
+}
+
 private func scratchDir() throws -> String {
     let path = FileManager.default.temporaryDirectory
         .appendingPathComponent("disk-\(UUID().uuidString)").resolvingSymlinksInPath().path

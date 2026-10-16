@@ -34,6 +34,11 @@ extension NativeToolRunner {
         guard ApprovalCopy.plainPreview(path, keepingLayout: false) == path else {
             return ToolResult(ok: false, output: "Path contains control or invisible characters")
         }
+        // A bare name would be read against the working folder here but against
+        // home in the file read tools: the delete asks for the full path instead.
+        guard path.hasPrefix("/") || path == "~" || path.hasPrefix("~/") else {
+            return ToolResult(ok: false, output: "Give the absolute path, starting with / or ~: a relative path is not deleted")
+        }
         let target: String
         switch writeBarrier(path) {
         case .success(let resolved): target = resolved

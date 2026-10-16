@@ -256,11 +256,12 @@ package struct NativeToolRunner: Sendable {
     }
 
     func writeBarrier(_ path: String) -> WriteBarrier {
-        guard pathValidator.isAllowed(path) else { return .failure(outsideZone(path)) }
-        guard pathValidator.isAllowed(path, forWrite: true) else {
+        let target = pathValidator.writeTarget(path)
+        guard pathValidator.isAllowed(target) else { return .failure(outsideZone(path)) }
+        guard pathValidator.isAllowed(target, forWrite: true) else {
             return .failure(ToolResult(ok: false, output: readOnly(path).wire))
         }
-        let realPath = resolveRealPath(path)
+        let realPath = resolveRealPath(target)
         guard pathValidator.isAllowed(realPath) else {
             return .failure(outsideZone(path, resolved: true))
         }
@@ -274,7 +275,7 @@ package struct NativeToolRunner: Sendable {
     /// make it show one file and change another. restore_file_version is exempt:
     /// its sheet already names the real file.
     func leafLinkRefusal(_ path: String, real: String) -> ToolResult? {
-        let absolute = pathValidator.absolute(path)
+        let absolute = pathValidator.writeTarget(path)
         guard Self.attributes(absolute)?[.type] as? FileAttributeType == .typeSymbolicLink else { return nil }
         return ToolResult(ok: false, output: "That path is a symbolic link; use the real path of the file: \(real)")
     }

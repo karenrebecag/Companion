@@ -87,6 +87,15 @@ private func validator(roots: [PathValidator.Root] = []) -> PathValidator {
              "relativa: contra el workdir, igual que en el resto de las tools")
 }
 
+// A new or written file with a bare name goes where deliverables always went:
+// the working folder. Reads and opens use the shared reading (home, disk open).
+@Test func aNewFileWithARelativeNameLandsInTheWorkdir() {
+    let disk = PathValidator(workdir: "\(home)/Projects/app", extraRoots: [], wholeDisk: true, home: home)
+    expectEq(disk.writeTarget("informe.pdf"), "\(home)/Projects/app/informe.pdf",
+             "escribir: nombre suelto cae en el workdir, nunca en la raíz del home")
+    expectEq(disk.absolute("informe.pdf"), "\(home)/informe.pdf", "leer: el mismo nombre se busca en el home")
+}
+
 @Test func relativePathsResolveAgainstHomeWhenNoWorkdir() {
     expectEq(validator().absolute("Desktop/x.md"), "\(home)/Desktop/x.md",
              "sin workdir y con el disco abierto, relativa = carpeta de inicio")

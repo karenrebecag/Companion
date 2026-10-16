@@ -208,14 +208,16 @@ func resolvedPath(_ path: String) -> String { (path as NSString).resolvingSymlin
     expect(sandbox.exists(outsideFile), "inner link: the file it pointed at is intact")
 }
 
-// With the disk open a relative path is taken from home, whatever the workdir is.
-@Test @MainActor func relativePathResolvesAgainstHome() {
+// A relative delete could hit a different file than the one the sheet named
+// after a move of the working folder, so it is refused: the model gives the full path.
+@Test @MainActor func aRelativeDeleteIsRefusedWithTheReason() {
     let sandbox = DeleteSandbox(); defer { sandbox.clean() }
-    _ = sandbox.folder(sandbox.home)
-    let file = sandbox.file("nota.md", in: sandbox.home)
+    let file = sandbox.file("nota.md")
     let (result, calls) = runDelete(sandbox, path: "nota.md")
-    expectEq(result.ok, true, "relative: ok")
-    expectEq(calls.trashed, [resolvedPath(file)], "relative: resolved against home")
+    expectEq(result.ok, false, "relative delete: not ok")
+    expect(result.output.contains("absolute"), "relative delete: the model reads why, got «\(result.output)»")
+    expectEq(calls.trashed, [], "relative delete: nothing disposed")
+    expect(sandbox.exists(file), "relative delete: the file is still there")
 }
 
 @Test @MainActor func unicodeAndSpacesInTheNameAreHandled() {
@@ -274,7 +276,7 @@ func resolvedPath(_ path: String) -> String { (path as NSString).resolvingSymlin
 
 @Test @MainActor func missingEmptyAndWrongTypedPathsAreRefused() {
     let sandbox = DeleteSandbox(); defer { sandbox.clean() }
-    expectDeleteRefused(sandbox, "no-existe.md", reason: "Nothing at that path", still: [sandbox.work], "missing")
+    expectDeleteRefused(sandbox, (sandbox.work as NSString).appendingPathComponent("no-existe.md"), reason: "Nothing at that path", still: [sandbox.work], "missing")
     for bad: (any Sendable)? in [nil, "", 42, ["a"]] {
         let (result, calls) = runDelete(sandbox, path: bad)
         expectEq(result.ok, false, "bad argument \(String(describing: bad)): refused")
