@@ -76,6 +76,7 @@ struct SettingsPrivacyPage: View {
                 }
             }
             if let browser { SettingsBrowserCard(model: browser) }
+            SettingsAlwaysAllowCard()
             SettingsCard(label: Localized.string("settings.keys.label"), key: "settings.keys.header") {
                 keysBlock.padding(Space.x4)
             }

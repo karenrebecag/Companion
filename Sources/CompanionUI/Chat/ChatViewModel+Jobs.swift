@@ -184,6 +184,11 @@ extension ChatViewModel {
             return
         }
         let own = timeline(of: chatJobID)
+        // "Siempre" is kept only for the host and kind of action it names, and
+        // only when the person said yes: a refusal never widens anything.
+        if approved, remember, let rule = AlwaysAllowRule.from(request) {
+            AlwaysAllowPreference.list = AlwaysAllowPreference.list.adding(rule)
+        }
         let effects = session.send(.approvalAnswered(
             requestId: request.requestId, approved: approved, remember: remember))
         messages.append(ChatMessage(

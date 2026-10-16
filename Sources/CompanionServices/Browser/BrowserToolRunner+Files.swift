@@ -83,6 +83,14 @@ extension BrowserToolRunner {
         return request
     }
 
+    /// An upload leaves the Mac for a site: a confirm, which the judge and a kept
+    /// "siempre" may settle. Other browser calls keep the critical default.
+    package func turnIsTainted() -> Bool { taint.isTainted }
+
+    package func band(for call: ToolCallRef) async -> ActionBand {
+        call.name == BrowserTool.setFiles.rawValue ? .confirm : .critical
+    }
+
     /// D5: the bridge allowlist already hides this tool; a bridge caller that
     /// reaches the runner anyway still gets no sheet and no upload.
     private var mayUpload: Bool { caller == Self.chatCaller }

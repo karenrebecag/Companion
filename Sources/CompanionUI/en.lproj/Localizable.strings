@@ -978,3 +978,9 @@
 "chat.run.steps.one" = "1 step";
 "chat.run.steps.other" = "%d steps";
 "chat.run.timeline" = "The specialist's steps";
+"settings.alwaysAllow.label" = "Always allowed";
+"settings.alwaysAllow.header" = "Always allowed";
+"settings.alwaysAllow.empty" = "Nothing is always allowed. Each sheet still asks.";
+"settings.alwaysAllow.upload" = "Upload files to %@";
+"settings.alwaysAllow.revoke" = "Revoke";
+"approval.alwaysHost" = "Always allow on %@";

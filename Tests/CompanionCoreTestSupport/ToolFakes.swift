@@ -116,6 +116,8 @@ package final class FakeParentTools: ParentToolExecuting, @unchecked Sendable {
     private var _beginTurnCount = 0
     private var _saidSeen: [String] = []
     private var unavailable: [String: String]
+    package var taintedTurn = false
+    package func turnIsTainted() -> Bool { taintedTurn }
 
     private let specNames: [String]
     private let realSpecs: [ToolSpec]
