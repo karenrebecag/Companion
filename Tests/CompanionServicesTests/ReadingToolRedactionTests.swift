@@ -18,5 +18,16 @@ private struct LeakyReader: ParentToolExecuting {
     expect(!look.output.contains("4111"), "look: la tarjeta no pasa")
     expect(look.output.contains("[1] button"), "look: los controles siguen")
     let click = await tools.execute(name: "click", argumentsJSON: "{}")
-    expect(click.output.contains("4111"), "click: no es lectura, no se toca")
+    expect(!click.output.contains("4111"), "click: repite la etiqueta, tambien se tapa")
+    expect(look.output.contains("hidden for privacy"), "look: avisa que hay valores ocultos")
+}
+
+@Test func nativeRunnerMasksWhatItReadsForBothCallers() async throws {
+    let dir = NSTemporaryDirectory() + "redact-\(UUID().uuidString)"
+    try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(atPath: dir) }
+    try "tarjeta 4111 1111 1111 1111".write(toFile: dir + "/nota.txt", atomically: true, encoding: .utf8)
+    let runner = NativeToolRunner(workdir: dir, places: nil)
+    let read = try await runner.execute(tool: "read_file", arguments: ["path": dir + "/nota.txt"], approved: true)
+    expect(read.ok && !read.output.contains("4111"), "read_file: \(read.output)")
 }

@@ -15,6 +15,7 @@ import Testing
     testTheRenderNamesTheWindowAndApp()
     testALongFieldValueShowsItsEnd()
     testLongStaticTextListsAreCutButControlsStayWhole()
+    testRedactionHappensBeforeTheClip()
 }
 
 private func node(_ role: String, _ label: String, value: String? = nil, subrole: String = "",
@@ -121,4 +122,15 @@ private func walk(_ nodes: [ScanNode], partial: Bool = false) -> ScreenWalk {
     expectEq(text.components(separatedBy: "\n- ").count - 1, ScreenScan.maxTextLines, "filas de texto con tope")
     expectEq(scan.elements.count, 30, "los controles siguen completos")
     expect(scan.partial && text.contains("partial"), "lo dice")
+}
+
+@MainActor func testRedactionHappensBeforeTheClip() {
+    let secret = "Ab3dEf7hIj" + String(repeating: "Ab3dEf7hIj", count: 6)
+    let scan = ScreenScan.build(walk([
+        node("AXStaticText", String(repeating: "x", count: 170) + " " + secret),
+        node("AXButton", "Pagar 4111 1111 1111 1111"),
+    ]), app: "Notes")
+    expect(!scan.render().contains("Ab3dEf7hIj"), "el corte no parte el secreto")
+    expect(!scan.render().contains("4111"), "etiqueta de control tapada")
+    expect(scan.element(id: 1)?.label.contains("4111") == true, "el elemento conserva su etiqueta viva")
 }

@@ -106,7 +106,7 @@ package struct ScreenSnippet: Sendable, Equatable {
 
     package init(app: String, text: String) {
         self.app = app
-        self.text = text
+        self.text = TurnRedaction.redact(text)
     }
 }
 
@@ -126,7 +126,7 @@ package struct ScreenBrief: Sendable, Equatable {
         summary: String? = nil, snippets: [ScreenSnippet] = [], pending: Bool = false,
         stale: Bool = false
     ) {
-        self.summary = summary
+        self.summary = summary.map(TurnRedaction.redact)
         self.snippets = snippets
         self.pending = pending
         self.stale = stale
@@ -146,7 +146,8 @@ package enum ScreenTextSnippets {
         var out: [ScreenSnippet] = []
         for raw in texts {
             guard out.count < maxSnippets else { break }
-            let flat = flatten(raw).trimmingCharacters(in: .whitespaces)
+            // Before the cut: a secret cut in half no longer matches a pattern.
+            let flat = flatten(TurnRedaction.redact(raw)).trimmingCharacters(in: .whitespaces)
             guard !flat.isEmpty, seen.insert(flat).inserted else { continue }
             out.append(ScreenSnippet(app: app, text: cut(flat)))
         }

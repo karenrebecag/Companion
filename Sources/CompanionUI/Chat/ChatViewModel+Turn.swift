@@ -246,7 +246,7 @@ extension ChatViewModel {
             messages.append(ChatMessage(
                 isStatus: true,
                 text: statusLine,
-                recall: Recall(role: .tool, content: outcome.output, toolCallID: call.id)))
+                recall: Recall(role: .tool, content: TurnRedaction.redact(outcome.output), toolCallID: call.id)))
             recording { record in
                 record.toolCalls.append(TurnToolCall(
                     index: record.toolCalls.count, name: call.name, arguments: call.arguments, ok: outcome.ok,

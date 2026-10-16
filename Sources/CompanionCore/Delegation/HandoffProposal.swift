@@ -22,7 +22,7 @@ package enum HandoffProposal {
         if let app = context.focusedApp { sources.append(app) }
         sources += context.openDocuments
         if let clipboard = context.clipboard { sources.append(clipboard.preview) }
-        if let summary = context.screenSummary { sources.append(summary) }
+        if let summary = context.screenSummary { sources.append(TurnRedaction.redact(summary)) }
         sources += context.screenSnippets.map(\.text)
         return sources
     }

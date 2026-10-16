@@ -110,6 +110,20 @@ package struct NativeToolRunner: Sendable {
         arguments: [String: Any],
         approved: Bool
     ) async throws -> ToolResult {
+        // Both the parent's path and the job executor's land here, so what a
+        // tool read is masked before either model sees it.
+        var result = try await perform(tool: tool, arguments: arguments, approved: approved)
+        let masked = TurnRedaction.redact(
+            ParentToolOutcome(ok: result.ok, output: result.output), tool: tool)
+        result.output = masked.output
+        return result
+    }
+
+    private func perform(
+        tool: String,
+        arguments: [String: Any],
+        approved: Bool
+    ) async throws -> ToolResult {
         guard let nativeTool = NativeTool(rawValue: tool) else {
             return ToolResult(ok: false, output: "Unknown tool: \(tool)")
         }
