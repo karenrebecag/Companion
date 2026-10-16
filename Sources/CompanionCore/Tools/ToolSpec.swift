@@ -63,11 +63,15 @@ package struct ToolSpec: Sendable, Equatable {
         case .en:
             return ToolSpec(
                 name: "delegate",
-                description: "Hand the turn to the specialist, which does "
-                    + "have a shell, the files, this Mac's tools and "
-                    + "internet access. Use it for ANYTHING touching disk, "
-                    + "code, folders, commands, technical work, web searches "
-                    + "or reading pages. Never for typing into an app.",
+                description: "Hand the turn to the specialist (shell, files, "
+                    + "skills, MCPs). Only for heavy multi-step work such as "
+                    + "coding in a repo or in-depth research, for work that "
+                    + "needs a skill or MCP only it has, for long jobs, or "
+                    + "when your own tool already failed. Never for "
+                    + "explanations, tables, lists or example code, never "
+                    + "for what read_file, run_shell, web_fetch, "
+                    + "find_places or the browser do, never for typing into "
+                    + "an app.",
                 properties: [
                     ToolProperty(name: "goal", type: "string",
                                  description: "what is needed, one line"),
@@ -78,12 +82,15 @@ package struct ToolSpec: Sendable, Equatable {
         case .es:
             return ToolSpec(
                 name: "delegate",
-                description: "Pasa el turno al especialista, que sí tiene una "
-                    + "shell, los archivos, las herramientas de esta Mac y "
-                    + "acceso a internet. Úsala para TODO lo que toque disco, "
-                    + "código, carpetas, comandos, trabajo técnico, búsquedas "
-                    + "en la web o lectura de páginas. Nunca para escribir en "
-                    + "un campo o app.",
+                description: "Pasa el turno al especialista (shell, archivos, "
+                    + "skills, MCPs). Solo para trabajo pesado de varios pasos, "
+                    + "como programar en un repo o investigar a fondo, para lo "
+                    + "que necesita una skill o un MCP que solo él tiene, para "
+                    + "trabajos largos o cuando una tool tuya ya falló. Nunca "
+                    + "para explicaciones, tablas, listas o código de ejemplo, "
+                    + "nunca para lo que hacen read_file, run_shell, web_fetch, "
+                    + "find_places o el navegador, nunca para escribir en un "
+                    + "campo o app.",
                 properties: [
                     ToolProperty(name: "goal", type: "string",
                                  description: "qué se necesita, una línea"),
