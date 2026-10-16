@@ -37,10 +37,10 @@ import Testing
     expect(!prompt.contains("run_shell for"), "no promete run_shell al padre")
 }
 
-@Test func theParentOffersFileReadsOnlyInsideAWorkdir() async throws {
+@Test func theParentOffersFileReadsWithOrWithoutAWorkdir() async throws {
     let workspace = FakeWorkspaceOpener(installed: [], running: [])
     let bare = ParentToolRunner(workspace: workspace)
-    expect(!bare.specs(.en).map(\.name).contains("list_directory"), "sin carpeta no se ofrece")
+    expect(bare.specs(.en).map(\.name).contains("list_directory"), "todo el disco: se ofrece aun sin carpeta")
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent("cc-\(UUID().uuidString)")
     try FileManager.default.createDirectory(
         at: dir.appendingPathComponent("uno"), withIntermediateDirectories: true)
