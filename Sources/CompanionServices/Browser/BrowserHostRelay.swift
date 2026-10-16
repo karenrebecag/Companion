@@ -14,7 +14,7 @@ package enum BrowserHostRelay {
     package static func run(
         origin: String, directory: URL,
         input: FileHandle = .standardInput, output: FileHandle = .standardOutput,
-        ignoreSIGPIPE: Bool = true
+        ignoreSIGPIPE: Bool = true, launcher: BrowserKind? = launchingBrowser()
     ) -> Int32 {
         // Chrome closing the pipe mid-write must be an error here, not a
         // signal that ends the process without cleanup. The disposition is
@@ -36,7 +36,30 @@ package enum BrowserHostRelay {
         }
         defer { Darwin.close(socketFD) }
         return RelaySession(token: token, socketFD: socketFD, input: input.fileDescriptor,
-                            output: output.fileDescriptor).run()
+                            output: output.fileDescriptor, launcher: launcher).run()
+    }
+
+    /// The browser that launched this host. Comet's service worker reports a
+    /// plain Chrome user agent, so the extension cannot tell the two apart;
+    /// the parent process can, and the extension must not be able to lie about it.
+    package static func launchingBrowser() -> BrowserKind? {
+        var buffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        let length = proc_pidpath(getppid(), &buffer, UInt32(buffer.count))
+        guard length > 0 else { return nil }
+        return browserKind(forExecutable: String(cString: buffer))
+    }
+
+    /// Walks up to the enclosing `.app` and maps its bundle id; nil for
+    /// anything that is not a browser the host ships a manifest for.
+    package static func browserKind(forExecutable path: String) -> BrowserKind? {
+        var url = URL(fileURLWithPath: path)
+        while url.pathExtension != "app" {
+            let parent = url.deletingLastPathComponent()
+            guard parent.path != url.path else { return nil }
+            url = parent
+        }
+        guard let bundleID = Bundle(url: url)?.bundleIdentifier else { return nil }
+        return [BrowserKind.chrome, .comet].first { BrowserHost.bundle(for: $0) == bundleID }
     }
 
     private static let maxTokenBytes = 128
@@ -79,6 +102,7 @@ private final class RelaySession: @unchecked Sendable {
     private let socketFD: Int32
     private let input: Int32
     private let output: Int32
+    private let launcher: BrowserKind?
     private let outputLock = NSLock()
     private let stateLock = NSLock()
     private var code: Int32?
@@ -87,8 +111,9 @@ private final class RelaySession: @unchecked Sendable {
     private var wakeRead: Int32 = -1
     private var wakeWrite: Int32 = -1
 
-    init(token: String, socketFD: Int32, input: Int32, output: Int32) {
+    init(token: String, socketFD: Int32, input: Int32, output: Int32, launcher: BrowserKind?) {
         self.token = token
+        self.launcher = launcher
         self.socketFD = socketFD
         self.input = input
         self.output = output
@@ -206,6 +231,7 @@ private final class RelaySession: @unchecked Sendable {
             // the token, and it must not be able to choose one.
             var params = message["params"] as? [String: Any] ?? [:]
             params["token"] = token
+            if let launcher { params["browser"] = launcher.rawValue }
             message["params"] = params
         }
         let line: Data

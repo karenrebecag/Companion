@@ -116,7 +116,7 @@ final class RelayRun: @unchecked Sendable {
     private let lock = NSLock()
     private var code: Int32?
 
-    init(origin: String = pinnedOrigin, directory: URL, ignoreSIGPIPE: Bool = false) {
+    init(origin: String = pinnedOrigin, directory: URL, ignoreSIGPIPE: Bool = false, launcher: BrowserKind? = nil) {
         let input = stdin.fileHandleForReading
         let output = stdout.fileHandleForWriting
         let thread = Thread { [self] in
@@ -125,7 +125,7 @@ final class RelayRun: @unchecked Sendable {
                 // SIG_IGN is process-wide and inherited by children: leaking it
                 // would change what every other test's subprocesses see, so
                 // only the one test that covers the flag turns it on (and restores it).
-                ignoreSIGPIPE: ignoreSIGPIPE)
+                ignoreSIGPIPE: ignoreSIGPIPE, launcher: launcher)
             lock.withLock { code = result }
             done.signal()
         }
@@ -214,6 +214,19 @@ extension SigpipeSensitive {
         expect(!(lines.first ?? "").contains("evil-token"), "inject: the extension's value is gone")
         run.closeStdin()
         expectEq(await run.exitCode(), 0, "inject: stdin EOF exits cleanly")
+    }
+
+    @Test func theLaunchingBrowserOverridesTheBrowserTheExtensionClaims() async throws {
+        let app = try makeApp()
+        defer { app.listener.stop() }
+        let run = RelayRun(directory: app.dir, launcher: .comet)
+        run.send(helloJSON().replacingOccurrences(of: #""browser":"comet""#, with: #""browser":"chrome""#))
+        guard let connection = await app.connection() else { expect(false, "launcher: relay connected"); return }
+        let lines = await app.lines(connection, count: 1)
+        let params = object(lines.first ?? "")["params"] as? [String: Any]
+        expectEq(params?["browser"] as? String, "comet", "launcher: the parent process wins over the user agent")
+        run.closeStdin()
+        expectEq(await run.exitCode(), 0, "launcher: stdin EOF exits cleanly")
     }
 
     @Test func laterFramesAreForwardedWithoutATokenAsOneLineEach() async throws {
@@ -358,4 +371,25 @@ extension SigpipeSensitive {
         expectEq(await run.exitCode(), 0, "app close: exit 0")
         run.closeStdin()
     }
+}
+
+@Test func theLaunchingBrowserIsReadFromTheEnclosingAppBundle() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("lb-\(UUID().uuidString.prefix(8))")
+    defer { try? FileManager.default.removeItem(at: root) }
+    func app(_ name: String, bundleID: String) throws -> String {
+        let contents = root.appendingPathComponent("\(name).app/Contents")
+        try FileManager.default.createDirectory(
+            at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
+        let plist: [String: Any] = ["CFBundleIdentifier": bundleID, "CFBundleExecutable": name]
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: contents.appendingPathComponent("Info.plist"))
+        return contents.appendingPathComponent("MacOS/\(name)").path
+    }
+    expectEq(BrowserHostRelay.browserKind(forExecutable: try app("Comet", bundleID: "ai.perplexity.comet")),
+             .comet, "comet bundle")
+    expectEq(BrowserHostRelay.browserKind(forExecutable: try app("Google Chrome", bundleID: "com.google.Chrome")),
+             .chrome, "chrome bundle")
+    expectEq(BrowserHostRelay.browserKind(forExecutable: try app("Brave", bundleID: "com.brave.Browser")),
+             nil, "unsupported browser: no override")
+    expectEq(BrowserHostRelay.browserKind(forExecutable: "/usr/bin/swift"), nil, "not in an app: no override")
 }
