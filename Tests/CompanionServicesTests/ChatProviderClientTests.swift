@@ -10,6 +10,7 @@ import Testing
     testOpenAI200YieldsText()
     testOpenAI500FallsToOpenRouter()
     testSpokePartialDoesNotFailover()
+    testStreamedSentencesKeepTheirSpaceButNeverEndWithOne()
     testSkipOpenAIWithoutKey()
     testNoProviderWhenNothingAvailable()
     testOllamaProbeFalseNotAttempted()
