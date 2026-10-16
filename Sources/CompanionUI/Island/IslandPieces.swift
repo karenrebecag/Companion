@@ -250,7 +250,7 @@ struct IslandReceiptRow: View {
                     .font(Fonts.symbol(IslandMorphMetrics.checkSide, weight: .medium))
                     .foregroundStyle(IslandInk.panel, ArcTone.success.color)
                     .accessibilityHidden(true)
-                Text(IslandCopy.receipt(receipt))
+                label
                     .font(GeistFont.uiCaption.weight(.medium))
                     .foregroundStyle(IslandInk.text)
                     .lineLimit(1)
@@ -262,6 +262,22 @@ struct IslandReceiptRow: View {
                 Button(Localized.string("island.receipt.undo"), action: onUndo)
                     .buttonStyle(IslandMorphAction(role: .secondary))
             }
+        }
+    }
+
+    /// The line with the file's name swapped for a chip; a receipt with no
+    /// path, or a name the text does not carry, stays plain text.
+    @ViewBuilder
+    private var label: some View {
+        let text = IslandCopy.receipt(receipt)
+        if let path = receipt.path, let chip = FileChip(path), let range = text.range(of: chip.name) {
+            HStack(spacing: Space.x0) {
+                Text(String(text[..<range.lowerBound]))
+                FileChipView(chip: chip)
+                Text(String(text[range.upperBound...]))
+            }
+        } else {
+            Text(text)
         }
     }
 

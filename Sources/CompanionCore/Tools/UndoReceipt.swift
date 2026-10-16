@@ -30,11 +30,14 @@ package struct UndoReceipt: Sendable, Equatable, Identifiable {
     package let kind: Kind
     package let subject: String
     package let undo: Undo?
+    /// The file the action touched, for the chip: the text carries only its name.
+    package let path: String?
 
-    package init(id: UUID = UUID(), kind: Kind, subject: String, undo: Undo? = nil) {
+    package init(id: UUID = UUID(), kind: Kind, subject: String, undo: Undo? = nil, path: String? = nil) {
         self.id = id
         self.kind = kind
         self.subject = subject
         self.undo = undo
+        self.path = path
     }
 }
