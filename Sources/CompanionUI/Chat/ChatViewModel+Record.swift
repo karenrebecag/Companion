@@ -85,8 +85,8 @@ extension ChatViewModel {
         onTurnEvent?(record.turnId, open ? .ownerCheckOpened : .ownerCheckClosed)
     }
 
-    /// Types a turn as the bridge's agent. A turn already running is not
-    /// queued: the queue of the chat belongs to the user.
+    /// Types a turn as the bridge's agent. A turn already running is never cut
+    /// by it: only the user's own words cut a turn.
     package func askAsAgent(text: String, newConversation: Bool, asUserWords: Bool) -> QAAskStart {
         guard !needsOnboarding else { return .unavailable }
         if busy, let live = liveTurn { return .busy(turnId: live.origin == "agent" ? live.turnId : nil) }

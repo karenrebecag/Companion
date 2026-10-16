@@ -48,7 +48,7 @@ import Testing
 @Test @MainActor func k1R4AnOpenAnswerAlsoHoldsTheReadingClock() {
     let session = SessionModel(jobs: nil, approvals: nil)
     session.send(.typedSubmitted)
-    session.send(.replyMeasured(ReadingLoad(words: 20, rows: 0)))
+    session.send(.replyMeasured(.receipt))
     IslandAnswerSignal.changed(from: nil, to: UUID(), session: session)
     let held = session.send(.typedReplyFinished)
     expect(!held.contains { if case .scheduleCompletedExpiry = $0 { true } else { false } },
@@ -59,4 +59,4 @@ import Testing
 }
 
 // The same arithmetic the reducer does, so floating point never decides a test.
-private let readTime = ReadingClock.duration(for: ReadingLoad(words: 20, rows: 0)) ?? 0
+private let readTime = ReadingClock.receiptDelay(voiced: false)

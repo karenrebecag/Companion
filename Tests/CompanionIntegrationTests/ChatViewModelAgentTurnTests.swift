@@ -107,7 +107,6 @@ private func tools(
     await pumpUntil("en vuelo") { vm.busy }
     expectEq(vm.askAsAgent(text: "dos", newConversation: false, asUserWords: true), .busy(turnId: first),
              "busy con el id del turno en vuelo")
-    expect(vm.queued.isEmpty, "la cola es de la usuaria")
     vm.abandonTurn()
 }
 

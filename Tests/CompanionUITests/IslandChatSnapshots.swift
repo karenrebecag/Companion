@@ -140,4 +140,21 @@ private struct ChatShot: View {
                 .padding(24)),
             scheme: scheme, size: size, to: out, "isla-docCard-referencia-\(scheme == .dark ? "dark" : "light")")
     }
+    // Long content: the bottom fade where more text waits, and the code folded to its first lines.
+    let filler = String(repeating: "Una frase de relleno para llenar la columna entera y forzar el desvanecido. ", count: 4)
+    let code = (1 ... 30).map { "let line\($0) = \($0)" }.joined(separator: "\n")
+    let long = AnswerBlocks.blocks(from: Array(repeating: filler, count: 6).joined(separator: "\n\n")
+        + "\n\n```swift\n" + code + "\n```")
+    for scheme in [ColorScheme.light, .dark] {
+        try await saveLive(
+            AnyView(IslandResultCard(
+                title: nil, blocks: long, links: .none,
+                maxHeight: IslandChrome.columnCap, onOpenURL: { _ in }, onDismiss: nil, onContinue: {}) { EmptyView() }
+                .padding(.horizontal, IslandChrome.docShellMargin)
+                .padding(.bottom, IslandChrome.shellBottom)
+                .background(RoundedRectangle(cornerRadius: NotchShape.openRadius).fill(IslandInk.panel))
+                .environment(\.colorScheme, .dark)
+                .padding(24)),
+            scheme: scheme, size: size, to: out, "isla-docCard-largo-\(scheme == .dark ? "dark" : "light")")
+    }
 }

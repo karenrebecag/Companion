@@ -290,10 +290,9 @@ package final class IslandPanel: NSPanel {
         backgroundColor = .clear
         hasShadow = false
         hidesOnDeactivate = false
-        // Visible to screen sharing and recordings on purpose (decided in
-        // review 16m-3): the island is the app, as Incredible's is, and
-        // `.none` would also blank it from Karen's recordings and live checks.
-        // Only the clear drag catcher is hidden, since it draws nothing.
+        // Its replies are private: a screen share or capture must not show them,
+        // and a meeting is exactly when the island is most likely to have words up.
+        sharingType = .none
         isMovableByWindowBackground = false
         becomesKeyOnlyIfNeeded = true
         isReleasedWhenClosed = false

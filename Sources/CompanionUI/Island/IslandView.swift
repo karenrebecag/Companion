@@ -400,7 +400,7 @@ package struct IslandView: View {
             IslandChoiceCard(
                 block: choice,
                 resolution: { IslandChoice.resolution(of: choice, messageID: latest.id, in: chat.messages) },
-                queued: { chat.queued },
+                queued: { [] },
                 onChoose: { chat.choose($0) },
                 onFocus: { gained in
                     if gained { focusedChoiceID = latest.id } else if focusedChoiceID == latest.id { focusedChoiceID = nil }

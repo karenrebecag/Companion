@@ -50,23 +50,14 @@ extension IslandView {
         chat.session.send(.resultDismissed)
     }
 
-    /// What the turn was asked, on one line: the document's title.
-    var resultTitle: String {
-        IslandResultCardModel.title(
-            question: chat.messages.last { $0.role == .user && !$0.isStatus }?.text,
-            fallback: Localized.string("island.result.title"))
-    }
-
     /// The one place a result card is dressed from the island's own data.
     func resultCard<Body: View>(
         blocks: [AnswerBlock], sources: [MarkdownSplitter.SourceLink],
         @ViewBuilder content: @escaping () -> Body
     ) -> some View {
-        // No heading means no title of the reply's own: the generic one, not
-        // the user's question cut short.
         let headed = IslandResultCardModel.splitHeading(blocks)
         return IslandResultCard(
-            title: headed.title ?? Localized.string("island.result.title"), blocks: headed.body,
+            title: headed.title, blocks: headed.body,
             links: IslandResultCardModel.links(apps: chat.session.projection.touched, sources: sources),
             maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height),
             onOpenURL: { openURL($0) },

@@ -12,7 +12,8 @@ enum IslandResultCardMetrics {
 }
 
 struct IslandResultCard<Body: View>: View {
-    let title: String
+    /// Nil when the reply carries no subject of its own: the body starts at the top.
+    let title: String?
     let blocks: [AnswerBlock]
     let links: IslandResultCardModel.Links
     let maxHeight: CGFloat
@@ -24,15 +25,17 @@ struct IslandResultCard<Body: View>: View {
     var body: some View {
         IslandDocFrame(accent: DocCardInk.narrative, maxHeight: maxHeight, onDismiss: onDismiss) {
             DocColumn(spacing: DocCardMetrics.blockGap) {
-                Text(title)
-                    .font(Fonts.geist(DocCardMetrics.titleSize).weight(AnswerType.medium))
-                    .tracking(DocCardMetrics.titleSize * DocCardMetrics.titleTracking)
-                    .lineSpacing(DocCardMetrics.lineExtra(
-                        size: DocCardMetrics.titleSize, leading: DocCardMetrics.titleLeading))
-                    .foregroundStyle(Color.white.opacity(DocCardInk.title))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.trailing, onDismiss == nil ? Space.none : DocCardMetrics.toolReserve)
-                    .accessibilityAddTraits(.isHeader)
+                if let title {
+                    Text(title)
+                        .font(Fonts.geist(DocCardMetrics.titleSize).weight(AnswerType.medium))
+                        .tracking(DocCardMetrics.titleSize * DocCardMetrics.titleTracking)
+                        .lineSpacing(DocCardMetrics.lineExtra(
+                            size: DocCardMetrics.titleSize, leading: DocCardMetrics.titleLeading))
+                        .foregroundStyle(Color.white.opacity(DocCardInk.title))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.trailing, onDismiss == nil ? Space.none : DocCardMetrics.toolReserve)
+                        .accessibilityAddTraits(.isHeader)
+                }
                 if !blocks.isEmpty { IslandDocProse(blocks: blocks) }
                 content()
                 DocSources(links: links, onOpen: onOpenURL)

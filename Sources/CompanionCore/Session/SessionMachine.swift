@@ -8,11 +8,10 @@ import Foundation
 package struct SessionMachine: Sendable, Equatable {
     package internal(set) var projection = SessionProjection()
     /// 0.2 s, Incredible's settle (local reference; brief isla-ciclo-y-legibilidad K1).
+    /// Only for a completed turn with nothing to read: a status, not a reply.
     package static let settleDelay: TimeInterval = 0.2
     /// 1.5 s, Incredible's settle floor (local reference; brief isla-ciclo-y-legibilidad K1).
     package static let settleFloor: TimeInterval = 1.5
-    /// A spoken table or list is read after the voice stops; hover holds it longer.
-    package static let voiceDocumentDelay: TimeInterval = 12
     /// How long the hands aura outlives the last executed bridge call: long
     /// enough to bridge the gap between an agent's consecutive steps without
     /// flicker, short enough that an idle-but-open session goes dark.
@@ -51,9 +50,11 @@ package struct SessionMachine: Sendable, Equatable {
     /// Completed is a spoken reply's document, shown while the mic may still
     /// be listening. It ends the moment the kind leaves Completed.
     var voiceCardUp = false
-    /// What the reply on the card asks of the reader; nil when the turn did
-    /// not say, and the card then keeps the short settle. A new turn drops it.
-    var replyLoad: ReadingLoad?
+    /// What the reply on the card is; nil when the turn did not say, and the
+    /// card then keeps the short settle. A new turn drops it.
+    var replyKind: ReplyKind?
+    /// What the devices show other apps holding, kept so a voice change can re-decide.
+    var deviceUse = DeviceUse.idle
     /// Ids minted for steps whose producer sent none; never reused in a session.
     var stepsMinted = 0
     /// The key is down but still under the tap threshold: the mic is open
@@ -203,8 +204,12 @@ package struct SessionMachine: Sendable, Equatable {
             let fresh = !settleHeld
             settleHeld = true
             if fresh, showsSettle { effects.append(.pauseCompletedExpiry) }
-        case .replyMeasured(let load):
-            replyLoad = load
+        case .deviceUseChanged(let use):
+            deviceUse = use
+            projection.meetingCompact = meetingCompactNow()
+            return []
+        case .replyMeasured(let kind):
+            replyKind = kind
             // A job's answer is measured after its end already armed the
             // short settle: the card re-arms with its real length.
             if showsSettle { effects += completedExpiry() }
@@ -451,7 +456,7 @@ package struct SessionMachine: Sendable, Equatable {
     /// The user's own door into a turn (a press, a sent chat, the voice
     /// listening): a job already running goes behind it.
     mutating func openTurn() {
-        replyLoad = nil
+        replyKind = nil
         begin()
         turnReceipt = nil
         projection.job?.behindTurn = true

@@ -8,7 +8,7 @@ extension IslandView {
     /// its own is the reducer's clock.
     func receiptCard(_ receipt: ActionReceipt) -> some View {
         IslandReceiptDoc(
-            title: resultTitle, receipt: receipt,
+            title: nil, receipt: receipt,
             maxHeight: IslandChrome.columnMaxHeight(bandHeight: geometry.notch.height),
             onDismiss: { chat.dismissIslandNotice(.receipt(receipt)) }, onContinue: continueInChat)
         .onAppear {

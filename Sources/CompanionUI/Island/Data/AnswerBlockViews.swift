@@ -289,12 +289,21 @@ struct AnswerBlockView: View {
 }
 
 /// The code well: a 26-pt bar with the language, copy and fold, then the
-/// highlighted body, sitting deeper than the popup around it.
+/// highlighted body, sitting deeper than the popup around it. Long code opens
+/// on its first lines; the chevron shows the rest.
 struct AnswerCodeBlock: View {
+    static let foldLines = 14
+
     let language: String
     let body_: String
-    @State private var folded = false
+    @State private var expanded = false
     @State private var copied = false
+
+    private var lines: [Substring] { body_.split(separator: "\n", omittingEmptySubsequences: false) }
+    private var folds: Bool { lines.count > Self.foldLines }
+    private var shown: String {
+        expanded || !folds ? body_ : lines.prefix(Self.foldLines).joined(separator: "\n")
+    }
 
     init(language: String, body: String) {
         self.language = language
@@ -315,26 +324,26 @@ struct AnswerCodeBlock: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Localized.string("island.answer.copy"))
-                Button(action: { folded.toggle() }) {
-                    Image(systemName: folded ? "chevron.down" : "chevron.up")
-                        .font(Fonts.geist(TypeSize.micro))
-                        .foregroundStyle(AnswerInk.white(AnswerInk.secondary))
+                if folds {
+                    Button(action: { expanded.toggle() }) {
+                        Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                            .font(Fonts.geist(TypeSize.micro))
+                            .foregroundStyle(AnswerInk.white(AnswerInk.secondary))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Localized.string(expanded ? "island.answer.fold" : "island.answer.expand"))
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Localized.string("island.answer.fold"))
             }
             .padding(.horizontal, Space.x3)
             .frame(height: AnswerBlockMetrics.codeBar)
-            if !folded {
-                ScrollView(.horizontal) {
-                    Text(SyntaxHighlighter.attributed(body_, language: language))
-                        .font(Fonts.mono(AnswerBlockMetrics.inlineCodeSize))
-                        .textSelection(.enabled)
-                        .padding(.horizontal, Space.x3)
-                        .padding(.bottom, Space.x2)
-                }
-                .scrollIndicators(.never)
+            ScrollView(.horizontal) {
+                Text(SyntaxHighlighter.attributed(shown, language: language))
+                    .font(Fonts.mono(AnswerBlockMetrics.inlineCodeSize))
+                    .textSelection(.enabled)
+                    .padding(.horizontal, Space.x3)
+                    .padding(.bottom, Space.x2)
             }
+            .scrollIndicators(.never)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: AnswerBlockMetrics.innerRadius)

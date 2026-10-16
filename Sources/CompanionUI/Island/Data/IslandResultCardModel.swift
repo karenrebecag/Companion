@@ -98,15 +98,16 @@ enum IslandResultCardModel {
         return flat.prefix(titleMax - 1).trimmingCharacters(in: .whitespaces) + "…"
     }
 
-    /// A reply that opens with a heading already has its title. The question
-    /// used to stand in for it, which printed the user's own sentence cut
-    /// mid-word above an answer that then repeated its real title in the body.
+    /// The card's title is the reply's own opening heading when it reads as a
+    /// subject (2 to 5 words), and then it leaves the body so it shows once.
+    /// Anything else has no title: the user's question is never used as one.
     static func splitHeading(_ blocks: [AnswerBlock]) -> (title: String?, body: [AnswerBlock]) {
         guard let first = blocks.first else { return (nil, blocks) }
         switch first {
         case .title(let text), .section(let text), .subheading(let text):
-            let line = title(question: text, fallback: "")
-            return line.isEmpty ? (nil, blocks) : (line, Array(blocks.dropFirst()))
+            let flat = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+            let words = flat.split(separator: " ").count
+            return (2 ... 5).contains(words) ? (flat, Array(blocks.dropFirst())) : (nil, blocks)
         default:
             return (nil, blocks)
         }

@@ -23,7 +23,8 @@ enum IslandReceipt {
 /// The receipt as a ledger document: what was asked on top with the mark of
 /// a finished job, then one row per thing done, each with the proof it earned.
 struct IslandReceiptDoc: View {
-    let title: String
+    /// Nil: a receipt names nothing of the user's own, the ledger's label says what it is.
+    let title: String?
     let receipt: ActionReceipt
     let maxHeight: CGFloat
     var onDismiss: (() -> Void)?
@@ -42,11 +43,13 @@ struct IslandReceiptDoc: View {
         HStack(alignment: .center, spacing: DocReceiptMetrics.headGap) {
             identity
             VStack(alignment: .leading, spacing: DocReceiptMetrics.subGap) {
-                Text(title)
-                    .font(Fonts.geist(DocReceiptMetrics.titleSize).weight(.semibold))
-                    .tracking(DocReceiptMetrics.titleSize * DocReceiptMetrics.titleTracking)
-                    .foregroundStyle(Color.white.opacity(DocCardInk.title))
-                    .accessibilityAddTraits(.isHeader)
+                if let title {
+                    Text(title)
+                        .font(Fonts.geist(DocReceiptMetrics.titleSize).weight(.semibold))
+                        .tracking(DocReceiptMetrics.titleSize * DocReceiptMetrics.titleTracking)
+                        .foregroundStyle(Color.white.opacity(DocCardInk.title))
+                        .accessibilityAddTraits(.isHeader)
+                }
                 Text(Localized.string("island.receipt.title"))
                     .font(Fonts.geist(DocReceiptMetrics.subSize))
                     .foregroundStyle(Color.white.opacity(DocCardInk.secondary))

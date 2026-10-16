@@ -161,10 +161,9 @@ private func sendPick(
         store: MemoryConversationStore(), config: .default)
     expect(!keyless.choose("Rápido"), "16m-6 fix: sin clave no se manda nada")
     expectEq(keyless.messages.count, 0, "16m-6 fix: y no queda mensaje")
-    expectEq(keyless.queued, [], "16m-6 fix: ni cola")
     var state = IslandChoiceState()
-    _ = sendPick(&state, 0, block: threeOptions(), resolution: .open, queued: keyless.queued, send: { keyless.choose($0) })
-    expectEq(state.effective(resolution: .open, queued: keyless.queued), .open,
+    _ = sendPick(&state, 0, block: threeOptions(), resolution: .open, queued: [], send: { keyless.choose($0) })
+    expectEq(state.effective(resolution: .open, queued: []), .open,
              "16m-6 fix: la tarjeta sigue abierta si no salió")
 
     let vm = primed(chat: FakeChatProvider(replies: [.success([.text("ok")])]))
@@ -190,7 +189,7 @@ private func sendPick(
     queuedVM.send()
     queuedVM.pendingAttachments = [chip]
     queuedVM.choose("Completo")
-    await pumpUntil("16m-6 fix: cola") { !queuedVM.busy && queuedVM.queued.isEmpty }
+    await pumpUntil("16m-6 fix: cola") { !queuedVM.busy }
     expectEq(queuedVM.messages.first { $0.text == "Completo" }?.attachments.count, 0,
              "16m-6 fix: una elección que sale de la cola tampoco se los lleva")
     expectEq(queuedVM.pendingAttachments, [chip], "16m-6 fix: ni los suelta")
@@ -220,7 +219,7 @@ private func sendPick(
     busy.draft = "uno"
     busy.send()
     busy.choose("Completo")
-    await pumpUntil("16m-6 fix: cola") { !busy.busy && busy.queued.isEmpty }
+    await pumpUntil("16m-6 fix: cola") { !busy.busy }
     expectEq(busy.messages.first { $0.text == "Completo" }?.origin, .choice, "16m-6 fix: la cola conserva el origen")
 
     let sensed = primed(chat: FakeChatProvider(replies: [.success([.text("a")])]),
@@ -288,7 +287,7 @@ private func sendPick(
              "16m-6 fix: el turno falló, la pregunta vuelve a estar abierta")
 }
 
-@Test @MainActor func cancelledQueueReopensTheCardTests() async {
+@Test @MainActor func aPickOverARunningTurnCutsItInsteadOfQueueing() async {
     let vm = primed(chat: FakeChatProvider(replies: [.success([.text("a")])]))
     vm.draft = "uno"
     vm.send()
@@ -296,14 +295,8 @@ private func sendPick(
     vm.messages.append(ask)
     let block = threeOptions()
     var state = IslandChoiceState()
-    _ = sendPick(&state, 1, block: block, resolution: .open, queued: vm.queued, send: { vm.choose($0) })
-    expectEq(vm.queued, ["Completo"], "16m-6 fix: con turno en curso sale a la cola")
-    expectEq(state.effective(resolution: IslandChoice.resolution(of: block, messageID: ask.id, in: vm.messages),
-                             queued: vm.queued), .chosen(1), "16m-6 fix: en la cola cuenta")
-    vm.newConversation()
-    expectEq(vm.queued, [], "16m-6 fix: cambiar de conversación vacía la cola")
-    expectEq(state.effective(resolution: IslandChoice.resolution(of: block, messageID: ask.id, in: vm.messages),
-                             queued: vm.queued), .open, "16m-6 fix: la etiqueta ya no está en la cola ni en el hilo: abierta")
+    _ = sendPick(&state, 1, block: block, resolution: .open, queued: [], send: { vm.choose($0) })
+    expect(vm.busy, "16m-6 fix: la elección arranca su propio turno")
 }
 
 // MARK: - Prompt

@@ -106,21 +106,16 @@ struct ClearHistoryJobTests {
         vm.draft = "nuevo"
         vm.send()
         await pumpUntil("the new turn is streaming") { chat.calls == 2 }
-        vm.draft = "cola"
-        vm.send()
-        expectEq(vm.queued, ["cola"], "a message waits behind the new turn")
 
         rig.jobs.finish(.success(JobResult(output: "informe final", isError: false)))
         await settle(0.2)
         expect(vm.busy, "the old turn ending does not end the new one")
         expectEq(chat.calls, 2, "and does not start what was queued")
-        expectEq(vm.queued, ["cola"], "the queue is untouched")
 
         let newId = vm.conversationId
         chat.release(call: 1)
-        await pumpUntil("the queued message starts once") { chat.calls == 3 }
-        await settle(0.1)
-        expectEq(chat.calls, 3, "it started exactly once")
+        await pumpUntil("the new turn lands") { !vm.busy }
+        expectEq(chat.calls, 2, "and nothing else started")
         let listed = try rig.store.list()
         expectEq(listed.map(\.id), [newId], "the store holds only the new conversation")
         expect(

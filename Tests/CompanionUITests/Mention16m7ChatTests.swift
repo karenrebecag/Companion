@@ -69,9 +69,10 @@ private let email = MentionChannel(kind: .email, label: "work", value: "ana@exam
     vm.addMention(Mention(candidate: ana))
     vm.draft = "dos @Ana García"
     vm.send()
-    await pumpUntil("16m-7: cola") { !vm.busy && vm.queued.isEmpty }
-    let second = provider.histories[1].last { $0.role == .user }?.content ?? ""
-    expect(second.contains("Ana García") && second.count > "dos @Ana García".count, "16m-7: la cola conserva la mención")
+    await pumpUntil("16m-7: el corte termina") { !vm.busy }
+    // The cut turn never reached the provider, so the merged words are its only call.
+    let second = provider.histories[0].last { $0.role == .user }?.content ?? ""
+    expect(second.contains("Ana García") && second.count > "dos @Ana García".count, "16m-7: el corte conserva la mención")
 
     let pick = primed(chat: FakeChatProvider(replies: [.success([.text("a")])]))
     pick.addMention(Mention(candidate: ana))

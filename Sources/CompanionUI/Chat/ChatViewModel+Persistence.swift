@@ -48,7 +48,6 @@ extension ChatViewModel {
             stopJobsForClear()
             abandonTurn()
             dropParentApprovals()
-            queue = []
             // The app's own copies are part of the chats; files she picked
             // from elsewhere are not under this root.
             purgeStoredAttachments()

@@ -89,6 +89,8 @@ package struct SessionProjection: Sendable, Equatable {
     package var approvalQueue: [ApprovalRequest] = []
     /// The cards of THIS step only. A view that keeps one copies it.
     package var cards: [SessionCard] = []
+    /// Another app is in a meeting: the island stays compact and opens nothing by itself.
+    package var meetingCompact = false
     /// What the parent's hands are on right now ("Safari", a URL).
     package var targets: [String] = []
     /// Every app this TURN has touched, in order of last touch (16m-2, K8):
@@ -201,9 +203,11 @@ package enum SessionEvent: Sendable, Equatable {
     /// The pointer left a notch it only peeked at (`hoverLeft` follows when
     /// the dwell had already opened it).
     case peekLeft
-    /// What the finished reply asks of the reader, sent before the reply
-    /// ends so the card's clock is born with its length.
-    case replyMeasured(ReadingLoad)
+    /// The devices changed: another app took or released the mic or camera.
+    case deviceUseChanged(DeviceUse)
+    /// What the finished reply is, sent before the reply ends so the card's
+    /// clock is born knowing whether it may close by itself.
+    case replyMeasured(ReplyKind)
     /// The user closed the result card: the x, Esc or "Seguir en el chat".
     case resultDismissed
     case completedTimerExpired
