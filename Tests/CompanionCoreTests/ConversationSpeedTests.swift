@@ -62,6 +62,44 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 1e-9 }
     #expect(ConversationSpeed.factor(fromArguments: ["factor": NSNull()]) == nil)
 }
 
+@Test func setSpeechSpeedHasStableWireNameInBothLanguages() {
+    for language in AppLanguage.allCases {
+        #expect(ToolSpec.setSpeechSpeed(language, current: .base).name == "set_speech_speed")
+    }
+}
+
+@Test func setSpeechSpeedDescriptionCarriesCurrentFactor() {
+    // Values absent from the static text, so only interpolation can satisfy this.
+    let en = ToolSpec.setSpeechSpeed(.en, current: ConversationSpeed(factor: 1.45))
+    #expect(en.description.contains("1.45"))
+    let es = ToolSpec.setSpeechSpeed(.es, current: ConversationSpeed(factor: 0.55))
+    #expect(es.description.contains("0.55"))
+    #expect(en.description != es.description)
+
+    for language in AppLanguage.allCases {
+        let base = ToolSpec.setSpeechSpeed(language, current: .base).description
+        #expect(base.contains("1.") == true)
+        #expect(!base.contains("1.45") && !base.contains("0.55"))
+        let moved = ToolSpec.setSpeechSpeed(language, current: ConversationSpeed(factor: 1.45)).description
+        #expect(moved != base)
+    }
+}
+
+@Test(arguments: AppLanguage.allCases)
+func setSpeechSpeedEncodesStrictForChat(language: AppLanguage) throws {
+    let spec = ToolSpec.setSpeechSpeed(language, current: .base)
+    #expect(spec.required == ["factor"])
+    #expect(spec.properties.map(\.name) == ["factor"])
+    #expect(spec.properties.first?.type == "number")
+
+    let chat = try #require(jsonDictionary(spec.encodeChat(strict: true)))
+    let function = try #require(chat["function"] as? [String: Any])
+    #expect(function["strict"] as? Bool == true)
+    let parameters = try #require(function["parameters"] as? [String: Any])
+    #expect(parameters["additionalProperties"] as? Bool == false)
+    #expect(parameters["required"] as? [String] == ["factor"])
+}
+
 @Test func toolOutputNamesAppliedValueLimitAndOneShortPhrase() {
     let plain = SpeechSpeedCopy.toolOutput(applied: 1.3, limited: false, language: .en)
     #expect(plain.contains("1.3"))

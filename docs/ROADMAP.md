@@ -40,7 +40,7 @@
   antes del modelo (#322).
 - Chat: tools por proveedor y por turno con `max_tokens` acotado (#319), delegar solo trabajo pesado (#324),
   escala tipográfica de 4 para las respuestas (#323).
-- Limpieza: el juez de acciones (sombra, sin lectores) y `set_speech_speed` sin llamadores salieron del árbol.
+- Limpieza: el juez de acciones (sombra, sin lectores) salió del árbol.
 
 ### Entregables como Incredible (Wave 20, cerrada en código 2026-09-28)
 
