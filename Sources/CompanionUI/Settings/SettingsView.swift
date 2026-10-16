@@ -87,8 +87,10 @@ package struct SettingsView: View {
                     strings: SettingsPageChrome.commandStrings, onPick: jump)
                 Spacer(minLength: Space.none)
             }
-            .padding(.leading, Space.x4)
+            // The field lines up with the nav rows beneath it: same inset as their pills.
+            .padding(.leading, Space.x2)
             .padding(.top, Space.x3)
+            .padding(.bottom, Space.x1)
             .padding(.trailing, SettingsCloseClearance.width)
             .zIndex(1)
             SettingsPage(

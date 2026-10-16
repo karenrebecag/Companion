@@ -47,7 +47,7 @@ struct SettingsYouPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x5) {
             SettingsGroup {
-                profileRow.settingsAnchor("settings.you.photo")
+                photoRow.settingsAnchor("settings.you.photo")
                 SettingsRow(title: Localized.string("settings.you.name")) {
                     TextField(Localized.string("settings.you.name.placeholder"), text: $ownerName)
                         .textFieldStyle(.plain)
@@ -99,22 +99,26 @@ struct SettingsYouPage: View {
         }
     }
 
-    private var profileRow: some View {
-        HStack(spacing: Space.x4) {
-            avatarThumb
-            VStack(alignment: .leading, spacing: Space.x1) {
-                Text(ownerName.isEmpty ? Localized.string("settings.you.photo") : ownerName)
-                    .font(.uiSubtitle)
-                    .foregroundStyle(Semantic.foreground)
-                Text(Localized.string("settings.you.photo.subtitle"))
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.mutedForeground)
-            }
-            Spacer(minLength: Space.x3)
-            SettingsPill(title: Localized.string("settings.change"), action: pickAvatar)
-                .accessibilityLabel(Localized.string("settings.you.photo.change"))
-        }
+    private var photoRow: some View {
+        AvatarUpload(
+            image: avatar, initials: initials, strings: SettingsPageChrome.avatarStrings,
+            onSave: { image in
+                guard UserProfile.setAvatar(image: image) else { return false }
+                avatar = UserProfile.avatarImage
+                return true
+            },
+            onRemove: {
+                UserProfile.removeAvatar()
+                avatar = UserProfile.avatarImage
+            })
         .padding(Space.x4)
+    }
+
+    /// Up to two capital letters of the name, the fallback when there is no photo.
+    private var initials: String {
+        let words = ownerName.split(separator: " ")
+        let letters = words.prefix(2).compactMap { $0.first }
+        return letters.isEmpty ? "?" : String(letters).uppercased()
     }
 
     private var avatarThumb: some View {
@@ -158,17 +162,6 @@ struct SettingsYouPage: View {
         UserProfile.about = about
         UserProfile.instructions = instructions
         UserProfile.city = city
-    }
-
-    private func pickAvatar() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.allowedContentTypes = [.image]
-        panel.begin { response in
-            guard response == .OK, let url = panel.url else { return }
-            if UserProfile.setAvatar(from: url) { avatar = UserProfile.avatarImage }
-        }
     }
 }
 

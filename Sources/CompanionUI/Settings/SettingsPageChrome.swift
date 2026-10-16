@@ -31,7 +31,7 @@ extension SettingsStyle {
             background: Semantic.background, surface: Semantic.surface, surfaceMuted: Semantic.muted,
             border: Semantic.border, borderSubtle: Semantic.borderChrome,
             foreground: Semantic.foreground, secondary: Semantic.mutedForeground, muted: Semantic.textMuted,
-            accent: Semantic.accent, success: Semantic.success, warning: Semantic.warning,
+            accent: Palette.signalGreen.color, success: Semantic.success, warning: Semantic.warning,
             danger: Semantic.destructive, title: .uiSubtitle, label: .uiLabel, body: .uiBody,
             caption: .uiCaption)
     }
@@ -49,6 +49,21 @@ enum SettingsPageChrome {
             saved: Localized.string("settings.bar.saved"),
             discard: Localized.string("settings.bar.discard"),
             unsaved: { String(format: unsavedFormat, $0) })
+    }
+
+    static var avatarStrings: AvatarUploadStrings {
+        AvatarUploadStrings(
+            title: Localized.string("settings.you.photo"),
+            choose: Localized.string("settings.avatar.choose"),
+            remove: Localized.string("settings.avatar.remove"),
+            drop: Localized.string("settings.avatar.drop"),
+            zoom: Localized.string("settings.avatar.zoom"),
+            cancel: Localized.string("settings.avatar.cancel"),
+            done: Localized.string("settings.avatar.done"),
+            typeError: Localized.string("settings.avatar.typeError"),
+            sizeError: Localized.string("settings.avatar.sizeError"),
+            unreadable: Localized.string("settings.avatar.unreadable"),
+            saveFailed: Localized.string("settings.avatar.saveFailed"))
     }
 
     static var commandStrings: SettingsCommandStrings {

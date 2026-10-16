@@ -76,10 +76,7 @@ struct SettingsPrivacyPage: View {
                 .settingsAnchor("settings.permissions")
             }
             if let browser { SettingsBrowserSection(model: browser) }
-            SecuritySection(title: Localized.string("settings.keys.label")) {
-                keysBlock
-            }
-            .settingsAnchor("settings.keys.header")
+            keysSection
         }
         .onChange(of: lendHands) { _, on in
             HandsLendingPreference.enabled = on
@@ -121,87 +118,87 @@ struct SettingsPrivacyPage: View {
             set: { context[keyPath: keyPath] = $0 })
     }
 
-    /// Wave 15c-6: pasted values never surface back — `KeysSettingsModel`
-    /// only exposes a saved/not-saved boolean, so this view has nothing to
-    /// leak even by accident.
-    private var keysBlock: some View {
-        VStack(alignment: .leading, spacing: Space.x3) {
+    /// Wave 15c-6: a stored value never comes back to the screen: the row shows
+    /// only the mask the model built, and the field is secure.
+    private var keysSection: some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            Text(Localized.string("settings.keys.label"))
+                .font(.uiCaption.weight(.medium))
+                .foregroundStyle(Semantic.mutedForeground)
+                .padding(.horizontal, Space.x1)
+            APIKeysSection(
+                rows: keyRows, strings: keyStrings,
+                draft: keyDraft,
+                onSave: { id in saveKey(id) },
+                onRemove: { id in removeKey(id) })
+            .settingsAnchor("settings.keys.header")
             Text(Localized.string("settings.keys.blurb"))
                 .font(.uiCaption)
                 .foregroundStyle(Semantic.mutedForeground)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, Space.x4)
-                .padding(.top, Space.x3)
-            keyRow(.openAI, title: "settings.keys.openai",
-                   placeholder: "settings.keys.openai.placeholder", text: $keys.openAIField)
-            keyRow(.cerebras, title: "settings.keys.cerebras",
-                   placeholder: "settings.keys.cerebras.placeholder", text: $keys.cerebrasField)
-            Text(Localized.string("settings.keys.cerebras.privacy"))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, Space.x4)
-            keyRow(.elevenLabs, title: "settings.keys.elevenlabs",
-                   placeholder: "settings.keys.elevenlabs.placeholder",
-                   text: $keys.elevenLabsField)
-            Text(Localized.string("settings.keys.elevenlabs.privacy"))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, Space.x4)
-            if let error = keys.errorText {
-                Text(error)
-                    .font(.uiCaption)
-                    .foregroundStyle(Semantic.destructive)
-                    .padding(.horizontal, Space.x4)
-            }
+                .padding(.horizontal, Space.x1)
         }
-        .padding(.bottom, Space.x3)
     }
 
-    /// 15c-7: the saved key reads as its mask next to a check, so a blank
-    /// field no longer looks like nothing happened; delete is quiet because
-    /// it is the one action here that cannot be undone from this screen.
-    private func keyRow(
-        _ provider: KeysSettingsModel.Provider, title: String, placeholder: String,
-        text: Binding<String>
-    ) -> some View {
-        let mask = keys.masked[provider]
-        let hasInput = !text.wrappedValue.trimmingCharacters(in: .whitespaces).isEmpty
-        return VStack(alignment: .leading, spacing: Space.x2) {
-            HStack(spacing: Space.x2) {
-                Text(Localized.string(title))
-                    .font(.uiLabel)
-                    .foregroundStyle(Semantic.foreground)
-                if let mask {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Semantic.accentText)
-                        .accessibilityHidden(true)
-                    Text(mask)
-                        .font(.uiCaption.monospaced())
-                        .foregroundStyle(Semantic.foreground)
-                        .accessibilityLabel(String(
-                            format: Localized.string("settings.keys.saved.label"), mask))
-                }
-                Spacer()
-            }
-            HStack(spacing: Space.x2) {
-                AppField(
-                    placeholder: Localized.string(
-                        mask == nil ? placeholder : "settings.keys.replace.placeholder"),
-                    text: text, secure: true)
-                SettingsPill(
-                    title: Localized.string("settings.keys.save"), kind: .primary,
-                    enabled: hasInput, action: { keys.save(provider) })
-                if mask != nil {
-                    SettingsPill(
-                        title: Localized.string("settings.keys.delete"),
-                        action: { keys.delete(provider) })
-                }
-            }
+    private static let keyProviders: [(id: String, provider: KeysSettingsModel.Provider, title: String, privacy: String?)] = [
+        ("openai", .openAI, "settings.keys.openai", nil),
+        ("cerebras", .cerebras, "settings.keys.cerebras", "settings.keys.cerebras.privacy"),
+        ("elevenlabs", .elevenLabs, "settings.keys.elevenlabs", "settings.keys.elevenlabs.privacy"),
+    ]
+
+    private var keyRows: [APIKeyRowModel] {
+        Self.keyProviders.map { item in
+            APIKeyRowModel(
+                id: item.id, title: Localized.string(item.title),
+                detail: item.privacy.map { Localized.string($0) },
+                masked: keys.masked[item.provider])
         }
-        .padding(.horizontal, Space.x4)
-        .padding(.vertical, Space.x3)
+    }
+
+    private var keyStrings: APIKeyStrings {
+        let removeFormat = Localized.string("settings.keys.removeLabel")
+        return APIKeyStrings(
+            savedStatus: Localized.string("settings.keys.status.saved"),
+            missingStatus: Localized.string("settings.keys.status.missing"),
+            placeholder: Localized.string("settings.keys.paste"),
+            replacePlaceholder: Localized.string("settings.keys.replace.placeholder"),
+            save: Localized.string("settings.keys.save"),
+            remove: Localized.string("settings.keys.delete"),
+            removeLabel: { String(format: removeFormat, $0) })
+    }
+
+    private func keyDraft(_ id: String) -> Binding<String> {
+        Binding(
+            get: { draftText(id) },
+            set: { setDraftText(id, $0) })
+    }
+
+    private func draftText(_ id: String) -> String {
+        switch id {
+        case "cerebras": keys.cerebrasField
+        case "elevenlabs": keys.elevenLabsField
+        default: keys.openAIField
+        }
+    }
+
+    private func setDraftText(_ id: String, _ value: String) {
+        switch id {
+        case "cerebras": keys.cerebrasField = value
+        case "elevenlabs": keys.elevenLabsField = value
+        default: keys.openAIField = value
+        }
+    }
+
+    private func provider(_ id: String) -> KeysSettingsModel.Provider? {
+        Self.keyProviders.first { $0.id == id }?.provider
+    }
+
+    private func saveKey(_ id: String) {
+        if let provider = provider(id) { keys.save(provider) }
+    }
+
+    private func removeKey(_ id: String) {
+        if let provider = provider(id) { keys.delete(provider) }
     }
 }
 

@@ -15,7 +15,7 @@ package enum SettingsTab: String, CaseIterable, Equatable {
         switch self {
         case .general: "gearshape"
         case .voice: "waveform"
-        case .vocabulary: "textformat.abc"
+        case .vocabulary: "character.book.closed"
         case .memory: "brain"
         case .you: "person.crop.circle"
         case .privacy: "lock.shield"

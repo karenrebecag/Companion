@@ -995,3 +995,17 @@
 "settings.general.blurb" = "How you talk to Companion, and what it sounds like.";
 "settings.privacy.blurb" = "What Companion can see, with which permissions, and which keys it uses.";
 "settings.system.blurb" = "Version, stored data, and what cannot be undone.";
+"settings.avatar.choose" = "Choose photo";
+"settings.avatar.remove" = "Remove photo";
+"settings.avatar.drop" = "Drop a photo here or choose one. It is cropped to a circle.";
+"settings.avatar.zoom" = "Zoom";
+"settings.avatar.cancel" = "Cancel";
+"settings.avatar.done" = "Use photo";
+"settings.avatar.typeError" = "Choose a PNG or JPG image";
+"settings.avatar.sizeError" = "Choose an image under 5 MB";
+"settings.avatar.unreadable" = "I could not open that image";
+"settings.avatar.saveFailed" = "I could not save the photo";
+"settings.keys.status.saved" = "Saved";
+"settings.keys.status.missing" = "Not set";
+"settings.keys.paste" = "Paste the key";
+"settings.keys.removeLabel" = "Remove the %@ key";

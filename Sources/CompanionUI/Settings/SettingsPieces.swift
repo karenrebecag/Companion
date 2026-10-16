@@ -52,9 +52,15 @@ extension ButtonVariant {
 struct SettingsSwitch: View {
     let label: String
     @Binding var isOn: Bool
+    @Environment(\.settingsStyle) private var style
 
+    /// One accent in both themes: the native switch would take the system's
+    /// tint, which is black in light and green in dark.
     var body: some View {
-        IncredibleSwitch(label, isOn: $isOn)
+        Toggle(label, isOn: $isOn)
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .tint(style.accent)
     }
 }
 
