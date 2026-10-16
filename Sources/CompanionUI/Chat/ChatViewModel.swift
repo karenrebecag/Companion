@@ -381,8 +381,25 @@ package final class ChatViewModel: ConversationPresenting {
     /// Not a job's end: the voice's replies land here too, and every job
     /// sends its own tagged end (review 16h-2 round 3).
     package func appendAssistant(_ text: String) async {
-        messages.append(ChatMessage(role: .assistant, text: text))
+        // A tool's card lands before the words about it. The island shows one
+        // reply per turn, so a separate text message buried the card the
+        // moment the voice finished (show_card, 2026-10-06).
+        if let last = messages.indices.last, let card = Self.cardOnly(messages[last]) {
+            let marker = messages[last].recall?.content ?? ChatCopy.cardShown(card)
+            messages[last].text = text
+            messages[last].recall = Recall(
+                role: .assistant,
+                content: ConversationMemory.recall(text) + "\n" + marker)
+        } else {
+            messages.append(ChatMessage(role: .assistant, text: text))
+        }
         persist()
+    }
+
+    private static func cardOnly(_ message: ChatMessage) -> Card? {
+        guard message.role == .assistant, !message.isStatus, !message.restored,
+              message.text.isEmpty else { return nil }
+        return message.card
     }
 
     package func appendStatus(_ text: String) async {

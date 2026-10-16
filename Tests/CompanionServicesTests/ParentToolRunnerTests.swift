@@ -20,6 +20,7 @@ import Testing
     testSpecsFollowBacking()
     await testRealOpenerFindsSafari()
     await testReadSkillByNameOnly()
+    await testShowCardPutsTheChartOnTheChannel()
 }
 
 @MainActor func testOpenAppOpensKnownApp() async {
@@ -131,7 +132,7 @@ import Testing
 /// Una tool sin respaldo no se anuncia (misma regla que NativeToolRunner).
 @MainActor func testSpecsFollowBacking() {
     let bare = ParentToolRunner(workspace: FakeWorkspaceOpener())
-    expectEq(bare.specs(.en).map(\.name), ["open_app", "open_url", "open_file", "list_apps"],
+    expectEq(bare.specs(.en).map(\.name), ["open_app", "open_url", "open_file", "list_apps", "show_card"],
              "specs: sin PlacesSearching no hay find_places")
     let withPlaces = ParentToolRunner(
         workspace: FakeWorkspaceOpener(), places: FakePlaces(found: []))
@@ -201,4 +202,24 @@ private struct ProbeOnlyOpener: WorkspaceOpening {
     let big = await runner.execute(name: "read_skill", argumentsJSON: #"{"name":"writing-content"}"#)
     expect(big.output.unicodeScalars.count < 41_000 && big.output.hasSuffix("…"),
            "read_skill: un cuerpo enorme se corta visible")
+}
+
+/// Karen 2026-10-06: the fast brain left chart fences unclosed and the card
+/// never painted. The tool call lands the chart on the card channel whole.
+@MainActor func testShowCardPutsTheChartOnTheChannel() async {
+    let runner = ParentToolRunner(workspace: FakeWorkspaceOpener())
+    let out = await runner.execute(name: "show_card", argumentsJSON: #"""
+        {"card":"chart","title":"Ventas","kind":"bar","labels":["Ene","Feb"],
+         "series":[{"name":"MXN","values":[120,150]}]}
+        """#)
+    expect(out.ok, "show_card: ok")
+    guard case .chart(let chart)? = out.card?.payload else {
+        expect(false, "show_card: la gráfica viaja en card, no en el texto")
+        return
+    }
+    expectEq(chart.labels, ["Ene", "Feb"], "show_card: etiquetas intactas")
+    expect(!out.output.contains("150"), "show_card: el modelo no recibe los números para leerlos")
+    let bad = await runner.execute(name: "show_card", argumentsJSON: #"{"card":"chart","labels":["a"]}"#)
+    expect(!bad.ok && bad.card == nil, "show_card: datos rotos fallan sin pintar nada")
+    expect(bad.output.hasPrefix("invalid_args:"), "show_card: código estable para reintentar")
 }

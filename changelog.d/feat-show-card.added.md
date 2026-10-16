@@ -1,0 +1,1 @@
+- 2026-10-06: el cerebro rapido pinta cifras, tablas y graficas con la tool `show_card` en vez de fences de texto; la tarjeta llega entera por `message.card` y ya no puede quedar abierta, leerse en voz alta ni guardarse vacia.

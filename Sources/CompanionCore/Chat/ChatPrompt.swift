@@ -31,6 +31,7 @@ package enum ChatPrompt: Sendable {
         ownerFirstName: String,
         delegateEnabled: Bool,
         parentToolsEnabled: Bool = false,
+        cardToolEnabled: Bool = false,
         handsEnabled: Bool = false,
         sightEnabled: Bool = false,
         webSearchEnabled: Bool = false,
@@ -63,7 +64,7 @@ package enum ChatPrompt: Sendable {
         // lived in the specialist's role — so a question about a place that
         // needed no delegation could not produce the map the client already
         // knew how to draw.
-        prompt += " " + CardVocabulary.text(language)
+        prompt += " " + CardVocabulary.text(language, cardTool: cardToolEnabled)
         // Promised only when there is a catalog: a rule about skills with no
         // skills behind it is the "web search" lesson again (Wave 11a).
         if !skills.isEmpty {

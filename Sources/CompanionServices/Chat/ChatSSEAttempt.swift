@@ -170,6 +170,7 @@ private func makeBody(
         "content": ChatPrompt.system(
             ownerFirstName: ownerFirstName, delegateEnabled: delegateEnabled,
             parentToolsEnabled: parentToolsEnabled,
+            cardToolEnabled: tools.contains { $0.name == ShowCard.name },
             handsEnabled: handsEnabled,
             sightEnabled: tools.contains { $0.name == ParentTool.look.rawValue },
             about: about, instructions: instructions, language: language,

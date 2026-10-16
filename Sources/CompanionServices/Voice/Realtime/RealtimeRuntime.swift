@@ -546,6 +546,8 @@ final class RealtimeRuntime: @unchecked Sendable {
             ownerFirstName: config.ownerFirstName,
             delegateEnabled: canDelegate,
             parentToolsEnabled: parentToolsEnabled,
+            // The runner always declares show_card, so the parent tools imply it.
+            cardToolEnabled: parentToolsEnabled,
             handsEnabled: handsEnabled,
             sightEnabled: sightEnabled,
             about: config.ownerAbout,
