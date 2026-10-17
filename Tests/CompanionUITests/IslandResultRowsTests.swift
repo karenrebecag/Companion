@@ -226,3 +226,20 @@ private struct HostedShot: Equatable {
              "el bloque de present se dibuja en la tarjeta")
     #expect(IslandView.drawsInline(message))
 }
+
+// QA: under a table in the island the paragraph after it did not paint. The
+// island must hand the view every block of the call, in the order the model wrote.
+@Test @MainActor func theIslandReceivesEveryPresentBlockInOrder() throws {
+    let body = #"{"blocks":[{"type":"table","columns":["a","b"],"rows":[["1","2"]]},{"type":"paragraph","text":"Después"}]}"#
+    let message = reply("```companion:present\n\(body)\n```")
+    let blocks = IslandView.inlineVisuals(message, turnCards: []).blocks
+    guard case .presented(let renders) = try #require(blocks.first) else {
+        Issue.record("la respuesta no trae un bloque presented")
+        return
+    }
+    expectEq(renders.count, 2, "la isla recibe los dos bloques")
+    guard case .sortableTable = renders[0], case .prose(.paragraph("Después")) = renders[1] else {
+        Issue.record("el orden de los bloques no se conserva")
+        return
+    }
+}
