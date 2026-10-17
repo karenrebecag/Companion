@@ -360,13 +360,18 @@ package struct PresentComparisonRow: Sendable, Equatable {
 
 package struct PresentComparison: Sendable, Equatable {
     package var title: String?
+    /// The name the model gave the row-label column, when it gave one.
+    package var labelHeader: String?
     /// The compared options, one column each.
     package var columns: [String]
     /// Every row has exactly `columns.count` values.
     package var rows: [PresentComparisonRow]
 
-    package init(title: String?, columns: [String], rows: [PresentComparisonRow]) {
+    package init(
+        title: String?, labelHeader: String? = nil, columns: [String], rows: [PresentComparisonRow]
+    ) {
         self.title = title
+        self.labelHeader = labelHeader
         self.columns = columns
         self.rows = rows
     }

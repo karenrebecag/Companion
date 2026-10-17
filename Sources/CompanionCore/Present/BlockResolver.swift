@@ -211,7 +211,7 @@ package enum BlockResolver {
         }
         return table(PresentTable(
             title: comparison.title,
-            columns: [""] + comparison.columns,
+            columns: [comparison.labelHeader ?? ""] + comparison.columns,
             rows: comparison.rows.map { [.text($0.label)] + $0.values }))
     }
 

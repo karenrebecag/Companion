@@ -70,12 +70,12 @@ extension PresentParser {
     }
 
     private static func table(_ dict: [String: Any]) -> PresentTable? {
-        guard let columns = strings(dict, "columns"), !columns.isEmpty,
+        guard let columns = headers(dict, "columns"), !columns.isEmpty,
               columns.count <= Limits.maxColumns,
               let rawRows = array(dict, "rows")
         else { return nil }
         let rows: [[PresentCell]] = rawRows.compactMap { row in
-            guard let cells = row as? [Any], cells.count == columns.count else { return nil }
+            guard let cells = rowCells(row), cells.count == columns.count else { return nil }
             var out: [PresentCell] = []
             for raw in cells {
                 guard let typed = cell(raw) else { return nil }
@@ -277,11 +277,16 @@ extension PresentParser {
 
     /// Two options are the most a reader can weigh side by side; the parser
     /// keeps more, the resolver decides how they draw.
+    /// The model often adds a header for the label column ("Criterio" over
+    /// the row labels), so one more column than values is that label column,
+    /// not an option.
     private static func comparison(_ dict: [String: Any]) -> PresentComparison? {
-        guard let columns = strings(dict, "columns"), columns.count >= 2,
-              columns.count <= Limits.maxColumns,
+        guard let declared = headers(dict, "columns"), declared.count >= 2,
+              declared.count <= Limits.maxColumns + 1,
               let raw = objects(dict, "rows")
         else { return nil }
+        let (labelHeader, columns) = splitLabelHeader(declared, rows: raw)
+        guard columns.count >= 2 else { return nil }
         let rows: [PresentComparisonRow] = raw.compactMap { item in
             guard let label = text(item, "label"), let values = item["values"] as? [Any],
                   values.count == columns.count
@@ -295,7 +300,34 @@ extension PresentParser {
         }
         let kept = bounded(rows, max: Limits.maxRows)
         guard !kept.isEmpty else { return nil }
-        return PresentComparison(title: optionalText(dict, "title"), columns: columns, rows: kept)
+        return PresentComparison(
+            title: optionalText(dict, "title"), labelHeader: labelHeader, columns: columns, rows: kept)
+    }
+
+    /// Takes the label-column header off when the rows carry one value fewer
+    /// than the header has names; what is left are the options.
+    static func splitLabelHeader(_ declared: [String], rows: [[String: Any]]) -> (label: String?, options: [String]) {
+        guard let width = rows.first.flatMap({ array($0, "values")?.count }),
+              declared.count == width + 1
+        else { return (nil, declared) }
+        return (declared[0], Array(declared.dropFirst()))
+    }
+
+    /// A row as a list of cells: an array as written, or the `{label, values}`
+    /// object the comparison uses, its label first.
+    static func rowCells(_ row: Any) -> [Any]? {
+        if let cells = row as? [Any] { return cells }
+        guard let object = row as? [String: Any], let label = text(object, "label"),
+              let values = object["values"] as? [Any]
+        else { return nil }
+        return [label] + values
+    }
+
+    /// Column headers in order. A blank header is kept: it is the label column
+    /// the model left unnamed, and dropping it would shift every value.
+    static func headers(_ dict: [String: Any], _ key: String) -> [String]? {
+        guard let raw = array(dict, key) else { return nil }
+        return raw.map { ($0 as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" }
     }
 
     /// Strings in an array, dropping blanks; nil when the key is not an array.

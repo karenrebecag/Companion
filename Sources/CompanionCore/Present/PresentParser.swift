@@ -93,11 +93,11 @@ package enum PresentParser {
         guard let family = familiesByName[key] ?? aliases[key] else {
             return (textFallback(dict), PresentIssue(index: index, type: type, reason: "unknown type"))
         }
+        let issue = PresentIssue(index: index, type: type, reason: "\(family.rawValue) fields did not validate")
         if let block = self.family(family, dict) {
             return (block, nil)
         }
-        return (textFallback(dict), PresentIssue(
-            index: index, type: type, reason: "\(family.rawValue) fields did not validate"))
+        return (genericTable(family, dict) ?? textFallback(dict), issue)
     }
 
     /// Text, never an error: a block with prose in it reads as prose; anything
