@@ -32,6 +32,11 @@ package enum PresentFence {
     /// Renders a saved body. A body that no longer parses renders nothing; the
     /// caller shows it as code instead of dropping it.
     package static func renders(body: String, now: Date = Date()) -> [PresentRender]? {
+        guard let outcome = outcome(body: body), !outcome.blocks.isEmpty else { return nil }
+        return BlockResolver.resolveAll(outcome.blocks, now: now)
+    }
+
+    package static func outcome(body: String) -> PresentOutcome? {
         guard body.utf8.count <= PresentContract.Limits.maxArgumentBytes,
               let data = body.data(using: .utf8)
         else { return nil }
@@ -42,8 +47,41 @@ package enum PresentFence {
             return nil
         }
         guard let dict = object as? [String: Any] else { return nil }
-        let outcome = PresentParser.parse(arguments: dict)
-        guard !outcome.blocks.isEmpty else { return nil }
-        return BlockResolver.resolveAll(outcome.blocks, now: now)
+        return PresentParser.parse(arguments: dict)
+    }
+
+    /// The reply as the reader sees it: each present fence becomes the words of
+    /// its blocks. Language detection reads this, so the JSON the model wrote
+    /// (English keys, a language of its own) never decides the reply's language.
+    package static func paintedWords(of reply: String) -> String {
+        var out: [String] = []
+        var open: [String]?
+        for line in reply.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let body = open {
+                if trimmed.hasPrefix("```") {
+                    out += words(ofBody: body.joined(separator: "\n"))
+                    open = nil
+                } else {
+                    open = body + [line]
+                }
+            } else if isOpener(trimmed) {
+                open = []
+            } else {
+                out.append(line)
+            }
+        }
+        // A fence the text ends inside is still arriving: its JSON paints nothing.
+        return out.joined(separator: "\n")
+    }
+
+    private static func isOpener(_ trimmed: String) -> Bool {
+        guard trimmed.hasPrefix("```") else { return false }
+        return trimmed.dropFirst(3).trimmingCharacters(in: .whitespaces) == language
+    }
+
+    private static func words(ofBody body: String) -> [String] {
+        guard let outcome = outcome(body: body) else { return [] }
+        return outcome.blocks.flatMap(PresentReadable.lines)
     }
 }

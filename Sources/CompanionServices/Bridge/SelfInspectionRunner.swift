@@ -70,7 +70,7 @@ package struct SelfInspectionRunner: ParentToolExecuting, Sendable {
             let thread = await source.activeThread()
             // D4: the language is worked out here, in-process; only the code
             // and the confidence leave.
-            let inspected = thread.map { MessageInspection($0, detected: recognizer.dominant($0.text)) }
+            let inspected = thread.map { MessageInspection($0, detected: recognizer.dominant(PresentFence.paintedWords(of: $0.text))) }
             return encoded(inspected, tool: name)
         case .lastMessageMatches:
             return await lastMessageMatches(arguments, tool: name)
