@@ -109,6 +109,16 @@ private enum PresentSamples {
             {"type":"comparison","title":"Antes y después","columns":["Antes","Después"],
              "rows":[{"label":"Norte","values":[40,55]},{"label":"Sur","values":[62,48]},{"label":"Centro","values":[30,34]}]}
             """),
+            PresentSample("comparacion-qa", blocks: """
+            {"type":"comparison","columns":["Criterio","Swift Charts","Charts de terceros","Chart.js"],
+             "rows":[{"label":"Rendimiento","values":["alto","medio","alto"]},{"label":"Licencia","values":["MIT","MIT","MIT"]},
+                     {"label":"Tipos","values":[4,2,3]}]},
+            {"type":"paragraph","text":"Swift Charts es el marco nativo de Apple."}
+            """),
+            PresentSample("serie-ene-jun", blocks: """
+            {"type":"timeSeries","title":"Usuarios","unit":"miles","labels":["Ene","Feb","Mar","Abr","May","Jun"],
+             "series":[{"name":"Web","values":[120,135,150,162,170,200]},{"name":"App","values":[80,90,96,101,110,118]}]}
+            """),
             PresentSample("dona", blocks: """
             {"type":"partsofwhole","title":"Ingresos por canal",
              "parts":[{"label":"Web","value":45},{"label":"Tienda","value":30},{"label":"Socios","value":15},{"label":"Otros","value":10}]}

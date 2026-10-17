@@ -118,7 +118,7 @@ package struct QARunner: ParentToolExecuting, Sendable {
     }
 
     private func result(_ record: TurnRecord, tool: String) -> ParentToolOutcome {
-        let detected = record.reply.flatMap { recognizer.dominant($0.text) }
+        let detected = record.reply.flatMap { recognizer.dominant(PresentFence.paintedWords(of: $0.text)) }
         let json = TurnResult.json(record, includeText: scope(), detected: detected)
         // An interrupted turn is a result the agent reads, not a failed call.
         return ParentToolOutcome(

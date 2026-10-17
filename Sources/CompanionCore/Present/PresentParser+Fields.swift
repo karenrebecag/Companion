@@ -27,13 +27,19 @@ extension PresentParser {
         return list.compactMap { $0 as? [String: Any] }
     }
 
-    /// NSNumber boxes booleans too, and `true` must not read as 1.
+    /// NSNumber boxes booleans too, and `true` must not read as 1. A number the
+    /// model wrote as a string ("12", "3.5") is still a number.
     static func number(_ value: Any?) -> Double? {
         guard let value else { return nil }
         if let number = value as? NSNumber {
             if CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
             let double = number.doubleValue
             return double.isFinite ? double : nil
+        }
+        if let string = value as? String {
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let double = Double(trimmed), double.isFinite else { return nil }
+            return double
         }
         return nil
     }
@@ -61,10 +67,16 @@ extension PresentParser {
         return nil
     }
 
+    /// A numeric string becomes a number only when it reads back the same, so
+    /// "007" or an id stays text while "12" sorts as 12.
     static func cell(_ value: Any) -> PresentCell? {
         if value is NSNull { return .text("") }
         if let string = value as? String {
-            return .text(string.trimmingCharacters(in: .whitespacesAndNewlines))
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let double = number(trimmed), PresentCell.number(double).display == trimmed {
+                return .number(double)
+            }
+            return .text(trimmed)
         }
         if let double = number(value) { return .number(double) }
         if let bool = value as? NSNumber, CFGetTypeID(bool) == CFBooleanGetTypeID() {

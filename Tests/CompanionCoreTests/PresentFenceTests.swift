@@ -42,3 +42,28 @@ import Testing
     #expect(reply.contains("days[{date"))
     #expect(BlockCatalog.reply(for: []).contains("present family"))
 }
+
+@Test func aBadBlockBesideAParagraphPaintsBoth() throws {
+    let body = try #require(PresentFence.body(argumentsJSON: """
+        {"blocks":[{"type":"partsOfWhole","parts":[{"label":"a","value":-4}]},{"type":"paragraph","text":"Hola"}]}
+        """))
+    let renders = try #require(PresentFence.renders(body: body))
+    #expect(renders.count == 2)
+    #expect(renders.last == .prose(.paragraph("Hola")))
+}
+
+// The QA case: a Spanish reply whose fence carries English keys. Detection
+// reads what the reader sees, so the keys must not be in the words.
+@Test func thePaintedWordsOfAPresentReplyHoldNoJSON() throws {
+    let body = try #require(PresentFence.body(argumentsJSON: """
+        {"blocks":[{"type":"paragraph","text":"Swift Charts es el marco nativo de Apple para gráficas."},\
+        {"type":"comparison","columns":["Criterio","Swift Charts","Chart.js"],\
+        "rows":[{"label":"Licencia","values":["incluida","MIT"]}]}]}
+        """))
+    let painted = PresentFence.paintedWords(of: "Claro.\n\n```companion:present\n\(body)\n```\n")
+    #expect(painted.contains("Swift Charts es el marco nativo de Apple para gráficas."))
+    #expect(painted.contains("Licencia"))
+    #expect(!painted.contains("{"))
+    #expect(!painted.contains("\"type\""))
+    #expect(!painted.contains("blocks"))
+}

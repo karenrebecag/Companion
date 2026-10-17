@@ -61,7 +61,7 @@ extension IslandView {
     static func inlineVisuals(_ message: ChatMessage, turnCards: [Card]) -> InlineVisuals {
         let blocks = windowBlocks(message.text).filter { block in
             switch block {
-            case .card, .diagram: true
+            case .card, .diagram, .presented: true
             default: false
             }
         }

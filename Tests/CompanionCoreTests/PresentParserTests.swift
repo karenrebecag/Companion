@@ -130,3 +130,69 @@ private func parse(_ json: String) -> PresentOutcome {
     """)
     #expect(outcome.blocks == [.webSources([PresentSource(title: "doc", url: "https://example.com/a")])])
 }
+
+// The QA case: four columns where the first names the label column, and rows
+// of three values. The model's shape is the common one, so it must paint.
+@Test func aComparisonWhoseFirstColumnIsTheLabelHeaderReadsItsOptions() {
+    let outcome = parse("""
+    {"blocks":[{"type":"comparison","columns":["Criterio","Swift Charts","Charts de terceros","Chart.js"],
+      "rows":[{"label":"Rendimiento","values":["alto","medio","alto"]},
+              {"label":"Licencia","values":["MIT","MIT","MIT"]}]},
+     {"type":"paragraph","text":"Resumen."}]}
+    """)
+    #expect(outcome.issues.isEmpty)
+    #expect(outcome.blocks == [
+        .comparison(PresentComparison(
+            title: nil, labelHeader: "Criterio", columns: ["Swift Charts", "Charts de terceros", "Chart.js"], rows: [
+            PresentComparisonRow(label: "Rendimiento", values: [.text("alto"), .text("medio"), .text("alto")]),
+            PresentComparisonRow(label: "Licencia", values: [.text("MIT"), .text("MIT"), .text("MIT")]),
+        ])),
+        .paragraph("Resumen."),
+    ])
+}
+
+@Test func numbersWrittenAsStringsAreNumbers() {
+    let outcome = parse("""
+    {"blocks":[{"type":"comparison","columns":["A","B"],"rows":[{"label":"x","values":["12","9"]}]}]}
+    """)
+    guard case .comparison(let comparison) = outcome.blocks.first else {
+        Issue.record("a comparison with numeric strings did not parse")
+        return
+    }
+    #expect(comparison.rows.first?.values == [.number(12), .number(9)])
+}
+
+@Test func aComparisonThatCannotBeReadFallsBackToATableBesideTheOtherBlocks() {
+    let outcome = parse("""
+    {"blocks":[{"type":"comparison","title":"X","columns":["A","B"],"rows":[{"label":"r","values":[1,2,3,4,5]}]},
+               {"type":"paragraph","text":"ok"}]}
+    """)
+    #expect(outcome.blocks.count == 2)
+    guard case .table(let table) = outcome.blocks.first else {
+        Issue.record("an unreadable comparison must fall back to a generic table")
+        return
+    }
+    #expect(table.title == "X")
+    #expect(table.rows.count == 1)
+    #expect(outcome.blocks.last == .paragraph("ok"))
+    #expect(outcome.issues.map(\.reason) == ["comparison fields did not validate"])
+}
+
+@Test func aTableRowWithALabelAndValuesIsAcceptedWhenTheHeaderNamesTheLabel() {
+    let outcome = parse("""
+    {"blocks":[{"type":"table","columns":["Criterio","A","B"],"rows":[{"label":"x","values":[1,2]}]}]}
+    """)
+    #expect(outcome.issues.isEmpty)
+    #expect(outcome.blocks == [.table(PresentTable(
+        title: nil, columns: ["Criterio", "A", "B"],
+        rows: [[.text("x"), .number(1), .number(2)]]))])
+}
+
+@Test func anEmptyOptionalFieldIsSimplyAbsent() {
+    let outcome = parse("""
+    {"blocks":[{"type":"ranking","unit":"","items":[{"label":"a","value":1}]}]}
+    """)
+    #expect(outcome.issues.isEmpty)
+    #expect(outcome.blocks == [.ranking(PresentRanking(
+        title: nil, unit: nil, items: [PresentPart(label: "a", value: 1)]))])
+}

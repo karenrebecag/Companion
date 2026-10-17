@@ -216,3 +216,13 @@ private struct HostedShot: Equatable {
     expectEq(IslandView.inlineVisuals(latest, turnCards: IslandView.turnCards(messages)).cards, [chart],
              "la respuesta de texto dibuja la tarjeta de su turno")
 }
+
+// QA: a reply that is only a present call showed an empty card, because the
+// card drew cards and diagrams and nothing else from its fence.
+@Test @MainActor func aPresentOnlyReplyDrawsItsBlocksInTheCard() {
+    let body = #"{"blocks":[{"type":"paragraph","text":"Hola"}]}"#
+    let message = reply("```companion:present\n\(body)\n```")
+    expectEq(IslandView.inlineVisuals(message, turnCards: []).blocks.count, 1,
+             "el bloque de present se dibuja en la tarjeta")
+    #expect(IslandView.drawsInline(message))
+}
