@@ -1058,3 +1058,14 @@
 "settings.alwaysAllow.upload" = "Subir archivos de %1$@ a %2$@";
 "settings.alwaysAllow.revoke" = "Quitar";
 "approval.alwaysHost" = "Permitir siempre en %@";
+
+"settings.keys.title" = "Claves de API";
+"settings.keys.count" = "%d de %d configuradas";
+"settings.keys.add" = "Agregar clave";
+"settings.keys.cancel" = "Cancelar";
+"settings.keys.provider" = "Proveedor";
+"settings.keys.allSet" = "Todas las claves están configuradas.";
+"settings.keys.providerRequired" = "Elige un proveedor.";
+"settings.keys.keyRequired" = "Pega la clave para guardarla.";
+"settings.keys.holdToRemove" = "Mantén para quitar";
+"settings.keys.removed" = "Quitada";

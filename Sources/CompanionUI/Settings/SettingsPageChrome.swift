@@ -24,19 +24,6 @@ extension SettingsTab {
     }
 }
 
-extension SettingsStyle {
-    /// Companion's tokens, so the components follow the app's light and dark palette.
-    static var companion: SettingsStyle {
-        SettingsStyle(
-            background: Semantic.background, surface: Semantic.surface, surfaceMuted: Semantic.muted,
-            border: Semantic.border, borderSubtle: Semantic.borderChrome,
-            foreground: Semantic.foreground, secondary: Semantic.mutedForeground, muted: Semantic.textMuted,
-            accent: Palette.signalGreen.color, success: Semantic.success, warning: Semantic.warning,
-            danger: Semantic.destructive, title: .uiSubtitle, label: .uiLabel, body: .uiBody,
-            caption: .uiCaption)
-    }
-}
-
 @MainActor
 enum SettingsPageChrome {
     static var pageStrings: SettingsPageStrings {

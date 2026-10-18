@@ -122,23 +122,12 @@ struct SettingsPrivacyPage: View {
     /// Wave 15c-6: a stored value never comes back to the screen: the row shows
     /// only the mask the model built, and the field is secure.
     private var keysSection: some View {
-        VStack(alignment: .leading, spacing: Space.x2) {
-            Text(Localized.string("settings.keys.label"))
-                .font(.uiCaption.weight(.medium))
-                .foregroundStyle(Semantic.mutedForeground)
-                .padding(.horizontal, Space.x1)
-            APIKeysSection(
-                rows: keyRows, strings: keyStrings,
-                draft: keyDraft,
-                onSave: { id in saveKey(id) },
-                onRemove: { id in removeKey(id) })
-            .settingsAnchor("settings.keys.header")
-            Text(Localized.string("settings.keys.blurb"))
-                .font(.uiCaption)
-                .foregroundStyle(Semantic.mutedForeground)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.horizontal, Space.x1)
-        }
+        APIKeysSection(
+            rows: keyRows, strings: keyStrings,
+            draft: keyDraft,
+            onSave: { id in saveKey(id) },
+            onRemove: { id in removeKey(id) })
+        .settingsAnchor("settings.keys.header")
     }
 
     private static let keyProviders: [(id: String, provider: KeysSettingsModel.Provider, title: String, privacy: String?)] = [
@@ -157,15 +146,24 @@ struct SettingsPrivacyPage: View {
     }
 
     private var keyStrings: APIKeyStrings {
-        let removeFormat = Localized.string("settings.keys.removeLabel")
+        let countFormat = Localized.string("settings.keys.count")
         return APIKeyStrings(
+            title: Localized.string("settings.keys.title"),
+            description: Localized.string("settings.keys.blurb"),
+            count: { String(format: countFormat, $0, $1) },
             savedStatus: Localized.string("settings.keys.status.saved"),
             missingStatus: Localized.string("settings.keys.status.missing"),
             placeholder: Localized.string("settings.keys.paste"),
             replacePlaceholder: Localized.string("settings.keys.replace.placeholder"),
             save: Localized.string("settings.keys.save"),
-            remove: Localized.string("settings.keys.delete"),
-            removeLabel: { String(format: removeFormat, $0) })
+            addKey: Localized.string("settings.keys.add"),
+            cancel: Localized.string("settings.keys.cancel"),
+            providerLabel: Localized.string("settings.keys.provider"),
+            allSet: Localized.string("settings.keys.allSet"),
+            providerRequired: Localized.string("settings.keys.providerRequired"),
+            keyRequired: Localized.string("settings.keys.keyRequired"),
+            holdToRemove: Localized.string("settings.keys.holdToRemove"),
+            removed: Localized.string("settings.keys.removed"))
     }
 
     private func keyDraft(_ id: String) -> Binding<String> {

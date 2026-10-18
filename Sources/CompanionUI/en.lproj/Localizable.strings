@@ -1058,3 +1058,14 @@
 "settings.alwaysAllow.upload" = "Upload files from %1$@ to %2$@";
 "settings.alwaysAllow.revoke" = "Revoke";
 "approval.alwaysHost" = "Always allow on %@";
+
+"settings.keys.title" = "API keys";
+"settings.keys.count" = "%d of %d configured";
+"settings.keys.add" = "Add key";
+"settings.keys.cancel" = "Cancel";
+"settings.keys.provider" = "Provider";
+"settings.keys.allSet" = "Every key is set.";
+"settings.keys.providerRequired" = "Choose a provider.";
+"settings.keys.keyRequired" = "Paste the key to save it.";
+"settings.keys.holdToRemove" = "Hold to remove";
+"settings.keys.removed" = "Removed";
