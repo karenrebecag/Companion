@@ -1055,6 +1055,6 @@
 "present.bar.period" = "%ld items";
 "settings.alwaysAllow.header" = "Always allowed";
 "settings.alwaysAllow.blurb" = "What you said to always allow. Removing it makes the sheet ask again.";
-"settings.alwaysAllow.upload" = "Upload files to %@";
+"settings.alwaysAllow.upload" = "Upload files from %1$@ to %2$@";
 "settings.alwaysAllow.revoke" = "Revoke";
 "approval.alwaysHost" = "Always allow on %@";

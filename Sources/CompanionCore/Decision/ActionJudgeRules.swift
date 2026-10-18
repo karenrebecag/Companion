@@ -60,20 +60,52 @@ package enum SheetLane: Sendable, Equatable {
 /// arguments came from a model that may have read a page, so an address the
 /// words do not contain is an address she did not name.
 package enum JudgeGrounding {
-    private static let addressKeys: Set<String> = ["to", "recipient", "channel", "email", "phone", "cc", "bcc"]
+    // `host` is the site an upload goes to: for grounding it is a recipient like any other.
+    private static let addressKeys: Set<String> = [
+        "to", "recipient", "recipients", "channel", "email", "phone", "number", "contact",
+        "participants", "chat", "cc", "bcc", "host",
+    ]
+    /// Tools whose effect is known without asking: the judge's label for them is not read.
+    private static let leavesTheMac: Set<String> = [BrowserTool.setFiles.rawValue]
 
     package static func grounded(
         _ opinions: [JudgeOpinion?], candidates: [JudgeCandidate], words: UserWords
     ) -> [JudgeOpinion?] {
         let heard = words.text.lowercased()
         return zip(opinions, candidates).map { opinion, candidate in
-            guard let opinion, opinion.effect == .reachesSomeone, opinion.covered else { return opinion }
+            guard let opinion else { return nil }
+            let found = addresses(in: candidate)
+            // A call that carries a destination reaches someone whatever the judge
+            // calls it, so a mislabel cannot skip the check below.
+            let effect: JudgeEffect = leavesTheMac.contains(candidate.tool) || !found.isEmpty
+                ? .reachesSomeone : opinion.effect
+            guard effect == .reachesSomeone, opinion.covered else {
+                return JudgeOpinion(effect: effect, covered: opinion.covered)
+            }
             // No address in the arguments means the destination is implicit (a default
             // channel, the last chat), so the words cannot have named it.
-            let found = addresses(in: candidate)
-            let named = !found.isEmpty && found.allSatisfy { heard.contains($0.lowercased()) }
-            return named ? opinion : JudgeOpinion(effect: opinion.effect, covered: false)
+            let named = !found.isEmpty && found.allSatisfy { said($0.lowercased(), in: heard) }
+            return JudgeOpinion(effect: effect, covered: named)
         }
+    }
+
+    /// The address as a whole token of the words: a piece of the address she
+    /// named ("aren@gmail.com" inside "karen@gmail.com") is not that address.
+    static func said(_ address: String, in heard: String) -> Bool {
+        guard !address.isEmpty else { return false }
+        var start = heard.startIndex
+        while let range = heard.range(of: address, range: start..<heard.endIndex) {
+            let before = range.lowerBound == heard.startIndex ? nil : heard[heard.index(before: range.lowerBound)]
+            let after = range.upperBound == heard.endIndex ? nil : heard[range.upperBound]
+            if !isAddressCharacter(before), !isAddressCharacter(after) { return true }
+            start = heard.index(after: range.lowerBound)
+        }
+        return false
+    }
+
+    private static func isAddressCharacter(_ character: Character?) -> Bool {
+        guard let character else { return false }
+        return character.isLetter || character.isNumber || "@._-+/:".contains(character)
     }
 
     /// Values shaped like a destination: under an address key, or with an @ or a scheme.
@@ -88,6 +120,21 @@ package enum JudgeGrounding {
             let keyed = addressKeys.contains(key.lowercased())
             return texts.filter { keyed || $0.contains("@") || $0.contains("://") }
         }
+    }
+}
+
+// MARK: - Step
+
+/// Whether a step may have any sheet lowered before it runs. The taint is only
+/// marked once a read has run, and the step is planned before any call, so a
+/// read in the same step counts as the mark it is about to leave.
+package enum JudgeStep {
+    private static let reads: Set<String> = [
+        NativeTool.readFile.rawValue, NativeTool.listDirectory.rawValue, NativeTool.sheetRead.rawValue,
+    ]
+
+    package static func mayLower(tainted: Bool, toolNames: [String]) -> Bool {
+        !tainted && !toolNames.contains(where: reads.contains)
     }
 }
 

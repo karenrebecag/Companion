@@ -48,9 +48,10 @@ extension ChatViewModel {
         if let qaGate, await qaGate.isOn() { return plan }
         guard let approvals else { return plan }
 
-        // A kept "siempre" is for a clean turn only: a turn that read her data
-        // can send it out through the same host.
-        let always = tools.turnIsTainted() ? AlwaysAllowList() : AlwaysAllowPreference.list
+        // A kept "siempre" and the judge are for a clean step only: a turn that
+        // read her data, or a step about to, can send it out through the same host.
+        let mayLower = JudgeStep.mayLower(tainted: tools.turnIsTainted(), toolNames: calls.map(\.name))
+        let always = mayLower ? AlwaysAllowPreference.list : AlwaysAllowList()
         var candidates: [Candidate] = []
         for (index, call) in calls.enumerated() {
             guard let request = requests[index] else { continue }
@@ -64,7 +65,9 @@ extension ChatViewModel {
         }
         guard !candidates.isEmpty else { return plan }
 
-        let judged = await judgeCandidates(candidates, said: said)
+        let judged = mayLower
+            ? await judgeCandidates(candidates, said: said)
+            : [JudgeOpinion?](repeating: nil, count: candidates.count)
         guard historyEpoch == epoch else { return denied(calls.count) }
         let targets = candidates.map { ApprovalBatch.target(of: $0.request) }
         let entries = candidates.enumerated().map { offset, candidate in

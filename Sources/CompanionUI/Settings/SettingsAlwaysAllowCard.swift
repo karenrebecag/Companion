@@ -33,6 +33,7 @@ struct SettingsAlwaysAllowCard: View {
     }
 
     static func title(of rule: AlwaysAllowRule) -> String {
-        String(format: Localized.string("settings.alwaysAllow.upload"), rule.host)
+        let folder = (rule.folder as NSString).abbreviatingWithTildeInPath
+        return String(format: Localized.string("settings.alwaysAllow.upload"), folder, rule.host)
     }
 }
