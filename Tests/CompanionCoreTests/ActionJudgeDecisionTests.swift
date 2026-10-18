@@ -200,4 +200,15 @@ private let reply = #"{"verdicts":[{"id":"1","effect":"undoable","covered":true}
            "judge step: un turno marcado no baja ninguna hoja")
     expect(!JudgeStep.mayLower(tainted: false, toolNames: ["read_file", "browser_set_files"]),
            "judge step: una lectura en el mismo paso cuenta como marca antes de correr")
+    expect(!JudgeStep.mayLower(tainted: false, toolNames: ["run_shell", "browser_set_files"]),
+           "judge step: un shell en el mismo paso marca como cualquier lectura")
+}
+
+@Test func pinningAnAddressNeverSoftensAnIrreversibleVerdict() throws {
+    let words = try #require(UserWords(heard: "borra el chat con ana@x.com"))
+    let delete = JudgeCandidate(id: "0", tool: "app:chat:delete-thread", argumentsJSON: #"{"chat":"ana@x.com"}"#)
+    let grounded = JudgeGrounding.grounded([JudgeOpinion(effect: .irreversible, covered: true)],
+                                           candidates: [delete], words: words)
+    expectEq(JudgeBand.lowered(.confirm, by: grounded[0]), .confirm,
+             "judge grounding: lo irreversible sigue en hoja aunque lleve una direccion nombrada")
 }

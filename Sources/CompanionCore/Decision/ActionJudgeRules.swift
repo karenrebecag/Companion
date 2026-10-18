@@ -76,9 +76,11 @@ package enum JudgeGrounding {
             guard let opinion else { return nil }
             let found = addresses(in: candidate)
             // A call that carries a destination reaches someone whatever the judge
-            // calls it, so a mislabel cannot skip the check below.
-            let effect: JudgeEffect = leavesTheMac.contains(candidate.tool) || !found.isEmpty
-                ? .reachesSomeone : opinion.effect
+            // calls it, so a mislabel cannot skip the check below. The pin only ever
+            // tightens: an irreversible verdict is never softened into one that lowers.
+            let pinned = leavesTheMac.contains(candidate.tool) || !found.isEmpty
+            let effect: JudgeEffect = opinion.effect == .irreversible
+                ? .irreversible : (pinned ? .reachesSomeone : opinion.effect)
             guard effect == .reachesSomeone, opinion.covered else {
                 return JudgeOpinion(effect: effect, covered: opinion.covered)
             }
@@ -131,6 +133,7 @@ package enum JudgeGrounding {
 package enum JudgeStep {
     private static let reads: Set<String> = [
         NativeTool.readFile.rawValue, NativeTool.listDirectory.rawValue, NativeTool.sheetRead.rawValue,
+        NativeTool.runShell.rawValue,
     ]
 
     package static func mayLower(tainted: Bool, toolNames: [String]) -> Bool {

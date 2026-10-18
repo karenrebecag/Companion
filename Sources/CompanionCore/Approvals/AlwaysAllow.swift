@@ -8,6 +8,7 @@ package struct AlwaysAllowRule: Sendable, Hashable, Codable {
     package let tool: String
     package let host: String
     package let folder: String
+    static let minFolderDepth = 5
 
     package init(tool: String, host: String, folder: String) {
         self.tool = tool
@@ -23,8 +24,11 @@ package struct AlwaysAllowRule: Sendable, Hashable, Codable {
             guard let host = arguments["host"] as? String, !host.isEmpty,
                   let path = arguments["path"] as? String, path.hasPrefix("/")
             else { return nil }
-            let folder = URL(fileURLWithPath: path).standardizedFileURL.deletingLastPathComponent().path
-            return AlwaysAllowRule(tool: request.toolName, host: host, folder: folder)
+            let folder = URL(fileURLWithPath: path).standardizedFileURL.deletingLastPathComponent()
+            // "/", "Users", name, Downloads: a folder at the top of a home holds too
+            // much to wave through, so it keeps asking each time.
+            guard folder.pathComponents.count >= Self.minFolderDepth else { return nil }
+            return AlwaysAllowRule(tool: request.toolName, host: host, folder: folder.path)
         default:
             return nil
         }
