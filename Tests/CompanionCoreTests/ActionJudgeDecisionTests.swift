@@ -154,6 +154,16 @@ private let reply = #"{"verdicts":[{"id":"1","effect":"undoable","covered":true}
              "judge grounding: el destinatario inventado se queda en hoja")
 }
 
+@Test func reachingSomeoneWithNoNamedRecipientIsNotCovered() throws {
+    let words = try #require(UserWords(heard: "publica el informe"))
+    let unaddressed = JudgeCandidate(id: "0", tool: "app:slack:slack-send-message",
+                                     argumentsJSON: #"{"text":"el informe"}"#)
+    let covered = JudgeOpinion(effect: .reachesSomeone, covered: true)
+    let grounded = JudgeGrounding.grounded([covered], candidates: [unaddressed], words: words)
+    expectEq(grounded, [JudgeOpinion(effect: .reachesSomeone, covered: false)],
+             "judge grounding: sin destinatario en los argumentos no hay a quien haya nombrado")
+}
+
 @Test func aRepeatedTargetNeverComesDownEvenWhenCovered() {
     let covered = SheetEntry(band: .confirm, opinion: JudgeOpinion(effect: .undoable, covered: true),
                              alwaysAllowed: false, repeatedTarget: true)

@@ -1,4 +1,5 @@
 import CompanionCore
+import CompanionUIPro
 import SwiftUI
 
 /// The "siempre permitir" rules the person kept, each one revocable where it
@@ -16,7 +17,7 @@ struct SettingsAlwaysAllowCard: View {
             description: Localized.string("settings.alwaysAllow.blurb")
         ) {
             ForEach(list.rules, id: \.self) { rule in
-                SecurityRow(title: Self.title(of: rule), detail: nil) {
+                SecurityRow(title: Self.title(of: rule)) {
                     // Revoking is undone by the next "siempre", so it is not a red action.
                     SettingsPill(title: Localized.string("settings.alwaysAllow.revoke"), kind: .neutral) {
                         revoke(rule)

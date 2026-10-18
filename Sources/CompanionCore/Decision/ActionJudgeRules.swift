@@ -68,7 +68,10 @@ package enum JudgeGrounding {
         let heard = words.text.lowercased()
         return zip(opinions, candidates).map { opinion, candidate in
             guard let opinion, opinion.effect == .reachesSomeone, opinion.covered else { return opinion }
-            let named = addresses(in: candidate).allSatisfy { heard.contains($0.lowercased()) }
+            // No address in the arguments means the destination is implicit (a default
+            // channel, the last chat), so the words cannot have named it.
+            let found = addresses(in: candidate)
+            let named = !found.isEmpty && found.allSatisfy { heard.contains($0.lowercased()) }
             return named ? opinion : JudgeOpinion(effect: opinion.effect, covered: false)
         }
     }

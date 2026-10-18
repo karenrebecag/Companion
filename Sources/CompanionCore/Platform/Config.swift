@@ -423,6 +423,7 @@ package struct Config: Sendable, Equatable {
         contextChannels: ContextChannels = .default,
         contextBudget: Duration = .milliseconds(150),
         decision: DecisionSettings = DecisionSettings(),
+        judge: ActionJudgeSettings = ActionJudgeSettings(environment: ProcessInfo.processInfo.environment),
         debugTranscripts: Bool = Config.debugTranscriptsEnabled(),
         elevenLabsVoiceID: String = Config.defaultElevenLabsVoiceID
     ) {
@@ -441,6 +442,7 @@ package struct Config: Sendable, Equatable {
         self.contextChannels = contextChannels
         self.contextBudget = contextBudget
         self.decision = decision
+        self.judge = judge
         self.debugTranscripts = debugTranscripts
         self.elevenLabsVoiceID = elevenLabsVoiceID
     }
