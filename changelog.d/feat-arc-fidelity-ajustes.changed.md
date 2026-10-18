@@ -1,0 +1,1 @@
+- **Ajustes siguen la anatomía de Arc (2026-10-18).** Cada clave muestra para qué sirve y su estado, "Agregar clave" se despliega en el mismo control y quitar una clave exige mantener presionado. El verde de Arc se conserva en claro y oscuro. Lo que ya guardaste no cambia.
