@@ -60,7 +60,7 @@ struct SettingsSwitch: View {
         Toggle(label, isOn: $isOn)
             .labelsHidden()
             .toggleStyle(.switch)
-            .tint(style.accent)
+            .tint(style.palette.controlOn.color)
     }
 }
 

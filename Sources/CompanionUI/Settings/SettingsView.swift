@@ -22,6 +22,7 @@ package struct SettingsView: View {
     var memory: (any MemoryBrowsing)?
     var browser: BrowserSettingsModel?
     let onClose: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
     @Binding var tab: SettingsTab
     @Binding var query: String
     @State private var confirmPurge = false
@@ -98,7 +99,7 @@ package struct SettingsView: View {
                 selection: tabSelection,
                 reveal: reveal,
                 strings: SettingsPageChrome.pageStrings,
-                style: .companion,
+                style: .arc(colorScheme == .dark ? .dark() : .light()),
                 content: { section in page(section) })
         }
         .background(Semantic.background)

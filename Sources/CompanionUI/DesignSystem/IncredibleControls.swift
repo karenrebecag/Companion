@@ -1,4 +1,5 @@
 import SwiftUI
+import CompanionUIPro
 
 // Wave 16l-2: Incredible's switch, select and menu, measured in its CSS.
 // The native Toggle and Picker draw at the system's size and colours, so
@@ -102,10 +103,10 @@ package struct IncredibleSwitch: View {
         enabled ? value : current
     }
 
+    /// The Arc control tokens for the current theme: the on track is the
+    /// accent's control fill (green), the off track the control track.
     private var track: Color {
-        if scheme == .dark {
-            return isOn ? Palette.signalGreen.color.opacity(0.9) : Neutral.white.color.opacity(0.12)
-        }
-        return isOn ? Semantic.foreground : Neutral.black.color.opacity(SwitchGeometry.offTrackAlpha)
+        let palette: ArcPalette = scheme == .dark ? .dark() : .light()
+        return isOn ? palette.controlOn.color : palette.controlTrack.color
     }
 }
