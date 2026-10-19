@@ -47,12 +47,20 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
                     + "alone is not a place to find. It is a map lookup, not "
                     + "a web search, and it works with no keys. You get names "
                     + "and addresses to talk about, and the map is drawn from "
-                    + "the lookup rather than from anything you type.",
+                    + "the lookup rather than from anything you type. "
+                    + "query is one plain category (\"cafetería\", \"farmacia\", \"cine\"). "
+                    + "Leave out adjectives and qualities (\"bien calificada\", \"de especialidad\"): "
+                    + "the lookup matches names and categories, so each extra word shrinks the results. "
+                    + "The lookup has no ratings, so you cannot say which place is best rated; say so rather than guess. "
+                    + "To answer which is closest to a place, pass from with that place; "
+                    + "the results then come nearest first, each with its distance.",
                 properties: [
                     ToolProperty(name: "query", type: "string",
-                                 description: "what to look for"),
+                                 description: "one plain category or name, e.g. cafetería"),
                     ToolProperty(name: "near", type: "string",
                                  description: "city or area to search in"),
+                    ToolProperty(name: "from", type: "string",
+                                 description: "a place or address to measure distances from, e.g. Glorieta de Insurgentes"),
                 ],
                 required: ["query"])
         case .listDirectory:
