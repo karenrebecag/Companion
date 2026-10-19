@@ -35,16 +35,9 @@ package enum SystemActResult: Sendable, Equatable {
 /// `attemptId` is the `MutationLedger` scope: every "sí" heard for THIS
 /// question is one attempt, however many times it is repeated.
 package struct PendingConfirmation: Sendable, Equatable {
-    package var subject: PendingSubject
+    package var plan: Plan
     package var attemptId: String
     package var createdAt: Date
-}
-
-/// What the open question asks about.
-package enum PendingSubject: Sendable, Equatable {
-    case plan(Plan)
-    /// Whether to stop the job running now; `said` is what raised it.
-    case runningJob(JobID, goal: String, said: String)
 }
 
 /// Sits in front of `ParentToolRunner.execute` (wave-dm1-router.md §8): N1
@@ -155,8 +148,7 @@ package actor DecisionGate {
             return Self.outcome(of: await system.act(plan), plan)
         case .confirm(let plan):
             guard DecisionRoute.validClosedSet(plan) else { return .passThrough(.noExecutor) }
-            pending = PendingConfirmation(
-                subject: .plan(plan), attemptId: UUID().uuidString, createdAt: now())
+            pending = PendingConfirmation(plan: plan, attemptId: UUID().uuidString, createdAt: now())
             confirmedOutcome = nil
             return .confirm(DecisionCopy.question(for: plan, language))
         case .delegate(let handoff):
@@ -184,16 +176,6 @@ package actor DecisionGate {
         guard let pending, now().timeIntervalSince(pending.createdAt) < Self.confirmationTTL
         else { return false }
         return Self.reading(utterance, typed: typed) != nil
-    }
-
-    /// The relationship head could not tell whether the words were about the
-    /// running job: the question goes out as a real yes/no, so the answer is
-    /// read here and never judged again.
-    package func askAboutRunningJob(_ id: JobID, goal: String, said: String) {
-        pending = PendingConfirmation(
-            subject: .runningJob(id, goal: goal, said: said), attemptId: UUID().uuidString,
-            createdAt: now())
-        confirmedOutcome = nil
     }
 
     /// The open question is dropped unanswered: the thread it was asked in
@@ -227,7 +209,6 @@ package actor DecisionGate {
         guard said else {
             Log.chat("decision: confirmation declined")
             clearPending()
-            if case .runningJob(_, _, let raised) = confirmation.subject { return .carryOn(raised) }
             return .declined
         }
         return await runConfirmed(confirmation)
@@ -242,28 +223,21 @@ package actor DecisionGate {
     /// so an unrelated later "sí" is free to fall through to `plan`/`run`
     /// like any other turn instead of replaying this outcome.
     private func runConfirmed(_ confirmation: PendingConfirmation) async -> DecisionOutcome {
-        let plan: Plan
-        switch confirmation.subject {
-        case .runningJob(let id, let goal, _):
-            clearPending()
-            return .stopJob(id, goal: goal)
-        case .plan(let asked):
-            plan = asked
-        }
         // A confirmed job is handed off, not executed here; the job queue,
         // not this ledger, owns not running the same goal twice.
-        if plan.action == .task, case .text(let goal) = plan.args["goal"], !goal.isEmpty {
+        if confirmation.plan.action == .task,
+           case .text(let goal) = confirmation.plan.args["goal"], !goal.isEmpty {
             clearPending()
             return .delegate(Handoff(goal: goal, context: ""))
         }
-        guard let system, let key = plan.retryKey else {
+        guard let system, let key = confirmation.plan.retryKey else {
             clearPending()
             return .passThrough(.noExecutor)
         }
         let (nextLedger, already) = ledger.recording(key, attempt: confirmation.attemptId)
         ledger = nextLedger
         if !already {
-            confirmedOutcome = Self.outcome(of: await system.act(plan), plan)
+            confirmedOutcome = Self.outcome(of: await system.act(confirmation.plan), confirmation.plan)
         }
         let outcome = confirmedOutcome ?? .passThrough(.failed)
         clearPending()

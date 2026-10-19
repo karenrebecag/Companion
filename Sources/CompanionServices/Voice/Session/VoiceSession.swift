@@ -321,7 +321,10 @@ package actor VoiceSession: VoiceControlling {
             // Same runner the button reaches. Someone talking to their Mac is
             // not looking at it, so the brake has to be sayable.
             realtime.onStopJob = { await jobs.cancel() }
-            classic.onStopJob = realtime.onStopJob
+            classic.onStopJob = { [weak self] named in await self?.stopRunningJob(named: named) }
+            classic.runningJobNote = { [weak self] in
+                await self?.runningObjective.flatMap(RelationshipHead.runningJobNote)
+            }
             realtime.onDelegate = { [weak self] handoff in
                 Task {
                     await VoiceJobBridge.run(

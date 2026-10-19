@@ -6,14 +6,18 @@ import CompanionTestKit
 import Foundation
 import Testing
 
-// The relationship head over the hold, after the security review of #366:
-// it stops only the job it judged, only while that job still runs, asks a
-// real question when unsure, and never judges a yes/no to an open question.
+// The relationship head over the hold, as Incredible (Karen, 2026-10-19):
+// a sure stop acts at once on that job only; anything less goes to the
+// brain, which sees the running job and can stop it with `stop_job`. The
+// voice's own brake never touches a job.
 
 @Test @MainActor func relationshipVoiceTests() async {
     await testAStopEndsOnlyTheJudgedJob()
     await testAJobThatEndsDuringTheVerdictIsNeitherStoppedNorAnnounced()
-    await testAnUnclearVerdictAsksAndAYesStopsOnlyThatJob()
+    await testAnUnsureVerdictGoesToTheBrainWithTheJobInView()
+    await testTheBrainsStopEndsOnlyTheJobItNames()
+    await testTheVoiceBrakeLeavesTheJobsRunning()
+    await testAnAdditionStartsAnotherJobAndStopsNone()
     await testAYesToAnOpenQuestionNeverReachesTheRelationshipHead()
 }
 
@@ -88,6 +92,7 @@ private final class VerdictFlag: @unchecked Sendable {
     expectEq(jobs.stoppedAll, 0, "only: nothing else is stopped")
     expect(first.map { jobs.live.contains($0) } == true, "only: the other job keeps running")
     expect(h.synth.queue.contains("Paré «crea otro archivo»."), "only: says which one")
+    expect(!h.synth.queue.contains { $0.contains("¿") }, "only: and asks nothing")
 }
 
 /// MEDIUM: the verdict comes back after the job already ended; there is
@@ -115,24 +120,55 @@ private final class VerdictFlag: @unchecked Sendable {
     expect(!h.synth.queue.contains("Paré «crea un archivo»."), "ended: nothing is announced")
 }
 
-/// MEDIUM: an unsure verdict asks a real question; the next "sí" answers it
-/// and stops that job only.
-@MainActor func testAnUnclearVerdictAsksAndAYesStopsOnlyThatJob() async {
-    let asked = CallCounter()
-    let (h, jobs, _) = await relationHarness { question in
-        asked.increment()
-        return peaked("unclear", question.offeredIds)
-    }
+/// Not sure enough to act: no question; the brain gets the turn with the
+/// job listed and `stop_job` offered, and nothing is stopped on its own.
+@MainActor func testAnUnsureVerdictGoesToTheBrainWithTheJobInView() async {
+    let (h, jobs, _) = await relationHarness { peaked("unclear", $0.offeredIds) }
     await say("crea un archivo", to: h)
     guard let id = await runningJob("crea un archivo", on: h) else { return }
     await say("ya no", to: h)
-    expect(h.synth.queue.contains("¿Paro lo que estoy haciendo o sigo?"), "unclear: asks")
-    let before = asked.count
-    await say("si", to: h)
-    await pumpUntil("unclear: stopped") { !jobs.stopped.isEmpty }
-    expectEq(jobs.stopped, [id], "unclear: the yes stops that job")
-    expectEq(jobs.stoppedAll, 0, "unclear: and nothing else")
-    expectEq(asked.count, before, "unclear: the yes is not judged again")
+    expect(!h.synth.queue.contains { $0.contains("¿") }, "unsure: asks nothing")
+    expect(h.chat.toolsSeen.contains { $0.name == "stop_job" }, "unsure: the brain can stop it")
+    expect(h.chat.histories.last?.last?.content.contains(id.raw) == true, "unsure: the brain sees the job")
+    expect(jobs.stopped.isEmpty && jobs.stoppedAll == 0, "unsure: nothing is stopped on its own")
+}
+
+@MainActor func testTheBrainsStopEndsOnlyTheJobItNames() async {
+    let (h, jobs, _) = await relationHarness { peaked("append", $0.offeredIds) }
+    await say("crea un archivo", to: h)
+    let first = await runningJob("crea un archivo", on: h)
+    await say("crea otro archivo", to: h)
+    guard let second = await runningJob("crea otro archivo", on: h) else { return }
+    h.chat.rounds = [
+        [.toolCalls([ToolCallRef(id: "c1", name: "stop_job", arguments: #"{"job_id":"\#(second.raw)"}"#)])],
+        [.text("Listo.")],
+    ]
+    await say("deja eso", to: h)
+    await pumpUntil("brain stop: stopped") { !jobs.stopped.isEmpty }
+    expectEq(jobs.stopped, [second], "brain stop: the named job")
+    expectEq(jobs.stoppedAll, 0, "brain stop: nothing else")
+    expect(first.map { jobs.live.contains($0) } == true, "brain stop: the other job keeps running")
+}
+
+/// The island's pill and Esc cut the turn and its voice, never the work.
+@MainActor func testTheVoiceBrakeLeavesTheJobsRunning() async {
+    let (h, jobs, _) = await relationHarness { _ in nil }
+    await say("crea un archivo", to: h)
+    guard let id = await runningJob("crea un archivo", on: h) else { return }
+    await h.session.interrupt()
+    expect(jobs.stopped.isEmpty && jobs.stoppedAll == 0 && jobs.live.contains(id),
+           "brake: the job keeps running")
+}
+
+/// Jobs take no steering, so an addition is a new job; the running one stays.
+@MainActor func testAnAdditionStartsAnotherJobAndStopsNone() async {
+    let (h, jobs, _) = await relationHarness { peaked("append", $0.offeredIds) }
+    await say("crea un archivo", to: h)
+    _ = await runningJob("crea un archivo", on: h)
+    await say("crea otro archivo", to: h)
+    _ = await runningJob("crea otro archivo", on: h)
+    await pumpUntil("addition: two jobs") { jobs.live.count == 2 }
+    expect(jobs.stopped.isEmpty && jobs.stoppedAll == 0, "addition: nothing is stopped")
 }
 
 @MainActor func testAYesToAnOpenQuestionNeverReachesTheRelationshipHead() async {

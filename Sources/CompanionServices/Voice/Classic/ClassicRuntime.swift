@@ -24,7 +24,10 @@ final class ClassicRuntime: @unchecked Sendable {
     var parentGuard = ParentToolGuard()
     /// Wave 14b: the hold's specialist. Nil means do not advertise `delegate`.
     var onDelegate: (@Sendable (Handoff) -> Void)?
-    var onStopJob: (@Sendable () async -> Void)?
+    /// The job id the brain named, if any; the session stops that one only.
+    var onStopJob: (@Sendable (String?) async -> Void)?
+    /// What the brain is told about the job running now, if one is.
+    var runningJobNote: (@Sendable () async -> String?)?
     /// A hold that was only "para": the session stops everything and answers
     /// true when it took the turn. False (a sheet is waiting) leaves the words
     /// to the ordinary path.
@@ -309,7 +312,7 @@ final class ClassicRuntime: @unchecked Sendable {
         apply: @escaping @Sendable (TurnEvent) async -> Void
     ) async {
         let language = config.language
-        var heard: String
+        let heard: String
         if let leftover = takeLeftoverHeard() {
             heard = leftover.trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
@@ -369,9 +372,8 @@ final class ClassicRuntime: @unchecked Sendable {
         let interrupted = takeSteerPending()
         // Started before the router so it overlaps both the router and the
         // context gather; a turn the router takes just cancels it.
-        let judged = heard
         let verdict = onDelegate == nil ? nil : delegationVerdict.map { judge in
-            Task { await judge(judged) }
+            Task { await judge(heard) }
         }
         defer { verdict?.cancel() }
         if let decide {
@@ -379,10 +381,6 @@ final class ClassicRuntime: @unchecked Sendable {
             if case .passThrough = outcome {
                 // The router abstained (disabled, ignored, no executor…):
                 // today's model-in-the-loop path takes the turn, unchanged.
-            } else if case .carryOn(let words) = outcome {
-                // A "no" to stopping the job: the words that raised the
-                // question are what the brain answers, not the "no".
-                heard = words
             } else {
                 await respond(
                     to: outcome, heard: heard, language: language, transcript: transcript,
@@ -416,6 +414,7 @@ final class ClassicRuntime: @unchecked Sendable {
             if onDelegate != nil, !offersDelegate {
                 spoken = DelegationHead.withdrawnNote + "\n" + spoken
             }
+            if let note = await runningJobNote?() { spoken = note + "\n" + spoken }
             history[last].content = ContextBlock.wrap(spoken, with: block)
         }
         // 16k-3: the words decide which connected app's tools travel this
@@ -621,9 +620,7 @@ final class ClassicRuntime: @unchecked Sendable {
         let spoken: String
         let threaded: String
         switch outcome {
-        case .passThrough, .carryOn, .stopJob:
-            // Handled before a reply: the brain takes the first two, and the
-            // session turns a stop into its own line.
+        case .passThrough:
             return
         case .acted(let result, let call):
             threaded = DecisionCopy.acted(result, tool: call.name, language)
@@ -706,7 +703,7 @@ final class ClassicRuntime: @unchecked Sendable {
     ) async {
         switch call.name {
         case "stop_job":
-            await onStopJob?()
+            await onStopJob?(Self.jobID(from: call.arguments))
         case "resolve_approval":
             if let approved = Self.approved(from: call.arguments),
                await onResolveApproval?(approved) == .needsClick {
@@ -715,6 +712,18 @@ final class ClassicRuntime: @unchecked Sendable {
         default:
             break
         }
+    }
+
+    private static func jobID(from json: String) -> String? {
+        guard let data = json.data(using: .utf8) else { return nil }
+        let obj: Any
+        do {
+            obj = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            return nil
+        }
+        let id = (obj as? [String: Any])?["job_id"] as? String
+        return id?.isEmpty == false ? id : nil
     }
 
     private static func approved(from json: String) -> Bool? {

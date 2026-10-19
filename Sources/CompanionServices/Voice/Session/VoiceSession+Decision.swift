@@ -89,10 +89,6 @@ extension VoiceSession {
         case .answered(let confirmed):
             cancelSpeculation()
             markTool(.decision)
-            if case .stopJob(let id, let goal) = confirmed {
-                markTool(.toolDone)
-                return await stopJob(id, goal: goal)
-            }
             if case .passThrough = confirmed {} else { markTool(.toolDone) }
             return confirmed
         case .planned(let planned):
@@ -112,12 +108,13 @@ extension VoiceSession {
                     return await stopJob(id, goal: objective.goal)
                 case .replace:
                     await jobs?.cancel(job: id)
-                case .ask:
-                    await gate.askAboutRunningJob(id, goal: objective.goal, said: utterance)
-                    return .said(DecisionCopy.askAboutRunningJob(configProvider.current.language))
+                case .toBrain:
+                    // Not sure enough to act: no question, the brain sees the
+                    // running job and can stop it itself (`stop_job`).
+                    return .passThrough(.unresolved)
                 case .none:
-                    // One-shot jobs cannot take a revision or a resume; the
-                    // ordinary path handles the words.
+                    // Jobs take no steering: an addition is planned as a new
+                    // job, which the queue announces.
                     break
                 }
             }
@@ -144,6 +141,21 @@ extension VoiceSession {
         guard runningObjective?.jobID == id else { return .passThrough(.superseded) }
         await jobs?.cancel(job: id)
         return .said(DecisionCopy.stoppedJob(goal, configProvider.current.language))
+    }
+
+    /// The brain's `stop_job` or a spoken "para": the job running now, and
+    /// only it, as Incredible's per-agent stop. An id the brain got wrong
+    /// still stops that job: a misfilled argument must not be a way not to
+    /// stop. With no job known running, the brake falls back to the runner's.
+    func stopRunningJob(named: String?) async {
+        guard let running = runningObjective?.jobID else {
+            await jobs?.cancel()
+            return
+        }
+        if let named, named != running.raw {
+            Log.chat("decision: stop_job named an id that is not running; stopping the running one")
+        }
+        await jobs?.cancel(job: running)
     }
 
     /// Why the router does not run this hold, or nil when it does.

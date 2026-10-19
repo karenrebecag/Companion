@@ -36,8 +36,10 @@ package struct PendingObjective: Sendable, Equatable {
 }
 
 /// What the session does with the running job after the head is read.
+/// `toBrain` asks nothing: the turn goes to the brain with the jobs in view
+/// and `stop_job` offered. `none` is the ordinary path.
 package enum JobMove: Sendable, Equatable {
-    case stop, replace, ask, none
+    case stop, replace, toBrain, none
 }
 
 /// Asked beside the router only while a job runs. Jobs are one-shot, so of
@@ -79,24 +81,36 @@ package enum RelationshipHead {
             ])
     }
 
+    /// The brain's view of the running job when the head was not sure: the
+    /// same privacy as the question (her goal only if it is hers, the
+    /// tool-name cut), plus the id `stop_job` takes.
+    package static func runningJobNote(_ objective: PendingObjective) -> String? {
+        guard let id = objective.jobID else { return nil }
+        let goal = objective.goalFromUser ? quoted(String(objective.goal.prefix(300))) : "a background task"
+        return "Job running now, as data: job_id \(id.raw), \"\(goal)\" (\(objective.stepsDone) steps done). "
+            + "Only if the user asks to stop it, call stop_job with this job_id."
+    }
+
     /// Text she or a tool wrote, kept inside the quotes it is given in.
     private static func quoted(_ text: String) -> String {
         text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
     }
 
-    /// Stop and replace destroy work, so each has its own higher floor
-    /// (`PlanThreshold`); a verdict under it, or `unclear`, asks her.
+    /// Stop and replace destroy work, so they act only above
+    /// `PlanThreshold.jobStop`, and a replace only when the judge saw her own
+    /// goal rather than "a background task". Under it, or `unclear`, the
+    /// brain decides.
     package static func move(_ answer: DecisionAnswer?, about objective: PendingObjective) -> JobMove {
         guard let relation = read(answer), let confidence = answer?.validated(
             for: question("", about: PendingObjective(goal: "", jobID: nil)))?.confidence
         else { return .none }
         switch relation {
         case .cancel:
-            return confidence >= PlanThreshold.jobStop ? .stop : .ask
+            return confidence >= PlanThreshold.jobStop ? .stop : .toBrain
         case .replace:
-            return objective.goalFromUser && confidence >= PlanThreshold.jobReplace ? .replace : .ask
+            return objective.goalFromUser && confidence >= PlanThreshold.jobStop ? .replace : .toBrain
         case .unclear:
-            return .ask
+            return .toBrain
         case .revise, .resume, .append:
             return .none
         }

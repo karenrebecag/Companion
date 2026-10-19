@@ -51,25 +51,25 @@ private func relationVerdict(_ choice: Relationship, peak: Double) -> DecisionAn
     return DecisionAnswer(choice: choice.rawValue, distribution: distribution, confidence: 0.99)
 }
 
-/// Security review of #366: stopping or replacing someone's work on a
-/// middling peak destroys it with no way back; below the higher floors the
-/// head asks instead, and a replace needs the judge to have seen her goal.
-@Test func relationshipHeadActsOnlyAboveTheFloorsThatDestroyWork() {
+/// Karen, 2026-10-19 (as Incredible): a sure stop or replace acts at once,
+/// with no question; anything less certain goes to the brain, which sees
+/// the running jobs and can stop one itself.
+@Test func relationshipHeadActsOnlyWhenSureAndLeavesTheRestToTheBrain() {
     let hers = PendingObjective(goal: "crea un archivo", jobID: JobID("a"), goalFromUser: true)
     let brains = PendingObjective(goal: "Resumir el informe", jobID: JobID("b"), goalFromUser: false)
     expectEq(RelationshipHead.move(relationVerdict(.cancel, peak: 0.95), about: brains), .stop,
-             "floors: a sure cancel stops")
-    expectEq(RelationshipHead.move(relationVerdict(.cancel, peak: 0.76), about: hers), .ask,
-             "floors: a middling cancel asks")
-    expectEq(RelationshipHead.move(relationVerdict(.replace, peak: 0.97), about: hers), .replace,
-             "floors: a sure replace of her own goal replaces")
-    expectEq(RelationshipHead.move(relationVerdict(.replace, peak: 0.97), about: brains), .ask,
-             "floors: a replace judged without the goal asks")
-    expectEq(RelationshipHead.move(relationVerdict(.unclear, peak: 0.9), about: hers), .ask,
-             "floors: unclear asks")
+             "fast path: a sure cancel stops")
+    expectEq(RelationshipHead.move(relationVerdict(.cancel, peak: 0.76), about: hers), .toBrain,
+             "fast path: a middling cancel goes to the brain")
+    expectEq(RelationshipHead.move(relationVerdict(.replace, peak: 0.9), about: hers), .replace,
+             "fast path: a sure replace of her own goal replaces")
+    expectEq(RelationshipHead.move(relationVerdict(.replace, peak: 0.97), about: brains), .toBrain,
+             "fast path: a replace judged without the goal goes to the brain")
+    expectEq(RelationshipHead.move(relationVerdict(.unclear, peak: 0.9), about: hers), .toBrain,
+             "fast path: unclear goes to the brain")
     expectEq(RelationshipHead.move(relationVerdict(.append, peak: 0.95), about: hers), .none,
-             "floors: anything else leaves the job alone")
-    expectEq(RelationshipHead.move(nil, about: hers), .none, "floors: no verdict leaves the job alone")
+             "fast path: an addition takes the ordinary path")
+    expectEq(RelationshipHead.move(nil, about: hers), .none, "fast path: no verdict leaves the job alone")
 }
 
 /// The tool name comes from whatever MCP server is connected, and the
