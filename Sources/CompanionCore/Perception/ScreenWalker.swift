@@ -5,10 +5,10 @@ import Foundation
 // point: a depth-first walk spent its budget inside the first long list
 // (Notes' note list), so the toolbar after it never got an id.
 
-/// The time and node budget one read may spend. Computah's read uses about
-/// a third of a second and under a thousand nodes.
+/// The time and node budget one read may spend. The time includes the
+/// priming settle of an app's first walk (300 ms), so reading gets the rest.
 package struct ReadBudget: Sendable, Equatable {
-    package static let standard = ReadBudget(time: .milliseconds(350), nodes: 900)
+    package static let standard = ReadBudget(time: .milliseconds(600), nodes: 900)
 
     package var time: Duration
     package var nodes: Int
@@ -155,6 +155,8 @@ package struct ScreenWalker<Tree: ScreenTree> {
         guard depth > 0 else { return "" }
         for child in tree.children(of: element) {
             guard meter.allowsOneMore() else { return "" }
+            // A secure child's text is the secret itself: skipped whole, never a caption.
+            guard !tree.kind(of: child).secure else { continue }
             let text = tree.value(of: child)
             if !text.isEmpty { return text }
             let inner = caption(of: child, depth: depth - 1, meter: &meter)

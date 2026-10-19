@@ -236,3 +236,34 @@ private func element(
              "0.2, 0.4, 0.8 y 1.5 s")
     expect(!outcome.changed, "nada cambió: se reporta sin diferencia")
 }
+
+// MEDIUM-1 (security review of #352): a secure child's text must never become
+// its unlabeled parent's caption, and the walk must not descend into it.
+@Test func aSecureChildIsSkippedWhenReadingACaption() {
+    let tree = FakeTree()
+    let window = tree.add(plain("AXWindow"))
+    let button = tree.add(plain("AXButton"))
+    tree.attach(button, to: window)
+    let secure = tree.add(FakeElement(
+        kind: ScreenKind(role: "AXTextField", subrole: "AXSecureTextField", secure: true),
+        details: ScreenDetails(value: "hunter2"), children: []))
+    let glyph = tree.add(plain("AXStaticText", value: "h"))
+    let caption = tree.add(plain("AXStaticText", value: "Enviar"))
+    tree.attach(secure, to: button)
+    tree.attach(glyph, to: secure)
+    tree.attach(caption, to: button)
+
+    let result = walk(tree, root: window, budget: ReadBudget.standard)
+    let label = result.nodes.first { $0.role == "AXButton" }?.label
+    expectEq(label, "Enviar", "el pie es el texto visible, nunca el del campo seguro")
+    expect(!result.nodes.contains { $0.label == "hunter2" || $0.value == "hunter2" },
+           "el valor del campo seguro no llega a ningún nodo")
+}
+
+// MEDIUM-2: a secure element never carries a value, whoever builds it.
+@Test func aSnapshotElementNeverCarriesAValueWhenItIsSecure() {
+    let element = SnapshotElement(
+        id: 1, role: "AXTextField", label: "Clave", value: "hunter2",
+        secure: true, enabled: true, focused: false)
+    expect(element.value == nil, "un campo seguro no tiene valor aunque lo pasen")
+}

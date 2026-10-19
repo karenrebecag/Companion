@@ -21,7 +21,7 @@ package struct SnapshotElement: Sendable, Equatable {
         self.id = id
         self.role = role
         self.label = label
-        self.value = value
+        self.value = secure ? nil : value
         self.secure = secure
         self.enabled = enabled
         self.focused = focused

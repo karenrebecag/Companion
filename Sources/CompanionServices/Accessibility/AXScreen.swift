@@ -72,11 +72,15 @@ package final class AXScreen: ScreenActing, FrontWindowReading, @unchecked Senda
     // MARK: - Walk
 
     package func walk(pid: Int32) -> ScreenWalk? {
+        // The clock starts before priming and discovery: the settle and the
+        // lookups are part of the time the walk promises (review 16, HIGH).
+        let start = ContinuousClock.now
         guard trust(), let app = actable(pid) else { return nil }
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
-        // The settle is a wait for the app to build its tree, not a read, so it
-        // stays outside the budget the walk promises.
+        // The settle is a wait for the app to build its tree; the walk budget
+        // includes it because a first walk on a fresh app would otherwise
+        // read for a fraction of its promised time.
         if prime(application, pid: pid, bundle: app.bundleIdentifier) { usleep(Self.primeSettle) }
         // An app in the background may report no focused or main window
         // (kAXErrorNoValue) while it still lists its windows.
@@ -84,12 +88,15 @@ package final class AXScreen: ScreenActing, FrontWindowReading, @unchecked Senda
             ?? AXRead.element(kAXMainWindowAttribute, of: application)
             ?? AXRead.elements(kAXWindowsAttribute, of: application)?.first
         else { return nil }
+        LiveAXTree.bounded(window)
         // A permission prompt or a save dialog can be its own window.
-        let dialogs = (AXRead.elements(kAXWindowsAttribute, of: application) ?? []).filter { other in
-            !CFEqual(other, window)
+        let windows = AXRead.elements(kAXWindowsAttribute, of: application) ?? []
+        let dialogs = windows.filter { other in
+            LiveAXTree.bounded(other)
+            return !CFEqual(other, window)
                 && ScreenRoles.dialogSubroles.contains(AXRead.string(kAXSubroleAttribute, of: other))
         }
-        let result = Self.walker(budget: .standard).walk(roots: [window] + dialogs)
+        let result = Self.walker(budget: .standard, since: start).walk(roots: [window] + dialogs)
         let next = lock.withLock { () -> Int in
             generation += 1
             handles = (pid, generation, result.elements)
@@ -105,9 +112,10 @@ package final class AXScreen: ScreenActing, FrontWindowReading, @unchecked Senda
         walk(pid: pid).map(ScreenSnapshot.init(walk:))
     }
 
-    private static func walker(budget: ReadBudget) -> ScreenWalker<LiveAXTree> {
-        let start = ContinuousClock.now
-        return ScreenWalker(tree: LiveAXTree(), budget: budget, elapsed: { start.duration(to: ContinuousClock.now) })
+    private static func walker(
+        budget: ReadBudget, since start: ContinuousClock.Instant = ContinuousClock.now
+    ) -> ScreenWalker<LiveAXTree> {
+        ScreenWalker(tree: LiveAXTree(), budget: budget, elapsed: { start.duration(to: ContinuousClock.now) })
     }
 
     /// The label as it is now, for the check right before a press.
@@ -305,14 +313,24 @@ package final class AXScreen: ScreenActing, FrontWindowReading, @unchecked Senda
 /// The live tree behind the walker. Every child it hands out gets the
 /// messaging timeout, so one hung element cannot stall a walk.
 struct LiveAXTree: ScreenTree {
+    /// Every element the walk touches gets the messaging timeout at first
+    /// contact: an app that stops answering costs one slice, not the AX default.
+    @discardableResult
+    static func bounded(_ element: AXUIElement) -> AXUIElement {
+        AXUIElementSetMessagingTimeout(element, AXScreen.messagingTimeout)
+        return element
+    }
+
     func kind(of element: AXUIElement) -> ScreenKind {
+        LiveAXTree.bounded(element)
         let role = AXRead.string(kAXRoleAttribute, of: element)
         let subrole = AXRead.string(kAXSubroleAttribute, of: element)
         return ScreenKind(role: role, subrole: subrole, secure: AXSecure.isSecure(role: role, subrole: subrole))
     }
 
     func details(of element: AXUIElement, readValue: Bool) -> ScreenDetails {
-        ScreenDetails(
+        LiveAXTree.bounded(element)
+        return ScreenDetails(
             title: AXRead.string(kAXTitleAttribute, of: element),
             description: AXRead.string(kAXDescriptionAttribute, of: element),
             placeholder: AXRead.string(kAXPlaceholderValueAttribute, of: element),
@@ -322,13 +340,12 @@ struct LiveAXTree: ScreenTree {
     }
 
     func value(of element: AXUIElement) -> String {
-        AXRead.string(kAXValueAttribute, of: element)
+        LiveAXTree.bounded(element)
+        return AXRead.string(kAXValueAttribute, of: element)
     }
 
     func children(of element: AXUIElement) -> [AXUIElement] {
-        let children = AXRead.elements(kAXChildrenAttribute, of: element) ?? []
-        for child in children { AXUIElementSetMessagingTimeout(child, AXScreen.messagingTimeout) }
-        return children
+        AXRead.elements(kAXChildrenAttribute, of: element) ?? []
     }
 }
 
