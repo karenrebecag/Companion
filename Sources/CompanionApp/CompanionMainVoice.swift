@@ -120,7 +120,6 @@ func makeVoicePipeline(
     let earLocale = env.config.language.speechLocaleIdentifier
     Task.detached { await ear.prepare(localeIdentifier: earLocale) }
     let session = VoiceSession(
-        transport: RealtimeWSTransport(),
         mic: mic,
         player: player,
         transcriber: ear,
@@ -130,13 +129,6 @@ func makeVoicePipeline(
         thread: sensing.model,
         configProvider: env.configProvider,
         jobs: jobs.jobRunner,
-        // Realtime hears through OpenAI's live transcription (measured
-        // better on mixed-language speech); classic keeps the on-device
-        // ear, which needs no key and no network.
-        realtimeEar: OpenAITranscriber(
-            keyProvider: { try? env.secrets.read(.openAI) ?? nil },
-            // The Settings knob drives the server's VAD (9j-1).
-            turnDetection: { env.configProvider.current.voice.turnDetection }),
         memoryStore: env.memoryStore,
         // 16k-3: voice gets the composite — parent tools plus the
         // connected apps'. The decision gate above keeps the plain runner:

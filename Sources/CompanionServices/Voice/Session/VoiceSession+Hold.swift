@@ -102,7 +102,7 @@ extension VoiceSession {
                 startConfirmedWork()
             }
         }
-        // Hold is the text path (14b). Hands-free `start()` still opens realtime.
+        // Hold is the text path (14b); hands-free `start()` takes the same lane.
         await apply(.holdPressed(preferRealtime: false))
     }
 

@@ -33,25 +33,3 @@ enum VoiceAttachmentCopy {
         }
     }
 }
-
-extension VoiceSession {
-    package func push(attachment: AttachmentRef) async {
-        guard isLiveRealtime else { return }
-        guard attachment.kind == .image else { return }
-        let name = attachment.name
-        let payload = await VoiceAttachmentCodec.resolve(attachment)
-        guard isLiveRealtime else { return }
-        guard case .imageDataURL(let dataURL) = payload else { return }
-        await realtime.send(RealtimeCodec.imageItem(
-            dataURL: dataURL,
-            caption: VoiceAttachmentCopy.caption(
-                name: name, language: configProvider.current.language)))
-    }
-
-    var isLiveRealtime: Bool {
-        let snap = machine.snapshot
-        return snap.pipeline == .realtime
-            && snap.state != .idle
-            && snap.state != .error
-    }
-}

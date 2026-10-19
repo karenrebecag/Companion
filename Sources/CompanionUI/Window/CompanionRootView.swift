@@ -415,9 +415,6 @@ package struct CompanionRootView: View {
     }
 
     private func adoptFile(_ url: URL) {
-        guard let ref = chat.attach(url) else { return }
-        if voice.isActive {
-            voice.push(ref)
-        }
+        _ = chat.attach(url)
     }
 }

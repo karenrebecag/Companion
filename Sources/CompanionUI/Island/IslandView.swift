@@ -380,7 +380,7 @@ package struct IslandView: View {
         if let latest = latestReply {
             let text = Self.replyText(for: latest)
             if !text.isEmpty {
-                IslandLiveReply(voice: voice, text: text, startedAt: replyStart, speaking: state.meter == .agent)
+                IslandReply(text: text, startedAt: replyStart, speaking: state.meter == .agent)
                     .onTapGesture { openResult(latest.id) }
                     .accessibilityAddTraits(.isButton)
                     .accessibilityHint(Localized.string("island.reply.open"))
@@ -394,9 +394,6 @@ package struct IslandView: View {
                     .environment(\.fileSaver, saveFile)
             }
             choiceCard(latest)
-        } else {
-            // A realtime reply reaches the thread only at transcript.done; until then the caption is all there is.
-            IslandLiveReply(voice: voice, text: "", startedAt: replyStart, speaking: false)
         }
     }
 

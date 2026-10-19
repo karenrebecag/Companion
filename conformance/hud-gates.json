@@ -6,8 +6,7 @@
       "source": "relay-hud-spec/05 §10; 00 §3 humano",
       "claim": "Un hold normal no exige abrir main; la UI nunca activa la app.",
       "tests": [
-        "testHoldEffectsReachTheVoicePort",
-        "testHoldThenReleaseSendsTheNativeText"
+        "testHoldEffectsReachTheVoicePort"
       ],
       "rules": [
         "main-activation"
@@ -108,7 +107,6 @@
       "claim": "Lo dictado va al campo enfocado y, en memoria, a la tarjeta de resultado de la isla hasta que se oculta o caduca; a ningún otro sitio: ni al log, ni al historial, ni a la conversación.",
       "tests": [
         "testDictationNeverReachesTheLog",
-        "testAHoldDictatesIntoTheField",
         "theWordsNeverReachTheLogThroughTheWholeCard",
         "theWordsNeverPrintThroughAnyDescription"
       ],

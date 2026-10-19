@@ -171,9 +171,8 @@ final class ClassicRuntime: @unchecked Sendable {
     /// 15e-1: what the mic heard while the ear was still starting, handed to
     /// the ear ahead of the first live frame.
     let holdAudio = ClassicHoldAudio()
-    /// 15d-0: the session's timeline, reached the way `RealtimeRuntime`
-    /// reaches it — the runtime knows when the ear's final lands, the
-    /// session owns the clock.
+    /// 15d-0: the runtime knows when the ear's final lands; the session owns
+    /// the clock and hands in the marker.
     var markTimeline: (@Sendable (TurnTimeline.Point) async -> Void)?
     /// Confirms a quick action's effect the moment it lands (earcon; the
     /// Sonidos toggle lives in the sound itself).

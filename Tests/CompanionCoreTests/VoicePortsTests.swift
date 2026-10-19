@@ -9,7 +9,6 @@ import Testing
     testVoiceTransportError()
     testSpeechEvent()
     testVoiceLevels()
-    testVoiceTransportFake()
     testMicCapturingFake()
     testPCMPlayingFake()
     testTranscriberFake()
@@ -79,41 +78,6 @@ import Testing
     let mixed = VoiceLevels(mic: 0.25, agent: -1)
     expectEq(mixed.mic, 0.25, "levels: fracción")
     expectEq(mixed.agent, -1, "levels: negativo")
-}
-
-@MainActor func testVoiceTransportFake() {
-    let fake = FakeTransport()
-    let port: any VoiceTransport = fake
-    let url = URL(string: "wss://api.openai.com/v1/realtime")!
-    runOk("ws feliz") {
-        try await port.open(key: "sk-live", url: url)
-        try await port.send(#"{"type":"session.update"}"#)
-        try await port.send("")
-        try await port.send("ñoño — café")
-        fake.yield(.speechStarted)
-        fake.yield(.speechStopped)
-        await port.close()
-        expectEq(await drain(port.events()), [.speechStarted, .speechStopped],
-                 "ws: events")
-    }
-    expectEq(fake.key, "sk-live", "ws: key")
-    expectEq(fake.url, url, "ws: url")
-    expectEq(fake.sent, [#"{"type":"session.update"}"#, "", "ñoño — café"],
-             "ws: send vacío y unicode")
-    expect(fake.closed, "ws: close")
-
-    for want: VoiceTransportError in [
-        .timeout, .unauthorized, .closed, .unreachable,
-    ] {
-        let failing = FakeTransport()
-        failing.openError = want
-        expectThrow(want, "ws open \(want)") {
-            try await failing.open(key: "", url: URL(string: "wss://x")!)
-        }
-    }
-    let sendFail = FakeTransport()
-    sendFail.sendError = .closed
-    expectThrow(.closed, "ws send") { try await sendFail.send("x") }
 }
 
 @MainActor func testMicCapturingFake() {

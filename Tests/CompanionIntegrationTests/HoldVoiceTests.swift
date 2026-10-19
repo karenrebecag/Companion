@@ -14,32 +14,22 @@ import CompanionTestKit
 // corta, y sin clave el clásico escucha y envía al soltar.
 
 @Test @MainActor func holdVoiceTests() async {
-    await testHoldThenReleaseSendsTheNativeText()
     await testReleaseWithNothingHeardSaysSo()
     await testTapDiscardsWithoutSending()
     await testAPressDuringAReleaseWins()
-    await testHoldWhileSpeakingCutsTheAgent()
     await testHoldOnClassic()
-    await testHandsFreeStartsOnClassicEvenWithAKey()
-    await testTheEarIsOnBeforeTheSessionIsReady()
     await testAHoldIsOneTurnUnderServerVAD()
     await testPartialsReachTheStreamWhileHolding()
-    await testClassicPartialsComeFromTheEarThatHears()
-    await testPrewarmTouchesNothingLoud()
     await testAHoldWritesItsTimeline()
     await testAHoldMarksFirstToken()
     await testALateSegmentAfterReleaseSendsNothing()
-    await testALateSegmentAfterDiscardSendsNothing()
     await testLateWordsDoNotJoinTheNextHold()
     await testABouncedPressKeepsTheTimeline()
     await testATapBeforeAHoldDoesNotPoisonItsTimeline()
-    await testALateToolMarkDoesNotJoinTheNextHold()
-    await testHoldDoesNotOpenRealtime()
     await testHoldDelegateReachesTheSubmitter()
     await testHoldWithoutJobsDoesNotAdvertiseDelegate()
     await testHoldParentToolIsNotAJob()
     await testHoldJobDoneIsSpoken()
-    await testReleaseWhileThinkingAfterServerCommitSendsNothingExtra()
     await testHoldEndsIdleWithMicOffAfterReply()
     await testClassicHoldMarksFirstAudioOnce()
     await testChunkStartedWithoutAHoldDoesNotMark()
@@ -171,32 +161,6 @@ import CompanionTestKit
     }
 }
 
-/// 22. Pulsar abre el clásico; soltar manda el texto al ChatProvider, no a realtime.
-@MainActor func testHoldThenReleaseSendsTheNativeText() async {
-    let h = makeVoiceHarness()
-    h.transcriber.stoppedText = "abre Safari"
-    h.chat.rounds = [[.text("Listo.")]]
-    await h.session.hold()
-    await pumpUntil("hold: listening") { h.watch.latest.state == .listening }
-    expect(!h.watch.latest.muted, "hold: el micro está abierto mientras se mantiene")
-    expectEq(h.watch.latest.pipeline, .classic, "hold: camino de texto")
-    expectEq(h.transport.openCount, 0, "hold: no abre el socket de conversación")
-    await h.session.release()
-    await pumpUntil("hold: el chat recibe el turno") { !h.chat.histories.isEmpty }
-    // 15b-10: `classic.submit` now runs detached — `release()` returns as
-    // soon as the turn task is STARTED, not finished.
-    await h.session.awaitClassicTurn()
-    expect(h.chat.histories[0].contains { $0.role == .user && $0.content.contains("abre Safari") },
-           "hold: lo que oyó el oído")
-    expect(h.thread.turns.contains { $0.role == .assistant && $0.content.contains("Listo.") },
-           "hold: la respuesta entra al hilo")
-    expect(!hasMessage(h.transport.sent, type: "response.create"),
-           "hold: cero response.create")
-}
-
-/// 23. Soltar sin texto: no se envía nada y la sesión lo dice (`heardNothing`).
-/// Wave 15d-4 (TDD row 5): and it goes back to rest with the mic off — the
-/// 12b "no cuelga" left a hot mic nobody held (Incredible rests too).
 @MainActor func testReleaseWithNothingHeardSaysSo() async {
     let h = makeVoiceHarness()
     let seen = SessionEventBox(h.session.events)
@@ -250,24 +214,6 @@ import CompanionTestKit
     expectEq(h.watch.latest.state, .listening, "carrera: sigue escuchando")
 }
 
-/// 24. Pulsar otra vez después de hablar: sigue el camino de texto, sin realtime.
-@MainActor func testHoldWhileSpeakingCutsTheAgent() async {
-    let h = makeVoiceHarness()
-    // Not "para": a bare stop now ends the turn without a reply (SpokenStop).
-    h.transcriber.stoppedText = "hola"
-    h.chat.rounds = [[.text("De acuerdo.")]]
-    await h.session.hold()
-    await pumpUntil("corte: listening") { h.watch.latest.state == .listening }
-    await h.session.release()
-    await pumpUntil("corte: habló") { h.synth.queue.contains("De acuerdo.") }
-    await h.session.hold()
-    await pumpUntil("corte: otra vez listening") { h.watch.latest.state == .listening }
-    expectEq(h.watch.latest.pipeline, .classic, "corte: sigue texto")
-    expect(!hasMessage(h.transport.sent, type: "response.cancel"),
-           "corte: no hay socket que cancelar")
-}
-
-/// 25. Sin clave: el clásico escucha al pulsar y empieza el turno al soltar.
 @MainActor func testHoldOnClassic() async {
     let h = makeVoiceHarness(key: nil)
     h.transcriber.stoppedText = "qué hora es"
@@ -280,29 +226,6 @@ import CompanionTestKit
     await pumpUntil("clásico: responde") { h.synth.queue.contains("Las tres.") }
 }
 
-/// Manos libres usa el mismo carril que el hold aunque haya clave de OpenAI.
-@MainActor func testHandsFreeStartsOnClassicEvenWithAKey() async {
-    let h = makeVoiceHarness()
-    await h.session.start()
-    await pumpUntil("manos libres: clásico") {
-        h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
-    }
-    expectEq(h.transport.openCount, 0, "manos libres: sin WS de conversación")
-}
-
-/// 6 (12c). El oído arranca al pulsar, sin esperar un socket de conversación.
-@MainActor func testTheEarIsOnBeforeTheSessionIsReady() async {
-    let h = makeVoiceHarness(autoEvents: [], readyTimeout: 5)
-    await h.session.hold()
-    await pumpUntil("oído: listening") { h.watch.latest.state == .listening }
-    expect(h.transcriber.started, "oído: el transcriptor arranca")
-    expectEq(h.transport.openCount, 0, "oído: sin socket de conversación")
-    h.mic.yield(MicFrame(pcm16le24k: Data([1, 2, 3, 4]), rms: 0.5))
-    await pumpUntil("oído: el frame llega") { !h.transcriber.appended.isEmpty }
-    expectEq(h.watch.latest.pipeline, .classic, "oído: camino de texto")
-}
-
-/// 7. Una pausa dentro del hold no envía; al soltar viaja el texto del oído.
 @MainActor func testAHoldIsOneTurnUnderServerVAD() async {
     let h = makeVoiceHarness()
     h.transcriber.stoppedText = "abre Safari"
@@ -337,36 +260,6 @@ import CompanionTestKit
            "parciales: tras soltar no salen")
 }
 
-/// 8b (16i, seen live 2026-09-25): the app ships a separate realtime ear.
-/// On a classic hold the words were read from that ear, which hears nothing
-/// there, so the island never showed what Karen was saying.
-@MainActor func testClassicPartialsComeFromTheEarThatHears() async {
-    let h = makeVoiceHarness(realtimeEar: ScriptedSegmentingEar())
-    let seen = SessionEventBox(h.session.events)
-    await h.session.hold()
-    await pumpUntil("parciales clásico: listening") { h.watch.latest.state == .listening }
-    h.transcriber.yieldPartial("abre el correo")
-    await pumpUntil("parciales clásico: la isla lo ve") {
-        seen.events.contains { $0 == .partialTranscript("abre el correo") }
-    }
-    await h.session.release()
-}
-
-/// 9 (12c). Precalentar prepara el micro y lee la clave; no abre el socket
-/// ni arranca el micro ni pide permisos.
-@MainActor func testPrewarmTouchesNothingLoud() async {
-    let h = makeVoiceHarness()
-    await h.session.prewarm()
-    expect(h.mic.prewarmed, "prewarm: el micro se prepara")
-    expect(!h.mic.started, "prewarm: sin arrancar el micro")
-    expect(!h.mic.accessAsked, "prewarm: sin pedir permiso")
-    expectEq(h.transport.openCount, 0, "prewarm: sin abrir el socket")
-    expectEq(h.secrets.reads, 0, "prewarm: sin tocar el llavero (una lectura puede ser un diálogo)")
-    expectEq(h.watch.latest.state, .idle, "prewarm: la máquina no se mueve")
-}
-
-/// 10 (12c). Un hold entero deja su línea de tiempos: pulsar, listo,
-/// soltar, enviar, primer audio.
 @MainActor func testAHoldWritesItsTimeline() async {
     let h = makeVoiceHarness()
     let seen = SessionEventBox(h.session.events)
@@ -415,26 +308,6 @@ import CompanionTestKit
     expectEq(h.chat.histories.count, 1, "tardío: un solo turno")
 }
 
-/// 11b (12c, code review alto). Un tap descarta; un `.finished` tardío no
-/// puede enviar lo que el usuario canceló.
-@MainActor func testALateSegmentAfterDiscardSendsNothing() async {
-    let ear = ScriptedSegmentingEar()
-    let h = makeVoiceHarness(realtimeEar: ear)
-    await h.session.hold()
-    await pumpUntil("descarte: listening") { h.watch.latest.state == .listening }
-    await h.session.discard()
-    await pumpUntil("descarte: idle o mute") {
-        h.watch.latest.state == .idle || h.watch.latest.muted
-    }
-    ear.yieldTurn(.speechStarted)
-    ear.yieldTurn(.finished(text: "ruido"))
-    await settle(0.15)
-    expect(h.chat.histories.isEmpty, "descarte: nada viaja")
-}
-
-/// 12 (12c, security review medio). Palabras del hold anterior que el
-/// oído entrega tarde no se cuelan en el hold siguiente: cada pulsación
-/// empieza con el oído en cero.
 @MainActor func testLateWordsDoNotJoinTheNextHold() async {
     let h = makeVoiceHarness()
     await h.session.hold()
@@ -491,60 +364,8 @@ import CompanionTestKit
     expectEq(await h.session.timeline.pressed, 400, "tap-before: the new hold owns its own press mark")
 }
 
-/// DM0 review (HIGH, 2026-09-22). El tool call de un padre pertenece al hold
-/// que lo comprometió, no al que esté en curso cuando el server por fin
-/// contesta: una marca tardía solía escribirse en la línea de tiempos nueva
-/// de un hold que no tenía nada que ver, corrompiendo commit→tool/tool→done.
-@MainActor func testALateToolMarkDoesNotJoinTheNextHold() async {
-    let h = makeVoiceHarness()
-    await h.session.start(preferRealtime: true)
-    await pumpUntil("tool tardío: listening") {
-        h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
-    }
-    // Hold 1 pulsa (el oído arranca en cero) y suelta con lo dicho durante
-    // el hold: el texto compromete el turno, como haría un tool call del
-    // padre que le sigue.
-    await h.session.hold()
-    h.transcriber.stoppedText = "abre safari"
-    await h.session.release()
-    expect(await h.session.timeline.committed != nil, "tool tardío: hold 1 comprometió")
-    // El server contesta a tiempo: las marcas caen en la línea de hold 1.
-    await h.session.markTool(.toolCallSeen)
-    await h.session.markTool(.toolDone)
-    let onTime = await h.session.timeline.line()
-    expect(onTime?.contains("commit→tool —") == false,
-           "tool tardío: a tiempo, commit→tool es un número")
-
-    // Hold 2 pulsa: el reloj se reinicia mientras la llamada de hold 1
-    // sigue en vuelo del lado del server.
-    await h.session.hold()
-    expect(await h.session.timeline.committed == nil, "tool tardío: hold 2 empieza en blanco")
-    // La respuesta de hold 1 llega recién ahora, tarde.
-    await h.session.markTool(.toolCallSeen)
-    expect(await h.session.timeline.toolCallSeen == nil,
-           "tool tardío: la marca tardía de hold 1 no se cuela en hold 2")
-    await h.session.flushTimeline()
-    let hold2Line = await h.session.lastTimeline?.line()
-    expect(hold2Line?.contains("commit→tool —") == true,
-           "tool tardío: hold 2 se queda sin tool, sigue en —")
-}
-
 private let slack = FocusedField(app: "Slack", pid: 42)
 
-/// Wave 14b. Hold with a key does not open the conversation websocket.
-@MainActor func testHoldDoesNotOpenRealtime() async {
-    let h = makeVoiceHarness()
-    h.transcriber.stoppedText = "hola"
-    h.chat.rounds = [[.text("Hola.")]]
-    await h.session.hold()
-    await pumpUntil("14b: listening") { h.watch.latest.state == .listening }
-    expectEq(h.transport.openCount, 0, "14b: sin WS de conversación")
-    await h.session.release()
-    await pumpUntil("14b: chat") { !h.chat.histories.isEmpty }
-    expect(!hasMessage(h.transport.sent, type: "response.create"), "14b: cero response.create")
-}
-
-/// Wave 14b. Un `delegate` del stream llega al JobSubmitter.
 @MainActor func testHoldDelegateReachesTheSubmitter() async {
     let jobs = CapturingSubmitter()
     let h = makeVoiceHarness(jobs: jobs)
@@ -612,48 +433,6 @@ private let slack = FocusedField(app: "Slack", pid: 42)
            "anuncio: nunca la instrucción al modelo")
 }
 
-/// Review finding (LOW, 2026-09-22): `TurnMachine.holdReleased`'s
-/// `.thinking`/`.speaking` case (wave-dm1-router.md's "live bug" fix) closes
-/// the mic and commits again from the native transcript when the key comes
-/// up after the server's own VAD already committed the segment. This is a
-/// realtime scenario reachable through `release()` alone — the public API
-/// does not care whether the pipeline opened through `hold()` or `start()`
-/// — so no production code needed touching to exercise it. With nothing new
-/// heard since that first commit, the second commit must be a no-op: never
-/// a second `response.create`, and never a `response.cancel` for a turn
-/// already in flight.
-@MainActor func testReleaseWhileThinkingAfterServerCommitSendsNothingExtra() async {
-    let ear = ScriptedSegmentingEar()
-    let h = makeVoiceHarness(realtimeEar: ear)
-    await h.session.start(preferRealtime: true)
-    await pumpUntil("thinking: listening") {
-        h.watch.latest.state == .listening && h.watch.latest.pipeline == .realtime
-    }
-    ear.yieldTurn(.speechStarted)
-    await pumpUntil("thinking: speechOpen") { h.watch.latest.speechOpen }
-    ear.yieldTurn(.finished(text: "hola"))
-    await pumpUntil("thinking: the server's own VAD already committed") {
-        hasMessage(h.transport.sent, type: "response.create")
-    }
-    expectEq(h.watch.latest.state, .thinking, "thinking: state moved on before the key came up")
-    let before = h.transport.sent.count
-
-    await h.session.release()
-    // Past commitTurnFromNative's own 250ms settle sleep on the fallback path.
-    await settle(0.4)
-    let added = Array(h.transport.sent.dropFirst(before))
-    expect(!hasMessage(added, type: "response.create"),
-           "thinking: nothing new heard, no second response.create")
-    expect(!hasMessage(added, type: "response.cancel"),
-           "thinking: and no response.cancel for a turn already in flight")
-}
-
-/// Live crash 2026-09-23: FN hold → release → router/chat reply spoken →
-/// the session went back to `.listening` and re-armed the classic ear,
-/// calling `mic.start()` on a mic that was never stopped. MicCapture then
-/// crashed installing a second tap on the still-running engine. A hold turn
-/// must end in idle with the mic off — the user presses again for the next
-/// turn.
 @MainActor func testHoldEndsIdleWithMicOffAfterReply() async {
     let h = makeVoiceHarness()
     h.transcriber.stoppedText = "abre Safari"
@@ -774,3 +553,82 @@ private let slack = FocusedField(app: "Slack", pid: 42)
         "consumes: Opción izquierda no arma la tecla de Opción derecha")
 }
 
+/// DM0 review (HIGH, 2026-09-22). El tool call de un padre pertenece al hold
+/// que lo comprometió, no al que esté en curso cuando el server por fin
+/// contesta: una marca tardía solía escribirse en la línea de tiempos nueva
+/// de un hold que no tenía nada que ver, corrompiendo commit→tool/tool→done.
+@Test @MainActor func testALateToolMarkDoesNotJoinTheNextHold() async {
+    let h = makeVoiceHarness()
+    await h.session.start()
+    await pumpUntil("tool tardío: listening") {
+        h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
+    }
+    // Hold 1 pulsa (el oído arranca en cero) y suelta con lo dicho durante
+    // el hold: el texto compromete el turno, como haría un tool call del
+    // padre que le sigue.
+    await h.session.hold()
+    h.transcriber.stoppedText = "abre safari"
+    await h.session.release()
+    expect(await h.session.timeline.committed != nil, "tool tardío: hold 1 comprometió")
+    // El server contesta a tiempo: las marcas caen en la línea de hold 1.
+    await h.session.markTool(.toolCallSeen)
+    await h.session.markTool(.toolDone)
+    let onTime = await h.session.timeline.line()
+    expect(onTime?.contains("commit→tool —") == false,
+           "tool tardío: a tiempo, commit→tool es un número")
+
+    // Hold 2 pulsa: el reloj se reinicia mientras la llamada de hold 1
+    // sigue en vuelo del lado del server.
+    await h.session.hold()
+    expect(await h.session.timeline.committed == nil, "tool tardío: hold 2 empieza en blanco")
+    // La respuesta de hold 1 llega recién ahora, tarde.
+    await h.session.markTool(.toolCallSeen)
+    expect(await h.session.timeline.toolCallSeen == nil,
+           "tool tardío: la marca tardía de hold 1 no se cuela en hold 2")
+    await h.session.flushTimeline()
+    let hold2Line = await h.session.lastTimeline?.line()
+    expect(hold2Line?.contains("commit→tool —") == true,
+           "tool tardío: hold 2 se queda sin tool, sigue en —")
+}
+
+/// 9 (12c). Precalentar prepara el micro y lee la clave; no abre el socket
+/// ni arranca el micro ni pide permisos.
+@Test @MainActor func testPrewarmTouchesNothingLoud() async {
+    let h = makeVoiceHarness()
+    await h.session.prewarm()
+    expect(h.mic.prewarmed, "prewarm: el micro se prepara")
+    expect(!h.mic.started, "prewarm: sin arrancar el micro")
+    expect(!h.mic.accessAsked, "prewarm: sin pedir permiso")
+    expectEq(h.secrets.reads, 0, "prewarm: sin tocar el llavero (una lectura puede ser un diálogo)")
+    expectEq(h.watch.latest.state, .idle, "prewarm: la máquina no se mueve")
+}
+
+/// 8b (16i, seen live 2026-09-25): the app ships a separate realtime ear.
+/// On a classic hold the words were read from that ear, which hears nothing
+/// there, so the island never showed what Karen was saying.
+@Test @MainActor func testClassicPartialsComeFromTheEarThatHears() async {
+    let h = makeVoiceHarness()
+    let seen = SessionEventBox(h.session.events)
+    await h.session.hold()
+    await pumpUntil("parciales clásico: listening") { h.watch.latest.state == .listening }
+    h.transcriber.yieldPartial("abre el correo")
+    await pumpUntil("parciales clásico: la isla lo ve") {
+        seen.events.contains { $0 == .partialTranscript("abre el correo") }
+    }
+    await h.session.release()
+}
+
+/// 24. Pulsar otra vez después de hablar: sigue el camino de texto, sin realtime.
+@Test @MainActor func testHoldWhileSpeakingCutsTheAgent() async {
+    let h = makeVoiceHarness()
+    // Not "para": a bare stop now ends the turn without a reply (SpokenStop).
+    h.transcriber.stoppedText = "hola"
+    h.chat.rounds = [[.text("De acuerdo.")]]
+    await h.session.hold()
+    await pumpUntil("corte: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("corte: habló") { h.synth.queue.contains("De acuerdo.") }
+    await h.session.hold()
+    await pumpUntil("corte: otra vez listening") { h.watch.latest.state == .listening }
+    expectEq(h.watch.latest.pipeline, .classic, "corte: sigue texto")
+}

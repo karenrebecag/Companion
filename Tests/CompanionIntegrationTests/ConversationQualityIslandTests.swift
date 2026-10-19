@@ -237,19 +237,6 @@ final class AckingSensor: ContextSensing, @unchecked Sendable {
     expectEq(sensor.acks, [], "cancelado: una pulsación cancelada no consume los eventos")
 }
 
-@MainActor @Test func testARealtimeSegmentCommitAcknowledges() async {
-    let ear = ScriptedSegmentingEar()
-    let sensor = AckingSensor()
-    let h = makeVoiceHarness(realtimeEar: ear, sensor: sensor)
-    await h.session.start(preferRealtime: true)
-    await pumpUntil("realtime: listening") { h.watch.latest.state == .listening }
-    ear.yieldTurn(.speechStarted)
-    await pumpUntil("realtime: speechOpen") { h.watch.latest.speechOpen }
-    ear.yieldTurn(.finished(text: "crea prueba dos en el desktop"))
-    await pumpUntilAsync("realtime: acusa al comprometer el turno") { sensor.acks.count == 1 }
-    expect(sensor.served.contains(sensor.acks.first ?? -1), "realtime: acusa la lectura que de verdad leyó (\(sensor.served))")
-}
-
 @MainActor @Test func testTheChatAcknowledgesAfterBuildingTheRequest() async {
     let sensor = AckingSensor()
     let chat = FakeChatProvider(replies: [.success([.text("ok")])])
