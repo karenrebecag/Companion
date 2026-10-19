@@ -15,6 +15,7 @@ extension VoiceSession {
     /// judge run the router past the local-only guards and feed the
     /// delegation head. Nil keeps the router local-only, as before.
     package func attachDecision(_ gate: DecisionGate, judge: DecisionJudge? = nil) {
+        attachedDecision = (gate, judge)
         classic.decide = { [weak self] utterance, canDelegate in
             guard let self else { return .passThrough(.disabled) }
             var turn: DecisionJudge?
@@ -36,7 +37,7 @@ extension VoiceSession {
     /// Both seams of one hold ask for the same utterance within moments;
     /// the second gets the first's pin. The window keeps a repeat of the
     /// same words later on from inheriting a key that was since removed.
-    private func turnJudge(_ utterance: String, _ judge: DecisionJudge) -> DecisionJudge {
+    func turnJudge(_ utterance: String, _ judge: DecisionJudge) -> DecisionJudge {
         if let pinned = pinnedJudge, pinned.utterance == utterance,
            Date().timeIntervalSince(pinned.at) < 10 {
             return pinned.judge
@@ -58,15 +59,12 @@ extension VoiceSession {
         _ utterance: String, canDelegate: Bool, gate: DecisionGate, judge: DecisionJudge?
     ) async -> DecisionOutcome {
         let hosted = judge?.usesHostedJudge ?? false
-        guard hosted || configProvider.current.decision.enabled else {
-            return .passThrough(.disabled)
-        }
-        // 15c-4/15c-7: the fast brain (Cerebras) already picked the tool by
-        // commit; N1's own cascade added up to 0.9s and never won a hold
-        // against it (wave-15c §1) — `gate` is not even called.
-        guard hosted || lastStack?.hasFastBrain != true else {
-            Log.chat("decision: pass reason=\(DecisionPassReason.fastBrain.rawValue)")
-            return .passThrough(.fastBrain)
+        if let skipped = routerSkip(hosted: hosted) {
+            cancelSpeculation()
+            if skipped == .fastBrain {
+                Log.chat("decision: pass reason=\(DecisionPassReason.fastBrain.rawValue)")
+            }
+            return .passThrough(skipped)
         }
         // Classic never marked `.committed` before DM1c-2: `commitTimeline`
         // is the model-in-the-loop path's own mark (`commitTurnFromNative`),
@@ -77,6 +75,7 @@ extension VoiceSession {
         // turn's own words before N1 ever sees them — a "sí" here must not
         // be reclassified as a fresh order.
         if let confirmed = await gate.answerConfirmation(utterance) {
+            cancelSpeculation()
             markTool(.decision)
             if case .passThrough = confirmed {} else { markTool(.toolDone) }
             return confirmed
@@ -84,7 +83,8 @@ extension VoiceSession {
         let step = await gate.plan(
             utterance, canDelegate: canDelegate,
             budget: hosted ? configProvider.current.decision.hostedBudget : nil,
-            provider: judge)
+            provider: judge,
+            prepared: takeSpeculation(matching: utterance, canDelegate: canDelegate, world: gate.world()))
         markTool(.decision)
         // Only `.execute` runs through the SAME door the parent-tool loop
         // uses (`ParentToolRunner`, inside `gate.run`): the session's own
@@ -100,5 +100,16 @@ extension VoiceSession {
         if acting { eventBox.yield(.parentActed) }
         if case .passThrough = outcome {} else { markTool(.toolDone) }
         return outcome
+    }
+
+    /// Why the router does not run this turn, or nil when it does. A hosted
+    /// judge passes both: the toggle is about running a local model, and
+    /// the fast-brain skip (15c-4/15c-7: Cerebras already picked the tool by
+    /// commit; N1's cascade added up to 0.9 s and never won a hold against
+    /// it, wave-15c §1) was measured against the local 4B, not Jev.
+    func routerSkip(hosted: Bool) -> DecisionPassReason? {
+        if hosted { return nil }
+        guard configProvider.current.decision.enabled else { return .disabled }
+        return lastStack?.hasFastBrain == true ? .fastBrain : nil
     }
 }

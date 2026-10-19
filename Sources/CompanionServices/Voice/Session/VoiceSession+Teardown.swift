@@ -23,6 +23,7 @@ extension VoiceSession {
         earTurnTask = nil
         partialTask?.cancel()
         partialTask = nil
+        cancelSpeculation()
         await earTask?.value
         earTask = nil
         earSegment = nil

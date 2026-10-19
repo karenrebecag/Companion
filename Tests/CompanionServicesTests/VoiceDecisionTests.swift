@@ -37,6 +37,165 @@ import CompanionTestKit
     await testASilentHostedJudgePassesTheTurnToTheBrain()
     await testAnIrreversibleTaskIsAskedBeforeItIsHandedOff()
     await testAYesToAnOpenQuestionIsNotSentToTheDelegationHead()
+    await testAPlanOnTheStablePartialIsReusedOnlyForTheSameWords()
+    await testSpeculationStopsAtTwoPlansPerHold()
+    await testAChangedWorldIsPlannedAgainAtTheRelease()
+    await testAPartialYesToAnOpenQuestionIsNeverSpeculated()
+}
+
+@MainActor private func eagerHarness(
+    world: @escaping @Sendable () -> DecisionWorld = { DecisionWorld(apps: ["Safari", "Slack"], sites: []) }
+) async -> (VoiceHarness, CallCounter, FakeWorkspaceOpener) {
+    let opener = FakeWorkspaceOpener(installed: ["Safari", "Slack"])
+    let actions = CallCounter()
+    let hosted = ScriptedHosted(configured: true) { question in
+        switch question.id {
+        case DecisionHead.action:
+            actions.increment()
+            return peaked("open_app", question.offeredIds)
+        case DecisionHead.app:
+            return peaked(question.instructions.contains("Slack") ? "Slack" : "Safari", question.offeredIds)
+        default: return nil
+        }
+    }
+    let judge = DecisionJudge(hosted: hosted, local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
+        world: world, budget: .seconds(2))
+    let h = makeVoiceHarness()
+    await h.session.attachDecision(gate, judge: judge)
+    return (h, actions, opener)
+}
+
+/// HIGH (#356 review): a long dictation must not send every pause out. Two
+/// plans per hold, then nothing more is even scheduled.
+@MainActor func testSpeculationStopsAtTwoPlansPerHold() async {
+    unsetenv("COMPANION_DECISION")
+    expect(!VoiceSession.worthSpeculating("abre", after: nil), "eligible: one word is not a phrase")
+    expect(VoiceSession.worthSpeculating("abre Safari", after: nil), "eligible: two words")
+    expect(!VoiceSession.worthSpeculating("abre Safari ya", after: "abre Safari"),
+           "eligible: one more word on the last plan is not worth another")
+    expect(VoiceSession.worthSpeculating("abre Safari y luego Slack", after: "abre Safari"),
+           "eligible: a real extension is")
+    let (h, actions, _) = await eagerHarness()
+    await h.session.hold()
+    await pumpUntil("cap: listening") { h.watch.latest.state == .listening }
+    h.transcriber.yieldPartial("abre Safari")
+    await pumpUntil("cap: first plan") { actions.count == 2 }
+    h.transcriber.yieldPartial("abre Safari y luego Slack")
+    await pumpUntil("cap: second plan") { actions.count == 4 }
+    h.transcriber.yieldPartial("cierra todo lo que tengo abierto")
+    await pumpUntilAsync("cap: third partial seen") {
+        await h.session.lastPartial == "cierra todo lo que tengo abierto"
+    }
+    let scheduled = await h.session.speculationTimer != nil
+    expect(!scheduled, "cap: a third plan is never scheduled")
+    await h.session.discard()
+}
+
+/// M2: a plan made before the world changed is not reused.
+@MainActor func testAChangedWorldIsPlannedAgainAtTheRelease() async {
+    unsetenv("COMPANION_DECISION")
+    let apps = AppsBox(["Safari"])
+    let (h, actions, opener) = await eagerHarness(world: { DecisionWorld(apps: apps.value, sites: []) })
+    await h.session.hold()
+    await pumpUntil("world: listening") { h.watch.latest.state == .listening }
+    h.transcriber.yieldPartial("abre Safari")
+    await pumpUntil("world: planned") { actions.count == 2 }
+    apps.value = ["Safari", "Slack"]
+    await h.session.release()
+    await pumpUntil("world: opened") { !opener.openedApps.isEmpty }
+    expectEq(actions.count, 4, "world: the changed world is planned again")
+}
+
+/// M4: a "sí" heard while a question is open is answered at the release,
+/// never planned on as a partial.
+@MainActor func testAPartialYesToAnOpenQuestionIsNeverSpeculated() async {
+    unsetenv("COMPANION_DECISION")
+    let actions = CallCounter()
+    let script = trashProvider()
+    let hosted = ScriptedHosted(configured: true) { question in
+        if question.id == DecisionHead.action { actions.increment() }
+        return script.body(question)
+    }
+    let system = RecordingSystemActing()
+    let judge = DecisionJudge(hosted: hosted, local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        system: system, world: { DecisionWorld() }, budget: .seconds(2))
+    let h = makeVoiceHarness(language: .es)
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "vacia la papelera"
+    await h.session.hold()
+    await pumpUntil("yes partial: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("yes partial: asks") { h.synth.queue.contains("¿Vacío la papelera?") }
+    await h.session.awaitClassicTurn()
+    let asked = actions.count
+
+    await h.session.hold()
+    // A partial before the new hold is armed is dropped, so the ear repeats
+    // its hypothesis until the hold takes it.
+    await pumpUntilAsync("yes partial: seen") {
+        h.transcriber.yieldPartial("si dale")
+        return await h.session.lastPartial == "si dale"
+    }
+    // Past the speculation settle, so a plan would have been asked by now.
+    try? await Task.sleep(for: .milliseconds(400))
+    await h.session.release()
+    await pumpUntil("yes partial: emptied") { system.actCount == 1 }
+    expectEq(actions.count, asked, "yes partial: the yes is never planned on")
+}
+
+private final class AppsBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _value: [String]
+    init(_ value: [String]) { _value = value }
+    var value: [String] {
+        get { lock.withLock { _value } }
+        set { lock.withLock { _value = newValue } }
+    }
+}
+
+/// Eager decision: the stable partial is planned while the key is down, the
+/// plan is never acted on before the release, and the release reuses it only
+/// when the final words are exactly the partial's.
+@MainActor func testAPlanOnTheStablePartialIsReusedOnlyForTheSameWords() async {
+    unsetenv("COMPANION_DECISION")
+    for (final, reused) in [("abre Safari", true), ("abre Slack", false)] {
+        let opener = FakeWorkspaceOpener(installed: ["Safari", "Slack"])
+        let actions = CallCounter()
+        let hosted = ScriptedHosted(configured: true) { question in
+            switch question.id {
+            case DecisionHead.action:
+                actions.increment()
+                return peaked("open_app", question.offeredIds)
+            case DecisionHead.app:
+                let wanted = question.instructions.contains("Slack") ? "Slack" : "Safari"
+                return peaked(wanted, question.offeredIds)
+            default: return nil
+            }
+        }
+        let judge = DecisionJudge(hosted: hosted, local: ScriptedDecision { _ in nil })
+        let gate = DecisionGate(
+            provider: judge, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
+            world: { DecisionWorld(apps: ["Safari", "Slack"], sites: []) }, budget: .seconds(2))
+        let h = makeVoiceHarness()
+        await h.session.attachDecision(gate, judge: judge)
+        await h.session.hold()
+        await pumpUntil("eager: listening") { h.watch.latest.state == .listening }
+        h.transcriber.yieldPartial("abre Safari")
+        await pumpUntil("eager: the partial is planned") { actions.count == 2 }
+        expect(opener.openedApps.isEmpty, "eager: nothing runs while the key is down")
+        h.transcriber.stoppedText = final
+        await h.session.release()
+        await pumpUntil("eager: \(final) opened") { !opener.openedApps.isEmpty }
+        expectEq(opener.openedApps, [final.replacingOccurrences(of: "abre ", with: "")],
+                 "eager: the final words decide what opens")
+        expectEq(actions.count, reused ? 2 : 4,
+                 "eager: \(reused ? "the partial's plan is reused" : "other words are planned again")")
+    }
 }
 
 /// M6: the "sí" that answers an open question is decided on the Mac; the
@@ -962,3 +1121,4 @@ private final class FakeTerminatingApp: AppTerminating, @unchecked Sendable {
         return true
     }
 }
+

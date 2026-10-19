@@ -102,20 +102,36 @@ package actor DecisionGate {
     /// this only holds for providers that honor cancellation (URLSession
     /// does). No side effects: nothing is executed here. `budget` overrides
     /// the gate's own for one call (the hosted judge runs on a tighter one).
+    /// `prepared` is a `prepare` task for these exact words; the budget is
+    /// raced from now, so one that already finished costs nothing.
     package func plan(
         _ utterance: String, canDelegate: Bool, budget: Duration? = nil,
-        provider override: (any DecisionProvider)? = nil
+        provider override: (any DecisionProvider)? = nil,
+        prepared: Task<DecisionStep, Never>? = nil
     ) async -> DecisionStep {
-        let world = worldProvider()
-        let supports = systemSupports
-        let provider = override ?? self.provider
-        let arbiter = self.arbiter
-        let work = Task<DecisionStep, Never> {
-            await Self.route(
-                utterance: utterance, world: world, canDelegate: canDelegate,
-                supports: supports, provider: provider, arbiter: arbiter)
+        let work = prepared ?? Task {
+            await routing(utterance, canDelegate: canDelegate, provider: override, world: world())
         }
         return await race(work, wait: budget ?? self.budget) ?? .passThrough(.timedOut)
+    }
+
+    /// The world a plan is made against; read without the actor so a caller
+    /// can plan without an await between its checks and the plan.
+    nonisolated package func world() -> DecisionWorld { worldProvider() }
+
+    /// N1 and N2 for `utterance` against `world`. Plans only: nothing runs
+    /// until `run`. Nonisolated so the hold's stable partial can be planned
+    /// on (`VoiceSession+Speculation`) with no hop that a release could
+    /// slip through.
+    nonisolated package func routing(
+        _ utterance: String, canDelegate: Bool, provider override: (any DecisionProvider)?,
+        world: DecisionWorld
+    ) async -> DecisionStep {
+        let system = self.system
+        return await Self.route(
+            utterance: utterance, world: world, canDelegate: canDelegate,
+            supports: { plan in system?.supports(plan) ?? false },
+            provider: override ?? provider, arbiter: arbiter)
     }
 
     /// Runs a step already chosen by `plan`. `execute` goes through
@@ -261,11 +277,6 @@ package actor DecisionGate {
             for: arbitrated, world: world, canDelegate: canDelegate, systemSupports: supports)
         if case .arbitrate = second { return .passThrough(.unresolved) }
         return second
-    }
-
-    private var systemSupports: @Sendable (Plan) -> Bool {
-        let system = self.system
-        return { plan in system?.supports(plan) ?? false }
     }
 
     private func execute(_ call: ToolCallRef, utterance: String) async -> DecisionOutcome {
