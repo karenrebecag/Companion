@@ -13,6 +13,10 @@ package enum SecretKey: String, Sendable, Equatable {
     /// Web search. A secondary key like the rest: without it the tool is not
     /// offered at all, which is the whole point — see Wave 9f.
     case brave = "BRAVE_API_KEY"
+    /// Exa: the preferred web provider when present. Search returns passages
+    /// that answer the query, and read_url returns a whole page; Brave stays
+    /// as the fallback when only its key exists.
+    case exa = "EXA_API_KEY"
     /// Wave 15f-7a: the hold's mouth when a voice is chosen too; without it
     /// the mouth stays OpenAI's.
     case elevenLabs = "ELEVENLABS_API_KEY"

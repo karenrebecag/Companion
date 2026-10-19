@@ -134,6 +134,7 @@ struct SettingsPrivacyPage: View {
         ("openai", .openAI, "settings.keys.openai", nil),
         ("cerebras", .cerebras, "settings.keys.cerebras", "settings.keys.cerebras.privacy"),
         ("elevenlabs", .elevenLabs, "settings.keys.elevenlabs", "settings.keys.elevenlabs.privacy"),
+        ("exa", .exa, "settings.keys.exa", "settings.keys.exa.privacy"),
     ]
 
     private var keyRows: [APIKeyRowModel] {
@@ -176,6 +177,7 @@ struct SettingsPrivacyPage: View {
         switch id {
         case "cerebras": keys.cerebrasField
         case "elevenlabs": keys.elevenLabsField
+        case "exa": keys.exaField
         default: keys.openAIField
         }
     }
@@ -184,6 +186,7 @@ struct SettingsPrivacyPage: View {
         switch id {
         case "cerebras": keys.cerebrasField = value
         case "elevenlabs": keys.elevenLabsField = value
+        case "exa": keys.exaField = value
         default: keys.openAIField = value
         }
     }

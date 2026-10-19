@@ -15,6 +15,10 @@ extension ParentToolRunner {
             case .createDocument: documents != nil
             case .sheetRead, .sheetWrite: sheets != nil
             case .listFileHistory, .restoreFileVersion: versions != nil
+            // No key needed: the page reader is the native one, and it needs none.
+            case .webFetch: true
+            case .webSearch: webSearch?.isConfigured == true
+            case .readURL: webReader?.isConfigured == true
             default: false
             }
         }
@@ -72,8 +76,8 @@ extension ParentToolRunner {
     }
 
     var nativeRunner: NativeToolRunner {
-        NativeToolRunner(workdir: workdir, places: nil, webSearch: nil, documents: documents, sheets: sheets,
-                         versions: versions)
+        NativeToolRunner(workdir: workdir, places: nil, webSearch: webSearch, webReader: webReader,
+                         documents: documents, sheets: sheets, versions: versions)
     }
 
     /// The sheet for a write names the workbook the runner sees in front, and

@@ -26,6 +26,9 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
     let documents: (any DocumentRendering)?
     let sheets: (any SpreadsheetDriving)?
     let versions: FileVersions?
+    /// The web tools the parent offers, each only when its provider is configured.
+    let webSearch: (any WebSearching)?
+    let webReader: (any WebReading)?
     let deliverableTickets = ApprovalTickets()
     /// Whether this turn read outside the work folder; reset by `beginTurn`.
     let taint: TurnTaint
@@ -43,6 +46,8 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         documents: (any DocumentRendering)? = nil,
         sheets: (any SpreadsheetDriving)? = nil,
         versions: FileVersions? = nil,
+        webSearch: (any WebSearching)? = nil,
+        webReader: (any WebReading)? = nil,
         onAct: (@Sendable (UndoReceipt) -> Void)? = nil,
         location: UserLocationSource? = nil,
         taint: TurnTaint = TurnTaint(),
@@ -63,6 +68,8 @@ package struct ParentToolRunner: ParentToolExecuting, Sendable {
         self.documents = documents
         self.sheets = sheets
         self.versions = versions
+        self.webSearch = webSearch
+        self.webReader = webReader
     }
 
     /// Wired at all, ready or not: a call can then say why it cannot act.

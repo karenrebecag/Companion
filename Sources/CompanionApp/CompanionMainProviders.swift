@@ -92,12 +92,14 @@ func makeJobInfrastructure(
     // Job execution infrastructure
     let approvals = Approvals(clock: RealtimeClock())
     let jobQueue = JobQueue()
+    let web = WebProvider.select(secrets: env.secrets)
     let nativeExecutor = NativeExecutor(
         descriptor: ExecutorCatalog.native,
         chatProvider: chat,
         config: env.config,
         approvals: approvals,
-        webSearch: BraveWebSearch(transport: env.transport, secrets: env.secrets),
+        webSearch: web.search(transport: env.transport, secrets: env.secrets),
+        webReader: web.reader(transport: env.transport, secrets: env.secrets),
         skills: env.skillsLocation,
         skillsSource: { env.configProvider.current.skills },
         documents: NativeDocumentRenderer(),

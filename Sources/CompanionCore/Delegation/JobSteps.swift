@@ -84,7 +84,7 @@ package enum JobSteps: Sendable {
             // about what it had done — which matters most exactly when you
             // stopped it and want to know how far it got.
             case "WebSearch", "web_search": searches += 1
-            case "WebFetch", "web_fetch": pages += 1
+            case "WebFetch", "web_fetch", "read_url": pages += 1
             case "Bash", "run_shell": commands += 1
             case "list_directory", "find_places": searches += 1
             case "Read", "Write", "Edit", "NotebookEdit",

@@ -91,7 +91,13 @@ extension NativeTool {
     /// Offered by the parent itself (spec 20b D2): with Claude Code installed
     /// every delegation goes to it, and it has none of these. The history
     /// tools are here too: they are the way back from the saves above.
-    package static let parentDeliverables: [NativeTool] = [.listDirectory, .readFile, .createDocument, .sheetRead, .sheetWrite, .listFileHistory, .restoreFileVersion]
+    /// The web tools join them: the parent answers from the web itself, as Incredible
+    /// does. The bridge never lends them (an outside agent brings its own web tools),
+    /// so they stay local-only with the rest.
+    package static let parentDeliverables: [NativeTool] = [
+        .listDirectory, .readFile, .createDocument, .sheetRead, .sheetWrite, .listFileHistory, .restoreFileVersion,
+        .webSearch, .readURL, .webFetch,
+    ]
 }
 
 /// What the MCP bridge may drive (20c D6, M9). An ALLOWLIST: a tool the
