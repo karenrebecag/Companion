@@ -1,0 +1,1 @@
+- **Gráficas de la isla con el uso de Arc (2026-10-18).** Companion sube el pin de CompanionUIPro a afcfd50 para recibir el teclado y los anuncios de donut, split bar, treemap, streamgraph, brush, slope y sparkline, y el contador con dígitos que ruedan. La app no cambia de código; cambia cómo se recorren y cómo se leen las gráficas que `present` muestra.
