@@ -1,0 +1,1 @@
+- **Relevo del 2026-10-19 (2026-10-19).** `docs/HANDOFF-2026-10-19.md` recoge la QA en vivo sobre main (gráficas, lugares, contraseña en frase, token en pantalla y razonamiento visible fallaron), las causas encontradas en el código, el trabajo sin terminar y la regla nueva: referencias y código real primero, nunca parches por síntoma.
