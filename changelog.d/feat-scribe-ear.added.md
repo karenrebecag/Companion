@@ -1,0 +1,1 @@
+- **El oido realtime ya puede escuchar con ElevenLabs (2026-10-19).** Con tu clave de ElevenLabs guardada, la voz en tiempo real transcribe con Scribe v2 en vez de OpenAI, y tu audio viaja solo a api.elevenlabs.io por una conexion cifrada. Sin esa clave sigue el oido de OpenAI si hay clave de OpenAI; si no hay ninguna, el modo realtime queda apagado como antes.

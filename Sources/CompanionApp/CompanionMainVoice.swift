@@ -130,12 +130,14 @@ func makeVoicePipeline(
         thread: sensing.model,
         configProvider: env.configProvider,
         jobs: jobs.jobRunner,
-        // Realtime hears through OpenAI's live transcription (measured
-        // better on mixed-language speech); classic keeps the on-device
-        // ear, which needs no key and no network.
-        realtimeEar: OpenAITranscriber(
-            keyProvider: { try? env.secrets.read(.openAI) ?? nil },
-            // The Settings knob drives the server's VAD (9j-1).
+        // Realtime hears through ElevenLabs Scribe when its key is set (ADR
+        // 014). OpenAI's transcription stays the fallback until gpt-realtime
+        // goes. Classic keeps the on-device ear: no key, no network.
+        realtimeEar: RealtimeEarSelector(
+            elevenLabsKey: { try? env.secrets.read(.elevenLabs) ?? nil },
+            openAIKey: { try? env.secrets.read(.openAI) ?? nil },
+            // The Settings knob drives OpenAI's server VAD (9j-1); Scribe
+            // commits on the model's own turn prediction.
             turnDetection: { env.configProvider.current.voice.turnDetection }),
         memoryStore: env.memoryStore,
         // 16k-3: voice gets the composite — parent tools plus the
