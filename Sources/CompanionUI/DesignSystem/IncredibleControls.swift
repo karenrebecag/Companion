@@ -46,8 +46,8 @@ package enum MenuMetrics {
     package static let duration = MotionTime.base
 }
 
-/// Incredible's switch: black track when on, 16 % black when off, a white
-/// thumb; on dark surfaces a 12 % white track that turns green.
+/// The Arc switch: the accent's control fill when on, the control track when
+/// off, a round white thumb.
 package struct IncredibleSwitch: View {
     let label: String
     @Binding var isOn: Bool
