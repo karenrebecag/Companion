@@ -106,15 +106,22 @@ private let reply = #"{"verdicts":[{"id":"1","effect":"undoable","covered":true}
 
 // MARK: - Route and settings
 
-@Test func judgeRouteAsksOnlyTheProvidersTheUserHas() {
+@Test func judgeRouteAsksOnlyTheProvidersTheUserHasAndOpenAIForRealtime() {
     let confirmed = "qwen-confirmed:7b"
-    expectEq(ActionJudgeRoute.provider(keys: [.cerebras, .openAI], ollamaModel: nil)?.id,
+    let keySets: [Set<SecretKey>] = [[], [.openAI], [.cerebras], [.openAI, .cerebras]]
+    for keys in keySets {
+        for model in [nil, confirmed] {
+            let rt = ActionJudgeRoute.provider(pipeline: .realtime, keys: keys, ollamaModel: model)
+            expectEq(rt?.id, ProviderDescriptor.openAI.id, "judge route: realtime siempre OpenAI")
+        }
+    }
+    expectEq(ActionJudgeRoute.provider(pipeline: .classic, keys: [.cerebras, .openAI], ollamaModel: nil)?.id,
              ProviderDescriptor.cerebras.id, "judge route: classic prefiere Cerebras")
-    expectEq(ActionJudgeRoute.provider(keys: [], ollamaModel: confirmed)?.model, confirmed,
+    expectEq(ActionJudgeRoute.provider(pipeline: .classic, keys: [], ollamaModel: confirmed)?.model, confirmed,
              "judge route: sin claves, el Ollama confirmado")
-    expect(ActionJudgeRoute.provider(keys: [], ollamaModel: nil) == nil,
+    expect(ActionJudgeRoute.provider(pipeline: .classic, keys: [], ollamaModel: nil) == nil,
            "judge route: sin modelo ni claves el juez no corre")
-    expect(ActionJudgeRoute.provider(keys: [], ollamaModel: "  \n") == nil,
+    expect(ActionJudgeRoute.provider(pipeline: .classic, keys: [], ollamaModel: "  \n") == nil,
            "judge route: un modelo en blanco no cuenta")
 }
 

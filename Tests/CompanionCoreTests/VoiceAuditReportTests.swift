@@ -9,6 +9,7 @@ import Testing
 
 @Test func voiceAuditReportTests() {
     testTallyCounts()
+    testGateReasonMapsEachBranch()
     testTurnLineCarriesBothSidesAndCounts()
 }
 
@@ -23,6 +24,24 @@ func testTallyCounts() {
     expectEq(tally.gatedTotal, 3, "tally: cuenta lo filtrado")
     expectEq(tally.gated[.muted], 2, "tally: agrupa por razón")
     expectEq(tally.total, 5, "tally: total = reenviado + filtrado")
+}
+
+func testGateReasonMapsEachBranch() {
+    expectEq(RealtimeGate.reason(muted: false, emptyPCM: true, micEnabled: true,
+                                 state: .listening, echoGuarded: false, aec: true),
+             .empty, "gate: un frame vacío")
+    expectEq(RealtimeGate.reason(muted: true, emptyPCM: false, micEnabled: true,
+                                 state: .listening, echoGuarded: false, aec: true),
+             .muted, "gate: mic silenciado")
+    expectEq(RealtimeGate.reason(muted: false, emptyPCM: false, micEnabled: true,
+                                 state: .listening, echoGuarded: true, aec: true),
+             .echoGuard, "gate: escuchando, protegido del eco propio")
+    expectEq(RealtimeGate.reason(muted: false, emptyPCM: false, micEnabled: true,
+                                 state: .speaking, echoGuarded: false, aec: false),
+             .noAEC, "gate: el agente habla y no hay cancelación de eco")
+    expectEq(RealtimeGate.reason(muted: false, emptyPCM: false, micEnabled: true,
+                                 state: .speaking, echoGuarded: false, aec: true),
+             .backchannel, "gate: hablando con AEC — el gate lo juzgó backchannel")
 }
 
 func testTurnLineCarriesBothSidesAndCounts() {

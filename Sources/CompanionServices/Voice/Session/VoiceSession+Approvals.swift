@@ -13,6 +13,46 @@ struct SheetFront: Sendable, Equatable {
 /// actor-isolated: the actor, not the access level, is what keeps this
 /// state single-threaded.
 extension VoiceSession {
+    /// 16q-1: a remote MCP tool's permission is a sheet, like the parent's
+    /// gates: Allow / Deny, the auto-deny of `ApprovalTiming`, and the
+    /// server hears the answer only once the user gave it. A spoken "yes"
+    /// never approves it (`answerPendingApproval`): Incredible accepts one
+    /// because a judge model checks the word, and Companion has no judge;
+    /// and the model's boolean settles nothing here (20c D2).
+    func noteMCPApproval(_ request: ApprovalRequest) async {
+        // The id is the server's: one already waiting means a repeat or a
+        // forgery. Fail closed: the original is refused (its own flow tells
+        // the server, once) instead of two sheets sharing one answer.
+        if let waiting = pendingMCPApprovals.first(where: { $0.requestId == request.requestId }) {
+            Log.app("voice: duplicate MCP approval id; refusing it")
+            await mcpGuard.withdraw(waiting)
+            return
+        }
+        pendingMCPApprovals.append(request)
+        let decision = await mcpGuard.decide(request)
+        // Dropped with its session (20c D2): the id died with the connection,
+        // so nothing is sent; the sheet only has to let go of it.
+        let live = pendingMCPApprovals.contains { $0.requestId == request.requestId }
+        pendingMCPApprovals.removeAll { $0.requestId == request.requestId }
+        // Answered by a click, the auto-deny or a "no": whichever it was, the
+        // sheet must not keep a request the server already heard about.
+        eventBox.yield(.approvalSettled(requestId: request.requestId))
+        guard live else { return }
+        await realtime.send(RealtimeCodec.mcpApprovalResponse(
+            requestId: request.requestId, approve: decision.approved))
+        await realtime.requestResponse()
+    }
+
+    /// The session ended: its MCP request ids die with the connection, so a
+    /// late click must find nothing to answer, and no sheet may outlive them
+    /// (20c D2). Refused where the sheet's own answer would be, so the one
+    /// decision point still closes each of them once.
+    func dropPendingMCPApprovals() async {
+        let dropped = pendingMCPApprovals
+        pendingMCPApprovals = []
+        for request in dropped { await mcpGuard.withdraw(request) }
+    }
+
     /// The words the user said in the hold that just ended, as the ear heard
     /// them. What a spoken yes is checked against (security M3). Stamped with
     /// the press the hold STARTED with, not the live one: a hold cut by a new
@@ -123,6 +163,13 @@ extension VoiceSession {
         // The ear's awaits ran after the press was armed: the sheet may be
         // another request by now, and this no was not about it.
         guard livePendingApproval?.requestId == requestId else { return }
+        // `answerPendingApproval` answers an MCP request first: this no was
+        // said to the parent's question, so it is spent on neither.
+        guard pendingMCPApprovals.isEmpty else {
+            await jobAnnounce(JobAnnouncement(
+                goal: "", outcome: .needsClick, language: configProvider.current.language))
+            return
+        }
         classic.noteRefusedByVoice(requestId)
         switch await answerPendingApproval(false) {
         case .resolved:
@@ -210,6 +257,27 @@ extension VoiceSession {
     /// pending means the sheet already answered it (or the model invented the
     /// call): resolving anyway would grant a permission nobody asked about.
     func answerPendingApproval(_ approved: Bool) async -> SpokenApproval {
+        // An MCP approval outranks a job approval: it arrived through the
+        // live session the user is answering into. It only exists in
+        // realtime, where `SpokenYes` is always false, so a yes is the
+        // click's and only a no resolves here (16q-1).
+        if let mcp = pendingMCPApprovals.last {
+            guard !approved else {
+                Log.app("voice: MCP approvals need the sheet, not resolve_approval")
+                return .needsClick
+            }
+            // The newest one: the request the model just asked about. Refused
+            // where the sheet's own answer would be: the actor wakes
+            // `noteMCPApproval`, which tells the server and clears the sheet.
+            // Any older one stays on the sheet for its own click.
+            // It is listed before the actor parks it: a "no" in that window
+            // refused nothing, and the model must not say it did.
+            guard await mcpGuard.withdraw(mcp) else {
+                Log.app("voice: spoken no for an MCP request not parked yet; needs the sheet")
+                return .needsClick
+            }
+            return .resolved
+        }
         guard let pending = livePendingApproval else {
             Log.app("voice: approval answered with nothing pending")
             return .nothingPending

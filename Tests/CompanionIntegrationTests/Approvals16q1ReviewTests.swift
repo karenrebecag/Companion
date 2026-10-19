@@ -23,6 +23,10 @@ import CompanionTestKit
     await testANewerRequestTakesTheYesAway()
     await testStopVoiceDuringTheQuestionCutsItAndTheYesNeedsTheClick()
     await testStoppingTheJobDropsItsAnnouncedPermissionAndLeavesBs()
+    await testRealtimeNeverAsksAJobsPermissionAloud()
+    await testTwoMCPRequestsASpokenNoRefusesTheNewest()
+    await testALateClickAfterTheAutoDenyAddsNoSecondAnswer()
+    await testADuplicateMCPIDFailsClosed()
     await testTheApprovalsActorRefusesADuplicateID()
     await testTheSheetsExitsReachTheVoicePort()
     await testEveryBridgeEventCarriesTheJobsID()
@@ -175,6 +179,22 @@ import CompanionTestKit
     await h.session.hangUp()
 }
 
+@MainActor func testRealtimeNeverAsksAJobsPermissionAloud() async {
+    let h = makeVoiceHarness(language: .es)
+    await h.session.start(preferRealtime: true)
+    await pumpUntil("realtime: escuchando") { h.watch.latest.state == .listening }
+    await h.session.noteApproval(q1Req("r1"))
+    await h.session.askApprovalAloud(q1Req("r1"))
+    expect(await h.session.parkedAnnouncements.isEmpty, "realtime: no hay aviso en cola")
+    expect(await h.session.pendingAnnouncements.isEmpty, "realtime: ni instruccion para el modelo")
+    // Realtime's announce path awaits the send itself: nothing is left in flight.
+    expect(!h.transport.sent.contains { $0.contains(Escalation.approvalAskedSpoken(.es)) }, "realtime: nada se dice")
+    expect(h.synth.queue.isEmpty, "realtime: el sintetizador no habla")
+    await h.session.hangUp()
+}
+
+// MARK: - MCP sheet edges
+
 private struct Wire: Equatable {
     let id: String
     let approve: Bool
@@ -190,6 +210,71 @@ private func wire(_ sent: [String]) -> [Wire] {
               let approve = item["approve"] as? Bool else { return nil }
         return Wire(id: id, approve: approve)
     }
+}
+
+private struct MCP {
+    let h: VoiceHarness
+    let model: SessionModel
+    var sent: [Wire] { wire(h.transport.sent) }
+    func ask(_ id: String) { h.transport.yield(.mcpApprovalRequest(id: id, server: "docs", tool: "search", argumentsJSON: "{}")) }
+}
+
+@MainActor private func mcp(timeout: TimeInterval = 60) async -> MCP {
+    let actor = Approvals(clock: RealtimeClock(), timeout: timeout)
+    let model = SessionModel(jobs: nil, approvals: actor)
+    let h = makeVoiceHarness(approvals: actor, session: model)
+    await h.session.start(preferRealtime: true)
+    await pumpUntil("mcp: escuchando") { h.watch.latest.state == .listening }
+    return MCP(h: h, model: model)
+}
+
+/// Fixed on purpose: the spoken no refuses the NEWEST request (the one the
+/// model just asked about); the older one stays on the sheet and takes its
+/// own click.
+@MainActor func testTwoMCPRequestsASpokenNoRefusesTheNewest() async {
+    let rig = await mcp()
+    rig.ask("req9")
+    await pumpUntil("dos: la primera en la hoja") { rig.model.projection.approvalQueue.count == 1 }
+    rig.ask("req10")
+    await pumpUntil("dos: las dos en la hoja") { rig.model.projection.approvalQueue.count == 2 }
+    expectEq(await rig.h.session.answerPendingApproval(false), .resolved, "dos: el no hablado se resuelve")
+    await pumpUntil("dos: se rechaza la nueva") { rig.sent == [Wire(id: "req10", approve: false)] }
+    await pumpUntil("dos: la otra sigue en la hoja") { rig.model.projection.approvalQueue.map(\.requestId) == ["req9"] }
+    rig.model.send(.approvalAnswered(requestId: "req9", approved: false, remember: false))
+    await pumpUntil("dos: y se rechaza con clic") {
+        rig.sent == [Wire(id: "req10", approve: false), Wire(id: "req9", approve: false)]
+    }
+    await rig.h.session.hangUp()
+}
+
+@MainActor func testALateClickAfterTheAutoDenyAddsNoSecondAnswer() async {
+    let rig = await mcp(timeout: 0.15)
+    rig.ask("req9")
+    await pumpUntil("tarde: rechazada por el auto-deny") { rig.sent == [Wire(id: "req9", approve: false)] }
+    await pumpUntil("tarde: la hoja se limpia sola") { rig.model.projection.approval == nil }
+    // The sheet is already empty: the click has nothing to resolve, so the
+    // reducer says nothing to do and nothing can reach the wire later.
+    let late = rig.model.send(.approvalAnswered(requestId: "req9", approved: true, remember: false))
+    expect(late.isEmpty, "tarde: el clic tardio no produce ningun efecto")
+    expectEq(rig.sent, [Wire(id: "req9", approve: false)], "tarde: exactamente una respuesta en el cable")
+    await rig.h.session.hangUp()
+}
+
+@MainActor func testADuplicateMCPIDFailsClosed() async {
+    let rig = await mcp()
+    rig.ask("dup")
+    await pumpUntil("dup: en la hoja") { rig.model.projection.approval?.requestId == "dup" }
+    rig.ask("dup")
+    await pumpUntil("dup: se rechaza cerrado, una sola vez") { rig.sent == [Wire(id: "dup", approve: false)] }
+    await pumpUntil("dup: la hoja se vacia") { rig.model.projection.approval == nil }
+    // A later request goes through the same stream: once it is on the sheet
+    // the duplicate has been handled, and it must not have added an answer.
+    rig.ask("despues")
+    await pumpUntil("dup: la siguiente peticion llega a la hoja") {
+        rig.model.projection.approval?.requestId == "despues"
+    }
+    expectEq(rig.sent, [Wire(id: "dup", approve: false)], "dup: nunca una aprobacion")
+    await rig.h.session.hangUp()
 }
 
 private final class AnswerFlag: @unchecked Sendable {

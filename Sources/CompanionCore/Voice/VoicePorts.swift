@@ -10,6 +10,13 @@ package struct MicFrame: Sendable, Equatable {
     }
 }
 
+package protocol VoiceTransport: Sendable {
+    func open(key: String, url: URL) async throws
+    func send(_ json: String) async throws
+    func events() -> AsyncStream<RealtimeEvent>
+    func close() async
+}
+
 package enum VoiceTransportError: Error, Sendable, Equatable {
     case timeout, unauthorized, closed, unreachable
 }
@@ -68,6 +75,20 @@ package protocol Transcriber: Sendable {
     /// turn logic reads it live to decide when speech has settled, then again
     /// to commit. A snapshot, so there is no single-pass stream to race on.
     var currentText: String { get }
+}
+
+/// What a segmenting ear says about turn boundaries (Wave 9j-1): the server's
+/// VAD knows when the user STARTED speaking and hands each finished utterance
+/// as final text — the client stops guessing with heuristics.
+package enum EarTurnEvent: Sendable, Equatable {
+    case speechStarted
+    case finished(text: String)
+}
+
+/// An ear that detects turn boundaries itself. The session prefers these
+/// events over its local endpointer when the ear provides them.
+package protocol SegmentingTranscriber: Transcriber {
+    var turnEvents: AsyncStream<EarTurnEvent> { get }
 }
 
 /// Wave 15f-5: the instants inside the mouth for the FIRST sentence of a
@@ -130,12 +151,15 @@ package struct VoiceLevels: Sendable, Equatable {
 }
 
 package protocol VoiceControlling: Sendable {
+    /// Applies mid-session; the server accepts speed changes but not voice.
+    func setSpeed(_ speed: Double) async
     /// Playback volume, applied live to the local player.
     func setVolume(_ volume: Double) async
     func start() async
     func advance() async
     func hangUp() async
     func toggleMute() async
+    func push(attachment: AttachmentRef) async
     /// Wave 12b: the hold. Press opens; release sends what was heard;
     /// discard closes without sending; interrupt cuts the agent.
     func hold() async
@@ -155,9 +179,14 @@ package protocol VoiceControlling: Sendable {
     func approvalFront(requestId: String?) async
     var snapshots: AsyncStream<TurnSnapshot> { get }
     var levels: AsyncStream<VoiceLevels> { get }
+    /// The spoken reply, word by word as it is heard (gap 2).
+    var captions: AsyncStream<CaptionSnapshot> { get }
 }
 
 extension VoiceControlling {
+    /// A voice without captions (the classic one, a test fake) shows the
+    /// plain reply: an empty stream is the honest answer, not a missing one.
+    package var captions: AsyncStream<CaptionSnapshot> { AsyncStream { $0.finish() } }
     package func hold() async {}
     package func holdProvisionally() async { await hold() }
     package func confirmHold() async {}
@@ -175,8 +204,8 @@ package protocol ReachabilityProbing: Sendable {
 
 
 /// Plays a short sample so settings can preview a voice. Deliberately separate
-/// from the session: a preview must never touch a live voice or the
-/// microphone graph (see docs/REFERENCE.md, audio section).
+/// from VoiceTransport: a preview must never touch a live realtime session or
+/// the microphone graph (see docs/REFERENCE.md, audio section).
 package protocol VoiceSampling: Sendable {
     func play(_ text: String, voice: VoiceID) async throws
 }

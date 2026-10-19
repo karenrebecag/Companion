@@ -183,16 +183,24 @@ package enum JudgeReplyParser {
 
 // MARK: - Provider route
 
-/// Rule: no new recipient for the turn's words. The judge uses the hold
-/// brain's own chain, in its own order. Ollama takes the model `LocalCatalog`
-/// confirmed at runtime: the static default tag may not be installed, and it 404s.
+/// Rule: no new recipient for the turn's words. Realtime already sent them to
+/// OpenAI; classic uses the hold brain's own chain, in its own order. Ollama
+/// takes the model `LocalCatalog` confirmed at runtime: the static default tag
+/// may not be installed, and it 404s.
 package enum ActionJudgeRoute {
-    package static func provider(keys: Set<SecretKey>, ollamaModel: String?) -> ProviderDescriptor? {
-        if keys.contains(.cerebras) { return .cerebras }
-        if keys.contains(.openAI) { return ProviderDescriptor.openAI.withModel(HoldBrainCatalog.openAIModel) }
-        guard let model = ollamaModel?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty else {
-            return nil
+    package static func provider(pipeline: VoicePipeline, keys: Set<SecretKey>,
+                                ollamaModel: String?) -> ProviderDescriptor? {
+        let openAI = ProviderDescriptor.openAI.withModel(HoldBrainCatalog.openAIModel)
+        switch pipeline {
+        case .realtime:
+            return openAI
+        case .classic:
+            if keys.contains(.cerebras) { return .cerebras }
+            if keys.contains(.openAI) { return openAI }
+            guard let model = ollamaModel?.trimmingCharacters(in: .whitespacesAndNewlines), !model.isEmpty else {
+                return nil
+            }
+            return ProviderDescriptor.ollama.withModel(model)
         }
-        return ProviderDescriptor.ollama.withModel(model)
     }
 }

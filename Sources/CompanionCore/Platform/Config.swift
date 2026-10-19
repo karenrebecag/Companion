@@ -270,8 +270,18 @@ package enum VoiceID: String, Sendable, CaseIterable {
     case marin, cedar, alloy, ash, ballad, coral, echo, sage, shimmer, verse
 }
 
+package enum Eagerness: String, Sendable, CaseIterable {
+    case low, auto, high
+}
+
+package enum TurnDetection: Sendable, Equatable {
+    case serverVAD(silenceMs: Int)
+    case semanticVAD(eagerness: Eagerness)
+}
+
 package struct VoiceSettings: Sendable, Equatable {
     package static let speedRange: ClosedRange<Double> = 0.25 ... 1.5
+    package static let silenceRange: ClosedRange<Double> = 200 ... 1500
 
     package var voice: VoiceID
     package var speed: Double {
@@ -279,6 +289,9 @@ package struct VoiceSettings: Sendable, Equatable {
     }
     package var volume: Double {
         didSet { volume = Self.clamp(volume, 0 ... 1) }
+    }
+    package var turnDetection: TurnDetection {
+        didSet { turnDetection = Self.clamped(turnDetection) }
     }
     package var tone: String
     package var echoCancellation: Bool
@@ -292,6 +305,7 @@ package struct VoiceSettings: Sendable, Equatable {
         voice: VoiceID = .marin,
         speed: Double = 1.0,
         volume: Double = 1.0,
+        turnDetection: TurnDetection = .serverVAD(silenceMs: 700),
         tone: String = "",
         echoCancellation: Bool = true,
         mode: VoiceMode = .automatic,
@@ -300,6 +314,7 @@ package struct VoiceSettings: Sendable, Equatable {
         self.voice = voice
         self.speed = Self.clamp(speed, Self.speedRange)
         self.volume = Self.clamp(volume, 0 ... 1)
+        self.turnDetection = Self.clamped(turnDetection)
         self.tone = tone
         self.echoCancellation = echoCancellation
         self.mode = mode
@@ -310,6 +325,17 @@ package struct VoiceSettings: Sendable, Equatable {
 
     private static func clamp(_ value: Double, _ range: ClosedRange<Double>) -> Double {
         min(range.upperBound, max(range.lowerBound, value))
+    }
+
+    private static func clamped(_ detection: TurnDetection) -> TurnDetection {
+        switch detection {
+        case .serverVAD(let ms):
+            let lo = Int(silenceRange.lowerBound)
+            let hi = Int(silenceRange.upperBound)
+            return .serverVAD(silenceMs: min(hi, max(lo, ms)))
+        case .semanticVAD:
+            return detection
+        }
     }
 }
 

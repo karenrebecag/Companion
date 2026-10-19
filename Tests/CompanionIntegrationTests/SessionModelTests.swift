@@ -21,6 +21,8 @@ import CompanionTestKit
         testTransitionsAreLogged()
         await testChatViewModelProjectsTheJob()
         await testChatDenialOfTheFirstActionStopsThroughTheSession()
+        await testVoiceSessionPublishesJobEvents()
+        await testVoiceSessionPublishesTheParentsHands()
         testTheUIMustNotWriteTheKind()
         await testSwitchingConversationClosesTheTypedTurn()
         await testHoldEffectsReachTheVoicePort()
@@ -236,6 +238,53 @@ private func request(_ id: String) -> ApprovalRequest {
     expect(vm.messages.contains { $0.text == ChatCopy.jobStopped }, "niega: el hilo dice parado")
 }
 
+/// 27a. `VoiceSession.events`: lo que el especialista pide sale por el stream.
+@MainActor func testVoiceSessionPublishesJobEvents() async {
+    let jobs = ApprovingSubmitter()
+    let h = makeVoiceHarness(jobs: jobs)
+    let seen = SessionEventBox(h.session.events)
+    await h.session.start(preferRealtime: true)
+    await pumpUntil("stream: listening") { h.watch.latest.state == .listening }
+    h.transport.yield(.functionCall(
+        name: "delegate", arguments: #"{"goal":"limpiar build"}"#, callId: "c1"))
+    await pumpUntil("stream: el encargo se anuncia") {
+        seen.events.contains { if case .job(.started(let goal), _) = $0 { goal == "limpiar build" } else { false } }
+    }
+    jobs.askApproval(ApprovalRequest(requestId: "r7", toolName: "find_places", summary: "ls", inputJSON: "{}"))
+    await pumpUntil("stream: la petición viaja") {
+        seen.events.contains { if case .job(.approvalRequested(let r), _) = $0 { r.requestId == "r7" } else { false } }
+    }
+    // Review 16h-2 round 3 (HIGH): realtime has no hold to tie a yes to, so
+    // the spoken one asks for the click and never reaches the reducer.
+    await pumpUntilAsync("la sesión vio la hoja") { await h.session.pendingApproval != nil }
+    h.clock.now += ApprovalClickGuard.dwell + 0.1
+    h.transport.yield(.functionCall(
+        name: "resolve_approval", arguments: #"{"approved":true}"#, callId: "c2"))
+    await pumpUntil("stream: el sí hablado recibe su salida") {
+        h.transport.sent.contains { $0.contains("function_call_output") && $0.contains("c2") }
+    }
+    expect(!seen.events.contains { if case .approvalSpoken = $0 { true } else { false } },
+           "stream: en realtime el sí hablado no llega al reductor")
+}
+
+/// 27b. Las manos del padre en voz: `parentActing` / `parentActed` salen
+/// por el mismo stream, con el objetivo.
+@MainActor func testVoiceSessionPublishesTheParentsHands() async {
+    let opener = FakeWorkspaceOpener()
+    let h = makeVoiceHarness(parentTools: ParentToolRunner(workspace: opener))
+    let seen = SessionEventBox(h.session.events)
+    await h.session.start(preferRealtime: true)
+    await pumpUntil("manos: listening") { h.watch.latest.state == .listening }
+    h.transport.yield(.functionCall(
+        name: "open_app", arguments: #"{"name":"Safari"}"#, callId: "c1"))
+    await pumpUntil("manos: acting") {
+        seen.events.contains { if case .parentActing(let t) = $0 { t == ["Safari"] } else { false } }
+    }
+    await pumpUntil("manos: acted") { seen.events.contains { $0 == .parentActed } }
+}
+
+/// 29. La regla de conformidad atrapa una vista que escribe el kind y deja
+/// pasar la asignación de la proyección entera que hace el modelo.
 @MainActor func testTheUIMustNotWriteTheKind() {
     guard let root = Conformance.repoRoot(),
           let contract = try? Conformance.contract(at: root),

@@ -13,7 +13,9 @@ import CompanionTestKit
 
 @Test @MainActor func fanOutTests() async {
     await testHoldWithAKeyWarmsOnce()
+    await testABouncedPressDoesNotWarmAgain()
     await testHoldWithoutAKeyWarmsNothing()
+    await testWarmSendsNoAuthorizationAndNoBody()
     await testARapidSecondPressCancelsTheFirstPressedContext()
 }
 
@@ -53,6 +55,17 @@ import CompanionTestKit
     expect(secrets.reads > 0, "fanout: sí lee la clave (al pulsar, no al boot)")
 }
 
+@MainActor func testABouncedPressDoesNotWarmAgain() async {
+    let (session, synth, _, watch) = makeFanOutSession(key: "sk-test", readyTimeout: 5)
+    await session.hold()
+    await pumpUntil("fanout rebote: listening") { watch.latest.state == .listening }
+    await pumpUntilAsync("fanout rebote: primer warm") { await synth.warmedConnections == 1 }
+    await session.hold()
+    await settle(0.1)
+    expectEq(await synth.warmedConnections, 1, "fanout rebote: no repite warmConnection")
+    expectEq(await synth.prewarmed.count, 1, "fanout rebote: no repite prewarm")
+}
+
 @MainActor func testHoldWithoutAKeyWarmsNothing() async {
     let (session, synth, _, watch) = makeFanOutSession(key: nil)
     await session.hold()
@@ -61,6 +74,22 @@ import CompanionTestKit
     expectEq(await synth.warmedConnections, 0, "fanout sin clave: sin warmConnection")
     expect(await synth.prewarmed.isEmpty, "fanout sin clave: sin prewarm")
 }
+
+@MainActor func testWarmSendsNoAuthorizationAndNoBody() async {
+    let transport = ScriptedTransport()
+    transport.stub(url: "https://api.openai.com/v1/models", ScriptedReply(status: 200))
+    let secrets = ScriptedSecrets([.openAI: "sk-test"])
+    let client = OpenAITTSClient(secrets: secrets, transport: transport, language: .es)
+    await client.warm()
+    let request = transport.requests.last
+    expectEq(request?.url?.absoluteString, "https://api.openai.com/v1/models", "warm: endpoint")
+    expectEq(request?.httpMethod, "GET", "warm: GET")
+    expect(request?.value(forHTTPHeaderField: "Authorization") == nil, "warm: sin Authorization")
+    expect(request?.httpBody == nil, "warm: sin cuerpo")
+    expectEq(secrets.reads, 0, "warm: nunca toca el llavero")
+}
+
+// MARK: - Harness
 
 private struct AlwaysOnline: ReachabilityProbing {
     var isOnline: Bool { get async { true } }
@@ -90,8 +119,10 @@ final class RecordingWarmSynth: SpeechSynthesizer, @unchecked Sendable {
 }
 
 @MainActor func makeFanOutSession(
-    key: String?
+    key: String?, readyTimeout: TimeInterval = harnessReadyTimeout
 ) -> (VoiceSession, RecordingWarmSynth, ScriptedSecrets, SnapWatch) {
+    let transport = ScriptedVoiceTransport()
+    transport.autoEvents = [.sessionCreated, .sessionUpdated]
     let mic = ScriptedMic()
     let player = ScriptedPlayer()
     let transcriber = ScriptedTranscriber()
@@ -103,9 +134,10 @@ final class RecordingWarmSynth: SpeechSynthesizer, @unchecked Sendable {
     let thread = ScriptedThread()
     let provider = StaticConfigProvider(Config(ownerFirstName: "Karen", language: .en))
     let session = VoiceSession(
-        mic: mic, player: player, transcriber: transcriber,
+        transport: transport, mic: mic, player: player, transcriber: transcriber,
         synthesizer: synth, chat: chat, secrets: secrets, thread: thread,
-        configProvider: provider, reachability: AlwaysOnline())
+        configProvider: provider, reachability: AlwaysOnline(),
+        echoFreeProbe: { false }, readyTimeout: readyTimeout)
     let watch = SnapWatch(session.snapshots)
     return (session, synth, secrets, watch)
 }

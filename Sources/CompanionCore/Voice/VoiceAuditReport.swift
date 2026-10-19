@@ -28,6 +28,23 @@ package struct FrameTally: Sendable, Equatable {
     package var total: Int { forwarded + gatedTotal }
 }
 
+/// Read-only classifier that names the gate a frame hit, WITHOUT the stateful
+/// backchannel RMS check `shouldForward` owns — the audit must never mutate the
+/// path it watches. Only called for frames the path already gated, so the
+/// forwarded branches here are unreachable and collapse to `.empty`.
+package enum RealtimeGate {
+    package static func reason(
+        muted: Bool, emptyPCM: Bool, micEnabled: Bool,
+        state: TurnState, echoGuarded: Bool, aec: Bool
+    ) -> GateReason {
+        if emptyPCM { return .empty }
+        if !micEnabled || muted { return .muted }
+        if state != .speaking { return echoGuarded ? .echoGuard : .empty }
+        if !aec { return .noAEC }
+        return .backchannel
+    }
+}
+
 /// Turns one turn's evidence into log lines. Pure: no audio, no I/O — just the
 /// native ground truth, what OpenAI transcribed and the frame counts.
 package enum VoiceAuditReport {

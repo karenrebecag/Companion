@@ -34,6 +34,7 @@ import Testing
         testApprovalDetailRepairsWhatItShows()
         await testSwitchingConversationDropsTheGate()
         await testTwoPendingRequestsAnswerInOrder()
+        await testContextTravelsOnlyInTheCurrentTurn()
         await testContextChannelsOffStillCarriesSource()
         await testContextNeverPersists()
         await testMemoryTurnsCarryRawTextOnly()
@@ -645,6 +646,41 @@ private func openSafari(_ id: String = "c1", variant: Int = 0) -> ChatDelta {
 }
 
 // MARK: - Wave 10a: el turno lleva contexto
+
+/// El bloque completo va solo en el ÚLTIMO turno del request; los anteriores
+/// llevan la línea compacta. El hilo en pantalla no cambia.
+@MainActor func testContextTravelsOnlyInTheCurrentTurn() async {
+    let sensor = FakeContextSensor(TurnContext(
+        source: .typed, focusedApp: "Safari", openDocuments: ["~/Desktop/notas.md"],
+        clipboard: ClipboardSummary(kind: .text, preview: "SECRET")))
+    let chat = FakeChatProvider(replies: [.success([.text("ok")]), .success([.text("ok2")])])
+    let vm = primed(chat: chat, sensor: sensor)
+    vm.draft = "resume esto"
+    vm.send()
+    await pumpUntil("ctx: idle 1") { !vm.busy }
+    let first = chat.histories[0]
+    expect(first.last?.role == .user, "ctx: el último turno es el usuario")
+    expect(first.last?.content.contains("<context source=\"typed\"") == true, "ctx: bloque completo")
+    expect(first.last?.content.contains("<focused_app>Safari</focused_app>") == true, "ctx: la app viaja")
+    expect(first.last?.content.hasSuffix("\n\nresume esto") == true, "ctx: el texto va al final")
+    expectEq(vm.messages.last { $0.role == .user }?.text, "resume esto", "ctx: el hilo muestra lo dicho")
+    expect(vm.messages.last { $0.role == .user }?.recall?.content.hasPrefix("[typed · Safari · 1 docs · clipboard]") == true,
+           "ctx: la memoria guarda la compacta")
+    expectEq(sensor.calls.first?.channels, ContextChannels.default, "ctx: canales de config")
+
+    vm.draft = "y ahora"
+    vm.send()
+    await pumpUntil("ctx: idle 2") { !vm.busy }
+    let second = chat.histories[1]
+    let users = second.filter { $0.role == .user }
+    expectEq(users.count, 2, "ctx: dos turnos de usuario")
+    expect(users[0].content.hasPrefix("[typed · Safari") && !users[0].content.contains("<context"),
+           "ctx: el anterior lleva solo la compacta")
+    expect(users[1].content.contains("<context") && users[1].content.hasSuffix("y ahora"),
+           "ctx: el actual lleva el bloque")
+    expect(RealtimeCodec.seed(from: vm.historyForTests())?.contains("<context") == false,
+           "ctx: el seed realtime no se llena de XML")
+}
 
 @MainActor func testContextChannelsOffStillCarriesSource() async {
     let sensor = FakeContextSensor(TurnContext(source: .typed))

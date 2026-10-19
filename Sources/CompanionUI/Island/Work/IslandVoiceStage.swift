@@ -31,9 +31,7 @@ struct IslandVoiceStage: View {
                 .foregroundStyle(IslandInk.text)
                 .frame(width: IslandVoiceStageMetrics.mark, height: IslandVoiceStageMetrics.mark)
                 .accessibilityHidden(true)
-            if !text.isEmpty {
-                IslandReply(text: text, startedAt: startedAt, speaking: true, look: .transcript)
-            }
+            IslandLiveReply(voice: voice, text: text, startedAt: startedAt, speaking: true, look: .transcript)
             if !visuals.cards.isEmpty || !visuals.blocks.isEmpty {
                 IslandInlineVisuals(cards: visuals.cards, blocks: visuals.blocks,
                                     width: IslandGrid.openColumn, room: IslandFit.tallRoom)

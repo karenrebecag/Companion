@@ -17,6 +17,11 @@ import CompanionTestKit
 // auto-deny (ApprovalTiming) sin que la voz lo mencione.
 
 @Test @MainActor func voiceApprovalTests() async {
+    testApprovalToolIsDeclared()
+    await testApprovalNeverReachesTheEar()
+    await testARealtimeYesNeverReachesTheJob()
+    await testMalformedDecisionResolvesNothing()
+    await testNoVoiceSessionMeansNoAnnouncement()
     await testSpokenYesNeverApprovesAnAppWrite()
     await testASpokenNoRefusesAnAppWrite()
 }
@@ -45,6 +50,153 @@ import CompanionTestKit
     let resolved = await h.session.answerPendingApproval(true)
     expectEq(resolved, .needsClick, "app write: el si hablado no lo resuelve; pide el clic")
 }
+
+/// 1. Sin la tool declarada el modelo no puede contestar aunque quiera.
+@MainActor func testApprovalToolIsDeclared() {
+    let runtime = RealtimeRuntime(
+        transport: ScriptedVoiceTransport(), player: ScriptedPlayer(),
+        thread: ScriptedThread())
+    let config = Config(ownerFirstName: "Karen")
+
+    runtime.prepareSessionUpdate(config: config, history: [], canDelegate: true)
+    let withJobs = runtime.pendingUpdate ?? ""
+    expect(withJobs.contains("\"delegate\""),
+           "tools: delegate sigue declarada")
+    expect(withJobs.contains("\"resolve_approval\""),
+           "tools: resolve_approval viaja en el session.update")
+
+    runtime.reset()
+    runtime.prepareSessionUpdate(config: config, history: [], canDelegate: false)
+    let without = runtime.pendingUpdate ?? ""
+    expect(!without.contains("resolve_approval"),
+           "tools: sin especialista no se ofrece resolver permisos")
+}
+
+/// 2. La solicitud no suena. El encargo no interrumpe: la hoja la muestra y
+/// ahí se queda.
+@MainActor func testApprovalNeverReachesTheEar() async {
+    let jobs = ApprovingSubmitter()
+    let h = makeVoiceHarness(jobs: jobs)
+    await h.session.start(preferRealtime: true)
+    await pumpUntil("permiso: listening") { h.watch.latest.state == .listening }
+
+    h.transport.yield(.functionCall(
+        name: "delegate", arguments: #"{"goal":"limpiar build"}"#, callId: "c1"))
+    await pumpUntil("permiso: encargo aceptado") {
+        h.transport.sent.contains { $0.contains("function_call_output") }
+    }
+    jobs.askApproval(ApprovalRequest(
+        requestId: "r1", toolName: "bash", summary: "borrar la carpeta build",
+        inputJSON: #"{"command":"rm -rf build"}"#))
+
+    // Vuelve a escuchar: el momento en el que ANTES salía el anuncio.
+    h.transport.yield(.responseDone)
+    await pumpUntil("permiso: la sesión vuelve a escuchar") {
+        h.watch.latest.state == .listening
+    }
+    try? await Task.sleep(for: .milliseconds(80))
+    expect(!h.transport.sent.contains { $0.contains("borrar la carpeta build") },
+           "permiso: no se pregunta en voz alta; la hoja es el único canal")
+}
+
+/// 3. Review 16h-2 round 3 (HIGH): en realtime no hay hold al que atar un
+/// sí, y `resolve_approval` lo llama el MODELO. El sí hablado no llega al
+/// encargo; la salida del tool pide el clic de la hoja.
+@MainActor func testARealtimeYesNeverReachesTheJob() async {
+    let jobs = ApprovingSubmitter()
+    let sessionModel = SessionModel(jobs: jobs, approvals: nil)
+    let h = makeVoiceHarness(jobs: jobs, session: sessionModel)
+    await h.session.start(preferRealtime: true)
+    await pumpUntil("concede: listening") { h.watch.latest.state == .listening }
+
+    h.transport.yield(.functionCall(
+        name: "delegate", arguments: #"{"goal":"limpiar build"}"#, callId: "c1"))
+    await pumpUntil("concede: encargo aceptado") {
+        h.transport.sent.contains { $0.contains("function_call_output") }
+    }
+    jobs.askApproval(ApprovalRequest(
+        requestId: "r7", toolName: "find_places", summary: "cines cerca",
+        inputJSON: "{}"))
+    h.transport.yield(.responseDone)
+    await pumpUntil("concede: la hoja tiene la petición") {
+        sessionModel.projection.approval?.requestId == "r7"
+    }
+    await pumpUntilAsync("la sesión vio la hoja") { await h.session.pendingApproval != nil }
+    h.clock.now += ApprovalClickGuard.dwell + 0.1
+    h.transport.yield(.functionCall(
+        name: "resolve_approval", arguments: #"{"approved":true}"#,
+        callId: "c2"))
+    await pumpUntil("concede: se acusa el tool call") {
+        h.transport.sent.contains { $0.contains("function_call_output") && $0.contains("c2") }
+    }
+    let output = h.transport.sent.last { $0.contains("c2") } ?? ""
+    expect(output.contains("clic") || output.contains("click"),
+           "realtime: la salida pide el clic (\(output))")
+    expect(jobs.resolutions.isEmpty, "realtime: el sí hablado no llega al encargo")
+    expectEq(sessionModel.projection.approval?.requestId, "r7", "realtime: la hoja sigue esperando")
+}
+
+/// 4. Un JSON roto no concede ni deniega: la solicitud sigue viva.
+@MainActor func testMalformedDecisionResolvesNothing() async {
+    let jobs = ApprovingSubmitter()
+    let sessionModel = SessionModel(jobs: jobs, approvals: nil)
+    let h = makeVoiceHarness(jobs: jobs, session: sessionModel)
+    await h.session.start(preferRealtime: true)
+    await pumpUntil("roto: listening") { h.watch.latest.state == .listening }
+
+    h.transport.yield(.functionCall(
+        name: "delegate", arguments: #"{"goal":"algo"}"#, callId: "c1"))
+    await pumpUntil("roto: encargo aceptado") {
+        h.transport.sent.contains { $0.contains("function_call_output") }
+    }
+    jobs.askApproval(ApprovalRequest(
+        requestId: "r9", toolName: "find_places", summary: "algo delicado",
+        inputJSON: "{}"))
+    h.transport.yield(.responseDone)
+    await pumpUntil("roto: vuelve a escuchar") {
+        h.watch.latest.state == .listening
+    }
+    await pumpUntil("roto: la hoja tiene la petición") {
+        sessionModel.projection.approval?.requestId == "r9"
+    }
+
+    // 16h-2 (security M1): a spoken yes reaches only a sheet that has been
+    // on screen for the click guard's dwell; the test clock has to get there.
+    await pumpUntilAsync("la sesión vio la hoja") { await h.session.pendingApproval != nil }
+    h.clock.now += ApprovalClickGuard.dwell + 0.1
+    // Truncado por el servidor, y el clásico "1" que NO es un booleano.
+    h.transport.yield(.functionCall(
+        name: "resolve_approval", arguments: #"{"approv"#, callId: "c2"))
+    h.transport.yield(.functionCall(
+        name: "resolve_approval", arguments: #"{"approved":1}"#, callId: "c3"))
+    try? await Task.sleep(for: .milliseconds(80))
+    expect(jobs.resolutions.isEmpty,
+           "roto: un argumento que no es booleano no resuelve nada")
+
+    // Y la solicitud sigue viva: la negativa buena sí entra. Negar es la
+    // dirección segura; solo el sí hablado necesita el clic.
+    h.transport.yield(.functionCall(
+        name: "resolve_approval", arguments: #"{"approved":false}"#,
+        callId: "c4"))
+    await pumpUntil("roto: la negativa buena sí resuelve") {
+        jobs.resolutions.contains { $0 == ApprovalVerdict(id: "r9", approved: false) }
+    }
+}
+
+/// 5. Sin sesión de voz viva tampoco cambia nada: solo el hilo.
+@MainActor func testNoVoiceSessionMeansNoAnnouncement() async {
+    let jobs = ApprovingSubmitter()
+    let h = makeVoiceHarness(jobs: jobs)
+    // Sin start(): la sesión está en idle, no hay a quién hablarle.
+    await h.session.noteApproval(ApprovalRequest(
+        requestId: "r1", toolName: "bash", summary: "borrar algo",
+        inputJSON: "{}"))
+    try? await Task.sleep(for: .milliseconds(50))
+    expect(h.transport.sent.isEmpty,
+           "sin voz: nada se manda al servidor, el sheet ya lo muestra")
+}
+
+// MARK: - Fakes
 
 struct ApprovalVerdict: Equatable, Sendable {
     let id: String

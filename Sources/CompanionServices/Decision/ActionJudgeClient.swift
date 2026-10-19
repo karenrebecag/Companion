@@ -28,7 +28,7 @@ package struct ActionJudgeClient: ActionJudging {
         let unjudged = [JudgeOpinion?](repeating: nil, count: request.candidates.count)
         guard settings.enabled,
               let provider = ActionJudgeRoute.provider(
-                  keys: configuredKeys(), ollamaModel: ollamaModel())
+                  pipeline: .classic, keys: configuredKeys(), ollamaModel: ollamaModel())
         else { return unjudged }
         return await deadline(settings.timeout) { await self.ask(request, provider: provider) } ?? unjudged
     }

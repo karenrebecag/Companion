@@ -17,6 +17,21 @@ import Testing
     }
 }
 
+package final class FakeTransport: VoiceTransport, @unchecked Sendable {
+    package init() {}
+    package var key: String?, url: URL?, sent: [String] = [], closed = false
+    package var openError: VoiceTransportError?, sendError: VoiceTransportError?
+    private let box = StreamBox<RealtimeEvent>()
+    package func open(key: String, url: URL) async throws {
+        if let openError { throw openError }
+        (self.key, self.url) = (key, url)
+    }
+    package func send(_ json: String) async throws { if let sendError { throw sendError }; sent.append(json) }
+    package func events() -> AsyncStream<RealtimeEvent> { box.stream }
+    package func close() async { closed = true; box.finish() }
+    package func yield(_ event: RealtimeEvent) { box.yield(event) }
+}
+
 package final class FakeMic: MicCapturing, @unchecked Sendable {
     package init() {}
     package var granted = true, started = false, stopped = false, vpDisabled = false
@@ -98,6 +113,8 @@ package final class FakeSpeech: SpeechSynthesizer, @unchecked Sendable {
 
 package final class FakeVoice: VoiceControlling, @unchecked Sendable {
     package init() {}
+    package private(set) var speeds: [Double] = []
+    package func setSpeed(_ speed: Double) async { speeds.append(speed) }
     package func setVolume(_ volume: Double) async {}
 
     package var started = false, advanced = false, hungUp = false, muted = false
@@ -105,14 +122,19 @@ package final class FakeVoice: VoiceControlling, @unchecked Sendable {
     private let levelBox = StreamBox<VoiceLevels>()
     package var snapshots: AsyncStream<TurnSnapshot> { snapBox.stream }
     package var levels: AsyncStream<VoiceLevels> { levelBox.stream }
+    private let captionBox = StreamBox<CaptionSnapshot>()
+    package var captions: AsyncStream<CaptionSnapshot> { captionBox.stream }
     package func start() async { started = true }
     package func advance() async { advanced = true }
     package func hangUp() async { hungUp = true; snapBox.finish(); levelBox.finish() }
     package func toggleMute() async { muted.toggle() }
+    package func push(attachment: AttachmentRef) async { pushed.append(attachment) }
     package func approvalClosed(requestId: String) async {}
     package func approvalFront(requestId: String?) async {}
+    package var pushed: [AttachmentRef] = []
     package func yieldSnapshot(_ snapshot: TurnSnapshot) { snapBox.yield(snapshot) }
     package func yieldLevels(_ value: VoiceLevels) { levelBox.yield(value) }
+    package func yieldCaption(_ value: CaptionSnapshot) { captionBox.yield(value) }
 }
 
 package final class FakePresenter: ConversationPresenting, @unchecked Sendable {

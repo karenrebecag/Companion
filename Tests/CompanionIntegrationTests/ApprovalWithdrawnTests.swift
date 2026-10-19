@@ -24,3 +24,160 @@ private let openCall = ToolCallRef(
     h.transcriber.stoppedText = "abre la página"
     return (h, tools)
 }
+
+@Suite struct ApprovalWithdrawn {
+    @Test @MainActor func aWithdrawnSheetLeavesTheQueueAndTheIslandSaysWhy() {
+        var machine = SessionMachine()
+        _ = machine.handle(.job(.approvalRequested(parked)))
+        let effects = machine.handle(.approvalWithdrawn(requestId: "r1"))
+        #expect(machine.projection.approvalQueue.isEmpty, "the card stayed after its turn was cut")
+        #expect(!effects.contains { if case .resolveApproval = $0 { true } else { false } },
+                "the actor already ended the wait; resolving again answers nothing")
+        #expect(machine.projection.notice == .approvalWithdrawn)
+        #expect(effects.contains(.scheduleNoticeExpiry(SessionMachine.noticeDelay)))
+        #expect(IslandNotice.content(for: .approvalWithdrawn) != nil)
+        _ = machine.handle(.noticeExpired(.approvalWithdrawn))
+        #expect(machine.projection.notice == nil)
+    }
+
+    @Test @MainActor func aWithdrawalForACardAlreadyAnsweredExplainsNothing() {
+        var machine = SessionMachine()
+        let effects = machine.handle(.approvalWithdrawn(requestId: "gone"))
+        #expect(effects.isEmpty)
+        #expect(machine.projection.notice == nil, "a notice about a card the user never saw leave")
+    }
+
+    @Test @MainActor func aWithdrawalNeverCoversANoticeTheUserMustActOn() {
+        var machine = SessionMachine()
+        _ = machine.handle(.pressed)
+        _ = machine.handle(.released)
+        _ = machine.handle(.dictationFailed(.needsAccessibility))
+        _ = machine.handle(.job(.approvalRequested(parked)))
+        _ = machine.handle(.approvalWithdrawn(requestId: "r1"))
+        #expect(machine.projection.approvalQueue.isEmpty, "the card still goes")
+        #expect(machine.projection.notice == .permission(.accessibilityDenied), "the permission stays up")
+    }
+
+    @Test @MainActor func theWithdrawnCopyIsRealAndTranslated() {
+        for key in ["island.approvalWithdrawn.title", "island.approvalWithdrawn.body"] {
+            for language in [AppLanguage.en, .es] {
+                let text = Localized.string(key, language: language)
+                #expect(!text.isEmpty && text != key, "\(key) \(language) does not resolve")
+            }
+        }
+    }
+
+    @Test @MainActor func aStopWhileTheSheetWaitsActsOnNothingAndWithdrawsTheCard() async {
+        let approvals = ScriptedApprovals(park: true)
+        let (h, tools) = sheetRig(approvals: approvals)
+        let seen = SessionEventBox(h.session.events)
+        await h.session.hold()
+        await pumpUntil("listening") { h.watch.latest.state == .listening }
+        await h.session.release()
+        await pumpUntilAsync("the sheet is up") { !approvals.requests.isEmpty }
+
+        await h.session.interrupt()
+        _ = await approvals.resolve(requestId: "r1", approved: true)
+        await h.session.awaitClassicTurn()
+
+        #expect(tools.executeCalls.isEmpty, "the late yes acted for the stopped turn")
+        await pumpUntilAsync("the card is withdrawn") {
+            seen.events.contains(.approvalWithdrawn(requestId: "r1"))
+        }
+    }
+
+    // The other side of the settle: a yes with nobody cut acts and closes the
+    // card quietly. An "I stopped" notice here would be a lie.
+    @Test @MainActor func aYesWithNobodyCutActsAndSettlesTheCardWithoutANotice() async {
+        let approvals = ScriptedApprovals(park: true)
+        let (h, tools) = sheetRig(approvals: approvals)
+        let seen = SessionEventBox(h.session.events)
+        await h.session.hold()
+        await pumpUntil("listening") { h.watch.latest.state == .listening }
+        await h.session.release()
+        await pumpUntilAsync("the sheet is up") { !approvals.requests.isEmpty }
+
+        _ = await approvals.resolve(requestId: "r1", approved: true)
+        await h.session.awaitClassicTurn()
+
+        #expect(tools.executeCalls.count == 1)
+        await pumpUntilAsync("the card settles") {
+            seen.events.contains(.approvalSettled(requestId: "r1"))
+        }
+        #expect(!seen.events.contains(.approvalWithdrawn(requestId: "r1")))
+    }
+
+    // Closing the session cancels the event loop, and the runtime hands that
+    // cancel on to the call waiting on its sheet. Barge-ins are in
+    // RealtimeBargeInWithdrawsTests.
+    @Test @MainActor func closingRealtimeWhileTheSheetWaitsActsOnNothingAndWithdrawsTheCard() async {
+        let approvals = ScriptedApprovals(park: true)
+        let tools = FakeParentTools(handledNames: ["open_url"])
+        tools.setScriptedApproval(parked)
+        let h = makeVoiceHarness(parentTools: tools, approvals: approvals)
+        let seen = SessionEventBox(h.session.events)
+        await h.session.start(preferRealtime: true)
+        await pumpUntil("listening") { h.watch.latest.state == .listening }
+        h.transport.yield(.functionCall(name: "open_url", arguments: openCall.arguments, callId: "c1"))
+        await pumpUntilAsync("the sheet is up") { !approvals.requests.isEmpty }
+
+        await h.session.hangUp()
+        _ = await approvals.resolve(requestId: "r1", approved: true)
+
+        await pumpUntilAsync("the card is withdrawn") {
+            seen.events.contains(.approvalWithdrawn(requestId: "r1"))
+        }
+        #expect(tools.executeCalls.isEmpty, "the late yes acted for a closed session")
+    }
+
+    // Q1, Karen's D1 (a): a spoken "sí" to an announced parent sheet in
+    // classic approves nothing and cuts nothing. The voice says the click is
+    // needed and the sheet stays, waiting for it. Real actor, so a cut would
+    // end the wait and show here as a sheet no longer parked.
+    @Test @MainActor func aSpokenYesToAnAnnouncedParentSheetAsksForTheClickAndKeepsIt() async {
+        let approvals = Approvals(clock: RealtimeClock())
+        let (h, tools) = sheetRig(approvals: approvals)
+        let seen = SessionEventBox(h.session.events)
+        let classic = await h.session.classic
+        classic.slowToolWait = {
+            do { try await Task.sleep(for: .seconds(600)) } catch {}
+        }
+        await h.session.hold()
+        await pumpUntil("listening") { h.watch.latest.state == .listening }
+        await h.session.release()
+        let question = Escalation.approvalAskedSpoken(.es)
+        await pumpUntil("the voice asks") { h.synth.queue.contains(question) }
+        h.synth.yield(.finished)
+        await pumpUntilAsync("the question counts as said") {
+            await h.session.pendingApprovalSeen?.announcedAt != nil
+        }
+
+        h.clock.now += 1
+        h.transcriber.stoppedText = "sí"
+        await h.session.hold()
+        await pumpUntil("listening for the answer") { h.watch.latest.state == .listening }
+        await h.session.release()
+        let needsClick = Escalation.approvalNeedsClickSpoken(.es)
+        await pumpUntil("the voice asks for the click") { h.synth.queue.contains(needsClick) }
+
+        #expect(tools.executeCalls.isEmpty, "a spoken yes opened the page")
+        #expect(!seen.events.contains(.approvalWithdrawn(requestId: "r1")), "the yes cut the turn")
+        #expect(!seen.events.contains(.approvalSpoken(requestId: "r1", approved: true)))
+        #expect(h.watch.latest.sheetParked, "the turn still waits for the click")
+        let stillParked = await approvals.resolve(requestId: "r1", approved: false)
+        #expect(stillParked, "the yes ended the wait instead of leaving it to the click")
+        await h.session.awaitClassicTurn()
+    }
+
+    @Test func theRealActorDeniesAWaitWhoseCallerWasCancelled() async {
+        let approvals = Approvals(clock: RealtimeClock())
+        let waiting = Task { await approvals.request(parked) }
+        // Either road is a denial: parked, the cancel handler resolves it;
+        // not parked yet, the entry check refuses it. The pause only makes
+        // the first road the likely one.
+        do { try await Task.sleep(for: .milliseconds(50)) } catch {}
+        waiting.cancel()
+        let response = await waiting.value
+        #expect(!response.approved)
+    }
+}

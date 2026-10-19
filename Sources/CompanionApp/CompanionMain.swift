@@ -310,11 +310,13 @@ final class VoicePortBox: VoiceControlling, @unchecked Sendable {
     /// so a later FN press never inherits a stale dictation intent.
     var dictatesNextHold = false
 
+    func setSpeed(_ speed: Double) async { await session?.setSpeed(speed) }
     func setVolume(_ volume: Double) async { await session?.setVolume(volume) }
     func start() async { await session?.start() }
     func advance() async { await session?.advance() }
     func hangUp() async { await session?.hangUp() }
     func toggleMute() async { await session?.toggleMute() }
+    func push(attachment: AttachmentRef) async { await session?.push(attachment: attachment) }
     func hold() async {
         let dictate = dictatesNextHold
         dictatesNextHold = false
@@ -333,4 +335,5 @@ final class VoicePortBox: VoiceControlling, @unchecked Sendable {
     func approvalFront(requestId: String?) async { await session?.approvalFront(requestId: requestId) }
     var snapshots: AsyncStream<TurnSnapshot> { session?.snapshots ?? AsyncStream { $0.finish() } }
     var levels: AsyncStream<VoiceLevels> { session?.levels ?? AsyncStream { $0.finish() } }
+    var captions: AsyncStream<CaptionSnapshot> { session?.captions ?? AsyncStream { $0.finish() } }
 }
