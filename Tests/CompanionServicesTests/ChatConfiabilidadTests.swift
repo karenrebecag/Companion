@@ -61,9 +61,13 @@ import Testing
 }
 
 @Test func aTurnWithoutTextSaysWhatItTried() {
-    let es = ParentToolCopy.noAnswer(tried: ["list_apps", "list_apps"], .es)
-    expect(es.contains("list_apps") && !es.contains("list_apps, list_apps"), "dice qué probó, sin repetir")
-    expect(!ParentToolCopy.noAnswer(tried: [], .en).isEmpty, "nunca vacío")
+    let attempts = ["Listé las apps.", "Listé las apps.", "Navegador: Menú o lista no encontrada."]
+    let es = ParentToolCopy.noAnswer(attempts: attempts, .es)
+    expect(es.contains("listé las apps; navegador: Menú o lista no encontrada"), "dice qué probó, en palabras, sin repetir")
+    expect(!es.contains("list_apps") && !es.contains("browser_"), "sin nombres de tools crudos")
+    let en = ParentToolCopy.noAnswer(attempts: ["Listed the browser tabs."], .en)
+    expect(en.contains("listed the browser tabs") && !en.contains("list_apps"), "en: mismo criterio")
+    expect(!ParentToolCopy.noAnswer(attempts: [], .en).isEmpty, "nunca vacío")
 }
 
 @Test func aClearPortugueseReplyIsNotLabelledSpanish() {

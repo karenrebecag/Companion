@@ -9,8 +9,8 @@ struct ChatTurnsTests {
     private func answer(_ turn: AIChatTurn) -> AIChatAnswer? { turn.answer }
 
     /// A preface, the parent's tool call, its result line and the reply are
-    /// one answer: the call becomes a chip named by its result.
-    @Test func toolCallAndResultBecomeOneChip() {
+    /// one answer: the call becomes one step of its run, named by its result.
+    @Test func toolCallAndResultBecomeOneStep() {
         let call = ToolCallRef(id: "c1", name: "open_app", arguments: #"{"name":"Safari"}"#)
         let messages = [
             ChatMessage(role: .user, text: "Abre Safari"),
@@ -25,9 +25,29 @@ struct ChatTurnsTests {
         let reply = try? #require(turns.last?.answer)
         #expect(reply?.text == "Listo, Safari está abierto.")
         #expect(reply?.status == .done)
-        #expect(reply?.tools.map(\.id) == ["c1"])
-        #expect(reply?.tools.first?.status == .done)
-        #expect(reply?.tools.first?.done == "Abrí Safari.")
+        #expect(reply?.tools.isEmpty == true, "tool calls are the run's steps, not chips")
+        #expect(reply?.run?.steps.map(\.status) == [.done])
+        #expect(reply?.run?.steps.first?.title == "Abrí Safari.")
+        #expect(reply?.run?.worked == Localized.string("chat.run.failures.none"))
+    }
+
+    /// A tool result the app marked failed is a failed step, never a done
+    /// one: a green check under "Navegador: ..." told the user it had worked.
+    @Test func failedToolResultIsAFailedStep() {
+        let call = ToolCallRef(id: "c1", name: "browser_type", arguments: "{}")
+        let messages = [
+            ChatMessage(role: .user, text: "Escribe en la página"),
+            ChatMessage(isStatus: true, text: "Escribiendo…",
+                        recall: Recall(role: .assistant, content: "", toolCalls: [call])),
+            ChatMessage(isStatus: true, text: "Navegador: La llamada tenía argumentos inválidos.",
+                        recall: Recall(role: .tool, content: "invalid", toolCallID: "c1"), stepFailed: true),
+            ChatMessage(role: .assistant, text: "No pude escribir."),
+        ]
+        let run = ChatTurns.thread(messages).turns.last?.answer?.run
+        #expect(run?.steps.map(\.status) == [.failed])
+        #expect(run?.steps.first?.title == "Navegador: La llamada tenía argumentos inválidos.")
+        #expect(run?.phase == .failed, "a run with a failed step is not drawn with the done check")
+        #expect(run?.worked == Localized.string("chat.run.failures.one"))
     }
 
     /// The reply's "Fuentes" list leaves the prose and becomes citations.
@@ -68,7 +88,7 @@ struct ChatTurnsTests {
         #expect(reply?.thoughtFor == 3)
         #expect(reply?.tools.isEmpty == true, "the specialist's steps are the run, not chips")
         #expect(reply?.run?.phase == .running)
-        #expect(reply?.run?.worked == "5s")
+        #expect(reply?.run?.worked == String(format: Localized.string("chat.run.worked"), "5s"))
         #expect(reply?.run?.steps.map(\.status) == [.active], "thoughts and bookkeeping stay off the rail")
         let words = ChatTurns.thread(
             [ChatMessage(role: .user, text: "Vuelos")],
@@ -101,7 +121,7 @@ struct ChatTurnsTests {
         }
         let done = reply(.done)
         #expect(done?.run?.phase == .done)
-        #expect(done?.run?.worked == "9s")
+        #expect(done?.run?.worked == String(format: Localized.string("chat.run.worked"), "9s"))
         #expect(done?.run?.steps.map(\.status) == [.done, .done])
         #expect(done?.run?.steps.map(\.duration) == ["4s", "5s"])
         let stopped = reply(.stopped)
@@ -132,8 +152,8 @@ struct ChatTurnsTests {
         #expect(ChatAgentRun.latestRecord(older + [ChatMessage(role: .user, text: "Dos")]) == nil)
     }
 
-    /// A call whose result never arrived does not spin forever once its
-    /// turn is over; a failed turn shows its own words.
+    /// A call whose result never arrived does not read as done once its turn
+    /// is over; a failed turn shows its own words.
     @Test func settledTurnClosesToolsAndKeepsFailure() {
         let call = ToolCallRef(id: "c1", name: "open_url", arguments: "{}")
         let messages = [
@@ -142,7 +162,7 @@ struct ChatTurnsTests {
             ChatMessage(isStatus: true, text: "El proveedor falló.", isFailure: true),
         ]
         let reply = ChatTurns.thread(messages).turns.last?.answer
-        #expect(reply?.tools.first?.status == .done)
+        #expect(reply?.run?.steps.map(\.status) == [.failed], "a call that never answered did not finish")
         #expect(reply?.status == .error)
         #expect(reply?.errorNote == "El proveedor falló.")
     }

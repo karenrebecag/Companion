@@ -559,8 +559,8 @@ private func openSafari(_ id: String = "c1", variant: Int = 0) -> ChatDelta {
     await pumpUntil("bucle: idle") { !vm.busy }
     expectEq(opener.openedApps.count, ToolRepeatGuard.maxRepeats, "bucle: solo las dos primeras se ejecutan")
     let last = vm.messages.last
-    expect(last?.isStatus == false && last?.text.contains("open_app") == true,
-           "bucle: el turno termina con una frase honesta, nunca sin texto")
+    expect(last?.isStatus == false && last?.text.contains("open_app") == false,
+           "bucle: el turno termina con una frase honesta, sin nombres de tools")
     expect(chat.histories.last?.contains { $0.role == .tool && $0.content.contains("repeated_call") } == true,
            "bucle: el modelo recibe el error que dice que use otra tool")
 }
@@ -581,6 +581,19 @@ private func openSafari(_ id: String = "c1", variant: Int = 0) -> ChatDelta {
     expectEq(opener.openedApps.count, cap, "tope: todas se ejecutaron")
     expect(vm.messages.contains { $0.isStatus && $0.text == ParentToolCopy.roundCap(.en) },
            "tope: el hilo registra que se alcanzó")
+}
+
+/// A tool that failed leaves a status line marked failed, so its step never
+/// reads as done (the status copy already says it failed).
+@MainActor func testFailedToolResultIsMarkedFailed() async {
+    let opener = FakeWorkspaceOpener(installed: [])
+    let chat = FakeChatProvider(replies: [.success([openSafari("c1")]), .success([.text("No pude.")])])
+    let vm = primed(chat: chat, parentTools: ParentToolRunner(workspace: opener))
+    vm.draft = "abre safari"
+    vm.send()
+    await pumpUntil("fallo: idle") { !vm.busy }
+    let result = vm.messages.first { $0.recall?.role == .tool }
+    expect(result?.isStatus == true && result?.stepFailed == true, "fallo: la línea de estado lo dice")
 }
 
 /// open_app + delegate en la misma ronda: primero se abre, luego el encargo.
