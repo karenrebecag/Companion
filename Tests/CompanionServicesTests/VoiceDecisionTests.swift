@@ -1023,7 +1023,8 @@ private func taskProvider() -> ScriptedDecision {
     ScriptedDecision { question in
         switch question.id {
         case DecisionHead.action: return peaked("task", question.offeredIds)
-        case DecisionHead.goal: return peaked("c0", question.offeredIds)
+        case DecisionHead.goalStart: return peaked("t0", question.offeredIds)
+        case DecisionHead.goalEnd: return question.offeredIds.last.flatMap { peaked($0, question.offeredIds) }
         default: return nil
         }
     }

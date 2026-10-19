@@ -8,9 +8,15 @@ package enum DecisionHead {
     package static let site = "site"
     package static let file = "file"
     package static let skill = "skill"
-    package static let query = "query"
-    package static let text = "text"
-    package static let goal = "goal"
+    /// Span heads: each value is a first and a last source token.
+    package static let queryStart = "query_start"
+    package static let queryEnd = "query_end"
+    package static let textStart = "text_start"
+    package static let textEnd = "text_end"
+    package static let goalStart = "goal_start"
+    package static let goalEnd = "goal_end"
+    /// Whether a compound request also asks to be told something back.
+    package static let readBack = "read_back"
     package static let submit = "submit"
     package static let volume = "volume"
     package static let shortcut = "shortcut"

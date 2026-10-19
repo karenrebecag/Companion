@@ -115,11 +115,13 @@ package struct Plan: Sendable, Equatable {
     /// a dead end: `ArbitrationShortlist.build` needs the masses, not just
     /// the single winner `compose` could not pick.
     package var actionMass: [String: Double]
+    /// The judge said a later clause asks to be told something (`steps`).
+    package var readsBack: Bool
 
     package init(
         utterance: String, action: DecisionAction, args: [String: PlanValue],
         confidence: Double, risk: PlanRisk, disposition: PlanDisposition,
-        actionMass: [String: Double] = [:]
+        actionMass: [String: Double] = [:], readsBack: Bool = false
     ) {
         self.utterance = utterance
         self.action = action
@@ -128,6 +130,7 @@ package struct Plan: Sendable, Equatable {
         self.risk = risk
         self.disposition = disposition
         self.actionMass = actionMass
+        self.readsBack = readsBack
     }
 
     /// A second run of the same mutation doubles it (another empty, another
@@ -195,9 +198,10 @@ package struct Plan: Sendable, Equatable {
         let sites = CandidateSets.siteCandidates(said, sites: world.sites)
         let files = CandidateSets.fileCandidates(said, files: world.files)
         let skills = CandidateSets.skillCandidates(said, skills: world.skills)
-        let spans = CandidateSets.textSpans(said)
-        let menu = actionOptions(apps: apps, sites: sites, files: files, skills: skills, spans: spans)
-        let sets = PlanCandidates(apps: apps, sites: sites, files: files, skills: skills, spans: spans)
+        let tokens = SourceTokens.tokens(said)
+        let menu = actionOptions(apps: apps, sites: sites, files: files, skills: skills, tokens: tokens)
+        let sets = PlanCandidates(apps: apps, sites: sites, files: files, skills: skills, tokens: tokens)
+        let readBack = CompoundRequest.hasSeveralClauses(said) ? PlanHeads.readBack(said) : nil
         // Utterance first, quoted and labeled, then the question: a 4B reads
         // the payload it must classify before the classification prompt,
         // never buried mid-sentence (discovery E7 cascade).
@@ -219,6 +223,7 @@ package struct Plan: Sendable, Equatable {
         if oneRequest {
             let speculative = menu.compactMap { DecisionAction(rawValue: $0.id) }
                 .flatMap { PlanHeads.questions(for: $0, said: said, in: sets) }
+                + (readBack.map { [$0] } ?? [])
             let all = await provider.answer([asked, asked.reversed()] + speculative)
             func slot(_ index: Int) -> DecisionAnswer? { index < all.count ? all[index] : nil }
             forwardRaw = slot(0)
@@ -247,6 +252,7 @@ package struct Plan: Sendable, Equatable {
 
         var confidence = merged.confidence
         let heads = PlanHeads.questions(for: action, said: said, in: sets)
+            + (action == .none ? [] : readBack.map { [$0] } ?? [])
         let answers: [DecisionAnswer?]
         if oneRequest {
             answers = heads.map { head in prefetched.first { $0.0 == head }?.1 ?? nil }
@@ -260,10 +266,12 @@ package struct Plan: Sendable, Equatable {
                   let choice = answer.choice,
                   let option = head.options.first(where: { $0.id == choice })
             else { continue }
-            confidence = min(confidence, answer.confidence)
+            // Read-back only adds a step back to the model; it does not lower
+            // the confidence of the action itself.
+            if head.id != DecisionHead.readBack { confidence = min(confidence, answer.confidence) }
             picked[head.id] = option
         }
-        let filled = PlanHeads.arguments(for: action, picked: picked)
+        let filled = PlanHeads.arguments(for: action, picked: picked, said: said, in: sets)
         let args = filled ?? [:]
         let complete = filled != nil
 
@@ -276,7 +284,7 @@ package struct Plan: Sendable, Equatable {
         return Plan(
             utterance: utterance, action: action, args: args,
             confidence: confidence, risk: risk, disposition: disposition,
-            actionMass: blended ?? [:])
+            actionMass: blended ?? [:], readsBack: picked[DecisionHead.readBack]?.id == "yes")
     }
 }
 
@@ -367,7 +375,7 @@ package struct MutationLedger: Sendable, Equatable {
 
 private func actionOptions(
     apps: [DecisionOption], sites: [DecisionOption], files: [DecisionOption],
-    skills: [DecisionOption], spans: [DecisionOption]
+    skills: [DecisionOption], tokens: [SourceToken]
 ) -> [DecisionOption] {
     var actions: [DecisionAction] = []
     if !apps.isEmpty { actions.append(.openApp) }
@@ -375,7 +383,7 @@ private func actionOptions(
     if !files.isEmpty { actions.append(.openFile) }
     actions.append(.listApps)
     if !skills.isEmpty { actions.append(.readSkill) }
-    if !spans.isEmpty {
+    if !tokens.isEmpty {
         actions.append(contentsOf: [.findPlaces, .typeText, .task])
     }
     actions.append(contentsOf: [.volume, .shortcut, .scroll, .media, .system, .none])
