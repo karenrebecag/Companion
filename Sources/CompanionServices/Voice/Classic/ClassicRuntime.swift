@@ -172,6 +172,9 @@ final class ClassicRuntime: @unchecked Sendable {
     /// reaches it — the runtime knows when the ear's final lands, the
     /// session owns the clock.
     var markTimeline: (@Sendable (TurnTimeline.Point) async -> Void)?
+    /// Confirms a quick action's effect the moment it lands (earcon; the
+    /// Sonidos toggle lives in the sound itself).
+    var feedbackSound: (any InterfaceSounding)?
     /// 15d-5: the first-cut stall wait, injectable so a test can cross it
     /// without sleeping.
     /// 15d-6: the opt-in transcript file; `turnTranscripts` is it for the

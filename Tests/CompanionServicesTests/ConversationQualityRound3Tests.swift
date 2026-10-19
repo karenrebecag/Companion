@@ -240,20 +240,25 @@ private let openSafari = ToolCallRef(id: "o1", name: "open_app", arguments: #"{"
 @Test @MainActor func testAnEffectSentenceSurvivesAnUnclosedTagBeforeIt() async {
     let r = turn([[.toolCalls([openSafari])], [.text("Mira <steer> Abrí Safari.")]], tools: FixtureTools(read: ""))
     await r.runtime.submit(config: Config(language: .es)) { _ in }
-    expect(r.synth.queue.joined(separator: " ").contains("Abrí Safari."), "S-C: <steer> sin cerrar, el efecto se dice")
+    // Feedback inmediato: "Abrí Safari." restates the receipt, so the voice
+    // stays quiet; the filter's output still reaches the thread.
+    expect(!r.synth.queue.joined(separator: " ").contains("Abrí Safari."), "S-C: <steer> sin cerrar, el recibo ya lo dijo")
     expect(r.thread.turns.contains { $0.role == .assistant && $0.content.contains("Abrí Safari.") }, "S-C: e hilo")
 }
 
 @Test @MainActor func testAnEffectSentenceSurvivesAMarkerOnItsOwnLine() async {
     let r = turn([[.toolCalls([openSafari])], [.text("Acusa en una línea\nAbrí Safari.")]], tools: FixtureTools(read: ""))
     await r.runtime.submit(config: Config(language: .es)) { _ in }
-    expect(r.synth.queue.joined(separator: " ").contains("Abrí Safari."), "S-C: marcador en su línea, el efecto se dice")
+    expect(!r.synth.queue.joined(separator: " ").contains("Abrí Safari."), "S-C: marcador en su línea, el recibo ya lo dijo")
+    expect(r.thread.turns.contains { $0.role == .assistant && $0.content.contains("Abrí Safari.") }, "S-C: e hilo")
 }
 
 @Test @MainActor func testNothingIsAddedWhenTheFilterDroppedNothing() async {
     let r = turn([[.toolCalls([openSafari])], [.text("Abrí Safari.")]], tools: FixtureTools(read: ""))
     await r.runtime.submit(config: Config(language: .es)) { _ in }
-    expectEq(r.synth.queue.filter { $0 == "Abrí Safari." }.count, 1, "S-C: sin descarte, sin frase de más")
+    expectEq(r.synth.queue.filter { $0 == "Abrí Safari." }.count, 0, "S-C: el recibo ya lo dijo, la voz calla")
+    expectEq(r.thread.turns.filter { $0.role == .assistant && $0.content == "Abrí Safari." }.count, 1,
+             "S-C: el hilo lo lleva una vez")
 }
 
 // MARK: - L1: a card of the job reaches the announcement

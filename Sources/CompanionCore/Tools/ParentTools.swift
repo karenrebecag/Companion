@@ -99,6 +99,16 @@ package enum ParentTool: String, CaseIterable, Sendable, Equatable {
         }
     }
 
+    /// The change is complete when the call returns, so the island can confirm
+    /// it before the brain's sentence exists. Typing waits for a read that
+    /// proves it, and the sight acts on what it last saw: neither qualifies.
+    package var isQuickAction: Bool {
+        switch self {
+        case .openApp, .openURL, .openFile, .focusWindow, .pressKey: true
+        default: false
+        }
+    }
+
     /// Offered only when the runner has a screen adapter behind them.
     package var isSight: Bool {
         switch self {

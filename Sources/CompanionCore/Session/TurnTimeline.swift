@@ -7,7 +7,7 @@ import Foundation
 /// the code takes to run it (Wave DM0). Pure; the session marks, the log reads.
 package struct TurnTimeline: Sendable, Equatable {
     package enum Point: Sendable, Equatable, CaseIterable {
-        case pressed, micReady, earReady, sessionReady, firstPartial, released, committed, contextReady, toolCallSeen, toolDone, firstAudio, decision, firstToken, earFinal, firstCut, ttsRequest, firstByte, acknowledged
+        case pressed, micReady, earReady, sessionReady, firstPartial, released, committed, contextReady, toolCallSeen, toolDone, firstAudio, feedback, decision, firstToken, earFinal, firstCut, ttsRequest, firstByte, acknowledged
     }
 
     package var pressed: TimeInterval?
@@ -23,6 +23,9 @@ package struct TurnTimeline: Sendable, Equatable {
     package var toolCallSeen: TimeInterval?
     package var toolDone: TimeInterval?
     package var firstAudio: TimeInterval?
+    /// A quick action's earcon and receipt reached the user, before any
+    /// spoken sentence: the answer's own time, not the brain's.
+    package var feedback: TimeInterval?
     /// DM1c: when `DecisionGate.plan` returned. Done says `< 1.5s` here.
     package var decision: TimeInterval?
     /// Wave 15c-0: the brain's first content for this turn — a chat delta or
@@ -56,6 +59,7 @@ package struct TurnTimeline: Sendable, Equatable {
         case .toolCallSeen: if toolCallSeen == nil { toolCallSeen = time }
         case .toolDone: if toolDone == nil { toolDone = time }
         case .firstAudio: if firstAudio == nil { firstAudio = time }
+        case .feedback: if feedback == nil { feedback = time }
         case .decision: if decision == nil { decision = time }
         case .firstToken: if firstToken == nil { firstToken = time }
         case .earFinal: if earFinal == nil { earFinal = time }
@@ -81,6 +85,7 @@ package struct TurnTimeline: Sendable, Equatable {
             // 15b-0: the number Done §6.3 measures — soltar→primer audio —
             // straight from the release, not routed through `committed`.
             "release→audio \(Self.gap(released, firstAudio))",
+            "release→feedback \(Self.gap(released, feedback))",
             "firstToken→audio \(Self.gap(firstToken, firstAudio))",
             // 15f-5: the mouth's share split into queue, network and player.
             "firstCut→ttsRequest \(Self.gap(firstCut, ttsRequest))",

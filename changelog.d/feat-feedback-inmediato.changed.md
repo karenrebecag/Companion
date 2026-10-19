@@ -1,0 +1,1 @@
+- **Confirmación inmediata de acciones rápidas (2026-10-18).** Cuando abrir una app, una URL o un archivo sale bien, suena el tono de confirmación y el recibo aparece en la isla al momento, sin esperar a que la voz diga la frase. Si la respuesta de la IA solo repite lo que dice el recibo, no se habla; si trae información, sí se habla. El tono respeta el ajuste de Sonidos.

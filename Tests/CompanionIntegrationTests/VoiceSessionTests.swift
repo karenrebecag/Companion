@@ -451,7 +451,9 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
 /// historial → la frase de la segunda ronda llega al sintetizador.
 @MainActor func testClassicParentToolLoopsOneRound() async {
     let opener = FakeWorkspaceOpener(installed: ["Safari"])
-    let h = makeVoiceHarness(key: nil, parentTools: ParentToolRunner(workspace: opener))
+    // Spanish turn: the receipt and the model's reply must share a language,
+    // or the reply does not restate the receipt and is rightly spoken.
+    let h = makeVoiceHarness(key: nil, language: .es, parentTools: ParentToolRunner(workspace: opener))
     h.chat.rounds = [
         [.toolCalls([ToolCallRef(id: "c1", name: "open_app", arguments: #"{"name":"Safari"}"#)])],
         [.text("Listo, abrí Safari.")],
@@ -463,9 +465,12 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
     }
     await h.session.advance()
     // 15d-5: the first utterance now ends at the comma.
-    await pumpUntil("padre cl: habló la segunda ronda") {
-        h.synth.queue == ["Listo,", "abrí Safari."]
+    // Feedback inmediato: the reply restates the receipt, so it is not spoken;
+    // the thread gets it once the round ends.
+    await pumpUntil("padre cl: terminó la segunda ronda") {
+        h.thread.turns.contains { $0.role == .assistant && $0.content.contains("abrí Safari.") }
     }
+    expectEq(h.synth.queue, [], "padre cl: la respuesta que repite el recibo no suena")
     expectEq(opener.openedApps, ["Safari"], "padre cl: se abrió")
     expectEq(h.chat.histories.count, 2, "padre cl: dos rondas")
     expect(h.chat.histories[1].contains { $0.role == .tool && $0.toolCallID == "c1" },
@@ -500,7 +505,9 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
 /// ronda, no pegado a ella: "Voy a abrir Safari" + "Listo." son dos frases.
 @MainActor func testClassicFlushesFragmentBeforeNextRound() async {
     let opener = FakeWorkspaceOpener(installed: ["Safari"])
-    let h = makeVoiceHarness(key: nil, parentTools: ParentToolRunner(workspace: opener))
+    // Spanish turn: the receipt and the model's reply must share a language,
+    // or the reply does not restate the receipt and is rightly spoken.
+    let h = makeVoiceHarness(key: nil, language: .es, parentTools: ParentToolRunner(workspace: opener))
     h.chat.rounds = [
         [.text("Voy a abrir Safari"),
          .toolCalls([ToolCallRef(id: "c1", name: "open_app", arguments: #"{"name":"Safari"}"#)])],
@@ -512,8 +519,12 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
     await h.session.advance()
-    await pumpUntil("flush cl: dos frases") { h.synth.queue.count >= 2 }
-    expectEq(h.synth.queue, ["Voy a abrir Safari", "Listo."], "flush cl: frases separadas, en orden")
+    await pumpUntil("flush cl: terminó la segunda ronda") {
+        h.thread.turns.contains { $0.role == .assistant && $0.content.contains("Listo.") }
+    }
+    // "Listo." restates the receipt and stays silent; the fragment still
+    // gets said before the next round.
+    expectEq(h.synth.queue, ["Voy a abrir Safari"], "flush cl: el fragmento se dice, el recibo ya cubre el cierre")
 }
 
 final class JobEventBox: @unchecked Sendable {

@@ -55,6 +55,27 @@ package struct ActionReceipt: Sendable, Equatable {
         ActionReceipt(entries: entries + other.entries) ?? self
     }
 
+    /// Whether a spoken sentence adds nothing to this receipt: every word is a
+    /// word the receipt already says, or a bare confirmation. Only then the
+    /// voice stays quiet, because the island and the earcon already said it.
+    package func restates(_ sentence: String) -> Bool {
+        let words = Self.words(in: sentence)
+        guard !words.isEmpty else { return false }
+        let known = Set(entries.flatMap { Self.words(in: $0.text) })
+        return words.allSatisfy { known.contains($0) || Self.confirmations.contains($0) }
+    }
+
+    private static let confirmations: Set<String> = [
+        "listo", "hecho", "ya", "done", "ok", "okay", "bien", "perfecto",
+        "y", "a", "el", "la", "lo", "los", "las", "de", "del", "en", "the", "and",
+    ]
+
+    private static func words(in text: String) -> [String] {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+    }
+
     /// A status line names a target (an app, a URL): one line, capped, with
     /// the cut visible.
     private static func bounded(_ text: String) -> String {

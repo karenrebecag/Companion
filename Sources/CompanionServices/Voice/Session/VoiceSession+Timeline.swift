@@ -23,6 +23,12 @@ extension VoiceSession {
         timeline.mark(point, at: now())
     }
 
+    /// Composition-root call, once: the quick-action earcon is the same sound
+    /// the notices use, so the Sonidos toggle governs both alike.
+    package func attachFeedbackSound(_ sound: any InterfaceSounding) {
+        classic.feedbackSound = sound
+    }
+
     /// The hold's line goes to the log once, when the agent's first audio
     /// lands or when the hold is over without it.
     func flushTimeline() {

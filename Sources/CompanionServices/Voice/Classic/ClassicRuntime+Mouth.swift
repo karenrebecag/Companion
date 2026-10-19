@@ -112,6 +112,12 @@ struct TurnMouth {
     /// 16h-2 (security M1): our own lines this turn owes the user, said
     /// after the reply (a spoken yes the sheet did not take).
     var owedLines: [String] = []
+    /// The receipt of the last round, when that round was only quick actions:
+    /// sentences that restate it are not spoken.
+    var quickReceipt: ActionReceipt?
+    /// A sheet was shown this turn: from then on the reply is spoken whole,
+    /// because the user answered a question and waits for the close.
+    var sheetShown = false
 
     init(language: AppLanguage, recognizer: any LanguageRecognizing, heard: String) {
         gate = MouthLanguageGate(language: language, recognizer: recognizer, heard: heard)
@@ -160,6 +166,10 @@ extension ClassicRuntime {
     /// Past the length rule, to the synthesizer.
     private func speak(_ clean: String, _ mouth: inout TurnMouth) async {
         if mouth.cardThisTurn { mouth.budget.cardShown = true }
+        if let receipt = mouth.quickReceipt, receipt.restates(clean) {
+            Log.app("mouth: dropped reason=receipt chars=\(clean.count)")
+            return
+        }
         guard !clean.isEmpty, let said = mouth.budget.admit(clean) else { return }
         await synthesizer.enqueue(said)
     }
