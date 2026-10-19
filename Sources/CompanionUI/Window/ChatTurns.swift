@@ -28,9 +28,10 @@ enum ChatTurns {
     static func thread(_ messages: [ChatMessage], live: ChatLive? = nil) -> Thread {
         var builder = Builder()
         for message in messages { builder.add(message) }
+        let working = builder.openParentRun
         builder.flush(settled: !(live?.busy ?? false))
         var turns = builder.turns
-        if let live, live.busy { applyLive(live, to: &turns) }
+        if let live, live.busy { applyLive(live, parent: working, to: &turns) }
         return Thread(turns: turns, cards: builder.cards)
     }
 
@@ -44,9 +45,10 @@ enum ChatTurns {
         struct Reply {
             var id: String
             var texts: [String] = []
-            var tools: [AIChatTool] = []
+            var calls: [ChatAgentRun.ParentStep] = []
             var cards: [Card] = []
             var failure: String?
+            var endedWithoutAnswer = false
             var stopped = false
             var run: AIAgentRun?
         }
@@ -61,22 +63,29 @@ enum ChatTurns {
             }
             var current = reply ?? Reply(id: message.id.uuidString)
             if let recall = message.recall, recall.role == .assistant {
-                current.tools += recall.toolCalls.map(ChatTurns.tool)
+                current.calls += recall.toolCalls.map(ChatAgentRun.parentStep)
             }
             if message.isStatus {
                 if let recall = message.recall, recall.role == .tool, let id = recall.toolCallID,
-                   let index = current.tools.firstIndex(where: { $0.id == id }) {
-                    current.tools[index].status = .done
-                    current.tools[index].done = message.text
+                   let index = current.calls.firstIndex(where: { $0.id == id }) {
+                    current.calls[index].result = message.text
+                    current.calls[index].failed = message.stepFailed
                 }
                 if message.isFailure { current.failure = message.text }
                 if let record = message.job { current.run = ChatAgentRun.finished(record) }
                 if message.text == ChatCopy.jobStopped { current.stopped = true }
             } else {
                 if !message.text.isEmpty { current.texts.append(message.text) }
+                if message.endedWithoutAnswer { current.endedWithoutAnswer = true }
                 if let card = message.card { current.cards.append(card) }
             }
             reply = current
+        }
+
+        /// The parent's run of the reply still writing, before it settles.
+        var openParentRun: AIAgentRun? {
+            guard let current = reply else { return nil }
+            return ChatAgentRun.parent(current.calls, settled: false, stopped: false, failedTurn: false)
         }
 
         /// `settled` is false only for the turn a live reply is still writing.
@@ -86,15 +95,11 @@ enum ChatTurns {
             let text = current.texts.joined(separator: "\n\n")
             let status: AIChatAnswer.Status =
                 current.failure != nil ? .error : current.stopped ? .stopped : settled ? .done : .streaming
-            // A call whose result never came back ended with its turn: shown
-            // as running forever it would claim work that is not happening.
-            let tools = settled ? current.tools.map { tool in
-                var finished = tool
-                if finished.status == .running { finished.status = .done }
-                return finished
-            } : current.tools
-            var answer = ChatTurns.answer(text: text, status: status, tools: tools, failure: current.failure)
-            answer.run = current.run
+            var answer = ChatTurns.answer(text: text, status: status, failure: current.failure)
+            answer.run = ChatAgentRun.joined(
+                ChatAgentRun.parent(current.calls, settled: settled, stopped: current.stopped,
+                                    failedTurn: current.failure != nil || current.endedWithoutAnswer),
+                current.run)
             turns.append(AIChatTurn(id: current.id, content: .assistant(answer)))
             if !current.cards.isEmpty { cards[current.id] = current.cards }
         }
@@ -102,7 +107,7 @@ enum ChatTurns {
 
     /// The reply's own words, with its "Sources" list lifted out into the
     /// citation list: the same links as bare text above would say them twice.
-    static func answer(text: String, status: AIChatAnswer.Status, tools: [AIChatTool], failure: String?) -> AIChatAnswer {
+    static func answer(text: String, status: AIChatAnswer.Status, failure: String?) -> AIChatAnswer {
         let found = MarkdownSplitter.extractSources(MarkdownSplitter.split(text)).web
         let sources = found.compactMap { link -> AIChatSource? in
             guard let url = IslandResultCardModel.webURL(link.url) else { return nil }
@@ -111,24 +116,12 @@ enum ChatTurns {
                 url: url, snippet: link.detail)
         }
         let body = sources.isEmpty ? text : removingSourcesSection(text)
-        return AIChatAnswer(text: body, status: status, tools: tools, sources: sources, errorNote: failure)
-    }
-
-    /// The parent's own tool call, before its result names what happened.
-    static func tool(_ call: ToolCallRef) -> AIChatTool {
-        let target = ParentTool.target(of: call)
-        let language = Localized.language()
-        return AIChatTool(
-            id: call.id, symbol: JobSteps.icon(for: call.name),
-            running: ParentToolCopy.acting([target], language),
-            done: ParentTool.names(target) ? target : call.name,
-            status: .running,
-            detail: ParentTool.names(target) ? target : nil)
+        return AIChatAnswer(text: body, status: status, sources: sources, errorNote: failure)
     }
 
     /// The live turn: the words streaming so far, the specialist's steps as
     /// Arc's agent-run timeline, its thoughts as the reasoning fold.
-    private static func applyLive(_ live: ChatLive, to turns: inout [AIChatTurn]) {
+    private static func applyLive(_ live: ChatLive, parent: AIAgentRun?, to turns: inout [AIChatTurn]) {
         var answer: AIChatAnswer
         var id = liveID
         if let last = turns.last, case .assistant(let saved) = last.content {
@@ -145,13 +138,13 @@ enum ChatTurns {
             let steps = job.steps.filter { !JobSteps.isHidden($0.tool) }
             let thoughts = steps.filter { $0.tool == JobSteps.Thinking.tool }
             answer.thinking = thoughts.map(\.label).joined(separator: "\n")
-            answer.run = ChatAgentRun.live(job, now: live.now)
+            answer.run = ChatAgentRun.joined(parent, ChatAgentRun.live(job, now: live.now))
             if let last = thoughts.last {
                 answer.thoughtFor = max(Int((last.finishedAt ?? live.now).timeIntervalSince(job.startedAt).rounded()), 1)
             }
         }
         // Arc's rule: the first tool, run or word ends the thinking phase.
-        answer.status = answer.text.isEmpty && answer.tools.isEmpty && answer.run == nil ? .thinking : .streaming
+        answer.status = answer.text.isEmpty && answer.run == nil ? .thinking : .streaming
         turns.append(AIChatTurn(id: id, content: .assistant(answer)))
     }
 

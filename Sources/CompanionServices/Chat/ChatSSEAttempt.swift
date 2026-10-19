@@ -222,6 +222,8 @@ private func makeBody(
     // Derived from the tools, like delegate: what is declared is what the
     // prompt may promise, and nothing the prompt promises goes undeclared.
     let parentToolsEnabled = tools.contains { ParentTool(rawValue: $0.name) != nil }
+    let webSearchEnabled = tools.contains { $0.name == NativeTool.webSearch.rawValue }
+    let webReadEnabled = tools.contains { $0.name == NativeTool.readURL.rawValue }
     // Wave 15g-3: the hands are declared only with Accessibility granted,
     // so the declaration, not a setting, decides whether typing is promised.
     let handsEnabled = tools.contains { $0.name == "type_text" }
@@ -232,6 +234,8 @@ private func makeBody(
             parentToolsEnabled: parentToolsEnabled,
             handsEnabled: handsEnabled,
             sightEnabled: tools.contains { $0.name == ParentTool.look.rawValue },
+            webSearchEnabled: webSearchEnabled,
+            webReadEnabled: webReadEnabled,
             about: about, instructions: instructions, language: language,
             memory: memory, skills: skills, voice: voice,
             connectedApps: tools.flatMap(\.appSlugs)),

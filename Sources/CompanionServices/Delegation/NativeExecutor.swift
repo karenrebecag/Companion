@@ -21,6 +21,7 @@ package struct NativeExecutor: Executor, Sendable {
         config: Config,
         approvals: any ApprovalsProvider,
         webSearch: (any WebSearching)? = nil,
+        webReader: (any WebReading)? = nil,
         skills: SkillsLocation? = nil,
         skillsSource: (@Sendable () -> String)? = nil,
         documents: (any DocumentRendering)? = nil,
@@ -31,7 +32,7 @@ package struct NativeExecutor: Executor, Sendable {
         self.descriptor = descriptor
         self.chatProvider = chatProvider
         self.toolRunner = NativeToolRunner(
-            workdir: config.workdir, webSearch: webSearch, language: config.language,
+            workdir: config.workdir, webSearch: webSearch, webReader: webReader, language: config.language,
             skills: skills, documents: documents, sheets: sheets, versions: versions,
             disposal: disposal)
         self.config = config
@@ -162,7 +163,7 @@ package struct NativeExecutor: Executor, Sendable {
         // HACK: the executor has no user words, so a host is never "said" here
         // (the goal is written by the parent model). Trigger: JobRequest
         // carrying the user's own utterance; then pass `hostSaid`.
-        let gatedFetch = toolName == NativeTool.webFetch.rawValue
+        let gatedFetch = NativeTool.urlFetches.contains { $0.rawValue == toolName }
             && ActionBand.classify(
                 toolName: toolName, arguments: arguments, facts: ActionFacts(cleanTurn: !taint.isTainted)) != .act
         let risky = riskLevel(tool: toolName) == .requiresApproval || gatedFetch

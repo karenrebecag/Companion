@@ -242,7 +242,9 @@ final class RealtimeRuntime: @unchecked Sendable {
                 config: config, history: history, canDelegate: canDelegate,
                 parentToolsEnabled: parentTools != nil,
                 handsEnabled: parentSpecs.contains { $0.name == ParentTool.typeText.rawValue },
-                sightEnabled: parentSpecs.contains { $0.name == ParentTool.look.rawValue }),
+                sightEnabled: parentSpecs.contains { $0.name == ParentTool.look.rawValue },
+                webSearchEnabled: parentSpecs.contains { $0.name == NativeTool.webSearch.rawValue },
+                webReadEnabled: parentSpecs.contains { $0.name == NativeTool.readURL.rawValue }),
             // Approvals only exist because jobs exist: the same flag gates
             // both tools. Declared and tested since Wave 4, resolve_approval
             // had no caller outside the suite until Wave 8 — a permission
@@ -540,7 +542,8 @@ final class RealtimeRuntime: @unchecked Sendable {
 
     static func instructions(
         config: Config, history: [Turn], canDelegate: Bool = false,
-        parentToolsEnabled: Bool = false, handsEnabled: Bool = false, sightEnabled: Bool = false
+        parentToolsEnabled: Bool = false, handsEnabled: Bool = false, sightEnabled: Bool = false,
+        webSearchEnabled: Bool = false, webReadEnabled: Bool = false
     ) -> String {
         var text = ChatPrompt.system(
             ownerFirstName: config.ownerFirstName,
@@ -548,6 +551,8 @@ final class RealtimeRuntime: @unchecked Sendable {
             parentToolsEnabled: parentToolsEnabled,
             handsEnabled: handsEnabled,
             sightEnabled: sightEnabled,
+            webSearchEnabled: webSearchEnabled,
+            webReadEnabled: webReadEnabled,
             about: config.ownerAbout,
             instructions: config.ownerInstructions,
             language: config.language,

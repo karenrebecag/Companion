@@ -134,9 +134,13 @@
 "settings.keys.cerebras" = "Cerebras";
 "settings.keys.cerebras.placeholder" = "csk-…";
 "settings.keys.cerebras.privacy" = "With Cerebras, what you say while holding fn is answered by Cerebras.";
+"settings.keys.exa" = "Exa";
+"settings.keys.exa.privacy" = "With Exa, what you search for and the pages Companion reads are sent to Exa.";
 "settings.keys.elevenlabs" = "ElevenLabs";
 "settings.keys.elevenlabs.placeholder" = "sk_…";
 "settings.keys.elevenlabs.privacy" = "With ElevenLabs, the text of each reply is sent to ElevenLabs to be voiced.";
+"settings.keys.typesafe" = "TypeSafe";
+"settings.keys.typesafe.privacy" = "With TypeSafe, the phrase you say and the names of the apps, sites and files it is weighed against are sent to TypeSafe to pick the action. Never what is on your screen.";
 "settings.keys.replace.placeholder" = "Paste another to replace it";
 "settings.keys.saved.label" = "Key saved, %@";
 "settings.keys.saved" = "Saved";
@@ -986,6 +990,8 @@
 "chat.run.steps.one" = "1 step";
 "chat.run.steps.other" = "%d steps";
 "chat.run.timeline" = "The specialist's steps";
+"chat.run.failures.one" = "1 error";
+"chat.run.failures.other" = "%d errors";
 "settings.nav.label" = "Settings sections";
 "settings.bar.save" = "Save changes";
 "settings.bar.saving" = "Saving";

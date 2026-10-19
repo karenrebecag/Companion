@@ -10,7 +10,7 @@ enum ChatAgentRun {
     /// The run while the job works.
     static func live(_ job: JobTimeline, now: Date, language: AppLanguage = Localized.language()) -> AIAgentRun {
         AIAgentRun(steps: steps(job.steps, now: now, language: language), phase: .running,
-                   worked: RunCardDuration.step(now.timeIntervalSince(job.startedAt)))
+                   worked: workedLine(RunCardDuration.step(now.timeIntervalSince(job.startedAt))))
     }
 
     /// The run as the job ended. A step still open when it ended did not
@@ -31,7 +31,72 @@ enum ChatAgentRun {
         case .stopped: .stopped
         }
         return AIAgentRun(steps: steps(settled, now: record.finishedAt, language: language), phase: phase,
-                          worked: RunCardDuration.step(record.finishedAt.timeIntervalSince(record.timeline.startedAt)))
+                          worked: workedLine(RunCardDuration.step(record.finishedAt.timeIntervalSince(record.timeline.startedAt))))
+    }
+
+    /// One tool call of the parent's, on the rail. Its words are the status
+    /// line that answered it; until then, the copy for what it is doing.
+    struct ParentStep: Equatable {
+        var id: String
+        var symbol: String
+        var acting: String
+        var result: String?
+        var failed = false
+
+        /// A call whose result never came back ended with its turn: it did not
+        /// finish, so it is not drawn as running forever or as done.
+        func status(settled: Bool) -> AIAgentRunStep.Status {
+            if result == nil { return settled ? .failed : .active }
+            return failed ? .failed : .done
+        }
+    }
+
+    static func parentStep(_ call: ToolCallRef) -> ParentStep {
+        let target = ParentTool.target(of: call)
+        return ParentStep(id: call.id, symbol: JobSteps.icon(for: call.name),
+                          acting: ParentToolCopy.acting([target], Localized.language()))
+    }
+
+    /// The parent's calls as one run. Its summary is "<failures> · <steps>".
+    /// Only a turn that gave no answer is a failed run: a reply that came
+    /// back with some failed steps keeps the done header, and the failures
+    /// stay on their own steps.
+    static func parent(_ steps: [ParentStep], settled: Bool, stopped: Bool, failedTurn: Bool) -> AIAgentRun? {
+        guard !steps.isEmpty else { return nil }
+        let rail = steps.map { step in
+            AIAgentRunStep(id: step.id, symbol: step.symbol, title: step.result ?? step.acting,
+                           status: step.status(settled: settled))
+        }
+        let failed = rail.filter { $0.status == .failed }.count
+        let phase: AIAgentRun.Phase = if !settled {
+            .running
+        } else if stopped {
+            .stopped
+        } else if failedTurn {
+            .failed
+        } else {
+            .done
+        }
+        return AIAgentRun(steps: rail, phase: phase, worked: failureLine(failed))
+    }
+
+    /// A turn's own run and its specialist job, one run on the answer.
+    static func joined(_ parent: AIAgentRun?, _ job: AIAgentRun?) -> AIAgentRun? {
+        guard let parent else { return job }
+        guard let job else { return parent }
+        return AIAgentRun(steps: parent.steps + job.steps, phase: job.phase, worked: job.worked)
+    }
+
+    private static func workedLine(_ duration: String) -> String {
+        String(format: Localized.string("chat.run.worked"), duration)
+    }
+
+    private static func failureLine(_ count: Int) -> String {
+        switch count {
+        case 0: ""
+        case 1: Localized.string("chat.run.failures.one")
+        default: String(format: Localized.string("chat.run.failures.other"), count)
+        }
     }
 
     /// Thoughts stay in the answer's reasoning fold and bookkeeping tools stay
@@ -70,7 +135,7 @@ enum ChatAgentRun {
             done: Localized.string("chat.run.done"),
             failed: Localized.string("chat.run.failed"),
             stopped: Localized.string("chat.run.stopped"),
-            worked: Localized.string("chat.run.worked"),
+            worked: "%@",
             stepsOne: Localized.string("chat.run.steps.one"),
             stepsOther: Localized.string("chat.run.steps.other"),
             foldedOne: Localized.string("agentrun.folded.one"),

@@ -14,6 +14,7 @@ An answer from the web carries its source or it is a guess.
 
 1. `web_search` when it is offered (it needs a configured key; if it is not in the tool list, it is not available).
 2. `web_fetch` on a URL you know or the user gave: the page's text, to quote from.
+   `read_url` when it is offered: the full text of the 2-3 best search results, when their highlights are not enough.
 3. `find_places` for anything "near", an address, opening hours of a place: it is a map lookup and needs no key.
 
 ## Steps

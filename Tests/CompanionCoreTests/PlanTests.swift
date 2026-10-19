@@ -282,6 +282,33 @@ private struct OrdenFixture: Sendable {
     expect(failures.isEmpty, "\(failures.count) filas: " + failures.prefix(8).joined(separator: " | "))
 }
 
+/// The one-request cascade asks every offered head up front and must land on
+/// exactly the plan the sequential cascade reaches, row for row.
+@Test func batchedComposeMatchesTheSequentialCascade() async throws {
+    let rows = try loadOrdenFixtures()
+    let apps = Array(Set(rows.compactMap { $0.accion == "open_app" ? $0.strings["app"] : nil })).sorted()
+    var drift: [String] = []
+    for row in rows {
+        let world = world(for: row, apps: apps)
+        let sequential = await Plan.compose(utterance: row.texto, world: world, provider: perfect(row))
+        let batching = BatchingDecision(perfect(row))
+        let batched = await Plan.compose(utterance: row.texto, world: world, provider: batching)
+        if batched != sequential { drift.append(row.id) }
+        if batching.batches.count != 1 { drift.append("\(row.id) took \(batching.batches.count) requests") }
+    }
+    expect(drift.isEmpty, "\(drift.count) filas: " + drift.prefix(8).joined(separator: " | "))
+}
+
+/// A hosted judge's 0.99 is still not consent for what cannot be undone.
+@Test func batchedIrreversibleStillConfirmsAtHighConfidence() async {
+    let trash = fixture("vacia la papelera", "system", ["op": "empty_trash"], irreversible: true)
+    let plan = await Plan.compose(
+        utterance: trash.texto, world: DecisionWorld(sites: []),
+        provider: BatchingDecision(perfect(trash)))
+    expect(plan.confidence > 0.95, "batch: the judge is sure")
+    expectEq(plan.disposition, .confirm, "batch: empty_trash confirms by voice anyway")
+}
+
 // MARK: - fixtures
 
 private func fixture(

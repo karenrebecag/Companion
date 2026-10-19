@@ -13,12 +13,19 @@ package enum SecretKey: String, Sendable, Equatable {
     /// Web search. A secondary key like the rest: without it the tool is not
     /// offered at all, which is the whole point — see Wave 9f.
     case brave = "BRAVE_API_KEY"
+    /// Exa: the preferred web provider when present. Search returns passages
+    /// that answer the query, and read_url returns a whole page; Brave stays
+    /// as the fallback when only its key exists.
+    case exa = "EXA_API_KEY"
     /// Wave 15f-7a: the hold's mouth when a voice is chosen too; without it
     /// the mouth stays OpenAI's.
     case elevenLabs = "ELEVENLABS_API_KEY"
     /// Wave 16k: the key the app shows the companion-apps function. Not a
     /// provider key: it opens only Karen's own function.
     case companionApps = "COMPANION_APPS_KEY"
+    /// The decision layer's hosted judge (Jev). Optional like Brave: without
+    /// it the cascade keeps the local judge.
+    case typesafe = "TYPESAFE_API_KEY"
 }
 
 package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
@@ -114,6 +121,19 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         model: "openai/gpt-4o",
         secretKey: .openRouter,
         maxOutputTokens: chatMaxOutputTokens
+    )
+
+    /// Not a chat provider and not in `catalog`: Jev answers typed questions
+    /// at `/systemone`, never `/chat/completions`. The model is pinned to a
+    /// version, not `jev-latest`, because confidence thresholds are tuned
+    /// against one version and an alias moves under them.
+    package static let typesafe = ProviderDescriptor(
+        id: "typesafe",
+        name: "TypeSafe",
+        baseURL: URL(string: "https://api.typesafe.ai/v1")!,
+        model: "jev-1.14.0",
+        secretKey: .typesafe,
+        temperature: nil
     )
 
     /// The model here is a PLACEHOLDER, never a promise: which tag exists is

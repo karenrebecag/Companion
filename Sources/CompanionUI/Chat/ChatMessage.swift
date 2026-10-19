@@ -69,6 +69,12 @@ package struct ChatMessage: Identifiable, Equatable {
     /// The status line a failed turn leaves: what lets a question that was
     /// answered into a failure be asked again.
     package var isFailure: Bool
+    /// The tool result this status line reports failed: its step on the rail
+    /// is a failure, never a done step under a failure's words.
+    package var stepFailed: Bool
+    /// The reply is the copy for a turn that gave no answer (out of steps, or
+    /// nothing came back): the run over it fails, even though the words show.
+    package var endedWithoutAnswer: Bool
     /// Read back from disk, not made in this session: a question card in it
     /// has no live turn behind it.
     package var restored: Bool
@@ -86,6 +92,8 @@ package struct ChatMessage: Identifiable, Equatable {
         origin: MessageOrigin = .typed,
         mentions: [Mention] = [],
         isFailure: Bool = false,
+        stepFailed: Bool = false,
+        endedWithoutAnswer: Bool = false,
         restored: Bool = false,
         job: JobRecord? = nil
     ) {
@@ -99,6 +107,8 @@ package struct ChatMessage: Identifiable, Equatable {
         self.mentions = mentions
         self.origin = origin
         self.isFailure = isFailure
+        self.stepFailed = stepFailed
+        self.endedWithoutAnswer = endedWithoutAnswer
         self.restored = restored
         self.job = job
     }

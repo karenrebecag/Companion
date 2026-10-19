@@ -15,6 +15,7 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
     case runShell = "run_shell"
     case webFetch = "web_fetch"
     case webSearch = "web_search"
+    case readURL = "read_url"
     /// Wave 20: deliverables and live spreadsheets.
     case createDocument = "create_document"
     case sheetRead = "sheet_read"
@@ -25,7 +26,7 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
 
     package var riskLevel: RiskLevel {
         switch self {
-        case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch, .sheetRead, .listFileHistory:
+        case .findPlaces, .listDirectory, .readFile, .webFetch, .webSearch, .readURL, .sheetRead, .listFileHistory:
             return .safe
         case .writeFile, .editFile, .deleteFile, .runShell, .createDocument, .sheetWrite, .restoreFileVersion:
             return .requiresApproval
@@ -152,10 +153,34 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
                 ],
                 required: ["query"]
             )
+        case .readURL:
+            return ToolSpec(
+                name: "read_url",
+                description: "Read the full text of one to three web pages, for when a search "
+                    + "result's highlights are not enough. Use web_search to find pages, then "
+                    + "read_url on the 2-3 best results. Pass fresh=true only for fast-moving "
+                    + "data (prices, scores, availability, today's news): it fetches the page "
+                    + "again instead of using a cached copy.",
+                properties: [
+                    ToolProperty(name: "urls", type: "string",
+                                 description: "one to three URLs, separated by spaces or commas"),
+                    ToolProperty(name: "fresh", type: "boolean",
+                                 description: "true to fetch the page again instead of using a cached copy"),
+                ],
+                required: ["urls"])
         case .createDocument, .sheetRead, .sheetWrite, .listFileHistory, .restoreFileVersion:
             return DeliverableTools.spec(self)
         }
     }
+}
+
+extension NativeTool {
+    /// Tools that send an address out of the Mac, to a host a page may have
+    /// chosen. Both the job path (NativeExecutor) and the chat gate
+    /// (ParentToolGate) ask on a tainted turn. riskLevel stays `.safe` on
+    /// purpose: whether they ask depends on the turn's taint, so an
+    /// unconditional sheet would prompt on every clean read as well.
+    package static let urlFetches: Set<NativeTool> = [.webFetch, .readURL]
 }
 
 /// Where the specialist may read and where it may write. The working folder

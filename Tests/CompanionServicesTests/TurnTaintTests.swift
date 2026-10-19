@@ -31,13 +31,15 @@ private final class Script: ChatProvider, @unchecked Sendable {
     func verify(_ key: String, provider: ProviderDescriptor) async throws {}
 }
 
-private func run(readPath: String?, workdir: String, tainted: Bool = false) async throws -> (approvals: Int, denied: [String]) {
+private func run(
+    readPath: String?, workdir: String, tainted: Bool = false, fetch: ToolCallRef? = nil
+) async throws -> (approvals: Int, denied: [String]) {
     var calls: [ToolCallRef] = []
     if let readPath {
         calls.append(ToolCallRef(id: "r", name: "read_file", arguments: "{\"path\":\"\(readPath)\"}"))
     }
     // Port 1 refuses at once, so an unasked fetch fails fast instead of reaching a network.
-    calls.append(ToolCallRef(id: "f", name: "web_fetch", arguments: "{\"url\":\"http://127.0.0.1:1/?d=x\"}"))
+    calls.append(fetch ?? ToolCallRef(id: "f", name: "web_fetch", arguments: "{\"url\":\"http://127.0.0.1:1/?d=x\"}"))
     let executor = NativeExecutor(
         descriptor: ExecutorCatalog.native, chatProvider: Script(calls),
         config: Config(workdir: workdir), approvals: DenyingApprovals())
@@ -60,6 +62,23 @@ func aFetchAfterReadingOutsideTheWorkFolderAsksFirst() async throws {
     let outcome = try await run(readPath: elsewhere + "/a.txt", workdir: work)
     expectEq(outcome.approvals, 1, "leer fuera y luego fetch: pide aprobación")
     expectEq(outcome.denied, ["web_fetch"], "y sin ella el fetch no corre")
+}
+
+// read_url sends the URL to Exa, which fetches it server-side: the same way out
+// as web_fetch, so the delegated job must not run it silently on a tainted turn.
+@Test(.timeLimit(.minutes(1))) @MainActor
+func aDelegatedReadURLAfterReadingOutsideTheWorkFolderAsksFirst() async throws {
+    let work = taintDir("taint-readurl-work").path
+    let elsewhere = taintDir("taint-readurl-else").path
+    defer {
+        do { try FileManager.default.removeItem(atPath: work) } catch {}
+        do { try FileManager.default.removeItem(atPath: elsewhere) } catch {}
+    }
+    try "secreto".write(toFile: elsewhere + "/a.txt", atomically: true, encoding: .utf8)
+    let fetch = ToolCallRef(id: "f", name: "read_url", arguments: "{\"urls\":\"http://127.0.0.1:1/?d=x\"}")
+    let outcome = try await run(readPath: elsewhere + "/a.txt", workdir: work, fetch: fetch)
+    expectEq(outcome.approvals, 1, "leer fuera y luego read_url: pide aprobación")
+    expectEq(outcome.denied, ["read_url"], "y sin ella read_url no corre")
 }
 
 @Test(.timeLimit(.minutes(1))) @MainActor

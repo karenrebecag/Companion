@@ -173,4 +173,22 @@ package enum DecisionMath {
 /// failed judgement never becomes an action.
 package protocol DecisionProvider: Sendable {
     func answer(_ question: DecisionQuestion) async -> DecisionAnswer?
+    /// Independent questions, answered positionally: one slot per question,
+    /// nil where that judgement failed. No question reads another's answer.
+    func answer(_ questions: [DecisionQuestion]) async -> [DecisionAnswer?]
+    /// True when `answer(_:[DecisionQuestion])` is one round trip, so asking
+    /// questions that may go unused costs tokens, not latency.
+    var answersInOneRequest: Bool { get }
+}
+
+extension DecisionProvider {
+    package func answer(_ questions: [DecisionQuestion]) async -> [DecisionAnswer?] {
+        var answers: [DecisionAnswer?] = []
+        for question in questions {
+            answers.append(await answer(question))
+        }
+        return answers
+    }
+
+    package var answersInOneRequest: Bool { false }
 }
