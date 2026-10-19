@@ -102,8 +102,8 @@ extension ChatViewModel {
                         log("chat: round returned neither text nor calls")
                         await commit(
                             preface: ParentToolCopy.noAnswer(
-                                tried: repeatGuard.tried, config.language),
-                            handoff: nil)
+                                attempts: turnAttempts(), config.language),
+                            handoff: nil, endedWithoutAnswer: true)
                         break
                     }
                     await commit(preface: preface, handoff: handoff)
@@ -120,8 +120,8 @@ extension ChatViewModel {
                         isStatus: true, text: ParentToolCopy.roundCap(config.language)))
                     await commit(
                         preface: ParentToolCopy.noAnswer(
-                            tried: repeatGuard.tried, config.language),
-                        handoff: nil)
+                            attempts: turnAttempts(), config.language),
+                        handoff: nil, endedWithoutAnswer: true)
                     break
                 }
                 history = windowedTurns()
@@ -255,6 +255,12 @@ extension ChatViewModel {
         return hit.prose.isEmpty ? fence : hit.prose + "\n\n" + fence
     }
 
+    /// What the turn's tool results said, in the words the thread shows.
+    private func turnAttempts() -> [String] {
+        let start = messages.lastIndex { $0.role == .user && !$0.isStatus }.map { $0 + 1 } ?? 0
+        return messages[start...].filter { $0.isStatus && $0.recall?.role == .tool }.map(\.text)
+    }
+
     /// The call survives in the history the way the delegate call does (9d):
     /// the assistant turn carries the calls, one status line per result
     /// answers them with the same id. The thread reads what the app did by
@@ -325,7 +331,8 @@ extension ChatViewModel {
             messages.append(ChatMessage(
                 isStatus: true,
                 text: statusLine,
-                recall: Recall(role: .tool, content: TurnRedaction.redact(outcome.output), toolCallID: call.id)))
+                recall: Recall(role: .tool, content: TurnRedaction.redact(outcome.output), toolCallID: call.id),
+                stepFailed: !outcome.ok))
             recording { record in
                 record.toolCalls.append(TurnToolCall(
                     index: record.toolCalls.count, name: call.name, arguments: call.arguments, ok: outcome.ok,
@@ -448,7 +455,7 @@ extension ChatViewModel {
         }
     }
 
-    private func commit(preface: String, handoff: Handoff?) async {
+    private func commit(preface: String, handoff: Handoff?, endedWithoutAnswer: Bool = false) async {
         if let handoff, let submitter = jobSubmitter {
             await runJob(preface: preface, handoff: handoff, submitter: submitter)
             return
@@ -465,7 +472,7 @@ extension ChatViewModel {
         }
 
         if !preface.isEmpty {
-            messages.append(ChatMessage(role: .assistant, text: preface))
+            messages.append(ChatMessage(role: .assistant, text: preface, endedWithoutAnswer: endedWithoutAnswer))
             recording { $0.reply = TurnReply(text: preface, isFailure: false) }
         }
     }

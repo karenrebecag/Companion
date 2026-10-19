@@ -990,6 +990,8 @@
 "chat.run.steps.one" = "1 step";
 "chat.run.steps.other" = "%d steps";
 "chat.run.timeline" = "The specialist's steps";
+"chat.run.failures.one" = "1 error";
+"chat.run.failures.other" = "%d errors";
 "settings.nav.label" = "Settings sections";
 "settings.bar.save" = "Save changes";
 "settings.bar.saving" = "Saving";

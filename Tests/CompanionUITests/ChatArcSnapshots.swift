@@ -53,6 +53,37 @@ import Testing
         ]
     }()
 
+    /// The same turn with a browser step that failed: its step is drawn failed,
+    /// and the run's summary does not show a done check.
+    static let toolsFailed: [ChatMessage] = {
+        let open = ToolCallRef(id: "c1", name: "browser_open", arguments: #"{"url":"https://example.com"}"#)
+        let click = ToolCallRef(id: "c2", name: "browser_click", arguments: #"{"element":3}"#)
+        return [
+            ChatMessage(role: .user, text: "Abre la página y haz clic en el menú."),
+            ChatMessage(isStatus: true, text: "Abriendo la página…",
+                        recall: Recall(role: .assistant, content: "", toolCalls: [open, click])),
+            ChatMessage(isStatus: true, text: "Abrí una pestaña de fondo.",
+                        recall: Recall(role: .tool, content: "ok", toolCallID: "c1")),
+            ChatMessage(isStatus: true, text: "Navegador: Menú o lista no encontrada.",
+                        recall: Recall(role: .tool, content: "not_found", toolCallID: "c2"), stepFailed: true),
+            ChatMessage(role: .assistant, text: "No encontré el menú en la página."),
+        ]
+    }()
+
+    /// A turn that ran out of steps: its copy says so and its run is failed.
+    static let outOfSteps: [ChatMessage] = {
+        let open = ToolCallRef(id: "c1", name: "browser_open", arguments: #"{"url":"https://example.com"}"#)
+        return [
+            ChatMessage(role: .user, text: "Busca el precio en esa página."),
+            ChatMessage(isStatus: true, text: "Abriendo la página…",
+                        recall: Recall(role: .assistant, content: "", toolCalls: [open])),
+            ChatMessage(isStatus: true, text: "Abrí una pestaña de fondo.",
+                        recall: Recall(role: .tool, content: "ok", toolCallID: "c1")),
+            ChatMessage(role: .assistant, text: "Me quedé sin pasos antes de responder: abrí una pestaña de fondo.",
+                        endedWithoutAnswer: true),
+        ]
+    }()
+
     static let streamingMessages: [ChatMessage] = table + [
         ChatMessage(role: .user, text: "Busca hoteles cerca de Miraflores para esas fechas."),
     ]
@@ -84,6 +115,8 @@ import Testing
         ("table-sources-light", ChatArcFixture.table, nil, .light),
         ("table-sources-dark", ChatArcFixture.table, nil, .dark),
         ("tools-light", ChatArcFixture.tools, nil, .light),
+        ("tools-failed-light", ChatArcFixture.toolsFailed, nil, .light),
+        ("out-of-steps-light", ChatArcFixture.outOfSteps, nil, .light),
         ("streaming-light", ChatArcFixture.streamingMessages, ChatArcFixture.streamingLive, .light),
         ("streaming-dark", ChatArcFixture.streamingMessages, ChatArcFixture.streamingLive, .dark),
     ]
