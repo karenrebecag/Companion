@@ -90,17 +90,15 @@ func testAToolLoadingStepNeverEntersTheTimeline() {
 /// Review 16h-2 round 3 (HIGH): the one rule every spoken yes goes through.
 func testASpokenYesNeedsAnAnnouncementBeforeTheHold() {
     let dwell = ApprovalClickGuard.dwell
-    expect(!SpokenYes.admits(realtime: true, announcedAt: 0, holdStartedAt: 5, heard: "sí"),
-           "sí hablado: en realtime nunca")
-    expect(!SpokenYes.admits(realtime: false, announcedAt: nil, holdStartedAt: 5, heard: "sí"),
+    expect(!SpokenYes.admits(announcedAt: nil, holdStartedAt: 5, heard: "sí"),
            "sí hablado: sin anuncio, no")
-    expect(!SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: nil, heard: "sí"),
+    expect(!SpokenYes.admits(announcedAt: 5, holdStartedAt: nil, heard: "sí"),
            "sí hablado: sin hold, no")
-    expect(!SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: 4, heard: "sí"),
+    expect(!SpokenYes.admits(announcedAt: 5, holdStartedAt: 4, heard: "sí"),
            "sí hablado: un hold anterior al anuncio, no")
-    expect(!SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: 5 + dwell / 2, heard: "sí"),
+    expect(!SpokenYes.admits(announcedAt: 5, holdStartedAt: 5 + dwell / 2, heard: "sí"),
            "sí hablado: un hold pegado al anuncio, no")
-    expect(SpokenYes.admits(realtime: false, announcedAt: 5, holdStartedAt: 5 + dwell, heard: "sí"),
+    expect(SpokenYes.admits(announcedAt: 5, holdStartedAt: 5 + dwell, heard: "sí"),
            "sí hablado: anuncio, luego un hold pasado el dwell, sí")
 }
 
@@ -160,8 +158,6 @@ func testTheAnnouncementSoundsAtRest() {
     expect(AnnouncementGap.isOpen(warm), "aviso: sesión tibia con el micro cerrado, suena")
     let handsFree = TurnSnapshot(state: .listening, pipeline: .classic)
     expect(AnnouncementGap.isOpen(handsFree), "aviso: manos libres en silencio, suena")
-    let realtime = TurnSnapshot(state: .listening, pipeline: .realtime)
-    expect(AnnouncementGap.isOpen(realtime), "aviso: realtime escuchando, como antes")
     let failed = TurnSnapshot(state: .error, failure: .sessionDropped)
     expect(!AnnouncementGap.isOpen(failed), "aviso: con la voz en error, no")
 }
@@ -491,7 +487,7 @@ func testStopAtRestSilencesASoundingNotice() {
 
 func testTheWarmSessionWaitsForTheNoticeBeforeHangingUp() {
     var m = SessionMachine()
-    _ = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime, muted: true, holdArmed: true)))
+    _ = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic, muted: true, holdArmed: true)))
     _ = m.handle(.announcing(true))
     let fx = m.handle(.voiceIdleExpired)
     expect(!fx.contains(.hangUpVoice), "tibia: no cuelga mientras suena el aviso")

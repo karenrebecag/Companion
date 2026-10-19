@@ -4,256 +4,33 @@ import Foundation
 import Testing
 
 @Test @MainActor func turnMachineTests() {
-    testTurnMachineStartConnect()
-    testTurnMachineSpeechCycle()
-    testTurnMachineBargeIn()
-    testTurnMachineMute()
-    testTurnMachineHangUpAndError()
-    testTurnMachineHold()
-    testTurnMachineHoldRace()
-    testTurnMachineRePressWhileConnecting()
+    testTurnMachineStartClassic()
+    testTurnMachineSpeechCycleClassic()
+    testTurnMachineBargeInClassic()
     testTurnMachineHoldClassic()
     testTurnMachineInterrupt()
-    testTurnMachineHoldReleaseAfterServerAutoCommit()
     testTurnMachineHoldClassicEndsIdleAfterReply()
     testTurnMachineHandsFreeClassicRelistensAfterReply()
+    testTurnMachineHangUpAndErrorClassic()
 }
 
-// MARK: - Wave 12b: mantener y soltar
-
-/// 14-17. Realtime: pulsar abre (o reabre) el micro; soltar lo cierra y
-/// envía el texto nativo (ForceEndpoint); pulsar mientras habla corta.
-@MainActor func testTurnMachineHold() {
-    var m = TurnMachine()
-    expectEq(apply(&m, .holdPressed(preferRealtime: true)), [.openRealtimeSession],
-             "hold: desde idle abre la sesión")
-    expectEq(m.snapshot.state, .connecting, "hold: connecting")
-    expect(m.snapshot.holdArmed, "hold: armado")
-    _ = apply(&m, .realtimeSessionReady)
-    expectEq(m.snapshot.state, .listening, "hold: listening")
-    expect(!m.snapshot.muted, "hold: el micro abre al llegar")
-
-    expectEq(apply(&m, .holdReleased(hasSpeech: true)), [.setMicEnabled(false), .commitWithText],
-             "soltar: cierra el micro y envía el texto nativo")
-    expect(m.snapshot.muted, "soltar: muted")
-    expectEq(m.snapshot.state, .listening, "soltar: el estado lo cambia el servidor")
-
-    expectEq(apply(&m, .holdPressed(preferRealtime: true)), [.setMicEnabled(true), .clearInputAudio],
-             "hold: reabre y limpia")
-    expect(!m.snapshot.muted, "hold: abierto")
-    expectEq(apply(&m, .holdPressed(preferRealtime: true)), [], "hold: ya abierto no hace nada")
-
-    _ = apply(&m, .holdReleased(hasSpeech: true))
-    _ = apply(&m, .agentAudioStarted)
-    expectEq(m.snapshot.state, .speaking, "hold: el agente habla")
-    expectEq(apply(&m, .holdPressed(preferRealtime: true)),
-             [.cancelAgentOutput(steer: true), .setMicEnabled(true), .clearInputAudio],
-             "hold: pulsar mientras habla corta y abre")
-    expectEq(m.snapshot.state, .listening, "hold: listening tras el corte")
-    expectEq(apply(&m, .holdReleased(hasSpeech: true)), [.setMicEnabled(false), .commitWithText], "hold: y suelta")
-}
-
-/// 18. Soltar antes de que la sesión esté lista: al llegar, el micro queda
-/// cerrado y no se envía nada. No hubo turno.
-@MainActor func testTurnMachineHoldRace() {
-    var m = TurnMachine()
-    _ = apply(&m, .holdPressed(preferRealtime: true))
-    expectEq(apply(&m, .holdReleased(hasSpeech: false)), [], "carrera: soltar conectando no envía")
-    expect(!m.snapshot.holdArmed, "carrera: desarmado")
-    _ = apply(&m, .realtimeSessionReady)
-    expectEq(m.snapshot.state, .listening, "carrera: listening")
-    expect(m.snapshot.muted, "carrera: con el micro cerrado")
-    _ = apply(&m, .hangUp)
-    expect(!m.snapshot.holdArmed, "carrera: colgar limpia el armado")
-}
-
-/// 18b. Code review 2026-09-06 (alto): pulsar, soltar y volver a pulsar
-/// antes de que la sesión esté lista dejaba el micro cerrado al llegar,
-/// con la tecla aún apretada.
-@MainActor func testTurnMachineRePressWhileConnecting() {
-    var m = TurnMachine()
-    _ = apply(&m, .holdPressed(preferRealtime: true))
-    _ = apply(&m, .holdReleased(hasSpeech: false))
-    _ = apply(&m, .holdPressed(preferRealtime: true))
-    expect(!m.snapshot.muted, "re-pulsar: la segunda pulsación reabre la intención")
-    expectEq(apply(&m, .realtimeSessionReady), [], "re-pulsar: al llegar no cierra el micro")
-    expectEq(m.snapshot.state, .listening, "re-pulsar: listening")
-    expect(!m.snapshot.muted, "re-pulsar: con el micro abierto")
-}
-
-/// 19. Clásico (sin clave): pulsar arma la escucha; soltar con voz empieza
-/// el turno, sin voz cuelga.
-@MainActor func testTurnMachineHoldClassic() {
-    var m = TurnMachine()
-    expectEq(apply(&m, .holdPressed(preferRealtime: false)), [.requestClassicListen], "clásico: pide escuchar")
-    _ = apply(&m, .classicListenArmed)
-    expectEq(apply(&m, .holdReleased(hasSpeech: true)), [.submitUtterance], "clásico: soltar con voz envía")
-    expectEq(m.snapshot.state, .thinking, "clásico: thinking")
-
-    var quiet = TurnMachine()
-    _ = apply(&quiet, .holdPressed(preferRealtime: false))
-    _ = apply(&quiet, .classicListenArmed)
-    expectEq(apply(&quiet, .holdReleased(hasSpeech: false)), [.stopClassicIO], "clásico: sin voz cuelga")
-    expectEq(quiet.snapshot.state, .idle, "clásico: idle")
-}
-
-/// 20. Interrumpir corta lo que la voz piensa o dice y deja el micro como
-/// estaba; en reposo no hace nada.
-@MainActor func testTurnMachineInterrupt() {
-    var m = TurnMachine()
-    expectEq(apply(&m, .interrupt), [], "interrupt: idle nada")
-    armRealtime(&m)
-    _ = apply(&m, .holdReleased(hasSpeech: true))
-    _ = apply(&m, .delegateCallStarted)
-    expectEq(m.snapshot.state, .thinking, "interrupt: thinking")
-    expectEq(apply(&m, .interrupt), [.cancelAgentOutput(steer: false)],
-             "interrupt: corta, y un stop no es un cambio de rumbo (R3)")
-    expectEq(m.snapshot.state, .listening, "interrupt: listening")
-    expect(m.snapshot.muted, "interrupt: el micro sigue cerrado")
-
-    // Code review 2026-09-23 (alto): classic has no endpointer, so
-    // `.requestClassicListen` (`cutClassicTurn`'s reopen for a fresh press)
-    // left a hot, unowned mic listening with no key down to ever close it.
-    // Interrupt is not a press — it ends idle with the mic torn down.
-    var classic = TurnMachine()
-    _ = apply(&classic, .holdPressed(preferRealtime: false))
-    _ = apply(&classic, .classicListenArmed)
-    _ = apply(&classic, .holdReleased(hasSpeech: true))
-    expectEq(classic.snapshot.state, .thinking, "interrupt clásico: thinking")
-    expectEq(apply(&classic, .interrupt), [.cancelAgentOutput(steer: false), .stopClassicIO],
-             "interrupt clásico: corta el turno y apaga el micro, no lo reabre")
-    expectEq(classic.snapshot.state, .idle, "interrupt clásico: idle, no listening")
-    expect(classic.snapshot.pipeline == nil, "interrupt clásico: sin pipeline armado")
-    expect(!classic.snapshot.muted, "interrupt clásico: hangUp deja muted en false")
-}
-
-/// Live bug A (2026-09-22): the server's own VAD can end the segment and
-/// move the state to `.thinking`/`.speaking` while the key is still
-/// physically down. The key-up that follows must still close the mic and
-/// force the endpoint — `release()`'s contract is to send what the ear
-/// heard "without asking the server's VAD" — instead of the reducer
-/// silently doing nothing because it only recognized `.listening`.
-@MainActor func testTurnMachineHoldReleaseAfterServerAutoCommit() {
-    var thinking = TurnMachine()
-    _ = apply(&thinking, .holdPressed(preferRealtime: true))
-    _ = apply(&thinking, .realtimeSessionReady)
-    _ = apply(&thinking, .serverSpeechStopped)
-    expectEq(thinking.snapshot.state, .thinking, "auto-commit: server moved on to thinking")
-    expect(thinking.snapshot.holdArmed, "auto-commit: the key is still down")
-    expectEq(apply(&thinking, .holdReleased(hasSpeech: true)),
-             [.setMicEnabled(false), .commitWithText],
-             "release after auto-commit (thinking): still closes the mic and forces the endpoint")
-    expect(thinking.snapshot.muted, "release after auto-commit (thinking): muted")
-
-    var speaking = TurnMachine()
-    _ = apply(&speaking, .holdPressed(preferRealtime: true))
-    _ = apply(&speaking, .realtimeSessionReady)
-    _ = apply(&speaking, .serverSpeechStopped)
-    _ = apply(&speaking, .agentAudioStarted)
-    expectEq(speaking.snapshot.state, .speaking, "auto-commit: the agent already started answering")
-    expectEq(apply(&speaking, .holdReleased(hasSpeech: true)),
-             [.setMicEnabled(false), .commitWithText],
-             "release after auto-commit (speaking): still closes the mic and forces the endpoint")
-    expect(speaking.snapshot.muted, "release after auto-commit (speaking): muted")
-}
-
-/// Live crash 2026-09-23: a HOLD classic turn (FN press → release → reply
-/// spoken) went back to `.listening` and issued `.requestClassicListen`,
-/// re-opening a mic that was never stopped — MicCapture.startOnce() then
-/// installed a second tap on the still-running engine and crashed. A hold
-/// must end in idle with the mic off; the user presses again for the next
-/// turn, unlike hands-free listening.
-@MainActor func testTurnMachineHoldClassicEndsIdleAfterReply() {
-    var m = TurnMachine()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
-    _ = apply(&m, .classicListenArmed)
-    _ = apply(&m, .holdReleased(hasSpeech: true))
-    expectEq(m.snapshot.state, .thinking, "hold classic: thinking")
-    _ = apply(&m, .firstSentence)
-    expectEq(m.snapshot.state, .speaking, "hold classic: speaking")
-    expectEq(apply(&m, .speechFinished), [.stopClassicIO],
-              "hold classic: the reply's end closes the mic instead of relistening")
-    expectEq(m.snapshot.state, .idle, "hold classic: idle, waiting for the next press")
-    expect(m.snapshot.pipeline == nil, "hold classic: no pipeline left armed")
-    expect(!m.snapshot.holdArmed, "hold classic: disarmed")
-}
-
-/// Hands-free classic (no hold, `start()`) is unaffected: nobody has to
-/// press again, so it keeps relistening after a reply — today's behavior.
-@MainActor func testTurnMachineHandsFreeClassicRelistensAfterReply() {
-    var m = TurnMachine()
-    _ = apply(&m, .startVoice(preferRealtime: false))
-    _ = apply(&m, .classicListenArmed)
-    _ = apply(&m, .advance(hasSpeech: true))
-    expectEq(m.snapshot.state, .thinking, "hands-free: thinking")
-    _ = apply(&m, .firstSentence)
-    expectEq(apply(&m, .speechFinished), [.requestClassicListen],
-              "hands-free: still relistens after the reply")
-    expectEq(m.snapshot.state, .listening, "hands-free: listening again")
-}
-
-@discardableResult
-private func apply(
-    _ machine: inout TurnMachine, _ event: TurnEvent, at now: TimeInterval = 0
-) -> [TurnEffect] {
-    machine.handle(event, at: now)
-}
-
-private func armRealtime(_ machine: inout TurnMachine) {
-    _ = apply(&machine, .startVoice(preferRealtime: true))
-    _ = apply(&machine, .realtimeSessionReady)
-}
-
-private func armClassicSpeaking(_ machine: inout TurnMachine) {
-    _ = apply(&machine, .startVoice(preferRealtime: false))
-    _ = apply(&machine, .classicListenArmed)
-    _ = apply(&machine, .endpointFinished)
-    _ = apply(&machine, .firstSentence)
-}
-
-@MainActor func testTurnMachineStartConnect() {
+@MainActor func testTurnMachineStartClassic() {
     var m = TurnMachine()
     expectEq(m.snapshot, .idle, "start: snapshot idle de fábrica")
     expect(!m.isEchoGuarded(at: 0), "start: sin eco-guard en idle")
 
-    let opened = apply(&m, .startVoice(preferRealtime: true), at: 1)
-    expectEq(opened, [.openRealtimeSession],
-             "start: idle + realtime abre la sesión")
-    expectEq(m.snapshot.state, .connecting, "start: pasa a connecting")
-    expectEq(m.snapshot.pipeline, .realtime, "start: pipeline realtime")
-    expect(!m.snapshot.muted, "start: unmute al conectar")
-    expect(m.snapshot.pipeline != nil, "start: pipeline no es nil en connecting")
-
-    let ignored = apply(&m, .startVoice(preferRealtime: true), at: 2)
-    expectEq(ignored, [], "start: connecting ignora un segundo startVoice")
-    expectEq(m.snapshot.state, .connecting, "start: sigue connecting")
-
-    let ignoredAdvance = apply(&m, .advance(hasSpeech: true), at: 2)
-    expectEq(ignoredAdvance, [], "start: connecting ignora advance")
-    expectEq(apply(&m, .startVoice(preferRealtime: false)), [],
-             "start: connecting ignora startVoice(false)")
-
-    let ready = apply(&m, .realtimeSessionReady, at: 3)
-    expectEq(ready, [], "start: ready no dispara efectos")
-    expectEq(m.snapshot.state, .listening, "start: ready → listening")
-    expectEq(m.snapshot.pipeline, .realtime, "start: sigue realtime")
-    expect(!m.snapshot.muted, "start: ready deja muted=false")
-
-    var classic = TurnMachine()
-    let wait = apply(&classic, .startVoice(preferRealtime: false))
-    expectEq(wait, [.requestClassicListen],
+    expectEq(apply(&m, .startVoice), [.requestClassicListen],
              "start: classic pide el mic y espera")
-    expectEq(classic.snapshot.state, .idle, "start: classic se queda idle")
-    expect(classic.snapshot.pipeline == nil, "start: idle no lleva pipeline")
-    _ = apply(&classic, .classicListenArmed)
-    expectEq(classic.snapshot.state, .listening, "start: armed → listening")
-    expectEq(classic.snapshot.pipeline, .classic, "start: pipeline classic")
+    expectEq(m.snapshot.state, .idle, "start: classic se queda idle")
+    expect(m.snapshot.pipeline == nil, "start: idle no lleva pipeline")
+    _ = apply(&m, .classicListenArmed)
+    expectEq(m.snapshot.state, .listening, "start: armed → listening")
+    expectEq(m.snapshot.pipeline, .classic, "start: pipeline classic")
+    expectEq(apply(&m, .startVoice), [], "start: listening ignora startVoice")
 
     var fromError = TurnMachine(snapshot: TurnSnapshot(state: .error))
-    let retry = apply(&fromError, .startVoice(preferRealtime: true))
-    expectEq(retry, [.openRealtimeSession],
-             "start: error + realtime reabre connecting")
-    expectEq(fromError.snapshot.state, .connecting, "start: error se recupera")
+    expectEq(apply(&fromError, .startVoice), [.requestClassicListen],
+             "start: error reintenta el mic")
 
     var typed = TurnMachine()
     let submit = apply(&typed, .typedSubmit)
@@ -263,74 +40,9 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
     expect(typed.snapshot.pipeline == nil, "start: typed no abre pipeline")
 }
 
-@MainActor func testTurnMachineSpeechCycle() {
-    var m = TurnMachine()
-    armRealtime(&m)
-
-    let started = apply(&m, .serverSpeechStarted, at: 10)
-    expectEq(started, [], "ciclo: speechStarted en listening no cancela")
-    expect(m.snapshot.speechOpen, "ciclo: speechOpen al oír")
-    expectEq(m.snapshot.state, .listening, "ciclo: sigue listening")
-
-    // Wave 9i: el fin de habla ya no deja que el server responda desde el
-    // audio; pide armar el turno con el texto nativo (Apple).
-    let stopped = apply(&m, .serverSpeechStopped, at: 11)
-    expectEq(stopped, [.commitWithText], "ciclo: speechStopped arma el turno con texto")
-    expectEq(m.snapshot.state, .thinking, "ciclo: speechStopped → thinking")
-    expect(!m.snapshot.speechOpen, "ciclo: speechOpen cierra al parar")
-
-    let audio = apply(&m, .agentAudioStarted, at: 12)
-    expectEq(audio, [], "ciclo: agentAudioStarted no dispara I/O")
-    expectEq(m.snapshot.state, .speaking, "ciclo: audio del agente → speaking")
-
-    let now: TimeInterval = 20
-    let drained = apply(&m, .playerDrained, at: now)
-    expectEq(drained, [], "ciclo: playerDrained no dispara I/O")
-    expectEq(m.snapshot.state, .listening, "ciclo: drained → listening")
-    expect(m.isEchoGuarded(at: now),
-           "ciclo: eco-guard activo justo al drenar")
-    expect(m.isEchoGuarded(at: now + 0.349),
-           "ciclo: eco-guard cubre casi 350 ms")
-    expect(!m.isEchoGuarded(at: now + TurnMachine.echoGuardDuration),
-           "ciclo: eco-guard caduca a los 0.35 s")
-    expect(!m.isEchoGuarded(at: now + 0.35),
-           "ciclo: en el borde ya no está guardado")
-
-    _ = apply(&m, .serverSpeechStopped, at: 21)
-    _ = apply(&m, .agentAudioStarted, at: 22)
-    expectEq(m.snapshot.state, .speaking, "ciclo: vuelve a speaking")
-    let completed = apply(&m, .responseCompleted(hasPendingAudio: false), at: 23)
-    expectEq(completed, [], "ciclo: responseCompleted(false) no dispara I/O")
-    expectEq(m.snapshot.state, .listening,
-             "ciclo: responseCompleted sin cola → listening")
-    expect(m.isEchoGuarded(at: 23),
-           "ciclo: responseCompleted(false) arma el eco-guard")
-
-    _ = apply(&m, .agentAudioStarted, at: 24)
-    let pending = apply(&m, .responseCompleted(hasPendingAudio: true), at: 24)
-    expectEq(pending, [], "ciclo: con audio pendiente no cambia")
-    expectEq(m.snapshot.state, .speaking,
-             "ciclo: responseCompleted(true) espera al player")
-
-    _ = apply(&m, .playerDrained, at: 25)
-    _ = apply(&m, .serverSpeechStopped, at: 26)
-    expectEq(m.snapshot.state, .thinking, "ciclo: de nuevo thinking")
-    _ = apply(&m, .delegateCallStarted, at: 26)
-    expect(m.snapshot.awaitingExecutor, "ciclo: delegate deja awaiting")
-    expectEq(m.snapshot.state, .thinking, "ciclo: delegate se queda thinking")
-    let held = apply(&m, .responseCompleted(hasPendingAudio: false), at: 27)
-    expectEq(held, [], "ciclo: awaitingExecutor ignora responseCompleted")
-    expectEq(m.snapshot.state, .thinking, "ciclo: no vuelve a listening")
-    let sent = apply(&m, .functionOutputSent, at: 28)
-    expectEq(sent, [], "ciclo: functionOutput no dispara I/O")
-    expect(!m.snapshot.awaitingExecutor, "ciclo: output libera awaiting")
-    expectEq(m.snapshot.state, .thinking, "ciclo: output → thinking")
-    _ = apply(&m, .responseCompleted(hasPendingAudio: false), at: 29)
-    expectEq(m.snapshot.state, .listening,
-             "ciclo: responseCompleted sin awaiting → listening")
-
+@MainActor func testTurnMachineSpeechCycleClassic() {
     var classic = TurnMachine()
-    _ = apply(&classic, .startVoice(preferRealtime: false))
+    _ = apply(&classic, .startVoice)
     _ = apply(&classic, .classicListenArmed)
     let end = apply(&classic, .endpointFinished)
     expectEq(end, [.submitUtterance], "ciclo: endpoint finished manda el turno")
@@ -348,7 +60,7 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
     expect(classic.snapshot.inConversation, "ciclo: una respuesta abre conversación")
 }
 
-@MainActor func testTurnMachineBargeIn() {
+@MainActor func testTurnMachineBargeInClassic() {
     let saying = "te cuento la historia"
     var m = TurnMachine()
     armClassicSpeaking(&m)
@@ -383,110 +95,84 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
     expectEq(accented, [.cancelAgentOutput(steer: true)],
              "barge-in: unicode propio sí interrumpe")
 
-    var rt = TurnMachine()
-    armRealtime(&rt)
-    _ = apply(&rt, .agentAudioStarted)
-    expectEq(rt.snapshot.state, .speaking, "barge-in: realtime speaking")
-    let tap = apply(&rt, .advance(hasSpeech: false))
-    expectEq(tap, [.cancelAgentOutput(steer: true)],
-             "barge-in: tap en speaking realtime cancela")
-    expectEq(rt.snapshot.state, .listening, "barge-in: tap → listening")
-
-    _ = apply(&rt, .agentAudioStarted)
-    let server = apply(&rt, .serverSpeechStarted)
-    expectEq(server, [.cancelAgentOutput(steer: true)],
-             "barge-in: speechStarted en speaking cancela")
-    expectEq(rt.snapshot.state, .listening, "barge-in: server barge → listening")
-    expect(rt.snapshot.speechOpen, "barge-in: speechOpen queda armado")
-
-    let heardOnRealtime = apply(&rt, .heardWhileSpeaking(
-        heard: "oye espera", agentSaying: saying))
-    expectEq(heardOnRealtime, [],
-             "barge-in: heardWhileSpeaking no aplica en realtime")
-
     var idle = TurnMachine()
     expectEq(apply(&idle, .heardWhileSpeaking(heard: "oye espera",
                                               agentSaying: saying)),
              [], "barge-in: idle ignora heardWhileSpeaking")
 }
 
-@MainActor func testTurnMachineMute() {
+@MainActor func testTurnMachineHoldClassic() {
     var m = TurnMachine()
-    expectEq(apply(&m, .toggleMute(hasPendingAudio: false)), [],
-             "mute: idle no hace nada")
-    expect(!m.snapshot.muted, "mute: idle no voltea muted")
+    expectEq(apply(&m, .holdPressed), [.requestClassicListen], "clásico: pide escuchar")
+    _ = apply(&m, .classicListenArmed)
+    expectEq(apply(&m, .holdReleased(hasSpeech: true)), [.submitUtterance], "clásico: soltar con voz envía")
+    expectEq(m.snapshot.state, .thinking, "clásico: thinking")
 
-    var classic = TurnMachine()
-    _ = apply(&classic, .startVoice(preferRealtime: false))
-    _ = apply(&classic, .classicListenArmed)
-    expectEq(apply(&classic, .toggleMute(hasPendingAudio: true)), [],
-             "mute: classic no mutea")
-    expect(!classic.snapshot.muted, "mute: classic ignora el gesto")
-
-    armRealtime(&m)
-    expectEq(m.snapshot.state, .listening, "mute: realtime listening")
-    expect(!m.snapshot.speechOpen, "mute: sin habla abierta")
-
-    let muteQuiet = apply(&m, .toggleMute(hasPendingAudio: false))
-    expectEq(muteQuiet, [.setMicEnabled(false)],
-             "mute: sin speechOpen solo apaga el mic")
-    expect(m.snapshot.muted, "mute: muted ON")
-    expectEq(m.snapshot.state, .listening, "mute: el estado no cambia")
-    expect(!m.snapshot.speechOpen, "mute: speechOpen sigue cerrado")
-
-    let unmuteListen = apply(&m, .toggleMute(hasPendingAudio: false))
-    expectEq(unmuteListen, [.setMicEnabled(true), .clearInputAudio],
-             "mute: unmute reabre y limpia el buffer")
-    expect(!m.snapshot.muted, "mute: muted OFF")
-    expectEq(m.snapshot.state, .listening, "mute: ya listening se queda")
-
-    _ = apply(&m, .serverSpeechStarted)
-    expect(m.snapshot.speechOpen, "mute: speechOpen al hablar")
-    let muteTalk = apply(&m, .toggleMute(hasPendingAudio: false))
-    expectEq(muteTalk, [.setMicEnabled(false), .commitAndRespond],
-             "mute: con speechOpen cierra el turno a mano")
-    expect(m.snapshot.muted, "mute: muted ON a media frase")
-    expect(!m.snapshot.speechOpen, "mute: commit cierra speechOpen")
-    expectEq(m.snapshot.state, .listening, "mute: ON no cambia de fase")
-
-    _ = apply(&m, .toggleMute(hasPendingAudio: false))
-    expect(!m.snapshot.muted, "mute: OFF de nuevo")
-
-    _ = apply(&m, .agentAudioStarted)
-    expectEq(m.snapshot.state, .speaking, "mute: speaking para el unmute")
-    _ = apply(&m, .toggleMute(hasPendingAudio: true))
-    expect(m.snapshot.muted, "mute: ON en speaking")
-    let unmutePending = apply(&m, .toggleMute(hasPendingAudio: true))
-    expectEq(unmutePending, [.setMicEnabled(true), .clearInputAudio],
-             "mute: unmute con audio pendiente no empuja listening")
-    expectEq(m.snapshot.state, .speaking,
-             "mute: hasPendingAudio deja speaking")
-    expect(!m.snapshot.muted, "mute: OFF")
-
-    _ = apply(&m, .toggleMute(hasPendingAudio: false))
-    expect(m.snapshot.muted, "mute: ON otra vez")
-    let unmuteJump = apply(&m, .toggleMute(hasPendingAudio: false))
-    expectEq(unmuteJump, [.setMicEnabled(true), .clearInputAudio],
-             "mute: unmute sin cola endereza a listening")
-    expectEq(m.snapshot.state, .listening,
-             "mute: !listening y !pending → listening")
-    expect(!m.snapshot.speechOpen, "mute: unmute cierra speechOpen")
-
-    var connecting = TurnMachine()
-    _ = apply(&connecting, .startVoice(preferRealtime: true))
-    expectEq(apply(&connecting, .toggleMute(hasPendingAudio: false)), [],
-             "mute: connecting no mutea")
+    var quiet = TurnMachine()
+    _ = apply(&quiet, .holdPressed)
+    _ = apply(&quiet, .classicListenArmed)
+    expectEq(apply(&quiet, .holdReleased(hasSpeech: false)), [.stopClassicIO], "clásico: sin voz cuelga")
+    expectEq(quiet.snapshot.state, .idle, "clásico: idle")
 }
 
-@MainActor func testTurnMachineHangUpAndError() {
+/// 20. Interrumpir corta lo que la voz piensa o dice y deja el micro como
+/// estaba; en reposo no hace nada.
+@MainActor func testTurnMachineInterrupt() {
     var m = TurnMachine()
-    armRealtime(&m)
-    _ = apply(&m, .replyCompleted)
-    expect(m.snapshot.inConversation
-           || m.snapshot.state == .listening
-           || m.snapshot.state == .speaking,
-           "hangup: sesión viva antes de colgar")
+    expectEq(apply(&m, .interrupt), [], "interrupt: idle nada")
 
+    // Code review 2026-09-23 (alto): classic has no endpointer, so
+    // `.requestClassicListen` (`cutClassicTurn`'s reopen for a fresh press)
+    // left a hot, unowned mic listening with no key down to ever close it.
+    // Interrupt is not a press — it ends idle with the mic torn down.
+    var classic = TurnMachine()
+    _ = apply(&classic, .holdPressed)
+    _ = apply(&classic, .classicListenArmed)
+    _ = apply(&classic, .holdReleased(hasSpeech: true))
+    expectEq(classic.snapshot.state, .thinking, "interrupt clásico: thinking")
+    expectEq(apply(&classic, .interrupt), [.cancelAgentOutput(steer: false), .stopClassicIO],
+             "interrupt clásico: corta el turno y apaga el micro, no lo reabre")
+    expectEq(classic.snapshot.state, .idle, "interrupt clásico: idle, no listening")
+    expect(classic.snapshot.pipeline == nil, "interrupt clásico: sin pipeline armado")
+    expect(!classic.snapshot.muted, "interrupt clásico: hangUp deja muted en false")
+}
+
+/// Live crash 2026-09-23: a HOLD classic turn (FN press → release → reply
+/// spoken) went back to `.listening` and issued `.requestClassicListen`,
+/// re-opening a mic that was never stopped — MicCapture.startOnce() then
+/// installed a second tap on the still-running engine and crashed. A hold
+/// must end in idle with the mic off; the user presses again for the next
+/// turn, unlike hands-free listening.
+@MainActor func testTurnMachineHoldClassicEndsIdleAfterReply() {
+    var m = TurnMachine()
+    _ = apply(&m, .holdPressed)
+    _ = apply(&m, .classicListenArmed)
+    _ = apply(&m, .holdReleased(hasSpeech: true))
+    expectEq(m.snapshot.state, .thinking, "hold classic: thinking")
+    _ = apply(&m, .firstSentence)
+    expectEq(m.snapshot.state, .speaking, "hold classic: speaking")
+    expectEq(apply(&m, .speechFinished), [.stopClassicIO],
+              "hold classic: the reply's end closes the mic instead of relistening")
+    expectEq(m.snapshot.state, .idle, "hold classic: idle, waiting for the next press")
+    expect(m.snapshot.pipeline == nil, "hold classic: no pipeline left armed")
+    expect(!m.snapshot.holdArmed, "hold classic: disarmed")
+}
+
+/// Hands-free classic (no hold, `start()`) is unaffected: nobody has to
+/// press again, so it keeps relistening after a reply — today's behavior.
+@MainActor func testTurnMachineHandsFreeClassicRelistensAfterReply() {
+    var m = TurnMachine()
+    _ = apply(&m, .startVoice)
+    _ = apply(&m, .classicListenArmed)
+    _ = apply(&m, .advance(hasSpeech: true))
+    expectEq(m.snapshot.state, .thinking, "hands-free: thinking")
+    _ = apply(&m, .firstSentence)
+    expectEq(apply(&m, .speechFinished), [.requestClassicListen],
+              "hands-free: still relistens after the reply")
+    expectEq(m.snapshot.state, .listening, "hands-free: listening again")
+}
+
+@MainActor func testTurnMachineHangUpAndErrorClassic() {
     var live = TurnMachine()
     _ = apply(&live, .typedSubmit)
     _ = apply(&live, .replyCompleted)
@@ -503,23 +189,15 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
     expect(!live.snapshot.typedTurn, "hangup: typedTurn limpio")
     expectEq(hung, [], "hangup: typed sin pipeline no cierra I/O")
 
-    let hangRealtime = apply(&m, .hangUp)
-    expectEq(hangRealtime, [.closeRealtime],
-             "hangup: realtime cierra la sesión")
-    expectEq(m.snapshot.state, .idle, "hangup: realtime → idle")
-    expect(!m.snapshot.inConversation, "hangup: realtime limpia conversación")
-    expect(m.snapshot.pipeline == nil, "hangup: realtime deja pipeline nil")
-    expectEq(apply(&m, .hangUp), [], "hangup: idle es idempotente")
-
     var classic = TurnMachine()
-    _ = apply(&classic, .startVoice(preferRealtime: false))
+    _ = apply(&classic, .startVoice)
     _ = apply(&classic, .classicListenArmed)
     let hangClassic = apply(&classic, .hangUp)
     expectEq(hangClassic, [.stopClassicIO], "hangup: classic suelta mic/TTS")
     expectEq(classic.snapshot.state, .idle, "hangup: classic → idle")
 
     var stale = TurnMachine()
-    _ = apply(&stale, .startVoice(preferRealtime: false))
+    _ = apply(&stale, .startVoice)
     _ = apply(&stale, .hangUp)
     // 15d-1: the runtime did start the mic for that arm; `[]` left it on
     // with nobody listening. It is torn down, never reopened.
@@ -533,25 +211,6 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
     expectEq(apply(&typedArm, .classicListenArmed), [],
              "hangup: arm classic no pisa un typed thinking")
     expectEq(typedArm.snapshot.state, .thinking, "hangup: typed sigue thinking")
-
-    var connecting = TurnMachine()
-    _ = apply(&connecting, .startVoice(preferRealtime: true))
-    let failed = apply(&connecting, .voiceStartFailed(.micDenied))
-    expectEq(failed, [.noteFailure(.micDenied), .closeRealtime],
-             "error: voiceStartFailed sin conversación → error + close")
-    expectEq(connecting.snapshot.state, .error, "error: → error")
-    expect(connecting.snapshot.pipeline == nil, "error: pipeline nil")
-    expect(!connecting.snapshot.inConversation, "error: sin conversación")
-
-    var dropped = TurnMachine()
-    armRealtime(&dropped)
-    expect(!dropped.snapshot.inConversation,
-           "error: realtime listo aún no es conversación")
-    let session = apply(&dropped, .turnFailed(.sessionDropped))
-    expectEq(session, [.noteFailure(.sessionDropped), .closeRealtime],
-             "error: sessionDropped sin conversación → error + close")
-    expectEq(dropped.snapshot.state, .error, "error: sessionDropped → error")
-    expect(dropped.snapshot.pipeline == nil, "error: drop deja pipeline nil")
 
     var recover = TurnMachine()
     _ = apply(&recover, .typedSubmit)
@@ -579,7 +238,7 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
     expectEq(speech.snapshot.state, .error, "error: speechFailed → error")
 
     var empty = TurnMachine()
-    _ = apply(&empty, .startVoice(preferRealtime: false))
+    _ = apply(&empty, .startVoice)
     _ = apply(&empty, .classicListenArmed)
     let heard = apply(&empty, .utteranceEmpty)
     expect(heard.contains(.noteFailure(.notHeard)),
@@ -587,17 +246,23 @@ private func armClassicSpeaking(_ machine: inout TurnMachine) {
     expectEq(empty.snapshot.state, .error, "error: notHeard → error")
 
     var timeout = TurnMachine()
-    _ = apply(&timeout, .startVoice(preferRealtime: false))
+    _ = apply(&timeout, .startVoice)
     _ = apply(&timeout, .classicListenArmed)
     let quiet = apply(&timeout, .endpointTimedOut(hasSpeech: false))
     expectEq(quiet, [.stopClassicIO], "error: timeout sin habla cuelga")
     expectEq(timeout.snapshot.state, .idle, "error: timeout quieto → idle")
+}
 
-    var thinkingTap = TurnMachine()
-    armRealtime(&thinkingTap)
-    _ = apply(&thinkingTap, .serverSpeechStopped)
-    let tapThink = apply(&thinkingTap, .advance(hasSpeech: false))
-    expectEq(tapThink, [.closeRealtime],
-             "hangup: tap en thinking realtime cuelga")
-    expectEq(thinkingTap.snapshot.state, .idle, "hangup: thinking tap → idle")
+@discardableResult
+private func apply(
+    _ machine: inout TurnMachine, _ event: TurnEvent, at now: TimeInterval = 0
+) -> [TurnEffect] {
+    machine.handle(event, at: now)
+}
+
+private func armClassicSpeaking(_ machine: inout TurnMachine) {
+    _ = apply(&machine, .startVoice)
+    _ = apply(&machine, .classicListenArmed)
+    _ = apply(&machine, .endpointFinished)
+    _ = apply(&machine, .firstSentence)
 }

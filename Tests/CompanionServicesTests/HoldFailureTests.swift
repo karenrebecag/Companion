@@ -23,7 +23,7 @@ private func step(_ m: inout TurnMachine, _ event: TurnEvent) -> [TurnEffect] {
 
 /// One whole hold: press, arm, release with speech, reply, spoken.
 private func completedHold(_ m: inout TurnMachine) {
-    _ = step(&m, .holdPressed(preferRealtime: false))
+    _ = step(&m, .holdPressed)
     _ = step(&m, .classicListenArmed)
     _ = step(&m, .holdReleased(hasSpeech: true))
     _ = step(&m, .firstSentence)

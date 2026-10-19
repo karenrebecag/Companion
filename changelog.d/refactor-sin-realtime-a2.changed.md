@@ -1,0 +1,1 @@
+- **Sin cambio para quien usa la app (2026-10-19).** El reducer de turnos deja de conocer el modo realtime: queda solo la vía clásica (mantener para hablar y manos libres por el mismo carril). Paso previo a quitar OpenAI del producto.

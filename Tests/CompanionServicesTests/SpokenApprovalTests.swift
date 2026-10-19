@@ -15,7 +15,7 @@ import CompanionTestKit
 @Test @MainActor func spokenApprovalTests() async {
     await testASheetFromBeforeTheHoldWithNoAnnouncementNeedsAClick()
     await testASheetThatAppearsDuringTheHoldNeedsAClick()
-    await testRealtimeNeverTakesASpokenYes()
+    await testASpokenYesWithoutAHoldNeverResolves()
     await testAnAnnouncedSheetIsAnsweredInALaterHold()
 }
 
@@ -50,14 +50,14 @@ private let sheet = ApprovalRequest(
     await h.session.hangUp()
 }
 
-@MainActor func testRealtimeNeverTakesASpokenYes() async {
+@MainActor func testASpokenYesWithoutAHoldNeverResolves() async {
     let h = makeVoiceHarness(language: .es)
     await h.session.start()
-    await pumpUntil("realtime: escuchando") { h.watch.latest.state == .listening }
+    await pumpUntil("sin hold: escuchando") { h.watch.latest.state == .listening }
     await h.session.noteApproval(sheet)
     h.clock.now += 10
     let answer = await h.session.answerPendingApproval(true)
-    expectEq(answer, .needsClick, "realtime: sin holds, el sí hablado nunca resuelve")
+    expectEq(answer, .needsClick, "sin hold: el sí hablado nunca resuelve")
     await h.session.hangUp()
 }
 

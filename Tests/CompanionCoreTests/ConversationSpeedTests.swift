@@ -13,16 +13,6 @@ private func near(_ a: Double, _ b: Double) -> Bool { abs(a - b) < 1e-9 }
     #expect(!ConversationSpeed.base.isLimited(for: .openAITTS, base: 1.1))
 }
 
-@Test func realtimeClampsTo025Through15() {
-    let fast = ConversationSpeed(factor: 1.3)
-    #expect(near(fast.speed(for: .realtime, base: 1.0), 1.3))
-    #expect(near(fast.speed(for: .realtime, base: 1.4), 1.5))
-    #expect(fast.isLimited(for: .realtime, base: 1.4))
-    #expect(near(ConversationSpeed(factor: 0.25).speed(for: .realtime, base: 0.5), 0.25))
-    #expect(ConversationSpeed(factor: 0.25).isLimited(for: .realtime, base: 0.5))
-    #expect(!fast.isLimited(for: .realtime, base: 1.0))
-}
-
 @Test func openAITTSClampsTo025Through40() {
     #expect(near(ConversationSpeed(factor: 1.3).speed(for: .openAITTS, base: 1.1), 1.43))
     #expect(near(ConversationSpeed(factor: 4.0).speed(for: .openAITTS, base: 1.1), 4.0))
@@ -164,17 +154,6 @@ func setSpeechSpeedEncodesStrictForChat(language: AppLanguage) throws {
         let limited: Bool
     }
     let rows: [Row] = [
-        // Realtime, upper edge, one step either side, far outside.
-        Row(provider: .realtime, base: 1.0, factor: 1.5, speed: 1.5, limited: false),
-        Row(provider: .realtime, base: 1.0, factor: 1.45, speed: 1.45, limited: false),
-        Row(provider: .realtime, base: 1.0, factor: 1.55, speed: 1.5, limited: true),
-        Row(provider: .realtime, base: 1.0, factor: 4.0, speed: 1.5, limited: true),
-        // Realtime, lower edge reached from above (base 0.5) and exactly.
-        Row(provider: .realtime, base: 1.0, factor: 0.25, speed: 0.25, limited: false),
-        Row(provider: .realtime, base: 0.5, factor: 0.5, speed: 0.25, limited: false),
-        Row(provider: .realtime, base: 0.5, factor: 0.55, speed: 0.275, limited: false),
-        Row(provider: .realtime, base: 0.5, factor: 0.45, speed: 0.25, limited: true),
-        Row(provider: .realtime, base: 0.5, factor: 0.25, speed: 0.25, limited: true),
         // OpenAI TTS.
         Row(provider: .openAITTS, base: 1.0, factor: 4.0, speed: 4.0, limited: false),
         Row(provider: .openAITTS, base: 1.0, factor: 3.95, speed: 3.95, limited: false),

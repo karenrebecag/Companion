@@ -13,7 +13,6 @@ import Testing
         await testVoiceViewModelForwardsControls()
         await testVoiceViewModelOnAppearMirrorsSnapshotAndLevels()
         await testVoiceViewModelIsActivePerState()
-        await testVoiceViewModelClassicFallbackStatus()
         await testVoiceViewModelIdleClearsStatus()
         await testVoiceViewModelToggleMuteForwards()
         await testVoiceViewModelOnAppearIsIdempotent()
@@ -22,10 +21,6 @@ import Testing
 }
 
 @MainActor func testVoiceCopy() async {
-    expectEq(
-        VoiceCopy.fallbackClassic,
-        "Live voice is unavailable. Carrying on with the classic microphone.",
-        "copy: fallback clásico")
     expectEq(
         VoiceCopy.functionRefusal,
         "Jobs will be available in a future version.",
@@ -101,7 +96,7 @@ import Testing
     let voice = RecordingVoice()
     let vm = VoiceViewModel(voice: voice, thread: FakePresenter())
     vm.onAppear()
-    let snap = TurnSnapshot(state: .listening, pipeline: .realtime, muted: true)
+    let snap = TurnSnapshot(state: .listening, pipeline: .classic, muted: true)
     let levels = VoiceLevels(mic: 0.25, agent: -1)
     voice.yieldSnapshot(snap)
     voice.yieldLevels(levels)
@@ -139,41 +134,16 @@ import Testing
     voice.finish()
 }
 
-@MainActor func testVoiceViewModelClassicFallbackStatus() async {
-    let voice = RecordingVoice()
-    let thread = FakePresenter()
-    let vm = VoiceViewModel(voice: voice, thread: thread)
-    vm.onAppear()
-    voice.yieldSnapshot(TurnSnapshot(state: .connecting, pipeline: .realtime))
-    await pumpUntil("fallback: connecting") { vm.snapshot.state == .connecting }
-    expect(vm.statusText == nil, "fallback: connecting no avisa clásico")
-
-    voice.yieldSnapshot(TurnSnapshot(state: .listening, pipeline: .classic))
-    await pumpUntil("fallback: status") {
-        vm.statusText == VoiceCopy.fallbackClassic && thread.status == [VoiceCopy.fallbackClassic]
-    }
-    expectEq(vm.snapshot.pipeline, .classic, "fallback: pipeline clásico")
-    expect(vm.isActive, "fallback: listening sigue activo")
-
-    voice.yieldSnapshot(TurnSnapshot(state: .thinking, pipeline: .classic))
-    await pumpUntil("fallback: thinking") { vm.snapshot.state == .thinking }
-    expectEq(thread.status.count, 1, "fallback: no re-anuncia el mismo clásico")
-    expectEq(vm.statusText, VoiceCopy.fallbackClassic, "fallback: status se queda")
-    voice.finish()
-}
-
 @MainActor func testVoiceViewModelIdleClearsStatus() async {
     let voice = RecordingVoice()
     let thread = FakePresenter()
     let vm = VoiceViewModel(voice: voice, thread: thread)
     vm.onAppear()
-    voice.yieldSnapshot(TurnSnapshot(state: .connecting, pipeline: .realtime))
-    await pumpUntil("clear: realtime") { vm.snapshot.pipeline == .realtime }
-    voice.yieldSnapshot(TurnSnapshot(state: .listening, pipeline: .classic))
-    await pumpUntil("clear: fallback") { vm.statusText == VoiceCopy.fallbackClassic }
+    voice.yieldSnapshot(TurnSnapshot(state: .error, pipeline: .classic, failure: .micDenied))
+    await pumpUntil("clear: failure") { vm.statusText == VoiceCopy.failure(.micDenied) }
     voice.yieldSnapshot(.idle)
     await pumpUntil("clear: idle") { vm.snapshot == .idle && vm.statusText == nil }
-    expect(thread.status == [VoiceCopy.fallbackClassic],
+    expect(thread.status == [VoiceCopy.failure(.micDenied)],
            "clear: el hilo conserva la nota persistida")
     voice.finish()
 }
@@ -186,7 +156,7 @@ import Testing
     await pumpUntil("mute: primer toggle") { voice.muteToggles == 1 && voice.muted }
     vm.toggleMute()
     await pumpUntil("mute: segundo toggle") { voice.muteToggles == 2 && !voice.muted }
-    voice.yieldSnapshot(TurnSnapshot(state: .listening, pipeline: .realtime, muted: true))
+    voice.yieldSnapshot(TurnSnapshot(state: .listening, pipeline: .classic, muted: true))
     await pumpUntil("mute: snapshot") { vm.snapshot.muted }
     expect(vm.isActive, "mute: listening muted sigue activo")
     voice.finish()
@@ -197,7 +167,7 @@ import Testing
     let vm = VoiceViewModel(voice: voice, thread: FakePresenter())
     vm.onAppear()
     vm.onAppear()
-    voice.yieldSnapshot(TurnSnapshot(state: .connecting, pipeline: .realtime))
+    voice.yieldSnapshot(TurnSnapshot(state: .connecting, pipeline: .classic))
     await pumpUntil("idem: connecting") { vm.snapshot.state == .connecting }
     expect(vm.isActive, "idem: connecting está activo")
     voice.finish()

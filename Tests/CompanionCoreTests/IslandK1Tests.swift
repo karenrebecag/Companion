@@ -93,13 +93,13 @@ private func finished() -> (SessionMachine, [SessionEffect]) {
 
     var thinking = finished().0
     let thought = thinking.handle(.voice(
-        TurnSnapshot(state: .thinking, pipeline: .realtime, muted: false)))
+        TurnSnapshot(state: .thinking, pipeline: .classic, muted: false)))
     expectEq(thinking.projection.kind, .processing(.thinking), "K1: pensar abre")
     expect(clockEffects(thought).isEmpty, "K1: pensar no rearma el asentamiento")
 
     var speaking = finished().0
     let spoke = speaking.handle(.voice(
-        TurnSnapshot(state: .speaking, pipeline: .realtime, muted: false)))
+        TurnSnapshot(state: .speaking, pipeline: .classic, muted: false)))
     expectEq(speaking.projection.kind, .processing(.speaking), "K1: hablar abre")
     expect(clockEffects(spoke).isEmpty, "K1: hablar no rearma el asentamiento")
 

@@ -103,7 +103,7 @@ extension VoiceSession {
             }
         }
         // Hold is the text path (14b); hands-free `start()` takes the same lane.
-        await apply(.holdPressed(preferRealtime: false))
+        await apply(.holdPressed)
     }
 
     /// The keys that can read a screen. Read per call: a key saved while the app

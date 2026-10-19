@@ -91,10 +91,6 @@ package actor VoiceSession: VoiceControlling {
     /// Read by VoiceSessionTeardown's `writeSessionMemory`.
     let memoryStore: (any MemoryStore)?
     private let approvals: (any ApprovalsProvider)?
-    /// Thread length at session open: the summary covers THIS session's
-    /// exchanges, not the whole run. Written by VoiceSessionRealtimeOpen,
-    /// read by VoiceSessionTeardown.
-    var sessionStartTurns = 0
     /// The next `.commitWithText` closes a hold (Wave 12b): an empty ear
     /// then means "nothing to send", said out loud to the session, instead
     /// of the silent nothing a paused conversation gets. Written by
@@ -144,8 +140,6 @@ package actor VoiceSession: VoiceControlling {
     var lastPartial = ""
     var partialTask: Task<Void, Never>?
     var earTask: Task<Void, Never>?
-    /// Follows the mic when it moves itself onto another input mid-session.
-    var micRestartTask: Task<Void, Never>?
     /// Wave 12e: the field this hold dictates into, decided at press; and
     /// why it could not, when the words go to Companion instead.
     let fieldProbe: (any FocusedFieldProbing)?
@@ -200,7 +194,6 @@ package actor VoiceSession: VoiceControlling {
         self.secrets = secrets
         self.configProvider = configProvider
         self.jobs = jobs
-        self.memoryStore = memoryStore
         self.fieldProbe = fieldProbe
         self.injector = injector
         self.screen = screen
@@ -212,6 +205,7 @@ package actor VoiceSession: VoiceControlling {
             chat: chat, thread: thread)
         self.classic.parentTools = parentTools
         self.classic.screen = screen
+        self.memoryStore = memoryStore
         self.approvals = approvals
         self.sensor = sensor
         self.classic.sensor = sensor
@@ -315,7 +309,7 @@ package actor VoiceSession: VoiceControlling {
     /// Hands-free is the classic lane; the realtime lane is gone.
     package func start() async {
         voiceClosed = false
-        await apply(.startVoice(preferRealtime: false))
+        await apply(.startVoice)
     }
 
     package func advance() async {
@@ -329,11 +323,9 @@ package actor VoiceSession: VoiceControlling {
         await apply(.hangUp)
     }
 
-    package func toggleMute() async {
-        await apply(.toggleMute(hasPendingAudio: await player.hasPending))
-        // A muted mic is the most invisible way to "not be heard": trace it.
-        Log.app("voice: mic \(machine.snapshot.muted ? "muted" : "unmuted")")
-    }
+    // HACK: no-op. The classic lane has no mute; the menu item still exists.
+    // Remove the item and VoiceControlling.toggleMute with the menu rework.
+    package func toggleMute() async {}
 
     /// Esc, the Stop button, a spoken "para": a job's end still talking, or
     /// waiting to, goes quiet with everything else (review 16h-2 S2).

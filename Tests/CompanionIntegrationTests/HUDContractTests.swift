@@ -53,7 +53,7 @@ import Testing
 @MainActor func testStopFromEveryKindIsIdle() {
     let request = ApprovalRequest(requestId: "r1", toolName: "run_shell", summary: "ls", inputJSON: "{}")
     let voice = { (state: TurnState) in
-        SessionEvent.voice(TurnSnapshot(state: state, pipeline: .realtime))
+        SessionEvent.voice(TurnSnapshot(state: state, pipeline: .classic))
     }
     let routes: [(String, [SessionEvent])] = [
         ("hover", [.hoverEntered]),

@@ -68,9 +68,6 @@ extension VoiceSession {
                 classic.holdAudio.hearLive(frame)
                 await classic.flushEarlyAudio()
                 await transcriber.append(frame)
-            case .realtime:
-                // Unreachable: no door starts the realtime lane any more.
-                continue
             case nil:
                 // 15d-1: the mic is up before the on-device ear is; what
                 // it hears meanwhile is the first word, kept for the ear.

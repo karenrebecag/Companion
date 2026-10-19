@@ -38,7 +38,7 @@ private func request(_ id: String) -> ApprovalRequest {
 }
 
 private func thinking() -> SessionEvent {
-    .voice(TurnSnapshot(state: .thinking, pipeline: .realtime))
+    .voice(TurnSnapshot(state: .thinking, pipeline: .classic))
 }
 
 private func running(_ m: inout SessionMachine, _ id: JobID, _ goal: String) {
@@ -123,9 +123,9 @@ private func cancelsAJob(_ effects: [SessionEffect]) -> Bool {
     _ = m.handle(.typedSubmitted)
     _ = m.handle(.stopVoice)
     expectEq(m.projection.kind, .idle, "stopVoice sin encargos: idle")
-    _ = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime)))
-    _ = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .realtime)))
-    _ = m.handle(.voice(TurnSnapshot(state: .idle, pipeline: .realtime)))
+    _ = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic)))
+    _ = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic)))
+    _ = m.handle(.voice(TurnSnapshot(state: .idle, pipeline: .classic)))
     expectEq(m.projection.kind, .idle, "stopVoice sin encargos: el turno escrito no sobrevive")
 }
 

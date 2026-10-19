@@ -51,8 +51,8 @@ private func apply(
 @MainActor func testTurnMachineFailureClearedOnStart() {
     // When in error with a failure, starting a new voice session should clear the failure.
     var m = TurnMachine(snapshot: TurnSnapshot(state: .error, failure: .micDenied))
-    _ = apply(&m, .startVoice(preferRealtime: true))
-    expectEq(m.snapshot.state, .connecting, "clear: should move to connecting")
+    expectEq(apply(&m, .startVoice), [.requestClassicListen], "clear: pide el mic")
+    expect(m.snapshot.classicListenPending, "clear: el mic queda pendiente")
     expectEq(m.snapshot.failure, nil,
              "clear: failure should be cleared on new startVoice")
 }

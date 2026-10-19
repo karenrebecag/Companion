@@ -10,13 +10,9 @@ extension VoiceSession {
     func apply(_ event: TurnEvent) async {
         let before = machine.snapshot.state
         switch event {
-        case .realtimeSessionReady: timeline.mark(.sessionReady, at: now())
         case .firstSentence: timeline.mark(.firstToken, at: now())
         // A typed turn is not a hold: words heard before it answer nothing.
         case .typedSubmit: heardThisHold = nil
-        case .agentAudioStarted:
-            timeline.mark(.firstAudio, at: now())
-            flushTimeline()
         default: break
         }
         let effects = machine.handle(event, at: now())
@@ -54,11 +50,6 @@ extension VoiceSession {
                 startClassicTurn(config: configProvider.current)
             case .cancelAgentOutput(let steer):
                 await cancelClassicTurn(steer: steer)
-            // Only the realtime lane emits these (closeMic, openMic, the
-            // native commit); no door reaches it any more.
-            case .openRealtimeSession, .closeRealtime, .commitAndRespond,
-                 .commitWithText, .clearInputAudio, .setMicEnabled:
-                continue
             case .beginSpeechStream:
                 await synthesizer.begin()
             case .finishSpeechStream:

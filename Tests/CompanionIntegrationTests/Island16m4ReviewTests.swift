@@ -9,7 +9,7 @@ import Testing
 // Wave 16m-4, review round: the card's timer, the words' lifetime and what
 // may print them, the update offer's manners, and the release URL's host.
 
-private let warm = TurnSnapshot(state: .listening, pipeline: .realtime, muted: true, holdArmed: true)
+private let warm = TurnSnapshot(state: .listening, pipeline: .classic, muted: true, holdArmed: true)
 
 private func card(_ text: DictatedText = "palabra secreta") -> SessionMachine {
     var machine = SessionMachine()
@@ -131,7 +131,7 @@ final class RecordingSleeper: @unchecked Sendable {
     let doors: [(String, SessionEvent)] = [
         ("press", .pressed), ("provisional press", .pressedProvisionally),
         ("voice error", .voice(TurnSnapshot(state: .error, failure: .networkUnavailable))),
-        ("voice thinking", .voice(TurnSnapshot(state: .thinking, pipeline: .realtime))),
+        ("voice thinking", .voice(TurnSnapshot(state: .thinking, pipeline: .classic))),
         ("typed turn", .typedSubmitted), ("job", .job(.started(goal: "x"))),
         ("stop (Esc)", .stop),
     ]
