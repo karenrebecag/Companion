@@ -44,9 +44,11 @@ import CompanionTestKit
 @MainActor func testAYesToAnOpenQuestionIsNotSentToTheDelegationHead() async {
     unsetenv("COMPANION_DECISION")
     let script = trashProvider()
-    let heads = CallCounter()
+    // What each head request asked about, not how many: the first turn's
+    // head may still be in flight when the second turn starts.
+    let heads = TextBox()
     let hosted = ScriptedHosted(configured: true) { question in
-        if question.id == DelegationHead.id { heads.increment(); return nil }
+        if question.id == DelegationHead.id { heads.append(question.instructions); return nil }
         return script.body(question)
     }
     let system = RecordingSystemActing()
@@ -63,7 +65,6 @@ import CompanionTestKit
     await h.session.release()
     await pumpUntil("m6: asks") { h.synth.queue.contains("¿Vacío la papelera?") }
     await h.session.awaitClassicTurn()
-    let before = heads.count
 
     h.transcriber.stoppedText = "si"
     await h.session.hold()
@@ -71,7 +72,8 @@ import CompanionTestKit
     await h.session.release()
     await pumpUntil("m6 yes: emptied") { system.actCount == 1 }
     await h.session.awaitClassicTurn()
-    expectEq(heads.count, before, "m6: the yes never reaches the delegation head")
+    expect(!heads.all.contains { $0.contains("\"si\"") },
+           "m6: the yes never reaches the delegation head")
 }
 
 /// M1: with the key the router hears every hold, so a job that cannot be
