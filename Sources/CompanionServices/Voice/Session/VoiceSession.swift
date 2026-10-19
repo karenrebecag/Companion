@@ -172,6 +172,11 @@ package actor VoiceSession: VoiceControlling {
     /// The decision judge pinned for the turn being decided; the router and
     /// the delegation head of one hold share it (VoiceSession+Decision).
     var pinnedJudge: (utterance: String, at: Date, judge: DecisionJudge)?
+    /// What `attachDecision` wired, so a partial can be planned before the
+    /// release (VoiceSession+Speculation).
+    var attachedDecision: (gate: DecisionGate, judge: DecisionJudge?)?
+    var speculation: (text: String, task: Task<DecisionStep, Never>)?
+    var speculationTimer: Task<Void, Never>?
     var lastPartial = ""
     var partialTask: Task<Void, Never>?
     /// Which ear the running partial pump reads; it picks once, so a hold

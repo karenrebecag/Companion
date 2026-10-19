@@ -76,6 +76,7 @@ extension VoiceSession {
             lastPartial = text
             if !text.isEmpty { timeline.mark(.firstPartial, at: now()) }
             eventBox.yield(.partialTranscript(text))
+            if !realtime { notePartialForDecision(text) }
         }
     }
 

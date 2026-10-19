@@ -102,20 +102,32 @@ package actor DecisionGate {
     /// this only holds for providers that honor cancellation (URLSession
     /// does). No side effects: nothing is executed here. `budget` overrides
     /// the gate's own for one call (the hosted judge runs on a tighter one).
+    /// `prepared` is a `prepare` task for these exact words; the budget is
+    /// raced from now, so one that already finished costs nothing.
     package func plan(
         _ utterance: String, canDelegate: Bool, budget: Duration? = nil,
-        provider override: (any DecisionProvider)? = nil
+        provider override: (any DecisionProvider)? = nil,
+        prepared: Task<DecisionStep, Never>? = nil
     ) async -> DecisionStep {
+        let work = prepared ?? prepare(utterance, canDelegate: canDelegate, provider: override)
+        return await race(work, wait: budget ?? self.budget) ?? .passThrough(.timedOut)
+    }
+
+    /// N1 and N2 started on words that may not be final (the hold's stable
+    /// partial), so the decision is ready when the key comes up. Plans only:
+    /// nothing runs until `run`, which only follows the release.
+    package func prepare(
+        _ utterance: String, canDelegate: Bool, provider override: (any DecisionProvider)? = nil
+    ) -> Task<DecisionStep, Never> {
         let world = worldProvider()
         let supports = systemSupports
         let provider = override ?? self.provider
         let arbiter = self.arbiter
-        let work = Task<DecisionStep, Never> {
+        return Task<DecisionStep, Never> {
             await Self.route(
                 utterance: utterance, world: world, canDelegate: canDelegate,
                 supports: supports, provider: provider, arbiter: arbiter)
         }
-        return await race(work, wait: budget ?? self.budget) ?? .passThrough(.timedOut)
     }
 
     /// Runs a step already chosen by `plan`. `execute` goes through

@@ -37,6 +37,47 @@ import CompanionTestKit
     await testASilentHostedJudgePassesTheTurnToTheBrain()
     await testAnIrreversibleTaskIsAskedBeforeItIsHandedOff()
     await testAYesToAnOpenQuestionIsNotSentToTheDelegationHead()
+    await testAPlanOnTheStablePartialIsReusedOnlyForTheSameWords()
+}
+
+/// Eager decision: the stable partial is planned while the key is down, the
+/// plan is never acted on before the release, and the release reuses it only
+/// when the final words are exactly the partial's.
+@MainActor func testAPlanOnTheStablePartialIsReusedOnlyForTheSameWords() async {
+    unsetenv("COMPANION_DECISION")
+    for (final, reused) in [("abre Safari", true), ("abre Slack", false)] {
+        let opener = FakeWorkspaceOpener(installed: ["Safari", "Slack"])
+        let actions = CallCounter()
+        let hosted = ScriptedHosted(configured: true) { question in
+            switch question.id {
+            case DecisionHead.action:
+                actions.increment()
+                return peaked("open_app", question.offeredIds)
+            case DecisionHead.app:
+                let wanted = question.instructions.contains("Slack") ? "Slack" : "Safari"
+                return peaked(wanted, question.offeredIds)
+            default: return nil
+            }
+        }
+        let judge = DecisionJudge(hosted: hosted, local: ScriptedDecision { _ in nil })
+        let gate = DecisionGate(
+            provider: judge, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
+            world: { DecisionWorld(apps: ["Safari", "Slack"], sites: []) }, budget: .seconds(2))
+        let h = makeVoiceHarness()
+        await h.session.attachDecision(gate, judge: judge)
+        await h.session.hold()
+        await pumpUntil("eager: listening") { h.watch.latest.state == .listening }
+        h.transcriber.yieldPartial("abre Safari")
+        await pumpUntil("eager: the partial is planned") { actions.count == 2 }
+        expect(opener.openedApps.isEmpty, "eager: nothing runs while the key is down")
+        h.transcriber.stoppedText = final
+        await h.session.release()
+        await pumpUntil("eager: \(final) opened") { !opener.openedApps.isEmpty }
+        expectEq(opener.openedApps, [final.replacingOccurrences(of: "abre ", with: "")],
+                 "eager: the final words decide what opens")
+        expectEq(actions.count, reused ? 2 : 4,
+                 "eager: \(reused ? "the partial's plan is reused" : "other words are planned again")")
+    }
 }
 
 /// M6: the "sí" that answers an open question is decided on the Mac; the

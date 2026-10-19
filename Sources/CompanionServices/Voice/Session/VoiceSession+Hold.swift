@@ -90,6 +90,7 @@ extension VoiceSession {
         if !resumed {
             audit.consume()
             lastPartial = ""
+            cancelSpeculation()
         }
         let realtime = openAIKey() != nil
         if !bounced { rememberStack(openAI: realtime) }

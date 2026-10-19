@@ -97,6 +97,9 @@ package struct TurnTimeline: Sendable, Equatable {
             "commit→context \(Self.gap(committed, contextReady))",
             "commit→firstToken \(Self.gap(committed, firstToken))",
             "commit→decision \(Self.gap(committed, decision))",
+            // What a plan started on the stable partial saves: the router's
+            // share once the final words are in.
+            "earFinal→decision \(Self.gap(earFinal, decision))",
             "commit→tool \(Self.gap(committed, toolCallSeen))",
             "tool→done \(Self.gap(toolCallSeen, toolDone))",
         ]
