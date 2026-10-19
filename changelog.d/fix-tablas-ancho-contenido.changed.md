@@ -1,0 +1,1 @@
+- **Tablas no cortan los números (2026-10-18).** En present, la última columna numérica mostraba "1,4" en vez de "1,485". Ahora cada columna toma el ancho de su contenido y, si la tabla no cabe en la isla, se desplaza en horizontal, como en Arc.
