@@ -95,8 +95,9 @@ package protocol WebReading: Sendable {
     func read(_ urls: [URL], fresh: Bool) async throws -> [WebPage]
 }
 
-/// The provider chosen once at launch, by the keys present. Exa first: it is
-/// the one that can also read a page; Brave is search-only.
+/// The provider the keys present select. Exa first: it is the one that can
+/// also read a page; Brave is search-only. Read per call through the adapters
+/// below, never once at launch: a key pasted in Ajustes must count next turn.
 package enum WebProvider: Sendable, Equatable {
     case exa, brave, none
 
@@ -116,6 +117,46 @@ package enum WebProvider: Sendable, Equatable {
     package func reader(transport: any ChatTransport, secrets: any SecretStore) -> (any WebReading)? {
         guard self == .exa else { return nil }
         return ExaWebReader(transport: transport, secrets: secrets)
+    }
+}
+
+/// Web search whose provider is looked up on each call, so the tool is offered
+/// and run according to the Keychain at that turn.
+package struct SelectedWebSearch: WebSearching {
+    private let transport: any ChatTransport
+    private let secrets: any SecretStore
+
+    package init(transport: any ChatTransport, secrets: any SecretStore) {
+        self.transport = transport
+        self.secrets = secrets
+    }
+
+    package var isConfigured: Bool { WebProvider.select(secrets: secrets) != .none }
+
+    package func search(_ query: String) async throws -> [WebResult] {
+        try await WebProvider.select(secrets: secrets)
+            .search(transport: transport, secrets: secrets)
+            .search(query)
+    }
+}
+
+/// Page reading whose provider is looked up on each call; only Exa reads.
+package struct SelectedWebReader: WebReading {
+    private let transport: any ChatTransport
+    private let secrets: any SecretStore
+
+    package init(transport: any ChatTransport, secrets: any SecretStore) {
+        self.transport = transport
+        self.secrets = secrets
+    }
+
+    package var isConfigured: Bool { WebProvider.select(secrets: secrets) == .exa }
+
+    package func read(_ urls: [URL], fresh: Bool) async throws -> [WebPage] {
+        guard let reader = WebProvider.select(secrets: secrets)
+            .reader(transport: transport, secrets: secrets)
+        else { throw ChatError.unauthorized }
+        return try await reader.read(urls, fresh: fresh)
     }
 }
 

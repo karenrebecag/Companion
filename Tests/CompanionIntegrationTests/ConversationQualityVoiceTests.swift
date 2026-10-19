@@ -229,3 +229,25 @@ private let readCall = ToolCallRef(id: "r1", name: "read_focused", arguments: "{
     expectEq(IslandReplyText.spoken(from: reply), "Ejemplo:", "L3: el bloque de código no se cuela ni rompe el resto")
     expectEq(IslandReplyText.spoken(from: "Mira `{\"a\":1}` aquí."), "Mira aquí.", "L3: JSON en línea sí se quita")
 }
+
+// QA 2026-10-18 (voz): a figure the turn's web results do not state is said
+// once, after the reply, and threaded with it.
+private final class WebResultTools: ParentToolExecuting, @unchecked Sendable {
+    func specs(_ language: AppLanguage) -> [ToolSpec] { [] }
+    func handles(_ name: String) -> Bool { true }
+    func execute(name: String, argumentsJSON: String) async -> ParentToolOutcome {
+        ParentToolOutcome(ok: true, output: "Dólar hoy: noticias y resultados de búsqueda", tool: name)
+    }
+}
+
+@Test @MainActor func testAnUnsourcedFigureIsSaidOnceAfterTheReplyAndThreadedWithIt() async {
+    let search = ToolCallRef(id: "c1", name: "web_search", arguments: "{}")
+    let r = rig([], rounds: [[.toolCalls([search])], [.text("El dólar está en 18.49 pesos.")]],
+                tools: WebResultTools())
+    await r.runtime.submit(config: Config(language: .es)) { _ in }
+    let caveat = "No encontré esa cifra en las fuentes."
+    expectEq(r.synth.queue.filter { $0 == caveat }.count, 1, "voz: la nota se dice una sola vez")
+    expectEq(r.synth.queue.last, caveat, "voz: la nota va al final, despues de la respuesta")
+    let threaded = r.thread.turns.filter { $0.role == .assistant }.map(\.content).joined()
+    expect(threaded.contains(caveat), "voz: el hilo guarda la nota con la respuesta (\(threaded))")
+}

@@ -103,7 +103,6 @@ func makeSensingAndModel(
             executable: Bundle.main.executableURL ?? URL(fileURLWithPath: "/")),
         language: { env.configProvider.current.language },
         taint: env.turnTaint)
-    let web = WebProvider.select(secrets: env.secrets)
     let parentTools = ParentToolRunner(
         workspace: workspaceOpener, places: MapKitPlacesSearch(),
         skills: env.skillStore,
@@ -134,8 +133,8 @@ func makeSensingAndModel(
         documents: NativeDocumentRenderer(),
         sheets: AppleEventSheets(),
         versions: env.fileVersions,
-        webSearch: web.search(transport: env.transport, secrets: env.secrets),
-        webReader: web.reader(transport: env.transport, secrets: env.secrets),
+        webSearch: SelectedWebSearch(transport: env.transport, secrets: env.secrets),
+        webReader: SelectedWebReader(transport: env.transport, secrets: env.secrets),
         onAct: { receipts.send($0) },
         location: location,
         taint: env.turnTaint,
