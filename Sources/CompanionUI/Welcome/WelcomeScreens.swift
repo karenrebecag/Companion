@@ -70,9 +70,7 @@ struct WelcomeKeys: View {
                 title: Localized.string("welcome.keys.title"),
                 body_: Localized.string("welcome.keys.body"))
                 .frame(maxWidth: .infinity)
-            openAI
-            recommended(.cerebras, field: $keys.cerebrasField, saved: keys.cerebrasSaved,
-                        why: "welcome.keys.cerebras")
+            cerebras
             recommended(.elevenLabs, field: $keys.elevenLabsField, saved: keys.elevenLabsSaved,
                         why: "welcome.keys.elevenLabs")
             if let error = keys.errorText {
@@ -90,14 +88,18 @@ struct WelcomeKeys: View {
         }
     }
 
-    @ViewBuilder private var openAI: some View {
+    @ViewBuilder private var cerebras: some View {
         VStack(alignment: .leading, spacing: Space.x2) {
-            label("OpenAI", note: Localized.string("welcome.keys.required"))
+            label("Cerebras", note: Localized.string("welcome.keys.recommended"))
+            Text(Localized.string("welcome.keys.cerebras"))
+                .font(GeistFont.uiCaption)
+                .foregroundStyle(Semantic.mutedForeground)
+                .fixedSize(horizontal: false, vertical: true)
             if !chat.needsOnboarding {
                 saved
             } else {
                 AppField(
-                    placeholder: "sk-proj-…", text: $chat.onboardingKey,
+                    placeholder: "csk-…", text: $chat.onboardingKey,
                     error: chat.onboardingBusy || chat.onboardingKey.isEmpty ? nil : chat.errorText,
                     secure: true, neutral: true,
                     onSubmit: { Task { await chat.submitOnboarding() } })
@@ -110,7 +112,7 @@ struct WelcomeKeys: View {
                     if chat.onboardingBusy { ProgressView().controlSize(.small) }
                     Spacer()
                     Link(Localized.string("welcome.keys.where"),
-                         destination: URL(string: "https://platform.openai.com/api-keys")!)
+                         destination: URL(string: "https://cloud.cerebras.ai")!)
                         .font(GeistFont.uiCaption)
                         .foregroundStyle(Semantic.mutedForeground)
                 }

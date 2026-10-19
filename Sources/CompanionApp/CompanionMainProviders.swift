@@ -62,7 +62,7 @@ func makeChatProviders(environment env: LaunchEnvironment) -> ChatProviders {
         ProviderDescriptor.catalog, { localCatalog.effective() },
         RetryPolicy.maxAttempts, false)
     // Wave 15c-3/15e-3: the hold's own brain — Cerebras, one attempt;
-    // its ladder falls to OpenAI's mini (`HoldBrainCatalog`).
+    // its ladder falls to the next configured provider (`HoldBrainCatalog`).
     // 15d-9: both hold clients speak; only they get the voice rules.
     let fastBrain = makeChat(HoldBrainCatalog.fast, nil, 1, true)
     let holdLadder = makeChat(

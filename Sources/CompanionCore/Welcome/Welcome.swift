@@ -46,7 +46,7 @@ package enum WelcomePermission: String, Sendable, Equatable, CaseIterable {
 }
 
 package struct WelcomeFacts: Sendable, Equatable {
-    /// An OpenAI key is saved and verified, or a local model was accepted.
+    /// A Cerebras key is saved and verified, or a local model was accepted.
     package var keyReady: Bool
     package var granted: Set<WelcomePermission>
     /// The level meter moved above the noise floor at least once.

@@ -44,7 +44,7 @@ import Testing
 }
 
 @MainActor func testDescriptorsCarryATemperature() {
-    expect(ProviderDescriptor.openAI.temperature != nil,
+    expect(ProviderDescriptor.openRouter.temperature != nil,
            "el catalogo conserva el valor que ya usaba")
 }
 
@@ -60,7 +60,7 @@ import Testing
 @MainActor func testAnOverriddenModelDropsTheInheritedTemperature() {
     // Cambiar el modelo de una fila del catalogo no puede arrastrar una
     // temperatura elegida para OTRO modelo: es justo el caso que 9b-3 abre.
-    let switched = ProviderDescriptor.openAI.withModel("gpt-5")
+    let switched = ProviderDescriptor.cerebras.withModel("gpt-5")
     expect(switched.temperature == nil,
            "al cambiar de modelo, la temperatura heredada se suelta")
 }
@@ -75,7 +75,7 @@ import Testing
     let transport = ScriptedTransport()
     transport.stub(provider, ScriptedReply(status: 200, lines: []))
     let client = ChatProviderClient(
-        secrets: TestSecretStore([.openAI: "sk-test", .openRouter: "sk-test"]),
+        secrets: TestSecretStore([.cerebras: "sk-test", .openRouter: "sk-test"]),
         probe: TestProbe(available: [provider.id]),
         transport: transport,
         catalog: [provider])
@@ -99,13 +99,13 @@ import Testing
 }
 
 @MainActor func testASamplingModelSendsTemperature() {
-    let json = body(for: ProviderDescriptor.openAI)
+    let json = body(for: ProviderDescriptor.openRouter)
     expect(json["temperature"] != nil, "gpt-4o la sigue recibiendo")
 }
 
 @MainActor func testAReasoningModelSendsNoTemperatureAtAll() {
     // No basta con mandar 1: el proveedor rechaza el CAMPO. Se omite.
-    let json = body(for: ProviderDescriptor.openAI.withModel("gpt-5"))
+    let json = body(for: ProviderDescriptor.cerebras.withModel("gpt-5"))
     expect(json["temperature"] == nil,
            "con un modelo de razonamiento el campo no viaja")
     expectEq(json["model"] as? String, "gpt-5", "y el modelo si viaja")
@@ -115,7 +115,7 @@ import Testing
     let custom = ProviderDescriptor(
         id: "custom", name: "Custom",
         baseURL: URL(string: "https://example.com/v1")!,
-        model: "gpt-4o", secretKey: .openAI, temperature: nil)
+        model: "gpt-4o", secretKey: .cerebras, temperature: nil)
     expect(body(for: custom)["temperature"] == nil,
            "sin temperatura elegida, no se inventa una")
 }

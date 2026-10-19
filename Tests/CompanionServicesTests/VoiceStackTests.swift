@@ -9,13 +9,13 @@ import CompanionTestKit
 // Wave 14a. El hold elige roles de producto; el desplegable de chat no entra.
 
 @Test @MainActor func voiceStackTests() async {
-    testOpenAIFillsEveryRole()
+    testOpenRouterFillsEveryRole()
     testOllamaIsTheBrainWhenNothingElseIsPresent()
     testNothingYieldsEmptyRoles()
     testTheChatPickerIsNotAnInput()
     await testAHoldStackIgnoresTheChatPicker()
     testAStoredGroqKeyNeverReachesTheHold()
-    await testAPressWithAStoredGroqKeyStillPicksOpenAIMini()
+    await testAPressWithAStoredGroqKeyStillPicksCerebras()
     testElevenLabsIsTheMouthOnlyWithKeyAndVoice()
     await testAPressWithAnElevenLabsKeyNamesItsMouth()
     testKarensVoiceIsTheDefaultAndStaysOverridable()
@@ -25,15 +25,14 @@ import CompanionTestKit
 /// the log names the model, never the voice id.
 @MainActor func testElevenLabsIsTheMouthOnlyWithKeyAndVoice() {
     let both = VoiceStackResolver.resolve(
-        secrets: [.openAI: true, .elevenLabs: true],
+        secrets: [.openRouter: true, .elevenLabs: true],
         appleSpeech: true, localModel: nil, elevenLabsVoiceID: "Gubgw9l4dtIoQA9YZHgx")
     expectEq(both.mouth, VoiceRole(id: "elevenlabs/eleven_flash_v2_5", provider: "elevenlabs"),
              "elevenlabs: clave + voz = boca ElevenLabs")
     expect(both.logLine.contains("mouth=elevenlabs/eleven_flash_v2_5"),
            "elevenlabs: el log nombra el modelo (\(both.logLine))")
     expect(!both.logLine.contains("Gubgw9l4dtIoQA9YZHgx"), "elevenlabs: el log no lleva la voz")
-    expectEq(both.sight, VoiceRole(id: "gpt-4o-mini", provider: "openai"),
-             "elevenlabs: la vista sigue en OpenAI")
+    expectEq(both.sight, nil, "elevenlabs: la vista solo existe con Cerebras")
 
     let alone = VoiceStackResolver.resolve(
         secrets: [.elevenLabs: true], appleSpeech: true, localModel: nil,
@@ -41,16 +40,16 @@ import CompanionTestKit
     expectEq(alone.mouth?.provider, "elevenlabs", "elevenlabs: no necesita la clave de OpenAI")
 
     let noVoice = VoiceStackResolver.resolve(
-        secrets: [.openAI: true, .elevenLabs: true],
+        secrets: [.openRouter: true, .elevenLabs: true],
         appleSpeech: true, localModel: nil, elevenLabsVoiceID: "  ")
     expectEq(noVoice.mouth, VoiceRole(id: "avspeech", provider: "apple"),
-             "elevenlabs: sin voz elegida sigue OpenAI")
+             "elevenlabs: sin voz elegida cae a la voz del sistema")
 
     let noKey = VoiceStackResolver.resolve(
-        secrets: [.openAI: true], appleSpeech: true, localModel: nil,
+        secrets: [.openRouter: true], appleSpeech: true, localModel: nil,
         elevenLabsVoiceID: "Gubgw9l4dtIoQA9YZHgx")
     expectEq(noKey.mouth, VoiceRole(id: "avspeech", provider: "apple"),
-             "elevenlabs: sin clave sigue OpenAI")
+             "elevenlabs: sin clave cae a la voz del sistema")
 }
 
 /// 15f-7a: the press reads the ElevenLabs key and the configured voice.
@@ -72,15 +71,15 @@ import CompanionTestKit
 
 /// 15e-2 (spec §4 row 8): Groq is gone from the app. A key Karen pasted
 /// before 15e may still sit in the Keychain; it must not pick any role —
-/// with OpenAI the brain is gpt-4o-mini, alone it yields no brain at all.
+/// with OpenRouter the brain is OpenRouter's, alone it yields no brain at all.
 @MainActor func testAStoredGroqKeyNeverReachesTheHold() {
     let both = VoiceStackResolver.resolve(
-        secrets: [.openAI: true, .groq: true],
+        secrets: [.openRouter: true, .groq: true],
         appleSpeech: true,
         localModel: nil)
-    expectEq(both.brain, VoiceRole(id: "gpt-4o-mini", provider: "openai"),
-             "groq+openai: el cerebro es gpt-4o-mini, nunca Groq")
-    expect(!both.hasFastBrain, "groq+openai: sin cerebro rápido")
+    expectEq(both.brain, VoiceRole(id: ProviderDescriptor.openRouter.model, provider: "openrouter"),
+             "groq+openrouter: el cerebro es OpenRouter, nunca Groq")
+    expect(!both.hasFastBrain, "groq+openrouter: sin cerebro rápido")
 
     let alone = VoiceStackResolver.resolve(
         secrets: [.groq: true],
@@ -95,30 +94,29 @@ import CompanionTestKit
 }
 
 /// 15e-2: `rememberStack` no longer reads the Groq key at press.
-@MainActor func testAPressWithAStoredGroqKeyStillPicksOpenAIMini() async {
+@MainActor func testAPressWithAStoredGroqKeyStillPicksCerebras() async {
     let h = makeVoiceHarness(key: "sk-test")
     h.secrets.values[.groq] = "gsk-test"
     await h.session.hold()
     let stack = await h.session.lastStack
-    expectEq(stack?.brain, VoiceRole(id: "gpt-4o-mini", provider: "openai"),
-             "press: con clave Groq guardada, el cerebro sigue OpenAI mini")
+    expectEq(stack?.brain, VoiceRole(id: ProviderDescriptor.cerebras.model, provider: "cerebras"),
+             "press: con clave Groq guardada, el cerebro sigue Cerebras")
 }
 
-@MainActor func testOpenAIFillsEveryRole() {
+@MainActor func testOpenRouterFillsEveryRole() {
     let stack = VoiceStackResolver.resolve(
-        secrets: [.openAI: true],
+        secrets: [.openRouter: true],
         appleSpeech: true,
         localModel: "qwen3:14b")
     // L4 (code review 2026-09-24): since 15e the hold's ear is always
     // Apple's analyzer; an OpenAI key no longer changes it.
     expectEq(stack.ear, VoiceRole(id: "apple-analyzer", provider: "apple"),
-             "openai: el oído del hold sigue siendo Apple")
-    expectEq(stack.brain, VoiceRole(id: "gpt-4o-mini", provider: "openai"),
-             "openai: cerebro mini, no el gpt-4o del chat")
+             "openrouter: el oído del hold sigue siendo Apple")
+    expectEq(stack.brain, VoiceRole(id: ProviderDescriptor.openRouter.model, provider: "openrouter"),
+             "openrouter: cerebro = el modelo de OpenRouter")
     expectEq(stack.mouth, VoiceRole(id: "avspeech", provider: "apple"),
-             "openai: boca cae a la voz del sistema, no a OpenAI")
-    expectEq(stack.sight, VoiceRole(id: "gpt-4o-mini", provider: "openai"),
-             "openai: vista mini")
+             "openrouter: boca cae a la voz del sistema")
+    expectEq(stack.sight, nil, "openrouter: la vista no existe sin Cerebras")
 }
 
 @MainActor func testOllamaIsTheBrainWhenNothingElseIsPresent() {
@@ -144,7 +142,7 @@ import CompanionTestKit
 }
 
 @MainActor func testTheChatPickerIsNotAnInput() {
-    let secrets: [SecretKey: Bool] = [.openAI: true, .cerebras: true]
+    let secrets: [SecretKey: Bool] = [.openRouter: true, .cerebras: true]
     let a = VoiceStackResolver.resolve(
         secrets: secrets, appleSpeech: true, localModel: "qwen3:14b")
     let b = VoiceStackResolver.resolve(
@@ -160,7 +158,7 @@ import CompanionTestKit
     let h = makeVoiceHarnessWithProvider(provider)
     await h.session.hold()
     let stack = await h.session.lastStack
-    expectEq(stack?.brain?.id, "gpt-4o-mini",
+    expectEq(stack?.brain?.id, ProviderDescriptor.openRouter.model,
              "hold: el desplegable ollama no cambia el cerebro")
     expectEq(stack?.ear?.id, "apple-analyzer",
              "hold: oído de producto, no el picker")

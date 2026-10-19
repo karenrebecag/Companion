@@ -21,7 +21,7 @@ import Testing
     _ submitter: WatchfulSubmitter, log: @escaping @Sendable (String) -> Void = { _ in }
 ) -> ChatViewModel {
     let vm = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default,
         jobSubmitter: submitter, log: log)
     vm.onAppear()

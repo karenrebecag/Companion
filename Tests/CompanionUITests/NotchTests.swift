@@ -289,7 +289,7 @@ func testTheNotchedScreenWins() {
 /// Code review 16f-2 (HIGH): cards were keyed by position, so a new reply
 /// took the "already shown" state of the card it pushed down.
 @Test @MainActor func resultCardsAreKeyedByTheirMessage() async {
-    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
                              store: MemoryConversationStore(), config: Config())
     // K6: only replies with a data card make rows, and the latest reply is
     // the panel's, so a row appears once a newer reply pushes it down.

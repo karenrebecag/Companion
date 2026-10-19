@@ -63,7 +63,7 @@ extension SpeechSynthesis {
 
 /// `AsyncThrowingStream.Iterator` is not `Sendable`; `relay`'s pump task is
 /// its only owner from the moment it is boxed, so `@unchecked` is safe —
-/// the same single-owner shape as `StreamGraph` in `OpenAITTS.swift`.
+/// the same single-owner shape as `StreamGraph` in `SpeechPlayback.swift`.
 private final class IteratorBox: @unchecked Sendable {
     private var iterator: AsyncThrowingStream<Data, Error>.Iterator
     init(_ iterator: AsyncThrowingStream<Data, Error>.Iterator) {

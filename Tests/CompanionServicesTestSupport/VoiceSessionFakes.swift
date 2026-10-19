@@ -56,7 +56,7 @@ package func makeVoiceHarness(
     let synth = ScriptedSynth()
     let chat = ScriptedChat()
     var keys: [SecretKey: String] = [:]
-    if let key { keys[.openAI] = key }
+    if let key { keys[.cerebras] = key }
     let secrets = ScriptedSecrets(keys)
     let thread = ScriptedThread()
     let clock = TestClock()

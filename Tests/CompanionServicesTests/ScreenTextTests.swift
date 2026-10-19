@@ -63,10 +63,10 @@ func testAXScreenTextNeverReadsItself() {
 // MARK: - ScreenSight: vision vs AX
 
 @MainActor func testVisionWinsOverAX() async {
-    let secrets = TestSecretStore([.openAI: "sk-test"])
+    let secrets = TestSecretStore([.cerebras: "sk-test"])
     let transport = ScriptedTransport()
     transport.stub(
-        url: ProviderDescriptor.openAI.endpoint!.absoluteString,
+        url: ProviderDescriptor.cerebrasVision.endpoint!.absoluteString,
         ScriptedReply(
             status: 200,
             body: Data("""
@@ -86,10 +86,10 @@ func testAXScreenTextNeverReadsItself() {
 }
 
 @MainActor func testAXCoversWhenVisionDoesNotArrive() async {
-    let secrets = TestSecretStore([.openAI: "sk-test"])
+    let secrets = TestSecretStore([.cerebras: "sk-test"])
     let transport = ScriptedTransport()
     transport.stub(
-        url: ProviderDescriptor.openAI.endpoint!.absoluteString,
+        url: ProviderDescriptor.cerebrasVision.endpoint!.absoluteString,
         ScriptedReply(
             status: 200,
             body: Data("""

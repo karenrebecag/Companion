@@ -18,9 +18,9 @@ import Testing
 @MainActor func testNetworkFailureIsLogged() async {
     let transport = ScriptedTransport()
     transport.stub(
-        url: ProviderDescriptor.openAI.endpoint!.absoluteString,
+        url: ProviderDescriptor.openRouter.endpoint!.absoluteString,
         ScriptedReply(error: URLError(.networkConnectionLost)))
-    let vision = ScreenVision(secrets: TestSecretStore([.openAI: "sk-test"]), transport: transport)
+    let vision = ScreenVision(secrets: TestSecretStore([.cerebras: "sk-test"]), transport: transport)
     let url = uniqueLogURL()
 
     let brief = await Log.capturing(to: url) {
@@ -36,9 +36,9 @@ import Testing
 @MainActor func testMalformedResponseIsLogged() async {
     let transport = ScriptedTransport()
     transport.stub(
-        url: ProviderDescriptor.openAI.endpoint!.absoluteString,
+        url: ProviderDescriptor.openRouter.endpoint!.absoluteString,
         ScriptedReply(status: 200, body: Data("not json".utf8)))
-    let vision = ScreenVision(secrets: TestSecretStore([.openAI: "sk-test"]), transport: transport)
+    let vision = ScreenVision(secrets: TestSecretStore([.cerebras: "sk-test"]), transport: transport)
     let url = uniqueLogURL()
 
     let brief = await Log.capturing(to: url) {
@@ -61,11 +61,11 @@ private func readLog(_ url: URL) -> String {
 }
 
 @Test @MainActor func screenVisionProviderTests() async {
-    await testCerebrasKeyNeverReachesOpenAIHost()
-    await testOpenAIKeyGoesToOpenAIWithMiniModel()
+    await testCerebrasKeyOnlyReachesCerebras()
+    await testCerebrasKeyReadsTheScreen()
 }
 
-@MainActor func testCerebrasKeyNeverReachesOpenAIHost() async {
+@MainActor func testCerebrasKeyOnlyReachesCerebras() async {
     let transport = ScriptedTransport()
     transport.stub(.cerebrasVision, ScriptedReply(status: 200, body: visionReplyData))
     let vision = ScreenVision(secrets: TestSecretStore([.cerebras: "csk-test"]), transport: transport)
@@ -83,17 +83,17 @@ private func readLog(_ url: URL) -> String {
     expect(body["reasoning_format"] == nil, "cerebras: sin reasoning_format (qwen lo rechaza)")
 }
 
-@MainActor func testOpenAIKeyGoesToOpenAIWithMiniModel() async {
+@MainActor func testCerebrasKeyReadsTheScreen() async {
     let transport = ScriptedTransport()
-    transport.stub(.openAIVision, ScriptedReply(status: 200, body: visionReplyData))
-    let vision = ScreenVision(secrets: TestSecretStore([.openAI: "sk-test"]), transport: transport)
+    transport.stub(.cerebrasVision, ScriptedReply(status: 200, body: visionReplyData))
+    let vision = ScreenVision(secrets: TestSecretStore([.cerebras: "sk-test"]), transport: transport)
 
     _ = await vision.summarize(jpeg: Data([0xFF, 0xD8]), app: "Numbers")
 
     let hosts = transport.requests.compactMap { $0.url?.host }
-    expectEq(hosts, ["api.openai.com"], "openai: la key solo viaja a OpenAI")
-    expectEq(visionBody(transport.requests.first)["model"] as? String, "gpt-4o-mini",
-             "openai: modelo gpt-4o-mini")
+    expectEq(hosts, ["api.cerebras.ai"], "cerebras: la key solo viaja a Cerebras")
+    expectEq(visionBody(transport.requests.first)["model"] as? String, "qwen-3.8-27b",
+             "cerebras: modelo qwen-3.8-27b")
 }
 
 private let visionReplyData = Data(

@@ -24,7 +24,7 @@ private final class Said {
 }
 
 @MainActor private func actions(_ store: any AttachmentStoring, _ said: Said) -> (IslandAttachActions, ChatViewModel) {
-    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
                              store: MemoryConversationStore(), config: Config(), attachments: store)
     let voice = VoiceViewModel(voice: RecordingVoice(), thread: FakePresenter())
     return (IslandAttachActions(chat: chat, voice: voice, grabber: nil,
@@ -166,7 +166,7 @@ private final class Said {
     try Data("hola".utf8).write(to: file)
     defer { try? FileManager.default.removeItem(at: file) }
 
-    let bare = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+    let bare = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
                              store: MemoryConversationStore(), config: Config(), attachments: nil)
     expectEq(bare.attachResult(file), .failure(.io), "no attachment store is an io failure")
 

@@ -19,7 +19,6 @@ private struct PassThroughArbiter: Arbitrating {
 /// gate. `self.voice` is set by the caller, which keeps that stored property
 /// private to CompanionMain.swift.
 struct VoicePipeline {
-    let openAIMouth: OpenAITTSClient
     let mouth: MouthRouter
     let voice: VoiceViewModel
 }
@@ -54,9 +53,6 @@ func makeVoicePipeline(
     let mic = MicCapture(echoCancellation: env.config.voice.echoCancellation)
     let player = RealtimePlayer(
         sharedWith: mic, volume: env.config.voice.volume)
-    // The voice bench in Settings still previews OpenAI's voices; the mouth
-    // no longer falls back to it.
-    let openAIMouth = OpenAITTSClient(secrets: env.secrets, transport: env.transport, language: env.config.language)
     // 15f-7a: ElevenLabs when its key and a voice are set, otherwise the
     // system voice — decided per sentence, so a key saved in Settings
     // takes effect on the next hold and nothing reads the Keychain here.
@@ -179,5 +175,5 @@ func makeVoicePipeline(
         onSnapshot: { ambience.observe($0.state) },
         session: sensing.sessionModel)
 
-    return VoicePipeline(openAIMouth: openAIMouth, mouth: mouth, voice: voice)
+    return VoicePipeline(mouth: mouth, voice: voice)
 }

@@ -11,7 +11,7 @@ struct ClearHistoryUITests {
         let store = ScriptedHistoryStore()
         let model = ChatViewModel(
             chat: FakeChatProvider(),
-            secrets: TestSecretStore([.openAI: "sk-test"]),
+            secrets: TestSecretStore([.cerebras: "sk-test"]),
             store: store,
             config: .default)
         await model.appendUser("hello")
@@ -45,7 +45,7 @@ struct ClearHistoryUITests {
         store.clearError = PersistenceError.io
         let model = ChatViewModel(
             chat: FakeChatProvider(),
-            secrets: TestSecretStore([.openAI: "sk-test"]),
+            secrets: TestSecretStore([.cerebras: "sk-test"]),
             store: store,
             config: .default)
         await model.appendUser("hello")
@@ -78,7 +78,7 @@ struct ClearHistoryUITests {
         let history = HistoryClearModel()
         history.present()
         let chat = ChatViewModel(
-            chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+            chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
             store: ScriptedHistoryStore(), config: .default)
         expect(!history.canConfirm(chat: nil), "no chat, nothing to clear")
         expect(history.canConfirm(chat: chat), "a chat can be cleared")
@@ -92,7 +92,7 @@ struct ClearHistoryUITests {
         let store = ScriptedHistoryStore()
         store.clearError = PersistenceError.io
         let chat = ChatViewModel(
-            chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+            chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
             store: store, config: .default)
         await chat.appendUser("hello")
         let history = HistoryClearModel()
@@ -116,7 +116,7 @@ struct ClearHistoryUITests {
 
     @Test @MainActor func closeAndBackdropIgnoredWhileClearing() {
         let chat = ChatViewModel(
-            chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+            chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
             store: ScriptedHistoryStore(), config: .default)
         let history = HistoryClearModel()
         history.present()
@@ -283,7 +283,7 @@ struct ClearHistoryUITests {
         let store = ScriptedHistoryStore()
         let model = ChatViewModel(
             chat: FakeChatProvider(),
-            secrets: TestSecretStore([.openAI: "sk-test"]),
+            secrets: TestSecretStore([.cerebras: "sk-test"]),
             store: store,
             config: .default)
         await model.appendUser("hello")

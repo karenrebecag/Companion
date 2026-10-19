@@ -7,7 +7,8 @@ import SwiftUI
 struct SettingsElevenLabsVoice: View {
     let preview: VoicePreview?
     let secrets: (any SecretStore)?
-    /// The OpenAI voice the mouth falls back to, so the sample does too.
+    /// Passed to the preview as the mouth's voice; ElevenLabs and the system
+    /// voice both ignore it today.
     let fallbackVoice: VoiceID
 
     @State private var model = ElevenLabsVoiceModel()
@@ -49,13 +50,13 @@ struct SettingsElevenLabsVoice: View {
         }
         if let preview {
             AppButton(
-                preview.playingMouth
+                preview.playing
                     ? Localized.string("settings.voice.preview.playing")
                     : Localized.string("settings.voice.preview.listen"),
                 kind: .secondary,
                 enabled: !preview.isBusy
             ) {
-                preview.playMouth(fallbackVoice)
+                preview.play(fallbackVoice)
             }
         }
     }

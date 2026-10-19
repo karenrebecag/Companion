@@ -5,44 +5,27 @@ import Observation
 @Observable
 @MainActor
 package final class VoicePreview {
-    package private(set) var playing: VoiceID?
+    /// A sample through the hold's own mouth is playing.
+    package private(set) var playing = false
     package private(set) var errorText: String?
-    /// 15f-6: a sample through the hold's own mouth is playing.
-    package private(set) var playingMouth = false
 
-    private let sampler: any VoiceSampling
-    /// 15f-6: the hold's mouth (ElevenLabs with key and voice, OpenAI
+    /// The hold's mouth (ElevenLabs with key and voice, the system voice
     /// otherwise), so the preview sounds like what the hold will say.
-    private let mouth: (any VoiceSampling)?
+    private let mouth: any VoiceSampling
 
-    package init(sampler: any VoiceSampling, mouth: (any VoiceSampling)? = nil) {
-        self.sampler = sampler
+    package init(mouth: any VoiceSampling) {
         self.mouth = mouth
     }
 
-    package var isBusy: Bool { playing != nil || playingMouth }
+    package var isBusy: Bool { playing }
 
     /// Short on purpose: a preview is for timbre, not for listening to a speech.
     package static let sampleText = Localized.string("voice.sample")
 
+    /// `voice` is passed through to the mouth; neither mouth reads it today.
     package func play(_ voice: VoiceID) {
         guard !isBusy else { return }
-        playing = voice
-        errorText = nil
-        Task { [sampler] in
-            do {
-                try await sampler.play(Self.sampleText, voice: voice)
-            } catch {
-                errorText = VoiceCopy.previewFailed
-            }
-            playing = nil
-        }
-    }
-
-    /// `voice` is the OpenAI voice the mouth falls back to.
-    package func playMouth(_ voice: VoiceID) {
-        guard !isBusy, let mouth else { return }
-        playingMouth = true
+        playing = true
         errorText = nil
         Task {
             do {
@@ -50,7 +33,7 @@ package final class VoicePreview {
             } catch {
                 errorText = VoiceCopy.previewFailed
             }
-            playingMouth = false
+            playing = false
         }
     }
 }

@@ -28,15 +28,15 @@ import CompanionTestKit
 
 @MainActor func testChatReadsProfileAtRequestTime() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.chunks("hola")))
+    transport.stub(.openRouter, ScriptedReply(lines: SSEFixtures.chunks("hola")))
     let profile = ProfileBox(name: "Karen")
     let client = ChatProviderClient(
-        secrets: TestSecretStore([.openAI: "sk-test"]),
-        probe: TestProbe(available: ["openai"]),
+        secrets: TestSecretStore([.openRouter: "sk-test"]),
+        probe: TestProbe(available: ["openrouter"]),
         transport: transport,
         settings: .default,
         profileSource: { profile.snapshot },
-        catalog: [.openAI])
+        catalog: [.openRouter])
 
     // El perfil cambia DESPUÉS de construir el cliente: la petición debe
     // llevar el valor nuevo — antes se quedaba con el del arranque.

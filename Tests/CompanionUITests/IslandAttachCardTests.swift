@@ -284,7 +284,7 @@ private enum Backdrop {
 
 /// The chat is where a real remove lands; the tray only reports which one.
 @MainActor private func pendingTray() throws -> (ChatViewModel, Mount) {
-    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
                              store: MemoryConversationStore(), config: Config(),
                              attachments: MemoryAttachments())
     let ref = try #require(chat.attach(URL(fileURLWithPath: "/tmp/nota.pdf")))

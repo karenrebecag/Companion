@@ -20,7 +20,7 @@ struct ClearHistorySessionsTests {
         let sessions = FileExecutorSessionStore(
             fileURL: root.appendingPathComponent("executor-sessions.json"))
         let vm = ChatViewModel(
-            chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+            chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
             store: store, config: .default)
         vm.onAppear()
         await vm.appendUser("hola")

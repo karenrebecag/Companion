@@ -14,6 +14,17 @@ import CompanionTestKit
 // inert everywhere `attachDecision` never ran (the closure it wires is the
 // only thing that reads it).
 
+/// The default harness key was the old OpenAI key: a premium brain that is not
+/// the fast one. Cerebras is now the fast brain, so the decision gate is
+/// reached only with a non-fast brain key present.
+@MainActor private func decisionHarness(
+    jobs: (any JobSubmitter)? = nil, language: AppLanguage = .en
+) -> VoiceHarness {
+    let h = makeVoiceHarness(key: nil, jobs: jobs, language: language)
+    h.secrets.values[.openRouter] = "sk-test"
+    return h
+}
+
 @Test @MainActor func voiceDecisionTests() async {
     await testDecisionOffNeverAsksTheProviderAndChatGetsTheTurn()
     await testDecisionOnOpensSafariThroughTheRouterWithoutTheChat()
@@ -103,7 +114,7 @@ import CompanionTestKit
     let gate = DecisionGate(
         provider: judge, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
         world: world, budget: .seconds(2))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     await h.session.attachDecision(gate, judge: judge)
     return (h, actions, opener)
 }
@@ -222,7 +233,7 @@ private final class AppsBox: @unchecked Sendable {
         let gate = DecisionGate(
             provider: judge, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
             world: { DecisionWorld(apps: ["Safari", "Slack"], sites: []) }, budget: .seconds(2))
-        let h = makeVoiceHarness()
+        let h = decisionHarness()
         await h.session.attachDecision(gate, judge: judge)
         await h.session.hold()
         await pumpUntil("eager: listening") { h.watch.latest.state == .listening }
@@ -316,7 +327,7 @@ private final class AppsBox: @unchecked Sendable {
         provider: judge, arbiter: NoArbiter(),
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         world: { DecisionWorld(apps: ["Safari"], sites: []) }, budget: .seconds(3600))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     await h.session.attachDecision(gate, judge: judge)
     h.transcriber.stoppedText = "abre Safari"
     h.chat.rounds = [[.text("Listo.")]]
@@ -360,7 +371,7 @@ private struct SilentHosted: HostedDecisionProviding {
     let gate = DecisionGate(
         provider: judge, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
         world: { DecisionWorld(apps: ["Safari"], sites: []) }, budget: .seconds(2))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     h.secrets.values[.cerebras] = "csk-test"
     await h.session.attachDecision(gate, judge: judge)
     h.transcriber.stoppedText = "abre Safari"
@@ -386,7 +397,7 @@ private struct SilentHosted: HostedDecisionProviding {
             provider: judge, arbiter: NoArbiter(),
             tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
             world: { DecisionWorld() }, budget: .seconds(2))
-        let h = makeVoiceHarness(jobs: CapturingSubmitter())
+        let h = makeVoiceHarness(key: nil, jobs: CapturingSubmitter())
         await h.session.attachDecision(gate, judge: judge)
         h.transcriber.stoppedText = "abre Safari"
         h.chat.rounds = [[.text("Listo.")]]
@@ -522,7 +533,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         world: { DecisionWorld() },
         budget: .seconds(2))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     await h.session.attachDecision(gate)
     h.transcriber.stoppedText = "abre Safari"
     h.chat.rounds = [[.text("Listo.")]]
@@ -554,7 +565,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
         provider: provider, arbiter: NoArbiter(), tools: tools,
         world: { DecisionWorld(apps: ["Safari"], sites: []) },
         budget: .seconds(2))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     let seen = SessionEventBox(h.session.events)
     await h.session.attachDecision(gate)
     h.transcriber.stoppedText = "abre Safari"
@@ -589,7 +600,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
         provider: provider, arbiter: NoArbiter(),
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         world: { DecisionWorld() }, budget: .seconds(2))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     await h.session.attachDecision(gate)
     h.transcriber.stoppedText = "hola"
     h.chat.rounds = [[.text("Hola.")]]
@@ -611,7 +622,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         world: { DecisionWorld() }, budget: .seconds(2))
     let jobs = CapturingSubmitter()
-    let h = makeVoiceHarness(jobs: jobs)
+    let h = decisionHarness(jobs: jobs)
     await h.session.attachDecision(gate)
     h.transcriber.stoppedText = "crea un archivo"
     await h.session.hold()
@@ -632,7 +643,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
         provider: provider, arbiter: NoArbiter(),
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         world: { DecisionWorld() }, budget: .seconds(2))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     await h.session.attachDecision(gate)
     h.transcriber.stoppedText = "crea un archivo"
     h.chat.rounds = [[.text("Hecho.")]]
@@ -648,7 +659,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
 @MainActor func testWithoutAttachDecisionTheClassicPathIsUnchanged() async {
     setenv("COMPANION_DECISION", "1", 1)
     defer { unsetenv("COMPANION_DECISION") }
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     h.transcriber.stoppedText = "abre Safari"
     h.chat.rounds = [[.text("Listo.")]]
     await h.session.hold()
@@ -672,7 +683,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
         provider: trashProvider(), arbiter: NoArbiter(),
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         system: system, world: { DecisionWorld() }, budget: .seconds(2))
-    let h = makeVoiceHarness(language: .es)
+    let h = decisionHarness(language: .es)
     let seen = SessionEventBox(h.session.events)
     await h.session.attachDecision(gate)
 
@@ -709,7 +720,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
         provider: trashProvider(), arbiter: NoArbiter(),
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         system: system, world: { DecisionWorld() }, budget: .seconds(2))
-    let h = makeVoiceHarness(language: language)
+    let h = decisionHarness(language: language)
     await h.session.attachDecision(gate)
 
     h.transcriber.stoppedText = "vacia la papelera"
@@ -749,7 +760,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
     let gate = DecisionGate(
         provider: provider, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
         world: { DecisionWorld(apps: ["Safari"], sites: []) }, budget: .seconds(2))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     await h.session.attachDecision(gate)
     h.transcriber.stoppedText = "abre Safari"
     await h.session.hold()
@@ -784,7 +795,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
         provider: provider, arbiter: NoArbiter(),
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         system: system, world: { DecisionWorld() }, budget: .seconds(2))
-    let h = makeVoiceHarness(language: .es)
+    let h = decisionHarness(language: .es)
     await h.session.attachDecision(gate)
 
     h.transcriber.stoppedText = "vacia la papelera"
@@ -819,7 +830,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
         provider: trashProvider(), arbiter: NoArbiter(),
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         system: system, world: { DecisionWorld() }, budget: .seconds(2))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     await h.session.attachDecision(gate)
 
     h.transcriber.stoppedText = "vacia la papelera"
@@ -856,7 +867,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
     let gate = DecisionGate(
         provider: provider, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
         system: system, world: { DecisionWorld(apps: ["Safari"], sites: []) }, budget: .seconds(2))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     await h.session.attachDecision(gate)
 
     h.transcriber.stoppedText = "vacia la papelera"
@@ -880,7 +891,7 @@ private func soft(_ choice: String) -> DecisionAnswer? {
         provider: trashProvider(), arbiter: NoArbiter(),
         tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
         system: system, world: { DecisionWorld() }, budget: .seconds(2))
-    let h = makeVoiceHarness()
+    let h = decisionHarness()
     await h.session.attachDecision(gate)
     h.transcriber.stoppedText = "vacia la papelera"
     h.chat.rounds = [[.text("No puedo hacer eso.")]]

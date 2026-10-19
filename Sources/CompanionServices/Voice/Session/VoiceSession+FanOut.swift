@@ -10,8 +10,8 @@ import Foundation
 extension VoiceSession {
     /// Called once per fresh press (never a bounce, `hold()`'s own guard).
     func fanOut() {
-        // 15b-5: sensing does not need the OpenAI key — a classic-only hold
-        // still benefits from context read at press instead of at commit.
+        // 15b-5: sensing needs no mouth key — a classic-only hold still
+        // benefits from context read at press instead of at commit.
         let sensor = classic.sensor
         let config = configProvider.current
         // Code review 2026-09-23 (medio): a hold that ends without ever
@@ -22,8 +22,8 @@ extension VoiceSession {
         classic.pressedContext = Task {
             await sensor?.sense(config.contextChannels, budget: config.contextBudget)
         }
-        // The classic (no-key) path has no TTS endpoint to warm.
-        guard openAIKey() != nil else { return }
+        // Only ElevenLabs has a connection worth warming; the system voice has none.
+        guard hasSecret(.elevenLabs) else { return }
         let synth = synthesizer
         let language = config.language
         Task.detached { await synth.prewarm(DecisionCopy.prewarmSet(language)) }

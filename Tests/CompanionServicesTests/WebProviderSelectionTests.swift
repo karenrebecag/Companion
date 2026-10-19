@@ -58,7 +58,7 @@ import Testing
         webReader: SelectedWebReader(transport: transport, secrets: secrets))
     func systemPrompt() throws -> String {
         let request = ChatSSEAttempt.makeRequest(
-            provider: .openAI, key: "k",
+            provider: .openRouter, key: "k",
             history: [Turn(role: .user, content: "hola")],
             tools: runner.specs(.es), settings: .default, ownerFirstName: "Karen", language: .es)
         let body = try JSONSerialization.jsonObject(with: request?.httpBody ?? Data()) as? [String: Any]

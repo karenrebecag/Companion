@@ -40,7 +40,7 @@ private func elevenURL(_ voice: String) -> String {
     testAnUnknownPresetChoiceChangesNothing()
     await testTheElevenLabsSectionCopy()
     await testTheSampleGoesThroughTheRouterWithTheChosenVoice()
-    await testWithoutAKeyTheSampleNeverGoesThroughOpenAI()
+    await testWithoutAKeyTheSampleNeverCallsElevenLabs()
 }
 
 /// §8.3: the five candidates plus the old default, Karen's pick first.
@@ -115,7 +115,7 @@ private func elevenURL(_ voice: String) -> String {
 @MainActor func testTheElevenLabsSectionNeedsTheKey() {
     let restore = isolatedPreference("key")
     defer { restore() }
-    let secrets = ScriptedSecrets([.openAI: "sk-test"])
+    let secrets = ScriptedSecrets([.cerebras: "sk-test"])
     let model = ElevenLabsVoiceModel()
     model.secrets = secrets
     model.refresh()
@@ -238,8 +238,8 @@ private func elevenURL(_ voice: String) -> String {
 
 @MainActor func testTheElevenLabsSectionCopy() async {
     for (language, noKey) in [
-        (AppLanguage.es, "Sin clave de ElevenLabs se usa la voz de OpenAI de arriba."),
-        (.en, "Without an ElevenLabs key, the OpenAI voice above is used."),
+        (AppLanguage.es, "Sin clave de ElevenLabs habla la voz del sistema."),
+        (.en, "Without an ElevenLabs key, the system voice speaks."),
     ] {
         await Localized.scoped(to: language) {
             expectEq(Localized.string("settings.voice.eleven.nokey"), noKey,
@@ -261,23 +261,20 @@ private func elevenURL(_ voice: String) -> String {
     defer { restore() }
     let transport = ScriptedTransport()
     transport.stub(url: elevenURL(regina), ScriptedReply(status: 200, body: Data([1, 2])))
-    let secrets = ScriptedSecrets([.openAI: "sk-test", .elevenLabs: "sk_eleven_test_0000"])
-    let openAI = ScriptedMouth("openai")
+    let secrets = ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"])
     let router = MouthRouter(
         elevenLabs: ElevenLabsTTSClient(
             secrets: secrets, transport: transport, language: .es,
             voiceID: { ElevenLabsVoicePreference.voiceID }),
         secrets: secrets,
         voiceID: { ElevenLabsVoicePreference.voiceID })
-    let preview = VoicePreview(
-        sampler: TTSVoiceSampler(fetcher: openAI, playback: FakePlay()),
-        mouth: TTSVoiceSampler(fetcher: router, playback: FakePlay()))
+    let preview = VoicePreview(mouth: TTSVoiceSampler(fetcher: router, playback: FakePlay()))
 
     let model = ElevenLabsVoiceModel()
     model.select(ElevenLabsMouth.presets[1])
-    preview.playMouth(.marin)
-    expect(preview.playingMouth, "muestra: marca que está sonando")
-    await pumpUntil("muestra: termina") { !preview.playingMouth }
+    preview.play(.marin)
+    expect(preview.playing, "muestra: marca que está sonando")
+    await pumpUntil("muestra: termina") { !preview.playing }
 
     expect(preview.errorText == nil, "muestra: sin error")
     let request = transport.requests.last
@@ -287,26 +284,21 @@ private func elevenURL(_ voice: String) -> String {
         try? JSONSerialization.jsonObject(with: $0) as? [String: Any]
     }
     expectEq(body?["text"] as? String, VoicePreview.sampleText, "muestra: la frase fija")
-    expectEq(openAI.calls, [], "muestra: OpenAI no se usa con clave y voz")
 }
 
-@MainActor func testWithoutAKeyTheSampleNeverGoesThroughOpenAI() async {
+@MainActor func testWithoutAKeyTheSampleNeverCallsElevenLabs() async {
     let restore = isolatedPreference("nokey")
     defer { restore() }
     let transport = ScriptedTransport()
-    let secrets = ScriptedSecrets([.openAI: "sk-test"])
-    let openAI = ScriptedMouth("openai")
+    let secrets = ScriptedSecrets([.cerebras: "csk-test"])
     let router = MouthRouter(
         elevenLabs: ElevenLabsTTSClient(
             secrets: secrets, transport: transport, language: .es,
             voiceID: { ElevenLabsVoicePreference.voiceID }),
         secrets: secrets,
         voiceID: { ElevenLabsVoicePreference.voiceID })
-    let preview = VoicePreview(
-        sampler: TTSVoiceSampler(fetcher: openAI, playback: FakePlay()),
-        mouth: TTSVoiceSampler(fetcher: router, playback: FakePlay()))
-    preview.playMouth(.cedar)
-    await pumpUntil("muestra sin clave: termina") { !preview.playingMouth }
-    expectEq(openAI.calls, [], "muestra sin clave: la boca no usa OpenAI")
+    let preview = VoicePreview(mouth: TTSVoiceSampler(fetcher: router, playback: FakePlay()))
+    preview.play(.cedar)
+    await pumpUntil("muestra sin clave: termina") { !preview.playing }
     expect(transport.requests.isEmpty, "muestra sin clave: ninguna petición a ElevenLabs")
 }

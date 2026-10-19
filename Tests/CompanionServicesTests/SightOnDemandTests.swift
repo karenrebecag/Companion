@@ -19,7 +19,7 @@ import Testing
 private func visionStub() -> ScriptedTransport {
     let transport = ScriptedTransport()
     transport.stub(
-        url: ProviderDescriptor.openAI.endpoint!.absoluteString,
+        url: ProviderDescriptor.cerebrasVision.endpoint!.absoluteString,
         ScriptedReply(
             status: 200,
             body: Data("""
@@ -31,7 +31,7 @@ private func visionStub() -> ScriptedTransport {
 private func sight(_ transport: ScriptedTransport) -> ScreenSight {
     ScreenSight(
         capture: ScreenCapture(bundleID: "test", trusted: { true }, grab: { Data([0xFF, 0xD8]) }),
-        vision: ScreenVision(secrets: TestSecretStore([.openAI: "sk-test"]), transport: transport),
+        vision: ScreenVision(secrets: TestSecretStore([.cerebras: "sk-test"]), transport: transport),
         axHarvest: { _ in ["texto de la ventana"] },
         pid: { 4242 }, appName: { "Numbers" },
         visionPerTurn: false)

@@ -18,6 +18,78 @@ import Testing
     testAGroqKeyInTheBundleIsPurgedOnLoad()
     testALegacyGroqItemIsDeletedNeverMigrated()
     testALegacyGroqItemBesideABundleIsDeletedOnLoad()
+    testAnOpenAIKeyInTheBundleIsPurgedOnLoadAndTheOthersStay()
+    testALegacyOpenAIItemIsDeletedNeverMigrated()
+    testTheOpenAIWipeIsIdempotent()
+}
+
+/// The OpenAI key left the product with B: a bundle saved before that must
+/// lose only its OpenAI entry on load, keep every other key, and persist
+/// the purged bundle.
+@MainActor func testAnOpenAIKeyInTheBundleIsPurgedOnLoadAndTheOthersStay() {
+    let fake = FakeKeychainOperations()
+    let seeded = try! JSONEncoder().encode([
+        SecretKey.openAI.rawValue: "sk-old", SecretKey.cerebras.rawValue: "csk-live",
+        SecretKey.typesafe.rawValue: "ts-live", SecretKey.elevenLabs.rawValue: "el-live",
+        SecretKey.exa.rawValue: "exa-live",
+    ])
+    fake.seedRaw(account: bundleAccount, data: seeded)
+    let store = KeychainSecretStore(backend: fake)
+
+    do {
+        expectEq(try store.read(.openAI), nil, "openai: la clave ya no se lee")
+        expectEq(try store.read(.cerebras), "csk-live", "openai: cerebras sigue")
+        expectEq(try store.read(.typesafe), "ts-live", "openai: typesafe sigue")
+        expectEq(try store.read(.elevenLabs), "el-live", "openai: elevenlabs sigue")
+        expectEq(try store.read(.exa), "exa-live", "openai: exa sigue")
+    } catch {
+        expect(false, "openai: no debia tirar \(error)")
+    }
+    let stored = fake.rawData(account: bundleAccount).flatMap {
+        try? JSONDecoder().decode([String: String].self, from: $0)
+    } ?? [:]
+    expect(stored[SecretKey.openAI.rawValue] == nil, "openai: el bundle guardado ya no la contiene")
+    expectEq(stored.count, 4, "openai: solo se pierde OpenAI")
+}
+
+/// A loose per-key OpenAI item from an old install is deleted, never copied
+/// into the bundle, while a live key beside it still migrates.
+@MainActor func testALegacyOpenAIItemIsDeletedNeverMigrated() {
+    let fake = FakeKeychainOperations()
+    fake.seed(account: SecretKey.openAI.rawValue, value: "legacy-openai")
+    fake.seed(account: SecretKey.openRouter.rawValue, value: "legacy-openrouter")
+    let store = KeychainSecretStore(backend: fake)
+    do {
+        expectEq(try store.read(.openRouter), "legacy-openrouter", "legacy openai: OpenRouter migra")
+        expectEq(try store.read(.openAI), nil, "legacy openai: OpenAI no migra")
+    } catch {
+        expect(false, "legacy openai: no debia tirar \(error)")
+    }
+    expect(!fake.hasItem(account: SecretKey.openAI.rawValue), "legacy openai: el item se borra")
+    let stored = fake.rawData(account: bundleAccount).flatMap {
+        try? JSONDecoder().decode([String: String].self, from: $0)
+    } ?? [:]
+    expect(stored[SecretKey.openAI.rawValue] == nil, "legacy openai: el bundle nunca la ve")
+}
+
+/// The wipe runs on every load; a second launch over an already purged
+/// bundle must change nothing and throw nothing.
+@MainActor func testTheOpenAIWipeIsIdempotent() {
+    let fake = FakeKeychainOperations()
+    let seeded = try! JSONEncoder().encode([
+        SecretKey.openAI.rawValue: "sk-old", SecretKey.cerebras.rawValue: "csk-live",
+    ])
+    fake.seedRaw(account: bundleAccount, data: seeded)
+    do {
+        _ = try KeychainSecretStore(backend: fake).read(.cerebras)
+        let afterFirst = fake.rawData(account: bundleAccount)
+        expectEq(try KeychainSecretStore(backend: fake).read(.cerebras), "csk-live",
+                 "idempotent: segunda carga sirve la misma clave")
+        expectEq(fake.rawData(account: bundleAccount), afterFirst,
+                 "idempotent: la segunda carga no reescribe el bundle")
+    } catch {
+        expect(false, "idempotent: no debia tirar \(error)")
+    }
 }
 
 /// L1 (security review 2026-09-24): the standalone legacy Groq item was
@@ -25,12 +97,12 @@ import Testing
 /// in the Keychain for good.
 @MainActor func testALegacyGroqItemBesideABundleIsDeletedOnLoad() {
     let fake = FakeKeychainOperations()
-    let seeded = try! JSONEncoder().encode([SecretKey.openAI.rawValue: "sk-live"])
+    let seeded = try! JSONEncoder().encode([SecretKey.openRouter.rawValue: "sk-live"])
     fake.seedRaw(account: bundleAccount, data: seeded)
     fake.seed(account: SecretKey.groq.rawValue, value: "legacy-groq")
     let store = KeychainSecretStore(backend: fake)
     do {
-        expectEq(try store.read(.openAI), "sk-live", "L1: el bundle se sirve igual")
+        expectEq(try store.read(.openRouter), "sk-live", "L1: el bundle se sirve igual")
     } catch {
         expect(false, "L1: no debia tirar \(error)")
     }
@@ -45,13 +117,13 @@ import Testing
 @MainActor func testAGroqKeyInTheBundleIsPurgedOnLoad() {
     let fake = FakeKeychainOperations()
     let seeded = try! JSONEncoder().encode([
-        SecretKey.openAI.rawValue: "sk-live", SecretKey.groq.rawValue: "gsk-old",
+        SecretKey.openRouter.rawValue: "sk-live", SecretKey.groq.rawValue: "gsk-old",
     ])
     fake.seedRaw(account: bundleAccount, data: seeded)
     let store = KeychainSecretStore(backend: fake)
 
     do {
-        expectEq(try store.read(.openAI), "sk-live", "purga: las demás claves siguen")
+        expectEq(try store.read(.openRouter), "sk-live", "purga: las demás claves siguen")
         expectEq(try store.read(.groq), nil, "purga: la clave de Groq ya no se lee")
     } catch {
         expect(false, "purga: no debia tirar \(error)")
@@ -59,7 +131,7 @@ import Testing
     let stored = fake.rawData(account: bundleAccount).flatMap {
         try? JSONDecoder().decode([String: String].self, from: $0)
     } ?? [:]
-    expectEq(stored, [SecretKey.openAI.rawValue: "sk-live"],
+    expectEq(stored, [SecretKey.openRouter.rawValue: "sk-live"],
              "purga: el bundle guardado ya no contiene Groq")
 }
 
@@ -67,11 +139,11 @@ import Testing
 /// the Groq key into the bundle; its item is deleted all the same.
 @MainActor func testALegacyGroqItemIsDeletedNeverMigrated() {
     let fake = FakeKeychainOperations()
-    fake.seed(account: SecretKey.openAI.rawValue, value: "legacy-openai")
+    fake.seed(account: SecretKey.openRouter.rawValue, value: "legacy-openai")
     fake.seed(account: SecretKey.groq.rawValue, value: "legacy-groq")
     let store = KeychainSecretStore(backend: fake)
     do {
-        expectEq(try store.read(.openAI), "legacy-openai", "legacy: OpenAI migra")
+        expectEq(try store.read(.openRouter), "legacy-openai", "legacy: OpenAI migra")
         expectEq(try store.read(.groq), nil, "legacy: Groq no migra")
     } catch {
         expect(false, "legacy: no debia tirar \(error)")
@@ -206,11 +278,11 @@ private let bundleAccount = "secrets.v1"
     let store = KeychainSecretStore(backend: fake)
 
     do {
-        try store.write(.openAI, value: "sk-live")
-        expectEq(try store.read(.openAI), "sk-live", "bundle: escribe y lee")
+        try store.write(.openRouter, value: "sk-live")
+        expectEq(try store.read(.openRouter), "sk-live", "bundle: escribe y lee")
 
-        try store.delete(.openAI)
-        expect(try store.read(.openAI) == nil, "bundle: delete deja nil")
+        try store.delete(.openRouter)
+        expect(try store.read(.openRouter) == nil, "bundle: delete deja nil")
         expect(fake.hasItem(account: bundleAccount),
                "bundle: delete no borra el item, solo la clave adentro")
     } catch {
@@ -223,10 +295,10 @@ private let bundleAccount = "secrets.v1"
     let store = KeychainSecretStore(backend: fake)
 
     do {
-        try store.write(.openAI, value: "a")
-        try store.write(.openRouter, value: "b")
-        expectEq(try store.read(.openAI), "a", "bundle: primera clave")
-        expectEq(try store.read(.openRouter), "b", "bundle: segunda clave")
+        try store.write(.openRouter, value: "a")
+        try store.write(.brave, value: "b")
+        expectEq(try store.read(.openRouter), "a", "bundle: primera clave")
+        expectEq(try store.read(.brave), "b", "bundle: segunda clave")
     } catch {
         expect(false, "bundle: dos claves no debia tirar \(error)")
     }
@@ -236,12 +308,12 @@ private let bundleAccount = "secrets.v1"
 
 @MainActor func testMigrationMovesLegacyItemsAndDeletesThemAfterBundleWrite() {
     let fake = FakeKeychainOperations()
-    fake.seed(account: SecretKey.openAI.rawValue, value: "legacy-openai")
+    fake.seed(account: SecretKey.brave.rawValue, value: "legacy-openai")
     fake.seed(account: SecretKey.openRouter.rawValue, value: "legacy-openrouter")
     let store = KeychainSecretStore(backend: fake)
 
     do {
-        expectEq(try store.read(.openAI), "legacy-openai",
+        expectEq(try store.read(.brave), "legacy-openai",
                  "migracion: la clave legacy aparece bajo el bundle")
         expectEq(try store.read(.openRouter), "legacy-openrouter",
                  "migracion: la segunda clave legacy tambien")
@@ -250,7 +322,7 @@ private let bundleAccount = "secrets.v1"
     }
 
     expect(fake.hasItem(account: bundleAccount), "migracion: el bundle quedo escrito")
-    expect(!fake.hasItem(account: SecretKey.openAI.rawValue),
+    expect(!fake.hasItem(account: SecretKey.brave.rawValue),
            "migracion: el item legacy de openai se borro")
     expect(!fake.hasItem(account: SecretKey.openRouter.rawValue),
            "migracion: el item legacy de openrouter se borro")
@@ -259,21 +331,21 @@ private let bundleAccount = "secrets.v1"
 
 @MainActor func testMigrationKeepsLegacyItemsWhenBundleWriteFails() {
     let fake = FakeKeychainOperations()
-    fake.seed(account: SecretKey.openAI.rawValue, value: "legacy-openai")
+    fake.seed(account: SecretKey.openRouter.rawValue, value: "legacy-openai")
     // Bundle item never existed: update fails not-found, so write falls
     // through to add — which is the call this test makes fail.
     fake.addError = errSecInteractionNotAllowed
     let store = KeychainSecretStore(backend: fake)
 
     do {
-        _ = try store.read(.openAI)
+        _ = try store.read(.openRouter)
         expect(false, "migracion: el bundle que no se pudo escribir debia tirar")
     } catch {
         // expected — the bundle write failed, migration must not have
         // deleted the source of truth.
     }
 
-    expect(fake.hasItem(account: SecretKey.openAI.rawValue),
+    expect(fake.hasItem(account: SecretKey.openRouter.rawValue),
            "migracion: si el bundle no se escribio, el legacy sigue ahi")
     expect(!fake.hasItem(account: bundleAccount),
            "migracion: sin bundle escrito, no debe aparecer a medias")
@@ -281,13 +353,13 @@ private let bundleAccount = "secrets.v1"
 
 @MainActor func testLegacyReadFailureOtherThanNotFoundPropagates() {
     let fake = FakeKeychainOperations()
-    fake.seed(account: SecretKey.openAI.rawValue, value: "legacy-openai")
+    fake.seed(account: SecretKey.openRouter.rawValue, value: "legacy-openai")
     fake.copyErrorAccount = SecretKey.openRouter.rawValue
     fake.copyErrorStatus = errSecAuthFailed
     let store = KeychainSecretStore(backend: fake)
 
     do {
-        _ = try store.read(.openAI)
+        _ = try store.read(.openRouter)
         expect(false,
                "migracion: un error real leyendo una clave legacy debe propagarse, nunca perderse en silencio")
     } catch let error as SecretStoreError {
@@ -304,7 +376,7 @@ private let bundleAccount = "secrets.v1"
     let store = KeychainSecretStore(backend: fake)
 
     do {
-        _ = try store.read(.openAI)
+        _ = try store.read(.openRouter)
         expect(false, "bundle corrupto: leer debia tirar, no devolver datos a medias")
     } catch {
         // expected
@@ -319,16 +391,16 @@ private let bundleAccount = "secrets.v1"
     let store = KeychainSecretStore(backend: fake)
 
     do {
-        try store.write(.openAI, value: "sk-live")
+        try store.write(.openRouter, value: "sk-live")
     } catch {
         expect(false, "cache: el write inicial no debia tirar \(error)")
     }
 
     let callsAfterWrite = fake.copyCalls
     do {
-        expectEq(try store.read(.openAI), "sk-live", "cache: primera lectura")
-        expectEq(try store.read(.openAI), "sk-live", "cache: segunda lectura")
-        expectEq(try store.read(.openRouter), nil, "cache: tercera lectura, otra clave")
+        expectEq(try store.read(.openRouter), "sk-live", "cache: primera lectura")
+        expectEq(try store.read(.openRouter), "sk-live", "cache: segunda lectura")
+        expectEq(try store.read(.brave), nil, "cache: tercera lectura, otra clave")
     } catch {
         expect(false, "cache: no debia tirar \(error)")
     }
@@ -353,12 +425,12 @@ private let bundleAccount = "secrets.v1"
     // already-loaded bundle instead of also racing the first-load/migration
     // path — that is a separate concern from the one under test here.
     do {
-        _ = try store.read(.openAI)
+        _ = try store.read(.exa)
     } catch {
         expect(false, "concurrencia: el priming no debia tirar \(error)")
     }
 
-    let keys: [SecretKey] = [.openAI, .cerebras, .openRouter, .brave]
+    let keys: [SecretKey] = [.exa, .cerebras, .openRouter, .brave]
     let group = DispatchGroup()
     for key in keys {
         group.enter()
@@ -388,14 +460,14 @@ private let bundleAccount = "secrets.v1"
 /// error.
 @MainActor func testMigrationDeleteFailureForOneLegacyItemDoesNotStopTheRestOrThrow() {
     let fake = FakeKeychainOperations()
-    fake.seed(account: SecretKey.openAI.rawValue, value: "legacy-openai")
+    fake.seed(account: SecretKey.brave.rawValue, value: "legacy-openai")
     fake.seed(account: SecretKey.openRouter.rawValue, value: "legacy-openrouter")
-    fake.deleteErrorAccount = SecretKey.openAI.rawValue
+    fake.deleteErrorAccount = SecretKey.brave.rawValue
     fake.deleteErrorStatus = errSecInteractionNotAllowed
     let store = KeychainSecretStore(backend: fake)
 
     do {
-        expectEq(try store.read(.openAI), "legacy-openai",
+        expectEq(try store.read(.brave), "legacy-openai",
                  "migracion: el bundle ya es la fuente de verdad aunque el delete legacy falle")
         expectEq(try store.read(.openRouter), "legacy-openrouter",
                  "migracion: la otra clave tambien migro")
@@ -405,7 +477,7 @@ private let bundleAccount = "secrets.v1"
     }
 
     expect(fake.hasItem(account: bundleAccount), "migracion: el bundle quedo escrito")
-    expect(fake.hasItem(account: SecretKey.openAI.rawValue),
+    expect(fake.hasItem(account: SecretKey.brave.rawValue),
            "migracion: el item legacy que no se pudo borrar sigue ahi, pero no bloquea nada")
     expect(!fake.hasItem(account: SecretKey.openRouter.rawValue),
            "migracion: el resto de los items legacy si se borraron")

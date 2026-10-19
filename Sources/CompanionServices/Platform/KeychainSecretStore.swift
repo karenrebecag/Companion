@@ -40,13 +40,14 @@ package final class KeychainSecretStore: SecretStore, HostSecretStore, @unchecke
     /// `SecretKey.CaseIterable` — `SecretKey` stays untouched in Core — so
     /// this is Services' own copy of "every account that ever held a secret
     /// on its own", read once during migration and never written to again.
-    private static let legacyKeys: [SecretKey] = [.openAI, .openRouter, .brave]
+    private static let legacyKeys: [SecretKey] = [.openRouter, .brave]
 
-    /// 15e-2: keys of providers the app no longer talks to. Ajustes has no
-    /// row left to delete them, so a secret saved before its provider was
-    /// removed would otherwise sit in the Keychain forever: it is never
-    /// migrated, and the first load of each launch drops it.
-    private static let retiredKeys: [SecretKey] = [.groq]
+    /// Keys of providers the app no longer talks to (Groq in 15e-2, OpenAI
+    /// with the OpenAI removal). Ajustes has no row left to delete them, so
+    /// a secret saved before its provider was removed would otherwise sit in
+    /// the Keychain forever: it is never migrated, and the first load of
+    /// each launch drops it from the bundle and deletes any loose item.
+    private static let retiredKeys: [SecretKey] = [.groq, .openAI]
 
     private let backend: any KeychainOperations
     private let lock = NSLock()

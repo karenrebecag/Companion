@@ -131,7 +131,6 @@ struct SettingsPrivacyPage: View {
     }
 
     private static let keyProviders: [(id: String, provider: KeysSettingsModel.Provider, title: String, privacy: String?)] = [
-        ("openai", .openAI, "settings.keys.openai", nil),
         ("cerebras", .cerebras, "settings.keys.cerebras", "settings.keys.cerebras.privacy"),
         ("elevenlabs", .elevenLabs, "settings.keys.elevenlabs", "settings.keys.elevenlabs.privacy"),
         ("exa", .exa, "settings.keys.exa", "settings.keys.exa.privacy"),
@@ -180,7 +179,7 @@ struct SettingsPrivacyPage: View {
         case "elevenlabs": keys.elevenLabsField
         case "exa": keys.exaField
         case "typesafe": keys.typesafeField
-        default: keys.openAIField
+        default: ""
         }
     }
 
@@ -190,7 +189,7 @@ struct SettingsPrivacyPage: View {
         case "elevenlabs": keys.elevenLabsField = value
         case "exa": keys.exaField = value
         case "typesafe": keys.typesafeField = value
-        default: keys.openAIField = value
+        default: break
         }
     }
 

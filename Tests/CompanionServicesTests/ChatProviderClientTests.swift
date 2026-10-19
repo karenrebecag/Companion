@@ -67,7 +67,7 @@ import Testing
     let url = FileManager.default.temporaryDirectory
         .appendingPathComponent("companion-chatlog-\(UUID().uuidString).log")
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     let client = makeChatClient(transport: transport)
     // Iterated here, not through `collectChat`: its detached task would
     // leave the capture behind.
@@ -80,7 +80,7 @@ import Testing
         }
     }
     let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-    expect(text.contains("chat: answered by openai/gpt-4o"),
+    expect(text.contains("chat: answered by") && text.contains("gpt-oss-120b"),
            "log: nombra proveedor y modelo reales")
     expect(!text.contains("abre Safari y busca el clima"),
            "log: nunca el texto del turno")
@@ -92,10 +92,10 @@ import Testing
 // realtime sí, por otro camino). El catálogo entra por el mismo hueco.
 @MainActor func testMemoryAndSkillsReachTheRequest() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     let client = ChatProviderClient(
-        secrets: TestSecretStore([.openAI: "sk-test"]),
-        probe: TestProbe(available: ["openai"]),
+        secrets: TestSecretStore([.cerebras: "sk-test"]),
+        probe: TestProbe(available: ["cerebras"]),
         transport: transport,
         ownerFirstName: "Karen",
         memorySource: { "Memory — DATA: likes coffee" },
@@ -113,30 +113,30 @@ import Testing
 
 @MainActor func testOpenAI200YieldsText() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     let deltas = collectChat(makeChatClient(transport: transport))
     expectEq(deltas, [.text("Hola")], "openai 200: emite el chunk de texto")
     expectEq(transport.requests.count, 1, "openai 200: un solo intento")
     expect(
         transport.requests[0].url?.absoluteString
-            == ProviderDescriptor.openAI.endpoint?.absoluteString,
+            == ProviderDescriptor.cerebras.endpoint?.absoluteString,
         "openai 200: pega el endpoint de OpenAI")
 }
 
 @MainActor func testOpenAI500FallsToOpenRouter() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(status: 500))
+    transport.stub(.cerebras, ScriptedReply(status: 500))
     transport.stub(.openRouter, ScriptedReply(lines: [SSEFixtures.fallback, SSEFixtures.done]))
     let deltas = collectChat(makeChatClient(transport: transport))
     expectEq(deltas, [.text("Desde el respaldo")], "fallback: OpenRouter contesta tras 500")
-    expectEq(chatHosts(transport), ["api.openai.com", "openrouter.ai"],
+    expectEq(chatHosts(transport), ["api.cerebras.ai", "openrouter.ai"],
              "fallback: OpenAI luego OpenRouter")
 }
 
 @MainActor func testSpokePartialDoesNotFailover() {
     let transport = ScriptedTransport()
     transport.stub(
-        .openAI,
+        .cerebras,
         ScriptedReply(
             lines: [SSEFixtures.sentence],
             streamError: URLError(.networkConnectionLost)))
@@ -151,12 +151,12 @@ import Testing
 
 @MainActor func testSkipOpenAIWithoutKey() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.chunks("NO-OPENAI")))
+    transport.stub(.cerebras, ScriptedReply(lines: SSEFixtures.chunks("NO-OPENAI")))
     transport.stub(.openRouter, ScriptedReply(lines: [SSEFixtures.fallback, SSEFixtures.done]))
     let deltas = collectChat(
         makeChatClient(keys: [.openRouter: "or-test"], transport: transport))
     expectEq(deltas, [.text("Desde el respaldo")], "skip: OpenRouter con llave contesta")
-    expect(!chatHosts(transport).contains("api.openai.com"),
+    expect(!chatHosts(transport).contains("api.cerebras.ai"),
            "skip: sin llave OpenAI no hace el 401")
 }
 
@@ -170,7 +170,7 @@ import Testing
 
 @MainActor func testOllamaProbeFalseNotAttempted() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(status: 500))
+    transport.stub(.cerebras, ScriptedReply(status: 500))
     transport.stub(.openRouter, ScriptedReply(status: 500))
     transport.stub(.ollama, ScriptedReply(lines: SSEFixtures.chunks("local")))
     expectChatError(
@@ -182,7 +182,7 @@ import Testing
 
 @MainActor func testFragmentedDelegateHandoff() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.delegateFragments))
+    transport.stub(.cerebras, ScriptedReply(lines: SSEFixtures.delegateFragments))
     let deltas = collectChat(
         makeChatClient(transport: transport), tools: [.delegate()])
     expectEq(deltas, [
@@ -194,7 +194,7 @@ import Testing
 /// ids del proveedor.
 @MainActor func testTwoToolCallsInOneRound() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.twoToolCalls))
+    transport.stub(.cerebras, ScriptedReply(lines: SSEFixtures.twoToolCalls))
     let deltas = collectChat(
         makeChatClient(transport: transport), tools: [NativeTool.readFile.spec])
     expectEq(deltas, [.toolCalls([
@@ -207,7 +207,7 @@ import Testing
 /// `.handoff` con el encargo correcto, los dos en el mismo cierre.
 @MainActor func testDelegatePlusToolCallInOneRound() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.delegatePlusOpenApp))
+    transport.stub(.cerebras, ScriptedReply(lines: SSEFixtures.delegatePlusOpenApp))
     let deltas = collectChat(
         makeChatClient(transport: transport), tools: [.delegate(), ParentTool.openApp.spec(.en)])
     expect(deltas.contains(.toolCalls([
@@ -219,7 +219,7 @@ import Testing
 
 @MainActor func testMalformedToolNoHandoff() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.malformedDelegate))
+    transport.stub(.cerebras, ScriptedReply(lines: SSEFixtures.malformedDelegate))
     let deltas = collectChat(
         makeChatClient(transport: transport), tools: [.delegate()])
     expectEq(deltas, [.text("Puedo intentarlo")],
@@ -230,7 +230,7 @@ import Testing
 
 @MainActor func testEmptyToolsOmitsToolsKey() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     _ = collectChat(makeChatClient(transport: transport), tools: [])
     guard let req = transport.requests.first else {
         expect(false, "tools []: no hubo request")
@@ -246,7 +246,7 @@ import Testing
 
 @MainActor func testToolsAttachedWhenNonEmpty() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     _ = collectChat(makeChatClient(transport: transport), tools: [.delegate()])
     guard let req = transport.requests.first else {
         expect(false, "tools: no hubo request")
@@ -265,10 +265,10 @@ import Testing
 
 @MainActor func testVerify200And401() {
     let ok = ScriptedTransport()
-    ok.stubModels(.openAI, status: 200)
+    ok.stubModels(.cerebras, status: 200)
     let client = makeChatClient(transport: ok)
     do {
-        try runAsync { try await client.verify("sk-live", provider: .openAI) }
+        try runAsync { try await client.verify("sk-live", provider: .cerebras) }
         expect(true, "verify 200: no tira")
     } catch {
         expect(false, "verify 200: no debía tirar \(error)")
@@ -278,7 +278,7 @@ import Testing
     expectEq(req.httpMethod, "GET", "verify: GET")
     expectEq(
         req.url?.absoluteString,
-        ProviderDescriptor.openAI.baseURL.absoluteString + "/models",
+        ProviderDescriptor.cerebras.baseURL.absoluteString + "/models",
         "verify: {baseURL}/models")
     expectEq(req.value(forHTTPHeaderField: "Authorization"), "Bearer sk-live",
              "verify: Bearer de la clave pegada")
@@ -286,16 +286,16 @@ import Testing
              "verify: timeout de inactividad")
 
     let denied = ScriptedTransport()
-    denied.stubModels(.openAI, status: 401)
-    expectVerify(makeChatClient(transport: denied), "sk-x", .openAI,
+    denied.stubModels(.cerebras, status: 401)
+    expectVerify(makeChatClient(transport: denied), "sk-x", .cerebras,
                  .unauthorized, "verify 401")
 }
 
 @MainActor func testVerifyEmptyKey() {
     let transport = ScriptedTransport()
-    transport.stubModels(.openAI, status: 200)
+    transport.stubModels(.cerebras, status: 200)
     for key in ["", "   ", "\n\t  ", " \n"] {
-        expectVerify(makeChatClient(transport: transport), key, .openAI,
+        expectVerify(makeChatClient(transport: transport), key, .cerebras,
                      .invalidKey, "verify clave '\(key)'")
     }
     expectEq(transport.requests.count, 0, "verify: recortada vacía no pega red")
@@ -303,7 +303,7 @@ import Testing
 
 @MainActor func testRequestBodyAndAuth() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     let history = [Turn(role: .user, content: "hola '; DROP — ñoño")]
     _ = collectChat(makeChatClient(transport: transport, owner: "Karen"),
                     history: history)
@@ -318,10 +318,9 @@ import Testing
              "body: Bearer solo con llave")
     expectEq(req.timeoutInterval, 15, "body: timeoutInterval = inactividad")
     let body = chatBody(req)
-    expectEq(body["model"] as? String, "gpt-4o", "body: model del descriptor")
+    expectEq(body["model"] as? String, "gpt-oss-120b", "body: model del descriptor")
     expectEq(body["stream"] as? Bool, true, "body: stream true")
-    let temp = (body["temperature"] as? NSNumber)?.doubleValue ?? -1
-    expect(abs(temp - 0.7) < 0.0001, "body: temperature 0.7")
+    expect(body["temperature"] == nil, "body: gpt-oss no lleva temperature")
     let messages = body["messages"] as? [[String: Any]] ?? []
     expectEq(messages.count, 2, "body: system + historial")
     expectEq(messages[0]["role"] as? String, TurnRole.system.rawValue,
@@ -338,7 +337,7 @@ import Testing
 
 @MainActor func testAttachmentsAreNumberedText() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     let img = AttachmentRef(name: "a.png", path: "/tmp/a.png", kind: .image)
     let doc = AttachmentRef(name: "n.txt", path: "/tmp/ñoño.txt", kind: .file)
     _ = collectChat(
@@ -357,7 +356,7 @@ import Testing
 
 @MainActor func testHistoryWindow() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     let history = (0..<25).map { Turn(role: .user, content: "m\($0)") }
     _ = collectChat(
         makeChatClient(
@@ -376,23 +375,23 @@ import Testing
 
 @MainActor func testInactivityAndTurnTimeout() {
     let idle = ScriptedTransport()
-    idle.stub(.openAI, ScriptedReply(hangNanoseconds: 30_000_000_000))
+    idle.stub(.cerebras, ScriptedReply(hangNanoseconds: 30_000_000_000))
     expectChatError(
         makeChatClient(
-            keys: [.openAI: "sk-test"], available: ["openai"],
+            keys: [.cerebras: "sk-test"], available: ["cerebras"],
             transport: idle, settings: ChatSettings(
                 inactivityTimeout: 0.2, turnTimeout: 5),
-            catalog: [.openAI]),
+            catalog: [.cerebras]),
         .timeout, "inactividad: el primer timer gana", timeout: 2)
 
     let cap = ScriptedTransport()
-    cap.stub(.openAI, ScriptedReply(hangNanoseconds: 30_000_000_000))
+    cap.stub(.cerebras, ScriptedReply(hangNanoseconds: 30_000_000_000))
     expectChatError(
         makeChatClient(
-            keys: [.openAI: "sk-test"], available: ["openai"],
+            keys: [.cerebras: "sk-test"], available: ["cerebras"],
             transport: cap, settings: ChatSettings(
                 inactivityTimeout: 5, turnTimeout: 0.2),
-            catalog: [.openAI]),
+            catalog: [.cerebras]),
         .timeout, "tope de turno: el primer timer gana", timeout: 2)
 }
 
@@ -403,8 +402,8 @@ import Testing
     ]
     for (status, want) in cases {
         let transport = ScriptedTransport()
-        transport.stubModels(.openAI, status: status)
-        expectVerify(makeChatClient(transport: transport), "sk-x", .openAI,
+        transport.stubModels(.cerebras, status: status)
+        expectVerify(makeChatClient(transport: transport), "sk-x", .cerebras,
                      want, "verify HTTP \(status)")
     }
 }
@@ -423,7 +422,7 @@ import Testing
 @MainActor func testFailedPartialDoesNotLeakIntoFailover() {
     let transport = ScriptedTransport()
     transport.stub(
-        .openAI,
+        .cerebras,
         ScriptedReply(
             lines: [SSEFixtures.hello],
             streamError: URLError(.networkConnectionLost)))
@@ -431,13 +430,13 @@ import Testing
     let deltas = collectChat(makeChatClient(transport: transport))
     expectEq(deltas, [.text("Desde el respaldo")],
              "leak: 'Hola' incompleto no se concatena con el respaldo")
-    expectEq(chatHosts(transport), ["api.openai.com", "openrouter.ai"],
+    expectEq(chatHosts(transport), ["api.cerebras.ai", "openrouter.ai"],
              "leak: sí hubo failover")
 }
 
 @MainActor func makeChatClient(
-    keys: [SecretKey: String] = [.openAI: "sk-test", .openRouter: "or-test"],
-    available: Set<String> = ["openai", "openrouter"],
+    keys: [SecretKey: String] = [.cerebras: "sk-test", .openRouter: "or-test"],
+    available: Set<String> = ["cerebras", "openrouter"],
     transport: ScriptedTransport,
     settings: ChatSettings = .default,
     owner: String = "Karen",
@@ -490,7 +489,7 @@ func chatHosts(_ transport: ScriptedTransport) -> [String] {
 
 @MainActor func testStreamedSentencesKeepTheirSpaceButNeverEndWithOne() {
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: SSEFixtures.chunks(
+    transport.stub(.cerebras, ScriptedReply(lines: SSEFixtures.chunks(
         "Se convierte en energía química. ", "Durante este proceso la planta crece. ", "Fin")))
     let deltas = collectChat(makeChatClient(transport: transport))
     var joined = ""

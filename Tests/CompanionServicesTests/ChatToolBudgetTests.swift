@@ -18,11 +18,11 @@ private func toolNames(_ request: URLRequest) -> [String] {
     let core = (0..<39).map { spec("core\($0)") }
     let apps = (0..<100).map { spec("app\($0)", app: true) }
     let transport = ScriptedTransport()
-    transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     // Apps listed first on purpose: the cut must not depend on position.
     _ = collectChat(makeChatClient(transport: transport), tools: apps + core)
     let sent = transport.requests.first.map(toolNames) ?? []
-    expectEq(sent.count, ProviderDescriptor.openAI.maxTools, "tools: se manda el tope del proveedor")
+    expectEq(sent.count, ProviderDescriptor.cerebras.maxTools, "tools: se manda el tope del proveedor")
     expect(core.allSatisfy { sent.contains($0.name) }, "tools: el nucleo entero sobrevive")
     expect(sent.contains("app0") && !sent.contains("app99"), "tools: las apps se cortan por la cola")
 }

@@ -78,7 +78,7 @@ package struct ScreenVision: Sendable {
     }
 
     private func configuredKeys() -> Set<SecretKey> {
-        Set([SecretKey.cerebras, .openAI].filter { readKey($0) != nil })
+        Set([SecretKey.cerebras].filter { readKey($0) != nil })
     }
 
     private func readKey(_ name: SecretKey?) -> String? {

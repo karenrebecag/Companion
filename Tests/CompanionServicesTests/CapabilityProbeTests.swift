@@ -35,7 +35,7 @@ import Testing
     fake.error = URLError(.cannotConnectToHost)
     let probe = LiveCapabilityProbe(transport: fake)
 
-    expect(probeAvailable(probe, .openAI),
+    expect(probeAvailable(probe, .cerebras),
            "probe: OpenAI es true sin llamar transporte")
     expect(probeAvailable(probe, .cerebras),
            "probe: Cerebras es true sin llamar transporte")
@@ -186,7 +186,7 @@ import Testing
     do {
         pair = try runAsync {
             async let local = probe.isAvailable(.ollama)
-            async let remote = probe.isAvailable(.openAI)
+            async let remote = probe.isAvailable(.cerebras)
             return await (local, remote)
         }
     } catch {

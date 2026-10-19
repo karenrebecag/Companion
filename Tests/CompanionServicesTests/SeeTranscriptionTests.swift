@@ -85,7 +85,7 @@ private func stub(_ content: String) -> ScriptedTransport {
     let transport = ScriptedTransport()
     let body = try? JSONSerialization.data(withJSONObject: [
         "choices": [["message": ["content": content]]]])
-    transport.stub(url: ProviderDescriptor.openAI.endpoint!.absoluteString,
+    transport.stub(url: ProviderDescriptor.cerebrasVision.endpoint!.absoluteString,
                    ScriptedReply(status: 200, body: body ?? Data()))
     return transport
 }
@@ -105,7 +105,7 @@ private func promptText(_ body: [String: Any]) -> String {
 
 @MainActor func testSeeAsksForALongTranscription() async {
     let transport = stub("Line one\nLine two")
-    let vision = ScreenVision(secrets: TestSecretStore([.openAI: "sk-test"]), transport: transport)
+    let vision = ScreenVision(secrets: TestSecretStore([.cerebras: "sk-test"]), transport: transport)
     let brief = await vision.transcribe(jpeg: Data([0xFF, 0xD8]), app: "TextEdit", question: "total?")
     expectEq(brief?.summary, "Line one\nLine two", "see: el texto va tal cual, sin parser")
     let body = requestBody(transport)
@@ -116,7 +116,7 @@ private func promptText(_ body: [String: Any]) -> String {
 
 @MainActor func testTheTurnSidecarKeepsItsShortPrompt() async {
     let transport = stub("SUMMARY: x")
-    let vision = ScreenVision(secrets: TestSecretStore([.openAI: "sk-test"]), transport: transport)
+    let vision = ScreenVision(secrets: TestSecretStore([.cerebras: "sk-test"]), transport: transport)
     _ = await vision.summarize(jpeg: Data([0xFF, 0xD8]), app: "Numbers")
     let body = requestBody(transport)
     expectEq(body["max_tokens"] as? Int, 400, "sidecar: 400 tokens")

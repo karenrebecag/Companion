@@ -171,17 +171,14 @@ extension VoiceSession {
     }
 
     /// Named on press so 14b can switch the tube without hunting the picker.
-    func rememberStack(openAI: Bool) {
-        // 15c-7: Cerebras goes first for brain even with OpenAI present, so
-        // its presence is checked on every press — OpenRouter still cannot
-        // outrank OpenAI, so it stays skipped.
-        var present: [SecretKey: Bool] = [
-            .openAI: openAI, .cerebras: hasSecret(.cerebras),
+    func rememberStack() {
+        // 15c-7: Cerebras goes first for brain, so its presence is checked on
+        // every press; OpenRouter follows it.
+        let present: [SecretKey: Bool] = [
+            .cerebras: hasSecret(.cerebras),
             .elevenLabs: hasSecret(.elevenLabs),
+            .openRouter: hasSecret(.openRouter),
         ]
-        if !openAI {
-            present[.openRouter] = hasSecret(.openRouter)
-        }
         lastStack = VoiceStackResolver.resolve(
             secrets: present,
             appleSpeech: true,

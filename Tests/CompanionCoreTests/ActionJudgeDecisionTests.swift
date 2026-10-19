@@ -108,7 +108,7 @@ private let reply = #"{"verdicts":[{"id":"1","effect":"undoable","covered":true}
 
 @Test func judgeRouteAsksOnlyTheProvidersTheUserHas() {
     let confirmed = "qwen-confirmed:7b"
-    expectEq(ActionJudgeRoute.provider(keys: [.cerebras, .openAI], ollamaModel: nil)?.id,
+    expectEq(ActionJudgeRoute.provider(keys: [.cerebras, .openRouter], ollamaModel: nil)?.id,
              ProviderDescriptor.cerebras.id, "judge route: classic prefiere Cerebras")
     expectEq(ActionJudgeRoute.provider(keys: [], ollamaModel: confirmed)?.model, confirmed,
              "judge route: sin claves, el Ollama confirmado")

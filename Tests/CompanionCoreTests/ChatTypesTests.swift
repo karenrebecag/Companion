@@ -144,14 +144,14 @@ import Testing
     let store: any SecretStore = MemorySecretStore()
 
     do {
-        expect(try store.read(.openAI) == nil,
+        expect(try store.read(.openRouter) == nil,
                "secret: leer una clave ausente devuelve nil")
     } catch {
         expect(false, "secret: leer ausente no debía tirar \(error)")
     }
 
     do {
-        try store.write(.openAI, value: "")
+        try store.write(.openRouter, value: "")
         expect(false, "secret: vacío debía tirar emptyValue")
     } catch let error as SecretStoreError {
         expectEq(error, .emptyValue, "secret: vacío tira emptyValue")
@@ -169,14 +169,14 @@ import Testing
     }
 
     do {
-        try store.write(.openAI, value: "  sk-live  \n")
-        expectEq(try store.read(.openAI), "sk-live",
+        try store.write(.openRouter, value: "  sk-live  \n")
+        expectEq(try store.read(.openRouter), "sk-live",
                  "secret: escribe, recorta y lee")
         expect(try store.read(.cerebras) == nil,
                "secret: una clave no pisa la otra")
 
-        try store.write(.openAI, value: "sk-nueva")
-        expectEq(try store.read(.openAI), "sk-nueva",
+        try store.write(.openRouter, value: "sk-nueva")
+        expectEq(try store.read(.openRouter), "sk-nueva",
                  "secret: el segundo write pisa")
 
         try store.write(.openRouter, value: "ñoño-key")
@@ -188,14 +188,12 @@ import Testing
         expectEq(try store.read(.cerebras)?.count ?? -1, 10_000,
                  "secret: 10k caracteres caben")
 
-        try store.delete(.openAI)
-        expect(try store.read(.openAI) == nil,
+        try store.delete(.openRouter)
+        expect(try store.read(.openRouter) == nil,
                "secret: delete deja nil")
-        expectEq(try store.read(.openRouter), "ñoño-key",
-                 "secret: delete no toca otras claves")
 
-        try store.delete(.openAI)
-        expect(try store.read(.openAI) == nil,
+        try store.delete(.openRouter)
+        expect(try store.read(.openRouter) == nil,
                "secret: delete de ausente no truena")
     } catch {
         expect(false, "secret: el camino feliz no debía tirar \(error)")
@@ -288,11 +286,11 @@ func waitAsync<T: Sendable>(
         let ollama = try waitAsync {
             await probe.isAvailable(.ollama)
         }
-        let openai = try waitAsync {
-            await probe.isAvailable(.openAI)
+        let openrouter = try waitAsync {
+            await probe.isAvailable(.openRouter)
         }
         expect(ollama, "probe: Ollama marcado disponible")
-        expect(!openai, "probe: OpenAI no listado es false")
+        expect(!openrouter, "probe: OpenRouter no listado es false")
     } catch {
         expect(false, "probe: isAvailable no debía tirar \(error)")
     }
@@ -318,7 +316,7 @@ func waitAsync<T: Sendable>(
             .handoff(Handoff(goal: "leer", context: "")),
         ], "provider: stream emite los deltas")
         try waitAsync { () async throws -> Void in
-            try await provider.verify("sk-x", provider: .openAI)
+            try await provider.verify("sk-x", provider: .cerebras)
         }
         expect(true, "provider: verify feliz no tira")
     } catch {

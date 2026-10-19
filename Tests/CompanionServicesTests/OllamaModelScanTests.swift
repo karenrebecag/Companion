@@ -160,7 +160,7 @@ private let tagsBody = Data("""
     let sut = catalog(ScriptedTransport())
     let ids = sut.effective().map(\.id)
     expect(!ids.contains("ollama"), "sin scan, Ollama no se ofrece")
-    expect(ids.contains("openai"), "los proveedores con clave siguen ahi")
+    expect(ids.contains("openrouter"), "los proveedores con clave siguen ahi")
 }
 
 @MainActor func testCatalogCarriesTheInstalledTag() {

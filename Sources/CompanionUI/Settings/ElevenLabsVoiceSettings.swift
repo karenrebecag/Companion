@@ -85,7 +85,7 @@ package final class ElevenLabsVoiceModel {
         do {
             value = try secrets.read(.elevenLabs)
         } catch {
-            // A locked Keychain reads as no key: the OpenAI voice is what
+            // A locked Keychain reads as no key: the system voice is what
             // would speak anyway, which is what the section then says.
             hasKey = false
             return
@@ -98,7 +98,7 @@ package final class ElevenLabsVoiceModel {
     }
 
     /// Refused ids never persist: the router would read them on the next
-    /// sentence and the client would drop every request to OpenAI.
+    /// sentence and the client would drop every request to the system voice.
     package func applyCustom() {
         guard ElevenLabsMouth.isValidVoiceID(customField) else {
             errorText = Localized.string("settings.voice.eleven.invalid")

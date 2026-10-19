@@ -30,7 +30,7 @@ import Testing
     expectEq(cerebras.secretKey, .cerebras, "cerebras: CEREBRAS_API_KEY")
     expectEq(cerebras.reasoningEffort, "low", "cerebras: reasoning_effort low")
     expectEq(cerebras.reasoningFormat, "hidden", "cerebras: el razonamiento no llega al contenido")
-    expectEq(ProviderDescriptor.openAI.reasoningFormat, nil, "openai: no se le manda un campo que no conoce")
+    expectEq(ProviderDescriptor.openRouter.reasoningFormat, nil, "openrouter: no se le manda un campo que no conoce")
     expect(cerebras.temperature == nil, "cerebras: sin temperature para gpt-oss")
     expectEq(SecretKey.cerebras.rawValue, "CEREBRAS_API_KEY", "cerebras: nombre de la clave")
 }
@@ -44,7 +44,7 @@ import Testing
 
 @MainActor func testCerebrasOutranksOpenAIForTheBrain() {
     let stack = VoiceStackResolver.resolve(
-        secrets: [.openAI: true, .cerebras: true],
+        secrets: [.cerebras: true, .openRouter: true],
         appleSpeech: true,
         localModel: nil)
     expectEq(stack.brain, VoiceRole(id: "gpt-oss-120b", provider: "cerebras"),
@@ -61,13 +61,14 @@ import Testing
              "hold: el catálogo rápido es solo Cerebras")
     let ladder = HoldBrainCatalog.ladder(
         [ProviderDescriptor.cerebras] + ProviderDescriptor.catalog)
-    expectEq(ladder.map(\.id), ["openai", "openrouter", "ollama"],
+    expectEq(ladder.map(\.id), ["openrouter", "ollama"],
              "hold: la escalera salta Cerebras y no tiene Groq")
-    expectEq(ladder.first?.model, "gpt-4o-mini", "hold: la escalera cae a gpt-4o-mini")
+    expectEq(ladder.first?.model, ProviderDescriptor.openRouter.model,
+             "hold: la escalera cae al modelo de OpenRouter")
     expect(!ladder.contains { $0.id == "groq" || $0.baseURL.host == "api.groq.com" },
            "hold: ningún peldaño es Groq")
-    expectEq(ProviderDescriptor.catalog.first { $0.id == "openai" }?.model, "gpt-4o",
-             "hold: el chat escrito conserva gpt-4o")
+    expectEq(ProviderDescriptor.catalog.first { $0.id == "cerebras" }?.model, "gpt-oss-120b",
+             "hold: el chat escrito usa gpt-oss-120b")
 }
 
 /// The live bug: a 429 on the fast provider slept 1 s, 2 s before moving on.

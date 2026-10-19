@@ -53,7 +53,7 @@ private let now = ISO8601DateFormatter().date(from: "2026-09-25T19:00:00-06:00")
 /// A task opened from Home shows its conversation without leaving the one in
 /// progress; Follow up makes it the conversation and tags the island.
 @Test @MainActor func followUpContinuesTheTask() async {
-    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
                              store: MemoryConversationStore(), config: Config())
     await chat.appendAssistant("## Uno\n\nprimera")
     chat.persist()
@@ -72,7 +72,7 @@ private let now = ISO8601DateFormatter().date(from: "2026-09-25T19:00:00-06:00")
 /// Words written in the task sheet are the task's next turn, and they never
 /// touch the Home draft she left half written.
 @Test @MainActor func followUpWithWordsSendsThemToTheTask() async {
-    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
                              store: MemoryConversationStore(), config: Config())
     chat.onAppear()
     await chat.appendAssistant("tarea")
@@ -89,7 +89,7 @@ private let now = ISO8601DateFormatter().date(from: "2026-09-25T19:00:00-06:00")
 /// Code review 16j-2 (HIGH): Follow up switched conversations under a turn
 /// still working, which dropped it without a word.
 @Test @MainActor func followUpWaitsForTheWorkInProgress() async {
-    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+    let chat = ChatViewModel(chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
                              store: MemoryConversationStore(), config: Config())
     await chat.appendAssistant("vieja")
     chat.persist()

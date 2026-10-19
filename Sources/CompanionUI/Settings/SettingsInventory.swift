@@ -60,7 +60,7 @@ package enum SettingsInventory {
         Option(tab: .general, titleKey: "settings.muteWhileTalking",
                subtitleKey: "settings.muteWhileTalking.subtitle"),
         Option(tab: .general, titleKey: "settings.screenGlow", subtitleKey: "settings.screenGlow.subtitle"),
-        Option(tab: .voice, titleKey: "settings.voice.voice", subtitleKey: "settings.voice.blurb"),
+        Option(tab: .voice, titleKey: "settings.voice.eleven.header", subtitleKey: "settings.voice.blurb"),
         Option(tab: .vocabulary, titleKey: "settings.vocabulary", subtitleKey: "settings.vocabulary.subtitle"),
         Option(tab: .you, titleKey: "settings.you.name", subtitleKey: nil),
         Option(tab: .you, titleKey: "settings.you.photo", subtitleKey: "settings.you.photo.subtitle"),

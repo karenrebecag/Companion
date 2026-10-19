@@ -39,11 +39,11 @@ import Testing
 }
 
 @MainActor private func systemPrompt(tools: [ToolSpec]) -> String {
-    let provider = ProviderDescriptor.openAI
+    let provider = ProviderDescriptor.openRouter
     let transport = ScriptedTransport()
     transport.stub(provider, ScriptedReply(status: 200, lines: []))
     let client = ChatProviderClient(
-        secrets: TestSecretStore([.openAI: "sk-test"]),
+        secrets: TestSecretStore([.openRouter: "sk-test"]),
         probe: TestProbe(available: [provider.id]),
         transport: transport,
         catalog: [provider])

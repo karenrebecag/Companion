@@ -27,7 +27,7 @@ import CompanionTestKit
 ) -> ScreenSight {
     let transport = ScriptedTransport()
     transport.stub(
-        url: ProviderDescriptor.openAI.endpoint!.absoluteString,
+        url: ProviderDescriptor.cerebrasVision.endpoint!.absoluteString,
         ScriptedReply(
             status: 200,
             body: Data("""
@@ -36,7 +36,7 @@ import CompanionTestKit
             hangNanoseconds: hang))
     return ScreenSight(
         capture: ScreenCapture(bundleID: "test", trusted: { true }, grab: { Data([0xFF, 0xD8]) }),
-        vision: ScreenVision(secrets: TestSecretStore([.openAI: "sk-test"]), transport: transport),
+        vision: ScreenVision(secrets: TestSecretStore([.cerebras: "sk-test"]), transport: transport),
         axHarvest: { _ in ax },
         pid: { 4242 },
         appName: { "Safari" })
@@ -61,7 +61,7 @@ import CompanionTestKit
 /// the AX text read now beats the old vision's snippets.
 @MainActor func testACarriedVisionIsUsedOnce() async {
     let transport = ScriptedTransport()
-    let url = ProviderDescriptor.openAI.endpoint!.absoluteString
+    let url = ProviderDescriptor.cerebrasVision.endpoint!.absoluteString
     func reply(_ summary: String, hang: UInt64) -> ScriptedReply {
         ScriptedReply(
             status: 200,
@@ -73,7 +73,7 @@ import CompanionTestKit
     transport.stub(url: url, reply("old screen", hang: 150_000_000))
     let sight = ScreenSight(
         capture: ScreenCapture(bundleID: "test", trusted: { true }, grab: { Data([0xFF, 0xD8]) }),
-        vision: ScreenVision(secrets: TestSecretStore([.openAI: "sk-test"]), transport: transport),
+        vision: ScreenVision(secrets: TestSecretStore([.cerebras: "sk-test"]), transport: transport),
         axHarvest: { _ in ["fresh AX line"] },
         pid: { 4242 },
         appName: { "Safari" })
@@ -157,7 +157,7 @@ import CompanionTestKit
     }
     let currentPid = MutablePid()
     let transport = ScriptedTransport()
-    let url = ProviderDescriptor.openAI.endpoint!.absoluteString
+    let url = ProviderDescriptor.cerebrasVision.endpoint!.absoluteString
     transport.stub(
         url: url,
         ScriptedReply(
@@ -168,7 +168,7 @@ import CompanionTestKit
             hangNanoseconds: 150_000_000))
     let sight = ScreenSight(
         capture: ScreenCapture(bundleID: "test", trusted: { true }, grab: { Data([0xFF, 0xD8]) }),
-        vision: ScreenVision(secrets: TestSecretStore([.openAI: "sk-test"]), transport: transport),
+        vision: ScreenVision(secrets: TestSecretStore([.cerebras: "sk-test"]), transport: transport),
         axHarvest: { _ in [] },
         pid: { currentPid.value },
         appName: { "Safari" })
@@ -198,11 +198,11 @@ import CompanionTestKit
     let sight = ScreenSight(
         capture: ScreenCapture(bundleID: "test", trusted: { true }, grab: { Data([0xFF, 0xD8]) }),
         vision: ScreenVision(
-            secrets: TestSecretStore([.openAI: "sk-test"]),
+            secrets: TestSecretStore([.cerebras: "sk-test"]),
             transport: {
                 let transport = ScriptedTransport()
                 transport.stub(
-                    url: ProviderDescriptor.openAI.endpoint!.absoluteString,
+                    url: ProviderDescriptor.cerebrasVision.endpoint!.absoluteString,
                     ScriptedReply(
                         status: 200,
                         body: Data("""

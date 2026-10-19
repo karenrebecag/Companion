@@ -72,7 +72,7 @@ package struct ActionJudgeClient: ActionJudging {
     /// Never a key the store could not hand over: an unreadable key is an
     /// absent one, and the route then falls to the next provider or to none.
     private func configuredKeys() -> Set<SecretKey> {
-        Set([SecretKey.cerebras, .openAI].filter { readKey($0) != nil })
+        Set([SecretKey.cerebras, .openRouter].filter { readKey($0) != nil })
     }
 
     private func storedKey(for provider: ProviderDescriptor) -> String? {

@@ -80,7 +80,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     // Un arranque con clave no puede pagar el precio de sondear un daemon que
     // no le importa: el camino premium sigue siendo tan rapido como era.
     let probe = FakeStartupProbe([.ollama(model: "qwen3:14b")])
-    let vm = local(probe, secrets: TestSecretStore([.openAI: "sk-test"]))
+    let vm = local(probe, secrets: TestSecretStore([.cerebras: "sk-test"]))
     vm.onAppear()
     await awaitProbe(vm)
     expectEq(vm.startup, .premium, "con clave el arranque es premium")
@@ -203,7 +203,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
 }
 
 @MainActor func testChangeKeyStillJailsWhenThereIsNoLocalBase() async {
-    let vm = local(FakeStartupProbe([]), secrets: TestSecretStore([.openAI: "sk-test"]))
+    let vm = local(FakeStartupProbe([]), secrets: TestSecretStore([.cerebras: "sk-test"]))
     vm.onAppear()
     await awaitProbe(vm)
     vm.changeKey()
@@ -234,7 +234,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     // proveedor que nunca vio no puede nacer apagado: no hay como encenderlo.
     let order = ["openrouter", "openai"]
     let names = ProviderDescriptor.route(order: order).map(\.name)
-    expectEq(names, ["OpenRouter", "OpenAI", "Cerebras", "Ollama"],
+    expectEq(names, ["OpenRouter", "Cerebras", "Ollama"],
              "lo nombrado manda; lo nuevo va detras, no fuera")
 }
 

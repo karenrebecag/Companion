@@ -259,7 +259,7 @@ private final class EventBag: @unchecked Sendable {
 @MainActor func testTheChatsJobIsTaggedFromItsFirstEvent() async {
     let jobs = GatedJob()
     let vm = ChatViewModel(
-        chat: FakeChatProvider(), secrets: TestSecretStore([.openAI: "sk-test"]),
+        chat: FakeChatProvider(), secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(), config: .default, jobSubmitter: jobs)
     vm.onAppear()
     Task { await vm.runJob(preface: "", handoff: Handoff(goal: "ordenar", context: ""), submitter: jobs) }

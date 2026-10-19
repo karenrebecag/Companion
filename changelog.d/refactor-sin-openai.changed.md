@@ -1,0 +1,1 @@
+- **OpenAI sale de la app (2026-10-19).** Ya no hay proveedor, clave ni voz de OpenAI. El chat, la decision y la vision usan Cerebras y OpenRouter; la clave de Cerebras es recomendada y opcional, y la voz habla con ElevenLabs o con la voz del sistema. Quien tenia solo una clave de OpenAI tiene que poner una de Cerebras u OpenRouter para chatear.

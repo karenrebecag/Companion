@@ -72,7 +72,7 @@ private func drain(_ stream: AsyncThrowingStream<Data, Error>) async throws -> D
 @Test @MainActor func testElevenLabsWithoutAKeyNeverSendsARequest() async {
     let transport = ScriptedTransport()
     let client = ElevenLabsTTSClient(
-        secrets: ScriptedSecrets([.openAI: "sk-other"]), transport: transport,
+        secrets: ScriptedSecrets([.openRouter: "sk-other"]), transport: transport,
         language: .es, voiceID: { brian })
     do {
         _ = try await drain(client.stream("Hola.", voice: .marin))

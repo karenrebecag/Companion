@@ -142,7 +142,7 @@ private struct SlowExecutor: Executor {
 @MainActor private func wiredViewModel(_ submitter: RecordingSubmitter) -> ChatViewModel {
     let vm = ChatViewModel(
         chat: FakeChatProvider(replies: []),
-        secrets: TestSecretStore([.openAI: "sk-test"]),
+        secrets: TestSecretStore([.cerebras: "sk-test"]),
         store: MemoryConversationStore(),
         config: .default,
         jobSubmitter: submitter)
