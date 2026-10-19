@@ -19,12 +19,13 @@ package enum UnsourcedFigures {
     }
 
     /// The line that says so, when the turn read the web and the reply states a
-    /// figure nothing in the turn says. Nil otherwise.
+    /// figure nothing in the turn says. Nil otherwise. Chat and voice both call
+    /// it, with the turn's own messages (the rounds since her last words).
     package static func caveat(
-        for reply: String, turnTools: [String], sources: [String], userWords: String,
-        language: AppLanguage
+        for reply: String, turn: [Turn], userWords: String, language: AppLanguage
     ) -> String? {
-        guard turnTools.contains(where: readsWeb(tool:)) else { return nil }
+        guard turn.flatMap(\.toolCalls).contains(where: { readsWeb(tool: $0.name) }) else { return nil }
+        let sources = turn.filter { $0.role == .tool }.map(\.content)
         guard !find(in: reply, sources: sources + [userWords]).isEmpty else { return nil }
         switch language {
         case .en: return "I did not find that figure in the sources."

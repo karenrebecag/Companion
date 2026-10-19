@@ -553,6 +553,13 @@ final class ClassicRuntime: @unchecked Sendable {
         await flushHeld(&mouth)
         await sayMissingEffects(&mouth, apply: apply)
         for line in mouth.owedLines { await sayOwn(line, &mouth, apply: apply) }
+        // Said once after the reply, and threaded with it (sayOwn adds it to the
+        // spoken text the thread keeps): the turn's own rounds are the sources.
+        let turnRounds = Array(history[(history.lastIndex { $0.role == .user }.map { $0 + 1 } ?? 0)...])
+        if let caveat = UnsourcedFigures.caveat(
+            for: mouth.said, turn: turnRounds, userWords: heard, language: language) {
+            await sayOwn(caveat, &mouth, apply: apply)
+        }
         if Task.isCancelled { return await cutTurn(transcript, generation: generation, cut: cut) }
         if !mouth.spoken.isEmpty || mouth.document != nil {
             // The transcript is what was heard; the thread also keeps the

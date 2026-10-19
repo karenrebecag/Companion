@@ -37,15 +37,20 @@ import Testing
              "lo que la usuaria dijo tampoco se marca")
 }
 
+private func webTurn(tool: String, output: String) -> [Turn] {
+    [Turn(role: .assistant, content: "", toolCalls: [ToolCallRef(id: "c1", name: tool, arguments: "{}")]),
+     Turn(role: .tool, content: output, toolCallID: "c1")]
+}
+
 @Test func theCaveatAppearsOnlyForAnUnsourcedFigureAfterAWebRead() {
     let reply = "El dólar está en 18.49 pesos."
     expectEq(UnsourcedFigures.caveat(
-        for: reply, turnTools: ["web_search", "read_url"], sources: ["Noticias del día"],
+        for: reply, turn: webTurn(tool: "web_search", output: "Noticias del día"),
         userWords: "dólar hoy", language: .es),
         "No encontré esa cifra en las fuentes.",
         "tras leer la web, una cifra sin fuente lleva la nota en español")
     expectEq(UnsourcedFigures.caveat(
-        for: reply, turnTools: ["read_file"], sources: ["Noticias del día"],
+        for: reply, turn: webTurn(tool: "read_file", output: "Noticias del día"),
         userWords: "dólar hoy", language: .es), nil,
         "sin herramienta web en el turno no hay gate")
     expectEq(UnsourcedFigures.readsWeb(tool: "browser_read"), true,

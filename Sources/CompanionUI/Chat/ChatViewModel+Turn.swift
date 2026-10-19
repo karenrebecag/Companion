@@ -483,12 +483,13 @@ extension ChatViewModel {
     /// states gets a line saying so, rather than passing as if it were read.
     private func figureCaveat(for reply: String, language: AppLanguage) -> String? {
         let lastUser = messages.lastIndex { $0.role == .user && !$0.isStatus }
-        let turn = messages[(lastUser.map { $0 + 1 } ?? 0)...]
+        let turn = messages[(lastUser.map { $0 + 1 } ?? 0)...].compactMap { message in
+            message.recall.map {
+                Turn(role: $0.role, content: $0.content, toolCalls: $0.toolCalls, toolCallID: $0.toolCallID)
+            }
+        }
         return UnsourcedFigures.caveat(
-            for: reply,
-            turnTools: turn.compactMap { $0.recall?.toolCalls }.flatMap { $0 }.map(\.name),
-            sources: turn.compactMap { $0.recall?.role == .tool ? $0.recall?.content : nil },
-            userWords: lastUser.map { messages[$0].text } ?? "",
+            for: reply, turn: turn, userWords: lastUser.map { messages[$0].text } ?? "",
             language: language)
     }
 
