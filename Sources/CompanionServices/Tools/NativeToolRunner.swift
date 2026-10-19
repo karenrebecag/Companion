@@ -547,17 +547,12 @@ package struct NativeToolRunner: Sendable {
             }
 
             let content = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .ascii) ?? ""
-
-            // Limit size to prevent memory exhaustion
-            let maxSize = 1 * 1024 * 1024 // 1 MB for web
-            if content.count > maxSize {
-                return ToolResult(
-                    ok: true,
-                    output: content.prefix(maxSize) + "\n... (truncated)"
-                )
-            }
-
-            return ToolResult(ok: true, output: content)
+            // The page's words, framed and capped as read_url's are: a page is
+            // what a stranger wrote, so it reaches the model as data.
+            let page = WebHTMLText.page(from: content, url: url.absoluteString)
+            return ToolResult(
+                ok: true,
+                output: [WebText.framing, WebText.fence(page)].joined(separator: "\n\n"))
         } catch {
             return ToolResult(ok: false, output: "Failed to fetch URL: \(error)")
         }
