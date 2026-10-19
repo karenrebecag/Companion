@@ -16,7 +16,8 @@ enum AXAttempt<Value> {
 /// with a fake tree. Production is `LiveSecureFieldTree`.
 protocol SecureFieldTree {
     associatedtype Node
-    func prime(_ pid: pid_t)
+    /// True only the first time this pid is primed.
+    func prime(_ pid: pid_t) -> Bool
     func settle()
     func windows(_ pid: pid_t) -> AXAttempt<[Node]>
     func role(_ node: Node) -> AXAttempt<String>
@@ -29,8 +30,22 @@ extension AXAttempt: Sendable where Value: Sendable {}
 
 /// Chromium and Electron build their tree only after an assistive client
 /// asks for it, and the first read of a fresh app comes back empty.
+/// Which pids have already been primed in this process. Priming sets flags
+/// on the app, and doing it on every read repeats the flags and the settle.
+/// A pid reused after its app quit skips priming: the empty tree that
+/// results is withheld, so that case fails closed.
+final class PrimedPids: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pids = Set<pid_t>()
+
+    func insert(_ pid: pid_t) -> Bool {
+        lock.withLock { pids.insert(pid).inserted }
+    }
+}
+
 struct LiveSecureFieldTree: SecureFieldTree {
     typealias Node = AXUIElement
+    static let primed = PrimedPids()
 
     /// Only Chromium-family apps take AXEnhancedUserInterface; setting it on
     /// every app would change how those apps animate, for no gain.
@@ -38,7 +53,8 @@ struct LiveSecureFieldTree: SecureFieldTree {
     /// Shared with `SecureFieldReader`: a freshly primed tree needs a moment.
     static let settleDelay: UInt32 = 300_000
 
-    func prime(_ pid: pid_t) {
+    func prime(_ pid: pid_t) -> Bool {
+        guard Self.primed.insert(pid) else { return false }
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, SecureFieldReader.messagingTimeout)
         AXUIElementSetAttributeValue(application, "AXManualAccessibility" as CFString, kCFBooleanTrue)
@@ -46,6 +62,7 @@ struct LiveSecureFieldTree: SecureFieldTree {
             AXUIElementSetAttributeValue(
                 application, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
         }
+        return true
     }
 
     func settle() {

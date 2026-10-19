@@ -31,8 +31,10 @@ package enum SecureFieldReader {
         let deadline = clock.now.advanced(by: budget)
         var frames: [CGRect] = []
         for pid in pids {
-            tree.prime(pid)
-            guard let windows = windowList(of: pid, shown: shown.contains(pid), tree: tree) else {
+            let freshlyPrimed = tree.prime(pid)
+            guard let windows = windowList(
+                of: pid, shown: shown.contains(pid), freshlyPrimed: freshlyPrimed, tree: tree
+            ) else {
                 return .incomplete("no accessibility tree for an app with windows on screen")
             }
             var walk = Walk(tree: tree, clock: clock, deadline: deadline)
@@ -43,24 +45,31 @@ package enum SecureFieldReader {
         return .fields(frames)
     }
 
-    /// A fresh Chromium or Electron app answers an empty tree until it has
-    /// built it. One settle and one re-read covers that; an app whose tree is
-    /// still empty after that is withheld when it has a window on screen.
-    /// Nil means the read must be withheld.
+    /// A freshly primed Chromium or Electron app can answer with a partial
+    /// tree, even one that already has a window, so it is read again after a
+    /// settle. An empty tree is re-read the same way; one still empty with a
+    /// window on screen is withheld. Nil means the read must be withheld.
     private static func windowList<Tree: SecureFieldTree>(
-        of pid: pid_t, shown: Bool, tree: Tree
+        of pid: pid_t, shown: Bool, freshlyPrimed: Bool, tree: Tree
     ) -> [Tree.Node]? {
-        for attempt in 0 ..< 2 {
-            if attempt > 0 { tree.settle() }
-            let list: [Tree.Node]
-            switch tree.windows(pid) {
-            case .value(let found): list = found
-            case .absent, .unsupported: list = []
-            case .failed: return nil
-            }
-            if !list.isEmpty || !shown { return list }
+        guard var list = windows(of: pid, tree: tree) else { return nil }
+        if freshlyPrimed || (list.isEmpty && shown) {
+            tree.settle()
+            guard let again = windows(of: pid, tree: tree) else { return nil }
+            list = again
         }
-        return nil
+        if list.isEmpty && shown { return nil }
+        return list
+    }
+
+    private static func windows<Tree: SecureFieldTree>(
+        of pid: pid_t, tree: Tree
+    ) -> [Tree.Node]? {
+        switch tree.windows(pid) {
+        case .value(let found): return found
+        case .absent, .unsupported: return []
+        case .failed: return nil
+        }
     }
 
     private struct Walk<Tree: SecureFieldTree> {

@@ -18,6 +18,7 @@ import Testing
     testNoSecureFieldSendsTheFrameUnmasked()
     testTheTwoReadsContributeEveryBox()
     testAnIncompleteReadWithholdsWhicheverSideItIsOn()
+    testOnlyNormalLayerWindowsMakeAnAppShown()
 }
 
 private let retinaMain = CGRect(x: 0, y: 0, width: 1440, height: 900)
@@ -106,4 +107,12 @@ func testAnIncompleteReadWithholdsWhicheverSideItIsOn() {
     expectEq(SecureFieldMask.union(.incomplete("window list unreadable"), fields),
              .incomplete("window list unreadable"),
              "mascara: una lectura incompleta antes retira el cuadro")
+}
+
+func testOnlyNormalLayerWindowsMakeAnAppShown() {
+    // Layer 25 is where system overlays sit; only layer 0 is an app's window.
+    let shown = SecureFieldMask.primaryOwners([
+        (pid: 1, layer: 0), (pid: 2, layer: 25), (pid: 3, layer: 25), (pid: 3, layer: 0),
+    ])
+    expectEq(shown, [1, 3], "mascara: solo las ventanas de capa 0 cuentan como app en pantalla")
 }

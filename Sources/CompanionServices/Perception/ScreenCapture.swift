@@ -139,22 +139,27 @@ package struct ScreenCapture: Sendable {
             config.width = Int((width * scale).rounded())
             config.height = Int((height * scale).rounded())
             config.showsCursor = false
-            let shown = Set(content.windows.compactMap { $0.owningApplication?.processID })
+            // Overlay windows (Dock, Control Center) own AX trees that are
+            // empty by design: only normal-layer windows make an app "shown".
+            let owners = content.windows.compactMap { window in
+                window.owningApplication.map { (pid: $0.processID, layer: window.windowLayer) }
+            }
+            let shown = SecureFieldMask.primaryOwners(owners)
             let enhanced = Set(content.applications
                 .filter { AXScreen.chromiumBrowsers.contains($0.bundleIdentifier) }
                 .map(\.processID))
             // A field can be in the pixels only if it existed at one of the
             // two reads, so the frame is masked with the union of both. The
-            // first read runs while the capture is taken; the second follows it.
-            let before = Task.detached {
-                SecureFieldReader.read(pids: pids, shown: shown, enhancedPIDs: enhanced)
-            }
+            // first read finishes before the capture starts; the second follows
+            // it. Starting it on another task could let it run after the frame
+            // is already frozen.
+            let before = SecureFieldReader.read(pids: pids, shown: shown, enhancedPIDs: enhanced)
             let image = try await SCScreenshotManager.captureImage(
                 contentFilter: filter, configuration: config)
             let after = SecureFieldReader.read(pids: pids, shown: shown, enhancedPIDs: enhanced)
             return egress(
                 image, display: display.frame,
-                read: SecureFieldMask.union(await before.value, after))
+                read: SecureFieldMask.union(before, after))
         } catch {
             return .failed(error.localizedDescription)
         }

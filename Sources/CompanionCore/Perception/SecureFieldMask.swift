@@ -21,6 +21,13 @@ package enum SecureFieldMask {
         case withhold(String)
     }
 
+    /// Owners of a normal-layer window. Overlay layers (Dock, Control Center)
+    /// own windows whose AX tree is empty by design, so they must not count
+    /// as "an app with a window on screen" when the tree is empty.
+    package static func primaryOwners(_ owners: [(pid: pid_t, layer: Int)]) -> Set<pid_t> {
+        Set(owners.filter { $0.layer == 0 }.map(\.pid))
+    }
+
     /// The frame is masked with what both reads found, and withheld when
     /// either read could not finish: a field can be in the pixels only if it
     /// existed at one of the two reads.

@@ -14,6 +14,9 @@ import Testing
     testAnUnbuiltTreeIsReadAgainAfterSettling()
     testUnsupportedChildrenAreALeafNotAFailure()
     testASecureFieldBoxIsReturned()
+    testAFreshlyPrimedTreeIsReadAgainEvenWithAWindow()
+    testAnAlreadyPrimedTreeIsNotSettledAgain()
+    testAnAppWithOnlyOverlayWindowsAndAnEmptyTreeIsNotWithheld()
 }
 
 private let fieldBox = CGRect(x: 40, y: 60, width: 200, height: 24)
@@ -33,12 +36,14 @@ private final class FakeTree: SecureFieldTree {
     typealias Node = FakeNode
     private var windowReads: [AXAttempt<[FakeNode]>]
     private(set) var settles = 0
+    private let primeIsFresh: Bool
 
-    init(windowReads: [AXAttempt<[FakeNode]>]) {
+    init(windowReads: [AXAttempt<[FakeNode]>], primeIsFresh: Bool = false) {
         self.windowReads = windowReads
+        self.primeIsFresh = primeIsFresh
     }
 
-    func prime(_ pid: pid_t) {}
+    func prime(_ pid: pid_t) -> Bool { primeIsFresh }
     func settle() { settles += 1 }
 
     func windows(_ pid: pid_t) -> AXAttempt<[FakeNode]> {
@@ -93,4 +98,30 @@ func testASecureFieldBoxIsReturned() {
     let tree = FakeTree(windowReads: [.value([secureField])])
     let read = SecureFieldReader.read(pids: [1], shown: [1], tree: tree)
     expectEq(read, .fields([fieldBox]), "lector: la caja de un campo seguro sale")
+}
+
+func testAFreshlyPrimedTreeIsReadAgainEvenWithAWindow() {
+    // The first read of a freshly primed app can be a partial tree that
+    // already has a window: it is read again after the settle.
+    let partial = FakeNode(role: .value("AXWindow"), children: .value([]))
+    let built = FakeNode(role: .value("AXWindow"), children: .value([secureField]))
+    let tree = FakeTree(windowReads: [.value([partial]), .value([built])], primeIsFresh: true)
+    let read = SecureFieldReader.read(pids: [1], shown: [1], tree: tree)
+    expectEq(read, .fields([fieldBox]), "lector: un arbol recien armado se relee aunque ya tenga ventana")
+    expectEq(tree.settles, 1, "lector: una espera al primar, no una por lectura")
+}
+
+func testAnAlreadyPrimedTreeIsNotSettledAgain() {
+    let tree = FakeTree(windowReads: [.value([secureField])], primeIsFresh: false)
+    let read = SecureFieldReader.read(pids: [1], shown: [1], tree: tree)
+    expectEq(read, .fields([fieldBox]), "lector: un arbol ya primado se lee una vez")
+    expectEq(tree.settles, 0, "lector: un pid ya primado no espera de nuevo")
+}
+
+func testAnAppWithOnlyOverlayWindowsAndAnEmptyTreeIsNotWithheld() {
+    // Dock and Control Center own windows that never carry AX children; the
+    // caller leaves them out of `shown`, so an empty tree is their normal answer.
+    let tree = FakeTree(windowReads: [.value([])])
+    let read = SecureFieldReader.read(pids: [1], shown: [], tree: tree)
+    expectEq(read, .fields([]), "lector: una app solo con ventanas de capa alta no retira el cuadro")
 }
