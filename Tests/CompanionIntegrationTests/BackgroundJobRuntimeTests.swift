@@ -281,7 +281,7 @@ private func recordingFirstSentence(_ log: OrderLog) -> @Sendable (TurnEvent) as
     }
     await runtime.submit(config: Config(language: .es), apply: recordingFirstSentence(log))
     expect(!log.all.contains { $0.hasPrefix("mark:ack") }, "herramienta rápida: sin acuse (\(log.all))")
-    expect(log.all.contains("say:Abrí Safari."), "herramienta rápida: la respuesta normal")
+    expect(!log.all.contains("say:Abrí Safari."), "herramienta rápida: la respuesta que repite el recibo no suena")
 }
 
 // MARK: - criterion 2: the voice does not wait for the job

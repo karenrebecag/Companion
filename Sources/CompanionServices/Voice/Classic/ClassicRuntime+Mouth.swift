@@ -115,6 +115,9 @@ struct TurnMouth {
     /// The receipt of the last round, when that round was only quick actions:
     /// sentences that restate it are not spoken.
     var quickReceipt: ActionReceipt?
+    /// A sheet was shown this turn: from then on the reply is spoken whole,
+    /// because the user answered a question and waits for the close.
+    var sheetShown = false
 
     init(language: AppLanguage, recognizer: any LanguageRecognizing, heard: String) {
         gate = MouthLanguageGate(language: language, recognizer: recognizer, heard: heard)

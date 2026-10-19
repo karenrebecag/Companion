@@ -43,7 +43,8 @@ extension ClassicRuntime {
     static func absorb(_ round: ActedRound, into mouth: inout TurnMouth) {
         mouth.unverifiedTyped = round.unverified
         mouth.effectLines += round.effectLines
-        mouth.quickReceipt = round.quickReceipt
+        if !round.shownSheets.isEmpty { mouth.sheetShown = true }
+        mouth.quickReceipt = mouth.sheetShown ? nil : round.quickReceipt
         if round.sawCard { mouth.cardThisTurn = true }
     }
 
@@ -135,7 +136,9 @@ extension ClassicRuntime {
         if let receipt { events?.yield(.receipt(receipt)) }
         // Quick actions are confirmed here, at toolDone, not after the brain's
         // sentence: the earcon and the island line are the whole feedback.
-        let quick = receipt != nil && runs.count == calls.count && runs.allSatisfy {
+        // A sheet means the user was asked and is waiting on the answer: the
+        // spoken close is theirs to hear, so only sheetless rounds qualify.
+        let quick = receipt != nil && shownSheets.isEmpty && runs.count == calls.count && runs.allSatisfy {
             ParentTool(rawValue: $0.call.name)?.isQuickAction == true && $0.outcome.ok
         }
         if quick {

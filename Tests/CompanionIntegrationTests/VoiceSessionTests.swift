@@ -463,9 +463,12 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
     }
     await h.session.advance()
     // 15d-5: the first utterance now ends at the comma.
-    await pumpUntil("padre cl: habló la segunda ronda") {
-        h.synth.queue == ["Listo,", "abrí Safari."]
+    // Feedback inmediato: the reply restates the receipt, so it is not spoken;
+    // the thread gets it once the round ends.
+    await pumpUntil("padre cl: terminó la segunda ronda") {
+        h.thread.turns.contains { $0.role == .assistant && $0.content.contains("abrí Safari.") }
     }
+    expectEq(h.synth.queue, [], "padre cl: la respuesta que repite el recibo no suena")
     expectEq(opener.openedApps, ["Safari"], "padre cl: se abrió")
     expectEq(h.chat.histories.count, 2, "padre cl: dos rondas")
     expect(h.chat.histories[1].contains { $0.role == .tool && $0.toolCallID == "c1" },
@@ -512,8 +515,12 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
         h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
     }
     await h.session.advance()
-    await pumpUntil("flush cl: dos frases") { h.synth.queue.count >= 2 }
-    expectEq(h.synth.queue, ["Voy a abrir Safari", "Listo."], "flush cl: frases separadas, en orden")
+    await pumpUntil("flush cl: terminó la segunda ronda") {
+        h.thread.turns.contains { $0.role == .assistant && $0.content == "Listo." }
+    }
+    // "Listo." restates the receipt and stays silent; the fragment still
+    // gets said before the next round.
+    expectEq(h.synth.queue, ["Voy a abrir Safari"], "flush cl: el fragmento se dice, el recibo ya cubre el cierre")
 }
 
 final class JobEventBox: @unchecked Sendable {
