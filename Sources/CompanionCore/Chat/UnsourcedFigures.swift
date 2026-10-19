@@ -85,7 +85,7 @@ package enum UnsourcedFigures {
     }
 
     private static func matches(_ pattern: String, in text: String) -> [String] {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let regex = ConstantPattern.compile(pattern)
         let source = text as NSString
         return regex.matches(in: text, range: NSRange(location: 0, length: source.length))
             .map { source.substring(with: $0.range) }
@@ -95,9 +95,7 @@ package enum UnsourcedFigures {
         _ pattern: String, in text: String, with replacement: String,
         options: NSRegularExpression.Options = []
     ) -> String {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else {
-            return text
-        }
+        let regex = ConstantPattern.compile(pattern, options: options)
         return regex.stringByReplacingMatches(
             in: text, range: NSRange(location: 0, length: (text as NSString).length),
             withTemplate: replacement)

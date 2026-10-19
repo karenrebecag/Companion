@@ -1,3 +1,4 @@
+import CompanionCore
 import Foundation
 
 /// web_fetch returns what a page says, not its markup: a 200 KB document is
@@ -50,9 +51,9 @@ package enum WebHTMLText {
     }
 
     private static func captured(_ pattern: String, in text: String) -> String {
-        guard let regex = try? NSRegularExpression(
-            pattern: pattern, options: [.dotMatchesLineSeparators, .caseInsensitive]),
-              let match = regex.firstMatch(
+        let regex = ConstantPattern.compile(
+            pattern, options: [.dotMatchesLineSeparators, .caseInsensitive])
+        guard let match = regex.firstMatch(
                 in: text, range: NSRange(location: 0, length: (text as NSString).length)),
               match.numberOfRanges > 1,
               let range = Range(match.range(at: 1), in: text)
@@ -98,9 +99,7 @@ package enum WebHTMLText {
         options: NSRegularExpression.Options = [],
         with replacement: (String) -> String
     ) -> String {
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else {
-            return text
-        }
+        let regex = ConstantPattern.compile(pattern, options: options)
         let source = text as NSString
         var out = ""
         var cursor = 0
