@@ -215,7 +215,13 @@
 "sources.title" = "Fuentes";
 "sources.web" = "Web";
 "sources.files" = "Archivos";
-"map.open" = "Abrir";
+"map.found.one" = "Encontré %d lugar";
+"map.found.other" = "Encontré %d lugares";
+"map.show" = "Mostrar %@";
+"map.site" = "Ver sitio";
+"map.inMaps" = "Abrir en Mapas";
+"map.zoomIn" = "Acercar";
+"map.zoomOut" = "Alejar";
 "accent.lime" = "Verde eléctrico";
 "voice.sample" = "Hola, soy Companion. Así sueno.";
 "settings.app.language" = "Idioma";

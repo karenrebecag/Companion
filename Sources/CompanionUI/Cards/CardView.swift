@@ -23,6 +23,11 @@ import SwiftUI
 /// cuando R-02 aterrice el tier de `Section`.
 enum CardMetrics {
     static let map: CGFloat = 200
+    /// The locator's list and map side by side: tall enough for three places.
+    static let locator: CGFloat = 320
+    static let pin: CGFloat = Space.x6
+    static let pinRing: CGFloat = Space.x8
+    static let zoomButton: CGFloat = Space.x7
     static let thumb: CGFloat = 120
     /// Wave 20: a stat tile's narrowest column, a chart's plot, a table's cap.
     static let statMin: CGFloat = 120

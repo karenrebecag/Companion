@@ -215,7 +215,13 @@
 "sources.title" = "Sources";
 "sources.web" = "Web";
 "sources.files" = "Files";
-"map.open" = "Open";
+"map.found.one" = "Found %d place";
+"map.found.other" = "Found %d places";
+"map.show" = "Show %@";
+"map.site" = "Visit site";
+"map.inMaps" = "Open in Maps";
+"map.zoomIn" = "Zoom in";
+"map.zoomOut" = "Zoom out";
 "accent.lime" = "Electric green";
 "voice.sample" = "Hi, I am Companion. This is how I sound.";
 "settings.app.language" = "Language";
