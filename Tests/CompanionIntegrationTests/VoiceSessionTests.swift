@@ -451,7 +451,9 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
 /// historial → la frase de la segunda ronda llega al sintetizador.
 @MainActor func testClassicParentToolLoopsOneRound() async {
     let opener = FakeWorkspaceOpener(installed: ["Safari"])
-    let h = makeVoiceHarness(key: nil, parentTools: ParentToolRunner(workspace: opener))
+    // Spanish turn: the receipt and the model's reply must share a language,
+    // or the reply does not restate the receipt and is rightly spoken.
+    let h = makeVoiceHarness(key: nil, language: .es, parentTools: ParentToolRunner(workspace: opener))
     h.chat.rounds = [
         [.toolCalls([ToolCallRef(id: "c1", name: "open_app", arguments: #"{"name":"Safari"}"#)])],
         [.text("Listo, abrí Safari.")],
@@ -503,7 +505,9 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
 /// ronda, no pegado a ella: "Voy a abrir Safari" + "Listo." son dos frases.
 @MainActor func testClassicFlushesFragmentBeforeNextRound() async {
     let opener = FakeWorkspaceOpener(installed: ["Safari"])
-    let h = makeVoiceHarness(key: nil, parentTools: ParentToolRunner(workspace: opener))
+    // Spanish turn: the receipt and the model's reply must share a language,
+    // or the reply does not restate the receipt and is rightly spoken.
+    let h = makeVoiceHarness(key: nil, language: .es, parentTools: ParentToolRunner(workspace: opener))
     h.chat.rounds = [
         [.text("Voy a abrir Safari"),
          .toolCalls([ToolCallRef(id: "c1", name: "open_app", arguments: #"{"name":"Safari"}"#)])],
@@ -516,7 +520,7 @@ private func hasVoiceInSessionUpdate(_ sent: [String]) -> Bool {
     }
     await h.session.advance()
     await pumpUntil("flush cl: terminó la segunda ronda") {
-        h.thread.turns.contains { $0.role == .assistant && $0.content == "Listo." }
+        h.thread.turns.contains { $0.role == .assistant && $0.content.contains("Listo.") }
     }
     // "Listo." restates the receipt and stays silent; the fragment still
     // gets said before the next round.
