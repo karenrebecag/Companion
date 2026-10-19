@@ -21,6 +21,20 @@ package enum SecureFieldMask {
         case withhold(String)
     }
 
+    /// The frame is masked with what both reads found, and withheld when
+    /// either read could not finish: a field can be in the pixels only if it
+    /// existed at one of the two reads.
+    package static func union(_ first: Read, _ second: Read) -> Read {
+        switch (first, second) {
+        case (.incomplete, _):
+            return first
+        case (_, .incomplete):
+            return second
+        case (.fields(let before), .fields(let after)):
+            return .fields(before + after)
+        }
+    }
+
     package static func plan(read: Read, display: CGRect, imageWidth: Int, imageHeight: Int) -> Plan {
         switch read {
         case .incomplete(let reason):

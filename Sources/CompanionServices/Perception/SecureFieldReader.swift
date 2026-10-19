@@ -15,17 +15,27 @@ package enum SecureFieldReader {
     // "frame withheld" log often.
     static let maxNodes = 2_000
 
-    package static func read(pids: [pid_t]) -> SecureFieldMask.Read {
+    /// `shown` holds the pids that own a window on the captured display: an
+    /// app with one on screen and an empty tree is an unbuilt tree, not an
+    /// app with nothing to hide.
+    package static func read(
+        pids: [pid_t], shown: Set<pid_t>, enhancedPIDs: Set<pid_t> = []
+    ) -> SecureFieldMask.Read {
+        read(pids: pids, shown: shown, tree: LiveSecureFieldTree(enhancedPIDs: enhancedPIDs))
+    }
+
+    static func read<Tree: SecureFieldTree>(
+        pids: [pid_t], shown: Set<pid_t>, tree: Tree
+    ) -> SecureFieldMask.Read {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: budget)
         var frames: [CGRect] = []
         for pid in pids {
-            let application = AXUIElementCreateApplication(pid)
-            AXUIElementSetMessagingTimeout(application, messagingTimeout)
-            guard let windows = AXRead.elements(kAXWindowsAttribute, of: application) else {
-                return .incomplete("window list unreadable")
+            tree.prime(pid)
+            guard let windows = windowList(of: pid, shown: shown.contains(pid), tree: tree) else {
+                return .incomplete("no accessibility tree for an app with windows on screen")
             }
-            var walk = Walk(clock: clock, deadline: deadline)
+            var walk = Walk(tree: tree, clock: clock, deadline: deadline)
             for window in windows { walk.visit(window) }
             if let reason = walk.incomplete { return .incomplete(reason) }
             frames += walk.frames
@@ -33,61 +43,77 @@ package enum SecureFieldReader {
         return .fields(frames)
     }
 
-    private struct Walk {
+    /// A fresh Chromium or Electron app answers an empty tree until it has
+    /// built it. One settle and one re-read covers that; an app whose tree is
+    /// still empty after that is withheld when it has a window on screen.
+    /// Nil means the read must be withheld.
+    private static func windowList<Tree: SecureFieldTree>(
+        of pid: pid_t, shown: Bool, tree: Tree
+    ) -> [Tree.Node]? {
+        for attempt in 0 ..< 2 {
+            if attempt > 0 { tree.settle() }
+            let list: [Tree.Node]
+            switch tree.windows(pid) {
+            case .value(let found): list = found
+            case .absent, .unsupported: list = []
+            case .failed: return nil
+            }
+            if !list.isEmpty || !shown { return list }
+        }
+        return nil
+    }
+
+    private struct Walk<Tree: SecureFieldTree> {
+        let tree: Tree
         let clock: ContinuousClock
         let deadline: ContinuousClock.Instant
         var nodes = 0
         var frames: [CGRect] = []
         var incomplete: String?
 
-        mutating func visit(_ element: AXUIElement) {
+        mutating func visit(_ node: Tree.Node) {
             guard incomplete == nil else { return }
             guard nodes < SecureFieldReader.maxNodes, clock.now < deadline else {
                 incomplete = "accessibility walk over budget"
                 return
             }
             nodes += 1
-            AXUIElementSetMessagingTimeout(element, SecureFieldReader.messagingTimeout)
-            let (roleValue, roleError) = Self.copy(kAXRoleAttribute, of: element)
-            guard roleError == .success, let role = roleValue as? String else {
+            guard case .value(let role) = tree.role(node) else {
                 incomplete = "element role unreadable"
                 return
             }
-            let subrole = AXRead.string(kAXSubroleAttribute, of: element)
+            // A subrole read that times out must not pass as "no subrole": that
+            // is how a password field with a timed-out read slipped through.
+            let subrole: String
+            switch tree.subrole(node) {
+            case .value(let read): subrole = read
+            case .absent, .unsupported: subrole = ""
+            case .failed:
+                incomplete = "subrole unreadable"
+                return
+            }
             if AXSecure.isSecure(role: role, subrole: subrole) {
                 // A secure field's children are its glyphs: nothing below it
                 // is needed, and nothing below it may be read.
-                guard let frame = AXRead.frame(of: element) else {
+                guard let frame = tree.frame(node) else {
                     incomplete = "secure field frame unreadable"
                     return
                 }
                 frames.append(frame)
                 return
             }
-            let (childValue, childError) = Self.copy(kAXChildrenAttribute, of: element)
-            switch childError {
-            case .success:
-                guard let children = childValue as? [AXUIElement] else {
-                    incomplete = "children unreadable"
-                    return
-                }
+            switch tree.children(node) {
+            case .value(let children):
                 for child in children {
                     visit(child)
                     if incomplete != nil { return }
                 }
-            case .noValue:
+            case .absent, .unsupported:
+                // No children attribute is a leaf, not a failed read.
                 return
-            default:
+            case .failed:
                 incomplete = "children unreadable"
             }
-        }
-
-        // The error code is the point: a timeout and a leaf both come back
-        // without a value, and only the code tells a leaf from a failed read.
-        private static func copy(_ name: String, of element: AXUIElement) -> (CFTypeRef?, AXError) {
-            var value: CFTypeRef?
-            let error = AXUIElementCopyAttributeValue(element, name as CFString, &value)
-            return (value, error)
         }
     }
 }

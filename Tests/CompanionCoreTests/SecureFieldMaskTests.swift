@@ -16,6 +16,8 @@ import Testing
     testFieldCrossingTheEdgeIsClipped()
     testUnreadableReadWithholdsTheFrame()
     testNoSecureFieldSendsTheFrameUnmasked()
+    testTheTwoReadsContributeEveryBox()
+    testAnIncompleteReadWithholdsWhicheverSideItIsOn()
 }
 
 private let retinaMain = CGRect(x: 0, y: 0, width: 1440, height: 900)
@@ -85,4 +87,23 @@ func testNoSecureFieldSendsTheFrameUnmasked() {
     let plan = SecureFieldMask.plan(
         read: .fields([]), display: retinaMain, imageWidth: 2880, imageHeight: 1800)
     expectEq(plan, .mask([]), "mascara: sin campos seguros el cuadro sale tal cual")
+}
+
+func testTheTwoReadsContributeEveryBox() {
+    let before = SecureFieldMask.Read.fields([CGRect(x: 0, y: 0, width: 10, height: 10)])
+    let after = SecureFieldMask.Read.fields([CGRect(x: 50, y: 50, width: 10, height: 10)])
+    expectEq(SecureFieldMask.union(before, after),
+             .fields([CGRect(x: 0, y: 0, width: 10, height: 10),
+                      CGRect(x: 50, y: 50, width: 10, height: 10)]),
+             "mascara: la union de las dos lecturas conserva cada caja")
+}
+
+func testAnIncompleteReadWithholdsWhicheverSideItIsOn() {
+    let fields = SecureFieldMask.Read.fields([CGRect(x: 0, y: 0, width: 10, height: 10)])
+    expectEq(SecureFieldMask.union(fields, .incomplete("walk over budget")),
+             .incomplete("walk over budget"),
+             "mascara: una lectura incompleta despues retira el cuadro")
+    expectEq(SecureFieldMask.union(.incomplete("window list unreadable"), fields),
+             .incomplete("window list unreadable"),
+             "mascara: una lectura incompleta antes retira el cuadro")
 }
