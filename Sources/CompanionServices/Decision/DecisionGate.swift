@@ -100,8 +100,11 @@ package actor DecisionGate {
     /// against `budget`; a slower provider loses the race and today's path
     /// takes over. `race` still waits for the cancelled loser to return, so
     /// this only holds for providers that honor cancellation (URLSession
-    /// does). No side effects: nothing is executed here.
-    package func plan(_ utterance: String, canDelegate: Bool) async -> DecisionStep {
+    /// does). No side effects: nothing is executed here. `budget` overrides
+    /// the gate's own for one call (the hosted judge runs on a tighter one).
+    package func plan(
+        _ utterance: String, canDelegate: Bool, budget: Duration? = nil
+    ) async -> DecisionStep {
         let world = worldProvider()
         let supports = systemSupports
         let provider = self.provider
@@ -111,7 +114,7 @@ package actor DecisionGate {
                 utterance: utterance, world: world, canDelegate: canDelegate,
                 supports: supports, provider: provider, arbiter: arbiter)
         }
-        return await race(work, wait: budget) ?? .passThrough(.timedOut)
+        return await race(work, wait: budget ?? self.budget) ?? .passThrough(.timedOut)
     }
 
     /// Runs a step already chosen by `plan`. `execute` goes through

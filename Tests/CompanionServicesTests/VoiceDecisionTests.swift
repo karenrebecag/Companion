@@ -34,6 +34,43 @@ import CompanionTestKit
     await testWithoutTheKeyNothingReachesTheHostedJudge()
     await testAHostedJudgeStillConfirmsTheTrash()
     await testAConfidentSelfHandledVerdictWithdrawsDelegate()
+    await testASilentHostedJudgePassesTheTurnToTheBrain()
+}
+
+/// The hosted budget: a judge that never answers loses the race and the turn
+/// goes to the brain, as if the router had never run. No wall-clock check:
+/// the judge suspends until cancelled, so only the budget can end it.
+@MainActor func testASilentHostedJudgePassesTheTurnToTheBrain() async {
+    unsetenv("COMPANION_DECISION")
+    let judge = DecisionJudge(hosted: SilentHosted(), local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        world: { DecisionWorld(apps: ["Safari"], sites: []) }, budget: .seconds(3600))
+    let h = makeVoiceHarness()
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "abre Safari"
+    h.chat.rounds = [[.text("Listo.")]]
+    await h.session.hold()
+    await pumpUntil("silent: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("silent: the brain takes the turn") { !h.chat.histories.isEmpty }
+    await h.session.awaitClassicTurn()
+    expect(h.thread.turns.contains { $0.role == .assistant && $0.content.contains("Listo.") },
+           "silent: the brain answers; the gate's own hour-long budget never applied")
+}
+
+private struct SilentHosted: HostedDecisionProviding {
+    var isConfigured: Bool { true }
+
+    func answer(_ question: DecisionQuestion) async -> DecisionAnswer? {
+        do {
+            try await Task.sleep(for: .seconds(3600))
+        } catch {
+            return nil
+        }
+        return nil
+    }
 }
 
 /// Jev wiring: with the key saved, the router runs even though the local

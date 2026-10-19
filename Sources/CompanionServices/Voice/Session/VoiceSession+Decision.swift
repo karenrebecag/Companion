@@ -60,7 +60,9 @@ extension VoiceSession {
             if case .passThrough = confirmed {} else { markTool(.toolDone) }
             return confirmed
         }
-        let step = await gate.plan(utterance, canDelegate: canDelegate)
+        let step = await gate.plan(
+            utterance, canDelegate: canDelegate,
+            budget: hosted ? configProvider.current.decision.hostedBudget : nil)
         markTool(.decision)
         // Only `.execute` runs through the SAME door the parent-tool loop
         // uses (`ParentToolRunner`, inside `gate.run`): the session's own
