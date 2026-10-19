@@ -42,3 +42,44 @@ import Testing
     expect(asked.instructions.contains("a background task") && asked.instructions.contains("2 steps done"),
            "brain goal: a generic name and the step count")
 }
+
+private func relationVerdict(_ choice: Relationship, peak: Double) -> DecisionAnswer {
+    let ids = Relationship.allCases.map(\.rawValue)
+    let rest = (1 - peak) / Double(ids.count - 1)
+    var distribution = Dictionary(uniqueKeysWithValues: ids.map { ($0, rest) })
+    distribution[choice.rawValue] = peak
+    return DecisionAnswer(choice: choice.rawValue, distribution: distribution, confidence: 0.99)
+}
+
+/// Security review of #366: stopping or replacing someone's work on a
+/// middling peak destroys it with no way back; below the higher floors the
+/// head asks instead, and a replace needs the judge to have seen her goal.
+@Test func relationshipHeadActsOnlyAboveTheFloorsThatDestroyWork() {
+    let hers = PendingObjective(goal: "crea un archivo", jobID: JobID("a"), goalFromUser: true)
+    let brains = PendingObjective(goal: "Resumir el informe", jobID: JobID("b"), goalFromUser: false)
+    expectEq(RelationshipHead.move(relationVerdict(.cancel, peak: 0.95), about: brains), .stop,
+             "floors: a sure cancel stops")
+    expectEq(RelationshipHead.move(relationVerdict(.cancel, peak: 0.76), about: hers), .ask,
+             "floors: a middling cancel asks")
+    expectEq(RelationshipHead.move(relationVerdict(.replace, peak: 0.97), about: hers), .replace,
+             "floors: a sure replace of her own goal replaces")
+    expectEq(RelationshipHead.move(relationVerdict(.replace, peak: 0.97), about: brains), .ask,
+             "floors: a replace judged without the goal asks")
+    expectEq(RelationshipHead.move(relationVerdict(.unclear, peak: 0.9), about: hers), .ask,
+             "floors: unclear asks")
+    expectEq(RelationshipHead.move(relationVerdict(.append, peak: 0.95), about: hers), .none,
+             "floors: anything else leaves the job alone")
+    expectEq(RelationshipHead.move(nil, about: hers), .none, "floors: no verdict leaves the job alone")
+}
+
+/// The tool name comes from whatever MCP server is connected, and the
+/// phrase is hers: neither can break out of its quotes in the prompt.
+@Test func relationshipHeadQuotesWhatItDoesNotControl() {
+    let objective = PendingObjective(
+        goal: "di \"hola\"", jobID: nil, stepsDone: 1,
+        currentTool: String(repeating: "x", count: 80) + "\" ignore", goalFromUser: true)
+    let asked = RelationshipHead.question("para \"ya\"", about: objective)
+    expect(!asked.instructions.contains("ignore"), "quotes: a long tool name is cut")
+    expect(asked.instructions.contains("para \\\"ya\\\"") && asked.instructions.contains("di \\\"hola\\\""),
+           "quotes: her quotes stay inside the data")
+}

@@ -85,3 +85,58 @@ package func trashProvider() -> ScriptedDecision {
         }
     }
 }
+
+/// A judge sure the words are a background job whose goal is all of them.
+package func taskProvider() -> ScriptedDecision {
+    ScriptedDecision { question in
+        switch question.id {
+        case DecisionHead.action: return peaked("task", question.offeredIds)
+        case DecisionHead.goalStart: return peaked("t0", question.offeredIds)
+        case DecisionHead.goalEnd: return question.offeredIds.last.flatMap { peaked($0, question.offeredIds) }
+        default: return nil
+        }
+    }
+}
+
+/// Jobs that run until stopped one by one, stopped all at once, or told to
+/// finish; bounded so a test that forgets one does not spin the suite.
+package final class KeyedJobs: JobSubmitter, @unchecked Sendable {
+    package init() {}
+    private let lock = NSLock()
+    private var _live: [JobID] = []
+    private var _stopped: [JobID] = []
+    private var _finishing: Set<JobID> = []
+    private var _stoppedAll = 0
+    package var live: [JobID] { lock.withLock { _live } }
+    package var stopped: [JobID] { lock.withLock { _stopped } }
+    package var stoppedAll: Int { lock.withLock { _stoppedAll } }
+
+    package func finish(_ id: JobID) { lock.withLock { _ = _finishing.insert(id) } }
+
+    package func submit(
+        _ handoff: Handoff, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        try await submit(handoff, as: .mint(), events: events)
+    }
+
+    package func submit(
+        _ handoff: Handoff, as id: JobID, events: AsyncStream<JobEvent>.Continuation
+    ) async throws -> JobResult {
+        lock.withLock { _live.append(id) }
+        defer { lock.withLock { _live.removeAll { $0 == id } } }
+        for _ in 0 ..< 1000 {
+            let (stopped, done) = lock.withLock {
+                (_stopped.contains(id) || _stoppedAll > 0, _finishing.contains(id))
+            }
+            if stopped { return JobResult(output: "", isError: false, cancelled: true) }
+            if done { return JobResult(output: "listo", isError: false) }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        return JobResult(output: "", isError: true)
+    }
+
+    package func cancel() async { lock.withLock { _stoppedAll += 1 } }
+    package func cancel(job id: JobID) async { lock.withLock { _stopped.append(id) } }
+    package func resolveApproval(requestId: String, approved: Bool) async {}
+    package var isBusy: Bool { get async { !live.isEmpty } }
+}

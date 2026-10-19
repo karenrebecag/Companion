@@ -75,10 +75,10 @@ extension VoiceSession {
         let answering = await gate.answersPendingConfirmation(utterance)
         let relation = answering ? nil : runningObjective.flatMap { objective in
             judge.map { turn in
-                (objective, Task { await turn.relationship(utterance, to: objective) })
+                (objective, ContinuousClock.now, Task { await turn.relationship(utterance, to: objective) })
             }
         }
-        defer { relation?.1.cancel() }
+        defer { relation?.2.cancel() }
         let route = await gate.route(
             utterance, canDelegate: canDelegate,
             budget: hosted ? configProvider.current.decision.hostedBudget : nil,
@@ -89,28 +89,37 @@ extension VoiceSession {
         case .answered(let confirmed):
             cancelSpeculation()
             markTool(.decision)
+            if case .stopJob(let id, let goal) = confirmed {
+                markTool(.toolDone)
+                return await stopJob(id, goal: goal)
+            }
             if case .passThrough = confirmed {} else { markTool(.toolDone) }
             return confirmed
         case .planned(let planned):
             step = planned
         }
         markTool(.decision)
-        if let (objective, task) = relation {
+        if let (objective, started, task) = relation, let id = objective.jobID {
+            // The budget runs from when the head went out, not from now.
+            let budget = configProvider.current.decision.hostedBudget
             let verdict = await DecisionJudge.verdict(
-                task, within: configProvider.current.decision.hostedBudget)
-            switch RelationshipHead.read(verdict) {
-            case .cancel?:
-                await classic.onStopJob?()
-                markTool(.toolDone)
-                return .said(DecisionCopy.stoppedJob(objective.goal, configProvider.current.language))
-            case .replace?:
-                await classic.onStopJob?()
-            case .unclear?:
-                return .said(DecisionCopy.askAboutRunningJob(configProvider.current.language))
-            case .revise?, .resume?, .append?, nil:
-                // One-shot jobs cannot take a revision or a resume; the
-                // ordinary path handles the words.
-                break
+                task, within: max(.zero, budget - started.duration(to: .now)))
+            // The job may have ended while the head was out: nothing to stop.
+            if runningObjective?.jobID == id {
+                switch RelationshipHead.move(verdict, about: objective) {
+                case .stop:
+                    markTool(.toolDone)
+                    return await stopJob(id, goal: objective.goal)
+                case .replace:
+                    await jobs?.cancel(job: id)
+                case .ask:
+                    await gate.askAboutRunningJob(id, goal: objective.goal, said: utterance)
+                    return .said(DecisionCopy.askAboutRunningJob(configProvider.current.language))
+                case .none:
+                    // One-shot jobs cannot take a revision or a resume; the
+                    // ordinary path handles the words.
+                    break
+                }
             }
         }
         // Only `.execute` runs through the SAME door the parent-tool loop
@@ -127,6 +136,14 @@ extension VoiceSession {
         if acting { eventBox.yield(.parentActed) }
         if case .passThrough = outcome {} else { markTool(.toolDone) }
         return outcome
+    }
+
+    /// Only the job the head judged, and only while it still runs: the
+    /// queue's other jobs are not hers to lose to one "olvídalo".
+    private func stopJob(_ id: JobID, goal: String) async -> DecisionOutcome {
+        guard runningObjective?.jobID == id else { return .passThrough(.superseded) }
+        await jobs?.cancel(job: id)
+        return .said(DecisionCopy.stoppedJob(goal, configProvider.current.language))
     }
 
     /// Why the router does not run this hold, or nil when it does.

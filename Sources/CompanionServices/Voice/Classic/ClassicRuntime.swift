@@ -309,7 +309,7 @@ final class ClassicRuntime: @unchecked Sendable {
         apply: @escaping @Sendable (TurnEvent) async -> Void
     ) async {
         let language = config.language
-        let heard: String
+        var heard: String
         if let leftover = takeLeftoverHeard() {
             heard = leftover.trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
@@ -369,8 +369,9 @@ final class ClassicRuntime: @unchecked Sendable {
         let interrupted = takeSteerPending()
         // Started before the router so it overlaps both the router and the
         // context gather; a turn the router takes just cancels it.
+        let judged = heard
         let verdict = onDelegate == nil ? nil : delegationVerdict.map { judge in
-            Task { await judge(heard) }
+            Task { await judge(judged) }
         }
         defer { verdict?.cancel() }
         if let decide {
@@ -378,6 +379,10 @@ final class ClassicRuntime: @unchecked Sendable {
             if case .passThrough = outcome {
                 // The router abstained (disabled, ignored, no executor…):
                 // today's model-in-the-loop path takes the turn, unchanged.
+            } else if case .carryOn(let words) = outcome {
+                // A "no" to stopping the job: the words that raised the
+                // question are what the brain answers, not the "no".
+                heard = words
             } else {
                 await respond(
                     to: outcome, heard: heard, language: language, transcript: transcript,
@@ -616,7 +621,9 @@ final class ClassicRuntime: @unchecked Sendable {
         let spoken: String
         let threaded: String
         switch outcome {
-        case .passThrough:
+        case .passThrough, .carryOn, .stopJob:
+            // Handled before a reply: the brain takes the first two, and the
+            // session turns a stop into its own line.
             return
         case .acted(let result, let call):
             threaded = DecisionCopy.acted(result, tool: call.name, language)

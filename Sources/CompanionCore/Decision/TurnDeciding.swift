@@ -11,6 +11,11 @@ package enum DecisionOutcome: Sendable, Equatable {
     /// The router's own line about the running job: what it stopped, or
     /// the question it asks back.
     case said(String)
+    /// A yes to "should I stop what I'm doing?": stop this job, and only it.
+    case stopJob(JobID, goal: String)
+    /// A no to that question: the job goes on and the words that raised it
+    /// reach the brain as she said them.
+    case carryOn(String)
 }
 
 /// A typed message's turn, decided: the outcome, and whether the delegation

@@ -184,6 +184,9 @@ package actor VoiceSession: VoiceControlling {
     /// already over, so a late `started` cannot bring one back.
     var runningObjective: PendingObjective?
     var finishedJobs: Set<JobID> = []
+    /// Job events in the order they happened, for `trackObjective`: a task
+    /// per event let a step land before its job's `started`.
+    let objectiveBox = AudioStreamBox<SessionEvent>()
     var lastPartial = ""
     var partialTask: Task<Void, Never>?
     /// Which ear the running partial pump reads; it picks once, so a hold
@@ -307,6 +310,12 @@ package actor VoiceSession: VoiceControlling {
         // announce path), which is only legal once every property is set.
         realtime.markTimeline = { [weak self] point in await self?.markTool(point) }
         classic.markTimeline = realtime.markTimeline
+        let objectiveSink = objectiveBox
+        let objectiveEvents = objectiveBox.stream
+        // Holds the session only while it applies one event.
+        Task { [weak self] in
+            for await event in objectiveEvents { await self?.trackObjective(event) }
+        }
         if let jobs {
             let presenter = thread
             // Same runner the button reaches. Someone talking to their Mac is
@@ -322,7 +331,7 @@ package actor VoiceSession: VoiceControlling {
                         // their hands full has to reach the ear too.
                         onEvent: { [weak self] event in
                             eventBox.yield(event)
-                            Task { [weak self] in await self?.trackObjective(event) }
+                            objectiveSink.yield(event)
                             guard case .job(.approvalRequested(let request), _) = event
                             else { return }
                             Task { [weak self] in

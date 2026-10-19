@@ -26,9 +26,12 @@ extension ChatViewModel {
         }
         let language = config.language
         switch decided.outcome {
-        case .passThrough:
+        case .passThrough, .carryOn:
             delegateWithdrawn = decided.withdrawsDelegate
             return false
+        case .stopJob(let job, let goal):
+            await jobSubmitter?.cancel(job: job)
+            reply(DecisionCopy.stoppedJob(goal, language))
         case .acted(let outcome, let call):
             if let line = ReceiptProof.entry(tool: call.name, outcome: outcome, language: language),
                let receipt = ActionReceipt(entries: [line]) {

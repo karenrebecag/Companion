@@ -1042,16 +1042,6 @@ private func soft(_ choice: String) -> DecisionAnswer? {
 
 // MARK: - fakes and helpers
 
-private func taskProvider() -> ScriptedDecision {
-    ScriptedDecision { question in
-        switch question.id {
-        case DecisionHead.action: return peaked("task", question.offeredIds)
-        case DecisionHead.goalStart: return peaked("t0", question.offeredIds)
-        case DecisionHead.goalEnd: return question.offeredIds.last.flatMap { peaked($0, question.offeredIds) }
-        default: return nil
-        }
-    }
-}
 
 /// DM1c-4 fakes and helpers.
 
