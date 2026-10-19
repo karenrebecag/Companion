@@ -135,6 +135,9 @@ package enum BridgeScope {
         NativeTool.parentDeliverables.contains { $0.rawValue == name } || name == WindowArrangeTool.name
             || name == MemoryTool.name
             || name == BrowserTool.setFiles.rawValue
+            // The web reader spends the owner's Exa key on any URL an agent names,
+            // and an outside agent brings its own fetch tools, so it stays with the parent and its jobs.
+            || name == NativeTool.readURL.rawValue
             // The block catalog only steers the chat's own replies; an outside agent has no reply to shape.
             || name == ParentTool.findBlock.rawValue
     }

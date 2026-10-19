@@ -21,6 +21,7 @@ package struct NativeExecutor: Executor, Sendable {
         config: Config,
         approvals: any ApprovalsProvider,
         webSearch: (any WebSearching)? = nil,
+        webReader: (any WebReading)? = nil,
         skills: SkillsLocation? = nil,
         skillsSource: (@Sendable () -> String)? = nil,
         documents: (any DocumentRendering)? = nil,
@@ -31,7 +32,7 @@ package struct NativeExecutor: Executor, Sendable {
         self.descriptor = descriptor
         self.chatProvider = chatProvider
         self.toolRunner = NativeToolRunner(
-            workdir: config.workdir, webSearch: webSearch, language: config.language,
+            workdir: config.workdir, webSearch: webSearch, webReader: webReader, language: config.language,
             skills: skills, documents: documents, sheets: sheets, versions: versions,
             disposal: disposal)
         self.config = config

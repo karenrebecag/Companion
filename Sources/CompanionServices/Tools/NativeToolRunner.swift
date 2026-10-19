@@ -24,6 +24,8 @@ package struct NativeToolRunner: Sendable {
     let pathValidator: PathValidator
     private let places: (any PlacesSearching)?
     private let webSearch: (any WebSearching)?
+    /// Absent, read_url is not offered: it is Exa's, and Brave cannot read a page.
+    let webReader: (any WebReading)?
     /// 16h-3: where "nearby" means. Absent, the lookup runs as it always did.
     private let location: UserLocationSource?
     /// 16q-2: the "Tu ciudad" switch. Read per call, since it can flip while
@@ -59,6 +61,7 @@ package struct NativeToolRunner: Sendable {
         shellTimeout: TimeInterval = 60,
         places: (any PlacesSearching)? = MapKitPlacesSearch(),
         webSearch: (any WebSearching)? = nil,
+        webReader: (any WebReading)? = nil,
         language: AppLanguage = .en,
         skills: SkillsLocation? = nil,
         documents: (any DocumentRendering)? = nil,
@@ -80,6 +83,7 @@ package struct NativeToolRunner: Sendable {
         self.timeout = shellTimeout
         self.places = places
         self.webSearch = webSearch
+        self.webReader = webReader
         self.location = location
         self.language = language
         self.skills = skills
@@ -98,6 +102,7 @@ package struct NativeToolRunner: Sendable {
         NativeTool.allCases.filter { tool in
             switch tool {
             case .webSearch: return webSearch?.isConfigured == true
+            case .readURL: return webReader?.isConfigured == true
             case .createDocument: return documents != nil
             case .sheetRead, .sheetWrite: return sheets != nil
             case .listFileHistory, .restoreFileVersion: return versions != nil
@@ -157,6 +162,8 @@ package struct NativeToolRunner: Sendable {
             return try await webFetch(arguments: arguments)
         case .webSearch:
             return await runWebSearch(arguments: arguments)
+        case .readURL:
+            return await runReadURL(arguments: arguments)
         case .createDocument:
             return await createDocument(arguments: arguments)
         case .sheetRead:
@@ -571,9 +578,10 @@ package struct NativeToolRunner: Sendable {
             // Title, url and snippet: enough to answer, and the url is what
             // lets the answer cite instead of assert.
             let lines = results.map { result in
-                "- \(result.title) — \(result.url)\n  \(result.snippet)"
+                "- \(WebText.clean(result.title)) — \(result.url)\n  \(WebText.clean(result.snippet))"
             }
-            return ToolResult(ok: true, output: lines.joined(separator: "\n"))
+            return ToolResult(
+                ok: true, output: ([WebText.framing] + lines).joined(separator: "\n"))
         } catch {
             return ToolResult(
                 ok: false, output: "Web search failed: \(error)")

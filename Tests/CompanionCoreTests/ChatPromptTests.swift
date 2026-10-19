@@ -148,6 +148,11 @@ import Testing
         webSearchEnabled: true, language: .es)
     expect(withWeb.contains("usa web_search"),
            "prompt: con busqueda configurada se usa web_search")
+    let withRead = ChatPrompt.system(
+        ownerFirstName: "Karen", delegateEnabled: true,
+        webSearchEnabled: true, webReadEnabled: true, language: .en)
+    expect(withRead.contains("read_url"),
+           "prompt: con lectura de paginas configurada se nombra read_url")
     expect(p.contains("Español, cálido, directo, 2 a 4 frases."),
            "prompt: delegar no se come la personalidad")
     expect(!p.contains("realtime"),

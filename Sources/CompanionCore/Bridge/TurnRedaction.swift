@@ -12,7 +12,7 @@ package enum TurnRedaction {
     /// only the bridge, so the reader is also told that values were hidden.
     package static let readingTools: Set<String> = [
         "look", "see", "read_focused", "browser_read", "read_file", "web_fetch",
-        "list_directory", "sheet_read", "web_search", "read_skill",
+        "list_directory", "sheet_read", "web_search", "read_url", "read_skill",
     ]
 
     /// Every tool output is masked (a click repeats a control's label; the

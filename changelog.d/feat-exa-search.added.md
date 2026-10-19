@@ -1,0 +1,1 @@
+- **Búsqueda web con Exa y lectura de páginas (2026-10-18).** Si pones una clave de Exa en Ajustes > Claves, Companion busca en la web con Exa y puede leer completas las 2-3 mejores páginas (`read_url`), con cifras y fechas tomadas del texto real. Sin clave de Exa sigue funcionando Brave como respaldo, y sin ninguna no se ofrece la búsqueda.

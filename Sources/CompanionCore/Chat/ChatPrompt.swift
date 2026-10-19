@@ -34,6 +34,7 @@ package enum ChatPrompt: Sendable {
         handsEnabled: Bool = false,
         sightEnabled: Bool = false,
         webSearchEnabled: Bool = false,
+        webReadEnabled: Bool = false,
         about: String = "",
         instructions: String = "",
         language: AppLanguage = .en,
@@ -59,7 +60,7 @@ package enum ChatPrompt: Sendable {
             if sightEnabled { prompt += " " + sightRule(language) }
         }
         if delegateEnabled {
-            prompt += " " + delegateRule(language, web: webSearchEnabled)
+            prompt += " " + delegateRule(language, web: webSearchEnabled, read: webReadEnabled)
         }
         // The chat layer paints cards too. It used to be the specialist's
         // privilege by accident — nobody decided it, the vocabulary simply
@@ -395,12 +396,14 @@ package enum ChatPrompt: Sendable {
     /// was what captured the intent. Without web_search the parent's browser
     /// is the route, not the specialist.
     private static func delegateRule(
-        _ language: AppLanguage, web: Bool
+        _ language: AppLanguage, web: Bool, read: Bool
     ) -> String {
         switch language {
         case .en:
             let search = (web
-                ? "To search the internet use web_search. "
+                ? (read
+                    ? "To search the internet use web_search, and read_url to read the 2-3 best results in full. "
+                    : "To search the internet use web_search. ")
                 : "To search the internet without web_search, open a search "
                     + "with browser_open and read it with browser_read. ")
                 + "For figures, read a page that shows them as text (a table of "
@@ -436,7 +439,9 @@ package enum ChatPrompt: Sendable {
                 + "plain about it; there is nothing to hide."
         case .es:
             let search = (web
-                ? "Para buscar en internet usa web_search. "
+                ? (read
+                    ? "Para buscar en internet usa web_search, y read_url para leer completos los 2-3 mejores resultados. "
+                    : "Para buscar en internet usa web_search. ")
                 : "Para buscar en internet sin web_search, abre una búsqueda "
                     + "con browser_open y léela con browser_read. ")
                 + "Para cifras, lee una página que las muestre como texto (una tabla "

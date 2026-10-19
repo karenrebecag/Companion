@@ -65,7 +65,7 @@ package struct ActionFacts: Sendable, Equatable {
 extension ActionBand {
     private static let reads: Set<String> = [
         "look", "see", "read_focused", "list_apps", "read_skill", "find_places",
-        "list_directory", "read_file", "web_search", "sheet_read",
+        "list_directory", "read_file", "web_search", "read_url", "sheet_read",
     ]
 
     /// Local, non-destructive hands. What makes one of them dangerous is the
