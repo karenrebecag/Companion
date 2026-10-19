@@ -7,7 +7,7 @@ import CompanionCoreTestSupport
 import CompanionTestKit
 
 // Wave 15b-4. Warm the voice at press: the closed set of fixed phrases and
-// the TLS connection to api.openai.com, both paid for while the mic is
+// the TLS connection to ElevenLabs, both paid for while the mic is
 // still opening — so a router order's ack can come from a warm socket
 // instead of a cold TLS handshake plus a cold fetch.
 
@@ -98,7 +98,7 @@ final class RecordingWarmSynth: SpeechSynthesizer, @unchecked Sendable {
     let synth = RecordingWarmSynth()
     let chat = ScriptedChat()
     var keys: [SecretKey: String] = [:]
-    if let key { keys[.openRouter] = key }
+    if let key { keys[.elevenLabs] = key }
     let secrets = ScriptedSecrets(keys)
     let thread = ScriptedThread()
     let provider = StaticConfigProvider(Config(ownerFirstName: "Karen", language: .en))
