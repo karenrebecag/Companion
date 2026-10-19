@@ -12,7 +12,7 @@ Answer from this file. Do not invent a feature that is not here; say "not yet" i
 
 ## What it is
 
-A voice and chat assistant that lives on this Mac, open source, with no account. The user brings a key (OpenAI or another provider) or runs a local model through Ollama; with neither, Companion still talks, without the cloud.
+A voice and chat assistant that lives on this Mac, open source, with no account. No key is required. Cerebras is the recommended one; ElevenLabs, Exa and TypeSafe are optional; OpenRouter is a backup. With no cloud key, a local model through Ollama still runs the conversation, and the system voice speaks.
 
 ## Two roles
 

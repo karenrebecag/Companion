@@ -46,9 +46,7 @@ extension TTSFetching {
     package func resolved() -> any TTSFetching { self }
 
     /// Default: the whole body as a single chunk, via `fetch` — correct for
-    /// every fake in the test suite that only implements `fetch`; only
-    /// `OpenAITTSClient` needs true streaming, so it is the only conformer
-    /// that overrides this.
+    /// every fake in the test suite that only implements `fetch`.
     package func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
         AsyncThrowingStream { continuation in
             Task {

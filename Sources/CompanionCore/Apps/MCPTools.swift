@@ -1,9 +1,8 @@
 import Foundation
 
-/// A remote MCP server attached to the realtime session (9j-3). OpenAI's
-/// server connects to it and EXECUTES its tools server-side — the client only
-/// declares the server and answers approvals. Remote HTTP only; local stdio
-/// servers are not reachable from OpenAI's side.
+/// A remote MCP server (9j-3). The remote side runs its own tools, so the
+/// client only declares the server and answers approvals. Remote HTTP only:
+/// local stdio servers cannot be reached from outside this Mac.
 package struct MCPServerConfig: Sendable, Equatable, Codable {
     package var label: String
     package var url: String

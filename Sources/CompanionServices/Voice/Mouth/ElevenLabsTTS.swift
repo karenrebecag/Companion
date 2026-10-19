@@ -2,7 +2,7 @@ import CompanionCore
 import Foundation
 
 /// Wave 15f-7a: the hold's mouth on ElevenLabs, behind the same port as
-/// OpenAI's so `SpeechSynthesis` never learns which one is speaking.
+/// the system voice so `SpeechSynthesis` never learns which one is speaking.
 ///
 /// Wire contract, verified 2026-09-25 against
 /// https://elevenlabs.io/docs/api-reference/text-to-speech/stream (the
@@ -34,7 +34,7 @@ package struct ElevenLabsTTSClient: TTSFetching, Sendable {
         self.voiceID = voiceID
     }
 
-    /// The OpenAI `VoiceID` is ignored on purpose: ElevenLabs speaks with
+    /// The `VoiceID` the port carries is ignored on purpose: ElevenLabs speaks with
     /// its own voice id, and that is what keys the audio apart.
     package func cacheVariant(voice: VoiceID) -> String {
         "elevenlabs/\(ElevenLabsMouth.model)/\(Self.trimmed(voiceID()))"
@@ -68,7 +68,7 @@ package struct ElevenLabsTTSClient: TTSFetching, Sendable {
         }
     }
 
-    /// Same reasoning as `OpenAITTSClient.warm`: a connection probe with no
+    /// A connection probe with no
     /// key and no body, so the handshake is paid at press without reading
     /// the Keychain. The unauthenticated answer is expected and ignored.
     package func warm() async {
