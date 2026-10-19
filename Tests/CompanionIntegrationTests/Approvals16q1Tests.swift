@@ -17,14 +17,6 @@ import CompanionTestKit
 // the click.
 
 @Test @MainActor func approvals16q1Tests() async {
-    await testAnMCPRequestReachesTheSheetAndWaitsForTheClick()
-    await testTheSheetsAllowSendsTheApproval()
-    await testTheSheetsDenySendsTheRefusal()
-    await testAnUnansweredMCPRequestDiesInTheAutoDeny()
-    await testWithoutAnApprovalsActorTheMCPRequestFailsClosed()
-    await testASpokenYesNeverApprovesAnMCPTool()
-    await testASpokenNoRefusesAnMCPTool()
-    await testStoppingTheVoiceDeniesThePendingMCPRequest()
     testTheMCPPromptSendsTheUserToTheCard()
     testTheOrbStopsTheVoiceWhileAJobRunsBehindIt()
     testTheJobCardsStopIsThatJobs()
@@ -58,114 +50,6 @@ private func wireApprovals(_ sent: [String]) -> [WireApproval] {
     }
 }
 
-private struct MCPRig {
-    let harness: VoiceHarness
-    let model: SessionModel
-    var approvals: [WireApproval] { wireApprovals(harness.transport.sent) }
-}
-
-@MainActor private func liveMCP(
-    timeout: TimeInterval = 60, withApprovals: Bool = true
-) async -> MCPRig {
-    let actor = Approvals(clock: RealtimeClock(), timeout: timeout)
-    let model = SessionModel(jobs: nil, approvals: withApprovals ? actor : nil)
-    let h = makeVoiceHarness(approvals: withApprovals ? actor : nil, session: model)
-    await h.session.start(preferRealtime: true)
-    await pumpUntil("mcp: escuchando") { h.watch.latest.state == .listening }
-    h.transport.yield(.mcpApprovalRequest(
-        id: "req9", server: "docs", tool: "search", argumentsJSON: #"{"q":"x"}"#))
-    return MCPRig(harness: h, model: model)
-}
-
-/// A request through the same stream: once on the sheet, earlier sends are done.
-@MainActor private func passedByABarrier(_ rig: MCPRig) async {
-    let before = rig.model.projection.approvalQueue.count
-    rig.harness.transport.yield(.mcpApprovalRequest(
-        id: "barrera", server: "docs", tool: "search", argumentsJSON: "{}"))
-    await pumpUntil("barrera: llega a la hoja") { rig.model.projection.approvalQueue.count == before + 1 }
-}
-
-@MainActor func testAnMCPRequestReachesTheSheetAndWaitsForTheClick() async {
-    let rig = await liveMCP()
-    await pumpUntil("mcp: la hoja tiene la peticion") {
-        rig.model.projection.approval?.requestId == "req9"
-    }
-    expectEq(rig.model.projection.approval?.toolName, "docs/search", "mcp: la hoja dice servidor/tool")
-    await passedByABarrier(rig)
-    expect(rig.approvals.isEmpty, "mcp: nada viaja al servidor antes del clic")
-    await rig.harness.session.hangUp()
-}
-
-@MainActor func testTheSheetsAllowSendsTheApproval() async {
-    let rig = await liveMCP()
-    await pumpUntil("mcp allow: en la hoja") { rig.model.projection.approval?.requestId == "req9" }
-    rig.model.send(.approvalAnswered(requestId: "req9", approved: true, remember: false))
-    await pumpUntil("mcp allow: viaja aprobada") { rig.approvals == [WireApproval(id: "req9", approve: true)] }
-    expect(rig.model.projection.approval == nil, "mcp allow: la hoja se vacia")
-    await rig.harness.session.hangUp()
-}
-
-@MainActor func testTheSheetsDenySendsTheRefusal() async {
-    let rig = await liveMCP()
-    await pumpUntil("mcp deny: en la hoja") { rig.model.projection.approval?.requestId == "req9" }
-    rig.model.send(.approvalAnswered(requestId: "req9", approved: false, remember: false))
-    await pumpUntil("mcp deny: viaja rechazada") { rig.approvals == [WireApproval(id: "req9", approve: false)] }
-    await rig.harness.session.hangUp()
-}
-
-/// The same actor as the parent's gates, so the same deadline.
-@MainActor func testAnUnansweredMCPRequestDiesInTheAutoDeny() async {
-    let rig = await liveMCP(timeout: 0.15)
-    await pumpUntil("mcp autoDeny: viaja rechazada") {
-        rig.approvals == [WireApproval(id: "req9", approve: false)]
-    }
-    await rig.harness.session.hangUp()
-}
-
-@MainActor func testWithoutAnApprovalsActorTheMCPRequestFailsClosed() async {
-    let rig = await liveMCP(withApprovals: false)
-    await pumpUntil("mcp sin actor: se rechaza sola") {
-        rig.approvals == [WireApproval(id: "req9", approve: false)]
-    }
-    await rig.harness.session.hangUp()
-}
-
-/// The invariant this whole item keeps: the model reports the yes, and a
-/// server's output can plant words in front of that model.
-@MainActor func testASpokenYesNeverApprovesAnMCPTool() async {
-    let rig = await liveMCP()
-    await pumpUntil("mcp si: en la hoja") { rig.model.projection.approval?.requestId == "req9" }
-    let answer = await rig.harness.session.answerPendingApproval(true)
-    expectEq(answer, .needsClick, "mcp si: el si hablado pide el clic")
-    await passedByABarrier(rig)
-    expect(rig.approvals.isEmpty, "mcp si: nada viaja al servidor")
-    expectEq(rig.model.projection.approval?.requestId, "req9", "mcp si: la hoja sigue esperando")
-    await rig.harness.session.hangUp()
-}
-
-@MainActor func testASpokenNoRefusesAnMCPTool() async {
-    let rig = await liveMCP()
-    await pumpUntil("mcp no: en la hoja") { rig.model.projection.approval?.requestId == "req9" }
-    let answer = await rig.harness.session.answerPendingApproval(false)
-    expectEq(answer, .resolved, "mcp no: el no hablado se resuelve sin clic")
-    await pumpUntil("mcp no: viaja rechazada") { rig.approvals == [WireApproval(id: "req9", approve: false)] }
-    await pumpUntil("mcp no: la hoja se vacia") { rig.model.projection.approval == nil }
-    await rig.harness.session.hangUp()
-}
-
-/// The voice brake refuses what the voice turn was waiting on.
-@MainActor func testStoppingTheVoiceDeniesThePendingMCPRequest() async {
-    let rig = await liveMCP()
-    await pumpUntil("mcp stop: en la hoja") { rig.model.projection.approval?.requestId == "req9" }
-    rig.model.send(.voice(TurnSnapshot(state: .thinking, pipeline: .realtime)))
-    rig.model.send(.stopVoice)
-    await pumpUntil("mcp stop: viaja rechazada") { rig.approvals == [WireApproval(id: "req9", approve: false)] }
-    expect(rig.model.projection.approval == nil, "mcp stop: la hoja se vacia")
-    await rig.harness.session.hangUp()
-}
-
-/// The model says one short sentence; the card carries the detail and the
-/// yes is the click's, not a call the model makes.
 func testTheMCPPromptSendsTheUserToTheCard() {
     let en = MCPServerConfig.approvalPrompt(server: "docs", tool: "search", .en)
     let es = MCPServerConfig.approvalPrompt(server: "docs", tool: "search", .es)

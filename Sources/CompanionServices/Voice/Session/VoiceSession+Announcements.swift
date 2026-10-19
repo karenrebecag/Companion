@@ -27,17 +27,12 @@ struct HeardInHold: Sendable {
 /// Not `private`, but still actor-isolated by the actor itself.
 extension VoiceSession {
     func jobAnnounce(_ announcement: JobAnnouncement) async {
-        if machine.snapshot.pipeline == .realtime {
-            pendingAnnouncements.append(announcement.instruction)
-            await flushAnnouncements()
-            return
-        }
         guard !voiceClosed else { return drop(1, reason: "voice-closed") }
         // The job ran in the background while the voice went on; its end
         // waits for a gap instead of talking over the user or cutting a
         // reply. A hold's own rest is such a gap.
         parkedAnnouncements.append(ParkedAnnouncement(announcement: announcement, parkedAt: now()))
-        await flushAnnouncements()
+        flushParkedAnnouncement()
         publishAnnouncing()
     }
 
@@ -63,7 +58,7 @@ extension VoiceSession {
             return livePendingApproval?.requestId != id
         }
         if parkedAnnouncements.count < asked { drop(asked - parkedAnnouncements.count, reason: "answered") }
-        guard !parkedAnnouncements.isEmpty, machine.snapshot.pipeline != .realtime,
+        guard !parkedAnnouncements.isEmpty,
               AnnouncementGap.isOpen(machine.snapshot), !announcementUnlogged
         else { return }
         let next = parkedAnnouncements.removeFirst()

@@ -9,7 +9,6 @@ import Testing
 
 package struct VoiceHarness {
     package let session: VoiceSession
-    package let transport: ScriptedVoiceTransport
     package let mic: ScriptedMic
     package let player: ScriptedPlayer
     package let transcriber: ScriptedTranscriber
@@ -27,31 +26,13 @@ private struct ScriptedReachability: ReachabilityProbing {
     var isOnline: Bool { get async { online } }
 }
 
-/// The scripted transport delivers its ready events or never does, so the
-/// handshake budget has nothing to measure here except how starved the test
-/// process is. A 1 s budget made a loaded `gates.sh` fall back to classic
-/// mid-start (`.listening + .realtime` never came). Tests of the timeout
-/// itself pass their own small value.
-///
-/// Trap: a harness with empty `autoEvents` never gets ready, so with this
-/// default `session.start(preferRealtime: true)` blocks for 10 minutes. Whoever expects the
-/// timeout must pass an explicit small `readyTimeout`.
-package let harnessReadyTimeout: TimeInterval = 600
-
 @MainActor
 package func makeVoiceHarness(
     key: String? = "sk-test",
-    // Empty means never ready: pair it with an explicit small `readyTimeout`
-    // if the test expects the handshake to give up (see `harnessReadyTimeout`).
-    autoEvents: [RealtimeEvent] = [.sessionCreated, .sessionUpdated],
-    readyTimeout: TimeInterval = harnessReadyTimeout,
     aec: Bool = false,
     online: Bool = true,
-    micSilenceTimeout: TimeInterval = 10,
-    echoFreeOutput: Bool = false,
     jobs: (any JobSubmitter)? = nil,
     language: AppLanguage = .en,
-    realtimeEar: (any Transcriber)? = nil,
     parentTools: (any ParentToolExecuting)? = nil,
     onJobEvent: (@Sendable (JobEvent) -> Void)? = nil,
     sensor: (any ContextSensing)? = nil,
@@ -66,11 +47,8 @@ package func makeVoiceHarness(
     // tail's own tests pass it explicitly.
     releaseTail: TimeInterval = 0,
     screen: (any ScreenSeeing)? = nil,
-    debugTranscripts: Bool = false,
-    turnDetection: TurnDetection = .serverVAD(silenceMs: 700)
+    debugTranscripts: Bool = false
 ) -> VoiceHarness {
-    let transport = ScriptedVoiceTransport()
-    transport.autoEvents = autoEvents
     let mic = ScriptedMic()
     mic.hasEchoCancellation = aec
     let player = ScriptedPlayer()
@@ -83,10 +61,9 @@ package func makeVoiceHarness(
     let thread = ScriptedThread()
     let clock = TestClock()
     let provider = StaticConfigProvider(
-        Config(voice: VoiceSettings(turnDetection: turnDetection, mode: voiceMode), ownerFirstName: "Karen", language: language,
+        Config(voice: VoiceSettings(mode: voiceMode), ownerFirstName: "Karen", language: language,
                debugTranscripts: debugTranscripts))
     let session = VoiceSession(
-        transport: transport,
         mic: mic,
         player: player,
         transcriber: transcriber,
@@ -96,7 +73,6 @@ package func makeVoiceHarness(
         thread: thread,
         configProvider: provider,
         jobs: jobs,
-        realtimeEar: realtimeEar,
         memoryStore: memoryStore,
         parentTools: parentTools,
         sensor: sensor,
@@ -105,11 +81,8 @@ package func makeVoiceHarness(
         injector: injector,
         screen: screen,
         reachability: ScriptedReachability(online),
-        echoFreeProbe: { echoFreeOutput },
-        micSilenceTimeout: micSilenceTimeout,
         releaseTail: releaseTail,
-        now: { clock.now },
-        readyTimeout: readyTimeout)
+        now: { clock.now })
     let watch = SnapWatch(session.snapshots)
     if onJobEvent != nil || sessionModel != nil {
         // Wave 12a: the closure became a stream; the harness keeps its shape.
@@ -124,7 +97,7 @@ package func makeVoiceHarness(
         }
     }
     return VoiceHarness(
-        session: session, transport: transport, mic: mic, player: player,
+        session: session, mic: mic, player: player,
         transcriber: transcriber, thread: thread, clock: clock, watch: watch,
         synth: synth, chat: chat, secrets: secrets)
 }
@@ -161,160 +134,6 @@ package final class SnapWatch: @unchecked Sendable {
         lock.lock()
         latestValue = snap
         lock.unlock()
-    }
-}
-
-package final class ScriptedVoiceTransport: VoiceTransport, @unchecked Sendable {
-    package init() {}
-
-    private struct State {
-        var key: String?, url: URL?, sent: [String] = [], closed = false
-        var openError: VoiceTransportError?
-        var autoEvents: [RealtimeEvent] = []
-        var openCount = 0
-        var box = StreamBox<RealtimeEvent>()
-        var streamEnded = false
-        var holdNextOpen = false
-        var openWaiter: CheckedContinuation<Void, Never>?
-        var openEntered = false
-        var sendFails = false
-        var sendAttempts = 0
-        var holdSendMatching: (@Sendable (String) -> Bool)?
-        var sendWaiter: CheckedContinuation<Void, Never>?
-        var sendHeld = false
-        var closeCount = 0
-        var openReturned = 0
-    }
-    private let state = LockedBox(State())
-
-    package var key: String? { state.withLock { $0.key } }
-    package var url: URL? { state.withLock { $0.url } }
-    package var sent: [String] { state.withLock { $0.sent } }
-    package var closed: Bool { state.withLock { $0.closed } }
-    package var closeCount: Int { state.withLock { $0.closeCount } }
-    /// Opens that have come back, by success or by throw: the signal that a
-    /// reconnect held in `open` has resumed and is about to act.
-    package var openReturned: Int { state.withLock { $0.openReturned } }
-    /// Every `send` that reached the transport, failed or not: what a
-    /// paused runtime must stop producing.
-    package var sendAttempts: Int { state.withLock { $0.sendAttempts } }
-    package var sendFails: Bool {
-        get { state.withLock { $0.sendFails } }
-        set { state.withLock { $0.sendFails = newValue } }
-    }
-    /// The next `open` suspends after counting itself until `releaseOpen()`,
-    /// so a test can act while a reconnect is half-way through.
-    package var holdNextOpen: Bool {
-        get { state.withLock { $0.holdNextOpen } }
-        set { state.withLock { $0.holdNextOpen = newValue } }
-    }
-    package var openEntered: Bool { state.withLock { $0.openEntered } }
-    package func releaseOpen() {
-        let waiter = state.withLock { s -> CheckedContinuation<Void, Never>? in
-            defer { s.openWaiter = nil }
-            return s.openWaiter
-        }
-        waiter?.resume()
-    }
-    package var openCount: Int { state.withLock { $0.openCount } }
-    package var openError: VoiceTransportError? {
-        get { state.withLock { $0.openError } }
-        set { state.withLock { $0.openError = newValue } }
-    }
-    package var autoEvents: [RealtimeEvent] {
-        get { state.withLock { $0.autoEvents } }
-        set { state.withLock { $0.autoEvents = newValue } }
-    }
-
-    package func open(key: String, url: URL) async throws {
-        defer { state.withLock { $0.openReturned += 1 } }
-        // A fresh stream per open once the last one ended, like the real
-        // EventPipe: reusing a finished one would drop the new connection's
-        // events and hide a pump that never restarted.
-        let (events, box, hold): ([RealtimeEvent], StreamBox<RealtimeEvent>, Bool) = try state.withLock { s in
-            if let error = s.openError { throw error }
-            s.openCount += 1
-            (s.key, s.url) = (key, url)
-            if s.streamEnded {
-                s.box = StreamBox()
-                s.streamEnded = false
-            }
-            defer { s.holdNextOpen = false }
-            return (s.autoEvents, s.box, s.holdNextOpen)
-        }
-        if hold {
-            await withCheckedContinuation { waiter in
-                state.withLock { s in
-                    s.openWaiter = waiter
-                    s.openEntered = true
-                }
-            }
-        }
-        for event in events { box.yield(event) }
-    }
-
-    /// The first frame matching `predicate` suspends before it lands in
-    /// `sent` until `releaseSend()`, so a test can let a later frame overtake
-    /// it: the crossing the scheduler only produces sometimes.
-    package func holdSend(matching predicate: @escaping @Sendable (String) -> Bool) {
-        state.withLock { $0.holdSendMatching = predicate }
-    }
-    package var sendHeld: Bool { state.withLock { $0.sendHeld } }
-    package func releaseSend() {
-        let waiter = state.withLock { s -> CheckedContinuation<Void, Never>? in
-            defer { s.sendWaiter = nil }
-            return s.sendWaiter
-        }
-        waiter?.resume()
-    }
-
-    package func send(_ json: String) async throws {
-        let hold = try state.withLock { s -> Bool in
-            s.sendAttempts += 1
-            if s.sendFails { throw VoiceTransportError.unreachable }
-            guard let matches = s.holdSendMatching, matches(json) else {
-                s.sent.append(json)
-                return false
-            }
-            s.holdSendMatching = nil
-            return true
-        }
-        guard hold else { return }
-        await withCheckedContinuation { waiter in
-            state.withLock { s in
-                s.sendWaiter = waiter
-                s.sendHeld = true
-            }
-        }
-        state.withLock { $0.sent.append(json) }
-    }
-    package func events() -> AsyncStream<RealtimeEvent> { state.withLock { $0.box.stream } }
-    package func close() async {
-        state.withLock { s in
-            s.closed = true
-            s.closeCount += 1
-        }
-    }
-    package func yield(_ event: RealtimeEvent) { state.withLock { $0.box }.yield(event) }
-
-    /// Simulate transport pump receiving an error and failing.
-    package func simulateReceiveFailure() async {
-        await Task.yield()
-        endStream()
-    }
-
-    /// Simulate stream ending without explicit close (abrupt termination).
-    package func simulateStreamEnd() async {
-        await Task.yield()
-        endStream()
-    }
-
-    private func endStream() {
-        let box = state.withLock { s in
-            s.streamEnded = true
-            return s.box
-        }
-        box.finish()
     }
 }
 
@@ -550,29 +369,6 @@ package final class ScriptedTranscriber: Transcriber, @unchecked Sendable {
         stoppedText = text
         box.yield(text)
     }
-}
-
-/// A segmenting ear (9j-1): the server's VAD decides the turns and hands
-/// each finished utterance as final text.
-package final class ScriptedSegmentingEar: SegmentingTranscriber, @unchecked Sendable {
-    package init() {}
-
-    package var authorized = true, locale = "", started = false, stoppedText = ""
-    package var isAuthorized: Bool { authorized }
-    private let box = StreamBox<String>()
-    private let turns = StreamBox<EarTurnEvent>()
-    package var partials: AsyncStream<String> { box.stream }
-    package var turnEvents: AsyncStream<EarTurnEvent> { turns.stream }
-    package var currentText: String { stoppedText }
-
-    package func requestAuthorization() async -> Bool { authorized }
-    package func start(localeIdentifier: String) async throws {
-        locale = localeIdentifier
-        started = true
-    }
-    package func append(_ frame: MicFrame) async {}
-    package func stop() async -> String { stoppedText }
-    package func yieldTurn(_ event: EarTurnEvent) { turns.yield(event) }
 }
 
 package final class ScriptedSynth: SpeechSynthesizer, @unchecked Sendable {

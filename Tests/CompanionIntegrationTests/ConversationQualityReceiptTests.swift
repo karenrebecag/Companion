@@ -413,20 +413,6 @@ private final class OpenTools: ParentToolExecuting, @unchecked Sendable {
 
 // MARK: - QA: the limits of the receipt, pinned
 
-@Test @MainActor func testRealtimeToolsThatSucceedLeaveNoReceiptAcceptedLimitation() async {
-    let h = makeVoiceHarness(parentTools: ParentToolRunner(workspace: FakeWorkspaceOpener()))
-    let seen = SessionEventBox(h.session.events)
-    await h.session.start(preferRealtime: true)
-    await pumpUntil("realtime: listening") { h.watch.latest.state == .listening }
-    h.transport.yield(.functionCall(name: "open_app", arguments: #"{"name":"Safari"}"#, callId: "c1"))
-    await pumpUntil("realtime: la herramienta corrió") { seen.events.contains { $0 == .parentActed } }
-    await pumpUntil("realtime: y el servidor recibió su salida") {
-        h.transport.sent.contains { $0.contains("function_call_output") && $0.contains("c1") }
-    }
-    let receipts = seen.events.filter { if case .receipt = $0 { true } else { false } }
-    expectEq(receipts.count, 0, "realtime: limitación aceptada, una herramienta ok no emite recibo (lo acusa la voz)")
-}
-
 private final class TypingTools: ParentToolExecuting, @unchecked Sendable {
     func specs(_ language: AppLanguage) -> [ToolSpec] { [] }
     func handles(_ name: String) -> Bool { true }

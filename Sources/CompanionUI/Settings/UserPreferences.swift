@@ -217,9 +217,6 @@ package enum VoiceProfile {
     nonisolated private static let voiceKey = "companion.voice"
     nonisolated private static let speedKey = "companion.voice.speed"
     nonisolated private static let volumeKey = "companion.voice.volume"
-    nonisolated private static let turnDetectionTypeKey = "companion.voice.turnDetectionType"
-    nonisolated private static let turnDetectionMsKey = "companion.voice.turnDetectionMs"
-    nonisolated private static let turnDetectionEagernessKey = "companion.voice.turnDetectionEagerness"
     nonisolated private static let toneKey = "companion.voice.tone"
     nonisolated private static let echoCancellationKey = "companion.voice.echoCancellation"
     nonisolated private static let modeKey = "companion.voice.mode"
@@ -253,24 +250,10 @@ package enum VoiceProfile {
             let dictationKey = UserDefaults.standard.string(forKey: dictationKeyKey)
                 .flatMap(DictationKey.init(rawValue:)) ?? .rightOption
 
-            let turnDetection: TurnDetection
-            let detectionType = UserDefaults.standard.string(
-                forKey: turnDetectionTypeKey) ?? "serverVAD"
-            if detectionType == "semanticVAD" {
-                let eagernessRaw = UserDefaults.standard.string(
-                    forKey: turnDetectionEagernessKey) ?? "auto"
-                let eagerness = Eagerness(rawValue: eagernessRaw) ?? .auto
-                turnDetection = .semanticVAD(eagerness: eagerness)
-            } else {
-                let ms = Int(UserDefaults.standard.double(forKey: turnDetectionMsKey))
-                turnDetection = .serverVAD(silenceMs: ms > 0 ? ms : 700)
-            }
-
             return VoiceSettings(
                 voice: voice,
                 speed: speed > 0 ? speed : 1.0,
                 volume: volume > 0 ? volume : 1.0,
-                turnDetection: turnDetection,
                 tone: tone,
                 echoCancellation: aec,
                 mode: mode,
@@ -291,11 +274,6 @@ package enum VoiceProfile {
             UserDefaults.standard.set(newValue.mode.rawValue, forKey: modeKey)
             UserDefaults.standard.set(newValue.dictationKey.rawValue, forKey: dictationKeyKey)
 
-            let (detType, ms, eagerness) = turnDetectionComponents(newValue.turnDetection)
-            UserDefaults.standard.set(detType, forKey: turnDetectionTypeKey)
-            if let ms { UserDefaults.standard.set(ms, forKey: turnDetectionMsKey) }
-            if let eagerness { UserDefaults.standard.set(eagerness, forKey: turnDetectionEagernessKey) }
-
             if previousDictationKey != newValue.dictationKey {
                 NotificationCenter.default.post(
                     name: .companionDictationKeyDidChange, object: nil)
@@ -303,16 +281,6 @@ package enum VoiceProfile {
         }
     }
 
-    nonisolated private static func turnDetectionComponents(
-        _ detection: TurnDetection
-    ) -> (type: String, ms: Int?, eagerness: String?) {
-        switch detection {
-        case .serverVAD(let silenceMs):
-            return ("serverVAD", silenceMs, nil)
-        case .semanticVAD(let eagerness):
-            return ("semanticVAD", nil, eagerness.rawValue)
-        }
-    }
 }
 
 package extension VoiceID {

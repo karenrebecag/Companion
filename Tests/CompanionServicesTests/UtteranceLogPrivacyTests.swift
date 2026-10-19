@@ -12,7 +12,6 @@ import CompanionTestKit
 // already follows ("first words N chars", AnalyzerTranscriberTests).
 
 @Test @MainActor func utteranceLogPrivacyTests() async {
-    await testRealtimeTurnLogsACountNotTheWords()
     await testTheEarGoalAndTheAuditLineLogCountsNotTheWords()
 }
 
@@ -26,19 +25,6 @@ private func logText(_ url: URL) -> String {
         return try String(contentsOf: url, encoding: .utf8)
     } catch {
         return ""
-    }
-}
-
-@MainActor func testRealtimeTurnLogsACountNotTheWords() async {
-    let url = privacyLogURL()
-    await Log.capturing(to: url) {
-        let runtime = RealtimeRuntime(
-            transport: ScriptedVoiceTransport(), player: ScriptedPlayer(), thread: ScriptedThread())
-        let said = "abre el banco turquesa-\(UUID().uuidString.prefix(6))"
-        await runtime.commitWithText(said)
-        let text = logText(url)
-        expect(!text.contains("turquesa"), "log: el turno realtime nunca escribe lo dicho")
-        expect(text.contains("\(said.count) chars"), "log: sí deja cuántos caracteres")
     }
 }
 

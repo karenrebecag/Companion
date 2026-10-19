@@ -7,17 +7,6 @@ import Foundation
 /// actor-isolated: the actor, not the access level, is what keeps this
 /// state single-threaded.
 extension VoiceSession {
-    func flushAnnouncements() async {
-        flushParkedAnnouncement()
-        guard machine.snapshot.pipeline == .realtime,
-              machine.snapshot.state == .listening,
-              !pendingAnnouncements.isEmpty else { return }
-        let text = pendingAnnouncements.removeFirst()
-        await realtime.send(RealtimeCodec.systemItem(text))
-        // An announcement never talks over anyone: it waits its turn.
-        await realtime.requestResponse()
-    }
-
     func apply(_ event: TurnEvent) async {
         let before = machine.snapshot.state
         switch event {
@@ -43,14 +32,12 @@ extension VoiceSession {
             voiceClosed = true
             await silenceAnnouncements(reason: "error")
         }
-        await flushAnnouncements()
+        flushParkedAnnouncement()
     }
 
     private func perform(_ effects: [TurnEffect]) async {
         for effect in effects {
             switch effect {
-            case .openRealtimeSession:
-                await openRealtimeSession()
             case .requestClassicListen:
                 startPumps()
                 await classic.requestListen(
@@ -58,8 +45,6 @@ extension VoiceSession {
                 ) { event in
                     await self.apply(event)
                 }
-            case .closeRealtime:
-                await closeRealtime()
             case .stopClassicIO:
                 // Every stop of ours ends a notice too: a stopped synthesizer
                 // never reports `.finished`, and the lock would stay (S1).
@@ -68,23 +53,12 @@ extension VoiceSession {
             case .submitUtterance:
                 startClassicTurn(config: configProvider.current)
             case .cancelAgentOutput(let steer):
-                // Realtime has no steer note to leave or withhold.
-                if machine.snapshot.pipeline == .realtime {
-                    await realtime.cancelAgent()
-                } else {
-                    await cancelClassicTurn(steer: steer)
-                }
-            case .commitAndRespond:
-                // Muting mid-utterance: there is no audio buffer to commit any
-                // more — closing the turn from the native transcript IS the
-                // commit (Wave 9i).
-                await commitTurnFromNative()
-            case .commitWithText:
-                await commitTurnFromNative()
-            case .clearInputAudio:
-                await realtime.clearInputAudio()
-            case .setMicEnabled(let on):
-                realtime.micEnabled = on
+                await cancelClassicTurn(steer: steer)
+            // Only the realtime lane emits these (closeMic, openMic, the
+            // native commit); no door reaches it any more.
+            case .openRealtimeSession, .closeRealtime, .commitAndRespond,
+                 .commitWithText, .clearInputAudio, .setMicEnabled:
+                continue
             case .beginSpeechStream:
                 await synthesizer.begin()
             case .finishSpeechStream:

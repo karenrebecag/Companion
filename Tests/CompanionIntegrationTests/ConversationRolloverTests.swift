@@ -30,7 +30,6 @@ import CompanionTestKit
     await testNewConversationManualIgnoresGuards()
 
     // VoiceSession: the seed reorder (555 <-> 556-558).
-    await testHandsFreeAfterExpiryStillWritesMemory()
 }
 
 // MARK: - 1-6: ConversationRollover.shouldRollover, pure
@@ -341,67 +340,9 @@ import CompanionTestKit
 
 // MARK: - 15: the realtime seed after an expired thread
 
-@MainActor func testHandsFreeAfterExpiryStillWritesMemory() async {
-    let clock = RolloverClock(Date(timeIntervalSince1970: 1_800_000_000))
-    let vm = rolloverPrimed(clock: clock)
-    await vm.appendUser("previous turn")
-    clock.advance(by: 360)
-
-    let memory = RecordingMemoryStore()
-    let h = makeRolloverVoiceHarness(thread: vm, memoryStore: memory)
-    h.transcriber.stoppedText = "hola"
-    await h.session.start(preferRealtime: true)
-    await pumpUntil("rollover15: listening") { h.watch.latest.state == .listening }
-    expect(vm.messages.isEmpty, "rollover15: abrir la sesión ya archivó el hilo caducado")
-
-    h.transport.yield(.speechStarted)
-    await pumpUntil("rollover15: speechOpen") { h.watch.latest.speechOpen }
-    let before = h.transport.sent.count
-    await h.session.toggleMute()
-    await pumpUntil("rollover15: texto nativo enviado") {
-        hasMessage(Array(h.transport.sent.dropFirst(before)), type: "conversation.item.create")
-    }
-    h.transport.yield(.responseCreated)
-    h.transport.yield(.assistantTranscriptDelta("hola"))
-    h.transport.yield(.assistantTranscriptDone("hola de vuelta"))
-    await pumpUntil("rollover15: la respuesta llega al hilo nuevo") {
-        vm.messages.map(\.text).contains("hola de vuelta")
-    }
-
-    await h.session.hangUp()
-    await pumpUntil("rollover15: la nota de sesión se escribe") { !memory.sessions.isEmpty }
-    let note = memory.sessions.joined()
-    expect(note.contains("hola"),
-           "rollover15: la nota cubre el intercambio de ESTA sesión, no el hilo caducado")
-}
-
 private struct AlwaysOnline: ReachabilityProbing {
     var isOnline: Bool { get async { true } }
 }
-
-@MainActor func makeRolloverVoiceHarness(
-    thread: ChatViewModel, memoryStore: any MemoryStore
-) -> (session: VoiceSession, transport: ScriptedVoiceTransport, watch: SnapWatch,
-      transcriber: ScriptedTranscriber) {
-    let transport = ScriptedVoiceTransport()
-    transport.autoEvents = [.sessionCreated, .sessionUpdated]
-    let mic = ScriptedMic()
-    let player = ScriptedPlayer()
-    let transcriber = ScriptedTranscriber()
-    let synth = ScriptedSynth()
-    let chat = ScriptedChat()
-    let secrets = ScriptedSecrets([.openAI: "sk-test"])
-    let provider = StaticConfigProvider(.default)
-    let session = VoiceSession(
-        transport: transport, mic: mic, player: player, transcriber: transcriber,
-        synthesizer: synth, chat: chat, secrets: secrets, thread: thread,
-        configProvider: provider, memoryStore: memoryStore,
-        reachability: AlwaysOnline(), readyTimeout: harnessReadyTimeout)
-    let watch = SnapWatch(session.snapshots)
-    return (session, transport, watch, transcriber)
-}
-
-// MARK: - Store helpers (fail loud instead of force-try, matching the suite)
 
 @MainActor func listOrFail(_ store: MemoryConversationStore, _ label: String) -> [ConversationMeta] {
     do { return try store.list() } catch {
