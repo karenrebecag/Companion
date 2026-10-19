@@ -334,6 +334,34 @@ package struct DecisionSettings: Sendable, Equatable {
     package static let `default` = DecisionSettings()
 }
 
+/// The coverage judge (before the sheets of one model step). On unless
+/// `COMPANION_ACTION_JUDGE` says off: an app launched from /Applications reads
+/// no shell variables, so the switch has to live where the app can read it.
+package struct ActionJudgeSettings: Sendable, Equatable {
+    package static let defaultMaxCandidates = 8
+
+    package var enabled: Bool
+    /// The whole budget for one judgement, one attempt. A judge slower than a
+    /// person waiting on a sheet is no help: past it the sheets stay.
+    package var timeout: TimeInterval
+    package var maxCandidates: Int
+
+    package init(enabled: Bool = true, timeout: TimeInterval = 4,
+                 maxCandidates: Int = ActionJudgeSettings.defaultMaxCandidates) {
+        self.enabled = enabled
+        self.timeout = timeout
+        self.maxCandidates = maxCandidates
+    }
+
+    package init(environment: [String: String]) {
+        let value = (environment["COMPANION_ACTION_JUDGE"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        self.init(enabled: !["off", "0", "false"].contains(value))
+    }
+
+    package static let `default` = ActionJudgeSettings()
+}
+
 /// Port for reading the current configuration at runtime.
 /// Implementations read from persistent storage (UserPreferences) and
 /// construct the effective Config, allowing voice session preferences to
@@ -372,6 +400,8 @@ package struct Config: Sendable, Equatable {
     package var contextBudget: Duration
     /// DM1c-2: the local router in front of the classic hold. Off by default.
     package var decision: DecisionSettings
+    /// The coverage judge: lowers confirm sheets for one model step at a time.
+    package var judge: ActionJudgeSettings
     package var debugTranscripts: Bool
     /// Wave 15f-7a: the ElevenLabs voice the hold speaks with. Empty means
     /// none chosen, and the mouth stays OpenAI's even with the key saved.
@@ -393,6 +423,7 @@ package struct Config: Sendable, Equatable {
         contextChannels: ContextChannels = .default,
         contextBudget: Duration = .milliseconds(150),
         decision: DecisionSettings = DecisionSettings(),
+        judge: ActionJudgeSettings = ActionJudgeSettings(environment: ProcessInfo.processInfo.environment),
         debugTranscripts: Bool = Config.debugTranscriptsEnabled(),
         elevenLabsVoiceID: String = Config.defaultElevenLabsVoiceID
     ) {
@@ -411,6 +442,7 @@ package struct Config: Sendable, Equatable {
         self.contextChannels = contextChannels
         self.contextBudget = contextBudget
         self.decision = decision
+        self.judge = judge
         self.debugTranscripts = debugTranscripts
         self.elevenLabsVoiceID = elevenLabsVoiceID
     }

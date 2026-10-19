@@ -345,6 +345,12 @@ package protocol ParentToolExecuting: Sendable {
     /// the runner has looked at the target and it only adds: no sheet, no
     /// ticket. Async because it reads the open workbook.
     func actsWithoutSheet(_ call: ToolCallRef) async -> Bool
+    /// The band a sheet for this call is judged by. Only `.confirm` can be
+    /// taken off a sheet by the judge; `.critical` never can.
+    func band(for call: ToolCallRef) async -> ActionBand
+    /// Whether this turn has put the user's data in front of the model: a
+    /// standing "siempre" never settles a sheet in such a turn.
+    func turnIsTainted() -> Bool
     /// The gate reports a yes, from the sheet or the session's memory. A
     /// runner that must not act unapproved (a terminal) acts only after it.
     func granted(_ request: ApprovalRequest)
@@ -378,6 +384,8 @@ extension ParentToolExecuting {
     package func bound(_ request: ApprovalRequest) async -> ApprovalRequest { request }
 
     package func actsWithoutSheet(_ call: ToolCallRef) async -> Bool { false }
+    package func band(for call: ToolCallRef) async -> ActionBand { .critical }
+    package func turnIsTainted() -> Bool { false }
 
     package func granted(_ request: ApprovalRequest) {}
 

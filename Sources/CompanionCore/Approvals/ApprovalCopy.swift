@@ -25,6 +25,9 @@ package struct ApprovalDisplay: Sendable, Equatable {
     /// the sheet bounds it with a scroll, not with an ellipsis.
     package var preview: String?
     package var showsRemember: Bool
+    /// The host "always allow" would keep for this request, so the toggle can
+    /// say where its yes stops. nil for a request that has no such host.
+    package var alwaysHost: String? = nil
 
     /// The whole phrase, for accessibility and tests.
     package var title: String {
@@ -39,6 +42,15 @@ package enum ApprovalCopy {
     private static let interesting = ["command", "path", "url", "query", "content", "goal"]
 
     package static func display(for request: ApprovalRequest, language: AppLanguage) -> ApprovalDisplay {
+        if !request.members.isEmpty { return ApprovalBatch.display(request.members, language: language) }
+        var display = single(for: request, language: language)
+        if display.showsRemember, let rule = AlwaysAllowRule.from(request) {
+            display.alwaysHost = rule.host
+        }
+        return display
+    }
+
+    private static func single(for request: ApprovalRequest, language: AppLanguage) -> ApprovalDisplay {
         let arguments = ToolArguments.parse(request.inputJSON) ?? [:]
         if request.isMCP { return mcpTool(request, language) }
         if request.toolName == BridgePolicy.sessionApprovalTool {
