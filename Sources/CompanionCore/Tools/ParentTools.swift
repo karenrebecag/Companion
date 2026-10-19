@@ -191,7 +191,8 @@ package enum ParentTool: String, CaseIterable, Sendable, Equatable {
             return ToolSpec(
                 name: rawValue,
                 description: "Open an http or https URL in the user's "
-                    + "default browser.",
+                    + "default browser, only when she asked to see that page. "
+                    + "To read what a page says, use read_url or web_fetch instead.",
                 properties: [ToolProperty(
                     name: "url", type: "string",
                     description: "full URL, http or https")],
@@ -200,7 +201,8 @@ package enum ParentTool: String, CaseIterable, Sendable, Equatable {
             return ToolSpec(
                 name: rawValue,
                 description: "Abre una URL http o https en el navegador "
-                    + "predeterminado de la usuaria.",
+                    + "predeterminado de la usuaria, solo cuando pidió ver esa "
+                    + "página. Para leer lo que dice una página usa read_url o web_fetch.",
                 properties: [ToolProperty(
                     name: "url", type: "string",
                     description: "URL completa, http o https")],
