@@ -1,0 +1,1 @@
+- **Tras un mapa, el chat responde con todos los lugares (2026-10-19).** La última frase del asistente era "Se mostró un mapa con: X", y la respuesta repetía solo ese nombre. Ahora esa memoria lista cada lugar con su dirección, sin coordenadas.
