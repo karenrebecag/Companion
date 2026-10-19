@@ -150,7 +150,7 @@ private final class ObservationState: @unchecked Sendable {
         switch notification {
         case .windowCreated:
             AXUIElementSetMessagingTimeout(element, messagingTimeout)
-            let dialog = AXScreen.dialogSubroles.contains(AXRead.string(kAXSubroleAttribute, of: element))
+            let dialog = ScreenRoles.dialogSubroles.contains(AXRead.string(kAXSubroleAttribute, of: element))
                 || AXRead.string(kAXRoleAttribute, of: element) == kAXSheetRole
             return AXChange(
                 kind: notification.kind(isDialog: dialog),

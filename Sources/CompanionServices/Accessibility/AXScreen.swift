@@ -9,15 +9,9 @@ import Foundation
 /// to the process. Keeps the handles of its latest walk only: an id from an
 /// older walk is stale, never guessed.
 package final class AXScreen: ScreenActing, FrontWindowReading, @unchecked Sendable {
-    /// A web page can have thousands of nodes; the walk stops on time or
-    /// count and the scan says it is partial.
-    static let budget: Duration = .milliseconds(600)
-    static let maxVisited = 2_500
-    static let maxCollected = 400
+    /// A web page can have thousands of nodes; the walk stops on its budget
+    /// and the scan says it is partial.
     static let messagingTimeout: Float = 0.25
-    /// How far below an unlabeled button or link its caption may sit.
-    static let captionDepth = 3
-    static let dialogSubroles: Set<String> = ["AXDialog", "AXSystemDialog", "AXFloatingWindow"]
     /// Chromium browsers build their web tree only for a client that sets
     /// AXEnhancedUserInterface; Electron apps want AXManualAccessibility.
     /// Incredible's helper "primes" the same list before its first scan.
@@ -79,11 +73,10 @@ package final class AXScreen: ScreenActing, FrontWindowReading, @unchecked Senda
 
     package func walk(pid: Int32) -> ScreenWalk? {
         guard trust(), let app = actable(pid) else { return nil }
-        // The clock starts before priming: the settle is part of the budget
-        // the walk promises, not a hidden extra (code review 16, HIGH).
-        var state = WalkState(deadline: ContinuousClock.now.advanced(by: Self.budget))
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
+        // The settle is a wait for the app to build its tree, not a read, so it
+        // stays outside the budget the walk promises.
         if prime(application, pid: pid, bundle: app.bundleIdentifier) { usleep(Self.primeSettle) }
         // An app in the background may report no focused or main window
         // (kAXErrorNoValue) while it still lists its windows.
@@ -91,147 +84,35 @@ package final class AXScreen: ScreenActing, FrontWindowReading, @unchecked Senda
             ?? AXRead.element(kAXMainWindowAttribute, of: application)
             ?? AXRead.elements(kAXWindowsAttribute, of: application)?.first
         else { return nil }
-        visit(window, state: &state)
         // A permission prompt or a save dialog can be its own window.
-        for other in AXRead.elements(kAXWindowsAttribute, of: application) ?? [] {
-            guard !state.full() else { break }
-            guard !CFEqual(other, window),
-                  Self.dialogSubroles.contains(AXRead.string(kAXSubroleAttribute, of: other))
-            else { continue }
-            state.groups += 1
-            state.group = state.groups
-            visit(other, state: &state)
-            state.group = 0
+        let dialogs = (AXRead.elements(kAXWindowsAttribute, of: application) ?? []).filter { other in
+            !CFEqual(other, window)
+                && ScreenRoles.dialogSubroles.contains(AXRead.string(kAXSubroleAttribute, of: other))
         }
+        let result = Self.walker(budget: .standard).walk(roots: [window] + dialogs)
         let next = lock.withLock { () -> Int in
             generation += 1
-            handles = (pid, generation, state.elements)
+            handles = (pid, generation, result.elements)
             return generation
         }
         return ScreenWalk(
-            nodes: state.nodes, partial: state.cut,
+            nodes: result.nodes, partial: result.partial,
             window: AXRead.string(kAXTitleAttribute, of: window), generation: next)
     }
 
-    private struct WalkState {
-        let deadline: ContinuousClock.Instant
-        var visited = 0
-        /// The dialog being walked (0 = the window); see `ScanNode.group`.
-        var group = 0
-        var groups = 0
-        var nodes: [ScanNode] = []
-        var elements: [AXUIElement] = []
-        var cut = false
-
-        mutating func full() -> Bool {
-            if visited >= AXScreen.maxVisited || nodes.count >= AXScreen.maxCollected
-                || ContinuousClock.now >= deadline {
-                cut = true
-            }
-            return cut
-        }
+    /// The window as the verifier and the control chooser read it.
+    package func snapshot(pid: Int32) -> ScreenSnapshot? {
+        walk(pid: pid).map(ScreenSnapshot.init(walk:))
     }
 
-    private func visit(_ element: AXUIElement, state: inout WalkState) {
-        guard !state.full() else { return }
-        state.visited += 1
-        AXUIElementSetMessagingTimeout(element, Self.messagingTimeout)
-        let role = AXRead.string(kAXRoleAttribute, of: element)
-        let subrole = AXRead.string(kAXSubroleAttribute, of: element)
-        let secure = AXSecure.isSecure(role: role, subrole: subrole)
-        // A sheet or alert inside the window is a dialog of its own.
-        let outer = state.group
-        if role == kAXSheetRole || Self.dialogSubroles.contains(subrole) {
-            state.groups += 1
-            state.group = state.groups
-        }
-        defer { state.group = outer }
-        if secure || ScreenRoles.isInteresting(role) {
-            state.nodes.append(node(element, role: role, subrole: subrole, secure: secure, state: &state))
-            state.elements.append(element)
-        }
-        // A password field's children are glyphs; a control's children are
-        // its own caption, already read into its label.
-        guard !secure, !Self.isLeafControl(role) else { return }
-        for child in children(of: element, role: role, state: &state) {
-            guard !state.full() else { return }
-            visit(child, state: &state)
-        }
-    }
-
-    private func children(of element: AXUIElement, role: String, state: inout WalkState) -> [AXUIElement] {
-        let children = AXRead.elements(kAXChildrenAttribute, of: element) ?? []
-        guard ScreenRoles.readsChildRoles(of: role) else { return children }
-        // The reads ahead obey the walk's budget and `visit`'s per-call cap,
-        // so a hung app or one with thousands of children cannot overrun
-        // it; a role left unread counts as not a toolbar.
-        var roles: [String] = []
-        for child in children {
-            guard !state.full() else { break }
-            AXUIElementSetMessagingTimeout(child, Self.messagingTimeout)
-            roles.append(AXRead.string(kAXRoleAttribute, of: child))
-        }
-        roles += Array(repeating: "", count: children.count - roles.count)
-        return ScreenRoles.childOrder(parentRole: role, childRoles: roles).map { children[$0] }
-    }
-
-    private static func isLeafControl(_ role: String) -> Bool {
-        ScreenRoles.isControl(role)
-    }
-
-    private func node(
-        _ element: AXUIElement, role: String, subrole: String, secure: Bool, state: inout WalkState
-    ) -> ScanNode {
-        let label = Self.label(
-            title: AXRead.string(kAXTitleAttribute, of: element),
-            description: AXRead.string(kAXDescriptionAttribute, of: element),
-            placeholder: AXRead.string(kAXPlaceholderValueAttribute, of: element),
-            role: role, secure: secure,
-            caption: { caption(of: element, depth: Self.captionDepth, state: &state) })
-        let value = secure ? nil : AXRead.string(kAXValueAttribute, of: element)
-        return ScanNode(role: role, subrole: subrole, label: label,
-                        value: value?.isEmpty == false ? value : nil, secure: secure,
-                        group: state.group)
-    }
-
-    /// A control's own name, else the text its children show — never for a
-    /// secure field, whose children are its characters (security review 16, C1).
-    static func label(
-        title: String, description: String, placeholder: String, role: String, secure: Bool,
-        caption: () -> String
-    ) -> String {
-        if let own = [title, description, placeholder].first(where: { !$0.isEmpty }) { return own }
-        guard !secure, ScreenRoles.isControl(role) else { return "" }
-        return caption()
+    private static func walker(budget: ReadBudget) -> ScreenWalker<LiveAXTree> {
+        let start = ContinuousClock.now
+        return ScreenWalker(tree: LiveAXTree(), budget: budget, elapsed: { start.duration(to: ContinuousClock.now) })
     }
 
     /// The label as it is now, for the check right before a press.
     private func liveLabel(_ element: AXUIElement) -> String {
-        let role = AXRead.string(kAXRoleAttribute, of: element)
-        let secure = AXSecure.isSecure(role: role, subrole: AXRead.string(kAXSubroleAttribute, of: element))
-        var state = WalkState(deadline: ContinuousClock.now.advanced(by: .milliseconds(150)))
-        return Self.label(
-            title: AXRead.string(kAXTitleAttribute, of: element),
-            description: AXRead.string(kAXDescriptionAttribute, of: element),
-            placeholder: AXRead.string(kAXPlaceholderValueAttribute, of: element),
-            role: role, secure: secure,
-            caption: { caption(of: element, depth: Self.captionDepth, state: &state) })
-    }
-
-    /// The text an unlabeled web link or button shows, from its children.
-    /// Every child read counts against the walk's own budget: an icon button
-    /// with a deep SVG subtree must not blow the deadline (code review 16).
-    private func caption(of element: AXUIElement, depth: Int, state: inout WalkState) -> String {
-        guard depth > 0 else { return "" }
-        for child in AXRead.elements(kAXChildrenAttribute, of: element) ?? [] {
-            guard !state.full() else { return "" }
-            state.visited += 1
-            let text = AXRead.string(kAXValueAttribute, of: child)
-            if !text.isEmpty { return text }
-            let inner = caption(of: child, depth: depth - 1, state: &state)
-            if !inner.isEmpty { return inner }
-        }
-        return ""
+        Self.walker(budget: ReadBudget(time: .milliseconds(150), nodes: 60)).label(of: element)
     }
 
     /// For the activation hook: prime the app that just came to the front.
@@ -354,7 +235,7 @@ package final class AXScreen: ScreenActing, FrontWindowReading, @unchecked Senda
         guard let window = AXRead.element(kAXFocusedWindowAttribute, of: application) else { return nil }
         var queue = [window]
         var seen = 0
-        let deadline = ContinuousClock.now.advanced(by: Self.budget)
+        let deadline = ContinuousClock.now.advanced(by: ReadBudget.standard.time)
         while !queue.isEmpty, seen < 300, ContinuousClock.now < deadline {
             let element = queue.removeFirst()
             seen += 1
@@ -418,6 +299,36 @@ package final class AXScreen: ScreenActing, FrontWindowReading, @unchecked Senda
               app.bundleIdentifier != selfBundleID
         else { return nil }
         return app
+    }
+}
+
+/// The live tree behind the walker. Every child it hands out gets the
+/// messaging timeout, so one hung element cannot stall a walk.
+struct LiveAXTree: ScreenTree {
+    func kind(of element: AXUIElement) -> ScreenKind {
+        let role = AXRead.string(kAXRoleAttribute, of: element)
+        let subrole = AXRead.string(kAXSubroleAttribute, of: element)
+        return ScreenKind(role: role, subrole: subrole, secure: AXSecure.isSecure(role: role, subrole: subrole))
+    }
+
+    func details(of element: AXUIElement, readValue: Bool) -> ScreenDetails {
+        ScreenDetails(
+            title: AXRead.string(kAXTitleAttribute, of: element),
+            description: AXRead.string(kAXDescriptionAttribute, of: element),
+            placeholder: AXRead.string(kAXPlaceholderValueAttribute, of: element),
+            value: readValue ? AXRead.string(kAXValueAttribute, of: element) : "",
+            enabled: AXScreen.isEnabled(AXRead.number(kAXEnabledAttribute, of: element)),
+            focused: AXRead.number(kAXFocusedAttribute, of: element) == 1)
+    }
+
+    func value(of element: AXUIElement) -> String {
+        AXRead.string(kAXValueAttribute, of: element)
+    }
+
+    func children(of element: AXUIElement) -> [AXUIElement] {
+        let children = AXRead.elements(kAXChildrenAttribute, of: element) ?? []
+        for child in children { AXUIElementSetMessagingTimeout(child, AXScreen.messagingTimeout) }
+        return children
     }
 }
 

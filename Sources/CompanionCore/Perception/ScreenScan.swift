@@ -15,9 +15,12 @@ package struct ScanNode: Sendable, Equatable {
     /// 0 = the window itself; each dialog, sheet or alert gets its own
     /// number, so a neutral "Sí" can be judged by what its dialog says.
     package var group: Int
+    package var enabled: Bool
+    package var focused: Bool
 
     package init(
-        role: String, subrole: String, label: String, value: String?, secure: Bool, group: Int = 0
+        role: String, subrole: String, label: String, value: String?, secure: Bool, group: Int = 0,
+        enabled: Bool = true, focused: Bool = false
     ) {
         self.role = role
         self.subrole = subrole
@@ -25,6 +28,8 @@ package struct ScanNode: Sendable, Equatable {
         self.value = value
         self.secure = secure
         self.group = group
+        self.enabled = enabled
+        self.focused = focused
     }
 }
 
@@ -192,19 +197,19 @@ package enum ScreenRoles {
         kinds[role] != nil || isText(role)
     }
 
-    /// Reading the children's roles ahead costs one AX call per child, so
-    /// only a window pays it, once per walk.
-    package static func readsChildRoles(of parentRole: String) -> Bool {
-        parentRole == "AXWindow"
-    }
+    /// A sheet or a dialog window is a group of its own in a walk.
+    package static let sheetRole = "AXSheet"
+    package static let dialogSubroles: Set<String> = ["AXDialog", "AXSystemDialog", "AXFloatingWindow"]
 
-    /// The order to walk children in: a window's toolbars first, everything
-    /// else as AX gives it. The walk stops on time, and a long list walked
-    /// first left Notes' toolbar ("Nueva nota") without an id.
-    package static func childOrder(parentRole: String, childRoles: [String]) -> [Int] {
-        guard readsChildRoles(of: parentRole) else { return Array(childRoles.indices) }
-        let toolbars = childRoles.indices.filter { childRoles[$0] == "AXToolbar" }
-        return toolbars + childRoles.indices.filter { childRoles[$0] != "AXToolbar" }
+    /// A control's own name, else the text its children show — never for a
+    /// secure field, whose children are its characters (security review 16, C1).
+    package static func label(
+        title: String, description: String, placeholder: String, role: String, secure: Bool,
+        caption: () -> String
+    ) -> String {
+        if let own = [title, description, placeholder].first(where: { !$0.isEmpty }) { return own }
+        guard !secure, isControl(role) else { return "" }
+        return caption()
     }
 }
 
