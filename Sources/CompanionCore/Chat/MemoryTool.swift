@@ -41,7 +41,7 @@ package enum MemoryTool {
         guard flat.count <= maxFact else {
             return .failure(.invalidArgs("fact is longer than \(maxFact) characters; shorten it"))
         }
-        guard TurnRedaction.redact(flat) == flat else {
+        guard !TurnRedaction.holdsStrongLabel(flat), TurnRedaction.redact(flat) == flat else {
             return .failure(ContractError(
                 code: "refused", message: "that looks like a secret; it was not saved"))
         }

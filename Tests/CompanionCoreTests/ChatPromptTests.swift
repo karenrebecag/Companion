@@ -13,12 +13,30 @@ import Testing
     testPromptDelegateEnabled()
     testAGivenPathGoesStraightToTheFileTool()
     testDelegateRuleOnlyForHeavyWork()
+    testStructuredContentIsNotAnsweredAsMarkdown()
     testPromptDelegateDisabled()
     testPromptOwnerEdges()
     testPromptProfileBlock()
     testPromptParentToolsActRule()
     testPromptCarriesSkills()
     testPromptSpeaksUserTerms()
+}
+
+// QA 606: the delegate rule listed "tables, charts" as answers the model
+// writes itself, and gpt-oss took it literally: a bitcoin series came back as
+// a markdown table with no card. Structure must point at present, never at
+// markdown, in both languages.
+@MainActor func testStructuredContentIsNotAnsweredAsMarkdown() {
+    let es = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: true, language: .es)
+    expect(!es.contains("explicaciones, comparaciones, tablas, gráficas"),
+           "qa606 es: la regla de delegar no pide tablas ni gráficas en markdown")
+    expect(es.contains("van por la tool present, nunca como markdown"),
+           "qa606 es: el contenido estructurado va por present")
+    let en = ChatPrompt.system(ownerFirstName: "Karen", delegateEnabled: true, language: .en)
+    expect(!en.contains("explanations, comparisons, tables, charts"),
+           "qa606 en: the delegate rule does not ask for tables or charts as markdown")
+    expect(en.contains("go through the present tool, never as markdown"),
+           "qa606 en: structured content goes through present")
 }
 
 // La respuesta del PDF (captura 2026-09-29) dijo la ruta absoluta y la

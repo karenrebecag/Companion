@@ -49,3 +49,15 @@ private func store() -> (FileMemoryStore, URL) {
     let blank = await runner.execute(name: "remember", argumentsJSON: #"{"fact":"  "}"#)
     expect(!blank.ok, "remember: un dato vacio no se guarda")
 }
+
+// QA 606 review: a fact that names a strong label is refused even when the
+// redaction would not change it, so the secret never reaches the notes.
+@Test func memoryRefusesAFactWithAStrongLabel() {
+    if case .success = MemoryTool.accepted("mi contraseña: secreto") {
+        expect(false, "memoria: una contraseña no se guarda")
+    }
+    if case .success = MemoryTool.accepted("prefiero respuestas cortas") {
+    } else {
+        expect(false, "memoria: un dato normal sí se guarda")
+    }
+}

@@ -134,7 +134,7 @@ extension ChatViewModel {
                 role: .assistant, text: "", card: card,
                 recall: Recall(
                     role: .assistant,
-                    content: ChatCopy.cardShown(card))))
+                    content: ChatCopy.cardRecall(card))))
         case .approvalDenied(let tool):
             messages.append(ChatMessage(isStatus: true, text: ChatCopy.approvalDeniedTool(tool)))
         case .approvalRemembered(let tool, let approved):

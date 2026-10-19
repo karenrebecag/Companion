@@ -1,0 +1,1 @@
+- **La etiqueta de idioma de una respuesta ya no sale como indonesio (2026-10-19).** Al inspeccionar una respuesta en español con términos en inglés, el reconocedor podía elegir "id". La etiqueta ahora solo elige entre los idiomas que usa la usuaria.

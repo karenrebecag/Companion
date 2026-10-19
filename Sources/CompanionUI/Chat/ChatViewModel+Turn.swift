@@ -360,7 +360,7 @@ extension ChatViewModel {
             recording { $0.cards.append(TurnCardMark(kind: Self.kind(of: card))) }
             messages.append(ChatMessage(
                 role: .assistant, text: "", card: card,
-                recall: Recall(role: .assistant, content: ChatCopy.cardShown(card))))
+                recall: Recall(role: .assistant, content: ChatCopy.cardRecall(card))))
         }
         persist()
     }

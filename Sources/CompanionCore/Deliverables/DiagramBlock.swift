@@ -18,6 +18,15 @@ package struct DiagramBlock: Sendable, Equatable, Hashable {
 package extension CompanionBlocks {
     static let diagramLanguage = "companion:diagram"
 
+    /// The prompt asks for `companion:diagram`, but models write the fence
+    /// their training knows: QA 606 showed gpt-oss answering with ```mermaid
+    /// and the Mermaid text inside, which painted as plain code. The body is
+    /// the same Mermaid either way, so both spellings are the diagram.
+    static func isDiagramFence(_ language: String) -> Bool {
+        let name = language.trimmingCharacters(in: .whitespaces).lowercased()
+        return name == diagramLanguage || name == "mermaid"
+    }
+
     /// Nil sends the fence back to a code block, visible: an over-cap or
     /// empty diagram is never half drawn, and never silently cut.
     static func diagram(_ body: String) -> DiagramBlock? {

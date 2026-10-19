@@ -38,6 +38,7 @@ package func makeVoiceHarness(
     sensor: (any ContextSensing)? = nil,
     approvals: (any ApprovalsProvider)? = nil,
     session sessionModel: (any SessionEventSink)? = nil,
+    memoryStore: (any MemoryStore)? = nil,
     // Wave 12e: where a hold may dictate instead of talking.
     voiceMode: VoiceMode = .automatic,
     fieldProbe: (any FocusedFieldProbing)? = nil,
@@ -72,6 +73,7 @@ package func makeVoiceHarness(
         thread: thread,
         configProvider: provider,
         jobs: jobs,
+        memoryStore: memoryStore,
         parentTools: parentTools,
         sensor: sensor,
         approvals: approvals,

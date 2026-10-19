@@ -15,6 +15,16 @@ import Testing
     testFileChipDerivesFromLoneInlinePath()
     testDataFencesBecomeCards()
     testRichnessDecidesThePopup()
+    testMermaidFenceIsADiagram()
+}
+
+// QA 606: gpt-oss wrote ```mermaid, the prompt asks for companion:diagram.
+// The same Mermaid text must paint as a diagram, not as a code block.
+func testMermaidFenceIsADiagram() {
+    let source = "flowchart LR\n  A[Inicio] --> B[Fin]"
+    let blocks = AnswerBlocks.blocks(from: "```mermaid\n\(source)\n```")
+    expectEq(blocks, [.diagram(DiagramBlock(source: source))],
+             "qa606: un fence mermaid es un diagrama, no código")
 }
 
 func testHeadingLevelsMapToTitleSectionEyebrow() {
