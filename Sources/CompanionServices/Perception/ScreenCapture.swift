@@ -73,6 +73,11 @@ package struct ScreenCapture: Sendable {
             return nil
         case .skipped:
             return nil
+        case .withheld(let reason):
+            // Not a grant problem: the gate stays as it is, and the reason is
+            // fixed text, never the frame or any field's content.
+            log("screen: frame withheld (\(reason))")
+            return nil
         }
     }
 
@@ -82,10 +87,13 @@ package struct ScreenCapture: Sendable {
         case image(Data)
         case failed(String)
         case skipped
+        /// The frame could not be proven free of secure fields: not sent.
+        case withheld(String)
     }
 
     static func take(excluding bundleID: String, pid: Int32?, maxSide: CGFloat) async -> Shot {
         do {
+            let ownPID = ProcessInfo.processInfo.processIdentifier
             let content = try await SCShareableContent.excludingDesktopWindows(
                 false, onScreenWindowsOnly: true)
             let window = pid.flatMap { pid in
@@ -99,8 +107,10 @@ package struct ScreenCapture: Sendable {
                 ?? content.displays.first else {
                 return .failed("no display available")
             }
+            let scope = CaptureScope.of(pid: pid, ownPID: ownPID)
             let filter: SCContentFilter
-            switch CaptureScope.of(pid: pid, ownPID: ProcessInfo.processInfo.processIdentifier) {
+            let pids: [pid_t]
+            switch scope {
             case .nothing:
                 return .skipped
             case .targetApp(let target):
@@ -110,10 +120,17 @@ package struct ScreenCapture: Sendable {
                     return .skipped
                 }
                 filter = SCContentFilter(display: display, including: [app], exceptingWindows: [])
+                pids = [target]
             case .displayWithoutSelf:
                 let excluded = content.applications.filter { $0.bundleIdentifier == bundleID }
                 filter = SCContentFilter(
                     display: display, excludingApplications: excluded, exceptingWindows: [])
+                // Any window on this display can show a password field, not
+                // only the one in front, so every app drawn there is read.
+                pids = Array(Set(content.windows
+                    .filter { $0.frame.intersects(display.frame) }
+                    .compactMap { $0.owningApplication?.processID })
+                    .filter { $0 != ownPID })
             }
             let config = SCStreamConfiguration()
             let width = CGFloat(display.width)
@@ -122,15 +139,72 @@ package struct ScreenCapture: Sendable {
             config.width = Int((width * scale).rounded())
             config.height = Int((height * scale).rounded())
             config.showsCursor = false
+            // Overlay windows (Dock, Control Center) own AX trees that are
+            // empty by design: only normal-layer windows make an app "shown".
+            let owners = content.windows.compactMap { window in
+                window.owningApplication.map { (pid: $0.processID, layer: window.windowLayer) }
+            }
+            let shown = SecureFieldMask.primaryOwners(owners)
+            let enhanced = Set(content.applications
+                .filter { AXScreen.chromiumBrowsers.contains($0.bundleIdentifier) }
+                .map(\.processID))
+            // A field can be in the pixels only if it existed at one of the
+            // two reads, so the frame is masked with the union of both. The
+            // first read finishes before the capture starts; the second follows
+            // it. Starting it on another task could let it run after the frame
+            // is already frozen.
+            let before = SecureFieldReader.read(pids: pids, shown: shown, enhancedPIDs: enhanced)
             let image = try await SCScreenshotManager.captureImage(
                 contentFilter: filter, configuration: config)
-            guard let data = jpeg(image, quality: 0.7) else {
-                return .failed("jpeg encoding")
-            }
-            return .image(data)
+            let after = SecureFieldReader.read(pids: pids, shown: shown, enhancedPIDs: enhanced)
+            return egress(
+                image, display: display.frame,
+                read: SecureFieldMask.union(before, after))
         } catch {
             return .failed(error.localizedDescription)
         }
+    }
+
+    /// The only way a screen image becomes bytes for a vision provider. A
+    /// frame whose secure fields cannot be masked is withheld, never sent
+    /// unmasked (the AX text path already refuses secure fields, so the text
+    /// fallback is safe).
+    static func egress(_ image: CGImage, display: CGRect, read: SecureFieldMask.Read) -> Shot {
+        switch SecureFieldMask.plan(
+            read: read, display: display, imageWidth: image.width, imageHeight: image.height
+        ) {
+        case .withhold(let reason):
+            return .withheld(reason)
+        case .mask(let rects):
+            guard let masked = paint(image, over: rects) else {
+                return .withheld("mask could not be drawn")
+            }
+            guard let data = jpeg(masked, quality: 0.7) else {
+                return .failed("jpeg encoding")
+            }
+            return .image(data)
+        }
+    }
+
+    /// Opaque black over each rect, in image pixels counted from the top row.
+    static func paint(_ image: CGImage, over rects: [CGRect]) -> CGImage? {
+        guard !rects.isEmpty else { return image }
+        let width = image.width
+        let height = image.height
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        context.setFillColor(CGColor(gray: 0, alpha: 1))
+        for rect in rects {
+            // The context counts rows from the bottom; the rects from the top.
+            context.fill(CGRect(
+                x: rect.minX, y: CGFloat(height) - rect.maxY,
+                width: rect.width, height: rect.height))
+        }
+        return context.makeImage()
     }
 
     static func jpeg(_ image: CGImage, quality: CGFloat) -> Data? {
