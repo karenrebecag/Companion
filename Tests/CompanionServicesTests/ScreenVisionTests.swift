@@ -59,3 +59,49 @@ private func uniqueLogURL() -> URL {
 private func readLog(_ url: URL) -> String {
     (try? String(contentsOf: url, encoding: .utf8)) ?? ""
 }
+
+@Test @MainActor func screenVisionProviderTests() async {
+    await testCerebrasKeyNeverReachesOpenAIHost()
+    await testOpenAIKeyGoesToOpenAIWithMiniModel()
+}
+
+@MainActor func testCerebrasKeyNeverReachesOpenAIHost() async {
+    let transport = ScriptedTransport()
+    transport.stub(.cerebrasVision, ScriptedReply(status: 200, body: visionReplyData))
+    let vision = ScreenVision(secrets: TestSecretStore([.cerebras: "csk-test"]), transport: transport)
+
+    let brief = await vision.summarize(jpeg: Data([0xFF, 0xD8]), app: "Numbers")
+
+    expect(brief != nil, "cerebras: devuelve brief")
+    let hosts = transport.requests.compactMap { $0.url?.host }
+    expectEq(hosts, ["api.cerebras.ai"], "cerebras: la key solo viaja al host de Cerebras")
+    expectEq(transport.requests.first?.value(forHTTPHeaderField: "Authorization"),
+             "Bearer csk-test", "cerebras: Bearer de Cerebras")
+    let body = visionBody(transport.requests.first)
+    expectEq(body["model"] as? String, "qwen-3.8-27b", "cerebras: modelo qwen-3.8-27b")
+    expectEq(body["reasoning_effort"] as? String, "none", "cerebras: sin razonamiento")
+    expect(body["reasoning_format"] == nil, "cerebras: sin reasoning_format (qwen lo rechaza)")
+}
+
+@MainActor func testOpenAIKeyGoesToOpenAIWithMiniModel() async {
+    let transport = ScriptedTransport()
+    transport.stub(.openAIVision, ScriptedReply(status: 200, body: visionReplyData))
+    let vision = ScreenVision(secrets: TestSecretStore([.openAI: "sk-test"]), transport: transport)
+
+    _ = await vision.summarize(jpeg: Data([0xFF, 0xD8]), app: "Numbers")
+
+    let hosts = transport.requests.compactMap { $0.url?.host }
+    expectEq(hosts, ["api.openai.com"], "openai: la key solo viaja a OpenAI")
+    expectEq(visionBody(transport.requests.first)["model"] as? String, "gpt-4o-mini",
+             "openai: modelo gpt-4o-mini")
+}
+
+private let visionReplyData = Data(
+    #"{"choices":[{"message":{"content":"SUMMARY: una ventana"}}]}"#.utf8)
+
+private func visionBody(_ request: URLRequest?) -> [String: Any] {
+    guard let data = request?.httpBody,
+          let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    else { return [:] }
+    return object
+}

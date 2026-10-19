@@ -1,0 +1,1 @@
+- **La visión de pantalla ya no necesita clave de OpenAI (2026-10-19).** Con la clave de Cerebras, `look` y `see` leen la pantalla con qwen-3.8-27b; sin ella, usan OpenAI si su clave existe. Sin ningún proveedor de visión, `look` sigue con el árbol de accesibilidad y el OCR. Una imagen en el chat escrito nunca llega a gpt-oss: pasa a qwen con la misma clave de Cerebras.
