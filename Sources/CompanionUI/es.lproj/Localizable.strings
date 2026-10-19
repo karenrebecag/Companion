@@ -134,6 +134,8 @@
 "settings.keys.cerebras" = "Cerebras";
 "settings.keys.cerebras.placeholder" = "csk-…";
 "settings.keys.cerebras.privacy" = "Con Cerebras, lo que dices al mantener fn lo responde Cerebras.";
+"settings.keys.exa" = "Exa";
+"settings.keys.exa.privacy" = "Con Exa, lo que buscas y las páginas que Companion lee se envían a Exa.";
 "settings.keys.elevenlabs" = "ElevenLabs";
 "settings.keys.elevenlabs.placeholder" = "sk_…";
 "settings.keys.elevenlabs.privacy" = "Con ElevenLabs, el texto de cada respuesta se envía a ElevenLabs para darle voz.";

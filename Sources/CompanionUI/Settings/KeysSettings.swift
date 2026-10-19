@@ -12,13 +12,14 @@ import Observation
 @MainActor
 package final class KeysSettingsModel {
     package enum Provider: Sendable, Equatable, Hashable, CaseIterable {
-        case openAI, cerebras, elevenLabs
+        case openAI, cerebras, elevenLabs, exa
 
         var secretKey: SecretKey {
             switch self {
             case .openAI: .openAI
             case .cerebras: .cerebras
             case .elevenLabs: .elevenLabs
+            case .exa: .exa
             }
         }
     }
@@ -27,6 +28,7 @@ package final class KeysSettingsModel {
     package var openAIField = ""
     package var cerebrasField = ""
     package var elevenLabsField = ""
+    package var exaField = ""
     /// 15c-7: a blank field after saving read as "nothing happened" (Karen);
     /// the row shows which key is in without ever holding the key itself.
     package private(set) var masked: [Provider: String] = [:]
@@ -35,6 +37,7 @@ package final class KeysSettingsModel {
     package var openAISaved: Bool { masked[.openAI] != nil }
     package var cerebrasSaved: Bool { masked[.cerebras] != nil }
     package var elevenLabsSaved: Bool { masked[.elevenLabs] != nil }
+    package var exaSaved: Bool { masked[.exa] != nil }
 
     package init(secrets: (any SecretStore)? = nil) {
         self.secrets = secrets
@@ -96,6 +99,7 @@ package final class KeysSettingsModel {
         case .openAI: openAIField
         case .cerebras: cerebrasField
         case .elevenLabs: elevenLabsField
+        case .exa: exaField
         }
     }
 
@@ -104,6 +108,7 @@ package final class KeysSettingsModel {
         case .openAI: openAIField = value
         case .cerebras: cerebrasField = value
         case .elevenLabs: elevenLabsField = value
+        case .exa: exaField = value
         }
     }
 
