@@ -68,7 +68,7 @@ import CompanionTestKit
     await pumpUntil("puerto: hold") { voice.calls.contains("hold") }
     session.send(.released)
     await pumpUntil("puerto: release") { voice.calls.contains("release") }
-    session.send(.voice(TurnSnapshot(state: .speaking, pipeline: .realtime)))
+    session.send(.voice(TurnSnapshot(state: .speaking, pipeline: .classic)))
     session.send(.stop)
     await pumpUntil("puerto: interrupt") { voice.calls.contains("interrupt") }
     session.send(.pressed)
@@ -94,7 +94,7 @@ import CompanionTestKit
     let sleeper = ManualSleeper()
     let voice = RecordingVoice()
     let session = SessionModel(jobs: nil, approvals: nil, voice: voice, sleep: sleeper.sleep)
-    let warm = TurnSnapshot(state: .listening, pipeline: .realtime, muted: true, holdArmed: true)
+    let warm = TurnSnapshot(state: .listening, pipeline: .classic, muted: true, holdArmed: true)
     session.send(.voice(warm))
     await pumpUntil("caliente: plazo armado") { sleeper.pending == 1 }
     // A new hold disarms it: firing the old timer hangs nothing up.
@@ -105,7 +105,7 @@ import CompanionTestKit
     // The turn ends resting warm again: pending's timer (disarmed),
     // Completed's, and the voice's own.
     session.send(.released)
-    session.send(.voice(TurnSnapshot(state: .speaking, pipeline: .realtime, holdArmed: true)))
+    session.send(.voice(TurnSnapshot(state: .speaking, pipeline: .classic, holdArmed: true)))
     session.send(.voice(warm))
     await pumpUntil("caliente: re-armado en completed") { sleeper.pending == 3 }
     sleeper.fire()
@@ -196,7 +196,7 @@ private func request(_ id: String) -> ApprovalRequest {
 @MainActor func testTransitionsAreLogged() {
     let lines = TextBox()
     let session = SessionModel(jobs: nil, approvals: nil, log: { lines.append($0) })
-    session.send(.voice(TurnSnapshot(state: .listening, pipeline: .realtime)))
+    session.send(.voice(TurnSnapshot(state: .listening, pipeline: .classic)))
     expectEq(lines.all, ["session: idle -> listening"], "log: una línea por transición")
 }
 

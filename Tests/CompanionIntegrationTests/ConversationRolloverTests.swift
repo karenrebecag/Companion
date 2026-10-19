@@ -37,7 +37,7 @@ import CompanionTestKit
 @MainActor func testShouldRolloverNilLastActivityIsFalse() {
     let activity = ConversationActivity(
         lastActivity: nil, turnInFlight: false, jobRunning: false,
-        approvalsPending: false, liveRealtime: false)
+        approvalsPending: false)
     expect(!ConversationRollover.shouldRollover(activity, now: Date()),
            "rollover1: sin lastActivity nunca dispara")
 }
@@ -46,7 +46,7 @@ import CompanionTestKit
     let start = Date(timeIntervalSince1970: 1_800_000_000)
     let activity = ConversationActivity(
         lastActivity: start, turnInFlight: false, jobRunning: false,
-        approvalsPending: false, liveRealtime: false)
+        approvalsPending: false)
     expect(
         !ConversationRollover.shouldRollover(activity, now: start.addingTimeInterval(299)),
         "rollover2: 299s no alcanza")
@@ -60,20 +60,17 @@ import CompanionTestKit
     let hourLater = start.addingTimeInterval(3600)
     let base = ConversationActivity(
         lastActivity: start, turnInFlight: false, jobRunning: false,
-        approvalsPending: false, liveRealtime: false)
+        approvalsPending: false)
     var jobRunning = base
     jobRunning.jobRunning = true
     var approvalsPending = base
     approvalsPending.approvalsPending = true
     var turnInFlight = base
     turnInFlight.turnInFlight = true
-    var liveRealtime = base
-    liveRealtime.liveRealtime = true
     let guarded: [(ConversationActivity, String)] = [
         (jobRunning, "encargo corriendo"),
         (approvalsPending, "aprobación pendiente"),
         (turnInFlight, "turno en curso"),
-        (liveRealtime, "realtime vivo"),
     ]
     for (activity, label) in guarded {
         expect(!ConversationRollover.shouldRollover(activity, now: hourLater),
@@ -85,7 +82,7 @@ import CompanionTestKit
     let start = Date(timeIntervalSince1970: 1_800_000_000)
     let activity = ConversationActivity(
         lastActivity: start, turnInFlight: false, jobRunning: false,
-        approvalsPending: false, liveRealtime: false)
+        approvalsPending: false)
     expect(
         !ConversationRollover.shouldRollover(activity, now: start.addingTimeInterval(-10)),
         "rollover6: un reloj atrasado nunca fuerza el rollover")
@@ -310,7 +307,7 @@ import CompanionTestKit
     let liveClock = RolloverClock(Date(timeIntervalSince1970: 1_800_000_000))
     let liveVM = rolloverPrimed(clock: liveClock)
     await liveVM.appendUser("first")
-    liveVM.session.send(.voice(TurnSnapshot(state: .listening, pipeline: .realtime, muted: false)))
+    liveVM.session.send(.voice(TurnSnapshot(state: .listening, pipeline: .classic, muted: false)))
     liveClock.advance(by: 360)
     liveVM.rolloverIfIdle()
     expectEq(liveVM.messages.map(\.text), ["first"], "rollover18: voz .live no dispara")
@@ -318,7 +315,7 @@ import CompanionTestKit
     let connectingClock = RolloverClock(Date(timeIntervalSince1970: 1_800_000_000))
     let connectingVM = rolloverPrimed(clock: connectingClock)
     await connectingVM.appendUser("first")
-    connectingVM.session.send(.voice(TurnSnapshot(state: .connecting, pipeline: .realtime)))
+    connectingVM.session.send(.voice(TurnSnapshot(state: .connecting, pipeline: .classic)))
     connectingClock.advance(by: 360)
     connectingVM.rolloverIfIdle()
     expect(connectingVM.messages.isEmpty, "rollover18: voz .connecting sí dispara")

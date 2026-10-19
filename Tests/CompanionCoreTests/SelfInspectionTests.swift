@@ -103,7 +103,7 @@ private func assistant(_ text: String) -> ThreadMessageInput {
         p.cards = [.holdHint, .failure(.networkUnavailable)]
         p.interruption = .failure(.micDenied)
         p.voice = .live
-        p.pipeline = .realtime
+        p.pipeline = .classic
         let out = SessionInspection(p)
         #expect(out.notice == "replyCut")
         #expect(out.cards == ["holdHint", "failure"])

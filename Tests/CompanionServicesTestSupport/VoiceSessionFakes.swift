@@ -36,7 +36,6 @@ package func makeVoiceHarness(
     parentTools: (any ParentToolExecuting)? = nil,
     onJobEvent: (@Sendable (JobEvent) -> Void)? = nil,
     sensor: (any ContextSensing)? = nil,
-    memoryStore: (any MemoryStore)? = nil,
     approvals: (any ApprovalsProvider)? = nil,
     session sessionModel: (any SessionEventSink)? = nil,
     // Wave 12e: where a hold may dictate instead of talking.
@@ -73,7 +72,6 @@ package func makeVoiceHarness(
         thread: thread,
         configProvider: provider,
         jobs: jobs,
-        memoryStore: memoryStore,
         parentTools: parentTools,
         sensor: sensor,
         approvals: approvals,

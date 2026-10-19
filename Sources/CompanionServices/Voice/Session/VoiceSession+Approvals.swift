@@ -50,10 +50,9 @@ extension VoiceSession {
     }
 
     /// A parent gate's sheet: armed and asked like a job's, and remembered as
-    /// the parent's so a press over its question can answer it (2a). Realtime
-    /// never asks and never holds an answer.
+    /// the parent's so a press over its question can answer it (2a).
     func noteParentApproval(_ request: ApprovalRequest) async {
-        if machine.snapshot.pipeline != .realtime, !closedApprovals.contains(request.requestId) {
+        if !closedApprovals.contains(request.requestId) {
             parkedParentApproval = request.requestId
         }
         await noteApproval(request)
@@ -175,10 +174,8 @@ extension VoiceSession {
     /// then the click's or, through `SpokenYes`, a spoken one in a later
     /// hold. The sentence is ours and fixed: nothing from the request is
     /// spoken, so a tool's payload cannot put words in the voice's mouth.
-    /// Realtime does not ask (a spoken yes never counts there).
     func askApprovalAloud(_ request: ApprovalRequest) async {
-        guard machine.snapshot.pipeline != .realtime,
-              !closedApprovals.contains(request.requestId) else { return }
+        guard !closedApprovals.contains(request.requestId) else { return }
         await jobAnnounce(JobAnnouncement(
             goal: request.summary, outcome: .asking(requestId: request.requestId),
             language: configProvider.current.language))
@@ -189,7 +186,7 @@ extension VoiceSession {
     /// Called when the audio of a classic job's permission question ends
     /// (16q-1; the product decision of 2026-08-22 that the voice does not ask
     /// was reversed for classic on 2026-09-29, when Karen approved matching
-    /// Incredible). Realtime never calls it.
+    /// Incredible).
     func approvalAnnounced(_ requestId: String) {
         if pendingApprovalSeen?.requestId == requestId { pendingApprovalSeen?.announcedAt = now() }
     }
@@ -202,7 +199,6 @@ extension VoiceSession {
 
     private func spokenYesAdmitted(_ seen: ApprovalSighting?) -> Bool {
         SpokenYes.admits(
-            realtime: machine.snapshot.pipeline == .realtime,
             announcedAt: seen?.announcedAt, holdStartedAt: timeline.pressed, heard: heardOfThisHold)
     }
 

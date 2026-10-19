@@ -211,7 +211,7 @@ private func request(_ id: String) -> ApprovalRequest {
     expectEq(l.line, IslandState.Line.none, "island: sin texto de estado (16e)")
     expect(!l.showsStop, "island: en hold no hay stop, se suelta")
 
-    let handsFree = projection { _ = $0.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime))) }
+    let handsFree = projection { _ = $0.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic))) }
     expect(IslandState.from(handsFree, pebbleHidden: false).showsStop,
            "island: manos libres sí tiene stop")
 
@@ -226,8 +226,8 @@ private func request(_ id: String) -> ApprovalRequest {
              "island: las manos del padre nombran el objetivo")
 
     let speaking = projection {
-        _ = $0.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime)))
-        _ = $0.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .realtime)))
+        _ = $0.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic)))
+        _ = $0.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic)))
     }
     expectEq(IslandState.from(speaking, pebbleHidden: false).meter, .agent, "island: nivel del agente")
 
@@ -281,7 +281,7 @@ private func request(_ id: String) -> ApprovalRequest {
 /// micro está tomado.
 @MainActor func testPebbleShowsWhileTheMicIsEngaged() {
     let warm = projection {
-        _ = $0.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime, muted: true, holdArmed: true)))
+        _ = $0.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic, muted: true, holdArmed: true)))
     }
     expectEq(IslandState.from(warm, pebbleHidden: true).size, .pebble,
              "pebble: con la voz caliente no se oculta")
@@ -373,7 +373,7 @@ private func request(_ id: String) -> ApprovalRequest {
     expectEq(IslandState.from(pending, pebbleHidden: false).partial, "abre", "parcial: enviando lo conserva")
     let thinking = projection {
         _ = $0.handle(.pressed); _ = $0.handle(.partialTranscript("abre")); _ = $0.handle(.released)
-        _ = $0.handle(.voice(TurnSnapshot(state: .thinking, pipeline: .realtime, holdArmed: true)))
+        _ = $0.handle(.voice(TurnSnapshot(state: .thinking, pipeline: .classic, holdArmed: true)))
     }
     expect(IslandState.from(thinking, pebbleHidden: false).partial == nil, "parcial: pensando no")
 }
@@ -450,8 +450,8 @@ private func request(_ id: String) -> ApprovalRequest {
         _ = $0.handle(.released)
         _ = $0.handle(.dictationFailed(.needsAccessibility))
         // The words went to Companion: its turn runs and the chrome rests.
-        _ = $0.handle(.voice(TurnSnapshot(state: .thinking, pipeline: .realtime)))
-        _ = $0.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime, muted: true)))
+        _ = $0.handle(.voice(TurnSnapshot(state: .thinking, pipeline: .classic)))
+        _ = $0.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic, muted: true)))
         _ = $0.handle(.completedTimerExpired)
     }
     let n = IslandState.from(denied, pebbleHidden: false)

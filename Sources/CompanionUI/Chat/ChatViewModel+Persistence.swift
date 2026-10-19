@@ -92,9 +92,7 @@ extension ChatViewModel {
             lastActivity: lastActivity,
             turnInFlight: busy,
             jobRunning: session.projection.job != nil,
-            approvalsPending: !session.projection.approvalQueue.isEmpty,
-            liveRealtime: session.projection.pipeline == .realtime
-                && (session.projection.voice == .live || session.projection.voice == .muted))
+            approvalsPending: !session.projection.approvalQueue.isEmpty)
     }
 
     func rolloverIfDue() {

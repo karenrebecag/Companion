@@ -71,7 +71,7 @@ func testTheMCPPromptSendsTheUserToTheCard() {
 @MainActor func testTheOrbStopsTheVoiceWhileAJobRunsBehindIt() {
     let p = projection { m in
         _ = m.handle(.job(.started(goal: "x"), from: JobID("j")))
-        _ = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .realtime)))
+        _ = m.handle(.voice(TurnSnapshot(state: .speaking, pipeline: .classic)))
     }
     expectEq(IslandStop.brake(for: p), .voice, "freno: con la voz delante, es el de la voz")
 }
@@ -86,7 +86,7 @@ func testTheMCPPromptSendsTheUserToTheCard() {
 
 @MainActor func testWithNoJobTheBrakeIsTheVoices() {
     let p = projection { m in
-        _ = m.handle(.voice(TurnSnapshot(state: .thinking, pipeline: .realtime)))
+        _ = m.handle(.voice(TurnSnapshot(state: .thinking, pipeline: .classic)))
     }
     expectEq(IslandStop.brake(for: p), .voice, "freno: sin encargo, el de la voz")
 }
@@ -276,12 +276,12 @@ private func sheetRequest(_ id: String, tool: String = "find_places") -> Approva
     let vm = chat(jobs)
     vm.receive(.job(.started(goal: "uno"), from: JobID("a")))
     vm.receive(.job(.started(goal: "dos"), from: JobID("b")))
-    vm.receive(.voice(TurnSnapshot(state: .speaking, pipeline: .realtime)))
+    vm.receive(.voice(TurnSnapshot(state: .speaking, pipeline: .classic)))
     IslandStop.stop(vm)
     expectEq(vm.session.projection.job?.id, JobID("a"), "isla: los encargos siguen donde estaban")
     expectEq(vm.session.projection.queued.map(\.id), [JobID("b")], "isla: y el encolado tambien")
 
-    vm.receive(.voice(TurnSnapshot(state: .idle, pipeline: .realtime)))
+    vm.receive(.voice(TurnSnapshot(state: .idle, pipeline: .classic)))
     IslandStop.stop(vm)
     // The second stop is the barrier: effects run in order.
     await pumpUntil("isla: la tarjeta del encargo para ese encargo") { jobs.byID == [JobID("a")] }

@@ -13,7 +13,7 @@ private func apply(_ machine: inout TurnMachine, _ event: TurnEvent) -> [TurnEff
 
 private func holdThinking() -> TurnMachine {
     var m = TurnMachine()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
+    _ = apply(&m, .holdPressed)
     _ = apply(&m, .classicListenArmed)
     _ = apply(&m, .holdReleased(hasSpeech: true))
     return m
@@ -44,15 +44,7 @@ private func parkedAtRest() -> TurnMachine {
     #expect(m.snapshot.sheetParked, "the rest after the line keeps the mark")
 }
 
-@Test func onlyAClassicHoldTurnParks() {
-    var realtime = TurnMachine()
-    _ = apply(&realtime, .holdPressed(preferRealtime: true))
-    _ = apply(&realtime, .realtimeSessionReady)
-    _ = apply(&realtime, .serverSpeechStopped)
-    let realtimeBefore = realtime.snapshot
-    #expect(apply(&realtime, .sheetParked).isEmpty)
-    #expect(realtime.snapshot == realtimeBefore)
-
+@Test func aTypedTurnDoesNotPark() {
     var typed = TurnMachine()
     _ = apply(&typed, .typedSubmit)
     let typedBefore = typed.snapshot
@@ -61,7 +53,7 @@ private func parkedAtRest() -> TurnMachine {
 
     // Hands-free: its ear is shut for the whole wait, nobody can answer.
     var handsFree = TurnMachine()
-    _ = apply(&handsFree, .startVoice(preferRealtime: false))
+    _ = apply(&handsFree, .startVoice)
     _ = apply(&handsFree, .classicListenArmed)
     _ = apply(&handsFree, .advance(hasSpeech: true))
     let handsFreeBefore = handsFree.snapshot
@@ -91,7 +83,7 @@ private func parkedAtRest() -> TurnMachine {
     var m = holdThinking()
     _ = apply(&m, .firstSentence)
     _ = apply(&m, .sheetParked)
-    #expect(apply(&m, .holdPressed(preferRealtime: false))
+    #expect(apply(&m, .holdPressed)
             == [.cancelAgentOutput(steer: true), .requestClassicListen])
     #expect(!m.snapshot.sheetParked)
 }
@@ -108,16 +100,15 @@ private func parkedAtRest() -> TurnMachine {
 @Test func lateTurnEventsAtRestChangeNothing() {
     var m = parkedAtRest()
     let rested = m.snapshot
-    for event: TurnEvent in [.replyCompleted, .firstSentence, .speechFinished, .delegateAnnounced] {
+    for event: TurnEvent in [.replyCompleted, .firstSentence, .speechFinished] {
         #expect(apply(&m, event).isEmpty)
         #expect(m.snapshot == rested)
     }
 }
 
-@Test func aRealtimePressOverAParkedSheetStaysClassic() {
+@Test func aPressOverAParkedSheetStaysClassic() {
     var m = parkedAtRest()
-    #expect(apply(&m, .holdPressed(preferRealtime: true)) == [.requestClassicListen])
-    #expect(m.snapshot.pipeline != .realtime)
+    #expect(apply(&m, .holdPressed) == [.requestClassicListen])
     #expect(m.snapshot.sheetParked)
 }
 
@@ -129,14 +120,14 @@ private func parkedAtRest() -> TurnMachine {
 
 @Test func aPressOverTheParkedSheetCutsNothing() {
     var m = parkedAtRest()
-    #expect(apply(&m, .holdPressed(preferRealtime: false)) == [.requestClassicListen])
+    #expect(apply(&m, .holdPressed) == [.requestClassicListen])
     _ = apply(&m, .classicListenArmed)
     #expect(m.snapshot.sheetParked, "the answer hold still knows the sheet waits")
 }
 
 @Test func aDiscardedAnswerHoldKeepsTheMark() {
     var m = parkedAtRest()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
+    _ = apply(&m, .holdPressed)
     _ = apply(&m, .classicListenArmed)
     #expect(apply(&m, .holdDiscarded) == [.stopClassicIO])
     #expect(m.snapshot.state == .idle)
@@ -145,7 +136,7 @@ private func parkedAtRest() -> TurnMachine {
 
 @Test func wordsThatOpenANewTurnClearTheMark() {
     var m = parkedAtRest()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
+    _ = apply(&m, .holdPressed)
     _ = apply(&m, .classicListenArmed)
     #expect(apply(&m, .holdReleased(hasSpeech: true)) == [.submitUtterance])
     #expect(!m.snapshot.sheetParked)
@@ -155,13 +146,13 @@ private func parkedAtRest() -> TurnMachine {
 /// and a silent release both hang up; neither stops the parked turn.
 @Test func aSilentAnswerHoldKeepsTheMark() {
     var m = parkedAtRest()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
+    _ = apply(&m, .holdPressed)
     _ = apply(&m, .classicListenArmed)
     #expect(apply(&m, .holdReleased(hasSpeech: false)) == [.stopClassicIO])
     #expect(m.snapshot.sheetParked)
 
     var hungUp = parkedAtRest()
-    _ = apply(&hungUp, .holdPressed(preferRealtime: false))
+    _ = apply(&hungUp, .holdPressed)
     _ = apply(&hungUp, .classicListenArmed)
     #expect(apply(&hungUp, .hangUp) == [.stopClassicIO])
     #expect(hungUp.snapshot.sheetParked)
@@ -178,7 +169,7 @@ private func parkedAtRest() -> TurnMachine {
 
 @Test func aStopAfterAFailureStillCutsTheParkedTurn() {
     var m = parkedAtRest()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
+    _ = apply(&m, .holdPressed)
     _ = apply(&m, .classicListenArmed)
     _ = apply(&m, .turnFailed(.micUnavailable))
     #expect(m.snapshot.state == .error)
@@ -189,7 +180,7 @@ private func parkedAtRest() -> TurnMachine {
 
 @Test func aBargeInWhileTheParkedLinePlaysClearsTheMark() {
     var m = TurnMachine()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
+    _ = apply(&m, .holdPressed)
     _ = apply(&m, .classicListenArmed)
     _ = apply(&m, .holdReleased(hasSpeech: true))
     _ = apply(&m, .firstSentence)
@@ -212,7 +203,7 @@ private func parkedAtRest() -> TurnMachine {
 /// The brake's own discard lands too, but the stop must not wait for it.
 @Test func anInterruptDuringTheAnswerHoldCutsTheParkedTurn() {
     var m = parkedAtRest()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
+    _ = apply(&m, .holdPressed)
     _ = apply(&m, .classicListenArmed)
     #expect(apply(&m, .interrupt) == [.cancelAgentOutput(steer: false), .stopClassicIO])
     #expect(m.snapshot.state == .idle)
@@ -240,7 +231,7 @@ private func parkedAtRest() -> TurnMachine {
 
 @Test func aResumeWhileAnAnswerHoldIsOpenOnlyClearsTheMark() {
     var m = parkedAtRest()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
+    _ = apply(&m, .holdPressed)
     _ = apply(&m, .classicListenArmed)
     #expect(apply(&m, .sheetResumed).isEmpty)
     #expect(m.snapshot.state == .listening, "the open hold is left alone")
@@ -262,7 +253,7 @@ private func parkedAtRest() -> TurnMachine {
 
 @Test func aResumeWhileTheAnswerHoldsMicStartsOnlyClearsTheMark() {
     var m = parkedAtRest()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
+    _ = apply(&m, .holdPressed)
     #expect(m.snapshot.classicListenPending)
     #expect(apply(&m, .sheetResumed).isEmpty)
     #expect(!m.snapshot.sheetParked)
@@ -271,7 +262,7 @@ private func parkedAtRest() -> TurnMachine {
 /// The main 1b flow: press, nothing said, then the click.
 @Test func aResumeAfterADiscardedAnswerHoldReopensTheVoiceOnce() {
     var m = parkedAtRest()
-    _ = apply(&m, .holdPressed(preferRealtime: false))
+    _ = apply(&m, .holdPressed)
     _ = apply(&m, .classicListenArmed)
     _ = apply(&m, .holdDiscarded)
     #expect(apply(&m, .sheetResumed) == [.stopClassicIO, .beginSpeechStream])

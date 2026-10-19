@@ -2,10 +2,6 @@ import CompanionCore
 import Foundation
 
 package enum VoiceCopy {
-    package static var fallbackClassic: String {
-        Localized.string("voice.fallback.classic")
-    }
-
     package static var functionRefusal: String {
         Localized.string("voice.function.refusal")
     }

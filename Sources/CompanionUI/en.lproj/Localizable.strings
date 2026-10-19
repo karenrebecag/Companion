@@ -40,7 +40,6 @@
 "chat.attach.io" = "I could not save the attachment.";
 
 /* Voice */
-"voice.fallback.classic" = "Live voice is unavailable. Carrying on with the classic microphone.";
 "voice.function.refusal" = "Jobs will be available in a future version.";
 "voice.fail.micDenied" = "No microphone permission. Check System Settings.";
 "voice.fail.micUnavailable" = "The microphone is unavailable.";
@@ -159,7 +158,6 @@
 "settings.voice.speed" = "Speed";
 "settings.voice.volume" = "Volume";
 "settings.voice.advanced" = "Advanced";
-"settings.voice.turnEnd" = "Turn detection";
 "settings.voice.tone" = "Tone";
 "settings.voice.tone.placeholder" = "e.g. warm and direct";
 "settings.voice.aec" = "Echo cancellation";
@@ -177,15 +175,6 @@
 "settings.voice.eleven.custom.label" = "Custom";
 "settings.voice.eleven.default" = "Default";
 "settings.voice.eleven.invalid" = "That voice id is not valid: letters and digits only, up to 64.";
-"settings.voice.patience" = "Patience";
-"settings.voice.patience.blurb" = "Gives up the turn once you have been silent this long.";
-"settings.voice.eagerness" = "Eagerness";
-"settings.voice.eagerness.blurb" = "Waits for the sentence to sound complete before answering.";
-"settings.voice.turnEnd.silence" = "Silence";
-"settings.voice.turnEnd.meaning" = "Meaning";
-"settings.voice.eagerness.low" = "Low";
-"settings.voice.eagerness.auto" = "Auto";
-"settings.voice.eagerness.high" = "High";
 "settings.purge.blurb" = "The copies of everything you attached are deleted, %@. Conversations that cited them are left without them, and the text is kept.";
 
 /* Views */

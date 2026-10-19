@@ -53,7 +53,7 @@ private func clockEffects(_ effects: [SessionEffect]) -> [SessionEffect] {
     var machine = card()
     _ = machine.handle(.dictationCardHover(true))
     let rested = machine.handle(.voice(
-        TurnSnapshot(state: .listening, pipeline: .realtime, muted: true, holdArmed: true)))
+        TurnSnapshot(state: .listening, pipeline: .classic, muted: true, holdArmed: true)))
     expectEq(clockEffects(rested), [.pauseCompletedExpiry],
              "K4: rest() con el puntero encima no cambia el reloj")
 }

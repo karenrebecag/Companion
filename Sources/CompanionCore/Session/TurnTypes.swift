@@ -6,7 +6,7 @@ package enum TurnState: Sendable, Equatable {
     case idle, connecting, listening, thinking, speaking, error
 }
 
-package enum VoicePipeline: Sendable, Equatable { case classic, realtime }
+package enum VoicePipeline: Sendable, Equatable { case classic }
 
 package enum TurnFailure: Sendable, Equatable {
     case micDenied, micUnavailable, micSilent, notHeard, speechEngine, noProviders, sessionDropped, networkUnavailable
@@ -95,13 +95,11 @@ package struct TurnSnapshot: Sendable, Equatable {
 }
 
 package enum TurnEvent: Sendable, Equatable {
-    case startVoice(preferRealtime: Bool)
+    case startVoice
     case advance(hasSpeech: Bool)
     case typedSubmit
     case hangUp
-    case toggleMute(hasPendingAudio: Bool)
     case classicListenArmed
-    case realtimeSessionReady
     case voiceStartFailed(TurnFailure)
     case endpointFinished
     case endpointTimedOut(hasSpeech: Bool)
@@ -113,21 +111,13 @@ package enum TurnEvent: Sendable, Equatable {
     case replyCompleted
     /// The reply just written shows a document (`SpokenDocument`); sent before `replyCompleted`.
     case replyHasDocument
-    case delegateAnnounced
-    case serverSpeechStarted
-    case serverSpeechStopped
-    case agentAudioStarted
-    case agentAudioStopped
-    case responseCompleted(hasPendingAudio: Bool)
     case playerDrained
-    case delegateCallStarted
-    case functionOutputSent
     case turnFailed(TurnFailure)
     /// Wave 12b: the hold. Press opens the session or the mic (and cuts the
     /// agent if it was talking); release closes the mic and sends what the
     /// ear heard; discard closes it and sends nothing; interrupt cuts the
     /// agent and leaves the mic as it was.
-    case holdPressed(preferRealtime: Bool)
+    case holdPressed
     case holdReleased(hasSpeech: Bool)
     case holdDiscarded
     case interrupt
@@ -138,22 +128,12 @@ package enum TurnEvent: Sendable, Equatable {
 }
 
 package enum TurnEffect: Sendable, Equatable {
-    case openRealtimeSession
     case requestClassicListen
-    case closeRealtime
     case stopClassicIO
     case submitUtterance
     /// `steer`: whether the cut is a change of course (press, barge-in) that
     /// leaves the next classic turn a note, or a stop that leaves none (R3).
     case cancelAgentOutput(steer: Bool)
-    case commitAndRespond
-    /// Wave 9i: arm the turn from the native (Apple) transcript instead of the
-    /// audio OpenAI would guess from. The session reads the native text and
-    /// either sends it as the user turn or, with nothing heard, degrades to
-    /// committing the audio.
-    case commitWithText
-    case clearInputAudio
-    case setMicEnabled(Bool)
     case beginSpeechStream
     case finishSpeechStream
     case noteFailure(TurnFailure)

@@ -135,14 +135,12 @@ import Testing
 
 @MainActor func testTheAdmissionNeedsTheWordsAsWellAsTheTiming() {
     func admits(_ heard: String?) -> Bool {
-        SpokenYes.admits(realtime: false, announcedAt: 0, holdStartedAt: 5, heard: heard)
+        SpokenYes.admits(announcedAt: 0, holdStartedAt: 5, heard: heard)
     }
     expect(admits("sí, dale"), "admite: anunciado antes, hold después y la usuaria dijo sí")
     expect(!admits("qué hora es"), "no admite: el tiempo cuadra pero dijo otra cosa")
     expect(!admits("no, no lo hagas"), "no admite: una negación")
     expect(!admits(nil), "no admite: no hay palabras de este hold")
-    expect(!SpokenYes.admits(realtime: true, announcedAt: 0, holdStartedAt: 5, heard: "sí"),
-           "realtime nunca, diga lo que diga")
-    expect(!SpokenYes.admits(realtime: false, announcedAt: nil, holdStartedAt: 5, heard: "sí"),
+    expect(!SpokenYes.admits(announcedAt: nil, holdStartedAt: 5, heard: "sí"),
            "sin anuncio nunca")
 }

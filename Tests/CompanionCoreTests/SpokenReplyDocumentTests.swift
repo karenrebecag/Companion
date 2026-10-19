@@ -46,7 +46,7 @@ import Testing
         state: .speaking, pipeline: .classic, streamingStarted: true, holdArmed: true))
     _ = turn.handle(.replyHasDocument, at: 0)
     _ = turn.handle(.replyCompleted, at: 0)
-    let effects = turn.handle(.holdPressed(preferRealtime: false), at: 1)
+    let effects = turn.handle(.holdPressed, at: 1)
     expectEq(turn.snapshot.state, .listening, "corte: la pulsacion reabre el oido")
     expect(effects.contains(.cancelAgentOutput(steer: true)), "corte: la voz se calla")
     expect(!turn.snapshot.hasDocument, "corte: el documento se va con la respuesta cortada")

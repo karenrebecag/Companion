@@ -309,7 +309,7 @@ private let owned = JobID("j")
 
 private func voice(
     _ state: TurnState, muted: Bool = false, failure: TurnFailure? = nil,
-    pipeline: VoicePipeline = .realtime
+    pipeline: VoicePipeline = .classic
 ) -> SessionEvent {
     .voice(TurnSnapshot(state: state, pipeline: pipeline, muted: muted, failure: failure))
 }
@@ -353,7 +353,7 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     _ = m.handle(voice(.listening))
     expectEq(m.projection.kind, .listening, "escucha: listening")
     expectEq(m.projection.voice, .live, "escucha: voz viva")
-    expectEq(m.projection.pipeline, .realtime, "escucha: el pipeline viaja")
+    expectEq(m.projection.pipeline, .classic, "escucha: el pipeline viaja")
     _ = m.handle(voice(.listening, muted: true))
     expectEq(m.projection.voice, .muted, "escucha: silenciada")
     expectEq(m.projection.kind, .idle, "escucha: con el micro cerrado el chrome descansa (12b)")
@@ -642,7 +642,7 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     _ = m.handle(.pressed)
     _ = m.handle(.released)
     _ = m.handle(voice(.speaking))
-    let fx = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime, muted: true, holdArmed: true)))
+    let fx = m.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic, muted: true, holdArmed: true)))
     expect(fx.contains(.scheduleVoiceIdleExpiry(SessionMachine.voiceIdleTimeout)),
            "caliente: el reposo arma el plazo")
     _ = m.handle(.completedTimerExpired)
@@ -650,7 +650,7 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     expect(m.handle(.voiceIdleExpired).contains(.hangUpVoice), "caliente: vencido, cuelga")
 
     var pressed = SessionMachine()
-    _ = pressed.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime, muted: true, holdArmed: true)))
+    _ = pressed.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic, muted: true, holdArmed: true)))
     _ = pressed.handle(.pressed)
     expect(!pressed.handle(.voiceIdleExpired).contains(.hangUpVoice),
            "caliente: un plazo que vence durante un hold no cuelga")
@@ -736,7 +736,7 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     _ = forked.handle(.pressed)
     _ = forked.handle(.dictating(app: "Slack"))
     _ = forked.handle(.released)
-    _ = forked.handle(.voice(TurnSnapshot(state: .thinking, pipeline: .realtime)))
+    _ = forked.handle(.voice(TurnSnapshot(state: .thinking, pipeline: .classic)))
     expect(forked.projection.dictation == nil, "dictado: si cae al agente, pensar lo borra")
 
     var denied = SessionMachine()
@@ -745,8 +745,8 @@ private func kinds(_ effects: [SessionEffect]) -> [SessionEffect] {
     _ = denied.handle(.dictationFailed(.needsAccessibility))
     expectEq(denied.projection.kind, .processing(.pending), "aviso: el kind no se toca")
     expectEq(denied.projection.notice, .permission(.accessibilityDenied), "aviso: el permiso queda anotado")
-    _ = denied.handle(.voice(TurnSnapshot(state: .thinking, pipeline: .realtime)))
-    _ = denied.handle(.voice(TurnSnapshot(state: .listening, pipeline: .realtime, muted: true)))
+    _ = denied.handle(.voice(TurnSnapshot(state: .thinking, pipeline: .classic)))
+    _ = denied.handle(.voice(TurnSnapshot(state: .listening, pipeline: .classic, muted: true)))
     expectEq(denied.projection.notice, .permission(.accessibilityDenied), "aviso: sigue ahí en reposo")
     _ = denied.handle(.pressed)
     expect(denied.projection.notice == nil, "aviso: empezar algo nuevo lo borra")

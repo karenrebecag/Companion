@@ -3,13 +3,11 @@ import Foundation
 /// Each voice backend accepts a different speed window; the factor the user
 /// asked for is clamped per backend, never globally.
 package enum SpeechSpeedProvider: Sendable, Equatable, CaseIterable {
-    case realtime
     case openAITTS
     case elevenLabs
 
     package var range: ClosedRange<Double> {
         switch self {
-        case .realtime: 0.25 ... 1.5
         case .openAITTS: 0.25 ... 4.0
         case .elevenLabs: 0.7 ... 1.2
         }
@@ -17,7 +15,7 @@ package enum SpeechSpeedProvider: Sendable, Equatable, CaseIterable {
 }
 
 /// Per-conversation pace, relative to each mouth's own base (1.0 = normal).
-/// Relative on purpose: the realtime base and the TTS bases differ, and a
+/// Relative on purpose: the TTS mouths' bases differ, and a
 /// single absolute number would mean a different pace on each.
 package struct ConversationSpeed: Sendable, Equatable {
     package static let factorRange: ClosedRange<Double> = 0.25 ... 4.0

@@ -8,20 +8,17 @@ package struct ConversationActivity: Sendable, Equatable {
     package var turnInFlight: Bool
     package var jobRunning: Bool
     package var approvalsPending: Bool
-    package var liveRealtime: Bool
 
     package init(
         lastActivity: Date?,
         turnInFlight: Bool,
         jobRunning: Bool,
-        approvalsPending: Bool,
-        liveRealtime: Bool
+        approvalsPending: Bool
     ) {
         self.lastActivity = lastActivity
         self.turnInFlight = turnInFlight
         self.jobRunning = jobRunning
         self.approvalsPending = approvalsPending
-        self.liveRealtime = liveRealtime
     }
 }
 
@@ -42,7 +39,7 @@ package enum ConversationRollover {
     ) -> Bool {
         guard let lastActivity = activity.lastActivity else { return false }
         guard !activity.turnInFlight, !activity.jobRunning,
-              !activity.approvalsPending, !activity.liveRealtime
+              !activity.approvalsPending
         else { return false }
         let elapsed = now.timeIntervalSince(lastActivity)
         guard elapsed >= 0 else { return false }

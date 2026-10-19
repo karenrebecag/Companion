@@ -347,7 +347,7 @@ private func makeSteerHarness(chat: GatedChat) -> SteerHarness {
 
 @Test @MainActor func testHoldPressedDuringClassicThinkingCuts() {
     var machine = TurnMachine(snapshot: TurnSnapshot(state: .thinking, pipeline: .classic))
-    let effects = machine.handle(.holdPressed(preferRealtime: false), at: 0)
+    let effects = machine.handle(.holdPressed, at: 0)
     expectEq(effects, [.cancelAgentOutput(steer: true), .requestClassicListen],
              "15b-10: pulsar en .thinking clásico corta y vuelve a escuchar")
     expectEq(machine.snapshot.state, .listening, "15b-10: el estado cae a listening")
@@ -356,7 +356,7 @@ private func makeSteerHarness(chat: GatedChat) -> SteerHarness {
 
 @Test @MainActor func testHoldPressedDuringClassicSpeakingStillCuts() {
     var machine = TurnMachine(snapshot: TurnSnapshot(state: .speaking, pipeline: .classic))
-    let effects = machine.handle(.holdPressed(preferRealtime: false), at: 0)
+    let effects = machine.handle(.holdPressed, at: 0)
     expectEq(effects, [.cancelAgentOutput(steer: true), .requestClassicListen],
              "15b-10: .speaking clásico sigue cortando igual (regresión)")
 }

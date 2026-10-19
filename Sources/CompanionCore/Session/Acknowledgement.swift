@@ -46,18 +46,17 @@ package enum SpokenApproval: Sendable, Equatable {
 /// Review 16h-2 round 3 (HIGH): when a spoken "yes" may answer a sheet.
 /// `resolve_approval` is a call the MODEL makes, so its "yes" is only the
 /// user's when she can have heard the question and then chose to answer.
-/// Realtime has no hold to tie an answer to: never. Classic: the voice must
-/// have said the question, and the hold carrying the answer must have
-/// started after it, at least the click guard's dwell later.
+/// The voice must have said the question, and the hold carrying the answer
+/// must have started after it, at least the click guard's dwell later.
 package enum SpokenYes {
     /// Timing alone is not consent (16q-1 review, security M3): the model
     /// can call `resolve_approval(true)` in the hold after the question
     /// whatever the user said, and a specialist's output can ask it to. The
     /// words of THAT hold must be a clear yes.
     package static func admits(
-        realtime: Bool, announcedAt: TimeInterval?, holdStartedAt: TimeInterval?, heard: String?
+        announcedAt: TimeInterval?, holdStartedAt: TimeInterval?, heard: String?
     ) -> Bool {
-        guard !realtime, let announcedAt, let holdStartedAt, let heard, affirms(heard)
+        guard let announcedAt, let holdStartedAt, let heard, affirms(heard)
         else { return false }
         return holdStartedAt >= announcedAt + ApprovalClickGuard.dwell
     }
@@ -203,7 +202,6 @@ package enum AnnouncementGap: Sendable {
     package static let maxAge: TimeInterval = 120
 
     package static func isOpen(_ voice: TurnSnapshot) -> Bool {
-        if voice.pipeline == .realtime { return voice.state == .listening }
         switch voice.state {
         case .idle:
             // A press on its way up is still idle while the mic starts.
