@@ -28,6 +28,10 @@
 
 ## Foco actual
 
+### Relevo 2026-10-19
+
+Todo el trabajo en curso se canceló tras una QA en vivo en la que fallaron todos los casos. El estado real, las causas y lo que quedó sin terminar están en `docs/HANDOFF-2026-10-19.md`.
+
 ### Isla, puente de QA y endurecimiento (PRs #303-#325, 2026-10-12 a 2026-10-16)
 
 - Isla: la respuesta terminada y el recibo son una tarjeta de resultado; documento de resultado con composer

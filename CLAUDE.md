@@ -19,6 +19,12 @@ referencia `../companion` (solo lectura: se consulta, jamas se edita).
 
 ## Reglas de oro
 
+0. **Referencias y codigo real primero; nunca parchar por sintoma.** Antes de
+   tocar un comportamiento se lee como lo resuelve la referencia
+   (`~/Desktop/incredible-ref`, los proyectos que Karen pase) y el flujo real
+   del repo de punta a punta. Un hallazgo de QA se arregla en el diseño que
+   lo produce, no con otra regla angosta encima (relevo 2026-10-19,
+   `docs/HANDOFF-2026-10-19.md`).
 1. **Sin spec APROBADO por Karen no se escribe codigo.** Los BORRADOR se
    refinan en kickoff (planner + architect en paralelo) y se re-aprueban.
 2. **Ledger antes de portar**: todo comportamiento del original pasa por
