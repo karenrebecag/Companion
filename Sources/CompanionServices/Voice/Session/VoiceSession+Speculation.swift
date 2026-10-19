@@ -74,6 +74,8 @@ extension VoiceSession {
             // A yes/no to an open question is answered on the Mac at the
             // release; it is never sent out as a partial.
             if await gate.answersPendingConfirmation(text) { return .passThrough(.unresolved) }
+            // Cancelled before it first ran: nothing goes out to the judge.
+            guard !Task.isCancelled else { return .passThrough(.unresolved) }
             return await gate.routing(text, canDelegate: canDelegate, provider: turn, world: world)
         }
         speculation = Speculation(text: text, canDelegate: canDelegate, world: world, task: task)
