@@ -278,3 +278,19 @@ import Testing
     expect(es.contains("nombra la skill") && es.contains("context"), "prompt es: al delegar, nombra la skill en el contexto")
     expect(es.contains("en voz alta"), "prompt es: nunca lee el catálogo en voz alta")
 }
+
+// QA 2026-10-18: both replies told her to visit XE. The "never send her to a
+// site" rule sat in the delegate branch only, so a parent that could not
+// delegate never heard it.
+@Test func theParentPromptCarriesTheSourcesRuleWithoutDelegation() {
+    let es = ChatPrompt.system(
+        ownerFirstName: "Karen", delegateEnabled: false, parentToolsEnabled: true,
+        webSearchEnabled: true, webReadEnabled: true, language: .es)
+    expect(es.contains("nunca la mandes a un sitio"),
+           "prompt sin delegate: la regla de no mandarla a un sitio sigue presente (es)")
+    let en = ChatPrompt.system(
+        ownerFirstName: "Karen", delegateEnabled: false, parentToolsEnabled: true,
+        webSearchEnabled: true, webReadEnabled: true, language: .en)
+    expect(en.contains("never send her to a site"),
+           "prompt sin delegate: la regla de no mandarla a un sitio sigue presente (en)")
+}
