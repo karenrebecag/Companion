@@ -18,7 +18,11 @@ extension VoiceSession {
         }
         startFramePump()
         let pipeline = machine.snapshot.pipeline
-        if partialTask != nil, partialPipeline != pipeline {
+        // The pump only reads "realtime or not", and the ear hands one stream
+        // for its lifetime: cancelling a classic pump because the pipeline went
+        // from unset to classic ends that stream, and the island and the eager
+        // decision stop hearing partials for the rest of the session.
+        if partialTask != nil, (partialPipeline == .realtime) != (pipeline == .realtime) {
             partialTask?.cancel()
             partialTask = nil
         }

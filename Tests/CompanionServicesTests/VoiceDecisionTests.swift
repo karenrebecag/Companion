@@ -135,11 +135,13 @@ import CompanionTestKit
     let asked = actions.count
 
     await h.session.hold()
-    // The question leaves the island listening, so the state alone does not
-    // say the new hold is armed yet; a partial before that is dropped.
-    await pumpUntilAsync("yes partial 2: armed") { await h.session.holdOpen }
-    h.transcriber.yieldPartial("si dale")
-    await pumpUntilAsync("yes partial: seen") { await h.session.lastPartial == "si dale" }
+    // A partial before the new hold is armed is dropped, so the ear repeats
+    // its hypothesis until the hold takes it.
+    await pumpUntilAsync("yes partial: seen") {
+        h.transcriber.yieldPartial("si dale")
+        return await h.session.lastPartial == "si dale"
+    }
+    // Past the speculation settle, so a plan would have been asked by now.
     try? await Task.sleep(for: .milliseconds(400))
     await h.session.release()
     await pumpUntil("yes partial: emptied") { system.actCount == 1 }
@@ -1119,3 +1121,4 @@ private final class FakeTerminatingApp: AppTerminating, @unchecked Sendable {
         return true
     }
 }
+
