@@ -37,7 +37,7 @@ package enum PresentContract {
         return ([
             "Show the reply as typed blocks instead of markdown. One present call carries the whole structured part of a reply, in order; plain sentences can be paragraph blocks.",
             "Pick the family that names what the content is. The client picks the component, so never describe a chart or a table in text.",
-            "Data must be what you looked up or were given. Never invent numbers, coordinates or links.",
+            "Data must be what you looked up or were given. Never invent numbers, coordinates or links: figures that change (prices, populations, rates) need a search this turn before you present them.",
             "Do not print this JSON as text in your reply: it is rendered for the user, not shown as code.",
             "Families:",
         ] + families).joined(separator: "\n")

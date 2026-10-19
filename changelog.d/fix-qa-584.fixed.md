@@ -1,0 +1,1 @@
+- **QA del build 584 (2026-10-18).** Los switches de Ajustes son los de Arc, verdes cuando están encendidos, y ya no se ven grises cuando la ventana pierde el foco. Una dona ya no se usa para cosas que no son partes de un total, como la población de varias ciudades: eso es un ranking. Las cifras que cambian, como precios o poblaciones, se buscan antes de mostrarlas.

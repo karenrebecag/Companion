@@ -48,19 +48,14 @@ extension ButtonVariant {
     }
 }
 
-/// Incredible's drawn switch (16l-2), not the native Toggle.
+/// The drawn Arc switch, not the native Toggle: macOS greys a native switch
+/// whenever its window is not key, and draws its own capsule thumb.
 struct SettingsSwitch: View {
     let label: String
     @Binding var isOn: Bool
-    @Environment(\.settingsStyle) private var style
 
-    /// One accent in both themes: the native switch would take the system's
-    /// tint, which is black in light and green in dark.
     var body: some View {
-        Toggle(label, isOn: $isOn)
-            .labelsHidden()
-            .toggleStyle(.switch)
-            .tint(style.palette.controlOn.color)
+        IncredibleSwitch(label, isOn: $isOn)
     }
 }
 
