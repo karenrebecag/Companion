@@ -20,6 +20,13 @@ package struct FoundPlace: Sendable, Equatable {
 /// Port so a test never goes out to the network for a museum.
 package protocol PlacesSearching: Sendable {
     func search(_ query: String, near: String?) async -> [FoundPlace]
+    /// The one place a text names, to measure distances from. Nil when the
+    /// text names nothing; a port that cannot locate says so by default.
+    func locate(_ text: String) async -> FoundPlace?
+}
+
+extension PlacesSearching {
+    package func locate(_ text: String) async -> FoundPlace? { nil }
 }
 
 /// What find_places answers with. A category ("cafeterías") wants places: a
@@ -62,6 +69,13 @@ package struct MapKitPlacesSearch: PlacesSearching {
 
     package init(limit: Int = 8) {
         self.limit = limit
+    }
+
+    package func locate(_ text: String) async -> FoundPlace? {
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = text
+        request.resultTypes = [.address, .pointOfInterest]
+        return await Self.places(request, limit: 1).first
     }
 
     package func search(_ query: String, near: String?) async -> [FoundPlace] {

@@ -1,0 +1,1 @@
+- **Buscar lugares: categoría simple y distancia desde un punto (2026-10-19).** Para "la cafetería más cercana a la Glorieta" la búsqueda ahora acepta `from`: ordena por cercanía y da la distancia de cada lugar. La categoría va sin adjetivos, y el chat dice cuando no hay calificaciones, en vez de inventarlas.
