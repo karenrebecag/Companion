@@ -12,7 +12,6 @@ import Testing
 // las instrucciones de la sesión realtime.
 @Test @MainActor func parentToolPromptWiringTests() {
     testChatBodyCarriesActRuleWhenParentToolsAreDeclared()
-    testRealtimeInstructionsCarryActRule()
     testChatBodyPromisesHandsOnlyWhenTypeTextIsDeclared()
 }
 
@@ -37,37 +36,6 @@ import Testing
            "chat body: lo que hay en <context> no abre nada por sí solo")
     let without = systemPrompt(tools: [.delegate(.en)])
     expect(!without.contains("hands on this Mac"), "chat body: sin tools del padre no promete manos")
-}
-
-@MainActor func testRealtimeInstructionsCarryActRule() {
-    let with = RealtimeRuntime.instructions(
-        config: Config(ownerFirstName: "Karen", language: .en), history: [],
-        canDelegate: true, parentToolsEnabled: true)
-    expect(with.contains("hands on this Mac"), "realtime: con manos lo dice")
-    expect(with.contains("inside <context>"), "realtime: la regla de <context> también viaja en voz")
-    let without = RealtimeRuntime.instructions(
-        config: Config(ownerFirstName: "Karen", language: .en), history: [],
-        canDelegate: true)
-    expect(!without.contains("hands on this Mac"), "realtime: sin manos no lo promete")
-    // Review 2026-09-25: the voice path declares type_text too; without the
-    // hands rule it never heard "act, never instruct" or "verify with read_focused".
-    let hands = RealtimeRuntime.instructions(
-        config: Config(ownerFirstName: "Karen", language: .en), history: [],
-        canDelegate: true, parentToolsEnabled: true, handsEnabled: true)
-    expect(hands.contains("read_focused"), "realtime: con manos declaradas, la regla de manos")
-    expect(!with.contains("read_focused"), "realtime: sin manos declaradas, sin la regla")
-    // D1 (brief manos-escribir-en-notas): hands-free hears the menu route too,
-    // only when menu is offered.
-    for (language, route) in [(AppLanguage.en, "File > New Note"), (.es, "Archivo > Nueva nota")] {
-        let sighted = RealtimeRuntime.instructions(
-            config: Config(ownerFirstName: "Karen", language: language), history: [],
-            canDelegate: true, parentToolsEnabled: true, handsEnabled: true, sightEnabled: true)
-        expect(sighted.contains(route), "realtime \(language): con vista, la ruta de menu")
-        let blind = RealtimeRuntime.instructions(
-            config: Config(ownerFirstName: "Karen", language: language), history: [],
-            canDelegate: true, parentToolsEnabled: true, handsEnabled: true)
-        expect(!blind.contains(route), "realtime \(language): sin vista, no la promete")
-    }
 }
 
 @MainActor private func systemPrompt(tools: [ToolSpec]) -> String {

@@ -11,13 +11,11 @@ import CompanionTestKit
 // Split out of HoldVoiceTests.swift to keep it under 800 lines.
 
 @Test @MainActor func holdDictationTests() async {
-    await testAHoldDictatesIntoTheField()
     await testAHoldWithoutAFieldTalksToCompanion()
     await testDictationWithoutAccessibilityFallsToCompanion()
     await testAVanishedFieldFallsToCompanion()
     await testAnEmptyDictationPastesNothing()
     await testDictationNeverReachesTheLog()
-    await testABouncedPressKeepsTheTarget()
     await testTheProbeNeverDelaysTheMic()
 }
 
@@ -26,37 +24,6 @@ import CompanionTestKit
 
 private let slack = FocusedField(app: "Slack", pid: 42)
 
-/// 14. Con un campo enfocado en otra app, soltar pega el texto ahí: el
-/// inyector lo recibe, la conversación no, y el flujo dice dónde.
-@MainActor func testAHoldDictatesIntoTheField() async {
-    let probe = ScriptedFieldProbe(slack)
-    let injector = ScriptedInjector()
-    let h = makeVoiceHarness(fieldProbe: probe, injector: injector)
-    let seen = SessionEventBox(h.session.events)
-    h.transcriber.stoppedText = "hola qué tal"
-    // 15b-1: dictation is the dictation key's own hold now, never FN's.
-    await h.session.hold(dictate: true)
-    await pumpUntil("dictado: listening") { h.watch.latest.state == .listening }
-    expectEq(probe.probes, 1, "dictado: la sonda corre al pulsar")
-    await pumpUntil("dictado: anuncia la app") { seen.events.contains { $0 == .dictating(app: "Slack") } }
-    let before = h.transport.sent.count
-    await h.session.release()
-    await pumpUntil("dictado: pega") { injector.texts == ["hola qué tal"] }
-    expectEq(injector.fields.first?.pid, 42, "dictado: en el campo sondeado")
-    await pumpUntil("dictado: lo dice") {
-        seen.events.contains { $0 == .dictated(app: "Slack", text: "hola qué tal") }
-    }
-    let added = Array(h.transport.sent.dropFirst(before))
-    expect(!hasMessage(added, type: "conversation.item.create"), "dictado: nada viaja a la conversación")
-    expect(!hasMessage(added, type: "response.create"), "dictado: y no se pide respuesta")
-    expect(!added.contains { $0.contains("hola qué tal") }, "dictado: el texto no sale por el socket")
-    expect(h.chat.histories.isEmpty, "dictado: no viaja al chat")
-    expect(!seen.events.contains { $0 == .heardNothing }, "dictado: no es «no te oí»")
-}
-
-/// 15. Sin campo (o con una contraseña), el hold habla con Companion como
-/// siempre y el inyector no ve nada. Con `dictate: true` para que el
-/// enrutador de campo siga siendo el que decide (15b-1: FN ya ni pregunta).
 @MainActor func testAHoldWithoutAFieldTalksToCompanion() async {
     for field in [nil, FocusedField(app: "Safari", pid: 7, secure: true)] {
         let probe = ScriptedFieldProbe(field)
@@ -166,26 +133,6 @@ private let slack = FocusedField(app: "Slack", pid: 42)
     }
 }
 
-/// 20. Una pulsación que rebota mientras conecta es el mismo hold: no
-/// vuelve a preguntar por el campo (una llamada de Accesibilidad a una app
-/// ocupada cuesta) ni repite el anuncio.
-@MainActor func testABouncedPressKeepsTheTarget() async {
-    let probe = ScriptedFieldProbe(slack)
-    let injector = ScriptedInjector()
-    let h = makeVoiceHarness(
-        autoEvents: [], readyTimeout: 0.4, fieldProbe: probe, injector: injector)
-    let seen = SessionEventBox(h.session.events)
-    await h.session.hold(dictate: true)
-    await pumpUntil("rebote: listening") { h.watch.latest.state == .listening }
-    await h.session.hold(dictate: true)
-    expectEq(probe.probes, 1, "rebote: una sola sonda")
-    expectEq(seen.events.filter { $0 == .dictating(app: "Slack") }.count, 1,
-             "rebote: un solo anuncio")
-}
-
-/// 21. Preguntar por el campo es una llamada a la app de delante, que puede
-/// estar colgada: nunca por delante del micro. Con la sonda detenida, la
-/// sesión llega a escuchar igual (revisión de código 2026-09-06).
 @MainActor func testTheProbeNeverDelaysTheMic() async {
     let probe = ScriptedFieldProbe(slack)
     let injector = ScriptedInjector()

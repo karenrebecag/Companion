@@ -26,9 +26,8 @@ struct IslandAttachActions {
 
     func stage(_ url: URL) {
         switch chat.attachResult(url) {
-        case .success(let ref):
-            // A live voice session hears about it now, as a window attach does.
-            if voice.isActive { voice.push(ref) }
+        case .success:
+            break
         case .failure(let error):
             refuse(url, reason: ChatCopy.attachFailed(error))
         }

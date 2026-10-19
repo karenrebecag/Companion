@@ -1,33 +1,15 @@
 import CompanionCore
 import Foundation
 
-/// The pumps: every stream that feeds the session — server events, mic
-/// frames, player drain and levels, synthesizer events. Split out of
-/// VoiceSession when it crossed the 400-line gate. What they touch is not
-/// `private` any more but still actor-isolated: the actor, not the access
-/// level, is what keeps this state single-threaded.
+/// The pumps: every stream that feeds the session — ear partials, mic frames,
+/// player drain and levels, synthesizer events. Split out of VoiceSession when
+/// it crossed the 400-line gate. What they touch is not `private` any more but
+/// still actor-isolated: the actor, not the access level, is what keeps this
+/// state single-threaded.
 extension VoiceSession {
     func startPumps() {
-        if eventTask == nil {
-            // A new pump is a new session: a reconnect still in flight from
-            // the previous one sees the bump and stands down.
-            realtimeGeneration += 1
-            reconnectTimes = []
-            let generation = realtimeGeneration
-            eventTask = Task { [weak self] in await self?.pumpEvents(generation: generation) }
-        }
         startFramePump()
-        let pipeline = machine.snapshot.pipeline
-        // The pump only reads "realtime or not", and the ear hands one stream
-        // for its lifetime: cancelling a classic pump because the pipeline went
-        // from unset to classic ends that stream, and the island and the eager
-        // decision stop hearing partials for the rest of the session.
-        if partialTask != nil, (partialPipeline == .realtime) != (pipeline == .realtime) {
-            partialTask?.cancel()
-            partialTask = nil
-        }
         if partialTask == nil {
-            partialPipeline = pipeline
             partialTask = Task { [weak self] in await self?.pumpPartials() }
         }
         if drainTask == nil {
@@ -41,13 +23,10 @@ extension VoiceSession {
         if speechTask == nil {
             speechTask = Task { [weak self] in await self?.pumpSpeech() }
         }
-        if earTurnTask == nil, segmentingEar != nil {
-            earTurnTask = Task { [weak self] in await self?.pumpEarTurns() }
-        }
     }
 
-    /// Wave 12c: frames start flowing at the mic, before the socket, so a
-    /// hold's first words are not lost to the handshake.
+    /// Wave 12c: frames start flowing at the mic, before the ear is up, so a
+    /// hold's first words are not lost to the startup.
     func startFramePump() {
         if frameTask == nil {
             frameTask = Task { [weak self] in await self?.pumpFrames() }
@@ -64,170 +43,16 @@ extension VoiceSession {
     /// Wave 12c: the ear's hypotheses reach the island while the key is
     /// down. Read on the actor so `turnText()` sees a stable `committed`.
     func pumpPartials() async {
-        // Classic hold feeds Apple; realtime hold feeds the audit ear.
-        // Picking at start matches which `startPumps` caller armed us.
-        // The text comes from the same ear as the stream: the audit wraps the
-        // realtime ear when the app has one, and on classic that ear hears
-        // nothing (seen live 2026-09-25: the island stayed blank).
-        let realtime = machine.snapshot.pipeline == .realtime
-        let stream = realtime ? audit.partials : transcriber.partials
-        for await _ in stream {
+        for await _ in transcriber.partials {
             if Task.isCancelled { return }
             guard holdOpen else { continue }
-            let text = realtime ? audit.turnText()
-                : transcriber.currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = transcriber.currentText.trimmingCharacters(in: .whitespacesAndNewlines)
             guard text != lastPartial else { continue }
             lastPartial = text
             if !text.isEmpty { timeline.mark(.firstPartial, at: now()) }
             eventBox.yield(.partialTranscript(text))
-            if !realtime { notePartialForDecision(text) }
+            notePartialForDecision(text)
         }
-    }
-
-    /// 9j-1: the server's VAD owns turn-taking. It opens the turn when the
-    /// user starts speaking and hands each finished utterance as final text —
-    /// that text IS the turn. Over the agent, the prototype's rule applies:
-    /// under two words is a backchannel and is dropped; two or more is a real
-    /// interruption — cancel and commit.
-    func pumpEarTurns() async {
-        guard let segmentingEar else { return }
-        for await event in segmentingEar.turnEvents {
-            if Task.isCancelled { return }
-            switch event {
-            case .speechStarted:
-                guard machine.snapshot.state != .speaking, !machine.snapshot.holdArmed else { continue }
-                await apply(.serverSpeechStarted)
-            case .finished(let text):
-                // In a hold session the key owns the turn, not the server's
-                // VAD: a segment closed while the key is down is not the end,
-                // and one closed after the release (or a discard) is not a
-                // new turn. The release already sent the ear's running text,
-                // which includes these words (Wave 12c, code review).
-                if machine.snapshot.holdArmed { continue }
-                // 9j-6a: on speakers a segment can SPAN the agent's echo and
-                // the user's words — the reply's tail leaked into her bubble.
-                // Scrub the echoed prefix ALWAYS (not only while speaking):
-                // what remains is what the user actually said. Nothing left,
-                // or punctuation only, is pure echo — dropped.
-                let scrubbed = EchoGuard.scrub(
-                    heard: text, agentSaying: realtime.agentSpeech)
-                guard !EchoGuard.words(scrubbed).isEmpty else { continue }
-                if machine.snapshot.state == .speaking {
-                    // Still talking over the agent: a backchannel is under two
-                    // words; anything more is the user really breaking in.
-                    guard EchoGuard.isRealInterruption(
-                        heard: scrubbed, agentSaying: realtime.agentSpeech)
-                    else { continue }
-                    await apply(.serverSpeechStarted)
-                }
-                earSegment = scrubbed
-                await apply(.serverSpeechStopped)
-            }
-        }
-    }
-
-    func pumpEvents(generation: Int) async {
-        var events = transport.events()
-        while true {
-            for await event in events {
-                if Task.isCancelled || generation != realtimeGeneration { return }
-                if event == .sessionUpdated, !realtime.didBecomeReady {
-                    await apply(.realtimeSessionReady)
-                    realtime.didBecomeReady = true
-                    // The retry is earned by a connection that got ready;
-                    // one that dies first must not be reopened in a loop.
-                    reconnectAttempted = false
-                }
-                let follow = await realtime.handle(
-                    event, state: machine.snapshot.state)
-                for next in follow { await apply(next) }
-            }
-            // Stream ended unexpectedly while session was active. The reply
-            // it carried will never finish: its caption goes with it.
-            await realtime.captions?.cut()
-            // Only handle stream end if still in active realtime states (not already failed/idle).
-            let state = machine.snapshot.state
-            guard isCurrent(generation), state == .listening || state == .speaking else { return }
-            let online = await reachability.isOnline
-            // A hang-up can land while we ask: failing a closed session would
-            // paint an error over the idle one the user just chose.
-            guard isCurrent(generation) else { return }
-            guard online, !reconnectAttempted, reconnectBudgetLeft() else {
-                await apply(.turnFailed(.sessionDropped))
-                return
-            }
-            reconnectAttempted = true
-            reconnectTimes.append(now())
-            Log.app("voice: reconnect attempt after stream ended")
-            // The reconnect runs inside this very task, so startPumps would
-            // see eventTask != nil and never start a reader: read the new
-            // stream from here.
-            guard await reconnectRealtimeSession(generation: generation) else { return }
-            events = transport.events()
-        }
-    }
-
-    /// Whether this pump still belongs to the live session. A closed session
-    /// can be reopened (`start()` clears `voiceClosed`), so the generation is
-    /// what tells the old pump from the new one.
-    private func isCurrent(_ generation: Int) -> Bool {
-        !Task.isCancelled && generation == realtimeGeneration && !voiceClosed
-    }
-
-    /// Readiness earns a retry, but a server that accepts and then drops,
-    /// over and over, would still loop: this caps reconnects per window.
-    private func reconnectBudgetLeft() -> Bool {
-        let cutoff = now() - Self.reconnectWindow
-        reconnectTimes = reconnectTimes.filter { $0 > cutoff }
-        return reconnectTimes.count < Self.reconnectBudget
-    }
-
-    /// Reopens the socket as a NEW server session: it starts on the server's
-    /// defaults, so the config goes out again before anything else.
-    func reconnectRealtimeSession(generation: Int) async -> Bool {
-        guard let key = openAIKey(), let url = RealtimeCodec.url() else {
-            await apply(.turnFailed(.sessionDropped))
-            return false
-        }
-        // Read before the socket opens: after `open` nothing may suspend
-        // until the config is on its way, or a send could beat it.
-        let history = await classic.thread.historyTurns()
-        guard isCurrent(generation) else { return false }
-        do {
-            try await transport.open(key: key, url: url)
-        } catch {
-            guard isCurrent(generation), !(error is CancellationError) else { return false }
-            Log.app("voice: reconnect failed")
-            await apply(.turnFailed(.sessionDropped))
-            return false
-        }
-        guard isCurrent(generation) else {
-            // Nobody is left to use this socket. If a new session took over
-            // the transport it owns it; closing would cut that one off.
-            if voiceClosed { await transport.close() }
-            return false
-        }
-        // Reset first, then prepare: `prepareSessionUpdate` reads `voiceSent`.
-        // Both stay after the open so a send that failed on the dead socket
-        // cannot leave the runtime paused for the new one.
-        realtime.resetConnection()
-        realtime.prepareSessionUpdate(
-            config: configProvider.current, history: history,
-            canDelegate: jobs != nil)
-        await realtime.flushPendingUpdate()
-        if realtime.transportDown { Log.app("voice: reconnect config not delivered") }
-        await dropPendingMCPApprovals()
-        await settleSpeechAfterReconnect()
-        return true
-    }
-
-    /// Nothing queued means no drain signal is coming (it fired before the
-    /// drop, or the last delta held no frames), so a machine still speaking
-    /// would never leave it. With audio queued the drain pump settles it.
-    private func settleSpeechAfterReconnect() async {
-        guard !(await player.hasPending) else { return }
-        if machine.snapshot.state == .speaking { await apply(.playerDrained) }
-        await realtime.threadCutReply(announce: true)
     }
 
     func pumpFrames() async {
@@ -244,44 +69,8 @@ extension VoiceSession {
                 await classic.flushEarlyAudio()
                 await transcriber.append(frame)
             case .realtime:
-                // Wave 9i: the mic audio never reaches the conversation model;
-                // the ear transcribes it and text drives the turn. Hearing and
-                // barge-in are SEPARATE decisions: the backchannel gate exists
-                // to keep an "ajá" from cutting the agent off, but a real
-                // session showed it also deafening the ear mid-over-talk
-                // (fwd=20, gated=85 — half a sentence lost). The ear hears
-                // every frame that cannot contain the agent's own voice; the
-                // gate only decides whether the agent gets interrupted.
-                let aec = await mic.hasEchoCancellation || echoFreeOutput
-                let snap = machine.snapshot
-                let guarded = machine.isEchoGuarded(at: now())
-                // Half-duplex without AEC: while the agent speaks on open
-                // speakers, the ear is CLOSED — letting it hear and scrubbing
-                // the echo by text leaked the agent's whole reply into the
-                // user's bubble twice (measured). With AEC or an echo-free
-                // output the mic is clean of the agent, so full duplex and
-                // barge-in stay. Speaker barge-in needs real AEC (9j-6b).
-                let clean = !frame.pcm16le24k.isEmpty && !snap.muted
-                    && realtime.micEnabled
-                    && (aec || (snap.state != .speaking && !guarded))
-                let reason: GateReason? = clean ? nil : RealtimeGate.reason(
-                    muted: snap.muted, emptyPCM: frame.pcm16le24k.isEmpty,
-                    micEnabled: realtime.micEnabled, state: snap.state,
-                    echoGuarded: guarded, aec: aec)
-                await audit.hear(frame, forwarded: clean, reason: reason)
-                if snap.state == .speaking {
-                    // Barge-in stays vetted: only sustained speech over the
-                    // agent (with a clean mic) cuts it off.
-                    if realtime.shouldForward(
-                        frame, muted: snap.muted, aec: aec,
-                        state: snap.state, echoGuarded: guarded) {
-                        await apply(.serverSpeechStarted)
-                    }
-                } else if clean, segmentingEar == nil {
-                    // Only without a segmenting ear: otherwise the server's
-                    // VAD owns the turn (9j-1) and two deciders would race.
-                    await driveTurn(rms: frame.rms)
-                }
+                // Unreachable: no door starts the realtime lane any more.
+                continue
             case nil:
                 // 15d-1: the mic is up before the on-device ear is; what
                 // it hears meanwhile is the first word, kept for the ear.
@@ -293,39 +82,10 @@ extension VoiceSession {
         }
     }
 
-    /// The words themselves drive the turn (Wave 9i): it opens when the ear's
-    /// transcript grows past what earlier turns consumed, and closes when the
-    /// transcript settles. RMS never opens a turn — this mic's noise floor
-    /// sits above any usable threshold (measured 0.12 in "silence"), so
-    /// energy cannot be trusted. Barge-in is decided upstream, per frame.
-    func driveTurn(rms: Double) async {
-        let text = audit.turnText()
-        if transcriptEnd == nil {
-            guard !text.isEmpty else { return }
-            // voiceFloor (0.18) sits above this mic's measured noise floor
-            // (0.12) so audible speech HOLDS the turn open even when network
-            // deltas lag; the delays come from the user's turn-detection
-            // setting, whose default reproduces the measured 0.9 s / 4.0 s.
-            let cfg = TranscriptEndpointer.Config(
-                turnDetection: configProvider.current.voice.turnDetection)
-            transcriptEnd = TranscriptEndpointer(config: cfg, start: now())
-            await apply(.serverSpeechStarted)
-        }
-        switch transcriptEnd?.feed(text: text, level: rms, at: now()) {
-        case .finished, .timedOut:
-            transcriptEnd = nil
-            await apply(.serverSpeechStopped)
-        case .listening, .none:
-            break
-        }
-    }
-
     func pumpDrained() async {
         for await _ in player.drained {
             if Task.isCancelled { return }
             await apply(.playerDrained)
-            await realtime.captions?.drained()
-            await realtime.threadCutReply(announce: true)
         }
     }
 
@@ -358,11 +118,9 @@ extension VoiceSession {
                     timeline.mark(TurnTimeline.Point(mark), at: now())
                 }
             case .chunkStarted:
-                // 15b-0: the classic path's only audio signal —
-                // `.agentAudioStarted` (VoiceSession.apply) exists for
-                // realtime alone. Guarded so a stray chunk with no released
-                // hold (a job announcement) or a turn already measured never
-                // rewrites the line.
+                // 15b-0: the classic path's only audio signal. Guarded so a
+                // stray chunk with no released hold (a job announcement) or a
+                // turn already measured never rewrites the line.
                 if timeline.released != nil, timeline.firstAudio == nil {
                     timeline.mark(.firstAudio, at: now())
                     flushTimeline()
@@ -370,7 +128,6 @@ extension VoiceSession {
             }
         }
     }
-
     func completeHold(hasSpeech: Bool) async {
         switch await destination() {
         case .dictation(let field):
