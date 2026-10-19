@@ -51,6 +51,7 @@ package struct ActionJudgeClient: ActionJudging {
         }
         let data: Data
         let response: HTTPURLResponse
+        Log.outbound("judge: \(provider.id) \(provider.model)")
         do {
             (data, response) = try await transport.data(for: http)
         } catch {

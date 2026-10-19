@@ -1,0 +1,1 @@
+- **El log dice a qué servicio se llamó (2026-10-19).** Cada llamada que sale del Mac deja una línea `out:` con el servicio y el modelo, sin contenido: búsqueda y lectura web, visión, juez de acciones y voz (elevenlabs o avspeech).

@@ -38,6 +38,7 @@ package struct ScreenVision: Sendable {
               let key = readKey(provider.secretKey),
               let url = provider.endpoint,
               EndpointPolicy.isAcceptable(url) else { return nil }
+        Log.outbound("vision: \(provider.id) \(provider.model)")
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
