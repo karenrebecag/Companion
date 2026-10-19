@@ -58,3 +58,44 @@ private func webTurn(tool: String, output: String) -> [Turn] {
     expectEq(UnsourcedFigures.readsWeb(tool: "read_file"), false,
              "leer un archivo local no es contenido web")
 }
+
+// QA 2026-10-19, build 606: the sources had 18.423900, 18.4930, 18,4361 and
+// 18.4116; the reply said "≈ 18.42" and the app flagged it anyway.
+private let dollarSources = [
+    "Dólar hoy 18.423900 MXN", "Tipo de cambio 18.4930", "Cotización 18,4361",
+    "XE: 1 USD = 18.44 239159 MXN", "Banco 18.4116",
+]
+
+@Test func aRoundedRateIsSourcedByTheFullRateInTheSources() {
+    expectEq(UnsourcedFigures.find(
+        in: "El dólar está a ≈ 18.42 pesos mexicanos.", sources: dollarSources), [],
+        "18.42 es 18.4239 redondeado; el ≈ no exime la cifra")
+}
+
+@Test func aCommaDecimalMatchesAPointDecimalAfterRounding() {
+    expectEq(UnsourcedFigures.find(in: "Son 18,44 pesos.", sources: ["1 USD = 18.4361 MXN"]), [],
+             "la coma decimal de la respuesta redondea igual que el punto de la fuente")
+}
+
+@Test func aFigureNoSourceRoundsOrTruncatesToIsStillFlagged() {
+    expectEq(UnsourcedFigures.find(in: "Son 18.47 pesos.", sources: dollarSources), ["18.47"],
+             "ninguna fuente redondea ni trunca a 18.47, así que lleva la nota")
+}
+
+// Rounding and truncation are both accepted: writers round (18.4239 -> 18.42)
+// and some truncate (18.46 -> 18.4). Accepting both means a harmless
+// truncation never earns a false caveat; the cost is that a truncated
+// figure can pass when it is really a rounding error, which is accepted.
+@Test func aTruncatedFigureIsSourcedButAFigureOutsideBothRulesIsNot() {
+    expectEq(UnsourcedFigures.find(in: "Son 18.4 pesos.", sources: ["18.46"]), [],
+             "18.4 es 18.46 truncado")
+    expectEq(UnsourcedFigures.find(in: "Son 18.3 pesos.", sources: ["18.46"]), ["18.3"],
+             "18.3 no es 18.46 ni redondeado ni truncado")
+}
+
+@Test func anIntegerIsSourcedByTheWholePartOfASourceNumber() {
+    expectEq(UnsourcedFigures.find(in: "Son 18 pesos.", sources: ["18.46"]), [],
+             "18 es la parte entera de 18.46")
+    expectEq(UnsourcedFigures.find(in: "Son 19 pesos.", sources: ["18.46"]), ["19"],
+             "19 no sale de 18.46 por redondeo ni truncado")
+}

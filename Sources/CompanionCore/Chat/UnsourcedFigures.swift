@@ -8,11 +8,10 @@ package enum UnsourcedFigures {
     /// Figures the reply states that none of `sources` states, as the reply
     /// spells them.
     package static func find(in reply: String, sources: [String]) -> [String] {
-        let sourced = sources.reduce(into: Set<Double>()) { set, source in
-            for token in tokens(in: source) { set.formUnion(values(of: token)) }
-        }
+        let sourced = sources.flatMap { tokens(in: $0) }.flatMap { readings(of: $0).map(\.value) }
         var unsourced: [String] = []
-        for token in stated(in: reply) where values(of: token).isDisjoint(with: sourced) {
+        for token in stated(in: reply)
+        where !readings(of: token).contains(where: { isSourced($0, by: sourced) }) {
             if !unsourced.contains(token) { unsourced.append(token) }
         }
         return unsourced
@@ -66,22 +65,53 @@ package enum UnsourcedFigures {
         matches(#"\d+(?:[.,]\d+)*"#, in: text)
     }
 
-    /// `18.49` and `18,49` are the same figure; a comma-grouped `1,234` and a
-    /// dotted `1.234` are read as thousands and as a decimal, whichever the
-    /// source used.
-    private static func values(of token: String) -> Set<Double> {
+    /// A figure as a token spells it, with the decimal places that spelling
+    /// implies: the places a rounding must keep to compare like with like.
+    private struct Reading {
+        let value: Decimal
+        let scale: Int
+    }
+
+    /// `18.49` and `18,49` are the same figure. `1,234` and `1.234` can be a
+    /// thousand or a decimal, so both readings are kept and either may match:
+    /// a figure we cannot tell apart from a sourced one is not presumed
+    /// invented, because a false caveat costs more than a missed one.
+    /// Decimal rather than Double so that rounding a source to two places is
+    /// exact and a figure at a half-way point does not flip on float error.
+    private static func readings(of token: String) -> [Reading] {
         let parts = token.split(whereSeparator: { $0 == "." || $0 == "," }).map(String.init)
         guard parts.count > 1 else {
-            return Double(token).map { [$0] } ?? []
+            return Decimal(string: token).map { [Reading(value: $0, scale: 0)] } ?? []
         }
-        var out = Set<Double>()
-        if let decimal = Double(parts.dropLast().joined() + "." + parts[parts.count - 1]) {
-            out.insert(decimal)
+        var out: [Reading] = []
+        let fraction = parts[parts.count - 1]
+        if let decimal = Decimal(string: parts.dropLast().joined() + "." + fraction) {
+            out.append(Reading(value: decimal, scale: fraction.count))
         }
-        if parts.dropFirst().allSatisfy({ $0.count == 3 }), let grouped = Double(parts.joined()) {
-            out.insert(grouped)
+        if parts.dropFirst().allSatisfy({ $0.count == 3 }), let grouped = Decimal(string: parts.joined()) {
+            out.append(Reading(value: grouped, scale: 0))
         }
         return out
+    }
+
+    /// Rounding and truncation both count. Writers round (18.4239 is 18.42),
+    /// and some cut (18.46 is 18.4). Accepting both means a harmless cut never
+    /// earns a caveat; the price is that a truncated figure passes even where a
+    /// stricter rule would not, which is the side this guard should err on.
+    private static func isSourced(_ figure: Reading, by sourced: [Decimal]) -> Bool {
+        sourced.contains { number in
+            quantized(number, scale: figure.scale, mode: .plain) == figure.value
+                || quantized(number, scale: figure.scale, mode: .down) == figure.value
+        }
+    }
+
+    private static func quantized(
+        _ number: Decimal, scale: Int, mode: NSDecimalNumber.RoundingMode
+    ) -> Decimal {
+        var input = number
+        var output = Decimal()
+        NSDecimalRound(&output, &input, scale, mode)
+        return output
     }
 
     private static func matches(_ pattern: String, in text: String) -> [String] {
