@@ -158,3 +158,39 @@ private let mask = TurnRedaction.mask
     expectEq(TurnRedaction.redact("ver API_KEY=abcdef fin"), "ver API_KEY=\(mask) fin", "en medio de la línea")
     expectEq(TurnRedaction.redact("ver token=abcdef fin"), "ver token=\(mask) fin", "token= en medio")
 }
+
+// QA review 2026-10-19: camelCase and env-style names are still strong labels
+// mid-line; before the split they were masked.
+@Test func camelAndEnvStrongLabelsMaskMidLine() {
+    expectEq(TurnRedaction.redact("ver clientSecret: abcdefgh fin"), "ver clientSecret: \(mask) fin", "clientSecret")
+    expectEq(TurnRedaction.redact("ver userPassword=abc fin"), "ver userPassword=\(mask)", "userPassword")
+    expectEq(TurnRedaction.redact("ver MY_SECRET=abcdefgh fin"), "ver MY_SECRET=\(mask) fin", "MY_SECRET")
+}
+
+// The exemption is for prose: the word ends the value, or a lowercase word
+// follows it. A token with a digit or a capital after it is still a value.
+@Test func aSecretAfterAnExemptWordIsStillMasked() {
+    expectEq(TurnRedaction.redact("clave: iCloud-x9"), "clave: \(mask)", "iCloud-x9 no es prosa")
+    expectEq(TurnRedaction.redact("clave: Android hunter2"), "clave: \(mask) hunter2", "Android seguido de un dígito")
+    expectEq(TurnRedaction.redact("pin: Keychain miSecreto"), "pin: \(mask) miSecreto", "Keychain seguido de mayúscula")
+}
+
+@Test func anExemptWordAsProseIsNotMasked() {
+    expectEq(TurnRedaction.redact("Clave: iCloud"), "Clave: iCloud", "la palabra sola")
+    expectEq(TurnRedaction.redact("Clave: iCloud y Keychain se sincronizan"),
+             "Clave: iCloud y Keychain se sincronizan", "prosa después")
+}
+
+// The two-factor rule needs a separator or verb between its word and the
+// digits, and it skips words that name another kind of code.
+@Test func aTwoFactorCodeNeedsItsSeparator() {
+    expectEq(TurnRedaction.redact("tu código es 482913"), "tu código es \(mask)", "código es")
+    expectEq(TurnRedaction.redact("verification code: 4829"), "verification code: \(mask)", "code:")
+    expectEq(TurnRedaction.redact("OTP 482913"), "OTP \(mask)", "OTP directo")
+}
+
+@Test func otherCodesAreNotTwoFactorCodes() {
+    expectEq(TurnRedaction.redact("status code 200"), "status code 200", "status")
+    expectEq(TurnRedaction.redact("error code 4040"), "error code 4040", "error")
+    expectEq(TurnRedaction.redact("source code 1000"), "source code 1000", "source")
+}

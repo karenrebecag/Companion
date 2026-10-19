@@ -61,19 +61,19 @@ package enum TurnRedaction {
         // Whole line, env style (`DB_PASSWORD=...`). A passphrase runs to a
         // comma or semicolon, so the rest of a sentence after it survives.
         #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:PASSWORD|PASSWD|CONTRASEÑA)[ \t]*[=:][ \t]*)[^,;\n]+"#,
-        #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:SECRET|CLAVE|PIN)[ \t]*(?:=|:(?![ \t"']*(?:iCloud|Keychain|Android|Autofill)\b))[ \t"']*)[^\s"'<>,;]{4,}"#,
+        #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:SECRET|CLAVE|PIN)[ \t]*(?:=|:(?![ \t"']*(?:iCloud|Keychain|Android|Autofill)(?![A-Za-z0-9_\-~])(?:[ \t]*(?:\n|$)|[ \t]+(?-i:[a-záéíóúñ]+)(?![A-Za-z0-9]))))[ \t"']*)[^\s"'<>,;]{4,}"#,
         #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:TOKEN|KEY|PASSKEYS?)[A-Za-z0-9_.\-]*[ \t]*(?:=[ \t]*|:[ \t]*(?=\S*?(?:\d|\S{12})))).+$"#,
         // Strong label, inline ("la clave=hunter22", "client secret: ...").
         // A passphrase (password, contraseña) masks to a comma or semicolon.
-        #"(?i)(\b(?:[A-Za-z0-9]+_)?(?:password|passwd|contraseña)[ \t]*[:=][ \t]*["']?)[^,;\n]+"#,
+        #"(?i)(\b[A-Za-z0-9_]*(?:password|passwd|contraseña)[ \t]*[:=][ \t]*["']?)[^,;\n]+"#,
         // The exemptions are common Spanish prose after a label, not secrets.
-        #"(?i)(\b(?:[A-Za-z0-9]+_)?(?:clave|secret|pin)[ \t]*(?:=|:(?![ \t"']*(?:iCloud|Keychain|Android|Autofill)\b))[ \t"']*)[^\s"'<>,;]{4,}"#,
+        #"(?i)(\b(?:[A-Za-z0-9_]*(?:clave|secret)|(?:[A-Za-z0-9]+_)?pin)[ \t]*(?:=|:(?![ \t"']*(?:iCloud|Keychain|Android|Autofill)(?![A-Za-z0-9_\-~])(?:[ \t]*(?:\n|$)|[ \t]+(?-i:[a-záéíóúñ]+)(?![A-Za-z0-9]))))[ \t"']*)[^\s"'<>,;]{4,}"#,
         // Weak label: a digit or 12+ characters, or it is prose.
         #"(?i)\b([A-Za-z0-9_]*(?:api[ _-]?key|passkeys?|token|key)\w*(?:[ \t]*=[ \t]*["']?|[ \t]*:[ \t]*["']?(?=[^\s"'<>,;]*\d|[^\s"'<>,;]{12})))[^\s"'<>,;]{6,}"#,
         // A bare hex string is only a secret when a word says so
         #"(?i)\b((?:secret|client|token|key)(?:[ \t_\-]+[A-Za-z]{1,12}\b){0,2}[ \t]*[:=]?[ \t]*["']?)[0-9a-f]{32,}\b"#,
         // A two-factor code: 4 to 8 digits near its word. "código postal" is an address.
-        #"(?i)(\b(?:c[oó]digo(?!\s*postal)|code|otp|verificaci[oó]n|verification)\b[^\d\n]{0,24}?)(?<!\d)\d{4,8}(?!\d)"#,
+        #"(?i)((?<!\b(?:status|error|exit|http|source|postal)[ \t]{1,3})\b(?:c[oó]digo|code|verificaci[oó]n|verification)(?:[ \t]*[:=][ \t]*|[ \t]+(?:de[ \t]+\w+[ \t]+)?(?:es|is)[ \t]+)|\botp[ \t]*[:=]?[ \t]*)(?<!\d)\d{4,8}(?!\d)"#,
     ].map(compile)
 
     /// True when text names a strong label followed by its separator. The
@@ -84,7 +84,7 @@ package enum TurnRedaction {
     }
 
     private static let strongLabel = compile(
-        #"(?i)(?<![A-Za-z0-9])(?:[A-Za-z0-9]+_)?(?:password|passwd|contraseña|clave|secret|pin)[ \t]*[:=]"#)
+        #"(?i)(?<![A-Za-z0-9])[A-Za-z0-9_]*(?:password|passwd|contraseña|clave|secret|pin)[ \t]*[:=]"#)
 
     /// Shapes that look like anything unless a format agrees, so a random
     /// string is left alone.
