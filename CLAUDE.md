@@ -37,8 +37,8 @@ referencia `../companion` (solo lectura: se consulta, jamas se edita).
 - 4 targets SPM = 4 capas: Core (puro) <- Services (adapters) <- UI
   (MainActor) <- App (composition root). Los imports prohibidos no compilan.
 - Puertos y adapters; capacidades opcionales (Claude Code, Hermes, Ollama)
-  se DETECTAN en runtime, jamas se asumen. El producto completo funciona con
-  solo una API key de OpenAI (ADR 001).
+  se DETECTAN en runtime, jamas se asumen. Ningun proveedor es obligatorio:
+  Cerebras, ElevenLabs, Exa y TypeSafe son opcionales, con respaldo local (ADR 014).
 - Reducer para el turno; actors para sesiones; cancelacion estructurada;
   `@Observable` por dominio (nunca un ViewModel-dios).
 - Toda lectura del entorno pasa por `Config`; keys en Keychain; cero paths

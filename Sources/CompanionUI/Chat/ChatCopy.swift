@@ -79,6 +79,8 @@ package enum ChatCopy {
                 format: Localized.string("chat.error.httpStatus"), code)
         case .noProvider:
             return Localized.string("chat.error.noProvider")
+        case .imageUnsupported:
+            return Localized.string("chat.error.imageUnsupported")
         case .empty:
             return Localized.string("chat.error.empty")
         }

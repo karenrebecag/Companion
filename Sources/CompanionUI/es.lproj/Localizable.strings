@@ -16,6 +16,7 @@
 "chat.error.unreachable" = "No pude conectar. Revisa la red e inténtalo de nuevo.";
 "chat.error.httpStatus" = "El servidor respondió %d. Inténtalo de nuevo.";
 "chat.error.noProvider" = "No hay un proveedor de chat disponible.";
+"chat.error.imageUnsupported" = "Los modelos configurados no leen imágenes. Agrega una clave de OpenAI u OpenRouter para enviar esta.";
 "chat.error.empty" = "El modelo no contestó. Inténtalo de nuevo.";
 
 /* Encargos */

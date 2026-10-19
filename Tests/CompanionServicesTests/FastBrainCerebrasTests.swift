@@ -14,7 +14,7 @@ import Testing
 
 @Test @MainActor func fastBrainCerebrasTests() {
     testCerebrasDescriptorServesGptOss()
-    testCerebrasStaysOutOfTheTypedChatCatalog()
+    testCerebrasLeadsTheTypedChatCatalog()
     testCerebrasOutranksOpenAIForTheBrain()
     testTheHoldBrainIsCerebrasThenOpenAIMiniNeverGroq()
     testAFastBrainNeverBacksOffOnA429()
@@ -35,10 +35,11 @@ import Testing
     expectEq(SecretKey.cerebras.rawValue, "CEREBRAS_API_KEY", "cerebras: nombre de la clave")
 }
 
-/// Spec §11: the typed chat does not change in this wave.
-@MainActor func testCerebrasStaysOutOfTheTypedChatCatalog() {
-    expect(!ProviderDescriptor.catalog.contains { $0.id == "cerebras" },
-           "cerebras: no entra al catálogo del chat escrito")
+/// Karen 2026-10-19: the product must not require OpenAI, so the typed chat
+/// asks Cerebras first whenever its key exists.
+@MainActor func testCerebrasLeadsTheTypedChatCatalog() {
+    expectEq(ProviderDescriptor.catalog.first?.id, "cerebras",
+             "cerebras: primera fila del catálogo del chat escrito")
 }
 
 @MainActor func testCerebrasOutranksOpenAIForTheBrain() {
@@ -49,8 +50,8 @@ import Testing
     expectEq(stack.brain, VoiceRole(id: "gpt-oss-120b", provider: "cerebras"),
              "cerebras+openai: el cerebro es Cerebras")
     expect(stack.hasFastBrain, "cerebras: cuenta como cerebro rápido")
-    expectEq(stack.mouth, VoiceRole(id: "gpt-4o-mini-tts", provider: "openai"),
-             "cerebras: la boca sigue OpenAI")
+    expectEq(stack.mouth, VoiceRole(id: "avspeech", provider: "apple"),
+             "cerebras: la boca cae a la voz del sistema, nunca a OpenAI")
 }
 
 /// 15e-3 (spec §4 row 6): the fast client asks Cerebras only; when it fails

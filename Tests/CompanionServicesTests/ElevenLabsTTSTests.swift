@@ -166,38 +166,50 @@ private func drain(_ stream: AsyncThrowingStream<Data, Error>) async throws -> D
 // MARK: - Router
 
 @Test @MainActor func testTheRouterPicksElevenLabsOnlyWithKeyAndVoice() async {
-    let cases: [(key: String?, voice: String, expected: String, label: String)] = [
+    // nil: ElevenLabs is not chosen, so the sentence goes to the system voice.
+    let cases: [(key: String?, voice: String, expected: String?, label: String)] = [
         ("sk_eleven_test_0000", brian, "eleven", "clave+voz"),
-        ("sk_eleven_test_0000", "", "openai", "clave sin voz"),
-        ("sk_eleven_test_0000", "   ", "openai", "clave con voz en blanco"),
-        (nil, brian, "openai", "voz sin clave"),
-        ("   ", brian, "openai", "clave en blanco"),
+        ("sk_eleven_test_0000", "", nil, "clave sin voz"),
+        ("sk_eleven_test_0000", "   ", nil, "clave con voz en blanco"),
+        (nil, brian, nil, "voz sin clave"),
+        ("   ", brian, nil, "clave en blanco"),
     ]
     for c in cases {
-        var values: [SecretKey: String] = [.openAI: "sk-test"]
+        var values: [SecretKey: String] = [:]
         if let key = c.key { values[.elevenLabs] = key }
         let eleven = ScriptedMouth("eleven")
-        let openAI = ScriptedMouth("openai")
         let voice = c.voice
         let router = MouthRouter(
-            elevenLabs: eleven, openAI: openAI,
-            secrets: ScriptedSecrets(values), voiceID: { voice })
-        do {
-            let audio = try await drain(router.stream("Hola.", voice: .marin))
-            expectEq(String(decoding: audio, as: UTF8.self), "\(c.expected):Hola.",
-                     "router \(c.label): habla \(c.expected)")
-        } catch {
-            expect(false, "router \(c.label): no debía tirar \(error)")
+            elevenLabs: eleven, secrets: ScriptedSecrets(values), voiceID: { voice })
+        if let expected = c.expected {
+            do {
+                let audio = try await drain(router.stream("Hola.", voice: .marin))
+                expectEq(String(decoding: audio, as: UTF8.self), "\(expected):Hola.",
+                         "router \(c.label): habla \(expected)")
+            } catch {
+                expect(false, "router \(c.label): no debía tirar \(error)")
+            }
+            expectEq(router.cacheVariant(voice: .marin), expected,
+                     "router \(c.label): la caché es la de \(expected)")
+        } else {
+            do {
+                _ = try await drain(router.stream("Hola.", voice: .marin))
+                expect(false, "router \(c.label): sin ElevenLabs no debe haber audio")
+            } catch {
+                expect((error as? MouthError) == .systemVoice,
+                       "router \(c.label): la frase va a la voz del sistema")
+            }
+            expectEq(eleven.calls, [], "router \(c.label): ElevenLabs no se pide")
+            expectEq(router.cacheVariant(voice: .marin), "",
+                     "router \(c.label): sin variante de caché")
         }
-        expectEq(router.cacheVariant(voice: .marin), c.expected,
-                 "router \(c.label): la caché es la de \(c.expected)")
     }
 }
 
 @Test @MainActor func testTheRouterReadsNoKeyUntilAsked() {
     let secrets = ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"])
     let router = MouthRouter(
-        elevenLabs: ScriptedMouth("eleven"), openAI: ScriptedMouth("openai"),
+        elevenLabs: ScriptedMouth("eleven"),
         secrets: secrets, voiceID: { brian })
     _ = SpeechSynthesis(
         cache: PhraseCache(directory: makeTTSTempDir("router-boot")), fetcher: router,
@@ -205,68 +217,64 @@ private func drain(_ stream: AsyncThrowingStream<Data, Error>) async throws -> D
     expectEq(secrets.reads, 0, "arranque: ni el router ni la boca leen el llavero")
 }
 
-@Test @MainActor func testAnElevenLabsFailureRetriesOnceThroughOpenAI() async {
+@Test @MainActor func testAnElevenLabsFailureGoesToTheSystemVoice() async {
     let logURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("companion-eleven-\(UUID().uuidString).log")
     defer { try? FileManager.default.removeItem(at: logURL) }
     let eleven = ScriptedMouth("eleven", failure: ChatError.httpStatus(429))
-    let openAI = ScriptedMouth("openai")
     let router = MouthRouter(
-        elevenLabs: eleven, openAI: openAI,
+        elevenLabs: eleven,
         secrets: ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"]), voiceID: { brian })
     await Log.capturing(to: logURL) {
         do {
-            let audio = try await drain(router.stream("Secreto.", voice: .marin))
-            expectEq(String(decoding: audio, as: UTF8.self), "openai:Secreto.",
-                     "fallback: la frase la dice OpenAI")
+            _ = try await drain(router.stream("Secreto.", voice: .marin))
+            expect(false, "fallback: sin audio de ElevenLabs no debe sonar nada")
         } catch {
-            expect(false, "fallback: no debía tirar \(error)")
+            expect((error as? ChatError) == .httpStatus(429),
+                   "fallback: el error que llega es el de ElevenLabs")
         }
     }
     expectEq(eleven.calls, ["Secreto."], "fallback: ElevenLabs se intentó una vez")
-    expectEq(openAI.calls, ["Secreto."], "fallback: OpenAI una sola vez")
     let text = (try? String(contentsOf: logURL, encoding: .utf8)) ?? ""
     let lines = text.split(separator: "\n").filter { $0.contains("tts: elevenlabs failed") }
     expectEq(lines.count, 1, "fallback: una línea")
-    expect(lines.first?.hasSuffix("tts: elevenlabs failed status=429, openai fallback") == true,
+    expect(lines.first?.hasSuffix("tts: elevenlabs failed status=429, system voice") == true,
            "fallback: solo números (\(lines))")
     expect(!text.contains("Secreto"), "fallback: el log nunca lleva la frase")
 }
 
-/// Both mouths down: the synthesizer's own path takes over, and OpenAI was
-/// asked exactly once — no loop between the two.
-@Test @MainActor func testBothMouthsDownFallToTheSystemVoice() async {
+/// ElevenLabs down: the synthesizer's own path takes over, and ElevenLabs was
+/// asked exactly once for the sentence.
+@Test @MainActor func testElevenLabsDownFallsToTheSystemVoice() async {
     let dir = makeTTSTempDir("both-down")
     defer { try? FileManager.default.removeItem(at: dir) }
     let eleven = ScriptedMouth("eleven", failure: ChatError.httpStatus(500))
-    let openAI = ScriptedMouth("openai", failure: ChatError.httpStatus(503))
     let router = MouthRouter(
-        elevenLabs: eleven, openAI: openAI,
+        elevenLabs: eleven,
         secrets: ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"]), voiceID: { brian })
     let fallback = FakeFallback()
     let synth = SpeechSynthesis(
         cache: PhraseCache(directory: dir), fetcher: router, playback: FakePlay(),
         fallback: fallback, voice: .marin)
     _ = await speak(synth, "Hola.")
-    expectEq(fallback.spoken, ["Hola."], "ambas caídas: habla la voz del sistema")
-    expectEq(eleven.calls, ["Hola."], "ambas caídas: ElevenLabs una vez")
-    expectEq(openAI.calls, ["Hola."], "ambas caídas: OpenAI una vez")
+    expectEq(fallback.spoken, ["Hola."], "caída: habla la voz del sistema")
+    expectEq(eleven.calls, ["Hola."], "caída: ElevenLabs una vez")
 }
 
-/// Audio voiced by the OpenAI fallback must never be replayed later as if
-/// it were the ElevenLabs voice.
+/// Audio voiced by the system voice is never stored as the ElevenLabs voice.
 @Test @MainActor func testFallbackAudioIsNeverCachedAsElevenLabs() async {
     let dir = makeTTSTempDir("fallback-cache")
     defer { try? FileManager.default.removeItem(at: dir) }
     let eleven = ScriptedMouth("eleven", failure: ChatError.httpStatus(401))
-    let openAI = ScriptedMouth("openai")
     let secrets = ScriptedSecrets([.elevenLabs: "sk_eleven_test_0000"])
     let router = MouthRouter(
-        elevenLabs: eleven, openAI: openAI, secrets: secrets, voiceID: { brian })
+        elevenLabs: eleven, secrets: secrets, voiceID: { brian })
+    let fallback = FakeFallback()
     let synth = SpeechSynthesis(
         cache: PhraseCache(directory: dir), fetcher: router, playback: FakePlay(),
-        fallback: FakeFallback(), voice: .marin)
+        fallback: fallback, voice: .marin)
     _ = await speak(synth, "Listo.")
+    expectEq(fallback.spoken, ["Listo."], "fallback: la voz del sistema la dice")
     expect(!(await synth.isCached("Listo.")), "fallback: no se guarda bajo ElevenLabs")
 
     // `events` is a single-consumer stream, so a second turn on the same

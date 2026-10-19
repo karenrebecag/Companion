@@ -1,0 +1,1 @@
+- **Cerebras ya es el chat escrito por defecto (2026-10-19).** Con su clave guardada, el chat le pide las respuestas a Cerebras antes que a OpenAI; sin clave nada cambia. Las imagenes no van a ese modelo: si no hay otro proveedor que las lea, el chat lo dice. La boca de la voz cae a la voz del sistema cuando ElevenLabs no responde; ya no usa OpenAI.

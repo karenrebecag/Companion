@@ -234,7 +234,7 @@ final class FakeStartupProbe: StartupProbing, @unchecked Sendable {
     // proveedor que nunca vio no puede nacer apagado: no hay como encenderlo.
     let order = ["openrouter", "openai"]
     let names = ProviderDescriptor.route(order: order).map(\.name)
-    expectEq(names, ["OpenRouter", "OpenAI", "Ollama"],
+    expectEq(names, ["OpenRouter", "OpenAI", "Cerebras", "Ollama"],
              "lo nombrado manda; lo nuevo va detras, no fuera")
 }
 

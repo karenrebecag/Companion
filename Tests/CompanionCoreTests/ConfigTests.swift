@@ -12,20 +12,20 @@ import Testing
 
 @MainActor func testTalkRoute() {
     let names = ProviderDescriptor.route(order: []).map { $0.name }
-    expectEq(names, ["OpenAI", "OpenRouter", "Ollama"],
-             "ruta: default OpenAI → OpenRouter → Ollama")
+    expectEq(names, ["Cerebras", "OpenAI", "OpenRouter", "Ollama"],
+             "ruta: default Cerebras → OpenAI → OpenRouter → Ollama")
 
     let ollamaFirst = ProviderDescriptor.route(order: ["ollama"]).map { $0.name }
-    expectEq(ollamaFirst, ["Ollama", "OpenAI", "OpenRouter"],
+    expectEq(ollamaFirst, ["Ollama", "Cerebras", "OpenAI", "OpenRouter"],
              "ruta: el preferido encabeza, el resto conserva orden")
 
     let unknown = ProviderDescriptor.route(order: ["gemini"]).map { $0.name }
-    expectEq(unknown, ["OpenAI", "OpenRouter", "Ollama"],
+    expectEq(unknown, ["Cerebras", "OpenAI", "OpenRouter", "Ollama"],
              "ruta: preferido desconocido no rompe — ruta default")
 
     // 15e-2: a pre-15e preference may still name Groq; it is ignored now.
     let retired = ProviderDescriptor.route(order: ["groq"]).map { $0.id }
-    expectEq(retired, ["openai", "openrouter", "ollama"],
+    expectEq(retired, ["cerebras", "openai", "openrouter", "ollama"],
              "ruta: un orden guardado con Groq ya no lo resucita")
 
     for p in ProviderDescriptor.catalog {
@@ -58,8 +58,8 @@ import Testing
              "ollama: localhost /v1")
     expect(ollama.secretKey == nil, "ollama: sin llave")
 
-    expectEq(ProviderDescriptor.catalog, [openAI, openRouter, ollama],
-             "catalog: OpenAI → OpenRouter → Ollama, sin Groq (15e-2)")
+    expectEq(ProviderDescriptor.catalog, [ProviderDescriptor.cerebras, openAI, openRouter, ollama],
+             "catalog: Cerebras → OpenAI → OpenRouter → Ollama, sin Groq (15e-2)")
     expect(!ProviderDescriptor.catalog.contains { $0.secretKey == .groq },
            "catalog: ninguna fila usa la clave de Groq")
     expectEq(SecretKey.openAI.rawValue, "OPENAI_API_KEY", "secret: OpenAI")
@@ -160,7 +160,7 @@ import Testing
 
 @MainActor func testChatSettingsAndRouteEdges() {
     expectEq(ProviderDescriptor.route(order: [""]).map(\.name),
-             ["OpenAI", "OpenRouter", "Ollama"],
+             ["Cerebras", "OpenAI", "OpenRouter", "Ollama"],
              "ruta: preferido vacío es ruta default")
     expect(ProviderDescriptor.route(order: ["openai"], catalog: []).isEmpty,
            "ruta: catálogo vacío no inventa proveedores")
@@ -185,7 +185,7 @@ import Testing
     expectEq(chat.historyWindow, 0, "chat: ventana 0 es válida (sin historial)")
     expectEq(
         ProviderDescriptor.route(order: chat.providerOrder).map(\.name),
-        ["OpenRouter", "OpenAI", "Ollama"],
+        ["OpenRouter", "Cerebras", "OpenAI", "Ollama"],
         "chat: el preferido de settings rota la ruta")
 
     var cfg = Config.default

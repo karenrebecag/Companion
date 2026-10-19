@@ -54,15 +54,17 @@ func makeVoicePipeline(
     let mic = MicCapture(echoCancellation: env.config.voice.echoCancellation)
     let player = RealtimePlayer(
         sharedWith: mic, volume: env.config.voice.volume)
-    // 15f-7a: ElevenLabs when its key and a voice are set, OpenAI
-    // otherwise — decided per sentence, so a key saved in Settings
-    // takes effect on the next hold and nothing reads the Keychain here.
+    // The voice bench in Settings still previews OpenAI's voices; the mouth
+    // no longer falls back to it.
     let openAIMouth = OpenAITTSClient(secrets: env.secrets, transport: env.transport, language: env.config.language)
+    // 15f-7a: ElevenLabs when its key and a voice are set, otherwise the
+    // system voice — decided per sentence, so a key saved in Settings
+    // takes effect on the next hold and nothing reads the Keychain here.
     let mouth = MouthRouter(
         elevenLabs: ElevenLabsTTSClient(
             secrets: env.secrets, transport: env.transport, language: env.config.language,
             voiceID: { env.configProvider.current.elevenLabsVoiceID }),
-        openAI: openAIMouth, secrets: env.secrets,
+        secrets: env.secrets,
         voiceID: { env.configProvider.current.elevenLabsVoiceID })
     let synthesizer = SpeechSynthesis(
         cache: PhraseCache(directory: caches),
