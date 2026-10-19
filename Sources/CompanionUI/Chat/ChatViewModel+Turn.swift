@@ -14,6 +14,7 @@ extension ChatViewModel {
     ) -> String {
         parentTools?.beginTurn()
         turnToolsRan = false
+        delegateWithdrawn = false
         // 16k-3: the words decide which connected app's tools travel this
         // round — specs() is rebuilt per request further down this turn.
         // A pick's label is the model's text, not her words: it must not
@@ -45,9 +46,11 @@ extension ChatViewModel {
         let index = messages.count - 1
         inFlight = Task { [weak self] in
             guard let self else { return }
+            let routable = origin == .typed && asUserWords
+            if routable, await self.answeredByRouter(text, conversationId: id) { return }
             let history = await self.sensedHistory(
                 text, messageIndex: index, previousInteraction: previousInteraction, origin: origin)
-            await self.consume(history: history, conversationId: id, said: said)
+            await self.consume(history: self.noteWithdrawnDelegate(history), conversationId: id, said: said)
         }
         return turnId
     }
@@ -153,7 +156,7 @@ extension ChatViewModel {
         }
     }
 
-    private func endTurn(_ status: TurnStatus = .completed) {
+    func endTurn(_ status: TurnStatus = .completed) {
         busy = false
         busySince = nil
         if status == .completed { measureLatestReply() }
@@ -179,7 +182,7 @@ extension ChatViewModel {
         var handoff: Handoff?
         var calls: [ToolCallRef] = []
         let tools = (parentTools?.specs(config.language) ?? [])
-            + [.delegate(config.language), PresentContract.presentSpec]
+            + (delegateWithdrawn ? [] : [.delegate(config.language)]) + [PresentContract.presentSpec]
         for try await delta in chat.stream(history, tools: tools) {
             guard isCurrent(id) else { throw CancellationError() }
             switch delta {

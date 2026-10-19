@@ -40,17 +40,6 @@ package struct PendingConfirmation: Sendable, Equatable {
     package var createdAt: Date
 }
 
-/// What `DecisionGate.run` produced. `declined` and the pending side of
-/// `confirm` are DM1c-4 (`ApprovalMemory`-style session state); this delivery
-/// only asks the question and hands back its text.
-package enum DecisionOutcome: Sendable, Equatable {
-    case passThrough(DecisionPassReason)
-    case acted(ParentToolOutcome, ToolCallRef)
-    case confirm(String)
-    case declined
-    case delegate(Handoff)
-}
-
 /// Sits in front of `ParentToolRunner.execute` (wave-dm1-router.md §8): N1
 /// decides, `run` acts through the SAME runner the model would have used, so
 /// `ParentToolPolicy` and the `open_url` said-it gate never see a shortcut.

@@ -134,6 +134,12 @@ package final class ChatViewModel: ConversationPresenting {
     /// The coverage judge for one step's sheets (`planStep`). Nil leaves every
     /// sheet as it was.
     package var judge: (any ActionJudging)?
+    /// The router a hold goes through, for typed words too. Set by the
+    /// composition root once the gate exists; nil sends every message
+    /// straight to the brain, as before.
+    package var decider: (any TurnDeciding)?
+    /// The delegation head took `delegate` off this turn's tools.
+    var delegateWithdrawn = false
     /// Puente QA D4: told when a turn finishes or an owner check opens, so a
     /// waiting agent wakes without polling.
     package var onTurnEvent: (@MainActor (String, TurnSignal) -> Void)?
