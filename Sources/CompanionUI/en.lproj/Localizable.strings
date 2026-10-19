@@ -139,6 +139,8 @@
 "settings.keys.elevenlabs" = "ElevenLabs";
 "settings.keys.elevenlabs.placeholder" = "sk_…";
 "settings.keys.elevenlabs.privacy" = "With ElevenLabs, the text of each reply is sent to ElevenLabs to be voiced.";
+"settings.keys.typesafe" = "TypeSafe";
+"settings.keys.typesafe.privacy" = "With TypeSafe, the phrase you say and the names of the apps, sites and files it is weighed against are sent to TypeSafe to pick the action. Never what is on your screen.";
 "settings.keys.replace.placeholder" = "Paste another to replace it";
 "settings.keys.saved.label" = "Key saved, %@";
 "settings.keys.saved" = "Saved";

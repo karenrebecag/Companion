@@ -23,6 +23,9 @@ package enum SecretKey: String, Sendable, Equatable {
     /// Wave 16k: the key the app shows the companion-apps function. Not a
     /// provider key: it opens only Karen's own function.
     case companionApps = "COMPANION_APPS_KEY"
+    /// The decision layer's hosted judge (Jev). Optional like Brave: without
+    /// it the cascade keeps the local judge.
+    case typesafe = "TYPESAFE_API_KEY"
 }
 
 package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
@@ -118,6 +121,19 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         model: "openai/gpt-4o",
         secretKey: .openRouter,
         maxOutputTokens: chatMaxOutputTokens
+    )
+
+    /// Not a chat provider and not in `catalog`: Jev answers typed questions
+    /// at `/systemone`, never `/chat/completions`. The model is pinned to a
+    /// version, not `jev-latest`, because confidence thresholds are tuned
+    /// against one version and an alias moves under them.
+    package static let typesafe = ProviderDescriptor(
+        id: "typesafe",
+        name: "TypeSafe",
+        baseURL: URL(string: "https://api.typesafe.ai/v1")!,
+        model: "jev-1.14.0",
+        secretKey: .typesafe,
+        temperature: nil
     )
 
     /// The model here is a PLACEHOLDER, never a promise: which tag exists is

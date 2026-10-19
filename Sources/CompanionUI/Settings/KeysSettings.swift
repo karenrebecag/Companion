@@ -12,7 +12,7 @@ import Observation
 @MainActor
 package final class KeysSettingsModel {
     package enum Provider: Sendable, Equatable, Hashable, CaseIterable {
-        case openAI, cerebras, elevenLabs, exa
+        case openAI, cerebras, elevenLabs, exa, typesafe
 
         var secretKey: SecretKey {
             switch self {
@@ -20,6 +20,7 @@ package final class KeysSettingsModel {
             case .cerebras: .cerebras
             case .elevenLabs: .elevenLabs
             case .exa: .exa
+            case .typesafe: .typesafe
             }
         }
     }
@@ -29,6 +30,7 @@ package final class KeysSettingsModel {
     package var cerebrasField = ""
     package var elevenLabsField = ""
     package var exaField = ""
+    package var typesafeField = ""
     /// 15c-7: a blank field after saving read as "nothing happened" (Karen);
     /// the row shows which key is in without ever holding the key itself.
     package private(set) var masked: [Provider: String] = [:]
@@ -38,6 +40,7 @@ package final class KeysSettingsModel {
     package var cerebrasSaved: Bool { masked[.cerebras] != nil }
     package var elevenLabsSaved: Bool { masked[.elevenLabs] != nil }
     package var exaSaved: Bool { masked[.exa] != nil }
+    package var typesafeSaved: Bool { masked[.typesafe] != nil }
 
     package init(secrets: (any SecretStore)? = nil) {
         self.secrets = secrets
@@ -100,6 +103,7 @@ package final class KeysSettingsModel {
         case .cerebras: cerebrasField
         case .elevenLabs: elevenLabsField
         case .exa: exaField
+        case .typesafe: typesafeField
         }
     }
 
@@ -109,6 +113,7 @@ package final class KeysSettingsModel {
         case .cerebras: cerebrasField = value
         case .elevenLabs: elevenLabsField = value
         case .exa: exaField = value
+        case .typesafe: typesafeField = value
         }
     }
 

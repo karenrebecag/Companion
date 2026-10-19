@@ -84,11 +84,12 @@ private final class RefusingDeleteStore: SecretStore, @unchecked Sendable {
 }
 
 /// 15e-2 (spec §4 row 7): Groq is gone from Ajustes. Only OpenAI, Cerebras,
-/// (15f-7a) ElevenLabs and Exa have a row, and a Groq key left in the Keychain
+/// (15f-7a) ElevenLabs, Exa and TypeSafe have a row, and a Groq key left in the Keychain
 /// from before 15e never surfaces as a saved row.
 @MainActor func testThereIsNoGroqRowAndAStoredGroqKeyStaysHidden() {
     expectEq(KeysSettingsModel.Provider.allCases.map(\.secretKey),
-             [.openAI, .cerebras, .elevenLabs, .exa], "ajustes: OpenAI, Cerebras, ElevenLabs y Exa")
+             [.openAI, .cerebras, .elevenLabs, .exa, .typesafe],
+             "ajustes: OpenAI, Cerebras, ElevenLabs, Exa y TypeSafe")
     let store = TestSecretStore([.groq: "gsk_leftover0000000000"])
     let model = KeysSettingsModel(secrets: store)
     model.refresh()
