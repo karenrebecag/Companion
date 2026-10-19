@@ -15,7 +15,7 @@ extension ChatViewModel {
         parentTools?.beginTurn()
         turnToolsRan = false
         delegateWithdrawn = false
-        if origin != .typed || !asUserWords { openQuestionStale = true }
+        if origin != .typed || !asUserWords { dropOpenQuestion() }
         // 16k-3: the words decide which connected app's tools travel this
         // round — specs() is rebuilt per request further down this turn.
         // A pick's label is the model's text, not her words: it must not
@@ -453,7 +453,7 @@ extension ChatViewModel {
     /// request outlives the switch, like the job does.
     func dropParentApprovals() {
         // Every caller leaves the thread the router's question was asked in.
-        openQuestionStale = true
+        dropOpenQuestion()
         let parents = session.projection.approvalQueue
             .filter { ParentTool.ownsRequest($0.toolName) }
         for request in parents {

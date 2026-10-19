@@ -20,6 +20,7 @@ import Testing
     await testTypedProseThatOpensWithAYesIsNotAnAnswer()
     await testASkippedTurnOrAClearedThreadDropsTheOpenQuestion()
     await testALongOrMultiLineMessageNeverReachesTheHostedJudge()
+    await testAVoiceYesAfterATypedCardPickAnswersNothing()
 }
 
 @MainActor private func typedChat(
@@ -28,12 +29,19 @@ import Testing
     replies: [Result<[ChatDelta], Error>] = [], jobs: (any JobSubmitter)? = nil,
     local: ScriptedDecision = ScriptedDecision { _ in nil }
 ) -> (ChatViewModel, FakeChatProvider) {
-    var config = Config.default
-    config.language = .es
     let judge = DecisionJudge(hosted: hosted, local: local)
     let gate = DecisionGate(
         provider: judge, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: opener),
         system: system, world: { DecisionWorld(apps: ["Safari"], sites: []) }, budget: .seconds(2))
+    return typedChat(gate: gate, judge: judge, replies: replies, jobs: jobs)
+}
+
+@MainActor private func typedChat(
+    gate: DecisionGate, judge: DecisionJudge,
+    replies: [Result<[ChatDelta], Error>] = [], jobs: (any JobSubmitter)? = nil
+) -> (ChatViewModel, FakeChatProvider) {
+    var config = Config.default
+    config.language = .es
     let chat = FakeChatProvider(replies: replies)
     let vm = ChatViewModel(
         chat: chat, secrets: TestSecretStore([.openAI: "sk-test"]), store: MemoryConversationStore(),
@@ -161,4 +169,30 @@ private func selfHandled() -> ScriptedHosted {
     expectEq(hosted.calls, 0, "typed long: the hosted judge is never asked")
     expectEq(chat.histories.count, 2, "typed long: the brain answers both")
     expect(chat.toolsSeen.contains { $0.name == "delegate" }, "typed long: delegate stays offered")
+}
+
+/// Re-review of #360 (M1): the question is dropped the moment the chat
+/// moves on, not at its next typed turn, so the hold cannot answer it.
+@MainActor func testAVoiceYesAfterATypedCardPickAnswersNothing() async {
+    unsetenv("COMPANION_DECISION")
+    let script = trashProvider()
+    let system = RecordingSystemActing()
+    let judge = DecisionJudge(
+        hosted: ScriptedHosted(configured: true) { script.body($0) }, local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(), tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        system: system, world: { DecisionWorld() }, budget: .seconds(2))
+    let (vm, _) = typedChat(gate: gate, judge: judge, replies: [.success([.text("ok")])])
+    await type("vacia la papelera", into: vm)
+    vm.startTurn("la segunda", origin: .choice)
+    await pumpUntil("voice yes: card turn done") { !vm.busy }
+    await pumpUntilAsync("voice yes: question dropped") { await !gate.answersPendingConfirmation("si") }
+    let h = makeVoiceHarness(language: .es)
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "si"
+    await h.session.hold()
+    await pumpUntil("voice yes: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("voice yes: the hold replies") { !h.synth.queue.isEmpty }
+    expectEq(system.actCount, 0, "voice yes: the hold answers nothing")
 }

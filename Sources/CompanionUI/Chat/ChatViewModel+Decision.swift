@@ -54,6 +54,16 @@ extension ChatViewModel {
         return true
     }
 
+    /// The chat moved on from the router's open question. Dropped now, not at
+    /// the next typed turn: the hold shares the gate, and a spoken "sí" must
+    /// not answer a question the thread left behind. The flag still makes the
+    /// next typed turn wait for the drop, which this unordered task cannot.
+    func dropOpenQuestion() {
+        openQuestionStale = true
+        guard let decider else { return }
+        Task { await decider.dropOpenQuestion() }
+    }
+
     /// The brain is told why it cannot hand off, so a prompt that describes
     /// delegation never has it promise one this turn cannot make.
     func noteWithdrawnDelegate(_ history: [Turn]) -> [Turn] {
