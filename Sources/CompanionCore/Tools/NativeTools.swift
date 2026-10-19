@@ -174,6 +174,15 @@ package enum NativeTool: String, CaseIterable, Sendable, Equatable {
     }
 }
 
+extension NativeTool {
+    /// Tools that send an address out of the Mac, to a host a page may have
+    /// chosen. Both the job path (NativeExecutor) and the chat gate
+    /// (ParentToolGate) ask on a tainted turn. riskLevel stays `.safe` on
+    /// purpose: whether they ask depends on the turn's taint, so an
+    /// unconditional sheet would prompt on every clean read as well.
+    package static let urlFetches: Set<NativeTool> = [.webFetch, .readURL]
+}
+
 /// Where the specialist may read and where it may write. The working folder
 /// is one root; the app's own folders (skills, knowledge, memory) are others,
 /// and the system skills are readable but never writable (Wave 11a).

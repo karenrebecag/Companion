@@ -2,9 +2,10 @@ import CompanionCore
 import Foundation
 
 extension NativeToolRunner {
-    /// Reads one to three pages in full. The URLs leave the Mac for Exa, the
-    /// same egress as a web_search query, so the band and the taint rules
-    /// match web_search rather than web_fetch's.
+    /// Reads one to three pages in full. Exa fetches each URL server-side, so
+    /// the address is an egress like web_fetch's (ActionBand and the chat gate
+    /// judge it the same way), not the web_search class, whose query goes to a
+    /// fixed provider.
     func runReadURL(arguments: [String: Any]) async -> ToolResult {
         guard let raw = arguments["urls"] as? String else {
             return ToolResult(ok: false, output: "Missing urls argument")
@@ -17,12 +18,15 @@ extension NativeToolRunner {
             return ToolResult(
                 ok: false, output: "read_url takes one to \(ExaWebReader.maxURLs) URLs")
         }
-        let urls = tokens.compactMap { URL(string: $0) }.filter(EndpointPolicy.isAcceptable)
-        guard urls.count == tokens.count else {
-            let bad = tokens.first { token in
-                URL(string: token).map { !EndpointPolicy.isAcceptable($0) } ?? true
-            } ?? ""
-            return ToolResult(ok: false, output: "Not a usable URL: \(bad)")
+        // The same parse the chat gate judged (ParentToolGate.fetchURLs): a
+        // refused address refuses the whole call before anything is contacted.
+        guard let urls = ParentToolGate.fetchURLs(
+            tool: NativeTool.readURL.rawValue, arguments: arguments)
+        else {
+            return ToolResult(ok: false, output: "Not a usable URL: \(tokens.joined(separator: " "))")
+        }
+        guard urls.allSatisfy(EndpointPolicy.isAcceptable) else {
+            return ToolResult(ok: false, output: "URL not acceptable by security policy")
         }
         guard let webReader, webReader.isConfigured else {
             // Reachable only if something called the tool without asking
@@ -35,9 +39,8 @@ extension NativeToolRunner {
             guard !pages.isEmpty else {
                 return ToolResult(ok: false, output: "No page text for: \(tokens.joined(separator: " "))")
             }
-            let blocks = pages.map { page in
-                "## \(WebText.clean(page.title)) — \(page.url)\n\(WebText.clean(page.text))"
-            }
+            // Each page is fenced so its text cannot open a block of its own.
+            let blocks = pages.map { WebText.fence($0) }
             return ToolResult(
                 ok: true, output: ([WebText.framing] + blocks).joined(separator: "\n\n"))
         } catch {

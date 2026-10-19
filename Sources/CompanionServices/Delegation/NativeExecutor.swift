@@ -163,7 +163,7 @@ package struct NativeExecutor: Executor, Sendable {
         // HACK: the executor has no user words, so a host is never "said" here
         // (the goal is written by the parent model). Trigger: JobRequest
         // carrying the user's own utterance; then pass `hostSaid`.
-        let gatedFetch = toolName == NativeTool.webFetch.rawValue
+        let gatedFetch = NativeTool.urlFetches.contains { $0.rawValue == toolName }
             && ActionBand.classify(
                 toolName: toolName, arguments: arguments, facts: ActionFacts(cleanTurn: !taint.isTainted)) != .act
         let risky = riskLevel(tool: toolName) == .requiresApproval || gatedFetch

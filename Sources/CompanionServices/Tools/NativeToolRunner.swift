@@ -517,7 +517,11 @@ package struct NativeToolRunner: Sendable {
             return ToolResult(ok: false, output: "Missing url argument")
         }
 
-        guard let url = URL(string: urlString) else {
+        // The gate judged this same parse (ParentToolGate.fetchURLs).
+        let url: URL
+        do {
+            url = try ParentToolPolicy.httpURL(urlString)
+        } catch {
             return ToolResult(ok: false, output: "Invalid URL")
         }
 
@@ -578,7 +582,7 @@ package struct NativeToolRunner: Sendable {
             // Title, url and snippet: enough to answer, and the url is what
             // lets the answer cite instead of assert.
             let lines = results.map { result in
-                "- \(WebText.clean(result.title)) — \(result.url)\n  \(WebText.clean(result.snippet))"
+                "- \(WebText.line(result.title)) — \(WebText.line(result.url))\n  \(WebText.line(result.snippet))"
             }
             return ToolResult(
                 ok: true, output: ([WebText.framing] + lines).joined(separator: "\n"))

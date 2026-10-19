@@ -195,19 +195,32 @@ package enum ParentToolGate: Sendable {
     /// Query plus fragment longer than this reads as data riding out, not a search.
     package static let payloadLimit = 80
 
-    /// Tools whose address leaves the Mac: open_url navigates, web_fetch and
-    /// read_url fetch it. web_search is not one of them: its query goes to a
-    /// fixed provider, so an address a page wrote is never contacted through it.
-    package static func addresses(of call: ToolCallRef) -> [String]? {
-        guard let arguments = ToolArguments.parse(call.arguments) else { return nil }
-        switch call.name {
+    /// The URLs a call would contact, parsed by the one parser the gate and the
+    /// runners share: what the gate judged is the value that goes out. Empty
+    /// for a tool that contacts nothing; nil when an address is refused, so the
+    /// call runs nowhere. web_search is not here: its query goes to a fixed
+    /// provider, so an address a page wrote is never contacted through it.
+    package static func fetchURLs(tool: String, arguments: [String: Any]) -> [URL]? {
+        let raws: [String]
+        switch tool {
         case ParentTool.openURL.rawValue, NativeTool.webFetch.rawValue:
-            return (arguments["url"] as? String).map { [$0] }
+            guard let raw = arguments["url"] as? String else { return nil }
+            raws = [raw]
         case NativeTool.readURL.rawValue:
-            return (arguments["urls"] as? String).map(addressTokens)
+            guard let raw = arguments["urls"] as? String else { return nil }
+            raws = addressTokens(raw)
         default:
-            return nil
+            return []
         }
+        var urls: [URL] = []
+        for raw in raws {
+            do {
+                urls.append(try ParentToolPolicy.httpURL(raw))
+            } catch {
+                return nil
+            }
+        }
+        return urls.isEmpty ? nil : urls
     }
 
     /// Spaces and commas separate the addresses of one read_url call.
@@ -221,15 +234,11 @@ package enum ParentToolGate: Sendable {
     package static func approval(
         for call: ToolCallRef, said: String, strictHost: Bool = false
     ) -> ApprovalRequest? {
-        guard let raws = addresses(of: call) else { return nil }
-        for raw in raws {
-            let url: URL
-            do {
-                url = try ParentToolPolicy.httpURL(raw)
-            } catch {
-                // The policy refuses a malformed address on its own; nothing to ask about.
-                continue
-            }
+        // A refused address is refused by the tool itself; nothing to ask about.
+        guard let arguments = ToolArguments.parse(call.arguments),
+              let urls = fetchURLs(tool: call.name, arguments: arguments)
+        else { return nil }
+        for url in urls {
             guard let host = url.host, needsSheet(url, host: host, said: said, strictHost: strictHost)
             else { continue }
             let verb = call.name == ParentTool.openURL.rawValue ? "open" : "read"
