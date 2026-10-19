@@ -1,0 +1,1 @@
+- **Sin cambio para quien usa la app (2026-10-19).** La sesion de voz deja de pasar los cableados compartidos (parar un encargo, entregar a un trabajo, resolver un permiso, marcar la linea de tiempo) a traves del runtime realtime: cada runtime recibe el mismo cierre directamente. Paso previo a quitar el modo realtime de OpenAI.

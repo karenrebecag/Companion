@@ -301,15 +301,19 @@ package actor VoiceSession: VoiceControlling {
         self.levels = levelBox.stream
         // At the end of init on purpose: the closure captures self (for the
         // announce path), which is only legal once every property is set.
-        realtime.markTimeline = { [weak self] point in await self?.markTool(point) }
-        classic.markTimeline = realtime.markTimeline
+        let markTimeline: @Sendable (TurnTimeline.Point) async -> Void = { [weak self] point in
+            await self?.markTool(point)
+        }
+        realtime.markTimeline = markTimeline
+        classic.markTimeline = markTimeline
         if let jobs {
             let presenter = thread
             // Same runner the button reaches. Someone talking to their Mac is
             // not looking at it, so the brake has to be sayable.
-            realtime.onStopJob = { await jobs.cancel() }
-            classic.onStopJob = realtime.onStopJob
-            realtime.onDelegate = { [weak self] handoff in
+            let stopJob: @Sendable () async -> Void = { await jobs.cancel() }
+            realtime.onStopJob = stopJob
+            classic.onStopJob = stopJob
+            let delegate: @Sendable (Handoff) -> Void = { [weak self] handoff in
                 Task {
                     await VoiceJobBridge.run(
                         handoff, jobs: jobs, thread: presenter,
@@ -331,11 +335,13 @@ package actor VoiceSession: VoiceControlling {
                         language: configProvider.current.language)
                 }
             }
-            classic.onDelegate = realtime.onDelegate
-            realtime.onResolveApproval = { [weak self] approved in
+            realtime.onDelegate = delegate
+            classic.onDelegate = delegate
+            let resolveApproval: @Sendable (Bool) async -> SpokenApproval = { [weak self] approved in
                 await self?.answerPendingApproval(approved) ?? .nothingPending
             }
-            classic.onResolveApproval = realtime.onResolveApproval
+            realtime.onResolveApproval = resolveApproval
+            classic.onResolveApproval = resolveApproval
             classic.onHeard = { [weak self] text, pressed in await self?.noteHeard(text, pressed: pressed) }
         }
         classic.onSpokenStop = { [weak self] in await self?.stopBySpeech() ?? false }
