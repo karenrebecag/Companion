@@ -1,0 +1,1 @@
+- **La redacción ya no tapa frases normales (2026-10-19).** "Passkeys: iCloud" salía como "[redacted]" en la respuesta. Una etiqueta seguida de una palabra sin dígitos ya no se toma por contraseña; los valores con dígitos o de doce o más caracteres siguen tapados.

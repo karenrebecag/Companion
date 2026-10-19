@@ -50,9 +50,11 @@ package enum TurnRedaction {
 
     /// The name stays so the agent knows what was hidden; the value goes.
     private static let keepingPrefix: [NSRegularExpression] = [
-        #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:SECRET|TOKEN|KEY|PASSWORD)[A-Za-z0-9_.\-]*[ \t]*[=:][ \t]*).+$"#,
+        #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:SECRET|TOKEN|KEY|PASSWORD)[A-Za-z0-9_.\-]*[ \t]*(?:=[ \t]*|:[ \t]*(?=\S*?(?:\d|\S{12})))).+$"#,
         // The same, anywhere in a line ("client secret: Xy8Q~...")
-        #"(?i)\b([A-Za-z0-9_]*(?:secret|token|password|passwd|clave|contraseña|key)\w*[ \t]*[:=][ \t]*["']?)[^\s"'<>,;]{6,}"#,
+        // A label then a plain word ("Passkeys: iCloud") is prose: the value
+        // must carry a digit or be long enough to be a secret by itself.
+        #"(?i)\b([A-Za-z0-9_]*(?:secret|token|password|passwd|clave|contraseña|key)\w*[ \t]*[:=][ \t]*["']?)(?=[^\s"'<>,;]*\d|[^\s"'<>,;]{12})[^\s"'<>,;]{6,}"#,
         // A bare hex string is only a secret when a word says so
         #"(?i)\b((?:secret|client|token|key)(?:[ \t_\-]+[A-Za-z]{1,12}\b){0,2}[ \t]*[:=]?[ \t]*["']?)[0-9a-f]{32,}\b"#,
     ].map(compile)

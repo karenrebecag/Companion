@@ -95,3 +95,20 @@ private let mask = TurnRedaction.mask
     expectEq(TurnRedaction.redact("3.5 032180000118359719"), "3.5 \(mask)", "clabe")
     expectEq(TurnRedaction.redact("4111111111111111 5500000000000004"), "\(mask) \(mask)", "dos tarjetas")
 }
+
+// QA 606: the model's reply read "Passkeys: iCloud ..." and the label rule
+// masked "iCloud" as if it were a password. A label followed by a plain
+// word is prose; a label followed by a value with a digit, or a long run of
+// letters, is still a secret.
+@Test func aLabelFollowedByAPlainWordIsProseNotASecret() {
+    expectEq(TurnRedaction.redact("Passkeys: iCloud Keychain guarda las claves"),
+             "Passkeys: iCloud Keychain guarda las claves", "passkeys: iCloud")
+    expectEq(TurnRedaction.redact("Token: Android y Autofill"),
+             "Token: Android y Autofill", "token: palabra corta sin dígitos")
+}
+
+@Test func aLabelFollowedByAValueWithDigitsOrLengthStillMasks() {
+    expectEq(TurnRedaction.redact("ver password: hunter2x fin"), "ver password: \(mask) fin", "con dígito")
+    expectEq(TurnRedaction.redact("ver clave: correcthorse fin"), "ver clave: \(mask) fin", "letras largas")
+    expectEq(TurnRedaction.redact("ver token: abcdefghijkl fin"), "ver token: \(mask) fin", "doce letras")
+}
