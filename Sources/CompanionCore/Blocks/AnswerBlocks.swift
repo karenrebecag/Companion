@@ -99,7 +99,7 @@ package enum AnswerBlocks {
             if language == CompanionBlocks.choiceLanguage, let choice = CompanionBlocks.choice(body) {
                 return .choice(choice)
             }
-            if settled, language == CompanionBlocks.diagramLanguage, let diagram = CompanionBlocks.diagram(body) {
+            if settled, CompanionBlocks.isDiagramFence(language), let diagram = CompanionBlocks.diagram(body) {
                 return .diagram(diagram)
             }
             if settled, language == PresentFence.language, let renders = PresentFence.renders(body: body) {

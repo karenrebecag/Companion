@@ -1,0 +1,1 @@
+- **Los bloques ricos vuelven a pintarse en el chat escrito (2026-10-19).** Cerebras respondía tablas en markdown en vez de gráficas, y un diagrama que el modelo escribía como ```mermaid se mostraba como código. Ahora el prompt manda tablas y gráficas a la tool de bloques, y un fence mermaid se pinta como diagrama.
