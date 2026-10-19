@@ -91,6 +91,8 @@ extension VoiceSession {
             audit.consume()
             lastPartial = ""
             cancelSpeculation()
+            speculationsThisHold = 0
+            lastSpeculatedText = nil
         }
         let realtime = openAIKey() != nil
         if !bounced { rememberStack(openAI: realtime) }

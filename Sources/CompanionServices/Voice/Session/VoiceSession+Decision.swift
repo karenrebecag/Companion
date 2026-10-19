@@ -83,7 +83,8 @@ extension VoiceSession {
         let step = await gate.plan(
             utterance, canDelegate: canDelegate,
             budget: hosted ? configProvider.current.decision.hostedBudget : nil,
-            provider: judge, prepared: takeSpeculation(matching: utterance))
+            provider: judge,
+            prepared: takeSpeculation(matching: utterance, canDelegate: canDelegate, world: gate.world()))
         markTool(.decision)
         // Only `.execute` runs through the SAME door the parent-tool loop
         // uses (`ParentToolRunner`, inside `gate.run`): the session's own

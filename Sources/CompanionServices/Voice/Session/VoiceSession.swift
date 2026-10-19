@@ -175,8 +175,11 @@ package actor VoiceSession: VoiceControlling {
     /// What `attachDecision` wired, so a partial can be planned before the
     /// release (VoiceSession+Speculation).
     var attachedDecision: (gate: DecisionGate, judge: DecisionJudge?)?
-    var speculation: (text: String, task: Task<DecisionStep, Never>)?
+    var speculation: Speculation?
     var speculationTimer: Task<Void, Never>?
+    /// Plans made this hold, and the words of the last one (Speculation).
+    var speculationsThisHold = 0
+    var lastSpeculatedText: String?
     var lastPartial = ""
     var partialTask: Task<Void, Never>?
     /// Which ear the running partial pump reads; it picks once, so a hold
