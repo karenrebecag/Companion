@@ -1,0 +1,1 @@
+- **La app vuelve a compilar en release desde cero (2026-10-19).** Ajustes importaba la capa de servicios, que la interfaz no puede ver; en debug pasaba por el orden de compilación y en un build limpio de release fallaba. Ahora registra con el logger del sistema, como el resto de la interfaz.
