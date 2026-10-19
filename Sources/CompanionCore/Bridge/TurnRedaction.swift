@@ -35,7 +35,8 @@ package enum TurnRedaction {
 
     private static let patterns: [NSRegularExpression] = [
         #"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)"#,
-        #"\bsk[-_][A-Za-z0-9_\-]{16,}"#,
+        // csk- is Cerebras; the lookbehind keeps a word that ends in "sk" out.
+        #"(?<![A-Za-z0-9])(?:csk|sk)[-_][A-Za-z0-9_\-]{16,}"#,
         #"\b(?:rk|pk)_(?:live_|test_)?[A-Za-z0-9]{16,}"#,
         #"\bsb_secret_[A-Za-z0-9_\-]{16,}"#,
         #"\bAIza[0-9A-Za-z_\-]{35}"#,
@@ -49,15 +50,41 @@ package enum TurnRedaction {
     ].map(compile)
 
     /// The name stays so the agent knows what was hidden; the value goes.
+    ///
+    /// Two tiers. A strong label names a secret by its meaning (password,
+    /// clave, secret, pin), so its value is masked whatever it looks like.
+    /// A weak label (key, token, passkey) also names things that are plain
+    /// prose ("Passkeys: iCloud"), so only a value that looks like a secret
+    /// is masked. QA 606 caught the weak tier over-matching; the strong tier
+    /// keeps the old coverage.
     private static let keepingPrefix: [NSRegularExpression] = [
-        #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:SECRET|TOKEN|KEY|PASSWORD)[A-Za-z0-9_.\-]*[ \t]*(?:=[ \t]*|:[ \t]*(?=\S*?(?:\d|\S{12})))).+$"#,
-        // The same, anywhere in a line ("client secret: Xy8Q~...")
-        // A label then a plain word ("Passkeys: iCloud") is prose: the value
-        // must carry a digit or be long enough to be a secret by itself.
-        #"(?i)\b([A-Za-z0-9_]*(?:secret|token|password|passwd|clave|contraseña|key)\w*[ \t]*[:=][ \t]*["']?)(?=[^\s"'<>,;]*\d|[^\s"'<>,;]{12})[^\s"'<>,;]{6,}"#,
+        // Whole line, env style (`DB_PASSWORD=...`). A passphrase runs to a
+        // comma or semicolon, so the rest of a sentence after it survives.
+        #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:PASSWORD|PASSWD|CONTRASEÑA)[ \t]*[=:][ \t]*)[^,;\n]+"#,
+        #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:SECRET|CLAVE|PIN)[ \t]*(?:=|:(?![ \t"']*(?:iCloud|Keychain|Android|Autofill)\b))[ \t"']*)[^\s"'<>,;]{4,}"#,
+        #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:TOKEN|KEY|PASSKEYS?)[A-Za-z0-9_.\-]*[ \t]*(?:=|:)[ \t]*(?=\S*?(?:\d|\S{12}))).+$"#,
+        // Strong label, inline ("la clave=hunter22", "client secret: ...").
+        // A passphrase (password, contraseña) masks to a comma or semicolon.
+        #"(?i)(\b(?:[A-Za-z0-9]+_)?(?:password|passwd|contraseña)[ \t]*[:=][ \t]*["']?)[^,;\n]+"#,
+        // The exemptions are common Spanish prose after a label, not secrets.
+        #"(?i)(\b(?:[A-Za-z0-9]+_)?(?:clave|secret|pin)[ \t]*(?:=|:(?![ \t"']*(?:iCloud|Keychain|Android|Autofill)\b))[ \t"']*)[^\s"'<>,;]{4,}"#,
+        // Weak label: a digit or 12+ characters, or it is prose.
+        #"(?i)\b([A-Za-z0-9_]*(?:api[ _-]?key|passkeys?|token|key)\w*[ \t]*[:=][ \t]*["']?)(?=[^\s"'<>,;]*\d|[^\s"'<>,;]{12})[^\s"'<>,;]{6,}"#,
         // A bare hex string is only a secret when a word says so
         #"(?i)\b((?:secret|client|token|key)(?:[ \t_\-]+[A-Za-z]{1,12}\b){0,2}[ \t]*[:=]?[ \t]*["']?)[0-9a-f]{32,}\b"#,
+        // A two-factor code: 4 to 8 digits near its word. "código postal" is an address.
+        #"(?i)(\b(?:c[oó]digo(?!\s*postal)|code|otp|verificaci[oó]n|verification)\b[^\d\n]{0,24}?)(?<!\d)\d{4,8}(?!\d)"#,
     ].map(compile)
+
+    /// True when text names a strong label followed by its separator. The
+    /// memory gate asks this so a fact such as "mi contraseña: ..." is refused
+    /// even when the redaction above would change nothing.
+    package static func holdsStrongLabel(_ text: String) -> Bool {
+        strongLabel.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
+    }
+
+    private static let strongLabel = compile(
+        #"(?i)(?<![A-Za-z0-9])(?:[A-Za-z0-9]+_)?(?:password|passwd|contraseña|clave|secret|pin)[ \t]*[:=]"#)
 
     /// Shapes that look like anything unless a format agrees, so a random
     /// string is left alone.

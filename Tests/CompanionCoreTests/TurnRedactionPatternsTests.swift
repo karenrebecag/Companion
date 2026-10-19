@@ -96,19 +96,55 @@ private let mask = TurnRedaction.mask
     expectEq(TurnRedaction.redact("4111111111111111 5500000000000004"), "\(mask) \(mask)", "dos tarjetas")
 }
 
-// QA 606: the model's reply read "Passkeys: iCloud ..." and the label rule
-// masked "iCloud" as if it were a password. A label followed by a plain
-// word is prose; a label followed by a value with a digit, or a long run of
-// letters, is still a secret.
-@Test func aLabelFollowedByAPlainWordIsProseNotASecret() {
+// QA 606: the model's reply read "Passkeys: iCloud ..." and a label rule
+// masked "iCloud" as a password. Strong labels (password, clave, secret,
+// pin...) always mask their value; weak ones (key, token, passkey) mask only
+// a value that looks like a secret, a digit or 12+ characters.
+@Test func aWeakLabelFollowedByAPlainWordIsProseNotASecret() {
     expectEq(TurnRedaction.redact("Passkeys: iCloud Keychain guarda las claves"),
              "Passkeys: iCloud Keychain guarda las claves", "passkeys: iCloud")
     expectEq(TurnRedaction.redact("Token: Android y Autofill"),
              "Token: Android y Autofill", "token: palabra corta sin dígitos")
 }
 
-@Test func aLabelFollowedByAValueWithDigitsOrLengthStillMasks() {
-    expectEq(TurnRedaction.redact("ver password: hunter2x fin"), "ver password: \(mask) fin", "con dígito")
-    expectEq(TurnRedaction.redact("ver clave: correcthorse fin"), "ver clave: \(mask) fin", "letras largas")
+@Test func aWeakLabelWithDigitsOrLengthStillMasks() {
     expectEq(TurnRedaction.redact("ver token: abcdefghijkl fin"), "ver token: \(mask) fin", "doce letras")
+    expectEq(TurnRedaction.redact("ver api key: sk9a2b fin"), "ver api key: \(mask) fin", "con dígito")
+}
+
+@Test func aStrongLabelAlwaysMasksItsValue() {
+    expectEq(TurnRedaction.redact("password: secreto"), "password: \(mask)", "password: secreto")
+    expectEq(TurnRedaction.redact("pin: 4821 ok"), "pin: \(mask) ok", "pin corto con dígitos")
+    expectEq(TurnRedaction.redact("secret: abcd ok"), "secret: \(mask) ok", "cuatro caracteres")
+    expectEq(TurnRedaction.redact("ver password: hunter2x fin"), "ver password: \(mask)", "frase: hasta la coma")
+}
+
+@Test func aPassphraseMasksToTheEndOfItsClause() {
+    expectEq(TurnRedaction.redact("contraseña: correct horse battery"),
+             "contraseña: \(mask)", "frase de varias palabras")
+    expectEq(TurnRedaction.redact("contraseña: correct horse battery, fin"),
+             "contraseña: \(mask), fin", "la coma corta la frase")
+}
+
+@Test func aProseWordAfterAStrongLabelIsNotMasked() {
+    expectEq(TurnRedaction.redact("Clave: iCloud"), "Clave: iCloud", "clave: iCloud es prosa")
+    expectEq(TurnRedaction.redact("Clave: Keychain guarda todo"), "Clave: Keychain guarda todo", "keychain")
+}
+
+@Test func cerebrasKeysAreMaskedAfterAnyBoundary() {
+    expectEq(TurnRedaction.redact("usa csk-abcdefghijklmnop1234 aquí"), "usa \(mask) aquí", "csk-")
+    expectEq(TurnRedaction.redact("usa sk-abcdefghijklmnop1234 aquí"), "usa \(mask) aquí", "sk- sigue igual")
+}
+
+@Test func aTwoFactorCodeNearItsWordIsMasked() {
+    expectEq(TurnRedaction.redact("tu código de verificación es 482913"),
+             "tu código de verificación es \(mask)", "código de verificación")
+    expectEq(TurnRedaction.redact("your code is 731902."), "your code is \(mask).", "code")
+    expectEq(TurnRedaction.redact("OTP 73190 ok"), "OTP \(mask) ok", "otp 5 dígitos")
+}
+
+@Test func aPostalCodeIsNotATwoFactorCode() {
+    expectEq(TurnRedaction.redact("vivo en código postal 06600"),
+             "vivo en código postal 06600", "código postal")
+    expectEq(TurnRedaction.redact("el error code 404 salió"), "el error code 404 salió", "tres dígitos")
 }
