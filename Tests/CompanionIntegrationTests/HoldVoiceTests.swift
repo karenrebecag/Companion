@@ -553,3 +553,82 @@ private let slack = FocusedField(app: "Slack", pid: 42)
         "consumes: Opción izquierda no arma la tecla de Opción derecha")
 }
 
+/// DM0 review (HIGH, 2026-09-22). El tool call de un padre pertenece al hold
+/// que lo comprometió, no al que esté en curso cuando el server por fin
+/// contesta: una marca tardía solía escribirse en la línea de tiempos nueva
+/// de un hold que no tenía nada que ver, corrompiendo commit→tool/tool→done.
+@Test @MainActor func testALateToolMarkDoesNotJoinTheNextHold() async {
+    let h = makeVoiceHarness()
+    await h.session.start()
+    await pumpUntil("tool tardío: listening") {
+        h.watch.latest.state == .listening && h.watch.latest.pipeline == .classic
+    }
+    // Hold 1 pulsa (el oído arranca en cero) y suelta con lo dicho durante
+    // el hold: el texto compromete el turno, como haría un tool call del
+    // padre que le sigue.
+    await h.session.hold()
+    h.transcriber.stoppedText = "abre safari"
+    await h.session.release()
+    expect(await h.session.timeline.committed != nil, "tool tardío: hold 1 comprometió")
+    // El server contesta a tiempo: las marcas caen en la línea de hold 1.
+    await h.session.markTool(.toolCallSeen)
+    await h.session.markTool(.toolDone)
+    let onTime = await h.session.timeline.line()
+    expect(onTime?.contains("commit→tool —") == false,
+           "tool tardío: a tiempo, commit→tool es un número")
+
+    // Hold 2 pulsa: el reloj se reinicia mientras la llamada de hold 1
+    // sigue en vuelo del lado del server.
+    await h.session.hold()
+    expect(await h.session.timeline.committed == nil, "tool tardío: hold 2 empieza en blanco")
+    // La respuesta de hold 1 llega recién ahora, tarde.
+    await h.session.markTool(.toolCallSeen)
+    expect(await h.session.timeline.toolCallSeen == nil,
+           "tool tardío: la marca tardía de hold 1 no se cuela en hold 2")
+    await h.session.flushTimeline()
+    let hold2Line = await h.session.lastTimeline?.line()
+    expect(hold2Line?.contains("commit→tool —") == true,
+           "tool tardío: hold 2 se queda sin tool, sigue en —")
+}
+
+/// 9 (12c). Precalentar prepara el micro y lee la clave; no abre el socket
+/// ni arranca el micro ni pide permisos.
+@Test @MainActor func testPrewarmTouchesNothingLoud() async {
+    let h = makeVoiceHarness()
+    await h.session.prewarm()
+    expect(h.mic.prewarmed, "prewarm: el micro se prepara")
+    expect(!h.mic.started, "prewarm: sin arrancar el micro")
+    expect(!h.mic.accessAsked, "prewarm: sin pedir permiso")
+    expectEq(h.secrets.reads, 0, "prewarm: sin tocar el llavero (una lectura puede ser un diálogo)")
+    expectEq(h.watch.latest.state, .idle, "prewarm: la máquina no se mueve")
+}
+
+/// 8b (16i, seen live 2026-09-25): the app ships a separate realtime ear.
+/// On a classic hold the words were read from that ear, which hears nothing
+/// there, so the island never showed what Karen was saying.
+@Test @MainActor func testClassicPartialsComeFromTheEarThatHears() async {
+    let h = makeVoiceHarness()
+    let seen = SessionEventBox(h.session.events)
+    await h.session.hold()
+    await pumpUntil("parciales clásico: listening") { h.watch.latest.state == .listening }
+    h.transcriber.yieldPartial("abre el correo")
+    await pumpUntil("parciales clásico: la isla lo ve") {
+        seen.events.contains { $0 == .partialTranscript("abre el correo") }
+    }
+    await h.session.release()
+}
+
+/// 24. Pulsar otra vez después de hablar: sigue el camino de texto, sin realtime.
+@Test @MainActor func testHoldWhileSpeakingCutsTheAgent() async {
+    let h = makeVoiceHarness()
+    // Not "para": a bare stop now ends the turn without a reply (SpokenStop).
+    h.transcriber.stoppedText = "hola"
+    h.chat.rounds = [[.text("De acuerdo.")]]
+    await h.session.hold()
+    await pumpUntil("corte: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("corte: habló") { h.synth.queue.contains("De acuerdo.") }
+    await h.session.hold()
+    await pumpUntil("corte: otra vez listening") { h.watch.latest.state == .listening }
+    expectEq(h.watch.latest.pipeline, .classic, "corte: sigue texto")
+}
