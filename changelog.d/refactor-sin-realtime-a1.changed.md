@@ -1,1 +1,0 @@
-- **La voz ya no tiene modo realtime de OpenAI (2026-10-19).** Se quitan la sesion por websocket, su oido y el texto que la acompanaba. Mantener la tecla sigue igual: Apple escucha, Cerebras responde, ElevenLabs o la voz del sistema hablan. Sin clave de OpenAI nada cambia; las preferencias de deteccion de turno ya no existen.
