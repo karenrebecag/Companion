@@ -69,6 +69,16 @@ extension VoiceSession {
         // which the classic hold never calls. This is the first mark either
         // way — `mark` itself is idempotent, so a repeat costs nothing.
         commitTimeline()
+        // While a job runs, how the new words relate to it is judged beside
+        // the plan and settled before anything runs. A yes/no to the open
+        // question answers that question and is never sent out about the job.
+        let answering = await gate.answersPendingConfirmation(utterance)
+        let relation = answering ? nil : runningObjective.flatMap { objective in
+            judge.map { turn in
+                (objective, Task { await turn.relationship(utterance, to: objective) })
+            }
+        }
+        defer { relation?.1.cancel() }
         let route = await gate.route(
             utterance, canDelegate: canDelegate,
             budget: hosted ? configProvider.current.decision.hostedBudget : nil,
@@ -85,6 +95,24 @@ extension VoiceSession {
             step = planned
         }
         markTool(.decision)
+        if let (objective, task) = relation {
+            let verdict = await DecisionJudge.verdict(
+                task, within: configProvider.current.decision.hostedBudget)
+            switch RelationshipHead.read(verdict) {
+            case .cancel?:
+                await classic.onStopJob?()
+                markTool(.toolDone)
+                return .said(DecisionCopy.stoppedJob(objective.goal, configProvider.current.language))
+            case .replace?:
+                await classic.onStopJob?()
+            case .unclear?:
+                return .said(DecisionCopy.askAboutRunningJob(configProvider.current.language))
+            case .revise?, .resume?, .append?, nil:
+                // One-shot jobs cannot take a revision or a resume; the
+                // ordinary path handles the words.
+                break
+            }
+        }
         // Only `.execute` runs through the SAME door the parent-tool loop
         // uses (`ParentToolRunner`, inside `gate.run`): the session's own
         // "the parent's hands are moving" signal belongs there, not on a
@@ -106,5 +134,25 @@ extension VoiceSession {
         DecisionGate.skip(
             hosted: hosted, enabled: configProvider.current.decision.enabled,
             fastBrain: lastStack?.hasFastBrain == true)
+    }
+
+    /// Follows the job the voice started, for the relationship head.
+    func trackObjective(_ event: SessionEvent) {
+        switch event {
+        case .job(.started(let goal), let id?):
+            guard !finishedJobs.contains(id) else { return }
+            runningObjective = PendingObjective(
+                goal: goal, jobID: id,
+                goalFromUser: PendingObjective.isUsersOwn(goal, heard: heardThisHold?.text))
+        case .job(.stepStarted(let tool, _, _), let id?) where runningObjective?.jobID == id:
+            runningObjective?.currentTool = tool
+        case .job(.stepFinished, let id?) where runningObjective?.jobID == id:
+            runningObjective?.stepsDone += 1
+        case .jobFinished(_, let id?):
+            finishedJobs.insert(id)
+            if runningObjective?.jobID == id { runningObjective = nil }
+        default:
+            break
+        }
     }
 }

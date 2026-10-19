@@ -41,6 +41,47 @@ import CompanionTestKit
     await testSpeculationStopsAtTwoPlansPerHold()
     await testAChangedWorldIsPlannedAgainAtTheRelease()
     await testAPartialYesToAnOpenQuestionIsNeverSpeculated()
+    await testASureCancelStopsTheRunningJobAndSaysSo()
+}
+
+/// The relationship head: with a job running, a confident "cancel" stops it
+/// and the router says what it stopped; with no job, the head is not asked.
+@MainActor func testASureCancelStopsTheRunningJobAndSaysSo() async {
+    unsetenv("COMPANION_DECISION")
+    let relations = CallCounter()
+    let script = taskProvider()
+    let hosted = ScriptedHosted(configured: true) { question in
+        if question.id == RelationshipHead.id {
+            relations.increment()
+            return peaked("cancel", question.offeredIds)
+        }
+        if question.instructions.contains("olvidalo"), question.id == DecisionHead.action {
+            return peaked("none", question.offeredIds)
+        }
+        return script.body(question)
+    }
+    let judge = DecisionJudge(hosted: hosted, local: ScriptedDecision { _ in nil })
+    let gate = DecisionGate(
+        provider: judge, arbiter: NoArbiter(),
+        tools: ParentToolRunner(workspace: FakeWorkspaceOpener()),
+        world: { DecisionWorld() }, budget: .seconds(2))
+    let jobs = WatchfulSubmitter()
+    let h = makeVoiceHarness(jobs: jobs, language: .es)
+    await h.session.attachDecision(gate, judge: judge)
+    h.transcriber.stoppedText = "crea un archivo"
+    await h.session.hold()
+    await pumpUntil("relation: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntilAsync("relation: the job runs") { await h.session.runningObjective != nil }
+    expectEq(relations.count, 0, "relation: not asked while nothing ran")
+
+    h.transcriber.stoppedText = "olvidalo"
+    await h.session.hold()
+    await pumpUntil("relation 2: listening") { h.watch.latest.state == .listening }
+    await h.session.release()
+    await pumpUntil("relation: stopped") { jobs.cancelled }
+    await pumpUntil("relation: says so") { h.synth.queue.contains("Paré «crea un archivo».") }
+    expectEq(relations.count, 1, "relation: asked once, with the job running")
 }
 
 @MainActor private func eagerHarness(

@@ -643,6 +643,9 @@ final class ClassicRuntime: @unchecked Sendable {
         case .delegate:
             spoken = Acknowledgement.delegating(language)
             threaded = spoken
+        case .said(let line):
+            spoken = line
+            threaded = line
         }
         await apply(.firstSentence)
         // 16h-2: the line is queued before the job starts, same order as

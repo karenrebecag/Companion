@@ -256,6 +256,20 @@ package enum DecisionCopy: Sendable {
         }
     }
 
+    package static func stoppedJob(_ goal: String, _ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "Stopped \u{201C}\(goal)\u{201D}."
+        case .es: return "Paré «\(goal)»."
+        }
+    }
+
+    package static func askAboutRunningJob(_ language: AppLanguage) -> String {
+        switch language {
+        case .en: return "Should I stop what I'm working on, or keep going?"
+        case .es: return "¿Paro lo que estoy haciendo o sigo?"
+        }
+    }
+
     package static func declined(_ language: AppLanguage) -> String {
         switch language {
         case .en: return "Okay, not doing it."

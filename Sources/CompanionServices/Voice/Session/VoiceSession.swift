@@ -180,6 +180,10 @@ package actor VoiceSession: VoiceControlling {
     /// Plans made this hold, and the words of the last one (Speculation).
     var speculationsThisHold = 0
     var lastSpeculatedText: String?
+    /// The job running now, as the relationship head sees it; and the jobs
+    /// already over, so a late `started` cannot bring one back.
+    var runningObjective: PendingObjective?
+    var finishedJobs: Set<JobID> = []
     var lastPartial = ""
     var partialTask: Task<Void, Never>?
     /// Which ear the running partial pump reads; it picks once, so a hold
@@ -318,6 +322,7 @@ package actor VoiceSession: VoiceControlling {
                         // their hands full has to reach the ear too.
                         onEvent: { [weak self] event in
                             eventBox.yield(event)
+                            Task { [weak self] in await self?.trackObjective(event) }
                             guard case .job(.approvalRequested(let request), _) = event
                             else { return }
                             Task { [weak self] in
