@@ -1,0 +1,1 @@
+- **Una lectura repetida en la misma respuesta ya no dibuja dos mapas (2026-10-19).** Si el modelo pedía dos veces la misma búsqueda de lugares, salían dos tarjetas iguales. Ahora la segunda reutiliza la primera respuesta; un clic o una escritura entre medio vuelve a leer la pantalla.
