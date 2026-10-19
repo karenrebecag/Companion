@@ -213,7 +213,10 @@ package struct Plan: Sendable, Equatable {
         var prefetched: [(DecisionQuestion, DecisionAnswer?)] = []
         let forwardRaw: DecisionAnswer?
         let backwardRaw: DecisionAnswer?
-        if provider.answersInOneRequest {
+        // Read once: a provider that picks its judge per call could flip
+        // between here and the head lookup and strand the prefetched answers.
+        let oneRequest = provider.answersInOneRequest
+        if oneRequest {
             let speculative = menu.compactMap { DecisionAction(rawValue: $0.id) }
                 .flatMap { PlanHeads.questions(for: $0, said: said, in: sets) }
             let all = await provider.answer([asked, asked.reversed()] + speculative)
@@ -245,7 +248,7 @@ package struct Plan: Sendable, Equatable {
         var confidence = merged.confidence
         let heads = PlanHeads.questions(for: action, said: said, in: sets)
         let answers: [DecisionAnswer?]
-        if provider.answersInOneRequest {
+        if oneRequest {
             answers = heads.map { head in prefetched.first { $0.0 == head }?.1 ?? nil }
         } else {
             answers = await provider.answer(heads)

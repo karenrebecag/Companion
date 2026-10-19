@@ -126,6 +126,13 @@ final class ClassicRuntime: @unchecked Sendable {
     /// Nil (today) or a `.passThrough` outcome: byte-identical to before —
     /// the round loop below never sees this closure ran.
     var decide: (@Sendable (String, Bool) async -> DecisionOutcome)?
+    /// Asked beside the brain once the router passes; a confident "I can
+    /// handle it" takes `delegate` off this turn's tools. Nil keeps every
+    /// tool, which is also what a late or failed verdict does.
+    var delegationVerdict: (@Sendable (String) async -> DecisionAnswer?)?
+    /// How long tool assembly waits for the verdict after the context is in;
+    /// the verdict mostly lands while the context is still being gathered.
+    var delegationWait: Duration = .milliseconds(300)
     /// Words already taken from the ear (dictation fallback). `stop()` is
     /// one-shot in production; a second call would drop the utterance.
     var leftoverHeard: String? {
@@ -357,6 +364,12 @@ final class ClassicRuntime: @unchecked Sendable {
         // cleared here even when the router below ends up handling it and
         // never renders a `<context>` block to carry the note at all.
         let interrupted = takeSteerPending()
+        // Started before the router so it overlaps both the router and the
+        // context gather; a turn the router takes just cancels it.
+        let verdict = onDelegate == nil ? nil : delegationVerdict.map { judge in
+            Task { await judge(heard) }
+        }
+        defer { verdict?.cancel() }
         if let decide {
             let outcome = await decide(heard, onDelegate != nil)
             if case .passThrough = outcome {
@@ -389,7 +402,12 @@ final class ClassicRuntime: @unchecked Sendable {
         parentTools?.noteTurn(heard)
         var tools = parentTools?.specs(language) ?? []
         if onDelegate != nil {
-            tools.append(.delegate(language))
+            let judged = await DecisionJudge.verdict(verdict, within: delegationWait)
+            if DelegationHead.offersDelegate(judged) {
+                tools.append(.delegate(language))
+            } else {
+                Log.chat("decision: delegate withdrawn verdict=\(judged?.choice ?? "-")")
+            }
             tools.append(.stopJob(language))
             tools.append(.resolveApproval(language))
         }
