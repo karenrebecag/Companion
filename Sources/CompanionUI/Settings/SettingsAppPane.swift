@@ -135,6 +135,7 @@ struct SettingsPrivacyPage: View {
         ("cerebras", .cerebras, "settings.keys.cerebras", "settings.keys.cerebras.privacy"),
         ("elevenlabs", .elevenLabs, "settings.keys.elevenlabs", "settings.keys.elevenlabs.privacy"),
         ("exa", .exa, "settings.keys.exa", "settings.keys.exa.privacy"),
+        ("typesafe", .typesafe, "settings.keys.typesafe", "settings.keys.typesafe.privacy"),
     ]
 
     private var keyRows: [APIKeyRowModel] {
@@ -178,6 +179,7 @@ struct SettingsPrivacyPage: View {
         case "cerebras": keys.cerebrasField
         case "elevenlabs": keys.elevenLabsField
         case "exa": keys.exaField
+        case "typesafe": keys.typesafeField
         default: keys.openAIField
         }
     }
@@ -187,6 +189,7 @@ struct SettingsPrivacyPage: View {
         case "cerebras": keys.cerebrasField = value
         case "elevenlabs": keys.elevenLabsField = value
         case "exa": keys.exaField = value
+        case "typesafe": keys.typesafeField = value
         default: keys.openAIField = value
         }
     }
