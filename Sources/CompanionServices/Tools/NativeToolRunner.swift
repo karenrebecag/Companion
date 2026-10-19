@@ -534,7 +534,7 @@ package struct NativeToolRunner: Sendable {
         let session = NoStoreSession.shared
 
         do {
-            let (data, response) = try await session.data(for: request)
+            let (bytes, response) = try await session.bytes(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 return ToolResult(ok: false, output: "Invalid response")
@@ -546,7 +546,10 @@ package struct NativeToolRunner: Sendable {
                     output: "HTTP \(httpResponse.statusCode)")
             }
 
-            let content = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .ascii) ?? ""
+            // Lossy on purpose: a multibyte character cut by the download cap
+            // must not blank the whole page.
+            let data = try await WebFetchBody.collect(bytes)
+            let content = String(decoding: data, as: UTF8.self)
             // The page's words, framed and capped as read_url's are: a page is
             // what a stranger wrote, so it reaches the model as data.
             let page = WebHTMLText.page(from: content, url: url.absoluteString)

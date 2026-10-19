@@ -48,3 +48,26 @@ import Testing
     expect(runner.availableTools.contains(.webSearch) && runner.availableTools.contains(.readURL),
            "despues de pegar la clave, el siguiente turno ya las ofrece")
 }
+
+@Test @MainActor func thePromptPromisesWebSearchOnlyWhenTheTurnDeclaresIt() throws {
+    let secrets = TestSecretStore()
+    let transport = ScriptedTransport()
+    let runner = ParentToolRunner(
+        workspace: FakeWorkspaceOpener(),
+        webSearch: SelectedWebSearch(transport: transport, secrets: secrets),
+        webReader: SelectedWebReader(transport: transport, secrets: secrets))
+    func systemPrompt() throws -> String {
+        let request = ChatSSEAttempt.makeRequest(
+            provider: .openAI, key: "k",
+            history: [Turn(role: .user, content: "hola")],
+            tools: runner.specs(.es), settings: .default, ownerFirstName: "Karen", language: .es)
+        let body = try JSONSerialization.jsonObject(with: request?.httpBody ?? Data()) as? [String: Any]
+        let messages = body?["messages"] as? [[String: Any]]
+        return messages?.first?["content"] as? String ?? ""
+    }
+    expect(!(try systemPrompt()).contains("usa web_search"),
+           "sin clave, el prompt de este turno no promete web_search")
+    try secrets.write(.exa, value: "exa-test")
+    expect((try systemPrompt()).contains("usa web_search"),
+           "con la clave pegada, el turno siguiente lo declara y el prompt lo promete")
+}

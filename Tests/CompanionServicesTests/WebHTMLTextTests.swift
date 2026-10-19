@@ -51,3 +51,38 @@ private let exchangeFixture = """
     expect(fenced.contains("[cut at \(ExaWebReader.maxPageCharacters) characters]"),
            "una pagina larga se corta al mismo tope que read_url, y se dice")
 }
+
+// A hostile page must not make the scan rescan: each unterminated construct
+// runs to the end of the capped source once. Steps are counted, never timed.
+private func assertLinearScan(_ flood: String, _ label: String) {
+    let (_, steps) = WebHTMLText.extract(flood, url: "https://ejemplo.pe")
+    expect(steps <= 8 * WebHTMLText.maxSourceBytes,
+           "\(label): el barrido es lineal en el tope (\(steps) pasos)")
+}
+
+@Test func aFloodOfUnclosedCommentsIsScannedInLinearWork() {
+    assertLinearScan("<html>" + String(repeating: "<!--", count: 250_000), "comentarios sin cerrar")
+}
+
+@Test func aFloodOfUnclosedScriptsIsScannedInLinearWork() {
+    assertLinearScan("<html>" + String(repeating: "<script>", count: 125_000), "scripts sin cerrar")
+}
+
+@Test func aFloodOfBareLessThanSignsIsScannedInLinearWork() {
+    assertLinearScan("<html>" + String(repeating: "<", count: 1_000_000), "menores que sueltos")
+}
+
+@Test func aGreaterThanInsideAQuotedAttributeDoesNotEndTheTag() {
+    let page = WebHTMLText.page(from: #"<html><body><a title="x > y">enlace</a> texto</body></html>"#,
+                                url: "https://ejemplo.pe")
+    expectEq(page.text, "enlace texto", "el > dentro de comillas no cierra la etiqueta")
+}
+
+@Test func webFetchBodyStopsAtItsByteLimit() async throws {
+    let stream = AsyncStream<UInt8> { continuation in
+        for _ in 0..<3_000_000 { continuation.yield(0x61) }
+        continuation.finish()
+    }
+    let data = try await WebFetchBody.collect(stream)
+    expectEq(data.count, WebFetchBody.maxBytes, "una descarga se corta en el tope, no se baja entera")
+}
