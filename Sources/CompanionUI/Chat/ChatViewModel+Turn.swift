@@ -472,9 +472,24 @@ extension ChatViewModel {
         }
 
         if !preface.isEmpty {
-            messages.append(ChatMessage(role: .assistant, text: preface, endedWithoutAnswer: endedWithoutAnswer))
-            recording { $0.reply = TurnReply(text: preface, isFailure: false) }
+            let reply = figureCaveat(for: preface, language: config.language).map { preface + "\n\n" + $0 } ?? preface
+            messages.append(ChatMessage(role: .assistant, text: reply, endedWithoutAnswer: endedWithoutAnswer))
+            recording { $0.reply = TurnReply(text: reply, isFailure: false) }
         }
+    }
+
+    /// The turn's own sources, read back from the thread: what its tools
+    /// returned and what she said. A figure the reply states that none of them
+    /// states gets a line saying so, rather than passing as if it were read.
+    private func figureCaveat(for reply: String, language: AppLanguage) -> String? {
+        let lastUser = messages.lastIndex { $0.role == .user && !$0.isStatus }
+        let turn = messages[(lastUser.map { $0 + 1 } ?? 0)...]
+        return UnsourcedFigures.caveat(
+            for: reply,
+            turnTools: turn.compactMap { $0.recall?.toolCalls }.flatMap { $0 }.map(\.name),
+            sources: turn.compactMap { $0.recall?.role == .tool ? $0.recall?.content : nil },
+            userWords: lastUser.map { messages[$0].text } ?? "",
+            language: language)
     }
 
     private func isCurrent(_ id: String) -> Bool {
