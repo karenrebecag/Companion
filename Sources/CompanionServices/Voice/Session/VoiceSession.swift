@@ -153,7 +153,7 @@ package actor VoiceSession: VoiceControlling {
     var releaseTailing = false
     /// FN is down but under the tap threshold: what leaves the machine
     /// (screen upload, context fan-out) is owed here until `confirmHold`.
-    var owedHoldWork: OwedHoldWork?
+    var owedHoldWork = false
     /// A press under the threshold that would have cut a reply, resumed a
     /// release tail or touched a socket: nothing happened yet, and a tap
     /// drops it.

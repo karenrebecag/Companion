@@ -5,11 +5,6 @@ import Foundation
 /// Split out of `VoiceSession.swift` at the 800-line gate (Wave 15d-1),
 /// the same pattern `VoiceSessionTimeline` uses: not `private`, but still
 /// actor-isolated by the actor itself.
-/// What a provisional press still owes once it is confirmed a hold.
-struct OwedHoldWork: Sendable {
-    let realtime: Bool
-}
-
 /// A provisional press that started nothing yet.
 struct DeferredHold: Sendable {
     let dictate: Bool
@@ -32,9 +27,9 @@ extension VoiceSession {
             await beginHold(dictate: deferred.dictate, provisional: false, pressedAt: deferred.pressedAt)
             return
         }
-        guard let owed = owedHoldWork else { return }
-        owedHoldWork = nil
-        startConfirmedWork(realtime: owed.realtime)
+        guard owedHoldWork else { return }
+        owedHoldWork = false
+        startConfirmedWork()
     }
 
     package func hold(dictate: Bool = false, provisional: Bool = false) async {
@@ -62,7 +57,7 @@ extension VoiceSession {
         await cutAnnouncement()
         voiceClosed = false
         deferredHold = nil
-        owedHoldWork = nil
+        owedHoldWork = false
         holdGeneration += 1
         // 15d-2: a press inside the release tail takes that hold back — the
         // tail never commits, and this hold keeps its clock, route and ears.
@@ -100,25 +95,31 @@ extension VoiceSession {
         // on, instead of paying for a second Accessibility round trip and
         // announcing twice (code review 2026-09-06).
         if !bounced {
-            routeHold(realtime: realtime, dictate: dictate)
+            routeHold(dictate: dictate)
             if provisional {
-                owedHoldWork = OwedHoldWork(realtime: realtime)
+                owedHoldWork = true
             } else {
-                startConfirmedWork(realtime: realtime)
+                startConfirmedWork()
             }
         }
         // Hold is the text path (14b). Hands-free `start()` still opens realtime.
         await apply(.holdPressed(preferRealtime: false))
     }
 
+    /// The keys that can read a screen. Read per call: a key saved while the app
+    /// runs counts from the next hold.
+    func visionKeys() -> Set<SecretKey> {
+        Set([SecretKey.cerebras, .openAI].filter { hasSecret($0) })
+    }
+
     /// What leaves the machine for a hold: the screen for vision and the
     /// context fan-out.
-    private func startConfirmedWork(realtime: Bool) {
+    private func startConfirmedWork() {
         let seesScreen = configProvider.current.contextChannels.contains(.screen)
         // Pointing never leaves the machine, so every pipeline samples it.
         if seesScreen { screen?.beginPointing() }
-        // Vision needs the OpenAI key; classic-only holds must not upload.
-        if realtime, seesScreen {
+        // Vision uploads only with a key that can read the screen, on either pipeline.
+        if VisionRoute.holdCaptures(seesScreen: seesScreen, keys: visionKeys()) {
             screen?.begin(app: nil)
         }
         fanOut()
@@ -127,11 +128,11 @@ extension VoiceSession {
     /// Where this hold's words go: 15b-1, FN (`dictate == false`) is always
     /// the agent — the field is never even probed. Only the dictation key's
     /// own hold asks, on its own task so a hung app in front delays
-    /// nothing. Classic (no key) always talks (code review 2026-09-06).
-    func routeHold(realtime: Bool, dictate: Bool) {
+    /// nothing. Without a vision key the hold always talks (code review 2026-09-06).
+    func routeHold(dictate: Bool) {
         dictationTask?.cancel()
         dictationTask = nil
-        guard dictate, realtime, let fieldProbe else { return }
+        guard dictate, VisionRoute.provider(keys: visionKeys()) != nil, let fieldProbe else { return }
         let box = eventBox
         dictationTask = Task.detached(priority: .userInitiated) {
             let trusted = fieldProbe.isTrusted()
@@ -220,7 +221,7 @@ extension VoiceSession {
             deferredHold = nil
             return
         }
-        owedHoldWork = nil
+        owedHoldWork = false
         answeringSheet = nil
         // Esc inside the release tail: the commit it was riding toward is
         // what this discard cancels.

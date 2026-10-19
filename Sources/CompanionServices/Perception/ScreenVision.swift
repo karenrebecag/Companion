@@ -6,16 +6,10 @@ import Foundation
 package struct ScreenVision: Sendable {
     private let secrets: any SecretStore
     private let transport: any ChatTransport
-    private let model: String
 
-    package init(
-        secrets: any SecretStore,
-        transport: any ChatTransport,
-        model: String = "gpt-4o-mini"
-    ) {
+    package init(secrets: any SecretStore, transport: any ChatTransport) {
         self.secrets = secrets
         self.transport = transport
-        self.model = model
     }
 
     package func summarize(jpeg: Data, app: String?) async -> ScreenBrief? {
@@ -38,22 +32,19 @@ package struct ScreenVision: Sendable {
 
     private func complete(jpeg: Data, prompt: String, maxTokens: Int, timeout: TimeInterval) async -> String? {
         if Task.isCancelled { return nil }
-        let key: String
-        do {
-            guard let read = try secrets.read(.openAI), !read.isEmpty else { return nil }
-            key = read
-        } catch {
-            return nil
-        }
-        guard let url = ProviderDescriptor.openAI.endpoint,
+        // The provider and its key come from the same descriptor, so a key can only
+        // travel to the host that provider names.
+        guard let provider = VisionRoute.provider(keys: configuredKeys()),
+              let key = readKey(provider.secretKey),
+              let url = provider.endpoint,
               EndpointPolicy.isAcceptable(url) else { return nil }
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         let b64 = jpeg.base64EncodedString()
-        let body: [String: Any] = [
-            "model": model,
+        var body: [String: Any] = [
+            "model": provider.model,
             "max_tokens": maxTokens,
             "messages": [[
                 "role": "user",
@@ -66,6 +57,7 @@ package struct ScreenVision: Sendable {
                 ],
             ]],
         ]
+        if let effort = provider.reasoningEffort { body["reasoning_effort"] = effort }
         let encoded: Data
         do {
             encoded = try JSONSerialization.data(withJSONObject: body)
@@ -80,6 +72,20 @@ package struct ScreenVision: Sendable {
             return Self.content(from: data)
         } catch {
             Log.app("sight: vision request failed (\(error))")
+            return nil
+        }
+    }
+
+    private func configuredKeys() -> Set<SecretKey> {
+        Set([SecretKey.cerebras, .openAI].filter { readKey($0) != nil })
+    }
+
+    private func readKey(_ name: SecretKey?) -> String? {
+        guard let name else { return nil }
+        do {
+            let value = try secrets.read(name)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return value?.isEmpty == false ? value : nil
+        } catch {
             return nil
         }
     }

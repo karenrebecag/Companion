@@ -142,7 +142,9 @@ package final class ChatProviderClient: ChatProvider, Sendable {
                 if provider.secretKey != nil, storedKey(for: provider) == nil {
                     continue
                 }
-                if carriesImages, !ChatParameters.acceptsImages(provider.model) {
+                // A picture never reaches a text-only model: the turn moves to its vision
+                // twin on the same key, or the provider is skipped.
+                guard let turnProvider = carriesImages ? provider.forImages() : provider else {
                     skippedForImages = true
                     continue
                 }
@@ -168,7 +170,7 @@ package final class ChatProviderClient: ChatProvider, Sendable {
                 while true {
                     try Task.checkCancellation()
                     let outcome = await ChatSSEAttempt.run(
-                        provider: provider,
+                        provider: turnProvider,
                         key: storedKey(for: provider),
                         history: history,
                         tools: tools,
@@ -191,7 +193,7 @@ package final class ChatProviderClient: ChatProvider, Sendable {
                         // 15c-0: the ladder's own log used to be decorative
                         // (`lastStack` nobody read) — this is who actually
                         // answered, never the words (DM1c-1 §8).
-                        Log.chat("chat: answered by \(provider.id)/\(provider.model)")
+                        Log.chat("chat: answered by \(turnProvider.id)/\(turnProvider.model)")
                         continuation.finish()
                         return
                     case .failed(let error):

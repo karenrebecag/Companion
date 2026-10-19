@@ -13,8 +13,9 @@ import Testing
 @Test @MainActor func cerebrasChatTests() {
     testCerebrasIsTheTypedChatDefaultWhenItsKeyExists()
     testCerebrasRequestOmitsStrictAndTemperature()
-    testAnImageNeverGoesToGptOss()
-    testAnImageWithOnlyGptOssConfiguredAsksForAVisionKey()
+    testAnImageGoesToCerebrasQwenNeverToGptOss()
+    testAnImageWithOnlyCerebrasKeyGoesToQwen()
+    testTextOnlyProviderNeverReceivesAnImage()
 }
 
 @MainActor func testCerebrasIsTheTypedChatDefaultWhenItsKeyExists() {
@@ -60,9 +61,9 @@ import Testing
            "cerebras: el modo estricto de OpenAI no se activa en su esquema")
 }
 
-@MainActor func testAnImageNeverGoesToGptOss() {
+@MainActor func testAnImageGoesToCerebrasQwenNeverToGptOss() {
     let transport = ScriptedTransport()
-    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebrasVision, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     transport.stub(.openAI, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
     let img = AttachmentRef(name: "a.png", path: "/tmp/a.png", kind: .image)
     // The image sits in an earlier turn: it still rides the history window.
@@ -77,18 +78,39 @@ import Testing
             available: ["cerebras", "openai"],
             transport: transport),
         history: history)
-    expectEq(chatHosts(transport), ["api.openai.com"],
-             "imagen: gpt-oss no la recibe; el turno pasa a OpenAI")
+    expectEq(chatHosts(transport), ["api.cerebras.ai"],
+             "imagen: el turno va a Cerebras, no a OpenAI ni a gpt-oss")
+    expectEq(transport.requests.map { chatBody($0)["model"] as? String }, ["qwen-3.8-27b"],
+             "imagen: gpt-oss no la recibe; el turno usa qwen-3.8-27b")
 }
 
-@MainActor func testAnImageWithOnlyGptOssConfiguredAsksForAVisionKey() {
+@MainActor func testAnImageWithOnlyCerebrasKeyGoesToQwen() {
     let transport = ScriptedTransport()
-    transport.stub(.cerebras, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    transport.stub(.cerebrasVision, ScriptedReply(lines: [SSEFixtures.hello, SSEFixtures.done]))
+    let img = AttachmentRef(name: "a.png", path: "/tmp/a.png", kind: .image)
+    _ = collectChat(
+        makeChatClient(
+            keys: [.cerebras: "csk-test"], available: ["cerebras"],
+            transport: transport, catalog: [ProviderDescriptor.cerebras]),
+        history: [Turn(role: .user, content: "mira", attachments: [img])])
+    expectEq(chatHosts(transport), ["api.cerebras.ai"],
+             "imagen solo con Cerebras: va a Cerebras")
+    expectEq(transport.requests.map { chatBody($0)["model"] as? String }, ["qwen-3.8-27b"],
+             "imagen solo con Cerebras: qwen, nunca gpt-oss")
+}
+
+@MainActor func testTextOnlyProviderNeverReceivesAnImage() {
+    let transport = ScriptedTransport()
+    let textOnly = ProviderDescriptor(
+        id: "textonly", name: "Solo texto",
+        baseURL: URL(string: "https://text.example.com/v1")!,
+        model: "gpt-oss-20b", secretKey: .openRouter)
     let img = AttachmentRef(name: "a.png", path: "/tmp/a.png", kind: .image)
     expectChatError(
         makeChatClient(
-            keys: [.cerebras: "csk-test"], available: ["cerebras"], transport: transport),
-        .imageUnsupported, "imagen: sin proveedor con visión",
+            keys: [.openRouter: "or-test"], available: ["textonly"],
+            transport: transport, catalog: [textOnly]),
+        .imageUnsupported, "imagen: un proveedor solo de texto no la recibe",
         history: [Turn(role: .user, content: "mira", attachments: [img])])
-    expectEq(transport.requests.count, 0, "imagen: ninguna petición a gpt-oss")
+    expectEq(transport.requests.count, 0, "imagen: ninguna petición al proveedor solo de texto")
 }

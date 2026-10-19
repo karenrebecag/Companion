@@ -120,6 +120,24 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         reasoningFormat: "hidden"
     )
 
+    /// Screen vision on the Cerebras key. qwen-3.8-27b reads base64 PNG/JPEG in
+    /// Chat Completions (inference-docs.cerebras.ai, models/qwen-3.8-27b). It
+    /// rejects `reasoning_format: hidden` and defaults to high reasoning, which
+    /// would blow the 8 s vision budget, so it is turned off here. Same host and
+    /// key as `cerebras`: only the model and the reasoning knob differ.
+    package static let cerebrasVision = ProviderDescriptor(
+        id: "cerebras",
+        name: "Cerebras",
+        baseURL: URL(string: "https://api.cerebras.ai/v1")!,
+        model: "qwen-3.8-27b",
+        secretKey: .cerebras,
+        temperature: nil,
+        reasoningEffort: "none"
+    )
+
+    /// Screen vision on the OpenAI key, the one that still reads images here.
+    package static let openAIVision = openAI.withModel("gpt-4o-mini")
+
     package static let openRouter = ProviderDescriptor(
         id: "openrouter",
         name: "OpenRouter",
@@ -153,6 +171,14 @@ package struct ProviderDescriptor: Sendable, Equatable, Identifiable {
         model: "qwen3.6:27b",
         secretKey: nil
     )
+
+    /// The provider an image turn goes to: itself when it reads images, its
+    /// vision twin on the same key when it has one, nil when none. Never gpt-oss.
+    package func forImages() -> ProviderDescriptor? {
+        if ChatParameters.acceptsImages(model) { return self }
+        if id == ProviderDescriptor.cerebras.id { return .cerebrasVision }
+        return nil
+    }
 
     /// Immutable update: the catalog entry is a template and each resolution
     /// produces a new descriptor rather than editing the shared one.
