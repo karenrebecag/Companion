@@ -113,8 +113,9 @@ import Testing
 
 @MainActor func testTheBrakeAsksForNothing() {
     // Parar no admite matices: un argumento que el modelo pueda rellenar mal
-    // es una forma de no parar.
-    expect(ToolSpec.stopJob(.es).properties.isEmpty, "sin parámetros")
+    // es una forma de no parar. El id que nombra el encargo es opcional, y
+    // uno que falte o no exista para igual el que corre.
+    expectEq(ToolSpec.stopJob(.es).properties.map(\.name), ["job_id"], "solo el id, opcional")
     expect(ToolSpec.stopJob(.es).required.isEmpty, "y sin nada obligatorio")
 }
 

@@ -36,7 +36,7 @@ extension ChatViewModel {
                 recording { $0.receipts += receipt.lines }
             }
             reply(DecisionCopy.acted(outcome, tool: call.name, language), failed: !outcome.ok)
-        case .confirm(let question):
+        case .confirm(let question), .said(let question):
             reply(question)
         case .declined:
             reply(DecisionCopy.declined(language))

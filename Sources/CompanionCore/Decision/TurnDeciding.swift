@@ -8,6 +8,9 @@ package enum DecisionOutcome: Sendable, Equatable {
     case confirm(String)
     case declined
     case delegate(Handoff)
+    /// The router's own line about the running job: what it stopped, or
+    /// the question it asks back.
+    case said(String)
 }
 
 /// A typed message's turn, decided: the outcome, and whether the delegation

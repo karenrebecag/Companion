@@ -128,6 +128,13 @@ package actor VoiceSession: VoiceControlling {
     /// Plans made this hold, and the words of the last one (Speculation).
     var speculationsThisHold = 0
     var lastSpeculatedText: String?
+    /// The job running now, as the relationship head sees it; and the jobs
+    /// already over, so a late `started` cannot bring one back.
+    var runningObjective: PendingObjective?
+    var finishedJobs: Set<JobID> = []
+    /// Job events in the order they happened, for `trackObjective`: a task
+    /// per event let a step land before its job's `started`.
+    let objectiveBox = AudioStreamBox<SessionEvent>()
     var lastPartial = ""
     var partialTask: Task<Void, Never>?
     var earTask: Task<Void, Never>?
@@ -217,12 +224,20 @@ package actor VoiceSession: VoiceControlling {
             await self?.markTool(point)
         }
         classic.markTimeline = markTimeline
+        let objectiveSink = objectiveBox
+        let objectiveEvents = objectiveBox.stream
+        // Holds the session only while it applies one event.
+        Task { [weak self] in
+            for await event in objectiveEvents { await self?.trackObjective(event) }
+        }
         if let jobs {
             let presenter = thread
             // Same runner the button reaches. Someone talking to their Mac is
             // not looking at it, so the brake has to be sayable.
-            let stopJob: @Sendable () async -> Void = { await jobs.cancel() }
-            classic.onStopJob = stopJob
+            classic.onStopJob = { [weak self] named in await self?.stopRunningJob(named: named) }
+            classic.runningJobNote = { [weak self] in
+                await self?.runningObjective.flatMap(RelationshipHead.runningJobNote)
+            }
             let delegate: @Sendable (Handoff) -> Void = { [weak self] handoff in
                 Task {
                     await VoiceJobBridge.run(
@@ -232,6 +247,7 @@ package actor VoiceSession: VoiceControlling {
                         // their hands full has to reach the ear too.
                         onEvent: { [weak self] event in
                             eventBox.yield(event)
+                            objectiveSink.yield(event)
                             guard case .job(.approvalRequested(let request), _) = event
                             else { return }
                             Task { [weak self] in

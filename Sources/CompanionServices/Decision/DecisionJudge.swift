@@ -67,6 +67,14 @@ package struct DecisionJudge: DecisionProvider, Sendable {
         return await hosted.answer(DelegationHead.question(utterance))
     }
 
+    /// Hosted only, for the same reason as the delegation head.
+    package func relationship(
+        _ utterance: String, to objective: PendingObjective
+    ) async -> DecisionAnswer? {
+        guard usesHostedJudge else { return nil }
+        return await hosted.answer(RelationshipHead.question(utterance, about: objective))
+    }
+
     /// The verdict if it is in within `wait`, else nil (every tool stays).
     /// The cancel runs inside the group for the reason `DecisionGate.race`
     /// gives: a child awaiting `task.value` does not notice the group ending.
