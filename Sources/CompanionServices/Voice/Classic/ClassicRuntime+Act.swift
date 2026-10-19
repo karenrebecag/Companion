@@ -21,6 +21,9 @@ extension ClassicRuntime {
         var deniedSheets: [String] = []
         /// Every sheet this round showed, however it ended.
         var shownSheets: [String] = []
+        /// Set when every call was a quick action that succeeded: the reply
+        /// that follows may only restate this receipt, so it is not spoken.
+        var quickReceipt: ActionReceipt?
     }
 
     /// Runs the round and folds what it learnt into the turn that owns
@@ -40,6 +43,7 @@ extension ClassicRuntime {
     static func absorb(_ round: ActedRound, into mouth: inout TurnMouth) {
         mouth.unverifiedTyped = round.unverified
         mouth.effectLines += round.effectLines
+        mouth.quickReceipt = round.quickReceipt
         if round.sawCard { mouth.cardThisTurn = true }
     }
 
@@ -127,10 +131,21 @@ extension ClassicRuntime {
         let proven = proof.runs.compactMap {
             ReceiptProof.entry(tool: $0.call.name, outcome: $0.outcome, language: language)
         } + proof.late.map { ReceiptLine(text: $0, verified: true) }
-        if let receipt = ActionReceipt(entries: proven) { events?.yield(.receipt(receipt)) }
+        let receipt = ActionReceipt(entries: proven)
+        if let receipt { events?.yield(.receipt(receipt)) }
+        // Quick actions are confirmed here, at toolDone, not after the brain's
+        // sentence: the earcon and the island line are the whole feedback.
+        let quick = receipt != nil && runs.count == calls.count && runs.allSatisfy {
+            ParentTool(rawValue: $0.call.name)?.isQuickAction == true && $0.outcome.ok
+        }
+        if quick {
+            feedbackSound?.play(.confirm)
+            await markTimeline?(.feedback)
+        }
         return ActedRound(
             turns: turns, effectLines: effects, sawCard: !cards.isEmpty, unverified: proof.unverified,
-            deniedSheets: deniedSheets, shownSheets: shownSheets)
+            deniedSheets: deniedSheets, shownSheets: shownSheets,
+            quickReceipt: quick ? receipt : nil)
     }
 }
 

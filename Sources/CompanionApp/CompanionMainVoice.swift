@@ -154,6 +154,7 @@ func makeVoicePipeline(
         Task.detached { await decisionProvider.warm() }
     }
     Task { await session.attachDecision(decisionGate) }
+    Task { await session.attachFeedbackSound(SynthesizedUISound(isEnabled: { InterfaceSound.enabled })) }
     // 15d-6: opt-in by env; off, the previous run's words are removed.
     let transcriptLog = TranscriptDebugLog.standard(home: env.home)
     if !env.config.debugTranscripts { transcriptLog.discard() }
