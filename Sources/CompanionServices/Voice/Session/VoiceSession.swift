@@ -88,6 +88,8 @@ package actor VoiceSession: VoiceControlling {
     var askedAloud: String?
     var lastMic = 0.0
     var lastAgent = 0.0
+    /// Read by VoiceSessionTeardown's `writeSessionMemory`.
+    let memoryStore: (any MemoryStore)?
     private let approvals: (any ApprovalsProvider)?
     /// The next `.commitWithText` closes a hold (Wave 12b): an empty ear
     /// then means "nothing to send", said out loud to the session, instead
@@ -160,6 +162,9 @@ package actor VoiceSession: VoiceControlling {
         thread: any ConversationPresenting,
         configProvider: any ConfigProviding,
         jobs: (any JobSubmitter)? = nil,
+        // 9j-2: where session summaries land at close. The write path is
+        // async and mechanical — it never blocks audio or teardown.
+        memoryStore: (any MemoryStore)? = nil,
         // Wave 10b: the parent's hands, on both pipelines.
         parentTools: (any ParentToolExecuting)? = nil,
         // Wave 10a: what the app perceives around each spoken turn.
@@ -199,6 +204,7 @@ package actor VoiceSession: VoiceControlling {
             chat: chat, thread: thread)
         self.classic.parentTools = parentTools
         self.classic.screen = screen
+        self.memoryStore = memoryStore
         self.approvals = approvals
         self.sensor = sensor
         self.classic.sensor = sensor

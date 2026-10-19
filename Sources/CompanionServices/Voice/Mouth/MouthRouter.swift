@@ -32,8 +32,14 @@ package struct MouthRouter: TTSFetching, Sendable {
     /// remembers on its own whether it fell back, so that answer travels
     /// with the stream instead of living in a table keyed by text.
     package func resolved() -> any TTSFetching {
-        guard let key = elevenLabsKey(), breaker.allows(key: key) else { return SystemVoiceMouth() }
-        return ElevenLabsFirst(primary: elevenLabs, breaker: breaker, key: key)
+        choice().mouth
+    }
+
+    private func choice() -> (mouth: any TTSFetching, service: String) {
+        guard let key = elevenLabsKey(), breaker.allows(key: key) else {
+            return (SystemVoiceMouth(), "avspeech")
+        }
+        return (ElevenLabsFirst(primary: elevenLabs, breaker: breaker, key: key), "elevenlabs")
     }
 
     package func cacheVariant(voice: VoiceID) -> String {
@@ -41,11 +47,15 @@ package struct MouthRouter: TTSFetching, Sendable {
     }
 
     package func fetch(_ text: String, voice: VoiceID) async throws -> Data {
-        try await resolved().fetch(text, voice: voice)
+        let (mouth, service) = choice()
+        Log.outbound("tts: \(service)")
+        return try await mouth.fetch(text, voice: voice)
     }
 
     package func stream(_ text: String, voice: VoiceID) -> AsyncThrowingStream<Data, Error> {
-        resolved().stream(text, voice: voice)
+        let (mouth, service) = choice()
+        Log.outbound("tts: \(service)")
+        return mouth.stream(text, voice: voice)
     }
 
     /// Streamed through the router itself, the mouth that voiced the text

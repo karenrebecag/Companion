@@ -76,6 +76,15 @@ import Testing
              "la inspección ve el portugués como portugués")
 }
 
+// QA 606: a Spanish reply full of English product terms was tagged "id"
+// (Indonesian) by the unconstrained recognizer. The tag is a label, so the
+// candidates must be the languages the people reading it actually use.
+@Test func aSpanishReplyWithEnglishTermsIsNotTaggedIndonesian() {
+    let text = "Revisa el deploy en Vercel antes del release: el build del commit pasó y el dashboard de analytics ya tiene los datos del sprint."
+    let label = NaturalLanguageRecognizer(constrainToAppLanguages: false).dominant(text)?.code
+    expectEq(label, "es", "qa606: el español con términos en inglés no es indonesio")
+}
+
 private final class PromptApps: AppsService, @unchecked Sendable {
     func catalog(query: String, after: String?) async throws -> CatalogPage {
         CatalogPage(apps: [], total: 0, next: nil)

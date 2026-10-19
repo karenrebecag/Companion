@@ -125,6 +125,7 @@ func makeVoicePipeline(
         thread: sensing.model,
         configProvider: env.configProvider,
         jobs: jobs.jobRunner,
+        memoryStore: env.memoryStore,
         // 16k-3: voice gets the composite — parent tools plus the
         // connected apps'. The decision gate above keeps the plain runner:
         // it only routes open_app/open_url and must not grow surface.

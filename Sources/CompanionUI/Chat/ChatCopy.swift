@@ -26,6 +26,17 @@ package enum ChatCopy {
 
     /// What the model is told a card showed. Names, never coordinates: the
     /// point of the card channel is that the payload does not reach it.
+    /// What the model reads back as the assistant's last word. For a map that
+    /// is the names and addresses, never the coordinates: a bare "Se mostró un
+    /// mapa con: X" made the next reply repeat it and drop the other places (QA 606).
+    package static func cardRecall(_ card: Card) -> String {
+        guard case .locations(let block) = card.payload else { return cardShown(card) }
+        let places = block.locations.map { place in
+            place.address.map { "\(place.name) — \($0)" } ?? place.name
+        }
+        return ([cardShown(card)] + [places.joined(separator: "; ")]).joined(separator: " ")
+    }
+
     package static func cardShown(_ card: Card) -> String {
         switch card.payload {
         case .locations(let block):

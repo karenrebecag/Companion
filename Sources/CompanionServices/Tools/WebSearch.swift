@@ -107,6 +107,15 @@ package enum WebProvider: Sendable, Equatable {
         return .none
     }
 
+    /// The service a call goes to: `.none` falls through to Brave, the search
+    /// adapter `search(transport:secrets:)` builds for it.
+    package var logName: String {
+        switch self {
+        case .exa: "exa"
+        case .brave, .none: "brave"
+        }
+    }
+
     package func search(transport: any ChatTransport, secrets: any SecretStore) -> any WebSearching {
         switch self {
         case .exa: ExaWebSearch(transport: transport, secrets: secrets)
@@ -134,7 +143,9 @@ package struct SelectedWebSearch: WebSearching {
     package var isConfigured: Bool { WebProvider.select(secrets: secrets) != .none }
 
     package func search(_ query: String) async throws -> [WebResult] {
-        try await WebProvider.select(secrets: secrets)
+        let provider = WebProvider.select(secrets: secrets)
+        Log.outbound("web: \(provider.logName) search")
+        return try await provider
             .search(transport: transport, secrets: secrets)
             .search(query)
     }
@@ -156,6 +167,7 @@ package struct SelectedWebReader: WebReading {
         guard let reader = WebProvider.select(secrets: secrets)
             .reader(transport: transport, secrets: secrets)
         else { throw ChatError.unauthorized }
+        Log.outbound("web: exa read")
         return try await reader.read(urls, fresh: fresh)
     }
 }

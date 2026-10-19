@@ -126,6 +126,8 @@ package enum Semantic {
     package static var secondaryHover: Color { pair(Swatch("E9E9E9"), Neutral.n800) }
     /// shadcn's ring/50: the keyboard-focus halo follows the chosen accent.
     package static var focusRing: Color { accent.opacity(0.5) }
+    /// Wash behind an accent chip: the accent at the status-muted alpha.
+    package static var accentWash: Color { accent.opacity(StateAlpha.statusMuted) }
 
     /// Énfasis elegible. Se lee en cada render, así que basta con que la
     /// vista se reevalúe para que el cambio se propague.

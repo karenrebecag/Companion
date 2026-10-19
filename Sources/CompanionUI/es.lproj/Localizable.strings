@@ -201,7 +201,13 @@
 "sources.title" = "Fuentes";
 "sources.web" = "Web";
 "sources.files" = "Archivos";
-"map.open" = "Abrir";
+"map.found.one" = "Encontré %d lugar";
+"map.found.other" = "Encontré %d lugares";
+"map.show" = "Mostrar %@";
+"map.site" = "Ver sitio";
+"map.inMaps" = "Abrir en Mapas";
+"map.zoomIn" = "Acercar";
+"map.zoomOut" = "Alejar";
 "accent.lime" = "Verde eléctrico";
 "voice.sample" = "Hola, soy Companion. Así sueno.";
 "settings.app.language" = "Idioma";
@@ -212,7 +218,8 @@
 "notices.label" = "Avisos";
 "notices.error.prefix" = "Error";
 "job.record" = "Encargo: %@";
-"map.title" = "Ubicaciones";
+"map.count.one" = "%d lugar";
+"map.count.other" = "%d lugares";
 "sources.file" = "Archivo";
 "sources.file.kind" = "Archivo %@";
 

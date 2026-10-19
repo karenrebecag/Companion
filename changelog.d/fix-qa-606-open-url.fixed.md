@@ -1,0 +1,1 @@
+- **Leer una página ya no abre pestañas de Safari (2026-10-19).** Para una investigación, el chat abría cada URL en el navegador antes de leerla. Ahora open_url se reserva para cuando pides ver la página, y leer usa read_url o web_fetch.
