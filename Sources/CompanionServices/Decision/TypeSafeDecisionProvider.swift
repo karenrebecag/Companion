@@ -22,6 +22,9 @@ package struct TypeSafeDecisionProvider: DecisionProvider, Sendable {
     private let secrets: any SecretStore
     private let timeout: TimeInterval
     private let transport: any ChatTransport
+    /// Nil reads the Keychain on each call; set, it is the key read once for
+    /// one turn (absent included), so a turn never changes judge halfway.
+    private var pinnedKey: String??
 
     package init(
         secrets: any SecretStore,
@@ -37,7 +40,16 @@ package struct TypeSafeDecisionProvider: DecisionProvider, Sendable {
 
     package var isConfigured: Bool { key != nil }
 
+    /// This provider with its key read now and held: one Keychain read per
+    /// turn instead of one per question.
+    package func pinned() -> TypeSafeDecisionProvider {
+        var copy = self
+        copy.pinnedKey = .some(key)
+        return copy
+    }
+
     private var key: String? {
+        if let pinnedKey { return pinnedKey }
         guard let secretKey = descriptor.secretKey else { return nil }
         let value: String?
         do {

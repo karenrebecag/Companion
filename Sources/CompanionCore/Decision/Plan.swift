@@ -213,7 +213,10 @@ package struct Plan: Sendable, Equatable {
         var prefetched: [(DecisionQuestion, DecisionAnswer?)] = []
         let forwardRaw: DecisionAnswer?
         let backwardRaw: DecisionAnswer?
-        if provider.answersInOneRequest {
+        // Read once: a provider that picks its judge per call could flip
+        // between here and the head lookup and strand the prefetched answers.
+        let oneRequest = provider.answersInOneRequest
+        if oneRequest {
             let speculative = menu.compactMap { DecisionAction(rawValue: $0.id) }
                 .flatMap { PlanHeads.questions(for: $0, said: said, in: sets) }
             let all = await provider.answer([asked, asked.reversed()] + speculative)
@@ -245,7 +248,7 @@ package struct Plan: Sendable, Equatable {
         var confidence = merged.confidence
         let heads = PlanHeads.questions(for: action, said: said, in: sets)
         let answers: [DecisionAnswer?]
-        if provider.answersInOneRequest {
+        if oneRequest {
             answers = heads.map { head in prefetched.first { $0.0 == head }?.1 ?? nil }
         } else {
             answers = await provider.answer(heads)
@@ -281,6 +284,10 @@ package enum PlanThreshold {
     package static let reversibleAct = 0.6
     /// Both the 0.6–0.8 band and a 0.99 confirm by voice. 0.8 is not a skip.
     package static let irreversibleFloor = 0.6
+    /// A background job is the costliest thing the router can start on its
+    /// own, and with a hosted judge it hears every hold, ambient speech
+    /// included: a low-peak `task` argmax goes back to the brain instead.
+    package static let taskFloor = 0.6
 
     package static func evaluate(
         action: DecisionAction,
@@ -294,7 +301,11 @@ package enum PlanThreshold {
             return directed ? .arbitrate : .ignore
         }
         guard argumentsComplete, confidence.isFinite else { return .arbitrate }
-        if action == .task { return .delegate }
+        if action == .task {
+            guard confidence >= taskFloor else { return .arbitrate }
+            // "borra", "envía": a job that cannot be undone is asked first.
+            return risk == .irreversible ? .confirm : .delegate
+        }
         switch risk {
         case .irreversible:
             return confidence >= irreversibleFloor ? .confirm : .arbitrate

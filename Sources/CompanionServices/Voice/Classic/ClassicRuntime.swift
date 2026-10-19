@@ -126,6 +126,13 @@ final class ClassicRuntime: @unchecked Sendable {
     /// Nil (today) or a `.passThrough` outcome: byte-identical to before —
     /// the round loop below never sees this closure ran.
     var decide: (@Sendable (String, Bool) async -> DecisionOutcome)?
+    /// Asked beside the brain once the router passes; a confident "I can
+    /// handle it" takes `delegate` off this turn's tools. Nil keeps every
+    /// tool, which is also what a late or failed verdict does.
+    var delegationVerdict: (@Sendable (String) async -> DecisionAnswer?)?
+    /// How long tool assembly waits for the verdict after the context is in;
+    /// the verdict mostly lands while the context is still being gathered.
+    var delegationWait: Duration = .milliseconds(300)
     /// Words already taken from the ear (dictation fallback). `stop()` is
     /// one-shot in production; a second call would drop the utterance.
     var leftoverHeard: String? {
@@ -357,6 +364,12 @@ final class ClassicRuntime: @unchecked Sendable {
         // cleared here even when the router below ends up handling it and
         // never renders a `<context>` block to carry the note at all.
         let interrupted = takeSteerPending()
+        // Started before the router so it overlaps both the router and the
+        // context gather; a turn the router takes just cancels it.
+        let verdict = onDelegate == nil ? nil : delegationVerdict.map { judge in
+            Task { await judge(heard) }
+        }
+        defer { verdict?.cancel() }
         if let decide {
             let outcome = await decide(heard, onDelegate != nil)
             if case .passThrough = outcome {
@@ -371,6 +384,16 @@ final class ClassicRuntime: @unchecked Sendable {
         }
         var context = await senseVoice(config, utterance: heard)
         context?.interrupted = interrupted
+        let offersDelegate: Bool
+        if onDelegate != nil {
+            let judged = await DecisionJudge.verdict(verdict, within: delegationWait)
+            offersDelegate = DelegationHead.offersDelegate(utterance: heard, judged)
+            if !offersDelegate {
+                Log.chat("decision: delegate withdrawn verdict=\(judged?.choice ?? "-")")
+            }
+        } else {
+            offersDelegate = false
+        }
         await thread.appendUser(heard, context: context)
         var history = await thread.historyTurns()
         // The full block rides the current turn only (Wave 10a); so does the
@@ -381,7 +404,10 @@ final class ClassicRuntime: @unchecked Sendable {
         // The facts are in the prompt now: only here are they spent.
         if let context { sensor?.acknowledgeIslandEvents(through: context.islandEventsThrough) }
         if let last = history.indices.last, history[last].role == .user {
-            let spoken = ContextBlock.languageInstruction(language) + "\n\n" + heard
+            var spoken = ContextBlock.languageInstruction(language) + "\n\n" + heard
+            if onDelegate != nil, !offersDelegate {
+                spoken = DelegationHead.withdrawnNote + "\n" + spoken
+            }
             history[last].content = ContextBlock.wrap(spoken, with: block)
         }
         // 16k-3: the words decide which connected app's tools travel this
@@ -389,7 +415,7 @@ final class ClassicRuntime: @unchecked Sendable {
         parentTools?.noteTurn(heard)
         var tools = parentTools?.specs(language) ?? []
         if onDelegate != nil {
-            tools.append(.delegate(language))
+            if offersDelegate { tools.append(.delegate(language)) }
             tools.append(.stopJob(language))
             tools.append(.resolveApproval(language))
         }

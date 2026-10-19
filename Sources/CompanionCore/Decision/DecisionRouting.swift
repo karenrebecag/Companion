@@ -65,7 +65,15 @@ package enum DecisionRoute {
             if plan.steps.contains(.read) { return .passThrough(.compound) }
             return actStep(for: plan, systemSupports: systemSupports)
         case .confirm:
-            // Never ask by voice about something nothing can execute.
+            // Never ask by voice about something nothing can execute; a task's
+            // executor is the specialist, so it needs one to hand off to.
+            if plan.action == .task {
+                guard canDelegate else { return .passThrough(.noSpecialist) }
+                guard case .text(let goal) = plan.args["goal"], !goal.isEmpty else {
+                    return .passThrough(.failed)
+                }
+                return .confirm(plan)
+            }
             return systemSupports(plan) ? .confirm(plan) : .passThrough(.noExecutor)
         case .delegate:
             return delegateStep(for: plan, canDelegate: canDelegate)
@@ -288,6 +296,11 @@ package enum DecisionCopy: Sendable {
             return language == .en ? "Send it" : "Lo envío"
         case .typeText where plan.args["submit"] == .flag(true):
             return language == .en ? "Send it" : "Lo envío"
+        case .task:
+            guard case .text(let goal) = plan.args["goal"] else {
+                return language == .en ? "Do it" : "Lo hago"
+            }
+            return language == .en ? "Hand off \u{201C}\(goal)\u{201D}" : "Encargo «\(goal)»"
         default:
             return language == .en ? "Do it" : "Lo hago"
         }

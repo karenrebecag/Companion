@@ -11,26 +11,60 @@ extension VoiceSession {
     /// Composition-root call, once: `classic.decide` stays nil until this
     /// runs, and a nil `decide` is `ClassicRuntime.submit`'s "today,
     /// unchanged" path (DM1c-2 §"Files").
-    package func attachDecision(_ gate: DecisionGate) {
+    /// `judge` is the same provider `gate` asks; passing it lets a hosted
+    /// judge run the router past the local-only guards and feed the
+    /// delegation head. Nil keeps the router local-only, as before.
+    package func attachDecision(_ gate: DecisionGate, judge: DecisionJudge? = nil) {
         classic.decide = { [weak self] utterance, canDelegate in
             guard let self else { return .passThrough(.disabled) }
+            var turn: DecisionJudge?
+            if let judge { turn = await self.turnJudge(utterance, judge) }
             return await self.routeThroughDecisionGate(
-                utterance, canDelegate: canDelegate, gate: gate)
+                utterance, canDelegate: canDelegate, gate: gate, judge: turn)
         }
+        if let judge {
+            classic.delegationVerdict = { [weak self] utterance in
+                guard let self else { return nil }
+                // A "sí"/"no" to an open question is answered on the Mac;
+                // it does not go out to be judged a second time.
+                guard await !gate.answersPendingConfirmation(utterance) else { return nil }
+                return await self.turnJudge(utterance, judge).delegationVerdict(utterance)
+            }
+        }
+    }
+
+    /// Both seams of one hold ask for the same utterance within moments;
+    /// the second gets the first's pin. The window keeps a repeat of the
+    /// same words later on from inheriting a key that was since removed.
+    private func turnJudge(_ utterance: String, _ judge: DecisionJudge) -> DecisionJudge {
+        if let pinned = pinnedJudge, pinned.utterance == utterance,
+           Date().timeIntervalSince(pinned.at) < 10 {
+            return pinned.judge
+        }
+        let held = judge.pinned()
+        pinnedJudge = (utterance, Date(), held)
+        return held
     }
 
     /// The "Decidir en local" toggle (DM1c-3) is read fresh here, not at
     /// attach time, so it can flip live without a new session. Zero
     /// `DecisionProvider` calls while it is off (measured in
     /// `dm1cDecisionOffNeverAsksTheProvider`).
+    ///
+    /// A hosted judge passes both guards: the toggle is about running a local
+    /// model, and the fast-brain skip was measured against the local 4B
+    /// cascade, not one round trip to Jev.
     private func routeThroughDecisionGate(
-        _ utterance: String, canDelegate: Bool, gate: DecisionGate
+        _ utterance: String, canDelegate: Bool, gate: DecisionGate, judge: DecisionJudge?
     ) async -> DecisionOutcome {
-        guard configProvider.current.decision.enabled else { return .passThrough(.disabled) }
+        let hosted = judge?.usesHostedJudge ?? false
+        guard hosted || configProvider.current.decision.enabled else {
+            return .passThrough(.disabled)
+        }
         // 15c-4/15c-7: the fast brain (Cerebras) already picked the tool by
         // commit; N1's own cascade added up to 0.9s and never won a hold
         // against it (wave-15c §1) — `gate` is not even called.
-        guard lastStack?.hasFastBrain != true else {
+        guard hosted || lastStack?.hasFastBrain != true else {
             Log.chat("decision: pass reason=\(DecisionPassReason.fastBrain.rawValue)")
             return .passThrough(.fastBrain)
         }
@@ -47,7 +81,10 @@ extension VoiceSession {
             if case .passThrough = confirmed {} else { markTool(.toolDone) }
             return confirmed
         }
-        let step = await gate.plan(utterance, canDelegate: canDelegate)
+        let step = await gate.plan(
+            utterance, canDelegate: canDelegate,
+            budget: hosted ? configProvider.current.decision.hostedBudget : nil,
+            provider: judge)
         markTool(.decision)
         // Only `.execute` runs through the SAME door the parent-tool loop
         // uses (`ParentToolRunner`, inside `gate.run`): the session's own
