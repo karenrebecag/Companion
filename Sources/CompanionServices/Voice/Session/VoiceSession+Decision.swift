@@ -69,6 +69,16 @@ extension VoiceSession {
         // which the classic hold never calls. This is the first mark either
         // way — `mark` itself is idempotent, so a repeat costs nothing.
         commitTimeline()
+        // While a job runs, how the new words relate to it is judged beside
+        // the plan and settled before anything runs. A yes/no to the open
+        // question answers that question and is never sent out about the job.
+        let answering = await gate.answersPendingConfirmation(utterance)
+        let relation = answering ? nil : runningObjective.flatMap { objective in
+            judge.map { turn in
+                (objective, ContinuousClock.now, Task { await turn.relationship(utterance, to: objective) })
+            }
+        }
+        defer { relation?.2.cancel() }
         let route = await gate.route(
             utterance, canDelegate: canDelegate,
             budget: hosted ? configProvider.current.decision.hostedBudget : nil,
@@ -85,6 +95,30 @@ extension VoiceSession {
             step = planned
         }
         markTool(.decision)
+        if let (objective, started, task) = relation, let id = objective.jobID {
+            // The budget runs from when the head went out, not from now.
+            let budget = configProvider.current.decision.hostedBudget
+            let verdict = await DecisionJudge.verdict(
+                task, within: max(.zero, budget - started.duration(to: .now)))
+            // The job may have ended while the head was out: nothing to stop.
+            if runningObjective?.jobID == id {
+                switch RelationshipHead.move(verdict, about: objective) {
+                case .stop:
+                    markTool(.toolDone)
+                    return await stopJob(id, goal: objective.goal)
+                case .replace:
+                    await jobs?.cancel(job: id)
+                case .toBrain:
+                    // Not sure enough to act: no question, the brain sees the
+                    // running job and can stop it itself (`stop_job`).
+                    return .passThrough(.unresolved)
+                case .none:
+                    // Jobs take no steering: an addition is planned as a new
+                    // job, which the queue announces.
+                    break
+                }
+            }
+        }
         // Only `.execute` runs through the SAME door the parent-tool loop
         // uses (`ParentToolRunner`, inside `gate.run`): the session's own
         // "the parent's hands are moving" signal belongs there, not on a
@@ -101,10 +135,53 @@ extension VoiceSession {
         return outcome
     }
 
+    /// Only the job the head judged, and only while it still runs: the
+    /// queue's other jobs are not hers to lose to one "olvídalo".
+    private func stopJob(_ id: JobID, goal: String) async -> DecisionOutcome {
+        guard runningObjective?.jobID == id else { return .passThrough(.superseded) }
+        await jobs?.cancel(job: id)
+        return .said(DecisionCopy.stoppedJob(goal, configProvider.current.language))
+    }
+
+    /// The brain's `stop_job` or a spoken "para": the job running now, and
+    /// only it, as Incredible's per-agent stop. An id the brain got wrong
+    /// still stops that job: a misfilled argument must not be a way not to
+    /// stop. With no job known running, the brake falls back to the runner's.
+    func stopRunningJob(named: String?) async {
+        guard let running = runningObjective?.jobID else {
+            await jobs?.cancel()
+            return
+        }
+        if let named, named != running.raw {
+            Log.chat("decision: stop_job named an id that is not running; stopping the running one")
+        }
+        await jobs?.cancel(job: running)
+    }
+
     /// Why the router does not run this hold, or nil when it does.
     func routerSkip(hosted: Bool) -> DecisionPassReason? {
         DecisionGate.skip(
             hosted: hosted, enabled: configProvider.current.decision.enabled,
             fastBrain: lastStack?.hasFastBrain == true)
+    }
+
+    /// Follows the job the voice started, for the relationship head.
+    func trackObjective(_ event: SessionEvent) {
+        switch event {
+        case .job(.started(let goal), let id?):
+            guard !finishedJobs.contains(id) else { return }
+            runningObjective = PendingObjective(
+                goal: goal, jobID: id,
+                goalFromUser: PendingObjective.isUsersOwn(goal, heard: heardThisHold?.text))
+        case .job(.stepStarted(let tool, _, _), let id?) where runningObjective?.jobID == id:
+            runningObjective?.currentTool = tool
+        case .job(.stepFinished, let id?) where runningObjective?.jobID == id:
+            runningObjective?.stepsDone += 1
+        case .jobFinished(_, let id?):
+            finishedJobs.insert(id)
+            if runningObjective?.jobID == id { runningObjective = nil }
+        default:
+            break
+        }
     }
 }

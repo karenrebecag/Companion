@@ -121,7 +121,10 @@ package struct ToolSpec: Sendable, Equatable {
                     + "ELSE is not a request to stop: a new task is queued "
                     + "behind this one, and calling this would throw away work "
                     + "they still want. What was already done is kept.",
-                properties: [],
+                properties: [
+                    ToolProperty(name: "job_id", type: "string",
+                                 description: "the id of the running job, as listed in the turn"),
+                ],
                 required: [])
         case .es:
             return ToolSpec(
@@ -133,7 +136,10 @@ package struct ToolSpec: Sendable, Equatable {
                     + "tarea nueva se encola detrás de esta, y llamarte aquí "
                     + "tiraría trabajo que todavía quiere. Lo ya hecho se "
                     + "conserva.",
-                properties: [],
+                properties: [
+                    ToolProperty(name: "job_id", type: "string",
+                                 description: "el id del encargo en marcha, como aparece en el turno"),
+                ],
                 required: [])
         }
     }

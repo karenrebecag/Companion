@@ -12,7 +12,7 @@ extension VoiceSession {
         Log.app("voice: spoken stop, no model call")
         screen?.cancel()
         classic.cancelPressedContext()
-        await classic.onStopJob?()
+        await classic.onStopJob?(nil)
         await interrupt()
         return true
     }

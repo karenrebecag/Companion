@@ -296,6 +296,10 @@ package enum PlanThreshold {
     /// own, and with a hosted judge it hears every hold, ambient speech
     /// included: a low-peak `task` argmax goes back to the brain instead.
     package static let taskFloor = 0.6
+    /// Stopping a running job throws its work away with no undo: only a sure
+    /// stop or replace acts on the fast path; anything less goes to the brain,
+    /// which sees the jobs and decides (Karen, 2026-10-19, as Incredible).
+    package static let jobStop = 0.85
 
     package static func evaluate(
         action: DecisionAction,
