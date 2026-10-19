@@ -91,6 +91,10 @@ final class JobEventBox: @unchecked Sendable {
     }
     await h.session.advance()
     await pumpUntil("ctx cl: habló") { h.synth.queue.contains("Listo.") }
+    // The reply is spoken before the thread records it; wait for the record.
+    await pumpUntil("ctx cl: respuesta en el hilo") {
+        h.thread.turns.contains { $0.role == .assistant && $0.content.contains("Listo.") }
+    }
     let last = h.chat.histories.first?.last
     expect(last?.role == .user && last?.content.contains("<context source=\"voice\"") == true,
            "ctx cl: el último turno lleva el bloque con fuente voz")
