@@ -26,10 +26,8 @@ extension VoiceSession {
         if let judge {
             classic.delegationVerdict = { [weak self] utterance in
                 guard let self else { return nil }
-                // A "sí"/"no" to an open question is answered on the Mac;
-                // it does not go out to be judged a second time.
-                guard await !gate.answersPendingConfirmation(utterance) else { return nil }
-                return await self.turnJudge(utterance, judge).delegationVerdict(utterance)
+                let turn = await self.turnJudge(utterance, judge)
+                return await gate.delegationVerdict(utterance, judge: turn)?.value
             }
         }
     }
@@ -71,20 +69,21 @@ extension VoiceSession {
         // which the classic hold never calls. This is the first mark either
         // way — `mark` itself is idempotent, so a repeat costs nothing.
         commitTimeline()
-        // DM1c-4: a still-open "¿vacío la papelera?" answers from THIS
-        // turn's own words before N1 ever sees them — a "sí" here must not
-        // be reclassified as a fresh order.
-        if let confirmed = await gate.answerConfirmation(utterance) {
-            cancelSpeculation()
-            markTool(.decision)
-            if case .passThrough = confirmed {} else { markTool(.toolDone) }
-            return confirmed
-        }
-        let step = await gate.plan(
+        let route = await gate.route(
             utterance, canDelegate: canDelegate,
             budget: hosted ? configProvider.current.decision.hostedBudget : nil,
             provider: judge,
             prepared: takeSpeculation(matching: utterance, canDelegate: canDelegate, world: gate.world()))
+        let step: DecisionStep
+        switch route {
+        case .answered(let confirmed):
+            cancelSpeculation()
+            markTool(.decision)
+            if case .passThrough = confirmed {} else { markTool(.toolDone) }
+            return confirmed
+        case .planned(let planned):
+            step = planned
+        }
         markTool(.decision)
         // Only `.execute` runs through the SAME door the parent-tool loop
         // uses (`ParentToolRunner`, inside `gate.run`): the session's own
@@ -102,14 +101,10 @@ extension VoiceSession {
         return outcome
     }
 
-    /// Why the router does not run this turn, or nil when it does. A hosted
-    /// judge passes both: the toggle is about running a local model, and
-    /// the fast-brain skip (15c-4/15c-7: Cerebras already picked the tool by
-    /// commit; N1's cascade added up to 0.9 s and never won a hold against
-    /// it, wave-15c §1) was measured against the local 4B, not Jev.
+    /// Why the router does not run this hold, or nil when it does.
     func routerSkip(hosted: Bool) -> DecisionPassReason? {
-        if hosted { return nil }
-        guard configProvider.current.decision.enabled else { return .disabled }
-        return lastStack?.hasFastBrain == true ? .fastBrain : nil
+        DecisionGate.skip(
+            hosted: hosted, enabled: configProvider.current.decision.enabled,
+            fastBrain: lastStack?.hasFastBrain == true)
     }
 }
