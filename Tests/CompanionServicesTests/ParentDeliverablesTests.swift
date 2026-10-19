@@ -73,7 +73,9 @@ private func tempStore() -> (store: FileVersions, root: URL) {
 @MainActor func testTheToolsFollowTheirBacking() {
     let bare = ParentToolRunner(workspace: FakeWorkspaceOpener(installed: [], running: []))
     let names = Set(bare.specs(.es).map(\.name))
-    for tool in NativeTool.parentDeliverables where tool != .listDirectory && tool != .readFile {
+    // The web tools follow their own provider rule (theParentOffersTheWebToolsOnlyWithAProvider).
+    let webTools: Set<NativeTool> = [.webSearch, .readURL, .webFetch]
+    for tool in NativeTool.parentDeliverables where tool != .listDirectory && tool != .readFile && !webTools.contains(tool) {
         expect(!names.contains(tool.rawValue) && !bare.handles(tool.rawValue),
                "padre: sin backing no se ofrece \(tool.rawValue)")
     }
@@ -83,7 +85,7 @@ private func tempStore() -> (store: FileVersions, root: URL) {
     defer { do { try FileManager.default.removeItem(at: storeRoot) } catch {} }
     let backed = runner(workdir: storeRoot.path, versions: store)
     let offered = Set(backed.specs(.es).map(\.name))
-    for tool in NativeTool.parentDeliverables {
+    for tool in NativeTool.parentDeliverables where !webTools.contains(tool) {
         expect(offered.contains(tool.rawValue) && backed.handles(tool.rawValue),
                "padre: con backing se ofrece \(tool.rawValue)")
     }

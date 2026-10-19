@@ -195,25 +195,49 @@ package enum ParentToolGate: Sendable {
     /// Query plus fragment longer than this reads as data riding out, not a search.
     package static let payloadLimit = 80
 
+    /// Tools whose address leaves the Mac: open_url navigates, web_fetch and
+    /// read_url fetch it. web_search is not one of them: its query goes to a
+    /// fixed provider, so an address a page wrote is never contacted through it.
+    package static func addresses(of call: ToolCallRef) -> [String]? {
+        guard let arguments = ToolArguments.parse(call.arguments) else { return nil }
+        switch call.name {
+        case ParentTool.openURL.rawValue, NativeTool.webFetch.rawValue:
+            return (arguments["url"] as? String).map { [$0] }
+        case NativeTool.readURL.rawValue:
+            return (arguments["urls"] as? String).map(addressTokens)
+        default:
+            return nil
+        }
+    }
+
+    /// Spaces and commas separate the addresses of one read_url call.
+    package static func addressTokens(_ raw: String) -> [String] {
+        raw.split { $0.isWhitespace || $0 == "," }.map(String.init)
+    }
+
     /// `strictHost` is the bridge: `said` is empty there, so a host is never
-    /// "said" and every open_url asks.
+    /// "said" and every open_url asks. A tainted turn passes it too, so a page
+    /// read earlier cannot choose the host of the next fetch.
     package static func approval(
         for call: ToolCallRef, said: String, strictHost: Bool = false
     ) -> ApprovalRequest? {
-        guard call.name == ParentTool.openURL.rawValue,
-              let raw = ToolArguments.parse(call.arguments)?["url"] as? String
-        else { return nil }
-        let url: URL
-        do {
-            url = try ParentToolPolicy.httpURL(raw)
-        } catch {
-            // The policy refuses it on its own; nothing to ask about.
-            return nil
+        guard let raws = addresses(of: call) else { return nil }
+        for raw in raws {
+            let url: URL
+            do {
+                url = try ParentToolPolicy.httpURL(raw)
+            } catch {
+                // The policy refuses a malformed address on its own; nothing to ask about.
+                continue
+            }
+            guard let host = url.host, needsSheet(url, host: host, said: said, strictHost: strictHost)
+            else { continue }
+            let verb = call.name == ParentTool.openURL.rawValue ? "open" : "read"
+            return ApprovalRequest(
+                requestId: UUID().uuidString, toolName: call.name,
+                summary: "\(verb) \(host)", inputJSON: call.arguments)
         }
-        guard let host = url.host, needsSheet(url, host: host, said: said, strictHost: strictHost) else { return nil }
-        return ApprovalRequest(
-            requestId: UUID().uuidString, toolName: call.name,
-            summary: "open \(host)", inputJSON: call.arguments)
+        return nil
     }
 
     /// Pure: whether opening `url` asks, given what the user said.

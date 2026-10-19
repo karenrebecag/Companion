@@ -9,7 +9,7 @@ extension NativeToolRunner {
         guard let raw = arguments["urls"] as? String else {
             return ToolResult(ok: false, output: "Missing urls argument")
         }
-        let tokens = raw.split { $0.isWhitespace || $0 == "," }.map(String.init)
+        let tokens = ParentToolGate.addressTokens(raw)
         guard !tokens.isEmpty else {
             return ToolResult(ok: false, output: "Missing urls argument")
         }

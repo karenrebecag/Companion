@@ -65,7 +65,7 @@ package struct ActionFacts: Sendable, Equatable {
 extension ActionBand {
     private static let reads: Set<String> = [
         "look", "see", "read_focused", "list_apps", "read_skill", "find_places",
-        "list_directory", "read_file", "web_search", "read_url", "sheet_read",
+        "list_directory", "read_file", "web_search", "sheet_read",
     ]
 
     /// Local, non-destructive hands. What makes one of them dangerous is the
@@ -95,7 +95,7 @@ extension ActionBand {
             return newFileBand(facts)
         case NativeTool.sheetWrite.rawValue:
             return facts.rangeHasValues == false ? .act : .critical
-        case NativeTool.webFetch.rawValue:
+        case NativeTool.webFetch.rawValue, NativeTool.readURL.rawValue:
             // Read, then fetch: text in a file or a page can ask for
             // `evil.tld?d=<what you read>`. In QA a critical band is the finger.
             return facts.cleanTurn || facts.hostSaid ? .act : .critical
