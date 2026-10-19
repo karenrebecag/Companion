@@ -27,8 +27,11 @@ nonisolated enum MapCardLayout {
         width * listFraction
     }
 
-    static func foundKey(count: Int) -> String {
-        count == 1 ? "map.found.one" : "map.found.other"
+    /// Places beyond this many in a column are cut off, so the fade shows.
+    static let fadeThreshold = 2
+
+    static func pluralKey(_ stem: String, count: Int) -> String {
+        "\(stem).\(count == 1 ? "one" : "other")"
     }
 
     static func fitRegion(_ coordinates: [CLLocationCoordinate2D]) -> MKCoordinateRegion? {

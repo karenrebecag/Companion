@@ -232,7 +232,8 @@
 "notices.label" = "Avisos";
 "notices.error.prefix" = "Error";
 "job.record" = "Encargo: %@";
-"map.title" = "Ubicaciones";
+"map.count.one" = "%d lugar";
+"map.count.other" = "%d lugares";
 "sources.file" = "Archivo";
 "sources.file.kind" = "Archivo %@";
 

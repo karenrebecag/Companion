@@ -25,6 +25,8 @@ enum CardMetrics {
     static let map: CGFloat = 200
     /// The locator's list and map side by side: tall enough for three places.
     static let locator: CGFloat = 320
+    /// A narrow locator's place card: wide enough for a name and its link.
+    static let placeCard: CGFloat = 200
     static let pin: CGFloat = Space.x6
     static let pinRing: CGFloat = Space.x8
     static let zoomButton: CGFloat = Space.x7

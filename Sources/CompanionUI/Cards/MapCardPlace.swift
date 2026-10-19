@@ -33,19 +33,21 @@ struct MapCardPlace: View {
                 }
             }
             action
-                .padding(.top, Space.x1)
         }
-        .padding(Space.x3)
+        .padding(.horizontal, Space.x3)
+        .padding(.vertical, Space.x2)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: Radius.md).fill(Semantic.surface))
         .overlay(
             RoundedRectangle(cornerRadius: Radius.md)
                 .stroke(selected ? Semantic.accent : Semantic.border,
                         lineWidth: selected ? Stroke.medium : Stroke.hairline))
-        .overlay(
-            RoundedRectangle(cornerRadius: Radius.md)
-                .stroke(Semantic.focusRing, lineWidth: Stroke.medium)
-                .opacity(focused ? 1 : 0))
+        .overlay {
+            if focused {
+                RoundedRectangle(cornerRadius: Radius.md)
+                    .stroke(Semantic.focusRing, lineWidth: Stroke.medium)
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: Radius.md))
         .onTapGesture(perform: onSelect)
         // Activation only: a click must not draw the keyboard ring.
@@ -60,18 +62,27 @@ struct MapCardPlace: View {
 
     @ViewBuilder private var action: some View {
         if let url = location.url, let parsed = URL(string: url) {
-            Link(destination: parsed) { actionLabel(Localized.string("map.site")) }
+            Link(destination: parsed) { actionChip(Localized.string("map.site")) }
                 .buttonStyle(.plain)
         } else {
-            Button { openInMaps() } label: { actionLabel(Localized.string("map.inMaps")) }
+            Button { openInMaps() } label: { actionChip(Localized.string("map.inMaps")) }
                 .buttonStyle(.plain)
         }
     }
 
-    private func actionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(.uiCaption.weight(.medium))
-            .foregroundStyle(Semantic.accent)
+    /// The accent chip: a tinted wash, accent ink, and an arrow for "leaves the card".
+    private func actionChip(_ text: String) -> some View {
+        HStack(spacing: Space.x1) {
+            Text(text)
+            Image(systemName: "arrow.up.right")
+        }
+        .font(.uiCaption.weight(.medium))
+        .foregroundStyle(Semantic.accentText)
+        .padding(.horizontal, Space.x2)
+        .padding(.vertical, Space.x0_5)
+        .background(
+            RoundedRectangle(cornerRadius: Radius.sm)
+                .fill(Semantic.accentWash))
     }
 
     private func openInMaps() {

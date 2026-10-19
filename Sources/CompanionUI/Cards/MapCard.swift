@@ -3,8 +3,8 @@ import MapKit
 import SwiftUI
 
 /// A place lookup as a locator: the list beside the map when the card is wide,
-/// the map over the list when it is narrow. Picking a place or a pin selects
-/// the other and flies the camera to it.
+/// the map over a strip of place cards when it is narrow. Picking a place or a
+/// pin selects the other and flies the camera to it.
 struct MapCard: View {
     let block: LocationsBlock
 
@@ -25,22 +25,19 @@ struct MapCard: View {
         _position = State(initialValue: Self.initialPosition(block))
     }
 
+    private var count: Int { block.locations.count }
+
     var body: some View {
         VStack(alignment: .leading, spacing: Space.x3) {
-            Text(block.title ?? Localized.string("map.title"))
-                .font(.uiSubtitle)
-                .foregroundStyle(Semantic.foreground)
-
+            header
             if MapCardLayout.isSideBySide(width: contentWidth) {
                 HStack(alignment: .top, spacing: Space.x3) {
-                    listColumn(scrolls: true)
-                        .frame(width: MapCardLayout.listWidth(for: contentWidth),
-                               height: CardMetrics.locator)
+                    placeColumn
                     mapView(height: CardMetrics.locator)
                 }
             } else {
                 mapView(height: CardMetrics.map)
-                listColumn(scrolls: false)
+                placeStrip
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -50,6 +47,30 @@ struct MapCard: View {
             guard let id, let loc = block.locations.first(where: { $0.stableId == id }) else { return }
             focus(Self.coordinate(loc))
         }
+    }
+
+    /// One heading. A model-supplied title keeps its words and the count
+    /// moves to a quiet caption; without one the count is the heading.
+    @ViewBuilder private var header: some View {
+        if let title = block.title {
+            HStack(alignment: .firstTextBaseline, spacing: Space.x2) {
+                Text(title)
+                    .font(.uiSubtitle)
+                    .foregroundStyle(Semantic.foreground)
+                Spacer(minLength: Space.x2)
+                Text(countText(MapCardLayout.pluralKey("map.count", count: count)))
+                    .font(.uiCaption)
+                    .foregroundStyle(Semantic.mutedForeground)
+            }
+        } else {
+            Text(countText(MapCardLayout.pluralKey("map.found", count: count)))
+                .font(.uiSubtitle)
+                .foregroundStyle(Semantic.foreground)
+        }
+    }
+
+    private func countText(_ key: String) -> String {
+        String(format: Localized.string(key), count)
     }
 
     private static func coordinate(_ loc: LocationsBlock.Location) -> CLLocationCoordinate2D {
@@ -145,26 +166,52 @@ struct MapCard: View {
         }
     }
 
-    private func listColumn(scrolls: Bool) -> some View {
-        let places = VStack(alignment: .leading, spacing: Space.x2) {
-            Text(String(format: Localized.string(MapCardLayout.foundKey(count: block.locations.count)),
-                        block.locations.count))
-                .font(.uiCaption.weight(.medium))
-                .foregroundStyle(Semantic.mutedForeground)
-            ForEach(block.locations, id: \.stableId) { loc in
-                MapCardPlace(location: loc, selected: loc.stableId == selectedId) {
-                    select(loc)
+    /// Wide: the list has the map's height and scrolls inside it. A fade at
+    /// the bottom edge says there is more, once there is more to say.
+    private var placeColumn: some View {
+        ScrollView { placeList }
+            .scrollIndicators(.hidden)
+            .frame(width: MapCardLayout.listWidth(for: contentWidth), height: CardMetrics.locator)
+            .overlay(alignment: .bottom) {
+                if count > MapCardLayout.fadeThreshold {
+                    LinearGradient(
+                        colors: [.clear, Semantic.surface],
+                        startPoint: .top, endPoint: .bottom)
+                        .frame(height: Space.x8)
+                        .allowsHitTesting(false)
                 }
+            }
+    }
+
+    /// Narrow: fixed-width cards that snap, with the next card cut at the
+    /// edge as the cue that the strip scrolls.
+    private var placeStrip: some View {
+        ScrollView(.horizontal) {
+            HStack(alignment: .top, spacing: Space.x2) {
+                ForEach(block.locations, id: \.stableId) { loc in
+                    placeCard(loc)
+                        .frame(width: CardMetrics.placeCard)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollTargetBehavior(.viewAligned)
+        .scrollIndicators(.hidden)
+    }
+
+    private var placeList: some View {
+        VStack(alignment: .leading, spacing: Space.x2) {
+            ForEach(block.locations, id: \.stableId) { loc in
+                placeCard(loc)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        return Group {
-            if scrolls {
-                ScrollView { places }
-                    .scrollIndicators(.hidden)
-            } else {
-                places
-            }
+    }
+
+    private func placeCard(_ loc: LocationsBlock.Location) -> some View {
+        MapCardPlace(location: loc, selected: loc.stableId == selectedId) {
+            select(loc)
         }
     }
 }

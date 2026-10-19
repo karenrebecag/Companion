@@ -24,8 +24,8 @@ import Testing
 }
 
 @Test func headerPluralAndZoomBounds() {
-    #expect(MapCardLayout.foundKey(count: 1) == "map.found.one")
-    #expect(MapCardLayout.foundKey(count: 6) == "map.found.other")
+    #expect(MapCardLayout.pluralKey("map.found", count: 1) == "map.found.one")
+    #expect(MapCardLayout.pluralKey("map.count", count: 6) == "map.count.other")
     #expect(MapCardLayout.zoomed(MapCardLayout.minDistance, zoomIn: true) == MapCardLayout.minDistance)
     #expect(MapCardLayout.zoomed(MapCardLayout.maxDistance, zoomIn: false) == MapCardLayout.maxDistance)
 }

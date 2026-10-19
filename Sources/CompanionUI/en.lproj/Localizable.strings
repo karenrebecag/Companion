@@ -232,7 +232,8 @@
 "notices.label" = "Notices";
 "notices.error.prefix" = "Error";
 "job.record" = "Job: %@";
-"map.title" = "Locations";
+"map.count.one" = "%d place";
+"map.count.other" = "%d places";
 "sources.file" = "File";
 "sources.file.kind" = "%@ file";
 
