@@ -317,7 +317,7 @@ extension ParentToolRunner {
         let bundle = knownBundle ?? "-"
         let command = CommandApps.isCommandApp(bundleID: bundle)
         if command, tool == .typeText,
-           HandsWords.hasControl(arguments["text"] as? String ?? "", format: true) {
+           HandsWords.hasControl(SecretKeeper.shared.open(arguments["text"] as? String ?? "") ?? "", format: true) {
             Log.app("hands: type_text control_characters pid=\(pid) bundle=\(bundle)")
             return .failed(Self.handsError(
                 "control_characters", "control characters are never typed into a command app"),
@@ -457,8 +457,13 @@ struct HandsAct {
     }
 
     func type(_ arguments: [String: Any]) async -> ParentToolOutcome {
-        guard let raw = arguments["text"] as? String, !raw.isEmpty else {
+        guard let sealed = arguments["text"] as? String, !sealed.isEmpty else {
             return .failed(.invalidArgs("missing text"), tool: tool.rawValue)
+        }
+        // Opened here, after the ticket matched the arguments the owner saw:
+        // the value exists only between this line and the keystrokes.
+        guard let raw = SecretKeeper.shared.open(sealed) else {
+            return fail("protected_value", "that protected value is no longer available; ask the owner to write it again")
         }
         let text = HandsGate.stripped(raw)
         guard !text.isEmpty else { return .failed(.invalidArgs("missing text"), tool: tool.rawValue) }

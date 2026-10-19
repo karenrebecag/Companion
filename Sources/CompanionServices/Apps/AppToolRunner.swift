@@ -389,10 +389,21 @@ package struct CompositeParentTools: ParentToolExecuting, Sendable {
         guard let runner = runners.first(where: { $0.handles(name) }) else {
             return .failed(.notFound("unknown tool: \(name)"))
         }
-        // The one place every path's results pass: what a tool read off the
-        // screen or a file is masked before it becomes model context.
-        return TurnRedaction.redact(
-            await runner.execute(name: name, argumentsJSON: argumentsJSON), tool: name)
+        // A reference outside an input tool would carry the owner's value off
+        // the Mac; computah refuses a protected value it would have to convert
+        // remotely the same way (`CommandLanguage.swift:389`).
+        if SecretVault.holdsReference(argumentsJSON), !SecretVault.inputTools.contains(name) {
+            return .failed(ContractError(
+                code: "protected_value",
+                message: "a protected value can only be typed with type_text or browser_type"), tool: name)
+        }
+        // The one place every path's results pass: what was typed goes back to
+        // its reference, and what a tool read off the screen or a file is
+        // masked, before it becomes model context.
+        var outcome = await runner.execute(name: name, argumentsJSON: argumentsJSON)
+        outcome.output = SecretKeeper.shared.reseal(outcome.output)
+        outcome.target = SecretKeeper.shared.reseal(outcome.target)
+        return TurnRedaction.redact(outcome, tool: name)
     }
 
     package func approval(for call: ToolCallRef, said: String) -> ApprovalRequest? {

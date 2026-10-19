@@ -311,12 +311,15 @@ final class ClassicRuntime: @unchecked Sendable {
         apply: @escaping @Sendable (TurnEvent) async -> Void
     ) async {
         let language = config.language
-        let heard: String
+        let spokenRaw: String
         if let leftover = takeLeftoverHeard() {
-            heard = leftover.trimmingCharacters(in: .whitespacesAndNewlines)
+            spokenRaw = leftover.trimmingCharacters(in: .whitespacesAndNewlines)
         } else {
-            heard = await finalTranscript()
+            spokenRaw = await finalTranscript()
         }
+        // Sealed before the island, the transcript log, the router or the
+        // model see it: a secret said aloud travels as a reference too.
+        let heard = SecretKeeper.shared.seal(spokenRaw)
         // Code review 2026-09-24 (medio): a press cut this turn while its ear
         // was finishing. The listen running now is the next hold's; "heard
         // nothing" and the hang-up below would tear it down.

@@ -106,54 +106,65 @@ package enum TurnRedaction {
     }
 
     package static func redact(_ text: String) -> String {
-        var result = text
+        var result = ""
+        var cursor = text.startIndex
+        for span in protectedRanges(in: text) {
+            result += text[cursor..<span.lowerBound] + mask
+            cursor = span.upperBound
+        }
+        return result + text[cursor...]
+    }
+
+    /// Where the secrets sit in `text`, merged and in order. Every rule reads
+    /// the original text, not a half-masked copy, so a caller can keep each
+    /// value on the Mac and send only a reference to it (computah keeps source
+    /// ranges the same way, `CommandLanguage.swift:45`).
+    package static func protectedRanges(in text: String) -> [Range<String.Index>] {
+        let whole = NSRange(text.startIndex..., in: text)
+        var spans: [Range<String.Index>] = []
         for regex in patterns {
-            result = replace(regex, in: result, with: mask)
+            spans += regex.matches(in: text, range: whole).compactMap { Range($0.range, in: text) }
         }
         for regex in keepingPrefix {
-            result = replace(regex, in: result, with: "$1\(mask)")
+            spans += regex.matches(in: text, range: whole).compactMap { match in
+                let start = NSMaxRange(match.range(at: 1))
+                return Range(NSRange(location: start, length: NSMaxRange(match.range) - start), in: text)
+            }
         }
-        result = maskDigitRuns(result)
+        spans += digitRunSpans(text)
         for (regex, isSensitive) in validated {
-            result = maskMatches(regex, in: result, where: isSensitive)
+            spans += regex.matches(in: text, range: whole).compactMap { Range($0.range, in: text) }
+                .filter { isSensitive(String(text[$0])) }
+        }
+        return merged(spans.filter { !$0.isEmpty })
+    }
+
+    /// Touching spans become one, so a value split across two rules is one mask.
+    private static func merged(_ spans: [Range<String.Index>]) -> [Range<String.Index>] {
+        var result: [Range<String.Index>] = []
+        for span in spans.sorted(by: { $0.lowerBound < $1.lowerBound }) {
+            if let last = result.last, span.lowerBound <= last.upperBound {
+                result[result.count - 1] = last.lowerBound..<max(last.upperBound, span.upperBound)
+            } else {
+                result.append(span)
+            }
         }
         return result
     }
 
-    private static func replace(_ regex: NSRegularExpression, in text: String, with template: String) -> String {
-        regex.stringByReplacingMatches(
-            in: text, range: NSRange(text.startIndex..., in: text), withTemplate: template)
-    }
-
-    private static func maskMatches(
-        _ regex: NSRegularExpression, in text: String, where isSensitive: (String) -> Bool
-    ) -> String {
-        var result = text
-        // Back to front so earlier ranges stay valid while the string shrinks.
-        for match in regex.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
-            guard let range = Range(match.range, in: result), isSensitive(String(result[range])) else { continue }
-            result.replaceSubrange(range, with: mask)
+    private static func digitRunSpans(_ text: String) -> [Range<String.Index>] {
+        digitRun.matches(in: text, range: NSRange(text.startIndex..., in: text)).flatMap { match in
+            guard let run = Range(match.range, in: text) else { return [Range<String.Index>]() }
+            return outsideLongFractions(text[run]).flatMap(pieceSpans)
         }
-        return result
-    }
-
-    private static func maskDigitRuns(_ text: String) -> String {
-        var result = text
-        for match in digitRun.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
-            guard let range = Range(match.range, in: result) else { continue }
-            let run = String(result[range])
-            let masked = splitAtLongFractions(run).map { $0.isFraction ? String($0.text) : maskPiece(String($0.text)) }
-            result.replaceSubrange(range, with: masked.joined())
-        }
-        return result
     }
 
     /// A float's fraction ("0.9999963045120239") shares the digit-run shape, but no
     /// card or CLABE prints a group longer than 6 digits after a dot. Only that
     /// fraction is set aside: skipping the whole run would let a card next to a
     /// price or an IP through.
-    private static func splitAtLongFractions(_ run: String) -> [(text: Substring, isFraction: Bool)] {
-        var parts: [(text: Substring, isFraction: Bool)] = []
+    private static func outsideLongFractions(_ run: Substring) -> [Substring] {
+        var pieces: [Substring] = []
         var start = run.startIndex
         var cursor = run.startIndex
         while let dot = run[cursor...].firstIndex(of: ".") {
@@ -161,28 +172,31 @@ package enum TurnRedaction {
             let fractionEnd = run[fractionStart...].firstIndex(where: { !$0.isNumber }) ?? run.endIndex
             cursor = fractionEnd
             guard run.distance(from: fractionStart, to: fractionEnd) > 6 else { continue }
-            parts.append((run[start..<dot], false))
-            parts.append((run[dot..<fractionEnd], true))
+            pieces.append(run[start..<dot])
             start = fractionEnd
         }
-        parts.append((run[start...], false))
-        return parts
+        pieces.append(run[start...])
+        return pieces
     }
 
     /// The whole piece first (a CLABE, or a card with a CVV glued to it), then
     /// every span of whole digit groups, so a card next to a short number or a
     /// second card in the same run still masks.
-    private static func maskPiece(_ piece: String) -> String {
-        let digitCount = piece.filter(\.isNumber).count
-        guard digitCount >= 13 else { return piece }
-        if digitCount == 18, IdentifierChecks.isCLABE(piece) { return mask }
-        if let window = IdentifierChecks.cardWindow(in: piece) {
-            return piece.replacingCharacters(in: window, with: mask)
+    private static func pieceSpans(_ piece: Substring) -> [Range<String.Index>] {
+        guard piece.filter(\.isNumber).count >= 13 else { return [] }
+        let copy = String(piece)
+        if copy.filter(\.isNumber).count == 18, IdentifierChecks.isCLABE(copy) {
+            return [piece.startIndex..<piece.endIndex]
         }
-        return maskGroupSpans(piece)
+        if let window = IdentifierChecks.cardWindow(in: copy) {
+            let lower = piece.index(piece.startIndex, offsetBy: copy.distance(from: copy.startIndex, to: window.lowerBound))
+            let upper = piece.index(lower, offsetBy: copy.distance(from: window.lowerBound, to: window.upperBound))
+            return [lower..<upper]
+        }
+        return groupSpans(piece)
     }
 
-    private static func maskGroupSpans(_ piece: String) -> String {
+    private static func groupSpans(_ piece: Substring) -> [Range<String.Index>] {
         let groups = groupRanges(piece)
         var hits: [Range<String.Index>] = []
         var first = 0
@@ -194,12 +208,10 @@ package enum TurnRedaction {
             hits.append(groups[first].lowerBound..<groups[last].upperBound)
             first = last + 1
         }
-        var result = piece
-        for hit in hits.reversed() { result.replaceSubrange(hit, with: mask) }
-        return result
+        return hits
     }
 
-    private static func sensitiveSpanEnd(_ piece: String, groups: [Range<String.Index>], from first: Int) -> Int? {
+    private static func sensitiveSpanEnd(_ piece: Substring, groups: [Range<String.Index>], from first: Int) -> Int? {
         var digits = 0
         for last in first..<groups.count {
             digits += piece.distance(from: groups[last].lowerBound, to: groups[last].upperBound)
@@ -211,7 +223,7 @@ package enum TurnRedaction {
         return nil
     }
 
-    private static func groupRanges(_ piece: String) -> [Range<String.Index>] {
+    private static func groupRanges(_ piece: Substring) -> [Range<String.Index>] {
         var ranges: [Range<String.Index>] = []
         var cursor = piece.startIndex
         while let start = piece[cursor...].firstIndex(where: \.isNumber) {

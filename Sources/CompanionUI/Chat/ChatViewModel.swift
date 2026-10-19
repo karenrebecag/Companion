@@ -394,6 +394,7 @@ package final class ChatViewModel: ConversationPresenting {
     }
 
     package func appendUser(_ text: String, context: TurnContext?) async {
+        let text = SecretKeeper.shared.seal(text)
         rolloverIfDue()
         messages.append(ChatMessage(
             role: .user, text: text, recall: context.map { recall(text, $0) }))

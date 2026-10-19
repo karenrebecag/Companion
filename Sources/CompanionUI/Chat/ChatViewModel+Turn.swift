@@ -12,6 +12,7 @@ extension ChatViewModel {
     func startTurn(
         _ text: String, origin: MessageOrigin = .typed, mentions: [Mention] = [], asUserWords: Bool = true
     ) -> String {
+        let text = SecretKeeper.shared.seal(text)
         parentTools?.beginTurn()
         turnToolsRan = false
         delegateWithdrawn = false
