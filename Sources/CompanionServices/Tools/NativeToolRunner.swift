@@ -398,7 +398,7 @@ package struct NativeToolRunner: Sendable {
             }
             near = city.label
         }
-        let found = PlaceResults.places(await places.search(query, near: near), query: query)
+        var found = PlaceResults.places(await places.search(query, near: near), query: query)
         guard !found.isEmpty else {
             // An empty map is worse than no map: it reads as "the place does
             // not exist" when it only means this query missed.
@@ -407,11 +407,29 @@ package struct NativeToolRunner: Sendable {
                 card: Card(payload: .empty(.places(query: query)), source: .tool))
         }
 
-        let lines = found.map { place in
-            place.address.isEmpty
+        // "Which is closest to X" is answered from these figures, so the
+        // anchor is measured here and the list is ordered by it.
+        var note: String?
+        var origin: FoundPlace?
+        if let from = (arguments["from"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !from.isEmpty {
+            origin = await places.locate(from)
+            if let origin {
+                found.sort { GeoDistance.meters(from: origin, to: $0) < GeoDistance.meters(from: origin, to: $1) }
+            } else {
+                note = "No distances: could not place \"\(from)\"."
+            }
+        }
+        var lines = found.map { place in
+            var line = place.address.isEmpty
                 ? "- \(place.name)"
                 : "- \(place.name) — \(place.address)"
+            if let origin {
+                line += " — \(GeoDistance.label(GeoDistance.meters(from: origin, to: place))) away"
+            }
+            return line
         }
+        if let note { lines.append(note) }
         let block = LocationsBlock(
             title: query,
             locations: found.map { place in

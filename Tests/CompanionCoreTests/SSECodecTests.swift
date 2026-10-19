@@ -130,10 +130,12 @@ import Testing
     expectEq(fn["strict"] as? Bool, true, "strict: function.strict")
     let params = fn["parameters"] as? [String: Any] ?? [:]
     expectEq(params["additionalProperties"] as? Bool, false, "strict: additionalProperties false")
-    expectEq(Set((params["required"] as? [String]) ?? []), ["query", "near"], "strict: todo required")
+    expectEq(Set((params["required"] as? [String]) ?? []), ["query", "near", "from"], "strict: todo required")
     let props = params["properties"] as? [String: Any] ?? [:]
     expectEq((props["near"] as? [String: Any])?["type"] as? [String], ["string", "null"],
              "strict: lo opcional es nullable")
+    expectEq((props["from"] as? [String: Any])?["type"] as? [String], ["string", "null"],
+             "strict: from es opcional, así que nullable")
     expectEq((props["query"] as? [String: Any])?["type"] as? String, "string",
              "strict: lo requerido no cambia")
     let loose = json(spec.encodeChat())

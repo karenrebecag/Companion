@@ -296,6 +296,8 @@ extension ChatViewModel {
         // Before the first call runs: the judge and the kept "siempre" settle
         // what they can, and the rest of the step's sheets are asked together.
         let plan = await planStep(calls, said: said, tools: tools)
+        var memo = ToolCallMemo()
+        var answers: [Int: ParentToolOutcome] = [:]
         for (index, call) in calls.enumerated() {
             // A turn that stopped being current must not keep opening things. The
             // plan may already have granted tickets for the calls that now stop.
@@ -316,8 +318,18 @@ extension ChatViewModel {
                 settled = settledOutcome(plan.lanes[index], call: call)
             }
             let (denied, decision) = settled
+            // The same read twice in one round is one lookup: the second answer
+            // is the first one's, and it draws no second card (QA 606).
+            let reused: ParentToolOutcome?
+            if case .reuse(let first) = memo.step(name: call.name, arguments: call.arguments, index: index) {
+                reused = answers[first]
+            } else {
+                reused = nil
+            }
             if let repeated {
                 outcome = ParentToolOutcome(ok: false, output: repeated, tool: call.name)
+            } else if let reused {
+                outcome = reused
             } else if let denied {
                 outcome = denied
             } else {
@@ -344,7 +356,8 @@ extension ChatViewModel {
                     band: decision.band, ownerCheck: decision.ownerCheck))
                 record.statusLines.append(statusLine)
             }
-            if let card = outcome.card { cards.append(card) }
+            answers[index] = outcome
+            if let card = outcome.card, reused == nil { cards.append(card) }
             if let line = ReceiptProof.entry(tool: call.name, outcome: outcome, language: config.language) {
                 proven.append(line)
             }

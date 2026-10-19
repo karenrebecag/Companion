@@ -14,6 +14,61 @@ import Testing
     testAStreetIsNotAPlace()
     testAnAddressKeepsItsStreet()
     testACategoryDropsStreets()
+    testDistanceFromAnchorSortsNearestFirst()
+    testAnAnchorThatCannotBeLocatedSaysSo()
+}
+
+// QA 606: "which café is closest to the Glorieta" was unanswerable: the
+// results had no distance and no order. The anchor is measured once and the
+// list is nearest first, each line carrying its distance.
+private let glorieta = FoundPlace(name: "Glorieta", address: "", lat: 19.4270, lng: -99.1677)
+private let cafeNear = FoundPlace(
+    name: "Café Cerca", address: "Álvaro Obregón 1", lat: 19.4275, lng: -99.1670)
+
+private struct AnchoredPlaces: PlacesSearching {
+    let found: [FoundPlace]
+    let origin: FoundPlace?
+    func search(_ query: String, near: String?) async -> [FoundPlace] { found }
+    func locate(_ text: String) async -> FoundPlace? { origin }
+}
+
+@MainActor private func runFrom(_ places: AnchoredPlaces) -> ToolResult {
+    let runner = NativeToolRunner(workdir: NSTemporaryDirectory(), places: places)
+    do {
+        return try runAsync {
+            try await runner.execute(
+                tool: "find_places",
+                arguments: ["query": "cafetería", "from": "Glorieta de Insurgentes"], approved: false)
+        }
+    } catch {
+        expect(false, "find_places no debia tirar: \(error)")
+        return ToolResult(ok: false, output: "")
+    }
+}
+
+@MainActor func testDistanceFromAnchorSortsNearestFirst() {
+    let result = runFrom(AnchoredPlaces(found: [soumaya, cafeNear], origin: glorieta))
+    let lines = result.output.split(separator: "\n").map(String.init)
+    expect(lines.count == 2 && lines[0].contains("Café Cerca") && lines[1].contains("Museo Soumaya"),
+           "el más cercano va primero: \(result.output)")
+    expect(lines[0].hasSuffix(" away") && lines[0].contains(" m away"), "a metros: \(lines[0])")
+    expect(lines[1].contains(" km away"), "a kilómetros: \(lines[1])")
+    expect(!result.output.contains("19.4"), "la latitud sigue sin viajar")
+}
+
+@MainActor func testAnAnchorThatCannotBeLocatedSaysSo() {
+    let result = runFrom(AnchoredPlaces(found: [cafeNear], origin: nil))
+    expect(result.output.contains("No distances: could not place"),
+           "sin ancla no inventa distancias: \(result.output)")
+    expect(result.output.contains("Café Cerca"), "la lista sigue saliendo")
+}
+
+@Test func distanceBetweenTwoPlacesIsGreatCircle() {
+    // Glorieta de Insurgentes to Museo Soumaya is about 4.2 km on the ground.
+    let meters = GeoDistance.meters(from: glorieta, to: soumaya)
+    expect(meters > 4_000 && meters < 4_300, "distancia ~4.2 km: \(meters)")
+    expectEq(GeoDistance.label(850), "850 m", "menos de un km en metros")
+    expectEq(GeoDistance.label(1_460), "1.5 km", "un km y medio")
 }
 
 private let soumaya = FoundPlace(

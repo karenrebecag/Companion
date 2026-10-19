@@ -233,7 +233,9 @@ struct ClearHistoryJobTests {
 
     private static let twoCalls = [
         ToolCallRef(id: "c1", name: "look", arguments: "{}"),
-        ToolCallRef(id: "c2", name: "look", arguments: "{}"),
+        // Not identical to c1: an identical read in one round is answered from c1
+        // (ToolCallMemo), so the second call would never run and never be waited on.
+        ToolCallRef(id: "c2", name: "look", arguments: #"{"target":"second"}"#),
     ]
 
     @Test @MainActor func clearingDoesNotWriteAStoppedLine() async throws {
