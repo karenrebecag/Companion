@@ -61,13 +61,13 @@ package enum TurnRedaction {
         // Whole line, env style (`DB_PASSWORD=...`). A passphrase runs to a
         // comma or semicolon, so the rest of a sentence after it survives.
         #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:PASSWORD|PASSWD|CONTRASEÑA)[ \t]*[=:][ \t]*)[^,;\n]+"#,
-        #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:SECRET|CLAVE|PIN)[ \t]*(?:=|:(?![ \t"']*(?:iCloud|Keychain|Android|Autofill)(?![A-Za-z0-9_\-~])(?:[ \t]*(?:\n|$)|[ \t]+(?-i:[a-záéíóúñ]+)(?![A-Za-z0-9]))))[ \t"']*)[^\s"'<>,;]{4,}"#,
+        #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:SECRET|CLAVE|PIN)[ \t]*(?:=|:(?![ \t"']*(?:iCloud|Keychain|Android|Autofill)(?![A-Za-z0-9_\-~])(?:[ \t]*(?:\n|$)|[ \t]+(?-i:[a-záéíóúñ]+)(?![A-Za-z0-9]))))[ \t"']*)[^,;\n]+"#,
         #"(?im)^([ \t]*(?:export[ \t]+)?[A-Za-z0-9_.\-]*(?:TOKEN|KEY|PASSKEYS?)[A-Za-z0-9_.\-]*[ \t]*(?:=[ \t]*|:[ \t]*(?=\S*?(?:\d|\S{12})))).+$"#,
         // Strong label, inline ("la clave=hunter22", "client secret: ...").
         // A passphrase (password, contraseña) masks to a comma or semicolon.
         #"(?i)(\b[A-Za-z0-9_]*(?:password|passwd|contraseña)[ \t]*[:=][ \t]*["']?)[^,;\n]+"#,
         // The exemptions are common Spanish prose after a label, not secrets.
-        #"(?i)(\b(?:[A-Za-z0-9_]*(?:clave|secret)|(?:[A-Za-z0-9]+_)?pin)[ \t]*(?:=|:(?![ \t"']*(?:iCloud|Keychain|Android|Autofill)(?![A-Za-z0-9_\-~])(?:[ \t]*(?:\n|$)|[ \t]+(?-i:[a-záéíóúñ]+)(?![A-Za-z0-9]))))[ \t"']*)[^\s"'<>,;]{4,}"#,
+        #"(?i)(\b(?:[A-Za-z0-9_]*(?:clave|secret)|(?:[A-Za-z0-9]+_)?pin)[ \t]*(?:=|:(?![ \t"']*(?:iCloud|Keychain|Android|Autofill)(?![A-Za-z0-9_\-~])(?:[ \t]*(?:\n|$)|[ \t]+(?-i:[a-záéíóúñ]+)(?![A-Za-z0-9]))))[ \t"']*)[^,;\n]+"#,
         // Weak label: a digit or 12+ characters, or it is prose.
         #"(?i)\b([A-Za-z0-9_]*(?:api[ _-]?key|passkeys?|token|key)\w*(?:[ \t]*=[ \t]*["']?|[ \t]*:[ \t]*["']?(?=[^\s"'<>,;]*\d|[^\s"'<>,;]{12})))[^\s"'<>,;]{6,}"#,
         // A bare hex string is only a secret when a word says so

@@ -67,8 +67,8 @@ private let mask = TurnRedaction.mask
 }
 
 @Test func aSecretLabelAnywhereInALineMasksItsValue() {
-    expectEq(TurnRedaction.redact("ver client secret: Xy8Q~abcdefghij ok"), "ver client secret: \(mask) ok", "azure")
-    expectEq(TurnRedaction.redact("la clave=hunter22 fin"), "la clave=\(mask) fin", "clave")
+    expectEq(TurnRedaction.redact("ver client secret: Xy8Q~abcdefghij ok"), "ver client secret: \(mask)", "azure")
+    expectEq(TurnRedaction.redact("la clave=hunter22 fin"), "la clave=\(mask)", "clave: hasta la coma o el fin")
     expectEq(TurnRedaction.redact("sin dos puntos clave del mapa"), "sin dos puntos clave del mapa", "sin valor")
 }
 
@@ -114,8 +114,8 @@ private let mask = TurnRedaction.mask
 
 @Test func aStrongLabelAlwaysMasksItsValue() {
     expectEq(TurnRedaction.redact("password: secreto"), "password: \(mask)", "password: secreto")
-    expectEq(TurnRedaction.redact("pin: 4821 ok"), "pin: \(mask) ok", "pin corto con dígitos")
-    expectEq(TurnRedaction.redact("secret: abcd ok"), "secret: \(mask) ok", "cuatro caracteres")
+    expectEq(TurnRedaction.redact("pin: 4821 ok"), "pin: \(mask)", "pin corto con dígitos")
+    expectEq(TurnRedaction.redact("secret: abcd ok"), "secret: \(mask)", "cuatro caracteres")
     expectEq(TurnRedaction.redact("ver password: hunter2x fin"), "ver password: \(mask)", "frase: hasta la coma")
 }
 
@@ -162,17 +162,19 @@ private let mask = TurnRedaction.mask
 // QA review 2026-10-19: camelCase and env-style names are still strong labels
 // mid-line; before the split they were masked.
 @Test func camelAndEnvStrongLabelsMaskMidLine() {
-    expectEq(TurnRedaction.redact("ver clientSecret: abcdefgh fin"), "ver clientSecret: \(mask) fin", "clientSecret")
+    expectEq(TurnRedaction.redact("ver clientSecret: abcdefgh fin"), "ver clientSecret: \(mask)", "clientSecret")
     expectEq(TurnRedaction.redact("ver userPassword=abc fin"), "ver userPassword=\(mask)", "userPassword")
-    expectEq(TurnRedaction.redact("ver MY_SECRET=abcdefgh fin"), "ver MY_SECRET=\(mask) fin", "MY_SECRET")
+    expectEq(TurnRedaction.redact("ver MY_SECRET=abcdefgh fin"), "ver MY_SECRET=\(mask)", "MY_SECRET")
 }
 
 // The exemption is for prose: the word ends the value, or a lowercase word
 // follows it. A token with a digit or a capital after it is still a value.
 @Test func aSecretAfterAnExemptWordIsStillMasked() {
     expectEq(TurnRedaction.redact("clave: iCloud-x9"), "clave: \(mask)", "iCloud-x9 no es prosa")
-    expectEq(TurnRedaction.redact("clave: Android hunter2"), "clave: \(mask) hunter2", "Android seguido de un dígito")
-    expectEq(TurnRedaction.redact("pin: Keychain miSecreto"), "pin: \(mask) miSecreto", "Keychain seguido de mayúscula")
+    expectEq(TurnRedaction.redact("clave: Android hunter2"), "clave: \(mask)", "Android seguido de un dígito")
+    expect(!TurnRedaction.redact("clave: Android hunter2").contains("hunter2"), "el resto del valor no queda a la vista")
+    expectEq(TurnRedaction.redact("pin: Keychain miSecreto"), "pin: \(mask)", "Keychain seguido de mayúscula")
+    expect(!TurnRedaction.redact("pin: Keychain miSecreto").contains("miSecreto"), "miSecreto no queda a la vista")
 }
 
 @Test func anExemptWordAsProseIsNotMasked() {
